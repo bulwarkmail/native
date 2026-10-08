@@ -295,6 +295,34 @@ describe('setupPushNotifications leftover reaping', () => {
   });
 });
 
+describe('setupPushNotifications when the loaded account changes mid-setup', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    listMock.mockResolvedValue([]);
+    installFetch({});
+  });
+
+  afterEach(() => {
+    (jmapClient as { username: string }).username = 'user@example.com';
+  });
+
+  it('gives up rather than keep the first account\'s relay under the second', async () => {
+    const other = generateAccountId('other@example.com', 'https://mail.example.com');
+    // The client switches while the token is fetched.
+    vi.mocked(NativeModules.BulwarkFcm.getToken).mockImplementationOnce(async () => {
+      (jmapClient as { username: string }).username = 'other@example.com';
+      return 'fcm-token-xyz';
+    });
+
+    await expect(setupPushNotifications({ relayBaseUrl: RELAY })).rejects.toMatchObject({ phase: 'account' });
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v2:' + other)).toBeNull();
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v2:' + ACCOUNT_ID)).toBeNull();
+  });
+});
+
 describe('setupPushNotifications and the Inbox-only setting', () => {
   beforeEach(async () => {
     vi.clearAllMocks();

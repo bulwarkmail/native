@@ -1049,6 +1049,7 @@
       "push": {
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
+        "err_account_changed": "The account changed during setup. Try again.",
         "err_android_only": "Push notifications are only available on Android.",
         "err_fcm_empty": "Firebase returned an empty device token.",
         "err_fcm_token": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device.",

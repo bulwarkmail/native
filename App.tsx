@@ -1,5 +1,4 @@
 import { signOutWithGuard } from './src/lib/sign-out-guard';
-import { generateAccountId } from './src/lib/account-utils';
 import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -93,7 +92,7 @@ import {
   type DeepLink,
 } from './src/navigation/linking';
 import { usePendingSignInLinkStore } from './src/navigation/pending-sign-in-link';
-import { MAX_ACCOUNTS } from './src/lib/account-utils';
+import { generateAccountId, MAX_ACCOUNTS } from './src/lib/account-utils';
 import { addShareListener, getInitialShare, shareAttachments } from './src/lib/share-intent';
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';

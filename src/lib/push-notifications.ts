@@ -1068,14 +1068,17 @@ async function setupPushNotificationsInner(
     fcmToken = await getFcmTokenOrThrow(native!);
   }
 
-  // setupPushNotifications operates on the currently-loaded jmapClient. We
-  // need its username/serverUrl up-front so we can key per-account state.
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (!username || !serverUrl) {
+  // setupPushNotifications operates on the currently-loaded jmapClient, and
+  // keys per-account state by the account it found loaded when it chose the
+  // relay. A client that has since moved to another account would put that
+  // relay and this subscription under the wrong one, so the run gives up.
+  if (!loadedId) {
     throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
-  const accountId = generateAccountId(username, serverUrl);
+  if (loadedAppAccountId() !== loadedId) {
+    throw new PushSetupError('account', t('settings.notifications.push.err_account_changed', 'The account changed during setup. Try again.'));
+  }
+  const accountId = loadedId;
 
   await migrateLegacyPushKeys();
 
