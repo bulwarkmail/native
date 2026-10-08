@@ -27,7 +27,10 @@ export async function getShareNotifications(): Promise<ShareNotification[]> {
   );
   const getResp = response.methodResponses?.find((r) => r[0] === 'ShareNotification/get');
   if (!getResp) {
-    const error = response.methodResponses?.find((r) => r[0] === 'error')?.[1] as { description?: string } | undefined;
+    const error = response.methodResponses?.find((r) => r[0] === 'error')?.[1] as { type?: string; description?: string } | undefined;
+    // A server with principals but without RFC 9670 has nothing to report;
+    // not an error worth logging on every resume.
+    if (error?.type === 'unknownMethod') return [];
     throw new Error(error?.description || 'Failed to load share notifications');
   }
   return ((getResp[1] as { list?: ShareNotification[] }).list ?? []);

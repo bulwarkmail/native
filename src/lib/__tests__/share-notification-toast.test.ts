@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shareNotificationKind, shareNotificationMessage } from '../share-notification-toast';
+import { freeToastSlots, shareNotificationKind, shareNotificationMessage } from '../share-notification-toast';
 import type { ShareNotification } from '../../api/types';
 
 const t = (key: string, fallback?: string, params?: Record<string, string | number>) =>
@@ -52,7 +52,42 @@ describe('shareNotificationKind', () => {
   it('falls back to the object id and the raw type, and strips control characters from sender text', () => {
     expect(shareNotificationMessage(n({ name: '', objectType: 'Thing' }), t as never).text)
       .toBe('Dana changed your access to the Thing "cal-1"');
-    expect(shareNotificationMessage(n({ changedBy: { name: 'Da‮na\u0007', email: null, principalId: null } }), t as never).text)
+    expect(shareNotificationMessage(n({ changedBy: { name: 'Da\u202ena\u0007', email: null, principalId: null } }), t as never).text)
       .toBe('Dana changed your access to the calendar "Team"');
+  });
+});
+
+describe('sender text stays on one line', () => {
+  it.each([
+    ['a line feed', 'Dana\nYour account will be suspended'],
+    ['an Arabic letter mark', 'Dana\u061cYour account will be suspended'],
+    ['a line separator', 'Dana\u2028Your account will be suspended'],
+  ])('drops %s from the sharer name and the object name', (_what, value) => {
+    const text = shareNotificationMessage(n({
+      changedBy: { name: value, email: null, principalId: null },
+      name: value,
+    }), t as never).text;
+    expect(text).not.toMatch(/[\n\r\u061c\u2028\u2029]/);
+    expect(text).toContain('Dana');
+    expect(text).toContain('Your account will be suspended');
+  });
+});
+
+describe('freeToastSlots', () => {
+  const toast = (type: string, action = false) => ({
+    id: Math.random().toString(36), type, title: 'x', duration: 5000, createdAt: 0,
+    ...(action ? { action: { label: 'Undo', onPress: () => undefined } } : {}),
+  }) as never;
+
+  it('leaves the newest three free when nothing must stay', () => {
+    expect(freeToastSlots([])).toBe(3);
+    expect(freeToastSlots([toast('info'), toast('success')])).toBe(3);
+  });
+
+  it('keeps everything from the oldest Undo or error inside the three slots', () => {
+    expect(freeToastSlots([toast('info', true)])).toBe(2);
+    expect(freeToastSlots([toast('info', true), toast('info')])).toBe(1);
+    expect(freeToastSlots([toast('info'), toast('error')])).toBe(2);
+    expect(freeToastSlots([toast('error'), toast('info', true), toast('info')])).toBe(0);
   });
 });

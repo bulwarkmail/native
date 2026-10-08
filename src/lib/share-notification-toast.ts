@@ -1,9 +1,12 @@
 import type { ShareNotification } from '../api/types';
 import type { TranslateFn } from '../stores/locale-store';
-import { plain } from './calendar-event-notification-toast';
+import type { Toast } from '../stores/toast-store';
+import { TOAST_HOST_SLOTS } from './calendar-event-notification-toast';
+import { plainDisplayText as plain } from './display-text';
 
-// The sharer controls their name and the collection name: shown as plain
-// text only, cleaned and cut like the calendar notices.
+// The sharer controls their name and the collection name: shown as one line
+// of plain text, with format characters and line breaks dropped (so a name
+// cannot fake a second line) and cut to a sane length.
 const MAX_NAME = 100;
 const MAX_OBJECT = 100;
 
@@ -40,4 +43,20 @@ export function shareNotificationMessage(
     return { level: 'warning', text: t('share_notifications.revoked', '{name} removed your access to the {kind} "{object}"', params) };
   }
   return { level: 'info', text: t('share_notifications.changed', '{name} changed your access to the {kind} "{object}"', params) };
+}
+
+/** A toast the user may still need: an error, or one with a button (Undo). */
+function mustKeep(toast: Toast): boolean {
+  return toast.type === 'error' || !!toast.action || !!toast.secondaryAction;
+}
+
+/**
+ * How many toasts can be added without evicting one the user may still need.
+ * The host keeps the newest three, so everything from the oldest such toast
+ * onwards has to stay inside them.
+ */
+export function freeToastSlots(toasts: Toast[]): number {
+  const first = toasts.findIndex(mustKeep);
+  if (first < 0) return TOAST_HOST_SLOTS;
+  return Math.max(0, TOAST_HOST_SLOTS - (toasts.length - first));
 }

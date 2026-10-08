@@ -43,10 +43,22 @@ describe('buildNoticeToasts', () => {
 
   it('strips control characters', () => {
     const [o] = buildNoticeToasts([
-      { ...base, type: 'created', changedBy: { ...by, name: 'A\u0000B‮C' }, comment: 'l1\nl2\u0007' },
+      { ...base, type: 'created', changedBy: { ...by, name: 'A\u0000B\u202eC' }, comment: 'l1\nl2\u0007' },
     ] as never, t as never);
-    expect(o.title).not.toMatch(/[\u0000-\u0008‮]/);
+    expect(o.title).not.toMatch(/[\u0000-\u0008\u202e]/);
     expect(o.message).toBe('l1\nl2');
+  });
+
+  it.each([
+    ['a line feed', 'Dana\nYour account will be suspended'],
+    ['an Arabic letter mark', 'Dana\u061cYour account will be suspended'],
+    ['a line separator', 'Dana\u2028Your account will be suspended'],
+  ])('keeps the sender name and event title on one line despite %s', (_what, value) => {
+    const [o] = buildNoticeToasts([
+      { ...base, type: 'created', changedBy: { ...by, name: value }, event: { title: value } },
+    ] as never, t as never);
+    expect(o.title).not.toMatch(/[\n\r\u061c\u2028\u2029]/);
+    expect(o.title).toContain('Your account will be suspended');
   });
 
   it('offers Open only for a loadable, non-cancelled event on the active account', () => {
@@ -75,6 +87,14 @@ describe('selectNoticeToasts', () => {
     expect(selectNoticeToasts(toasts(0))).toEqual({ individual: [], overflow: 0 });
     expect(selectNoticeToasts(toasts(3)).individual.map((x) => x.id)).toEqual(['t0', 't1', 't2']);
     expect(selectNoticeToasts(toasts(3)).overflow).toBe(0);
+  });
+
+  it('adds at most `room` toasts when the host has less space', () => {
+    expect(selectNoticeToasts(toasts(2), 2)).toEqual({ individual: toasts(2), overflow: 0 });
+    const r = selectNoticeToasts(toasts(5), 2);
+    expect(r.individual.map((x) => x.id)).toEqual(['t4']);
+    expect(r.overflow).toBe(4);
+    expect(selectNoticeToasts(toasts(5), 1)).toEqual({ individual: [], overflow: 5 });
   });
 
   it('for a bigger burst keeps the newest two and counts the rest', () => {

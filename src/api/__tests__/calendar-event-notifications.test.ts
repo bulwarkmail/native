@@ -56,6 +56,14 @@ describe('getCalendarEventNotifications', () => {
     mockRequest.mockResolvedValue({ methodResponses: [['error', { description: 'nope' }, '0']] });
     await expect(getCalendarEventNotifications()).rejects.toThrow('nope');
   });
+
+  it('treats a server without CalendarEventNotification as having none', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [
+      ['error', { type: 'unknownMethod' }, '0'],
+      ['error', { type: 'invalidResultReference' }, '1'],
+    ] });
+    expect(await getCalendarEventNotifications()).toEqual([]);
+  });
 });
 
 describe('destroyCalendarEventNotifications', () => {

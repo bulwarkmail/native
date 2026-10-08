@@ -1,9 +1,12 @@
 import type { CalendarEventNotification } from '../api/types';
 import type { TranslateFn } from '../stores/locale-store';
+import { plainDisplayText } from './display-text';
 
 // The sender controls the name, the event title and the comment. They are
-// shown as plain text only (never markup, never linkified), stripped of
-// control and bidi-override characters and cut to a sane length.
+// shown as plain text only (never markup, never linkified) and cut to a sane
+// length. The name and title are one-line labels: plainDisplayText drops
+// every format character and line break, so a name cannot fake a second
+// line. The comment is the toast's body and keeps its line breaks.
 const MAX_NAME = 100;
 const MAX_TITLE = 100;
 const MAX_COMMENT = 200;
@@ -11,7 +14,7 @@ const MAX_COMMENT = 200;
 // eslint-disable-next-line no-control-regex
 const UNSAFE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮⁦-⁩]/g;
 
-export function plain(value: string | null | undefined, max: number): string {
+function plain(value: string | null | undefined, max: number): string {
   const clean = (value ?? '').replace(UNSAFE, '').trim();
   const chars = Array.from(clean);
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : clean;
@@ -41,10 +44,10 @@ export function buildNoticeToasts(
   for (const n of notices) {
     // Drafts are the user's own unsent scheduling changes - nothing to announce.
     if (n.isDraft) continue;
-    const name = plain(n.changedBy?.name, MAX_NAME)
-      || plain(n.changedBy?.email, MAX_NAME)
+    const name = plainDisplayText(n.changedBy?.name, MAX_NAME)
+      || plainDisplayText(n.changedBy?.email, MAX_NAME)
       || t('calendar_event_notifications.someone', 'Someone');
-    const title = plain(n.event?.title, MAX_TITLE)
+    const title = plainDisplayText(n.event?.title, MAX_TITLE)
       || t('calendar_event_notifications.untitled', 'Untitled event');
     const params = { name, title };
     let level: NoticeToast['level'] = 'info';
@@ -76,18 +79,22 @@ export function buildNoticeToasts(
 
 // The toast host keeps three toasts; a backlog toasted one by one would evict
 // unrelated ones.
-const MAX_TOASTS = 3;
-const INDIVIDUAL_WHEN_CROWDED = 2;
+export const TOAST_HOST_SLOTS = 3;
 
 /**
  * Splits toasts (oldest first) into those shown one by one and a count of
- * the rest, which get one summary toast. Up to three are shown as they are;
- * a bigger batch keeps the newest two and summarises the others.
+ * the rest, which get one summary toast, so that at most `room` toasts are
+ * added (three by default). A batch that fits is shown as it is; a bigger
+ * one keeps the newest `room - 1` and summarises the others.
  */
-export function selectNoticeToasts(toasts: NoticeToast[]): { individual: NoticeToast[]; overflow: number } {
-  if (toasts.length <= MAX_TOASTS) return { individual: toasts, overflow: 0 };
+export function selectNoticeToasts<N>(
+  toasts: N[],
+  room: number = TOAST_HOST_SLOTS,
+): { individual: N[]; overflow: number } {
+  if (toasts.length <= room) return { individual: toasts, overflow: 0 };
+  const keep = Math.max(0, room - 1);
   return {
-    individual: toasts.slice(-INDIVIDUAL_WHEN_CROWDED),
-    overflow: toasts.length - INDIVIDUAL_WHEN_CROWDED,
+    individual: keep > 0 ? toasts.slice(-keep) : [],
+    overflow: toasts.length - keep,
   };
 }

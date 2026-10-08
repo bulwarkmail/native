@@ -53,6 +53,14 @@ describe('getShareNotifications', () => {
     mockRequest.mockResolvedValue({ methodResponses: [['error', { description: 'nope' }, '0']] });
     await expect(getShareNotifications()).rejects.toThrow('nope');
   });
+
+  it('treats a server without ShareNotification as having none', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [
+      ['error', { type: 'unknownMethod' }, '0'],
+      ['error', { type: 'invalidResultReference' }, '1'],
+    ] });
+    expect(await getShareNotifications()).toEqual([]);
+  });
 });
 
 describe('destroyShareNotifications', () => {

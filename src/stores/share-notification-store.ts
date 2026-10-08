@@ -1,9 +1,6 @@
 import { destroyShareNotifications, getShareNotifications } from '../api/share-notifications';
 import type { ShareNotification } from '../api/types';
-import { createPendingNotificationStore, type PendingNotification } from './pending-notification-store';
-
-/** A share notice tagged with its JMAP and app account. */
-export type PendingShareNotification = PendingNotification<ShareNotification>;
+import { createPendingNotificationStore } from './pending-notification-store';
 
 /**
  * ShareNotification (RFC 9670 §3) inbox: the server records every change to

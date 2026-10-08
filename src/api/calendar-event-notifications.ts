@@ -30,7 +30,10 @@ export async function getCalendarEventNotifications(): Promise<CalendarEventNoti
   );
   const getResp = response.methodResponses?.find((r) => r[0] === 'CalendarEventNotification/get');
   if (!getResp) {
-    const error = response.methodResponses?.find((r) => r[0] === 'error')?.[1] as { description?: string } | undefined;
+    const error = response.methodResponses?.find((r) => r[0] === 'error')?.[1] as { type?: string; description?: string } | undefined;
+    // A calendar server without event notifications has nothing to report;
+    // not an error worth logging on every resume.
+    if (error?.type === 'unknownMethod') return [];
     throw new Error(error?.description || 'Failed to load calendar event notifications');
   }
   return ((getResp[1] as { list?: CalendarEventNotification[] }).list ?? []);
