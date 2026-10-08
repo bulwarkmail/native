@@ -418,6 +418,11 @@
     },
     "body_truncated": "This message is too large to show in full.",
     "bundle_too_large": "The attachments are too large to bundle.",
+    "calendar_invitation": {
+      "apply_confirm_message": "Every attendee will be sent the updated event. This can't be undone.",
+      "apply_confirm_title": "Apply the proposed changes?",
+      "change_virtual_location": "Meeting link"
+    },
     "color_tag": {
       "blue": "Blue",
       "green": "Green",
@@ -1282,6 +1287,9 @@
         "filters_stopped_restart": "Your filters are not running while the auto-reply is on. Save to run them again."
       }
     }
+  },
+  "share_notifications": {
+    "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}"
   },
   "sharing": {
     "own_books_only": "Only your own address books can be shared",

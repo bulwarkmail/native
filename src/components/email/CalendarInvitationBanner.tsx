@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { openExternalUrl } from '../../lib/open-url';
 import {
   CalendarPlus, Check, HelpCircle, X, MapPin, Video, Clock, CalendarDays, AlertTriangle,
@@ -7,12 +7,12 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
 import type { RootStackParamList } from '../../navigation/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { fetchCalendarBlobText, findEventsByUid, parseCalendarBlob } from '../../api/calendar';
+import { fetchCalendarBlobText, findEventsByUid, parseCalendarBlob, updateEvent } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
@@ -27,16 +27,23 @@ import {
   getOrganizerEmail,
   getOrganizerName,
   invitationSentFrom,
-  isOrganizerParticipant,
+  isUserOrganizer,
   buildReplyTo,
+  buildProposalPatch,
+  buildInvitationChangeItems,
+  canApplyProposal,
+  type InvitationChangeItem,
   type InvitationMethod,
   type InvitationTrustAssessment,
 } from '../../lib/calendar-invitation';
-import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
+import { addressesForAccount, useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, getEventStartDate, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
-import { requireShownAccountScope, useEmailStore } from '../../stores/email-store';
+import { AccountNotServedError, requireShownAccountScope, useEmailStore } from '../../stores/email-store';
+import { useAccountStore } from '../../stores/account-store';
+import { toDisplayDate } from '../../lib/calendar-timezone';
+import { isServerRecurrenceInstance } from '../../lib/recurrence-instances';
 import { invitationViewTarget } from '../../lib/invitation-view-target';
 import { setPendingCalendarView } from '../../navigation/pending-calendar-open';
 import { plainDisplayText } from '../../lib/display-text';
@@ -91,6 +98,23 @@ function participationLabel(
   }
 }
 
+function changeLabel(label: InvitationChangeItem['label'], t: TranslateFn): string {
+  switch (label) {
+    case 'title': return t('email_viewer.calendar_invitation.change_title', 'Title');
+    case 'time': return t('email_viewer.calendar_invitation.change_time', 'Time');
+    case 'location': return t('email_viewer.calendar_invitation.change_location', 'Location');
+    case 'virtual_location': return t('email_viewer.calendar_invitation.change_virtual_location', 'Meeting link');
+    case 'description': return t('email_viewer.calendar_invitation.change_description', 'Description');
+  }
+}
+
+// The stored event a counter proposal is reviewed against, as the server
+// holds it: an expanded occurrence (what the calendar loads) carries a
+// synthetic id and drops the all-day flag and recurrence.
+function storedEventOf(found: CalendarEvent[]): CalendarEvent | null {
+  return found.find((e) => !isServerRecurrenceInstance(e)) ?? null;
+}
+
 // Who the message comes from and what they did, by iTIP method.
 function actorText(
   method: InvitationMethod,
@@ -125,6 +149,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const shownAppAccountId = useEmailStore((s) => s.activeAccountId);
+  const signedInAppAccountId = useAccountStore((s) => s.activeAccountId);
   const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
   const enabled = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
@@ -161,6 +186,10 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const [pickerOpen, setPickerOpen] = React.useState(false);
   // Per message, not remembered: another invitation opens expanded.
   const [collapsed, setCollapsed] = React.useState(false);
+  // For a counter: the stored event in the message's account, found by UID.
+  const [storedEvent, setStoredEvent] = React.useState<CalendarEvent | null>(null);
+  // Set synchronously, so a second tap can't send the proposal twice.
+  const applying = React.useRef(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -168,6 +197,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     if (!invitationKey || !part || !enabled) return;
     setState('loading');
     setServerMatch(null);
+    setStoredEvent(null);
     setCollapsed(false);
     // The look-up goes out on the connection serving the message's account
     // when the banner loaded, or not at all.
@@ -205,6 +235,13 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         }
         setMethod(detected);
         setState('parsed');
+        // A counter is reviewed against the event as stored, on the message's
+        // account; never against another account's event with that UID.
+        if (detected === 'counter' && lookupScope && parsed.uid) {
+          findEventsByUid(parsed.uid, lookupScope)
+            .then((found) => { if (!cancelled) setStoredEvent(storedEventOf(found)); })
+            .catch(() => undefined);
+        }
       } catch {
         if (!cancelled) setState('error');
       }
@@ -274,8 +311,30 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     ?? (myExistingStatus === 'accepted' || myExistingStatus === 'tentative' || myExistingStatus === 'declined'
       ? myExistingStatus
       : null);
-  // Only the organizer reviews a counter proposal or a refresh request.
-  const userIsOrganizer = !!me && isOrganizerParticipant(me.participant) && !me.participant.roles?.attendee;
+  // Only the organizer reviews a counter proposal or a refresh request. The
+  // user's addresses count only for the account the message is shown in.
+  const ownAddresses = addressesForAccount(
+    ownerAppAccountId,
+    { shown: shownAppAccountId, signedIn: signedInAppAccountId },
+    currentUserEmails,
+  );
+  const userIsOrganizer = isUserOrganizer(existing ?? event, ownAddresses);
+
+  // Change times: an instant shown in the calendar's zone, a floating time
+  // and an all-day date as they are.
+  const formatChangeTime = (iso: string | null) => {
+    if (!iso) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return format(parseISO(iso), 'EEE, MMM d', { locale: dateLocale });
+    const date = /Z$/.test(iso) ? toDisplayDate(new Date(iso)) : parseISO(iso);
+    if (isNaN(date.getTime())) return '';
+    return format(date, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale });
+  };
+  const reviewing = method === 'counter' && userIsOrganizer && !!storedEvent && isUserOrganizer(storedEvent, ownAddresses);
+  const proposedChanges = reviewing ? buildInvitationChangeItems(storedEvent, event, formatChangeTime) : [];
+  const proposalPatch = reviewing ? buildProposalPatch(storedEvent, event) : null;
+  const showApply = reviewing && canApplyProposal({
+    method, userIsOrganizer: true, existing: storedEvent, patch: proposalPatch, changes: proposedChanges, proposed: event,
+  });
 
   const actor = getInvitationActorSummary(event, method);
   const actorLine = actor
@@ -317,6 +376,61 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     if (!target) return;
     setPendingCalendarView(target);
     navigation.navigate('MainTabs', { screen: 'Calendar' } as never);
+  };
+
+  const applyProposal = async () => {
+    if (applying.current || !storedEvent || !event.uid) return;
+    applying.current = true;
+    setBusy(true);
+    setNotice(null);
+    try {
+      // The banner's account, on the connection serving it, taken now:
+      // refused after a switch.
+      const at = requireShownAccountScope(ownerAppAccountId);
+      // Read the event again on that scope and apply to it as stored now,
+      // and only to the one reviewed.
+      const found = storedEventOf(await findEventsByUid(event.uid, at));
+      const addresses = addressesForAccount(
+        ownerAppAccountId,
+        { shown: useEmailStore.getState().activeAccountId, signedIn: useAccountStore.getState().activeAccountId },
+        currentUserEmails,
+      );
+      const patch = found && found.id === storedEvent.id ? buildProposalPatch(found, event) : null;
+      const changes = found ? buildInvitationChangeItems(found, event, formatChangeTime) : [];
+      if (!found || !patch || !canApplyProposal({
+        method, userIsOrganizer: isUserOrganizer(found, addresses), existing: found, patch, changes, proposed: event,
+      })) {
+        throw new Error('proposal no longer applies');
+      }
+      // Sends the updated event to every attendee.
+      await updateEvent(found.baseEventId ?? found.originalId ?? found.id, patch, true, at);
+      setStoredEvent({ ...found, ...patch });
+      setNotice(t('email_viewer.calendar_invitation.proposal_applied', 'Proposed changes applied.'));
+      void useCalendarStore.getState().refresh().catch(() => undefined);
+    } catch (err) {
+      setNotice(err instanceof AccountNotServedError
+        ? err.message
+        : t('email_viewer.calendar_invitation.action_failed', 'Could not complete that calendar action.'));
+    } finally {
+      applying.current = false;
+      setBusy(false);
+    }
+  };
+
+  const confirmApplyProposal = () => {
+    if (applying.current || busy) return;
+    Alert.alert(
+      t('email_viewer.calendar_invitation.apply_confirm_title', 'Apply the proposed changes?'),
+      t('email_viewer.calendar_invitation.apply_confirm_message', "Every attendee will be sent the updated event. This can't be undone."),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('email_viewer.calendar_invitation.apply_proposal', 'Apply proposed changes'),
+          style: 'destructive',
+          onPress: () => { void applyProposal(); },
+        },
+      ],
+    );
   };
 
   const ensureImportedAndRsvp = async (status: RsvpStatus) => {
@@ -481,6 +595,41 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
               <Text style={styles.viewLinkText}>{viewLabel}</Text>
             </Pressable>
           )}
+          {proposedChanges.length > 0 && (
+            <View style={styles.changeList}>
+              <Text style={styles.changeHeading}>
+                {t('email_viewer.calendar_invitation.proposed_changes', 'Proposed changes')}
+              </Text>
+              {/* Values another user wrote, already flattened; a meeting link
+                  is shown as text, never opened from here. */}
+              {proposedChanges.map((change) => (
+                <Text key={change.label} style={styles.changeText}>
+                  <Text style={styles.changeLabel}>{changeLabel(change.label, t)}: </Text>
+                  {t('email_viewer.calendar_invitation.change_from_to', '{before} -> {after}', {
+                    before: change.before ?? t('email_viewer.calendar_invitation.change_empty', 'None'),
+                    after: change.after,
+                  })}
+                </Text>
+              ))}
+            </View>
+          )}
+          {showApply && (
+            <Pressable
+              style={[styles.applyBtn, busy && { opacity: 0.5 }]}
+              onPress={confirmApplyProposal}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={c.primaryForeground} />
+              ) : (
+                <Check size={16} color={c.primaryForeground} />
+              )}
+              <Text style={styles.importBtnText}>
+                {t('email_viewer.calendar_invitation.apply_proposal', 'Apply proposed changes')}
+              </Text>
+            </Pressable>
+          )}
           {existing && state !== 'done' && (
             <Row
               icon={<Check size={15} color={c.success} />}
@@ -639,6 +788,17 @@ function makeStyles(c: ThemePalette) {
     actorNote: { fontStyle: 'italic' },
     viewLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start' },
     viewLinkText: { ...typography.captionMedium, color: c.primary },
+    changeList: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.sm,
+      padding: spacing.sm,
+      gap: 4,
+      marginVertical: spacing.xs,
+    },
+    changeHeading: { ...typography.captionMedium, color: c.text },
+    changeText: { ...typography.caption, color: c.textMuted },
+    changeLabel: { ...typography.captionMedium, color: c.text },
     trustRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -708,6 +868,17 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.primary,
     },
     importBtnText: { ...typography.bodyMedium, color: c.primaryForeground },
+    applyBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+      minHeight: 44,
+      borderRadius: radius.sm,
+      backgroundColor: c.primary,
+      marginVertical: spacing.xs,
+    },
     warnRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
     warnText: { ...typography.caption, color: c.warning },
   });

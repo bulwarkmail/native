@@ -1,6 +1,7 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
 import { headerValues, parseAuthenticationResults, type AuthenticationResults } from './email-headers';
 import { plainDisplayText } from './display-text';
+import { localDateTimeToInstant } from './time-zone';
 
 // ─── Address helpers ─────────────────────────────────────
 
@@ -485,4 +486,271 @@ export function getInvitationTrustAssessment(
     return { level: 'caution', reason: 'authentication_missing', senderEmail, organizerEmail };
   }
   return { level: 'trusted', reason: null, senderEmail, organizerEmail };
+}
+
+// ─── Counter proposals ───────────────────────────────────
+
+/**
+ * Whether the user organizes the event: the organizer's address (the one the
+ * trust row checks) is one of `userEmails`. Stalwart marks no owner or chair,
+ * so the address is all there is. The caller hands only the addresses of the
+ * account the event lives in.
+ */
+export function isUserOrganizer(event: Partial<CalendarEvent> | null, userEmails: readonly string[]): boolean {
+  if (!event) return false;
+  const organizer = getOrganizerEmail(event);
+  if (!organizer) return false;
+  return userEmails.some((e) => normalizeEmail(e) === organizer);
+}
+
+export interface InvitationChangeItem {
+  label: 'title' | 'time' | 'location' | 'virtual_location' | 'description';
+  /** Null when the event had none. */
+  before: string | null;
+  after: string;
+}
+
+// Fixed shape, one group per unit, so the match is linear; capped anyway.
+const DURATION_PATTERN = /^P(?:(\d{1,6})W)?(?:(\d{1,6})D)?(?:T(?:(\d{1,6})H)?(?:(\d{1,6})M)?(?:(\d{1,6})S)?)?$/;
+const WALL_CLOCK_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+const HTTP_URI = /^https?:\/\//i;
+const TITLE_MAX = 200;
+const DESCRIPTION_MAX = 2000;
+const URI_MAX = 500;
+
+function durationMs(duration: string | null | undefined): number | null {
+  if (!duration || duration.length > 40) return null;
+  const m = DURATION_PATTERN.exec(duration);
+  if (!m) return null;
+  const [w, d, h, min, sec] = m.slice(1).map((v) => (v ? Number(v) : 0));
+  return ((((w * 7 + d) * 24 + h) * 60 + min) * 60 + sec) * 1000;
+}
+
+// A wall-clock string read as if it were UTC, so adding a duration needs no zone.
+function wallClockAsUtc(value: string): Date | null {
+  if (value.length > 19) return null;
+  const m = WALL_CLOCK_PATTERN.exec(value);
+  if (!m) return null;
+  const date = new Date(Date.UTC(
+    Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+    Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0),
+  ));
+  return isNaN(date.getTime()) ? null : date;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * An event's span, comparable between the stored event and the proposal:
+ * timed events as UTC instants (ISO with Z), whichever way each writes its
+ * start; all-day events as calendar dates (YYYY-MM-DD), the last day
+ * included; a floating time as its wall clock. Null end: a single point or day.
+ */
+function eventSpan(event: Partial<CalendarEvent>): { start: string; end: string | null } | null {
+  if (!event.start && !event.utcStart) return null;
+  const ms = durationMs(event.duration);
+  if (event.showWithoutTime) {
+    const day = event.start ? wallClockAsUtc(event.start) : null;
+    if (!day) return null;
+    const start = day.toISOString().slice(0, 10);
+    if (!ms || ms <= DAY_MS) return { start, end: null };
+    return { start, end: new Date(day.getTime() + ms - DAY_MS).toISOString().slice(0, 10) };
+  }
+  let instant: Date | null = null;
+  if (event.utcStart) {
+    const utc = new Date(event.utcStart);
+    if (!isNaN(utc.getTime())) instant = utc;
+  }
+  if (!instant && event.start && event.timeZone) instant = localDateTimeToInstant(event.start, event.timeZone);
+  if (instant) {
+    return { start: instant.toISOString(), end: ms ? new Date(instant.getTime() + ms).toISOString() : null };
+  }
+  // Floating: a wall clock in the viewer's zone, kept without a Z.
+  const wall = event.start ? wallClockAsUtc(event.start) : null;
+  if (!wall) return null;
+  const floating = (d: Date) => d.toISOString().slice(0, 19);
+  return { start: floating(wall), end: ms ? floating(new Date(wall.getTime() + ms)) : null };
+}
+
+const sameSpan = (a: ReturnType<typeof eventSpan>, b: ReturnType<typeof eventSpan>) =>
+  (a?.start ?? null) === (b?.start ?? null) && (a?.end ?? null) === (b?.end ?? null);
+
+// The proposal's times as the patch may write them: well-formed, or none.
+function proposedTimes(proposed: Partial<CalendarEvent>): Partial<CalendarEvent> | null {
+  if (typeof proposed.start !== 'string' || !wallClockAsUtc(proposed.start)) return null;
+  if (proposed.duration != null && durationMs(proposed.duration) === null) return null;
+  if (proposed.timeZone != null && (typeof proposed.timeZone !== 'string' || proposed.timeZone.length > 64)) return null;
+  return {
+    start: proposed.start,
+    duration: proposed.duration,
+    timeZone: proposed.timeZone ?? null,
+    showWithoutTime: proposed.showWithoutTime ?? false,
+  };
+}
+
+// JSCalendar's descriptionContentType: the app's type leaves it out, but the
+// server and the parsed .ics may carry it.
+function isPlainText(event: Partial<CalendarEvent>): boolean {
+  const type = (event as { descriptionContentType?: unknown }).descriptionContentType;
+  return type == null || (typeof type === 'string' && /^text\/plain\b/i.test(type));
+}
+
+function locationNames(event: Partial<CalendarEvent>): Array<[string, string]> {
+  return Object.entries(event.locations ?? {})
+    .map(([id, l]): [string, string] => [id, plainDisplayText(l?.name, TITLE_MAX)])
+    .filter(([, name]) => !!name);
+}
+
+function meetingLinks(event: Partial<CalendarEvent>): Array<[string, string]> {
+  return Object.entries(event.virtualLocations ?? {})
+    .map(([id, v]): [string, string] => [id, plainDisplayText(v?.uri, URI_MAX)])
+    .filter(([, uri]) => !!uri);
+}
+
+const joined = (entries: Array<[string, string]>) => entries.map(([, v]) => v).join('; ');
+
+/**
+ * The proposal's values the organizer is shown, each flattened by
+ * plainDisplayText, and only those. The patch is built from these and the
+ * change list shows these, so Apply writes (and emails every attendee)
+ * exactly what was on screen: no sender-written control characters, no
+ * location detail or meeting-link name the list leaves out.
+ */
+function reviewedValues(current: Partial<CalendarEvent>, proposed: Partial<CalendarEvent>) {
+  const title = plainDisplayText(proposed.title, TITLE_MAX);
+  const titleBefore = plainDisplayText(current.title, TITLE_MAX);
+
+  // Only plain text on both sides: an HTML proposal is not ours to flatten,
+  // and plain text written into an HTML description would be read as markup.
+  // The event keeps its own content type; the proposal's is never taken.
+  const plain = isPlainText(current) && isPlainText(proposed);
+  const description = plain ? plainDisplayText(proposed.description, DESCRIPTION_MAX) : '';
+  const descriptionBefore = plainDisplayText(current.description, DESCRIPTION_MAX);
+
+  const times = proposedTimes(proposed);
+  const spanBefore = eventSpan(current);
+  const span = times ? eventSpan({ ...times, utcStart: proposed.utcStart }) : null;
+
+  const locations = locationNames(proposed);
+  const locationsBefore = locationNames(current);
+
+  // Another user's URL, sent to every attendee: only web links are taken.
+  const allLinks = meetingLinks(proposed);
+  const links = allLinks.every(([, uri]) => HTTP_URI.test(uri)) ? allLinks : [];
+  const linksBefore = meetingLinks(current);
+
+  return {
+    title: title && title !== titleBefore ? { before: titleBefore || null, after: title } : null,
+    description: description && description !== descriptionBefore
+      ? { before: descriptionBefore || null, after: description }
+      : null,
+    time: times && span && !sameSpan(span, spanBefore) ? { times, before: spanBefore, after: span } : null,
+    locations: locations.length > 0 && joined(locations) !== joined(locationsBefore)
+      ? { entries: locations, before: joined(locationsBefore) || null, after: joined(locations) }
+      : null,
+    links: links.length > 0 && joined(links) !== joined(linksBefore)
+      ? { entries: links, before: joined(linksBefore) || null, after: joined(links) }
+      : null,
+  };
+}
+
+/**
+ * What applying a counter proposal writes to the stored event: the reviewed
+ * values (see reviewedValues) that differ from it, or null when none does.
+ * After webmail calendar-invitation-banner.tsx, but never the proposal's
+ * descriptionContentType, raw text, or anything the change list doesn't show.
+ */
+export function buildProposalPatch(
+  current: Partial<CalendarEvent> | null,
+  proposed: Partial<CalendarEvent> | null,
+): Partial<CalendarEvent> | null {
+  if (!current || !proposed) return null;
+  const v = reviewedValues(current, proposed);
+  const patch: Partial<CalendarEvent> = {};
+  if (v.title) patch.title = v.title.after;
+  if (v.description) patch.description = v.description.after;
+  if (v.time) {
+    const { start, duration, timeZone, showWithoutTime } = v.time.times;
+    if (start !== current.start) patch.start = start;
+    if (typeof duration === 'string' && duration !== current.duration) patch.duration = duration;
+    if ((timeZone ?? null) !== (current.timeZone ?? null)) patch.timeZone = timeZone ?? null;
+    if ((showWithoutTime ?? false) !== (current.showWithoutTime ?? false)) patch.showWithoutTime = showWithoutTime;
+  }
+  if (v.locations) {
+    patch.locations = Object.fromEntries(v.locations.entries.map(([id, name]) => [id, { '@type': 'Location', name }]));
+  }
+  if (v.links) {
+    patch.virtualLocations = Object.fromEntries(v.links.entries.map(([id, uri]) => [id, { '@type': 'VirtualLocation', uri }]));
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
+ * What a counter proposal would change, for the organizer to review, each
+ * before and after: the same values buildProposalPatch writes. Times go
+ * through `formatDateTime` (an ISO instant, a floating wall clock, or a date).
+ */
+export function buildInvitationChangeItems(
+  current: Partial<CalendarEvent> | null,
+  proposed: Partial<CalendarEvent> | null,
+  formatDateTime: (iso: string | null) => string,
+): InvitationChangeItem[] {
+  if (!current || !proposed) return [];
+  const v = reviewedValues(current, proposed);
+  const schedule = (span: ReturnType<typeof eventSpan>) => (span
+    ? `${formatDateTime(span.start)}${span.end ? ` - ${formatDateTime(span.end)}` : ''}`
+    : null);
+  const changes: InvitationChangeItem[] = [];
+  if (v.title) changes.push({ label: 'title', ...v.title });
+  if (v.time) changes.push({ label: 'time', before: schedule(v.time.before), after: schedule(v.time.after) ?? '' });
+  if (v.locations) changes.push({ label: 'location', before: v.locations.before, after: v.locations.after });
+  if (v.links) changes.push({ label: 'virtual_location', before: v.links.before, after: v.links.after });
+  if (v.description) changes.push({ label: 'description', ...v.description });
+  return changes;
+}
+
+// The change-list item each patched key is shown under. A key not listed
+// here is never applied.
+const PATCH_KEY_ITEM: Record<string, InvitationChangeItem['label']> = {
+  title: 'title',
+  description: 'description',
+  start: 'time',
+  duration: 'time',
+  timeZone: 'time',
+  showWithoutTime: 'time',
+  locations: 'location',
+  virtualLocations: 'virtual_location',
+};
+
+/** Whether every key of `patch` is shown by one of `changes`. */
+export function patchIsShown(patch: Partial<CalendarEvent>, changes: readonly InvitationChangeItem[]): boolean {
+  const shown = new Set(changes.map((c) => c.label));
+  return Object.keys(patch).every((key) => {
+    const item = PATCH_KEY_ITEM[key];
+    return !!item && shown.has(item);
+  });
+}
+
+/**
+ * Whether "Apply proposal" is offered: a counter, to its organizer, for the
+ * stored event in the user's own calendar (not a shared one), with something
+ * to change, all of it in the change list. Not on a recurring event or an
+ * occurrence of one: the proposal names one occurrence's times, and patching
+ * the stored event with them would move the whole series.
+ */
+export function canApplyProposal(args: {
+  method: InvitationMethod;
+  userIsOrganizer: boolean;
+  existing: Partial<CalendarEvent> | null;
+  patch: Partial<CalendarEvent> | null;
+  changes: readonly InvitationChangeItem[];
+  proposed?: Partial<CalendarEvent> | null;
+}): boolean {
+  const { method, userIsOrganizer, existing, patch, changes, proposed } = args;
+  if (method !== 'counter' || !userIsOrganizer || !patch) return false;
+  if (!patchIsShown(patch, changes)) return false;
+  if (!existing?.id || existing.isShared) return false;
+  if (existing.recurrenceRules?.length || existing.recurrenceId || proposed?.recurrenceId) return false;
+  if (existing.baseEventId && existing.baseEventId !== (existing.originalId ?? existing.id)) return false;
+  return true;
 }
