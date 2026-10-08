@@ -1,5 +1,6 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
 import { headerValues, parseAuthenticationResults, type AuthenticationResults } from './email-headers';
+import { plainDisplayText } from './display-text';
 
 // ─── Address helpers ─────────────────────────────────────
 
@@ -92,6 +93,18 @@ export interface InvitationActorSummary {
   role: 'organizer' | 'attendee';
   participationStatus: string | null;
   participationComment: string | null;
+}
+
+/**
+ * Who the banner says sent or answered: the name the invitation gives is the
+ * sender's to write, so the address always shows beside it ("Your Bank
+ * <x@evil.example>"), cleaned of direction controls and line breaks.
+ */
+export function formatInvitationActor(actor: Pick<InvitationActorSummary, 'name' | 'email'>): string | null {
+  const email = plainDisplayText(actor.email, 254);
+  const name = plainDisplayText(actor.name, 80);
+  if (name && email && name.toLowerCase() !== email.toLowerCase()) return `${name} <${email}>`;
+  return email || name || null;
 }
 
 // How strongly a participant looks like the one answering: a status other

@@ -9,6 +9,7 @@ import {
   getInvitationActorSummary,
   getInvitationMethod,
   getInvitationTrustAssessment,
+  formatInvitationActor,
 } from '../calendar-invitation';
 import { parseAuthenticationResults } from '../email-headers';
 
@@ -202,5 +203,26 @@ describe('invitation actor', () => {
   it('returns null without participants', () => {
     expect(getInvitationActorSummary({ title: 'x' }, 'request')).toBeNull();
     expect(getInvitationActorSummary({ participants: {} }, 'reply')).toBeNull();
+  });
+});
+
+describe('formatInvitationActor', () => {
+  // The name in an invitation is the sender's to write; the address shows too,
+  // so "Your Bank" alone can't stand in for who sent it.
+  it('shows the address beside a name', () => {
+    expect(formatInvitationActor({ name: 'Your Bank', email: 'x@evil.example' })).toBe('Your Bank <x@evil.example>');
+  });
+
+  it('shows the address alone when the name is the address or missing', () => {
+    expect(formatInvitationActor({ name: 'a@b.example', email: 'a@b.example' })).toBe('a@b.example');
+    expect(formatInvitationActor({ name: null, email: 'a@b.example' })).toBe('a@b.example');
+  });
+
+  it('keeps direction controls and line breaks out of both', () => {
+    expect(formatInvitationActor({ name: 'Bank\u202e\nverified', email: 'x@\u2066evil.example' })).toBe('Bank verified <x@evil.example>');
+  });
+
+  it('gives null with neither', () => {
+    expect(formatInvitationActor({ name: null, email: null })).toBeNull();
   });
 });

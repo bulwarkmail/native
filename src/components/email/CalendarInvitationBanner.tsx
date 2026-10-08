@@ -20,6 +20,7 @@ import {
   calendarInvitationKey,
   findCalendarAttachment,
   findParticipantByEmail,
+  formatInvitationActor,
   getInvitationActorSummary,
   getInvitationMethod,
   getInvitationTrustAssessment,
@@ -36,6 +37,7 @@ import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { requireShownAccountScope, useEmailStore } from '../../stores/email-store';
 import { invitationViewTarget } from '../../lib/invitation-view-target';
 import { setPendingCalendarView } from '../../navigation/pending-calendar-open';
+import { plainDisplayText } from '../../lib/display-text';
 import { importAndRespond, importInvitation } from '../../lib/invitation-actions';
 import type { OpScope } from '../../api/op-scope';
 import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
@@ -258,7 +260,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         ? format(startDate, 'EEEE, MMM d, yyyy', { locale: dateLocale })
         : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale }))
     : null;
-  const organizer = getOrganizerName(event);
+  const organizer = plainDisplayText(getOrganizerName(event), 120);
   const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
   const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
   const me = findParticipantByEmail(existing ?? event, currentUserEmails);
@@ -276,7 +278,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const actorLine = actor
     ? actorText(
       method,
-      actor.name || actor.email || t('email_viewer.calendar_invitation.actor_unknown', 'Someone'),
+      formatInvitationActor(actor) ?? t('email_viewer.calendar_invitation.actor_unknown', 'Someone'),
       participationLabel(actor.participationStatus, t),
       t,
     )
@@ -366,7 +368,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} numberOfLines={2}>
-            {event.title || t('calendar.invitation.title', 'Calendar invitation')}
+            {plainDisplayText(event.title, 200) || t('calendar.invitation.title', 'Calendar invitation')}
           </Text>
           {method === 'cancel' && (
             <Text style={styles.cancelled}>{t('calendar.invitation.cancelled', 'This event was cancelled')}</Text>
@@ -395,6 +397,23 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         </Pressable>
       </View>
 
+      {/* A warning stays in view while the rest is collapsed: the title above
+          is the sender's to write and must not stand alone. */}
+      {trust && (!collapsed || trust.level !== 'trusted') && (
+        <View style={[styles.trustRow, { borderColor: trustColor }]}>
+          {trust.level === 'trusted' ? (
+            <ShieldCheck size={14} color={trustColor} />
+          ) : (
+            <ShieldAlert size={14} color={trustColor} />
+          )}
+          <Text style={[styles.trustText, { color: trustColor }]} numberOfLines={3}>
+            {trust.reason
+              ? trustReasonText(trust.reason, t)
+              : t('calendar.invitation.trust_verified', 'Sender verified')}
+          </Text>
+        </View>
+      )}
+
       {!collapsed && (
         <>
           {(actorLine || actor?.participationComment) && (
@@ -402,24 +421,13 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
               {actorLine && <Text style={styles.actorText}>{actorLine}</Text>}
               {actor?.participationComment ? (
                 <Text style={[styles.actorText, styles.actorNote]} numberOfLines={4}>
-                  {t('email_viewer.calendar_invitation.actor_note', 'Note: {comment}', { comment: actor.participationComment })}
+                  {/* The sender's own words, quoted and flattened to one run so they
+                      can't pass for the banner's own lines (such as the trust row). */}
+                  {t('email_viewer.calendar_invitation.actor_note', 'Note: {comment}', {
+                    comment: `\u201c${plainDisplayText(actor.participationComment, 500)}\u201d`,
+                  })}
                 </Text>
               ) : null}
-            </View>
-          )}
-
-          {trust && (
-            <View style={[styles.trustRow, { borderColor: trustColor }]}>
-              {trust.level === 'trusted' ? (
-                <ShieldCheck size={14} color={trustColor} />
-              ) : (
-                <ShieldAlert size={14} color={trustColor} />
-              )}
-              <Text style={[styles.trustText, { color: trustColor }]} numberOfLines={3}>
-                {trust.reason
-                  ? trustReasonText(trust.reason, t)
-                  : t('calendar.invitation.trust_verified', 'Sender verified')}
-              </Text>
             </View>
           )}
 
