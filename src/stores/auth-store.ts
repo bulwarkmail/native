@@ -40,6 +40,7 @@ import {
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
+  clearStoredRelayBaseUrl,
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
 import { singleFlightByKey } from '../lib/session-retry';
@@ -765,6 +766,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // push setups remain untouched. Do not abort logout on failure.
     if (currentId) {
       await teardownPushNotificationsForAccount(currentId).catch(() => undefined);
+      await clearStoredRelayBaseUrl(currentId).catch(() => undefined);
     } else {
       await teardownPushNotifications().catch(() => undefined);
     }
@@ -983,6 +985,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device sync (#34): as in logout.
     if (!(await releaseDeviceSyncBeforeSignOut([accountId]))) return;
     await teardownPushNotificationsForAccount(accountId).catch(() => undefined);
+    await clearStoredRelayBaseUrl(accountId).catch(() => undefined);
     const providerLogout = await revokeStoredRefreshToken(accountId);
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
