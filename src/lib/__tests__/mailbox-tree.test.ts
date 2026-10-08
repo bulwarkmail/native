@@ -331,12 +331,16 @@ describe('sort order (webmail parity)', () => {
   });
 
   it('applies the same order to subfolders', () => {
+    // A role folder with a higher sortOrder goes after a plain one with a
+    // lower one; with equal sortOrders the role still leads.
     const tree = buildMailboxTree([
       own('p', 'Parent'),
-      own('c1', 'Alpha', { parentId: 'p', sortOrder: 2 }),
+      own('c1', 'Alpha', { parentId: 'p', role: 'archive', sortOrder: 2 }),
       own('c2', 'Zulu', { parentId: 'p', sortOrder: 1 }),
+      own('c3', 'Beta', { parentId: 'p', sortOrder: 1 }),
+      own('c4', 'Trash', { parentId: 'p', role: 'trash', sortOrder: 1 }),
     ]);
-    expect(names(tree[0].children)).toEqual(['Zulu', 'Alpha']);
+    expect(names(tree[0].children)).toEqual(['Trash', 'Beta', 'Zulu', 'Alpha']);
   });
 
   it('orders shared-account folders the same way under their header', () => {
