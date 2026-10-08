@@ -302,10 +302,18 @@ describe('getSenderVerification - sender-written input', () => {
     expect(info.senderVerification).toEqual({ status: 'unverified', domain: 'bank.example', sentFrom: 'evil.example' });
   });
 
-  it('reads a value of many quoted pieces in linear time', () => {
-    const hostile = 'mx; spf=pass smtp.mailfrom=' + '"a"b'.repeat(50_000) + '"unterminated';
+  it('reads hostile quoting in linear time', () => {
+    const hostile = [
+      'mx; spf=pass smtp.mailfrom=' + '"a"b'.repeat(50_000) + '"unterminated',
+      'mx; spf=pass smtp.mailfrom="' + 'a '.repeat(100_000),
+      'mx; spf=pass smtp.mailfrom=' + '"'.repeat(100_001),
+      'mx; spf=pass smtp.mailfrom="' + '\\'.repeat(100_000),
+      'mx; spf=pass ' + 'k="x '.repeat(50_000),
+      'mx' + '; spf=pass k="x'.repeat(50_000),
+      'mx; spf=pass k=' + '"(\\'.repeat(50_000),
+    ];
     const started = performance.now();
-    derive(hostile);
+    for (const value of hostile) derive(value);
     expect(performance.now() - started).toBeLessThan(1000);
   });
 
