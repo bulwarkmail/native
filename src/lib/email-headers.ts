@@ -173,20 +173,18 @@ export function getSenderVerification(
   // The host named comes from the server's own header only: a lower one is
   // the sender's to write.
   const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
-  const spfPass = auth.spf?.all ? mailFrom?.result === 'pass' : auth.spf?.result === 'pass';
   const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
   const envelopeDomain = envelope ? domainOf(envelope) : undefined;
   const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
 
   if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
-  if (auth.dmarc?.result === 'pass') return null;
   // A pass vouches for the From domain only when it is for that domain (or a
-  // parent or subdomain of it): anyone can pass SPF and DKIM for a domain of
-  // their own, and with no DMARC record at the forged one nothing else would
-  // flag it. Stricter than webmail, which takes any pass (decision
-  // 2026-10-08).
-  if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return null;
-  if (hasAlignedDkimPass(auth, domain)) return null;
+  // parent or subdomain of it): anyone can pass SPF, DKIM and DMARC for a
+  // domain of their own, and with no DMARC record at the forged one nothing
+  // else would flag it. Stricter than webmail, which takes any pass
+  // (decision 2026-10-08). The same test as the invitation banner's, so the
+  // two never disagree about one message.
+  if (isFromDomainAuthenticated(auth, fromEmail)) return null;
   return { status: 'unverified', domain, sentFrom };
 }
 

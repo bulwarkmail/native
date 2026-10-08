@@ -271,6 +271,17 @@ describe('getSenderVerification', () => {
     expect(getSenderVerification(auth, 'support@bank.example')?.status).toBe('unverified');
   });
 
+  it('does not take a lone HELO pass for the sender\'s', () => {
+    const auth = parseAuthenticationResults('mx; spf=pass smtp.helo=partner.example');
+    expect(getSenderVerification(auth, 'bob@partner.example')?.status).toBe('unverified');
+  });
+
+  it('takes a DMARC pass only for the From domain, as the invitation banner does', () => {
+    const from = 'support@bank.example';
+    expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=pass header.from=evil.example'), from)?.status).toBe('unverified');
+    expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=pass header.from=mail.bank.example'), from)).toBeNull();
+  });
+
   it('says nothing without results or a From address', () => {
     expect(getSenderVerification(undefined, 'a@b.example')).toBeNull();
     expect(getSenderVerification({}, 'a@b.example')).toBeNull();
