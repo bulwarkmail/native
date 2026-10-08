@@ -116,7 +116,9 @@ export function formatPeriodBoundary(boundary: string | undefined, timeFormat: '
   if (!isPeriodBoundary(boundary)) return '…';
   const date = new Date(Date.parse(boundary));
   const options: Intl.DateTimeFormatOptions = {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h',
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    // h23 rather than hour12: false, which some ICU builds read as h24 ("24:30").
+    ...(timeFormat === '12h' ? { hour12: true } : { hourCycle: 'h23' as const }),
   };
   try {
     return date.toLocaleString(!locale || locale === 'en' ? 'en-US' : locale, options);

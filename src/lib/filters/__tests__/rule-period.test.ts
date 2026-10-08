@@ -232,4 +232,10 @@ describe('formatPeriodBoundary', () => {
     expect(formatPeriodBoundary(undefined, '24h')).toBe('…');
     expect(formatPeriodBoundary('2026-10-05', '24h')).toBe('…');
   });
+
+  it('reads half past midnight as 00:30 on a 24-hour clock', () => {
+    // hour12: false gives "24:30" on some ICU builds (Node 20's).
+    const midnight = new Date(2026, 9, 5, 0, 30).toISOString();
+    expect(formatPeriodBoundary(midnight, '24h')).toContain('00:30');
+  });
 });

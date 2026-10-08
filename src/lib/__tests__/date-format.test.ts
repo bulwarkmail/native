@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatFileModified, formatListDate, formatNumericDate, resolveDateLocale } from '../date-format';
+import { formatFileModified, formatListDate, formatNumericDate, formatWorded, resolveDateLocale, twentyFourHour } from '../date-format';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -324,5 +324,19 @@ describe('formatFileModified', () => {
   it('is empty for no or a bad date', () => {
     expect(formatFileModified(undefined, 'UTC', now)).toBe('');
     expect(formatFileModified('nope', 'UTC', now)).toBe('');
+  });
+});
+
+describe('24-hour clock', () => {
+  // hour12: false gives "24:30" on some ICU builds (Node 20's); h23 does not.
+  it('asks for the h23 cycle instead of hour12: false', () => {
+    expect(twentyFourHour({ hour: '2-digit', hour12: false })).toEqual({ hour: '2-digit', hourCycle: 'h23' });
+    expect(twentyFourHour({ hour: '2-digit', hour12: true })).toEqual({ hour: '2-digit', hour12: true });
+    expect(twentyFourHour({ hour: '2-digit' })).toEqual({ hour: '2-digit' });
+  });
+
+  it('reads half past midnight as 00:30 in a worded date', () => {
+    const d = new Date('2026-03-28T23:30:00Z');
+    expect(formatWorded(d, { hour: '2-digit', minute: '2-digit', hour12: false }, { locale: 'en', timeZone: 'Europe/Berlin' })).toBe('00:30');
   });
 });
