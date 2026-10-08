@@ -12,9 +12,3 @@ export function useDateRegion(): DateRegion {
   const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   return useMemo(() => ({ dateLocale, timeZone }), [dateLocale, timeZone]);
 }
-
-/** The same, read once outside React (compose building a quote). */
-export function getDateRegion(): DateRegion {
-  const { dateLocale, calendarTimeZone } = useSettingsStore.getState();
-  return { dateLocale, timeZone: calendarTimeZone };
-}

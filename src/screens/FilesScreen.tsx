@@ -70,6 +70,7 @@ import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
 import { isStaleLoad } from '../lib/network-error';
+import { formatFileModified } from '../lib/date-format';
 import { planFilesOpen, usePendingFilesOpen } from '../navigation/pending-files-open';
 import { useToastStore } from '../stores/toast-store';
 
@@ -119,24 +120,6 @@ export function formatFileSize(bytes?: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function formatModified(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  }
-  if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  }
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // Last-modified with the creation time as fallback (webmail file-store
@@ -203,6 +186,7 @@ export default function FilesScreen() {
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
 
   const showIcons = useSettingsStore((s) => s.filesShowIcons);
+  const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   const coloredIcons = useSettingsStore((s) => s.filesColoredIcons);
   const showThumbnails = useSettingsStore((s) => s.filesShowThumbnails);
   const showHiddenFiles = useSettingsStore((s) => s.filesShowHiddenFiles);
@@ -966,7 +950,7 @@ export default function FilesScreen() {
               <Text style={styles.fileMeta}>{formatFileSize(item.size)}</Text>
             ) : null}
             {modified ? (
-              <Text style={styles.fileMeta}>{formatModified(modified)}</Text>
+              <Text style={styles.fileMeta}>{formatFileModified(modified, timeZone)}</Text>
             ) : null}
           </View>
         </View>
@@ -1308,6 +1292,7 @@ function ActionsSheet({
 }: ActionsSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
+  const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   if (!target) return null;
   const isDir = isFolder(target);
   // Owned nodes report full rights (or no myRights at all); shared-with-me
@@ -1328,7 +1313,7 @@ function ActionsSheet({
                 {[
                   isDir ? t('files.folder', 'Folder') : (target.type || t('files.file', 'File')),
                   !isDir && target.size != null ? formatFileSize(target.size) : null,
-                  modified ? formatModified(modified) : null,
+                  modified ? formatFileModified(modified, timeZone) : null,
                 ].filter(Boolean).join(' · ')}
               </Text>
               {!isDir && canPreviewInApp(target) ? (

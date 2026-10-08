@@ -15,7 +15,7 @@
  */
 
 import type { TimeFormat } from '../stores/settings-store';
-import { formatInRegion, type DateRegion } from './date-format';
+import { formatWorded, type DateRegion } from './date-format';
 
 /** How far ahead of `receivedAt` a `Date` header may be before it is ignored. */
 export const MAX_FUTURE_SENT_AT_MS = 24 * 60 * 60 * 1000;
@@ -40,9 +40,9 @@ export function emailDisplayDate<T extends DatedEmail>(email: T): DisplayDate<T>
   return sentAt as DisplayDate<T>;
 }
 
-// Times stay in the language (webmail formatDate does the same); dates take
-// the region's order with the language's names. Everything is in the app's
-// time zone.
+// Worded dates and times in the language's own pattern, in the app's time
+// zone. The date format region orders only all-digit dates (formatWorded),
+// so `region.dateLocale` does not apply here.
 const HEADER_DATE: Intl.DateTimeFormatOptions = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
 
 function parse(iso: string | undefined): Date | null {
@@ -54,7 +54,7 @@ function parse(iso: string | undefined): Date | null {
 /** "Mon, 3 Jun 2026" in the app locale. */
 export function formatHeaderDate(iso: string | undefined, locale?: string, region: DateRegion = {}): string {
   const d = parse(iso);
-  return d ? formatInRegion(d, HEADER_DATE, { ...region, locale }) : '';
+  return d ? formatWorded(d, HEADER_DATE, { locale, timeZone: region.timeZone }) : '';
 }
 
 /** "14:05" / "2:05 PM" honouring the app's time-format setting. */
@@ -67,7 +67,7 @@ export function formatHeaderTime(
   const d = parse(iso);
   if (!d) return '';
   const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' };
-  return formatInRegion(d, options, { timeZone: region.timeZone, locale });
+  return formatWorded(d, options, { locale, timeZone: region.timeZone });
 }
 
 /** Full date + time for the details panel. */
@@ -79,9 +79,9 @@ export function formatFullDateTime(
 ): string {
   const d = parse(iso);
   if (!d) return '';
-  return formatInRegion(
+  return formatWorded(
     d,
     { ...HEADER_DATE, hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' },
-    { ...region, locale },
+    { locale, timeZone: region.timeZone },
   );
 }

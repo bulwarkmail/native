@@ -112,6 +112,7 @@ describe('settings search index (English catalog)', () => {
 
   it('lists settings where the native app shows them', () => {
     expect(labelsFor('appearance')).toContain('Font Size');
+    expect(labelsFor('language')).toContain('Date format region');
     expect(labelsFor('layout')).toContain('Message list order');
     expect(labelsFor('notifications')).toContain('Parse email invitations');
     expect(labelsFor('calendar')).toContain('Show week numbers');

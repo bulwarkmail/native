@@ -6,7 +6,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore, type DateFormat, type DateLocale, type TimeFormat } from '../../stores/settings-store';
-import { formatInRegion, formatListDate, formatNumericDate } from '../../lib/date-format';
+import { formatListDate, formatNumericDate, formatWorded } from '../../lib/date-format';
 import { useDateRegion } from '../../lib/use-date-region';
 import { AUTO_TIME_ZONE, getDeviceTimeZone } from '../../lib/calendar-timezone';
 import { timeZoneOptions } from '../../lib/time-zone-options';
@@ -54,7 +54,7 @@ export function LanguageSettings() {
     dateRegion.timeZone,
     t('settings.language_region.time_zone.auto', 'Automatic ({zone})', { zone: deviceZone }),
   );
-  const zonePreview = formatInRegion(
+  const zonePreview = formatWorded(
     now,
     { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h', timeZoneName: 'short' },
     { locale, timeZone: dateRegion.timeZone },

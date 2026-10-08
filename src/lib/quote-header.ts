@@ -8,7 +8,7 @@
 
 import { escapeHtml } from './email-html';
 import type { TimeFormat } from '../stores/settings-store';
-import { formatInRegion, type DateRegion } from './date-format';
+import { formatWorded, type DateRegion } from './date-format';
 
 /** Localized label set the caller passes in (from the locale catalog). */
 export interface QuoteHeaderLabels {
@@ -65,7 +65,8 @@ export interface QuoteHeaderArgs {
 
 /**
  * Locale- and 12/24h-aware date with a short weekday (webmail
- * formatDateTime), in the app's time zone and the date format region.
+ * formatDateTime), in the app's time zone. A worded date, so the date
+ * format region does not reorder it (see formatWorded).
  */
 export function formatQuoteDate(
   iso: string | undefined,
@@ -77,7 +78,7 @@ export function formatQuoteDate(
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   try {
-    return formatInRegion(d, {
+    return formatWorded(d, {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -85,7 +86,7 @@ export function formatQuoteDate(
       hour: '2-digit',
       minute: '2-digit',
       hour12: timeFormat === '12h',
-    }, { ...region, locale });
+    }, { locale, timeZone: region.timeZone });
   } catch {
     return d.toLocaleString();
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatListDate, formatNumericDate, resolveDateLocale } from '../date-format';
+import { formatFileModified, formatListDate, formatNumericDate, resolveDateLocale } from '../date-format';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -286,5 +286,43 @@ describe('time zone', () => {
     // Same locale and format, another zone: not the cached Kolkata formatter.
     expect(formatListDate(d, { ...z, timeZone: 'Pacific/Auckland' })).toBe('13:15');
     expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('06:45');
+  });
+});
+
+describe('Gregorian calendar', () => {
+  it('dates fa list rows in the Gregorian calendar', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
+    const older = new Date('2026-04-28T15:31:00Z');
+    expect(formatListDate(older, { dateFormat: 'smart', timeFormat: '24h', locale: 'fa', timeZone: 'UTC' })).toBe('۲۰۲۶/۰۴/۲۸');
+    expect(formatListDate(older, { dateFormat: 'relative', timeFormat: '24h', locale: 'fa', timeZone: 'UTC' })).toContain('آوریل');
+  });
+});
+
+describe('formatFileModified', () => {
+  const now = new Date('2026-05-30T23:30:00Z');
+
+  it('decides today in the chosen zone and shows its clock', () => {
+    const iso = '2026-05-30T22:00:00Z';
+    expect(formatFileModified(iso, 'UTC', now)).toMatch(/^10:00\sPM$|^22:00$/);
+    // Already the 31st in Tokyo for both, so still today, at 07:00.
+    expect(formatFileModified(iso, 'Asia/Tokyo', now)).toMatch(/^07:00(\sAM)?$/);
+    // 01:00 on the 30th in New York, where it is still the 30th; already
+    // the 31st in Tokyo, so there it is yesterday's file.
+    const early = '2026-05-30T05:00:00Z';
+    expect(formatFileModified(early, 'America/New_York', now)).toMatch(/^01:00(\sAM)?$/);
+    expect(formatFileModified(early, 'UTC', now)).toMatch(/^05:00(\sAM)?$/);
+    expect(formatFileModified(early, 'Asia/Tokyo', now)).toMatch(/^May 30$|^30/);
+  });
+
+  it('reads the year in the chosen zone', () => {
+    const iso = '2025-12-31T23:30:00Z';
+    expect(formatFileModified(iso, 'UTC', now)).toContain('2025');
+    expect(formatFileModified(iso, 'Europe/Berlin', now)).not.toContain('2025');
+  });
+
+  it('is empty for no or a bad date', () => {
+    expect(formatFileModified(undefined, 'UTC', now)).toBe('');
+    expect(formatFileModified('nope', 'UTC', now)).toBe('');
   });
 });

@@ -14,8 +14,8 @@ import { getWallClock, resolveTimeZone } from './time-zone';
  *   - `full` — always the full locale date+time.
  *
  * `locale` is the language subtag from the locale store (e.g. "en", "de").
- * `dateLocale` (the date format region) orders the numeric dates; weekday
- * and month names stay in the language. Everything, including which day
+ * `dateLocale` (the date format region) orders only the all-digit dates
+ * (`full` and an older row); worded dates and times stay in the language. Everything, including which day
  * counts as today, is in `timeZone`: the app-wide zone setting, where
  * `auto` (or a zone this runtime does not know) is the device zone.
  */
@@ -55,11 +55,14 @@ function syncFormatterZone(now: Date): void {
   formattersOffset = offset;
 }
 
+// Always the Gregorian calendar: fa (and a th or ar-SA device) would
+// otherwise date mail in the Solar Hijri, Buddhist or Islamic calendar,
+// which no other client here shows.
 function cachedFormatter(key: string, locale: string, options: Intl.DateTimeFormatOptions, timeZone: string): Intl.DateTimeFormat {
   const fullKey = `${key}|${locale}|${timeZone}`;
   let formatter = formatters.get(fullKey);
   if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, { ...options, timeZone });
+    formatter = new Intl.DateTimeFormat(locale, { ...options, calendar: 'gregory', timeZone });
     formatters.set(fullKey, formatter);
   }
   return formatter;
@@ -108,36 +111,33 @@ export function formatNumericDate(date: Date | string, opts: DateRegion & { loca
   return formatWith(d, numericLocale, 'date', resolveTimeZone(opts.timeZone));
 }
 
-// Parts that are words in the language rather than digits in the region.
-const NAME_PARTS = new Set<Intl.DateTimeFormatPartTypes>(['weekday', 'month', 'dayPeriod', 'era']);
-const DIGITS = /^\d+$/;
+// A month part made of digits, Latin or not ("4", "۴").
+const DIGITS = /^\p{Nd}+\.?$/u;
 
 /**
- * Formats `options` in the zone with the region's order and separators and
- * the language's weekday, month and AM/PM words ("Di., Apr. 28, 2026" for
- * German with month/day/year). Formatting in the region's locale alone
- * would turn those words English. With `auto` it is the language's format.
+ * Formats a date that has words in it (a weekday, a month name) or a time
+ * alone, in the zone. Ruling for the date format region: it orders only
+ * all-digit dates (the list's numeric date and `full`); a worded date takes
+ * the language's own pattern, because splicing words into another locale's
+ * pattern gave Solar Hijri months in fa and a bare month number next to the
+ * day in ja, zh and cs. A language whose pattern still turns a short month
+ * into a number (cs "28. 4. 2026") gets the long month name instead.
  */
-export function formatInRegion(
+export function formatWorded(
   date: Date,
   options: Intl.DateTimeFormatOptions,
-  opts: DateRegion & { locale?: string },
+  opts: { locale?: string; timeZone?: string },
 ): string {
   syncFormatterZone(new Date());
-  const uiLocale = uiIntlLocale(opts.locale);
-  const regionLocale = resolveDateLocale(opts.dateLocale, uiLocale);
+  const locale = uiIntlLocale(opts.locale);
   const timeZone = resolveTimeZone(opts.timeZone);
-  const key = JSON.stringify(options);
-  const region = cachedFormatter(key, regionLocale, options, timeZone);
-  if (regionLocale === uiLocale) return region.format(date);
-  const names = new Map<string, string>();
-  for (const part of cachedFormatter(key, uiLocale, options, timeZone).formatToParts(date)) {
-    if (NAME_PARTS.has(part.type)) names.set(part.type, part.value);
-  }
-  return region
-    .formatToParts(date)
-    .map((part) => (NAME_PARTS.has(part.type) && !DIGITS.test(part.value) ? names.get(part.type) ?? part.value : part.value))
-    .join('');
+  const formatter = cachedFormatter(JSON.stringify(options), locale, options, timeZone);
+  if (options.month !== 'short') return formatter.format(date);
+  const parts = formatter.formatToParts(date);
+  const month = parts.find((p) => p.type === 'month');
+  if (!month || !DIGITS.test(month.value)) return parts.map((p) => p.value).join('');
+  const long = { ...options, month: 'long' as const };
+  return cachedFormatter(JSON.stringify(long), locale, long, timeZone).format(date);
 }
 
 // Relative strings ("Just now", "5m ago") through the locale catalog when a
@@ -209,4 +209,25 @@ export function formatListDate(
   }
 
   return formatWith(d, numericLocale, 'date', timeZone);
+}
+
+/**
+ * A file's "modified" in the Files list: the time today, the day this year,
+ * the full date before that. The day and year are read in the app's time
+ * zone; the device locale formats it, as before.
+ */
+export function formatFileModified(iso: string | undefined, timeZoneSetting?: string, now = new Date()): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const timeZone = resolveTimeZone(timeZoneSetting);
+  const dWall = getWallClock(d, timeZone);
+  const nowWall = getWallClock(now, timeZone);
+  if (dWall.year === nowWall.year && dWall.month === nowWall.month && dWall.day === nowWall.day) {
+    return d.toLocaleTimeString(undefined, { timeZone, hour: '2-digit', minute: '2-digit' });
+  }
+  if (dWall.year === nowWall.year) {
+    return d.toLocaleDateString(undefined, { timeZone, month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString(undefined, { timeZone, year: 'numeric', month: 'short', day: 'numeric' });
 }

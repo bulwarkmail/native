@@ -40,6 +40,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
   language: [
     'settings.appearance.language',
     'settings.language_region.date_format',
+    'settings.language_region.date_locale',
     'settings.language_region.time_format',
     // Zone picker plus its "Automatic ({zone})" row.
     'settings.language_region.time_zone',

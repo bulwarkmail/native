@@ -41,11 +41,14 @@ describe('quote header', () => {
 });
 
 describe('formatQuoteDate', () => {
-  it('writes the time in the chosen zone and orders the date by the region', () => {
+  it('writes the time in the chosen zone in the language\'s pattern', () => {
     const iso = '2026-04-28T23:30:00Z';
     expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'UTC' })).toBe('Tue, Apr 28, 2026, 23:30');
     expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'Asia/Tokyo' })).toBe('Wed, Apr 29, 2026, 08:30');
-    expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'UTC', dateLocale: 'en-GB' })).toBe('Tue, 28 Apr 2026, 23:30');
+    // Worded: the region does not reorder it.
+    expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'UTC', dateLocale: 'en-GB' })).toBe('Tue, Apr 28, 2026, 23:30');
+    expect(formatQuoteDate(iso, '24h', 'cs', { timeZone: 'UTC', dateLocale: 'en-GB' })).toMatch(/^út 28\. dubna 2026/);
+    expect(formatQuoteDate(iso, '24h', 'fa', { timeZone: 'UTC', dateLocale: 'en-GB' })).toContain('آوریل');
   });
 
   it('puts the zone into the reply line', () => {

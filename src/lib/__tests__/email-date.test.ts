@@ -44,12 +44,32 @@ describe('header and detail times in the chosen zone and region', () => {
     expect(formatHeaderTime(iso, '24h', 'en', { timeZone: 'auto' })).toBe(formatHeaderTime(iso, '24h', 'en'));
   });
 
-  it('orders the date by the region and keeps the names in the language', () => {
+  it('keeps worded dates in the language\'s own pattern whatever the region', () => {
     const utc = { timeZone: 'UTC' };
-    expect(formatHeaderDate(iso, 'en', { ...utc, dateLocale: 'en-GB' })).toBe('Tue, 28 Apr 2026');
-    expect(formatFullDateTime(iso, '24h', 'en', { ...utc, dateLocale: 'en-GB' })).toBe('Tue, 28 Apr 2026, 23:30');
-    expect(formatHeaderDate(iso, 'de', { ...utc, dateLocale: 'en-US' })).toBe('Di., Apr. 28, 2026');
-    expect(formatFullDateTime(iso, '12h', 'en', { ...utc, dateLocale: 'en-GB' })).toMatch(/^Tue, 28 Apr 2026, 11:30\sPM$/);
-    expect(formatHeaderDate(iso, 'de', { ...utc, dateLocale: 'auto' })).toBe('Di., 28. Apr. 2026');
+    for (const dateLocale of ['auto', 'iso', 'en-GB', 'en-US'] as const) {
+      expect(formatHeaderDate(iso, 'en', { ...utc, dateLocale })).toBe('Tue, Apr 28, 2026');
+      expect(formatHeaderDate(iso, 'de', { ...utc, dateLocale })).toBe('Di., 28. Apr. 2026');
+      expect(formatFullDateTime(iso, '24h', 'en', { ...utc, dateLocale })).toBe('Tue, Apr 28, 2026, 23:30');
+    }
+  });
+
+  it('dates fa in the Gregorian calendar', () => {
+    const out = formatHeaderDate(iso, 'fa', { timeZone: 'UTC', dateLocale: 'en-GB' });
+    expect(out).toContain('آوریل');
+    expect(out).toContain('۲۰۲۶');
+    expect(out).not.toContain('اردیبهشت');
+    expect(out).not.toContain('۱۴۰۵');
+    expect(formatFullDateTime(iso, '24h', 'fa', { timeZone: 'UTC', dateLocale: 'en-GB' })).toContain('آوریل');
+  });
+
+  it('never leaves the month a bare number next to the day', () => {
+    const r = { timeZone: 'UTC', dateLocale: 'en-GB' as const };
+    expect(formatHeaderDate(iso, 'ja', r)).toBe('2026年4月28日(火)');
+    expect(formatFullDateTime(iso, '24h', 'ja', r)).toMatch(/^2026年4月28日\(火\) 23:30$/);
+    expect(formatHeaderDate(iso, 'cs', r)).toBe('út 28. dubna 2026');
+    expect(formatFullDateTime(iso, '24h', 'cs', r)).toMatch(/^út 28\. dubna 2026.*23:30$/);
+    for (const locale of ['ja', 'cs', 'zh', 'sk']) {
+      expect(formatHeaderDate(iso, locale, r), locale).not.toMatch(/\d+\.?\s\d+\.?\s\d{4}/);
+    }
   });
 });
