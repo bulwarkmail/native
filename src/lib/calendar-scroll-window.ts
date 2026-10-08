@@ -174,7 +174,9 @@ export function scrollWindowContains(
 /**
  * Where a navigation to `date` leaves the window: unchanged when the target
  * is already inside it (the view just scrolls there), otherwise a fresh
- * window at the target.
+ * window at the target. A grid target also needs a row of room above it
+ * while the window can still grow: scrolled to row 0, the list reaches its
+ * start edge and prepends rows while it is still settling on the target.
  */
 export function windowStateForJump(
   state: ScrollWindowState,
@@ -184,9 +186,13 @@ export function windowStateForJump(
 ): ScrollWindowState {
   const current = normalizeScrollWindowState(state, mode, date);
   const loaded = computeScrollWindow(current, opts);
-  return scrollWindowContains(loaded, mode, date, opts)
-    ? current
-    : freshScrollWindowState(mode, date);
+  if (!scrollWindowContains(loaded, mode, date, opts)) return freshScrollWindowState(mode, date);
+  const grid = mode === 'month' || mode === 'week';
+  if (grid && loaded.canExtendStart
+    && subDays(baseRange(mode, date, opts).start, 7).getTime() < loaded.start.getTime()) {
+    return freshScrollWindowState(mode, date);
+  }
+  return current;
 }
 
 /**

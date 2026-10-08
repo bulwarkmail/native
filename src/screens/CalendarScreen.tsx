@@ -31,7 +31,7 @@ import {
   subWeeks,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
-import { headerTitleFor } from '../lib/calendar-system';
+import { dayLabelFor, headerTitleFor } from '../lib/calendar-system';
 import { displayNow, isDisplayToday } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -1138,7 +1138,7 @@ export default function CalendarScreen() {
           <Text style={styles.headerSubtitle}>
             {isSelectedToday
               ? t('calendar.views.today', 'Today')
-              : format(selectedDate, 'EEE, MMM d', { locale })}
+              : dayLabelFor(selectedDate, locale, calendar, 'short')}
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -1325,7 +1325,7 @@ export default function CalendarScreen() {
               <Text style={styles.dayDetailTitle}>
                 {isSelectedToday
                   ? t('calendar.events.today_header', 'Today')
-                  : format(selectedDate, 'EEEE, MMMM d', { locale })}
+                  : dayLabelFor(selectedDate, locale, calendar, 'long')}
               </Text>
               {loading && <ActivityIndicator size="small" color={c.textMuted} />}
             </View>

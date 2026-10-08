@@ -92,6 +92,24 @@ export function calendarSystemFor(localeCode: string): CalendarSystem {
 }
 
 /**
+ * A day without its year, under the header and above the month grid's day
+ * list: "Thu, Oct 8" / "Thursday, October 8", or in Jalali the weekday, the
+ * Jalali day and month ("چهارشنبه 1 مهر").
+ */
+export function dayLabelFor(
+  d: Date,
+  locale: Locale,
+  calendar: CalendarSystem,
+  style: 'short' | 'long',
+): string {
+  if (calendar.kind === 'jalali') {
+    const { jm, jd } = toJalali(d);
+    return `${format(d, style === 'long' ? 'EEEE' : 'EEE', { locale })} ${jd} ${JALALI_MONTHS[jm - 1]}`;
+  }
+  return format(d, style === 'long' ? 'EEEE, MMMM d' : 'EEE, MMM d', { locale });
+}
+
+/**
  * The calendar header's title: the month, the week's range or the day.
  * `firstDay` is the first day a freely scrolled week view shows.
  */

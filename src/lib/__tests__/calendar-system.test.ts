@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { enUS } from 'date-fns/locale/en-US';
 import { faIR } from 'date-fns/locale/fa-IR';
-import { GREGORIAN, JALALI, calendarSystemFor, headerTitleFor } from '../calendar-system';
-import { baseRange, computeScrollWindow, freshScrollWindowState } from '../calendar-scroll-window';
-import { monthFocusRow, monthKeyOf, monthMask, weekDays } from '../calendar-month-scroll';
+import { format } from 'date-fns';
+import { GREGORIAN, JALALI, calendarSystemFor, dayLabelFor, headerTitleFor } from '../calendar-system';
+import { baseRange, computeScrollWindow, freshScrollWindowState, windowStateForJump } from '../calendar-scroll-window';
+import { monthFocusRow, monthKeyOf, monthMask, weekDays, windowWeekStarts } from '../calendar-month-scroll';
 import { startOfJalaliMonth, endOfJalaliMonth } from '../jalali-utils';
 
 // The month grid follows the Jalali calendar when the app is in Persian
@@ -99,10 +100,36 @@ describe('the month grid range', () => {
     const d = new Date(2026, 9, 8);
     const window = computeScrollWindow(freshScrollWindowState('month', d), opts);
     expect(window.start.getTime()).toBeLessThan(startOfJalaliMonth(1405, 7, 6).getTime());
-    const weeks = Math.floor((window.end.getTime() - window.start.getTime()) / 86400000 / 7) + 1;
+    const weeks = windowWeekStarts(window).length;
     const row = monthFocusRow(window, d, weeks, opts);
     const firstWeek = weekDays(new Date(window.start.getFullYear(), window.start.getMonth(), window.start.getDate() + row * 7));
     expect(firstWeek.some((day) => JALALI.isFirstOfMonth(day))).toBe(true);
+  });
+
+  it('never lands a jump to the previous month on the window\'s first row', () => {
+    // scrollToIndex(0) reaches the start edge, which prepends rows while the
+    // list is still settling: the target must keep a row above it.
+    const bad: string[] = [];
+    for (const calendar of [GREGORIAN, JALALI]) {
+      for (const weekStartsOn of [0, 1, 6] as const) {
+        const opts = { weekStartsOn, calendar };
+        for (let i = 0; i < 24; i++) {
+          let state = freshScrollWindowState('month', calendar.addMonths(new Date(2026, 0, 15), i));
+          let at = calendar.monthStart(new Date(2026, 0, 15));
+          at = calendar.addMonths(at, i);
+          // Two steps back, as the arrows do.
+          for (let step = 0; step < 2; step++) {
+            at = calendar.addMonths(at, -1);
+            state = windowStateForJump(state, 'month', at, opts);
+            const window = computeScrollWindow(state, opts);
+            if (baseRange('month', at, opts).start.getTime() <= window.start.getTime()) {
+              bad.push(`${calendar.kind} ${weekStartsOn} ${at.toDateString()}`);
+            }
+          }
+        }
+      }
+    }
+    expect(bad).toEqual([]);
   });
 
   it('shades the days of the Jalali month in a week that spans two', () => {
@@ -140,5 +167,20 @@ describe('headerTitleFor', () => {
     expect(headerTitleFor('week', new Date(2026, 8, 22), 6, faIR, JALALI, new Date(2026, 8, 23)))
       .toBe('1 – 7 مهر 1405');
     expect(headerTitleFor('day', new Date(2026, 8, 23), 6, faIR, JALALI)).toBe('چهارشنبه 1 مهر 1405');
+  });
+});
+
+describe('dayLabelFor', () => {
+  it('keeps the Gregorian day labels', () => {
+    const d = new Date(2026, 9, 8);
+    expect(dayLabelFor(d, enUS, GREGORIAN, 'short')).toBe('Thu, Oct 8');
+    expect(dayLabelFor(d, enUS, GREGORIAN, 'long')).toBe('Thursday, October 8');
+  });
+
+  it('names the Jalali day and month in Persian', () => {
+    // Wed 23 Sep 2026 is 1 Mehr 1405.
+    const d = new Date(2026, 8, 23);
+    expect(dayLabelFor(d, faIR, JALALI, 'long')).toBe('چهارشنبه 1 مهر');
+    expect(dayLabelFor(d, faIR, JALALI, 'short')).toBe(`${format(d, 'EEE', { locale: faIR })} 1 مهر`);
   });
 });

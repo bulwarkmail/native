@@ -134,17 +134,21 @@ function MonthScrollViewInner({
   // setting) remounts the list there.
   const topRowRef = React.useRef<number | null>(null);
   // Switching the app language between Persian and another changes how
-  // months are keyed; re-key the month in focus in the new calendar.
+  // months are keyed; re-key the month in focus in the new calendar. Only a
+  // calendar change runs it: the rest is read as it is then.
   const calendarRef = React.useRef(calendar);
+  const rekeyRef = React.useRef({ focusDate: focus.date, viewportHeight, rowHeight });
+  rekeyRef.current = { focusDate: focus.date, viewportHeight, rowHeight };
   React.useEffect(() => {
     if (calendarRef.current === calendar) return;
     calendarRef.current = calendar;
+    const { focusDate, viewportHeight: height, rowHeight: row } = rekeyRef.current;
     const list = weeksRef.current;
-    const days = list[sampledRow(offsetRef.current, viewportHeight, rowHeight, list.length)];
-    const key = monthKeyOf(days ? days[3] : focus.date, calendar);
+    const days = list[sampledRow(offsetRef.current, height, row, list.length)];
+    const key = monthKeyOf(days ? days[3] : focusDate, calendar);
     activeMonthRef.current = key;
     setActiveMonth(key);
-  }, [calendar, focus.date, viewportHeight, rowHeight]);
+  }, [calendar]);
 
   const handleScroll = React.useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
