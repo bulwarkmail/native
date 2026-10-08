@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "A naptáraid megjelennek a Naptár alkalmazásban és az eszköz más alkalmazásaiban. A módosítások mindkét irányban szinkronizálódnak.",
       "device_sync_title": "Szinkronizálás ezzel az eszközzel",
-      "show_week_numbers_mobile_desc": "Hétszámok megjelenítése a havi nézetben.",
-      "time_zone": "Időzóna",
-      "time_zone_auto": "Eszköz időzónája",
-      "time_zone_auto_zone": "Eszköz időzónája ({zone})",
-      "time_zone_desc": "Az új eseményekhez és a naptár megjelenítéséhez használt zóna. Az „Eszköz időzónája” a telefont követi."
+      "show_week_numbers_mobile_desc": "Hétszámok megjelenítése a havi nézetben."
     },
     "share": {
       "add_people": "Személyek hozzáadása",

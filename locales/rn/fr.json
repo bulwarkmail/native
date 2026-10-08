@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Affichez vos calendriers dans l'application Agenda et dans les autres applications de cet appareil. Les modifications sont synchronisées dans les deux sens.",
       "device_sync_title": "Synchroniser avec cet appareil",
-      "show_week_numbers_mobile_desc": "Afficher les numéros de semaine dans la vue mensuelle.",
-      "time_zone": "Fuseau horaire",
-      "time_zone_auto": "Fuseau horaire de l'appareil",
-      "time_zone_auto_zone": "Fuseau horaire de l'appareil ({zone})",
-      "time_zone_desc": "Fuseau utilisé pour les nouveaux événements et pour l'affichage du calendrier. « Fuseau horaire de l'appareil » suit le téléphone."
+      "show_week_numbers_mobile_desc": "Afficher les numéros de semaine dans la vue mensuelle."
     },
     "share": {
       "add_people": "Ajouter des personnes",

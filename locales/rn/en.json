@@ -105,11 +105,7 @@
       "birthday_calendar_color": "Birthday calendar colour",
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
-      "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
-      "time_zone": "Time zone",
-      "time_zone_auto": "Device time zone",
-      "time_zone_auto_zone": "Device time zone ({zone})",
-      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone."
+      "show_week_numbers_mobile_desc": "Display week numbers in the month view."
     },
     "share": {
       "add_people": "Add people",

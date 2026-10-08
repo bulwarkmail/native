@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "カレンダーアプリやこのデバイスの他のアプリにカレンダーを表示します。変更は双方向に同期されます。",
       "device_sync_title": "このデバイスに同期",
-      "show_week_numbers_mobile_desc": "月表示に週番号を表示する",
-      "time_zone": "タイムゾーン",
-      "time_zone_auto": "デバイスのタイムゾーン",
-      "time_zone_auto_zone": "デバイスのタイムゾーン（{zone}）",
-      "time_zone_desc": "新しい予定の作成とカレンダーの表示に使うタイムゾーンです。「デバイス」を選ぶとスマートフォンの設定に従います。"
+      "show_week_numbers_mobile_desc": "月表示に週番号を表示する"
     },
     "share": {
       "add_people": "ユーザーを追加",

@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Zeigt Ihre Kalender in der Kalender-App und in anderen Apps auf diesem Gerät an. Änderungen werden in beide Richtungen synchronisiert.",
       "device_sync_title": "Mit diesem Gerät synchronisieren",
-      "show_week_numbers_mobile_desc": "Kalenderwochen in der Monatsansicht anzeigen.",
-      "time_zone": "Zeitzone",
-      "time_zone_auto": "Gerätezeitzone",
-      "time_zone_auto_zone": "Gerätezeitzone ({zone})",
-      "time_zone_desc": "Zeitzone für neue Termine und für die Darstellung des Kalenders. \"Gerätezeitzone\" folgt dem Telefon."
+      "show_week_numbers_mobile_desc": "Kalenderwochen in der Monatsansicht anzeigen."
     },
     "share": {
       "add_people": "Personen hinzufügen",

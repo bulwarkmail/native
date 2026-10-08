@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Zobrazí vaše kalendáře v aplikaci Kalendář a dalších aplikacích v tomto zařízení. Změny se synchronizují oběma směry.",
       "device_sync_title": "Synchronizovat s tímto zařízením",
-      "show_week_numbers_mobile_desc": "Zobrazovat čísla týdnů v měsíčním zobrazení.",
-      "time_zone": "Časové pásmo",
-      "time_zone_auto": "Časové pásmo zařízení",
-      "time_zone_auto_zone": "Časové pásmo zařízení ({zone})",
-      "time_zone_desc": "Pásmo pro nové události a pro zobrazení kalendáře. „Časové pásmo zařízení“ se řídí telefonem."
+      "show_week_numbers_mobile_desc": "Zobrazovat čísla týdnů v měsíčním zobrazení."
     },
     "share": {
       "add_people": "Přidat osoby",

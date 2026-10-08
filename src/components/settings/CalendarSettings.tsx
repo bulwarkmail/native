@@ -15,7 +15,6 @@ import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-utils';
 import { BIRTHDAY_CALENDAR_COLOR } from '../../lib/birthday-calendar';
 import { formatDisplayHour } from '../../lib/calendar-display-range';
-import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
 import { newInvitationOrganizer } from '../../lib/calendar-participants';
 import { useServedAccount } from '../../lib/served-account';
@@ -23,30 +22,10 @@ import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 
-// A compact list of IANA zones for the picker (#755). The device zone and
-// any previously stored value are always offered too.
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 const DAY_SHORT_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const COMMON_TIME_ZONES = [
-  'UTC',
-  'Europe/London', 'Europe/Dublin', 'Europe/Lisbon',
-  'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam',
-  'Europe/Brussels', 'Europe/Vienna', 'Europe/Zurich', 'Europe/Prague', 'Europe/Warsaw',
-  'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen', 'Europe/Helsinki', 'Europe/Riga',
-  'Europe/Kyiv', 'Europe/Athens', 'Europe/Istanbul', 'Europe/Moscow',
-  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix',
-  'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu',
-  'America/Toronto', 'America/Vancouver', 'America/Mexico_City', 'America/Bogota',
-  'America/Lima', 'America/Santiago', 'America/Sao_Paulo', 'America/Argentina/Buenos_Aires',
-  'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos', 'Africa/Nairobi',
-  'Asia/Dubai', 'Asia/Tehran', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Bangkok',
-  'Asia/Jakarta', 'Asia/Singapore', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Taipei',
-  'Asia/Seoul', 'Asia/Tokyo', 'Australia/Perth', 'Australia/Adelaide', 'Australia/Sydney',
-  'Pacific/Auckland',
-];
 
 // The select's entry for the login address when no identity has it.
 const LOGIN_ADDRESS_OPTION = '__login_address__';
@@ -60,7 +39,6 @@ export function CalendarSettings() {
   const viewMode = useSettingsStore((s) => s.calendarDefaultView);
   const firstDay = useSettingsStore((s) => s.calendarFirstDayOfWeek);
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
-  const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   const showTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
   const freeScroll = useSettingsStore((s) => s.calendarFreeScroll);
@@ -101,19 +79,6 @@ export function CalendarSettings() {
   useEffect(() => {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
-
-  const deviceZone = getDeviceTimeZone();
-  const timeZoneOptions = React.useMemo(() => {
-    const zones = new Set<string>([deviceZone, ...COMMON_TIME_ZONES]);
-    if (timeZone && timeZone !== AUTO_TIME_ZONE && isValidTimeZone(timeZone)) zones.add(timeZone);
-    return [
-      {
-        value: AUTO_TIME_ZONE,
-        label: t('calendar.settings.time_zone_auto_zone', 'Device time zone ({zone})', { zone: deviceZone }),
-      },
-      ...[...zones].sort().map((z) => ({ value: z, label: z.replace(/_/g, ' ') })),
-    ];
-  }, [deviceZone, timeZone, t]);
 
   // Visible hours: the end list only offers hours after the start, and
   // moving the start past the end pushes the end along.
@@ -210,20 +175,6 @@ export function CalendarSettings() {
               { value: '12h', label: t('calendar.settings.time_format_12h', '12-hour') },
               { value: '24h', label: t('calendar.settings.time_format_24h', '24-hour') },
             ]}
-          />
-        </SettingItem>
-
-        <SettingItem
-          label={t('calendar.settings.time_zone', 'Time zone')}
-          description={t(
-            'calendar.settings.time_zone_desc',
-            'Zone used for new events and for interpreting the calendar. "Device" follows the phone.',
-          )}
-        >
-          <Select
-            value={timeZone || AUTO_TIME_ZONE}
-            onChange={(v) => update('calendarTimeZone', v)}
-            options={timeZoneOptions}
           />
         </SettingItem>
 

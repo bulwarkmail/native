@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Mostra els vostres calendaris a l'aplicació Calendari i a altres aplicacions d'aquest dispositiu. Els canvis se sincronitzen en tots dos sentits.",
       "device_sync_title": "Sincronitza amb aquest dispositiu",
-      "show_week_numbers_mobile_desc": "Mostra els números de setmana a la vista de mes.",
-      "time_zone": "Zona horària",
-      "time_zone_auto": "Zona horària del dispositiu",
-      "time_zone_auto_zone": "Zona horària del dispositiu ({zone})",
-      "time_zone_desc": "Zona que s'utilitza per als esdeveniments nous i per interpretar el calendari. «Dispositiu» segueix la del telèfon."
+      "show_week_numbers_mobile_desc": "Mostra els números de setmana a la vista de mes."
     },
     "share": {
       "add_people": "Afegeix persones",

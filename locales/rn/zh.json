@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "在此设备上的日历应用和其他应用中显示您的日历。更改会双向同步。",
       "device_sync_title": "同步到此设备",
-      "show_week_numbers_mobile_desc": "在月视图中显示周数",
-      "time_zone": "时区",
-      "time_zone_auto": "设备时区",
-      "time_zone_auto_zone": "设备时区（{zone}）",
-      "time_zone_desc": "用于新建活动和显示日历的时区。“设备”将跟随手机设置。"
+      "show_week_numbers_mobile_desc": "在月视图中显示周数"
     },
     "share": {
       "add_people": "添加用户",

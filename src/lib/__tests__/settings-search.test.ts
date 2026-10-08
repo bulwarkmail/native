@@ -234,7 +234,7 @@ describe('screen protection search paths', () => {
   });
 });
 
-describe('free scrolling and automatic time zone entries', () => {
+describe('free scrolling and time zone entries', () => {
   const index = buildSettingsSearchIndex(en, tEn);
 
   it('finds free scrolling in the calendar pane', () => {
@@ -242,11 +242,13 @@ describe('free scrolling and automatic time zone entries', () => {
     expect(labelsFor('calendar')).toContain('Free scrolling');
   });
 
-  it('finds the automatic time zone in the calendar and language panes', () => {
-    expect(tabMatchesQuery(index, 'calendar', 'Calendar', 'automatic')).toBe(true);
+  // One app-wide zone, set in Language & region only.
+  it('finds the time zone in the language pane, not the calendar pane', () => {
     expect(tabMatchesQuery(index, 'language', 'Language & Region', 'automatic')).toBe(true);
-    expect(labelsFor('calendar')).toContain('Time zone');
+    expect(tabMatchesQuery(index, 'language', 'Language & Region', 'timezone')).toBe(true);
     expect(labelsFor('language')).toContain('Time zone');
+    expect(tabMatchesQuery(index, 'calendar', 'Calendar', 'timezone')).toBe(false);
+    expect(labelsFor('calendar')).not.toContain('Time zone');
   });
 
   it('shows no unresolved placeholder in any label', () => {

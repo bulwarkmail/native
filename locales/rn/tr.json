@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Takvimlerinizi bu cihazdaki Takvim uygulamasında ve diğer uygulamalarda gösterin. Değişiklikler iki yönlü senkronize edilir.",
       "device_sync_title": "Bu cihazla senkronize et",
-      "show_week_numbers_mobile_desc": "Ay görünümünde hafta numaralarını göster.",
-      "time_zone": "Saat dilimi",
-      "time_zone_auto": "Cihaz saat dilimi",
-      "time_zone_auto_zone": "Cihaz saat dilimi ({zone})",
-      "time_zone_desc": "Yeni etkinlikler ve takvimin yorumlanması için kullanılan saat dilimi. \"Cihaz saat dilimi\" telefonu izler."
+      "show_week_numbers_mobile_desc": "Ay görünümünde hafta numaralarını göster."
     },
     "share": {
       "add_people": "Kişi ekle",

@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Vis dine kalendere i Kalender-appen og andre apps på denne enhed. Ændringer synkroniseres begge veje.",
       "device_sync_title": "Synkronisér med denne enhed",
-      "show_week_numbers_mobile_desc": "Vis ugenumre i månedsvisningen.",
-      "time_zone": "Tidszone",
-      "time_zone_auto": "Enhedens tidszone",
-      "time_zone_auto_zone": "Enhedens tidszone ({zone})",
-      "time_zone_desc": "Tidszone til nye begivenheder og til visning af kalenderen. \"Enhedens tidszone\" følger telefonen."
+      "show_week_numbers_mobile_desc": "Vis ugenumre i månedsvisningen."
     },
     "share": {
       "add_people": "Tilføj personer",

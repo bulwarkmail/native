@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Rādiet savus kalendārus lietotnē Kalendārs un citās šīs ierīces lietotnēs. Izmaiņas tiek sinhronizētas abos virzienos.",
       "device_sync_title": "Sinhronizēt ar šo ierīci",
-      "show_week_numbers_mobile_desc": "Rādīt nedēļu numurus mēneša skatā.",
-      "time_zone": "Laika josla",
-      "time_zone_auto": "Ierīces laika josla",
-      "time_zone_auto_zone": "Ierīces laika josla ({zone})",
-      "time_zone_desc": "Josla, ko izmanto jauniem notikumiem un kalendāra attēlošanai. \"Ierīces laika josla\" seko tālrunim."
+      "show_week_numbers_mobile_desc": "Rādīt nedēļu numurus mēneša skatā."
     },
     "share": {
       "add_people": "Pievienot personas",

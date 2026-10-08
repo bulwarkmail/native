@@ -259,8 +259,9 @@ interface PersistedSettings {
   calendarHideNonWorkingDays: boolean;
   // Weekdays as Date.getDay numbers (0 = Sunday).
   calendarWorkingDays: number[];
-  // IANA zone the calendar works in, or 'auto' to follow the device (#755).
-  // Same key semantics as the webmail's `timeZone` setting.
+  // IANA zone the whole app shows and picks times in, or 'auto' to follow the
+  // device (#755); set under Language & region. Same key semantics as the
+  // webmail's `timeZone` setting.
   calendarTimeZone: string;
   showBirthdayCalendar: boolean;
   // Hex colour of the virtual birthday calendar (webmail's key and default).

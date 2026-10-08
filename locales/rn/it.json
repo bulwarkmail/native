@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Mostra i tuoi calendari nell'app Calendario e nelle altre app di questo dispositivo. Le modifiche vengono sincronizzate in entrambe le direzioni.",
       "device_sync_title": "Sincronizza con questo dispositivo",
-      "show_week_numbers_mobile_desc": "Mostra i numeri di settimana nella vista mensile.",
-      "time_zone": "Fuso orario",
-      "time_zone_auto": "Fuso orario del dispositivo",
-      "time_zone_auto_zone": "Fuso orario del dispositivo ({zone})",
-      "time_zone_desc": "Fuso usato per i nuovi eventi e per interpretare il calendario. \"Dispositivo\" segue quello del telefono."
+      "show_week_numbers_mobile_desc": "Mostra i numeri di settimana nella vista mensile."
     },
     "share": {
       "add_people": "Aggiungi persone",

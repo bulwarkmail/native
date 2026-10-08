@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Toon uw agenda's in de Agenda-app en andere apps op dit apparaat. Wijzigingen worden in beide richtingen gesynchroniseerd.",
       "device_sync_title": "Synchroniseren met dit apparaat",
-      "show_week_numbers_mobile_desc": "Weeknummers weergeven in de maandweergave.",
-      "time_zone": "Tijdzone",
-      "time_zone_auto": "Tijdzone van apparaat",
-      "time_zone_auto_zone": "Tijdzone van apparaat ({zone})",
-      "time_zone_desc": "Tijdzone voor nieuwe afspraken en voor het weergeven van de agenda. \"Tijdzone van apparaat\" volgt de telefoon."
+      "show_week_numbers_mobile_desc": "Weeknummers weergeven in de maandweergave."
     },
     "share": {
       "add_people": "Personen toevoegen",
