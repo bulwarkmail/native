@@ -124,7 +124,7 @@ function changeLabel(label: InvitationChangeItem['label'], t: TranslateFn): stri
     case 'title': return t('email_viewer.calendar_invitation.change_title', 'Title');
     case 'time': return t('email_viewer.calendar_invitation.change_time', 'Time');
     case 'location': return t('email_viewer.calendar_invitation.change_location', 'Location');
-    case 'virtual_location': return t('email_viewer.calendar_invitation.change_virtual_location', 'Meeting link');
+    case 'virtual_location': return t('calendar.invitation.change_virtual_location', 'Meeting link');
     case 'description': return t('email_viewer.calendar_invitation.change_description', 'Description');
   }
 }
@@ -143,6 +143,8 @@ function proposalHoldText(hold: ProposalHold, t: TranslateFn): string {
       return t('calendar.invitation.proposal_unverified', 'The sender of this proposal could not be verified, so it can\'t be applied here.');
     case 'unsupported':
       return t('calendar.invitation.proposal_unsupported', 'Part of this proposal can\'t be applied as written. Change the event in the calendar.');
+    case 'not_applicable':
+      return t('calendar.invitation.proposal_not_applicable', 'None of these changes can be applied here. Change the event in the calendar.');
   }
 }
 
@@ -500,9 +502,13 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     // What is on screen now is what the organizer confirms.
     const shown = { changes: review.changes, patch: review.patch };
     const proposer = review.proposer ? formatInvitationActor(review.proposer) : null;
-    const message = t('email_viewer.calendar_invitation.apply_confirm_message', "Every attendee will be sent the updated event. This can't be undone.");
+    const sent = t('calendar.invitation.apply_confirm_message', "Every attendee will be sent the updated event. This can't be undone.");
+    // The list may mark a change "not applied": say that Apply leaves it be.
+    const message = review.changes.some((change) => change.notApplied)
+      ? `${t('calendar.invitation.apply_confirm_not_applied', 'Changes marked "not applied" are left as they are.')}\n\n${sent}`
+      : sent;
     Alert.alert(
-      t('email_viewer.calendar_invitation.apply_confirm_title', 'Apply the proposed changes?'),
+      t('calendar.invitation.apply_confirm_title', 'Apply the proposed changes?'),
       proposer
         ? `${t('calendar.invitation.apply_confirm_proposer', 'Proposed by {name}.', { name: proposer })}\n\n${message}`
         : message,

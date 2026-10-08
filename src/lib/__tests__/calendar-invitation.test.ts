@@ -679,7 +679,8 @@ describe('who may have a counter proposal applied', () => {
   it('applies nothing for a proposal that only changes a description it cannot write', () => {
     const { descriptionContentType: _omit, ...unknownType } = stored as Record<string, unknown>;
     const same = counter('bob@example.com', { start: '2026-10-09T10:00:00', description: 'New agenda' });
-    expect(review(same, authed('bob@example.com'), typed(unknownType))).toMatchObject({ canApply: false, patch: null });
+    // Said, rather than leaving the button out with no word why.
+    expect(review(same, authed('bob@example.com'), typed(unknownType))).toMatchObject({ canApply: false, patch: null, hold: 'not_applicable' });
   });
 
   it('sends a recurring event to the calendar instead', () => {

@@ -968,7 +968,9 @@ export type ProposalHold =
   /** Nothing ties the message to the From domain, or a check failed. */
   | 'sender_unverified'
   /** Part of the proposal can't be applied as written. */
-  | 'unsupported';
+  | 'unsupported'
+  /** Every change listed is marked not applied, so there is nothing to apply. */
+  | 'not_applicable';
 
 export interface CounterProposalReview {
   changes: InvitationChangeItem[];
@@ -1035,7 +1037,8 @@ export function reviewCounterProposal(args: {
     return { changes: [], patch: null, canApply: false, hold: null, proposer };
   }
   const hold = proposerHold(proposed, stored, email, proposerEmail, userAddresses)
-    ?? (content.refused.length > 0 ? 'unsupported' : null);
+    ?? (content.refused.length > 0 ? 'unsupported' : null)
+    ?? (patch ? null : 'not_applicable');
   const canApply = !hold && canApplyProposal({
     method, userIsOrganizer: true, existing: stored, patch, changes: content.items, proposed,
   });
