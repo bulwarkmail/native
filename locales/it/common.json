@@ -345,6 +345,15 @@
     "external_content_warning": "Le immagini e i contenuti esterni sono stati bloccati",
     "load_external_content": "Carica immagini",
     "trust_sender": "Considera sempre attendibile questo mittente",
+    "sender_check": {
+      "unverified_label": "Mittente non verificato",
+      "failed_label": "Verifica del mittente non riuscita",
+      "unverified": "Questo messaggio dichiara di provenire da {domain}, ma nulla lo conferma. Non ha una firma valida di {domain} e non proviene da un server autorizzato da {domain}.",
+      "unverified_sent_from": "Questo messaggio dichiara di provenire da {domain}, ma è stato inviato da {host} e non ha una firma valida di {domain}.",
+      "failed": "Questo messaggio dichiara di provenire da {domain}, ma non ha superato i controlli sul mittente di quel dominio. Potrebbe essere falsificato.",
+      "failed_sent_from": "Questo messaggio dichiara di provenire da {domain}, ma è stato inviato da {host} e non ha superato i controlli sul mittente di {domain}. Potrebbe essere falsificato.",
+      "caution": "Fai attenzione a link, allegati e richieste di password o dati di pagamento."
+    },
     "back_to_list": "Torna all'elenco",
     "view_contact": "Visualizza contatto",
     "message_details": "Dettagli del messaggio",

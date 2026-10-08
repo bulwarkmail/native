@@ -345,6 +345,15 @@
     "external_content_warning": "圖片與外部內容已遭封鎖",
     "load_external_content": "載入圖片",
     "trust_sender": "一律信任此寄件者",
+    "sender_check": {
+      "unverified_label": "寄件者未經驗證",
+      "failed_label": "寄件者驗證失敗",
+      "unverified": "這封郵件聲稱來自 {domain}，但沒有任何證據可以證實。它沒有 {domain} 的有效簽章，也不是從 {domain} 授權的伺服器寄出。",
+      "unverified_sent_from": "這封郵件聲稱來自 {domain}，但它是從 {host} 寄出的，而且沒有 {domain} 的有效簽章。",
+      "failed": "這封郵件聲稱來自 {domain}，但未通過該網域的寄件者驗證，可能是偽造的。",
+      "failed_sent_from": "這封郵件聲稱來自 {domain}，但它是從 {host} 寄出的，而且未通過 {domain} 的寄件者驗證，可能是偽造的。",
+      "caution": "請小心其中的連結、附件，以及要求提供密碼或付款資訊的請求。"
+    },
     "back_to_list": "回到清單",
     "view_contact": "檢視聯絡人",
     "message_details": "郵件詳細資料",

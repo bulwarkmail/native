@@ -345,6 +345,15 @@
     "external_content_warning": "Las imágenes y el contenido externo han sido bloqueados",
     "load_external_content": "Cargar imágenes",
     "trust_sender": "Confiar siempre en este remitente",
+    "sender_check": {
+      "unverified_label": "Remitente no verificado",
+      "failed_label": "Falló la verificación del remitente",
+      "unverified": "Este mensaje dice proceder de {domain}, pero nada lo confirma. No tiene una firma válida de {domain} ni procede de un servidor autorizado por {domain}.",
+      "unverified_sent_from": "Este mensaje dice proceder de {domain}, pero se envió desde {host} y no tiene una firma válida de {domain}.",
+      "failed": "Este mensaje dice proceder de {domain}, pero no superó las comprobaciones de remitente de ese dominio. Podría estar falsificado.",
+      "failed_sent_from": "Este mensaje dice proceder de {domain}, pero se envió desde {host} y no superó las comprobaciones de remitente de {domain}. Podría estar falsificado.",
+      "caution": "Tenga cuidado con los enlaces, los archivos adjuntos y las solicitudes de contraseñas o datos de pago."
+    },
     "back_to_list": "Volver a la lista",
     "view_contact": "Ver contacto",
     "message_details": "Detalles del Mensaje",

@@ -345,6 +345,15 @@
     "external_content_warning": "画像と外部コンテンツがブロックされました",
     "load_external_content": "画像を読み込む",
     "trust_sender": "常にこの送信者を信頼する",
+    "sender_check": {
+      "unverified_label": "未確認の送信者",
+      "failed_label": "送信者の確認に失敗",
+      "unverified": "このメッセージは{domain}からのものとされていますが、それを裏付けるものはありません。{domain}の有効な署名がなく、{domain}が許可したサーバーから送信されたものでもありません。",
+      "unverified_sent_from": "このメッセージは{domain}からのものとされていますが、実際には{host}から送信されており、{domain}の有効な署名がありません。",
+      "failed": "このメッセージは{domain}からのものとされていますが、このドメインの送信者チェックに失敗しました。なりすましの可能性があります。",
+      "failed_sent_from": "このメッセージは{domain}からのものとされていますが、実際には{host}から送信されており、{domain}の送信者チェックにも失敗しました。なりすましの可能性があります。",
+      "caution": "リンクや添付ファイル、パスワードや支払い情報の要求には注意してください。"
+    },
     "back_to_list": "リストに戻る",
     "view_contact": "連絡先を表示",
     "message_details": "メッセージの詳細",

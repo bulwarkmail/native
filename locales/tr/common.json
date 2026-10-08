@@ -345,6 +345,15 @@
     "external_content_warning": "Görseller ve harici içerik engellendi",
     "load_external_content": "Görselleri yükle",
     "trust_sender": "Bu gönderene her zaman güven",
+    "sender_check": {
+      "unverified_label": "Doğrulanmamış gönderen",
+      "failed_label": "Gönderen denetimi başarısız",
+      "unverified": "Bu ileti {domain} etki alanından geldiğini iddia ediyor, ancak bunu doğrulayan hiçbir şey yok. {domain} etki alanından geçerli bir imzası yok ve {domain} etki alanının yetkilendirdiği bir sunucudan gelmedi.",
+      "unverified_sent_from": "Bu ileti {domain} etki alanından geldiğini iddia ediyor, ancak {host} etki alanından gönderildi ve {domain} etki alanından geçerli bir imzası yok.",
+      "failed": "Bu ileti {domain} etki alanından geldiğini iddia ediyor, ancak bu etki alanının gönderen denetimlerinden geçemedi. Sahte olabilir.",
+      "failed_sent_from": "Bu ileti {domain} etki alanından geldiğini iddia ediyor, ancak {host} etki alanından gönderildi ve {domain} etki alanının gönderen denetimlerinden geçemedi. Sahte olabilir.",
+      "caution": "Bağlantılara, eklere ve parola ya da ödeme bilgisi isteklerine karşı dikkatli olun."
+    },
     "back_to_list": "Listeye dön",
     "view_contact": "Kişiyi görüntüle",
     "message_details": "İleti Ayrıntıları",

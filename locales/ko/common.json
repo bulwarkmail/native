@@ -345,6 +345,15 @@
     "external_content_warning": "이미지와 외부 콘텐츠가 차단되었어요",
     "load_external_content": "이미지 불러오기",
     "trust_sender": "이 보낸 사람 항상 신뢰하기",
+    "sender_check": {
+      "unverified_label": "확인되지 않은 보낸 사람",
+      "failed_label": "보낸 사람 확인 실패",
+      "unverified": "이 메시지는 {domain}에서 보냈다고 하지만 이를 뒷받침하는 근거가 없어요. {domain}의 유효한 서명이 없고, {domain}에서 허용한 서버에서 보낸 것도 아니에요.",
+      "unverified_sent_from": "이 메시지는 {domain}에서 보냈다고 하지만 실제로는 {host}에서 발송되었고 {domain}의 유효한 서명이 없어요.",
+      "failed": "이 메시지는 {domain}에서 보냈다고 하지만 해당 도메인의 보낸 사람 확인을 통과하지 못했어요. 위조된 메시지일 수 있어요.",
+      "failed_sent_from": "이 메시지는 {domain}에서 보냈다고 하지만 실제로는 {host}에서 발송되었고 {domain}의 보낸 사람 확인을 통과하지 못했어요. 위조된 메시지일 수 있어요.",
+      "caution": "링크, 첨부 파일, 비밀번호나 결제 정보 요청에 주의하세요."
+    },
     "back_to_list": "목록으로",
     "view_contact": "연락처 보기",
     "message_details": "메시지 상세 정보",

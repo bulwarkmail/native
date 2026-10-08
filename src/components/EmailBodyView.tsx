@@ -13,6 +13,8 @@ import { estimateBodyHeight, lastBodyHeight, rememberBodyHeight } from '../lib/b
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { canOfferTrustSender } from '../lib/sender-check';
+import type { SenderVerification } from '../lib/email-headers';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -26,6 +28,8 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 interface EmailBodyViewProps {
   email: Email;
   senderEmail?: string;
+  /** Set when the server's checks don't back the sender: no "Always trust". */
+  senderVerification?: SenderVerification | null;
   /** Owning account when the message lives in a shared/group mailbox. */
   jmapAccountId?: string;
   // The body is a native WebView, which on Android swallows horizontal touches
@@ -518,7 +522,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  email, senderEmail, senderVerification, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -722,8 +726,9 @@ export default function EmailBodyView({
     : fill ? styles.webContainerFill : { height: estimate };
 
   const onLoadImages = () => setAllowOnce(true);
+  const offerTrustSender = canOfferTrustSender(senderEmail, senderVerification ?? null);
   const onTrustSender = () => {
-    if (senderEmail) {
+    if (senderEmail && offerTrustSender) {
       // Keep the local allow-list for instant effect, and file the sender in
       // the server-side "Trusted Senders" address book (synced across
       // devices) unless the user turned that off.
@@ -762,7 +767,7 @@ export default function EmailBodyView({
                 <Text style={styles.bannerButtonText}>{t('email_viewer.load_external_content', 'Load images')}</Text>
               </Pressable>
             )}
-            {senderEmail ? (
+            {offerTrustSender ? (
               <Pressable style={styles.bannerButton} onPress={onTrustSender} hitSlop={8}>
                 <ShieldCheck size={14} color={c.textSecondary} />
                 <Text style={styles.bannerButtonText}>{t('email_viewer.trust_sender', 'Always trust this sender')}</Text>

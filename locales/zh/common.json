@@ -345,6 +345,15 @@
     "external_content_warning": "图片和外部内容已被屏蔽",
     "load_external_content": "加载图片",
     "trust_sender": "始终信任此发件人",
+    "sender_check": {
+      "unverified_label": "发件人未经验证",
+      "failed_label": "发件人验证失败",
+      "unverified": "此邮件声称来自 {domain}，但没有任何证据能证实这一点。它没有 {domain} 的有效签名，也不是从 {domain} 授权的服务器发出的。",
+      "unverified_sent_from": "此邮件声称来自 {domain}，但它是从 {host} 发出的，并且没有 {domain} 的有效签名。",
+      "failed": "此邮件声称来自 {domain}，但未通过该域名的发件人验证。它可能是伪造的。",
+      "failed_sent_from": "此邮件声称来自 {domain}，但它是从 {host} 发出的，并且未通过 {domain} 的发件人验证。它可能是伪造的。",
+      "caution": "请谨慎对待其中的链接、附件，以及索要密码或付款信息的请求。"
+    },
     "back_to_list": "返回列表",
     "view_contact": "查看联系人",
     "message_details": "邮件详情",

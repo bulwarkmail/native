@@ -345,6 +345,15 @@
     "external_content_warning": "S'han bloquejat les imatges i el contingut extern",
     "load_external_content": "Carrega les imatges",
     "trust_sender": "Confia sempre en aquest remitent",
+    "sender_check": {
+      "unverified_label": "Remitent no verificat",
+      "failed_label": "La verificació del remitent ha fallat",
+      "unverified": "Aquest missatge diu que és de {domain}, però res no ho confirma. No té cap signatura vàlida de {domain} i no prové de cap servidor autoritzat per {domain}.",
+      "unverified_sent_from": "Aquest missatge diu que és de {domain}, però s'ha enviat des de {host} i no té cap signatura vàlida de {domain}.",
+      "failed": "Aquest missatge diu que és de {domain}, però no ha superat les comprovacions de remitent d'aquest domini. Podria estar falsificat.",
+      "failed_sent_from": "Aquest missatge diu que és de {domain}, però s'ha enviat des de {host} i no ha superat les comprovacions de remitent de {domain}. Podria estar falsificat.",
+      "caution": "Aneu amb compte amb els enllaços, els fitxers adjunts i les sol·licituds de contrasenyes o dades de pagament."
+    },
     "back_to_list": "Torna a la llista",
     "view_contact": "Mostra el contacte",
     "message_details": "Detalls del missatge",

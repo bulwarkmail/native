@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import {
-  Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock,
+  Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock, AlertTriangle,
 } from 'lucide-react-native';
 import type { Email, EmailAddress, Identity } from '../../api/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -17,6 +17,7 @@ import {
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
+import { senderCheckText } from '../../lib/sender-check';
 
 interface Props {
   email: Email;
@@ -105,6 +106,8 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const starred = !!email.keywords?.$flagged;
   const displayDate = emailDisplayDate(email);
   const spoofed = isAuthenticationSpoofed(info.auth);
+  const senderCheck = senderCheckText(info.senderVerification, t);
+  const senderCheckColor = senderCheck?.tone === 'danger' ? c.error : c.warning;
 
   // "via <identity>": the message was sent by one of the user's identities or
   // received at one of them (incl. +tag); hidden when the From can't be
@@ -154,9 +157,23 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
         </Pressable>
         <View style={styles.info}>
           <Pressable onPress={from ? () => onAddressPress(from) : undefined}>
-            <Text style={styles.name} numberOfLines={1}>
-              {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={[styles.name, styles.nameText]} numberOfLines={1}>
+                {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
+              </Text>
+              {senderCheck && (
+                <View
+                  style={[styles.senderCheck, { borderColor: senderCheckColor }]}
+                  accessible
+                  accessibilityLabel={`${senderCheck.label}. ${senderCheck.message}`}
+                >
+                  <AlertTriangle size={11} color={senderCheckColor} />
+                  <Text style={[styles.senderCheckText, { color: senderCheckColor }]} numberOfLines={1}>
+                    {senderCheck.label}
+                  </Text>
+                </View>
+              )}
+            </View>
             {from?.name && from?.email ? (
               <Text style={styles.email} numberOfLines={1}>{from.email}</Text>
             ) : null}
@@ -328,6 +345,18 @@ function makeStyles(c: ThemePalette) {
     row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
     info: { flex: 1, minWidth: 0 },
     name: { ...typography.bodySemibold, color: c.text },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    nameText: { flexShrink: 1 },
+    senderCheck: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+    },
+    senderCheckText: { ...typography.small },
     email: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
     recipients: { ...typography.caption, color: c.textSecondary, marginTop: 4 },
     recipientsLabel: { color: c.textMuted },

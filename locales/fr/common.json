@@ -345,6 +345,15 @@
     "external_content_warning": "Les images et le contenu externe ont été bloqués",
     "load_external_content": "Charger les images",
     "trust_sender": "Toujours faire confiance à cet expéditeur",
+    "sender_check": {
+      "unverified_label": "Expéditeur non vérifié",
+      "failed_label": "Échec de la vérification de l'expéditeur",
+      "unverified": "Ce message prétend venir de {domain}, mais rien ne le confirme. Il ne porte aucune signature valide de {domain} et ne provient pas d'un serveur autorisé par {domain}.",
+      "unverified_sent_from": "Ce message prétend venir de {domain}, mais il a été envoyé depuis {host} et ne porte aucune signature valide de {domain}.",
+      "failed": "Ce message prétend venir de {domain}, mais il a échoué aux vérifications d'expéditeur de ce domaine. Il est peut-être falsifié.",
+      "failed_sent_from": "Ce message prétend venir de {domain}, mais il a été envoyé depuis {host} et a échoué aux vérifications d'expéditeur de {domain}. Il est peut-être falsifié.",
+      "caution": "Méfiez-vous des liens, des pièces jointes et des demandes de mots de passe ou d'informations de paiement."
+    },
     "back_to_list": "Retour à la liste",
     "view_contact": "Voir le contact",
     "message_details": "Détails du message",
