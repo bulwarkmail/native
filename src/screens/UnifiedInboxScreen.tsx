@@ -21,6 +21,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
+import { useDateRegion } from '../lib/use-date-region';
 import { singleLine } from '../lib/single-line';
 import { previewLine } from '../lib/preview-text';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
@@ -57,6 +58,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const switchAccount = useAuthStore((s) => s.switchAccount);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const includeGroup = useSettingsStore((s) => s.includeGroupInUnified);
   const crossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
   const deleteAction = useSettingsStore((s) => s.deleteAction);
@@ -347,7 +349,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               </Text>
               {starred && <Star size={12} color={c.starred} fill={c.starred} />}
               {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
-              <Text style={styles.time}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
+              <Text style={styles.time}>{formatListDate(item.receivedAt, { ...dateRegion, dateFormat, timeFormat, locale, t })}</Text>
             </View>
             <Text style={[styles.subject, unread && styles.bold]} numberOfLines={1}>
               {singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}

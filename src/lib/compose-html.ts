@@ -5,6 +5,7 @@
 import { escapeHtml, stripDangerousTags } from './email-html';
 import { buildQuoteHeader, type QuoteHeaderLabels } from './quote-header';
 import type { TimeFormat } from '../stores/settings-store';
+import type { DateRegion } from './date-format';
 
 export interface ReplyMeta {
   from?: { email?: string; name?: string };
@@ -19,6 +20,7 @@ export interface ReplyMeta {
 export interface QuoteHeaderOptions {
   timeFormat?: TimeFormat;
   locale?: string;
+  region?: DateRegion;
   unknownLabel?: string;
   labels?: QuoteHeaderLabels;
 }
@@ -54,7 +56,7 @@ export function buildInitialHtml(
 ): string {
   if (!reply || mode === 'compose') return '<p><br></p>';
 
-  const { timeFormat = '24h', locale, unknownLabel = 'Unknown', labels } = opts;
+  const { timeFormat = '24h', locale, region, unknownLabel = 'Unknown', labels } = opts;
 
   const quotedBody = reply.htmlBody
     ? stripDangerousTags(reply.htmlBody)
@@ -69,6 +71,7 @@ export function buildInitialHtml(
     email: { from: reply.from, subject: reply.subject, receivedAt: reply.receivedAt },
     timeFormat,
     locale,
+    region,
     unknownLabel,
     labels,
   });

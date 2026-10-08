@@ -265,7 +265,7 @@ describe('time zone', () => {
     vi.setSystemTime(new Date('2026-10-25T12:00:00Z'));
     expect(formatListDate(new Date('2026-10-25T00:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('02:30');
     expect(formatListDate(new Date('2026-10-25T01:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('02:30');
-    expect(formatListDate(new Date('2026-10-24T22:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('Sun 00:30');
+    expect(formatListDate(new Date('2026-10-24T21:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('Sat 23:30');
   });
 
   it('follows the device for auto and for an unknown zone', () => {
@@ -279,12 +279,12 @@ describe('time zone', () => {
 
   it('keys the formatter cache by zone', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
-    const d = new Date('2026-05-30T09:15:00Z');
+    vi.setSystemTime(new Date('2026-05-30T03:00:00Z'));
+    const d = new Date('2026-05-30T01:15:00Z');
     const z = { ...opts, locale: 'is' };
-    expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('14:45');
+    expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('06:45');
     // Same locale and format, another zone: not the cached Kolkata formatter.
-    expect(formatListDate(d, { ...z, timeZone: 'Pacific/Auckland' })).toBe('21:15');
-    expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('14:45');
+    expect(formatListDate(d, { ...z, timeZone: 'Pacific/Auckland' })).toBe('13:15');
+    expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('06:45');
   });
 });

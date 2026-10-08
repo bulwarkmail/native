@@ -34,6 +34,7 @@ import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-utils';
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
+import { useDateRegion } from '../../lib/use-date-region';
 import { mailboxesOfAccount } from '../../lib/mailbox-tree';
 import { emailDisplayDate } from '../../lib/email-date';
 import { sendErrorAlert } from '../../lib/send-errors';
@@ -66,6 +67,7 @@ export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreO
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const identities = useSettingsStore((s) => s.identities);
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
@@ -173,6 +175,7 @@ export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreO
         email: { from, subject: email.subject, receivedAt: emailDisplayDate(email) },
         timeFormat,
         locale,
+        region: dateRegion,
         unknownLabel: t('common.unknown', 'Unknown'),
         labels: quoteHeaderLabels(t),
       });

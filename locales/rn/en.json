@@ -997,6 +997,11 @@
       "reset_confirm": "Replace your tag list with the default tags? Tags already set on messages stay on the server.",
       "reset_defaults": "Reset to Defaults"
     },
+    "language_region": {
+      "time_zone": {
+        "description_device": "Show email and calendar times in this time zone instead of the one your device uses"
+      }
+    },
     "layout": {
       "description": "Tune the email list interactions for mobile.",
       "quick_actions": {

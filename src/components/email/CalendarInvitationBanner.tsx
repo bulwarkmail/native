@@ -5,7 +5,7 @@ import {
   CalendarPlus, Check, HelpCircle, X, MapPin, Video, Clock, CalendarDays, AlertTriangle,
   ShieldCheck, ShieldAlert, ChevronDown,
 } from 'lucide-react-native';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -26,7 +26,7 @@ import {
 } from '../../lib/calendar-invitation';
 import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
-import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
+import { getCalendarColor, getEventStartDate, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { requireShownAccountScope } from '../../stores/email-store';
 import { importAndRespond, importInvitation } from '../../lib/invitation-actions';
@@ -73,6 +73,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
   const enabled = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
+  // Read by getEventStartDate; subscribed so a new zone redraws the time.
+  useSettingsStore((s) => s.calendarTimeZone);
   const calendars = useCalendarStore((s) => s.calendars);
   const storeEvents = useCalendarStore((s) => s.events);
   const subscriptions = useAccountSubscriptions();
@@ -188,8 +190,15 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   }
   if (!event) return null;
 
-  const startStr = event.showWithoutTime ? event.start : (event.utcStart || event.start);
-  const startDate = startStr ? parseISO(startStr) : null;
+  // In the app's time zone, as the calendar shows it.
+  const startDate = event.start || event.utcStart
+    ? getEventStartDate({
+      start: event.start ?? '',
+      utcStart: event.utcStart,
+      showWithoutTime: event.showWithoutTime,
+      timeZone: event.timeZone,
+    })
+    : null;
   const dateLabel = startDate && !isNaN(startDate.getTime())
     ? (event.showWithoutTime
         ? format(startDate, 'EEEE, MMM d, yyyy', { locale: dateLocale })

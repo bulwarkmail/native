@@ -74,6 +74,7 @@ import {
 } from '../lib/compose-html';
 import { htmlComposeBodyToPlainText, initialPlainTextMode, plainComposeBodyToHtml } from '../lib/compose-format';
 import { buildQuoteHeader, formatQuoteDate, quoteHeaderLabels, type QuoteHeaderLabels } from '../lib/quote-header';
+import { useDateRegion } from '../lib/use-date-region';
 import {
   isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, type Recipient as ParsedRecipient,
 } from '../lib/recipients';
@@ -514,6 +515,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const insets = useSafeAreaInsets();
   // Track the visible keyboard obstruction so the format bar stays above it.
   // On Android edge-to-edge, the IME-inset reported by `keyboardDidShow` is
@@ -828,7 +830,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         body: replyTo.body,
         htmlBody: seedHtml.html,
         receivedAt: replyTo.sentAt ?? replyTo.receivedAt,
-      }, { timeFormat, locale, unknownLabel: t('common.unknown', 'Unknown'), labels: quoteLabels });
+      }, { timeFormat, locale, region: dateRegion, unknownLabel: t('common.unknown', 'Unknown'), labels: quoteLabels });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -843,6 +845,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       email: { from: replyTo.from, subject: replyTo.subject, receivedAt: replyTo.sentAt ?? replyTo.receivedAt },
       timeFormat,
       locale,
+      region: dateRegion,
       unknownLabel: t('common.unknown', 'Unknown'),
       labels: quoteLabels,
     });
@@ -2523,7 +2526,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     void performSend(holdFor, date);
   };
 
-  const formatWhen = (date: Date) => formatQuoteDate(date.toISOString(), timeFormat, locale);
+  const formatWhen = (date: Date) => formatQuoteDate(date.toISOString(), timeFormat, locale, dateRegion);
 
   const schedulePresets = React.useMemo(() => {
     const now = new Date();

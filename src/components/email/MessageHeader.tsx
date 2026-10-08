@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useKeywordsStore, keywordToken } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
+import { useDateRegion } from '../../lib/use-date-region';
 import {
   deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
   type AuthenticationResults, type EmailHeaderInfo,
@@ -97,6 +98,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);
@@ -142,7 +144,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
       size: formatSize(email.attachments.reduce((n, a) => n + (a.size ?? 0), 0)),
     })
     : null;
-  const receivedAt = formatFullDateTime(email.receivedAt, timeFormat, locale);
+  const receivedAt = formatFullDateTime(email.receivedAt, timeFormat, locale, dateRegion);
 
   return (
     <View style={styles.block}>
@@ -188,9 +190,9 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           )}
         </View>
         <View style={styles.meta}>
-          <Text style={styles.date}>{formatHeaderDate(displayDate, locale)}</Text>
+          <Text style={styles.date}>{formatHeaderDate(displayDate, locale, dateRegion)}</Text>
           <Text style={styles.time}>
-            {formatHeaderTime(displayDate, timeFormat, locale)}
+            {formatHeaderTime(displayDate, timeFormat, locale, dateRegion)}
             {!compact && email.size > 0 ? ` · ${formatSize(email.size)}` : ''}
           </Text>
           {onToggleStar && (
@@ -269,7 +271,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           <DetailRow label={t('email_viewer.to', 'To')} value={email.to?.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(', ')} styles={styles} />
           <DetailRow label={t('email_viewer.cc', 'CC')} value={email.cc?.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(', ')} styles={styles} />
           <DetailRow label={t('email_viewer.bcc', 'BCC')} value={email.bcc?.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(', ')} styles={styles} />
-          <DetailRow label={t('email_viewer.details.sent', 'Sent')} value={formatFullDateTime(email.sentAt, timeFormat, locale)} styles={styles} />
+          <DetailRow label={t('email_viewer.details.sent', 'Sent')} value={formatFullDateTime(email.sentAt, timeFormat, locale, dateRegion)} styles={styles} />
           <DetailRow
             label={t('email_viewer.details.received', 'Received')}
             value={delta !== null && delta > 60000

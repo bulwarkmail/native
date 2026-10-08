@@ -48,6 +48,7 @@ import {
 } from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
+import { useDateRegion } from '../lib/use-date-region';
 import { singleLine } from '../lib/single-line';
 import { previewLine } from '../lib/preview-text';
 import { buildRowLabel } from '../lib/list-row-label';
@@ -156,6 +157,7 @@ const EmailRow = React.memo(function EmailRow({
   // Read the date-rendering prefs here so each row re-renders when they change.
   const dateFormat = useSettingsStore((s) => s.dateFormat);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const locale = useLocaleStore((s) => s.locale);
   const tr = useLocaleStore((s) => s.t);
   const { name: senderName, email: senderEmail } = getCounterpart(
@@ -193,7 +195,7 @@ const EmailRow = React.memo(function EmailRow({
   );
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
-  const dateText = formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t: tr });
+  const dateText = formatListDate(item.receivedAt, { ...dateRegion, dateFormat, timeFormat, locale, t: tr });
   const rowLabel = buildRowLabel({
     sender: senderName,
     subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),

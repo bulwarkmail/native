@@ -25,6 +25,7 @@ import { useSendUndoStore } from '../stores/send-undo-store';
 import { ownMailboxes } from '../lib/mailbox-tree';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { formatQuoteDate } from '../lib/quote-header';
+import { useDateRegion } from '../lib/use-date-region';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -36,6 +37,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [items, setItems] = React.useState<ScheduledEmail[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -47,8 +49,8 @@ export default function ScheduledScreen({ navigation }: Props) {
   const customDraftRef = React.useRef<Date>(new Date());
 
   const formatWhen = React.useCallback(
-    (iso: string) => formatQuoteDate(iso, timeFormat, locale),
-    [timeFormat, locale],
+    (iso: string) => formatQuoteDate(iso, timeFormat, locale, dateRegion),
+    [timeFormat, locale, dateRegion],
   );
 
   const recipientLabel = (item: ScheduledEmail): string => {
