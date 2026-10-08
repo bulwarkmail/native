@@ -214,7 +214,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: 300 ms debounce into `setSearchQuery` → full `Email/query` + `Email/get` per pause (`src/screens/EmailListScreen.tsx:512-516`); with the `*` wildcard a single letter matches the whole mailbox.
   - Fix hint: search on `onSubmitEditing` (keep the clear button live), or debounce ≥ 600 ms with a minimum of 2 characters.
 
-- [ ] **Date format: no regional date-locale setting; relative strings hard-coded** — `P3` — `partial` — partly: 0205aa0 localized the relative strings; there is still no `dateLocale` setting (see area 08, "Language list not localized")
+- [x] **Date format: no regional date-locale setting; relative strings hard-coded** — `P3` — `partial` — partly: 0205aa0 localized the relative strings; there is still no `dateLocale` setting (see area 08, "Language list not localized") — fixed in 7e22723, 260f124, 0bd733e, e1ef0b1, 6ed331e — a "Date format region" select (auto, ISO, en-GB, en-US) and an app-wide time zone under Language & region; all-numeric formats follow the region, worded dates keep the language's own Gregorian pattern (decision 2026-10-08)
   - What WEB does: user-selectable regional format (`dateLocale`, changelog 1.7.7) and a preset picker (#331); strings localized.
   - What RN does: `formatListDate` follows the app locale only (`src/lib/date-format.ts:17-31`), "Just now"/"m ago" are English (`:38-41`).
   - Fix hint: localize the relative strings via `t()`; add a `dateLocale` select if parity is wanted.

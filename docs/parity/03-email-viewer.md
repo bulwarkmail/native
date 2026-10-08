@@ -272,7 +272,7 @@ device.
   - What WEB does: `releaseFixedWidthTables` (`lib/email-fit-width.ts`).
   - What RN does: a `<table width="800">` is scaled down (`src/lib/email-html.ts:452-466`, `src/components/EmailBodyView.tsx:264`).
 
-- [ ] **No "unverified sender" warning** — `P3` — `missing` (1.13.0, 88893463, eb84810f)
+- [x] **No "unverified sender" warning** — `P3` — `missing` (1.13.0, 88893463, eb84810f) — fixed in df4deac, f7e7733, 7e9e569 — warning above the message, no "Always trust this sender" for a flagged or unchecked sender
   - What WEB does: a warning above a message whose DKIM/SPF/DMARC checks fail, a badge by the sender, and no "Always trust this sender" for it; multi-DKIM parsing (`lib/email-headers.ts:36-90,237-252`, `email-viewer.tsx`); 7 `email_viewer.sender_check.*` keys (not vendored yet).
   - What RN does: `isAuthenticationSpoofed` only hides the "via" badge (`src/lib/email-headers.ts:99-104`, `MessageHeader.tsx:107`).
 
