@@ -131,7 +131,7 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `MAX_ACCOUNTS = 5` (`src/lib/account-utils.ts:1`) although only the active account holds a live connection.
   - Fix hint: raise the constant (or drop the cap) once the unified inbox cost per account is acceptable.
 
-- [ ] **Shared/group account settings scope is missing** — `P3` — `missing` (changelog 1.7.5 "Manage shared/group account settings from the Accounts page") — partly: shared accounts are listed in AccountSettings (490355c), and tapping one scopes Filters and Vacation to it since a86cd1d; calendar and contacts settings are not scoped yet
+- [x] **Shared/group account settings scope is missing** — `P3` — `missing` (changelog 1.7.5 "Manage shared/group account settings from the Accounts page") — partly: shared accounts are listed in AccountSettings (490355c), and tapping one scopes Filters and Vacation to it since a86cd1d; calendar and contacts settings are not scoped yet — fixed in 5ac7b7d, c9e033d — rename and colour only (decision 2026-10-08): a shared account's calendars and address books can be renamed and recoloured from settings, and deleting or sharing them stays in webmail; the shared-calendar colour override key is not yet scoped by app account (local only)
   - What WEB does: lists `client.getSharedAccounts()` (non-primary) on the Accounts page and enters a scoped settings mode (filters, vacation, calendars, contacts) via `managed-account-store` (`components/settings/account-settings.tsx:43-48, 112-118, 225-262`; `stores/managed-account-store.ts`).
   - What RN does: `getSharedMailAccounts()` exists for mail/unified inbox (`src/api/jmap-client.ts:480-495`) but there is no shared-account listing or scoped settings.
   - Fix hint: list non-personal `session.accounts` in `AccountSettings` and pass an `accountId` into the filter/vacation stores.
@@ -200,7 +200,7 @@ device.
   - What WEB does: falls back when `x:Account/get` (admin-only on Stalwart) is refused (`stores/account-security-store.ts:519-529`).
   - What RN does: `AccountSecuritySettings.tsx:886-888` reads it from `x:Account/get` only; `fetchAccountDisplayName` (`src/api/account-security.ts:291`) exists but is not used here.
 
-- [ ] **SSO sign-out does not end the identity provider's session (#905)** — `P3` — `missing` (1.11.0)
+- [x] **SSO sign-out does not end the identity provider's session (#905)** — `P3` — `missing` (1.11.0) — fixed in dd9b30b, b141553, 4fd6131, 8df1af0, 2c31fda, e56f929, 96a070c — sign-out ends the provider session only with the last account using that provider, and sends no post-logout redirect. Stalwart's built-in OIDC advertises no `end_session_endpoint`, so it applies with external IdPs such as Keycloak and Authentik
   - What RN does: `end_session_endpoint` is never called (`src/lib/oauth-native.ts:212`), so the next sign-in in the in-app browser reuses the provider session.
 
 ## Verified at parity (brief list, so the fixer knows NOT to redo)

@@ -254,6 +254,38 @@ describe('tasks, calendars and imports opened in A refuse after a switch', () =>
   });
 });
 
+describe('a shared account\'s calendar, managed from settings', () => {
+  // The user's own calendar and the team's carry the same raw id "c1".
+  const own = { id: 'c1', name: 'Mine', color: '#111111' };
+  const team = { id: 'team:c1', originalId: 'c1', accountId: 'team', isShared: true, name: 'Team' };
+  const account = () => ({ appAccountId: A, jmapAccountId: 'team' });
+  beforeEach(() => {
+    useCalendarStore.setState({ calendars: [own, team] as never });
+  });
+
+  it('a rename reaches the team account with the raw id, and leaves the own c1 alone', async () => {
+    mockCalApi.update.mockResolvedValue(undefined);
+    await useCalendarStore.getState().updateCalendar('team:c1', { name: 'Crew' }, account());
+    expect(mockCalApi.update).toHaveBeenCalledWith('c1', { name: 'Crew' }, { gen: 7, accountId: 'team' });
+    const cals = useCalendarStore.getState().calendars;
+    expect(cals.find((c) => c.id === 'c1')).toEqual(own);
+    expect(cals.find((c) => c.id === 'team:c1')?.name).toBe('Crew');
+  });
+
+  it('is never deleted, nothing sent', async () => {
+    await expect(useCalendarStore.getState().removeCalendar('team:c1', account())).rejects.toThrow();
+    await expect(useCalendarStore.getState().removeCalendar('team:c1')).rejects.toThrow();
+    expect(mockCalApi.remove).not.toHaveBeenCalled();
+    expect(useCalendarStore.getState().calendars).toHaveLength(2);
+  });
+
+  it('never has its events cleared, nothing sent', async () => {
+    await expect(useCalendarStore.getState().clearCalendarEvents('team:c1', account())).rejects.toThrow();
+    await expect(useCalendarStore.getState().clearCalendarEvents('team:c1')).rejects.toThrow();
+    expect(mockCalApi.clear).not.toHaveBeenCalled();
+  });
+});
+
 describe('participant identities are loaded and kept per account', () => {
   const getIds = calendarApi.getParticipantIdentities as ReturnType<typeof vi.fn>;
   const setDefault = calendarApi.setDefaultParticipantIdentity as ReturnType<typeof vi.fn>;

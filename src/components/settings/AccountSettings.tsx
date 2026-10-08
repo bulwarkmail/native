@@ -70,8 +70,9 @@ export function AccountSettings() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const setManagedAccount = useManagedAccountStore((s) => s.setManagedAccount);
 
-  // Manage a shared/group account's filters and vacation responder: scope
-  // Settings to it and open its first pane (webmail: "Shared with me").
+  // Manage a shared/group account's filters, vacation responder, calendars
+  // and address books: scope Settings to it and open its first pane
+  // (webmail: "Shared with me").
   const manageShared = (account: { id: string; name: string }, firstTab: string) => {
     setManagedAccount(account);
     setPendingSettingsTab(firstTab);
@@ -248,7 +249,7 @@ export function AccountSettings() {
       {sharedAccounts.length > 0 && (
         <SettingsSection
           title={t('settings.account.shared_accounts.title', 'Shared with me')}
-          description={t('settings.account.shared_accounts.description_manage', 'Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder.')}
+          description={t('settings.account.shared_accounts.description', 'Group and shared accounts you can manage. Select one to edit its filters, vacation responder, calendars, and contacts.')}
         >
           <View style={styles.list}>
             {sharedAccounts.map((s, index) => {

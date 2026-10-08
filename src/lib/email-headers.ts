@@ -36,11 +36,25 @@ export interface SpfEntry {
   result: SpfResult;
   identity?: 'mailfrom' | 'helo';
   domain?: string;
+  /** From a header below the receiving server's own, which the sender may have written. */
+  foreign?: true;
+}
+
+export interface DkimEntry {
+  result: DkimResult;
+  domain?: string;
+  selector?: string;
 }
 
 export interface AuthenticationResults {
-  spf?: { result: SpfResult; domain?: string; all?: SpfEntry[] };
-  dkim?: { result: DkimResult; domain?: string; selector?: string };
+  spf?: { result: SpfResult; domain?: string; foreign?: true; all?: SpfEntry[] };
+  dkim?: {
+    result: DkimResult;
+    domain?: string;
+    selector?: string;
+    /** Every DKIM result when the message carried more than one signature; `result` is the first. */
+    all?: DkimEntry[];
+  };
   dmarc?: { result: DmarcResult; domain?: string; policy?: DmarcPolicy };
   iprev?: { result: 'pass' | 'fail'; ip?: string };
 }
@@ -99,8 +113,87 @@ const SPF_SEVERITY: Record<SpfResult, number> = {
 export function isAuthenticationSpoofed(auth?: AuthenticationResults): boolean {
   if (!auth) return false;
   if (auth.dmarc?.result === 'fail') return true;
-  if (auth.spf?.result === 'fail' && auth.dkim?.result !== 'pass') return true;
+  // Otherwise a hard SPF fail with no valid DKIM signature means the sender
+  // isn't authorized for the envelope domain.
+  if (auth.spf?.result === 'fail' && !hasDkimPass(auth)) return true;
   return false;
+}
+
+function hasDkimPass(auth: AuthenticationResults): boolean {
+  return auth.dkim?.result === 'pass' || !!auth.dkim?.all?.some((entry) => entry.result === 'pass');
+}
+
+function domainOf(address: string): string | undefined {
+  const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
+  // The address can be sender-written: cap it at a DNS name's length, and
+  // match labels that can't overlap, so no input makes the test backtrack.
+  if (domain.length > 253) return undefined;
+  return /^[^\s<>@.]+(?:\.[^\s<>@.]+)+$/.test(domain) ? domain : undefined;
+}
+
+export interface SenderVerification {
+  /**
+   * `failed`: the message fails the From domain's checks (see
+   * isAuthenticationSpoofed). `unverified`: no DMARC pass, and no SPF or
+   * DKIM pass for the From domain, so nothing ties the message to it.
+   */
+  status: 'failed' | 'unverified';
+  /** Domain of the visible From address. */
+  domain: string;
+  /** Envelope (MAIL FROM) host, when it differs from `domain`. */
+  sentFrom?: string;
+}
+
+/**
+ * Whether the receiving server's checks back the visible From domain.
+ * Returns null when they do, or when there are no results to judge by.
+ *
+ * DMARC alone can't answer this: mail-auth (Stalwart) only checks alignment
+ * once SPF or DKIM passes, so a message that passes neither reports
+ * `dmarc=none` even when the From domain publishes a policy. That is the
+ * plainest kind of forgery, so it gets its own verdict here.
+ */
+export function getSenderVerification(
+  auth: AuthenticationResults | undefined,
+  fromEmail: string | undefined,
+): SenderVerification | null {
+  if (!auth || !fromEmail || (!auth.spf && !auth.dkim && !auth.dmarc)) return null;
+  const domain = domainOf(fromEmail);
+  if (!domain) return null;
+
+  // DMARC only counts the MAIL FROM identity; a HELO pass proves nothing
+  // about who wrote the message.
+  // The host named comes from the server's own header only: a lower one is
+  // the sender's to write.
+  const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
+  const spfPass = auth.spf?.all ? mailFrom?.result === 'pass' : auth.spf?.result === 'pass';
+  const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
+  const envelopeDomain = envelope ? domainOf(envelope) : undefined;
+  const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
+
+  if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
+  if (auth.dmarc?.result === 'pass') return null;
+  // A pass vouches for the From domain only when it is for that domain (or a
+  // parent or subdomain of it): anyone can pass SPF and DKIM for a domain of
+  // their own, and with no DMARC record at the forged one nothing else would
+  // flag it. Stricter than webmail, which takes any pass (decision
+  // 2026-10-08).
+  if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return null;
+  if (hasAlignedDkimPass(auth, domain)) return null;
+  return { status: 'unverified', domain, sentFrom };
+}
+
+function domainsAlign(a: string, b: string): boolean {
+  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
+}
+
+function hasAlignedDkimPass(auth: AuthenticationResults, fromDomain: string): boolean {
+  const entries = auth.dkim?.all ?? (auth.dkim ? [auth.dkim] : []);
+  return entries.some((entry) => {
+    if (entry.result !== 'pass' || !entry.domain) return false;
+    const signer = domainOf(entry.domain);
+    return !!signer && domainsAlign(signer, fromDomain);
+  });
 }
 
 interface ResInfo {
@@ -153,7 +246,12 @@ function splitResinfo(header: string): string[] {
 }
 
 const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;
-const PROP_RE = /\s*([^\s=]+)\s*=\s*("(?:[^"\\]|\\.)*"|\S*)/y;
+// A value runs to the next space outside quotes, so a quoted local part
+// stays joined to its domain ("x@bank.example"@evil.example is evil.example's
+// address, not bank.example's). Its pieces start on different characters, so
+// no input makes it backtrack.
+const PROP_RE = /\s*([^\s=]+)\s*=\s*((?:"(?:[^"\\]|\\.)*"|[^\s"])*)/y;
+const QUOTED_RE = /^"(?:[^"\\]|\\.)*"$/;
 
 /**
  * Read one resinfo: the method must open the part, so a `dmarc=pass` that
@@ -170,7 +268,7 @@ function parseResinfo(part: string): ResInfo | null {
   while ((prop = PROP_RE.exec(rest)) !== null && prop[0].length > 0) {
     const key = prop[1].toLowerCase();
     let value = prop[2];
-    if (value.startsWith('"')) value = value.slice(1, -1).replace(/\\(.)/g, '$1');
+    if (QUOTED_RE.test(value)) value = value.slice(1, -1).replace(/\\(.)/g, '$1');
     if (!(key in props)) props[key] = value;
   }
   return { method: match[1].toLowerCase(), result: match[2].toLowerCase(), props };
@@ -223,7 +321,10 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
   };
   const spfResults: SpfEntry[] = [
     ...own.filter((info) => info.method === 'spf').map(toSpfEntry),
-    ...foreign.filter((info) => info.method === 'spf').map(toSpfEntry).filter((e) => isFailure(e.result)),
+    ...foreign
+      .filter((info) => info.method === 'spf')
+      .map((info): SpfEntry => ({ ...toSpfEntry(info), foreign: true }))
+      .filter((e) => isFailure(e.result)),
   ];
   if (spfResults.length > 0) {
     // MAIL FROM is the primary SPF identity. Another identity (HELO) may only
@@ -240,16 +341,25 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     results.spf = {
       result: primary.result,
       domain: primary.domain,
+      ...(primary.foreign ? { foreign: true as const } : {}),
       ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };
   }
 
-  const dkim = own.find((info) => info.method === 'dkim');
-  if (dkim) {
+  // A message can carry several signatures (the author's domain and the
+  // sending service's). The first one stays the headline; keep them all so
+  // a pass further down still counts.
+  const dkimResults: DkimEntry[] = own
+    .filter((info) => info.method === 'dkim')
+    .map((info) => ({
+      result: info.result as DkimResult,
+      domain: info.props['header.d'],
+      selector: info.props['header.s'],
+    }));
+  if (dkimResults.length > 0) {
     results.dkim = {
-      result: dkim.result as DkimResult,
-      domain: dkim.props['header.d'],
-      selector: dkim.props['header.s'],
+      ...dkimResults[0],
+      ...(dkimResults.length > 1 ? { all: dkimResults } : {}),
     };
   }
 
@@ -365,10 +475,14 @@ export interface EmailHeaderInfo {
   readReceiptRequestedBy: string | null;
   /** `<...>`-stripped Message-ID header, for dedupe keys. */
   messageId: string | null;
+  /** Set when the server's checks don't back the From address's domain. */
+  senderVerification: SenderVerification | null;
 }
 
 /** Everything the reader derives from a message's raw headers, in one pass. */
-export function deriveHeaderInfo(email: Pick<Email, 'headers' | 'messageId'>): EmailHeaderInfo {
+export function deriveHeaderInfo(
+  email: Pick<Email, 'headers' | 'messageId'> & Partial<Pick<Email, 'from'>>,
+): EmailHeaderInfo {
   const headers = email.headers;
   const authHeaders = headerValues(headers, 'Authentication-Results');
   // The last hop's results are prepended, so the first header is the
@@ -395,7 +509,9 @@ export function deriveHeaderInfo(email: Pick<Email, 'headers' | 'messageId'>): E
   const rawId = email.messageId?.[0] ?? headerValue(headers, 'Message-ID') ?? null;
   const messageId = rawId ? rawId.trim().replace(/^<|>$/g, '') : null;
 
-  return { auth, spamScore, spamLLM, list, readReceiptRequestedBy, messageId };
+  const senderVerification = getSenderVerification(auth, email.from?.[0]?.email);
+
+  return { auth, spamScore, spamLLM, list, readReceiptRequestedBy, messageId, senderVerification };
 }
 
 /** Milliseconds between the Date header and delivery, or null when unknown. */

@@ -16,7 +16,6 @@ import {
   isPushEnabledForAccount,
   isPushSupported,
   PushSetupError,
-  setStoredRelayBaseUrl,
   setupPushNotifications,
   wasPushPromptDismissed,
 } from '../lib/push-notifications';
@@ -96,8 +95,8 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
     setBusy(true);
     setError(null);
     try {
-      const relayBaseUrl = (await getEffectiveRelayBaseUrl()) || DEFAULT_RELAY_BASE_URL;
-      await setStoredRelayBaseUrl(relayBaseUrl);
+      // Setup keeps the relay for the account it registers.
+      const relayBaseUrl = (await getEffectiveRelayBaseUrl(activeAccountId)) || DEFAULT_RELAY_BASE_URL;
       await setupPushNotifications({ relayBaseUrl, accountLabel: username ?? undefined });
       await dismissPushPrompt(activeAccountId);
       setVisible(false);

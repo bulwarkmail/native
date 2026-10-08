@@ -9,6 +9,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import SenderAvatar from '../SenderAvatar';
 import { MessageContent, type MessageContentProps } from './MessageContent';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime } from '../../lib/email-date';
+import { useDateRegion } from '../../lib/use-date-region';
 import { previewLine } from '../../lib/preview-text';
 
 interface Props extends MessageContentProps {
@@ -39,6 +40,7 @@ export function ThreadMessageCard({
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const from = email.from?.[0];
   const unread = !email.keywords?.$seen;
   const starred = !!email.keywords?.$flagged;
@@ -54,7 +56,7 @@ export function ThreadMessageCard({
               {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
             </Text>
             {email.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
-            <Text style={styles.collapsedDate}>{formatHeaderDate(date, locale)} {formatHeaderTime(date, timeFormat, locale)}</Text>
+            <Text style={styles.collapsedDate}>{formatHeaderDate(date, locale, dateRegion)} {formatHeaderTime(date, timeFormat, locale, dateRegion)}</Text>
           </View>
           <Text style={styles.collapsedPreview} numberOfLines={1}>{previewLine(email.preview)}</Text>
         </View>

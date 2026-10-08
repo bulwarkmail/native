@@ -1,4 +1,5 @@
-import type { DateFormat, TimeFormat } from '../stores/settings-store';
+import type { DateFormat, DateLocale, TimeFormat } from '../stores/settings-store';
+import { getWallClock, resolveTimeZone } from './time-zone';
 
 /**
  * Formats a received-at date for the email list. Mirrors the webmail
@@ -13,6 +14,11 @@ import type { DateFormat, TimeFormat } from '../stores/settings-store';
  *   - `full` — always the full locale date+time.
  *
  * `locale` is the language subtag from the locale store (e.g. "en", "de").
+ * `dateLocale` (the date format region) orders only the all-digit dates
+ * (`full` and an older row); worded dates and times stay in the language.
+ * Everything, including which day counts as today, is in `timeZone`: the
+ * app-wide zone setting, where `auto` (or a zone this runtime does not
+ * know) is the device zone.
  */
 type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 
@@ -34,13 +40,13 @@ const FORMATS: Record<FormatName, Intl.DateTimeFormatOptions> = {
 // Hermes it goes through ICU over JNI), and `toLocaleString`,
 // `toLocaleDateString` and `toLocaleTimeString` build a new one on every
 // call. The list formats a date in every row render, so keep one formatter
-// per locale and format. The output is the same: when the options name at
-// least one field, those methods format exactly as `Intl.DateTimeFormat`
-// does with the same options.
+// per format, locale and time zone. The output is the same: when the options
+// name at least one field, those methods format exactly as
+// `Intl.DateTimeFormat` does with the same options.
 const formatters = new Map<string, Intl.DateTimeFormat>();
-// A formatter fixes the device time zone when it is built, where
-// `toLocale*String` picked it up on every call. Start over when the UTC offset
-// moves (travel, a DST switch) so a changed zone still shows.
+// Every formatter is built with an explicit zone, so a DST change inside it
+// needs nothing. The device zone behind `auto` can still change (travel):
+// start over when the device's UTC offset moves so stale entries go.
 let formattersOffset: number | undefined;
 
 function syncFormatterZone(now: Date): void {
@@ -50,14 +56,89 @@ function syncFormatterZone(now: Date): void {
   formattersOffset = offset;
 }
 
-function formatWith(d: Date, locale: string, name: FormatName): string {
-  const key = `${name}|${locale}`;
-  let formatter = formatters.get(key);
+// Always the Gregorian calendar: fa (and a th or ar-SA device) would
+// otherwise date mail in the Solar Hijri, Buddhist or Islamic calendar,
+// which no other client here shows.
+function cachedFormatter(key: string, locale: string, options: Intl.DateTimeFormatOptions, timeZone: string): Intl.DateTimeFormat {
+  const fullKey = `${key}|${locale}|${timeZone}`;
+  let formatter = formatters.get(fullKey);
   if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, FORMATS[name]);
-    formatters.set(key, formatter);
+    formatter = new Intl.DateTimeFormat(locale, { ...options, calendar: 'gregory', timeZone });
+    formatters.set(fullKey, formatter);
   }
-  return formatter.format(d);
+  return formatter;
+}
+
+function formatWith(d: Date, locale: string, name: FormatName, timeZone: string): string {
+  return cachedFormatter(name, locale, FORMATS[name], timeZone).format(d);
+}
+
+/** The Intl locale for the language subtag: `en` alone is en-US, as in the webmail. */
+function uiIntlLocale(locale: string | undefined): string {
+  return !locale || locale === 'en' ? 'en-US' : locale;
+}
+
+/**
+ * The locale that orders numeric dates for the region setting. Port of the
+ * webmail's lib/utils.ts `resolveDateLocale`: `iso` borrows en-CA, whose
+ * short date is YYYY-MM-DD.
+ */
+export function resolveDateLocale(dateLocale: DateLocale | undefined, fallback: string): string {
+  switch (dateLocale) {
+    case 'iso':
+      return 'en-CA';
+    case 'en-GB':
+      return 'en-GB';
+    case 'en-US':
+      return 'en-US';
+    default:
+      return fallback;
+  }
+}
+
+/** The date format region and the time zone setting, as stored. */
+export interface DateRegion {
+  dateLocale?: DateLocale;
+  /** An IANA zone, or `auto` / undefined for the device zone. */
+  timeZone?: string;
+}
+
+/** The numeric date alone ("28.04.2026", "2026-04-28"), as an older list row shows it. */
+export function formatNumericDate(date: Date | string, opts: DateRegion & { locale: string }): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  syncFormatterZone(new Date());
+  const numericLocale = resolveDateLocale(opts.dateLocale, uiIntlLocale(opts.locale));
+  return formatWith(d, numericLocale, 'date', resolveTimeZone(opts.timeZone));
+}
+
+// A month part made of digits, Latin or not ("4", "۴").
+const DIGITS = /^\p{Nd}+\.?$/u;
+
+/**
+ * Formats a date that has words in it (a weekday, a month name) or a time
+ * alone, in the zone. Ruling for the date format region: it orders only
+ * all-digit dates (the list's numeric date and `full`); a worded date takes
+ * the language's own pattern, because splicing words into another locale's
+ * pattern gave Solar Hijri months in fa and a bare month number next to the
+ * day in ja, zh and cs. A language whose pattern still turns a short month
+ * into a number (cs "28. 4. 2026") gets the long month name instead.
+ */
+export function formatWorded(
+  date: Date,
+  options: Intl.DateTimeFormatOptions,
+  opts: { locale?: string; timeZone?: string },
+): string {
+  syncFormatterZone(new Date());
+  const locale = uiIntlLocale(opts.locale);
+  const timeZone = resolveTimeZone(opts.timeZone);
+  const formatter = cachedFormatter(JSON.stringify(options), locale, options, timeZone);
+  if (options.month !== 'short') return formatter.format(date);
+  const parts = formatter.formatToParts(date);
+  const month = parts.find((p) => p.type === 'month');
+  if (!month || !DIGITS.test(month.value)) return parts.map((p) => p.value).join('');
+  const long = { ...options, month: 'long' as const };
+  return cachedFormatter(JSON.stringify(long), locale, long, timeZone).format(date);
 }
 
 // Relative strings ("Just now", "5m ago") through the locale catalog when a
@@ -74,7 +155,7 @@ function relativeLabel(
 
 export function formatListDate(
   date: Date | string,
-  opts: { dateFormat: DateFormat; timeFormat: TimeFormat; locale: string; t?: Translate },
+  opts: DateRegion & { dateFormat: DateFormat; timeFormat: TimeFormat; locale: string; t?: Translate },
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) return '';
@@ -82,11 +163,11 @@ export function formatListDate(
   syncFormatterZone(now);
 
   const { dateFormat, timeFormat } = opts;
-  const localeRaw = opts.locale;
-  const locale = localeRaw && localeRaw.length > 0 ? localeRaw : 'en';
-  // `en` alone resolves to en-US in Intl; everything else uses the language
-  // subtag as-is and lets the runtime pick a sensible default region.
-  const intlLocale = locale === 'en' ? 'en-US' : locale;
+  // Names (weekday, month) and times follow the language; numeric dates
+  // follow the region, which is the language for `auto`.
+  const intlLocale = uiIntlLocale(opts.locale);
+  const numericLocale = resolveDateLocale(opts.dateLocale, intlLocale);
+  const timeZone = resolveTimeZone(opts.timeZone);
   const hour12 = timeFormat === '12h';
 
   if (dateFormat === 'relative') {
@@ -98,29 +179,56 @@ export function formatListDate(
     if (minutes < 60) return relativeLabel(opts.t, 'minute', minutes);
     if (hours < 24) return relativeLabel(opts.t, 'hour', hours);
     if (days < 7) return relativeLabel(opts.t, 'day', days);
-    return formatWith(d, intlLocale, d.getFullYear() !== now.getFullYear() ? 'monthDayYear' : 'monthDay');
+    const otherYear = getWallClock(d, timeZone).year !== getWallClock(now, timeZone).year;
+    return formatWith(d, intlLocale, otherYear ? 'monthDayYear' : 'monthDay', timeZone);
   }
 
   if (dateFormat === 'full') {
-    return formatWith(d, intlLocale, hour12 ? 'full12' : 'full24');
+    return formatWith(d, numericLocale, hour12 ? 'full12' : 'full24', timeZone);
   }
 
   // 'smart' (default)
-  const timeStr = formatWith(d, intlLocale, hour12 ? 'time12' : 'time24');
+  const timeStr = formatWith(d, intlLocale, hour12 ? 'time12' : 'time24', timeZone);
 
+  // The calendar day in the display zone, not the device's: Intl applies
+  // the zone's offset for each instant, so a DST change between the two
+  // moves neither.
+  const dWall = getWallClock(d, timeZone);
+  const nowWall = getWallClock(now, timeZone);
   const isSameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
+    dWall.year === nowWall.year &&
+    dWall.month === nowWall.month &&
+    dWall.day === nowWall.day;
   if (isSameDay) return timeStr;
 
   const daysAgo = Math.floor((now.getTime() - d.getTime()) / 86400000);
   if (daysAgo < 7) {
     // German Intl outputs "Fr." with a trailing dot for `weekday: 'short'`;
     // strip it so the result reads cleanly next to the time.
-    const weekday = formatWith(d, intlLocale, 'weekday').replace(/\.$/, '');
+    const weekday = formatWith(d, intlLocale, 'weekday', timeZone).replace(/\.$/, '');
     return `${weekday} ${timeStr}`;
   }
 
-  return formatWith(d, intlLocale, 'date');
+  return formatWith(d, numericLocale, 'date', timeZone);
+}
+
+/**
+ * A file's "modified" in the Files list: the time today, the day this year,
+ * the full date before that. The day and year are read in the app's time
+ * zone; the device locale formats it, as before.
+ */
+export function formatFileModified(iso: string | undefined, timeZoneSetting?: string, now = new Date()): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const timeZone = resolveTimeZone(timeZoneSetting);
+  const dWall = getWallClock(d, timeZone);
+  const nowWall = getWallClock(now, timeZone);
+  if (dWall.year === nowWall.year && dWall.month === nowWall.month && dWall.day === nowWall.day) {
+    return d.toLocaleTimeString(undefined, { timeZone, hour: '2-digit', minute: '2-digit' });
+  }
+  if (dWall.year === nowWall.year) {
+    return d.toLocaleDateString(undefined, { timeZone, month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString(undefined, { timeZone, year: 'numeric', month: 'short', day: 'numeric' });
 }

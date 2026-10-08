@@ -536,3 +536,52 @@ Left open:
   - the date picker inside the rule editor on iOS;
   - a Files link from another app;
   - an offline cold start, then send, then reconnect: delivered once.
+
+## Phase 6e follow-ups (settings, UI and security, 2026-10-08)
+
+Phase 6e is done on `parity/phase-6e-settings-ui`. It closes the open items in areas 01, 02, 03 and 09 and most of area 08.
+
+**What's new for users:**
+- A warning on a message whose sender could not be verified, with no "Always trust this sender" for it.
+- Two device-local privacy toggles, both off by default: block screenshots, and hide in recent apps. The system bars follow the theme.
+- Signing out ends the identity provider's session, but only with the last account that uses that provider.
+- Rename and recolour a shared account's calendars and address books from settings (decision 2026-10-08).
+- The font size setting scales the whole app.
+- A push relay per account.
+- Sidebar apps show on mobile, and open only web links.
+- Settings search finds more settings, and About links the running build's commit.
+- A date format region and an app-wide time zone, under Language & region.
+- Folder links open their folder.
+
+Left open:
+
+- **Upstream request:** webmail's `/api/admin/policy` should serve `pushRelays` and `defaultSidebarApps` to bearer-token clients. It blanks both for non-cookie clients, so the admin relay list and admin sidebar-app defaults can't be read from native. The push relay item in 08 stays open for this.
+- **Stalwart OIDC:** Stalwart's built-in OIDC advertises no `end_session_endpoint`, so provider sign-out does nothing there. It applies with external IdPs such as Keycloak and Authentik.
+- **Device checks still to run:**
+  - SSO sign-out against Keycloak on a phone;
+  - `FLAG_SECURE` and hiding in recents on Android 13+;
+  - font size Large with a large OS font (tab labels and the Mail badge, which is now drawn inside `tabBarIcon`; the bar stays 49 high, so the label may run about 5 px into the bottom inset), and the Mail unread count read once by TalkBack;
+  - Hermes support for Intl `calendar: 'gregory'` and `\p{Nd}`;
+  - the Android DateTimePicker with `timeZoneName`;
+  - sidebar apps in a Custom Tab;
+  - folder links on a cold start.
+- **Follow-ups parked in the ledger:**
+  - Trust-on-reply and calendar trust-on-RSVP still file a flagged sender as trusted, and an already-trusted forged address still auto-loads remote content. Webmail behaves the same.
+  - Pin the `authserv-id` when judging the sender check. Until then, a message the receiving server stamped no Authentication-Results header on is judged by the sender's own topmost header.
+  - The sender check counts an SPF or DKIM pass only for the From domain, a parent or a subdomain of it (decision 2026-10-08, after the push security review). Webmail takes a pass for any domain, so a spoofer's own domain silences its warning when the forged domain has no DMARC record; worth raising upstream. Native's match is by suffix, not the organisational domain, so two sibling subdomains don't match.
+  - The shared-calendar colour override key (`accountId|originalId`) isn't scoped by app account. It's local only.
+  - A queued send held with a stale recorded JMAP id is not re-stamped automatically.
+  - The full list format's AM/PM is not in the region locale.
+  - The time zone list is hand-picked.
+  - The `selectMailbox` seed race (pre-existing).
+  - Two calendar-alert-scheduler tests fail under `TZ=Asia/Tokyo` (pre-existing).
+  - Hand-off accounts whose host differs from the sign-in address are not counted by the provider-in-use check. Matching their stored `tokenEndpoint` origin as well would cover it.
+  - About 60 inline `fontSize` literals across 29 files still ignore the font size setting, and the OS font scale still stacks with it (open product decision).
+  - Sidebar apps: no inline mode, and settings import doesn't filter invalid stored URLs (they're filtered at list and open time).
+  - A folder the user picks by hand while a cold-start link still waits is overridden when the link resolves.
+  - The shared-account calendar rename gate (`mayShare` or `mayWriteAll`) is unverified against Stalwart.
+  - The orphaned RN key `settings.account.shared_accounts.description_manage` is left in the locale files.
+  - `sync-locales.mjs --check` reports every locale stale because of line endings.
+  - The end-session test helper imports `@babel/core` and two plugins that aren't direct devDependencies. The lockfile hoists them today; pinning them as devDependencies would keep it that way.
+  - Local builds link the fork's origin from About, and an unpushed commit links to a 404.
+  - The area 08 items for RTL drawer side, cross-device settings sync and iOS push stay open.

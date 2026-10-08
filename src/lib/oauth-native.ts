@@ -21,6 +21,8 @@ export interface OAuthMetadata {
   authorization_endpoint: string;
   token_endpoint: string;
   revocation_endpoint?: string;
+  // OIDC RP-Initiated Logout: where sign-out ends the provider's session.
+  end_session_endpoint?: string;
   scopes_supported?: string[];
   prompt_values_supported?: string[];
 }
@@ -124,12 +126,14 @@ function addAccountPrompt(metadata: OAuthMetadata): string {
  * `HandoffCancelledError` when the user closes the browser. With `addAccount`
  * the provider is asked to pick or sign in another account, and iOS runs the
  * session without the browser's cookies so the current one can't carry over.
+ * `idToken` is the provider's id token, kept apart from the stored bundle for
+ * ending the provider session on sign-out.
  */
 export async function loginWithPkce(
   serverUrl: string,
   metadata: OAuthMetadata,
   opts?: { clientId?: string; scopes?: string; redirectUri?: string; addAccount?: boolean },
-): Promise<OAuthTokens> {
+): Promise<OAuthTokens & { idToken?: string }> {
   const clientId = opts?.clientId ?? DEFAULT_CLIENT_ID;
   const redirectUri = opts?.redirectUri ?? HANDOFF_REDIRECT_URI;
   const verifier = generateCodeVerifier();
@@ -196,9 +200,11 @@ export async function loginWithPkce(
     access_token?: string;
     refresh_token?: string;
     expires_in?: number;
+    id_token?: unknown;
   };
   if (!data.access_token) throw new HandoffError('Token response missing access_token');
   return {
+    ...(typeof data.id_token === 'string' && data.id_token ? { idToken: data.id_token } : {}),
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,

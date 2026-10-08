@@ -128,6 +128,9 @@ function RulesFlowBody({
   onClose: () => void;
 }) {
   const c = useColors();
+  // makeStyles reads the live typography, not `c`: keyed on `c` because the
+  // palette changes identity with the font size (useColors).
+  const styles = React.useMemo(() => makeStyles(), [c]);
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<any>();
   const [view, setView] = React.useState<View_>('root');
@@ -396,7 +399,8 @@ function RulesFlowBody({
   );
 }
 
-const styles = StyleSheet.create({
+// Built per palette, so the hint follows the font size setting.
+const makeStyles = () => StyleSheet.create({
   hint: { ...typography.caption, flexShrink: 1, textAlign: 'right', maxWidth: 140, marginLeft: spacing.sm },
   dot: { width: 18, height: 18, borderRadius: 9 },
 });

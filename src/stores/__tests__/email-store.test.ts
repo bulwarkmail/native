@@ -252,6 +252,79 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().error).toBeNull();
     });
+
+    it('marks the account synced once its own and shared folders were read', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBeUndefined();
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true);
+      useEmailStore.getState().reset();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+    });
+
+    it('marks nothing for an account left while its folders were read', async () => {
+      mockGetSharedMailboxes.mockImplementationOnce(async () => {
+        useEmailStore.setState({ activeAccountId: 'other-account' });
+        return [];
+      });
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+    });
+
+    it('marks nothing when the folder list could not be read', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      mockGetMailboxesWithState.mockRejectedValueOnce(new Error('Network error'));
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+      // The next fetch (a reconnect) settles it.
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true);
+    });
+
+    it('marks the account synced when a fetch that overlapped a failed one reads the list', async () => {
+      let failFirst: (err: Error) => void = () => undefined;
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      mockGetMailboxesWithState
+        .mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject; }))
+        .mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve({ list: [], state: 'mb-state-2' }), 0)));
+      // The second fetch joins the first's run and queues one more after it.
+      const first = useEmailStore.getState().fetchMailboxes();
+      const second = useEmailStore.getState().fetchMailboxes();
+      failFirst(new Error('Network error'));
+      await Promise.all([first, second]);
+      // Only the queued run read the list; nobody awaits it.
+      await vi.waitFor(() => expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true));
+    });
+
+    it('waits for the shared folders too, so a shared folder link is not called gone early', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      let sharedDone: (list: never[]) => void = () => undefined;
+      mockGetSharedMailboxes.mockImplementationOnce(() => new Promise((resolve) => { sharedDone = resolve; }));
+      const fetching = useEmailStore.getState().fetchMailboxes();
+      await vi.waitFor(() => expect(mockGetMailboxesWithState).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBeUndefined();
+      sharedDone([]);
+      await fetching;
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true);
+    });
+
+    it('marks nothing when the own list load was overtaken by a switch', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      mockGetMailboxesWithState.mockImplementationOnce(async () => {
+        useEmailStore.setState({ activeAccountId: 'other-account' });
+        return { list: [], state: 's' };
+      });
+      // Back on the account once the own list's load has given up on it.
+      const shared = mockGetSharedMailboxes.mockImplementationOnce(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        useEmailStore.setState({ activeAccountId: TEST_ACCOUNT_ID });
+        return [];
+      });
+      await useEmailStore.getState().fetchMailboxes();
+      expect(shared).toHaveBeenCalled();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+    });
   });
 
   describe('selectMailbox', () => {

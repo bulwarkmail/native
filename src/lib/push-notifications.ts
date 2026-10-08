@@ -36,7 +36,11 @@ import {
 // Persist identifiers across launches so we reuse the same JMAP subscription
 // after app restarts. Each account gets its own deviceClientId so the hosted
 // relay can distinguish per-account pushes via the URL slot it forwards.
-const RELAY_BASE_URL_KEY = 'push:relayBaseUrl:v1';
+// The relay a subscription was registered with is per app account, so a
+// self-hosted relay for one account never receives another's registrations.
+// The v1 key was device-wide; it is copied to every known account on first read.
+const LEGACY_RELAY_BASE_URL_KEY = 'push:relayBaseUrl:v1';
+const RELAY_BASE_URL_PREFIX = 'push:relayBaseUrl:v2:';
 // Which transport carries pushes to this device: FCM (default) or a
 // UnifiedPush distributor. Device-wide, like the relay URL.
 const PUSH_TRANSPORT_KEY = 'push:transport:v1';
@@ -605,21 +609,88 @@ async function getOrCreateDeviceClientId(accountId: string): Promise<string> {
   return next;
 }
 
-export async function getStoredRelayBaseUrl(): Promise<string | null> {
-  return AsyncStorage.getItem(RELAY_BASE_URL_KEY);
+export function relayBaseUrlKey(appAccountId: string): string {
+  return RELAY_BASE_URL_PREFIX + appAccountId;
 }
 
-export async function getEffectiveRelayBaseUrl(): Promise<string> {
-  const stored = await AsyncStorage.getItem(RELAY_BASE_URL_KEY);
-  return stored ?? DEFAULT_RELAY_BASE_URL;
+function loadedAppAccountId(): string | null {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  return username && serverUrl ? generateAccountId(username, serverUrl) : null;
 }
 
-export async function setStoredRelayBaseUrl(url: string | null): Promise<void> {
-  if (!url) {
-    await AsyncStorage.removeItem(RELAY_BASE_URL_KEY);
-  } else {
-    await AsyncStorage.setItem(RELAY_BASE_URL_KEY, url.replace(/\/+$/, ''));
+// Signed-in app accounts, read straight from the persisted registry the way
+// the headless push task does (no store import, no hydration to wait for).
+// Null when the registry is unreadable, so a caller can tell "none" from "unknown".
+async function readRegistryAccountIds(): Promise<string[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem('account-registry');
+    if (raw === null) return [];
+    const accounts: unknown = JSON.parse(raw)?.state?.accounts;
+    if (!Array.isArray(accounts)) return null;
+    return accounts.flatMap((a) => (typeof a?.id === 'string' ? [a.id] : []));
+  } catch {
+    return null;
   }
+}
+
+// Copy the device-wide v1 relay to every known account that has no v2 value,
+// then drop it. Never overwrites a v2 value, and a second run finds no v1. An
+// unreadable registry leaves v1 in place so a later read retries.
+async function runRelayMigration(): Promise<void> {
+  const legacy = await AsyncStorage.getItem(LEGACY_RELAY_BASE_URL_KEY);
+  if (legacy === null) return;
+  const registry = await readRegistryAccountIds();
+  if (registry === null) return;
+  const ids = new Set<string>(await readPushAccountIds());
+  for (const id of registry) ids.add(id);
+  const keys = [...ids].map(relayBaseUrlKey);
+  const existing = await AsyncStorage.multiGet(keys);
+  const missing = existing.filter(([, v]) => v === null).map(([k]) => [k, legacy] as [string, string]);
+  if (missing.length > 0) await AsyncStorage.multiSet(missing);
+  await AsyncStorage.removeItem(LEGACY_RELAY_BASE_URL_KEY);
+}
+
+// Every getter and setter waits on one run, so a set can't be overwritten by a
+// migration that started before it.
+let relayMigration: Promise<void> | null = null;
+function migrateLegacyRelayBaseUrl(): Promise<void> {
+  relayMigration ??= runRelayMigration()
+    .catch(() => undefined)
+    .finally(() => {
+      relayMigration = null;
+    });
+  return relayMigration;
+}
+
+/** The relay stored for an app account (default: the loaded one), or null. */
+export async function getStoredRelayBaseUrl(appAccountId?: string): Promise<string | null> {
+  const id = appAccountId ?? loadedAppAccountId();
+  if (!id) return null;
+  await migrateLegacyRelayBaseUrl();
+  const stored = await AsyncStorage.getItem(relayBaseUrlKey(id));
+  return stored !== null && isValidRelayUrl(stored) ? stored : null;
+}
+
+export async function getEffectiveRelayBaseUrl(appAccountId?: string): Promise<string> {
+  return (await getStoredRelayBaseUrl(appAccountId)) ?? DEFAULT_RELAY_BASE_URL;
+}
+
+/** Store (or, with null, reset to the default) an app account's relay. */
+export async function setStoredRelayBaseUrl(url: string | null, appAccountId?: string): Promise<void> {
+  const id = appAccountId ?? loadedAppAccountId();
+  if (!id) return;
+  await migrateLegacyRelayBaseUrl();
+  if (!url) {
+    await AsyncStorage.removeItem(relayBaseUrlKey(id));
+  } else {
+    await AsyncStorage.setItem(relayBaseUrlKey(id), url.replace(/\/+$/, ''));
+  }
+}
+
+/** Sign-out: drop only this account's relay. */
+export async function clearStoredRelayBaseUrl(appAccountId: string): Promise<void> {
+  await setStoredRelayBaseUrl(null, appAccountId);
 }
 
 /** Whether this account has a JMAP subscription recorded on this device. */
@@ -973,7 +1044,10 @@ async function setupPushNotificationsInner(
     throw new PushSetupError('platform', t('settings.notifications.push.err_up_android_only', 'UnifiedPush is only available on Android.'));
   }
 
-  const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
+  const loadedId = loadedAppAccountId();
+  const relayBaseUrl = (
+    params.relayBaseUrl ?? (loadedId ? await getEffectiveRelayBaseUrl(loadedId) : DEFAULT_RELAY_BASE_URL)
+  ).replace(/\/+$/, '');
   if (!relayBaseUrl) throw new PushSetupError('relay', 'relayBaseUrl is required');
   if (!isValidRelayUrl(relayBaseUrl)) {
     throw new PushSetupError('relay', t('settings.notifications.push.err_relay_https', 'The relay URL must use https://.'));
@@ -994,19 +1068,22 @@ async function setupPushNotificationsInner(
     fcmToken = await getFcmTokenOrThrow(native!);
   }
 
-  // setupPushNotifications operates on the currently-loaded jmapClient. We
-  // need its username/serverUrl up-front so we can key per-account state.
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (!username || !serverUrl) {
+  // setupPushNotifications operates on the currently-loaded jmapClient, and
+  // keys per-account state by the account it found loaded when it chose the
+  // relay. A client that has since moved to another account would put that
+  // relay and this subscription under the wrong one, so the run gives up.
+  if (!loadedId) {
     throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
-  const accountId = generateAccountId(username, serverUrl);
+  if (loadedAppAccountId() !== loadedId) {
+    throw new PushSetupError('account', t('settings.notifications.push.err_account_changed', 'The account changed during setup. Try again.'));
+  }
+  const accountId = loadedId;
 
   await migrateLegacyPushKeys();
 
   const deviceClientId = await getOrCreateDeviceClientId(accountId);
-  await setStoredRelayBaseUrl(relayBaseUrl);
+  await setStoredRelayBaseUrl(relayBaseUrl, accountId);
 
   // Register this account's device-client-id with the relay. Multiple
   // accounts on the same device end up as separate registrations sharing
@@ -1244,7 +1321,7 @@ export async function teardownPushNotificationsForAccount(
 
   const storedSubId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
   const storedDcid = await AsyncStorage.getItem(deviceClientIdKey(accountId));
-  const relayBaseUrl = await getStoredRelayBaseUrl();
+  const relayBaseUrl = await getStoredRelayBaseUrl(accountId);
 
   // Destroy every subscription the server holds for this device, not just the
   // id we happen to have recorded - a destroy that lost its round-trip or a
@@ -1478,9 +1555,9 @@ export async function teardownPushNotifications(): Promise<void> {
   await migrateLegacyPushKeys();
 
   const accountIds = await readPushAccountIds();
-  const relayBaseUrl = await getStoredRelayBaseUrl();
 
   for (const accountId of accountIds) {
+    const relayBaseUrl = await getStoredRelayBaseUrl(accountId);
     const storedSubId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
     const storedDcid = await AsyncStorage.getItem(deviceClientIdKey(accountId));
 
@@ -1494,6 +1571,12 @@ export async function teardownPushNotifications(): Promise<void> {
       await deregisterFromRelay(relayBaseUrl, storedDcid);
     }
     await clearAccountPushKeys(accountId);
+    await clearStoredRelayBaseUrl(accountId);
+  }
+
+  // Accounts that never turned push on can still hold a relay of their own.
+  for (const id of (await readRegistryAccountIds()) ?? []) {
+    await clearStoredRelayBaseUrl(id);
   }
 
   await AsyncStorage.multiRemove([PUSH_ACCOUNT_IDS_KEY, PUSH_JMAP_ACCOUNT_IDS_KEY]);
@@ -1533,7 +1616,7 @@ export async function listPushDevices(params: {
   accountId: string;
   relayBaseUrl?: string;
 }): Promise<PushDevice[]> {
-  const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
+  const relayBaseUrl = (params.relayBaseUrl ?? (await getEffectiveRelayBaseUrl(params.accountId))).replace(/\/+$/, '');
   const thisDeviceClientId = await AsyncStorage.getItem(deviceClientIdKey(params.accountId));
 
   const subs = await listPushSubscriptions();
@@ -1561,7 +1644,7 @@ export async function revokePushDevice(params: {
   device: Pick<PushDevice, 'id' | 'deviceClientId' | 'isThisDevice'>;
   relayBaseUrl?: string;
 }): Promise<void> {
-  const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
+  const relayBaseUrl = (params.relayBaseUrl ?? (await getEffectiveRelayBaseUrl(params.accountId))).replace(/\/+$/, '');
 
   if (params.device.isThisDevice) {
     await disablePushForAccount(params.accountId);

@@ -33,6 +33,7 @@ vi.mock('../../api/jmap-client', () => ({
 vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotifications: vi.fn(async () => undefined),
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
+  clearStoredRelayBaseUrl: vi.fn(async () => undefined),
 }));
 
 vi.mock('../account-data-cleanup', () => ({
@@ -48,6 +49,8 @@ vi.mock('../offline-cache-store', async (importOriginal) => ({
 import { jmapClient } from '../../api/jmap-client';
 import { sweepOrphanedOfflineCache } from '../offline-cache-store';
 import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
+import { clearStoredRelayBaseUrl, teardownPushNotifications } from '../../lib/push-notifications';
+import { setPendingMailFolder, usePendingMailFolder } from '../../navigation/pending-mail-folder';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
@@ -226,6 +229,19 @@ describe('auth-store', () => {
       }, { lastAccount: false });
     });
 
+    it('removeAccount clears the push relay of that account only', async () => {
+      useAccountStore.setState({ accounts: [
+        entry('other@x.example.com', 'https://x.example.com', 'other'),
+        entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+      ] });
+      useAuthStore.setState({ activeAccountId: 'me@mail.example.com' });
+
+      await useAuthStore.getState().removeAccount('other@x.example.com');
+
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledTimes(1);
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('other@x.example.com');
+    });
+
     it('logoutAll forgets every account\'s data', async () => {
       useAccountStore.setState({
         accounts: [entry('a@x.example.com', 'https://x.example.com', 'a'), entry('b@y.example.com', 'https://y.example.com', 'b')],
@@ -237,6 +253,78 @@ describe('auth-store', () => {
       expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'b@y.example.com', serverUrl: 'https://y.example.com', username: 'b' }, { lastAccount: false });
       expect(forgetAccountData).toHaveBeenCalledTimes(2);
       expect(forgetSharedData).toHaveBeenCalled();
+    });
+  });
+
+  describe('what sign-out leaves behind', () => {
+    const entry = (id: string) => ({
+      id, serverUrl: 'https://mail.example.com', username: id, displayName: id, email: id, avatarColor: '#000',
+      lastLoginAt: 0, isConnected: true, hasError: false, isDefault: false,
+    });
+    const target = (appAccountId: string) => ({ ref: 'Archive', appAccountId, fromMailboxId: null });
+
+    it('logoutAll clears every account\'s relay even when the push teardown fails', async () => {
+      useAccountStore.setState({ accounts: [entry('a@mail.example.com'), entry('b@mail.example.com')] });
+      (teardownPushNotifications as any).mockRejectedValueOnce(new Error('storage'));
+
+      await useAuthStore.getState().logoutAll();
+
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('a@mail.example.com');
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('b@mail.example.com');
+    });
+
+    it('an account dropped by switchAccount for missing credentials loses its relay', async () => {
+      useAccountStore.setState({ accounts: [entry('a@mail.example.com'), entry('b@mail.example.com')] });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'a@mail.example.com' });
+      mockLoadAccount.mockResolvedValue(false);
+
+      await useAuthStore.getState().switchAccount('b@mail.example.com');
+
+      expect(useAccountStore.getState().getAccountById('b@mail.example.com')).toBeUndefined();
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledTimes(1);
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('b@mail.example.com');
+    });
+
+    it('an account dropped by restoreSession for missing credentials loses its relay', async () => {
+      useAccountStore.setState({ accounts: [entry('acc-1')], activeAccountId: 'acc-1', defaultAccountId: 'acc-1' });
+      mockLoadAccount.mockResolvedValue(false);
+
+      expect(await useAuthStore.getState().restoreSession()).toBe(false);
+
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('acc-1');
+    });
+
+    it('logout drops a folder link parked for the account', async () => {
+      useAccountStore.setState({ accounts: [entry('a@mail.example.com')] });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'a@mail.example.com' });
+      setPendingMailFolder(target('a@mail.example.com'));
+
+      await useAuthStore.getState().logout();
+
+      expect(usePendingMailFolder.getState().target).toBeNull();
+    });
+
+    it('removeAccount drops a folder link parked for that account, and keeps one for another', async () => {
+      useAccountStore.setState({ accounts: [entry('a@mail.example.com'), entry('b@mail.example.com')] });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'a@mail.example.com' });
+
+      setPendingMailFolder(target('a@mail.example.com'));
+      await useAuthStore.getState().removeAccount('b@mail.example.com');
+      expect(usePendingMailFolder.getState().target).toEqual(target('a@mail.example.com'));
+
+      useAccountStore.setState({ accounts: [entry('a@mail.example.com'), entry('b@mail.example.com')] });
+      setPendingMailFolder(target('b@mail.example.com'));
+      await useAuthStore.getState().removeAccount('b@mail.example.com');
+      expect(usePendingMailFolder.getState().target).toBeNull();
+    });
+
+    it('logoutAll drops a parked folder link', async () => {
+      useAccountStore.setState({ accounts: [entry('a@mail.example.com')] });
+      setPendingMailFolder(target('a@mail.example.com'));
+
+      await useAuthStore.getState().logoutAll();
+
+      expect(usePendingMailFolder.getState().target).toBeNull();
     });
   });
 

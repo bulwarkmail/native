@@ -480,12 +480,14 @@ export async function redeemPairingCode(webmailUrl: string, code: string): Promi
   throw new PairingError('bad_response', `Unknown pairing flow: ${flow ?? 'missing'}`, { host });
 }
 
-const activeRefreshes = new Map<string, Promise<OAuthTokens>>();
+const activeRefreshes = new Map<string, Promise<OAuthTokens & { idToken?: string }>>();
 
 // OAuth refresh — exchanges the refresh token at the original token endpoint
 // for a new access token. Returns the updated bundle so the caller can
 // persist it.
-export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAuthTokens> {
+// `idToken` is the provider's new id token when the response carried one,
+// for ending its session on sign-out; it is never part of the stored bundle.
+export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAuthTokens & { idToken?: string }> {
   if (!tokens.refreshToken) {
     throw new HandoffError('No refresh token available');
   }
@@ -532,6 +534,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           access_token?: string;
           refresh_token?: string;
           expires_in?: number;
+          id_token?: unknown;
         };
         try {
           data = (await response.json()) as typeof data;
@@ -547,6 +550,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           throw new HandoffError('Token refresh response missing access_token');
         }
         return {
+          ...(typeof data.id_token === 'string' && data.id_token ? { idToken: data.id_token } : {}),
           accessToken: data.access_token,
           refreshToken: data.refresh_token ?? tokens.refreshToken!,
           expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,

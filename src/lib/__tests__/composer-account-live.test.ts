@@ -19,6 +19,7 @@ vi.mock('../../api/jmap-client', () => ({
 vi.mock('../push-notifications', () => ({
   teardownPushNotifications: vi.fn(async () => undefined),
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
+  clearStoredRelayBaseUrl: vi.fn(async () => undefined),
 }));
 
 import { useAuthStore } from '../../stores/auth-store';

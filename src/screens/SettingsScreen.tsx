@@ -22,6 +22,8 @@ import { UpdatesSettings } from '../components/settings/UpdatesSettings';
 import { AppearanceSettings } from '../components/settings/AppearanceSettings';
 import { CalendarSettings } from '../components/settings/CalendarSettings';
 import { ContactsSettings } from '../components/settings/ContactsSettings';
+import { ScopedCalendarsPane } from '../components/settings/ScopedCalendarsPane';
+import { ScopedAddressBooksPane } from '../components/settings/ScopedAddressBooksPane';
 import { FilesSettings } from '../components/settings/FilesSettings';
 import { FilterSettings } from '../components/settings/FilterSettings';
 import { TemplateSettings } from '../components/settings/TemplateSettings';
@@ -350,6 +352,11 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                 <FilterSettings
                   onOpenVacation={hasVacation ? () => setSelectedTab('vacation') : undefined}
                 />
+              ) : managedAccount && selectedTab === 'calendar' ? (
+                // Scoped: only the shared account's calendars, not the user's own preferences.
+                <ScopedCalendarsPane key={managedAccount.id} managedAccountId={managedAccount.id} />
+              ) : managedAccount && selectedTab === 'contacts' ? (
+                <ScopedAddressBooksPane key={managedAccount.id} managedAccountId={managedAccount.id} />
               ) : Component ? <Component /> : null}
             </SearchHighlightContext.Provider>
           </View>

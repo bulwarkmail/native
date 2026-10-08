@@ -299,21 +299,57 @@ export const radius = {
   xs: 4, sm: 6, md: 8, lg: 12, xl: 16, full: 9999,
 } as const;
 
-export const typography = {
-  h1: { fontSize: 24, fontWeight: '700' as const, lineHeight: 32 },
-  h2: { fontSize: 20, fontWeight: '700' as const, lineHeight: 28 },
-  h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 28 },
-  body: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
-  bodyMedium: { fontSize: 14, fontWeight: '500' as const, lineHeight: 20 },
-  bodySemibold: { fontSize: 14, fontWeight: '600' as const, lineHeight: 20 },
-  bodyBold: { fontSize: 14, fontWeight: '700' as const, lineHeight: 20 },
-  base: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
-  baseMedium: { fontSize: 16, fontWeight: '500' as const, lineHeight: 24 },
-  caption: { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
-  captionMedium: { fontSize: 12, fontWeight: '500' as const, lineHeight: 16 },
-  small: { fontSize: 10, fontWeight: '500' as const, lineHeight: 14 },
-  tabLabel: { fontSize: 10, fontWeight: '500' as const, lineHeight: 14 },
-} as const;
+interface TextStyleToken {
+  fontSize: number;
+  fontWeight: '400' | '500' | '600' | '700';
+  lineHeight: number;
+}
+
+const BASE_TYPOGRAPHY = {
+  h1: { fontSize: 24, fontWeight: '700', lineHeight: 32 },
+  h2: { fontSize: 20, fontWeight: '700', lineHeight: 28 },
+  h3: { fontSize: 18, fontWeight: '600', lineHeight: 28 },
+  body: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
+  bodyMedium: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
+  bodySemibold: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  bodyBold: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  base: { fontSize: 16, fontWeight: '400', lineHeight: 24 },
+  baseMedium: { fontSize: 16, fontWeight: '500', lineHeight: 24 },
+  caption: { fontSize: 12, fontWeight: '400', lineHeight: 16 },
+  captionMedium: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
+  small: { fontSize: 10, fontWeight: '500', lineHeight: 14 },
+  tabLabel: { fontSize: 10, fontWeight: '500', lineHeight: 14 },
+} as const satisfies Record<string, TextStyleToken>;
+
+type TypographyKey = keyof typeof BASE_TYPOGRAPHY;
+
+// The most the OS font scale may enlarge fixed-size chrome (the tab bar, its
+// badge, chips, swipe labels): boxes that do not grow with their text. Passed
+// as `maxFontSizeMultiplier`; the font size setting still applies in full.
+export const CHROME_MAX_FONT_SCALE = 1.3;
+
+// The Appearance font size setting, as webmail's root font size (14px, 16px
+// or 18px over a 16px base).
+export const FONT_SCALE = { small: 0.875, medium: 1, large: 1.125 } as const;
+
+// Live text styles: applyFontScale rescales each entry in place, so styles
+// built after it in a render (hook-built StyleSheets, inline spreads) get the
+// user's size. Read it inside a function, never at module scope.
+export const typography: { readonly [K in TypographyKey]: Readonly<TextStyleToken> } =
+  Object.fromEntries(
+    Object.entries(BASE_TYPOGRAPHY).map(([key, style]) => [key, { ...style }]),
+  ) as Record<TypographyKey, TextStyleToken>;
+
+// Sets every entry to its base size times `factor`. Always from the base, so
+// calling it again with the same factor changes nothing.
+export function applyFontScale(factor: number): void {
+  const live = typography as Record<TypographyKey, TextStyleToken>;
+  for (const key of Object.keys(BASE_TYPOGRAPHY) as TypographyKey[]) {
+    const base = BASE_TYPOGRAPHY[key];
+    live[key].fontSize = Math.round(base.fontSize * factor);
+    live[key].lineHeight = Math.round(base.lineHeight * factor);
+  }
+}
 
 export const componentSizes = {
   avatarSm: 32, avatarMd: 40, avatarLg: 48,

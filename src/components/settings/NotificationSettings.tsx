@@ -16,6 +16,7 @@ import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
+import { resetPushRelay } from '../../lib/push-relay-reset';
 import {
   DEFAULT_RELAY_BASE_URL,
   disablePushForAccount,
@@ -25,7 +26,6 @@ import {
   isValidRelayUrl,
   listPushDevices,
   PushSetupError,
-  readPushAccountIds,
   revokePushDevice,
   setStoredRelayBaseUrl,
   setupPushNotifications,
@@ -103,10 +103,10 @@ export function NotificationSettings() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const stored = await getStoredRelayBaseUrl();
+      const stored = activeAccountId ? await getStoredRelayBaseUrl(activeAccountId) : null;
       const enabled = activeAccountId ? await isPushEnabledForAccount(activeAccountId) : false;
       if (cancelled) return;
-      if (stored) setRelayUrl(stored);
+      setRelayUrl(stored ?? DEFAULT_RELAY_BASE_URL);
       setPushEnabled(enabled);
       setPushStatus(enabled ? { kind: 'enabled' } : { kind: 'idle' });
       const storedTransport = await getStoredPushTransport();
@@ -152,8 +152,19 @@ export function NotificationSettings() {
     return error instanceof Error ? error.message : t('settings.notifications.push.setup_failed', 'Setup failed');
   };
 
-  const handleEnable = async (forceRecreate = false) => {
-    if (!relayValid) {
+  // Back to the hosted relay for the shown account. With push on, the account
+  // is re-registered there at once: renewals skip an account with no stored
+  // relay, so a bare clear would leave it registered with the old one.
+  const handleResetRelay = async () => {
+    setRelayUrl(DEFAULT_RELAY_BASE_URL);
+    if (activeAccountId) {
+      await resetPushRelay(activeAccountId, pushEnabled, (relay) => handleEnable(true, relay));
+    }
+  };
+
+  const handleEnable = async (forceRecreate = false, relayOverride?: string) => {
+    const relay = relayOverride ?? trimmed;
+    if (!isValidRelayUrl(relay)) {
       setPushStatus({
         kind: 'error',
         message: t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL'),
@@ -165,9 +176,9 @@ export function NotificationSettings() {
       message: t('settings.notifications.push.status_busy', 'Working…'),
     });
     try {
-      await setStoredRelayBaseUrl(trimmed);
+      if (activeAccountId) await setStoredRelayBaseUrl(relay, activeAccountId);
       await setupPushNotifications({
-        relayBaseUrl: trimmed,
+        relayBaseUrl: relay,
         accountLabel: username ?? undefined,
         forceRecreate,
       });
@@ -210,14 +221,6 @@ export function NotificationSettings() {
     try {
       if (activeAccountId) {
         await disablePushForAccount(activeAccountId);
-      }
-      // The relay base URL is a device-wide setting shared with any other
-      // accounts that are still using push. Only clear it when no accounts
-      // are using push any more.
-      const remaining = await readPushAccountIds();
-      if (remaining.length === 0) {
-        await setStoredRelayBaseUrl(null);
-        setRelayUrl(DEFAULT_RELAY_BASE_URL);
       }
       setPushEnabled(false);
       setPushStatus({ kind: 'idle' });
@@ -373,6 +376,18 @@ export function NotificationSettings() {
           <Text style={styles.errorText}>
             {t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL')}
           </Text>
+        )}
+        {relayUrl.trim().replace(/\/+$/, '') !== DEFAULT_RELAY_BASE_URL && (
+          <View style={styles.actions}>
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => void handleResetRelay()}
+              disabled={!supported || busy}
+            >
+              {t('settings.notifications.push.relay_reset_mobile', 'Reset to default')}
+            </Button>
+          </View>
         )}
         {pushEnabled && (
           <View style={styles.actions}>

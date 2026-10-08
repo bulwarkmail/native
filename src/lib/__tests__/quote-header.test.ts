@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildQuoteHeader, formatQuoteSender } from '../quote-header';
+import { buildQuoteHeader, formatQuoteDate, formatQuoteSender } from '../quote-header';
 
 describe('quote header', () => {
   it('renders Name <email> escaped in the reply line', () => {
@@ -37,5 +37,28 @@ describe('quote header', () => {
     const h = buildQuoteHeader({ mode: 'reply', email: { from: { email: 'a@b.com' } }, timeFormat: '24h', unknownLabel: 'U' });
     expect(h.html).toBe('<div>a@b.com wrote:<br></div>');
     expect(formatQuoteSender(undefined, 'U')).toBe('U');
+  });
+});
+
+describe('formatQuoteDate', () => {
+  it('writes the time in the chosen zone in the language\'s pattern', () => {
+    const iso = '2026-04-28T23:30:00Z';
+    expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'UTC' })).toBe('Tue, Apr 28, 2026, 23:30');
+    expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'Asia/Tokyo' })).toBe('Wed, Apr 29, 2026, 08:30');
+    // Worded: the region does not reorder it.
+    expect(formatQuoteDate(iso, '24h', 'en', { timeZone: 'UTC', dateLocale: 'en-GB' })).toBe('Tue, Apr 28, 2026, 23:30');
+    expect(formatQuoteDate(iso, '24h', 'cs', { timeZone: 'UTC', dateLocale: 'en-GB' })).toMatch(/^út 28\. dubna 2026/);
+    expect(formatQuoteDate(iso, '24h', 'fa', { timeZone: 'UTC', dateLocale: 'en-GB' })).toContain('آوریل');
+  });
+
+  it('puts the zone into the reply line', () => {
+    const h = buildQuoteHeader({
+      mode: 'reply',
+      email: { from: { email: 'a@b.com' }, receivedAt: '2026-04-28T23:30:00Z' },
+      timeFormat: '24h',
+      unknownLabel: 'Unknown',
+      region: { timeZone: 'Asia/Tokyo' },
+    });
+    expect(h.text).toContain('Wed, Apr 29, 2026, 08:30');
   });
 });

@@ -345,6 +345,15 @@
     "external_content_warning": "Images and external content have been blocked",
     "load_external_content": "Load images",
     "trust_sender": "Always trust this sender",
+    "sender_check": {
+      "unverified_label": "Unverified sender",
+      "failed_label": "Sender check failed",
+      "unverified": "This message claims to be from {domain}, but nothing confirms that. It has no valid signature from {domain} and didn't come from a server {domain} authorizes.",
+      "unverified_sent_from": "This message claims to be from {domain}, but it was sent from {host} and has no valid signature from {domain}.",
+      "failed": "This message claims to be from {domain}, but it failed that domain's sender checks. It may be forged.",
+      "failed_sent_from": "This message claims to be from {domain}, but it was sent from {host} and failed {domain}'s sender checks. It may be forged.",
+      "caution": "Be careful with links, attachments and requests for passwords or payment details."
+    },
     "back_to_list": "Back to list",
     "view_contact": "View contact",
     "message_details": "Message Details",

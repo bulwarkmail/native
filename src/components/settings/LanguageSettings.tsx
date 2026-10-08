@@ -1,12 +1,15 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Check } from 'lucide-react-native';
-import { SettingsSection, SettingItem, RadioGroup } from './settings-section';
+import { SettingsSection, SettingItem, RadioGroup, Select } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useSettingsStore, type DateFormat, type TimeFormat } from '../../stores/settings-store';
-import { formatListDate } from '../../lib/date-format';
+import { useSettingsStore, type DateFormat, type DateLocale, type TimeFormat } from '../../stores/settings-store';
+import { formatListDate, formatNumericDate, formatWorded } from '../../lib/date-format';
+import { useDateRegion } from '../../lib/use-date-region';
+import { AUTO_TIME_ZONE, getDeviceTimeZone } from '../../lib/calendar-timezone';
+import { timeZoneOptions } from '../../lib/time-zone-options';
 import { SUPPORTED_LOCALES, detectDeviceLocale, type LocaleCode } from '../../i18n';
 
 export function LanguageSettings() {
@@ -23,6 +26,7 @@ export function LanguageSettings() {
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const update = useSettingsStore((s) => s.updateSetting);
 
   useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
@@ -33,10 +37,28 @@ export function LanguageSettings() {
 
   // Build live preview samples so the user sees what each format looks like.
   const now = new Date();
-  const fmtOpts = { dateFormat, timeFormat, locale };
+  const fmtOpts = { ...dateRegion, dateFormat, timeFormat, locale };
   const previewToday = formatListDate(now, fmtOpts);
   const previewWeek = formatListDate(new Date(now.getTime() - 3 * 86400000), fmtOpts);
   const previewOlder = formatListDate(new Date(now.getTime() - 40 * 86400000), fmtOpts);
+
+  // Each region's option shows today's date the way it orders it.
+  const regionSample = (dateLocale: DateLocale) =>
+    formatNumericDate(now, { locale, dateLocale, timeZone: dateRegion.timeZone });
+  const regionOption = (value: DateLocale, label: string) => ({ value, label: `${label} (${regionSample(value)})` });
+
+  // The clock in the chosen zone, so a pick can be checked at a glance.
+  const deviceZone = getDeviceTimeZone();
+  const zoneOptions = timeZoneOptions(
+    deviceZone,
+    dateRegion.timeZone,
+    t('settings.language_region.time_zone.auto', 'Automatic ({zone})', { zone: deviceZone }),
+  );
+  const zonePreview = formatWorded(
+    now,
+    { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h', timeZoneName: 'short' },
+    { locale, timeZone: dateRegion.timeZone },
+  );
 
   const renderRow = (code: LocaleCode | 'system', label: string, sublabel?: string) => {
     const active = selected === code;
@@ -113,6 +135,23 @@ export function LanguageSettings() {
       </SettingsSection>
 
       <SettingsSection
+        title={t('settings.language_region.date_locale.label', 'Date format region')}
+        description={t('settings.language_region.date_locale.description', 'How numeric dates are ordered (day, month, year)')}
+      >
+        <Select
+          value={dateRegion.dateLocale ?? 'auto'}
+          onChange={(v) => update('dateLocale', v as DateLocale)}
+          accessibilityLabel={t('settings.language_region.date_locale.label', 'Date format region')}
+          options={[
+            regionOption('auto', t('settings.language_region.date_locale.auto', 'Automatic (match language)')),
+            regionOption('iso', t('settings.language_region.date_locale.iso', 'ISO 8601 (YYYY-MM-DD)')),
+            regionOption('en-GB', t('settings.language_region.date_locale.dmy', 'Day/Month/Year')),
+            regionOption('en-US', t('settings.language_region.date_locale.mdy', 'Month/Day/Year')),
+          ]}
+        />
+      </SettingsSection>
+
+      <SettingsSection
         title={t('settings.language_region.time_format.label', 'Time Format')}
         description={t('settings.language_region.time_format.description', 'Choose between 12-hour or 24-hour clock')}
       >
@@ -124,6 +163,27 @@ export function LanguageSettings() {
             { value: '12h', label: t('settings.language_region.time_format.12h', '12-hour') },
           ]}
         />
+      </SettingsSection>
+
+      <SettingsSection
+        title={t('settings.language_region.time_zone.label', 'Time zone')}
+        description={t(
+          'settings.language_region.time_zone.description_device',
+          'Show email and calendar times in this time zone instead of the one your device uses',
+        )}
+      >
+        <Select
+          value={dateRegion.timeZone || AUTO_TIME_ZONE}
+          onChange={(v) => update('calendarTimeZone', v)}
+          accessibilityLabel={t('settings.language_region.time_zone.label', 'Time zone')}
+          options={zoneOptions}
+        />
+        <View style={styles.previewBox}>
+          <View style={styles.previewRow}>
+            <Text style={styles.previewLabel}>{t('settings.language_region.time_zone.preview_now', 'Now:')}</Text>
+            <Text style={styles.previewValue}>{zonePreview}</Text>
+          </View>
+        </View>
       </SettingsSection>
     </View>
   );

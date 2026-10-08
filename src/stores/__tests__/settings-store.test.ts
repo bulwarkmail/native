@@ -37,6 +37,37 @@ describe('settings-store', () => {
     });
   });
 
+  describe('screen protection', () => {
+    it('is off by default', () => {
+      const s = useSettingsStore.getState();
+      expect(s.blockScreenshots).toBe(false);
+      expect(s.hideInRecents).toBe(false);
+    });
+
+    it('persists both toggles and reads them back', async () => {
+      useSettingsStore.getState().updateSetting('blockScreenshots', true);
+      useSettingsStore.getState().updateSetting('hideInRecents', true);
+      const writes = vi.mocked(AsyncStorage.setItem).mock.calls.filter(([k]) => k === 'webmail:settings:v1');
+      const stored = JSON.parse(writes[writes.length - 1][1]);
+      const merged = mergeWithDefaults(stored);
+      expect(merged.blockScreenshots).toBe(true);
+      expect(merged.hideInRecents).toBe(true);
+    });
+
+    it('falls back to off for a non-boolean value', () => {
+      const merged = mergeWithDefaults({ blockScreenshots: 'yes' as never, hideInRecents: 1 as never });
+      expect(merged.blockScreenshots).toBe(false);
+      expect(merged.hideInRecents).toBe(false);
+    });
+
+    it('is app-only: never exported or imported', () => {
+      const shape = toExportShape(useSettingsStore.getState());
+      expect('blockScreenshots' in shape).toBe(false);
+      expect('hideInRecents' in shape).toBe(false);
+      expect(fromExportShape({ blockScreenshots: true, hideInRecents: true })).toEqual({});
+    });
+  });
+
   describe('calendar working hours and days (#1164)', () => {
     it('defaults to limiting the view to 08:00-20:00 on weekdays', () => {
       const s = useSettingsStore.getState();

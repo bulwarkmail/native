@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Zobrazí vaše kalendáre v aplikácii Kalendár a ďalších aplikáciách v tomto zariadení. Zmeny sa synchronizujú oboma smermi.",
       "device_sync_title": "Synchronizovať s týmto zariadením",
-      "show_week_numbers_mobile_desc": "Zobrazovať čísla týždňov v mesačnom zobrazení.",
-      "time_zone": "Časové pásmo",
-      "time_zone_auto": "Časové pásmo zariadenia",
-      "time_zone_auto_zone": "Časové pásmo zariadenia ({zone})",
-      "time_zone_desc": "Pásmo pre nové udalosti a na zobrazenie kalendára. „Časové pásmo zariadenia“ sa riadi telefónom."
+      "show_week_numbers_mobile_desc": "Zobrazovať čísla týždňov v mesačnom zobrazení."
     },
     "share": {
       "add_people": "Pridať osoby",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "Zmeňte poradie účtov v prepínači účtov, vyberte predvolený účet alebo sa z niektorého odhláste.",
         "limit": "Dosiahli ste maximálny počet účtov ({count})."
-      },
-      "shared_accounts": {
-        "description_manage": "Skupinové a zdieľané účty, ktoré môžete čítať cez tento účet. Vyberte jeden na správu jeho filtrov a automatickej odpovede."
       },
       "unknown": "Neznáme"
     },

@@ -50,6 +50,7 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/email/CalendarInvitationBanner.tsx': [],
   'components/email/ListAttachmentChips.tsx': [],
   'components/email/ReadReceiptBanner.tsx': [],
+  'components/email/SenderCheckBanner.tsx': [],
   'components/email/UnsubscribeBanner.tsx': [],
   'screens/EmailThreadScreen.tsx': [],
   // Protocol names on the authentication chips.

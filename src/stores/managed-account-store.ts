@@ -4,8 +4,8 @@ import { create } from 'zustand';
 // account the settings screen is scoped to. `null` means the user's own
 // account, the full settings list. When set to a shared/group account (picked
 // under "Shared with me" in Account settings), Settings shows only the tabs
-// that account supports behind a "Managing: <name>" banner, and the filters
-// and vacation panes read `managedAccountId` to target it.
+// that account supports behind a "Managing: <name>" banner, and the filters,
+// vacation, calendar and contacts panes read `managedAccountId` to target it.
 //
 // Session-only navigation state (never persisted), so a shared-account scope
 // can't leak into another account or a later launch.

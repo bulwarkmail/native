@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Muestra tus calendarios en la app Calendario y en otras apps de este dispositivo. Los cambios se sincronizan en ambos sentidos.",
       "device_sync_title": "Sincronizar con este dispositivo",
-      "show_week_numbers_mobile_desc": "Mostrar los números de semana en la vista mensual.",
-      "time_zone": "Zona horaria",
-      "time_zone_auto": "Zona horaria del dispositivo",
-      "time_zone_auto_zone": "Zona horaria del dispositivo ({zone})",
-      "time_zone_desc": "Zona usada para los eventos nuevos y para interpretar el calendario. \"Dispositivo\" sigue la zona del teléfono."
+      "show_week_numbers_mobile_desc": "Mostrar los números de semana en la vista mensual."
     },
     "share": {
       "add_people": "Añadir personas",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "Cambia el orden de las cuentas en el selector de cuentas, elige la predeterminada o cierra la sesión de una.",
         "limit": "Se alcanzó el máximo de {count} cuentas."
-      },
-      "shared_accounts": {
-        "description_manage": "Cuentas de grupo y compartidas que puedes leer a través de esta cuenta. Selecciona una para gestionar sus filtros y su respuesta automática."
       },
       "unknown": "Desconocido"
     },

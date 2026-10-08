@@ -8,6 +8,7 @@
 
 import { escapeHtml } from './email-html';
 import type { TimeFormat } from '../stores/settings-store';
+import { formatWorded, type DateRegion } from './date-format';
 
 /** Localized label set the caller passes in (from the locale catalog). */
 export interface QuoteHeaderLabels {
@@ -56,18 +57,28 @@ export interface QuoteHeaderArgs {
   };
   timeFormat: TimeFormat;
   locale?: string;
+  /** The date format region and time zone the date is written in. */
+  region?: DateRegion;
   unknownLabel: string;
   labels?: QuoteHeaderLabels;
 }
 
-/** Locale- and 12/24h-aware date with a short weekday (webmail formatDateTime). */
-export function formatQuoteDate(iso: string | undefined, timeFormat: TimeFormat, locale?: string): string {
+/**
+ * Locale- and 12/24h-aware date with a short weekday (webmail
+ * formatDateTime), in the app's time zone. A worded date, so the date
+ * format region does not reorder it (see formatWorded).
+ */
+export function formatQuoteDate(
+  iso: string | undefined,
+  timeFormat: TimeFormat,
+  locale?: string,
+  region: DateRegion = {},
+): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  const intlLocale = !locale || locale === 'en' ? 'en-US' : locale;
   try {
-    return d.toLocaleString(intlLocale, {
+    return formatWorded(d, {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -75,7 +86,7 @@ export function formatQuoteDate(iso: string | undefined, timeFormat: TimeFormat,
       hour: '2-digit',
       minute: '2-digit',
       hour12: timeFormat === '12h',
-    });
+    }, { locale, timeZone: region.timeZone });
   } catch {
     return d.toLocaleString();
   }
@@ -98,9 +109,9 @@ function fillReplyLine(template: string, vars: { date: string; from: string }): 
 }
 
 export function buildQuoteHeader(args: QuoteHeaderArgs): QuoteHeader {
-  const { mode, email, timeFormat, locale, unknownLabel } = args;
+  const { mode, email, timeFormat, locale, unknownLabel, region } = args;
   const labels = args.labels ?? DEFAULT_QUOTE_HEADER_LABELS;
-  const date = formatQuoteDate(email.receivedAt, timeFormat, locale);
+  const date = formatQuoteDate(email.receivedAt, timeFormat, locale, region);
   const fromStrFull = formatQuoteSender(email.from, unknownLabel);
   const subject = email.subject || '';
 

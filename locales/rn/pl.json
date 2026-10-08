@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Pokazuj swoje kalendarze w aplikacji Kalendarz i innych aplikacjach na tym urządzeniu. Zmiany są synchronizowane w obie strony.",
       "device_sync_title": "Synchronizuj z tym urządzeniem",
-      "show_week_numbers_mobile_desc": "Wyświetlaj numery tygodni w widoku miesiąca.",
-      "time_zone": "Strefa czasowa",
-      "time_zone_auto": "Strefa czasowa urządzenia",
-      "time_zone_auto_zone": "Strefa czasowa urządzenia ({zone})",
-      "time_zone_desc": "Strefa używana dla nowych wydarzeń i do odczytu kalendarza. „Strefa czasowa urządzenia” podąża za telefonem."
+      "show_week_numbers_mobile_desc": "Wyświetlaj numery tygodni w widoku miesiąca."
     },
     "share": {
       "add_people": "Dodaj osoby",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "Zmień kolejność kont w przełączniku kont, wybierz domyślne lub wyloguj któreś z nich.",
         "limit": "Osiągnięto maksymalną liczbę kont ({count})."
-      },
-      "shared_accounts": {
-        "description_manage": "Konta grupowe i udostępnione, które możesz czytać przez to konto. Wybierz jedno, aby zarządzać jego filtrami i autoresponderem urlopowym."
       },
       "unknown": "Nieznane"
     },

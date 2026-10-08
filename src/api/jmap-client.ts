@@ -14,6 +14,7 @@ import {
   type OAuthTokens,
   type OAuthTokenSource,
 } from '../lib/oauth';
+import { deleteIdToken, replaceIdToken } from '../lib/provider-session';
 import { FirstTouchGate } from './first-touch-gate';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 import { isTransportFailure, reportServerResponse, reportServerUnreachable } from '../lib/server-reachability';
@@ -335,7 +336,7 @@ export class JMAPClient {
       const tokens = oauthTokensOf(creds);
       if (!tokens) return false;
       if (!force && (tokens.expiresAt == null || tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return true;
-      let next: OAuthTokens;
+      let next: OAuthTokens & { idToken?: string };
       try {
         next = await refreshOAuthAccessToken(tokens);
       } catch (err) {
@@ -346,6 +347,7 @@ export class JMAPClient {
       creds = withTokens(base, next);
       if (creds.accessToken !== base.accessToken) this.noteRotation(base, creds);
       await this.storeRotatedTokens(base, creds);
+      await this.keepRefreshedIdToken(base, next.idToken);
       return true;
     };
     return {
@@ -727,6 +729,23 @@ export class JMAPClient {
   }
 
   /**
+   * Keep the id token a refresh of `base`'s tokens returned, for `base`'s
+   * account (never the live one), so sign-out ends the provider session
+   * with a current one. Direct PKCE sign-ins only, and only while that
+   * account is still signed in. Public for the refreshes outside the client
+   * (unified inbox, push background task). Never throws.
+   */
+  async keepRefreshedIdToken(base: StoredCredentials, idToken: string | undefined): Promise<void> {
+    if (!idToken || base.tokenSource !== 'native') return;
+    const key = credentialsKey(generateAccountId(base.username, base.serverUrl));
+    await replaceIdToken(
+      generateAccountId(base.username, base.serverUrl),
+      idToken,
+      async () => !!(await SecureStore.getItemAsync(key)),
+    ).catch(() => undefined);
+  }
+
+  /**
    * Refresh the live connection's OAuth token: proactively (`force` false,
    * only near expiry) or after a 401. The new tokens are stored for the
    * account they belong to; the live connection takes them while it is still
@@ -740,7 +759,7 @@ export class JMAPClient {
     const tokens = oauthTokensOf(base);
     if (!base || !tokens) return false;
     if (!force && (tokens.expiresAt == null || tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return true;
-    let next: OAuthTokens;
+    let next: OAuthTokens & { idToken?: string };
     try {
       next = await refreshOAuthAccessToken(tokens);
     } catch (err) {
@@ -761,6 +780,7 @@ export class JMAPClient {
       this.ctx = { ...live, credentials: updated };
     }
     await this.storeRotatedTokens(base, updated, liveTakesThem && live.gen === ctx.gen);
+    await this.keepRefreshedIdToken(base, next.idToken);
     if (liveTakesThem) {
       for (const l of this.tokenRefreshListeners) {
         try { l(); } catch { /* ignore */ }
@@ -906,17 +926,30 @@ export class JMAPClient {
     });
   }
 
+  // The id token kept for ending the provider session goes with them.
+  // The credentials go first and the id token after them: a refresh keeps a
+  // new id token only while the credentials are still stored, so with them
+  // gone none can land after the id token's delete. The id token's failure
+  // must never abort a sign-out.
   async clearAccountCredentials(accountId: string): Promise<void> {
     this.rotatedTokens.delete(accountId);
-    await SecureStore.deleteItemAsync(credentialsKey(accountId));
+    try {
+      await SecureStore.deleteItemAsync(credentialsKey(accountId));
+    } finally {
+      await deleteIdToken(accountId).catch(() => undefined);
+    }
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
     for (const id of accountIds) this.rotatedTokens.delete(id);
-    await Promise.all([
-      SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
-      ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
-    ]);
+    try {
+      await Promise.all([
+        SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
+        ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
+      ]);
+    } finally {
+      await Promise.all(accountIds.map((id) => deleteIdToken(id).catch(() => undefined)));
+    }
   }
 
   // One-time migration: if an old single-slot credential exists, return its

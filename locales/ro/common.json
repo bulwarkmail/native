@@ -345,6 +345,15 @@
     "external_content_warning": "Imaginile și conținutul extern au fost blocate",
     "load_external_content": "Încărcați imagini",
     "trust_sender": "Aveți întotdeauna încredere în acest expeditor",
+    "sender_check": {
+      "unverified_label": "Expeditor neverificat",
+      "failed_label": "Verificarea expeditorului a eșuat",
+      "unverified": "Acest mesaj pretinde că provine de la {domain}, dar nimic nu confirmă acest lucru. Nu are o semnătură validă de la {domain} și nu a venit de la un server autorizat de {domain}.",
+      "unverified_sent_from": "Acest mesaj pretinde că provine de la {domain}, dar a fost trimis de pe {host} și nu are o semnătură validă de la {domain}.",
+      "failed": "Acest mesaj pretinde că provine de la {domain}, dar nu a trecut de verificările de expeditor ale acestui domeniu. Este posibil să fie falsificat.",
+      "failed_sent_from": "Acest mesaj pretinde că provine de la {domain}, dar a fost trimis de pe {host} și nu a trecut de verificările de expeditor ale domeniului {domain}. Este posibil să fie falsificat.",
+      "caution": "Fiți atenți la linkuri, atașamente și solicitări de parole sau date de plată."
+    },
     "back_to_list": "Înapoi la listă",
     "view_contact": "Vizualizare contact",
     "message_details": "Detalii mesaj",

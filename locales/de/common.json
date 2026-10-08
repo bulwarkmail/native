@@ -345,6 +345,15 @@
     "external_content_warning": "Bilder und externe Inhalte wurden blockiert",
     "load_external_content": "Bilder laden",
     "trust_sender": "Diesem Absender immer vertrauen",
+    "sender_check": {
+      "unverified_label": "Absender nicht bestätigt",
+      "failed_label": "Absenderprüfung fehlgeschlagen",
+      "unverified": "Diese Nachricht gibt vor, von {domain} zu kommen, aber nichts bestätigt das. Sie trägt keine gültige Signatur von {domain} und kam nicht von einem Server, den {domain} zulässt.",
+      "unverified_sent_from": "Diese Nachricht gibt vor, von {domain} zu kommen, wurde aber von {host} verschickt und trägt keine gültige Signatur von {domain}.",
+      "failed": "Diese Nachricht gibt vor, von {domain} zu kommen, hat aber die Absenderprüfung dieser Domain nicht bestanden. Sie ist möglicherweise gefälscht.",
+      "failed_sent_from": "Diese Nachricht gibt vor, von {domain} zu kommen, wurde aber von {host} verschickt und hat die Absenderprüfung von {domain} nicht bestanden. Sie ist möglicherweise gefälscht.",
+      "caution": "Seien Sie vorsichtig mit Links, Anhängen und Fragen nach Passwörtern oder Zahlungsdaten."
+    },
     "back_to_list": "Zurück zur Liste",
     "view_contact": "Kontakt anzeigen",
     "message_details": "Nachrichtendetails",

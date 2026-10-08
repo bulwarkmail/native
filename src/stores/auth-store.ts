@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { jmapClient, AuthenticationError, NetworkError, type ClientSnapshot } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
 import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-security';
-import { useAccountStore } from './account-store';
+import { useAccountStore, type AccountEntry } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarEventNotificationStore } from './calendar-event-notification-store';
@@ -12,6 +12,7 @@ import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
 import { sweepOrphanedOfflineCache } from './offline-cache-store';
 import { forgetAccountData, forgetSharedData, type SignOutOptions } from './account-data-cleanup';
+import { dropPendingMailFolder } from '../navigation/pending-mail-folder';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -29,8 +30,18 @@ import {
 } from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
 import {
+  captureProviderLogout,
+  deleteIdToken,
+  endProviderSession,
+  providerOf,
+  storeIdToken,
+  usableEndSessionEndpoint,
+  type ProviderLogout,
+} from '../lib/provider-session';
+import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
+  clearStoredRelayBaseUrl,
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
 import { singleFlightByKey } from '../lib/session-retry';
@@ -132,6 +143,7 @@ function clearAllFeatureStores(): void {
   useCalendarStore.getState().reset();
   useCalendarEventNotificationStore.getState().reset();
   useFilterStore.getState().clearState();
+  dropPendingMailFolder(null);
   // Cache writes are held back briefly; get the signed-out data off disk now.
   void flushPersistedWrites();
 }
@@ -154,6 +166,7 @@ function clearAccountFeatureStores(accountId: string | null): void {
   useCalendarStore.getState().reset();
   useCalendarEventNotificationStore.getState().reset();
   useFilterStore.getState().clearState();
+  dropPendingMailFolder(accountId);
   void flushPersistedWrites();
 }
 
@@ -221,19 +234,97 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
   if (!wasRegistered) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
 }
 
+// An account dropped because its credentials are gone: what sign-out would
+// have cleared beside them goes too, so signing the account in again later
+// starts afresh instead of reusing an old relay. Fire-and-forget.
+function forgetEvictedAccount(accountId: string): void {
+  void deleteIdToken(accountId).catch(() => undefined);
+  void clearStoredRelayBaseUrl(accountId).catch(() => undefined);
+}
+
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
 // QR-paired bundles are left alone: webmail up to 1.11 handed the phone the
 // desktop's own refresh token, and newer ones hand out a separate grant whose
 // refresh token only the webmail's token proxy understands.
-async function revokeStoredRefreshToken(accountId: string): Promise<void> {
+// Resolves what ending the account's provider session needs (#905), read
+// here while its credentials and registry entry are still in place, with the
+// server it signed in to for providerStillInUse.
+type AccountProviderLogout = ProviderLogout & { serverUrl: string };
+
+async function revokeStoredRefreshToken(accountId: string): Promise<AccountProviderLogout | null> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
+    if (!entry) return null;
+    const providerLogout = await captureProviderLogout(
+      accountId,
+      entry.endSessionEndpoint,
+      await jmapClient.getStoredCredentials(accountId),
+    ).catch(() => null);
     const tokens = await jmapClient.getStoredOAuthTokens(accountId);
-    if (!entry || !tokens || tokens.source === 'pairing') return;
-    await revokeRefreshToken(entry.serverUrl, tokens);
+    if (tokens && tokens.source !== 'pairing') await revokeRefreshToken(entry.serverUrl, tokens);
+    return providerLogout ? { ...providerLogout, serverUrl: entry.serverUrl } : null;
   } catch {
     // never block sign-out
+    return null;
   }
+}
+
+// Scheme and host, compared without case.
+function originOfUrl(url: string): string {
+  return url.toLowerCase().match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/)?.[0] ?? url.toLowerCase();
+}
+
+// Ending the provider's session (Keycloak's SSO session) also ends the
+// refresh tokens of every other account signed in through it. So it waits
+// for the last of them: none of the accounts still registered may sign in
+// at the same provider. A hand-off account records no endpoint (the
+// webmail's client holds its provider session), but it signed in through
+// the same browser, so one on the same server counts as well. A password or
+// pairing account never used this browser's provider session and does not.
+async function providerStillInUse(providerLogout: AccountProviderLogout, remaining: AccountEntry[]): Promise<boolean> {
+  const provider = providerOf(providerLogout.endpoint);
+  if (remaining.some((a) => providerOf(a.endSessionEndpoint) === provider)) return true;
+  const origin = originOfUrl(providerLogout.serverUrl);
+  for (const a of remaining) {
+    if (originOfUrl(a.serverUrl) !== origin) continue;
+    // An account whose credentials cannot be read may be a hand-off one:
+    // count it, as ending a provider session another account needs is worse
+    // than leaving one open.
+    const credentials = await jmapClient.getStoredCredentials(a.id).catch(() => 'unreadable' as const);
+    if (credentials === 'unreadable' || credentials?.tokenSource === 'handoff') return true;
+  }
+  return false;
+}
+
+// Fire-and-forget, once the local sign-out is done: the browser may stay open
+// as long as the user likes and must not hold anything up. One at a time, as
+// the browser holds a single auth session. The accounts still signed in are
+// read now, before anything else can change them.
+function endProviderSessionsLater(providerLogouts: AccountProviderLogout[]): void {
+  if (providerLogouts.length === 0) return;
+  const remaining = useAccountStore.getState().accounts;
+  void (async () => {
+    for (const l of providerLogouts) {
+      if (!(await providerStillInUse(l, remaining).catch(() => true))) await endProviderSession(l);
+    }
+  })();
+}
+
+// What a direct PKCE sign-in keeps for ending the provider session on
+// sign-out: the id token under the account in SecureStore, the endpoint from
+// its own discovery document on its registry entry. Any other sign-in of the
+// account forgets both. Best-effort: without them sign-out only skips the
+// provider step.
+async function recordProviderSession(
+  accountId: string,
+  provider: { idToken?: string; endSessionEndpoint?: string } | undefined,
+): Promise<void> {
+  const endSessionEndpoint = usableEndSessionEndpoint(provider?.endSessionEndpoint);
+  const accounts = useAccountStore.getState();
+  if (accounts.getAccountById(accountId)?.endSessionEndpoint !== endSessionEndpoint) {
+    accounts.updateAccount(accountId, { endSessionEndpoint });
+  }
+  await storeIdToken(accountId, endSessionEndpoint ? provider?.idToken : undefined).catch(() => undefined);
 }
 
 // Refresh the registry's display name / address from the server (#900): the
@@ -278,6 +369,7 @@ async function completeOAuthHandoff(
   get: () => AuthState,
   result: Extract<HandoffResult, { flow: 'oauth' }>,
   opts?: { addAccount?: boolean },
+  provider?: { idToken?: string; endSessionEndpoint?: string },
 ): Promise<void> {
   // Adding an account must not destroy the live one: the singleton keeps the
   // previous connection until the new sign-in has actually succeeded, and a
@@ -310,6 +402,7 @@ async function completeOAuthHandoff(
     await undoConnect(previous, accountId, wasRegistered);
     throw err;
   }
+  await recordProviderSession(accountId, result.tokens.source === 'native' ? provider : undefined);
   // Contacts/calendar are still single-bucket, so wipe those now that the
   // new account is registered and the one the client serves.
   if (previous) {
@@ -417,6 +510,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await undoConnect(previous, accountId, wasRegistered);
         throw err;
       }
+      await recordProviderSession(accountId, undefined);
       // Contacts/calendar are still single-bucket, so wipe those now that
       // the new account is registered and the one the client serves.
       if (previous) {
@@ -515,6 +609,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await undoConnect(previous, accountId, wasRegistered);
       return fail(err);
     }
+    await recordProviderSession(accountId, undefined);
     if (previous) {
       useContactsStore.getState().reset();
       useCalendarStore.getState().reset();
@@ -590,10 +685,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     refuseAddWhenFull(set, opts);
     const base = serverUrl.replace(/\/+$/, '');
     let tokens;
+    let provider;
     try {
       const metadata = await discoverOAuthMetadata(base);
       if (!metadata) throw new HandoffError('This server does not offer OAuth sign-in');
-      tokens = await loginWithPkce(base, metadata, { addAccount: opts?.addAccount });
+      // The id token stays out of the stored bundle.
+      const { idToken, ...bundle } = await loginWithPkce(base, metadata, { addAccount: opts?.addAccount });
+      tokens = bundle;
+      provider = { idToken, endSessionEndpoint: metadata.end_session_endpoint };
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         set({ isLoading: false, error: null });
@@ -604,7 +703,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw err;
     }
     try {
-      await completeOAuthHandoff(set, get, { flow: 'oauth', serverUrl: base, tokens }, opts);
+      await completeOAuthHandoff(set, get, { flow: 'oauth', serverUrl: base, tokens }, opts, provider);
     } catch (err) {
       const message =
         err instanceof AuthenticationError
@@ -702,6 +801,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // push setups remain untouched. Do not abort logout on failure.
     if (currentId) {
       await teardownPushNotificationsForAccount(currentId).catch(() => undefined);
+      await clearStoredRelayBaseUrl(currentId).catch(() => undefined);
     } else {
       await teardownPushNotifications().catch(() => undefined);
     }
@@ -713,8 +813,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const username = entry?.username ?? get().username;
 
     // Clear credentials for this account first
+    let providerLogout: AccountProviderLogout | null = null;
     if (currentId) {
-      await revokeStoredRefreshToken(currentId);
+      providerLogout = await revokeStoredRefreshToken(currentId);
       await jmapClient.clearAccountCredentials(currentId);
       accountStore.removeAccount(currentId);
     } else {
@@ -742,7 +843,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         await get().switchAccount(next.id);
         // switchAccount can return without switching (failed load, no session).
-        if (get().activeAccountId === next.id) return;
+        if (get().activeAccountId === next.id) {
+          endProviderSessionsLater(providerLogout ? [providerLogout] : []);
+          return;
+        }
       } catch {
         // fall through to full logout below
       }
@@ -760,6 +864,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeAccountId: null,
       client: null,
     });
+    endProviderSessionsLater(providerLogout ? [providerLogout] : []);
   },
 
   logoutAll: async (opts) => {
@@ -769,7 +874,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device sync (#34): as in logout, for every account.
     if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
     await teardownPushNotifications().catch(() => undefined);
-    for (const id of ids) await revokeStoredRefreshToken(id);
+    // The teardown clears every relay too, but stops at its first failure:
+    // a relay left behind would be reused if the account signed in again.
+    for (const id of ids) await clearStoredRelayBaseUrl(id).catch(() => undefined);
+    // Each provider's session is ended once, with the active account's id
+    // token when it signed in there, else the first account's that did.
+    const activeId = get().activeAccountId;
+    const byProvider = new Map<string, AccountProviderLogout>();
+    for (const id of [...ids].sort((a, b) => Number(b === activeId) - Number(a === activeId))) {
+      const providerLogout = await revokeStoredRefreshToken(id);
+      const provider = providerLogout ? providerOf(providerLogout.endpoint) : null;
+      if (providerLogout && provider && !byProvider.has(provider)) byProvider.set(provider, providerLogout);
+    }
     await jmapClient.clearAllCredentials(ids);
     jmapClient.reset();
     clearAllFeatureStores();
@@ -793,6 +909,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeAccountId: null,
       client: null,
     });
+    endProviderSessionsLater([...byProvider.values()]);
   },
 
   switchAccount: async (accountId) => {
@@ -834,6 +951,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const ok = await jmapClient.loadAccount(accountId);
       if (!ok) {
         // Credentials missing - evict stale entry and surface error
+        forgetEvictedAccount(accountId);
         accountStore.removeAccount(accountId);
         useEmailStore.getState().removeAccount(accountId);
         restorePrevious();
@@ -905,15 +1023,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device sync (#34): as in logout.
     if (!(await releaseDeviceSyncBeforeSignOut([accountId]))) return;
     await teardownPushNotificationsForAccount(accountId).catch(() => undefined);
-    await revokeStoredRefreshToken(accountId);
+    await clearStoredRelayBaseUrl(accountId).catch(() => undefined);
+    const providerLogout = await revokeStoredRefreshToken(accountId);
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
+    dropPendingMailFolder(accountId);
     accountStore.removeAccount(accountId);
     await forgetAccountData(
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
       { lastAccount: useAccountStore.getState().accounts.length === 0, discardQueuedSends: opts?.discardQueuedSends },
     ).catch((e) => console.warn('[sign-out] cleanup failed', e));
+    endProviderSessionsLater(providerLogout ? [providerLogout] : []);
   },
 
   restoreSession: async () => {
@@ -984,6 +1105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const ok = await jmapClient.loadAccount(target.id);
         if (!ok) {
           // No stored credentials (or corrupt) — genuine logout.
+          forgetEvictedAccount(target.id);
           accountStore.removeAccount(target.id);
           useEmailStore.getState().removeAccount(target.id);
           set({ isLoading: false, hasRestoredSession: true });

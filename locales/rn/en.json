@@ -105,11 +105,7 @@
       "birthday_calendar_color": "Birthday calendar colour",
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
-      "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
-      "time_zone": "Time zone",
-      "time_zone_auto": "Device time zone",
-      "time_zone_auto_zone": "Device time zone ({zone})",
-      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone."
+      "show_week_numbers_mobile_desc": "Display week numbers in the month view."
     },
     "share": {
       "add_people": "Add people",
@@ -723,9 +719,6 @@
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
         "limit": "Maximum of {count} accounts reached."
       },
-      "shared_accounts": {
-        "description_manage": "Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder."
-      },
       "unknown": "Unknown"
     },
     "advanced": {
@@ -1000,6 +993,11 @@
       "reset_confirm": "Replace your tag list with the default tags? Tags already set on messages stay on the server.",
       "reset_defaults": "Reset to Defaults"
     },
+    "language_region": {
+      "time_zone": {
+        "description_device": "Show email and calendar times in this time zone instead of the one your device uses"
+      }
+    },
     "layout": {
       "description": "Tune the email list interactions for mobile.",
       "quick_actions": {
@@ -1047,6 +1045,7 @@
       "push": {
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
+        "err_account_changed": "The account changed during setup. Try again.",
         "err_android_only": "Push notifications are only available on Android.",
         "err_fcm_empty": "Firebase returned an empty device token.",
         "err_fcm_token": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device.",
@@ -1071,6 +1070,7 @@
         "phase_verify": "Verification",
         "relay_desc_mobile": "The server that delivers your notifications. Defaults to the hosted Bulwark relay; change only if you self-host. Must use https.",
         "relay_invalid": "Enter a valid https:// URL",
+        "relay_reset_mobile": "Reset to default",
         "setup_failed": "Setup failed",
         "status_android_only": "Background notifications are available on Android only.",
         "transport_desc": "How notifications reach this device: Google’s Firebase Cloud Messaging, or a UnifiedPush distributor app (such as ntfy) for Google-free delivery.",
@@ -1115,6 +1115,11 @@
     "plugins": {
       "mobile_description": "Plugins run inside the webmail and extend it in the browser.",
       "mobile_explainer": "The mobile app has no plugin runtime. Install and manage plugins from the webmail under Settings → Plugins; themes and filters they provide are not applied here."
+    },
+    "scoped": {
+      "address_books_description": "Rename the address books of this account.",
+      "calendars_description": "Rename and recolor the calendars of this account.",
+      "no_calendars": "This account has no calendars you can see."
     },
     "security": {
       "client_cert": {
@@ -1172,6 +1177,18 @@
         "remove_title": "Remove public key?",
         "title": "Public Keys"
       },
+      "screen_protection": {
+        "block_screenshots": {
+          "description": "Blocks screenshots, screen recording and casting, and blanks the app in recent apps.",
+          "label": "Block screenshots"
+        },
+        "description": "Keeps mail out of screenshots and the recent apps view on this device. Home-screen widgets and notification previews still show mail.",
+        "hide_in_recents": {
+          "description": "Blanks the app in recent apps but still allows screenshots. The app can show briefly while you switch apps; use Block screenshots to hide it completely.",
+          "label": "Hide in recent apps only"
+        },
+        "title": "Screen protection"
+      },
       "two_factor": {
         "active": "Active",
         "code": "Verification code",
@@ -1202,7 +1219,8 @@
         "name_placeholder": "App name",
         "open_mode": "Open mode",
         "show_on_mobile": "Show on mobile",
-        "url": "URL"
+        "url": "URL",
+        "url_invalid": "Enter a web address starting with https://"
       },
       "keep_loaded_description_mobile": "Keep inline apps running in the background when switching away.",
       "open_mode": {
@@ -1265,6 +1283,7 @@
   },
   "sidebar": {
     "account_error": "Needs attention",
+    "apps": "Apps",
     "remove_account_hint": "Long-press to remove this account",
     "remove_account_message": "Sign out of {account} on this device. Your mail stays on the server.",
     "remove_account_title": "Remove account?",

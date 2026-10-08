@@ -5,6 +5,7 @@ vi.mock('../client-cert', () => ({
   secureFetch: vi.fn(),
 }));
 
+import { secureFetch } from '../client-cert';
 import { loginWithPkce, type OAuthMetadata } from '../oauth-native';
 import { HandoffCancelledError } from '../oauth';
 
@@ -59,5 +60,37 @@ describe('loginWithPkce', () => {
     const { params } = await openedSession(picker, true);
 
     expect(params.get('prompt')).toBe('select_account');
+  });
+});
+
+describe('loginWithPkce token response', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Answer the browser with a code for the state it was opened with.
+  function signInAnswers(tokenResponse: Record<string, unknown>) {
+    mockOpenAuthSession.mockImplementationOnce(async (authUrl: string) => {
+      const state = new URL(authUrl).searchParams.get('state');
+      return { type: 'success', url: `bulwarkmobile://auth/callback?code=c0de&state=${state}` };
+    });
+    (secureFetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => tokenResponse,
+    });
+  }
+
+  it('keeps the id token beside the bundle, for ending the provider session on sign-out', async () => {
+    signInAnswers({ access_token: 'at', refresh_token: 'rt', expires_in: 300, id_token: 'id.jwt.sig' });
+    const result = await loginWithPkce('https://mail.example.com', metadata);
+    expect(result.idToken).toBe('id.jwt.sig');
+    expect(result.source).toBe('native');
+    expect(result.accessToken).toBe('at');
+  });
+
+  it('has no id token when the provider sends none', async () => {
+    signInAnswers({ access_token: 'at' });
+    const result = await loginWithPkce('https://mail.example.com', metadata);
+    expect(result.idToken).toBeUndefined();
   });
 });

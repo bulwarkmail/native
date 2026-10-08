@@ -11,6 +11,7 @@ import { MessageHeader } from './MessageHeader';
 import { AttachmentChips } from './AttachmentChips';
 import { UnsubscribeBanner } from './UnsubscribeBanner';
 import { ReadReceiptBanner } from './ReadReceiptBanner';
+import { SenderCheckBanner } from './SenderCheckBanner';
 import { useBodyOverride } from './use-body-override';
 import { deriveHeaderInfo } from '../../lib/email-headers';
 import { chipCodeFor } from '../../lib/verification-code';
@@ -100,6 +101,7 @@ export function MessageContent({
       </View>
       {attachmentPosition === 'below-header' && <View style={styles.chipsBlock}>{chips}</View>}
 
+      {headerInfo.senderVerification && <SenderCheckBanner verification={headerInfo.senderVerification} />}
       {headerInfo.readReceiptRequestedBy && (
         <ReadReceiptBanner
           email={email}
@@ -135,6 +137,7 @@ export function MessageContent({
           <EmailBodyView
             email={email}
             senderEmail={from?.email}
+            senderVerification={headerInfo.senderVerification}
             jmapAccountId={jmapAccountId}
             onSwipe={onSwipe}
             onZoomChange={onZoomChange}

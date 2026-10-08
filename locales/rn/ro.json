@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Afișați calendarele în aplicația Calendar și în alte aplicații de pe acest dispozitiv. Modificările se sincronizează în ambele sensuri.",
       "device_sync_title": "Sincronizare cu acest dispozitiv",
-      "show_week_numbers_mobile_desc": "Afișați numerele săptămânilor în vizualizarea lunară.",
-      "time_zone": "Fus orar",
-      "time_zone_auto": "Fusul orar al dispozitivului",
-      "time_zone_auto_zone": "Fusul orar al dispozitivului ({zone})",
-      "time_zone_desc": "Fusul folosit pentru evenimentele noi și pentru interpretarea calendarului. „Dispozitiv” urmează fusul telefonului."
+      "show_week_numbers_mobile_desc": "Afișați numerele săptămânilor în vizualizarea lunară."
     },
     "share": {
       "add_people": "Adăugați persoane",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "Reordonați conturile în selectorul de conturi, alegeți contul implicit sau deconectați unul.",
         "limit": "S-a atins numărul maxim de {count, plural, one {# cont} few {# conturi} other {# de conturi}}."
-      },
-      "shared_accounts": {
-        "description_manage": "Conturi de grup și partajate pe care le puteți citi prin acest cont. Selectați unul pentru a-i gestiona filtrele și răspunsul automat de vacanță."
       },
       "unknown": "Necunoscut"
     },

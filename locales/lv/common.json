@@ -345,6 +345,15 @@
     "external_content_warning": "Attēli un ārējais saturs ir bloķēts",
     "load_external_content": "Ielādēt attēlus",
     "trust_sender": "Vienmēr uzticēties šim sūtītājam",
+    "sender_check": {
+      "unverified_label": "Nepārbaudīts sūtītājs",
+      "failed_label": "Sūtītāja pārbaude neizdevās",
+      "unverified": "Šis ziņojums apgalvo, ka ir no domēna {domain}, taču nekas to neapstiprina. Tam nav derīga domēna {domain} paraksta, un tas nav nācis no servera, ko domēns {domain} ir atļāvis.",
+      "unverified_sent_from": "Šis ziņojums apgalvo, ka ir no domēna {domain}, taču tas nosūtīts no domēna {host}, un tam nav derīga domēna {domain} paraksta.",
+      "failed": "Šis ziņojums apgalvo, ka ir no domēna {domain}, taču tas neizturēja šī domēna sūtītāja pārbaudes. Tas var būt viltots.",
+      "failed_sent_from": "Šis ziņojums apgalvo, ka ir no domēna {domain}, taču tas nosūtīts no domēna {host} un neizturēja domēna {domain} sūtītāja pārbaudes. Tas var būt viltots.",
+      "caution": "Esiet piesardzīgi ar saitēm, pielikumiem un paroļu vai maksājumu datu pieprasījumiem."
+    },
     "back_to_list": "Atpakaļ uz sarakstu",
     "view_contact": "Skatīt kontaktu",
     "message_details": "Informācija par ziņojumu",

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import {
-  Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock,
+  Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock, AlertTriangle,
 } from 'lucide-react-native';
 import type { Email, EmailAddress, Identity } from '../../api/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -11,12 +11,14 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useKeywordsStore, keywordToken } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
+import { useDateRegion } from '../../lib/use-date-region';
 import {
   deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
+import { senderCheckText } from '../../lib/sender-check';
 
 interface Props {
   email: Email;
@@ -96,6 +98,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);
@@ -105,6 +108,8 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const starred = !!email.keywords?.$flagged;
   const displayDate = emailDisplayDate(email);
   const spoofed = isAuthenticationSpoofed(info.auth);
+  const senderCheck = senderCheckText(info.senderVerification, t);
+  const senderCheckColor = senderCheck?.tone === 'danger' ? c.error : c.warning;
 
   // "via <identity>": the message was sent by one of the user's identities or
   // received at one of them (incl. +tag); hidden when the From can't be
@@ -139,7 +144,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
       size: formatSize(email.attachments.reduce((n, a) => n + (a.size ?? 0), 0)),
     })
     : null;
-  const receivedAt = formatFullDateTime(email.receivedAt, timeFormat, locale);
+  const receivedAt = formatFullDateTime(email.receivedAt, timeFormat, locale, dateRegion);
 
   return (
     <View style={styles.block}>
@@ -154,9 +159,23 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
         </Pressable>
         <View style={styles.info}>
           <Pressable onPress={from ? () => onAddressPress(from) : undefined}>
-            <Text style={styles.name} numberOfLines={1}>
-              {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={[styles.name, styles.nameText]} numberOfLines={1}>
+                {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
+              </Text>
+              {senderCheck && (
+                <View
+                  style={[styles.senderCheck, { borderColor: senderCheckColor }]}
+                  accessible
+                  accessibilityLabel={`${senderCheck.label}. ${senderCheck.message}`}
+                >
+                  <AlertTriangle size={11} color={senderCheckColor} />
+                  <Text style={[styles.senderCheckText, { color: senderCheckColor }]} numberOfLines={1}>
+                    {senderCheck.label}
+                  </Text>
+                </View>
+              )}
+            </View>
             {from?.name && from?.email ? (
               <Text style={styles.email} numberOfLines={1}>{from.email}</Text>
             ) : null}
@@ -171,9 +190,9 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           )}
         </View>
         <View style={styles.meta}>
-          <Text style={styles.date}>{formatHeaderDate(displayDate, locale)}</Text>
+          <Text style={styles.date}>{formatHeaderDate(displayDate, locale, dateRegion)}</Text>
           <Text style={styles.time}>
-            {formatHeaderTime(displayDate, timeFormat, locale)}
+            {formatHeaderTime(displayDate, timeFormat, locale, dateRegion)}
             {!compact && email.size > 0 ? ` · ${formatSize(email.size)}` : ''}
           </Text>
           {onToggleStar && (
@@ -252,7 +271,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           <DetailRow label={t('email_viewer.to', 'To')} value={email.to?.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(', ')} styles={styles} />
           <DetailRow label={t('email_viewer.cc', 'CC')} value={email.cc?.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(', ')} styles={styles} />
           <DetailRow label={t('email_viewer.bcc', 'BCC')} value={email.bcc?.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(', ')} styles={styles} />
-          <DetailRow label={t('email_viewer.details.sent', 'Sent')} value={formatFullDateTime(email.sentAt, timeFormat, locale)} styles={styles} />
+          <DetailRow label={t('email_viewer.details.sent', 'Sent')} value={formatFullDateTime(email.sentAt, timeFormat, locale, dateRegion)} styles={styles} />
           <DetailRow
             label={t('email_viewer.details.received', 'Received')}
             value={delta !== null && delta > 60000
@@ -328,6 +347,18 @@ function makeStyles(c: ThemePalette) {
     row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
     info: { flex: 1, minWidth: 0 },
     name: { ...typography.bodySemibold, color: c.text },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    nameText: { flexShrink: 1 },
+    senderCheck: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+    },
+    senderCheckText: { ...typography.small },
     email: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
     recipients: { ...typography.caption, color: c.textSecondary, marginTop: 4 },
     recipientsLabel: { color: c.textMuted },

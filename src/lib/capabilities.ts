@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { accountSupportsFiles } from '../api/files';
 import { accountSupportsSieve, isSieveSupported } from '../api/sieve';
 import { accountSupportsVacation, isVacationSupported } from '../api/vacation';
+import { jmapClient } from '../api/jmap-client';
 
 // When the session is null (cold start, offline restore) we assume features
 // are available so they don't flicker off mid-restore. Once the live session
@@ -76,17 +77,32 @@ export function useHasVacation(): boolean {
     : true));
 }
 
-export type SharedAccountSettingsTab = 'filters' | 'vacation';
+export type SharedAccountSettingsTab = 'filters' | 'vacation' | 'calendar' | 'contacts';
+
+// Whether JMAP account `accountId` of the live session has `capability`.
+// Gated like accountSupportsSieve: the server has to offer it, and a
+// non-personal account Stalwart lists without its capabilities counts as
+// capable.
+function accountHasCapability(accountId: string, capability: string): boolean {
+  const session = jmapClient.currentSession;
+  if (!session?.capabilities || !(capability in session.capabilities)) return false;
+  const account = session.accounts?.[accountId];
+  if (!account) return false;
+  if (!account.isPersonal || !account.accountCapabilities) return true;
+  return capability in account.accountCapabilities;
+}
 
 /**
  * Settings panes a shared/group account can be managed in, the first one
  * being where "Shared with me" lands. Mirrors the webmail's scoped settings
- * tabs (its calendar and contacts panes aren't scoped on mobile).
+ * tabs; in scope, the calendar and contacts panes only list that account's
+ * calendars and address books.
  */
 export function sharedAccountSettingsTabs(accountId: string): SharedAccountSettingsTab[] {
   const tabs: SharedAccountSettingsTab[] = [];
   if (isSieveSupported(accountId)) tabs.push('filters');
   if (isVacationSupported(accountId)) tabs.push('vacation');
+  if (accountHasCapability(accountId, CAPABILITIES.CALENDARS)) tabs.push('calendar');
+  if (accountHasCapability(accountId, CAPABILITIES.CONTACTS)) tabs.push('contacts');
   return tabs;
 }
-

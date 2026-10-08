@@ -69,6 +69,7 @@ import { mailboxAccountId } from './src/lib/mailbox-tree';
 import { loadDetail, prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
+import { setHiddenInRecents, setScreenshotsBlocked, setSystemBarsLight } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
@@ -91,7 +92,7 @@ import {
   type DeepLink,
 } from './src/navigation/linking';
 import { usePendingSignInLinkStore } from './src/navigation/pending-sign-in-link';
-import { MAX_ACCOUNTS } from './src/lib/account-utils';
+import { generateAccountId, MAX_ACCOUNTS } from './src/lib/account-utils';
 import { addShareListener, getInitialShare, shareAttachments } from './src/lib/share-intent';
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
@@ -100,11 +101,17 @@ import { useSendQueueStore } from './src/stores/send-queue-store';
 import { flushSendQueue, hasNewEntry } from './src/lib/send-queue-replay';
 import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
-import { spacing, typography, type ThemePalette } from './src/theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
+import { syncFontScale } from './src/theme/dynamic';
 
 // Webmail's use-identity-sync cadence.
 const IDENTITY_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+
+// Keep `typography` at the font size setting. Subscribed before the hydrate
+// below, so the stored size lands inside its set(): the screens that render
+// before then use the default size, and re-render with the stored one.
+syncFontScale();
 
 // Read the settings now, beside the stores that hydrate on import, so the start
 // folder is known by the time the session restores.
@@ -194,6 +201,7 @@ async function openDeepLink(link: DeepLink): Promise<void> {
       }
     },
     activeAccountId: () => useAuthStore.getState().activeAccountId,
+    currentMailboxId: () => useEmailStore.getState().currentMailboxId,
     switchAccount: async (accountId) => {
       const auth = useAuthStore.getState();
       if (auth.activeAccountId === accountId) return true;
@@ -239,7 +247,7 @@ function LoadingScreen({ message }: { message: string }) {
   return (
     <View style={[styles.loadingContainer, { backgroundColor: c.background }]}>
       <ActivityIndicator color={c.primary} />
-      <Text style={[styles.loadingText, { color: c.textSecondary }]}>{message}</Text>
+      <Text style={[typography.body, { color: c.textSecondary }]}>{message}</Text>
     </View>
   );
 }
@@ -265,6 +273,31 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
     settings: t('sidebar.settings', 'Settings'),
   };
   const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
+  // The tab bar's own text. The label follows the font size setting; both it
+  // and the badge sit in fixed boxes, so the OS font scale is capped for them.
+  // Rebuilt with the palette, which changes with the font size too.
+  const chrome = React.useMemo(() => StyleSheet.create({
+    tabLabel: { ...typography.tabLabel, textAlign: 'center' },
+    // Beside-icon labels (wide tablets) keep the built-in spacing from the icon.
+    tabLabelBeside: { marginStart: 5, lineHeight: 24, textAlign: 'left' },
+    tabBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -6,
+      minWidth: 16,
+      height: 16,
+      paddingHorizontal: 4,
+      borderRadius: 8,
+      overflow: 'hidden',
+      backgroundColor: c.error,
+      color: c.primaryForeground,
+      fontSize: 10,
+      fontWeight: '700',
+      lineHeight: 16,
+      textAlign: 'center',
+    },
+  }), [c]);
+  const inboxBadge = inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : String(inboxUnreadCount)) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
@@ -287,30 +320,41 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           shadowOpacity: 0,
           shadowColor: 'transparent',
         },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-        },
+        tabBarLabel: ({ color, position, children }) => (
+          <Text
+            style={[chrome.tabLabel, position === 'beside-icon' && chrome.tabLabelBeside, { color }]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+          >
+            {children}
+          </Text>
+        ),
       }}
     >
       <Tab.Screen
         name="Mail"
         options={{
           title: tabLabels.mail,
-          tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
-          tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: c.error,
-            color: c.primaryForeground,
-            fontSize: 10,
-            fontWeight: '700',
-            minWidth: 16,
-            height: 16,
-            lineHeight: 16,
-            borderRadius: 8,
-            top: -2,
-            right: -6,
-          },
+          // Drawn here rather than as tabBarBadge, whose Text takes no font
+          // scale cap. The tab bar draws the icon twice, an active and an
+          // inactive copy over each other, so only one copy's count is left
+          // for screen readers.
+          tabBarIcon: ({ color, size, focused }) => (
+            <View>
+              <Mail size={size} color={color} />
+              {inboxBadge ? (
+                <Text
+                  style={chrome.tabBadge}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+                  accessibilityElementsHidden={!focused}
+                  importantForAccessibility={focused ? 'auto' : 'no-hide-descendants'}
+                >
+                  {inboxBadge}
+                </Text>
+              ) : null}
+            </View>
+          ),
         }}
       >
         {() => (
@@ -412,6 +456,21 @@ export default function App() {
   const resolvedScheme: 'light' | 'dark' =
     themePref === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : themePref;
   const statusBarStyle: 'light' | 'dark' = resolvedScheme === 'light' ? 'dark' : 'light';
+  // The 3-button navigation bar keeps the system night mode's icons unless told.
+  React.useEffect(() => {
+    setSystemBarsLight(resolvedScheme === 'light');
+  }, [resolvedScheme]);
+  // Screen protection. MainActivity applied the native copy before the first
+  // frame; once hydrated the settings win, so a disagreement is corrected here.
+  const settingsHydrated = useSettingsStore((state) => state.hydrated);
+  const blockScreenshots = useSettingsStore((state) => state.blockScreenshots);
+  const hideInRecents = useSettingsStore((state) => state.hideInRecents);
+  React.useEffect(() => {
+    if (settingsHydrated) setScreenshotsBlocked(blockScreenshots);
+  }, [settingsHydrated, blockScreenshots]);
+  React.useEffect(() => {
+    if (settingsHydrated) setHiddenInRecents(hideInRecents);
+  }, [settingsHydrated, hideInRecents]);
   // React Navigation's default theme is light: without this its containers
   // paint white behind and between screens, even in dark mode.
   const background = useColors().background;
@@ -764,7 +823,9 @@ export default function App() {
         }
         return;
       }
-      const relayBaseUrl = await getStoredRelayBaseUrl();
+      if (!activeAccountId || !client.username || !client.serverUrl) return;
+      if (generateAccountId(client.username, client.serverUrl) !== activeAccountId) return;
+      const relayBaseUrl = await getStoredRelayBaseUrl(activeAccountId);
       if (!relayBaseUrl) return;
       try {
         await resyncPushNotifications({
@@ -1030,9 +1091,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-  },
-  loadingText: {
-    ...typography.body,
   },
 });
 

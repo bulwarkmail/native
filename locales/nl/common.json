@@ -345,6 +345,15 @@
     "external_content_warning": "Afbeeldingen en externe inhoud zijn geblokkeerd",
     "load_external_content": "Afbeeldingen laden",
     "trust_sender": "Deze afzender altijd vertrouwen",
+    "sender_check": {
+      "unverified_label": "Niet-geverifieerde afzender",
+      "failed_label": "Afzendercontrole mislukt",
+      "unverified": "Dit bericht beweert van {domain} te komen, maar niets bevestigt dat. Het heeft geen geldige handtekening van {domain} en kwam niet van een server die {domain} toestaat.",
+      "unverified_sent_from": "Dit bericht beweert van {domain} te komen, maar is verzonden vanaf {host} en heeft geen geldige handtekening van {domain}.",
+      "failed": "Dit bericht beweert van {domain} te komen, maar is niet door de afzendercontroles van dat domein gekomen. Het kan vervalst zijn.",
+      "failed_sent_from": "Dit bericht beweert van {domain} te komen, maar is verzonden vanaf {host} en is niet door de afzendercontroles van {domain} gekomen. Het kan vervalst zijn.",
+      "caution": "Wees voorzichtig met links, bijlagen en verzoeken om wachtwoorden of betaalgegevens."
+    },
     "back_to_list": "Terug naar lijst",
     "view_contact": "Contact bekijken",
     "message_details": "Berichtdetails",

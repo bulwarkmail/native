@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "在此裝置上的日曆應用程式和其他應用程式中顯示您的行事曆。變更會雙向同步。",
       "device_sync_title": "同步到此裝置",
-      "show_week_numbers_mobile_desc": "在月檢視中顯示週數",
-      "time_zone": "時區",
-      "time_zone_auto": "裝置時區",
-      "time_zone_auto_zone": "裝置時區（{zone}）",
-      "time_zone_desc": "用於新增活動與顯示行事曆的時區。選擇「裝置」時會依照手機的設定。"
+      "show_week_numbers_mobile_desc": "在月檢視中顯示週數"
     },
     "share": {
       "add_people": "新增使用者",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "調整帳號在帳號切換器中的顯示順序、選擇預設帳號，或登出某個帳號。",
         "limit": "已達帳號數量上限（{count} 個）。"
-      },
-      "shared_accounts": {
-        "description_manage": "可透過此帳號讀取的群組與共用帳號。選取一個帳號，即可管理其篩選規則與休假自動回覆。"
       },
       "unknown": "未知"
     },

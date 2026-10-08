@@ -581,6 +581,8 @@ export interface CalendarRights {
   mayUpdatePrivate?: boolean;
   mayRSVP?: boolean;
   mayShare?: boolean;
+  // RFC-style right to change the calendar itself (name, colour, sharing).
+  mayAdmin?: boolean;
   mayDelete?: boolean;
 }
 

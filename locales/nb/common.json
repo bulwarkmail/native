@@ -345,6 +345,15 @@
     "external_content_warning": "Bilder og eksternt innhold er blokkert",
     "load_external_content": "Last inn bilder",
     "trust_sender": "Stol alltid på denne avsenderen",
+    "sender_check": {
+      "unverified_label": "Ubekreftet avsender",
+      "failed_label": "Avsenderkontrollen mislyktes",
+      "unverified": "Denne meldingen utgir seg for å være fra {domain}, men ingenting bekrefter det. Den har ingen gyldig signatur fra {domain} og kom ikke fra en server som {domain} har godkjent.",
+      "unverified_sent_from": "Denne meldingen utgir seg for å være fra {domain}, men den ble sendt fra {host} og har ingen gyldig signatur fra {domain}.",
+      "failed": "Denne meldingen utgir seg for å være fra {domain}, men den besto ikke domenets avsenderkontroller. Den kan være forfalsket.",
+      "failed_sent_from": "Denne meldingen utgir seg for å være fra {domain}, men den ble sendt fra {host} og besto ikke avsenderkontrollene til {domain}. Den kan være forfalsket.",
+      "caution": "Vær forsiktig med lenker, vedlegg og forespørsler om passord eller betalingsopplysninger."
+    },
     "back_to_list": "Tilbake til listen",
     "view_contact": "Se kontakt",
     "message_details": "Meldingsdetaljer",

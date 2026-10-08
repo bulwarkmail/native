@@ -92,6 +92,10 @@ export type TimeFormat = '12h' | '24h';
 //   relative — "1h ago", "2d ago"
 //   full     — always the full locale date + time
 export type DateFormat = 'smart' | 'relative' | 'full';
+// How numeric dates are ordered, independent of the language (webmail
+// `dateLocale`): `auto` follows the language, `iso` is YYYY-MM-DD, `en-GB`
+// day/month/year and `en-US` month/day/year.
+export type DateLocale = 'auto' | 'iso' | 'en-GB' | 'en-US';
 export type CalendarHoverPreview = 'instant' | 'delay-500ms' | 'delay-1s' | 'delay-2s' | 'off';
 export type FilesFolderLayout = 'inline' | 'sidebar';
 export type FilesViewMode = 'list' | 'grid';
@@ -138,6 +142,7 @@ interface PersistedSettings {
 
   // Language, region & time
   dateFormat: DateFormat;
+  dateLocale: DateLocale;
   timeFormat: TimeFormat;
 
   // Unified inbox: also pull in group/shared inboxes reachable through each
@@ -254,8 +259,9 @@ interface PersistedSettings {
   calendarHideNonWorkingDays: boolean;
   // Weekdays as Date.getDay numbers (0 = Sunday).
   calendarWorkingDays: number[];
-  // IANA zone the calendar works in, or 'auto' to follow the device (#755).
-  // Same key semantics as the webmail's `timeZone` setting.
+  // IANA zone the whole app shows and picks times in, or 'auto' to follow the
+  // device (#755); set under Language & region. Same key semantics as the
+  // webmail's `timeZone` setting.
   calendarTimeZone: string;
   showBirthdayCalendar: boolean;
   // Hex colour of the virtual birthday calendar (webmail's key and default).
@@ -298,6 +304,13 @@ interface PersistedSettings {
   // Files: the storage notice at the Files root, once dismissed, stays dismissed.
   filesStabilityNoticeDismissed: boolean;
 
+  // Screen protection (Android). Block screenshots sets FLAG_SECURE, which
+  // also blanks the recent-apps preview; hide in recents blanks only the
+  // preview (API 33+). The native side keeps a copy so a cold start is
+  // covered before these hydrate.
+  blockScreenshots: boolean;
+  hideInRecents: boolean;
+
   // Debug logging (see lib/debug.ts). Persisted like the webmail so a support
   // session survives restarts.
   debugMode: boolean;
@@ -324,6 +337,7 @@ interface PersistedSettings {
 
 const DEFAULT_PERSISTED: PersistedSettings = {
   dateFormat: 'smart',
+  dateLocale: 'auto',
   timeFormat: '24h',
   includeGroupInUnified: true,
 
@@ -477,6 +491,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   exportLowercase: false,
   exportStripDiacritics: false,
 
+  blockScreenshots: false,
+  hideInRecents: false,
+
   offlineCacheEnabled: false,
   offlineCacheDays: 7,
   offlineCacheMaxMB: 50,
@@ -588,6 +605,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   externalContentPolicy: oneOf(['allow', 'block', 'ask']),
   trustedSenders: stringArray,
   dateFormat: oneOf(['smart', 'relative', 'full']),
+  dateLocale: oneOf(['auto', 'iso', 'en-GB', 'en-US']),
   timeFormat: oneOf(['12h', '24h']),
   theme: oneOf(['light', 'dark', 'system']),
   messageListOrderScope: oneOf(['inbox', 'all']),
@@ -708,6 +726,8 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'filesShowHiddenFiles',
   'filesStabilityNoticeDismissed',
   'calendarDefaultView',
+  'blockScreenshots',
+  'hideInRecents',
 ]);
 
 export function toExportShape(state: PersistedSettings): Record<string, unknown> {

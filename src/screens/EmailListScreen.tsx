@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
@@ -48,6 +48,7 @@ import {
 } from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
+import { useDateRegion } from '../lib/use-date-region';
 import { singleLine } from '../lib/single-line';
 import { previewLine } from '../lib/preview-text';
 import { buildRowLabel } from '../lib/list-row-label';
@@ -66,6 +67,8 @@ import { getFullEmail } from '../api/email';
 import { planEmptyFolder } from '../lib/empty-folder';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
+import { planMailFolderOpen, usePendingMailFolder } from '../navigation/pending-mail-folder';
+import { useToastStore } from '../stores/toast-store';
 import type { Attachment, Email } from '../api/types';
 
 function getSenderName(email: Email, unknownLabel: string): string {
@@ -156,6 +159,7 @@ const EmailRow = React.memo(function EmailRow({
   // Read the date-rendering prefs here so each row re-renders when they change.
   const dateFormat = useSettingsStore((s) => s.dateFormat);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
   const locale = useLocaleStore((s) => s.locale);
   const tr = useLocaleStore((s) => s.t);
   const { name: senderName, email: senderEmail } = getCounterpart(
@@ -193,7 +197,7 @@ const EmailRow = React.memo(function EmailRow({
   );
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
-  const dateText = formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t: tr });
+  const dateText = formatListDate(item.receivedAt, { ...dateRegion, dateFormat, timeFormat, locale, t: tr });
   const rowLabel = buildRowLabel({
     sender: senderName,
     subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
@@ -1160,14 +1164,39 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     }
   }, [ensureMailboxes, mailboxes.length]);
 
+  // A folder link opens its folder once the account it was opened for is
+  // shown and its folders are in. One effect with the Inbox pick below, so
+  // a link that resolves never races it.
+  const pendingFolder = usePendingMailFolder((s) => s.target);
+  const mailboxListsSynced = useEmailStore((s) => s.mailboxListsSynced);
   React.useEffect(() => {
+    if (pendingFolder) {
+      const plan = planMailFolderOpen(pendingFolder, {
+        shownAccountId: activeAccountId,
+        mailboxes,
+        synced: !!activeAccountId && !!mailboxListsSynced[activeAccountId],
+        currentMailboxId,
+      });
+      if (plan.action !== 'wait') usePendingMailFolder.getState().consume();
+      if (plan.action === 'open') {
+        void selectMailbox(plan.mailboxId);
+        return;
+      }
+      if (plan.action === 'already_open') return;
+      if (plan.action === 'not_found') {
+        useToastStore.getState().addToast({
+          type: 'error',
+          title: t('deep_link.folder_not_found', 'This folder is no longer available.'),
+        });
+      }
+    }
     if (mailboxes.length > 0 && !currentMailboxId) {
       const own = ownMailboxes(mailboxes);
       const inbox = own.find((m) => m.role === 'inbox') || own[0];
       if (!inbox) return;
       void selectMailbox(inbox.id);
     }
-  }, [mailboxes, currentMailboxId, selectMailbox]);
+  }, [pendingFolder, activeAccountId, mailboxListsSynced, mailboxes, currentMailboxId, selectMailbox, t]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -2072,7 +2101,7 @@ function FilterChip({
       accessibilityRole={onPress ? 'button' : undefined}
     >
       {icon}
-      <Text style={styles.chipText} numberOfLines={1}>{label}</Text>
+      <Text style={styles.chipText} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
       {onRemove ? (
         <Pressable
           onPress={onRemove}
@@ -2106,7 +2135,7 @@ function ScopeChip({ label, active, onPress, accessibilityLabel, accessibilityHi
       accessibilityHint={accessibilityHint}
       accessibilityState={{ selected: active }}
     >
-      <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
     </Pressable>
   );
 }
@@ -2144,6 +2173,7 @@ function TriToggle({
           state === 'on' && styles.triToggleTextOn,
           state === 'off' && styles.triToggleTextOff,
         ]}
+        maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
       >
         {label}
       </Text>

@@ -25,6 +25,9 @@ import { useSendUndoStore } from '../stores/send-undo-store';
 import { ownMailboxes } from '../lib/mailbox-tree';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { formatQuoteDate } from '../lib/quote-header';
+import { useDateRegion } from '../lib/use-date-region';
+import { resolveTimeZone } from '../lib/time-zone';
+import { schedulePresetTimes, withPickedDayIn, withPickedTimeIn } from '../lib/schedule-times';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -36,6 +39,9 @@ export default function ScheduledScreen({ navigation }: Props) {
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const dateRegion = useDateRegion();
+  // The send-later pickers pick on the clock of the app's time zone.
+  const pickerTimeZone = resolveTimeZone(dateRegion.timeZone);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [items, setItems] = React.useState<ScheduledEmail[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -47,8 +53,8 @@ export default function ScheduledScreen({ navigation }: Props) {
   const customDraftRef = React.useRef<Date>(new Date());
 
   const formatWhen = React.useCallback(
-    (iso: string) => formatQuoteDate(iso, timeFormat, locale),
-    [timeFormat, locale],
+    (iso: string) => formatQuoteDate(iso, timeFormat, locale, dateRegion),
+    [timeFormat, locale, dateRegion],
   );
 
   const recipientLabel = (item: ScheduledEmail): string => {
@@ -209,19 +215,17 @@ export default function ScheduledScreen({ navigation }: Props) {
 
   const reschedulePresets = React.useMemo(() => {
     const now = new Date();
-    const inHours = (h: number) => new Date(now.getTime() + h * 3600 * 1000);
-    const tomorrowMorning = new Date(now);
-    tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
-    tomorrowMorning.setHours(8, 0, 0, 0);
+    // On the clock of the app's time zone, which the labels show.
+    const times = schedulePresetTimes(now, resolveTimeZone(dateRegion.timeZone));
     // Only offer times within the server's hold limit.
     const maxMs = jmapClient.getMaxDelayedSend(rescheduleFor?.accountId) * 1000;
     return [
-      { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
-      { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
-      { label: t('email_composer.schedule_tomorrow_morning', 'Tomorrow morning'), date: tomorrowMorning },
+      { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: times.in1h },
+      { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: times.in3h },
+      { label: t('email_composer.schedule_tomorrow_morning', 'Tomorrow morning'), date: times.tomorrowMorning },
     ].filter((preset) => preset.date.getTime() - now.getTime() <= maxMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, rescheduleFor]);
+  }, [t, rescheduleFor, dateRegion.timeZone]);
 
   const startCustomPicker = () => {
     // An hour ahead, or the latest time the server can hold it if sooner.
@@ -247,15 +251,12 @@ export default function ScheduledScreen({ navigation }: Props) {
       return;
     }
     if (customStage === 'date') {
-      const d = new Date(customDraftRef.current);
-      d.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
-      customDraftRef.current = d;
+      customDraftRef.current = withPickedDayIn(customDraftRef.current, selected, pickerTimeZone);
       setCustomStage('time');
       return;
     }
     if (customStage === 'time') {
-      const d = new Date(customDraftRef.current);
-      d.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      const d = withPickedTimeIn(customDraftRef.current, selected, pickerTimeZone);
       confirmCustom(d);
     }
   };
@@ -403,6 +404,7 @@ export default function ScheduledScreen({ navigation }: Props) {
             <Pressable style={styles.card} onPress={() => {}}>
               <DateTimePicker
                 value={customDraftRef.current}
+                timeZoneName={pickerTimeZone}
                 mode="datetime"
                 display="spinner"
                 minimumDate={new Date()}
@@ -425,6 +427,7 @@ export default function ScheduledScreen({ navigation }: Props) {
       {customStage !== null && Platform.OS !== 'ios' && (
         <DateTimePicker
           value={customDraftRef.current}
+          timeZoneName={pickerTimeZone}
           mode={customStage === 'time' ? 'time' : 'date'}
           display="default"
           minimumDate={customStage === 'date' ? new Date() : undefined}

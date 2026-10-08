@@ -12,6 +12,7 @@
 // Kept free of React so it can be unit-tested.
 
 import { supportsDeviceSync } from './platform-capabilities';
+import { supportsRecentsHiding, supportsScreenPrivacy } from './screen-privacy';
 
 export type SettingsTabId =
   | 'account' | 'language' | 'notifications'
@@ -39,7 +40,10 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
   language: [
     'settings.appearance.language',
     'settings.language_region.date_format',
+    'settings.language_region.date_locale',
     'settings.language_region.time_format',
+    // Zone picker plus its "Automatic ({zone})" row.
+    'settings.language_region.time_zone',
   ],
   notifications: [
     'settings.notifications.push.title',
@@ -147,6 +151,9 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.downloads.after_export',
   ],
   security: [
+    // Android only, and hiding from recent apps alone needs API 33+.
+    ...(supportsScreenPrivacy() ? ['settings.security.screen_protection.block_screenshots'] : []),
+    ...(supportsRecentsHiding() ? ['settings.security.screen_protection.hide_in_recents'] : []),
     'settings.security.client_cert',
     'settings.security.password',
     'settings.security.display_name',
@@ -172,7 +179,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'calendar.settings.default_view',
     'calendar.settings.week_starts_on',
     'calendar.settings.time_format',
-    'calendar.settings.time_zone',
+    'calendar.settings.calendar_free_scroll',
     'calendar.settings.show_time_in_month_view',
     'calendar.settings.show_week_numbers',
     'calendar.settings.show_birthday_calendar',
@@ -238,7 +245,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
 // translation doesn't contain the literal word.
 export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   account: 'profile email password user signin signout reorder switch default multi-account shared storage quota',
-  language: 'locale region date time format translation',
+  language: 'locale region date time format translation timezone automatic',
   notifications: 'alert push badge unifiedpush relay device reminder',
   appearance: 'theme dark light font size text color animation density',
   layout: 'swipe gesture quick actions toolbar order sort unified folder count avatar',
@@ -251,10 +258,10 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   folders: 'mailbox rename role',
   keywords: 'tags labels colors',
   downloads: 'download filename template eml attachment save export',
-  security: 'password 2fa two-factor totp app password mfa api key certificate encryption',
+  security: `password 2fa two-factor totp app password mfa api key certificate encryption${supportsScreenPrivacy() ? ' screenshot screen recording recent apps privacy' : ''}`,
   encryption: 's/mime smime certificate sign encrypt',
   content_senders: 'block sender remote images privacy tracking',
-  calendar: `event schedule appointment meeting timezone${supportsDeviceSync ? ' android phone device sync' : ''}`,
+  calendar: `event schedule appointment meeting scroll${supportsDeviceSync ? ' android phone device sync' : ''}`,
   contacts: `address book contact${supportsDeviceSync ? ' android phone device sync' : ''}`,
   files: 'attachments cloud drive storage upload',
   sidebar_apps: 'apps webview iframe',

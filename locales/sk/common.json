@@ -345,6 +345,15 @@
     "external_content_warning": "Obrázky a externý obsah boli zablokované",
     "load_external_content": "Načítať obrázky",
     "trust_sender": "Vždy dôverovať tomuto odosielateľovi",
+    "sender_check": {
+      "unverified_label": "Neoverený odosielateľ",
+      "failed_label": "Kontrola odosielateľa zlyhala",
+      "unverified": "Táto správa tvrdí, že pochádza z domény {domain}, ale nič to nepotvrdzuje. Nemá platný podpis domény {domain} a neprišla zo servera, ktorý doména {domain} povoľuje.",
+      "unverified_sent_from": "Táto správa tvrdí, že pochádza z domény {domain}, ale bola odoslaná z domény {host} a nemá platný podpis domény {domain}.",
+      "failed": "Táto správa tvrdí, že pochádza z domény {domain}, ale neprešla kontrolami odosielateľa tejto domény. Môže byť podvrhnutá.",
+      "failed_sent_from": "Táto správa tvrdí, že pochádza z domény {domain}, ale bola odoslaná z domény {host} a neprešla kontrolami odosielateľa domény {domain}. Môže byť podvrhnutá.",
+      "caution": "Buďte opatrní pri odkazoch, prílohách a žiadostiach o heslá alebo platobné údaje."
+    },
     "back_to_list": "Späť na zoznam",
     "view_contact": "Zobraziť kontakt",
     "message_details": "Podrobnosti správy",

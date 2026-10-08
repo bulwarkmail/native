@@ -161,7 +161,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: "Re-register" calls `setupPushNotifications` which reuses the stored subscription and only refreshes `expires` (`RN: src/lib/push-notifications.ts:345-352`); no list/revoke UI.
   - Fix hint: add `forceRecreate` to `PushSetupParams`, and a `listPushDevices`/`revokePushDevice` pair (JMAP `PushSubscription/get` + relay `/api/push/active/:id` + `DELETE /api/push/register/:id`) rendered under the relay card.
 
-- [ ] **Relay URL is a free-text field instead of an admin-curated list; `DEFAULT_RELAY_BASE_URL` not overridable** — `P3` — `partial` — https now required (isValidRelayUrl, 00faceb); deferred: per-account relay storage / discovery
+- [ ] **Relay URL is a free-text field instead of an admin-curated list; `DEFAULT_RELAY_BASE_URL` not overridable** — `P3` — `partial` — https now required (isValidRelayUrl, 00faceb); deferred: per-account relay storage / discovery — 6e: per-account free-text relay done in 92aa254, b00c177, 13dcd2a, 4fd6131, e56f929, 56ce6db; left open because the admin relay list is blocked upstream: webmail's `/api/admin/policy` blanks `pushRelays` and `defaultSidebarApps` for non-cookie clients
   - What WEB does: user picks from `resolvePushRelayOptions(policy)` (default + admin list + legacy), never types a URL; admin can lock it (`lib/push-relays.ts:39-80`, `notification-settings.tsx:226-241`).
   - What RN does: `TextInput` with any `https?://` accepted (`RN: NotificationSettings.tsx:174-184`), stored device-wide in AsyncStorage (`push-notifications.ts:160-175`) so two accounts on different servers share one relay.
   - Fix hint: keep free text (there is no policy source in RN) but store the relay per account alongside `push:accountIds:v1`, and let `.well-known`/login-time discovery optionally seed it. Not blocking.
@@ -223,14 +223,14 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: ar, he and fa ship since 990cd84, which also calls `I18nManager.forceRTL`/`allowRTL` when the language override changes (after a restart); mail bodies get `dir="auto"` since 910c503 (audit U4). `SwipeableRow` still maps left/right physically.
   - Fix hint: when adding ar/he/fa, call `I18nManager.forceRTL(dir==='rtl')` + `allowRTL` on override change (requires reload), audit `paddingLeft/Right` → `paddingStart/End`, and swap swipe actions when `I18nManager.isRTL`.
 
-- [ ] **Language list not localized and no "auto" date locale** — `P3` — `partial` — deferred: language labels are native names (webmail parity); timeZone landed as calendarTimeZone (calendar agent); dateLocale needs a locale override threaded through src/lib/date-format.ts call sites in other areas
+- [x] **Language list not localized and no "auto" date locale** — `P3` — `partial` — deferred: language labels are native names (webmail parity); timeZone landed as calendarTimeZone (calendar agent); dateLocale needs a locale override threaded through src/lib/date-format.ts call sites in other areas — fixed in 7e22723, 260f124, e1ef0b1, 0bd733e — `dateLocale` and an app-wide time zone on the Language tab; language labels stay native names, as in webmail
   - What WEB does: language picker sorted, flags, `dateLocale` (auto/iso/en-GB/en-US), `firstDayOfWeek`, `timeZone` on the Language tab (`components/settings/language-settings.tsx` `updateSetting('dateLocale'|'firstDayOfWeek'|'timeZone'`).
   - What RN does: `LanguageSettings.tsx` offers language, `dateFormat`, `timeFormat` only; day-of-week lives under Calendar; no time zone.
   - Fix hint: add `dateLocale` and `timeZone` keys and thread them through `src/lib/date-format.ts` (`Intl.DateTimeFormat(locale, { timeZone })`).
 
 ### Themes and appearance
 
-- [ ] **Font size setting is honoured by the mail list only** — `P3` — `partial` — deferred: Text.defaultProps is gone on the new architecture; needs the static typography import replaced by useTypography() per screen
+- [x] **Font size setting is honoured by the mail list only** — `P3` — `partial` — deferred: Text.defaultProps is gone on the new architecture; needs the static typography import replaced by useTypography() per screen — fixed in 0041a15, d35b282 — the setting scales the app, and the tab labels with a cap on fixed chrome (`CHROME_MAX_FONT_SCALE`); about 60 inline `fontSize` literals still ignore it
   - What WEB does: `--font-size-base` on `:root` scales everything (`stores/settings-store.ts:1264-1274`).
   - What RN does: `useTypography()` (`RN: src/theme/dynamic.ts:47-68`) is used by EmailListScreen and its attachment chips only; the other screens spread the static `typography` from `tokens.ts`, so Small/Large changes almost nothing (the thread reader, compose, settings, calendar, contacts all stay fixed).
   - Fix hint: either make `tokens.typography` a hook-backed getter or, cheaper, set `Text.defaultProps`/`maxFontSizeMultiplier` and scale via `allowFontScaling` + a root `PixelRatio` factor.
@@ -255,7 +255,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: `ThemesSettings.tsx:18-22` lists `Default/Qui/Sepia` (Qui exists in WEB; Sepia does not), stores `activeThemeId` that nothing reads, "Upload .zip" has no handler (`:81-83`); the tab is marked Experimental.
   - Fix hint: minimal viable subset = map WEB's built-in theme token sets (`builtin-themes.ts` light/dark `colors`) onto `ThemePalette` and let `useColors()` pick `activeThemeId`; remove the upload button. Otherwise hide the tab.
 
-- [ ] **Status bar / navigation bar theming partial** — `P3` — `partial` — deferred: expo-navigation-bar / expo-system-ui are not installed; add one and call setBackgroundColorAsync(c.background) on theme change
+- [x] **Status bar / navigation bar theming partial** — `P3` — `partial` — deferred: expo-navigation-bar / expo-system-ui are not installed; add one and call setBackgroundColorAsync(c.background) on theme change — fixed in 982fc01, 71d5b89 — system bars follow the theme
   - What WEB does: theme-color meta follows active theme (#671).
   - What RN does: `StatusBar style` is derived (`App.tsx:219-223`) but the Android navigation bar (edge-to-edge is on, `app.config.js:56`) is never themed, and the bottom tab bar/`SafeAreaView` colours come from `useColors` so they are fine.
   - Fix hint: `expo-navigation-bar`/`SystemUI.setBackgroundColorAsync(c.background)` on theme change.
@@ -287,7 +287,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: `SmimeSettings.tsx:32-33` uses empty `MOCK_KEYS`/`MOCK_CERTS`; Import buttons have no handlers (`:118-120,163-165`); three toggles persist unused prefs; the tab is labelled implemented and lives under Privacy.
   - Fix hint: mark `implemented: false` in `SettingsScreen.tsx:97` until a native crypto path exists.
 
-- [ ] **Sidebar apps: settings exist, apps never rendered; no admin defaults (#931)** — `P3` — `partial` — deferred: useMobileSidebarApps()/openSidebarApp() in src/lib/sidebar-apps.ts (0e63d45) ready for SidebarDrawer (mail-list agent's file); admin defaults N/A
+- [x] **Sidebar apps: settings exist, apps never rendered; no admin defaults (#931)** — `P3` — `partial` — deferred: useMobileSidebarApps()/openSidebarApp() in src/lib/sidebar-apps.ts (0e63d45) ready for SidebarDrawer (mail-list agent's file); admin defaults N/A — fixed in 3306c31, 9c339f3, 8df1af0 — apps show on mobile and open in the browser, web links only; inline mode is not ported, and admin defaults are blocked upstream (see the push relay item)
   - What WEB does: apps render in the navigation rail (`components/layout/navigation-rail.tsx:391` filters `showOnMobile`), inline iframe or new tab, `keepAppsLoaded`, drag reorder, plus operator-pinned apps merged from policy (`lib/sidebar-apps.ts:103-112`, commit 4fe5701b).
   - What RN does: `SidebarAppsSettings.tsx` adds/edits/removes entries into `sidebarApps` (`settings-store.ts:502-523`) but `SidebarDrawer.tsx` never reads them (grep: no usage outside settings); reorder handle is decorative (`:72`).
   - Fix hint: minimal viable subset = list `sidebarApps.filter(showOnMobile)` at the bottom of `SidebarDrawer`, open with `expo-web-browser` (`openMode:'tab'`) or a `react-native-webview` screen (`inline`); admin defaults are N/A without a policy source (could be read from a webmail `/api/config` if the webmail origin becomes known).
@@ -351,13 +351,13 @@ device.
   - What WEB does: shows a generic "New mail".
   - What RN does: `src/lib/push-background-task.ts:340-378` returns `[]` on any method error.
 
-- [ ] **Folder deep links ignore the folder they name** — `P3` — `partial`
+- [x] **Folder deep links ignore the folder they name** — `P3` — `partial` — fixed in 7c19093, b835d31, e56f929, 6ed331e
   - What RN does: only opens the Mail tab (`src/navigation/linking.ts:285`), so WEB's folder-link fixes (1d82c59, 1c5dbbc) have nothing to land on.
 
-- [ ] **"Free scrolling" and the automatic time-zone setting are missing from settings search** — `P3` — `partial` (1.10.0)
+- [x] **"Free scrolling" and the automatic time-zone setting are missing from settings search** — `P3` — `partial` (1.10.0) — fixed in 28ffebf, e1ef0b1 — free scrolling is indexed; the time zone now lives under Language & region and is found by its keywords
   - What RN does: `calendar.settings.calendar_free_scroll` and `time_zone_auto_zone` are not in `src/lib/settings-search.ts:102-113`.
 
-- [ ] **About card links the repo, not the running build's commit** — `P3` — `missing` (0e39b19)
+- [x] **About card links the repo, not the running build's commit** — `P3` — `missing` (0e39b19) — fixed in 28ffebf — links the build's commit
   - What RN does: `src/components/settings/AboutDataSettings.tsx:211`.
 
 - [ ] **RTL: the drawer may slide in from the wrong side (#944)** — `P3` — `bugfix-parity` (1.10.0, unverified on device)

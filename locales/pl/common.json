@@ -345,6 +345,15 @@
     "external_content_warning": "Obrazy i treści zewnętrzne zostały zablokowane",
     "load_external_content": "Załaduj obrazy",
     "trust_sender": "Zawsze ufaj temu nadawcy",
+    "sender_check": {
+      "unverified_label": "Niezweryfikowany nadawca",
+      "failed_label": "Weryfikacja nadawcy nie powiodła się",
+      "unverified": "Ta wiadomość twierdzi, że pochodzi z domeny {domain}, ale nic tego nie potwierdza. Nie ma ważnego podpisu domeny {domain} i nie przyszła z serwera upoważnionego przez domenę {domain}.",
+      "unverified_sent_from": "Ta wiadomość twierdzi, że pochodzi z domeny {domain}, ale została wysłana z domeny {host} i nie ma ważnego podpisu domeny {domain}.",
+      "failed": "Ta wiadomość twierdzi, że pochodzi z domeny {domain}, ale nie przeszła weryfikacji nadawcy tej domeny. Może być sfałszowana.",
+      "failed_sent_from": "Ta wiadomość twierdzi, że pochodzi z domeny {domain}, ale została wysłana z domeny {host} i nie przeszła weryfikacji nadawcy domeny {domain}. Może być sfałszowana.",
+      "caution": "Uważaj na linki, załączniki i prośby o hasła lub dane płatnicze."
+    },
     "back_to_list": "Powrót do listy",
     "view_contact": "Pokaż kontakt",
     "message_details": "Szczegóły wiadomości",

@@ -15,6 +15,7 @@
  */
 
 import type { TimeFormat } from '../stores/settings-store';
+import { formatWorded, type DateRegion } from './date-format';
 
 /** How far ahead of `receivedAt` a `Date` header may be before it is ignored. */
 export const MAX_FUTURE_SENT_AT_MS = 24 * 60 * 60 * 1000;
@@ -39,37 +40,48 @@ export function emailDisplayDate<T extends DatedEmail>(email: T): DisplayDate<T>
   return sentAt as DisplayDate<T>;
 }
 
-function intlLocale(locale?: string): string {
-  return !locale || locale === 'en' ? 'en-US' : locale;
+// Worded dates and times in the language's own pattern, in the app's time
+// zone. The date format region orders only all-digit dates (formatWorded),
+// so `region.dateLocale` does not apply here.
+const HEADER_DATE: Intl.DateTimeFormatOptions = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+
+function parse(iso: string | undefined): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /** "Mon, 3 Jun 2026" in the app locale. */
-export function formatHeaderDate(iso: string | undefined, locale?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(intlLocale(locale), {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-  });
+export function formatHeaderDate(iso: string | undefined, locale?: string, region: DateRegion = {}): string {
+  const d = parse(iso);
+  return d ? formatWorded(d, HEADER_DATE, { locale, timeZone: region.timeZone }) : '';
 }
 
 /** "14:05" / "2:05 PM" honouring the app's time-format setting. */
-export function formatHeaderTime(iso: string | undefined, timeFormat: TimeFormat, locale?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString(intlLocale(locale), {
-    hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h',
-  });
+export function formatHeaderTime(
+  iso: string | undefined,
+  timeFormat: TimeFormat,
+  locale?: string,
+  region: DateRegion = {},
+): string {
+  const d = parse(iso);
+  if (!d) return '';
+  const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' };
+  return formatWorded(d, options, { locale, timeZone: region.timeZone });
 }
 
 /** Full date + time for the details panel. */
-export function formatFullDateTime(iso: string | undefined, timeFormat: TimeFormat, locale?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(intlLocale(locale), {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h',
-  });
+export function formatFullDateTime(
+  iso: string | undefined,
+  timeFormat: TimeFormat,
+  locale?: string,
+  region: DateRegion = {},
+): string {
+  const d = parse(iso);
+  if (!d) return '';
+  return formatWorded(
+    d,
+    { ...HEADER_DATE, hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' },
+    { locale, timeZone: region.timeZone },
+  );
 }

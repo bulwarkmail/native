@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getDictionary, translate } from '../../i18n';
@@ -112,6 +112,7 @@ describe('settings search index (English catalog)', () => {
 
   it('lists settings where the native app shows them', () => {
     expect(labelsFor('appearance')).toContain('Font Size');
+    expect(labelsFor('language')).toContain('Date format region');
     expect(labelsFor('layout')).toContain('Message list order');
     expect(labelsFor('notifications')).toContain('Parse email invitations');
     expect(labelsFor('calendar')).toContain('Show week numbers');
@@ -119,7 +120,6 @@ describe('settings search index (English catalog)', () => {
     expect(labelsFor('notifications')).toContain('Unread count on app icon');
     expect(labelsFor('vacation')).toEqual(expect.arrayContaining(['Forward messages', 'Keep in inbox', 'Reply to']));
     // Webmail-only settings are not offered.
-    expect(labelsFor('calendar')).not.toContain('Free scrolling');
     expect(labelsFor('notifications')).not.toContain('Notification sound');
   });
 
@@ -187,5 +187,73 @@ describe('matching', () => {
   it('caps the settings listed under one pane', () => {
     expect(subResultsForQuery(index, 'reading', 'e')).toHaveLength(6);
     expect(subResultsForQuery(index, 'reading', 'e', 2)).toHaveLength(2);
+  });
+});
+
+describe('screen protection search paths', () => {
+  const BLOCK = 'settings.security.screen_protection.block_screenshots';
+  const RECENTS = 'settings.security.screen_protection.hide_in_recents';
+
+  async function securityPaths(os: string, module: unknown): Promise<string[]> {
+    vi.resetModules();
+    vi.doMock('react-native', () => ({
+      Platform: { OS: os },
+      NativeModules: module ? { BulwarkWindow: module } : {},
+    }));
+    const { SETTINGS_SEARCH_PATHS: paths } = await import('../settings-search');
+    return paths.security;
+  }
+
+  afterEach(() => {
+    vi.doUnmock('react-native');
+    vi.resetModules();
+  });
+
+  it('lists both toggles when the module can hide from recents (API 33+)', async () => {
+    const paths = await securityPaths('android', { getConstants: () => ({ supportsRecentsHiding: true }) });
+    expect(paths).toContain(BLOCK);
+    expect(paths).toContain(RECENTS);
+  });
+
+  it('lists only Block screenshots below API 33', async () => {
+    const paths = await securityPaths('android', { getConstants: () => ({ supportsRecentsHiding: false }) });
+    expect(paths).toContain(BLOCK);
+    expect(paths).not.toContain(RECENTS);
+  });
+
+  it('lists neither when the module is missing', async () => {
+    const paths = await securityPaths('android', undefined);
+    expect(paths).not.toContain(BLOCK);
+    expect(paths).not.toContain(RECENTS);
+  });
+
+  it('lists neither off Android', async () => {
+    const paths = await securityPaths('ios', { getConstants: () => ({ supportsRecentsHiding: true }) });
+    expect(paths).not.toContain(BLOCK);
+    expect(paths).not.toContain(RECENTS);
+  });
+});
+
+describe('free scrolling and time zone entries', () => {
+  const index = buildSettingsSearchIndex(en, tEn);
+
+  it('finds free scrolling in the calendar pane', () => {
+    expect(tabMatchesQuery(index, 'calendar', 'Calendar', 'free scroll')).toBe(true);
+    expect(labelsFor('calendar')).toContain('Free scrolling');
+  });
+
+  // One app-wide zone, set in Language & region only.
+  it('finds the time zone in the language pane, not the calendar pane', () => {
+    expect(tabMatchesQuery(index, 'language', 'Language & Region', 'automatic')).toBe(true);
+    expect(tabMatchesQuery(index, 'language', 'Language & Region', 'timezone')).toBe(true);
+    expect(labelsFor('language')).toContain('Time zone');
+    expect(tabMatchesQuery(index, 'calendar', 'Calendar', 'timezone')).toBe(false);
+    expect(labelsFor('calendar')).not.toContain('Time zone');
+  });
+
+  it('shows no unresolved placeholder in any label', () => {
+    for (const tab of ['calendar', 'language'] as const) {
+      for (const label of labelsFor(tab)) expect(label).not.toContain('{');
+    }
   });
 });

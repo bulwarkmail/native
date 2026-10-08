@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatListDate } from '../date-format';
+import { formatFileModified, formatListDate, formatNumericDate, resolveDateLocale } from '../date-format';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -155,5 +155,174 @@ describe('formatListDate with cached formatters', () => {
     vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(offset + 60);
     formatListDate(earlier, opts);
     expect(ctor).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('date format region', () => {
+  const NOW = new Date('2026-05-30T12:00:00Z');
+  const OLDER = new Date('2026-04-28T15:31:00Z');
+  const smart = { dateFormat: 'smart' as const, timeFormat: '24h' as const, timeZone: 'UTC' };
+
+  it('maps each region to the locale that orders its numbers', () => {
+    expect(resolveDateLocale('iso', 'de')).toBe('en-CA');
+    expect(resolveDateLocale('en-GB', 'de')).toBe('en-GB');
+    expect(resolveDateLocale('en-US', 'de')).toBe('en-US');
+    expect(resolveDateLocale('auto', 'de')).toBe('de');
+    expect(resolveDateLocale(undefined, 'fr')).toBe('fr');
+  });
+
+  it('orders an older date by the region', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    expect(formatListDate(OLDER, { ...smart, locale: 'en', dateLocale: 'iso' })).toBe('2026-04-28');
+    expect(formatListDate(OLDER, { ...smart, locale: 'en', dateLocale: 'en-GB' })).toBe('28/04/2026');
+    expect(formatListDate(OLDER, { ...smart, locale: 'en', dateLocale: 'en-US' })).toBe('04/28/2026');
+    expect(formatListDate(OLDER, { ...smart, locale: 'de', dateLocale: 'iso' })).toBe('2026-04-28');
+  });
+
+  it('leaves auto as it was', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    for (const locale of ['en', 'de', 'fr', 'ja']) {
+      for (const dateFormat of ['smart', 'full', 'relative'] as const) {
+        const base = { dateFormat, timeFormat: '24h' as const, locale, timeZone: 'UTC' };
+        expect(formatListDate(OLDER, { ...base, dateLocale: 'auto' })).toBe(formatListDate(OLDER, base));
+      }
+    }
+    expect(formatListDate(OLDER, { ...smart, locale: 'de', dateLocale: 'auto' })).toBe('28.04.2026');
+  });
+
+  it('applies the region to the full format', () => {
+    expect(formatListDate(OLDER, { dateFormat: 'full', timeFormat: '24h', locale: 'de', dateLocale: 'iso', timeZone: 'UTC' }))
+      .toBe('2026-04-28, 15:31');
+    expect(formatListDate(OLDER, { dateFormat: 'full', timeFormat: '24h', locale: 'en', dateLocale: 'en-GB', timeZone: 'UTC' }))
+      .toBe('28/04/2026, 15:31');
+  });
+
+  it('keeps weekday and month names in the language', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const threeDaysAgo = new Date('2026-05-27T15:31:00Z');
+    expect(formatListDate(threeDaysAgo, { ...smart, locale: 'de', dateLocale: 'iso' })).toBe('Mi 15:31');
+    expect(formatListDate(OLDER, { dateFormat: 'relative', timeFormat: '24h', locale: 'de', dateLocale: 'iso', timeZone: 'UTC' }))
+      .toBe('28. Apr.');
+  });
+
+  it('formats a bare numeric date for previews', () => {
+    expect(formatNumericDate(OLDER, { locale: 'en', dateLocale: 'iso', timeZone: 'UTC' })).toBe('2026-04-28');
+    expect(formatNumericDate(OLDER, { locale: 'de', dateLocale: 'auto', timeZone: 'UTC' })).toBe('28.04.2026');
+    expect(formatNumericDate('nope', { locale: 'en' })).toBe('');
+  });
+});
+
+describe('time zone', () => {
+  const opts = { dateFormat: 'smart' as const, timeFormat: '24h' as const, locale: 'en' };
+
+  it('shows list times in the chosen zone', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
+    const d = new Date('2026-05-30T09:15:00Z');
+    expect(formatListDate(d, { ...opts, timeZone: 'UTC' })).toBe('09:15');
+    expect(formatListDate(d, { ...opts, timeZone: 'Asia/Tokyo' })).toBe('18:15');
+    expect(formatListDate(d, { ...opts, timeZone: 'America/New_York' })).toBe('05:15');
+  });
+
+  it('decides "today" in the chosen zone', () => {
+    vi.useFakeTimers();
+    // 00:10 on the 31st in UTC, 20:10 on the 30th in New York, 02:10 on the 31st in Berlin.
+    vi.setSystemTime(new Date('2026-05-31T00:10:00Z'));
+    const d = new Date('2026-05-30T23:30:00Z');
+    expect(formatListDate(d, { ...opts, timeZone: 'America/New_York' })).toBe('19:30');
+    expect(formatListDate(d, { ...opts, timeZone: 'Europe/Berlin' })).toBe('01:30');
+    // Yesterday in UTC, so it gets its weekday.
+    expect(formatListDate(d, { ...opts, timeZone: 'UTC' })).toBe('Sat 23:30');
+  });
+
+  it('dates an older message by its day in the chosen zone', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
+    const d = new Date('2026-04-28T23:30:00Z');
+    expect(formatListDate(d, { ...opts, timeZone: 'UTC' })).toBe('04/28/2026');
+    expect(formatListDate(d, { ...opts, timeZone: 'Asia/Tokyo' })).toBe('04/29/2026');
+  });
+
+  it('takes the year from the chosen zone in the relative format', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
+    const d = new Date('2025-12-31T23:30:00Z');
+    const rel = { ...opts, dateFormat: 'relative' as const };
+    expect(formatListDate(d, { ...rel, timeZone: 'UTC' })).toBe('Dec 31, 2025');
+    expect(formatListDate(d, { ...rel, timeZone: 'Europe/Berlin' })).toBe('Jan 1');
+  });
+
+  it('crosses a DST change on the clock of the chosen zone', () => {
+    vi.useFakeTimers();
+    // Berlin moved from CET to CEST at 01:00 UTC on 29 March 2026.
+    vi.setSystemTime(new Date('2026-03-29T10:00:00Z'));
+    expect(formatListDate(new Date('2026-03-28T23:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('00:30');
+    expect(formatListDate(new Date('2026-03-29T01:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('03:30');
+    // Back to CET at 01:00 UTC on 25 October 2026: 02:30 happens twice.
+    vi.setSystemTime(new Date('2026-10-25T12:00:00Z'));
+    expect(formatListDate(new Date('2026-10-25T00:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('02:30');
+    expect(formatListDate(new Date('2026-10-25T01:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('02:30');
+    expect(formatListDate(new Date('2026-10-24T21:30:00Z'), { ...opts, timeZone: 'Europe/Berlin' })).toBe('Sat 23:30');
+  });
+
+  it('follows the device for auto and for an unknown zone', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
+    const d = new Date('2026-05-30T09:15:00Z');
+    const device = formatListDate(d, opts);
+    expect(formatListDate(d, { ...opts, timeZone: 'auto' })).toBe(device);
+    expect(formatListDate(d, { ...opts, timeZone: 'Mars/Olympus_Mons' })).toBe(device);
+  });
+
+  it('keys the formatter cache by zone', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T03:00:00Z'));
+    const d = new Date('2026-05-30T01:15:00Z');
+    const z = { ...opts, locale: 'is' };
+    expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('06:45');
+    // Same locale and format, another zone: not the cached Kolkata formatter.
+    expect(formatListDate(d, { ...z, timeZone: 'Pacific/Auckland' })).toBe('13:15');
+    expect(formatListDate(d, { ...z, timeZone: 'Asia/Kolkata' })).toBe('06:45');
+  });
+});
+
+describe('Gregorian calendar', () => {
+  it('dates fa list rows in the Gregorian calendar', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-30T12:00:00Z'));
+    const older = new Date('2026-04-28T15:31:00Z');
+    expect(formatListDate(older, { dateFormat: 'smart', timeFormat: '24h', locale: 'fa', timeZone: 'UTC' })).toBe('۲۰۲۶/۰۴/۲۸');
+    expect(formatListDate(older, { dateFormat: 'relative', timeFormat: '24h', locale: 'fa', timeZone: 'UTC' })).toContain('آوریل');
+  });
+});
+
+describe('formatFileModified', () => {
+  const now = new Date('2026-05-30T23:30:00Z');
+
+  it('decides today in the chosen zone and shows its clock', () => {
+    const iso = '2026-05-30T22:00:00Z';
+    expect(formatFileModified(iso, 'UTC', now)).toMatch(/^10:00\sPM$|^22:00$/);
+    // Already the 31st in Tokyo for both, so still today, at 07:00.
+    expect(formatFileModified(iso, 'Asia/Tokyo', now)).toMatch(/^07:00(\sAM)?$/);
+    // 01:00 on the 30th in New York, where it is still the 30th; already
+    // the 31st in Tokyo, so there it is yesterday's file.
+    const early = '2026-05-30T05:00:00Z';
+    expect(formatFileModified(early, 'America/New_York', now)).toMatch(/^01:00(\sAM)?$/);
+    expect(formatFileModified(early, 'UTC', now)).toMatch(/^05:00(\sAM)?$/);
+    expect(formatFileModified(early, 'Asia/Tokyo', now)).toMatch(/^May 30$|^30/);
+  });
+
+  it('reads the year in the chosen zone', () => {
+    const iso = '2025-12-31T23:30:00Z';
+    expect(formatFileModified(iso, 'UTC', now)).toContain('2025');
+    expect(formatFileModified(iso, 'Europe/Berlin', now)).not.toContain('2025');
+  });
+
+  it('is empty for no or a bad date', () => {
+    expect(formatFileModified(undefined, 'UTC', now)).toBe('');
+    expect(formatFileModified('nope', 'UTC', now)).toBe('');
   });
 });

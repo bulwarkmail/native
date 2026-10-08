@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText } from 'lucide-react-native';
 import type { Attachment, Email, Mailbox } from '../../api/types';
 import { getEmailAttachments } from '../../api/email';
-import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useTypography } from '../../theme/dynamic';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -97,7 +97,7 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
       <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <View style={[styles.chip, styles.chipPlaceholder]}>
           <FileIcon size={12} color="transparent" />
-          <Text style={[styles.name, dyn.caption]}>{' '}</Text>
+          <Text style={[styles.name, dyn.caption]} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{' '}</Text>
         </View>
       </View>
     );
@@ -123,13 +123,13 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
             accessibilityLabel={a.name}
           >
             <Icon size={12} color={iconColor(kind, c)} />
-            <Text style={[styles.name, dyn.caption]} numberOfLines={1}>{shortAttachmentName(a.name ?? '')}</Text>
+            <Text style={[styles.name, dyn.caption]} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{shortAttachmentName(a.name ?? '')}</Text>
           </Pressable>
         );
       })}
       {overflow > 0 && (
         <View style={styles.more}>
-          <Text style={[styles.moreText, dyn.caption]}>+{overflow}</Text>
+          <Text style={[styles.moreText, dyn.caption]} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>+{overflow}</Text>
         </View>
       )}
     </View>

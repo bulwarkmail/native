@@ -374,6 +374,7 @@ export async function updateAddressBook(
   id: string,
   updates: Partial<AddressBook>,
   accountId?: string,
+  opts?: RequestGen,
 ): Promise<void> {
   const account = accountId || getContactsAccountId();
   // Only forward server-settable properties. `isDefault` is deliberately not
@@ -388,6 +389,7 @@ export async function updateAddressBook(
   const res = await jmapClient.request(
     [['AddressBook/set', { accountId: account, update: { [id]: patch } }, '0']],
     USING,
+    opts,
   );
   const result = methodResult<{ notUpdated?: Record<string, SetError> }>(res);
   const err = result.notUpdated?.[id];

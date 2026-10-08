@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "Vis kalenderne dine i Kalender-appen og andre apper på denne enheten. Endringer synkroniseres begge veier.",
       "device_sync_title": "Synkroniser med denne enheten",
-      "show_week_numbers_mobile_desc": "Vis ukenummer i månedsvisningen.",
-      "time_zone": "Tidssone",
-      "time_zone_auto": "Enhetens tidssone",
-      "time_zone_auto_zone": "Enhetens tidssone ({zone})",
-      "time_zone_desc": "Tidssonen som brukes for nye hendelser og for visning av kalenderen. «Enhetens tidssone» følger telefonen."
+      "show_week_numbers_mobile_desc": "Vis ukenummer i månedsvisningen."
     },
     "share": {
       "add_people": "Legg til personer",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "Endre rekkefølgen på kontoene i kontovelgeren, velg standardkonto eller logg ut av en konto.",
         "limit": "Du har nådd grensen på {count} kontoer."
-      },
-      "shared_accounts": {
-        "description_manage": "Gruppekontoer og delte kontoer du kan lese via denne kontoen. Velg en konto for å administrere filtre og feriesvar."
       },
       "unknown": "Ukjent"
     },

@@ -2,6 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execSync } = require('node:child_process');
 
+const { normalizeRemoteUrl } = require('./src/lib/source-link');
+
 const VERSION = fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim();
 
 let COMMIT = process.env.GITHUB_SHA || '';
@@ -15,6 +17,21 @@ if (!COMMIT) {
   }
 }
 COMMIT = COMMIT.slice(0, 7);
+
+// The exact commit and repository this build came from, for the About link.
+// A build outside a git checkout (a source tarball, a remote builder that
+// uploads without .git) has neither; the app then links the default repository.
+function git(args) {
+  try {
+    return execSync(`git ${args}`, { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return '';
+  }
+}
+const GIT_COMMIT = (process.env.GITHUB_SHA || git('rev-parse HEAD')).toLowerCase();
+const SOURCE_URL = normalizeRemoteUrl(git('remote get-url origin')) || '';
 
 // App Store Connect rejects a build whose CFBundleVersion it has already seen
 // for this CFBundleShortVersionString, so this has to advance on every upload
@@ -99,6 +116,8 @@ module.exports = {
     ],
     extra: {
       commit: COMMIT,
+      gitCommit: /^[0-9a-f]{40}$/.test(GIT_COMMIT) ? GIT_COMMIT : '',
+      sourceUrl: SOURCE_URL,
     },
   },
 };

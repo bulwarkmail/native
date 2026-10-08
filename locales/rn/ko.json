@@ -92,11 +92,7 @@
     "settings": {
       "device_sync_desc": "캘린더 앱과 이 기기의 다른 앱에 내 캘린더를 표시해요. 변경 사항은 양방향으로 동기화돼요.",
       "device_sync_title": "이 기기에 동기화",
-      "show_week_numbers_mobile_desc": "월간 보기에 주 차 번호를 표시해요.",
-      "time_zone": "시간대",
-      "time_zone_auto": "기기 시간대",
-      "time_zone_auto_zone": "기기 시간대({zone})",
-      "time_zone_desc": "새 일정과 캘린더 표시에 사용하는 시간대예요. \"기기\"를 선택하면 휴대폰 설정을 따라요."
+      "show_week_numbers_mobile_desc": "월간 보기에 주 차 번호를 표시해요."
     },
     "share": {
       "add_people": "사용자 추가",
@@ -601,9 +597,6 @@
       "accounts": {
         "description_mobile": "계정 전환 목록에 표시되는 계정 순서를 바꾸거나, 기본 계정을 선택하거나, 계정에서 로그아웃할 수 있어요.",
         "limit": "최대 계정 수({count}개)에 도달했어요."
-      },
-      "shared_accounts": {
-        "description_manage": "이 계정을 통해 읽을 수 있는 그룹 및 공유 계정이에요. 하나를 선택하면 필터와 부재중 자동 응답을 관리할 수 있어요."
       },
       "unknown": "알 수 없음"
     },
