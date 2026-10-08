@@ -11,7 +11,7 @@ const MAX_COMMENT = 200;
 // eslint-disable-next-line no-control-regex
 const UNSAFE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮⁦-⁩]/g;
 
-function plain(value: string | null | undefined, max: number): string {
+export function plain(value: string | null | undefined, max: number): string {
   const clean = (value ?? '').replace(UNSAFE, '').trim();
   const chars = Array.from(clean);
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : clean;

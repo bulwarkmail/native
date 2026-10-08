@@ -511,6 +511,23 @@ export interface CalendarEventNotification {
   event?: Partial<CalendarEvent>;
 }
 
+/**
+ * A ShareNotification (RFC 9670 §3): someone changed this user's rights on a
+ * collection of theirs. Empty or null `oldRights` means newly shared; empty
+ * or null `newRights` means access was removed.
+ */
+export interface ShareNotification {
+  id: string;
+  created: string;
+  changedBy: { name: string; email: string | null; principalId: string | null };
+  objectType: 'Mailbox' | 'Calendar' | 'AddressBook' | 'FileNode' | (string & {});
+  objectAccountId: string;
+  objectId: string;
+  oldRights: Record<string, boolean> | null;
+  newRights: Record<string, boolean> | null;
+  name: string;
+}
+
 export interface CalendarEvent {
   id: string;
   '@type'?: 'Event' | 'Task';

@@ -16,6 +16,8 @@ import type { StateChange } from './src/api/types';
 import { dispatchStateChange, onStateChangeType } from './src/lib/state-change-bus';
 import { startCalendarEventNotificationToasts } from './src/lib/calendar-event-notification-presenter';
 import { useCalendarEventNotificationStore } from './src/stores/calendar-event-notification-store';
+import { startShareNotificationToasts } from './src/lib/share-notification-presenter';
+import { useShareNotificationStore } from './src/stores/share-notification-store';
 import {
   startCalendarNotificationSync,
   startCalendarReminderTapHandling,
@@ -654,6 +656,13 @@ export default function App() {
     });
   }, [isAuthenticated]);
 
+  // Toasts when someone shares a collection with the user, or changes or
+  // removes their access (queued by the store).
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    return startShareNotificationToasts();
+  }, [isAuthenticated]);
+
   // Foreground FCM messages: the Kotlin service skips the headless task while
   // the app is visible, so feed the relay's StateChange straight into the
   // stores. SSE normally beats it, but this covers the window where the SSE
@@ -936,6 +945,7 @@ export default function App() {
       void useOutboxStore.getState().flush();
       void flushSendQueue();
       void useCalendarEventNotificationStore.getState().fetch();
+      void useShareNotificationStore.getState().fetch();
       void useSettingsStore.getState().refreshIdentities();
     };
 
@@ -967,6 +977,13 @@ export default function App() {
     const unsubscribeNotices = onStateChangeType('CalendarEventNotification', (changedAccountId) => {
       const primary = (() => { try { return jmapClient.accountId; } catch { return null; } })();
       if (changedAccountId === primary) void useCalendarEventNotificationStore.getState().fetch();
+    });
+    // Shares granted, changed or removed: the same three points, and a push
+    // for the account we serve.
+    void useShareNotificationStore.getState().fetch();
+    const unsubscribeShareNotices = onStateChangeType('ShareNotification', (changedAccountId) => {
+      const primary = (() => { try { return jmapClient.accountId; } catch { return null; } })();
+      if (changedAccountId === primary) void useShareNotificationStore.getState().fetch();
     });
 
     // Identities added or removed elsewhere: re-read the held list while the
@@ -1003,6 +1020,7 @@ export default function App() {
     return () => {
       mounted = false;
       unsubscribeNotices();
+      unsubscribeShareNotices();
       clearInterval(identityTimer);
       subscription.remove();
       unsubscribeNetwork();
