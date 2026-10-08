@@ -807,7 +807,6 @@
     "folders": {
       "account": "חשבון",
       "cannot_delete": "לא ניתן למחוק",
-      "description_mobile": "צור, שנה שם, העבר ומחק תיקיות. לחיצה ארוכה על תיקייה בתפריט הצד פותחת פעולות מהירות.",
       "edit_folder": "עריכת \"{name}\"",
       "folder_name": "שם התיקייה",
       "move_under": "תיקיית אב",

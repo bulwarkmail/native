@@ -807,7 +807,6 @@
     "folders": {
       "account": "Account",
       "cannot_delete": "Impossibile eliminare",
-      "description_mobile": "Crea, rinomina, sposta ed elimina cartelle. Tieni premuta una cartella nel pannello laterale per le azioni rapide.",
       "edit_folder": "Modifica \"{name}\"",
       "folder_name": "Nome della cartella",
       "move_under": "Sposta sotto",

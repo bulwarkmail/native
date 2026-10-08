@@ -807,7 +807,6 @@
     "folders": {
       "account": "Účet",
       "cannot_delete": "Nemožno odstrániť",
-      "description_mobile": "Vytvárajte, premenúvajte, presúvajte a odstraňujte priečinky. Dlhým stlačením priečinka v bočnom paneli otvoríte rýchle akcie.",
       "edit_folder": "Upraviť „{name}“",
       "folder_name": "Názov priečinka",
       "move_under": "Nadradený priečinok",

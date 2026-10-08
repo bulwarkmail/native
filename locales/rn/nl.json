@@ -807,7 +807,6 @@
     "folders": {
       "account": "Account",
       "cannot_delete": "Kan niet verwijderen",
-      "description_mobile": "Mappen aanmaken, hernoemen, verplaatsen en verwijderen. Druk lang op een map in de zijbalk voor snelle acties.",
       "edit_folder": "\"{name}\" bewerken",
       "folder_name": "Mapnaam",
       "move_under": "Verplaatsen onder",

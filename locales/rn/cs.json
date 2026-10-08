@@ -807,7 +807,6 @@
     "folders": {
       "account": "Účet",
       "cannot_delete": "Nelze smazat",
-      "description_mobile": "Vytvářejte, přejmenovávejte, přesouvejte a mažte složky. Dlouhým stisknutím složky v postranním panelu otevřete rychlé akce.",
       "edit_folder": "Upravit „{name}“",
       "folder_name": "Název složky",
       "move_under": "Nadřazená složka",

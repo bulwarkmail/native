@@ -807,7 +807,6 @@
     "folders": {
       "account": "Konts",
       "cannot_delete": "Nevar dzēst",
-      "description_mobile": "Veidojiet, pārdēvējiet, pārvietojiet un dzēsiet mapes. Lai piekļūtu ātrajām darbībām, sānu joslā turiet nospiestu mapi.",
       "edit_folder": "Rediģēt \"{name}\"",
       "folder_name": "Mapes nosaukums",
       "move_under": "Vecākmape",

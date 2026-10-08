@@ -807,7 +807,6 @@
     "folders": {
       "account": "アカウント",
       "cannot_delete": "削除できません",
-      "description_mobile": "フォルダーの作成、名前変更、移動、削除ができます。ドロワーでフォルダーを長押しすると、クイックアクションを使用できます。",
       "edit_folder": "「{name}」を編集",
       "folder_name": "フォルダー名",
       "move_under": "親フォルダー",

@@ -807,7 +807,6 @@
     "folders": {
       "account": "계정",
       "cannot_delete": "삭제할 수 없어요",
-      "description_mobile": "폴더를 만들고, 이름을 바꾸고, 이동하고, 삭제할 수 있어요. 메뉴에서 폴더를 길게 누르면 빠른 작업을 사용할 수 있어요.",
       "edit_folder": "\"{name}\" 편집",
       "folder_name": "폴더 이름",
       "move_under": "상위 폴더",

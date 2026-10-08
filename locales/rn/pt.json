@@ -807,7 +807,6 @@
     "folders": {
       "account": "Conta",
       "cannot_delete": "Não é possível excluir",
-      "description_mobile": "Crie, renomeie, mova e exclua pastas. Toque e segure uma pasta no menu lateral para ações rápidas.",
       "edit_folder": "Editar \"{name}\"",
       "folder_name": "Nome da pasta",
       "move_under": "Mover para dentro de",

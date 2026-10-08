@@ -807,7 +807,6 @@
     "folders": {
       "account": "Cont",
       "cannot_delete": "Nu se poate șterge",
-      "description_mobile": "Creați, redenumiți, mutați și ștergeți foldere. Apăsați lung un folder din panoul lateral pentru acțiuni rapide.",
       "edit_folder": "Editați „{name}”",
       "folder_name": "Numele folderului",
       "move_under": "Mutați sub",

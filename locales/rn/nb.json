@@ -807,7 +807,6 @@
     "folders": {
       "account": "Konto",
       "cannot_delete": "Kan ikke slettes",
-      "description_mobile": "Opprett, gi nytt navn til, flytt og slett mapper. Trykk lenge på en mappe i sidefeltet for hurtighandlinger.",
       "edit_folder": "Rediger «{name}»",
       "folder_name": "Mappenavn",
       "move_under": "Flytt under",
