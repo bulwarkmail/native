@@ -602,9 +602,6 @@
         "description_mobile": "调整账户在账户切换器中的显示顺序、选择默认账户或退出某个账户。",
         "limit": "已达到账户数量上限（{count} 个）。"
       },
-      "shared_accounts": {
-        "description_manage": "可通过此账户读取的群组和共享账户。选择一个以管理其过滤器和假期自动回复。"
-      },
       "unknown": "未知"
     },
     "advanced": {

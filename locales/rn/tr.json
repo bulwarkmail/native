@@ -602,9 +602,6 @@
         "description_mobile": "Hesap değiştiricide hesapların sırasını değiştirin, varsayılanı seçin veya bir hesaptan çıkış yapın.",
         "limit": "En fazla hesap sayısına ulaşıldı ({count})."
       },
-      "shared_accounts": {
-        "description_manage": "Bu hesap üzerinden okuyabildiğiniz grup ve paylaşılan hesaplar. Filtrelerini ve tatil yanıtlayıcısını yönetmek için birini seçin."
-      },
       "unknown": "Bilinmiyor"
     },
     "advanced": {

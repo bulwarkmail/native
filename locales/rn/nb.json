@@ -602,9 +602,6 @@
         "description_mobile": "Endre rekkefølgen på kontoene i kontovelgeren, velg standardkonto eller logg ut av en konto.",
         "limit": "Du har nådd grensen på {count} kontoer."
       },
-      "shared_accounts": {
-        "description_manage": "Gruppekontoer og delte kontoer du kan lese via denne kontoen. Velg en konto for å administrere filtre og feriesvar."
-      },
       "unknown": "Ukjent"
     },
     "advanced": {

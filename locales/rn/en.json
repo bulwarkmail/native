@@ -723,9 +723,6 @@
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
         "limit": "Maximum of {count} accounts reached."
       },
-      "shared_accounts": {
-        "description_manage": "Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder."
-      },
       "unknown": "Unknown"
     },
     "advanced": {

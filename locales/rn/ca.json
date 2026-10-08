@@ -602,9 +602,6 @@
         "description_mobile": "Reordeneu com apareixen els comptes al selector de comptes, trieu el predeterminat o tanqueu-ne la sessió.",
         "limit": "S'ha arribat al màxim de {count} comptes."
       },
-      "shared_accounts": {
-        "description_manage": "Comptes de grup i compartits que podeu llegir a través d'aquest compte. Seleccioneu-ne un per gestionar-ne els filtres i la resposta automàtica."
-      },
       "unknown": "Desconegut"
     },
     "advanced": {

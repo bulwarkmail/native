@@ -602,9 +602,6 @@
         "description_mobile": "調整帳號在帳號切換器中的顯示順序、選擇預設帳號，或登出某個帳號。",
         "limit": "已達帳號數量上限（{count} 個）。"
       },
-      "shared_accounts": {
-        "description_manage": "可透過此帳號讀取的群組與共用帳號。選取一個帳號，即可管理其篩選規則與休假自動回覆。"
-      },
       "unknown": "未知"
     },
     "advanced": {

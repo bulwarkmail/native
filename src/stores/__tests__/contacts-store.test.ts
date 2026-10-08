@@ -474,6 +474,17 @@ describe('contacts-store', () => {
     });
   });
 
+  describe('deleteAddressBook', () => {
+    it('never deletes a book shared with the user, nothing sent', async () => {
+      const team: AddressBook = { id: 'acc-team:ab', originalId: 'ab', accountId: 'acc-team', name: 'Team', isShared: true };
+      useContactsStore.setState({ addressBooks: [{ id: 'ab', name: 'Mine' }, team] });
+
+      await expect(useContactsStore.getState().deleteAddressBook('acc-team:ab')).rejects.toThrow();
+      expect(mockDeleteAddressBook).not.toHaveBeenCalled();
+      expect(useContactsStore.getState().addressBooks).toHaveLength(2);
+    });
+  });
+
   describe('renameAddressBook for a managed shared account', () => {
     const mockUpdateAddressBook = contactsApi.updateAddressBook as ReturnType<typeof vi.fn>;
     const owner = { appAccountId: 'app-1', jmapAccountId: 'acc-team' };

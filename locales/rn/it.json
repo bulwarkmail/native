@@ -602,9 +602,6 @@
         "description_mobile": "Riordina gli account nel selettore degli account, scegli quello predefinito o disconnettine uno.",
         "limit": "Raggiunto il massimo di {count} account."
       },
-      "shared_accounts": {
-        "description_manage": "Account di gruppo e condivisi che puoi leggere tramite questo account. Selezionane uno per gestirne i filtri e il risponditore automatico."
-      },
       "unknown": "Sconosciuto"
     },
     "advanced": {

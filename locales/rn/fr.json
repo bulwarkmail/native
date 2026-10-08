@@ -602,9 +602,6 @@
         "description_mobile": "Réorganisez l'ordre des comptes dans le sélecteur de comptes, choisissez le compte par défaut ou déconnectez-en un.",
         "limit": "Nombre maximal de {count} comptes atteint."
       },
-      "shared_accounts": {
-        "description_manage": "Comptes de groupe et partagés que vous pouvez lire via ce compte. Sélectionnez-en un pour gérer ses filtres et son répondeur d'absence."
-      },
       "unknown": "Inconnu"
     },
     "advanced": {

@@ -806,7 +806,9 @@ export const useContactsStore = create<ContactsState>()(
         },
 
         deleteAddressBook: async (id) => {
-          const { originalId, accountId } = bookTarget(id);
+          const { originalId, accountId, book } = bookTarget(id);
+          // An address book shared with the user is never deleted from the app.
+          if (book?.isShared) throw new Error(t('contacts.address_books.delete_failed', 'Failed to delete address book'));
           await apiDeleteAddressBook(originalId, accountId, { removeContents: true });
           // The request asks the server to destroy the cards filed in the book
           // (onDestroyRemoveContents, RFC 9610 §2.3), so drop them from the cache instead of leaving orphans under "All".

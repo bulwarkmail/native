@@ -1274,6 +1274,8 @@ export const useCalendarStore = create<CalendarState>()(
 
   removeCalendar: async (id, account) => {
     const cal = get().calendars.find((c) => c.id === id);
+    // A calendar shared with the user is never deleted from the app.
+    if (cal?.isShared) throw new Error(t('calendar.management.error_delete', 'Failed to delete calendar'));
     const { ref } = writeAccount(account, cal?.accountId);
     await apiDeleteCalendar(cal?.originalId || id, ref);
     if (!stillShown(account)) return;
@@ -1288,6 +1290,8 @@ export const useCalendarStore = create<CalendarState>()(
 
   clearCalendarEvents: async (id, account) => {
     const cal = get().calendars.find((c) => c.id === id);
+    // Nor are a shared calendar's events wiped wholesale.
+    if (cal?.isShared) throw new Error(t('calendar.management.error_clear', 'Failed to clear calendar events'));
     const { ref } = writeAccount(account, cal?.accountId);
     try {
       const cleared = await apiClearCalendarEvents(cal?.originalId || id, ref);

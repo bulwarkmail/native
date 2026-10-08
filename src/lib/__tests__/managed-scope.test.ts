@@ -8,6 +8,7 @@ import type { AddressBook, Calendar } from '../../api/types';
 
 const shown = vi.hoisted(() => ({ app: 'app-1' as string | null }));
 vi.mock('../../stores/email-store', () => ({
+  isShownAccount: (appAccountId: string | null) => !!appAccountId && appAccountId === shown.app,
   requireShownAccountScope: (appAccountId: string | null, jmapAccountId?: string) => {
     if (!appAccountId || appAccountId !== shown.app) throw new Error('This belongs to another account.');
     return { gen: 9, accountId: jmapAccountId ?? 'own' };
@@ -30,6 +31,11 @@ vi.mock('../../stores/contacts-store', () => ({
   useContactsStore: { getState: () => contactsStore },
 }));
 
+const settings = vi.hoisted(() => ({ setSharedCalendarColor: vi.fn() }));
+vi.mock('../../stores/settings-store', () => ({
+  useSettingsStore: { getState: () => settings },
+}));
+
 vi.mock('../../stores/locale-store', () => ({
   t: (_key: string, fallback?: string) => fallback ?? _key,
 }));
@@ -42,9 +48,12 @@ import {
   updateScopedCalendar,
   renameScopedBook,
 } from '../managed-scope';
+import { getCalendarColor } from '../calendar-utils';
 
 const ownCal: Calendar = { id: 'c1', name: 'Mine' };
-const teamCal: Calendar = { id: 'team:c1', originalId: 'c1', accountId: 'team', isShared: true, name: 'Team' };
+const teamCal: Calendar = {
+  id: 'team:c1', originalId: 'c1', accountId: 'team', isShared: true, name: 'Team', color: '#00aa00',
+};
 const otherCal: Calendar = { id: 'ops:c1', originalId: 'c1', accountId: 'ops', isShared: true, name: 'Ops' };
 // Own calendars carry no accountId; one tagged with the managed id but not shared is still not the team's.
 const untaggedShared: Calendar = { id: 'team-own', accountId: 'team', name: 'Odd' };
@@ -81,7 +90,9 @@ describe('actions offered on a shared collection', () => {
   it('offers rename and recolour only where the rights allow it', () => {
     expect(scopedCalendarActions(teamCal).edit).toBe(true); // no rights sent: the server decides
     expect(scopedCalendarActions({ ...teamCal, myRights: { mayShare: true } }).edit).toBe(true);
-    expect(scopedCalendarActions({ ...teamCal, myRights: { mayWriteAll: true } }).edit).toBe(true);
+    expect(scopedCalendarActions({ ...teamCal, myRights: { mayAdmin: true } }).edit).toBe(true);
+    // Writing every event is not managing the calendar itself.
+    expect(scopedCalendarActions({ ...teamCal, myRights: { mayWriteAll: true } }).edit).toBe(false);
     expect(scopedCalendarActions({ ...teamCal, myRights: { mayReadItems: true, mayWriteOwn: true } }).edit).toBe(false);
   });
 
@@ -99,9 +110,36 @@ describe('updateScopedCalendar', () => {
     await updateScopedCalendar(scope, 'team:c1', values);
     expect(calendarStore.updateCalendar).toHaveBeenCalledWith(
       'team:c1',
-      { name: 'Crew', color: '#ff0000', description: null },
+      { name: 'Crew', color: '#ff0000' },
       { appAccountId: 'app-1', jmapAccountId: 'team', scope: { gen: 9, accountId: 'team' } },
     );
+  });
+
+  it('sends only what changed: a rename keeps the colour the sheet showed off the wire', async () => {
+    // No colour of its own: the sheet shows the fallback getCalendarColor picks.
+    const plain: Calendar = { ...teamCal, color: undefined };
+    calendarStore.calendars = [plain];
+    await updateScopedCalendar(scope, 'team:c1', { name: 'Crew', color: getCalendarColor(plain), description: '' });
+    expect(calendarStore.updateCalendar).toHaveBeenCalledWith('team:c1', { name: 'Crew' }, expect.anything());
+    expect(settings.setSharedCalendarColor).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing when nothing changed', async () => {
+    await updateScopedCalendar(scope, 'team:c1', { name: 'Team', color: '#00AA00', description: '' });
+    expect(calendarStore.updateCalendar).not.toHaveBeenCalled();
+  });
+
+  it('after a recolour, makes the new colour the viewer\'s own for that calendar so it shows', async () => {
+    await updateScopedCalendar(scope, 'team:c1', { name: 'Team', color: '#ff0000', description: '' });
+    expect(calendarStore.updateCalendar).toHaveBeenCalledWith('team:c1', { color: '#ff0000' }, expect.anything());
+    expect(settings.setSharedCalendarColor).toHaveBeenCalledWith('team|c1', '#ff0000');
+  });
+
+  it('leaves the viewer\'s colours alone when the server refuses the recolour', async () => {
+    calendarStore.updateCalendar.mockRejectedValueOnce(new Error('forbidden'));
+    await expect(updateScopedCalendar(scope, 'team:c1', { name: 'Team', color: '#ff0000', description: '' }))
+      .rejects.toThrow('forbidden');
+    expect(settings.setSharedCalendarColor).not.toHaveBeenCalled();
   });
 
   it('writes nothing once another account is shown (a switch mid-edit)', async () => {

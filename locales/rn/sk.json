@@ -602,9 +602,6 @@
         "description_mobile": "Zmeňte poradie účtov v prepínači účtov, vyberte predvolený účet alebo sa z niektorého odhláste.",
         "limit": "Dosiahli ste maximálny počet účtov ({count})."
       },
-      "shared_accounts": {
-        "description_manage": "Skupinové a zdieľané účty, ktoré môžete čítať cez tento účet. Vyberte jeden na správu jeho filtrov a automatickej odpovede."
-      },
       "unknown": "Neznáme"
     },
     "advanced": {

@@ -602,9 +602,6 @@
         "description_mobile": "Zmień kolejność kont w przełączniku kont, wybierz domyślne lub wyloguj któreś z nich.",
         "limit": "Osiągnięto maksymalną liczbę kont ({count})."
       },
-      "shared_accounts": {
-        "description_manage": "Konta grupowe i udostępnione, które możesz czytać przez to konto. Wybierz jedno, aby zarządzać jego filtrami i autoresponderem urlopowym."
-      },
       "unknown": "Nieznane"
     },
     "advanced": {

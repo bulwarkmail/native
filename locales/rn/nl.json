@@ -602,9 +602,6 @@
         "description_mobile": "Wijzig de volgorde van accounts in de accountwisselaar, kies het standaardaccount of meld er een af.",
         "limit": "Maximum van {count} accounts bereikt."
       },
-      "shared_accounts": {
-        "description_manage": "Groeps- en gedeelde accounts die u via dit account kunt lezen. Selecteer er een om de filters en de afwezigheidsmelder te beheren."
-      },
       "unknown": "Onbekend"
     },
     "advanced": {

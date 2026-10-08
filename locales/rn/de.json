@@ -602,9 +602,6 @@
         "description_mobile": "Legen Sie die Reihenfolge der Konten im Kontowechsler fest, wählen Sie das Standardkonto oder melden Sie ein Konto ab.",
         "limit": "Maximal {count} Konten erreicht."
       },
-      "shared_accounts": {
-        "description_manage": "Gruppen- und freigegebene Konten, die Sie über dieses Konto lesen können. Wählen Sie eines aus, um dessen Filter und Abwesenheitsnotiz zu verwalten."
-      },
       "unknown": "Unbekannt"
     },
     "advanced": {

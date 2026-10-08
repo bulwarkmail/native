@@ -602,9 +602,6 @@
         "description_mobile": "Rendezd át a fiókok sorrendjét a fiókváltóban, válaszd ki az alapértelmezettet, vagy jelentkezz ki valamelyikből.",
         "limit": "Elérted a fiókok maximális számát ({count})."
       },
-      "shared_accounts": {
-        "description_manage": "Csoportos és megosztott fiókok, amelyeket ezen a fiókon keresztül olvashatsz. Válassz egyet a szűrői és az automatikus válasza kezeléséhez."
-      },
       "unknown": "Ismeretlen"
     },
     "advanced": {

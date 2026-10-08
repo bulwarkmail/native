@@ -602,9 +602,6 @@
         "description_mobile": "Reordonați conturile în selectorul de conturi, alegeți contul implicit sau deconectați unul.",
         "limit": "S-a atins numărul maxim de {count, plural, one {# cont} few {# conturi} other {# de conturi}}."
       },
-      "shared_accounts": {
-        "description_manage": "Conturi de grup și partajate pe care le puteți citi prin acest cont. Selectați unul pentru a-i gestiona filtrele și răspunsul automat de vacanță."
-      },
       "unknown": "Necunoscut"
     },
     "advanced": {

@@ -602,9 +602,6 @@
         "description_mobile": "Cambia el orden de las cuentas en el selector de cuentas, elige la predeterminada o cierra la sesión de una.",
         "limit": "Se alcanzó el máximo de {count} cuentas."
       },
-      "shared_accounts": {
-        "description_manage": "Cuentas de grupo y compartidas que puedes leer a través de esta cuenta. Selecciona una para gestionar sus filtros y su respuesta automática."
-      },
       "unknown": "Desconocido"
     },
     "advanced": {

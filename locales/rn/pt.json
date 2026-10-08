@@ -602,9 +602,6 @@
         "description_mobile": "Reordene como as contas aparecem no seletor de contas, escolha a padrão ou saia de uma delas.",
         "limit": "Limite máximo de {count} contas atingido."
       },
-      "shared_accounts": {
-        "description_manage": "Contas de grupo e compartilhadas que você pode ler através desta conta. Selecione uma para gerenciar seus filtros e sua resposta automática."
-      },
       "unknown": "Desconhecido"
     },
     "advanced": {

@@ -602,9 +602,6 @@
         "description_mobile": "Mainiet kontu secību kontu pārslēdzējā, izvēlieties noklusējuma kontu vai izrakstieties no kāda konta.",
         "limit": "Sasniegts maksimālais kontu skaits ({count})."
       },
-      "shared_accounts": {
-        "description_manage": "Grupas un kopīgotie konti, kurus varat lasīt, izmantojot šo kontu. Atlasiet vienu, lai pārvaldītu tā filtrus un atvaļinājuma atbildi."
-      },
       "unknown": "Nezināms"
     },
     "advanced": {

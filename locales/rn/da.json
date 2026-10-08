@@ -602,9 +602,6 @@
         "description_mobile": "Ændr rækkefølgen af konti i kontoskifteren, vælg standardkontoen, eller log ud af en konto.",
         "limit": "Du har nået grænsen på {count} konti."
       },
-      "shared_accounts": {
-        "description_manage": "Gruppe- og delte konti, du kan læse via denne konto. Vælg en for at administrere dens filtre og fraværsbeskeder."
-      },
       "unknown": "Ukendt"
     },
     "advanced": {
