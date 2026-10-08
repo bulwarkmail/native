@@ -149,6 +149,10 @@ interface PersistedSettings {
   // logged-in account (parity with the webmail `includeGroupInUnified` setting).
   includeGroupInUnified: boolean;
 
+  // Tags: nest tags under other tags and show them as a tree (webmail
+  // `nestedTags`, off by default there too).
+  nestedTags: boolean;
+
   // Contacts
   groupContactsByLetter: boolean;
   // Sort (and group) the contact list by surname instead of given name so
@@ -346,6 +350,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   trustedSendersAddressBook: null,
   senderFavicons: true,
   hideInlineImageAttachments: true,
+
+  nestedTags: false,
 
   groupContactsByLetter: true,
   sortContactsByLastName: false,

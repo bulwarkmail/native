@@ -140,6 +140,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.keywords.add_keyword',
     'settings.keywords.discover.scan',
     'settings.keywords.reset_defaults',
+    'settings.keywords.nesting.label',
   ],
   downloads: [
     'settings.downloads.email_template',
