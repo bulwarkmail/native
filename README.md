@@ -49,6 +49,15 @@ Then press `a` for Android, `i` for iOS, or scan the QR with Expo Go.
 For release APK builds and signing see [docs/android-release.md](docs/android-release.md).
 For iOS builds and TestFlight distribution see [docs/ios-release.md](docs/ios-release.md).
 
+## Native Android project
+
+`android/` is committed and edited by hand. It holds code that a regenerated project would not have:
+- `ShareIntentStore` and `NotificationTapStore`, which `MainActivity` calls;
+- `BulwarkWindowModule` (screen protection and system bar colours), which `MainActivity.onCreate` applies before the first frame;
+- `res/values/styles.xml` (`enforceNavigationBarContrast` is false).
+
+Never run `expo prebuild --clean`: it regenerates `android/` and silently drops these changes. Make native changes in `android/` directly.
+
 ## License
 
 AGPL-3.0-only, with an additional permission to distribute the app through app stores such as the Apple App Store and Google Play. See [LICENSE](LICENSE). Contributions are accepted under the same terms. The permission is provisional until every earlier contributor has agreed to it ([consent request](https://github.com/orgs/bulwarkmail/discussions/1113)); contributions made since 30 September 2026 are already covered.

@@ -42,16 +42,8 @@ class BulwarkWindowModule(reactContext: ReactApplicationContext)
 
     @ReactMethod
     fun setSystemBarsAppearance(lightBackground: Boolean) {
-        onActivity { activity ->
-            val window = activity.window
-            WindowCompat.getInsetsController(window, window.decorView).apply {
-                isAppearanceLightStatusBars = lightBackground
-                isAppearanceLightNavigationBars = lightBackground
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                window.isNavigationBarContrastEnforced = false
-            }
-        }
+        prefs(reactApplicationContext).edit().putBoolean(PREF_LIGHT_BARS, lightBackground).commit()
+        onActivity { applyBarsAppearance(it, lightBackground) }
     }
 
     private fun onActivity(block: (Activity) -> Unit) {
@@ -66,6 +58,7 @@ class BulwarkWindowModule(reactContext: ReactApplicationContext)
         private const val PREFS_NAME = "bulwark_window"
         private const val PREF_SECURE = "block_screenshots"
         private const val PREF_RECENTS_HIDDEN = "hide_in_recents"
+        private const val PREF_LIGHT_BARS = "light_system_bars"
 
         fun supportsRecentsHiding(): Boolean =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -73,11 +66,29 @@ class BulwarkWindowModule(reactContext: ReactApplicationContext)
         private fun prefs(context: Context) =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        /** Applies the saved protection flags. Called from MainActivity.onCreate. */
+        /**
+         * Applies the saved protection flags and, once JS has set it, the bar
+         * icon colours, so a recreated activity matches before JS runs again.
+         * Called from MainActivity.onCreate.
+         */
         fun applyPersisted(activity: Activity) {
             val prefs = prefs(activity)
             applySecure(activity, prefs.getBoolean(PREF_SECURE, false))
             applyRecentsHidden(activity, prefs.getBoolean(PREF_RECENTS_HIDDEN, false))
+            if (prefs.contains(PREF_LIGHT_BARS)) {
+                applyBarsAppearance(activity, prefs.getBoolean(PREF_LIGHT_BARS, false))
+            }
+        }
+
+        private fun applyBarsAppearance(activity: Activity, lightBackground: Boolean) {
+            val window = activity.window
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = lightBackground
+                isAppearanceLightNavigationBars = lightBackground
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
         }
 
         private fun applySecure(activity: Activity, enabled: Boolean) {

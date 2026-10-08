@@ -1179,7 +1179,7 @@
         },
         "description": "Keeps mail out of screenshots and the recent apps view on this device. Home-screen widgets and notification previews still show mail.",
         "hide_in_recents": {
-          "description": "Blanks the app in recent apps but still allows screenshots.",
+          "description": "Blanks the app in recent apps but still allows screenshots. The app can show briefly while you switch apps; use Block screenshots to hide it completely.",
           "label": "Hide in recent apps only"
         },
         "title": "Screen protection"

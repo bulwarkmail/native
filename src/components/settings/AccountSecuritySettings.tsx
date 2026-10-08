@@ -873,7 +873,7 @@ function ScreenProtectionSection() {
       {supportsRecentsHiding() && (
         <SettingItem
           label={t('settings.security.screen_protection.hide_in_recents.label', 'Hide in recent apps only')}
-          description={t('settings.security.screen_protection.hide_in_recents.description', 'Blanks the app in recent apps but still allows screenshots.')}
+          description={t('settings.security.screen_protection.hide_in_recents.description', 'Blanks the app in recent apps but still allows screenshots. The app can show briefly while you switch apps; use Block screenshots to hide it completely.')}
           noBorder
         >
           <ToggleSwitch checked={hideInRecents} onChange={(v) => updateSetting('hideInRecents', v)} />
