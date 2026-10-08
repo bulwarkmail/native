@@ -124,7 +124,7 @@ end of each area's Verified list. Phase 1 of the [roadmap](docs/superpowers/plan
 | 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 57 | 57 | 0 | 7 | 23 | 27 |
 | | **Total** | | **494** | **477** | **17** | **35** | **162** | **296** |
 
-Counts are of the `- [ ]` and `- [x]` items per file as of 2026-10-04. Done and
+Counts are of the `- [ ]` and `- [x]` items per file as of 2026-10-08. Done and
 Open split them by tick; the P columns count the priority tags on those items
 (one item carries none).
 

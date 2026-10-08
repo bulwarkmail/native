@@ -13,7 +13,7 @@ Branch `parity/phase-6e-settings-ui`, everything after 3719f21.
 - Two privacy options on this device, both off by default: block screenshots, or only hide the app in recent apps. The status and navigation bars follow the theme (982fc01).
 - Signing out ends the identity provider's session, but only with the last account that uses that provider (dd9b30b).
 - Rename and recolour a shared account's calendars and address books from Settings (5ac7b7d).
-- The font size setting scales the whole app, not just the mail list (0041a15).
+- The font size setting scales most of the app, not just the mail list; about 60 fixed text sizes are left to convert (0041a15, d35b282).
 - Each account keeps its own push relay (92aa254).
 - Sidebar apps show in the app, and open only web links (3306c31).
 - Settings search finds more settings, and About links the commit of the running build (28ffebf).

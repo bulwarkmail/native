@@ -80,7 +80,7 @@ The app covers 477 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 
 **Settings and appearance**
 - Light, dark and system themes, plus six built-in colour themes from the webmail
-- Font size across the app, list density, and an option to turn animations off
+- Font size for most of the app (a few screens still use fixed sizes), list density, and an option to turn animations off
 - 27 languages, including right-to-left layouts (see below)
 - Date format region, 12 or 24-hour time and an app-wide time zone
 - Settings search, settings export and import
