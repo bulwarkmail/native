@@ -349,6 +349,96 @@ describe('JMAPClient', () => {
     });
   });
 
+  describe('the id token a refresh returns', () => {
+    const SERVER = 'https://mail.x.com';
+    const ID_KEY = 'oidc_id_token__ada_x.com_mail.x.com';
+    const CREDS_KEY = 'jmap_credentials__ada_x.com_mail.x.com';
+
+    // Signed in as ada with `source`, then one refresh answering `tokenJson`.
+    // `credsReads` answers each read of ada's stored credentials in turn.
+    async function refreshOnce(
+      source: 'native' | 'handoff',
+      tokenJson: Record<string, unknown>,
+      credsReads: Array<string | null> = ['{}', '{}'],
+      keptIdToken: string | null = 'old-id',
+    ) {
+      global.fetch = mockFetch([
+        { status: 200, json: { ...MOCK_SESSION, username: 'ada@x.com' } },
+        { status: 200, json: tokenJson },
+      ]) as any;
+      await client.connectWithOAuth(SERVER, {
+        accessToken: 'a1', refreshToken: 'r1', expiresAt: Date.now() + 1e6,
+        tokenEndpoint: `${SERVER}/auth/token`, clientId: 'bulwark', source,
+      }, 'ada@x.com');
+      let credsRead = 0;
+      vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key: string) => {
+        if (key === ID_KEY) return keptIdToken;
+        if (key === CREDS_KEY) return credsReads[Math.min(credsRead++, credsReads.length - 1)];
+        return null;
+      });
+      vi.mocked(SecureStore.setItemAsync).mockClear();
+      vi.mocked(SecureStore.deleteItemAsync).mockClear();
+      expect(await client.forceRefreshToken()).toBe(true);
+    }
+
+    const idTokenWrites = () => vi.mocked(SecureStore.setItemAsync).mock.calls.filter(([k]) => k === ID_KEY);
+
+    it('replaces the kept one under the account the refresh was for, outside the bundle', async () => {
+      await refreshOnce('native', { access_token: 'a2', id_token: 'new-id' });
+      expect(idTokenWrites()).toEqual([[ID_KEY, 'new-id']]);
+      const bundle = vi.mocked(SecureStore.setItemAsync).mock.calls.find(([k]) => k === CREDS_KEY)?.[1];
+      expect(bundle).toBeDefined();
+      expect(bundle).not.toContain('new-id');
+    });
+
+    it('keeps the old one when the response has none', async () => {
+      await refreshOnce('native', { access_token: 'a2' });
+      expect(idTokenWrites()).toEqual([]);
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(ID_KEY);
+    });
+
+    it('stores none for an account that kept none, or that is not a direct PKCE sign-in', async () => {
+      await refreshOnce('native', { access_token: 'a2', id_token: 'new-id' }, ['{}', '{}'], null);
+      expect(idTokenWrites()).toEqual([]);
+      await refreshOnce('handoff', { access_token: 'a2', id_token: 'new-id' });
+      expect(idTokenWrites()).toEqual([]);
+    });
+
+    it('stores none once the account is signed out', async () => {
+      await refreshOnce('native', { access_token: 'a2', id_token: 'new-id' }, [null]);
+      expect(idTokenWrites()).toEqual([]);
+    });
+
+    it('goes to the account whose tokens were refreshed, not the live one', async () => {
+      await refreshOnce('native', { access_token: 'a2' });
+      vi.mocked(SecureStore.getItemAsync).mockImplementation(async () => 'present');
+      vi.mocked(SecureStore.setItemAsync).mockClear();
+      await client.keepRefreshedIdToken(
+        { serverUrl: SERVER, username: 'bob@x.com', password: '', tokenSource: 'native' },
+        'bob-id',
+      );
+      expect(vi.mocked(SecureStore.setItemAsync).mock.calls).toEqual([['oidc_id_token__bob_x.com_mail.x.com', 'bob-id']]);
+    });
+
+    it('takes it back when sign-out lands while it is being written', async () => {
+      await refreshOnce('native', { access_token: 'a2', id_token: 'new-id' }, ['{}', null]);
+      expect(idTokenWrites()).toEqual([[ID_KEY, 'new-id']]);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(ID_KEY);
+    });
+  });
+
+  describe('dropping an account\'s credentials when the id token cannot be deleted', () => {
+    it('still drops the credentials and resolves', async () => {
+      vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key: string) => {
+        if (key.startsWith('oidc_id_token__')) throw new Error('keystore');
+      });
+      await expect(client.clearAccountCredentials('a@x.com@https://mail.x.com')).resolves.toBeUndefined();
+      await expect(client.clearAllCredentials(['a@x.com@https://mail.x.com'])).resolves.toBeUndefined();
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(expect.stringMatching(/^jmap_credentials__/));
+      vi.mocked(SecureStore.deleteItemAsync).mockReset();
+    });
+  });
+
   describe('hasCapability', () => {
     it('should detect capabilities from session', async () => {
       global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;

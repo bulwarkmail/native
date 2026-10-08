@@ -14,7 +14,7 @@ import {
   type OAuthTokens,
   type OAuthTokenSource,
 } from '../lib/oauth';
-import { deleteIdToken } from '../lib/provider-session';
+import { deleteIdToken, replaceIdToken } from '../lib/provider-session';
 import { FirstTouchGate } from './first-touch-gate';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 import { isTransportFailure, reportServerResponse, reportServerUnreachable } from '../lib/server-reachability';
@@ -336,7 +336,7 @@ export class JMAPClient {
       const tokens = oauthTokensOf(creds);
       if (!tokens) return false;
       if (!force && (tokens.expiresAt == null || tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return true;
-      let next: OAuthTokens;
+      let next: OAuthTokens & { idToken?: string };
       try {
         next = await refreshOAuthAccessToken(tokens);
       } catch (err) {
@@ -347,6 +347,7 @@ export class JMAPClient {
       creds = withTokens(base, next);
       if (creds.accessToken !== base.accessToken) this.noteRotation(base, creds);
       await this.storeRotatedTokens(base, creds);
+      await this.keepRefreshedIdToken(base, next.idToken);
       return true;
     };
     return {
@@ -728,6 +729,23 @@ export class JMAPClient {
   }
 
   /**
+   * Keep the id token a refresh of `base`'s tokens returned, for `base`'s
+   * account (never the live one), so sign-out ends the provider session
+   * with a current one. Direct PKCE sign-ins only, and only while that
+   * account is still signed in. Public for the refreshes outside the client
+   * (unified inbox, push background task). Never throws.
+   */
+  async keepRefreshedIdToken(base: StoredCredentials, idToken: string | undefined): Promise<void> {
+    if (!idToken || base.tokenSource !== 'native') return;
+    const key = credentialsKey(generateAccountId(base.username, base.serverUrl));
+    await replaceIdToken(
+      generateAccountId(base.username, base.serverUrl),
+      idToken,
+      async () => !!(await SecureStore.getItemAsync(key)),
+    ).catch(() => undefined);
+  }
+
+  /**
    * Refresh the live connection's OAuth token: proactively (`force` false,
    * only near expiry) or after a 401. The new tokens are stored for the
    * account they belong to; the live connection takes them while it is still
@@ -741,7 +759,7 @@ export class JMAPClient {
     const tokens = oauthTokensOf(base);
     if (!base || !tokens) return false;
     if (!force && (tokens.expiresAt == null || tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return true;
-    let next: OAuthTokens;
+    let next: OAuthTokens & { idToken?: string };
     try {
       next = await refreshOAuthAccessToken(tokens);
     } catch (err) {
@@ -762,6 +780,7 @@ export class JMAPClient {
       this.ctx = { ...live, credentials: updated };
     }
     await this.storeRotatedTokens(base, updated, liveTakesThem && live.gen === ctx.gen);
+    await this.keepRefreshedIdToken(base, next.idToken);
     if (liveTakesThem) {
       for (const l of this.tokenRefreshListeners) {
         try { l(); } catch { /* ignore */ }
@@ -912,7 +931,8 @@ export class JMAPClient {
     this.rotatedTokens.delete(accountId);
     await Promise.all([
       SecureStore.deleteItemAsync(credentialsKey(accountId)),
-      deleteIdToken(accountId),
+      // Its failure must never abort a sign-out.
+      deleteIdToken(accountId).catch(() => undefined),
     ]);
   }
 
@@ -921,7 +941,7 @@ export class JMAPClient {
     await Promise.all([
       SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
       ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
-      ...accountIds.map((id) => deleteIdToken(id)),
+      ...accountIds.map((id) => deleteIdToken(id).catch(() => undefined)),
     ]);
   }
 

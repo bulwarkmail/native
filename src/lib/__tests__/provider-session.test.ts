@@ -6,23 +6,21 @@ import {
   captureProviderLogout,
   endProviderSession,
   idTokenKey,
+  providerOf,
+  replaceIdToken,
   storeIdToken,
 } from '../provider-session';
-import type { OAuthTokens } from '../oauth';
+import type { OAuthTokenSource } from '../oauth';
 
 const mockGet = SecureStore.getItemAsync as ReturnType<typeof vi.fn>;
 const mockOpen = WebBrowser.openAuthSessionAsync as ReturnType<typeof vi.fn>;
 
 const ENDPOINT = 'https://sso.example.com/realms/mail/protocol/openid-connect/logout';
 
-function tokens(source: OAuthTokens['source']): OAuthTokens {
-  return {
-    accessToken: 'at',
-    refreshToken: 'rt',
-    tokenEndpoint: 'https://sso.example.com/token',
-    clientId: 'bulwark',
-    source,
-  };
+// Stored credentials as captureProviderLogout reads them: a sign-in without
+// a refresh token still names its source and client.
+function tokens(tokenSource: OAuthTokenSource | undefined) {
+  return { tokenSource, clientId: 'bulwark' };
 }
 
 beforeEach(() => {
@@ -97,6 +95,13 @@ describe('captureProviderLogout', () => {
     expect(await captureProviderLogout('acct-a', ENDPOINT, null)).toBeNull();
   });
 
+  it('counts a direct PKCE sign-in that has no refresh token', async () => {
+    mockGet.mockResolvedValue('id');
+    expect(await captureProviderLogout('acct-a', ENDPOINT, { tokenSource: 'native', clientId: 'bulwark' }))
+      .toEqual({ endpoint: ENDPOINT, clientId: 'bulwark', idToken: 'id' });
+    expect(await captureProviderLogout('acct-a', ENDPOINT, { tokenSource: 'native' })).toBeNull();
+  });
+
   it('is null when the provider advertises no usable endpoint', async () => {
     mockGet.mockResolvedValue('id');
     expect(await captureProviderLogout('acct-a', undefined, tokens('native'))).toBeNull();
@@ -105,14 +110,15 @@ describe('captureProviderLogout', () => {
 });
 
 describe('endProviderSession', () => {
-  it('opens the end-session URL in a browser session that returns to the app', async () => {
+  it('opens the end-session URL in an auth session, sending no post-logout redirect', async () => {
     await endProviderSession({ endpoint: ENDPOINT, clientId: 'bulwark', idToken: 'id-a' });
     expect(mockOpen).toHaveBeenCalledTimes(1);
-    const [url, redirect, options] = mockOpen.mock.calls[0];
+    const [url, , options] = mockOpen.mock.calls[0];
     const params = new URL(url as string).searchParams;
     expect(params.get('id_token_hint')).toBe('id-a');
-    expect(params.get('post_logout_redirect_uri')).toBe('bulwarkmobile://auth/callback');
-    expect(redirect).toBe('bulwarkmobile://auth/callback');
+    expect(params.get('client_id')).toBe('bulwark');
+    // An unregistered one makes most providers refuse the whole logout.
+    expect(params.has('post_logout_redirect_uri')).toBe(false);
     // The provider's cookies are the point: never a private session.
     expect(options).toBeUndefined();
   });
@@ -120,5 +126,48 @@ describe('endProviderSession', () => {
   it('never throws when the browser fails', async () => {
     mockOpen.mockRejectedValueOnce(new Error('no browser'));
     await expect(endProviderSession({ endpoint: ENDPOINT, clientId: 'bulwark' })).resolves.toBeUndefined();
+  });
+});
+
+describe('replaceIdToken', () => {
+  const signedIn = (...answers: boolean[]) => {
+    let i = 0;
+    return vi.fn(async () => answers[Math.min(i++, answers.length - 1)]);
+  };
+
+  it('replaces a kept token while the account stays signed in', async () => {
+    mockGet.mockResolvedValue('old');
+    await replaceIdToken('acct-a', 'new', signedIn(true));
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(idTokenKey('acct-a'), 'new');
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it('never starts one for an account that kept none, nor without a new one', async () => {
+    mockGet.mockResolvedValue(null);
+    await replaceIdToken('acct-a', 'new', signedIn(true));
+    mockGet.mockResolvedValue('old');
+    await replaceIdToken('acct-a', undefined, signedIn(true));
+    await replaceIdToken('acct-a', '', signedIn(true));
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing once the account is signed out, and takes back a write sign-out overtook', async () => {
+    mockGet.mockResolvedValue('old');
+    await replaceIdToken('acct-a', 'new', signedIn(false));
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+
+    await replaceIdToken('acct-a', 'new', signedIn(true, false));
+    expect(SecureStore.setItemAsync).toHaveBeenCalledTimes(1);
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(idTokenKey('acct-a'));
+  });
+});
+
+describe('providerOf', () => {
+  it('is the endpoint\'s origin, and nothing for an unusable one', () => {
+    expect(providerOf(ENDPOINT)).toBe('https://sso.example.com');
+    expect(providerOf('https://sso.example.com/other/logout')).toBe('https://sso.example.com');
+    expect(providerOf('http://sso.example.com/logout')).toBeNull();
+    expect(providerOf(undefined)).toBeNull();
   });
 });

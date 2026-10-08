@@ -24,6 +24,8 @@ vi.mock('../../api/jmap-client', () => ({
     getSharedMailAccounts: () => [],
     request: vi.fn(async () => { throw new Error('not mocked'); }),
     getStoredOAuthTokens: vi.fn(async () => null),
+    getStoredCredentials: vi.fn(async () => null),
+    connect: vi.fn(),
     accountId: 'acc-1',
     currentSession: { apiUrl: 'https://mail.example.com/jmap/' },
     username: 'user',
@@ -67,6 +69,7 @@ import { useAccountStore, type AccountEntry } from '../account-store';
 const mockOpen = WebBrowser.openAuthSessionAsync as ReturnType<typeof vi.fn>;
 const mockGetItem = SecureStore.getItemAsync as ReturnType<typeof vi.fn>;
 const storedTokens = jmapClient.getStoredOAuthTokens as unknown as ReturnType<typeof vi.fn>;
+const storedCredentials = jmapClient.getStoredCredentials as unknown as ReturnType<typeof vi.fn>;
 
 const SERVER = 'https://mail.example.com';
 const SSO_LOGOUT = 'https://sso.example.com/realms/mail/protocol/openid-connect/logout';
@@ -94,12 +97,22 @@ function bundle(source: OAuthTokenSource, clientId = 'bulwark'): OAuthTokens {
 
 const ADA = entry('ada@example.com', SSO_LOGOUT);
 const BOB = entry('bob@example.com', OTHER_LOGOUT);
+// Another account at Ada's provider (another realm path, same origin).
+const CY = entry('cy@example.com', 'https://sso.example.com/realms/other/protocol/openid-connect/logout');
 
 // Per account: its token bundle and its kept id token.
 function accounts(list: Array<[AccountEntry, OAuthTokens | null, string | null]>, activeId: string): void {
   useAccountStore.setState({ accounts: list.map(([e]) => e), activeAccountId: activeId, defaultAccountId: list[0][0].id });
   useAuthStore.setState({ isAuthenticated: true, activeAccountId: activeId, serverUrl: SERVER });
   storedTokens.mockImplementation(async (id: string) => list.find(([e]) => e.id === id)?.[1] ?? null);
+  storedCredentials.mockImplementation(async (id: string) => {
+    const [e, t] = list.find(([x]) => x.id === id) ?? [];
+    if (!e || !t) return null;
+    return {
+      serverUrl: e.serverUrl, username: e.username, password: '', accessToken: t.accessToken,
+      refreshToken: t.refreshToken, tokenEndpoint: t.tokenEndpoint, clientId: t.clientId, tokenSource: t.source,
+    };
+  });
   mockGetItem.mockImplementation(async (key: string) => list.find(([e]) => idTokenKey(e.id) === key)?.[2] ?? null);
 }
 
@@ -129,7 +142,7 @@ describe('signing out of a direct PKCE account', () => {
     expect(`${url.origin}${url.pathname}`).toBe(SSO_LOGOUT);
     expect(url.searchParams.get('id_token_hint')).toBe('ada-id-token');
     expect(url.searchParams.get('client_id')).toBe('bulwark');
-    expect(url.searchParams.get('post_logout_redirect_uri')).toBe('bulwarkmobile://auth/callback');
+    expect(url.searchParams.has('post_logout_redirect_uri')).toBe(false);
     expect(calls.indexOf('browser')).toBeGreaterThan(calls.indexOf(`clear ${ADA.id}`));
     expect(useAccountStore.getState().getAccountById(ADA.id)).toBeUndefined();
   });
@@ -140,8 +153,50 @@ describe('signing out of a direct PKCE account', () => {
 
     await useAuthStore.getState().logout();
 
+    expect(mockOpen).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAccountStore.getState().accounts).toEqual([]);
+  });
+
+  it('ends the session for a sign-in that has no refresh token', async () => {
+    accounts([[ADA, { ...bundle('native'), refreshToken: undefined }, 'ada-id-token']], ADA.id);
+    storedTokens.mockResolvedValue(null);
+
+    await useAuthStore.getState().logout();
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+    expect(openedUrls()[0].searchParams.get('id_token_hint')).toBe('ada-id-token');
+  });
+
+  it('keeps the provider session while another signed-in account still uses it, and ends it with the last', async () => {
+    accounts([[ADA, bundle('native'), 'ada-id-token'], [CY, bundle('native'), 'cy-id-token']], ADA.id);
+
+    await useAuthStore.getState().removeAccount(CY.id);
+    await Promise.resolve();
+    expect(mockOpen).not.toHaveBeenCalled();
+
+    await useAuthStore.getState().logout();
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+    expect(openedUrls()[0].searchParams.get('id_token_hint')).toBe('ada-id-token');
+  });
+
+  it('signing out of everything ends each provider once, one after the other', async () => {
+    accounts([
+      [ADA, bundle('native'), 'ada-id-token'],
+      [BOB, bundle('native', 'other-client'), 'bob-id-token'],
+      [CY, bundle('native'), 'cy-id-token'],
+    ], CY.id);
+    let closeFirst: () => void = () => undefined;
+    mockOpen.mockImplementationOnce(() => new Promise((resolve) => { closeFirst = () => resolve({ type: 'cancel' }); }));
+
+    await useAuthStore.getState().logoutAll();
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+    // The browser holds one auth session: the next waits for this one.
+    expect(openedUrls()[0].searchParams.get('id_token_hint')).toBe('cy-id-token');
+    closeFirst();
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(2));
+    expect(openedUrls()[1].searchParams.get('id_token_hint')).toBe('bob-id-token');
+    await Promise.resolve();
+    expect(mockOpen).toHaveBeenCalledTimes(2);
   });
 
   it('signs out locally when the browser fails', async () => {
@@ -183,15 +238,16 @@ describe('signing out of a direct PKCE account', () => {
     expect(useAuthStore.getState().activeAccountId).toBe(ADA.id);
   });
 
-  it('signing out of everything ends one provider session, the active account\'s', async () => {
+  it('signing out of everything starts with the active account\'s provider', async () => {
     accounts([[ADA, bundle('native'), 'ada-id-token'], [BOB, bundle('native', 'other-client'), 'bob-id-token']], BOB.id);
 
     await useAuthStore.getState().logoutAll();
-    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(2));
 
-    const [url] = openedUrls();
-    expect(`${url.origin}${url.pathname}`).toBe(OTHER_LOGOUT);
-    expect(url.searchParams.get('id_token_hint')).toBe('bob-id-token');
+    const [first, second] = openedUrls();
+    expect(`${first.origin}${first.pathname}`).toBe(OTHER_LOGOUT);
+    expect(first.searchParams.get('id_token_hint')).toBe('bob-id-token');
+    expect(second.searchParams.get('id_token_hint')).toBe('ada-id-token');
     expect(calls.indexOf('browser')).toBeGreaterThan(calls.indexOf(`clear all ${ADA.id},${BOB.id}`));
   });
 
@@ -250,5 +306,27 @@ describe('a direct PKCE sign-in', () => {
 
     expect(useAccountStore.getState().getAccountById(ADA.id)?.endSessionEndpoint).toBeUndefined();
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(idTokenKey(ADA.id));
+  });
+
+  it('a later password sign-in of the same account forgets what the PKCE one kept', async () => {
+    useAccountStore.setState({ accounts: [ADA], activeAccountId: null, defaultAccountId: ADA.id });
+    (jmapClient.connect as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ apiUrl: `${SERVER}/jmap/` });
+
+    await useAuthStore.getState().login(SERVER, 'ada@example.com', 'pw');
+
+    expect(useAccountStore.getState().getAccountById(ADA.id)?.endSessionEndpoint).toBeUndefined();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(idTokenKey(ADA.id));
+  });
+});
+
+describe('an account evicted for missing credentials', () => {
+  it('loses its kept id token', async () => {
+    accounts([[ADA, bundle('native'), 'ada-id-token'], [BOB, bundle('native'), 'bob-id-token']], ADA.id);
+
+    await useAuthStore.getState().switchAccount(BOB.id);
+
+    expect(useAccountStore.getState().getAccountById(BOB.id)).toBeUndefined();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(idTokenKey(BOB.id));
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(idTokenKey(ADA.id));
   });
 });

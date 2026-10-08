@@ -18,7 +18,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
-import { HANDOFF_REDIRECT_URI, type OAuthTokens } from './oauth';
+import { HANDOFF_REDIRECT_URI, type OAuthTokenSource } from './oauth';
 
 const ID_TOKEN_PREFIX = 'oidc_id_token__';
 
@@ -70,6 +70,33 @@ export async function deleteIdToken(accountId: string): Promise<void> {
   await SecureStore.deleteItemAsync(idTokenKey(accountId));
 }
 
+/**
+ * Keep the id token a refresh returned for `accountId`, the account that
+ * refresh was for. Only replaces one already kept, which a sign-in stores
+ * only for a direct PKCE account with a usable endpoint; a response without
+ * one keeps the old. `stillSignedIn` says whether the account's credentials
+ * are still stored: it is asked before the write and again after it, so a
+ * refresh that lands during sign-out never leaves a token behind.
+ */
+export async function replaceIdToken(
+  accountId: string,
+  idToken: string | undefined,
+  stillSignedIn: () => Promise<boolean>,
+): Promise<void> {
+  if (!idToken) return;
+  const key = idTokenKey(accountId);
+  if (!(await SecureStore.getItemAsync(key))) return;
+  if (!(await stillSignedIn())) return;
+  await SecureStore.setItemAsync(key, idToken);
+  if (!(await stillSignedIn())) await SecureStore.deleteItemAsync(key);
+}
+
+/** The provider an end-session endpoint belongs to: its origin. */
+export function providerOf(endpoint: string | undefined): string | null {
+  const usable = usableEndSessionEndpoint(endpoint);
+  return usable ? new URL(usable).origin : null;
+}
+
 /** What ending one account's provider session needs, read before sign-out drops it. */
 export interface ProviderLogout {
   endpoint: string;
@@ -78,29 +105,33 @@ export interface ProviderLogout {
 }
 
 /**
- * The provider logout for `accountId`, signed out with `tokens` and its
- * registry entry's `endpoint`, or null when it has none: not a direct PKCE
- * sign-in, or the provider advertises no usable endpoint.
+ * The provider logout for `accountId`, from its stored credentials (whose
+ * sign-in it was, and the client) and its registry entry's `endpoint`, or
+ * null when it has none: not a direct PKCE sign-in, or the provider
+ * advertises no usable endpoint. A sign-in without a refresh token counts.
  */
 export async function captureProviderLogout(
   accountId: string,
   endpoint: string | undefined,
-  tokens: OAuthTokens | null,
+  credentials: { tokenSource?: OAuthTokenSource; clientId?: string } | null,
 ): Promise<ProviderLogout | null> {
   const usable = usableEndSessionEndpoint(endpoint);
-  if (!usable || tokens?.source !== 'native') return null;
+  if (!usable || credentials?.tokenSource !== 'native' || !credentials.clientId) return null;
   const idToken = await SecureStore.getItemAsync(idTokenKey(accountId)).catch(() => null);
-  return { endpoint: usable, clientId: tokens.clientId, ...(idToken ? { idToken } : {}) };
+  return { endpoint: usable, clientId: credentials.clientId, ...(idToken ? { idToken } : {}) };
 }
 
 /**
- * Open the provider's end-session page in the browser, which closes itself
- * when the provider sends it back to the app's sign-in redirect. Runs after
- * the local sign-out and never throws: a failure or a closed browser leaves
- * the app signed out all the same.
+ * Open the provider's end-session page in the browser. No
+ * `post_logout_redirect_uri` is sent, as in webmail by default: a value the
+ * provider has not registered makes most of them refuse the whole logout, so
+ * the provider shows its own signed-out page and the user closes it. An auth
+ * session rather than a plain browser tab, because on iOS that is the cookie
+ * jar the sign-in used. Runs after the local sign-out and never throws: a
+ * failure or a closed browser leaves the app signed out all the same.
  */
 export async function endProviderSession(logout: ProviderLogout): Promise<void> {
-  const url = buildEndSessionUrl({ ...logout, postLogoutRedirectUri: HANDOFF_REDIRECT_URI });
+  const url = buildEndSessionUrl(logout);
   if (!url) return;
   try {
     await WebBrowser.openAuthSessionAsync(url, HANDOFF_REDIRECT_URI);
