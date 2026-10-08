@@ -19,9 +19,10 @@ import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { ownMailboxes, mailboxSubtreeIds, buildMailboxTree, flattenAll, type MailboxNode } from '../../lib/mailbox-tree';
-import { planFolderMove, siblingsOf, withSortOrders, type SortOrderUpdate } from '../../lib/folder-reorder';
+import { planFolderMove, siblingsOf, withSortOrders, withUnlistedFolders, type SortOrderUpdate } from '../../lib/folder-reorder';
+import { isStaleLoad } from '../../lib/network-error';
 import { localizeMailboxName } from '../../lib/mailbox-label';
-import { useEmailStore, requireShownAccountScope } from '../../stores/email-store';
+import { useEmailStore, requireShownAccountScope, AccountNotServedError } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { createMailbox, updateMailbox, deleteMailbox, setMailboxSortOrders } from '../../api/email';
 import { inAccount } from '../../api/op-scope';
@@ -47,10 +48,7 @@ const NO_PARENT = '__root__';
 const OWN_ACCOUNT = '__own__';
 const NO_ROLE = '__none__';
 
-// The drawer hides the server's Scheduled folder while its virtual row stands
-// in for it (#495); Settings lists the same tree so the two orders agree.
-const HIDDEN_WITH_VIRTUAL_ROW = new Set(['scheduled']);
-
+const NO_UPDATES: SortOrderUpdate[] = [];
 const NO_EDGES = new Map<string, { first: boolean; last: boolean }>();
 
 /** Whether each folder is first or last of its sibling group, to disable the edge buttons. */
@@ -103,8 +101,9 @@ export function FolderSettings() {
   const [saving, setSaving] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   // The planned positions, laid over the store's folders until the refetch
-  // after the write brings the server's own numbers.
-  const [overlay, setOverlay] = useState<SortOrderUpdate[]>([]);
+  // after the write brings the server's own numbers. Kept with the account
+  // they were planned on: folder ids repeat across accounts.
+  const [overlay, setOverlay] = useState<{ accountId: string | null; updates: SortOrderUpdate[] } | null>(null);
   const [reordering, setReordering] = useState(false);
 
   useEffect(() => {
@@ -138,20 +137,16 @@ export function FolderSettings() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [draftAccount, mailboxes, allMailboxes, editor, t]);
 
-  const hideOwnRoles = React.useMemo(
-    () => (jmapClient.hasDelayedSend() ? HIDDEN_WITH_VIRTUAL_ROW : undefined),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mailboxes],
-  );
-  // The drawer's order, so a move here shows the same way there.
+  const pending = overlay && overlay.accountId === shownAccountId ? overlay.updates : NO_UPDATES;
+  // The drawer's order, so a move here shows the same way there. Unlike the
+  // drawer, Settings hides no folder (webmail's Settings neither): the
+  // server's Scheduled folder is listed and moves with its siblings.
   const tree = React.useMemo(
-    () => buildMailboxTree(withSortOrders(mailboxes, overlay), { hideOwnRoles }),
-    [mailboxes, overlay, hideOwnRoles],
+    () => buildMailboxTree(withSortOrders(mailboxes, pending)),
+    [mailboxes, pending],
   );
-  const rows = React.useMemo(() => flattenAll(tree), [tree]);
+  const rows = React.useMemo(() => withUnlistedFolders(flattenAll(tree), mailboxes), [tree, mailboxes]);
   const edges = React.useMemo(() => (reorderMode ? siblingEdges(tree) : NO_EDGES), [reorderMode, tree]);
-
-  const totalUnread = mailboxes.reduce((sum, m) => sum + (m.unreadEmails ?? 0), 0);
 
   const openCreate = () => {
     setEditor({ kind: 'create', owner: shownAccountId });
@@ -179,12 +174,15 @@ export function FolderSettings() {
     try {
       at = requireShownAccountScope(shownAccountId);
     } catch (err) {
-      Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'), err instanceof Error ? err.message : String(err));
+      // After a switch the list is about to show the other account; while
+      // one is still loading, say so.
+      if (err instanceof AccountNotServedError && err.reason === 'switched') return;
+      Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'), err instanceof Error ? err.message : undefined);
       return;
     }
     const plan = planFolderMove(siblingsOf(tree, id) ?? [], id, direction);
     if (plan.length === 0) return;
-    setOverlay(plan);
+    setOverlay({ accountId: shownAccountId, updates: plan });
     setReordering(true);
     let saved = false;
     try {
@@ -192,14 +190,15 @@ export function FolderSettings() {
       saved = true;
       await fetchMailboxes();
     } catch (err) {
-      // A refetch that fails after the write landed is not a failed reorder;
-      // the next sync brings the new order.
+      // A refetch that fails after the write landed is not a failed reorder
+      // (the next sync brings the new order), nor is a write the connection
+      // dropped for an account switch.
       if (!saved) {
         void fetchMailboxes();
-        Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'), err instanceof Error ? err.message : String(err));
+        if (!isStaleLoad(err)) Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'));
       }
     } finally {
-      setOverlay([]);
+      setOverlay(null);
       setReordering(false);
     }
   };
@@ -317,9 +316,8 @@ export function FolderSettings() {
       <SettingsSection
         title={t('settings.folders.title', 'Folders')}
         description={t(
-          'settings.folders.description_mobile',
-          `${mailboxes.length} folders, ${totalUnread} unread. Tap a folder to edit, long-press to delete.`,
-          { count: mailboxes.length, unread: totalUnread },
+          'settings.folders.description_mobile_reorder',
+          'Create, rename, move and delete folders, or tap Reorder to change their order. Long-press a folder in the drawer for quick actions.',
         )}
       >
         <View style={styles.headerRow}>
@@ -354,6 +352,9 @@ export function FolderSettings() {
               return (
                 <Pressable
                   key={mb.id}
+                  // In reorder mode the row only holds the move buttons; as one
+                  // accessible element it would hide them from screen readers.
+                  accessible={!reorderMode}
                   onPress={reorderMode ? undefined : () => openEdit(mb)}
                   onLongPress={reorderMode ? undefined : () => !mb.role && confirmDelete(mb)}
                   style={({ pressed }) => [
@@ -387,7 +388,7 @@ export function FolderSettings() {
                           hitSlop={4}
                           accessibilityRole="button"
                           accessibilityState={{ disabled: !canMoveUp }}
-                          accessibilityLabel={t('settings.appearance.message_list_order.move_up', 'Move up')}
+                          accessibilityLabel={t('settings.folders.move_folder_up', 'Move {name} up', { name: localizeMailboxName(mb.role, mb.name, t) })}
                         >
                           <ChevronUp size={16} color={c.mutedForeground} />
                         </Pressable>
@@ -398,7 +399,7 @@ export function FolderSettings() {
                           hitSlop={4}
                           accessibilityRole="button"
                           accessibilityState={{ disabled: !canMoveDown }}
-                          accessibilityLabel={t('settings.appearance.message_list_order.move_down', 'Move down')}
+                          accessibilityLabel={t('settings.folders.move_folder_down', 'Move {name} down', { name: localizeMailboxName(mb.role, mb.name, t) })}
                         >
                           <ChevronDown size={16} color={c.mutedForeground} />
                         </Pressable>

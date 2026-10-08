@@ -60,3 +60,17 @@ export function withSortOrders(mailboxes: Mailbox[], updates: SortOrderUpdate[])
     return sortOrder === undefined ? m : { ...m, sortOrder };
   });
 }
+
+/**
+ * `rows` with every folder of `mailboxes` the tree left out appended at the
+ * top level. The tree drops a top-level folder named like a role folder
+ * (a second "Sent"), but Settings is where the user renames or deletes it,
+ * so it must still be listed. Such rows belong to no sibling group and so
+ * are never moved.
+ */
+export function withUnlistedFolders(rows: MailboxNode[], mailboxes: Mailbox[]): MailboxNode[] {
+  const listed = new Set(rows.map((r) => r.id));
+  const missing = mailboxes.filter((m) => !listed.has(m.id));
+  if (missing.length === 0) return rows;
+  return [...rows, ...missing.map((m) => ({ ...m, children: [], depth: 0 }))];
+}

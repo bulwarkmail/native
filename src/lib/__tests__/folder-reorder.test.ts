@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { planFolderMove, siblingsOf, withSortOrders } from '../folder-reorder';
-import { buildMailboxTree, SHARED_ACCOUNT_NODE_PREFIX } from '../mailbox-tree';
+import { planFolderMove, siblingsOf, withSortOrders, withUnlistedFolders } from '../folder-reorder';
+import { buildMailboxTree, flattenAll, SHARED_ACCOUNT_NODE_PREFIX } from '../mailbox-tree';
 import type { Mailbox } from '../../api/types';
 
 const RIGHTS: Mailbox['myRights'] = {
@@ -82,10 +82,32 @@ describe('siblingsOf', () => {
     expect(siblingsOf(buildMailboxTree(mailboxes), 'nope')).toBeNull();
   });
 
-  it('leaves the hidden Scheduled folder out of the group when the virtual row stands in', () => {
+  it('renumbers the Scheduled folder with its siblings, as Settings shows it', () => {
     const withScheduled = [...mailboxes, mb('sched', 'Scheduled', { role: 'scheduled' })];
-    const tree = buildMailboxTree(withScheduled, { hideOwnRoles: new Set(['scheduled']) });
-    expect(siblingsOf(tree, 'inbox')?.map((n) => n.id)).toEqual(['inbox', 'work']);
+    const group = siblingsOf(buildMailboxTree(withScheduled), 'inbox')?.map((n) => n.id);
+    expect(group).toContain('sched');
+    expect(group).toHaveLength(3);
+    const plan = planFolderMove(siblingsOf(buildMailboxTree(withScheduled), 'inbox')!, 'inbox', 'down');
+    expect(plan.map((u) => u.id).sort()).toEqual(['inbox', 'sched', 'work']);
+  });
+});
+
+describe('withUnlistedFolders', () => {
+  it('lists a folder the tree drops as a duplicate of a role folder, at the top level', () => {
+    const list = [
+      mb('sent', 'Sent', { role: 'sent' }),
+      mb('sent-dup', 'Sent'),
+      mb('work', 'Work'),
+    ];
+    const rows = withUnlistedFolders(flattenAll(buildMailboxTree(list)), list);
+    expect(rows.map((r) => r.id)).toEqual(['sent', 'work', 'sent-dup']);
+    expect(rows[2]).toMatchObject({ id: 'sent-dup', depth: 0, children: [] });
+  });
+
+  it('returns the rows unchanged when the tree lists every folder', () => {
+    const list = [mb('a', 'A'), mb('b', 'B', { parentId: 'a' })];
+    const rows = flattenAll(buildMailboxTree(list));
+    expect(withUnlistedFolders(rows, list)).toBe(rows);
   });
 });
 
