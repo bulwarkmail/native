@@ -927,22 +927,29 @@ export class JMAPClient {
   }
 
   // The id token kept for ending the provider session goes with them.
+  // The credentials go first and the id token after them: a refresh keeps a
+  // new id token only while the credentials are still stored, so with them
+  // gone none can land after the id token's delete. The id token's failure
+  // must never abort a sign-out.
   async clearAccountCredentials(accountId: string): Promise<void> {
     this.rotatedTokens.delete(accountId);
-    await Promise.all([
-      SecureStore.deleteItemAsync(credentialsKey(accountId)),
-      // Its failure must never abort a sign-out.
-      deleteIdToken(accountId).catch(() => undefined),
-    ]);
+    try {
+      await SecureStore.deleteItemAsync(credentialsKey(accountId));
+    } finally {
+      await deleteIdToken(accountId).catch(() => undefined);
+    }
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
     for (const id of accountIds) this.rotatedTokens.delete(id);
-    await Promise.all([
-      SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
-      ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
-      ...accountIds.map((id) => deleteIdToken(id).catch(() => undefined)),
-    ]);
+    try {
+      await Promise.all([
+        SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
+        ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
+      ]);
+    } finally {
+      await Promise.all(accountIds.map((id) => deleteIdToken(id).catch(() => undefined)));
+    }
   }
 
   // One-time migration: if an old single-slot credential exists, return its

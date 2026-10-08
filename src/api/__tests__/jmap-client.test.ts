@@ -349,6 +349,40 @@ describe('JMAPClient', () => {
     });
   });
 
+  describe('the order credentials and id tokens go in', () => {
+    // A refresh keeps a new id token only while the credentials are still
+    // stored (replaceIdToken): gone first, they stop one landing after the
+    // id token's delete.
+    async function deleteLog(clear: () => Promise<void>): Promise<string[]> {
+      const log: string[] = [];
+      vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key: string) => {
+        log.push(`start ${key.split('__')[0]}`);
+        await new Promise((r) => setTimeout(r, 0));
+        log.push(`done ${key.split('__')[0]}`);
+      });
+      try {
+        await clear();
+      } finally {
+        vi.mocked(SecureStore.deleteItemAsync).mockReset();
+      }
+      return log;
+    }
+
+    it('deletes an account\'s credentials before its id token, one after the other', async () => {
+      expect(await deleteLog(() => client.clearAccountCredentials('a@x.com@https://mail.x.com'))).toEqual([
+        'start jmap_credentials', 'done jmap_credentials', 'start oidc_id_token', 'done oidc_id_token',
+      ]);
+    });
+
+    it('deletes every credential before any id token on sign-out-all', async () => {
+      const log = await deleteLog(() => client.clearAllCredentials(['a@x.com@https://mail.x.com', 'b@x.com@https://mail.x.com']));
+      const firstIdToken = log.indexOf('start oidc_id_token');
+      expect(firstIdToken).toBeGreaterThan(-1);
+      expect(log.slice(firstIdToken).some((l) => l.endsWith('credentials'))).toBe(false);
+      expect(log.filter((l) => l === 'start oidc_id_token')).toHaveLength(2);
+    });
+  });
+
   describe('the id token a refresh returns', () => {
     const SERVER = 'https://mail.x.com';
     const ID_KEY = 'oidc_id_token__ada_x.com_mail.x.com';
