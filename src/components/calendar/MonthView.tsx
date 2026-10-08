@@ -2,12 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import {
   addDays,
-  endOfMonth,
   endOfWeek,
   format,
   getISOWeek,
   getWeek,
-  startOfMonth,
   startOfWeek,
   type Locale,
 } from 'date-fns';
@@ -146,7 +144,7 @@ function MonthWeekRowInner({
   onLongPressDate,
 }: MonthWeekRowProps) {
   const c = useColors();
-  const { t } = useCalendarLocale();
+  const { t, calendar } = useCalendarLocale();
   return (
     <View style={[styles.weekRow, height !== undefined && { height, overflow: 'hidden' }]}>
       {showWeekNumbers && (
@@ -162,7 +160,7 @@ function MonthWeekRowInner({
         const maxVisible = showTimeInMonthView ? MAX_CHIPS : MAX_DOTS;
         const visible = dayEvents.slice(0, maxVisible);
         const overflow = Math.max(0, dayEvents.length - maxVisible);
-        const monthLabel = labelMonths && d.getDate() === 1 ? format(d, 'MMM', { locale }) : null;
+        const monthLabel = labelMonths && calendar.isFirstOfMonth(d) ? calendar.shortMonthLabel(d, locale) : null;
 
         return (
           <Pressable
@@ -196,7 +194,7 @@ function MonthWeekRowInner({
                 today && styles.todayText,
                 selected && !today && styles.selectedText,
               ]}>
-                {format(d, 'd')}
+                {calendar.dayOfMonth(d)}
               </Text>
             </View>
             {dayEvents.length > 0 && !showTimeInMonthView && (
@@ -270,7 +268,7 @@ function MonthViewInner({
   onLongPressDate,
 }: MonthViewProps) {
   const styles = useMonthStyles();
-  const { locale } = useCalendarLocale();
+  const { locale, calendar } = useCalendarLocale();
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
     [eventsByDay, events],
@@ -278,8 +276,8 @@ function MonthViewInner({
 
   // The month grid as rows of 7 days.
   const rows = React.useMemo(() => {
-    const calStart = startOfWeek(startOfMonth(currentDate), { weekStartsOn });
-    const calEnd = endOfWeek(endOfMonth(currentDate), { weekStartsOn });
+    const calStart = startOfWeek(calendar.monthStart(currentDate), { weekStartsOn });
+    const calEnd = endOfWeek(calendar.monthEnd(currentDate), { weekStartsOn });
     const out: Date[][] = [];
     let day = calStart;
     while (day <= calEnd) {
@@ -287,8 +285,8 @@ function MonthViewInner({
       day = addDays(day, 7);
     }
     return out;
-  }, [currentDate, weekStartsOn]);
-  const activeMonth = monthKeyOf(currentDate);
+  }, [currentDate, weekStartsOn, calendar]);
+  const activeMonth = monthKeyOf(currentDate, calendar);
   // Today on a clock in the calendar's time zone.
   const today = displayNow();
 
@@ -299,7 +297,7 @@ function MonthViewInner({
         <MonthWeekRow
           key={days[0].toISOString()}
           days={days}
-          activeMask={monthMask(days, activeMonth)}
+          activeMask={monthMask(days, activeMonth, calendar)}
           selectedIndex={dayIndexIn(days, selectedDate)}
           todayIndex={dayIndexIn(days, today)}
           index={index}

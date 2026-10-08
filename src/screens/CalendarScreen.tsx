@@ -25,17 +25,13 @@ import {
 } from 'lucide-react-native';
 import {
   format,
-  startOfWeek,
-  endOfWeek,
   addDays,
   subDays,
-  addMonths,
-  subMonths,
   addWeeks,
   subWeeks,
-  type Locale,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
+import { headerTitleFor } from '../lib/calendar-system';
 import { displayNow, isDisplayToday } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -169,32 +165,12 @@ function confirmSaveWithoutInvitations(
   });
 }
 
-function headerTitle(
-  viewMode: ViewMode,
-  currentDate: Date,
-  weekStartsOn: WeekStart,
-  locale: Locale,
-  firstDay?: Date | null,
-): string {
-  if (viewMode === 'month') return format(currentDate, 'MMMM yyyy', { locale });
-  if (viewMode === 'day') return format(currentDate, 'EEE, MMM d, yyyy', { locale });
-  if (viewMode === 'week') {
-    const start = firstDay ?? startOfWeek(currentDate, { weekStartsOn });
-    const end = firstDay ? addDays(firstDay, 6) : endOfWeek(currentDate, { weekStartsOn });
-    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-      return `${format(start, 'MMM d', { locale })} – ${format(end, 'd, yyyy', { locale })}`;
-    }
-    return `${format(start, 'MMM d', { locale })} – ${format(end, 'MMM d, yyyy', { locale })}`;
-  }
-  return format(currentDate, 'MMMM yyyy', { locale });
-}
-
 export default function CalendarScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const currentUserEmails = useUserCalendarAddresses();
-  const { locale } = useCalendarLocale();
+  const { locale, calendar } = useCalendarLocale();
   const calendarDefaultView = useSettingsStore((s) => s.calendarDefaultView);
   const calendarShowTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showTasksOnCalendar = useSettingsStore((s) => s.showTasksOnCalendar);
@@ -226,8 +202,8 @@ export default function CalendarScreen() {
   // shows exactly one period. Navigation moves the focus and, when that
   // leaves the window, starts a fresh window there.
   const windowOptions = React.useMemo<ScrollWindowOptions>(
-    () => ({ weekStartsOn: calendarFirstDayOfWeek }),
-    [calendarFirstDayOfWeek],
+    () => ({ weekStartsOn: calendarFirstDayOfWeek, calendar }),
+    [calendarFirstDayOfWeek, calendar],
   );
   const [focus, setFocus] = React.useState<CalendarFocus>(() => ({ date: displayNow(), nonce: 0 }));
   // The day the scrolled view shows at its top, while it differs from the focus.
@@ -609,18 +585,18 @@ export default function CalendarScreen() {
     jumpTo(
       viewMode === 'week' ? subWeeks(base, 1)
       : viewMode === 'day' ? subDays(base, 1)
-      : subMonths(base, 1),
+      : calendar.addMonths(base, -1),
     );
-  }, [viewMode, visibleDate, focus.date, jumpTo]);
+  }, [viewMode, visibleDate, focus.date, jumpTo, calendar]);
 
   const goNext = React.useCallback(() => {
     const base = visibleDate ?? focus.date;
     jumpTo(
       viewMode === 'week' ? addWeeks(base, 1)
       : viewMode === 'day' ? addDays(base, 1)
-      : addMonths(base, 1),
+      : calendar.addMonths(base, 1),
     );
-  }, [viewMode, visibleDate, focus.date, jumpTo]);
+  }, [viewMode, visibleDate, focus.date, jumpTo, calendar]);
 
   const goToday = React.useCallback(() => {
     jumpTo(displayNow());
@@ -1150,11 +1126,12 @@ export default function CalendarScreen() {
         <View style={styles.headerLeft}>
           {/* Four view buttons leave less room: shrink a long title instead of wrapping it. */}
           <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {headerTitle(
+            {headerTitleFor(
               viewMode,
               visibleDate ?? focus.date,
               calendarFirstDayOfWeek,
               locale,
+              calendar,
               viewMode === 'week' && freeScroll ? visibleDate : null,
             )}
           </Text>

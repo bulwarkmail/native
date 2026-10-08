@@ -1,13 +1,6 @@
-import {
-  addDays,
-  endOfMonth,
-  endOfWeek,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subDays,
-} from 'date-fns';
+import { addDays, endOfWeek, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { dayKey } from './calendar-utils';
+import { GREGORIAN, type CalendarSystem } from './calendar-system';
 
 /**
  * The calendar views scroll freely (#759; webmail lib/calendar-scroll-window):
@@ -50,6 +43,8 @@ export interface CalendarFocus {
 
 export interface ScrollWindowOptions {
   weekStartsOn: WeekStartsOn;
+  /** The calendar months are laid out in; Gregorian when left out. */
+  calendar?: CalendarSystem;
 }
 
 /** First growth step in days; every further step doubles the side. */
@@ -113,11 +108,13 @@ export function baseRange(mode: ScrollViewMode, date: Date, opts: ScrollWindowOp
         start: startOfWeek(day, { weekStartsOn: opts.weekStartsOn }),
         end: startOfDay(endOfWeek(day, { weekStartsOn: opts.weekStartsOn })),
       };
-    case 'month':
+    case 'month': {
+      const calendar = opts.calendar ?? GREGORIAN;
       return {
-        start: startOfWeek(startOfMonth(day), { weekStartsOn: opts.weekStartsOn }),
-        end: startOfDay(endOfWeek(endOfMonth(day), { weekStartsOn: opts.weekStartsOn })),
+        start: startOfWeek(calendar.monthStart(day), { weekStartsOn: opts.weekStartsOn }),
+        end: startOfDay(endOfWeek(calendar.monthEnd(day), { weekStartsOn: opts.weekStartsOn })),
       };
+    }
     case 'agenda':
       return { start: day, end: addDays(day, SCROLL_WINDOW_STEP) };
   }

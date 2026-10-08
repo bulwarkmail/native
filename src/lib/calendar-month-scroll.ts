@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays } from 'date-fns';
 import { baseRange, type DayRange, type ScrollWindowOptions } from './calendar-scroll-window';
+import { GREGORIAN, type CalendarSystem } from './calendar-system';
 
 /**
  * Geometry of the freely scrolling month view (#759, webmail
@@ -47,9 +48,9 @@ export function sampledRow(
   return Math.max(0, Math.min(rowCount - 1, row));
 }
 
-/** Year and month as one comparable number. */
-export function monthKeyOf(date: Date): number {
-  return date.getFullYear() * 12 + date.getMonth();
+/** Year and month as one comparable number, in `calendar` (Gregorian by default). */
+export function monthKeyOf(date: Date, calendar: CalendarSystem = GREGORIAN): number {
+  return calendar.monthKey(date);
 }
 
 /**
@@ -57,10 +58,14 @@ export function monthKeyOf(date: Date): number {
  * compare this instead of the month itself, so moving to another month only
  * re-renders the rows whose shading changes.
  */
-export function monthMask(days: Date[], monthKey: number): number {
+export function monthMask(
+  days: Date[],
+  monthKey: number,
+  calendar: CalendarSystem = GREGORIAN,
+): number {
   let mask = 0;
   days.forEach((day, i) => {
-    if (monthKeyOf(day) === monthKey) mask |= 1 << i;
+    if (monthKeyOf(day, calendar) === monthKey) mask |= 1 << i;
   });
   return mask;
 }
