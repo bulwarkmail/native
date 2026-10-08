@@ -15,9 +15,18 @@ export interface SenderCheckText {
   caution: string;
 }
 
+// Embedding, override and isolate controls (U+202A-202E, U+2066-2069): in a
+// sender-written host they could make the shown name read as another.
+const BIDI_CONTROLS = /[\u202a-\u202e\u2066-\u2069]/g;
+
 /** Label, message and caution for the banner and badge; null for a verified sender. */
-export function senderCheckText(v: SenderVerification | null, t: Translate): SenderCheckText | null {
-  if (!v) return null;
+export function senderCheckText(verification: SenderVerification | null, t: Translate): SenderCheckText | null {
+  if (!verification) return null;
+  const v = {
+    ...verification,
+    domain: verification.domain.replace(BIDI_CONTROLS, ''),
+    sentFrom: verification.sentFrom?.replace(BIDI_CONTROLS, ''),
+  };
   const failed = v.status === 'failed';
   const label = failed
     ? t('email_viewer.sender_check.failed_label', 'Sender check failed')
@@ -55,8 +64,12 @@ export function senderCheckText(v: SenderVerification | null, t: Translate): Sen
 /**
  * Whether to offer "Always trust this sender". Not for a sender the checks
  * don't back: trusting a forged address would load remote content for the
- * next forgery too.
+ * next forgery too. Nor while the verdict is unknown (`undefined`); `null`
+ * means the checks back the sender or there are none to judge by.
  */
-export function canOfferTrustSender(senderEmail: string | undefined, v: SenderVerification | null): boolean {
-  return !!senderEmail && !v;
+export function canOfferTrustSender(
+  senderEmail: string | undefined,
+  v: SenderVerification | null | undefined,
+): boolean {
+  return !!senderEmail && v === null;
 }

@@ -50,6 +50,17 @@ describe('senderCheckText', () => {
   });
 });
 
+describe('senderCheckText - bidi controls', () => {
+  it('strips them from the domain and host it shows', () => {
+    const text = senderCheckText({
+      status: 'unverified',
+      domain: 'bank\u202e.example\u2066',
+      sentFrom: '\u202aweb1\u2069.hoster\u202c.example\u2067\u2068\u202b\u202d',
+    }, t);
+    expect(text?.message).toBe('email_viewer.sender_check.unverified_sent_from {"domain":"bank.example","host":"web1.hoster.example"}');
+  });
+});
+
 describe('canOfferTrustSender', () => {
   const headers = (value: string) => [{ name: 'Authentication-Results', value }];
   const from = [{ email: 'support@bank.example' }];
@@ -73,6 +84,10 @@ describe('canOfferTrustSender', () => {
     const info = deriveHeaderInfo({ headers: headers('mx; dmarc=fail header.from=bank.example'), messageId: null, from });
     expect(info.senderVerification?.status).toBe('failed');
     expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(false);
+  });
+
+  it('hides it while the verdict is unknown', () => {
+    expect(canOfferTrustSender('support@bank.example', undefined)).toBe(false);
   });
 
   it('hides it without a sender address', () => {

@@ -36,6 +36,8 @@ export interface SpfEntry {
   result: SpfResult;
   identity?: 'mailfrom' | 'helo';
   domain?: string;
+  /** From a header below the receiving server's own, which the sender may have written. */
+  foreign?: true;
 }
 
 export interface DkimEntry {
@@ -45,7 +47,7 @@ export interface DkimEntry {
 }
 
 export interface AuthenticationResults {
-  spf?: { result: SpfResult; domain?: string; all?: SpfEntry[] };
+  spf?: { result: SpfResult; domain?: string; foreign?: true; all?: SpfEntry[] };
   dkim?: {
     result: DkimResult;
     domain?: string;
@@ -123,7 +125,10 @@ function hasDkimPass(auth: AuthenticationResults): boolean {
 
 function domainOf(address: string): string | undefined {
   const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
-  return /^[^\s<>@]+\.[^\s<>@]+$/.test(domain) ? domain : undefined;
+  // The address can be sender-written: cap it at a DNS name's length, and
+  // match labels that can't overlap, so no input makes the test backtrack.
+  if (domain.length > 253) return undefined;
+  return /^[^\s<>@.]+(?:\.[^\s<>@.]+)+$/.test(domain) ? domain : undefined;
 }
 
 export interface SenderVerification {
@@ -158,9 +163,11 @@ export function getSenderVerification(
 
   // DMARC only counts the MAIL FROM identity; a HELO pass proves nothing
   // about who wrote the message.
-  const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom');
+  // The host named comes from the server's own header only: a lower one is
+  // the sender's to write.
+  const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
   const spfPass = auth.spf?.all ? mailFrom?.result === 'pass' : auth.spf?.result === 'pass';
-  const envelope = mailFrom?.domain ?? auth.spf?.domain;
+  const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
   const envelopeDomain = envelope ? domainOf(envelope) : undefined;
   const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
 
@@ -289,7 +296,10 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
   };
   const spfResults: SpfEntry[] = [
     ...own.filter((info) => info.method === 'spf').map(toSpfEntry),
-    ...foreign.filter((info) => info.method === 'spf').map(toSpfEntry).filter((e) => isFailure(e.result)),
+    ...foreign
+      .filter((info) => info.method === 'spf')
+      .map((info): SpfEntry => ({ ...toSpfEntry(info), foreign: true }))
+      .filter((e) => isFailure(e.result)),
   ];
   if (spfResults.length > 0) {
     // MAIL FROM is the primary SPF identity. Another identity (HELO) may only
@@ -306,6 +316,7 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     results.spf = {
       result: primary.result,
       domain: primary.domain,
+      ...(primary.foreign ? { foreign: true as const } : {}),
       ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };
   }

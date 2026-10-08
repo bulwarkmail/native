@@ -259,3 +259,37 @@ describe('getSenderVerification', () => {
     expect(getSenderVerification(phish, undefined)).toBeNull();
   });
 });
+
+describe('getSenderVerification - sender-written input', () => {
+  const from = [{ email: 'support@bank.example' }];
+  const derive = (...values: string[]) => deriveHeaderInfo({
+    headers: values.map((value) => ({ name: 'Authentication-Results', value })),
+    messageId: null,
+    from,
+  });
+
+  it('reads a hostile envelope address in linear time', () => {
+    const hostile = 'x; spf=fail smtp.mailfrom=x@' + 'a.'.repeat(100_000) + '<';
+    const started = performance.now();
+    const info = derive('mx.example.org; dkim=none; dmarc=none', hostile);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(info.senderVerification?.sentFrom).toBeUndefined();
+  });
+
+  it('rejects an overlong domain', () => {
+    const long = 'a'.repeat(250) + '.example';
+    expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=none'), `x@${long}`)).toBeNull();
+  });
+
+  it('takes the sending host from the server\'s own header only', () => {
+    const info = derive('mx; spf=none smtp.helo=web1.hoster.example; dmarc=none', 'forged; spf=fail smtp.mailfrom=x@trusted-looking.example');
+    expect(info.senderVerification?.status).toBe('failed');
+    expect(info.senderVerification?.sentFrom).toBeUndefined();
+    expect(derive('mx; dmarc=none', 'forged; spf=fail smtp.mailfrom=x@trusted-looking.example').senderVerification?.sentFrom).toBeUndefined();
+  });
+
+  it('still names the own header\'s envelope host next to a foreign fail', () => {
+    const info = derive('mx; spf=none smtp.mailfrom=www-data@web1.hoster.example; dmarc=none', 'forged; spf=fail smtp.mailfrom=x@other.example');
+    expect(info.senderVerification?.sentFrom).toBe('web1.hoster.example');
+  });
+});

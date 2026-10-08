@@ -28,7 +28,11 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 interface EmailBodyViewProps {
   email: Email;
   senderEmail?: string;
-  /** Set when the server's checks don't back the sender: no "Always trust". */
+  /**
+   * The sender check (see getSenderVerification). "Always trust" is offered
+   * only when this is null: set means the checks don't back the sender, and
+   * left out means the verdict is unknown.
+   */
   senderVerification?: SenderVerification | null;
   /** Owning account when the message lives in a shared/group mailbox. */
   jmapAccountId?: string;
@@ -726,7 +730,7 @@ export default function EmailBodyView({
     : fill ? styles.webContainerFill : { height: estimate };
 
   const onLoadImages = () => setAllowOnce(true);
-  const offerTrustSender = canOfferTrustSender(senderEmail, senderVerification ?? null);
+  const offerTrustSender = canOfferTrustSender(senderEmail, senderVerification);
   const onTrustSender = () => {
     if (senderEmail && offerTrustSender) {
       // Keep the local allow-list for instant effect, and file the sender in
