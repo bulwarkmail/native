@@ -49,8 +49,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import type { Mailbox } from '../api/types';
-import { sessionSupportsMailShare } from '../lib/capabilities';
-import { MailboxShareSheet } from './MailboxShareSheet';
+import { MailboxShareSheet, canOfferMailboxShare } from './MailboxShareSheet';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -621,12 +620,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       });
     }
     // Shared out on its own account (the owner's for a folder shared with the
-    // user, which only a grantee allowed to re-share may do).
-    const shareAccount = mb.accountId ?? jmapClient.connectedAccountId;
-    if (
-      sessionSupportsMailShare(useAuthStore.getState().session, shareAccount)
-      && (!mb.isShared || mb.myRights?.mayShare === true)
-    ) {
+    // user, which only a grantee allowed to re-share may do), and only while
+    // `owner` is the account shown and served.
+    if (canOfferMailboxShare(mb, owner)) {
       actions.push({
         key: 'share',
         label: t('mailbox_context_menu.share', 'Share...'),

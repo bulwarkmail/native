@@ -2,11 +2,15 @@ import React from 'react';
 import { ActivityIndicator, Alert, Modal, StyleSheet, View } from 'react-native';
 import type { Mailbox, MailboxRights } from '../api/types';
 import { getMailboxShareWith, setMailboxShare } from '../api/email';
-import { inAccount, type OpScope } from '../api/op-scope';
-import { requireShownAccountScope } from '../stores/email-store';
+import type { OpScope } from '../api/op-scope';
+import { jmapClient } from '../api/jmap-client';
+import { AccountNotServedError, isShownAccount, requireShownAccountScope } from '../stores/email-store';
+import { useAuthStore } from '../stores/auth-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { isStaleLoad } from '../lib/network-error';
-import { plainDisplayText } from '../lib/display-text';
+import { clientServesAccount } from '../lib/active-client-account';
+import { sessionSupportsMailShare } from '../lib/capabilities';
+import { mailboxShareScope } from '../lib/mailbox-share';
 import { useColors } from '../theme/colors';
 import { radius, spacing, type ThemePalette } from '../theme/tokens';
 import { ShareCollectionSheet, type ShareCollectionTarget } from './ShareCollectionSheet';
@@ -17,6 +21,18 @@ interface MailboxShareSheetProps {
   /** The app account whose folder list `mailbox` came from. */
   ownerAppAccountId: string | null;
   onClose: () => void;
+}
+
+/**
+ * Whether "Share…" is offered for folder `mb` of app account `owner`, asked
+ * at the tap: the account is the one shown and served, the folder's own
+ * account has mail:share, and a folder shared with the user may be shared
+ * on (`mayShare`).
+ */
+export function canOfferMailboxShare(mb: Mailbox, owner: string | null): boolean {
+  if (!isShownAccount(owner) || !clientServesAccount(owner)) return false;
+  if (mb.isShared && mb.myRights?.mayShare !== true) return false;
+  return sessionSupportsMailShare(useAuthStore.getState().session, mb.accountId ?? jmapClient.connectedAccountId);
 }
 
 interface Opened {
@@ -51,16 +67,13 @@ export function MailboxShareSheet({ mailbox, ownerAppAccountId, onClose }: Mailb
       if (!isStaleLoad(err)) Alert.alert(failed, err instanceof Error ? err.message : String(err));
     };
     let at: OpScope;
+    let id: string;
     try {
-      at = inAccount(
-        requireShownAccountScope(ownerAppAccountId),
-        mailbox.isShared ? mailbox.accountId : undefined,
-      );
+      ({ at, id } = mailboxShareScope(mailbox, requireShownAccountScope(ownerAppAccountId)));
     } catch (err) {
       fail(err);
       return;
     }
-    const id = mailbox.originalId ?? mailbox.id;
     let current = true;
     getMailboxShareWith(id, at)
       .then((shareWith) => {
@@ -68,7 +81,7 @@ export function MailboxShareSheet({ mailbox, ownerAppAccountId, onClose }: Mailb
         setOpened({
           at,
           id,
-          target: { id, name: plainDisplayText(mailbox.name), shareWith },
+          target: { id, name: mailbox.name, shareWith },
         });
       })
       .catch((err: unknown) => { if (current) fail(err); });
@@ -99,7 +112,15 @@ export function MailboxShareSheet({ mailbox, ownerAppAccountId, onClose }: Mailb
     <ShareCollectionSheet
       kind="mailbox"
       target={opened.target}
-      onShare={(_id, principalId, rights) => setMailboxShare(opened.id, principalId, rights, opened.at)}
+      onShare={async (_id, principalId, rights) => {
+        try {
+          await setMailboxShare(opened.id, principalId, rights, opened.at);
+        } catch (err) {
+          // The connection the sheet opened on was replaced (an account
+          // switch): say so in words, not the client's internal reason.
+          throw isStaleLoad(err) ? new AccountNotServedError('switched') : err;
+        }
+      }}
       reload={() => getMailboxShareWith(opened.id, opened.at)}
       onClose={onClose}
     />

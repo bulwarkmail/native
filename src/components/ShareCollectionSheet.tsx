@@ -211,6 +211,24 @@ export function ShareCollectionSheet<K extends ShareKind>({
     }
   };
 
+  // A folder manager may send as the owner, delete the folder and share it
+  // on: that grant is confirmed first, with what it allows.
+  const choosePreset = (principalId: string, p: RolePreset, current: RolePreset | 'custom') => {
+    const grant = () => void applyShare(principalId, presetRights(kind, p));
+    if (p !== 'manager' || current === 'manager' || !strings.managerHint) {
+      grant();
+      return;
+    }
+    Alert.alert(
+      t('sharing.confirm_manager_title', 'Make them a manager?'),
+      strings.managerHint,
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('sharing.preset.manager', 'Manager'), onPress: grant },
+      ],
+    );
+  };
+
   if (!target) return null;
 
   const renderPrincipalLabel = (principalId: string) => {
@@ -218,7 +236,7 @@ export function ShareCollectionSheet<K extends ShareKind>({
     return (
       <View style={styles.principalInfo}>
         <Text style={styles.principalName} numberOfLines={1}>
-          {plainDisplayText(p?.description || p?.name) || principalId}
+          {plainDisplayText(p?.description) || plainDisplayText(p?.name) || principalId}
         </Text>
         {p?.email ? (
           <Text style={styles.principalEmail} numberOfLines={1}>{plainDisplayText(p.email)}</Text>
@@ -259,7 +277,7 @@ export function ShareCollectionSheet<K extends ShareKind>({
                             {order.map((p) => (
                               <Pressable
                                 key={p}
-                                onPress={() => void applyShare(principalId, presetRights(kind, p))}
+                                onPress={() => choosePreset(principalId, p, preset)}
                                 disabled={busy}
                                 style={[styles.chip, preset === p && styles.chipActive]}
                                 accessibilityRole="button"

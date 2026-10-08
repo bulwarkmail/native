@@ -83,9 +83,16 @@ export function detectPreset(
   rights: CalendarRights | AddressBookRights | MailboxRights,
 ): RolePreset | 'custom' {
   const given = rights as Record<string, boolean | undefined>;
+  // Stalwart maps a folder's maySetSeen and maySetKeywords to one ACL
+  // (ModifyItems), so a "Read only" grant reads back with maySetKeywords set:
+  // there the grantee can also flag messages, a limit of the server. Seen
+  // implies keywords when matching, so that readback still reads as 'read'.
+  const impliedKeywords = kind === 'mailbox' && !!given.maySetSeen;
   for (const preset of presetOrder(kind)) {
     const expected = presetRights(kind, preset) as Record<string, boolean | undefined>;
-    if (Object.keys(expected).every((k) => !!expected[k] === !!given[k])) return preset;
+    const matches = Object.keys(expected).every((k) =>
+      (impliedKeywords && k === 'maySetKeywords') || !!expected[k] === !!given[k]);
+    if (matches) return preset;
   }
   return 'custom';
 }

@@ -56,7 +56,7 @@ describe('getMailboxShareWith', () => {
     mockRequest.mockResolvedValue({
       methodResponses: [['Mailbox/get', { list: [], notFound: ['c'] }, '0']],
     });
-    await expect(getMailboxShareWith('c', { gen: 1, accountId: 'own' })).rejects.toThrow('Folder not found');
+    await expect(getMailboxShareWith('c', { gen: 1, accountId: 'own' })).rejects.toThrow('This folder is no longer available.');
   });
 
   it('throws on a method error', async () => {
@@ -87,11 +87,20 @@ describe('setMailboxShare', () => {
     expect(call[1].update).toEqual({ c: { 'shareWith/d': null } });
   });
 
-  it('throws when the server refuses the update', async () => {
+  it('explains a forbidden refusal without the server\'s text', async () => {
     mockRequest.mockResolvedValue({
-      methodResponses: [['Mailbox/set', { notUpdated: { c: { type: 'forbidden', description: 'No' } } }, '0']],
+      methodResponses: [['Mailbox/set', { notUpdated: { c: { type: 'forbidden', description: 'You are not allowed to modify this mailbox.' } } }, '0']],
     });
-    await expect(setMailboxShare('c', 'd', READ, { gen: 1, accountId: 'own' })).rejects.toThrow('No');
+    await expect(setMailboxShare('c', 'd', READ, { gen: 1, accountId: 'own' }))
+      .rejects.toThrow("You don't have permission to share this folder");
+  });
+
+  it('gives the generic failure for any other refusal', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['Mailbox/set', { notUpdated: { c: { type: 'invalidProperties', description: 'raw server text' } } }, '0']],
+    });
+    const err = await setMailboxShare('c', 'd', READ, { gen: 1, accountId: 'own' }).catch((e: Error) => e);
+    expect((err as Error).message).toBe('Failed to update sharing');
   });
 
   it('throws when the server does not confirm the update', async () => {

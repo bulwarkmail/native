@@ -86,7 +86,13 @@ describe('share presets', () => {
     for (const p of presetOrder('mailbox')) {
       expect(detectPreset('mailbox', MAILBOX_PRESETS[p as 'read'])).toBe(p);
     }
-    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, maySetKeywords: true })).toBe('custom');
+    // Stalwart stores maySetSeen and maySetKeywords as one right, so a
+    // "Read only" grant reads back with maySetKeywords set: still 'read'.
+    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, maySetKeywords: true })).toBe('read');
+    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, mayRename: true })).toBe('custom');
+    // Without maySetSeen, maySetKeywords is not implied.
+    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, maySetSeen: false, maySetKeywords: true }))
+      .toBe('custom');
     // A server that leaves mayShare out still reads as the preset.
     const { mayShare: _omit, ...readWithoutShare } = MAILBOX_PRESETS.read;
     expect(detectPreset('mailbox', readWithoutShare)).toBe('read');

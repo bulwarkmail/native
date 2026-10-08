@@ -593,7 +593,7 @@ export function FolderSettings() {
                     closeEditor();
                     setSharing({ mailbox: editor.mailbox, owner: editor.owner });
                   }}
-                  style={styles.deleteRow}
+                  style={styles.shareRow}
                   accessibilityRole="button"
                 >
                   <Share2 size={14} color={c.text} />
@@ -706,6 +706,10 @@ function makeStyles(c: ThemePalette) {
       paddingVertical: spacing.md,
     },
     deleteRowText: { ...typography.body, color: c.error },
+    shareRow: {
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      paddingVertical: spacing.md,
+    },
     shareRowText: { ...typography.body, color: c.text },
     modalActions: {
       flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm,

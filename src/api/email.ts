@@ -331,7 +331,7 @@ export async function getMailboxShareWith(
     res, '0', 'Mailbox/get',
   );
   const mailbox = (body.list ?? []).find((mb) => mb.id === mailboxId);
-  if (!mailbox) throw new Error(t('sharing.folder_not_found', 'Folder not found'));
+  if (!mailbox) throw new Error(t('deep_link.folder_not_found', 'This folder is no longer available.'));
   return mailbox.shareWith ?? null;
 }
 
@@ -356,7 +356,13 @@ export async function setMailboxShare(
     notUpdated?: Record<string, { type?: string; description?: string }> | null;
   }>(res, '0', 'Mailbox/set');
   const err = body.notUpdated?.[mailboxId];
-  if (err) throw new Error(err.description || err.type || t('sharing.share_failed', 'Failed to update sharing'));
+  // The server's own text is not shown: it is not translated, and it names
+  // the folder as "mailbox".
+  if (err) {
+    throw new Error(err.type === 'forbidden'
+      ? t('sharing.folder_share_forbidden', "You don't have permission to share this folder")
+      : t('sharing.share_failed', 'Failed to update sharing'));
+  }
   if (!body.updated || !(mailboxId in body.updated)) {
     throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
   }
