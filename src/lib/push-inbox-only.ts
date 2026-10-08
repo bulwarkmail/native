@@ -37,15 +37,17 @@ export function watchInboxOnlyChange(): () => void {
     if (!shouldResyncForInboxOnly(state, prev)) return;
     void (async () => {
       try {
-        const relayBaseUrl = await getStoredRelayBaseUrl();
+        const username = jmapClient.username;
+        const serverUrl = jmapClient.serverUrl;
+        if (!username || !serverUrl) return;
+        const accountId = generateAccountId(username, serverUrl);
+        const relayBaseUrl = await getStoredRelayBaseUrl(accountId);
         if (!relayBaseUrl) return;
         // The resync asks for the permission when it's missing; a settings
         // toggle never prompts.
         if (!(await hasNotificationPermission())) return;
         await resyncPushNotifications({ relayBaseUrl, accountLabel: jmapClient.username ?? undefined });
-        const username = jmapClient.username;
-        const serverUrl = jmapClient.serverUrl;
-        if (username && serverUrl) markPushRenewed(generateAccountId(username, serverUrl));
+        markPushRenewed(accountId);
       } catch (error) {
         console.warn('[push] inbox-only re-sync failed:', error instanceof Error ? error.message : error);
       }

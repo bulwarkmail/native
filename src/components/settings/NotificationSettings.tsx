@@ -25,7 +25,6 @@ import {
   isValidRelayUrl,
   listPushDevices,
   PushSetupError,
-  readPushAccountIds,
   revokePushDevice,
   setStoredRelayBaseUrl,
   setupPushNotifications,
@@ -103,10 +102,10 @@ export function NotificationSettings() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const stored = await getStoredRelayBaseUrl();
+      const stored = activeAccountId ? await getStoredRelayBaseUrl(activeAccountId) : null;
       const enabled = activeAccountId ? await isPushEnabledForAccount(activeAccountId) : false;
       if (cancelled) return;
-      if (stored) setRelayUrl(stored);
+      setRelayUrl(stored ?? DEFAULT_RELAY_BASE_URL);
       setPushEnabled(enabled);
       setPushStatus(enabled ? { kind: 'enabled' } : { kind: 'idle' });
       const storedTransport = await getStoredPushTransport();
@@ -152,6 +151,13 @@ export function NotificationSettings() {
     return error instanceof Error ? error.message : t('settings.notifications.push.setup_failed', 'Setup failed');
   };
 
+  // Back to the hosted relay for the shown account. An enabled registration
+  // keeps its old relay until Re-register moves it.
+  const handleResetRelay = async () => {
+    if (activeAccountId) await setStoredRelayBaseUrl(null, activeAccountId);
+    setRelayUrl(DEFAULT_RELAY_BASE_URL);
+  };
+
   const handleEnable = async (forceRecreate = false) => {
     if (!relayValid) {
       setPushStatus({
@@ -165,7 +171,7 @@ export function NotificationSettings() {
       message: t('settings.notifications.push.status_busy', 'Working…'),
     });
     try {
-      await setStoredRelayBaseUrl(trimmed);
+      if (activeAccountId) await setStoredRelayBaseUrl(trimmed, activeAccountId);
       await setupPushNotifications({
         relayBaseUrl: trimmed,
         accountLabel: username ?? undefined,
@@ -210,14 +216,6 @@ export function NotificationSettings() {
     try {
       if (activeAccountId) {
         await disablePushForAccount(activeAccountId);
-      }
-      // The relay base URL is a device-wide setting shared with any other
-      // accounts that are still using push. Only clear it when no accounts
-      // are using push any more.
-      const remaining = await readPushAccountIds();
-      if (remaining.length === 0) {
-        await setStoredRelayBaseUrl(null);
-        setRelayUrl(DEFAULT_RELAY_BASE_URL);
       }
       setPushEnabled(false);
       setPushStatus({ kind: 'idle' });
@@ -373,6 +371,18 @@ export function NotificationSettings() {
           <Text style={styles.errorText}>
             {t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL')}
           </Text>
+        )}
+        {relayUrl.trim().replace(/\/+$/, '') !== DEFAULT_RELAY_BASE_URL && (
+          <View style={styles.actions}>
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => void handleResetRelay()}
+              disabled={!supported || busy}
+            >
+              {t('settings.notifications.push.relay_reset_mobile', 'Reset to default')}
+            </Button>
+          </View>
         )}
         {pushEnabled && (
           <View style={styles.actions}>

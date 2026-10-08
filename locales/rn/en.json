@@ -1071,6 +1071,7 @@
         "phase_verify": "Verification",
         "relay_desc_mobile": "The server that delivers your notifications. Defaults to the hosted Bulwark relay; change only if you self-host. Must use https.",
         "relay_invalid": "Enter a valid https:// URL",
+        "relay_reset_mobile": "Reset to default",
         "setup_failed": "Setup failed",
         "status_android_only": "Background notifications are available on Android only.",
         "transport_desc": "How notifications reach this device: Google’s Firebase Cloud Messaging, or a UnifiedPush distributor app (such as ntfy) for Google-free delivery.",

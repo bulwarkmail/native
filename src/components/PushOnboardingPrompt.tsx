@@ -96,8 +96,8 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
     setBusy(true);
     setError(null);
     try {
-      const relayBaseUrl = (await getEffectiveRelayBaseUrl()) || DEFAULT_RELAY_BASE_URL;
-      await setStoredRelayBaseUrl(relayBaseUrl);
+      const relayBaseUrl = (await getEffectiveRelayBaseUrl(activeAccountId)) || DEFAULT_RELAY_BASE_URL;
+      await setStoredRelayBaseUrl(relayBaseUrl, activeAccountId);
       await setupPushNotifications({ relayBaseUrl, accountLabel: username ?? undefined });
       await dismissPushPrompt(activeAccountId);
       setVisible(false);

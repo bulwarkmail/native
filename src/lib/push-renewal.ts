@@ -37,7 +37,7 @@ async function renewAccount(accountId: string): Promise<'renewed' | 'fine' | 'fa
   if (accountId !== activePushAccountId()) {
     return renewDetachedPushSubscription(accountId);
   }
-  const relayBaseUrl = await getStoredRelayBaseUrl();
+  const relayBaseUrl = await getStoredRelayBaseUrl(accountId);
   if (!relayBaseUrl) return null;
   try {
     // The resync asks for the permission when it's missing; a renewal never

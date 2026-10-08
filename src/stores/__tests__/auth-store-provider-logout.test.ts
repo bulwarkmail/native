@@ -36,6 +36,7 @@ vi.mock('../../api/jmap-client', () => ({
 vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotifications: vi.fn(async () => undefined),
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
+  clearStoredRelayBaseUrl: vi.fn(async () => undefined),
 }));
 
 vi.mock('../account-data-cleanup', () => ({

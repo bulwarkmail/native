@@ -40,6 +40,7 @@ import {
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
+  clearStoredRelayBaseUrl,
 import { singleFlightByKey } from '../lib/session-retry';
 // jmapClient's `StaleLoadError`, matched by name (suites that mock the client
 // module need not export the class).
@@ -765,6 +766,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     jmapClient.reset();
     clearAccountFeatureStores(currentId);
+      await clearStoredRelayBaseUrl(currentId).catch(() => undefined);
     const lastAccount = useAccountStore.getState().accounts.length === 0;
     // Best-effort: a cleanup error must not leave the app half signed out.
     if (currentId) {
@@ -983,6 +985,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // yet when refetchFeatureStores() checks currentMailboxId / loadedRange
       // at the end of this function.
       await Promise.all([
+    await clearStoredRelayBaseUrl(accountId).catch(() => undefined);
         waitForHydration(useAccountStore),
         waitForHydration(useEmailStore),
         waitForHydration(useCalendarStore),
