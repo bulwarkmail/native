@@ -198,6 +198,24 @@ describe('signing out of a direct PKCE account', () => {
     expect(useAuthStore.getState().activeAccountId).toBe(eve.id);
   });
 
+  it('keeps the provider session while an account on the same server has credentials it cannot read', async () => {
+    // It may be a hand-off account; ending the session it may need is worse
+    // than leaving one open. Bob, at another provider, takes over, so Una is
+    // left signed in rather than switched to.
+    const una = entry('una@example.com');
+    accounts([[BOB, bundle('native'), 'bob-id-token'], [ADA, bundle('native'), 'ada-id-token'], [una, null, null]], ADA.id);
+    (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+    const readOthers = storedCredentials.getMockImplementation() as (id: string) => Promise<unknown>;
+    storedCredentials.mockImplementation(async (id: string) => {
+      if (id === una.id) throw new Error('keystore unavailable');
+      return readOthers(id);
+    });
+
+    await useAuthStore.getState().logout();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockOpen).not.toHaveBeenCalled();
+  });
+
   it('a password or pairing account on the same server does not hold the provider session', async () => {
     const pat = entry('pat@example.com');
     const pia = entry('pia@example.com');

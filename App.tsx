@@ -278,6 +278,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   // Rebuilt with the palette, which changes with the font size too.
   const chrome = React.useMemo(() => StyleSheet.create({
     tabLabel: { ...typography.tabLabel, textAlign: 'center' },
+    // Beside-icon labels (wide tablets) keep the built-in spacing from the icon.
+    tabLabelBeside: { marginStart: 5, lineHeight: 24, textAlign: 'left' },
     tabBadge: {
       position: 'absolute',
       top: -2,
@@ -318,8 +320,12 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           shadowOpacity: 0,
           shadowColor: 'transparent',
         },
-        tabBarLabel: ({ color, children }) => (
-          <Text style={[chrome.tabLabel, { color }]} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
+        tabBarLabel: ({ color, position, children }) => (
+          <Text
+            style={[chrome.tabLabel, position === 'beside-icon' && chrome.tabLabelBeside, { color }]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+          >
             {children}
           </Text>
         ),
@@ -330,12 +336,20 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         options={{
           title: tabLabels.mail,
           // Drawn here rather than as tabBarBadge, whose Text takes no font
-          // scale cap.
-          tabBarIcon: ({ color, size }) => (
+          // scale cap. The tab bar draws the icon twice, an active and an
+          // inactive copy over each other, so only one copy's count is left
+          // for screen readers.
+          tabBarIcon: ({ color, size, focused }) => (
             <View>
               <Mail size={size} color={color} />
               {inboxBadge ? (
-                <Text style={chrome.tabBadge} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
+                <Text
+                  style={chrome.tabBadge}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+                  accessibilityElementsHidden={!focused}
+                  importantForAccessibility={focused ? 'auto' : 'no-hide-descendants'}
+                >
                   {inboxBadge}
                 </Text>
               ) : null}

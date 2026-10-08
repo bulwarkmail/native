@@ -287,8 +287,11 @@ async function providerStillInUse(providerLogout: AccountProviderLogout, remaini
   const origin = originOfUrl(providerLogout.serverUrl);
   for (const a of remaining) {
     if (originOfUrl(a.serverUrl) !== origin) continue;
-    const credentials = await jmapClient.getStoredCredentials(a.id).catch(() => null);
-    if (credentials?.tokenSource === 'handoff') return true;
+    // An account whose credentials cannot be read may be a hand-off one:
+    // count it, as ending a provider session another account needs is worse
+    // than leaving one open.
+    const credentials = await jmapClient.getStoredCredentials(a.id).catch(() => 'unreadable' as const);
+    if (credentials === 'unreadable' || credentials?.tokenSource === 'handoff') return true;
   }
   return false;
 }
