@@ -22,6 +22,7 @@ import { useSendQueueStore } from '../send-queue-store';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSearchHistoryStore } from '../search-history-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from '../calendar-subscriptions-store';
+import { useFolderIconsStore } from '../folder-icons-store';
 
 const A = 'a@mail.example.com';
 const B = 'b@mail.example.com';
@@ -70,6 +71,14 @@ describe('forgetAccountData', () => {
     for (const k of bKeys) expect(await AsyncStorage.getItem(k)).not.toBeNull();
     expect(useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id)).toEqual(['s2']);
     expect(useOutboxStore.getState().entries).toHaveLength(1);
+  });
+
+  it('forgets the account\'s folder icons and keeps the other account\'s', async () => {
+    await useFolderIconsStore.getState().hydrate();
+    useFolderIconsStore.getState().setIcon(A, 'c', 'Heart');
+    useFolderIconsStore.getState().setIcon(B, 'c', 'Bell');
+    await forgetAccountData({ appAccountId: A });
+    expect(useFolderIconsStore.getState().icons).toEqual({ [B]: { c: 'Bell' } });
   });
 
   it('forgets the account\'s cached identities even when its outbox is kept', async () => {

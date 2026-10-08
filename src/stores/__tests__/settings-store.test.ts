@@ -215,6 +215,25 @@ describe('settings-store', () => {
       expect(useSettingsStore.getState().fontSize).toBe('large');
     });
 
+    it('defaults colorfulSidebarIcons to true and round-trips it through export/import', () => {
+      expect(useSettingsStore.getState().colorfulSidebarIcons).toBe(true);
+      useSettingsStore.getState().updateSetting('colorfulSidebarIcons', false);
+      const json = useSettingsStore.getState().exportSettings();
+      expect(JSON.parse(json)).toHaveProperty('colorfulSidebarIcons', false);
+      useSettingsStore.getState().resetToDefaults();
+      expect(useSettingsStore.getState().colorfulSidebarIcons).toBe(true);
+      expect(useSettingsStore.getState().importSettings(json)).toBe(true);
+      expect(useSettingsStore.getState().colorfulSidebarIcons).toBe(false);
+      expect(mergeWithDefaults({ colorfulSidebarIcons: 'no' } as never).colorfulSidebarIcons).toBe(true);
+    });
+
+    it('imports a Saturday first day of week', () => {
+      expect(useSettingsStore.getState().importSettings(JSON.stringify({ firstDayOfWeek: 6 }))).toBe(true);
+      expect(useSettingsStore.getState().calendarFirstDayOfWeek).toBe(6);
+      useSettingsStore.getState().importSettings(JSON.stringify({ firstDayOfWeek: 3 }));
+      expect(useSettingsStore.getState().calendarFirstDayOfWeek).toBe(1);
+    });
+
     it('rejects non-object JSON', () => {
       expect(useSettingsStore.getState().importSettings('[1,2]')).toBe(false);
       expect(useSettingsStore.getState().importSettings('not json')).toBe(false);

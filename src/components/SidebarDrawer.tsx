@@ -21,6 +21,9 @@ import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { planEmptyFolder } from '../lib/empty-folder';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
+import { useFolderIconsStore, folderIconOf } from '../stores/folder-icons-store';
+import { roleIconColor } from '../lib/sidebar-icon-color';
+import { folderIconComponent } from './folder-icon';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
 import { queuedSendCount } from '../lib/outbox-rows';
@@ -99,26 +102,6 @@ function iconFor(
   if (lower.includes('star') || lower.includes('flag')) return Star;
   if (hasChildren) return isExpanded ? FolderOpen : Folder;
   return Folder;
-}
-
-const ROLE_COLOR_FIXED: Record<string, string> = {
-  inbox: '#60a5fa',
-  sent: '#4ade80',
-  drafts: '#a78bfa',
-  junk: '#f87171',
-  spam: '#f87171',
-  archive: '#fbbf24',
-  important: '#f97316',
-  flagged: '#f59e0b',
-  scheduled: '#38bdf8',
-  snoozed: '#c084fc',
-  memos: '#fbbf24',
-};
-
-function iconColor(c: ThemePalette, role: string | null | undefined, isSelected: boolean): string {
-  if (role === 'trash') return c.textMuted;
-  if (role && ROLE_COLOR_FIXED[role]) return ROLE_COLOR_FIXED[role];
-  return isSelected ? c.text : c.textSecondary;
 }
 
 function RowCounts({ unread, total, showTotal, onPressUnread }: {
@@ -336,6 +319,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const accounts = useAccountStore((s) => s.accounts);
   const setDefaultAccount = useAccountStore((s) => s.setDefaultAccount);
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
+  const colorfulSidebarIcons = useSettingsStore((s) => s.colorfulSidebarIcons);
+  const folderIcons = useFolderIconsStore((s) => s.icons);
+  const folderIconsHydrated = useFolderIconsStore((s) => s.hydrated);
+  const hydrateFolderIcons = useFolderIconsStore((s) => s.hydrate);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
@@ -361,6 +348,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const ensureTagCounts = useTagCountsStore((s) => s.ensure);
 
   React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
+  React.useEffect(() => { if (!folderIconsHydrated) void hydrateFolderIcons(); }, [folderIconsHydrated, hydrateFolderIcons]);
 
   React.useEffect(() => {
     void (async () => {
@@ -647,6 +635,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 owner,
                 async (at) => {
                   await deleteMailbox(ref.id, inAccount(at, ref.accountId), { onDestroyRemoveEmails: mb.totalEmails > 0 });
+                  // Icons are set only on own folders, under the account that owns them.
+                  if (!mb.isShared && owner) useFolderIconsStore.getState().setIcon(owner, mb.id, null);
                   if (currentMailboxId === mb.id) {
                     const inbox = ownMailboxes(mailboxes).find((m) => m.role === 'inbox');
                     if (inbox) void selectMailbox(inbox.id);
@@ -1101,7 +1091,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       return (
                         <SidebarRow
                           key={r.role}
-                          icon={<Icon size={16} color={iconColor(c, r.role, false)} />}
+                          icon={<Icon size={16} color={roleIconColor(r.role, false, colorfulSidebarIcons, c)} />}
                           label={t(`sidebar.unified_${r.role}`, `All ${r.role}`)}
                           depth={0}
                           isSelected={false}
@@ -1146,11 +1136,18 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 visibleNodes.map((node) => {
                   const hasChildren = node.children.length > 0;
                   const isExpanded = expandedFolders.has(node.id);
+                  // A custom icon (Settings → Folders) is set only on own
+                  // folders, under the account whose folders are listed.
+                  const customIcon = node.isAccountNode || node.isShared
+                    ? undefined
+                    : folderIconOf({ icons: folderIcons }, shownAccountId, node.id);
                   // A shared/group account's header has no mailbox behind it —
                   // tapping it only opens or closes that account's folders.
                   const Icon = node.isAccountNode
                     ? Users
-                    : iconFor(node.role, node.name, hasChildren, isExpanded);
+                    : customIcon
+                      ? folderIconComponent(customIcon)
+                      : iconFor(node.role, node.name, hasChildren, isExpanded);
                   const isSelected = !node.isAccountNode && !tagViewActive && node.id === currentMailboxId;
                   return (
                     <SidebarRow
@@ -1158,7 +1155,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       icon={
                         <Icon
                           size={16}
-                          color={node.isAccountNode ? c.textMuted : iconColor(c, node.role, isSelected)}
+                          color={node.isAccountNode ? c.textMuted : roleIconColor(node.role, isSelected, colorfulSidebarIcons, c)}
                         />
                       }
                       label={node.isAccountNode ? node.name : localizeMailboxName(node.role, node.name, t)}

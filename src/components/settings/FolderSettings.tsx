@@ -28,6 +28,9 @@ import { createMailbox, updateMailbox, deleteMailbox, setMailboxSortOrders } fro
 import { inAccount } from '../../api/op-scope';
 import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
+import { useFolderIconsStore, folderIconOf } from '../../stores/folder-icons-store';
+import { FOLDER_ICON_NAMES, type FolderIconName } from '../../lib/folder-icons';
+import { folderIconComponent } from '../folder-icon';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -97,6 +100,12 @@ export function FolderSettings() {
   const [draftParent, setDraftParent] = useState<string>(NO_PARENT);
   const [draftAccount, setDraftAccount] = useState<string>(OWN_ACCOUNT);
   const [draftRole, setDraftRole] = useState<string>(NO_ROLE);
+  // null: the role's (or the plain folder) icon. Written on save only once
+  // picked, so an editor opened before the stored icons were read cannot
+  // clear one.
+  const [draftIcon, setDraftIcon] = useState<FolderIconName | null>(null);
+  const [iconPicked, setIconPicked] = useState(false);
+  const pickIcon = (name: FolderIconName | null) => { setDraftIcon(name); setIconPicked(true); };
   const [busyId, setBusyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
@@ -109,6 +118,18 @@ export function FolderSettings() {
   useEffect(() => {
     if (mailboxes.length === 0) void fetchMailboxes();
   }, [mailboxes.length, fetchMailboxes]);
+
+  const folderIcons = useFolderIconsStore((s) => s.icons);
+  const folderIconsHydrated = useFolderIconsStore((s) => s.hydrated);
+  const hydrateFolderIcons = useFolderIconsStore((s) => s.hydrate);
+  const pruneFolderIcons = useFolderIconsStore((s) => s.prune);
+  useEffect(() => { if (!folderIconsHydrated) void hydrateFolderIcons(); }, [folderIconsHydrated, hydrateFolderIcons]);
+  // Folders deleted elsewhere (webmail, another device) leave their icon
+  // behind: once this account's folders are listed, drop icons for ids that
+  // are gone. Only the shown account's entries are touched.
+  useEffect(() => {
+    if (shownAccountId && mailboxes.length > 0) pruneFolderIcons(shownAccountId, mailboxes.map((m) => m.id));
+  }, [shownAccountId, mailboxes, pruneFolderIcons]);
 
   // Shared/group accounts the user may create folders in (webmail: "New
   // folder" on a shared account header routes to the owner account).
@@ -154,6 +175,8 @@ export function FolderSettings() {
     setDraftParent(NO_PARENT);
     setDraftAccount(OWN_ACCOUNT);
     setDraftRole(NO_ROLE);
+    setDraftIcon(null);
+    setIconPicked(false);
   };
 
   const openEdit = (mailbox: Mailbox) => {
@@ -162,6 +185,8 @@ export function FolderSettings() {
     setDraftParent(mailbox.parentId ?? NO_PARENT);
     setDraftAccount(OWN_ACCOUNT);
     setDraftRole(mailbox.role ?? NO_ROLE);
+    setDraftIcon(folderIconOf(useFolderIconsStore.getState(), shownAccountId, mailbox.id) ?? null);
+    setIconPicked(false);
   };
 
   const closeEditor = () => setEditor(null);
@@ -225,10 +250,15 @@ export function FolderSettings() {
         const raw = parentId
           ? allMailboxes.find((m) => m.id === parentId)?.originalId ?? parentId
           : null;
-        await createMailbox(
+        const id = await createMailbox(
           { name, parentId: raw, ...(draftRole !== NO_ROLE ? { role: draftRole } : {}) },
           inAccount(at, accountId),
         );
+        // Icons are kept for own folders only, under the account the editor
+        // was opened on (never the live one, which a switch may have moved).
+        if (!accountId && draftIcon && editor.owner) {
+          useFolderIconsStore.getState().setIcon(editor.owner, id, draftIcon);
+        }
       } else {
         const mb = editor.mailbox;
         const changes: { name?: string; parentId?: string | null; role?: string | null } = {};
@@ -238,6 +268,7 @@ export function FolderSettings() {
         const nextRole = draftRole === NO_ROLE ? null : draftRole;
         if ((mb.role ?? null) !== nextRole) changes.role = nextRole;
         if (Object.keys(changes).length > 0) await updateMailbox(mb.id, changes, at);
+        if (iconPicked && editor.owner) useFolderIconsStore.getState().setIcon(editor.owner, mb.id, draftIcon);
       }
       closeEditor();
       // A reparent moves the whole subtree: re-read the tree rather than
@@ -289,6 +320,7 @@ export function FolderSettings() {
     setBusyId(mailbox.id);
     try {
       await deleteMailbox(mailbox.id, at, { onDestroyRemoveEmails: removeEmails });
+      if (owner) useFolderIconsStore.getState().setIcon(owner, mailbox.id, null);
       await fetchMailboxes();
     } catch (err) {
       Alert.alert(t('mailbox_context_menu.toast_error_delete', 'Failed to delete folder'), err instanceof Error ? err.message : String(err));
@@ -345,7 +377,8 @@ export function FolderSettings() {
         ) : (
           <View>
             {rows.map((mb) => {
-              const Icon = getIcon(mb);
+              const custom = folderIconOf({ icons: folderIcons }, shownAccountId, mb.id);
+              const Icon = custom ? folderIconComponent(custom) : getIcon(mb);
               const edge = edges.get(mb.id);
               const canMoveUp = !reordering && edge !== undefined && !edge.first;
               const canMoveDown = !reordering && edge !== undefined && !edge.last;
@@ -488,6 +521,41 @@ export function FolderSettings() {
                 </>
               )}
 
+              {draftAccount === OWN_ACCOUNT && (
+                <>
+                  <Text style={styles.fieldLabel}>{t('settings.folders.change_icon', 'Change icon')}</Text>
+                  <View style={styles.iconGrid}>
+                    <Pressable
+                      onPress={() => pickIcon(null)}
+                      style={[styles.iconDefault, draftIcon === null && styles.iconChoiceSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: draftIcon === null }}
+                    >
+                      <Text style={[styles.iconDefaultText, draftIcon === null && styles.iconDefaultTextSelected]}>
+                        {t('settings.folders.default_icon', 'Default icon')}
+                      </Text>
+                    </Pressable>
+                    {FOLDER_ICON_NAMES.map((name) => {
+                      const Choice = folderIconComponent(name);
+                      const selected = draftIcon === name;
+                      return (
+                        <Pressable
+                          key={name}
+                          onPress={() => pickIcon(name)}
+                          style={[styles.iconChoice, selected && styles.iconChoiceSelected]}
+                          hitSlop={2}
+                          accessibilityRole="button"
+                          accessibilityLabel={name}
+                          accessibilityState={{ selected }}
+                        >
+                          <Choice size={18} color={selected ? c.primaryForeground : c.mutedForeground} />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
               {editor?.kind === 'edit' && !editor.mailbox.role && (
                 <Pressable
                   onPress={() => {
@@ -569,6 +637,20 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1, borderColor: c.border, borderRadius: radius.sm,
       paddingHorizontal: spacing.md, paddingVertical: 10,
     },
+    iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    iconChoice: {
+      width: 40, height: 40, borderRadius: radius.sm,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.surface,
+    },
+    iconChoiceSelected: { backgroundColor: c.primary },
+    iconDefault: {
+      height: 40, paddingHorizontal: spacing.md, borderRadius: radius.sm,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.surface,
+    },
+    iconDefaultText: { ...typography.caption, color: c.text },
+    iconDefaultTextSelected: { color: c.primaryForeground },
     deleteRow: {
       flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
       paddingVertical: spacing.md,
