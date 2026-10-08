@@ -24,7 +24,6 @@ import {
   Menu,
 } from 'lucide-react-native';
 import {
-  format,
   addDays,
   subDays,
   addWeeks,
