@@ -15,9 +15,10 @@ export interface SenderCheckText {
   caution: string;
 }
 
-// Embedding, override and isolate controls (U+202A-202E, U+2066-2069): in a
-// sender-written host they could make the shown name read as another.
-const BIDI_CONTROLS = /[\u202a-\u202e\u2066-\u2069]/g;
+// Embedding, override and isolate controls (U+202A-202E, U+2066-2069) and the
+// directional marks (U+200E, U+200F, U+061C): in a sender-written host they
+// could make the shown name read as another.
+const BIDI_CONTROLS = /[\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]/g;
 
 /** Label, message and caution for the banner and badge; null for a verified sender. */
 export function senderCheckText(verification: SenderVerification | null, t: Translate): SenderCheckText | null {

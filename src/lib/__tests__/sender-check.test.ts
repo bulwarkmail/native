@@ -59,6 +59,11 @@ describe('senderCheckText - bidi controls', () => {
     }, t);
     expect(text?.message).toBe('email_viewer.sender_check.unverified_sent_from {"domain":"bank.example","host":"web1.hoster.example"}');
   });
+
+  it('strips the directional marks too', () => {
+    const text = senderCheckText({ status: 'unverified', domain: 'bank\u200f.ex\u200eample\u061c' }, t);
+    expect(text?.message).toContain('"domain":"bank.example"');
+  });
 });
 
 describe('canOfferTrustSender', () => {
