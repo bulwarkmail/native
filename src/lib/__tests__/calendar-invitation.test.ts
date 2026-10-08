@@ -6,6 +6,7 @@ import {
   extractMethodFromRawIcs,
   findCalendarAttachment,
   getEmailAuthenticationResults,
+  getInvitationActorSummary,
   getInvitationMethod,
   getInvitationTrustAssessment,
 } from '../calendar-invitation';
@@ -162,5 +163,44 @@ describe('calendarInvitationKey', () => {
     expect(calendarInvitationKey(invite, findCalendarAttachment(invite))).toBe('|e1|b1');
     expect(calendarInvitationKey(other, findCalendarAttachment(other))).toBe('|e1|b2');
     expect(calendarInvitationKey({ id: 'e2' }, null)).toBeNull();
+  });
+});
+
+describe('invitation actor', () => {
+  const replyEvent = {
+    organizerCalendarAddress: 'mailto:alice@example.com',
+    participants: {
+      a: { name: 'Alice', calendarAddress: 'mailto:alice@example.com', roles: { attendee: true } },
+      c: { name: 'Carol', calendarAddress: 'mailto:carol@example.com', roles: { attendee: true }, participationStatus: 'needs-action' as const },
+      b: {
+        name: 'Bob', calendarAddress: 'mailto:bob@example.com', roles: { attendee: true },
+        participationStatus: 'accepted' as const, participationComment: 'See you',
+      },
+    },
+  };
+
+  it('names the responding attendee for a reply, with their status and note', () => {
+    expect(getInvitationActorSummary(replyEvent, 'reply')).toMatchObject({
+      name: 'Bob', email: 'bob@example.com', role: 'attendee',
+      participationStatus: 'accepted', participationComment: 'See you',
+    });
+  });
+
+  it('names the organizer for a request, finding it by organizerCalendarAddress on Stalwart', () => {
+    // Stalwart marks no owner/chair role; the organizer is only known by address.
+    expect(getInvitationActorSummary(replyEvent, 'request')).toMatchObject({
+      name: 'Alice', email: 'alice@example.com', role: 'organizer', participationComment: null,
+    });
+    expect(getInvitationActorSummary(request, 'cancel')).toMatchObject({ email: 'alice@example.com', role: 'organizer' });
+  });
+
+  it('names the attendee who proposed a change, never the organizer', () => {
+    expect(getInvitationActorSummary(replyEvent, 'counter')?.name).toBe('Bob');
+    expect(getInvitationActorSummary(request, 'refresh')).toMatchObject({ email: 'bob@example.com', role: 'attendee' });
+  });
+
+  it('returns null without participants', () => {
+    expect(getInvitationActorSummary({ title: 'x' }, 'request')).toBeNull();
+    expect(getInvitationActorSummary({ participants: {} }, 'reply')).toBeNull();
   });
 });

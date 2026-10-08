@@ -84,6 +84,76 @@ export function buildReplyTo(event: Partial<CalendarEvent>): Record<string, stri
   return null;
 }
 
+// ─── Who sent the invitation ─────────────────────────────
+
+export interface InvitationActorSummary {
+  name: string | null;
+  email: string | null;
+  role: 'organizer' | 'attendee';
+  participationStatus: string | null;
+  participationComment: string | null;
+}
+
+// How strongly a participant looks like the one answering: a status other
+// than needs-action and a note count most, a schedule status a little.
+function getParticipantSignalScore(p: Participant): number {
+  let score = 0;
+  if (p.participationStatus && p.participationStatus !== 'needs-action') score += 2;
+  if (p.participationComment) score += 2;
+  if (p.scheduleStatus?.length) score += 1;
+  return score;
+}
+
+/**
+ * The participant an invitation message comes from: the answering attendee
+ * for a REPLY, COUNTER or REFRESH, the organizer for what an organizer sends.
+ * Stalwart marks no owner/chair role, so the organizer is also found by
+ * `organizerCalendarAddress`. Port of the webmail's getInvitationActorSummary.
+ */
+export function getInvitationActorSummary(
+  event: Partial<CalendarEvent>,
+  method: InvitationMethod,
+): InvitationActorSummary | null {
+  if (!event.participants) return null;
+  const participants = Object.values(event.participants);
+  let organizer = participants.find(isOrganizerParticipant) ?? null;
+  if (!organizer && event.organizerCalendarAddress) {
+    organizer = participants.find((p) => p.calendarAddress === event.organizerCalendarAddress) ?? null;
+  }
+  const attendees = participants.filter((p) => p !== organizer && !isOrganizerParticipant(p));
+  const respondingAttendee = [...attendees].sort(
+    (left, right) => getParticipantSignalScore(right) - getParticipantSignalScore(left),
+  )[0] ?? null;
+
+  let source: Participant | null;
+  switch (method) {
+    case 'reply':
+    case 'counter':
+    case 'refresh':
+      source = respondingAttendee;
+      break;
+    case 'declinecounter':
+    case 'request':
+    case 'publish':
+    case 'add':
+    case 'cancel':
+      source = organizer ?? respondingAttendee;
+      break;
+    default:
+      source = respondingAttendee ?? organizer;
+  }
+  if (!source) return null;
+
+  return {
+    name: source.name || getParticipantEmail(source),
+    email: getParticipantEmail(source),
+    // The organizer found by address is the organizer too, though it has no role.
+    role: source === organizer || isOrganizerParticipant(source) ? 'organizer' : 'attendee',
+    participationStatus: source.participationStatus ?? null,
+    participationComment: source.participationComment ?? null,
+  };
+}
+
 // ─── Content-Type helpers ────────────────────────────────
 
 export function parseContentType(value?: string | null): { mimeType: string; params: Record<string, string> } {

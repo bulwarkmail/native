@@ -3,23 +3,28 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { openExternalUrl } from '../../lib/open-url';
 import {
   CalendarPlus, Check, HelpCircle, X, MapPin, Video, Clock, CalendarDays, AlertTriangle,
-  ShieldCheck, ShieldAlert, ChevronDown,
+  ShieldCheck, ShieldAlert, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
+import type { RootStackParamList } from '../../navigation/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { fetchCalendarBlobText, findEventsByUid, parseCalendarBlob } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useLocaleStore } from '../../stores/locale-store';
+import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
 import {
   calendarInvitationKey,
   findCalendarAttachment,
   findParticipantByEmail,
+  getInvitationActorSummary,
   getInvitationMethod,
   getInvitationTrustAssessment,
   getOrganizerName,
+  isOrganizerParticipant,
   buildReplyTo,
   type InvitationMethod,
   type InvitationTrustAssessment,
@@ -28,7 +33,9 @@ import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, getEventStartDate, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
-import { requireShownAccountScope } from '../../stores/email-store';
+import { requireShownAccountScope, useEmailStore } from '../../stores/email-store';
+import { invitationViewTarget } from '../../lib/invitation-view-target';
+import { setPendingCalendarView } from '../../navigation/pending-calendar-open';
 import { importAndRespond, importInvitation } from '../../lib/invitation-actions';
 import type { OpScope } from '../../api/op-scope';
 import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
@@ -66,10 +73,54 @@ function trustReasonText(
   }
 }
 
+function participationLabel(
+  status: string | null,
+  t: (key: string, fallback?: string) => string,
+): string | null {
+  switch (status) {
+    case 'accepted': return t('email_viewer.calendar_invitation.response_accepted', 'Accepted');
+    case 'tentative': return t('email_viewer.calendar_invitation.response_tentative', 'Tentative');
+    case 'declined': return t('email_viewer.calendar_invitation.response_declined', 'Declined');
+    case 'delegated': return t('email_viewer.calendar_invitation.response_delegated', 'Delegated');
+    case 'needs-action': return t('email_viewer.calendar_invitation.response_needed', 'Needs response');
+    default: return null;
+  }
+}
+
+// Who the message comes from and what they did, by iTIP method.
+function actorText(
+  method: InvitationMethod,
+  name: string,
+  status: string | null,
+  t: TranslateFn,
+): string | null {
+  switch (method) {
+    case 'reply':
+      return status
+        ? t('email_viewer.calendar_invitation.actor_response_info', '{name} responded {status}.', { name, status })
+        : t('email_viewer.calendar_invitation.actor_sent_info', 'Sent by {name}.', { name });
+    case 'counter':
+      return t('email_viewer.calendar_invitation.actor_counter_info', '{name} proposed changes to this event.', { name });
+    case 'refresh':
+      return t('email_viewer.calendar_invitation.actor_refresh_info', '{name} asked for the latest event details.', { name });
+    case 'declinecounter':
+      return t('email_viewer.calendar_invitation.actor_declined_counter_info', '{name} declined the counter proposal.', { name });
+    case 'request':
+    case 'publish':
+    case 'add':
+    case 'cancel':
+      return t('email_viewer.calendar_invitation.actor_sent_info', 'Sent by {name}.', { name });
+    default:
+      return null;
+  }
+}
+
 export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const shownAppAccountId = useEmailStore((s) => s.activeAccountId);
   const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
   const enabled = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
@@ -104,6 +155,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const [busy, setBusy] = React.useState(false);
   const [calendarId, setCalendarId] = React.useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  // Per message, not remembered: another invitation opens expanded.
+  const [collapsed, setCollapsed] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -111,6 +164,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     if (!invitationKey || !part || !enabled) return;
     setState('loading');
     setServerMatch(null);
+    setCollapsed(false);
     // The look-up goes out on the connection serving the message's account
     // when the banner loaded, or not at all.
     let lookupScope: OpScope | null = null;
@@ -215,6 +269,45 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     ?? (myExistingStatus === 'accepted' || myExistingStatus === 'tentative' || myExistingStatus === 'declined'
       ? myExistingStatus
       : null);
+  // Only the organizer reviews a counter proposal or a refresh request.
+  const userIsOrganizer = !!me && isOrganizerParticipant(me.participant) && !me.participant.roles?.attendee;
+
+  const actor = getInvitationActorSummary(event, method);
+  const actorLine = actor
+    ? actorText(
+      method,
+      actor.name || actor.email || t('email_viewer.calendar_invitation.actor_unknown', 'Someone'),
+      participationLabel(actor.participationStatus, t),
+      t,
+    )
+    : null;
+  const sequence = typeof event.sequence === 'number' && event.sequence > 0 ? event.sequence : null;
+
+  // The day the event is on now (a counter proposes another), else the
+  // invitation's own start; only while the message's account is shown.
+  const viewSource = existing ?? event;
+  const viewStart = viewSource.start || viewSource.utcStart
+    ? getEventStartDate({
+      start: viewSource.start ?? '',
+      utcStart: viewSource.utcStart,
+      showWithoutTime: viewSource.showWithoutTime,
+      timeZone: viewSource.timeZone,
+    })
+    : null;
+  const viewTarget = invitationViewTarget(viewStart, ownerAppAccountId ?? null, shownAppAccountId);
+  const viewLabel = method === 'counter' && userIsOrganizer
+    ? t('email_viewer.calendar_invitation.review_proposal', 'Review proposal')
+    : method === 'refresh' && userIsOrganizer
+      ? t('email_viewer.calendar_invitation.review_request', 'Review request')
+      : t('email_viewer.calendar_invitation.view_in_calendar', 'View in calendar');
+
+  const handleViewInCalendar = () => {
+    // Checked again on the tap: the account may have switched since render.
+    const target = invitationViewTarget(viewStart, ownerAppAccountId ?? null, useEmailStore.getState().activeAccountId);
+    if (!target) return;
+    setPendingCalendarView(target);
+    navigation.navigate('MainTabs', { screen: 'Calendar' } as never);
+  };
 
   const ensureImportedAndRsvp = async (status: RsvpStatus) => {
     if (busy || !targetCalendar) return;
@@ -282,114 +375,153 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
             <Text style={styles.subtitle}>{t('calendar.invitation.reply', 'A participant replied to this invitation')}</Text>
           )}
         </View>
+        {sequence !== null && (
+          <View style={styles.sequencePill}>
+            <Text style={styles.sequenceText}>
+              {t('email_viewer.calendar_invitation.event_updated', 'Update #{sequence}', { sequence })}
+            </Text>
+          </View>
+        )}
+        <Pressable
+          onPress={() => setCollapsed((v) => !v)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: !collapsed }}
+          accessibilityLabel={collapsed
+            ? t('email_viewer.calendar_invitation.expand', 'Show details')
+            : t('email_viewer.calendar_invitation.collapse', 'Hide details')}
+        >
+          {collapsed ? <ChevronDown size={18} color={c.textMuted} /> : <ChevronUp size={18} color={c.textMuted} />}
+        </Pressable>
       </View>
 
-      {trust && (
-        <View style={[styles.trustRow, { borderColor: trustColor }]}>
-          {trust.level === 'trusted' ? (
-            <ShieldCheck size={14} color={trustColor} />
-          ) : (
-            <ShieldAlert size={14} color={trustColor} />
-          )}
-          <Text style={[styles.trustText, { color: trustColor }]} numberOfLines={3}>
-            {trust.reason
-              ? trustReasonText(trust.reason, t)
-              : t('calendar.invitation.trust_verified', 'Sender verified')}
-          </Text>
-        </View>
-      )}
-
-      {dateLabel && (
-        <Row icon={<Clock size={15} color={c.textMuted} />} text={dateLabel} styles={styles} />
-      )}
-      {location ? (
-        <Row icon={<MapPin size={15} color={c.textMuted} />} text={location} styles={styles} />
-      ) : null}
-      {videoUri ? (
-        <Pressable style={styles.detailRow} onPress={() => { void openExternalUrl(videoUri, { confirm: true }); }}>
-          <Video size={15} color={c.textMuted} />
-          <Text style={[styles.detailText, { color: c.primary }]} numberOfLines={1}>
-            {t('calendar.invitation.join_video', 'Join video call')}
-          </Text>
-        </Pressable>
-      ) : null}
-      {organizer ? (
-        <Row
-          icon={<CalendarPlus size={15} color={c.textMuted} />}
-          text={t('email_viewer.calendar_invitation.organizer', 'Organized by {name}', { name: organizer })}
-          styles={styles}
-        />
-      ) : null}
-      {existing && state !== 'done' && (
-        <Row
-          icon={<Check size={15} color={c.success} />}
-          text={t('calendar.invitation.already_in_calendar', 'Already in your calendar')}
-          styles={styles}
-        />
-      )}
-
-      {state !== 'done' && !existing && targetCalendar && candidates.length > 1 && (
-        <View>
-          <Pressable style={styles.calendarPicker} onPress={() => setPickerOpen((v) => !v)}>
-            <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(targetCalendar) }]} />
-            <Text style={styles.calendarPickerText} numberOfLines={1}>{targetCalendar.name}</Text>
-            <ChevronDown size={14} color={c.textMuted} />
-          </Pressable>
-          {pickerOpen && (
-            <View style={styles.calendarList}>
-              {candidates.map((cal) => (
-                <Pressable
-                  key={cal.id}
-                  style={[styles.calendarRow, cal.id === targetCalendar.id && styles.calendarRowActive]}
-                  onPress={() => { setCalendarId(cal.id); setPickerOpen(false); }}
-                >
-                  <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(cal) }]} />
-                  <Text style={styles.calendarPickerText} numberOfLines={1}>{cal.name}</Text>
-                </Pressable>
-              ))}
+      {!collapsed && (
+        <>
+          {(actorLine || actor?.participationComment) && (
+            <View style={styles.actorBlock}>
+              {actorLine && <Text style={styles.actorText}>{actorLine}</Text>}
+              {actor?.participationComment ? (
+                <Text style={[styles.actorText, styles.actorNote]} numberOfLines={4}>
+                  {t('email_viewer.calendar_invitation.actor_note', 'Note: {comment}', { comment: actor.participationComment })}
+                </Text>
+              ) : null}
             </View>
           )}
-        </View>
-      )}
 
-      {notice && <Text style={styles.notice}>{notice}</Text>}
-
-      {state !== 'done' && (
-        <View style={styles.actions}>
-          {canRsvp ? (
-            <>
-              <RsvpBtn label={t('calendar.invitation.accept', 'Yes')} active={currentStatus === 'accepted'} activeColor={c.success}
-                icon={<Check size={15} color={currentStatus === 'accepted' ? c.textInverse : c.success} />}
-                disabled={busy} onPress={() => ensureImportedAndRsvp('accepted')} c={c} styles={styles} />
-              <RsvpBtn label={t('calendar.invitation.tentative', 'Maybe')} active={currentStatus === 'tentative'} activeColor={c.warning}
-                icon={<HelpCircle size={15} color={currentStatus === 'tentative' ? c.textInverse : c.warning} />}
-                disabled={busy} onPress={() => ensureImportedAndRsvp('tentative')} c={c} styles={styles} />
-              <RsvpBtn label={t('calendar.invitation.decline', 'No')} active={currentStatus === 'declined'} activeColor={c.error}
-                icon={<X size={15} color={currentStatus === 'declined' ? c.textInverse : c.error} />}
-                disabled={busy} onPress={() => ensureImportedAndRsvp('declined')} c={c} styles={styles} />
-            </>
-          ) : !existing && method !== 'reply' ? (
-            <Pressable
-              style={[styles.importBtn, (busy || !targetCalendar) && { opacity: 0.5 }]}
-              onPress={() => { void handleImport(); }}
-              disabled={busy || !targetCalendar}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color={c.primaryForeground} />
+          {trust && (
+            <View style={[styles.trustRow, { borderColor: trustColor }]}>
+              {trust.level === 'trusted' ? (
+                <ShieldCheck size={14} color={trustColor} />
               ) : (
-                <CalendarPlus size={16} color={c.primaryForeground} />
+                <ShieldAlert size={14} color={trustColor} />
               )}
-              <Text style={styles.importBtnText}>{t('calendar.invitation.add_to_calendar', 'Add to calendar')}</Text>
+              <Text style={[styles.trustText, { color: trustColor }]} numberOfLines={3}>
+                {trust.reason
+                  ? trustReasonText(trust.reason, t)
+                  : t('calendar.invitation.trust_verified', 'Sender verified')}
+              </Text>
+            </View>
+          )}
+
+          {dateLabel && (
+            <Row icon={<Clock size={15} color={c.textMuted} />} text={dateLabel} styles={styles} />
+          )}
+          {location ? (
+            <Row icon={<MapPin size={15} color={c.textMuted} />} text={location} styles={styles} />
+          ) : null}
+          {videoUri ? (
+            <Pressable style={styles.detailRow} onPress={() => { void openExternalUrl(videoUri, { confirm: true }); }}>
+              <Video size={15} color={c.textMuted} />
+              <Text style={[styles.detailText, { color: c.primary }]} numberOfLines={1}>
+                {t('calendar.invitation.join_video', 'Join video call')}
+              </Text>
             </Pressable>
           ) : null}
-        </View>
-      )}
+          {organizer ? (
+            <Row
+              icon={<CalendarPlus size={15} color={c.textMuted} />}
+              text={t('email_viewer.calendar_invitation.organizer', 'Organized by {name}', { name: organizer })}
+              styles={styles}
+            />
+          ) : null}
+          {viewTarget && (
+            <Pressable style={styles.viewLink} onPress={handleViewInCalendar} accessibilityRole="button" hitSlop={4}>
+              <CalendarDays size={15} color={c.primary} />
+              <Text style={styles.viewLinkText}>{viewLabel}</Text>
+            </Pressable>
+          )}
+          {existing && state !== 'done' && (
+            <Row
+              icon={<Check size={15} color={c.success} />}
+              text={t('calendar.invitation.already_in_calendar', 'Already in your calendar')}
+              styles={styles}
+            />
+          )}
 
-      {!targetCalendar && state !== 'done' && (
-        <View style={styles.warnRow}>
-          <AlertTriangle size={14} color={c.warning} />
-          <Text style={styles.warnText}>{t('calendar.invitation.no_writable_calendar', 'No writable calendar available')}</Text>
-        </View>
+          {state !== 'done' && !existing && targetCalendar && candidates.length > 1 && (
+            <View>
+              <Pressable style={styles.calendarPicker} onPress={() => setPickerOpen((v) => !v)}>
+                <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(targetCalendar) }]} />
+                <Text style={styles.calendarPickerText} numberOfLines={1}>{targetCalendar.name}</Text>
+                <ChevronDown size={14} color={c.textMuted} />
+              </Pressable>
+              {pickerOpen && (
+                <View style={styles.calendarList}>
+                  {candidates.map((cal) => (
+                    <Pressable
+                      key={cal.id}
+                      style={[styles.calendarRow, cal.id === targetCalendar.id && styles.calendarRowActive]}
+                      onPress={() => { setCalendarId(cal.id); setPickerOpen(false); }}
+                    >
+                      <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(cal) }]} />
+                      <Text style={styles.calendarPickerText} numberOfLines={1}>{cal.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {notice && <Text style={styles.notice}>{notice}</Text>}
+
+          {state !== 'done' && (
+            <View style={styles.actions}>
+              {canRsvp ? (
+                <>
+                  <RsvpBtn label={t('calendar.invitation.accept', 'Yes')} active={currentStatus === 'accepted'} activeColor={c.success}
+                    icon={<Check size={15} color={currentStatus === 'accepted' ? c.textInverse : c.success} />}
+                    disabled={busy} onPress={() => ensureImportedAndRsvp('accepted')} c={c} styles={styles} />
+                  <RsvpBtn label={t('calendar.invitation.tentative', 'Maybe')} active={currentStatus === 'tentative'} activeColor={c.warning}
+                    icon={<HelpCircle size={15} color={currentStatus === 'tentative' ? c.textInverse : c.warning} />}
+                    disabled={busy} onPress={() => ensureImportedAndRsvp('tentative')} c={c} styles={styles} />
+                  <RsvpBtn label={t('calendar.invitation.decline', 'No')} active={currentStatus === 'declined'} activeColor={c.error}
+                    icon={<X size={15} color={currentStatus === 'declined' ? c.textInverse : c.error} />}
+                    disabled={busy} onPress={() => ensureImportedAndRsvp('declined')} c={c} styles={styles} />
+                </>
+              ) : !existing && method !== 'reply' ? (
+                <Pressable
+                  style={[styles.importBtn, (busy || !targetCalendar) && { opacity: 0.5 }]}
+                  onPress={() => { void handleImport(); }}
+                  disabled={busy || !targetCalendar}
+                >
+                  {busy ? (
+                    <ActivityIndicator size="small" color={c.primaryForeground} />
+                  ) : (
+                    <CalendarPlus size={16} color={c.primaryForeground} />
+                  )}
+                  <Text style={styles.importBtnText}>{t('calendar.invitation.add_to_calendar', 'Add to calendar')}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )}
+
+          {!targetCalendar && state !== 'done' && (
+            <View style={styles.warnRow}>
+              <AlertTriangle size={14} color={c.warning} />
+              <Text style={styles.warnText}>{t('calendar.invitation.no_writable_calendar', 'No writable calendar available')}</Text>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -460,6 +592,20 @@ function makeStyles(c: ThemePalette) {
     title: { ...typography.bodySemibold, color: c.text },
     subtitle: { ...typography.caption, color: c.textMuted, marginTop: 2 },
     cancelled: { ...typography.caption, color: c.error, marginTop: 2 },
+    sequencePill: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderRadius: radius.full,
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    sequenceText: { ...typography.caption, color: c.textMuted },
+    actorBlock: { gap: 2, marginBottom: spacing.xs },
+    actorText: { ...typography.caption, color: c.textSecondary },
+    actorNote: { fontStyle: 'italic' },
+    viewLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start' },
+    viewLinkText: { ...typography.captionMedium, color: c.primary },
     trustRow: {
       flexDirection: 'row',
       alignItems: 'center',
