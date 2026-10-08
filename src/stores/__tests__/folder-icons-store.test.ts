@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storage = new Map<string, string>();
+const io = { failReads: 0 };
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
-    getItem: async (k: string) => storage.get(k) ?? null,
+    getItem: async (k: string) => {
+      if (io.failReads > 0) { io.failReads -= 1; throw new Error('disk'); }
+      return storage.get(k) ?? null;
+    },
     setItem: async (k: string, v: string) => { storage.set(k, v); },
   },
 }));
@@ -17,6 +21,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(async () => {
   storage.clear();
+  io.failReads = 0;
   useFolderIconsStore.setState({ icons: {}, hydrated: false });
   await s().hydrate();
 });
@@ -35,6 +40,7 @@ describe('folder icons store', () => {
     setIcon('appB', 'a', 'Zap');
     setIcon('appA', 'a', null);
     expect(s().icons.appA).toEqual({ b: 'Bell' });
+    s().prune('appA', ['x']); // the first prune spares icons set since the last one
     s().prune('appA', ['x']);
     expect(s().icons.appA).toBeUndefined();
     expect(s().icons.appB).toEqual({ a: 'Zap' });
@@ -83,5 +89,49 @@ describe('folder icons store', () => {
     await flush();
     expect(s().icons).toEqual({ appA: { a: 'Heart', b: 'Bell' } });
     expect(JSON.parse(storage.get(KEY)!)).toEqual({ appA: { a: 'Heart', b: 'Bell' } });
+  });
+
+  it('an icon set since the last prune survives one prune, for a sync that started before the folder was created', () => {
+    s().prune('appA', ['a']);
+    setIcon('appA', 'new', 'Heart');
+    s().prune('appA', ['a']);
+    expect(folderIconOf(s(), 'appA', 'new')).toBe('Heart');
+    s().prune('appA', ['a', 'new']);
+    s().prune('appA', ['a', 'new']);
+    expect(folderIconOf(s(), 'appA', 'new')).toBe('Heart');
+    s().prune('appA', ['a']);
+    expect(folderIconOf(s(), 'appA', 'new')).toBeUndefined();
+  });
+
+  it('a failed read writes nothing: the stored icons survive a change made meanwhile, which applies once a read succeeds', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      storage.set(KEY, JSON.stringify({ appA: { a: 'Heart' }, appB: { a: 'Zap' } }));
+      useFolderIconsStore.setState({ icons: {}, hydrated: false });
+      io.failReads = 1;
+      await s().hydrate();
+      expect(s().hydrated).toBe(false);
+      s().forgetAccount('appB');
+      await flush();
+      await flush();
+      expect(JSON.parse(storage.get(KEY)!)).toEqual({ appA: { a: 'Heart' } });
+      expect(s().hydrated).toBe(true);
+
+      // Every read failing: nothing is written at all.
+      storage.set(KEY, JSON.stringify({ appA: { a: 'Heart' } }));
+      useFolderIconsStore.setState({ icons: {}, hydrated: false });
+      io.failReads = 99;
+      setIcon('appA', 'b', 'Bell');
+      await flush();
+      await flush();
+      expect(JSON.parse(storage.get(KEY)!)).toEqual({ appA: { a: 'Heart' } });
+      expect(folderIconOf(s(), 'appA', 'b')).toBe('Bell');
+      io.failReads = 0;
+      await s().hydrate();
+      await flush();
+      expect(JSON.parse(storage.get(KEY)!)).toEqual({ appA: { a: 'Heart', b: 'Bell' } });
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

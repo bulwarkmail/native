@@ -18,7 +18,11 @@ interface FolderIconsState {
   hydrate: () => Promise<void>;
   /** Set a folder's icon, or clear it with null. */
   setIcon: (appAccountId: string, mailboxId: string, name: FolderIconName | null) => void;
-  /** Drop the account's entries for folders no longer in `liveIds` (deleted elsewhere). */
+  /**
+   * Drop the account's entries for folders no longer in `liveIds` (deleted
+   * elsewhere). An icon set since the account's last prune is spared once:
+   * a sync that started before its folder was created lists it next time.
+   */
   prune: (appAccountId: string, liveIds: string[]) => void;
   /** Drop every icon of a signed-out account. */
   forgetAccount: (appAccountId: string) => void;
@@ -67,21 +71,30 @@ function withAccount(icons: IconMap, appAccountId: string, entries: Record<strin
 }
 
 let hydrateInFlight: Promise<void> | null = null;
+// Changes made before a read of the stored map succeeded, replayed onto it
+// when one does. Until then nothing is written: a failed read must not lead
+// to a write that replaces every stored icon.
+let pending: ((icons: IconMap) => IconMap)[] = [];
+// Per account, the folders given an icon since that account's last prune.
+const setSincePrune = new Map<string, Set<string>>();
 
 export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
   // A change made before the stored map is read (a sign-out right after
   // launch) waits for it, so it applies to what is on disk and is not
   // overwritten when hydrate lands.
   const change = (apply: (icons: IconMap) => IconMap) => {
-    const run = () => {
-      const current = get().icons;
-      const next = apply(current);
+    const current = get().icons;
+    const next = apply(current);
+    if (get().hydrated) {
       if (next === current) return;
       set({ icons: next });
       persist(next);
-    };
-    if (get().hydrated) run();
-    else void get().hydrate().then(run);
+      return;
+    }
+    // Shown at once, stored once the map on disk was read.
+    if (next !== current) set({ icons: next });
+    pending.push(apply);
+    void get().hydrate();
   };
 
   return {
@@ -92,14 +105,26 @@ export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
       if (get().hydrated) return Promise.resolve();
       if (!hydrateInFlight) {
         hydrateInFlight = (async () => {
+          let raw: string | null;
+          try {
+            raw = await AsyncStorage.getItem(STORAGE_KEY);
+          } catch (err) {
+            // Stay un-hydrated: the next hydrate (or change) reads again.
+            console.warn('[folder-icons-store] hydrate failed', err);
+            return;
+          }
           let icons: IconMap = {};
           try {
-            const raw = await AsyncStorage.getItem(STORAGE_KEY);
             if (raw) icons = sanitize(JSON.parse(raw));
           } catch (err) {
-            console.warn('[folder-icons-store] hydrate failed', err);
+            // Unparseable: nothing in it can be kept.
+            console.warn('[folder-icons-store] stored icons unreadable', err);
           }
+          const replay = pending;
+          pending = [];
+          for (const apply of replay) icons = apply(icons);
           set({ icons, hydrated: true });
+          if (replay.length > 0) persist(icons);
         })().finally(() => { hydrateInFlight = null; });
       }
       return hydrateInFlight;
@@ -110,6 +135,9 @@ export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
       if (name) {
         if (entries[mailboxId] === name) return icons;
         entries[mailboxId] = name;
+        let fresh = setSincePrune.get(appAccountId);
+        if (!fresh) setSincePrune.set(appAccountId, fresh = new Set());
+        fresh.add(mailboxId);
       } else {
         if (!Object.prototype.hasOwnProperty.call(entries, mailboxId)) return icons;
         delete entries[mailboxId];
@@ -118,9 +146,12 @@ export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
     }),
 
     prune: (appAccountId, liveIds) => change((icons) => {
+      const fresh = setSincePrune.get(appAccountId);
+      setSincePrune.delete(appAccountId);
       const entries = icons[appAccountId];
       if (!entries) return icons;
       const live = new Set(liveIds);
+      for (const id of fresh ?? []) live.add(id);
       const kept: Record<string, FolderIconName> = {};
       for (const [id, name] of Object.entries(entries)) if (live.has(id)) kept[id] = name;
       if (Object.keys(kept).length === Object.keys(entries).length) return icons;
@@ -128,6 +159,7 @@ export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
     }),
 
     forgetAccount: (appAccountId) => change((icons) => {
+      setSincePrune.delete(appAccountId);
       if (!Object.prototype.hasOwnProperty.call(icons, appAccountId)) return icons;
       const next = { ...icons };
       delete next[appAccountId];

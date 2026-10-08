@@ -1203,7 +1203,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   return (
                     <SidebarRow
                       key={kw.id}
-                      icon={<Tag size={16} color={dot} fill={dot} />}
+                      // With colourful icons off a tag keeps its colour as a
+                      // small dot, as in the webmail.
+                      icon={colorfulSidebarIcons
+                        ? <Tag size={16} color={dot} fill={dot} />
+                        : <View style={[styles.tagDot, { backgroundColor: dot }]} />}
                       label={kw.label}
                       depth={depth}
                       isSelected={isSelected}
@@ -1277,6 +1281,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
+    tagDot: { width: 10, height: 10, borderRadius: 5, margin: 3 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',

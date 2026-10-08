@@ -29,8 +29,9 @@ import { inAccount } from '../../api/op-scope';
 import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
 import { useFolderIconsStore, folderIconOf } from '../../stores/folder-icons-store';
-import { FOLDER_ICON_NAMES, type FolderIconName } from '../../lib/folder-icons';
+import { FOLDER_ICON_NAMES, folderIconLabel, type FolderIconName } from '../../lib/folder-icons';
 import { folderIconComponent } from '../folder-icon';
+import { folderIconPrunePlan } from '../../lib/folder-icon-prune';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -124,12 +125,32 @@ export function FolderSettings() {
   const hydrateFolderIcons = useFolderIconsStore((s) => s.hydrate);
   const pruneFolderIcons = useFolderIconsStore((s) => s.prune);
   useEffect(() => { if (!folderIconsHydrated) void hydrateFolderIcons(); }, [folderIconsHydrated, hydrateFolderIcons]);
-  // Folders deleted elsewhere (webmail, another device) leave their icon
-  // behind: once this account's folders are listed, drop icons for ids that
-  // are gone. Only the shown account's entries are touched.
+  // An editor opened before the stored icons were read shows the folder's
+  // icon once they are, unless one was picked meanwhile.
+  const editingId = editor?.kind === 'edit' ? editor.mailbox.id : null;
+  const editingOwner = editor?.owner ?? null;
   useEffect(() => {
-    if (shownAccountId && mailboxes.length > 0) pruneFolderIcons(shownAccountId, mailboxes.map((m) => m.id));
-  }, [shownAccountId, mailboxes, pruneFolderIcons]);
+    if (!folderIconsHydrated || !editingId || iconPicked) return;
+    setDraftIcon(folderIconOf(useFolderIconsStore.getState(), editingOwner, editingId) ?? null);
+  }, [folderIconsHydrated, editingId, editingOwner, iconPicked]);
+  // Folders deleted elsewhere (webmail, another device) leave their icon
+  // behind: drop icons for ids that are gone, but only from an own list the
+  // server confirmed (see folderIconPrunePlan). Only the shown account's
+  // entries are touched.
+  const mailboxState = useEmailStore((s) => s.mailboxState);
+  const listsSynced = useEmailStore((s) => !!shownAccountId && !!s.mailboxListsSynced[shownAccountId]);
+  const lastPruneKey = React.useRef<string | null>(null);
+  useEffect(() => {
+    const plan = folderIconPrunePlan(lastPruneKey.current, {
+      accountId: shownAccountId,
+      mailboxState,
+      synced: listsSynced,
+      ownIds: mailboxes.map((m) => m.id),
+    });
+    if (!plan) return;
+    lastPruneKey.current = plan.key;
+    pruneFolderIcons(plan.accountId, plan.liveIds);
+  }, [shownAccountId, mailboxState, listsSynced, mailboxes, pruneFolderIcons]);
 
   // Shared/group accounts the user may create folders in (webmail: "New
   // folder" on a shared account header routes to the owner account).
@@ -545,7 +566,7 @@ export function FolderSettings() {
                           style={[styles.iconChoice, selected && styles.iconChoiceSelected]}
                           hitSlop={2}
                           accessibilityRole="button"
-                          accessibilityLabel={name}
+                          accessibilityLabel={folderIconLabel(name)}
                           accessibilityState={{ selected }}
                         >
                           <Choice size={18} color={selected ? c.primaryForeground : c.mutedForeground} />

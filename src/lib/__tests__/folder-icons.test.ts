@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FOLDER_ICON_NAMES, isFolderIconName } from '../folder-icons';
+import { FOLDER_ICON_NAMES, isFolderIconName, folderIconLabel } from '../folder-icons';
 
 describe('folder icons', () => {
   it('offers webmail\'s 18 icons in its order', () => {
@@ -17,5 +17,11 @@ describe('folder icons', () => {
     expect(isFolderIconName('toString')).toBe(false);
     expect(isFolderIconName(3)).toBe(false);
     expect(isFolderIconName(null)).toBe(false);
+  });
+
+  it('reads camel-case names as words for screen readers', () => {
+    expect(folderIconLabel('MessageSquare')).toBe('Message square');
+    expect(folderIconLabel('FileText')).toBe('File text');
+    expect(folderIconLabel('Heart')).toBe('Heart');
   });
 });
