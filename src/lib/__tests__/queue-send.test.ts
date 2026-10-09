@@ -34,6 +34,12 @@ describe('buildQueuedSend', () => {
     expect(e).not.toHaveProperty('holdFor');
   });
 
+  it('carries the untrusted addresses on a queued reply', () => {
+    const p = { id: 'x', appAccountId: 'a', jmapAccountId: 'j', identityId: 'i', outgoing };
+    expect(buildQueuedSend({ ...p, replyTo: { emailIds: ['e1'], keyword: '$answered', untrusted: ['ceo@bank.example'] } }).replyTo?.untrusted)
+      .toEqual(['ceo@bank.example']);
+  });
+
   it('omits sendAt, draftId and replyTo when absent', () => {
     const e = buildQueuedSend({ id: 'x', appAccountId: 'a', jmapAccountId: 'j', identityId: 'i', outgoing, draftId: null });
     expect(e).not.toHaveProperty('sendAt');

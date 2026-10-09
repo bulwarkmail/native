@@ -25,12 +25,13 @@ describe('isSenderContentTrusted', () => {
         isLocallyTrusted: local(['alice@example.com']),
         syncEnabled,
         trustedBookEmails: [],
+        senderAuthenticated: true,
       })).toBe(true);
     }
   });
 
   it('trusts the Trusted Senders book only while sync is on', () => {
-    const opts = { isLocallyTrusted: local([]), trustedBookEmails: ['bob@example.com'] };
+    const opts = { isLocallyTrusted: local([]), trustedBookEmails: ['bob@example.com'], senderAuthenticated: true };
     expect(isSenderContentTrusted('Bob@Example.com', { ...opts, syncEnabled: true })).toBe(true);
     expect(isSenderContentTrusted('bob@example.com', { ...opts, syncEnabled: false })).toBe(false);
   });
@@ -42,13 +43,25 @@ describe('isSenderContentTrusted', () => {
       isLocallyTrusted: local(['alice@example.com']),
       syncEnabled: true,
       trustedBookEmails: ['bob@example.com'],
+      senderAuthenticated: true,
     })).toBe(false);
   });
 
   it('never trusts a missing sender', () => {
-    const opts = { isLocallyTrusted: () => true, syncEnabled: true, trustedBookEmails: [''] };
+    const opts = { isLocallyTrusted: () => true, syncEnabled: true, trustedBookEmails: [''], senderAuthenticated: true };
     expect(isSenderContentTrusted(undefined, opts)).toBe(false);
     expect(isSenderContentTrusted(null, opts)).toBe(false);
     expect(isSenderContentTrusted('  ', opts)).toBe(false);
+  });
+
+  // A trusted address is only an address: anyone can write it in From. Its
+  // remote content loads only when the server's checks tie this message to
+  // the From domain; with no verdict, or no results to judge by, it waits
+  // for a tap like anyone else's.
+  it('loads a trusted address\'s content only on a passing sender check', () => {
+    const opts = { isLocallyTrusted: local(['ceo@bank.example']), syncEnabled: true, trustedBookEmails: ['ceo@bank.example'] };
+    expect(isSenderContentTrusted('ceo@bank.example', { ...opts, senderAuthenticated: true })).toBe(true);
+    expect(isSenderContentTrusted('ceo@bank.example', { ...opts, senderAuthenticated: false })).toBe(false);
+    expect(isSenderContentTrusted('ceo@bank.example', { ...opts, senderAuthenticated: undefined })).toBe(false);
   });
 });

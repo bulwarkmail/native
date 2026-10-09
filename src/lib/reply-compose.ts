@@ -1,16 +1,20 @@
 import type { Email } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { pickEmailBody, plainTextBody } from './email-body';
+import { senderPassesCheck, untrustedReplyAddresses } from './sender-check';
 
 /**
  * Composer params for a reply / reply-all / forward of `source`. Shared by
  * the thread viewer and the `mail/message/<id>?action=reply` deep link (the
- * triage widget). Null when there is nobody to reply to.
+ * triage widget). Null when there is nobody to reply to. `serverHost` is
+ * the owning app account's authserv host (authservHostFor), for the sender
+ * check.
  */
 export function replyComposeParams(
   mode: 'reply' | 'replyAll' | 'forward',
   source: Email,
-  ownerAccountId?: string,
+  ownerAccountId: string | undefined,
+  serverHost: string | null,
 ): NonNullable<RootStackParamList['Compose']> | null {
   const from = source.from?.[0];
   if (!from && mode !== 'forward') return null;
@@ -45,6 +49,8 @@ export function replyComposeParams(
         : undefined,
       originalEmailId: source.id,
       jmapAccountId: ownerAccountId,
+      untrustedAddresses: untrustedReplyAddresses(source, serverHost),
+      senderAuthenticated: senderPassesCheck(source, serverHost),
     },
   };
 }

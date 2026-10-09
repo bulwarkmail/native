@@ -161,6 +161,7 @@ function postSendEffects(
     if (entry.replyTo?.keyword === '$answered') {
       trustRecipients([...entry.outgoing.to, ...(entry.outgoing.cc ?? [])], refused, {
         syncToBook: ownerActive && trustedSendersBookSyncOn(),
+        exclude: entry.replyTo.untrusted,
       });
     }
   } catch (err) {

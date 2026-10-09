@@ -13,16 +13,19 @@ import type { EmailAddress } from '../api/types';
 /**
  * Trust the recipients the server accepted (a refused address is not someone
  * to trust). With `syncToBook`, each is also filed in the "Trusted Senders"
- * address book, best effort.
+ * address book, best effort. `exclude` (lowercased) names addresses never to
+ * trust: the sender of a message that failed or couldn't be verified
+ * (untrustedReplyAddresses).
  */
 export function trustRecipients(
   recipients: EmailAddress[],
   refused: { email: string }[] | undefined,
-  { syncToBook }: { syncToBook: boolean },
+  { syncToBook, exclude }: { syncToBook: boolean; exclude?: readonly string[] },
 ): void {
   const settings = useSettingsStore.getState();
   const contacts = useContactsStore.getState();
   for (const r of withoutRefused(recipients, refused)) {
+    if (exclude?.includes(r.email.trim().toLowerCase())) continue;
     settings.addTrustedSender(r.email);
     if (syncToBook) {
       contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);

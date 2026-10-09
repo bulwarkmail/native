@@ -3,7 +3,8 @@
 // functions so the choice of words and of actions can be tested.
 
 import type { MessageParams } from '../i18n';
-import type { SenderVerification } from './email-headers';
+import type { Email } from '../api/types';
+import { deriveHeaderInfo, isFromDomainAuthenticated, type SenderVerification } from './email-headers';
 
 export type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
 
@@ -73,4 +74,33 @@ export function canOfferTrustSender(
   v: SenderVerification | null | undefined,
 ): boolean {
   return !!senderEmail && v === null;
+}
+
+type SenderSource = Pick<Email, 'from' | 'replyTo' | 'headers' | 'messageId'>;
+
+/**
+ * Who replying to `source` must not file as trusted: its From and Reply-To
+ * (trimmed, lowercased, once each) when the server's checks flag it, failed
+ * or unverified; nobody otherwise. Replying to a forgery would otherwise
+ * trust the forged address. `serverHost` is the owning account's authserv
+ * host (authservHostFor), never the live client's.
+ */
+export function untrustedReplyAddresses(source: SenderSource, serverHost: string | null): string[] {
+  if (!deriveHeaderInfo(source, serverHost).senderVerification) return [];
+  const out = new Set<string>();
+  for (const a of [...(source.from ?? []), ...(source.replyTo ?? [])]) {
+    const email = a.email?.trim().toLowerCase();
+    if (email) out.add(email);
+  }
+  return [...out];
+}
+
+/**
+ * Whether the owning server's checks positively tie `source` to its From
+ * domain (isFromDomainAuthenticated on the pinned results). Unlike a null
+ * sender check, no results to judge by is a no: a trusted address's remote
+ * content loads on its own only for a message that passes.
+ */
+export function senderPassesCheck(source: Omit<SenderSource, 'replyTo'>, serverHost: string | null): boolean {
+  return isFromDomainAuthenticated(deriveHeaderInfo(source, serverHost).auth, source.from?.[0]?.email);
 }

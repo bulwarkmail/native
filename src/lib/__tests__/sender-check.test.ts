@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { senderCheckText, canOfferTrustSender } from '../sender-check';
+import { senderCheckText, canOfferTrustSender, untrustedReplyAddresses, senderPassesCheck } from '../sender-check';
 import { deriveHeaderInfo, getSenderVerification, parseAuthenticationResults } from '../email-headers';
 import type { MessageParams } from '../../i18n';
 
@@ -122,5 +122,47 @@ describe('sender alignment by registrable domain', () => {
     // The old parent-or-subdomain rule took co.uk as a parent of bank.co.uk.
     const auth = parseAuthenticationResults('mx; dkim=pass header.d=co.uk');
     expect(getSenderVerification(auth, 'support@bank.co.uk')?.status).toBe('unverified');
+  });
+});
+
+const fromBank = (results: string | null) => ({
+  from: [{ name: 'CEO', email: 'CEO@Bank.example' }],
+  replyTo: [{ email: ' Pay@Evil.example ' }],
+  headers: results ? [{ name: 'Authentication-Results', value: results }] : [],
+  messageId: ['m1@bank.example'],
+});
+const forgedFromBank = fromBank('mx; spf=fail smtp.mailfrom=evil.example; dmarc=fail header.from=bank.example');
+const unverifiedFromBank = fromBank('mx; spf=pass smtp.mailfrom=evil.example; dkim=pass header.d=evil.example');
+const verifiedFromBank = fromBank('mx; spf=pass smtp.mailfrom=bank.example; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example');
+
+describe('untrustedReplyAddresses', () => {
+  it('lists the From and Reply-To of a failed or unverified message, and nobody for a verified one', () => {
+    expect(untrustedReplyAddresses(forgedFromBank, 'mx')).toEqual(['ceo@bank.example', 'pay@evil.example']);
+    expect(untrustedReplyAddresses(unverifiedFromBank, 'mx')).toEqual(['ceo@bank.example', 'pay@evil.example']);
+    expect(untrustedReplyAddresses(verifiedFromBank, 'mx')).toEqual([]);
+  });
+
+  it('judges only by the owning server\'s results', () => {
+    // Another server's id: no results, so nothing to flag.
+    expect(untrustedReplyAddresses(forgedFromBank, 'other.example')).toEqual([]);
+  });
+
+  it('lists each address once', () => {
+    expect(untrustedReplyAddresses({ ...forgedFromBank, replyTo: [{ email: 'ceo@bank.example' }] }, 'mx'))
+      .toEqual(['ceo@bank.example']);
+  });
+});
+
+describe('senderPassesCheck', () => {
+  it('passes only an aligned pass in the owning server\'s results', () => {
+    expect(senderPassesCheck(verifiedFromBank, 'mx')).toBe(true);
+    expect(senderPassesCheck(forgedFromBank, 'mx')).toBe(false);
+    expect(senderPassesCheck(unverifiedFromBank, 'mx')).toBe(false);
+  });
+
+  it('does not pass a message with no results to judge by', () => {
+    expect(senderPassesCheck(fromBank(null), 'mx')).toBe(false);
+    expect(senderPassesCheck(verifiedFromBank, 'other.example')).toBe(false);
+    expect(senderPassesCheck(verifiedFromBank, null)).toBe(false);
   });
 });

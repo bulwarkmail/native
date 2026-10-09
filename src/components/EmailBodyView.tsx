@@ -34,6 +34,11 @@ interface EmailBodyViewProps {
    * left out means the verdict is unknown.
    */
   senderVerification?: SenderVerification | null;
+  /**
+   * Whether the message passed the sender check (senderPassesCheck). A
+   * trusted sender's remote content loads on its own only when true.
+   */
+  senderAuthenticated?: boolean;
   /** Owning account when the message lives in a shared/group mailbox. */
   jmapAccountId?: string;
   // The body is a native WebView, which on Android swallows horizontal touches
@@ -526,7 +531,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, senderVerification, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  email, senderEmail, senderVerification, senderAuthenticated, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -574,6 +579,7 @@ export default function EmailBodyView({
     isLocallyTrusted: isSenderTrusted,
     syncEnabled: syncTrustedSenders,
     trustedBookEmails: trustedSenderEmails,
+    senderAuthenticated,
   });
 
   // One-time override: user tapped "Load images" for this email only.

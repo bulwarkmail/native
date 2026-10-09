@@ -90,7 +90,8 @@ export interface QueuedSend {
   draftId?: string;
   /** ISO time for a scheduled send; absent = send now. */
   sendAt?: string;
-  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded'; jmapAccountId?: string };
+  /** `untrusted`: addresses the replay must not trust (untrustedReplyAddresses). */
+  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded'; jmapAccountId?: string; untrusted?: string[] };
   createdAt: string;
   state: QueuedSendState;
   attemptStartedAt?: string;

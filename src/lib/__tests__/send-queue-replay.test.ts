@@ -836,6 +836,16 @@ describe('flushSendQueue: sending queued entries', () => {
     expect(refused).toEqual([{ email: 'cc@x.test', smtpReply: '550' }]);
   });
 
+  it('a replayed reply trusts every accepted recipient except the flagged sender', async () => {
+    await seed(entry({
+      outgoing: { ...entry().outgoing, to: [{ email: 'ceo@bank.example' }, { email: 'ann@ok.example' }], cc: [] },
+      replyTo: { emailIds: ['orig-1'], keyword: '$answered', untrusted: ['ceo@bank.example'] },
+    }));
+    await flushSendQueue();
+    const [, , opts] = (trustRecipients as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts.exclude).toEqual(['ceo@bank.example']);
+  });
+
   it('flags the original in its own account when replyTo carries one', async () => {
     await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered', jmapAccountId: 'jShared' } }));
     await flushSendQueue();
