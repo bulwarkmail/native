@@ -8,6 +8,19 @@ describe('registrableDomain', () => {
     expect(registrableDomain('alice.github.io')).toBe('alice.github.io');
     for (const h of ['co.uk', '192.0.2.1', 'localhost', 'mx', 'a'.repeat(254)]) expect(registrableDomain(h)).toBeNull();
   });
+
+  it('reads nothing from a URL, or from a host tldts would read as one', () => {
+    for (const h of [
+      'https://bank.example', 'user@bank.example', 'bank.example:443', 'bank.example/x',
+      'bank.example?x', 'bank.example#x', 'bank.example\\x', 'bank%2eexample', '[::1]', 'bank example',
+    ]) expect(registrableDomain(h)).toBeNull();
+  });
+
+  it('reads nothing from a host with a control character or an empty label', () => {
+    for (const h of ['bank.example\u0000', 'bank\u0001.example', 'bank.example\u007f', 'mx..bank.example', '.bank.example', 'mx.bank.example..']) {
+      expect(registrableDomain(h)).toBeNull();
+    }
+  });
 });
 
 describe('domainsAlign', () => {

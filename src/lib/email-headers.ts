@@ -9,6 +9,7 @@ import { parseUnsubscribeUrls, type UnsubscribeUrls } from './unsubscribe';
 import { resolveReplyFrom } from './reply-identity';
 import { domainsAlign } from './registrable-domain';
 import { pinAuthenticationResults } from './authserv';
+import { splitAuthResinfo } from './auth-resinfo';
 
 /**
  * The identity a received message was addressed to (exact or `+tag`), for
@@ -238,50 +239,6 @@ interface ResInfo {
   method: string;
   result: string;
   props: Record<string, string>;
-}
-
-/**
- * Split one Authentication-Results header into its `;`-separated parts
- * (RFC 8601), dropping comments. A `;` inside a quoted string or a comment
- * does not split: both can carry sender-chosen text such as the envelope
- * address. Parts are trimmed but kept when empty, so the first is always
- * the authserv-id's.
- */
-export function splitAuthResinfo(header: string): string[] {
-  const parts: string[] = [];
-  let current = '';
-  let depth = 0;
-  let quoted = false;
-  for (let i = 0; i < header.length; i++) {
-    const c = header[i];
-    if (c === '\\' && (quoted || depth > 0)) {
-      if (depth === 0) current += c + (header[i + 1] ?? '');
-      i++;
-      continue;
-    }
-    if (quoted) {
-      current += c;
-      if (c === '"') quoted = false;
-      continue;
-    }
-    if (c === '(') {
-      depth++;
-      continue;
-    }
-    if (depth > 0) {
-      if (c === ')' && --depth === 0) current += ' ';
-      continue;
-    }
-    if (c === '"') quoted = true;
-    if (c === ';') {
-      parts.push(current);
-      current = '';
-      continue;
-    }
-    current += c;
-  }
-  parts.push(current);
-  return parts.map((part) => part.trim());
 }
 
 const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;

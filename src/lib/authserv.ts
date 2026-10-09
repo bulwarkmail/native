@@ -1,4 +1,4 @@
-import { splitAuthResinfo } from './email-headers';
+import { splitAuthResinfo } from './auth-resinfo';
 import { registrableDomain } from './registrable-domain';
 
 // The authserv-id opens the header, so reading this far is plenty; the cap
@@ -11,14 +11,16 @@ const AUTHSERV_ID_RE = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/;
 /**
  * The host of an `http(s)://` server URL: lowercased, with no port, brackets
  * or trailing dot. Null for anything else. Read by hand rather than through
- * `new URL()`, whose RN polyfill normalises its input.
+ * `new URL()`, whose RN polyfill normalises its input. A backslash ends the
+ * authority, as it does for the fetch that connects (WHATWG reads it as `/`
+ * in an http URL), so `https://mail.example\@evil.example/` is mail.example's.
  */
 export function serverHostOf(serverUrl: string | null | undefined): string | null {
   const match = /^https?:\/\//i.exec(serverUrl?.trim() ?? '');
   if (!match || !serverUrl) return null;
   const rest = serverUrl.trim().slice(match[0].length);
   let authority = rest;
-  for (const end of ['/', '?', '#']) {
+  for (const end of ['/', '\\', '?', '#']) {
     const at = authority.indexOf(end);
     if (at >= 0) authority = authority.slice(0, at);
   }
@@ -57,13 +59,15 @@ function isAtOrUnder(name: string, domain: string): boolean {
 /**
  * Whether a header under `authservId` is the receiving server's own: the id
  * is the JMAP server's host or its registrable domain, or a host under
- * either (a mail domain's MX is rarely the JMAP host itself).
+ * either (a mail domain's MX is rarely the JMAP host itself). A host with
+ * no registrable domain (an IP address, `localhost`, a single label) counts
+ * only by exact match: nobody owns the names under it.
  */
 export function isTrustedAuthservId(authservId: string, serverHost: string): boolean {
   if (!authservId || !serverHost) return false;
-  if (isAtOrUnder(authservId, serverHost)) return true;
   const domain = registrableDomain(serverHost);
-  return !!domain && isAtOrUnder(authservId, domain);
+  if (!domain) return authservId === serverHost;
+  return isAtOrUnder(authservId, serverHost) || isAtOrUnder(authservId, domain);
 }
 
 /**
@@ -79,6 +83,14 @@ export function isTrustedAuthservId(authservId: string, serverHost: string): boo
  * incoming header that claims its own authserv-id. A server that doesn't
  * lets a forged header with its id pass as topmost on mail it never
  * stamped.
+ *
+ * Trusting the registrable parent and the hosts under it has two costs.
+ * On mail the server never stamped (one local user to another, say), a
+ * sender-written header under any of those ids passes. And a server that
+ * strips only its own exact id leaves a forged header under a sibling
+ * (`mx2.example.com` beside `mx1.example.com`) in place, where it passes
+ * too. Pinning to one exact id would close both, at the cost of every
+ * server whose MX id differs from its JMAP host.
  */
 export function pinAuthenticationResults(
   headers: readonly string[],

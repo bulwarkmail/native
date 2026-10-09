@@ -42,6 +42,15 @@ describe('isTrustedAuthservId', () => {
     expect(isTrustedAuthservId('', 'jmap.example.com')).toBe(false);
     expect(isTrustedAuthservId('mx', '')).toBe(false);
   });
+
+  it('trusts only an exact match when the host has no registrable domain', () => {
+    // An IP or a single label has no parent to vouch for its "subdomains".
+    expect(isTrustedAuthservId('evil.192.0.2.1', '192.0.2.1')).toBe(false);
+    expect(isTrustedAuthservId('x.localhost', 'localhost')).toBe(false);
+    expect(isTrustedAuthservId('evil.mx', 'mx')).toBe(false);
+    expect(isTrustedAuthservId('localhost', 'localhost')).toBe(true);
+    expect(isTrustedAuthservId('mx', 'mx')).toBe(true);
+  });
 });
 
 describe('pinAuthenticationResults', () => {
@@ -88,5 +97,10 @@ describe('serverHostOf', () => {
     expect(serverHostOf('https://[2001:db8::1/')).toBeNull();
     expect(serverHostOf(null)).toBeNull();
     expect(serverHostOf(undefined)).toBeNull();
+  });
+
+  it('ends the authority at a backslash, as WHATWG URL parsing does', () => {
+    expect(serverHostOf('https://mail.example.com\\@evil.example/')).toBe('mail.example.com');
+    expect(serverHostOf('https://mail.example.com\\jmap')).toBe('mail.example.com');
   });
 });
