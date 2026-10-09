@@ -12,6 +12,13 @@ import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
 import { sweepOrphanedOfflineCache } from './offline-cache-store';
 import { forgetAccountData, forgetSharedData, type SignOutOptions } from './account-data-cleanup';
+import {
+  SHARED_CLEANUP,
+  clearForgetPending,
+  markForgetPending,
+  readForgetPending,
+  type ForgetPendingEntry,
+} from './forget-pending';
 import { dropPendingMailFolder } from '../navigation/pending-mail-folder';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
@@ -249,16 +256,16 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
 export const EVICTION_CLEANUP_TIMEOUT_MS = 5000;
 
 // Wait for `work` at most `ms`, logging a rejection or a timeout. Never throws.
-async function waitAtMost(work: Promise<unknown>, ms = EVICTION_CLEANUP_TIMEOUT_MS): Promise<void> {
+async function waitAtMost(work: Promise<unknown>, ms = EVICTION_CLEANUP_TIMEOUT_MS, what = 'cleanup'): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const late = new Promise<void>((resolve) => {
       timer = setTimeout(() => {
-        console.warn('[sign-out] cleanup still running, carrying on without it');
+        console.warn(`[sign-out] ${what} still running, carrying on without it`);
         resolve();
       }, ms);
     });
-    await Promise.race([work.catch((e) => console.warn('[sign-out] cleanup failed', e)), late]);
+    await Promise.race([work.catch((e) => console.warn(`[sign-out] ${what} failed`, e)), late]);
   } finally {
     clearTimeout(timer);
   }
@@ -281,48 +288,100 @@ function afterCredentials(run: () => void): void {
 // account's queued sends, identities or subscriptions. The data shared by
 // every account (the search history, ownerless subscriptions) is tracked
 // under SHARED_CLEANUP and stops once any account signs in.
-const SHARED_CLEANUP = '\u0000shared';
-
 type CleanupRun = (stillGone: () => boolean) => Promise<unknown>;
 interface PendingCleanup {
   /** Sign-ins of this id under way (settlePendingCleanup); the cleanup holds while any is. */
   returning: number;
   /** A step was skipped for a sign-in: run it all again if that sign-in fails. */
   skipped: boolean;
-  /** The cleanup itself, with its options (discardQueuedSends), to run again. */
-  run: CleanupRun;
+  /** What the cleanup forgets, with its options (discardQueuedSends), to run it again from. */
+  entry: ForgetPendingEntry;
   done: Promise<void>;
   /** The run has ended (a parked record is one that ended with `skipped`). */
   ended: boolean;
 }
 const pendingCleanups = new Map<string, PendingCleanup>();
 
+// Sign-ins under way, of any account (settlePendingCleanup to its release).
+// A step skipped while one is may be needed again if it fails; one skipped
+// with none under way met an account settled under the key, and with it
+// back there is nothing left to forget.
+let signInsUnderWay = 0;
+
+/** Forget the tracked cleanups and sign-ins, as an app kill does; storage stays. */
+export function resetCleanupMemoryForTests(): void {
+  pendingCleanups.clear();
+  signInsUnderWay = 0;
+}
+
+// How long a cleanup waits for its marker to be written before its steps run.
+export const FORGET_MARK_TIMEOUT_MS = 2000;
+
 function isRegistered(key: string): boolean {
   const { accounts } = useAccountStore.getState();
   return key === SHARED_CLEANUP ? accounts.length > 0 : accounts.some((a) => a.id === key);
 }
 
-// Start a tracked cleanup. Resolves when it ends; never rejects. One that
-// skipped steps with no sign-in holding it (its key was registered when a
-// step came up) stays in the map once it ends, parked: the next sign-in to
-// end with the key unregistered runs it again (settlePendingCleanup). Else
-// a registration undone without a cleanup of its own would leave the data.
-function startCleanup(key: string, run: CleanupRun): Promise<void> {
-  const record: PendingCleanup = { returning: 0, skipped: false, ended: false, run, done: Promise.resolve() };
+// The steps of each kind of cleanup.
+function cleanupRun(entry: ForgetPendingEntry): CleanupRun {
+  if (entry.kind === 'shared') return (stillGone) => forgetSharedData(stillGone);
+  const account = { appAccountId: entry.key, serverUrl: entry.serverUrl, username: entry.username };
+  if (entry.kind === 'signOut') {
+    return async (stillGone) => {
+      await forgetAccountData(account, { lastAccount: false, discardQueuedSends: entry.discardQueuedSends, stillGone });
+      if (entry.withShared && stillGone()) await forgetSharedAfterLast();
+    };
+  }
+  return async (stillGone) => {
+    // Each under the guard: one that ran after a new sign-in of the account
+    // would delete its new id token or relay.
+    if (stillGone()) await waitAtMost(deleteIdToken(entry.key));
+    if (stillGone()) await waitAtMost(clearStoredRelayBaseUrl(entry.key));
+    await forgetAccountData(account, { lastAccount: false, stillGone });
+    if (stillGone()) await forgetSharedAfterLast();
+  };
+}
+
+// The marker of a cleanup that has nothing left to do goes, unless another
+// cleanup of the key has started meanwhile (its marker is the same row).
+function dropCleanup(key: string, record: PendingCleanup): void {
+  if (pendingCleanups.get(key) === record) pendingCleanups.delete(key);
+  if (!pendingCleanups.has(key)) void clearForgetPending(key).catch((e) => console.warn('[sign-out] could not clear a pending cleanup', e));
+}
+
+// Start a tracked cleanup. Resolves when it ends; never rejects.
+//
+// When it ends, it is either:
+// - held: a sign-in of the key is under way. It stays in the map, ended, so
+//   a sign-in that starts later holds it too; the last release decides.
+// - parked: it skipped steps for a sign-in, and none holds it now. It stays
+//   in the map: the next sign-in to end with the key unregistered runs it
+//   again (settlePendingCleanup). Else a registration undone without a
+//   cleanup of its own would leave the data.
+// - done: it leaves the map.
+//
+// Its marker (forget-pending) is written first, after the credentials every
+// caller has already cleared, and kept until it is done (or the key is
+// registered again), so a cold start after an app kill finishes it
+// (resumeForgetPending). The marker is waited for only so long: the steps run
+// whether or not it could be written.
+function startCleanup(entry: ForgetPendingEntry): Promise<void> {
+  const { key } = entry;
+  const record: PendingCleanup = { returning: 0, skipped: false, ended: false, entry, done: Promise.resolve() };
   const stillGone = () => {
     const gone = record.returning === 0 && !isRegistered(key);
-    if (!gone) record.skipped = true;
+    if (!gone && (record.returning > 0 || signInsUnderWay > 0)) record.skipped = true;
     return gone;
   };
   record.done = (async () => {
     try {
-      await run(stillGone);
+      await waitAtMost(markForgetPending(entry), FORGET_MARK_TIMEOUT_MS, 'noting the pending cleanup');
+      await cleanupRun(entry)(stillGone);
     } catch (e) {
       console.warn('[sign-out] cleanup failed', e);
     } finally {
       record.ended = true;
-      const parked = record.skipped && record.returning === 0;
-      if (pendingCleanups.get(key) === record && !parked) pendingCleanups.delete(key);
+      if (record.returning === 0 && !record.skipped) dropCleanup(key, record);
     }
   })();
   pendingCleanups.set(key, record);
@@ -339,6 +398,7 @@ function startCleanup(key: string, run: CleanupRun): Promise<void> {
 // are idempotent clears, and leaving them undone would keep the account's
 // data (and queued sends the user chose to discard) on the device.
 async function settlePendingCleanup(accountId: string): Promise<() => void> {
+  signInsUnderWay++;
   const held: Array<[string, PendingCleanup]> = [];
   for (const key of [accountId, SHARED_CLEANUP]) {
     const pending = pendingCleanups.get(key);
@@ -350,45 +410,77 @@ async function settlePendingCleanup(accountId: string): Promise<() => void> {
   const release = () => {
     if (released) return;
     released = true;
+    signInsUnderWay--;
     for (const [key, record] of held) {
       record.returning--;
-      if (record.returning > 0 || !record.skipped || isRegistered(key)) continue;
-      record.skipped = false;
-      void startCleanup(key, record.run);
+      if (record.returning > 0) continue;
+      if (record.skipped && !isRegistered(key)) {
+        // Its marker stays: the new run's own.
+        record.skipped = false;
+        void startCleanup(record.entry);
+      } else if (record.ended) {
+        dropCleanup(key, record);
+      }
     }
     // Parked ones this sign-in never held (they started after it did).
     for (const [key, record] of [...pendingCleanups]) {
       if (!record.ended || !record.skipped || record.returning > 0 || isRegistered(key)) continue;
       record.skipped = false;
-      void startCleanup(key, record.run);
+      void startCleanup(record.entry);
     }
   };
   if (held.length) await waitAtMost(Promise.all(held.map(([, r]) => r.done)));
   return release;
 }
 
+// Cleanups left unfinished by an app kill (forget-pending), finished now.
+// Only once the registry has loaded: one that timed out reads as empty, and
+// every account, signed in or not, would look signed out. A marker whose key
+// is registered again has nothing left to forget, and goes. Never throws.
+async function resumeForgetPending(): Promise<void> {
+  try {
+    if (!useAccountStore.persist.hasHydrated()) return;
+    let entries: ForgetPendingEntry[] = [];
+    await waitAtMost(readForgetPending().then((read) => { entries = read; }), EVICTION_CLEANUP_TIMEOUT_MS, 'reading the pending cleanups');
+    for (const entry of entries) {
+      if (isRegistered(entry.key)) {
+        void clearForgetPending(entry.key).catch((e) => console.warn('[sign-out] could not clear a pending cleanup', e));
+      } else if (!pendingCleanups.has(entry.key)) {
+        void startCleanup(entry);
+      }
+    }
+  } catch (e) {
+    console.warn('[sign-out] could not resume the pending cleanups', e);
+  }
+}
+
 // Forget a signed-out account's device data, tracked, waiting at most
 // EVICTION_CLEANUP_TIMEOUT_MS, then the shared data (forgetSharedAfterLast),
 // which goes only if no account is registered when that step is reached.
 function forgetSignedOut(account: { appAccountId: string; serverUrl?: string | null; username?: string | null }, discardQueuedSends?: boolean): Promise<void> {
-  return waitAtMost(startCleanup(account.appAccountId, async (stillGone) => {
-    await forgetAccountData(account, { lastAccount: false, discardQueuedSends, stillGone });
-    if (stillGone()) await forgetSharedAfterLast();
+  return waitAtMost(startCleanup({
+    key: account.appAccountId,
+    kind: 'signOut',
+    serverUrl: account.serverUrl,
+    username: account.username,
+    discardQueuedSends,
+    withShared: true,
   }));
 }
 
 // The shared step of a signed-out account's cleanup, tracked under
 // SHARED_CLEANUP rather than inside that account's record. It runs whether
 // or not the account was the last: another account registered just then
-// (which may be undone) makes it skip and park, and it runs again once a
-// sign-in ends with no account registered.
+// makes it skip. One registered for a sign-in under way (which may be
+// undone) parks it, and it runs again once a sign-in ends with no account
+// registered; one settled leaves nothing to forget.
 function forgetSharedAfterLast(): Promise<void> {
-  return startCleanup(SHARED_CLEANUP, (stillGone) => forgetSharedData(stillGone));
+  return startCleanup({ key: SHARED_CLEANUP, kind: 'shared' });
 }
 
 // Forget the data every account shares, tracked as forgetSignedOut is.
 function forgetSharedSignedOut(): Promise<void> {
-  return waitAtMost(startCleanup(SHARED_CLEANUP, (stillGone) => forgetSharedData(stillGone)));
+  return waitAtMost(forgetSharedAfterLast());
 }
 
 // An account dropped because its credentials are gone or were refused (a
@@ -419,15 +511,9 @@ async function evictAccount(accountId: string, opts: { clearCredentials: boolean
     afterCredentials(() => useEmailStore.getState().removeAccount(accountId));
     afterCredentials(() => dropPendingMailFolder(accountId));
   }
-  const account = { appAccountId: accountId, serverUrl: entry?.serverUrl, username: entry?.username };
-  await waitAtMost(startCleanup(accountId, async (stillGone) => {
-    // Each under the guard: one that ran after a new sign-in of the account
-    // would delete its new id token or relay.
-    if (stillGone()) await waitAtMost(deleteIdToken(accountId));
-    if (stillGone()) await waitAtMost(clearStoredRelayBaseUrl(accountId));
-    await forgetAccountData(account, { lastAccount: false, stillGone });
-    if (stillGone()) await forgetSharedAfterLast();
-  }));
+  // Its steps (cleanupRun) are each under the guard: one that ran after a
+  // new sign-in of the account would delete its new id token or relay.
+  await waitAtMost(startCleanup({ key: accountId, kind: 'evict', serverUrl: entry?.serverUrl, username: entry?.username }));
 }
 
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
@@ -1113,10 +1199,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // that hangs does not keep the others from running. Each forgets only
     // its own account (lastAccount stays false); the shared data goes last.
     for (const a of signedOut) {
-      await waitAtMost(startCleanup(a.id, (stillGone) => forgetAccountData(
-        { appAccountId: a.id, serverUrl: a.serverUrl, username: a.username },
-        { lastAccount: false, discardQueuedSends: opts?.discardQueuedSends, stillGone },
-      )));
+      await waitAtMost(startCleanup({
+        key: a.id,
+        kind: 'signOut',
+        serverUrl: a.serverUrl,
+        username: a.username,
+        discardQueuedSends: opts?.discardQueuedSends,
+        withShared: false,
+      }));
     }
     await forgetSharedSignedOut();
 
@@ -1304,6 +1394,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           console.warn('[offline-cache] orphan sweep failed', e),
         );
       }
+
+      // Finish the cleanups an app kill cut short; bounded, and not waited
+      // for past reading their markers.
+      await resumeForgetPending();
 
       const target = accountStore.getActiveAccount() ?? accountStore.getDefaultAccount();
       if (!target) {

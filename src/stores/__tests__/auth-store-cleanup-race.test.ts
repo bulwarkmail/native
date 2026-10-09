@@ -48,7 +48,9 @@ vi.mock('../../lib/push-notifications', () => ({
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jmapClient } from '../../api/jmap-client';
-import { useAuthStore, EVICTION_CLEANUP_TIMEOUT_MS } from '../auth-store';
+import { useAuthStore, EVICTION_CLEANUP_TIMEOUT_MS, resetCleanupMemoryForTests } from '../auth-store';
+import { readForgetPending, markForgetPending, FORGET_PENDING_KEY, SHARED_CLEANUP } from '../forget-pending';
+import { clearStoredRelayBaseUrl } from '../../lib/push-notifications';
 import { useAccountStore } from '../account-store';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSendQueueStore, type QueuedSend } from '../send-queue-store';
@@ -57,7 +59,7 @@ import { useSearchHistoryStore } from '../search-history-store';
 import { generateAccountId } from '../../lib/account-utils';
 import { IDENTITY_CACHE_PREFIX } from '../../lib/identity-cache';
 import { AccountLimitError } from '../../lib/account-utils';
-import { AuthenticationError } from '../../api/jmap-client';
+import { AuthenticationError, NetworkError } from '../../api/jmap-client';
 
 const SERVER = 'https://mail.example.com';
 const USER = 'me@mail.example.com';
@@ -75,6 +77,8 @@ function queued(): Omit<QueuedSend, 'messageId'> {
 let warn: ReturnType<typeof vi.spyOn>;
 beforeEach(async () => {
   vi.clearAllMocks();
+  // No cleanup of an earlier case still tracked.
+  resetCleanupMemoryForTests();
   await useSendQueueStore.getState().clearAccount(ID);
   await AsyncStorage.clear();
   useCalendarSubscriptionsStore.setState({ subscriptions: [] });
@@ -212,6 +216,165 @@ describe('a sign-out cleanup still running when the account signs in again', () 
       expect(useCalendarSubscriptionsStore.getState().subscriptions).toHaveLength(1);
       expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
     });
+
+    it('finishes a cleanup the app was killed in, at the next cold start', async () => {
+      await leftBehind();
+      hangFirstStep();
+      const out = useAuthStore.getState().logout({ discardQueuedSends: true });
+      await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+      await out;
+      expect(await readForgetPending()).toContainEqual(expect.objectContaining({ key: ID, kind: 'signOut', discardQueuedSends: true }));
+
+      resetCleanupMemoryForTests(); // the kill: memory gone, storage kept
+      await useAuthStore.getState().restoreSession();
+      // Well before the hung step's own bound: the resumed cleanup did it.
+      await vi.advanceTimersByTimeAsync(1000);
+      await expectAllForgotten();
+      await vi.advanceTimersByTimeAsync(60_000);
+      await expectAllForgotten();
+      expect(await readForgetPending()).toEqual([]);
+    });
+
+    it('drops the marker of an account signed back in before the kill, and forgets nothing', async () => {
+      await markForgetPending({ key: ID, kind: 'signOut', withShared: true }); // ID is registered (beforeEach)
+      await markForgetPending({ key: SHARED_CLEANUP, kind: 'shared' });
+      await leftBehind();
+      resetCleanupMemoryForTests();
+      // Offline: the account stays signed in, its credentials kept.
+      (jmapClient.loadAccount as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NetworkError('offline'));
+      await useAuthStore.getState().restoreSession();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([ID]);
+      expect(await AsyncStorage.getItem(`${IDENTITY_CACHE_PREFIX}${ID}`)).not.toBeNull();
+      expect(await AsyncStorage.getItem(`webmail:sendqueue:v1:${ID}:q1`)).not.toBeNull();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions).toHaveLength(1);
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+      expect(await readForgetPending()).toEqual([]);
+    });
+
+    it('finishes an eviction the app was killed in, relay included', async () => {
+      useAccountStore.setState({ accounts: [], activeAccountId: null, defaultAccountId: null });
+      await markForgetPending({ key: ID, kind: 'evict', serverUrl: SERVER, username: USER });
+      await leftBehind();
+      await useAuthStore.getState().restoreSession();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith(ID);
+      expect(await AsyncStorage.getItem(`${IDENTITY_CACHE_PREFIX}${ID}`)).toBeNull();
+      // An eviction keeps the queued sends, as a sign-out does unless asked.
+      expect(await AsyncStorage.getItem(`webmail:sendqueue:v1:${ID}:q1`)).not.toBeNull();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+      expect(await readForgetPending()).toEqual([]);
+    });
+
+    it('leaves the markers alone when the account registry has not loaded', async () => {
+      useAccountStore.setState({ accounts: [], activeAccountId: null, defaultAccountId: null });
+      vi.spyOn(useAccountStore.persist, 'hasHydrated').mockReturnValue(false);
+      await markForgetPending({ key: ID, kind: 'signOut', withShared: true });
+      await leftBehind();
+      const restored = useAuthStore.getState().restoreSession();
+      // The registry's own bounded wait.
+      await vi.advanceTimersByTimeAsync(60_000);
+      await restored;
+      expect(await AsyncStorage.getItem(`${IDENTITY_CACHE_PREFIX}${ID}`)).not.toBeNull();
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+      expect(await readForgetPending()).toHaveLength(1);
+    });
+
+    it('starts the cleanup at once even when its marker cannot be written', async () => {
+      await leftBehind();
+      const setItem = AsyncStorage.setItem as ReturnType<typeof vi.fn>;
+      const write = setItem.getMockImplementation() as (key: string, value: string) => Promise<void>;
+      let unhang!: () => void;
+      setItem.mockImplementation((key: string, value: string) => (
+        key === FORGET_PENDING_KEY ? new Promise<void>((r) => { unhang = r; }) : write(key, value)
+      ));
+      const out = useAuthStore.getState().logout({ discardQueuedSends: true });
+      await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+      await out;
+      await expectAllForgotten();
+      // Let the marker writes behind it through, for the cases after this one.
+      setItem.mockImplementation(write);
+      unhang();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await readForgetPending()).toEqual([]);
+    });
+
+    // Two sign-ins of the account overlap the hung cleanup: the first holds
+    // it, the step ends while it does, and the second starts before the first
+    // has settled. The second must hold the cleanup too.
+    async function overlappingSignIns(secondFails: boolean) {
+      await leftBehind();
+      const release = hangFirstStep();
+      const signedOut = useAuthStore.getState().logout({ discardQueuedSends: true });
+      await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+      await signedOut;
+
+      let connectFirst!: () => void;
+      let connectSecond!: (ok: boolean) => void;
+      const session = { apiUrl: `${SERVER}/jmap/` };
+      (jmapClient.connect as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(() => new Promise((resolve) => { connectFirst = () => resolve(session); }))
+        .mockImplementationOnce(() => new Promise((resolve, reject) => {
+          connectSecond = (ok) => (ok ? resolve(session) : reject(new AuthenticationError('bad password')));
+        }));
+      vi.spyOn(useAccountStore.getState(), 'addAccount').mockImplementationOnce(() => { throw new AccountLimitError(); });
+
+      const first = useAuthStore.getState().login(SERVER, USER, 'pw').catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(0);
+      release(); // ends while the first sign-in holds the cleanup
+      await vi.advanceTimersByTimeAsync(1000);
+      const second = useAuthStore.getState().login(SERVER, USER, 'pw').catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(0);
+      connectFirst();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await first).toBeInstanceOf(AccountLimitError);
+      expect((await readForgetPending()).map((e) => e.key)).toContain(ID);
+      // The second sign-in is still under way: nothing of the account is forgotten.
+      expect(await AsyncStorage.getItem(`${IDENTITY_CACHE_PREFIX}${ID}`)).not.toBeNull();
+      expect(await AsyncStorage.getItem(`webmail:sendqueue:v1:${ID}:q1`)).not.toBeNull();
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+
+      connectSecond(!secondFails);
+      await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+      return second;
+    }
+
+    it('never runs the cleanup between two overlapping sign-ins of the account', async () => {
+      expect(await overlappingSignIns(false)).toBeUndefined();
+      expect(useAuthStore.getState().activeAccountId).toBe(ID);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(await AsyncStorage.getItem(`${IDENTITY_CACHE_PREFIX}${ID}`)).not.toBeNull();
+      expect(await AsyncStorage.getItem(`webmail:sendqueue:v1:${ID}:q1`)).not.toBeNull();
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+      expect(await readForgetPending()).toEqual([]);
+    });
+
+    it('runs it once afterwards when both overlapping sign-ins fail', async () => {
+      expect(await overlappingSignIns(true)).toBeInstanceOf(AuthenticationError);
+      expect(useAccountStore.getState().accounts).toEqual([]);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await expectAllForgotten();
+      // The first run, then the one re-run.
+      expect(useOfflineCacheStore.getState().clearAccount).toHaveBeenCalledTimes(2);
+      expect(await readForgetPending()).toEqual([]);
+    });
+  });
+
+  it('leaves no shared cleanup parked after signing out one of two accounts', async () => {
+    const OTHER = 'other@mail.example.com';
+    const OTHER_ID = generateAccountId(OTHER, SERVER);
+    const { accounts } = useAccountStore.getState();
+    useAccountStore.setState({ accounts: [...accounts, { ...accounts[0], id: OTHER_ID, username: OTHER, email: OTHER, isDefault: false }] });
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    (jmapClient.loadAccount as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+    const signedOut = useAuthStore.getState().logout();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await signedOut;
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([OTHER_ID]);
+    expect((await readForgetPending()).map((e) => e.key)).toEqual([]);
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']); // the other account's
   });
 
   // The last account's shared step, reached while another account is
