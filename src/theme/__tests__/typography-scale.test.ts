@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { applyFontScale, FONT_SCALE, fontPx, typography } from '../tokens';
+import { applyFontScale, FONT_SCALE, fontPx, fontScaleFactor, typography } from '../tokens';
 import { scaledPalette } from '../colors';
 import { syncFontScale } from '../dynamic';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -52,6 +52,12 @@ describe('applyFontScale', () => {
     expect(fontPx(14.5)).toBe(12.5);
     applyFontScale(1);
     expect(fontPx(13)).toBe(13);
+  });
+
+  it('reports the factor it applies, so style caches can key on it', () => {
+    expect(fontScaleFactor()).toBe(1);
+    applyFontScale(FONT_SCALE.large);
+    expect(fontScaleFactor()).toBe(1.125);
   });
 });
 

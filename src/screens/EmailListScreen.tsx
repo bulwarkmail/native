@@ -1434,7 +1434,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              <Text style={styles.filterBadgeText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{activeFilterCount}</Text>
             </View>
           )}
         </Pressable>
@@ -2246,8 +2246,9 @@ function makeStyles(c: ThemePalette) {
     top: 2,
     right: 2,
     minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    // Grows with its count: a fixed height clipped it at a large system font.
+    minHeight: 16,
+    borderRadius: 999,
     backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2257,7 +2258,7 @@ function makeStyles(c: ThemePalette) {
     fontSize: fontPx(10),
     fontWeight: '700',
     color: c.primaryForeground,
-    lineHeight: 14,
+    lineHeight: fontPx(14),
   },
   searchClearButton: {
     width: 20,

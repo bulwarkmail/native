@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { CalendarEvent } from '../../api/types';
 import type { EventBlockColors } from '../../lib/event-colors';
 import { isTaskDone, isTaskEvent, taskIdOfEvent } from '../../lib/calendar-tasks';
 import { useColors } from '../../theme/colors';
-import { CHROME_MAX_FONT_SCALE, fontPx } from '../../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, fontPx, fontScaleFactor, type ThemePalette } from '../../theme/tokens';
 
 // Events in the week and day grids, shared by the paged WeekView and the
 // scrolling TimeGridScrollView. Every event is a solid block of its calendar
@@ -218,12 +218,19 @@ export function AllDayEventBar({
   );
 }
 
-// Text sizes follow the font size setting, and useColors() changes identity
-// with it, so the styles rebuild then. The boxes are fixed, so their Text caps
+// Text sizes follow the font size setting, so the styles rebuild when it or
+// the palette changes; a grid draws many blocks, so they share one build
+// rather than each memoising its own. The boxes are fixed, so their Text caps
 // the OS font scale at CHROME_MAX_FONT_SCALE.
+let cached: { c: ThemePalette; factor: number; styles: ReturnType<typeof makeStyles> } | null = null;
+
 function useStyles() {
   const c = useColors();
-  return useMemo(makeStyles, [c]);
+  const factor = fontScaleFactor();
+  if (cached === null || cached.c !== c || cached.factor !== factor) {
+    cached = { c, factor, styles: makeStyles() };
+  }
+  return cached.styles;
 }
 
 const makeStyles = () => StyleSheet.create({

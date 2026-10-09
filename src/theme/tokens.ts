@@ -356,6 +356,11 @@ export function fontPx(px: number): number {
   return Math.round(px * fontFactor * 2) / 2;
 }
 
+// The factor itself, for a style cache that must rebuild when it changes.
+export function fontScaleFactor(): number {
+  return fontFactor;
+}
+
 // Sets every entry to its base size times `factor`. Always from the base, so
 // calling it again with the same factor changes nothing.
 export function applyFontScale(factor: number): void {

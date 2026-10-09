@@ -20,10 +20,13 @@ const CHROME_TEXT: Array<[string, string]> = [
   ['src/components/calendar/EventBlock.tsx', 'styles.barTitle'],
   ['src/components/calendar/MonthView.tsx', 'styles.monthLabel'],
   ['src/components/calendar/MonthView.tsx', 'styles.chipText'],
+  ['src/components/calendar/MonthView.tsx', 'styles.overflowText'],
   ['src/components/email/ListAttachmentChips.tsx', 'styles.name'],
   ['src/components/email/ListAttachmentChips.tsx', 'styles.moreText'],
   ['src/components/email/VerificationCodeChip.tsx', 'styles.code'],
+  ['src/screens/ContactsScreen.tsx', 'styles.filterBadgeText'],
   ['src/screens/EmailListScreen.tsx', 'styles.chipText'],
+  ['src/screens/EmailListScreen.tsx', 'styles.filterBadgeText'],
   ['src/screens/EmailListScreen.tsx', 'styles.triToggleText'],
 ];
 

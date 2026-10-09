@@ -54,6 +54,9 @@ describe('font sizes', () => {
     expect(BODY_MAX_FONT_SCALE).toBe(1.5);
     const text = readFileSync(nodeRequire.resolve('react-native/Libraries/Text/Text.js'), 'utf8');
     expect(text).toMatch(/hasTextAncestor[\s\S]{0,200}maxFontSizeMultiplier[\s\S]{0,80}1\.5/);
+    // Both top-level paths pass it on: plain and pressable.
+    expect(text).toMatch(/<NativeText\s+\{\.\.\.restProps\}\s+maxFontSizeMultiplier=\{_maxFontSizeMultiplier\}/);
+    expect(text).toMatch(/\.\.\.restProps,\s+maxFontSizeMultiplier: _maxFontSizeMultiplier,/);
     const input = readFileSync(nodeRequire.resolve('react-native/Libraries/Components/TextInput/TextInput.js'), 'utf8');
     expect(input).toMatch(/maxFontSizeMultiplier[\s\S]{0,80}1\.5/);
     expect(existsSync(join(ROOT, 'patches/react-native+0.81.5.patch'))).toBe(true);
