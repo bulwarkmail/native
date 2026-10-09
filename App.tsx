@@ -287,9 +287,11 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       top: -2,
       right: -6,
       minWidth: 16,
-      height: 16,
+      // Not a fixed height: Android scales lineHeight by the OS font scale
+      // (up to CHROME_MAX_FONT_SCALE), and a 16px box clipped the count.
+      minHeight: 16,
       paddingHorizontal: 4,
-      borderRadius: 8,
+      borderRadius: 999,
       overflow: 'hidden',
       backgroundColor: c.error,
       color: c.primaryForeground,
