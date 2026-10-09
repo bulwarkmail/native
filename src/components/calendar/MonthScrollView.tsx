@@ -2,6 +2,7 @@ import React from 'react';
 import {
   FlatList,
   View,
+  useWindowDimensions,
   type ListRenderItemInfo,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -16,6 +17,7 @@ import {
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
 import {
   dayIndexIn,
+  monthChipRowHeight,
   monthFocusRow,
   monthKeyOf,
   monthMask,
@@ -27,7 +29,6 @@ import { useCalendarLocale } from '../../lib/calendar-locale';
 import { displayNow } from '../../lib/calendar-timezone';
 import {
   MONTH_ROW_HEIGHT,
-  MONTH_ROW_HEIGHT_CHIPS,
   MonthWeekRow,
   MonthWeekdayHeader,
   useMonthStyles,
@@ -120,7 +121,11 @@ function MonthScrollViewInner({
   }, [window]);
   const weeksRef = React.useRef(weeks);
   weeksRef.current = weeks;
-  const rowHeight = showTimeInMonthView ? MONTH_ROW_HEIGHT_CHIPS : MONTH_ROW_HEIGHT;
+  // The chip row grows with the font size setting (useMonthStyles re-renders
+  // on it) and the OS font scale; the rows, getItemLayout and the sampling
+  // all read this one value.
+  const { fontScale } = useWindowDimensions();
+  const rowHeight = showTimeInMonthView ? monthChipRowHeight(fontScale) : MONTH_ROW_HEIGHT;
   const viewportHeight = rowHeight * VISIBLE_ROWS;
 
   // The month in focus: set by navigation, then by what scrolls under the

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import {
   addDays,
   endOfWeek,
@@ -21,7 +21,7 @@ import {
   type EventDayIndex,
   type TimeFormat,
 } from '../../lib/calendar-utils';
-import { dayIndexIn, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
+import { dayIndexIn, monthChipRowHeight, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
@@ -31,10 +31,10 @@ import { TaskCircle, taskControlFor } from './EventBlock';
 
 type WeekStart = 0 | 1 | 6;
 
-// Height of a week row with dots, and with event chips (#666). The freely
-// scrolling month uses them as fixed row heights.
+// Height of a week row with dots: fixed boxes, no text that grows. A row
+// with event chips is monthChipRowHeight(). The freely scrolling month uses
+// them as fixed row heights.
 export const MONTH_ROW_HEIGHT = 54;
-export const MONTH_ROW_HEIGHT_CHIPS = 74;
 // Corner radius of event bars (repos/branding/APP.md).
 const EVENT_RADIUS = 2;
 
@@ -67,9 +67,12 @@ export function weekNumberFor(date: Date, weekStartsOn: WeekStart): number {
 
 export type MonthStyles = ReturnType<typeof makeStyles>;
 
+// Rebuilt with the palette, which changes with the font size setting, and
+// with the OS font scale, which the chip row height follows.
 export function useMonthStyles(): MonthStyles {
   const c = useColors();
-  return React.useMemo(() => makeStyles(c), [c]);
+  const { fontScale } = useWindowDimensions();
+  return React.useMemo(() => makeStyles(c, fontScale), [c, fontScale]);
 }
 
 export function MonthWeekdayHeader({
@@ -207,7 +210,7 @@ function MonthWeekRowInner({
                   />
                 ))}
                 {overflow > 0 && (
-                  <Text style={styles.overflowText}>+{overflow}</Text>
+                  <Text style={styles.overflowText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>+{overflow}</Text>
                 )}
               </View>
             )}
@@ -244,7 +247,7 @@ function MonthWeekRowInner({
                   );
                 })}
                 {overflow > 0 && (
-                  <Text style={styles.overflowText}>+{overflow}</Text>
+                  <Text style={styles.overflowText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>+{overflow}</Text>
                 )}
               </View>
             )}
@@ -325,7 +328,7 @@ function MonthViewInner({
 
 export const MonthView = React.memo(MonthViewInner);
 
-function makeStyles(c: ThemePalette) {
+function makeStyles(c: ThemePalette, osFontScale: number) {
   return StyleSheet.create({
   grid: { paddingHorizontal: spacing.sm },
   weekdayRow: { flexDirection: 'row', paddingHorizontal: spacing.xs, marginBottom: 4 },
@@ -350,7 +353,7 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: 4,
   },
   dayCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
-  dayCellTall: { minHeight: MONTH_ROW_HEIGHT_CHIPS, paddingHorizontal: 1 },
+  dayCellTall: { minHeight: monthChipRowHeight(osFontScale), paddingHorizontal: 1 },
   dayNumber: {
     width: 36,
     height: 36,
