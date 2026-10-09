@@ -80,8 +80,8 @@ export async function updateScopedCalendar(
   // make it the new one so the recolour shows. Setting it rather than
   // clearing it, since the calendar screen gives a calendar without one a
   // random colour.
-  if (updates.color && isShownAccount(scope.appAccountId)) {
-    useSettingsStore.getState().setSharedCalendarColor(sharedCalendarColorKey(cal), updates.color);
+  if (updates.color && scope.appAccountId && isShownAccount(scope.appAccountId)) {
+    useSettingsStore.getState().setSharedCalendarColor(sharedCalendarColorKey(scope.appAccountId, cal), updates.color);
   }
 }
 

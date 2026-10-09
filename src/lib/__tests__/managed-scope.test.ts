@@ -132,7 +132,7 @@ describe('updateScopedCalendar', () => {
   it('after a recolour, makes the new colour the viewer\'s own for that calendar so it shows', async () => {
     await updateScopedCalendar(scope, 'team:c1', { name: 'Team', color: '#ff0000', description: '' });
     expect(calendarStore.updateCalendar).toHaveBeenCalledWith('team:c1', { color: '#ff0000' }, expect.anything());
-    expect(settings.setSharedCalendarColor).toHaveBeenCalledWith('team|c1', '#ff0000');
+    expect(settings.setSharedCalendarColor).toHaveBeenCalledWith('app-1|team|c1', '#ff0000');
   });
 
   it('leaves the viewer\'s colours alone when the server refuses the recolour', async () => {

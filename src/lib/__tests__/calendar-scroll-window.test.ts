@@ -174,6 +174,25 @@ describe('windowStateForJump', () => {
     state = growScrollWindow(state, 'after');
     expect(windowStateForJump(state, 'agenda', today, opts)).toBe(state);
   });
+
+  it('grows the window above a month you step back to, on the same anchor', () => {
+    // A fresh month window has one step (30 days) above Sep 2026's grid:
+    // August is inside it, but its grid starts on the window's first row.
+    const state = freshScrollWindowState('month', new Date(2026, 8, 15));
+    const prevMonth = new Date(2026, 7, 1);
+    const next = windowStateForJump(state, 'month', prevMonth, opts);
+    expect(next.anchorKey).toBe(state.anchorKey);
+    expect(next.before).toBeGreaterThan(state.before);
+    expect(next.after).toBe(state.after);
+    const window = computeScrollWindow(next, opts);
+    expect(baseRange('month', prevMonth, opts).start.getTime()).toBeGreaterThan(window.start.getTime());
+  });
+
+  it('still starts a fresh month window at a target outside it', () => {
+    const state = freshScrollWindowState('month', new Date(2026, 8, 15));
+    const next = windowStateForJump(state, 'month', new Date(2026, 2, 1), opts);
+    expect(next).toEqual(freshScrollWindowState('month', new Date(2026, 2, 1)));
+  });
 });
 
 describe('scrollWindowLoadRange', () => {

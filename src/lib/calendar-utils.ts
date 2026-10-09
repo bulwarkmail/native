@@ -555,15 +555,43 @@ export function getEventColor(
 // live in the settings store keyed by sharedCalendarColorKey().
 
 /**
- * Stable key for a shared calendar's local color override. Built from the
- * owning JMAP account + the calendar id so it stays unique across accounts.
+ * Stable key for a shared calendar's local color override. JMAP ids repeat
+ * across app accounts (two servers can both have `team|c1`), so the key
+ * names the app account first, then the owning JMAP account and calendar.
  */
 export function sharedCalendarColorKey(
+  appAccountId: string,
   cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
 ): string {
   // Keyed on the raw server id (like webmail) so the key doesn't depend on
   // the store's `${accountId}:${id}` namespacing format.
+  return `${appAccountId}|${cal.accountId ?? ''}|${cal.originalId ?? cal.id}`;
+}
+
+/**
+ * The key overrides were stored under before they were per app account,
+ * and the one a webmail settings import carries. Read only: writes use
+ * sharedCalendarColorKey().
+ */
+export function legacySharedCalendarColorKey(
+  cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
+): string {
   return `${cal.accountId ?? ''}|${cal.originalId ?? cal.id}`;
+}
+
+/**
+ * The viewer's override for a shared calendar in app account
+ * `appAccountId`: the per-account one, else one under the old key, so an
+ * existing override or a webmail import still shows.
+ */
+export function sharedCalendarColorFor(
+  overrides: Record<string, string>,
+  appAccountId: string,
+  cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
+): string | undefined {
+  return (appAccountId ? overrides[sharedCalendarColorKey(appAccountId, cal)] : undefined)
+    || overrides[legacySharedCalendarColorKey(cal)]
+    || undefined;
 }
 
 /**
@@ -590,10 +618,11 @@ export function pickUnusedCalendarColor(usedColors: Iterable<string>): string {
 export function applySharedCalendarColors(
   calendars: Calendar[],
   overrides: Record<string, string>,
+  appAccountId: string,
 ): Calendar[] {
   return calendars.map((cal) => {
     if (!cal.isShared) return cal;
-    const override = overrides[sharedCalendarColorKey(cal)];
+    const override = sharedCalendarColorFor(overrides, appAccountId, cal);
     if (!override) return cal;
     return { ...cal, color: override, colorIsLocalOverride: true };
   });

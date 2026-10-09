@@ -79,7 +79,9 @@ import {
   eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
+  legacySharedCalendarColorKey,
   pickUnusedCalendarColor,
+  sharedCalendarColorFor,
   sharedCalendarColorKey,
   type EventDayIndex,
   type TimeFormat,
@@ -393,8 +395,9 @@ export default function CalendarScreen() {
   // Per-viewer recolor (#345): shared calendars get the viewer's local color
   // override applied before anything renders. Personal calendars pass through.
   const displayCalendars = React.useMemo(
-    () => applySharedCalendarColors(storeCalendars, sharedCalendarColors),
-    [storeCalendars, sharedCalendarColors],
+    // No account shown: no per-account override applies.
+    () => applySharedCalendarColors(storeCalendars, sharedCalendarColors, shownAccountId ?? ''),
+    [storeCalendars, sharedCalendarColors, shownAccountId],
   );
 
   // Auto-assign a random, not-yet-used palette color to any freshly shared
@@ -402,8 +405,12 @@ export default function CalendarScreen() {
   // once per calendar (guarded by the presence of an existing key), and the
   // user can still overwrite it from the sidebar.
   React.useEffect(() => {
+    // Keyed by the app account the sheets belong to (ids repeat across
+    // accounts). An override under the old key counts as assigned.
+    const appAccountId = screenAccount().appAccountId;
+    if (!appAccountId) return;
     const missing = storeCalendars.filter(
-      (cal) => cal.isShared && !sharedCalendarColors[sharedCalendarColorKey(cal)],
+      (cal) => cal.isShared && !sharedCalendarColorFor(sharedCalendarColors, appAccountId, cal),
     );
     if (missing.length === 0) return;
     // Seed "used" with personal calendar colors plus already-assigned shared
@@ -418,9 +425,9 @@ export default function CalendarScreen() {
     for (const cal of missing) {
       const color = pickUnusedCalendarColor(used);
       used.add(color.toLowerCase());
-      setSharedCalendarColor(sharedCalendarColorKey(cal), color);
+      setSharedCalendarColor(sharedCalendarColorKey(appAccountId, cal), color);
     }
-  }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor]);
+  }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor, screenAccount]);
 
   const allCalendars = React.useMemo(
     () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar(undefined, birthdayCalendarColor)] : displayCalendars),
@@ -1058,7 +1065,8 @@ export default function CalendarScreen() {
     (cal: Calendar, color: string) => {
       if (cal.isShared) {
         // Per-viewer recolor (#345): the owner's colour is left alone.
-        setSharedCalendarColor(sharedCalendarColorKey(cal), color);
+        const { appAccountId } = screenAccount();
+        if (appAccountId) setSharedCalendarColor(sharedCalendarColorKey(appAccountId, cal), color);
         return;
       }
       updateCalendar(cal.id, { color }, screenAccount()).catch(reportError);
@@ -1400,8 +1408,11 @@ export default function CalendarScreen() {
         onSetColor={handleSetCalendarColor}
         onResetColor={(cal) => {
           // Drop the local override; the auto-assign effect picks a fresh
-          // unused color (so it never reverts to a collision).
-          removeSharedCalendarColor(sharedCalendarColorKey(cal));
+          // unused color (so it never reverts to a collision). The old
+          // key goes too, or it would show again as the fallback.
+          const { appAccountId } = screenAccount();
+          if (appAccountId) removeSharedCalendarColor(sharedCalendarColorKey(appAccountId, cal));
+          removeSharedCalendarColor(legacySharedCalendarColorKey(cal));
         }}
         onRename={(cal) => { setSidebarVisible(false); setCalendarEditTarget({ mode: 'edit', calendar: cal }); }}
         onShare={(cal) => { setSidebarVisible(false); setShareTarget(cal); }}

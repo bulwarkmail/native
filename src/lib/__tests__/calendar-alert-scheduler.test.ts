@@ -91,7 +91,11 @@ describe('getUpcomingAlerts', () => {
     const task = {
       ...event,
       id: 't1',
-      due: '2026-03-01T12:00:00Z',
+      // JSCalendar `due` is a LocalDateTime: written with a `Z` it would be
+      // read in the device zone and fall before `now` east of UTC. Pin the
+      // zone so the test passes under any TZ.
+      due: '2026-03-01T12:00:00',
+      timeZone: 'UTC',
       alerts: { x: { trigger: { '@type': 'OffsetTrigger', offset: 'PT0S' }, action: 'display' } },
     };
     const doneTask = { ...task, id: 't2', progress: 'completed' };
@@ -109,7 +113,9 @@ describe('getUpcomingAlerts', () => {
     const task = {
       ...untitled,
       id: 't1',
-      due: '2026-03-01T12:00:00Z',
+      // A LocalDateTime in a pinned zone, as above.
+      due: '2026-03-01T12:00:00',
+      timeZone: 'UTC',
       alerts: { x: { trigger: { '@type': 'OffsetTrigger' as const, offset: 'PT0S' }, action: 'display' as const } },
     };
     const t = (key: string, _fallback: string, params?: Record<string, unknown>) =>

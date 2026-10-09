@@ -13,8 +13,12 @@ import {
   timePattern,
   layoutOverlappingEvents,
   CALENDAR_COLOR_PALETTE,
+  applySharedCalendarColors,
+  legacySharedCalendarColorKey,
+  sharedCalendarColorFor,
+  sharedCalendarColorKey,
 } from '../calendar-utils';
-import type { CalendarEvent } from '../../api/types';
+import type { Calendar, CalendarEvent } from '../../api/types';
 import { useSettingsStore } from '../../stores/settings-store';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
@@ -276,5 +280,43 @@ describe('layoutOverlappingEvents', () => {
       ev({ id: 'all', showWithoutTime: true, duration: 'P1D' }),
     ];
     expect(layoutOverlappingEvents(events, day)).toHaveLength(0);
+  });
+});
+
+describe('shared calendar colours', () => {
+  // JMAP ids repeat across app accounts: the same `team|c1` can be two
+  // different calendars on two servers, so the key names the app account.
+  const cal = { id: 'team:c1', originalId: 'c1', accountId: 'team', isShared: true, name: 'T' } as Calendar;
+
+  it('keys an override by app account, JMAP account and the raw calendar id', () => {
+    expect(sharedCalendarColorKey('A', cal)).toBe('A|team|c1');
+    expect(legacySharedCalendarColorKey(cal)).toBe('team|c1');
+  });
+
+  it('keeps two app accounts\' overrides for the same JMAP calendar apart', () => {
+    const overrides = { [sharedCalendarColorKey('A', cal)]: '#ff0000' };
+    expect(applySharedCalendarColors([cal], overrides, 'A')[0].color).toBe('#ff0000');
+    expect(applySharedCalendarColors([cal], overrides, 'B')[0].color).toBeUndefined();
+  });
+
+  it('still shows an override stored under the old key', () => {
+    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, 'A', cal)).toBe('#00ff00');
+    const [shown] = applySharedCalendarColors([cal], { 'team|c1': '#00ff00' }, 'A');
+    expect(shown.color).toBe('#00ff00');
+    expect(shown.colorIsLocalOverride).toBe(true);
+  });
+
+  it('prefers the per-account override over the old key', () => {
+    const overrides = { 'team|c1': '#00ff00', 'A|team|c1': '#0000ff' };
+    expect(sharedCalendarColorFor(overrides, 'A', cal)).toBe('#0000ff');
+  });
+
+  it('applies no per-account override when no account is shown', () => {
+    expect(sharedCalendarColorFor({ 'A|team|c1': '#ff0000' }, '', cal)).toBeUndefined();
+  });
+
+  it('leaves personal calendars alone', () => {
+    const own = { ...cal, isShared: false, color: '#123456' };
+    expect(applySharedCalendarColors([own], { 'A|team|c1': '#ff0000' }, 'A')[0]).toBe(own);
   });
 });
