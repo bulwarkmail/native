@@ -663,10 +663,10 @@ Left open:
   - the font cap on a phone;
   - pinning against the real server's authserv-id (the `Authentication-Results` header on a received message).
 - **Sender-check limits:**
-  - Stalwart must stamp its own `Authentication-Results` on every received message, and strip incoming ones that claim its id. This is unverified. On a server that does neither, another local user can forge a pass.
+  - Stalwart must stamp its own `Authentication-Results` on every received message, and strip incoming ones that claim its id. This is unverified. On a server that does neither, another local user can forge a pass. — checked in c02dc3b against Stalwart 0.16.25: it stamps mail from outside and strips nothing, and it stamps nothing on a local submission, so a local user can forge a pass (see Follow-up cleanup 2 below).
   - Mail the server didn't stamp (same-server mail, for example) has no pass, so a trusted sender's images need a tap.
   - A host whose MX authserv-id is on another domain than the JMAP host loses sender checks.
-  - A configured exact authserv-id is an option that would cover both of those.
+  - A configured exact authserv-id is an option that would cover both of those. — not needed on Stalwart (it stamps its `serverHostname` and the `apiUrl` host follows it), c02dc3b; and it would not close the local-submission forgery either.
   - An IP or single-label host (`192.0.2.1`, `localhost`) needs an exact authserv-id.
   - The trusted parent rule accepts sibling ids that exact-id stripping doesn't remove.
 - **Accepted behaviour changes:**
@@ -678,23 +678,23 @@ Left open:
   - settings controls wrap below their text, so some rows look different at default sizes (Font Size's buttons, for one);
   - the RN patch that caps `Text` and `TextInput` at 1.5 must be refreshed on a React Native upgrade.
 - **Follow-ups parked in the ledger:**
-  - A durable forget-pending marker, so an app kill in the middle of a cleanup finishes it on the next start.
-  - Held sends from before 6161666 have no `everAttempted` mark, so they are treated as never tried.
-  - A restart that overlaps a second sign-in which holds no cleanup record can still lose one step.
-  - Detached push clients learn a new shared account at the next resync.
-  - The `coalesceByKey` note: it keeps a single trailing slot per key, and a burst can make two or more session refreshes.
-  - The `selectMailbox` snapshot tuck (a stale snapshot can still be tucked; pre-existing).
-  - The font guard test misses a non-literal `fontSize`.
-  - The public suffix list (tldts) is a snapshot; add a refresh to the dependency routine.
-  - A non-last sign-out leaves a parked shared-cleanup record until the next sign-in or sign-out.
-  - The legacy `accountId|originalId` calendar colour key is still read by every account.
+  - A durable forget-pending marker, so an app kill in the middle of a cleanup finishes it on the next start. — done in f37ec2a, 9d1a38f (never runs over an unreadable account list) and 7dd8567 (a finished run's leftover marker is cleared).
+  - Held sends from before 6161666 have no `everAttempted` mark, so they are treated as never tried. — done in d246994 (every stored send without a schema mark counts as attempted and is never moved to a new account id), 55c2c3d (a send saved by a later app version is left alone).
+  - A restart that overlaps a second sign-in which holds no cleanup record can still lose one step. — done in f37ec2a (records stay held while a sign-in is under way; the last release decides).
+  - Detached push clients learn a new shared account at the next resync. — done in e9fbcbb (resync right after the session refresh, once the folders load), 216c091 (for the asked account only).
+  - The `coalesceByKey` note: it keeps a single trailing slot per key, and a burst can make two or more session refreshes. — done in e9fbcbb (one slot per key, so one account's refresh no longer drops another's).
+  - The `selectMailbox` snapshot tuck (a stale snapshot can still be tucked; pre-existing). — done in d246994 (tucked from the list as it stands after the cache read), f7c5d19 (a search typed meanwhile is kept).
+  - The font guard test misses a non-literal `fontSize`. — done in fbc6b93, 54394cf (quoted keys too).
+  - The public suffix list (tldts) is a snapshot; add a refresh to the dependency routine. — done in fbc6b93, 54394cf: `npm run deps:psl-age` reports the list's age (manual pre-release check, not a CI gate).
+  - A non-last sign-out leaves a parked shared-cleanup record until the next sign-in or sign-out. — done in f37ec2a, 7dd8567 (the marker is cleared once every sign-in settles).
+  - The legacy `accountId|originalId` calendar colour key is still read by every account. — done in 99e4b99, e2f6488, 2d47325, f7eda76: only an account signed in before the upgrade can read an old key, and the last reader retires it.
 - **Upstream requests:** all of Phase 6e and Phase 7's still stand. Add: webmail treats the sender check as passing for any domain's SPF or DKIM, and trusts on reply.
 - **Still open from before:**
-  - sidebar apps' inline mode;
-  - the shared-account calendar rename gate (`mayShare` or `mayWriteAll`) against Stalwart;
+  - sidebar apps' inline mode — closed: a deliberate difference. Sidebar apps open in the in-app browser only, so no third-party page runs inside the app's view (decision, 2026-10-10);
+  - the shared-account calendar rename gate (`mayShare` or `mayWriteAll`) against Stalwart — done in c02dc3b, 85f9e66: checked against Stalwart 0.16.25, the gate is now `mayShare || mayAdmin || mayWriteAll`;
   - the 8 blocked parity items;
-  - the `settings.themes.default_name` overlay key, which the webmail catalog now ships;
-  - 41ab162 fails the gate on its own (squash at merge).
+  - the `settings.themes.default_name` overlay key, which the webmail catalog now ships — done in fbc6b93 (dropped from all 27 overlays);
+  - 41ab162 fails the gate on its own (squash at merge) — history: #17 merged it as is.
 
 ## Follow-up cleanup 2 (2026-10-10)
 
@@ -743,3 +743,59 @@ Run on a throwaway local Stalwart (a copy of webmail's `integration/` setup, tor
   - So `scopedCalendarActions` now offers the edit on `mayWriteAll` as well (readWrite).
 
 Exact authserv-id setting: not needed — Stalwart 0.16.25 stamps its `serverHostname` and the session's `apiUrl` host follows the same setting, so a default single-host install pins with no setting; the local-submission forgery in (c) is under the exact id, which such a setting would not close either.
+
+### Stalwart findings (0.16.25, recorded as facts)
+
+- **Stamp:** Stalwart stamps its `serverHostname` as the authserv-id on mail it receives from outside. The session's `apiUrl` host follows the same setting, so no exact-id setting is needed (Task 2 skipped).
+- **Strips nothing:** a forged exact-id, sibling or parent `Authentication-Results`, `Received`, `Return-Path`, `Delivered-To` or `X-Spam-*` header in a message all survive. On mail from outside, Stalwart's own block sits above them, so the topmost header is genuine.
+- **Local submissions are not stamped:** mail an authenticated user sends to another local user gets only `Delivered-To` and `X-Spam-Status` from Stalwart. Any local user can therefore write Stalwart's whole `Received` and `Authentication-Results` block (`Received`, `Authentication-Results`, `Received-SPF`, `X-Spam-Result`, `X-Spam-Score`, `Return-Path`), shaped exactly like inbound mail, and it is stored in the order a real one would be.
+- **Header order probe:** the rule "trust an `Authentication-Results` only when a Stalwart `Received` sits just below it" fails, because local submissions get no Stalwart `Received` and a forged one is accepted as is. No client-side fix is possible on 0.16.25.
+- **Only on servers with untrusted local users.** From outside the server the sender check holds. The risk matters where users you do not trust have mailboxes on the same server.
+- **Upstream request to Stalwart:** stamp on submission, or strip its own authserv-id from the message per RFC 8601 section 5.
+- **Rename rights:** name and colour are per user on Stalwart. A read-write sharee can set both; read-only cannot. Stalwart reports no `mayAdmin`.
+
+### What's new for users
+
+- The default theme card shows the webmail's translated "Default" instead of "Bulwark" (fbc6b93).
+- A reader with read-write access to a shared calendar can rename and recolour it, as Stalwart allows (c02dc3b).
+- A corrupt settings file is backed up, and settings start fresh. Settings are never saved over a file that could not be read; edits made meanwhile are kept in memory and saved once it reads (6367b38, ca44e65).
+- Settings import colours shared calendars for the shown account only, and says so when it skipped them (99e4b99, f7eda76).
+- An account signed in before the upgrade keeps its old calendar colours; no other account shows or keeps them (99e4b99, e2f6488, 2d47325).
+- Signing out finishes forgetting the account after an app kill, and never when the account list could not be read (f37ec2a, 9d1a38f, 7dd8567, c49fc7b).
+- Old queued sends are never moved to a new account id, and a send saved by a later app version is left as it is (d246994, 55c2c3d).
+- A newly shared account's notifications are filtered straight after the session refresh (e9fbcbb, 216c091).
+- A search typed while a folder opens stays on screen (d246994, f7c5d19).
+- Under the hood: the font guard catches computed and quoted font sizes, and `npm run deps:psl-age` reports the public suffix list's age (fbc6b93, 54394cf).
+
+**Behaviour changes:**
+- the default theme card says "Default", as webmail does;
+- read-write access can rename and recolour a shared calendar;
+- a corrupt settings file is backed up (`webmail:settings:v1:corrupt`) and settings start fresh;
+- settings never save over a failed read;
+- import colours only for the shown account;
+- old queued sends are never moved to a new account id;
+- the first start after the upgrade writes a mark on each stored queued send, once.
+
+Left open:
+
+- **Device checks still to run** (all earlier ones from Follow-up cleanup 1, Phase 6e and Phase 7 stay open too):
+  - the settings guard on a phone (a refused or corrupt settings read, then an edit, a foreground and a restart);
+  - `npm run deps:psl-age` before each release (a manual check, not a CI gate; it calls the npm registry).
+- **Settings and storage:**
+  - a corrupt non-readers row (`bulwark:calendar-color-non-readers:v1`) is not moved aside, as the settings row is;
+  - a settings read the device keeps refusing has no cap or prompt across launches;
+  - the settings backup slot keeps only the latest copy and is never removed (a restore or delete item);
+  - a settings hydrate that hangs keeps held edits in memory only, so an app kill loses them.
+- **Push:** `forAccountId` is done, but the setup race inside the push setup is closed only for callers that pass it.
+- **Outbox:** a hydrate write failure (storage refusing writes) holds back one account's Outbox until the next flush or send retries it.
+- **Calendar colours:**
+  - an account from before the upgrade that signs back in after a failed registry read loses its old colours (fails safe);
+  - an import with no account shown skips the colours, and says so.
+- **Sender-check limits that still hold:**
+  - the local-submission forgery above, until Stalwart stamps or strips;
+  - mail the server didn't stamp has no pass, so a trusted sender's images need a tap;
+  - an IP or single-label host needs an exact authserv-id, which is still not built;
+  - the trusted parent rule accepts sibling ids that exact-id stripping doesn't remove.
+- **Accepted behaviour changes:** all of Follow-up cleanup 1's stay.
+- **Upstream requests:** all of Phase 6e, Phase 7 and Follow-up cleanup 1's still stand. Add: Stalwart stamps its authserv-id on local submissions, or strips its own from them (RFC 8601 section 5).
+- **Still open from before:** shared-account sending, and the 8 blocked parity items.

@@ -79,7 +79,7 @@ The app covers 486 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 - 27 languages, including right-to-left layouts (see below)
 - Date format region, 12 or 24-hour time and an app-wide time zone
 - Settings search, settings export and import
-- Sidebar apps that open web links
+- Sidebar apps that open web links in the in-app browser
 
 **Push and notifications**
 - Push via the Bulwark relay - FCM by default, or [UnifiedPush](https://unifiedpush.org) (e.g. ntfy) for devices without Google Play services
@@ -122,6 +122,7 @@ The app covers 486 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 **Waiting on other projects**
 - iOS push needs an APNs transport in the push relay
 - The admin's list of push relays and default sidebar apps can't be read: webmail's `/api/admin/policy` blanks both for clients without a webmail cookie. A free-text relay per account works.
+- Stalwart (0.16.25) neither stamps nor strips its sender-check header on a message a local user sends to another, so on a server with untrusted local users one of them can forge a passing result. No client can close this; the request to Stalwart is to stamp on submission, or strip its own id (RFC 8601 section 5)
 - Stalwart's built-in OIDC advertises no end-session endpoint, so signing out can't end that session; it works with external providers such as Keycloak and Authentik
 
 The roadmap lists the smaller follow-ups and the device checks still to run: [docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md).

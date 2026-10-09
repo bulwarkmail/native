@@ -1,10 +1,32 @@
 # Changes since 4 October 2026
 
-The webmail parity work from 4 to 8 October 2026: 349 commits (72 features, 237 fixes, and docs, tests and chores) in eleven merged pull requests, plus phases 6e and 7, merged afterwards, and a follow-up cleanup on `cleanup/follow-ups-1`, which is not merged yet and adds 35 commits (34 fixes and a plan). At the start, 380 of the 489 tracked webmail parity items were done and 109 were open ([roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md)). Now 486 of 494 are done and 8 are open ([PARITY_CHECKLIST.md](PARITY_CHECKLIST.md)); five items were added during the work.
+The webmail parity work from 4 to 8 October 2026: 349 commits (72 features, 237 fixes, and docs, tests and chores) in eleven merged pull requests, plus phases 6e and 7, merged afterwards, and the first follow-up cleanup (#17, 35 commits: 34 fixes and a plan), merged afterwards, and a second follow-up cleanup on `cleanup/follow-ups-2`, which is not merged yet and adds 20 commits (18 fixes, a test and a plan). At the start, 380 of the 489 tracked webmail parity items were done and 109 were open ([roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md)). Now 486 of 494 are done and 8 are open ([PARITY_CHECKLIST.md](PARITY_CHECKLIST.md)); five items were added during the work.
 
 The phases are listed newest first. Short hashes are in parentheses. What each phase left open is in the roadmap's follow-up sections.
 
-## Follow-up cleanup 1 (unmerged)
+## Follow-up cleanup 2 (unmerged)
+
+Branch `cleanup/follow-ups-2`, everything after c18c785.
+
+### Improvements
+- The default theme card shows the webmail's translated "Default" instead of "Bulwark" (fbc6b93).
+- Read-write access to a shared calendar can rename and recolour it, as Stalwart allows (c02dc3b, 85f9e66).
+- A corrupt settings file is backed up and settings start fresh, and settings are never saved over a file that could not be read (6367b38, ca44e65).
+- A newly shared account's notifications are filtered straight after the session refresh, and one account's refresh no longer drops another's (e9fbcbb, 216c091).
+- A search typed while a folder opens stays on screen, and a folder's latest list wins when switching folders (d246994, f7c5d19).
+- `npm run deps:psl-age` reports how old the sender check's public suffix list is, and the font guard catches computed and quoted font sizes (fbc6b93, 54394cf).
+- How Stalwart 0.16.25 stamps sender checks is recorded in the roadmap, with an upstream request (c02dc3b).
+
+### Fixes
+- A signed-out account is still forgotten after an app kill in the middle of the cleanup, never between two sign-ins of it, and never when the account list could not be read (f37ec2a, 9d1a38f, 7dd8567, c49fc7b).
+- An old single-account login is never moved over an unreadable account list (7dd8567).
+- An old queued send is never moved to a new account id, and a send saved by a later app version is left as it is (d246994, 55c2c3d).
+- One account's old shared calendar colours no longer show on another's calendars. Settings import colours only for the shown account, only real colours, and says when it skipped them (99e4b99, e2f6488, 2d47325, f7eda76).
+- Retiring old calendar colours never rewrites settings that could not be read (e2f6488).
+- Push is refreshed only for the account it was asked for, and a renewal is recorded only when one ran (216c091).
+- The suffix-list age check says when it cannot tell the age instead of calling the list stale (54394cf).
+
+## Follow-up cleanup 1 (#17)
 
 Branch `cleanup/follow-ups-1`, everything after afcf7b3.
 
