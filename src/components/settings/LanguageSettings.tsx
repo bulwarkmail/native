@@ -49,10 +49,12 @@ export function LanguageSettings() {
 
   // The clock in the chosen zone, so a pick can be checked at a glance.
   const deviceZone = getDeviceTimeZone();
-  const zoneOptions = timeZoneOptions(
-    deviceZone,
-    dateRegion.timeZone,
-    t('settings.language_region.time_zone.auto', 'Automatic ({zone})', { zone: deviceZone }),
+  const autoZoneLabel = t('settings.language_region.time_zone.auto', 'Automatic ({zone})', { zone: deviceZone });
+  // Every zone the device knows (hundreds, sorted): built again only when an
+  // input changes, not on every render.
+  const zoneOptions = React.useMemo(
+    () => timeZoneOptions(deviceZone, dateRegion.timeZone, autoZoneLabel),
+    [deviceZone, dateRegion.timeZone, autoZoneLabel],
   );
   const zonePreview = formatWorded(
     now,

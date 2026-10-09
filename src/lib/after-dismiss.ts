@@ -7,6 +7,8 @@ export function createAfterDismiss<T>(
   open: (target: T) => void,
   timeoutMs = 700,
 ): { arm(target: T): void; dismissed(): void; cancel(): void } {
+  // Boxed, so a target that is itself null or undefined still counts as
+  // armed: `null` here means only that nothing is waiting to open.
   let armed: { target: T } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
