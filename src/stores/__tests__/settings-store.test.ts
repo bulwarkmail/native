@@ -15,7 +15,7 @@ describe('settings-store', () => {
   beforeEach(async () => {
     // A failed read left by an earlier test would hold every write back.
     discardSettingsEditsForTests();
-    useSettingsStore.setState({ settingsReadFailed: false });
+    useSettingsStore.setState({ settingsReadFailed: false, legacyCalendarColorNonReaders: [], legacyCalendarColorNonReadersReadFailed: false });
     await AsyncStorage.clear();
     useSettingsStore.getState().resetToDefaults();
   });
@@ -431,6 +431,38 @@ describe('settings-store', () => {
       expect(get().settingsReadFailed).toBe(false);
       get().seedLegacyCalendarColorReaders(['A']);
       expect(get().legacyCalendarColorReaders).toEqual(['A']);
+    });
+
+    it('leaves out of the seed the accounts signed in while it was unseeded, kept in their own row', async () => {
+      const s = get();
+      s.setSharedCalendarColor('team|c1', '#00ff00');
+      await s.noteSignedInWhileColorReadersUnseeded('C');
+      expect(JSON.parse((await AsyncStorage.getItem('bulwark:calendar-color-non-readers:v1'))!)).toEqual(['C']);
+      useSettingsStore.setState({ hydrated: false, legacyCalendarColorNonReaders: [] });
+      await get().hydrate();
+      expect(get().legacyCalendarColorNonReaders).toEqual(['C']);
+      get().seedLegacyCalendarColorReaders(['A', 'C']);
+      expect(get().legacyCalendarColorReaders).toEqual(['A']);
+      // Once seeded, a sign-in is not noted (it is no reader anyway).
+      await get().noteSignedInWhileColorReadersUnseeded('D');
+      expect(get().legacyCalendarColorNonReaders).toEqual(['C']);
+      useSettingsStore.setState({ legacyCalendarColorNonReaders: [] });
+    });
+
+    it('seeds nothing, and leaves the row alone, when that row could not be read', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      await AsyncStorage.setItem('bulwark:calendar-color-non-readers:v1', '{corrupt');
+      useSettingsStore.setState({ hydrated: false, legacyCalendarColorNonReaders: [] });
+      await get().hydrate();
+      expect(get().legacyCalendarColorNonReadersReadFailed).toBe(true);
+      get().setSharedCalendarColor('team|c1', '#00ff00');
+      await get().noteSignedInWhileColorReadersUnseeded('C');
+      expect(get().legacyCalendarColorNonReaders).toEqual(['C']);
+      get().seedLegacyCalendarColorReaders(['A', 'C']);
+      expect(get().legacyCalendarColorReaders).toBeNull();
+      expect(await AsyncStorage.getItem('bulwark:calendar-color-non-readers:v1')).toBe('{corrupt');
+      useSettingsStore.setState({ legacyCalendarColorNonReaders: [], legacyCalendarColorNonReadersReadFailed: false });
+      warn.mockRestore();
     });
 
     it('rejects a malformed stored readers list', () => {

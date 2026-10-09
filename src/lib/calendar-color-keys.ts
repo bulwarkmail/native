@@ -15,11 +15,17 @@ export function isLegacyCalendarColorKey(key: string): boolean {
  * Whether app account `appAccountId` may read the old keys: only the
  * accounts registered at the upgrade (`readers`, seeded once), each until
  * it has claimed them. Null means not yet seeded (before the first start
- * after the upgrade), when the registered accounts still read them.
+ * after the upgrade), when the registered accounts still read them, but
+ * never one signed in while the list was unseeded (`nonReaders`): that one
+ * is new, though a later seed finds it registered.
  */
-export function readsLegacyCalendarColors(readers: readonly string[] | null, appAccountId: string): boolean {
+export function readsLegacyCalendarColors(
+  readers: readonly string[] | null,
+  appAccountId: string,
+  nonReaders: readonly string[] = [],
+): boolean {
   if (!appAccountId) return false;
-  return readers === null || readers.includes(appAccountId);
+  return readers === null ? !nonReaders.includes(appAccountId) : readers.includes(appAccountId);
 }
 
 /** The overrides without the old keys (once no account is left to claim them). */

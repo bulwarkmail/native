@@ -475,6 +475,9 @@ describe('legacy calendar colour keys', () => {
     expect(readsLegacyCalendarColors([], 'A')).toBe(false);
     expect(readsLegacyCalendarColors(null, '')).toBe(false);
     expect(readsLegacyCalendarColors([''], '')).toBe(false);
+    // Signed in while the list was unseeded: never a reader.
+    expect(readsLegacyCalendarColors(null, 'C', ['C'])).toBe(false);
+    expect(readsLegacyCalendarColors(null, 'A', ['C'])).toBe(true);
   });
 
   it('drops only the legacy keys', () => {

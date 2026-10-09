@@ -52,7 +52,8 @@ import { useAuthStore, EVICTION_CLEANUP_TIMEOUT_MS, resetCleanupMemoryForTests }
 import { readForgetPending, markForgetPending, FORGET_PENDING_KEY, SHARED_CLEANUP } from '../forget-pending';
 import { clearStoredRelayBaseUrl } from '../../lib/push-notifications';
 import { useAccountStore } from '../account-store';
-import { useSettingsStore } from '../settings-store';
+import { useSettingsStore, discardSettingsEditsForTests } from '../settings-store';
+import { readsLegacyCalendarColors } from '../../lib/calendar-color-keys';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSendQueueStore, type QueuedSend } from '../send-queue-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from '../calendar-subscriptions-store';
@@ -542,6 +543,9 @@ describe('a sign-out cleanup still running when the account signs in again', () 
 // from the stored registry, never an empty stand-in for it.
 describe('the accounts that may read the old calendar colour keys', () => {
   beforeEach(async () => {
+    // A failed read left by an earlier case would hold every write back.
+    discardSettingsEditsForTests();
+    useSettingsStore.setState({ settingsReadFailed: false, legacyCalendarColorNonReaders: [] });
     await useSettingsStore.getState().hydrate();
     useSettingsStore.getState().resetToDefaults();
     useSettingsStore.getState().setSharedCalendarColor('team|c1', '#00ff00');
@@ -560,6 +564,35 @@ describe('the accounts that may read the old calendar colour keys', () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(useSettingsStore.getState().legacyCalendarColorReaders).toBeNull();
     expect(await AsyncStorage.getItem('webmail:settings:v1')).toBe('{corrupt');
+  });
+
+  // A start whose seed was skipped leaves the list unseeded; an account
+  // signed in then is new, though the next clean start finds it registered.
+  it('never include an account signed in while the list was unseeded', async () => {
+    const C_USER = 'c@other.example.com';
+    const C = generateAccountId(C_USER, SERVER);
+    const registry = vi.spyOn(useAccountStore.persist, 'hasHydrated').mockReturnValue(false);
+    const restored = useAuthStore.getState().restoreSession();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await restored;
+    expect(useSettingsStore.getState().legacyCalendarColorReaders).toBeNull();
+
+    const signedIn = useAuthStore.getState().login(SERVER, C_USER, 'pw');
+    await vi.advanceTimersByTimeAsync(60_000);
+    await signedIn;
+    const now = useSettingsStore.getState();
+    expect(readsLegacyCalendarColors(now.legacyCalendarColorReaders, C, now.legacyCalendarColorNonReaders)).toBe(false);
+    expect(readsLegacyCalendarColors(now.legacyCalendarColorReaders, ID, now.legacyCalendarColorNonReaders)).toBe(true);
+
+    // The next cold start reads both cleanly.
+    registry.mockRestore();
+    expect(useAccountStore.getState().accounts.map((a) => a.id).sort()).toEqual([ID, C].sort());
+    useSettingsStore.setState({ hydrated: false, legacyCalendarColorReaders: null, legacyCalendarColorNonReaders: [] });
+    (jmapClient.loadAccount as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NetworkError('offline'));
+    await useAuthStore.getState().restoreSession();
+    const after = useSettingsStore.getState();
+    expect(after.legacyCalendarColorReaders).toEqual([ID]);
+    expect(readsLegacyCalendarColors(after.legacyCalendarColorReaders, C, after.legacyCalendarColorNonReaders)).toBe(false);
   });
 
   it('are not chosen while the account registry has not loaded', async () => {

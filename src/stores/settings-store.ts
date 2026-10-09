@@ -130,6 +130,10 @@ export const ALL_DEBUG_CATEGORIES: DebugCategory[] = [
 ];
 
 const STORAGE_KEY = 'webmail:settings:v1';
+// The app accounts signed in while the old-colour readers were unseeded
+// (legacyCalendarColorNonReaders). A row of its own, not in the settings:
+// a sign-in after a failed settings read must still be recorded.
+const LEGACY_COLOR_NON_READERS_KEY = 'bulwark:calendar-color-non-readers:v1';
 
 export interface SidebarApp {
   id: string;
@@ -538,6 +542,14 @@ export interface SettingsState extends PersistedSettings {
   // is written until a read succeeds (see editSettings). No stored settings
   // at all is a clean read.
   settingsReadFailed: boolean;
+  // App accounts signed in while legacyCalendarColorReaders was still null
+  // (the seed skipped at a start whose registry or settings failed to read):
+  // they are new, so never readers, though a later seed finds them
+  // registered. Device-local, in its own row.
+  legacyCalendarColorNonReaders: string[];
+  // That row was there but could not be read: the seed waits for a start
+  // that reads it, and the row is not written over.
+  legacyCalendarColorNonReadersReadFailed: boolean;
 
   /** Read the identities; concurrent calls share one request. */
   fetchIdentities: () => Promise<void>;
@@ -594,6 +606,8 @@ export interface SettingsState extends PersistedSettings {
   seedLegacyCalendarColorReaders: (appAccountIds: readonly string[]) => void;
   /** Store an account's claimed old colours and stop it reading the old keys. */
   finishLegacyCalendarColors: (appAccountId: string, claimed: Record<string, string>) => void;
+  /** A sign-in registered a new app account: while the readers are unseeded, it never becomes one. */
+  noteSignedInWhileColorReadersUnseeded: (appAccountId: string) => Promise<void>;
 
   // Sidebar apps
   addSidebarApp: (app: Omit<SidebarApp, 'id'>) => void;
@@ -859,6 +873,21 @@ function identityCacheAccount(): string | null {
 
 let hydrateInFlight: Promise<void> | null = null;
 
+type NonReadersRead = { ok: true; ids: string[] } | { ok: false };
+
+async function readLegacyColorNonReaders(): Promise<NonReadersRead> {
+  try {
+    const raw = await AsyncStorage.getItem(LEGACY_COLOR_NON_READERS_KEY);
+    if (!raw) return { ok: true, ids: [] };
+    const parsed: unknown = JSON.parse(raw);
+    if (!stringArray(parsed)) throw new Error('stored non-readers are not a list of ids');
+    return { ok: true, ids: parsed as string[] };
+  } catch (err) {
+    console.warn('[settings-store] calendar colour non-readers read failed', err);
+    return { ok: false };
+  }
+}
+
 type ReadResult = { ok: true; settings: PersistedSettings | null } | { ok: false };
 
 // The stored settings, merged over the defaults; null when there are none.
@@ -930,6 +959,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   error: null,
   hydrated: false,
   settingsReadFailed: false,
+  legacyCalendarColorNonReaders: [],
+  legacyCalendarColorNonReadersReadFailed: false,
 
   fetchIdentities: () => {
     const scope = identityScope();
@@ -989,7 +1020,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // changed a setting would put the stored value back.
     if (hydrateInFlight) return hydrateInFlight;
     const promise = (async () => {
-      const read = await readStoredSettings();
+      const [read, nonReaders] = await Promise.all([readStoredSettings(), readLegacyColorNonReaders()]);
+      // Ids noted before this read (a sign-in racing the start) are kept.
+      set({
+        legacyCalendarColorNonReaders: nonReaders.ok
+          ? [...new Set([...nonReaders.ids, ...get().legacyCalendarColorNonReaders])]
+          : get().legacyCalendarColorNonReaders,
+        legacyCalendarColorNonReadersReadFailed: !nonReaders.ok,
+      });
       if (read.ok) {
         set({ ...(read.settings ?? {}), hydrated: true, settingsReadFailed: false });
         return;
@@ -1088,9 +1126,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // The stored settings could not be read: seeding would write the
     // defaults over them. Left for a launch that reads them.
     if (get().settingsReadFailed) return;
+    // Nor without the accounts signed in while unseeded: they would be
+    // taken for accounts registered at the upgrade.
+    if (get().legacyCalendarColorNonReadersReadFailed) return;
+    const nonReaders = get().legacyCalendarColorNonReaders;
     const overrides = get().sharedCalendarColors;
     const anyLegacy = Object.keys(overrides).some(isLegacyCalendarColorKey);
-    const readers = anyLegacy ? appAccountIds.filter((id) => !!id) : [];
+    const readers = anyLegacy ? appAccountIds.filter((id) => !!id && !nonReaders.includes(id)) : [];
     // No account registered to claim them: they go now.
     editSettings(() => ({
       legacyCalendarColorReaders: readers,
@@ -1106,6 +1148,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // with nothing claimed. (The readers are null then, so this is moot.)
     if (!appAccountId || !readers?.includes(appAccountId) || get().settingsReadFailed) return;
     editSettings((s) => withoutLegacyReader({ ...s.sharedCalendarColors, ...claimed }, readers, appAccountId));
+  },
+
+  noteSignedInWhileColorReadersUnseeded: async (appAccountId) => {
+    // Its own row is read with the settings; never written before that.
+    await get().hydrate();
+    const { legacyCalendarColorReaders, legacyCalendarColorNonReaders: held } = get();
+    // Once seeded, an account added later is not a reader anyway.
+    if (!appAccountId || legacyCalendarColorReaders !== null || held.includes(appAccountId)) return;
+    const ids = [...held, appAccountId];
+    set({ legacyCalendarColorNonReaders: ids });
+    // Never over a row that could not be read (it would lose the ids there);
+    // the seed waits while it can't be read, so this session is still safe.
+    if (get().legacyCalendarColorNonReadersReadFailed) return;
+    // Kept for good: a later seed must still leave these out.
+    await AsyncStorage.setItem(LEGACY_COLOR_NON_READERS_KEY, JSON.stringify(ids)).catch((err) => {
+      console.warn('[settings-store] calendar colour non-readers write failed', err);
+    });
   },
 
   addSidebarApp: (app) => {
@@ -1129,7 +1188,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const state = snapshot(get());
     const sharedCalendarColors = exportableCalendarColors(
       state.sharedCalendarColors, appAccountId,
-      readsLegacyCalendarColors(state.legacyCalendarColorReaders, appAccountId ?? ''),
+      readsLegacyCalendarColors(state.legacyCalendarColorReaders, appAccountId ?? '', get().legacyCalendarColorNonReaders),
     );
     return JSON.stringify(toExportShape({ ...state, sharedCalendarColors }), null, 2);
   },

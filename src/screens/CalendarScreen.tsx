@@ -189,6 +189,7 @@ export default function CalendarScreen() {
   const legacyCalendarColorReaders = useSettingsStore((s) => s.legacyCalendarColorReaders);
   const finishLegacyCalendarColors = useSettingsStore((s) => s.finishLegacyCalendarColors);
   const settingsReadFailed = useSettingsStore((s) => s.settingsReadFailed);
+  const legacyCalendarColorNonReaders = useSettingsStore((s) => s.legacyCalendarColorNonReaders);
   const contacts = useContactsStore((s) => s.contacts);
   const calendarTimeZone = useSettingsStore((s) => s.calendarTimeZone);
 
@@ -403,7 +404,7 @@ export default function CalendarScreen() {
   // another account's (calendarColorAccount); the old keys only for an
   // account still allowed to read them (readsLegacyCalendarColors).
   const colorAccount = calendarColorAccount(calendarsAppAccountId, shownAccountId);
-  const readsLegacy = readsLegacyCalendarColors(legacyCalendarColorReaders, colorAccount);
+  const readsLegacy = readsLegacyCalendarColors(legacyCalendarColorReaders, colorAccount, legacyCalendarColorNonReaders);
   const displayCalendars = React.useMemo(
     () => applySharedCalendarColors(storeCalendars, sharedCalendarColors, colorAccount, readsLegacy),
     [storeCalendars, sharedCalendarColors, colorAccount, readsLegacy],

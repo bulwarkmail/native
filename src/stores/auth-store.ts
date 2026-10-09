@@ -665,6 +665,19 @@ async function syncAccountDisplayName(accountId: string): Promise<void> {
   }
 }
 
+// A sign-in registered an account the registry did not hold. While the old
+// calendar colour readers are unseeded (a start whose seed was skipped), it
+// must never become one: it is new, though the next clean start's seed finds
+// it registered (seedLegacyCalendarColorReaders leaves it out). Not awaited:
+// it is held in memory at once, so a failed write leaves it out this
+// session only.
+function noteNewAccountForColorReaders(appAccountId: string, wasRegistered: boolean): void {
+  if (wasRegistered) return;
+  void useSettingsStore.getState().noteSignedInWhileColorReadersUnseeded(appAccountId).catch((err) => {
+    console.warn('[auth] calendar colour non-reader note failed', err);
+  });
+}
+
 // Shared tail of the OAuth sign-in flows (browser handoff and cross-device QR
 // pairing both end here). Bootstraps a JMAP session from the token bundle,
 // registers the account, and flips the store to connected. Throws on failure
@@ -712,6 +725,7 @@ async function completeOAuthHandoff(
   } finally {
     releaseCleanup();
   }
+  noteNewAccountForColorReaders(accountId, wasRegistered);
   await recordProviderSession(accountId, result.tokens.source === 'native' ? provider : undefined);
   // Contacts/calendar are still single-bucket, so wipe those now that the
   // new account is registered and the one the client serves.
@@ -824,6 +838,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await undoConnect(previous, accountId, wasRegistered);
         throw err;
       }
+      noteNewAccountForColorReaders(accountId, wasRegistered);
       await recordProviderSession(accountId, undefined);
       // Contacts/calendar are still single-bucket, so wipe those now that
       // the new account is registered and the one the client serves.
@@ -931,6 +946,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       releaseCleanup();
     }
+    noteNewAccountForColorReaders(accountId, wasRegistered);
     await recordProviderSession(accountId, undefined);
     if (previous) {
       useContactsStore.getState().reset();
