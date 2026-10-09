@@ -62,7 +62,7 @@ function isAtOrUnder(name: string, domain: string): boolean {
  * either (a mail domain's MX is rarely the JMAP host itself). A host with
  * no registrable domain (an IP address, `localhost`, a single label) counts
  * only by exact match: nobody owns the names under it. Stalwart stamps its
- * `serverHostname`, which by default is also the host in its JMAP `apiUrl`
+ * `serverHostname`, and the host in its JMAP `apiUrl` follows serverHostname
  * (checked on Stalwart 0.16.25, 2026-10-10).
  */
 export function isTrustedAuthservId(authservId: string, serverHost: string): boolean {

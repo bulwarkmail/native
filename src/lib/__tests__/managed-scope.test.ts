@@ -103,6 +103,7 @@ describe('actions offered on a shared collection', () => {
     expect(scopedCalendarActions({ ...teamCal, myRights: managerDelete }).edit).toBe(true);
 
     expect(scopedCalendarActions(teamCal).edit).toBe(true); // no rights sent: the server decides
+    expect(scopedCalendarActions({ ...teamCal, myRights: { mayShare: true } }).edit).toBe(true);
     expect(scopedCalendarActions({ ...teamCal, myRights: { mayAdmin: true } }).edit).toBe(true);
     // Writing only your own events is not enough.
     expect(scopedCalendarActions({ ...teamCal, myRights: { mayReadItems: true, mayWriteOwn: true } }).edit).toBe(false);
