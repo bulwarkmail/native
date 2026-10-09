@@ -49,13 +49,17 @@ const isScaled = (node: ts.Expression): boolean => {
   return false;
 };
 
+// `fontSize`, `'fontSize'` and `"fontSize"` are one key.
+const keyName = (name: ts.PropertyName): string | null =>
+  ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : null;
+
 function scan(path: string, text: string, flag: (node: ts.ObjectLiteralElementLike) => boolean): string[] {
   if (!text.includes('fontSize')) return [];
   const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const found: string[] = [];
   const visit = (node: ts.Node) => {
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node))
-      && node.name.getText(file) === 'fontSize' && flag(node)) {
+      && keyName(node.name) === 'fontSize' && flag(node)) {
       found.push(`${relative(ROOT, path)}:${file.getLineAndCharacterOfPosition(node.getStart()).line + 1}`);
     }
     ts.forEachChild(node, visit);
@@ -66,8 +70,8 @@ function scan(path: string, text: string, flag: (node: ts.ObjectLiteralElementLi
 
 const sources = (): string[] => [join(ROOT, 'App.tsx'), ...sourceFiles(join(ROOT, 'src'))];
 
-function literalsIn(path: string): string[] {
-  return scan(path, readFileSync(path, 'utf8'), (n) => ts.isPropertyAssignment(n) && isNumeric(n.initializer));
+function literalsIn(path: string, text = readFileSync(path, 'utf8')): string[] {
+  return scan(path, text, (n) => ts.isPropertyAssignment(n) && isNumeric(n.initializer));
 }
 
 function offendersIn(path: string, text: string): string[] {
@@ -75,7 +79,7 @@ function offendersIn(path: string, text: string): string[] {
 }
 
 function fontSizeLiterals(): string[] {
-  return sources().filter((p) => !isAllowedPath(p)).flatMap(literalsIn);
+  return sources().filter((p) => !isAllowedPath(p)).flatMap((p) => literalsIn(p));
 }
 
 function fontSizeOffenders(): string[] {
@@ -94,6 +98,12 @@ describe('font sizes', () => {
   it('flags a computed or shorthand fontSize, and allows fontPx and typography', () => {
     expect(offendersIn('a.tsx', 'const s = { fontSize: size }; const t = { fontSize };')).toHaveLength(2);
     expect(offendersIn('a.tsx', 'const s = { fontSize: fontPx(13), a: { fontSize: typography.body.fontSize }, b: { fontSize: big ? fontPx(14) : fontPx(13) } };')).toEqual([]);
+  });
+
+  it('reads a quoted fontSize key as the same key', () => {
+    expect(offendersIn('a.tsx', `const s = { 'fontSize': 13, "fontSize": size };`)).toHaveLength(2);
+    expect(literalsIn('a.tsx', `const s = { 'fontSize': 13 };`)).toHaveLength(1);
+    expect(offendersIn('a.tsx', `const s = { 'fontSize': fontPx(13) };`)).toEqual([]);
   });
 
   it('caps the OS scale on body text at 1.5 in the installed react-native', () => {

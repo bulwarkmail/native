@@ -3,6 +3,8 @@
 // publish date is the list's date.
 //   npm run deps:psl-age            print the age
 //   npm run deps:psl-age -- --check exit 1 when older than PSL_MAX_AGE_DAYS
+// Exit 2 means the age could not be told (no tldts installed, the registry
+// unreachable, or the installed release not in it): not that it is stale.
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
@@ -25,27 +27,48 @@ function pslAge({ installed, times, now }) {
   };
 }
 
+// What to print, and the exit code (with `check`, 1 for a stale list).
+function verdict(r, check) {
+  const day = (iso) => (iso ? iso.slice(0, 10) : 'unknown');
+  const latest = `latest ${r.latest ?? 'unknown'} of ${day(r.latestPublished)}`;
+  if (r.published === null) {
+    return {
+      message: `tldts ${r.installed} is not among the registry's tldts releases, so its list date is unknown; ${latest}`,
+      exitCode: 2,
+    };
+  }
+  return {
+    message: `tldts ${r.installed}, public suffix list as of ${day(r.published)} (${r.ageDays} days); ${latest}`,
+    exitCode: check && r.ageDays > PSL_MAX_AGE_DAYS ? 1 : 0,
+  };
+}
+
+// The installed tldts version under `root`, or null when there is none.
+function installedTldts(root) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(root, 'node_modules', 'tldts', 'package.json'), 'utf8')).version ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function main() {
-  const installed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'tldts', 'package.json'), 'utf8'),
-  ).version;
+  const installed = installedTldts(path.join(__dirname, '..'));
+  if (!installed) {
+    console.error('tldts is not installed (run npm install): the list age cannot be told.');
+    process.exit(2);
+  }
   let times;
   try {
     times = JSON.parse(execFileSync('npm', ['view', 'tldts', 'time', '--json'], { encoding: 'utf8', timeout: 20000 }));
   } catch (e) {
-    console.error(`Could not read tldts release times from the registry: ${e.message}`);
+    console.error(`Could not read tldts release times from the registry (a registry problem, not a stale list): ${e.message}`);
     process.exit(2);
   }
-  const r = pslAge({ installed, times, now: new Date() });
-  const day = (iso) => (iso ? iso.slice(0, 10) : 'unknown');
-  console.log(
-    `tldts ${r.installed}, public suffix list as of ${day(r.published)} (${r.ageDays ?? '?'} days); `
-    + `latest ${r.latest} of ${day(r.latestPublished)}`,
-  );
-  if (process.argv.includes('--check') && (r.ageDays === null || r.ageDays > PSL_MAX_AGE_DAYS)) {
-    process.exit(1);
-  }
+  const r = verdict(pslAge({ installed, times, now: new Date() }), process.argv.includes('--check'));
+  (r.exitCode === 2 ? console.error : console.log)(r.message);
+  process.exit(r.exitCode);
 }
 
 if (require.main === module) main();
-module.exports = { pslAge, PSL_MAX_AGE_DAYS };
+module.exports = { pslAge, verdict, installedTldts, PSL_MAX_AGE_DAYS };
