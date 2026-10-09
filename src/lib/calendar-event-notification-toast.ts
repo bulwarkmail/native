@@ -103,3 +103,26 @@ export function selectNoticeToasts<N>(
     overflow: toasts.length - keep,
   };
 }
+
+/**
+ * How long a batch waits for a free toast slot. Three toasts the user must
+ * keep (an Undo, errors) can sit for a long time; past this the batch is
+ * acknowledged without a toast, so its notices don't stay queued forever.
+ */
+export const NOTICE_WAIT_CAP_MS = 60_000;
+
+/**
+ * Whether a waiting batch is shown now (there is room), waits on (no room,
+ * the clock started at `waitingSince`) or is dropped (waited past the cap).
+ * Showing or dropping it resets the clock.
+ */
+export function noticeWaitStep(
+  waitingSince: number | null,
+  now: number,
+  room: number,
+): { action: 'show' | 'wait' | 'drop'; waitingSince: number | null } {
+  if (room > 0) return { action: 'show', waitingSince: null };
+  if (waitingSince === null) return { action: 'wait', waitingSince: now };
+  if (now - waitingSince >= NOTICE_WAIT_CAP_MS) return { action: 'drop', waitingSince: null };
+  return { action: 'wait', waitingSince };
+}

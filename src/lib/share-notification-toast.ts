@@ -31,7 +31,9 @@ export function shareNotificationMessage(
     case 'Calendar': what = t('share_notifications.object.calendar', 'calendar'); break;
     case 'AddressBook': what = t('share_notifications.object.address_book', 'address book'); break;
     case 'FileNode': what = t('share_notifications.object.files', 'file folder'); break;
-    default: what = plainDisplayText(n.objectType, MAX_OBJECT);
+    // A type this app does not know: the server names it, so its raw name is
+    // never shown.
+    default: what = t('share_notifications.object.other', 'shared item');
   }
   const params = { name, object, kind: what };
   if (kind === 'shared') {
@@ -41,4 +43,14 @@ export function shareNotificationMessage(
     return { level: 'warning', text: t('share_notifications.revoked', '{name} removed your access to the {kind} "{object}"', params) };
   }
   return { level: 'info', text: t('share_notifications.changed', '{name} changed your access to the {kind} "{object}"', params) };
+}
+
+/**
+ * Whether a share grants rights on an account the session does not list yet
+ * (a first share from a new owner): its collections can only be fetched once
+ * a fresh session names that account.
+ */
+export function needsSessionRefresh(shown: ShareNotification[], knownAccountIds: readonly string[]): boolean {
+  return shown.some((n) => !!n.newRights && Object.keys(n.newRights).length > 0
+    && !!n.objectAccountId && !knownAccountIds.includes(n.objectAccountId));
 }

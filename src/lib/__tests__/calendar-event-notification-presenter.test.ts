@@ -32,6 +32,7 @@ vi.mock('../active-client-account', () => ({
 import { useCalendarEventNotificationStore } from '../../stores/calendar-event-notification-store';
 import { useToastStore, toast } from '../../stores/toast-store';
 import { startCalendarEventNotificationToasts } from '../calendar-event-notification-presenter';
+import { NOTICE_WAIT_CAP_MS } from '../calendar-event-notification-toast';
 
 const notice = (id: string) => ({
   id, created: '', type: 'updated', isDraft: false, comment: null, calendarEventId: 'ev' + id,
@@ -49,7 +50,11 @@ beforeEach(() => {
   useCalendarEventNotificationStore.setState({ pending: [] } as never);
   stop = startCalendarEventNotificationToasts(() => undefined);
 });
-afterEach(() => stop());
+afterEach(() => {
+  stop();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe('calendar event notification presenter', () => {
   it('caps a burst at three toasts with a summary', () => {
@@ -73,5 +78,40 @@ describe('calendar event notification presenter', () => {
     useToastStore.getState().removeToast(useToastStore.getState().toasts[0].id);
     expect(titles()).toEqual(['Send failed', 'Still failing', 'Dana updated "Tw"']);
     expect(acknowledge()).toHaveBeenCalledWith(['w']);
+  });
+
+  const holdThree = () => {
+    toast.success('Moved', { action: { label: 'Undo', onPress: () => undefined } });
+    toast.error('Send failed');
+    toast.error('Still failing');
+  };
+
+  it('acknowledges a batch without a toast after waiting a minute, and leaves the undo toast alone', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    holdThree();
+    queue(notice('d1'));
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS - 1);
+    expect(acknowledge()).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(titles()).toEqual(['Moved', 'Send failed', 'Still failing']);
+    expect(acknowledge()).toHaveBeenCalledWith(['d1']);
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    // The clock starts over for the next batch.
+    queue(notice('d2'));
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS - 1);
+    expect(acknowledge()).not.toHaveBeenCalledWith(['d2']);
+    vi.advanceTimersByTime(1);
+    expect(acknowledge()).toHaveBeenCalledWith(['d2']);
+  });
+
+  it('stops waiting once unsubscribed', () => {
+    vi.useFakeTimers();
+    holdThree();
+    queue(notice('s1'));
+    stop();
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS * 2);
+    expect(acknowledge()).not.toHaveBeenCalled();
   });
 });

@@ -1302,7 +1302,10 @@
     }
   },
   "share_notifications": {
-    "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}"
+    "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}",
+    "object": {
+      "other": "shared item"
+    }
   },
   "sharing": {
     "confirm_manager_title": "Make them a manager?",

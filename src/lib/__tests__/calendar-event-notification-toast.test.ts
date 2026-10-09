@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildNoticeToasts, selectNoticeToasts } from '../calendar-event-notification-toast';
+import { buildNoticeToasts, NOTICE_WAIT_CAP_MS, noticeWaitStep, selectNoticeToasts } from '../calendar-event-notification-toast';
 
 const t = (key: string, fallback?: string, params?: Record<string, string | number>) =>
   (fallback ?? key).replace(/\{(\w+)\}/g, (_m, k) => String(params?.[k] ?? ''));
@@ -109,5 +109,15 @@ describe('selectNoticeToasts', () => {
     expect(r.individual.map((x) => x.id)).toEqual(['t5', 't6']);
     expect(r.overflow).toBe(5);
     expect(selectNoticeToasts(toasts(4))).toMatchObject({ overflow: 2 });
+  });
+});
+
+describe('noticeWaitStep', () => {
+  it('waits for room, then drops the batch once the wait passes the cap', () => {
+    expect(noticeWaitStep(null, 1000, 0)).toEqual({ action: 'wait', waitingSince: 1000 });
+    expect(noticeWaitStep(1000, 1000 + NOTICE_WAIT_CAP_MS - 1, 0)).toEqual({ action: 'wait', waitingSince: 1000 });
+    expect(noticeWaitStep(1000, 1000 + NOTICE_WAIT_CAP_MS, 0).action).toBe('drop');
+    expect(noticeWaitStep(1000, 5000, 2)).toEqual({ action: 'show', waitingSince: null });
+    expect(noticeWaitStep(null, 5000, 1)).toEqual({ action: 'show', waitingSince: null });
   });
 });

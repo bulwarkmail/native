@@ -121,6 +121,12 @@ export interface AuthState {
   removeAccount: (accountId: string, opts?: SignOutOptions) => Promise<void>;
   restoreSession: () => Promise<boolean>;
   retrySession: () => Promise<boolean>;
+  /**
+   * Refetch the session document of `appAccountId` (for an account shared
+   * with it since). Only while that account is active and the client serves
+   * it, before and after the fetch; resolves whether the session was set.
+   */
+  refreshSessionFor: (appAccountId: string) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -1383,6 +1389,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // failure, could leave the client without a session while this store
     // holds a live one.
     return retrySessionFlight(activeAccountId);
+  },
+
+  refreshSessionFor: async (appAccountId) => {
+    const serves = () => get().activeAccountId === appAccountId
+      && !!get().session
+      && clientServesAccount(appAccountId);
+    if (!serves()) return false;
+    let fresh: JMAPSession | null;
+    try {
+      fresh = await jmapClient.refreshSession();
+    } catch {
+      // Offline or refused: the live session stays; a 401 on a real request
+      // takes the usual route.
+      return false;
+    }
+    // A switch, sign-out or a dropped session meanwhile: that owns the state.
+    if (!fresh || !serves() || jmapClient.currentSession !== fresh) return false;
+    set({ session: fresh });
+    return true;
   },
 
   clearError: () => set({ error: null }),

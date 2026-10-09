@@ -396,3 +396,62 @@ describe('a superseded session load (C-1)', () => {
     mockRefresh.mockReset();
   });
 });
+
+describe('a session refresh', () => {
+  const withShare = (host: string, account: string, shared: string): JMAPSession => {
+    const s = session(host, account);
+    return {
+      ...s,
+      accounts: { ...s.accounts, [shared]: { name: shared, isPersonal: false, isReadOnly: false, accountCapabilities: {} } },
+    } as JMAPSession;
+  };
+
+  it('swaps in the new session document on the live connection and keeps its account', async () => {
+    await keysCheck();
+    const client = new JMAPClient();
+    handlers['a.example.com'] = async () => response(200, session('a.example.com', 'alice'));
+    expect(await client.loadAccount(idA)).toBe(true);
+    const gen = client.connectionGen;
+    handlers['a.example.com'] = async () => response(200, withShare('a.example.com', 'alice', 'dana'));
+
+    const fresh = await client.refreshSession();
+    expect(Object.keys(fresh?.accounts ?? {})).toEqual(['alice', 'dana']);
+    expect(client.currentSession).toBe(fresh);
+    expect(client.accountId).toBe('alice');
+    // The same connection: requests already made on it keep going.
+    expect(client.connectionGen).toBe(gen);
+    expect(client.isCurrent(gen)).toBe(true);
+  });
+
+  it('a session refresh that a switch overtakes changes nothing', async () => {
+    await keysCheck();
+    const client = new JMAPClient();
+    handlers['a.example.com'] = async () => response(200, session('a.example.com', 'alice'));
+    expect(await client.loadAccount(idA)).toBe(true);
+    const before = client.currentSession;
+    const aFetch = deferred<unknown>();
+    const bFetch = deferred<unknown>();
+    handlers['a.example.com'] = () => aFetch.promise;
+    handlers['b.example.com'] = () => bFetch.promise;
+
+    const refresh = client.refreshSession();
+    await vi.waitFor(() => expect(calls.some((c) => c.url.includes('a.example.com'))).toBe(true));
+    // The switch starts while the refresh is out; A still serves until B commits.
+    const loadB = client.loadAccount(idB);
+    await vi.waitFor(() => expect(calls.some((c) => c.url.includes('b.example.com'))).toBe(true));
+    aFetch.resolve(response(200, withShare('a.example.com', 'alice', 'dana')));
+    expect(await refresh).toBeNull();
+    expect(client.currentSession).toBe(before);
+
+    bFetch.resolve(response(200, session('b.example.com', 'bob')));
+    expect(await loadB).toBe(true);
+    expect(client.accountId).toBe('bob');
+    expect(Object.keys(client.currentSession?.accounts ?? {})).toEqual(['bob']);
+  });
+
+  it('does nothing without a live session', async () => {
+    const client = new JMAPClient();
+    expect(await client.refreshSession()).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
