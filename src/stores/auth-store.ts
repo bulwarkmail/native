@@ -1392,7 +1392,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshSessionFor: async (appAccountId) => {
-    const serves = () => get().activeAccountId === appAccountId
+    // Not while a sign-in or switch runs (`isLoading`): a failed switch puts
+    // the previous connection back, and a session set meanwhile could leave
+    // the client and this store out of step.
+    const serves = () => !get().isLoading
+      && get().activeAccountId === appAccountId
       && !!get().session
       && clientServesAccount(appAccountId);
     if (!serves()) return false;

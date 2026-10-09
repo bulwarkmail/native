@@ -6,8 +6,7 @@ import { freeToastSlots, toast, useToastStore } from '../stores/toast-store';
 import { setPendingCalendarOpen } from '../navigation/pending-calendar-open';
 import {
   buildNoticeToasts,
-  NOTICE_WAIT_CAP_MS,
-  noticeWaitStep,
+  createNoticeWaiter,
   selectNoticeToasts,
   type NoticeToast,
 } from './calendar-event-notification-toast';
@@ -29,34 +28,21 @@ function activeJmapAccountId(): string | undefined {
 export function startCalendarEventNotificationToasts(openCalendar: () => void): () => void {
   // Adding a toast notifies the toast subscription below synchronously.
   let presenting = false;
-  // When the batch started waiting for room, and the timer that ends the wait.
-  let waitingSince: number | null = null;
-  let waitTimer: ReturnType<typeof setTimeout> | null = null;
-  const clearWaitTimer = () => {
-    if (waitTimer) clearTimeout(waitTimer);
-    waitTimer = null;
-  };
   const present = () => {
     if (presenting) return;
     const store = useCalendarEventNotificationStore.getState();
     const batch = store.pending;
     if (batch.length === 0) {
-      waitingSince = null;
-      clearWaitTimer();
+      waiter.reset();
       return;
     }
     // Never push the user's Undo or an error out of the toast host: with no
     // room, wait for a toast to leave (the toast subscription), but no longer
     // than the cap; then the batch goes without a toast.
     const room = freeToastSlots(useToastStore.getState().toasts);
-    const step = noticeWaitStep(waitingSince, Date.now(), room);
-    waitingSince = step.waitingSince;
-    clearWaitTimer();
-    if (step.action === 'wait') {
-      waitTimer = setTimeout(present, Math.max(0, step.waitingSince! + NOTICE_WAIT_CAP_MS - Date.now()));
-      return;
-    }
-    if (step.action === 'drop') {
+    const step = waiter.step(room);
+    if (step === 'wait') return;
+    if (step === 'drop') {
       console.warn('[calendar-notices] no room for a toast within the wait cap; acknowledging', batch.length, 'without one');
     } else {
       showToasts(batch, room);
@@ -107,12 +93,13 @@ export function startCalendarEventNotificationToasts(openCalendar: () => void): 
       presenting = false;
     }
   };
+  const waiter = createNoticeWaiter(present);
   present();
   const unsubscribeNotices = useCalendarEventNotificationStore.subscribe(present);
   const unsubscribeToasts = useToastStore.subscribe(present);
   return () => {
     unsubscribeNotices();
     unsubscribeToasts();
-    clearWaitTimer();
+    waiter.reset();
   };
 }

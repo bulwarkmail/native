@@ -86,4 +86,29 @@ describe('refreshSessionFor', () => {
     expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
     expect(useAuthStore.getState().session).toBe(before);
   });
+
+  it('changes nothing when the client holds another session by the time the fetch lands', async () => {
+    const before = useAuthStore.getState().session;
+    // The client swapped in something else after this refresh resolved.
+    client.refreshSession.mockImplementation(async () => shared);
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
+    expect(useAuthStore.getState().session).toBe(before);
+  });
+
+  it('waits out a sign-in or switch in progress, before and after the fetch', async () => {
+    const before = useAuthStore.getState().session;
+    useAuthStore.setState({ isLoading: true });
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
+    expect(client.refreshSession).not.toHaveBeenCalled();
+
+    useAuthStore.setState({ isLoading: false });
+    client.refreshSession.mockImplementation(async () => {
+      useAuthStore.setState({ isLoading: true });
+      client.session = shared;
+      return shared;
+    });
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
+    expect(useAuthStore.getState().session).toBe(before);
+    useAuthStore.setState({ isLoading: false });
+  });
 });

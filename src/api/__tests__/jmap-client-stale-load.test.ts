@@ -454,4 +454,16 @@ describe('a session refresh', () => {
     expect(await client.refreshSession()).toBeNull();
     expect(calls).toEqual([]);
   });
+
+  it('keeps the live session when the new document lacks the connection\'s account', async () => {
+    await keysCheck();
+    const client = new JMAPClient();
+    handlers['a.example.com'] = async () => response(200, session('a.example.com', 'alice'));
+    expect(await client.loadAccount(idA)).toBe(true);
+    const before = client.currentSession;
+    handlers['a.example.com'] = async () => response(200, session('a.example.com', 'someone-else'));
+    expect(await client.refreshSession()).toBeNull();
+    expect(client.currentSession).toBe(before);
+    expect(client.accountId).toBe('alice');
+  });
 });

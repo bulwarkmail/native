@@ -192,4 +192,31 @@ describe('share notification presenter', () => {
     vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS * 2);
     expect(acknowledge()).not.toHaveBeenCalled();
   });
+
+  it('fetches nothing when the active account changes while the refresh is pending', async () => {
+    let release!: (ok: boolean) => void;
+    mocks.refreshSessionFor.mockImplementation(() => new Promise<boolean>((res) => { release = res; }));
+    queue(notice('p1', 'Mailbox', 'app-1', 'newOwner'));
+    expect(mocks.refreshSessionFor).toHaveBeenCalledWith('app-1');
+    mocks.active = 'app-2';
+    release(true);
+    await new Promise((res) => setTimeout(res, 0));
+    await Promise.resolve();
+    expect(mocks.fetchMailboxes).not.toHaveBeenCalled();
+  });
+
+  it('makes one session refresh for a burst of shares from a new owner', async () => {
+    let release!: (ok: boolean) => void;
+    mocks.refreshSessionFor.mockImplementation(() => new Promise<boolean>((res) => { release = res; }));
+    queue(notice('b1', 'Mailbox', 'app-1', 'newOwner'));
+    queue(notice('b2', 'Calendar', 'app-1', 'newOwner'));
+    expect(mocks.refreshSessionFor).toHaveBeenCalledTimes(1);
+    release(true);
+    await vi.waitFor(() => expect(mocks.fetchCalendars).toHaveBeenCalledTimes(1));
+    expect(mocks.fetchMailboxes).toHaveBeenCalledTimes(1);
+    // Once it settled, a later share refreshes again.
+    mocks.refreshSessionFor.mockImplementation(async () => true);
+    queue(notice('b3', 'Mailbox', 'app-1', 'newOwner'));
+    expect(mocks.refreshSessionFor).toHaveBeenCalledTimes(2);
+  });
 });

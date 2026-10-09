@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { buildNoticeToasts, NOTICE_WAIT_CAP_MS, noticeWaitStep, selectNoticeToasts } from '../calendar-event-notification-toast';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import {
+  buildNoticeToasts,
+  createNoticeWaiter,
+  NOTICE_WAIT_CAP_MS,
+  noticeWaitStep,
+  selectNoticeToasts,
+} from '../calendar-event-notification-toast';
 
 const t = (key: string, fallback?: string, params?: Record<string, string | number>) =>
   (fallback ?? key).replace(/\{(\w+)\}/g, (_m, k) => String(params?.[k] ?? ''));
@@ -119,5 +125,50 @@ describe('noticeWaitStep', () => {
     expect(noticeWaitStep(1000, 1000 + NOTICE_WAIT_CAP_MS, 0).action).toBe('drop');
     expect(noticeWaitStep(1000, 5000, 2)).toEqual({ action: 'show', waitingSince: null });
     expect(noticeWaitStep(null, 5000, 1)).toEqual({ action: 'show', waitingSince: null });
+  });
+});
+
+describe('createNoticeWaiter', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('calls present again when the wait reaches the cap, then drops', () => {
+    vi.useFakeTimers();
+    const present = vi.fn();
+    const waiter = createNoticeWaiter(present);
+    expect(waiter.step(0)).toBe('wait');
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS / 2);
+    // A toast change re-steps without moving the deadline.
+    expect(waiter.step(0)).toBe('wait');
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS / 2 - 1);
+    expect(present).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(present).toHaveBeenCalledTimes(1);
+    expect(waiter.step(0)).toBe('drop');
+    // The clock starts over after a drop.
+    expect(waiter.step(0)).toBe('wait');
+  });
+
+  it('shows with room and stops the timer', () => {
+    vi.useFakeTimers();
+    const present = vi.fn();
+    const waiter = createNoticeWaiter(present);
+    expect(waiter.step(0)).toBe('wait');
+    expect(waiter.step(1)).toBe('show');
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS * 2);
+    expect(present).not.toHaveBeenCalled();
+    expect(waiter.step(0)).toBe('wait');
+  });
+
+  it('reset stops the clock and the timer', () => {
+    vi.useFakeTimers();
+    const present = vi.fn();
+    const waiter = createNoticeWaiter(present);
+    waiter.step(0);
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS - 1);
+    waiter.reset();
+    vi.advanceTimersByTime(NOTICE_WAIT_CAP_MS * 2);
+    expect(present).not.toHaveBeenCalled();
+    // A fresh wait, not a drop.
+    expect(waiter.step(0)).toBe('wait');
   });
 });

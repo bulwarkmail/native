@@ -6,7 +6,8 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useAuthStore } from '../stores/auth-store';
 import { freeToastSlots, toast, useToastStore } from '../stores/toast-store';
 import { needsSessionRefresh, shareNotificationMessage } from './share-notification-toast';
-import { NOTICE_WAIT_CAP_MS, noticeWaitStep, selectNoticeToasts } from './calendar-event-notification-toast';
+import { createNoticeWaiter, selectNoticeToasts } from './calendar-event-notification-toast';
+import { singleFlightByKey } from './session-retry';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 import { hasCalendarCapability } from './capabilities';
 
@@ -19,20 +20,16 @@ import { hasCalendarCapability } from './capabilities';
 export function startShareNotificationToasts(): () => void {
   // Adding a toast notifies the toast subscription below synchronously.
   let presenting = false;
-  // When the batch started waiting for room, and the timer that ends the wait.
-  let waitingSince: number | null = null;
-  let waitTimer: ReturnType<typeof setTimeout> | null = null;
-  const clearWaitTimer = () => {
-    if (waitTimer) clearTimeout(waitTimer);
-    waitTimer = null;
-  };
+  // One session refresh per app account at a time: a burst of shares from a
+  // new owner makes one request, and every batch fetches once it settles.
+  const refreshSession = singleFlightByKey((appAccountId: string) =>
+    useAuthStore.getState().refreshSessionFor(appAccountId).catch(() => false));
   const present = () => {
     if (presenting) return;
     const store = useShareNotificationStore.getState();
     const batch = store.pending;
     if (batch.length === 0) {
-      waitingSince = null;
-      clearWaitTimer();
+      waiter.reset();
       return;
     }
     const { t } = useLocaleStore.getState();
@@ -46,14 +43,9 @@ export function startShareNotificationToasts(): () => void {
     // no longer than the cap; then the batch goes without a toast. A batch
     // with nothing to show never waits.
     const room = shown.length > 0 ? freeToastSlots(useToastStore.getState().toasts) : 1;
-    const step = noticeWaitStep(waitingSince, Date.now(), room);
-    waitingSince = step.waitingSince;
-    clearWaitTimer();
-    if (step.action === 'wait') {
-      waitTimer = setTimeout(present, Math.max(0, step.waitingSince! + NOTICE_WAIT_CAP_MS - Date.now()));
-      return;
-    }
-    if (step.action === 'drop') {
+    const step = waiter.step(room);
+    if (step === 'wait') return;
+    if (step === 'drop') {
       console.warn('[share-notices] no room for a toast within the wait cap; acknowledging', batch.length, 'without one');
     } else if (shown.length > 0) {
       const messages = shown.map((n) => shareNotificationMessage(n, t));
@@ -86,23 +78,22 @@ export function startShareNotificationToasts(): () => void {
     // the account these notices came to; after a switch nothing is fetched.
     const known = Object.keys(useAuthStore.getState().session?.accounts ?? {});
     if (activeApp !== null && needsSessionRefresh(shown, known)) {
-      void useAuthStore.getState().refreshSessionFor(activeApp)
-        .catch(() => false)
-        .then(() => {
-          if (activeAppAccountId() === activeApp && clientServesActiveAccount()) fetchTouched();
-        });
+      void refreshSession(activeApp).then(() => {
+        if (activeAppAccountId() === activeApp && clientServesActiveAccount()) fetchTouched();
+      });
     } else {
       fetchTouched();
     }
     // Removes them from the store before anything else can see them again.
     void store.acknowledge(batch.map((n) => n.id));
   };
+  const waiter = createNoticeWaiter(present);
   present();
   const unsubscribeNotices = useShareNotificationStore.subscribe(present);
   const unsubscribeToasts = useToastStore.subscribe(present);
   return () => {
     unsubscribeNotices();
     unsubscribeToasts();
-    clearWaitTimer();
+    waiter.reset();
   };
 }
