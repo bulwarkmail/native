@@ -36,7 +36,7 @@ export function ThemesSettings() {
   const cards: ThemeCard[] = [
     {
       id: null,
-      name: t('settings.themes.default_name', 'Bulwark'),
+      name: t('settings.themes.default_name', 'Default'),
       description: t('settings.themes.default_description', 'The default light and dark palettes.'),
     },
     ...BUILTIN_THEMES.map((theme) => ({ id: theme.id, name: theme.name, description: theme.description })),

@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "Az alapértelmezett világos és sötét paletták.",
-      "default_name": "Bulwark",
       "mobile_description": "Válassz színtémát. A témák a Megjelenés világos/sötét beállítását követik; az egyéni témacsomagokat a webmailben kezelheted."
     },
     "vacation": {

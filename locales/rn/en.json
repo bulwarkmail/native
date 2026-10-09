@@ -1275,7 +1275,6 @@
     },
     "themes": {
       "default_description": "The default light and dark palettes.",
-      "default_name": "Bulwark",
       "mobile_description": "Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail."
     },
     "vacation": {

@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "預設的淺色與深色配色。",
-      "default_name": "Bulwark",
       "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。"
     },
     "vacation": {

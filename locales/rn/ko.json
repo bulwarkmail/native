@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "기본 라이트 및 다크 팔레트예요.",
-      "default_name": "Bulwark",
       "mobile_description": "색상 테마를 선택하세요. 테마는 화면 설정의 라이트/다크 설정을 따르며, 사용자 지정 테마 패키지는 웹메일에서 관리해요."
     },
     "vacation": {

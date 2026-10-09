@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "Predvolené svetlé a tmavé palety.",
-      "default_name": "Bulwark",
       "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile."
     },
     "vacation": {

@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "De standaard lichte en donkere paletten.",
-      "default_name": "Bulwark",
       "mobile_description": "Kies een kleurthema. Thema's volgen de instelling licht/donker onder Uiterlijk; aangepaste themapakketten worden beheerd in de webmail."
     },
     "vacation": {

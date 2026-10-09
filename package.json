@@ -16,6 +16,7 @@
     "sync-locales": "node scripts/sync-locales.mjs",
     "i18n:harvest": "node scripts/harvest-rn-keys.mjs",
     "i18n:check": "node scripts/harvest-rn-keys.mjs --check",
+    "deps:psl-age": "node scripts/psl-age.js",
     "widgets:sync": "node scripts/sync-android-widgets.mjs"
   },
   "dependencies": {

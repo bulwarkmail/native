@@ -135,6 +135,8 @@ npx expo start
 
 Then press `a` for Android, `i` for iOS, or scan the QR with Expo Go.
 
+Before a release, run `npm run deps:psl-age`. The sender check's public suffix list ships inside tldts; update tldts when the list is over 90 days old.
+
 For release APK builds and signing see [docs/android-release.md](docs/android-release.md).
 For iOS builds and TestFlight distribution see [docs/ios-release.md](docs/ios-release.md).
 

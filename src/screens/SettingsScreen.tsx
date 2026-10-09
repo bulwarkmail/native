@@ -251,7 +251,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
     return buildSettingsSearchIndex(getDictionary('en'), t, {
       themes: [
         {
-          label: t('settings.themes.default_name', 'Bulwark'),
+          label: t('settings.themes.default_name', 'Default'),
           description: t('settings.themes.default_description', 'The default light and dark palettes.'),
         },
         ...BUILTIN_THEMES.map((theme) => ({ label: theme.name, description: theme.description })),

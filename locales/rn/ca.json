@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "Les paletes clara i fosca per defecte.",
-      "default_name": "Bulwark",
       "mobile_description": "Trieu un tema de color. Els temes segueixen el paràmetre clar/fosc d'Aparença; els paquets de temes personalitzats es gestionen al webmail."
     },
     "vacation": {

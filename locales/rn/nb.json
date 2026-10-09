@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "Standardpalettene for lyst og mørkt.",
-      "default_name": "Bulwark",
       "mobile_description": "Velg et fargetema. Temaene følger innstillingen for lyst/mørkt under Utseende; egendefinerte temapakker administreres i nettposten."
     },
     "vacation": {

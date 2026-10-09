@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "Varsayılan açık ve koyu paletler.",
-      "default_name": "Bulwark",
       "mobile_description": "Bir renk teması seçin. Temalar Görünüm'deki açık/koyu ayarını izler; özel tema paketleri webmail'de yönetilir."
     },
     "vacation": {

@@ -1091,7 +1091,6 @@
     },
     "themes": {
       "default_description": "Les palettes claire et sombre par défaut.",
-      "default_name": "Bulwark",
       "mobile_description": "Choisissez un thème de couleurs. Les thèmes suivent le réglage clair/sombre de l'Apparence. Les packs de thèmes personnalisés se gèrent dans le webmail."
     },
     "vacation": {

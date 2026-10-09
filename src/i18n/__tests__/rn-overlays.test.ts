@@ -21,6 +21,11 @@ function flatten(obj: Record<string, unknown>, prefix = '', out = new Map<string
   return out;
 }
 
+function webKeys(code: string): Set<string> {
+  const file = join(RN_DIR, '..', code, 'common.json');
+  return new Set(flatten(JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>).keys());
+}
+
 function readOverlay(code: string): Map<string, unknown> {
   return flatten(JSON.parse(readFileSync(join(RN_DIR, `${code}.json`), 'utf8')) as Record<string, unknown>);
 }
@@ -63,6 +68,13 @@ describe('RN overlay translations', () => {
         if (want !== got) problems.push(`${key}: arguments {${got}} instead of {${want}}`);
       }
       expect(problems).toEqual([]);
+    });
+  }
+
+  // An overlay key that webmail also ships would hide webmail's own wording.
+  for (const { code } of SUPPORTED_LOCALES) {
+    it(`${code} overlay shadows no key the vendored webmail catalog ships`, () => {
+      expect([...readOverlay(code).keys()].filter((k) => webKeys(code).has(k))).toEqual([]);
     });
   }
 
