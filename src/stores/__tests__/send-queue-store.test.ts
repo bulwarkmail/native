@@ -506,6 +506,7 @@ describe('send-queue-store', () => {
         ['not held', { heldReason: undefined }],
         ['uncertain', { state: 'uncertain' as const, attemptStartedAt: '2026-10-04T00:01:00Z' }],
         ['failed', { state: 'failed' as const }],
+        ['with an error from an earlier attempt', { lastError: 'Connection lost' }],
       ])('refuses an entry %s, and leaves it as it was', async (_l, patch) => {
         const s = await seedHeld(patch);
         const before = await stored('a1', 'q1');

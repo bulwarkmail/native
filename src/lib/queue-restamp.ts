@@ -19,11 +19,16 @@
 import type { Identity } from '../api/types';
 import type { QueuedSend } from '../stores/send-queue-store';
 
-/** The entry is one a re-stamp may move: queued, held account_unavailable, never attempted, no attachments. */
+/**
+ * The entry is one a re-stamp may move: queued, held account_unavailable,
+ * never attempted, no attachments, and no error from an earlier attempt (an
+ * entry the user put back with Retry after a failure is theirs to judge).
+ */
 export function mayRestamp(entry: QueuedSend): boolean {
   return entry.state === 'queued'
     && entry.heldReason === 'account_unavailable'
     && !entry.attemptStartedAt
+    && !entry.lastError
     && !(entry.outgoing.attachments?.length);
 }
 
@@ -32,7 +37,14 @@ function normalizedAddress(email: string | undefined): string {
 }
 
 /**
- * The JMAP account to re-stamp `entry` onto, or null to leave it held. Only
+ * The JMAP account to re-stamp `entry` onto, or null to leave it held.
+ *
+ * What this cannot tell apart: an unserved id is either the user's own
+ * account renumbered, or a shared account whose access was revoked. In the
+ * second case the message goes out from the primary instead of the shared
+ * account. That is only allowed because the primary holds the very identity
+ * (id and address) the message is from, so it is sent as the user, from an
+ * address the user may send from; it never goes out as somebody else. Only
  * the live primary, only when the session does not serve the entry's own
  * account (releaseHold covers that), and only when the primary's identities
  * hold the entry's identity id with the address the message is from.

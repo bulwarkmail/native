@@ -24,6 +24,7 @@ describe('restampTarget', () => {
     ['uncertain', { state: 'uncertain' as const }],
     ['failed', { state: 'failed' as const }],
     ['sending', { state: 'sending' as const }],
+    ['with an error from an earlier attempt', { lastError: 'Connection lost' }],
   ])('never re-stamps an entry %s', (_l, patch) => {
     expect(restampTarget({ ...held, ...patch }, live)).toBeNull();
   });

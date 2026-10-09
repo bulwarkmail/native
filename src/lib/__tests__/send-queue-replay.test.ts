@@ -1180,6 +1180,21 @@ describe('flushSendQueue: a held send whose account id went stale', () => {
     expect(mockSend.mock.calls.map((c) => c[4].accountId)).toEqual(['jA', 'jA']);
   });
 
+  it('re-stamps nothing when the old account comes back while the identities load, and sends it there later', async () => {
+    await seed(stale());
+    mockIdentities.mockImplementation(async () => {
+      client.getSubmissionAccountIds.mockReturnValue(['jA', 'jOld']);
+      return [identity('iA', 'me@a.test')];
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable', draftId: 'd-old' });
+
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jOld', draftId: 'd-old' });
+  });
+
   it('releases rather than re-stamps once the session serves the old account again', async () => {
     await seed(stale());
     client.getSubmissionAccountIds.mockReturnValue(['jA', 'jOld']);
