@@ -20,9 +20,18 @@ import {
   sharedCalendarColorFor,
   calendarColorAccount,
   sharedCalendarColorKey,
+  claimLegacyCalendarColors,
+  legacyCalendarColorClaim,
 } from '../calendar-utils';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { withoutAccountCalendarColors, exportableCalendarColors } from '../calendar-color-keys';
+import {
+  withoutAccountCalendarColors,
+  exportableCalendarColors,
+  importedCalendarColors,
+  isLegacyCalendarColorKey,
+  readsLegacyCalendarColors,
+  withoutLegacyCalendarColors,
+} from '../calendar-color-keys';
 import { useSettingsStore } from '../../stores/settings-store';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
@@ -299,27 +308,27 @@ describe('shared calendar colours', () => {
 
   it('keeps two app accounts\' overrides for the same JMAP calendar apart', () => {
     const overrides = { [sharedCalendarColorKey('A', cal)]: '#ff0000' };
-    expect(applySharedCalendarColors([cal], overrides, 'A')[0].color).toBe('#ff0000');
-    expect(applySharedCalendarColors([cal], overrides, 'B')[0].color).toBeUndefined();
+    expect(applySharedCalendarColors([cal], overrides, 'A', false)[0].color).toBe('#ff0000');
+    expect(applySharedCalendarColors([cal], overrides, 'B', false)[0].color).toBeUndefined();
   });
 
-  it('still shows an override stored under the old key', () => {
-    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, 'A', cal)).toBe('#00ff00');
-    const [shown] = applySharedCalendarColors([cal], { 'team|c1': '#00ff00' }, 'A');
+  it('still shows an override stored under the old key to an account allowed to read it', () => {
+    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, 'A', cal, true)).toBe('#00ff00');
+    const [shown] = applySharedCalendarColors([cal], { 'team|c1': '#00ff00' }, 'A', true);
     expect(shown.color).toBe('#00ff00');
     expect(shown.colorIsLocalOverride).toBe(true);
   });
 
   it('prefers the per-account override over the old key', () => {
     const overrides = { 'team|c1': '#00ff00', 'A|team|c1': '#0000ff' };
-    expect(sharedCalendarColorFor(overrides, 'A', cal)).toBe('#0000ff');
+    expect(sharedCalendarColorFor(overrides, 'A', cal, true)).toBe('#0000ff');
   });
 
   it('applies no per-account override when no account is shown', () => {
-    expect(sharedCalendarColorFor({ 'A|team|c1': '#ff0000' }, '', cal)).toBeUndefined();
+    expect(sharedCalendarColorFor({ 'A|team|c1': '#ff0000' }, '', cal, true)).toBeUndefined();
   });
 
-  it('a reset shadows the old key for that account only, leaving it for the others', () => {
+  it('a reset shadows the old key for that account only, leaving it for the others still allowed to read it', () => {
     const overrides: Record<string, string> = { 'team|c1': '#00ff00' };
     const { key, color } = resetSharedCalendarColor([cal], overrides, 'A', cal);
     expect(key).toBe('A|team|c1');
@@ -327,8 +336,8 @@ describe('shared calendar colours', () => {
     expect(color.toLowerCase()).not.toBe('#00ff00');
     const after = { ...overrides, [key]: color };
     expect(after['team|c1']).toBe('#00ff00');
-    expect(sharedCalendarColorFor(after, 'A', cal)).toBe(color);
-    expect(sharedCalendarColorFor(after, 'B', cal)).toBe('#00ff00');
+    expect(sharedCalendarColorFor(after, 'A', cal, true)).toBe(color);
+    expect(sharedCalendarColorFor(after, 'B', cal, true)).toBe('#00ff00');
   });
 
   it('forgets one app account\'s overrides, keeping the others\' and the old keys', () => {
@@ -353,7 +362,7 @@ describe('shared calendar colours', () => {
     expect(calendarColorAccount('B', 'A')).toBe('');
     expect(calendarColorAccount(null, 'A')).toBe('');
     expect(calendarColorAccount('A', null)).toBe('');
-    const [shown] = applySharedCalendarColors([cal], { 'A|team|c1': '#ff0000' }, calendarColorAccount('B', 'A'));
+    const [shown] = applySharedCalendarColors([cal], { 'A|team|c1': '#ff0000', 'team|c1': '#00ff00' }, calendarColorAccount('B', 'A'), true);
     expect(shown.color).toBeUndefined();
   });
 
@@ -368,31 +377,108 @@ describe('shared calendar colours', () => {
     const legacy = { ...cal, id: 'team:c3', originalId: 'c3' };
     const own = { id: 'p', name: 'P', color: '#111111' } as Calendar;
     const overrides = { 'A|team|c1': '#ff0000', 'team|c3': '#00ff00', 'B|team|c2': '#0000ff' };
-    const assigned = missingSharedCalendarColors([cal, other, legacy, own], 'A', overrides, 'A');
+    const assigned = missingSharedCalendarColors([cal, other, legacy, own], 'A', overrides, 'A', true);
     expect(Object.keys(assigned)).toEqual(['A|team|c2']);
     expect(['#111111', '#ff0000', '#00ff00', '#0000ff']).not.toContain(assigned['A|team|c2'].toLowerCase());
   });
 
   it('assigns nothing while no account is shown', () => {
-    expect(missingSharedCalendarColors([cal], null, {}, '')).toEqual({});
+    expect(missingSharedCalendarColors([cal], null, {}, '', false)).toEqual({});
   });
 
   it('assigns nothing while the list still holds another account\'s calendars, then under the new one', () => {
     // A switch shows B at once; the store holds A's list until B's loads.
-    expect(missingSharedCalendarColors([cal], 'A', {}, 'B')).toEqual({});
-    expect(missingSharedCalendarColors([cal], null, {}, 'B')).toEqual({});
-    expect(Object.keys(missingSharedCalendarColors([cal], 'B', {}, 'B'))).toEqual(['B|team|c1']);
+    expect(missingSharedCalendarColors([cal], 'A', {}, 'B', false)).toEqual({});
+    expect(missingSharedCalendarColors([cal], null, {}, 'B', false)).toEqual({});
+    expect(Object.keys(missingSharedCalendarColors([cal], 'B', {}, 'B', false))).toEqual(['B|team|c1']);
   });
 
   it('gives two new shared calendars different colours', () => {
     const other = { ...cal, id: 'team:c2', originalId: 'c2' };
-    const assigned = Object.values(missingSharedCalendarColors([cal, other], 'A', {}, 'A'));
+    const assigned = Object.values(missingSharedCalendarColors([cal, other], 'A', {}, 'A', false));
     expect(assigned).toHaveLength(2);
     expect(new Set(assigned.map((c) => c.toLowerCase())).size).toBe(2);
   });
 
   it('leaves personal calendars alone', () => {
     const own = { ...cal, isShared: false, color: '#123456' };
-    expect(applySharedCalendarColors([own], { 'A|team|c1': '#ff0000' }, 'A')[0]).toBe(own);
+    expect(applySharedCalendarColors([own], { 'A|team|c1': '#ff0000' }, 'A', false)[0]).toBe(own);
+  });
+
+  // The old key names no app account: two servers' shared calendars collide
+  // on it. Only the accounts registered at the upgrade read it, until each
+  // has claimed it at a full load of its own calendars.
+  it('reads the legacy key only for an account still allowed to', () => {
+    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, 'A', cal, true)).toBe('#00ff00');
+    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, 'B', cal, false)).toBeUndefined();
+    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, '', cal, true)).toBeUndefined();
+    expect(applySharedCalendarColors([cal], { 'team|c1': '#00ff00' }, 'B', false)[0].color).toBeUndefined();
+  });
+
+  it('assigns a fresh colour to a calendar whose only override is a legacy one it may not read', () => {
+    const assigned = missingSharedCalendarColors([cal], 'B', { 'team|c1': '#00ff00' }, 'B', false);
+    expect(Object.keys(assigned)).toEqual(['B|team|c1']);
+    expect(missingSharedCalendarColors([cal], 'A', { 'team|c1': '#00ff00' }, 'A', true)).toEqual({});
+  });
+
+  it('claims legacy colours for the account\'s own shared calendars, never over its own key', () => {
+    expect(claimLegacyCalendarColors([cal], { 'team|c1': '#00ff00' }, 'A')).toEqual({ 'A|team|c1': '#00ff00' });
+    expect(claimLegacyCalendarColors([cal], { 'team|c1': '#00ff00', 'A|team|c1': '#111111' }, 'A')).toEqual({});
+  });
+
+  it('claims nothing for personal calendars, calendars without a legacy colour, or no account', () => {
+    const own = { id: 'c1', name: 'P', color: '#123456' } as Calendar;
+    const other = { ...cal, id: 'team:c2', originalId: 'c2' };
+    expect(claimLegacyCalendarColors([own, other], { 'team|c1': '#00ff00', '|c1': '#00ff00' }, 'A')).toEqual({});
+    expect(claimLegacyCalendarColors([cal], { 'team|c1': '#00ff00' }, '')).toEqual({});
+  });
+
+  // The claim takes the colours for good: run on a list that is not the
+  // shown account's own full load, it would hand that account another
+  // account's colours, or drop the ones its own list would have claimed.
+  it('claims only from the shown account\'s own loaded list', () => {
+    const legacy = { 'team|c1': '#00ff00' };
+    // The list is still another account's (a switch, or its load went stale).
+    expect(legacyCalendarColorClaim([cal], 'B', legacy, 'A', true)).toBeNull();
+    // No list loaded for any account yet (reset, or the load failed).
+    expect(legacyCalendarColorClaim([cal], null, legacy, 'A', true)).toBeNull();
+    // No account shown.
+    expect(legacyCalendarColorClaim([cal], 'A', legacy, '', true)).toBeNull();
+    // Already claimed, or never allowed to.
+    expect(legacyCalendarColorClaim([cal], 'A', legacy, 'A', false)).toBeNull();
+    expect(legacyCalendarColorClaim([cal], 'A', legacy, 'A', true)).toEqual({ 'A|team|c1': '#00ff00' });
+    // Nothing to claim still finishes the account (so it stops reading them).
+    expect(legacyCalendarColorClaim([], 'A', legacy, 'A', true)).toEqual({});
+  });
+});
+
+describe('legacy calendar colour keys', () => {
+  it('tells the old two-part keys from per-account ones', () => {
+    expect(isLegacyCalendarColorKey('team|c1')).toBe(true);
+    expect(isLegacyCalendarColorKey('c1')).toBe(true);
+    expect(isLegacyCalendarColorKey('A|team|c1')).toBe(false);
+  });
+
+  it('lets an account read them only while it is a reader, or before the readers are seeded', () => {
+    expect(readsLegacyCalendarColors(null, 'A')).toBe(true);
+    expect(readsLegacyCalendarColors(['A'], 'A')).toBe(true);
+    expect(readsLegacyCalendarColors(['A'], 'B')).toBe(false);
+    expect(readsLegacyCalendarColors([], 'A')).toBe(false);
+    expect(readsLegacyCalendarColors(null, '')).toBe(false);
+    expect(readsLegacyCalendarColors([''], '')).toBe(false);
+  });
+
+  it('drops only the legacy keys', () => {
+    expect(withoutLegacyCalendarColors({ 'team|c1': '#1', 'A|team|c1': '#2' })).toEqual({ 'A|team|c1': '#2' });
+  });
+
+  it('imports a file\'s old-shape colours as the shown account\'s, over its own, keeping the rest', () => {
+    const current = { 'A|team|c1': '#000001', 'B|team|c1': '#000002', 'team|c9': '#000009' };
+    const file = { 'team|c1': '#00ff00', 'team|c2': '#0000ff', 'X|team|c3': '#ff0000' };
+    expect(importedCalendarColors(current, file, 'A')).toEqual({
+      'A|team|c1': '#00ff00', 'A|team|c2': '#0000ff', 'B|team|c1': '#000002', 'team|c9': '#000009',
+    });
+    expect(importedCalendarColors(current, file, null)).toBe(current);
+    expect(importedCalendarColors(current, file, '')).toBe(current);
   });
 });

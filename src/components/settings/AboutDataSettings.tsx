@@ -159,7 +159,8 @@ export function AboutDataSettings() {
       });
       if (picked.canceled || !picked.assets?.[0]) return;
       const json = await new File(picked.assets[0].uri).text();
-      const ok = importSettings(json);
+      // The file's shared calendar colours go to the shown account only.
+      const ok = importSettings(json, useEmailStore.getState().activeAccountId);
       Alert.alert(
         t('settings.advanced.import_settings.label', 'Import Settings'),
         ok

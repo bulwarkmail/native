@@ -52,6 +52,7 @@ import { useAuthStore, EVICTION_CLEANUP_TIMEOUT_MS, resetCleanupMemoryForTests }
 import { readForgetPending, markForgetPending, FORGET_PENDING_KEY, SHARED_CLEANUP } from '../forget-pending';
 import { clearStoredRelayBaseUrl } from '../../lib/push-notifications';
 import { useAccountStore } from '../account-store';
+import { useSettingsStore } from '../settings-store';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSendQueueStore, type QueuedSend } from '../send-queue-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from '../calendar-subscriptions-store';
@@ -533,5 +534,31 @@ describe('a sign-out cleanup still running when the account signs in again', () 
 
     expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
     expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+  });
+});
+
+// The old shared calendar colour keys name no app account: only the
+// accounts registered at the upgrade may read them, so the list is taken
+// from the stored registry, never an empty stand-in for it.
+describe('the accounts that may read the old calendar colour keys', () => {
+  beforeEach(async () => {
+    await useSettingsStore.getState().hydrate();
+    useSettingsStore.getState().resetToDefaults();
+    useSettingsStore.getState().setSharedCalendarColor('team|c1', '#00ff00');
+    (jmapClient.loadAccount as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NetworkError('offline'));
+  });
+
+  it('are the accounts registered at the first start after the upgrade', async () => {
+    await useAuthStore.getState().restoreSession();
+    expect(useSettingsStore.getState().legacyCalendarColorReaders).toEqual([ID]);
+  });
+
+  it('are not chosen while the account registry has not loaded', async () => {
+    vi.spyOn(useAccountStore.persist, 'hasHydrated').mockReturnValue(false);
+    const restored = useAuthStore.getState().restoreSession();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await restored;
+    expect(useSettingsStore.getState().legacyCalendarColorReaders).toBeNull();
+    expect(useSettingsStore.getState().sharedCalendarColors).toEqual({ 'team|c1': '#00ff00' });
   });
 });

@@ -79,6 +79,7 @@ import {
   eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
+  legacyCalendarColorClaim,
   missingSharedCalendarColors,
   resetSharedCalendarColor,
   sharedCalendarColorKey,
@@ -86,6 +87,7 @@ import {
   type EventDayIndex,
   type TimeFormat,
 } from '../lib/calendar-utils';
+import { readsLegacyCalendarColors } from '../lib/calendar-color-keys';
 import { buildReplyTo } from '../lib/calendar-invitation';
 import {
   buildAllScopeUpdates,
@@ -184,6 +186,8 @@ export default function CalendarScreen() {
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
   const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
   const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
+  const legacyCalendarColorReaders = useSettingsStore((s) => s.legacyCalendarColorReaders);
+  const finishLegacyCalendarColors = useSettingsStore((s) => s.finishLegacyCalendarColors);
   const contacts = useContactsStore((s) => s.contacts);
   const calendarTimeZone = useSettingsStore((s) => s.calendarTimeZone);
 
@@ -394,13 +398,14 @@ export default function CalendarScreen() {
 
   // Per-viewer recolor (#345): shared calendars get the viewer's local color
   // override applied before anything renders. Personal calendars pass through.
+  // No override while no account is shown, or while the list is still
+  // another account's (calendarColorAccount); the old keys only for an
+  // account still allowed to read them (readsLegacyCalendarColors).
+  const colorAccount = calendarColorAccount(calendarsAppAccountId, shownAccountId);
+  const readsLegacy = readsLegacyCalendarColors(legacyCalendarColorReaders, colorAccount);
   const displayCalendars = React.useMemo(
-    // No per-account override while no account is shown, or while the list
-    // is still another account's (calendarColorAccount).
-    () => applySharedCalendarColors(
-      storeCalendars, sharedCalendarColors, calendarColorAccount(calendarsAppAccountId, shownAccountId),
-    ),
-    [storeCalendars, sharedCalendarColors, calendarsAppAccountId, shownAccountId],
+    () => applySharedCalendarColors(storeCalendars, sharedCalendarColors, colorAccount, readsLegacy),
+    [storeCalendars, sharedCalendarColors, colorAccount, readsLegacy],
   );
 
   // Auto-assign a random, not-yet-used palette color to any freshly shared
@@ -409,13 +414,22 @@ export default function CalendarScreen() {
   // user can still overwrite it from the sidebar. Keyed by the account the
   // render shows (ids repeat across accounts), not a sheet's captured one.
   // Waits until the list is the shown account's own (see
-  // missingSharedCalendarColors).
+  // missingSharedCalendarColors). First, once per account registered at the
+  // upgrade, its own full list claims the old-key colours of its shared
+  // calendars (legacyCalendarColorClaim), so they keep the colour they had.
   React.useEffect(() => {
+    const claimed = legacyCalendarColorClaim(
+      storeCalendars, calendarsAppAccountId, sharedCalendarColors, shownAccountId ?? '', readsLegacy,
+    );
+    if (claimed && shownAccountId) finishLegacyCalendarColors(shownAccountId, claimed);
     const assigned = missingSharedCalendarColors(
-      storeCalendars, calendarsAppAccountId, sharedCalendarColors, shownAccountId ?? '',
+      storeCalendars, calendarsAppAccountId, { ...sharedCalendarColors, ...claimed }, shownAccountId ?? '', readsLegacy,
     );
     for (const [key, color] of Object.entries(assigned)) setSharedCalendarColor(key, color);
-  }, [storeCalendars, calendarsAppAccountId, sharedCalendarColors, setSharedCalendarColor, shownAccountId]);
+  }, [
+    storeCalendars, calendarsAppAccountId, sharedCalendarColors, setSharedCalendarColor,
+    shownAccountId, readsLegacy, finishLegacyCalendarColors,
+  ]);
 
   const allCalendars = React.useMemo(
     () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar(undefined, birthdayCalendarColor)] : displayCalendars),

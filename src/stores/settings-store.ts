@@ -8,7 +8,13 @@ import { writeIdentityCache } from '../lib/identity-cache';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 import { isValidHourPair, isValidWorkingDays } from '../lib/calendar-display-range';
 import { sanitizeSidebarAppUrl } from '../lib/sidebar-app-url';
-import { exportableCalendarColors, withoutAccountCalendarColors } from '../lib/calendar-color-keys';
+import {
+  exportableCalendarColors,
+  importedCalendarColors,
+  isLegacyCalendarColorKey,
+  withoutAccountCalendarColors,
+  withoutLegacyCalendarColors,
+} from '../lib/calendar-color-keys';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -281,6 +287,12 @@ interface PersistedSettings {
   // sharedCalendarColorKey(). Lets the user recolor calendars shared with
   // them without changing the owner's color (parity with webmail #345).
   sharedCalendarColors: Record<string, string>;
+  // The app accounts that may still read the old, account-less colour keys
+  // (legacySharedCalendarColorKey): those registered at the upgrade, each
+  // until its first full calendar load claims them. Null until seeded
+  // (seedLegacyCalendarColorReaders). Device-local: it names this device's
+  // accounts.
+  legacyCalendarColorReaders: string[] | null;
 
   // Files
   filesFolderLayout: FilesFolderLayout;
@@ -462,6 +474,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   enableCalendarTasks: false,
   showTasksOnCalendar: true,
   sharedCalendarColors: {},
+  legacyCalendarColorReaders: null,
 
   filesFolderLayout: 'inline',
   filesDefaultViewMode: 'list',
@@ -566,8 +579,12 @@ export interface SettingsState extends PersistedSettings {
   // Shared-calendar color overrides
   setSharedCalendarColor: (key: string, color: string) => void;
   removeSharedCalendarColor: (key: string) => void;
-  /** Drop a signed-out app account's shared calendar colours (old keys stay). */
+  /** Drop a signed-out app account's shared calendar colours and its right to the old keys (which go with the last reader). */
   forgetAccountCalendarColors: (appAccountId: string) => Promise<void>;
+  /** Once only: the accounts registered now may read the old colour keys (none if there are none). */
+  seedLegacyCalendarColorReaders: (appAccountIds: readonly string[]) => void;
+  /** Store an account's claimed old colours and stop it reading the old keys. */
+  finishLegacyCalendarColors: (appAccountId: string, claimed: Record<string, string>) => void;
 
   // Sidebar apps
   addSidebarApp: (app: Omit<SidebarApp, 'id'>) => void;
@@ -583,7 +600,9 @@ export interface SettingsState extends PersistedSettings {
   exportSettings: (appAccountId?: string | null) => string;
   // Returns false when the JSON is not a settings object. Unknown keys and
   // invalid values are ignored; device-local keys are never imported.
-  importSettings: (json: string) => boolean;
+  // Shared calendar colours in the file go to app account `appAccountId`
+  // only (importedCalendarColors), none without one.
+  importSettings: (json: string, appAccountId?: string | null) => boolean;
 
   reset: () => void;
 }
@@ -636,6 +655,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   autoSaveDraftInterval: intBetween(1000, 3600000),
   // RFC 5321 atext specials minus alphanumerics and "@" (lib/sub-addressing).
   subAddressDelimiter: (v) => typeof v === 'string' && /^[!#$%&'*+\-./=?^_`{|}~]$/.test(v),
+  legacyCalendarColorReaders: stringArray,
   preferredIdentityIds: (v) => !!v && typeof v === 'object' && !Array.isArray(v)
     && Object.values(v as Record<string, unknown>).every((x) => typeof x === 'string'),
   markAsReadDelay: (v) => typeof v === 'number' && Number.isFinite(v) && v >= -1,
@@ -673,6 +693,26 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
     && typeof (a as SidebarApp).url === 'string'),
 };
 
+// The string-valued entries of a settings file's shared calendar colours.
+function importableCalendarColors(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  return Object.fromEntries(Object.entries(v).filter(([, c]) => typeof c === 'string')) as Record<string, string>;
+}
+
+// `appAccountId` taken off the old colour key readers, over `overrides`;
+// the old keys go with the last reader.
+function withoutLegacyReader(
+  overrides: Record<string, string>,
+  readers: readonly string[],
+  appAccountId: string,
+): Pick<PersistedSettings, 'sharedCalendarColors' | 'legacyCalendarColorReaders'> {
+  const left = readers.filter((id) => id !== appAccountId);
+  return {
+    legacyCalendarColorReaders: left,
+    sharedCalendarColors: left.length ? overrides : withoutLegacyCalendarColors(overrides),
+  };
+}
+
 function importableSidebarApps(apps: readonly unknown[]): SidebarApp[] {
   const out: SidebarApp[] = [];
   for (const a of apps) {
@@ -697,6 +737,9 @@ export function mergeWithDefaults(parsed: Partial<PersistedSettings>): Persisted
     if (validator && !validator(v)) continue;
     if (k === 'bottomQuickActions') {
       out[k] = normalizeBottomQuickActions(v);
+    } else if (k === 'legacyCalendarColorReaders') {
+      // Its default (null) has no shape to match; the validator checked it.
+      out[k] = v;
     } else if (Array.isArray(def)) {
       if (Array.isArray(v)) out[k] = v;
     } else if (typeof def === 'object') {
@@ -755,6 +798,7 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'calendarDefaultView',
   'blockScreenshots',
   'hideInRecents',
+  'legacyCalendarColorReaders',
 ]);
 
 export function toExportShape(state: PersistedSettings): Record<string, unknown> {
@@ -947,9 +991,32 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // defaults over every other setting.
     await get().hydrate();
     const current = get().sharedCalendarColors;
+    const readers = get().legacyCalendarColorReaders;
+    const wasReader = !!appAccountId && !!readers?.includes(appAccountId);
     const kept = withoutAccountCalendarColors(current, appAccountId);
-    if (kept === current) return;
-    set({ sharedCalendarColors: kept });
+    if (kept === current && !wasReader) return;
+    set(wasReader ? withoutLegacyReader(kept, readers!, appAccountId) : { sharedCalendarColors: kept });
+    persist(snapshot(get()));
+  },
+
+  seedLegacyCalendarColorReaders: (appAccountIds) => {
+    if (get().legacyCalendarColorReaders !== null) return;
+    const overrides = get().sharedCalendarColors;
+    const anyLegacy = Object.keys(overrides).some(isLegacyCalendarColorKey);
+    const readers = anyLegacy ? appAccountIds.filter((id) => !!id) : [];
+    // No account registered to claim them: they go now.
+    set({
+      legacyCalendarColorReaders: readers,
+      sharedCalendarColors: readers.length ? overrides : withoutLegacyCalendarColors(overrides),
+    });
+    persist(snapshot(get()));
+  },
+
+  finishLegacyCalendarColors: (appAccountId, claimed) => {
+    const readers = get().legacyCalendarColorReaders;
+    // Not a reader (finished already, or registered later): it may claim nothing.
+    if (!appAccountId || !readers?.includes(appAccountId)) return;
+    set(withoutLegacyReader({ ...get().sharedCalendarColors, ...claimed }, readers, appAccountId));
     persist(snapshot(get()));
   },
 
@@ -988,7 +1055,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return JSON.stringify(toExportShape({ ...state, sharedCalendarColors }), null, 2);
   },
 
-  importSettings: (json) => {
+  importSettings: (json, appAccountId = null) => {
     let parsed: unknown;
     try {
       parsed = JSON.parse(json);
@@ -1002,9 +1069,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // imports. Hydrate does not filter, so an app saved before the check
     // stays editable.
     if (Array.isArray(incoming.sidebarApps)) incoming.sidebarApps = importableSidebarApps(incoming.sidebarApps);
+    // The file's colours name no app account: they become the shown
+    // account's, and never replace another account's (importedCalendarColors).
+    const fileColors = incoming.sharedCalendarColors;
+    delete incoming.sharedCalendarColors;
     // Validate against the current state so keys absent from the file keep
     // their value instead of snapping back to the default.
     const merged = mergeWithDefaults({ ...snapshot(get()), ...incoming });
+    merged.sharedCalendarColors = importedCalendarColors(
+      merged.sharedCalendarColors, importableCalendarColors(fileColors), appAccountId,
+    );
     set({ ...merged });
     persist(snapshot(get()));
     return true;

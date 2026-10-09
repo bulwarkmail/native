@@ -1421,6 +1421,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // for past reading their markers.
       await resumeForgetPending();
 
+      // Once: the accounts registered now are the only ones that may read
+      // the old shared calendar colour keys. Only from the stored registry
+      // (registryLoaded) and the stored settings, never an empty stand-in.
+      if (registryLoaded() && useSettingsStore.getState().hydrated) {
+        useSettingsStore.getState().seedLegacyCalendarColorReaders(useAccountStore.getState().accounts.map((a) => a.id));
+      }
+
       const target = accountStore.getActiveAccount() ?? accountStore.getDefaultAccount();
       if (!target) {
         set({ isLoading: false, hasRestoredSession: true });

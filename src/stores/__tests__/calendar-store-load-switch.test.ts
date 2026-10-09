@@ -460,4 +460,12 @@ describe('the account the calendars were loaded for', () => {
     expect(await pending).toBe(false);
     expect(useCalendarStore.getState().calendarsAppAccountId).toBeNull();
   });
+
+  // The calendar screen claims old shared calendar colours from the list
+  // recorded here: a load that failed must not pass for one of its own.
+  it('is not set by a load that failed', async () => {
+    mockGetCalendars.mockRejectedValueOnce(new Error('boom'));
+    expect(await useCalendarStore.getState().fetchCalendars()).toBe(false);
+    expect(useCalendarStore.getState().calendarsAppAccountId).toBeNull();
+  });
 });
