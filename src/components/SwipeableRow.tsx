@@ -15,6 +15,8 @@ import {
   COMMIT_THRESHOLD, REVEAL_WIDTH,
   type SwipeConfig,
 } from './swipe-gesture';
+import { isLayoutRTL } from '../i18n';
+import { bandEdgeStyle } from '../lib/rtl-layout';
 
 interface SwipeableRowProps {
   children: React.ReactNode;
@@ -287,12 +289,14 @@ export const SwipeableRow = React.memo(function SwipeableRow({
       const meta = ACTION_META[action];
       const Icon = actionIcon(action, context);
       const label = actionLabel(action, context, t);
+      // The band sits on the physical edge the drag uncovers, in RTL too.
+      const { left, right, alignItems } = bandEdgeStyle(side, isLayoutRTL());
       return (
         <Pressable
           onPress={() => fireFromBandTap(action)}
           style={[
             styles.bandReveal,
-            side === 'left' ? { left: 0, alignItems: 'flex-start' } : { right: 0, alignItems: 'flex-end' },
+            { left, right, alignItems },
             { backgroundColor: meta.bg, width: REVEAL_WIDTH },
           ]}
         >
@@ -335,7 +339,8 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         style={[
           styles.bandInstant,
           { backgroundColor: meta.bg },
-          side === 'left' ? { justifyContent: 'flex-start' } : { justifyContent: 'flex-end' },
+          // Icon on the physical edge the drag uncovers, in RTL too.
+          { justifyContent: bandEdgeStyle(side, isLayoutRTL()).justifyContent },
         ]}
       >
         <Animated.View style={[styles.bandInner, { transform: [{ scale: iconScale }] }]}>

@@ -807,7 +807,6 @@
     "folders": {
       "account": "Compte",
       "cannot_delete": "No es pot suprimir",
-      "description_mobile": "Creeu, canvieu el nom, moveu i suprimiu carpetes. Manteniu premuda una carpeta al tauler lateral per a accions ràpides.",
       "edit_folder": "Edita «{name}»",
       "folder_name": "Nom de la carpeta",
       "move_under": "Mou dins de",

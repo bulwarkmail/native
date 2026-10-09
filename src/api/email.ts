@@ -13,7 +13,7 @@ import {
 } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
-import type { Attachment, Email, EmailAddress, JMAPMethodCall, JMAPResponseBody, Mailbox, Thread } from './types';
+import type { Attachment, Email, EmailAddress, JMAPMethodCall, JMAPResponseBody, Mailbox, MailboxRights, Thread } from './types';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
@@ -285,6 +285,86 @@ export async function updateMailbox(
     throw new Error(
       `${failure.type ?? 'update failed'}${failure.description ? `: ${failure.description}` : ''}`,
     );
+  }
+}
+
+/**
+ * Save new folder positions in one `Mailbox/set`, so a reorder lands whole or
+ * the caller learns which folders the server refused. Ids are raw JMAP ids of
+ * the account `account` names.
+ */
+export async function setMailboxSortOrders(
+  updates: { id: string; sortOrder: number }[],
+  account: AccountRef,
+): Promise<void> {
+  if (updates.length === 0) return;
+  const at = opScope(account);
+  const { accountId } = at;
+  const update: Record<string, { sortOrder: number }> = {};
+  for (const u of updates) update[u.id] = { sortOrder: u.sortOrder };
+  const res = await requestOn(at, [['Mailbox/set', { accountId, update }, '0']]);
+  const body = requireMethodResult(res, '0', 'Mailbox/set');
+  const refused = Object.keys((body.notUpdated as Record<string, unknown> | undefined) ?? {});
+  if (refused.length > 0) {
+    throw new Error(`Mailbox/set refused sortOrder for ${refused.join(', ')}`);
+  }
+}
+
+const MAIL_SHARE_USING = [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.MAIL_SHARE];
+
+/**
+ * Who folder `mailboxId` is shared with (mail:share `shareWith`), null for
+ * nobody. Asked for on demand: Stalwart leaves `shareWith` out of Mailbox/get
+ * unless it is named, and only the share sheet needs it. Sent on the
+ * connection `at` names, in its account.
+ */
+export async function getMailboxShareWith(
+  mailboxId: string,
+  at: OpScope,
+): Promise<Record<string, MailboxRights> | null> {
+  const res = await requestOn(at, [['Mailbox/get', {
+    accountId: at.accountId,
+    ids: [mailboxId],
+    properties: ['id', 'shareWith'],
+  }, '0']], MAIL_SHARE_USING);
+  const body = requireMethodResult<{ list?: { id: string; shareWith?: Record<string, MailboxRights> | null }[] }>(
+    res, '0', 'Mailbox/get',
+  );
+  const mailbox = (body.list ?? []).find((mb) => mb.id === mailboxId);
+  if (!mailbox) throw new Error(t('deep_link.folder_not_found', 'This folder is no longer available.'));
+  return mailbox.shareWith ?? null;
+}
+
+/**
+ * Grant `principalId` `rights` on folder `mailboxId`, or revoke its access
+ * with null (a `shareWith/<principalId>` patch). Sent on the connection `at`
+ * names, in its account. Throws when the server refuses the update or does
+ * not confirm it.
+ */
+export async function setMailboxShare(
+  mailboxId: string,
+  principalId: string,
+  rights: MailboxRights | null,
+  at: OpScope,
+): Promise<void> {
+  const res = await requestOn(at, [['Mailbox/set', {
+    accountId: at.accountId,
+    update: { [mailboxId]: { [`shareWith/${principalId}`]: rights } },
+  }, '0']], MAIL_SHARE_USING);
+  const body = requireMethodResult<{
+    updated?: Record<string, unknown> | null;
+    notUpdated?: Record<string, { type?: string; description?: string }> | null;
+  }>(res, '0', 'Mailbox/set');
+  const err = body.notUpdated?.[mailboxId];
+  // The server's own text is not shown: it is not translated, and it names
+  // the folder as "mailbox".
+  if (err) {
+    throw new Error(err.type === 'forbidden'
+      ? t('sharing.folder_share_forbidden', "You don't have permission to share this folder")
+      : t('sharing.share_failed', 'Failed to update sharing'));
+  }
+  if (!body.updated || !(mailboxId in body.updated)) {
+    throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
   }
 }
 

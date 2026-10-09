@@ -565,7 +565,8 @@ export async function getEvents(
   ids: string[],
   accountRef?: AccountRef,
   // `expanded`: the ids are server-expanded occurrences (queryExpandedEvents).
-  options?: { expanded?: boolean },
+  // `extraProperties`: asked for besides the usual ones, by one caller.
+  options?: { expanded?: boolean; extraProperties?: readonly string[] },
 ): Promise<CalendarEvent[]> {
   if (ids.length === 0) return [];
   const at = opScope(accountRef || undefined);
@@ -579,7 +580,10 @@ export async function getEvents(
       [['CalendarEvent/get', {
         accountId: account,
         ids: batch,
-        properties: options?.expanded ? EXPANDED_EVENT_PROPERTIES : CALENDAR_EVENT_PROPERTIES,
+        properties: [
+          ...(options?.expanded ? EXPANDED_EVENT_PROPERTIES : CALENDAR_EVENT_PROPERTIES),
+          ...(options?.extraProperties ?? []),
+        ],
         ...(timeZone ? { timeZone } : {}),
       }, '0']],
       USING,
@@ -668,7 +672,11 @@ export async function searchEventsAcrossAccounts(
  * `uid` filter — unlike the store, not limited to the loaded date window.
  * Mirrors webmail's `queryCalendarEvents({ uid })`.
  */
-export async function findEventsByUid(uid: string, accountRef?: AccountRef): Promise<CalendarEvent[]> {
+export async function findEventsByUid(
+  uid: string,
+  accountRef?: AccountRef,
+  options?: { extraProperties?: readonly string[] },
+): Promise<CalendarEvent[]> {
   const at = opScope(accountRef || undefined);
   const res = await jmapClient.request(
     [['CalendarEvent/query', { accountId: at.accountId, filter: { uid } }, '0']],
@@ -676,7 +684,7 @@ export async function findEventsByUid(uid: string, accountRef?: AccountRef): Pro
     { gen: at.gen },
   );
   const ids = methodResult<{ ids: string[] }>(res).ids ?? [];
-  return getEvents(ids, at);
+  return getEvents(ids, at, options);
 }
 
 // `sendSchedulingMessages` asks Stalwart to deliver iMIP (RFC 6047) invitation

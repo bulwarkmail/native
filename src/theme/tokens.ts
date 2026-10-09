@@ -357,6 +357,8 @@ export const componentSizes = {
   headerHeight: 56, inputHeight: 40,
   buttonSm: 36, buttonMd: 40, buttonLg: 44,
   tagDot: 6, eventDot: 6,
+  /** Left padding per level of a folder or tag tree (drawer, tag sheet). */
+  treeIndent: 12,
   toggleHeight: 24, toggleWidth: 44, toggleThumb: 16,
   fab: 56, badgeSize: 16,
 } as const;

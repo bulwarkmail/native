@@ -89,6 +89,7 @@ export function LayoutSettings() {
   const messageListOrderScope = useSettingsStore((s) => s.messageListOrderScope);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
+  const colorfulSidebarIcons = useSettingsStore((s) => s.colorfulSidebarIcons);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const invalidateListOrder = useEmailStore((s) => s.invalidateListOrder);
@@ -172,6 +173,12 @@ export function LayoutSettings() {
           description={t('settings.layout.show_folder_total_count_description', 'Show the total next to the unread count in the folder list.')}
         >
           <ToggleSwitch checked={showFolderTotalCount} onChange={(v) => update('showFolderTotalCount', v)} />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.appearance.colorful_sidebar_icons.label', 'Colorful Sidebar Icons')}
+          description={t('settings.appearance.colorful_sidebar_icons.description', 'Tint folder and tag icons by type (blue Inbox, red Junk, green Sent, etc.). Disable for a monochrome sidebar.')}
+        >
+          <ToggleSwitch checked={colorfulSidebarIcons} onChange={(v) => update('colorfulSidebarIcons', v)} />
         </SettingItem>
         <SettingItem
           label={t('settings.layout.show_avatars_in_junk', 'Show sender avatars in Junk')}

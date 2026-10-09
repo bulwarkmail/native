@@ -807,7 +807,6 @@
     "folders": {
       "account": "Hesap",
       "cannot_delete": "Silinemiyor",
-      "description_mobile": "Klasör oluşturun, yeniden adlandırın, taşıyın ve silin. Hızlı işlemler için kenar çekmecesinde bir klasöre uzun basın.",
       "edit_folder": "\"{name}\" klasörünü düzenle",
       "folder_name": "Klasör adı",
       "move_under": "Üst klasör",

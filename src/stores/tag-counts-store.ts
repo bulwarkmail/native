@@ -30,6 +30,20 @@ interface TagCountsState {
   invalidate: () => void;
 }
 
+const NO_COUNTS: Record<string, TagCount> = {};
+
+/**
+ * The counts to show for `login`: none while the store still holds another
+ * login's (right after a switch, before the new fetch), so the old account's
+ * badges and unread-only visibility never apply to the new one's tags.
+ */
+export function tagCountsFor(
+  state: Pick<TagCountsState, 'counts' | 'login'>,
+  login: string | null,
+): Record<string, TagCount> {
+  return login && state.login === login ? state.counts : NO_COUNTS;
+}
+
 let inflight: { key: string; generation: number; seq: number; promise: Promise<void> } | null = null;
 let lastSeq = 0;
 

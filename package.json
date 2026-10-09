@@ -42,6 +42,7 @@
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.8",
+    "jalaali-js": "^2.0.1",
     "jszip": "^3.10.1",
     "lucide-react-native": "^1.7.0",
     "postal-mime": "^3.0.0",

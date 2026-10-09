@@ -11,6 +11,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isLayoutRTL } from '../../i18n';
+import { drawerClosedX, drawerSafeEdges } from '../../lib/rtl-layout';
 import {
   Check, X, Upload, Rss, Shuffle, Star, Plus, Pencil, Share2, Eraser, Trash2,
 } from 'lucide-react-native';
@@ -66,7 +68,7 @@ export function CalendarSidebarDrawer({
 }: CalendarSidebarDrawerProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const slideX = React.useRef(new Animated.Value(drawerClosedX(Dimensions.get('window').width, isLayoutRTL()))).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const openDuration = useAnimDuration(240);
   const closeDuration = useAnimDuration(200);
@@ -99,7 +101,7 @@ export function CalendarSidebarDrawer({
       setExpandedId(null);
       Animated.parallel([
         Animated.timing(slideX, {
-          toValue: -Dimensions.get('window').width,
+          toValue: drawerClosedX(Dimensions.get('window').width, isLayoutRTL()),
           duration: closeDuration,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
@@ -150,7 +152,7 @@ export function CalendarSidebarDrawer({
       <Animated.View
         style={[styles.drawer, { transform: [{ translateX: slideX }] }]}
       >
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <SafeAreaView style={styles.drawerSafe} edges={drawerSafeEdges(isLayoutRTL())}>
           <View style={styles.header}>
             <Pressable
               onPress={onClose}

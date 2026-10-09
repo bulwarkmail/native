@@ -1,8 +1,40 @@
 # Changes since 4 October 2026
 
-The webmail parity work from 4 to 8 October 2026: 315 commits (62 features, 217 fixes, and docs, tests and chores) in eleven merged pull requests, plus phase 6e on `parity/phase-6e-settings-ui`, which is not merged yet. At the start, 380 of the 489 tracked webmail parity items were done and 109 were open ([roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md)). Now 477 of 494 are done and 17 are open ([PARITY_CHECKLIST.md](PARITY_CHECKLIST.md)); five items were added during the work.
+The webmail parity work from 4 to 8 October 2026: 349 commits (72 features, 237 fixes, and docs, tests and chores) in eleven merged pull requests, plus phases 6e and 7 on `parity/phase-6e-settings-ui` and `parity/phase-7-final-items`, which are not merged yet. At the start, 380 of the 489 tracked webmail parity items were done and 109 were open ([roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md)). Now 486 of 494 are done and 8 are open ([PARITY_CHECKLIST.md](PARITY_CHECKLIST.md)); five items were added during the work.
 
 The phases are listed newest first. Short hashes are in parentheses. What each phase left open is in the roadmap's follow-up sections.
+
+## Phase 7: the last parity items (unmerged)
+
+Branch `parity/phase-7-final-items`, everything after a5e415e.
+
+### Improvements
+- Folders sort by their saved order first, as webmail does, and Settings has move up and move down for your own folders (67bb45a, f20f799).
+- Pick an icon for each folder, and turn the coloured sidebar icons off; the icons show in Settings and the sidebar (f0e4ceb).
+- Hide, reorder and nest tags, shown as a tree in the sidebar and the tag sheet (13bf1ca, 65f7700).
+- Share a mail folder with other users on the server, from Settings or the sidebar, on servers that offer it (945c8b6).
+- A toast when someone shares a folder, calendar or address book with you (820e817).
+- An invitation shows who sent it and its update number, folds away, and opens its day in the calendar (06d81c3).
+- A counter-proposal can be reviewed and applied for every attendee, after a confirmation (4e9887a).
+- The Persian (Jalali) month grid, titles and stepping when the app is in Persian (9b2aa54).
+- Swipe actions, drawers and switches sit on the right side in right-to-left languages (cd9c772).
+
+### Fixes
+- An invitation's sender is shown at the address the trust check used, with the From named when someone else sent it, and a warning stays in view when the banner is folded (1ec17bb, 9c0e788).
+- A counter-proposal is applied only when its attendee provably sent it, and an invitation that reuses the id of an unrelated stored event never answers that event (f621e2a).
+- An attendee's answer is trusted only when your own event has that attendee, and only a pass for the sender's own domain counts (6ff0e8c).
+- A counter-proposal applies on Stalwart even when only its description can't be written, and a helo pass is never counted as the sender's (6ae09a3).
+- An invitation is never called verified without a pass, and once it is in the calendar the card shows the stored event's place and link (6232d78).
+- A helo-only or another domain's DMARC pass leaves the unverified-sender warning on, and the host is shown clean before a link opens (f2a6454).
+- When only a description is held back, the counter-proposal says why it can't be applied, and that held-back changes stay as they are (c56592e).
+- Folders: Settings lists every folder, scheduled included, and screen readers reach the move buttons (41ab162, 1b3a649).
+- A folder shared with "Read only" on Stalwart reads back as read only, and making someone a folder manager asks first (6f59f0f).
+- Share and invitation toasts stay on one line and never push out an undo or error toast (b3bb437, 1b48bcd).
+- A new folder keeps its icon, tags draw as dots when coloured icons are off, icons are forgotten on sign-out even after a failed read, and tag counts show only for their own account (67fc430, 5d3238c).
+- Unsaved folder edits are kept when sharing from Settings, and sharing is offered by the editor's own account (d7425fa).
+- Two tags with one name get a warning, the tag editor opens on the parent the tree shows, and stored tags with a bad id, colour or name are repaired (ca7522d).
+- The Jalali calendar shows the selected day in Persian, and stepping back to a month keeps a row above it (807dd56).
+- A folder settings description no screen shows any more is removed from every language (825bb6c).
 
 ## Phase 6e: settings, UI and security (unmerged)
 

@@ -114,17 +114,17 @@ end of each area's Verified list. Phase 1 of the [roadmap](docs/superpowers/plan
 | # | Area | File | Items | Done | Open | P1 | P2 | P3 |
 |---|---|---|---|---|---|---|---|---|
 | 01 | Authentication, login, session, multi-account | [docs/parity/01-auth-accounts.md](docs/parity/01-auth-accounts.md) | 38 | 38 | 0 | 4 | 12 | 22 |
-| 02 | Mail list, folders, unified views, search, tags | [docs/parity/02-mail-list-folders.md](docs/parity/02-mail-list-folders.md) | 77 | 73 | 4 | 1 | 24 | 52 |
-| 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 53 | 51 | 2 | 7 | 17 | 28 |
+| 02 | Mail list, folders, unified views, search, tags | [docs/parity/02-mail-list-folders.md](docs/parity/02-mail-list-folders.md) | 77 | 77 | 0 | 1 | 24 | 52 |
+| 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 53 | 52 | 1 | 7 | 17 | 28 |
 | 04 | Composer, drafts, sending, identities, templates, scheduled send | [docs/parity/04-composer-send.md](docs/parity/04-composer-send.md) | 61 | 58 | 3 | 7 | 16 | 38 |
-| 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 61 | 58 | 3 | 5 | 23 | 33 |
+| 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 61 | 60 | 1 | 5 | 23 | 33 |
 | 06 | Contacts and address books | [docs/parity/06-contacts.md](docs/parity/06-contacts.md) | 53 | 53 | 0 | 1 | 21 | 31 |
 | 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 40 | 40 | 0 | 3 | 11 | 26 |
-| 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 54 | 49 | 5 | 0 | 15 | 39 |
+| 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 54 | 51 | 3 | 0 | 15 | 39 |
 | 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 57 | 57 | 0 | 7 | 23 | 27 |
-| | **Total** | | **494** | **477** | **17** | **35** | **162** | **296** |
+| | **Total** | | **494** | **486** | **8** | **35** | **162** | **296** |
 
-Counts are of the `- [ ]` and `- [x]` items per file as of 2026-10-08. Done and
+Counts are of the `- [ ]` and `- [x]` items per file as of 2026-10-09. Done and
 Open split them by tick; the P columns count the priority tags on those items
 (one item carries none).
 

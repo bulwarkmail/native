@@ -2,7 +2,7 @@ import type { CalendarEvent } from '../api/types';
 import type { OpScope } from '../api/op-scope';
 import type { CalendarState, EventAccount, ImportResult } from '../stores/calendar-store';
 import { requireShownAccountScope } from '../stores/email-store';
-import { findParticipantByEmail } from './calendar-invitation';
+import { findParticipantByEmail, isSameInvitationEvent, mayImportOver } from './calendar-invitation';
 
 // What the invitation banner writes. Each tap is one change: the scope is
 // taken once, when it starts, and every step (the import, the look-up of the
@@ -17,19 +17,51 @@ export interface InvitationActions {
   rsvpEvent: CalendarState['rsvpEvent'];
 }
 
+/**
+ * The user has another event under the invitation's UID (another organizer):
+ * an invitation anyone can write must not answer, link or rewrite it.
+ */
+export class InvitationUidConflictError extends Error {
+  constructor() {
+    super('Another event in the calendar has this invitation\'s UID');
+    this.name = 'InvitationUidConflictError';
+  }
+}
+
+// The stored events with the invitation's UID, refused when one of them is
+// not this invitation's event: for an answer the same organizer is needed;
+// an import may also meet an event without one (it dedupes).
+async function storedEventsFor(
+  event: Partial<CalendarEvent>,
+  findEventsByUid: InvitationActions['findEventsByUid'],
+  at: OpScope,
+  purpose: 'answer' | 'import',
+): Promise<CalendarEvent[]> {
+  if (!event.uid) return [];
+  const found = await findEventsByUid(event.uid, at);
+  const fits = purpose === 'answer' ? isSameInvitationEvent : mayImportOver;
+  if (found.some((e) => !fits(e, event))) throw new InvitationUidConflictError();
+  return found;
+}
+
 /** The account a banner tap writes in, with its scope taken now (throws when it isn't served). */
 function tapAccount(appAccountId: string | undefined): EventAccount & { scope: OpScope } {
   return { appAccountId, scope: requireShownAccountScope(appAccountId) };
 }
 
-/** Add the invitation's event to `calendarId` (deduped by UID). */
-export function importInvitation(
+/**
+ * Add the invitation's event to `calendarId` (deduped by UID). Refused when
+ * the UID is another event's: the import would link that one instead.
+ */
+export async function importInvitation(
   event: Partial<CalendarEvent>,
   calendarId: string,
   appAccountId: string | undefined,
-  importEvents: CalendarState['importEvents'],
+  actions: Pick<InvitationActions, 'importEvents' | 'findEventsByUid'>,
 ): Promise<ImportResult> {
-  return importEvents([event], calendarId, undefined, tapAccount(appAccountId));
+  const account = tapAccount(appAccountId);
+  await storedEventsFor(event, actions.findEventsByUid, account.scope, 'import');
+  return actions.importEvents([event], calendarId, undefined, account);
 }
 
 /**
@@ -52,10 +84,15 @@ export async function importAndRespond(opts: {
   const { event, actions } = opts;
   const account = tapAccount(opts.appAccountId);
   let target = opts.existing;
+  if (target && !isSameInvitationEvent(target, event)) throw new InvitationUidConflictError();
   if (!target) {
-    // The store never sees an event outside the loaded window: look it up.
-    await actions.importEvents([event], opts.calendarId, undefined, account);
-    target = event.uid ? (await actions.findEventsByUid(event.uid, account.scope))[0] ?? null : null;
+    // The store never sees an event outside the loaded window: look it up,
+    // and import it only when it isn't there.
+    target = (await storedEventsFor(event, actions.findEventsByUid, account.scope, 'answer'))[0] ?? null;
+    if (!target) {
+      await actions.importEvents([event], opts.calendarId, undefined, account);
+      target = (await storedEventsFor(event, actions.findEventsByUid, account.scope, 'answer'))[0] ?? null;
+    }
     if (target) opts.onFound?.(target);
   }
   const participant = target ? findParticipantByEmail(target, opts.userEmails) : null;

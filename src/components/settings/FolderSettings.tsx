@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,20 +13,28 @@ import {
 } from 'react-native';
 import {
   Folder, Inbox, Send, FileText, Trash, ShieldAlert, Archive, Flag, Star, Mails,
-  StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X,
+  StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X, ChevronUp, ChevronDown, Share2,
 } from 'lucide-react-native';
 import { SettingsSection, Select } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { ownMailboxes, mailboxSubtreeIds } from '../../lib/mailbox-tree';
+import { ownMailboxes, mailboxSubtreeIds, buildMailboxTree, flattenAll, type MailboxNode } from '../../lib/mailbox-tree';
+import { planFolderMove, siblingsOf, withSortOrders, withUnlistedFolders, type SortOrderUpdate } from '../../lib/folder-reorder';
+import { isStaleLoad } from '../../lib/network-error';
 import { localizeMailboxName } from '../../lib/mailbox-label';
-import { useEmailStore, requireShownAccountScope } from '../../stores/email-store';
+import { useEmailStore, requireShownAccountScope, AccountNotServedError } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { createMailbox, updateMailbox, deleteMailbox } from '../../api/email';
+import { createMailbox, updateMailbox, deleteMailbox, setMailboxSortOrders } from '../../api/email';
 import { inAccount } from '../../api/op-scope';
 import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
+import { useFolderIconsStore, folderIconOf } from '../../stores/folder-icons-store';
+import { FOLDER_ICON_NAMES, folderIconLabel, type FolderIconName } from '../../lib/folder-icons';
+import { folderIconComponent } from '../folder-icon';
+import { folderIconPrunePlan } from '../../lib/folder-icon-prune';
+import { useAuthStore } from '../../stores/auth-store';
+import { MailboxShareSheet, canOfferMailboxShare } from '../MailboxShareSheet';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -45,6 +54,21 @@ function getIcon(mb: Mailbox) {
 const NO_PARENT = '__root__';
 const OWN_ACCOUNT = '__own__';
 const NO_ROLE = '__none__';
+
+const NO_UPDATES: SortOrderUpdate[] = [];
+const NO_EDGES = new Map<string, { first: boolean; last: boolean }>();
+
+/** Whether each folder is first or last of its sibling group, to disable the edge buttons. */
+function siblingEdges(tree: MailboxNode[]): Map<string, { first: boolean; last: boolean }> {
+  const out = new Map<string, { first: boolean; last: boolean }>();
+  const walk = (nodes: MailboxNode[]) => {
+    const group = nodes.filter((n) => !n.isAccountNode);
+    group.forEach((n, i) => out.set(n.id, { first: i === 0, last: i === group.length - 1 }));
+    for (const n of nodes) walk(n.children);
+  };
+  walk(tree);
+  return out;
+}
 
 // `owner`: the app account whose folders the editor was opened on. During an
 // account switch the list shows one account while the client serves another,
@@ -80,12 +104,56 @@ export function FolderSettings() {
   const [draftParent, setDraftParent] = useState<string>(NO_PARENT);
   const [draftAccount, setDraftAccount] = useState<string>(OWN_ACCOUNT);
   const [draftRole, setDraftRole] = useState<string>(NO_ROLE);
+  // null: the role's (or the plain folder) icon. Written on save only once
+  // picked, so an editor opened before the stored icons were read cannot
+  // clear one.
+  const [draftIcon, setDraftIcon] = useState<FolderIconName | null>(null);
+  const [iconPicked, setIconPicked] = useState(false);
+  const pickIcon = (name: FolderIconName | null) => { setDraftIcon(name); setIconPicked(true); };
   const [busyId, setBusyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
+  // The planned positions, laid over the store's folders until the refetch
+  // after the write brings the server's own numbers. Kept with the account
+  // they were planned on: folder ids repeat across accounts.
+  const [overlay, setOverlay] = useState<{ accountId: string | null; updates: SortOrderUpdate[] } | null>(null);
+  const [reordering, setReordering] = useState(false);
 
   useEffect(() => {
     if (mailboxes.length === 0) void fetchMailboxes();
   }, [mailboxes.length, fetchMailboxes]);
+
+  const folderIcons = useFolderIconsStore((s) => s.icons);
+  const folderIconsHydrated = useFolderIconsStore((s) => s.hydrated);
+  const hydrateFolderIcons = useFolderIconsStore((s) => s.hydrate);
+  const pruneFolderIcons = useFolderIconsStore((s) => s.prune);
+  useEffect(() => { if (!folderIconsHydrated) void hydrateFolderIcons(); }, [folderIconsHydrated, hydrateFolderIcons]);
+  // An editor opened before the stored icons were read shows the folder's
+  // icon once they are, unless one was picked meanwhile.
+  const editingId = editor?.kind === 'edit' ? editor.mailbox.id : null;
+  const editingOwner = editor?.owner ?? null;
+  useEffect(() => {
+    if (!folderIconsHydrated || !editingId || iconPicked) return;
+    setDraftIcon(folderIconOf(useFolderIconsStore.getState(), editingOwner, editingId) ?? null);
+  }, [folderIconsHydrated, editingId, editingOwner, iconPicked]);
+  // Folders deleted elsewhere (webmail, another device) leave their icon
+  // behind: drop icons for ids that are gone, but only from an own list the
+  // server confirmed (see folderIconPrunePlan). Only the shown account's
+  // entries are touched.
+  const mailboxState = useEmailStore((s) => s.mailboxState);
+  const listsSynced = useEmailStore((s) => !!shownAccountId && !!s.mailboxListsSynced[shownAccountId]);
+  const lastPruneKey = React.useRef<string | null>(null);
+  useEffect(() => {
+    const plan = folderIconPrunePlan(lastPruneKey.current, {
+      accountId: shownAccountId,
+      mailboxState,
+      synced: listsSynced,
+      ownIds: mailboxes.map((m) => m.id),
+    });
+    if (!plan) return;
+    lastPruneKey.current = plan.key;
+    pruneFolderIcons(plan.accountId, plan.liveIds, plan.key);
+  }, [shownAccountId, mailboxState, listsSynced, mailboxes, pruneFolderIcons]);
 
   // Shared/group accounts the user may create folders in (webmail: "New
   // folder" on a shared account header routes to the owner account).
@@ -114,14 +182,16 @@ export function FolderSettings() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [draftAccount, mailboxes, allMailboxes, editor, t]);
 
-  const sorted = [...mailboxes].sort((a, b) => {
-    const ar = a.role ? 0 : 1;
-    const br = b.role ? 0 : 1;
-    if (ar !== br) return ar - br;
-    return pathOf(mailboxes, a, t).localeCompare(pathOf(mailboxes, b, t));
-  });
-
-  const totalUnread = mailboxes.reduce((sum, m) => sum + (m.unreadEmails ?? 0), 0);
+  const pending = overlay && overlay.accountId === shownAccountId ? overlay.updates : NO_UPDATES;
+  // The drawer's order, so a move here shows the same way there. Unlike the
+  // drawer, Settings hides no folder (webmail's Settings neither): the
+  // server's Scheduled folder is listed and moves with its siblings.
+  const tree = React.useMemo(
+    () => buildMailboxTree(withSortOrders(mailboxes, pending)),
+    [mailboxes, pending],
+  );
+  const rows = React.useMemo(() => withUnlistedFolders(flattenAll(tree), mailboxes), [tree, mailboxes]);
+  const edges = React.useMemo(() => (reorderMode ? siblingEdges(tree) : NO_EDGES), [reorderMode, tree]);
 
   const openCreate = () => {
     setEditor({ kind: 'create', owner: shownAccountId });
@@ -129,6 +199,8 @@ export function FolderSettings() {
     setDraftParent(NO_PARENT);
     setDraftAccount(OWN_ACCOUNT);
     setDraftRole(NO_ROLE);
+    setDraftIcon(null);
+    setIconPicked(false);
   };
 
   const openEdit = (mailbox: Mailbox) => {
@@ -137,9 +209,76 @@ export function FolderSettings() {
     setDraftParent(mailbox.parentId ?? NO_PARENT);
     setDraftAccount(OWN_ACCOUNT);
     setDraftRole(mailbox.role ?? NO_ROLE);
+    setDraftIcon(folderIconOf(useFolderIconsStore.getState(), shownAccountId, mailbox.id) ?? null);
+    setIconPicked(false);
   };
 
   const closeEditor = () => setEditor(null);
+
+  // "Share…" is offered by the account the editor was opened on, as the
+  // drawer does: never by whichever account the connection serves now. The
+  // session is read so a capability change redraws the editor.
+  useAuthStore((s) => s.session);
+  const canShare = editor?.kind === 'edit' && canOfferMailboxShare(editor.mailbox, editor.owner);
+  const [sharing, setSharing] = useState<{ mailbox: Mailbox; owner: string | null } | null>(null);
+  // An edit not yet saved would be lost by leaving for the share sheet, so
+  // Share waits for Save.
+  const draftDirty = editor?.kind === 'edit' && (
+    (!editor.mailbox.role && draftName.trim() !== editor.mailbox.name)
+    || (draftParent === NO_PARENT ? null : draftParent) !== (editor.mailbox.parentId ?? null)
+    || (draftRole === NO_ROLE ? null : draftRole) !== (editor.mailbox.role ?? null)
+    || iconPicked
+  );
+  // iOS can't present the share sheet while the editor is still sliding
+  // away: it opens once the editor is gone (onDismiss is iOS only).
+  const shareAfterEditor = useRef<{ mailbox: Mailbox; owner: string | null } | null>(null);
+  const openShareFromEditor = (target: { mailbox: Mailbox; owner: string | null }) => {
+    closeEditor();
+    if (Platform.OS === 'ios') shareAfterEditor.current = target;
+    else setSharing(target);
+  };
+  const onEditorDismissed = () => {
+    const target = shareAfterEditor.current;
+    shareAfterEditor.current = null;
+    if (target) setSharing(target);
+  };
+
+  // Settings lists only own folders, so the ids here are the raw JMAP ids the
+  // shown account's scope writes to.
+  const moveFolder = async (id: string, direction: 'up' | 'down') => {
+    if (reordering) return;
+    let at;
+    try {
+      at = requireShownAccountScope(shownAccountId);
+    } catch (err) {
+      // After a switch the list is about to show the other account; while
+      // one is still loading, say so.
+      if (err instanceof AccountNotServedError && err.reason === 'switched') return;
+      Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'), err instanceof Error ? err.message : undefined);
+      return;
+    }
+    const plan = planFolderMove(siblingsOf(tree, id) ?? [], id, direction);
+    if (plan.length === 0) return;
+    setOverlay({ accountId: shownAccountId, updates: plan });
+    setReordering(true);
+    let saved = false;
+    try {
+      await setMailboxSortOrders(plan, at);
+      saved = true;
+      await fetchMailboxes();
+    } catch (err) {
+      // A refetch that fails after the write landed is not a failed reorder
+      // (the next sync brings the new order), nor is a write the connection
+      // dropped for an account switch.
+      if (!saved) {
+        void fetchMailboxes();
+        if (!isStaleLoad(err)) Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'));
+      }
+    } finally {
+      setOverlay(null);
+      setReordering(false);
+    }
+  };
 
   const saveDraft = async () => {
     const name = draftName.trim();
@@ -163,10 +302,15 @@ export function FolderSettings() {
         const raw = parentId
           ? allMailboxes.find((m) => m.id === parentId)?.originalId ?? parentId
           : null;
-        await createMailbox(
+        const id = await createMailbox(
           { name, parentId: raw, ...(draftRole !== NO_ROLE ? { role: draftRole } : {}) },
           inAccount(at, accountId),
         );
+        // Icons are kept for own folders only, under the account the editor
+        // was opened on (never the live one, which a switch may have moved).
+        if (!accountId && draftIcon && editor.owner) {
+          useFolderIconsStore.getState().setIcon(editor.owner, id, draftIcon);
+        }
       } else {
         const mb = editor.mailbox;
         const changes: { name?: string; parentId?: string | null; role?: string | null } = {};
@@ -176,6 +320,7 @@ export function FolderSettings() {
         const nextRole = draftRole === NO_ROLE ? null : draftRole;
         if ((mb.role ?? null) !== nextRole) changes.role = nextRole;
         if (Object.keys(changes).length > 0) await updateMailbox(mb.id, changes, at);
+        if (iconPicked && editor.owner) useFolderIconsStore.getState().setIcon(editor.owner, mb.id, draftIcon);
       }
       closeEditor();
       // A reparent moves the whole subtree: re-read the tree rather than
@@ -227,6 +372,7 @@ export function FolderSettings() {
     setBusyId(mailbox.id);
     try {
       await deleteMailbox(mailbox.id, at, { onDestroyRemoveEmails: removeEmails });
+      if (owner) useFolderIconsStore.getState().setIcon(owner, mailbox.id, null);
       await fetchMailboxes();
     } catch (err) {
       Alert.alert(t('mailbox_context_menu.toast_error_delete', 'Failed to delete folder'), err instanceof Error ? err.message : String(err));
@@ -254,12 +400,19 @@ export function FolderSettings() {
       <SettingsSection
         title={t('settings.folders.title', 'Folders')}
         description={t(
-          'settings.folders.description_mobile',
-          `${mailboxes.length} folders, ${totalUnread} unread. Tap a folder to edit, long-press to delete.`,
-          { count: mailboxes.length, unread: totalUnread },
+          'settings.folders.description_mobile_reorder',
+          'Create, rename, move and delete folders, or tap Reorder to change their order. Long-press a folder in the drawer for quick actions.',
         )}
       >
         <View style={styles.headerRow}>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => setReorderMode((on) => !on)}
+            disabled={mailboxes.length === 0}
+          >
+            {reorderMode ? t('common.done', 'Done') : t('settings.folders.reorder_mode', 'Reorder')}
+          </Button>
           <Button
             variant="default"
             size="sm"
@@ -275,18 +428,24 @@ export function FolderSettings() {
           </View>
         ) : (
           <View>
-            {sorted.map((mb) => {
-              const Icon = getIcon(mb);
-              const depth = pathOf(mailboxes, mb, t).split(' / ').length - 1;
+            {rows.map((mb) => {
+              const custom = folderIconOf({ icons: folderIcons }, shownAccountId, mb.id);
+              const Icon = custom ? folderIconComponent(custom) : getIcon(mb);
+              const edge = edges.get(mb.id);
+              const canMoveUp = !reordering && edge !== undefined && !edge.first;
+              const canMoveDown = !reordering && edge !== undefined && !edge.last;
               return (
                 <Pressable
                   key={mb.id}
-                  onPress={() => openEdit(mb)}
-                  onLongPress={() => !mb.role && confirmDelete(mb)}
+                  // In reorder mode the row only holds the move buttons; as one
+                  // accessible element it would hide them from screen readers.
+                  accessible={!reorderMode}
+                  onPress={reorderMode ? undefined : () => openEdit(mb)}
+                  onLongPress={reorderMode ? undefined : () => !mb.role && confirmDelete(mb)}
                   style={({ pressed }) => [
                     styles.folderRow,
-                    pressed && styles.folderRowPressed,
-                    { paddingLeft: spacing.md + depth * 12 },
+                    pressed && !reorderMode && styles.folderRowPressed,
+                    { paddingLeft: spacing.md + mb.depth * 12 },
                   ]}
                 >
                   <View style={styles.folderLeft}>
@@ -305,7 +464,32 @@ export function FolderSettings() {
                       </View>
                     )}
                     <Text style={styles.total}>{mb.totalEmails}</Text>
-                    {busyId === mb.id ? (
+                    {reorderMode ? (
+                      <View style={styles.moveButtons}>
+                        <Pressable
+                          style={[styles.moveBtn, !canMoveUp && styles.moveBtnDisabled]}
+                          onPress={() => { void moveFolder(mb.id, 'up'); }}
+                          disabled={!canMoveUp}
+                          hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityState={{ disabled: !canMoveUp }}
+                          accessibilityLabel={t('settings.folders.move_folder_up', 'Move {name} up', { name: localizeMailboxName(mb.role, mb.name, t) })}
+                        >
+                          <ChevronUp size={16} color={c.mutedForeground} />
+                        </Pressable>
+                        <Pressable
+                          style={[styles.moveBtn, !canMoveDown && styles.moveBtnDisabled]}
+                          onPress={() => { void moveFolder(mb.id, 'down'); }}
+                          disabled={!canMoveDown}
+                          hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityState={{ disabled: !canMoveDown }}
+                          accessibilityLabel={t('settings.folders.move_folder_down', 'Move {name} down', { name: localizeMailboxName(mb.role, mb.name, t) })}
+                        >
+                          <ChevronDown size={16} color={c.mutedForeground} />
+                        </Pressable>
+                      </View>
+                    ) : busyId === mb.id ? (
                       <ActivityIndicator size="small" color={c.primary} />
                     ) : (
                       <Pencil size={14} color={c.textMuted} />
@@ -318,7 +502,7 @@ export function FolderSettings() {
         )}
       </SettingsSection>
 
-      <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
+      <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor} onDismiss={onEditorDismissed}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
@@ -389,6 +573,59 @@ export function FolderSettings() {
                 </>
               )}
 
+              {draftAccount === OWN_ACCOUNT && (
+                <>
+                  <Text style={styles.fieldLabel}>{t('settings.folders.change_icon', 'Change icon')}</Text>
+                  <View style={styles.iconGrid}>
+                    <Pressable
+                      onPress={() => pickIcon(null)}
+                      style={[styles.iconDefault, draftIcon === null && styles.iconChoiceSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: draftIcon === null }}
+                    >
+                      <Text style={[styles.iconDefaultText, draftIcon === null && styles.iconDefaultTextSelected]}>
+                        {t('settings.folders.default_icon', 'Default icon')}
+                      </Text>
+                    </Pressable>
+                    {FOLDER_ICON_NAMES.map((name) => {
+                      const Choice = folderIconComponent(name);
+                      const selected = draftIcon === name;
+                      return (
+                        <Pressable
+                          key={name}
+                          onPress={() => pickIcon(name)}
+                          style={[styles.iconChoice, selected && styles.iconChoiceSelected]}
+                          hitSlop={2}
+                          accessibilityRole="button"
+                          accessibilityLabel={folderIconLabel(name)}
+                          accessibilityState={{ selected }}
+                        >
+                          <Choice size={18} color={selected ? c.primaryForeground : c.mutedForeground} />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              {editor?.kind === 'edit' && canShare && (
+                <>
+                  <Pressable
+                    onPress={() => openShareFromEditor({ mailbox: editor.mailbox, owner: editor.owner })}
+                    disabled={draftDirty || saving}
+                    style={[styles.shareRow, (draftDirty || saving) && { opacity: 0.5 }]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: draftDirty || saving }}
+                  >
+                    <Share2 size={14} color={c.text} />
+                    <Text style={styles.shareRowText}>{t('mailbox_context_menu.share', 'Share...')}</Text>
+                  </Pressable>
+                  {draftDirty ? (
+                    <Text style={styles.hint}>{t('settings.folders.share_save_first', 'Save your changes to share this folder.')}</Text>
+                  ) : null}
+                </>
+              )}
+
               {editor?.kind === 'edit' && !editor.mailbox.role && (
                 <Pressable
                   onPress={() => {
@@ -416,6 +653,11 @@ export function FolderSettings() {
           </View>
         </View>
       </Modal>
+      <MailboxShareSheet
+        mailbox={sharing?.mailbox ?? null}
+        ownerAppAccountId={sharing?.owner ?? null}
+        onClose={() => setSharing(null)}
+      />
     </View>
   );
 }
@@ -423,7 +665,7 @@ export function FolderSettings() {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { gap: spacing.xxxl },
-    headerRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: spacing.sm },
+    headerRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, paddingVertical: spacing.sm },
     loading: { paddingVertical: 40, alignItems: 'center' },
     folderRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -445,6 +687,9 @@ function makeStyles(c: ThemePalette) {
     },
     unreadText: { fontSize: 10, fontWeight: '500', color: c.primaryForeground },
     total: { ...typography.caption, color: c.mutedForeground, minWidth: 32, textAlign: 'right' },
+    moveButtons: { flexDirection: 'row', gap: 2 },
+    moveBtn: { padding: spacing.xs, borderRadius: radius.sm },
+    moveBtnDisabled: { opacity: 0.3 },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalSheet: {
@@ -467,11 +712,30 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1, borderColor: c.border, borderRadius: radius.sm,
       paddingHorizontal: spacing.md, paddingVertical: 10,
     },
+    iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    iconChoice: {
+      width: 40, height: 40, borderRadius: radius.sm,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.surface,
+    },
+    iconChoiceSelected: { backgroundColor: c.primary },
+    iconDefault: {
+      height: 40, paddingHorizontal: spacing.md, borderRadius: radius.sm,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.surface,
+    },
+    iconDefaultText: { ...typography.caption, color: c.text },
+    iconDefaultTextSelected: { color: c.primaryForeground },
     deleteRow: {
       flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
       paddingVertical: spacing.md,
     },
     deleteRowText: { ...typography.body, color: c.error },
+    shareRow: {
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      paddingVertical: spacing.md,
+    },
+    shareRowText: { ...typography.body, color: c.text },
     modalActions: {
       flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm,
       padding: spacing.lg, borderTopWidth: 1, borderTopColor: c.border,

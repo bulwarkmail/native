@@ -807,7 +807,6 @@
     "folders": {
       "account": "账户",
       "cannot_delete": "无法删除",
-      "description_mobile": "创建、重命名、移动和删除文件夹。在侧边菜单中长按文件夹可使用快捷操作。",
       "edit_folder": "编辑“{name}”",
       "folder_name": "文件夹名称",
       "move_under": "上级文件夹",

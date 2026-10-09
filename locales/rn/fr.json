@@ -807,7 +807,6 @@
     "folders": {
       "account": "Compte",
       "cannot_delete": "Suppression impossible",
-      "description_mobile": "Créez, renommez, déplacez et supprimez des dossiers. Appuyez longuement sur un dossier dans le panneau latéral pour accéder aux actions rapides.",
       "edit_folder": "Modifier « {name} »",
       "folder_name": "Nom du dossier",
       "move_under": "Déplacer sous",

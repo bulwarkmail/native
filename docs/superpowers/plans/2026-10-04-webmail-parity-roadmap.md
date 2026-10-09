@@ -585,3 +585,52 @@ Left open:
   - The end-session test helper imports `@babel/core` and two plugins that aren't direct devDependencies. The lockfile hoists them today; pinning them as devDependencies would keep it that way.
   - Local builds link the fork's origin from About, and an unpushed commit links to a 404.
   - The area 08 items for RTL drawer side, cross-device settings sync and iOS push stay open.
+
+## Phase 7 follow-ups (the last parity items, 2026-10-09)
+
+Phase 7 is done on `parity/phase-7-final-items`. It closes the last open items in areas 02, 03 and 05, and the RTL items in 08. 486 of 494 items are done; the 8 open ones are older and need work outside this phase.
+
+**What's new for users:**
+- Folders sort by their saved order and can be moved up and down in Settings (own folders only).
+- An icon per folder, and a toggle for coloured sidebar icons. Icons are device-local.
+- Tags can be hidden, reordered and nested, and show as a tree.
+- Share a mail folder with other users, and a toast when something is shared with you.
+- The invitation banner shows the sender and update number, folds away, opens its day in the calendar, and reviews and applies counter-proposals.
+- The Persian (Jalali) month grid.
+- Swipe actions, drawers and switches on the right side in right-to-left languages; swipes stay physical, as in webmail.
+
+Left open:
+
+- **Closed without building:** 05:249, calendar push types. Reminders refresh on launch, resume and device sync (decision 2026-10-09). A background refresh would need a Kotlin push route and a detached scheduler; a periodic reschedule is the cheaper option.
+- **Scope of the new features:**
+  - `mail:share` is advertised per account on Stalwart 0.16.25, not on the session, so the gate reads the account.
+  - Folder `sortOrder` is not offered on shared folders; the right Stalwart checks are unverified.
+  - Tag definitions and folder icons are device-local and not in the settings export.
+  - Jalali covers the month grid, titles and stepping, not the agenda, the mini calendar or event dates.
+  - Sending from shared accounts (04:74) is a separate phase.
+- **Upstream requests to webmail:**
+  - Counter-proposals: webmail applies one without checking who proposed it. The native fix requires the proposer to be a stored attendee, the From to be that attendee, and an authenticated, aligned pass.
+  - The trust row for reply, counter and refresh must be anchored to the stored event.
+  - An invitation whose UID matches an unrelated stored event must not answer it.
+  - Stalwart's "Read only" folder share reads back as custom because of the seen/keywords coupling; native detects it, but the readback is Stalwart's.
+- **Device checks still to run:**
+  - the live folder move (it writes the server's sortOrder);
+  - the folder icon picker and tag dots;
+  - the share sheet, including the iOS share-after-dismiss path;
+  - the Jalali labels in `fa`;
+  - RTL on a phone (only an emulator in Arabic so far);
+  - counter-proposal Apply against a real attendee;
+  - the month back-arrow behaviour.
+- **Follow-ups parked in the ledger:**
+  - The public suffix list for domain alignment: `domainsAlign` matches by suffix, so sibling subdomains and shared suffixes are not told apart.
+  - A session re-fetch when a share arrives from a new owner.
+  - A raw unknown share `objectType`.
+  - Icons left behind by a session-expired eviction.
+  - Settings chevrons in RTL.
+  - Per-tag collapse in the drawer.
+  - The back-arrow remount: grow `before` instead of opening a fresh window.
+  - An iOS `onDismiss` fallback timer for the share sheet.
+  - Calendar notice toasts waiting for room (the presenter now waits, but a long wait is not capped).
+  - The `selectMailbox` seed race (pre-existing).
+  - Commit 41ab162 fails the gate on its own (1b3a649 restores the key); offer to squash it at merge.
+  - The behaviour changes the final review accepted: an unknown iTIP method with no authentication shows "authentication missing", and the banner shows the stored location and link for an event already in the calendar.

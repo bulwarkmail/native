@@ -166,9 +166,11 @@ export function getLocaleDirection(locale: string): 'ltr' | 'rtl' {
 }
 
 /**
- * Whether the running app is laid out right-to-left. Gesture code that maps
- * "swipe left/right" to actions should swap sides when this is true - RN
- * mirrors flexbox but not the physical direction of a pan.
+ * Whether the running app is laid out right-to-left. RN mirrors flexbox and
+ * left/right but not a translateX or the physical direction of a pan, so
+ * anything that slides needs this to line up with its layout (see
+ * lib/rtl-layout). Swipe actions stay physical, as in webmail: a rightward
+ * drag fires the same action in every language.
  */
 export function isLayoutRTL(): boolean {
   const manager = I18nManager as typeof I18nManager | undefined;

@@ -1,5 +1,5 @@
 // What signing an account out forgets on the device: its offline message
-// bodies, cached sending identities and calendar subscriptions and, with the last account, every calendar
+// bodies, cached sending identities, folder icons and calendar subscriptions and, with the last account, every calendar
 // subscription (ownerless ones included) and the search history. Unsent outbox
 // changes are kept; queued sends are kept unless discardQueuedSends is set. Settings, locale, templates and keywords stay, as in the
 // webmail's sign-out cleanup.
@@ -10,6 +10,7 @@ import { useOutboxStore } from './outbox-store';
 import { useSendQueueStore } from './send-queue-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from './calendar-subscriptions-store';
 import { useSearchHistoryStore } from './search-history-store';
+import { useFolderIconsStore } from './folder-icons-store';
 import { removeIdentityCache } from '../lib/identity-cache';
 
 export interface SignedOutAccount {
@@ -75,6 +76,15 @@ export async function forgetAccountData(
 ): Promise<void> {
   await step(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
   await step(() => removeIdentityCache(account.appAccountId));
+  await step(async () => {
+    useFolderIconsStore.getState().forgetAccount(account.appAccountId);
+    // The forget is written once the stored icons are read. A read that
+    // fails would leave them on disk until some later change, so read again
+    // (once) before moving on.
+    for (let attempt = 0; attempt < 2 && !useFolderIconsStore.getState().hydrated; attempt++) {
+      await useFolderIconsStore.getState().hydrate();
+    }
+  });
   await step(async () => {
     // Queued and failed ops are the user's unsent changes: keep them so they
     // replay when this account signs in again.

@@ -807,7 +807,6 @@
     "folders": {
       "account": "Cuenta",
       "cannot_delete": "No se puede eliminar",
-      "description_mobile": "Crea, renombra, mueve y elimina carpetas. Mantén pulsada una carpeta en el panel lateral para ver acciones rápidas.",
       "edit_folder": "Editar \"{name}\"",
       "folder_name": "Nombre de la carpeta",
       "move_under": "Mover dentro de",

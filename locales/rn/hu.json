@@ -807,7 +807,6 @@
     "folders": {
       "account": "Fiók",
       "cannot_delete": "Nem törölhető",
-      "description_mobile": "Mappák létrehozása, átnevezése, áthelyezése és törlése. A gyorsműveletekhez nyomd hosszan a mappát az oldalsávon.",
       "edit_folder": "„{name}” szerkesztése",
       "folder_name": "Mappa neve",
       "move_under": "Szülőmappa",

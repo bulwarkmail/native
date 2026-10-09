@@ -29,6 +29,7 @@ import { useEmailStore } from '../stores/email-store';
 import { jmapClient } from '../api/jmap-client';
 import { clientServesAccount, clientServesActiveAccount } from '../lib/active-client-account';
 import { principalsListUsable } from '../lib/share-principals';
+import { plainDisplayText } from '../lib/display-text';
 
 // The webmail's sharing presets (same rights, same names).
 const PRESET_LABEL_KEYS: Record<RolePreset, [string, string]> = {
@@ -38,7 +39,10 @@ const PRESET_LABEL_KEYS: Record<RolePreset, [string, string]> = {
   manager: ['sharing.preset.manager', 'Manager'],
 };
 
-/** The sheet's texts for `kind`; calendars keep the ones they always showed. */
+/**
+ * The sheet's texts for `kind`; calendars keep the ones they always showed,
+ * address books and mail folders use the webmail's generic sharing texts.
+ */
 function sheetStrings(kind: ShareKind, t: TranslateFn) {
   if (kind === 'calendar') {
     return {
@@ -49,6 +53,7 @@ function sheetStrings(kind: ShareKind, t: TranslateFn) {
       noPrincipals: t('calendar.share.no_principals', 'Sharing is not available on this server.'),
       noMatches: t('calendar.share.no_matches', 'No matches'),
       failed: t('calendar.share.error', 'Failed to update sharing'),
+      managerHint: null,
     };
   }
   return {
@@ -59,6 +64,10 @@ function sheetStrings(kind: ShareKind, t: TranslateFn) {
     noPrincipals: t('sharing.no_principals', 'No other users or groups found.'),
     noMatches: t('sharing.no_match', 'No matches.'),
     failed: t('sharing.share_failed', 'Failed to update sharing'),
+    // A folder's manager can send as its owner and hand it on: say so.
+    managerHint: kind === 'mailbox'
+      ? t('sharing.preset.manager_mailbox_hint', "Can also send as this folder's owner, delete it and share it again")
+      : null,
   };
 }
 
@@ -83,13 +92,20 @@ interface ShareCollectionSheetProps<K extends ShareKind> {
     appAccountId: string | null,
   ) => Promise<void>;
   onClose: () => void;
+  /**
+   * Re-read the target's shares after each change; what it returns replaces
+   * the shown shares (null: shared with nobody). Without it the sheet shows
+   * the change it sent.
+   */
+  reload?: () => Promise<Record<string, ShareRights<K>> | null>;
 }
 
-// JMAP sharing for an owned calendar or address book: pick a principal,
-// choose a role. The principal list comes from the same Principal/query the
-// Files share sheet uses.
+// JMAP sharing for an owned calendar, address book or mail folder (or a
+// shared one the user may share): pick a principal, choose a role. The
+// principal list comes from the same Principal/query the Files share sheet
+// uses.
 export function ShareCollectionSheet<K extends ShareKind>({
-  kind, target, onShare, onClose,
+  kind, target, onShare, onClose, reload,
 }: ShareCollectionSheetProps<K>) {
   type R = ShareRights<K>;
   const c = useColors();
@@ -106,6 +122,10 @@ export function ShareCollectionSheet<K extends ShareKind>({
   // The app account shown when the sheet opened: the sheet may stay open
   // across a switch, and collection and principal ids repeat across accounts.
   const openedIn = React.useRef<string | null>(null);
+  // The target the sheet shows now: a re-read that lands after the sheet
+  // closed or moved to another target is dropped.
+  const shownTarget = React.useRef(target);
+  shownTarget.current = target;
 
   React.useEffect(() => {
     if (!target) return;
@@ -166,6 +186,7 @@ export function ShareCollectionSheet<K extends ShareKind>({
   const applyShare = async (principalId: string, rights: R | null) => {
     if (!target || savingId) return;
     setSavingId(principalId);
+    const sharing = target;
     try {
       await onShare(target.id, principalId, rights, openedIn.current);
       setShares((prev) => {
@@ -174,11 +195,38 @@ export function ShareCollectionSheet<K extends ShareKind>({
         else next[principalId] = rights;
         return next;
       });
+      if (reload) {
+        // The change landed; a failed re-read only leaves the sent change shown.
+        try {
+          const fresh = await reload();
+          if (shownTarget.current === sharing) setShares(fresh ?? {});
+        } catch (e) {
+          console.warn('[ShareCollectionSheet] re-reading the shares failed:', e);
+        }
+      }
     } catch (e) {
       Alert.alert(strings.failed, e instanceof Error ? e.message : String(e));
     } finally {
       setSavingId(null);
     }
+  };
+
+  // A folder manager may send as the owner, delete the folder and share it
+  // on: that grant is confirmed first, with what it allows.
+  const choosePreset = (principalId: string, p: RolePreset, current: RolePreset | 'custom') => {
+    const grant = () => void applyShare(principalId, presetRights(kind, p));
+    if (p !== 'manager' || current === 'manager' || !strings.managerHint) {
+      grant();
+      return;
+    }
+    Alert.alert(
+      t('sharing.confirm_manager_title', 'Make them a manager?'),
+      strings.managerHint,
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('sharing.preset.manager', 'Manager'), onPress: grant },
+      ],
+    );
   };
 
   if (!target) return null;
@@ -188,10 +236,10 @@ export function ShareCollectionSheet<K extends ShareKind>({
     return (
       <View style={styles.principalInfo}>
         <Text style={styles.principalName} numberOfLines={1}>
-          {p?.description || p?.name || principalId}
+          {plainDisplayText(p?.description) || plainDisplayText(p?.name) || principalId}
         </Text>
         {p?.email ? (
-          <Text style={styles.principalEmail} numberOfLines={1}>{p.email}</Text>
+          <Text style={styles.principalEmail} numberOfLines={1}>{plainDisplayText(p.email)}</Text>
         ) : null}
       </View>
     );
@@ -206,7 +254,7 @@ export function ShareCollectionSheet<K extends ShareKind>({
               <View style={styles.titleRow}>
                 <Users size={18} color={c.textMuted} />
                 <Text style={styles.title} numberOfLines={1}>
-                  {t('sharing.title', 'Share "{name}"', { name: target.name })}
+                  {t('sharing.title', 'Share "{name}"', { name: plainDisplayText(target.name) })}
                 </Text>
               </View>
               {strings.description ? (
@@ -229,11 +277,12 @@ export function ShareCollectionSheet<K extends ShareKind>({
                             {order.map((p) => (
                               <Pressable
                                 key={p}
-                                onPress={() => void applyShare(principalId, presetRights(kind, p))}
+                                onPress={() => choosePreset(principalId, p, preset)}
                                 disabled={busy}
                                 style={[styles.chip, preset === p && styles.chipActive]}
                                 accessibilityRole="button"
                                 accessibilityState={{ selected: preset === p, disabled: busy }}
+                                accessibilityHint={p === 'manager' ? strings.managerHint ?? undefined : undefined}
                               >
                                 <Text style={[styles.chipText, preset === p && styles.chipTextActive]}>
                                   {t(PRESET_LABEL_KEYS[p][0], PRESET_LABEL_KEYS[p][1])}
@@ -258,6 +307,9 @@ export function ShareCollectionSheet<K extends ShareKind>({
                               )}
                             </Pressable>
                           </View>
+                          {preset === 'manager' && strings.managerHint ? (
+                            <Text style={styles.presetHint}>{strings.managerHint}</Text>
+                          ) : null}
                         </View>
                       );
                     })}
@@ -351,6 +403,7 @@ function makeStyles(c: ThemePalette) {
     chipText: { ...typography.caption, color: c.text },
     chipTextActive: { color: c.primaryForeground },
     customLabel: { ...typography.caption, color: c.textMuted },
+    presetHint: { ...typography.caption, color: c.textMuted },
     removeBtn: { marginLeft: 'auto', padding: 4 },
     input: {
       minHeight: 40,

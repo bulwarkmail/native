@@ -807,7 +807,6 @@
     "folders": {
       "account": "帳號",
       "cannot_delete": "無法刪除",
-      "description_mobile": "建立、重新命名、移動及刪除信件匣。在側邊選單中長按信件匣即可使用快速動作。",
       "edit_folder": "編輯「{name}」",
       "folder_name": "信件匣名稱",
       "move_under": "上層信件匣",

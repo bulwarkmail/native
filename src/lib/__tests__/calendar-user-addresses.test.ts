@@ -28,8 +28,16 @@ vi.mock('react', () => ({
 vi.mock('../../stores/account-store', () => ({
   useAccountStore: (select: (s: unknown) => unknown) => select({ getActiveAccount: () => ({ email: 'me@example.com' }) }),
 }));
+// The signed-in account (server|login|JMAP id), and the identities held for one.
+const session = vi.hoisted(() => ({
+  scope: 'https://mail.example.com||acc-1' as string | null,
+  identities: [] as Array<{ email: string }>,
+  identitiesFor: null as string | null,
+}));
 vi.mock('../../stores/settings-store', () => ({
-  useSettingsStore: (select: (s: unknown) => unknown) => select({ identities: [] }),
+  useSettingsStore: (select: (s: unknown) => unknown) =>
+    select({ identities: session.identities, identitiesFor: session.identitiesFor }),
+  identityScope: () => session.scope,
 }));
 
 let storedIdentities: Record<string, Array<{ calendarAddress: string }>> = {};
@@ -37,12 +45,15 @@ vi.mock('../../stores/calendar-store', () => ({
   useCalendarStore: (select: (s: unknown) => unknown) => select({ participantIdentities: storedIdentities }),
 }));
 
-import { useUserCalendarAddresses, resetUserCalendarAddressCache } from '../calendar-user-addresses';
+import { useUserCalendarAddresses, resetUserCalendarAddressCache, addressesForAccount } from '../calendar-user-addresses';
 import { fetchAccountDisplayName, fetchPrincipal, resetPrincipalRefusals } from '../../api/account-security';
 
 const forbidden = { methodResponses: [['error', { type: 'forbidden' }, '0']] };
 
 beforeEach(() => {
+  session.scope = 'https://mail.example.com||acc-1';
+  session.identities = [];
+  session.identitiesFor = null;
   request.mockReset();
   resetUserCalendarAddressCache();
   resetPrincipalRefusals();
@@ -95,5 +106,38 @@ describe('account display name', () => {
       [['x:AccountSettings/get', { accountId: 'acc-1', ids: ['singleton'] }, '0']],
       expect.anything(),
     );
+  });
+});
+
+describe('only the signed-in account\'s addresses', () => {
+  it('counts identities held for this account, not ones left from another', () => {
+    session.identities = [{ email: 'work@example.com' }];
+    session.identitiesFor = 'https://other.example.com||acc-1';
+    expect(useUserCalendarAddresses(false)).toEqual(['me@example.com']);
+    session.identitiesFor = session.scope;
+    expect(useUserCalendarAddresses(false)).toEqual(['me@example.com', 'work@example.com']);
+  });
+
+  it('does not hand one server\'s aliases to another account with the same JMAP id', async () => {
+    request.mockResolvedValue({ methodResponses: [['x:Account/get', { list: [{ name: 'me@example.com', aliases: { a: { name: 'alias@example.com' } } }] }, '0']] });
+    useUserCalendarAddresses(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useUserCalendarAddresses(true)).toContain('alias@example.com');
+    session.scope = 'https://other.example.com||acc-1';
+    request.mockResolvedValue({ methodResponses: [['x:Account/get', { list: [{ name: 'me@example.com' }] }, '0']] });
+    expect(useUserCalendarAddresses(true)).not.toContain('alias@example.com');
+  });
+});
+
+describe('addressesForAccount', () => {
+  const mine = ['me@example.com'];
+  it('hands the addresses only for the account that is shown and signed in', () => {
+    expect(addressesForAccount('a1', { shown: 'a1', signedIn: 'a1' }, mine)).toEqual(mine);
+  });
+  it('hands none for another account, or while the account is not known', () => {
+    expect(addressesForAccount('a2', { shown: 'a1', signedIn: 'a1' }, mine)).toEqual([]);
+    // Mid-switch: shown already, the login still the old account's.
+    expect(addressesForAccount('a2', { shown: 'a2', signedIn: 'a1' }, mine)).toEqual([]);
+    expect(addressesForAccount(undefined, { shown: null, signedIn: null }, mine)).toEqual([]);
   });
 });

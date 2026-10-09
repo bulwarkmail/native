@@ -1,5 +1,9 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
-import { headerValues, parseAuthenticationResults, type AuthenticationResults } from './email-headers';
+import {
+  headerValues, isFromDomainAuthenticated, parseAuthenticationResults, type AuthenticationResults,
+} from './email-headers';
+import { plainDisplayText, plainStoredText } from './display-text';
+import { localDateTimeToInstant } from './time-zone';
 
 // ─── Address helpers ─────────────────────────────────────
 
@@ -29,31 +33,64 @@ export function isOrganizerParticipant(p: Participant): boolean {
   return Boolean(p.roles?.owner || p.roles?.chair);
 }
 
+// The address a participant is scheduled at (iCalendar ORGANIZER/ATTENDEE
+// value), not its EMAIL= parameter: that one is the sender's to write and
+// names no one the server delivers to.
+function participantCalendarAddress(p: Participant): string | null {
+  const addr = normalizeEmail(p.calendarAddress);
+  if (addr) return addr;
+  if (p.sendTo) {
+    for (const value of Object.values(p.sendTo)) {
+      const n = normalizeEmail(value);
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+// A participant's address for showing it: the calendar address, else the
+// email when it has nothing else.
+function participantAddress(p: Participant): string | null {
+  return participantCalendarAddress(p) ?? normalizeEmail(p.email);
+}
+
+/**
+ * The organizer's address, which the trust assessment compares with the
+ * sender and the banner shows: the event's `organizerCalendarAddress` (where
+ * Stalwart routes replies), else the owner/chair's calendar address.
+ */
 export function getOrganizerEmail(event: Partial<CalendarEvent>): string | null {
+  const stored = normalizeEmail(event.organizerCalendarAddress);
+  if (stored) return stored;
   if (event.participants) {
     for (const p of Object.values(event.participants)) {
       if (isOrganizerParticipant(p)) {
-        const e = getParticipantEmail(p);
+        const e = participantAddress(p);
         if (e) return e;
       }
     }
   }
-  if (event.organizerCalendarAddress) return normalizeEmail(event.organizerCalendarAddress);
   return null;
 }
 
-export function getOrganizerName(event: Partial<CalendarEvent>): string | null {
-  if (event.participants) {
-    for (const p of Object.values(event.participants)) {
-      if (isOrganizerParticipant(p)) return p.name || getParticipantEmail(p);
-    }
-    if (event.organizerCalendarAddress) {
-      for (const p of Object.values(event.participants)) {
-        if (p.calendarAddress === event.organizerCalendarAddress) return p.name || getParticipantEmail(p);
-      }
-    }
+/**
+ * The organizer's participant entry: the one at the organizer's address
+ * (Stalwart marks no owner/chair role), else an owner/chair when the event
+ * stores no address. An owner/chair at another address is not the organizer.
+ */
+function findOrganizerParticipant(event: Partial<CalendarEvent>): Participant | null {
+  if (!event.participants) return null;
+  const participants = Object.values(event.participants);
+  const stored = normalizeEmail(event.organizerCalendarAddress);
+  if (stored) {
+    const atAddress = participants.filter((p) => participantAddress(p) === stored);
+    return atAddress.find(isOrganizerParticipant) ?? atAddress[0] ?? null;
   }
-  return getOrganizerEmail(event);
+  return participants.find(isOrganizerParticipant) ?? null;
+}
+
+export function getOrganizerName(event: Partial<CalendarEvent>): string | null {
+  return findOrganizerParticipant(event)?.name || getOrganizerEmail(event);
 }
 
 // Find the participant entry that matches one of the given user emails.
@@ -82,6 +119,152 @@ export function buildReplyTo(event: Partial<CalendarEvent>): Record<string, stri
     return { imip: addr };
   }
   return null;
+}
+
+// ─── Who sent the invitation ─────────────────────────────
+
+export interface InvitationActorSummary {
+  name: string | null;
+  email: string | null;
+  role: 'organizer' | 'attendee';
+  participationStatus: string | null;
+  participationComment: string | null;
+}
+
+/**
+ * Who the banner says sent or answered: the name the invitation gives is the
+ * sender's to write, so the address always shows beside it ("Your Bank
+ * <x@evil.example>"), cleaned of direction controls and line breaks.
+ */
+export function formatInvitationActor(actor: Pick<InvitationActorSummary, 'name' | 'email'>): string | null {
+  const email = plainDisplayText(actor.email, 254);
+  const name = plainDisplayText(actor.name, 80);
+  if (name && email && name.toLowerCase() !== email.toLowerCase()) return `${name} <${email}>`;
+  return email || name || null;
+}
+
+// How strongly a participant looks like the one answering: a status other
+// than needs-action and a note count most, a schedule status a little.
+function getParticipantSignalScore(p: Participant): number {
+  let score = 0;
+  if (p.participationStatus && p.participationStatus !== 'needs-action') score += 2;
+  if (p.participationComment) score += 2;
+  if (p.scheduleStatus?.length) score += 1;
+  return score;
+}
+
+/**
+ * The attendee a REPLY, COUNTER or REFRESH most likely comes from: not the
+ * organizer (that entry, or its address), the one with the strongest answer
+ * signals. A chair attendee may answer too, so the role alone excludes no one.
+ */
+function findRespondingAttendee(event: Partial<CalendarEvent>): Participant | null {
+  if (!event.participants) return null;
+  const organizer = findOrganizerParticipant(event);
+  const organizerEmail = getOrganizerEmail(event);
+  const attendees = Object.values(event.participants).filter((p) =>
+    p !== organizer
+    && (!organizerEmail || participantAddress(p) !== organizerEmail));
+  return [...attendees].sort(
+    (left, right) => getParticipantSignalScore(right) - getParticipantSignalScore(left),
+  )[0] ?? null;
+}
+
+const isResponseMethod = (method: InvitationMethod) =>
+  method === 'reply' || method === 'counter' || method === 'refresh';
+
+/**
+ * The participant an invitation message comes from: the answering attendee
+ * for a REPLY, COUNTER or REFRESH, the organizer for what an organizer sends.
+ * Stalwart marks no owner/chair role, so the organizer is also found by
+ * `organizerCalendarAddress`. Port of the webmail's getInvitationActorSummary.
+ */
+export function getInvitationActorSummary(
+  event: Partial<CalendarEvent>,
+  method: InvitationMethod,
+): InvitationActorSummary | null {
+  if (!event.participants) return null;
+  const organizer = findOrganizerParticipant(event);
+  const organizerEmail = getOrganizerEmail(event);
+  const respondingAttendee = findRespondingAttendee(event);
+
+  const asOrganizer = (): InvitationActorSummary => ({
+    name: organizer?.name || null,
+    // The address the trust row checked, never the entry's own EMAIL=.
+    email: organizerEmail,
+    role: 'organizer',
+    participationStatus: organizer?.participationStatus ?? null,
+    participationComment: organizer?.participationComment ?? null,
+  });
+  const asAttendee = (p: Participant): InvitationActorSummary => ({
+    name: p.name || null,
+    email: participantAddress(p),
+    role: 'attendee',
+    participationStatus: p.participationStatus ?? null,
+    participationComment: p.participationComment ?? null,
+  });
+  const hasOrganizer = !!organizer || !!organizerEmail;
+
+  switch (method) {
+    case 'reply':
+    case 'counter':
+    case 'refresh':
+      return respondingAttendee ? asAttendee(respondingAttendee) : null;
+    // What only an organizer sends: never credited to an attendee. With no
+    // organizer known it is "Someone", with no address.
+    case 'declinecounter':
+    case 'request':
+    case 'publish':
+    case 'add':
+    case 'cancel':
+      return asOrganizer();
+    default:
+      if (respondingAttendee) return asAttendee(respondingAttendee);
+      return hasOrganizer ? asOrganizer() : null;
+  }
+}
+
+/**
+ * The message's From address when it isn't the actor's, so "Sent by Alice
+ * <alice@example.com>" can't hide that someone else sent it. Null when they
+ * match or the message has no From.
+ */
+export function invitationSentFrom(
+  actorEmail: string | null | undefined,
+  senderEmail: string | null | undefined,
+): string | null {
+  const sender = normalizeEmail(senderEmail);
+  if (!sender) return null;
+  return sender === normalizeEmail(actorEmail) ? null : sender;
+}
+
+export interface InvitationBannerDetails {
+  /** The event the banner's title, time, place and organizer come from. */
+  source: Partial<CalendarEvent>;
+  location: string | null;
+  /** A meeting link the banner may offer to open, or null. */
+  videoUri: string | null;
+}
+
+/**
+ * What the banner shows about the event, all from one source: the user's
+ * stored copy once it is in the calendar, so the real meeting's title and
+ * time never stand beside a link the message's sender wrote. An attendee's
+ * REPLY, COUNTER or REFRESH never offers its own link: a proposed one shows
+ * only in the change list, as text.
+ */
+export function invitationBannerDetails(
+  existing: Partial<CalendarEvent> | null | undefined,
+  event: Partial<CalendarEvent>,
+  method: InvitationMethod,
+): InvitationBannerDetails {
+  const source = existing ?? event;
+  const location = plainDisplayText(
+    source.locations ? Object.values(source.locations)[0]?.name : undefined, 200,
+  ) || null;
+  const uri = source.virtualLocations ? Object.values(source.virtualLocations)[0]?.uri : undefined;
+  const videoUri = uri && (existing || !isResponseMethod(method)) ? uri : null;
+  return { source, location, videoUri };
 }
 
 // ─── Content-Type helpers ────────────────────────────────
@@ -281,12 +464,6 @@ export function getEmailAuthenticationResults(
   return parseAuthenticationResults(values);
 }
 
-function hasVerifiedAuthentication(auth?: AuthenticationResults | null): boolean {
-  return Boolean(
-    auth?.dmarc?.result === 'pass' || auth?.dkim?.result === 'pass' || auth?.spf?.result === 'pass',
-  );
-}
-
 function hasAuthenticationFailure(auth?: AuthenticationResults | null): boolean {
   return Boolean(
     auth?.dmarc?.result === 'fail'
@@ -310,41 +487,573 @@ export interface InvitationTrustAssessment {
     | 'authentication_missing'
     | 'sender_mismatch'
     | 'sender_mismatch_unverified'
+    /** An attendee's answer about an event the user doesn't organize, or from someone not on it. */
+    | 'responder_not_on_event'
     | null;
   senderEmail: string | null;
   organizerEmail: string | null;
+  /**
+   * Whom the sender is compared with: the answering attendee for a REPLY,
+   * COUNTER or REFRESH about an event the user organizes, when that attendee
+   * is on the stored event; else the organizer.
+   */
+  expectedSender: 'organizer' | 'attendee';
+  expectedSenderEmail: string | null;
+}
+
+/** The stored copy of the event an invitation is about, for judging an attendee's answer. */
+export interface InvitationTrustContext {
+  /** The user's stored event with the invitation's UID, if any. */
+  stored?: Partial<CalendarEvent> | null;
+  /** The user's addresses in the account the event lives in. */
+  userAddresses?: readonly string[];
+}
+
+// Whether `address` is an attendee (not the organizer) of the stored event.
+function isAttendeeOf(stored: Partial<CalendarEvent>, address: string): boolean {
+  if (address === getOrganizerEmail(stored)) return false;
+  return Object.values(stored.participants ?? {}).some((p) => participantCalendarAddress(p) === address);
+}
+
+/**
+ * The answering attendee's calendar address, when the answer is about an
+ * event the user organizes and that attendee is on the stored copy. The
+ * incoming message names its own responder and method: only the stored
+ * event says whom an answer may come from.
+ */
+function responderOnStoredEvent(event: Partial<CalendarEvent>, context?: InvitationTrustContext): string | null {
+  const stored = context?.stored;
+  if (!stored || !isSameInvitationEvent(stored, event)) return null;
+  if (!isUserOrganizer(stored, context?.userAddresses ?? [])) return null;
+  const responder = findRespondingAttendee(event);
+  const address = responder ? participantCalendarAddress(responder) : null;
+  return address && isAttendeeOf(stored, address) ? address : null;
 }
 
 /**
  * How much to trust an invitation: DMARC/DKIM/SPF results of the carrying
- * email plus whether the sender matches the event's organizer. A spoofed
+ * email plus whether the sender matches whom it should come from. A spoofed
  * invitation from an unauthenticated sender must not look like a real one.
- * Port of the webmail's getInvitationTrustAssessment.
+ * After the webmail's getInvitationTrustAssessment, but "verified" needs a
+ * pass for the From domain (not any pass), and an attendee's answer (REPLY,
+ * COUNTER, REFRESH) is compared with the attendee only when the stored
+ * event, organized by the user, has that attendee; otherwise it is never
+ * more than a caution. Unlike the webmail, an unknown METHOD needs the same
+ * pass: it is never "verified" on no authentication at all.
  */
 export function getInvitationTrustAssessment(
   event: Partial<CalendarEvent>,
   email?: Pick<Email, 'from' | 'replyTo' | 'headers'> | null,
   method: InvitationMethod = inferInvitationMethod(event),
+  context?: InvitationTrustContext,
 ): InvitationTrustAssessment {
   const organizerEmail = getOrganizerEmail(event);
-  const senderEmail = getPrimaryAddressEmail(email?.from) || getPrimaryAddressEmail(email?.replyTo);
+  const fromEmail = getPrimaryAddressEmail(email?.from);
+  const senderEmail = fromEmail || getPrimaryAddressEmail(email?.replyTo);
   const auth = getEmailAuthenticationResults(email);
-  const verified = hasVerifiedAuthentication(auth);
+  const verified = isFromDomainAuthenticated(auth, fromEmail);
   const failed = hasAuthenticationFailure(auth);
-  const senderMismatch = Boolean(senderEmail && organizerEmail && senderEmail !== organizerEmail);
-  const expectsAuthenticatedTransport = method !== 'unknown';
+  const responder = isResponseMethod(method) ? responderOnStoredEvent(event, context) : null;
+  // An answer from someone the stored event doesn't have (or about an event
+  // the user doesn't organize) is judged against the organizer, and capped.
+  const unknownResponder = isResponseMethod(method) && !responder;
+  const expectedSender: InvitationTrustAssessment['expectedSender'] = responder ? 'attendee' : 'organizer';
+  const expectedSenderEmail = responder ?? organizerEmail;
+  const senderMismatch = Boolean(senderEmail && expectedSenderEmail && senderEmail !== expectedSenderEmail);
+  const base = { senderEmail, organizerEmail, expectedSender, expectedSenderEmail };
 
   if (senderMismatch && (failed || !verified)) {
-    return { level: 'warning', reason: 'sender_mismatch_unverified', senderEmail, organizerEmail };
+    return { level: 'warning', reason: 'sender_mismatch_unverified', ...base };
   }
   if (failed) {
-    return { level: 'warning', reason: 'authentication_failed', senderEmail, organizerEmail };
+    return { level: 'warning', reason: 'authentication_failed', ...base };
+  }
+  if (unknownResponder) {
+    return { level: 'caution', reason: 'responder_not_on_event', ...base };
   }
   if (senderMismatch) {
-    return { level: 'caution', reason: 'sender_mismatch', senderEmail, organizerEmail };
+    return { level: 'caution', reason: 'sender_mismatch', ...base };
   }
-  if (expectsAuthenticatedTransport && !verified) {
-    return { level: 'caution', reason: 'authentication_missing', senderEmail, organizerEmail };
+  // Every method, unknown included: with no organizer there is nobody to
+  // compare the sender with, so only a pass for the From domain vouches.
+  if (!verified) {
+    return { level: 'caution', reason: 'authentication_missing', ...base };
   }
-  return { level: 'trusted', reason: null, senderEmail, organizerEmail };
+  return { level: 'trusted', reason: null, ...base };
+}
+
+/**
+ * Whether the receiving server's checks tie the message to its From domain:
+ * results present, none failing, and a DMARC pass or an SPF/DKIM pass
+ * aligned with that domain. Stricter than the trust row's "any pass".
+ */
+function fromIsAuthenticated(auth: AuthenticationResults | null, fromEmail: string | null): boolean {
+  if (!auth || !fromEmail || hasAuthenticationFailure(auth)) return false;
+  // Positively: an unparsable From domain or no result is never a pass.
+  return isFromDomainAuthenticated(auth, fromEmail);
+}
+
+/**
+ * Whether a stored event is the one an invitation is about: same UID (the
+ * caller's look-up) and the same organizer, at the address the trust check
+ * uses. An invitation anyone can write may carry the UID of an unrelated
+ * event of the user's; it must not answer, rewrite or vouch for that one.
+ * Without an organizer on either side nothing says they are the same.
+ */
+export function isSameInvitationEvent(
+  stored: Partial<CalendarEvent> | null | undefined,
+  invitation: Partial<CalendarEvent>,
+): boolean {
+  if (!stored || !invitation.uid || stored.uid !== invitation.uid) return false;
+  const organizer = getOrganizerEmail(invitation);
+  return !!organizer && getOrganizerEmail(stored) === organizer;
+}
+
+/**
+ * Whether importing the invitation may meet this stored event (Import dedupes
+ * or links by UID): the same event, or neither has an organizer (a plain
+ * published event, which nobody answers).
+ */
+export function mayImportOver(
+  stored: Partial<CalendarEvent> | null | undefined,
+  invitation: Partial<CalendarEvent>,
+): boolean {
+  if (isSameInvitationEvent(stored, invitation)) return true;
+  return !!stored && !!invitation.uid && stored.uid === invitation.uid
+    && !getOrganizerEmail(stored) && !getOrganizerEmail(invitation);
+}
+
+// ─── Counter proposals ───────────────────────────────────
+
+/**
+ * Whether the user organizes the event: the organizer's address (the one the
+ * trust row checks) is one of `userEmails`. Stalwart marks no owner or chair,
+ * so the address is all there is. The caller hands only the addresses of the
+ * account the event lives in.
+ */
+export function isUserOrganizer(event: Partial<CalendarEvent> | null, userEmails: readonly string[]): boolean {
+  if (!event) return false;
+  const organizer = getOrganizerEmail(event);
+  if (!organizer) return false;
+  return userEmails.some((e) => normalizeEmail(e) === organizer);
+}
+
+export interface InvitationChangeItem {
+  label: 'title' | 'time' | 'location' | 'virtual_location' | 'description';
+  /** Null when the event had none. */
+  before: string | null;
+  after: string;
+  /** Shown but not part of Apply: it can't be written safely (see compareProposal). */
+  notApplied?: true;
+}
+
+// Fixed shape, one group per unit, so the match is linear; capped anyway.
+const DURATION_PATTERN = /^P(?:(\d{1,6})W)?(?:(\d{1,6})D)?(?:T(?:(\d{1,6})H)?(?:(\d{1,6})M)?(?:(\d{1,6})S)?)?$/;
+const WALL_CLOCK_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+const HTTP_URI = /^https?:\/\/[^\s]+$/i;
+const TITLE_MAX = 200;
+const DESCRIPTION_MAX = 2000;
+const URI_MAX = 500;
+const UNCAPPED = Number.MAX_SAFE_INTEGER;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function durationMs(duration: string | null | undefined): number | null {
+  if (!duration || duration.length > 40) return null;
+  const m = DURATION_PATTERN.exec(duration);
+  if (!m) return null;
+  const [w, d, h, min, sec] = m.slice(1).map((v) => (v ? Number(v) : 0));
+  return ((((w * 7 + d) * 24 + h) * 60 + min) * 60 + sec) * 1000;
+}
+
+// A wall-clock string read as if it were UTC, so adding a duration needs no zone.
+function wallClockAsUtc(value: string | null | undefined): Date | null {
+  if (typeof value !== 'string' || value.length > 19) return null;
+  const m = WALL_CLOCK_PATTERN.exec(value);
+  if (!m) return null;
+  const date = new Date(Date.UTC(
+    Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+    Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0),
+  ));
+  return isNaN(date.getTime()) ? null : date;
+}
+
+type Span = { start: string; end: string | null };
+
+/**
+ * An event's span from exactly its start, zone and duration (never a
+ * server- or sender-computed utcStart): timed events as UTC instants (ISO
+ * with Z), all-day events as calendar dates (YYYY-MM-DD) with the last day
+ * included, a floating time as its wall clock. Null when it can't be read.
+ */
+function eventSpan(event: Pick<Partial<CalendarEvent>, 'start' | 'duration' | 'timeZone' | 'showWithoutTime'>): Span | null {
+  const wall = wallClockAsUtc(event.start);
+  if (!wall) return null;
+  const ms = durationMs(event.duration);
+  if (event.showWithoutTime) {
+    const start = wall.toISOString().slice(0, 10);
+    if (!ms || ms <= DAY_MS) return { start, end: null };
+    return { start, end: new Date(wall.getTime() + ms - DAY_MS).toISOString().slice(0, 10) };
+  }
+  if (event.timeZone) {
+    const instant = localDateTimeToInstant(event.start as string, event.timeZone);
+    if (!instant) return null;
+    return { start: instant.toISOString(), end: ms ? new Date(instant.getTime() + ms).toISOString() : null };
+  }
+  const floating = (d: Date) => d.toISOString().slice(0, 19);
+  return { start: floating(wall), end: ms ? floating(new Date(wall.getTime() + ms)) : null };
+}
+
+// One line of sender text, flattened; null when longer than `max` (refused, never cut).
+function flatText(value: string | null | undefined, max: number): string | null {
+  const text = plainDisplayText(value, UNCAPPED);
+  return Array.from(text).length > max ? null : text;
+}
+
+/**
+ * A stored event from a CalendarEvent/get that asked for
+ * descriptionContentType. Stalwart leaves the property out for a plain-text
+ * description (RFC 8984's default) and sends "text/html" otherwise, so an
+ * absent key there means text/plain. Only for such a fetch: elsewhere an
+ * absent key stays unknown.
+ */
+export function withFetchedDescriptionType<T extends Partial<CalendarEvent>>(event: T): T {
+  if ('descriptionContentType' in (event as object)) return event;
+  return { ...event, descriptionContentType: null } as T;
+}
+
+// JSCalendar's descriptionContentType: the app's type leaves it out, but the
+// server (asked for it) and the parsed .ics may carry it. Absent: unknown.
+function descriptionType(event: Partial<CalendarEvent>): { known: boolean; plain: boolean } {
+  const raw = event as { descriptionContentType?: unknown };
+  const known = 'descriptionContentType' in raw;
+  const type = raw.descriptionContentType;
+  // RFC 8984: no type means text/plain.
+  return { known, plain: type == null || (typeof type === 'string' && /^text\/plain\b/i.test(type)) };
+}
+
+function namedEntries<T>(map: Record<string, T> | null | undefined, value: (entry: T) => string | undefined) {
+  return Object.entries(map ?? {})
+    .map(([id, entry]): [string, string] => [id, (entry && value(entry)) || ''])
+    .filter(([, v]) => !!v.trim());
+}
+
+const joinedFlat = (entries: Array<[string, string]>) => entries.map(([, v]) => plainDisplayText(v, UNCAPPED)).join('; ');
+
+interface ProposalContent {
+  items: InvitationChangeItem[];
+  patch: Partial<CalendarEvent>;
+  /** What the proposal changes but can't be applied as written (too long, not a web link, ...). */
+  refused: InvitationChangeItem['label'][];
+}
+
+/**
+ * The proposal against the stored event: the change list and the patch,
+ * built together, so Apply writes (and emails every attendee) exactly what
+ * the list shows. A change that can't be written as shown is refused, not
+ * dropped or cut. Never the proposal's descriptionContentType, and only the
+ * fields shown: a location's or meeting link's other sender-written fields
+ * are not taken.
+ */
+function compareProposal(
+  current: Partial<CalendarEvent>,
+  proposed: Partial<CalendarEvent>,
+  formatDateTime: (iso: string | null) => string,
+): ProposalContent {
+  const items: InvitationChangeItem[] = [];
+  const patch: Partial<CalendarEvent> = {};
+  const refused: InvitationChangeItem['label'][] = [];
+
+  // Title.
+  if (typeof proposed.title === 'string' && proposed.title.trim() && proposed.title !== current.title) {
+    const after = flatText(proposed.title, TITLE_MAX);
+    const before = plainDisplayText(current.title, UNCAPPED);
+    if (after === null) refused.push('title');
+    else if (after !== before) {
+      items.push({ label: 'title', before: before || null, after });
+      patch.title = after;
+    }
+  }
+
+  // Time: from exactly the start, zone and duration that would be written; a
+  // proposal without a duration keeps the event's.
+  const timeChanged = (typeof proposed.start === 'string' && proposed.start !== current.start)
+    || (proposed.duration != null && proposed.duration !== current.duration)
+    || (proposed.timeZone ?? null) !== (current.timeZone ?? null)
+    || (proposed.showWithoutTime ?? false) !== (current.showWithoutTime ?? false);
+  if (timeChanged) {
+    const allDay = proposed.showWithoutTime ?? false;
+    const timeZone = proposed.timeZone ?? null;
+    const duration = proposed.duration ?? current.duration;
+    const valid = !!wallClockAsUtc(proposed.start)
+      && (proposed.duration == null || durationMs(proposed.duration) !== null)
+      && (timeZone === null || (typeof timeZone === 'string' && timeZone.length <= 64
+        && !!localDateTimeToInstant(proposed.start as string, timeZone)))
+      // A timed proposal without a zone would make a zoned event floating.
+      && (allDay || timeZone !== null || !current.timeZone);
+    const after = valid ? eventSpan({ start: proposed.start, duration, timeZone, showWithoutTime: allDay }) : null;
+    if (!after) refused.push('time');
+    else {
+      const before = eventSpan(current);
+      if (after.start !== before?.start || after.end !== (before?.end ?? null)) {
+        const schedule = (span: Span) => `${formatDateTime(span.start)}${span.end ? ` - ${formatDateTime(span.end)}` : ''}`;
+        items.push({ label: 'time', before: before ? schedule(before) : null, after: schedule(after) });
+        if (proposed.start !== current.start) patch.start = proposed.start;
+        if (proposed.duration != null && proposed.duration !== current.duration) patch.duration = proposed.duration;
+        if (timeZone !== (current.timeZone ?? null)) patch.timeZone = timeZone;
+        if (allDay !== (current.showWithoutTime ?? false)) patch.showWithoutTime = allDay;
+      }
+    }
+  }
+
+  // Locations: by name. A location the event already has keeps its other
+  // details (the organizer's own); the proposal's are not taken.
+  const locations = namedEntries(proposed.locations, (l) => l.name);
+  if (locations.length > 0 && joinedFlat(locations) !== joinedFlat(namedEntries(current.locations, (l) => l.name))) {
+    const names = locations.map(([id, name]) => [id, flatText(name, TITLE_MAX)] as const);
+    if (names.some(([, name]) => name === null)) refused.push('location');
+    else {
+      items.push({
+        label: 'location',
+        before: joinedFlat(namedEntries(current.locations, (l) => l.name)) || null,
+        after: names.map(([, name]) => name).join('; '),
+      });
+      patch.locations = Object.fromEntries(names.map(([id, name]) => [
+        id,
+        { ...(current.locations?.[id] ?? { '@type': 'Location' as const }), name: name as string },
+      ]));
+    }
+  }
+
+  // Meeting links: another user's URL, mailed to every attendee. Only a web
+  // link written plainly (nothing hidden in it) is taken, and only its URI.
+  const links = namedEntries(proposed.virtualLocations, (v) => v.uri);
+  const linksBefore = namedEntries(current.virtualLocations, (v) => v.uri);
+  if (links.length > 0 && joinedFlat(links) !== joinedFlat(linksBefore)) {
+    const plain = links.every(([, uri]) => uri.length <= URI_MAX && HTTP_URI.test(uri) && plainDisplayText(uri, UNCAPPED) === uri);
+    if (!plain) refused.push('virtual_location');
+    else {
+      items.push({ label: 'virtual_location', before: joinedFlat(linksBefore) || null, after: links.map(([, uri]) => uri).join('; ') });
+      patch.virtualLocations = Object.fromEntries(links.map(([id, uri]) => [id, { '@type': 'VirtualLocation' as const, uri }]));
+    }
+  }
+
+  // Description: plain text on both sides only, and the stored event's type
+  // must be known. An HTML proposal is not ours to flatten, and plain text
+  // written into an HTML description would be read as markup. Line breaks
+  // are kept in what is written; the list shows it on one line. One that
+  // can't be written (or is too long) is listed as not applied, and the rest
+  // of the proposal may still be.
+  if (typeof proposed.description === 'string' && proposed.description.trim()
+    && proposed.description !== (current.description ?? '')) {
+    const stored = descriptionType(current);
+    const written = stored.known && stored.plain && descriptionType(proposed).plain
+      ? plainStoredText(proposed.description, DESCRIPTION_MAX)
+      : null;
+    const beforeWritten = plainStoredText(current.description, UNCAPPED);
+    if (!written) {
+      items.push({
+        label: 'description',
+        before: plainDisplayText(current.description, DESCRIPTION_MAX) || null,
+        after: plainDisplayText(proposed.description, DESCRIPTION_MAX),
+        notApplied: true,
+      });
+    } else if (written !== beforeWritten) {
+      items.push({
+        label: 'description',
+        before: plainDisplayText(current.description, UNCAPPED) || null,
+        after: plainDisplayText(written, UNCAPPED),
+      });
+      patch.description = written;
+    }
+  }
+
+  // The list's order: title, time, location, link, description.
+  const order: InvitationChangeItem['label'][] = ['title', 'time', 'location', 'virtual_location', 'description'];
+  items.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+  return { items, patch, refused };
+}
+
+/**
+ * What applying a counter proposal writes to the stored event, or null when
+ * nothing would change. After webmail calendar-invitation-banner.tsx, but
+ * only what buildInvitationChangeItems shows (see compareProposal).
+ */
+export function buildProposalPatch(
+  current: Partial<CalendarEvent> | null,
+  proposed: Partial<CalendarEvent> | null,
+): Partial<CalendarEvent> | null {
+  if (!current || !proposed) return null;
+  const { patch } = compareProposal(current, proposed, (iso) => iso ?? '');
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
+ * What a counter proposal would change, for the organizer to review, each
+ * before and after. Times go through `formatDateTime` (an ISO instant, a
+ * floating wall clock, or a date).
+ */
+export function buildInvitationChangeItems(
+  current: Partial<CalendarEvent> | null,
+  proposed: Partial<CalendarEvent> | null,
+  formatDateTime: (iso: string | null) => string,
+): InvitationChangeItem[] {
+  if (!current || !proposed) return [];
+  return compareProposal(current, proposed, formatDateTime).items;
+}
+
+// The change-list item each patched key is shown under. A key not listed
+// here is never applied.
+const PATCH_KEY_ITEM: Record<string, InvitationChangeItem['label']> = {
+  title: 'title',
+  description: 'description',
+  start: 'time',
+  duration: 'time',
+  timeZone: 'time',
+  showWithoutTime: 'time',
+  locations: 'location',
+  virtualLocations: 'virtual_location',
+};
+
+/** Whether every key of `patch` is shown by one of `changes`. */
+export function patchIsShown(patch: Partial<CalendarEvent>, changes: readonly InvitationChangeItem[]): boolean {
+  const shown = new Set(changes.filter((c) => !c.notApplied).map((c) => c.label));
+  return Object.keys(patch).every((key) => {
+    const item = PATCH_KEY_ITEM[key];
+    return !!item && shown.has(item);
+  });
+}
+
+// A series, an occurrence of one, or a proposal for one occurrence: the
+// proposal names one occurrence's times, and patching the stored event with
+// them would move the whole series.
+function isRecurring(stored: Partial<CalendarEvent>, proposed?: Partial<CalendarEvent> | null): boolean {
+  return !!(stored.recurrenceRules?.length
+    || (stored.recurrenceOverrides && Object.keys(stored.recurrenceOverrides).length > 0)
+    || stored.recurrenceId
+    || proposed?.recurrenceId
+    || (stored.baseEventId && stored.baseEventId !== (stored.originalId ?? stored.id)));
+}
+
+/**
+ * Whether "Apply proposal" may be offered for this patch: a counter, to its
+ * organizer, for the stored event in the user's own calendar (not a shared
+ * one), not a recurring one, with something to change, all of it in the
+ * change list. Who proposed it is checked by reviewCounterProposal.
+ */
+export function canApplyProposal(args: {
+  method: InvitationMethod;
+  userIsOrganizer: boolean;
+  existing: Partial<CalendarEvent> | null;
+  patch: Partial<CalendarEvent> | null;
+  changes: readonly InvitationChangeItem[];
+  proposed?: Partial<CalendarEvent> | null;
+}): boolean {
+  const { method, userIsOrganizer, existing, patch, changes, proposed } = args;
+  if (method !== 'counter' || !userIsOrganizer || !patch) return false;
+  if (!patchIsShown(patch, changes)) return false;
+  if (!existing?.id || existing.isShared) return false;
+  return !isRecurring(existing, proposed);
+}
+
+/** Why Apply is withheld for a counter the user organizes. */
+export type ProposalHold =
+  /** A series or one occurrence of it: changed in the calendar instead. */
+  | 'recurring'
+  /** The proposal names no attendee at a calendar address. */
+  | 'proposer_unknown'
+  /** The proposer is not an attendee of the stored event. */
+  | 'proposer_not_attendee'
+  /** The message's From is not the proposer. */
+  | 'sender_not_proposer'
+  /** Nothing ties the message to the From domain, or a check failed. */
+  | 'sender_unverified'
+  /** Part of the proposal can't be applied as written. */
+  | 'unsupported'
+  /** Every change listed is marked not applied, so there is nothing to apply. */
+  | 'not_applicable';
+
+export interface CounterProposalReview {
+  changes: InvitationChangeItem[];
+  patch: Partial<CalendarEvent> | null;
+  canApply: boolean;
+  /** Set when there is something to apply but Apply is withheld. */
+  hold: ProposalHold | null;
+  /** The answering attendee, at their calendar address. */
+  proposer: { name: string | null; email: string } | null;
+}
+
+// Who sent the proposal, and whether the message proves it.
+function proposerHold(
+  proposed: Partial<CalendarEvent>,
+  stored: Partial<CalendarEvent>,
+  email: Pick<Email, 'from' | 'replyTo' | 'headers'> | null | undefined,
+  proposerEmail: string | null,
+  userAddresses: readonly string[],
+): ProposalHold | null {
+  if (!proposerEmail) return 'proposer_unknown';
+  if (!isAttendeeOf(stored, proposerEmail)) return 'proposer_not_attendee';
+  // The From itself: a Reply-To is anyone's to set.
+  const from = getPrimaryAddressEmail(email?.from);
+  if (from !== proposerEmail) return 'sender_not_proposer';
+  if (!fromIsAuthenticated(getEmailAuthenticationResults(email), from)) return 'sender_unverified';
+  if (getInvitationTrustAssessment(proposed, email, 'counter', { stored, userAddresses }).level !== 'trusted') {
+    return 'sender_unverified';
+  }
+  return null;
+}
+
+/**
+ * The organizer's review of a counter proposal, and whether Apply is offered:
+ * the change list, the patch (the same values), and the reason Apply is
+ * withheld. Null when there is nothing for the user to review: not a counter,
+ * no stored event, the user doesn't organize it (by `userAddresses`, the
+ * addresses of the account the event lives in), or the proposal is about
+ * another event with the same UID.
+ *
+ * Apply needs, besides canApplyProposal: the answering attendee (at their
+ * calendar address, never EMAIL=) is an attendee of the stored event, the
+ * message's From is that attendee, and the message authenticates the From.
+ */
+export function reviewCounterProposal(args: {
+  method: InvitationMethod;
+  proposed: Partial<CalendarEvent>;
+  stored: Partial<CalendarEvent> | null;
+  userAddresses: readonly string[];
+  email: Pick<Email, 'from' | 'replyTo' | 'headers'> | null | undefined;
+  formatDateTime: (iso: string | null) => string;
+}): CounterProposalReview | null {
+  const { method, proposed, stored, userAddresses, email, formatDateTime } = args;
+  if (method !== 'counter' || !stored || !isUserOrganizer(stored, userAddresses)) return null;
+  if (!isSameInvitationEvent(stored, proposed)) return null;
+  const responder = findRespondingAttendee(proposed);
+  const proposerEmail = responder ? participantCalendarAddress(responder) : null;
+  const proposer = proposerEmail ? { name: responder?.name || null, email: proposerEmail } : null;
+  if (isRecurring(stored, proposed)) {
+    return { changes: [], patch: null, canApply: false, hold: 'recurring', proposer };
+  }
+  const content = compareProposal(stored, proposed, formatDateTime);
+  const patch = Object.keys(content.patch).length > 0 ? content.patch : null;
+  if (content.items.length === 0 && content.refused.length === 0) {
+    return { changes: [], patch: null, canApply: false, hold: null, proposer };
+  }
+  const hold = proposerHold(proposed, stored, email, proposerEmail, userAddresses)
+    ?? (content.refused.length > 0 ? 'unsupported' : null)
+    ?? (patch ? null : 'not_applicable');
+  const canApply = !hold && canApplyProposal({
+    method, userIsOrganizer: true, existing: stored, patch, changes: content.items, proposed,
+  });
+  return { changes: content.items, patch, canApply, hold, proposer };
+}
+
+/**
+ * Whether a review taken again just before sending still matches the one the
+ * organizer confirmed: Apply allowed, and the same changes and patch.
+ */
+export function proposalStillMatches(
+  confirmed: Pick<CounterProposalReview, 'changes' | 'patch'>,
+  fresh: CounterProposalReview | null,
+): boolean {
+  if (!fresh?.canApply || !fresh.patch) return false;
+  return JSON.stringify(fresh.changes) === JSON.stringify(confirmed.changes)
+    && JSON.stringify(fresh.patch) === JSON.stringify(confirmed.patch);
 }

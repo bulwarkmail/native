@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isFromDomainAuthenticated,
   parseAuthenticationResults, parseSpamScore, parseSpamLLM, extractListHeaders,
   isAuthenticationSpoofed, headersToRecord, deriveHeaderInfo, deliveryDeltaMs, formatDelta,
   findReceivingIdentity, getSenderVerification,
@@ -10,7 +11,7 @@ describe('parseAuthenticationResults', () => {
     const r = parseAuthenticationResults(
       'mx.example; spf=pass smtp.mailfrom=news.example; dkim=pass header.d=news.example header.s=s1; dmarc=pass header.from=news.example policy.dmarc=none; iprev=pass policy.iprev=1.2.3.4',
     );
-    expect(r.spf).toEqual({ result: 'pass', domain: 'news.example' });
+    expect(r.spf).toEqual({ result: 'pass', domain: 'news.example', identity: 'mailfrom' });
     expect(r.dkim).toEqual({ result: 'pass', domain: 'news.example', selector: 's1' });
     expect(r.dmarc).toEqual({ result: 'pass', domain: 'news.example', policy: 'none' });
     expect(r.iprev).toEqual({ result: 'pass', ip: '1.2.3.4' });
@@ -270,6 +271,17 @@ describe('getSenderVerification', () => {
     expect(getSenderVerification(auth, 'support@bank.example')?.status).toBe('unverified');
   });
 
+  it('does not take a lone HELO pass for the sender\'s', () => {
+    const auth = parseAuthenticationResults('mx; spf=pass smtp.helo=partner.example');
+    expect(getSenderVerification(auth, 'bob@partner.example')?.status).toBe('unverified');
+  });
+
+  it('takes a DMARC pass only for the From domain, as the invitation banner does', () => {
+    const from = 'support@bank.example';
+    expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=pass header.from=evil.example'), from)?.status).toBe('unverified');
+    expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=pass header.from=mail.bank.example'), from)).toBeNull();
+  });
+
   it('says nothing without results or a From address', () => {
     expect(getSenderVerification(undefined, 'a@b.example')).toBeNull();
     expect(getSenderVerification({}, 'a@b.example')).toBeNull();
@@ -332,5 +344,23 @@ describe('getSenderVerification - sender-written input', () => {
   it('still names the own header\'s envelope host next to a foreign fail', () => {
     const info = derive('mx; spf=none smtp.mailfrom=www-data@web1.hoster.example; dmarc=none', 'forged; spf=fail smtp.mailfrom=x@other.example');
     expect(info.senderVerification?.sentFrom).toBe('web1.hoster.example');
+  });
+});
+
+describe('isFromDomainAuthenticated', () => {
+  const auth = (value: string) => parseAuthenticationResults(value);
+  it('takes a DMARC pass, or an SPF or DKIM pass aligned with the From domain', () => {
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=example.com'), 'a@example.com')).toBe(true);
+    expect(isFromDomainAuthenticated(auth('mx; dkim=pass header.d=mail.example.com'), 'a@example.com')).toBe(true);
+    expect(isFromDomainAuthenticated(auth('mx; spf=pass smtp.mailfrom=bounce@example.com'), 'a@example.com')).toBe(true);
+  });
+  it('never reads a missing result, an unparsable domain or another domain\'s pass as a yes', () => {
+    expect(isFromDomainAuthenticated(null, 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dkim=pass header.d=evil.example'), 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; spf=none; dkim=none; dmarc=none'), 'ian@intranet')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=intranet'), 'ian@intranet')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=evil.example'), 'a@example.com')).toBe(false);
+    // A HELO pass says nothing about the author.
+    expect(isFromDomainAuthenticated(auth('mx; spf=pass smtp.helo=partner.example'), 'bob@partner.example')).toBe(false);
   });
 });

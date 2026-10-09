@@ -50,26 +50,43 @@
     },
     "invitation": {
       "accept": "Yes",
+      "actor_sent_from": "(sent from {address})",
       "add_error": "Could not add the event",
       "add_to_calendar": "Add to calendar",
       "added": "Added to calendar",
       "already_in_calendar": "Already in your calendar",
+      "apply_confirm_message": "Every attendee will be sent the updated event. This can't be undone.",
+      "apply_confirm_not_applied": "Changes marked \"not applied\" are left as they are.",
+      "apply_confirm_proposer": "Proposed by {name}.",
+      "apply_confirm_title": "Apply the proposed changes?",
       "cancelled": "This event was cancelled",
+      "change_not_applied": "(not applied: it can't be changed safely here)",
+      "change_virtual_location": "Meeting link",
       "decline": "No",
       "join_video": "Join video call",
       "no_writable_calendar": "No writable calendar available",
       "organizer": "Organizer",
+      "proposal_not_applicable": "None of these changes can be applied here. Change the event in the calendar.",
+      "proposal_not_attendee": "This proposal does not come from an attendee of your event, so it can't be applied here.",
+      "proposal_recurring": "This proposal is for a repeating event. Change it in the calendar.",
+      "proposal_sender_mismatch": "This message was not sent by the attendee who proposed the changes, so they can't be applied here.",
+      "proposal_unsupported": "Part of this proposal can't be applied as written. Change the event in the calendar.",
+      "proposal_unverified": "The sender of this proposal could not be verified, so it can't be applied here.",
       "reading": "Reading invitation…",
       "reply": "A participant replied to this invitation",
       "response_error": "Could not send your response",
       "response_sent": "Response sent",
       "tentative": "Maybe",
       "title": "Calendar invitation",
+      "trust_attendee_mismatch": "The sender differs from the attendee who answered.",
+      "trust_attendee_mismatch_unverified": "The sender does not match the attendee who answered and the message is not authenticated.",
       "trust_authentication_failed": "This message failed sender authentication (SPF/DKIM/DMARC).",
       "trust_authentication_missing": "The sender could not be verified.",
+      "trust_responder_not_on_event": "This answers an event you don't organize, or comes from someone who isn't on it.",
       "trust_sender_mismatch": "The sender differs from the event organizer.",
       "trust_sender_mismatch_unverified": "The sender does not match the organizer and the message is not authenticated.",
-      "trust_verified": "Sender verified"
+      "trust_verified": "Sender verified",
+      "uid_conflict": "Another event in your calendar has this invitation's ID but a different organizer, so this invitation can't be answered or added."
     },
     "management": {
       "clear_confirm": "Remove all",
@@ -940,9 +957,12 @@
     "folders": {
       "account": "Account",
       "cannot_delete": "Cannot delete",
-      "description_mobile": "Create, rename, move and delete folders. Long-press a folder in the drawer for quick actions.",
+      "default_icon": "Default icon",
+      "description_mobile_reorder": "Create, rename, move and delete folders, or tap Reorder to change their order. Long-press a folder in the drawer for quick actions.",
       "edit_folder": "Edit \"{name}\"",
       "folder_name": "Folder name",
+      "move_folder_down": "Move {name} down",
+      "move_folder_up": "Move {name} up",
       "move_under": "Move under",
       "name_placeholder": "Receipts",
       "name_required": "Name required",
@@ -951,9 +971,11 @@
       "not_empty_title": "Folder not empty",
       "own_account": "My folders",
       "parent_folder": "Parent folder",
+      "reorder_mode": "Reorder",
       "role": "Special use",
       "role_hint": "Assign a special-use role (Archive, Junk, …) to this folder. Each role can be held by one folder.",
       "save_failed": "Save failed",
+      "share_save_first": "Save your changes to share this folder.",
       "system_folder_delete": "System folders cannot be removed.",
       "system_folder_rename": "System folders cannot be renamed.",
       "top_level": "Top level"
@@ -990,6 +1012,7 @@
         "progress": "Scanned {scanned} of {total} messages…",
         "scan": "Find tags in mailbox"
       },
+      "label_in_use": "Another tag already has this name.",
       "reset_confirm": "Replace your tag list with the default tags? Tags already set on messages stay on the server.",
       "reset_defaults": "Reset to Defaults"
     },
@@ -1277,8 +1300,18 @@
       }
     }
   },
+  "share_notifications": {
+    "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}"
+  },
   "sharing": {
+    "confirm_manager_title": "Make them a manager?",
+    "connection_changed": "The connection changed. Try again.",
+    "folder_owner_unknown": "Could not tell whose folder this is, so it can't be shared.",
+    "folder_share_forbidden": "You don't have permission to share this folder",
     "own_books_only": "Only your own address books can be shared",
+    "preset": {
+      "manager_mailbox_hint": "Can also send as this folder's owner, delete it and share it again"
+    },
     "share_unconfirmed": "The server did not confirm the share update"
   },
   "sidebar": {

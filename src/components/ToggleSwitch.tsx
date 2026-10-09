@@ -2,6 +2,8 @@ import React from 'react';
 import { Pressable, View, StyleSheet } from 'react-native';
 import { radius, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { isLayoutRTL } from '../i18n';
+import { toggleThumbX } from '../lib/rtl-layout';
 
 interface ToggleSwitchProps {
   value: boolean;
@@ -36,7 +38,8 @@ export default function ToggleSwitch({ value, onValueChange, disabled = false, a
       <View
         style={[
           styles.thumb,
-          { transform: [{ translateX: value ? 24 : 4 }] },
+          // translateX is physical; the thumb's resting edge flips in RTL.
+          { transform: [{ translateX: toggleThumbX(value, isLayoutRTL()) }] },
         ]}
       />
     </Pressable>

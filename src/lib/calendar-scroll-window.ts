@@ -1,13 +1,6 @@
-import {
-  addDays,
-  endOfMonth,
-  endOfWeek,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subDays,
-} from 'date-fns';
+import { addDays, endOfWeek, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { dayKey } from './calendar-utils';
+import { GREGORIAN, type CalendarSystem } from './calendar-system';
 
 /**
  * The calendar views scroll freely (#759; webmail lib/calendar-scroll-window):
@@ -50,6 +43,8 @@ export interface CalendarFocus {
 
 export interface ScrollWindowOptions {
   weekStartsOn: WeekStartsOn;
+  /** The calendar months are laid out in; Gregorian when left out. */
+  calendar?: CalendarSystem;
 }
 
 /** First growth step in days; every further step doubles the side. */
@@ -113,11 +108,13 @@ export function baseRange(mode: ScrollViewMode, date: Date, opts: ScrollWindowOp
         start: startOfWeek(day, { weekStartsOn: opts.weekStartsOn }),
         end: startOfDay(endOfWeek(day, { weekStartsOn: opts.weekStartsOn })),
       };
-    case 'month':
+    case 'month': {
+      const calendar = opts.calendar ?? GREGORIAN;
       return {
-        start: startOfWeek(startOfMonth(day), { weekStartsOn: opts.weekStartsOn }),
-        end: startOfDay(endOfWeek(endOfMonth(day), { weekStartsOn: opts.weekStartsOn })),
+        start: startOfWeek(calendar.monthStart(day), { weekStartsOn: opts.weekStartsOn }),
+        end: startOfDay(endOfWeek(calendar.monthEnd(day), { weekStartsOn: opts.weekStartsOn })),
       };
+    }
     case 'agenda':
       return { start: day, end: addDays(day, SCROLL_WINDOW_STEP) };
   }
@@ -177,7 +174,9 @@ export function scrollWindowContains(
 /**
  * Where a navigation to `date` leaves the window: unchanged when the target
  * is already inside it (the view just scrolls there), otherwise a fresh
- * window at the target.
+ * window at the target. A grid target also needs a row of room above it
+ * while the window can still grow: scrolled to row 0, the list reaches its
+ * start edge and prepends rows while it is still settling on the target.
  */
 export function windowStateForJump(
   state: ScrollWindowState,
@@ -187,9 +186,13 @@ export function windowStateForJump(
 ): ScrollWindowState {
   const current = normalizeScrollWindowState(state, mode, date);
   const loaded = computeScrollWindow(current, opts);
-  return scrollWindowContains(loaded, mode, date, opts)
-    ? current
-    : freshScrollWindowState(mode, date);
+  if (!scrollWindowContains(loaded, mode, date, opts)) return freshScrollWindowState(mode, date);
+  const grid = mode === 'month' || mode === 'week';
+  if (grid && loaded.canExtendStart
+    && subDays(baseRange(mode, date, opts).start, 7).getTime() < loaded.start.getTime()) {
+    return freshScrollWindowState(mode, date);
+  }
+  return current;
 }
 
 /**

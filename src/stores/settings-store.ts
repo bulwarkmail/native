@@ -149,6 +149,10 @@ interface PersistedSettings {
   // logged-in account (parity with the webmail `includeGroupInUnified` setting).
   includeGroupInUnified: boolean;
 
+  // Tags: nest tags under other tags and show them as a tree (webmail
+  // `nestedTags`, off by default there too).
+  nestedTags: boolean;
+
   // Contacts
   groupContactsByLetter: boolean;
   // Sort (and group) the contact list by surname instead of given name so
@@ -210,6 +214,9 @@ interface PersistedSettings {
   showAvatarsInJunk: boolean;
   // Show the "/ total" part of the folder counts in the drawer (#498).
   showFolderTotalCount: boolean;
+  // Tint the drawer's role icons (blue Inbox, red Junk…); off gives a
+  // monochrome drawer. Same key and default as the webmail.
+  colorfulSidebarIcons: boolean;
   // Opening a folder drops an active search and filters and browses it,
   // instead of re-running the search there (#553, the default).
   clearSearchOnFolderChange: boolean;
@@ -347,6 +354,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   senderFavicons: true,
   hideInlineImageAttachments: true,
 
+  nestedTags: false,
+
   groupContactsByLetter: true,
   sortContactsByLastName: false,
 
@@ -414,6 +423,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   messageListOrderScope: 'inbox',
   showAvatarsInJunk: false,
   showFolderTotalCount: true,
+  colorfulSidebarIcons: true,
   clearSearchOnFolderChange: false,
   restoreLastFolder: false,
   unifiedCrossAccount: false,
@@ -637,7 +647,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   swipeMode: oneOf(['instant', 'reveal']),
   archiveMode: oneOf(['single', 'year', 'month']),
   calendarDefaultView: oneOf(['month', 'week', 'day', 'agenda']),
-  calendarFirstDayOfWeek: oneOf([0, 1]),
+  calendarFirstDayOfWeek: oneOf([0, 1, 6]),
   calendarTimeFormat: oneOf(['12h', '24h']),
   calendarHoverPreview: oneOf(['instant', 'delay-500ms', 'delay-1s', 'delay-2s', 'off']),
   calendarDayStartHour: intBetween(0, 23),

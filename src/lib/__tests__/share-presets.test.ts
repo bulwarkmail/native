@@ -3,6 +3,7 @@ import {
   ADDRESS_BOOK_PRESETS,
   CALENDAR_PRESETS,
   detectPreset,
+  MAILBOX_PRESETS,
   presetOrder,
 } from '../share-presets';
 
@@ -62,4 +63,39 @@ describe('share presets', () => {
     expect(detectPreset('addressBook', { mayRead: true, mayWrite: true })).toBe('readWrite');
     expect(detectPreset('calendar', { mayReadFreeBusy: true })).toBe('freeBusy');
   });
+
+  it('offers webmail\'s three folder presets and detects them', () => {
+    expect(MAILBOX_PRESETS).toEqual({
+      read: {
+        mayReadItems: true, mayAddItems: false, mayRemoveItems: false, maySetSeen: true,
+        maySetKeywords: false, mayCreateChild: false, mayRename: false, mayDelete: false,
+        maySubmit: false, mayShare: false,
+      },
+      readWrite: {
+        mayReadItems: true, mayAddItems: true, mayRemoveItems: true, maySetSeen: true,
+        maySetKeywords: true, mayCreateChild: false, mayRename: false, mayDelete: false,
+        maySubmit: false, mayShare: false,
+      },
+      manager: {
+        mayReadItems: true, mayAddItems: true, mayRemoveItems: true, maySetSeen: true,
+        maySetKeywords: true, mayCreateChild: true, mayRename: true, mayDelete: true,
+        maySubmit: true, mayShare: true,
+      },
+    });
+    expect(presetOrder('mailbox')).toEqual(['read', 'readWrite', 'manager']);
+    for (const p of presetOrder('mailbox')) {
+      expect(detectPreset('mailbox', MAILBOX_PRESETS[p as 'read'])).toBe(p);
+    }
+    // Stalwart stores maySetSeen and maySetKeywords as one right, so a
+    // "Read only" grant reads back with maySetKeywords set: still 'read'.
+    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, maySetKeywords: true })).toBe('read');
+    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, mayRename: true })).toBe('custom');
+    // Without maySetSeen, maySetKeywords is not implied.
+    expect(detectPreset('mailbox', { ...MAILBOX_PRESETS.read, maySetSeen: false, maySetKeywords: true }))
+      .toBe('custom');
+    // A server that leaves mayShare out still reads as the preset.
+    const { mayShare: _omit, ...readWithoutShare } = MAILBOX_PRESETS.read;
+    expect(detectPreset('mailbox', readWithoutShare)).toBe('read');
+  });
 });
+

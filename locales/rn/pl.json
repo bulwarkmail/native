@@ -807,7 +807,6 @@
     "folders": {
       "account": "Konto",
       "cannot_delete": "Nie można usunąć",
-      "description_mobile": "Twórz, zmieniaj nazwy, przenoś i usuwaj foldery. Przytrzymaj folder w panelu bocznym, aby wyświetlić szybkie akcje.",
       "edit_folder": "Edytuj „{name}”",
       "folder_name": "Nazwa folderu",
       "move_under": "Folder nadrzędny",

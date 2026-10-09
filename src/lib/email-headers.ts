@@ -47,7 +47,14 @@ export interface DkimEntry {
 }
 
 export interface AuthenticationResults {
-  spf?: { result: SpfResult; domain?: string; foreign?: true; all?: SpfEntry[] };
+  spf?: {
+    result: SpfResult;
+    domain?: string;
+    /** Which identity the headline result is for, when the header says. */
+    identity?: SpfEntry['identity'];
+    foreign?: true;
+    all?: SpfEntry[];
+  };
   dkim?: {
     result: DkimResult;
     domain?: string;
@@ -166,21 +173,48 @@ export function getSenderVerification(
   // The host named comes from the server's own header only: a lower one is
   // the sender's to write.
   const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
-  const spfPass = auth.spf?.all ? mailFrom?.result === 'pass' : auth.spf?.result === 'pass';
   const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
   const envelopeDomain = envelope ? domainOf(envelope) : undefined;
   const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
 
   if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
-  if (auth.dmarc?.result === 'pass') return null;
   // A pass vouches for the From domain only when it is for that domain (or a
-  // parent or subdomain of it): anyone can pass SPF and DKIM for a domain of
-  // their own, and with no DMARC record at the forged one nothing else would
-  // flag it. Stricter than webmail, which takes any pass (decision
-  // 2026-10-08).
-  if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return null;
-  if (hasAlignedDkimPass(auth, domain)) return null;
+  // parent or subdomain of it): anyone can pass SPF, DKIM and DMARC for a
+  // domain of their own, and with no DMARC record at the forged one nothing
+  // else would flag it. Stricter than webmail, which takes any pass
+  // (decision 2026-10-08). The same test as the invitation banner's, so the
+  // two never disagree about one message.
+  if (isFromDomainAuthenticated(auth, fromEmail)) return null;
   return { status: 'unverified', domain, sentFrom };
+}
+
+/**
+ * Whether the receiving server's checks positively tie the message to its
+ * From domain: the domain parses, nothing reads as spoofed, and there is a
+ * DMARC pass for that domain or an SPF (MAIL FROM) or DKIM pass aligned with
+ * it. Unlike getSenderVerification, no result, an unparsable domain or a
+ * pass for another domain is never a yes.
+ */
+export function isFromDomainAuthenticated(
+  auth: AuthenticationResults | null | undefined,
+  fromEmail: string | null | undefined,
+): boolean {
+  if (!auth || !fromEmail) return false;
+  const domain = domainOf(fromEmail);
+  if (!domain || isAuthenticationSpoofed(auth)) return false;
+  if (auth.dmarc?.result === 'pass') {
+    const dmarcDomain = auth.dmarc.domain ? domainOf(`@${auth.dmarc.domain}`) : undefined;
+    if (!auth.dmarc.domain || (dmarcDomain && domainsAlign(dmarcDomain, domain))) return true;
+  }
+  const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
+  // Only a MAIL FROM pass: a HELO pass proves nothing about who wrote it.
+  const spfPass = auth.spf?.all
+    ? mailFrom?.result === 'pass'
+    : (auth.spf?.result === 'pass' && auth.spf.identity === 'mailfrom' && !auth.spf.foreign);
+  const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
+  const envelopeDomain = envelope ? domainOf(envelope) : undefined;
+  if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return true;
+  return hasAlignedDkimPass(auth, domain);
 }
 
 function domainsAlign(a: string, b: string): boolean {
@@ -341,6 +375,7 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     results.spf = {
       result: primary.result,
       domain: primary.domain,
+      ...(primary.identity ? { identity: primary.identity } : {}),
       ...(primary.foreign ? { foreign: true as const } : {}),
       ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };

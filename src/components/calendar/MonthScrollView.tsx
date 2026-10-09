@@ -96,12 +96,12 @@ function MonthScrollViewInner({
   onLongPressDate,
 }: MonthScrollViewProps) {
   const styles = useMonthStyles();
-  const { locale } = useCalendarLocale();
+  const { locale, calendar } = useCalendarLocale();
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
     [eventsByDay, events],
   );
-  const opts = React.useMemo(() => ({ weekStartsOn }), [weekStartsOn]);
+  const opts = React.useMemo(() => ({ weekStartsOn, calendar }), [weekStartsOn, calendar]);
 
   // One row per week of the window. A week keeps its array across window
   // changes, so growing the window doesn't re-render the rows already there.
@@ -125,7 +125,7 @@ function MonthScrollViewInner({
 
   // The month in focus: set by navigation, then by what scrolls under the
   // sample line.
-  const [activeMonth, setActiveMonth] = React.useState(() => monthKeyOf(focus.date));
+  const [activeMonth, setActiveMonth] = React.useState(() => monthKeyOf(focus.date, calendar));
   const activeMonthRef = React.useRef(activeMonth);
   const onVisibleRef = React.useRef(onVisibleDateChange);
   onVisibleRef.current = onVisibleDateChange;
@@ -133,6 +133,22 @@ function MonthScrollViewInner({
   // Row at the top of the viewport; a change of row height (the "show time"
   // setting) remounts the list there.
   const topRowRef = React.useRef<number | null>(null);
+  // Switching the app language between Persian and another changes how
+  // months are keyed; re-key the month in focus in the new calendar. Only a
+  // calendar change runs it: the rest is read as it is then.
+  const calendarRef = React.useRef(calendar);
+  const rekeyRef = React.useRef({ focusDate: focus.date, viewportHeight, rowHeight });
+  rekeyRef.current = { focusDate: focus.date, viewportHeight, rowHeight };
+  React.useEffect(() => {
+    if (calendarRef.current === calendar) return;
+    calendarRef.current = calendar;
+    const { focusDate, viewportHeight: height, rowHeight: row } = rekeyRef.current;
+    const list = weeksRef.current;
+    const days = list[sampledRow(offsetRef.current, height, row, list.length)];
+    const key = monthKeyOf(days ? days[3] : focusDate, calendar);
+    activeMonthRef.current = key;
+    setActiveMonth(key);
+  }, [calendar]);
 
   const handleScroll = React.useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -145,13 +161,13 @@ function MonthScrollViewInner({
       if (!days) return;
       // Mid-week decides which month a row belongs to.
       const mid = days[3];
-      const key = monthKeyOf(mid);
+      const key = monthKeyOf(mid, calendar);
       if (key === activeMonthRef.current) return;
       activeMonthRef.current = key;
       setActiveMonth(key);
       onVisibleRef.current?.(mid);
     },
-    [viewportHeight, rowHeight],
+    [viewportHeight, rowHeight, calendar],
   );
 
   // Navigation inside the window scrolls the focused month's first week to
@@ -170,14 +186,14 @@ function MonthScrollViewInner({
     handledNonceRef.current = focus.nonce;
     const row = monthFocusRow(window, focus.date, weeks.length, opts);
     const currentRow = Math.round(offsetRef.current / rowHeight);
-    const key = monthKeyOf(focus.date);
+    const key = monthKeyOf(focus.date, calendar);
     activeMonthRef.current = key;
     setActiveMonth(key);
     listRef.current?.scrollToIndex({
       index: row,
       animated: Math.abs(row - currentRow) <= SMOOTH_SCROLL_ROWS,
     });
-  }, [focus, window, weeks.length, opts, rowHeight]);
+  }, [focus, window, weeks.length, opts, rowHeight, calendar]);
 
   const selectedKey = dayKey(selectedDate);
   // Today on a clock in the calendar's time zone.
@@ -188,7 +204,7 @@ function MonthScrollViewInner({
       return (
         <MonthWeekRow
           days={days}
-          activeMask={monthMask(days, activeMonth)}
+          activeMask={monthMask(days, activeMonth, calendar)}
           selectedIndex={dayIndexIn(days, selectedDate)}
           todayIndex={dayIndexIn(days, displayNow())}
           index={index}
@@ -210,6 +226,7 @@ function MonthScrollViewInner({
     },
     [
       activeMonth,
+      calendar,
       selectedDate,
       index,
       calendars,

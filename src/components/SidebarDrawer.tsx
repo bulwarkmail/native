@@ -5,14 +5,16 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isLayoutRTL } from '../i18n';
+import { drawerClosedX, drawerSafeEdges } from '../lib/rtl-layout';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search, Globe,
-  type LucideIcon,
+  MoreHorizontal, Share2, type LucideIcon,
 } from 'lucide-react-native';
-import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
 import { useEmailStore, spannedAccounts, requireShownAccountScope, emptyFolder } from '../stores/email-store';
@@ -21,6 +23,9 @@ import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { planEmptyFolder } from '../lib/empty-folder';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
+import { useFolderIconsStore, folderIconOf } from '../stores/folder-icons-store';
+import { roleIconColor } from '../lib/sidebar-icon-color';
+import { folderIconComponent } from './folder-icon';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
 import { queuedSendCount } from '../lib/outbox-rows';
@@ -39,15 +44,16 @@ import {
 } from '../api/email';
 import { inAccount, type OpScope } from '../api/op-scope';
 import { isStaleLoad } from '../lib/network-error';
-import { useTagCountsStore } from '../stores/tag-counts-store';
+import { useTagCountsStore, tagCountsFor } from '../stores/tag-counts-store';
+import { tagRows } from '../lib/tag-rows';
 import { trashAndJunkIds } from '../lib/search-scope';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import type { Mailbox } from '../api/types';
+import { MailboxShareSheet, canOfferMailboxShare } from './MailboxShareSheet';
 
 const CHEVRON_SLOT = 20;
-const INDENT_STEP = 12;
 const ROW_PX_BASE = 8;
 
 const STORAGE_KEYS = {
@@ -98,26 +104,6 @@ function iconFor(
   if (lower.includes('star') || lower.includes('flag')) return Star;
   if (hasChildren) return isExpanded ? FolderOpen : Folder;
   return Folder;
-}
-
-const ROLE_COLOR_FIXED: Record<string, string> = {
-  inbox: '#60a5fa',
-  sent: '#4ade80',
-  drafts: '#a78bfa',
-  junk: '#f87171',
-  spam: '#f87171',
-  archive: '#fbbf24',
-  important: '#f97316',
-  flagged: '#f59e0b',
-  scheduled: '#38bdf8',
-  snoozed: '#c084fc',
-  memos: '#fbbf24',
-};
-
-function iconColor(c: ThemePalette, role: string | null | undefined, isSelected: boolean): string {
-  if (role === 'trash') return c.textMuted;
-  if (role && ROLE_COLOR_FIXED[role]) return ROLE_COLOR_FIXED[role];
-  return isSelected ? c.text : c.textSecondary;
 }
 
 function RowCounts({ unread, total, showTotal, onPressUnread }: {
@@ -175,7 +161,7 @@ function SidebarRow({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
+  const leftPad = ROW_PX_BASE + depth * componentSizes.treeIndent;
   return (
     <Pressable
       onPress={onPress}
@@ -335,6 +321,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const accounts = useAccountStore((s) => s.accounts);
   const setDefaultAccount = useAccountStore((s) => s.setDefaultAccount);
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
+  const colorfulSidebarIcons = useSettingsStore((s) => s.colorfulSidebarIcons);
+  const folderIcons = useFolderIconsStore((s) => s.icons);
+  const folderIconsHydrated = useFolderIconsStore((s) => s.hydrated);
+  const hydrateFolderIcons = useFolderIconsStore((s) => s.hydrate);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
@@ -345,19 +335,24 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const [foldersExpanded, setFoldersExpanded] = React.useState(true);
   const [tagsExpanded, setTagsExpanded] = React.useState(true);
+  // The tags section's "Show all", which lists the tags set to hide too.
+  const [showAllTags, setShowAllTags] = React.useState(false);
   const [unifiedExpanded, setUnifiedExpanded] = React.useState(false);
   const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(() => new Set());
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
   const [sheet, setSheet] = React.useState<{ title: string; actions: SheetAction[] } | null>(null);
+  // The folder whose share sheet is open, and the app account it was listed under.
+  const [sharing, setSharing] = React.useState<{ mailbox: Mailbox; owner: string | null } | null>(null);
   const [prompt, setPrompt] = React.useState<{
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const tagCounts = useTagCountsStore((s) => s.counts);
+  const tagCounts = useTagCountsStore((s) => tagCountsFor(s, activeAccountId));
   const tagCountsGeneration = useTagCountsStore((s) => s.generation);
   const ensureTagCounts = useTagCountsStore((s) => s.ensure);
 
   React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
+  React.useEffect(() => { if (!folderIconsHydrated) void hydrateFolderIcons(); }, [folderIconsHydrated, hydrateFolderIcons]);
 
   React.useEffect(() => {
     void (async () => {
@@ -625,6 +620,17 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         }),
       });
     }
+    // Shared out on its own account (the owner's for a folder shared with the
+    // user, which only a grantee allowed to re-share may do), and only while
+    // `owner` is the account shown and served.
+    if (canOfferMailboxShare(mb, owner)) {
+      actions.push({
+        key: 'share',
+        label: t('mailbox_context_menu.share', 'Share...'),
+        icon: Share2,
+        onPress: () => setSharing({ mailbox: mb, owner }),
+      });
+    }
     if (!mb.role && mb.myRights?.mayDelete !== false) {
       actions.push({
         key: 'delete',
@@ -644,6 +650,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 owner,
                 async (at) => {
                   await deleteMailbox(ref.id, inAccount(at, ref.accountId), { onDestroyRemoveEmails: mb.totalEmails > 0 });
+                  // Icons are set only on own folders, under the account that owns them.
+                  if (!mb.isShared && owner) useFolderIconsStore.getState().setIcon(owner, mb.id, null);
                   if (currentMailboxId === mb.id) {
                     const inbox = ownMailboxes(mailboxes).find((m) => m.role === 'inbox');
                     if (inbox) void selectMailbox(inbox.id);
@@ -737,7 +745,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const unifiedIcon = (role: UnifiedRole): LucideIcon => iconFor(role, undefined, false, false);
 
-  const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const slideX = React.useRef(new Animated.Value(drawerClosedX(Dimensions.get('window').width, isLayoutRTL()))).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const openDuration = useAnimDuration(240);
   const closeDuration = useAnimDuration(200);
@@ -759,7 +767,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       runOpen();
     } else {
       Animated.parallel([
-        Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: closeDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(slideX, { toValue: drawerClosedX(Dimensions.get('window').width, isLayoutRTL()), duration: closeDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlayOpacity, { toValue: 0, duration: closeDuration, useNativeDriver: true }),
       ]).start();
     }
@@ -794,6 +802,16 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   };
 
   const tagViewActive = !!filters.keyword;
+  const nestedTags = useSettingsStore((s) => s.nestedTags);
+  const selectedTagId = filters.keyword
+    ? keywordDefs.find((kw) => keywordToken(kw.id) === filters.keyword)?.id ?? null
+    : null;
+  const tagList = React.useMemo(
+    () => tagRows(keywordDefs, {
+      nested: nestedTags, counts: tagCounts, selectedId: selectedTagId, showAll: showAllTags, applyVisibility: true,
+    }),
+    [keywordDefs, nestedTags, tagCounts, selectedTagId, showAllTags],
+  );
 
   return (
     <Modal
@@ -809,7 +827,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       </Animated.View>
 
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <SafeAreaView style={styles.drawerSafe} edges={drawerSafeEdges(isLayoutRTL())}>
           {/* Header: close + account switcher */}
           <View style={styles.header}>
             <Pressable
@@ -1088,7 +1106,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       return (
                         <SidebarRow
                           key={r.role}
-                          icon={<Icon size={16} color={iconColor(c, r.role, false)} />}
+                          icon={<Icon size={16} color={roleIconColor(r.role, false, colorfulSidebarIcons, c)} />}
                           label={t(`sidebar.unified_${r.role}`, `All ${r.role}`)}
                           depth={0}
                           isSelected={false}
@@ -1133,11 +1151,18 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 visibleNodes.map((node) => {
                   const hasChildren = node.children.length > 0;
                   const isExpanded = expandedFolders.has(node.id);
+                  // A custom icon (Settings → Folders) is set only on own
+                  // folders, under the account whose folders are listed.
+                  const customIcon = node.isAccountNode || node.isShared
+                    ? undefined
+                    : folderIconOf({ icons: folderIcons }, shownAccountId, node.id);
                   // A shared/group account's header has no mailbox behind it —
                   // tapping it only opens or closes that account's folders.
                   const Icon = node.isAccountNode
                     ? Users
-                    : iconFor(node.role, node.name, hasChildren, isExpanded);
+                    : customIcon
+                      ? folderIconComponent(customIcon)
+                      : iconFor(node.role, node.name, hasChildren, isExpanded);
                   const isSelected = !node.isAccountNode && !tagViewActive && node.id === currentMailboxId;
                   return (
                     <SidebarRow
@@ -1145,7 +1170,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       icon={
                         <Icon
                           size={16}
-                          color={node.isAccountNode ? c.textMuted : iconColor(c, node.role, isSelected)}
+                          color={node.isAccountNode ? c.textMuted : roleIconColor(node.role, isSelected, colorfulSidebarIcons, c)}
                         />
                       }
                       label={node.isAccountNode ? node.name : localizeMailboxName(node.role, node.name, t)}
@@ -1186,16 +1211,20 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   )}
                   <Text style={styles.sectionHeaderText}>{t('sidebar.tags', 'Tags')}</Text>
                 </Pressable>
-                {tagsExpanded && keywordDefs.map((kw) => {
+                {tagsExpanded && tagList.rows.map(({ def: kw, depth }) => {
                   const counts = tagCounts[kw.id];
-                  const isSelected = filters.keyword === keywordToken(kw.id);
+                  const isSelected = kw.id === selectedTagId;
                   const dot = c.tags[kw.color]?.dot ?? c.textMuted;
                   return (
                     <SidebarRow
                       key={kw.id}
-                      icon={<Tag size={16} color={dot} fill={dot} />}
+                      // With colourful icons off a tag keeps its colour as a
+                      // small dot, as in the webmail.
+                      icon={colorfulSidebarIcons
+                        ? <Tag size={16} color={dot} fill={dot} />
+                        : <View style={[styles.tagDot, { backgroundColor: dot }]} />}
                       label={kw.label}
-                      depth={0}
+                      depth={depth}
                       isSelected={isSelected}
                       unread={counts?.unread ?? 0}
                       total={counts?.total ?? 0}
@@ -1207,6 +1236,23 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     />
                   );
                 })}
+                {tagsExpanded && (tagList.hiddenCount > 0 || showAllTags) && (
+                  <SidebarRow
+                    icon={<MoreHorizontal size={16} color={c.textMuted} />}
+                    label={showAllTags
+                      ? t('sidebar.show_fewer_tags', 'Show less')
+                      : t('sidebar.show_all_tags', 'Show all ({count})', { count: tagList.hiddenCount })}
+                    depth={0}
+                    isSelected={false}
+                    unread={0}
+                    total={0}
+                    showTotal={false}
+                    hasChildren={false}
+                    isExpanded={false}
+                    onPress={() => setShowAllTags((prev) => !prev)}
+                    onToggleExpand={() => {}}
+                  />
+                )}
               </>
             )}
             {/* Sidebar apps: web links only, opened in a Custom Tab */}
@@ -1234,6 +1280,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       </Animated.View>
 
       {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
+      <MailboxShareSheet
+        mailbox={sharing?.mailbox ?? null}
+        ownerAppAccountId={sharing?.owner ?? null}
+        onClose={() => setSharing(null)}
+      />
       {prompt && (
         <NamePrompt
           title={prompt.title}
@@ -1250,6 +1301,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
+  tagDot: { width: 10, height: 10, borderRadius: 5, margin: 3 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',

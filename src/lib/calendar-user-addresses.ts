@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAccountStore } from '../stores/account-store';
-import { useSettingsStore } from '../stores/settings-store';
+import { identityScope, useSettingsStore } from '../stores/settings-store';
 import { jmapClient } from '../api/jmap-client';
 import { fetchPrincipal } from '../api/account-security';
 import { collectUserCalendarAddresses } from './calendar-participants';
@@ -8,28 +8,32 @@ import { useCalendarStore } from '../stores/calendar-store';
 
 // Account aliases come from x:Account/get (Stalwart's principal object) and
 // only change when an admin edits the account, so they're fetched once per
-// JMAP account and remembered for the session, and only by a view that needs
+// signed-in account (server, login and JMAP id: two servers hand out the same
+// JMAP ids) and remembered for the session, and only by a view that needs
 // them. Failure (older server, no permission: only admins may read it) simply
 // leaves the list at login address + identities.
 const aliasCache = new Map<string, string[]>();
 const aliasInFlight = new Map<string, Promise<string[]>>();
 const aliasListeners = new Set<() => void>();
+const NO_IDENTITIES: never[] = [];
+// One empty list, so a caller memoizing on the result isn't redone each render.
+const NO_ADDRESSES: string[] = [];
 
-function fetchAliases(accountId: string): Promise<string[]> {
-  const cached = aliasCache.get(accountId);
+function fetchAliases(scope: string): Promise<string[]> {
+  const cached = aliasCache.get(scope);
   if (cached) return Promise.resolve(cached);
-  const pending = aliasInFlight.get(accountId);
+  const pending = aliasInFlight.get(scope);
   if (pending) return pending;
   const p = fetchPrincipal()
     .then((info) => info.emails)
     .catch(() => [] as string[])
     .then((emails) => {
-      aliasCache.set(accountId, emails);
-      aliasInFlight.delete(accountId);
+      aliasCache.set(scope, emails);
+      aliasInFlight.delete(scope);
       for (const l of aliasListeners) l();
       return emails;
     });
-  aliasInFlight.set(accountId, p);
+  aliasInFlight.set(scope, p);
   return p;
 }
 
@@ -56,20 +60,24 @@ export function resetUserCalendarAddressCache(): void {
  */
 export function useUserCalendarAddresses(loadAliases = true): string[] {
   const activeEmail = useAccountStore((s) => s.getActiveAccount()?.email ?? null);
-  const identities = useSettingsStore((s) => s.identities);
+  const heldIdentities = useSettingsStore((s) => s.identities);
+  const identitiesFor = useSettingsStore((s) => s.identitiesFor);
   const [, bump] = React.useReducer((n: number) => n + 1, 0);
 
   const accountId = jmapClient.isConnected ? jmapClient.accountId : null;
+  const scope = accountId ? identityScope() : null;
   React.useEffect(() => {
-    if (!accountId || !loadAliases) return;
-    if (aliasCache.has(accountId)) return;
+    if (!scope || !loadAliases) return;
+    if (aliasCache.has(scope)) return;
     aliasListeners.add(bump);
-    void fetchAliases(accountId);
+    void fetchAliases(scope);
     return () => { aliasListeners.delete(bump); };
-  }, [accountId, loadAliases]);
+  }, [scope, loadAliases]);
 
+  // Identities still held for the account signed in before are not this one's.
+  const identities = scope !== null && identitiesFor === scope ? heldIdentities : NO_IDENTITIES;
   const participantIdentities = useCalendarStore((s) => (accountId ? s.participantIdentities[accountId] : undefined));
-  const aliases = accountId ? aliasCache.get(accountId) ?? [] : [];
+  const aliases = scope ? aliasCache.get(scope) ?? [] : [];
   return React.useMemo(
     () => collectUserCalendarAddresses(
       [activeEmail],
@@ -80,4 +88,19 @@ export function useUserCalendarAddresses(loadAliases = true): string[] {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeEmail, identities, aliases.join('|'), participantIdentities],
   );
+}
+
+/**
+ * `addresses` (the signed-in user's) when they belong to app account
+ * `appAccountId`: it is the one shown and the one signed in. Otherwise none,
+ * so mid-switch another account's addresses never make the user the
+ * organizer of this account's event.
+ */
+export function addressesForAccount(
+  appAccountId: string | null | undefined,
+  accounts: { shown: string | null; signedIn: string | null },
+  addresses: string[],
+): string[] {
+  if (!appAccountId || appAccountId !== accounts.shown || appAccountId !== accounts.signedIn) return NO_ADDRESSES;
+  return addresses;
 }

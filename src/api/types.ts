@@ -111,6 +111,8 @@ export interface MailboxRights {
   mayRename: boolean;
   mayDelete: boolean;
   maySubmit: boolean;
+  /** May share the folder with others (mail:share); absent when the server has no sharing. */
+  mayShare?: boolean;
 }
 
 export interface Mailbox {
@@ -511,6 +513,23 @@ export interface CalendarEventNotification {
   event?: Partial<CalendarEvent>;
 }
 
+/**
+ * A ShareNotification (RFC 9670 §3): someone changed this user's rights on a
+ * collection of theirs. Empty or null `oldRights` means newly shared; empty
+ * or null `newRights` means access was removed.
+ */
+export interface ShareNotification {
+  id: string;
+  created: string;
+  changedBy: { name: string; email: string | null; principalId: string | null };
+  objectType: 'Mailbox' | 'Calendar' | 'AddressBook' | 'FileNode' | (string & {});
+  objectAccountId: string;
+  objectId: string;
+  oldRights: Record<string, boolean> | null;
+  newRights: Record<string, boolean> | null;
+  name: string;
+}
+
 export interface CalendarEvent {
   id: string;
   '@type'?: 'Event' | 'Task';
@@ -713,6 +732,7 @@ export const CAPABILITIES = {
   PRINCIPALS_OWNER: 'urn:ietf:params:jmap:principals:owner',
   PRINCIPALS_AVAILABILITY: 'urn:ietf:params:jmap:principals:availability',
   EMAIL_PUSH: 'urn:ietf:params:jmap:emailpush',
+  MAIL_SHARE: 'urn:ietf:params:jmap:mail:share',
 } as const;
 
 /** One busy period of a principal (Principal/getAvailability, RFC 9670 §4). */

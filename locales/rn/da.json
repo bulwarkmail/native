@@ -807,7 +807,6 @@
     "folders": {
       "account": "Konto",
       "cannot_delete": "Kan ikke slette",
-      "description_mobile": "Opret, omdøb, flyt og slet mapper. Tryk længe på en mappe i sidepanelet for hurtige handlinger.",
       "edit_folder": "Redigér \"{name}\"",
       "folder_name": "Mappenavn",
       "move_under": "Flyt under",

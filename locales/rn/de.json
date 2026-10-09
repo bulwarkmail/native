@@ -807,7 +807,6 @@
     "folders": {
       "account": "Konto",
       "cannot_delete": "Löschen nicht möglich",
-      "description_mobile": "Ordner erstellen, umbenennen, verschieben und löschen. Tippen Sie in der Seitenleiste lange auf einen Ordner, um Schnellaktionen aufzurufen.",
       "edit_folder": "\"{name}\" bearbeiten",
       "folder_name": "Ordnername",
       "move_under": "Verschieben unter",
