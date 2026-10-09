@@ -18,6 +18,7 @@ import {
   missingSharedCalendarColors,
   resetSharedCalendarColor,
   sharedCalendarColorFor,
+  calendarColorAccount,
   sharedCalendarColorKey,
 } from '../calendar-utils';
 import type { Calendar, CalendarEvent } from '../../api/types';
@@ -343,6 +344,17 @@ describe('shared calendar colours', () => {
     const overrides = { 'team|c1': '#000001', 'team|c2': '#000002', 'A|team|c1': '#000003', 'B|team|c9': '#000004' };
     expect(exportableCalendarColors(overrides, 'A')).toEqual({ 'team|c1': '#000003', 'team|c2': '#000002' });
     expect(exportableCalendarColors(overrides, null)).toEqual({ 'team|c1': '#000001', 'team|c2': '#000002' });
+  });
+
+  // During a switch the list is still the previous account's: the shown
+  // account's overrides would paint other calendars with the same ids.
+  it('paints per-account overrides only on the shown account\'s own list', () => {
+    expect(calendarColorAccount('A', 'A')).toBe('A');
+    expect(calendarColorAccount('B', 'A')).toBe('');
+    expect(calendarColorAccount(null, 'A')).toBe('');
+    expect(calendarColorAccount('A', null)).toBe('');
+    const [shown] = applySharedCalendarColors([cal], { 'A|team|c1': '#ff0000' }, calendarColorAccount('B', 'A'));
+    expect(shown.color).toBeUndefined();
   });
 
   it('a reset picks a colour not already on screen', () => {

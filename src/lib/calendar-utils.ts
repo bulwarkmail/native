@@ -647,6 +647,17 @@ function takenCalendarColors(calendars: Calendar[], overrides: Record<string, st
 }
 
 /**
+ * The app account whose overrides paint a calendar list: the shown one,
+ * but only once the list was loaded for it (`loadedFor`). During a switch
+ * the list is still the previous account's, and the shown account's keys
+ * would name other calendars that happen to share their ids. '' applies
+ * only the old keys.
+ */
+export function calendarColorAccount(loadedFor: string | null | undefined, shownAccountId: string | null | undefined): string {
+  return shownAccountId && loadedFor === shownAccountId ? shownAccountId : '';
+}
+
+/**
  * A random, not-yet-used colour for each shared calendar that has no
  * override in the shown app account `appAccountId` (one under the old key
  * counts), as new-key → colour. Nothing while no account is shown, or while

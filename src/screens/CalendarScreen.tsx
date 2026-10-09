@@ -82,6 +82,7 @@ import {
   missingSharedCalendarColors,
   resetSharedCalendarColor,
   sharedCalendarColorKey,
+  calendarColorAccount,
   type EventDayIndex,
   type TimeFormat,
 } from '../lib/calendar-utils';
@@ -394,9 +395,12 @@ export default function CalendarScreen() {
   // Per-viewer recolor (#345): shared calendars get the viewer's local color
   // override applied before anything renders. Personal calendars pass through.
   const displayCalendars = React.useMemo(
-    // No account shown: no per-account override applies.
-    () => applySharedCalendarColors(storeCalendars, sharedCalendarColors, shownAccountId ?? ''),
-    [storeCalendars, sharedCalendarColors, shownAccountId],
+    // No per-account override while no account is shown, or while the list
+    // is still another account's (calendarColorAccount).
+    () => applySharedCalendarColors(
+      storeCalendars, sharedCalendarColors, calendarColorAccount(calendarsAppAccountId, shownAccountId),
+    ),
+    [storeCalendars, sharedCalendarColors, calendarsAppAccountId, shownAccountId],
   );
 
   // Auto-assign a random, not-yet-used palette color to any freshly shared
