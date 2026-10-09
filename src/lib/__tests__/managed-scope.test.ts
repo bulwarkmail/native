@@ -88,11 +88,23 @@ describe('actions offered on a shared collection', () => {
   });
 
   it('offers rename and recolour only where the rights allow it', () => {
+    // The rights Stalwart 0.16.25 reports for each share (checked 2026-10-10).
+    // It refused the rename to read and accepted it from readWrite up.
+    const read = {
+      mayReadFreeBusy: true, mayReadItems: true, mayWriteAll: false, mayWriteOwn: false,
+      mayUpdatePrivate: false, mayRSVP: false, mayShare: false, mayDelete: false,
+    };
+    const readWrite = { ...read, mayWriteAll: true, mayWriteOwn: true, mayUpdatePrivate: true, mayRSVP: true };
+    const manager = { ...readWrite, mayShare: true };
+    const managerDelete = { ...manager, mayDelete: true };
+    expect(scopedCalendarActions({ ...teamCal, myRights: read }).edit).toBe(false);
+    expect(scopedCalendarActions({ ...teamCal, myRights: readWrite }).edit).toBe(true);
+    expect(scopedCalendarActions({ ...teamCal, myRights: manager }).edit).toBe(true);
+    expect(scopedCalendarActions({ ...teamCal, myRights: managerDelete }).edit).toBe(true);
+
     expect(scopedCalendarActions(teamCal).edit).toBe(true); // no rights sent: the server decides
-    expect(scopedCalendarActions({ ...teamCal, myRights: { mayShare: true } }).edit).toBe(true);
     expect(scopedCalendarActions({ ...teamCal, myRights: { mayAdmin: true } }).edit).toBe(true);
-    // Writing every event is not managing the calendar itself.
-    expect(scopedCalendarActions({ ...teamCal, myRights: { mayWriteAll: true } }).edit).toBe(false);
+    // Writing only your own events is not enough.
     expect(scopedCalendarActions({ ...teamCal, myRights: { mayReadItems: true, mayWriteOwn: true } }).edit).toBe(false);
   });
 

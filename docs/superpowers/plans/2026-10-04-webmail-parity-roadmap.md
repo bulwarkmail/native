@@ -695,3 +695,51 @@ Left open:
   - the 8 blocked parity items;
   - the `settings.themes.default_name` overlay key, which the webmail catalog now ships;
   - 41ab162 fails the gate on its own (squash at merge).
+
+## Follow-up cleanup 2 (2026-10-10)
+
+### Stalwart checks
+
+Run on a throwaway local Stalwart (a copy of webmail's `integration/` setup, torn down afterwards).
+
+- **Version:** Stalwart 0.16.25 (container log: `version = "0.16.25"`; `stalwart --version`).
+- **`serverHostname`:** `mail.example.org`, then `mx.probe.test` for the second run.
+- **Session `apiUrl`:** `https://mail.example.org/jmap/`, then `https://mx.probe.test/jmap/`. It follows `serverHostname`.
+- **Inbound SMTP:** port 25 listens by default. It refuses a bare container hostname as the EHLO name (`550 5.5.0 Invalid EHLO domain.`), so B and D were sent unauthenticated on port 25 with EHLO `mx.external.test`. A and C went as alice over authenticated submission (587, published as 1025).
+- **Probes.** Each item lists bob's `Authentication-Results` headers top to bottom (`header:Authentication-Results:asText:all`), then his `Received` headers.
+  - A, local, plain: no Authentication-Results; no Received.
+  - B, external, forged:
+    1. `mail.example.org; spf=none (mail.example.org: no SPF records found for postmaster@mx.external.test) smtp.helo=mx.external.test; spf=none (mail.example.org: no SPF records found for sender@external.test) smtp.mailfrom=sender@external.test; iprev=pass policy.iprev=127.0.0.1; dmarc=none header.from=external.test policy.dmarc=none`
+    2. `mail.example.org; spf=pass smtp.mailfrom=external.test; dkim=pass header.d=external.test; dmarc=pass header.from=external.test`
+    3. `mx2.example.org; dmarc=pass header.from=external.test`
+    4. `example.org; dmarc=pass header.from=external.test`
+    - Received: `from mx.external.test (localhost [127.0.0.1]) by mail.example.org (Stalwart SMTP) with ESMTP id 4A2CBA3DEA00600; Fri, 9 Oct 2026 18:03:11 +0000`
+  - C, local, forged:
+    1. `mail.example.org; spf=pass smtp.mailfrom=external.test; dkim=pass header.d=external.test; dmarc=pass header.from=external.test`
+    2. `mx2.example.org; dmarc=pass header.from=external.test`
+    3. `example.org; dmarc=pass header.from=external.test`
+    - No Received.
+  - D, external, plain:
+    1. `mail.example.org; spf=none (mail.example.org: no SPF records found for postmaster@mx.external.test) smtp.helo=mx.external.test; spf=none (mail.example.org: no SPF records found for sender@external.test) smtp.mailfrom=sender@external.test; iprev=pass policy.iprev=127.0.0.1; dmarc=none header.from=external.test policy.dmarc=none`
+    - Received: `from mx.external.test (localhost [127.0.0.1]) by mail.example.org (Stalwart SMTP) with ESMTP id 4A2CB9F8FE00400; Fri, 9 Oct 2026 18:03:02 +0000`
+  - D with `serverHostname` `mx.probe.test`:
+    1. `mx.probe.test; spf=none (mx.probe.test: no SPF records found for postmaster@mx.external.test) smtp.helo=mx.external.test; spf=none (mx.probe.test: no SPF records found for sender@external.test) smtp.mailfrom=sender@external.test; iprev=pass policy.iprev=127.0.0.1; dmarc=none header.from=external.test policy.dmarc=none`
+    - Received: `… by mx.probe.test (Stalwart SMTP) …`
+- **(a) The id it stamps.** The topmost header on B and D has the authserv-id `serverHostname`: `mail.example.org`, and `mx.probe.test` once the setting changed. The SMTP banner and `Received` follow it too, and so does the session's `apiUrl`.
+- **(b) Stripping.** None. On B, all three forged headers survived: the exact own id `mail.example.org`, the sibling `mx2.example.org` and the parent `example.org`. Stalwart puts its own stamp above them, so on mail from outside the topmost header is still its own.
+- **(c) Local submissions.** Neither A nor C got a header from Stalwart. On C, the forged `mail.example.org; … dmarc=pass` is the topmost header, so a local user can forge a passing sender check under the server's exact id. Pinning to the exact id does not close this. Only the server can, by stamping or stripping on submission.
+- **(d) Calendar rights.** Alice shared her default calendar with bob (`Calendar/set` `shareWith/d`). Bob then set `name` and `color` in her account:
+
+  | Share | `myRights` Stalwart reports to bob | Rename | Recolour |
+  |---|---|---|---|
+  | read | read + free/busy only, every other flag `false` | `notUpdated: forbidden` ("You are not allowed to modify this calendar.") | `notUpdated: forbidden` |
+  | readWrite | + `mayWriteAll`, `mayWriteOwn`, `mayUpdatePrivate`, `mayRSVP` | `updated` | `updated` |
+  | manager | + `mayShare` | `updated` | `updated` |
+  | manager+delete | + `mayDelete` | `updated` | `updated` |
+
+  - Stalwart reports no `mayAdmin` key.
+  - The name and colour are per user. After each of bob's writes, alice still read `Stalwart Calendar (alice@example.org)` and `color: null`.
+  - When alice later renamed and recoloured it, bob still saw `probe-manager+delete` and `#ff0000`.
+  - So `scopedCalendarActions` now offers the edit on `mayWriteAll` as well (readWrite).
+
+Exact authserv-id setting: not needed — Stalwart 0.16.25 stamps its `serverHostname` and the session's `apiUrl` host follows the same setting, so a default single-host install pins with no setting; the local-submission forgery in (c) is under the exact id, which such a setting would not close either.

@@ -61,7 +61,9 @@ function isAtOrUnder(name: string, domain: string): boolean {
  * is the JMAP server's host or its registrable domain, or a host under
  * either (a mail domain's MX is rarely the JMAP host itself). A host with
  * no registrable domain (an IP address, `localhost`, a single label) counts
- * only by exact match: nobody owns the names under it.
+ * only by exact match: nobody owns the names under it. Stalwart stamps its
+ * `serverHostname`, which by default is also the host in its JMAP `apiUrl`
+ * (checked on Stalwart 0.16.25, 2026-10-10).
  */
 export function isTrustedAuthservId(authservId: string, serverHost: string): boolean {
   if (!authservId || !serverHost) return false;
@@ -82,14 +84,20 @@ export function isTrustedAuthservId(authservId: string, serverHost: string): boo
  * The limit is the server's: RFC 8601 §5 has a receiving MTA remove any
  * incoming header that claims its own authserv-id. A server that doesn't
  * lets a forged header with its id pass as topmost on mail it never
- * stamped.
+ * stamped. Stalwart 0.16.25 strips none (checked 2026-10-10): forged
+ * headers under its exact id, a sibling and its parent domain all stay.
+ * On mail from outside it stamps its own above them, so the pin holds.
+ * On a local user's authenticated submission it stamps nothing, so a
+ * header that user wrote under the server's exact id is the topmost, and
+ * its forged pass is trusted. Pinning to the exact id does not close
+ * that case; only the server can.
  *
- * Trusting the registrable parent and the hosts under it has two costs.
- * On mail the server never stamped (one local user to another, say), a
- * sender-written header under any of those ids passes. And a server that
+ * Trusting the registrable parent and the hosts under it adds to that.
+ * On mail the server never stamped, a sender-written header under any of
+ * those ids passes, not only one under the exact id. And a server that
  * strips only its own exact id leaves a forged header under a sibling
  * (`mx2.example.com` beside `mx1.example.com`) in place, where it passes
- * too. Pinning to one exact id would close both, at the cost of every
+ * too. Pinning to one exact id would close those, at the cost of every
  * server whose MX id differs from its JMAP host.
  */
 export function pinAuthenticationResults(

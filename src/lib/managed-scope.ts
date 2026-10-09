@@ -31,15 +31,18 @@ export function scopedBooks<B extends AddressBook>(books: B[], managedAccountId:
 }
 
 /**
- * What the scoped pane offers on a shared calendar. Rename and recolour
- * change the calendar for everyone it is shared with, so they need the
- * right to manage it (mayShare, or the RFC-style mayAdmin; mayWriteAll
- * covers its events only). A server that sends no rights decides on the
- * write. Delete is never offered.
+ * What the scoped pane offers on a shared calendar. Stalwart accepts a
+ * rename or recolour from anyone who may write every event (mayWriteAll),
+ * and refuses it to read-only shares (checked on Stalwart 0.16.25,
+ * 2026-10-10). There the name and colour are per user: the sharee's change
+ * shows only to the sharee, and the owner's own change does not reach a
+ * sharee who has set them. mayShare and the RFC-style mayAdmin still count,
+ * for a server that grants them without mayWriteAll. A server that sends
+ * no rights decides on the write. Delete is never offered.
  */
 export function scopedCalendarActions(cal: Calendar): { edit: boolean; delete: false } {
   const r = cal.myRights;
-  return { edit: !r || !!r.mayShare || !!r.mayAdmin, delete: false };
+  return { edit: !r || !!r.mayShare || !!r.mayAdmin || !!r.mayWriteAll, delete: false };
 }
 
 /** What the scoped pane offers on a shared address book. Delete is never offered. */
