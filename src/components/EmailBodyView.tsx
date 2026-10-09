@@ -34,6 +34,8 @@ interface EmailBodyViewProps {
    * offered, only when true; left out means the verdict is unknown.
    */
   senderAuthenticated?: boolean;
+  /** The sender-check banner shows above: the content banner doesn't say it again. */
+  senderWarned?: boolean;
   /** Owning account when the message lives in a shared/group mailbox. */
   jmapAccountId?: string;
   // The body is a native WebView, which on Android swallows horizontal touches
@@ -526,7 +528,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, senderAuthenticated, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  email, senderEmail, senderAuthenticated, senderWarned, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -733,7 +735,7 @@ export default function EmailBodyView({
     : fill ? styles.webContainerFill : { height: estimate };
 
   const onLoadImages = () => setAllowOnce(true);
-  const bannerMode = trustSenderBannerMode(senderEmail, { listed: senderListed, senderAuthenticated });
+  const bannerMode = trustSenderBannerMode(senderEmail, { listed: senderListed, senderAuthenticated, senderWarned });
   const offerTrustSender = bannerMode === 'offer_trust';
   const onTrustSender = () => {
     if (senderEmail && offerTrustSender) {

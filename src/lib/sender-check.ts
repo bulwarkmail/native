@@ -70,18 +70,23 @@ export function senderCheckText(verification: SenderVerification | null, t: Tran
  *   the sender check, the only kind a trusted address loads on its own;
  *   offered elsewhere, the next message would ask again.
  * - `trusted_unverified`: the sender is already trusted but this message
- *   didn't pass, so say why it is blocked.
+ *   didn't pass, so say why it is blocked. Not when `senderWarned` (the
+ *   sender-check banner shows): it already says so, and once is enough.
  * - `none`: neither (an unknown verdict, `undefined`, counts as no pass).
  */
 export type TrustSenderBannerMode = 'offer_trust' | 'trusted_unverified' | 'none';
 
 export function trustSenderBannerMode(
   senderEmail: string | null | undefined,
-  { listed, senderAuthenticated }: { listed: boolean; senderAuthenticated: boolean | undefined },
+  { listed, senderAuthenticated, senderWarned = false }: {
+    listed: boolean;
+    senderAuthenticated: boolean | undefined;
+    senderWarned?: boolean;
+  },
 ): TrustSenderBannerMode {
   if (!senderEmail?.trim()) return 'none';
   if (senderAuthenticated === true) return listed ? 'none' : 'offer_trust';
-  return listed ? 'trusted_unverified' : 'none';
+  return listed && !senderWarned ? 'trusted_unverified' : 'none';
 }
 
 /**

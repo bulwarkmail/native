@@ -91,6 +91,13 @@ describe('trustSenderBannerMode', () => {
     expect(trustSenderBannerMode('support@bank.example', { listed: true, senderAuthenticated: undefined })).toBe('trusted_unverified');
   });
 
+  // The sender-check banner above already says the message isn't verified.
+  it('says nothing more for a trusted sender when the sender-check banner already warns', () => {
+    expect(trustSenderBannerMode('support@bank.example', { listed: true, senderAuthenticated: false, senderWarned: true })).toBe('none');
+    expect(trustSenderBannerMode('support@bank.example', { listed: true, senderAuthenticated: false, senderWarned: false })).toBe('trusted_unverified');
+    expect(trustSenderBannerMode('support@bank.example', { listed: false, senderAuthenticated: true, senderWarned: true })).toBe('offer_trust');
+  });
+
   it('offers nothing without a sender address', () => {
     expect(trustSenderBannerMode(undefined, { listed: false, senderAuthenticated: true })).toBe('none');
     expect(trustSenderBannerMode('', { listed: true, senderAuthenticated: false })).toBe('none');

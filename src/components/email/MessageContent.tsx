@@ -143,6 +143,7 @@ export function MessageContent({
             email={email}
             senderEmail={from?.email}
             senderAuthenticated={senderAuthenticated}
+            senderWarned={!!headerInfo.senderVerification}
             jmapAccountId={jmapAccountId}
             onSwipe={onSwipe}
             onZoomChange={onZoomChange}
