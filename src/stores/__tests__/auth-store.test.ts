@@ -242,6 +242,105 @@ describe('auth-store', () => {
       expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('other@x.example.com');
     });
 
+    describe('an account dropped because its session expired', () => {
+      const A = () => entry('a@x.example.com', 'https://x.example.com', 'a');
+      const B = () => entry('b@y.example.com', 'https://y.example.com', 'b');
+      const forgotB = [{ appAccountId: 'b@y.example.com', serverUrl: 'https://y.example.com', username: 'b' }, { lastAccount: false }];
+      const parked = (appAccountId: string) => ({ ref: 'Archive', appAccountId, fromMailboxId: null });
+      const signedInToA = () => {
+        useAccountStore.setState({ accounts: [A(), B()], activeAccountId: 'a@x.example.com' });
+        useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'a@x.example.com' });
+      };
+
+      it('forgets a switched-to account\'s device data when its session has expired', async () => {
+        signedInToA();
+        const { AuthenticationError } = await import('../../api/jmap-client');
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+        setPendingMailFolder(parked('b@y.example.com'));
+
+        await useAuthStore.getState().switchAccount('b@y.example.com');
+
+        expect(forgetAccountData).toHaveBeenCalledWith(...forgotB);
+        expect(forgetAccountData).toHaveBeenCalledTimes(1);
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
+        expect(useAccountStore.getState().getAccountById('b@y.example.com')).toBeUndefined();
+        expect(usePendingMailFolder.getState().target).toBeNull();
+        expect(useAuthStore.getState()).toMatchObject({ activeAccountId: 'a@x.example.com', error: 'Session expired for this account' });
+      });
+
+      it('forgets a switched-to account that has no stored credentials, and clears none', async () => {
+        signedInToA();
+        mockLoadAccount.mockResolvedValueOnce(false);
+
+        await useAuthStore.getState().switchAccount('b@y.example.com');
+
+        expect(forgetAccountData).toHaveBeenCalledWith(...forgotB);
+        expect(jmapClient.clearAccountCredentials).not.toHaveBeenCalled();
+        expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('b@y.example.com');
+        expect(useAuthStore.getState().activeAccountId).toBe('a@x.example.com');
+      });
+
+      it('keeps a parked folder link of the account it stays on', async () => {
+        signedInToA();
+        mockLoadAccount.mockResolvedValueOnce(false);
+        setPendingMailFolder(parked('a@x.example.com'));
+        await useAuthStore.getState().switchAccount('b@y.example.com');
+        expect(usePendingMailFolder.getState().target).toEqual(parked('a@x.example.com'));
+      });
+
+      it('forgets the account restoreSession finds with no stored credentials', async () => {
+        useAccountStore.setState({ accounts: [B()], activeAccountId: 'b@y.example.com', defaultAccountId: 'b@y.example.com' });
+        mockLoadAccount.mockResolvedValueOnce(false);
+
+        expect(await useAuthStore.getState().restoreSession()).toBe(false);
+
+        expect(forgetAccountData).toHaveBeenCalledWith(forgotB[0], { lastAccount: true });
+        expect(jmapClient.clearAccountCredentials).not.toHaveBeenCalled();
+        expect(useAccountStore.getState().accounts).toEqual([]);
+      });
+
+      it('forgets the account restoreSession finds with rejected credentials', async () => {
+        useAccountStore.setState({ accounts: [A(), B()], activeAccountId: 'b@y.example.com', defaultAccountId: 'a@x.example.com' });
+        const { AuthenticationError } = await import('../../api/jmap-client');
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+
+        expect(await useAuthStore.getState().restoreSession()).toBe(false);
+
+        expect(forgetAccountData).toHaveBeenCalledWith(...forgotB);
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
+        expect(useAuthStore.getState().error).toBe('Session expired');
+      });
+
+      it('forgets the account a session retry finds with rejected credentials', async () => {
+        useAccountStore.setState({ accounts: [B()], activeAccountId: 'b@y.example.com' });
+        useAuthStore.setState({ isAuthenticated: true, session: null, activeAccountId: 'b@y.example.com', client: jmapClient });
+        const { AuthenticationError } = await import('../../api/jmap-client');
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+        setPendingMailFolder(parked('b@y.example.com'));
+
+        expect(await useAuthStore.getState().retrySession()).toBe(false);
+
+        expect(forgetAccountData).toHaveBeenCalledWith(forgotB[0], { lastAccount: true });
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
+        expect(usePendingMailFolder.getState().target).toBeNull();
+        expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: false, error: 'Session expired' });
+      });
+
+      it('finishes the eviction even when the cleanup fails', async () => {
+        signedInToA();
+        (forgetAccountData as any).mockRejectedValueOnce(new Error('disk'));
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const { AuthenticationError } = await import('../../api/jmap-client');
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+
+        await useAuthStore.getState().switchAccount('b@y.example.com');
+
+        expect(useAuthStore.getState()).toMatchObject({ activeAccountId: 'a@x.example.com', isLoading: false, error: 'Session expired for this account' });
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+      });
+    });
+
     it('logoutAll forgets every account\'s data', async () => {
       useAccountStore.setState({
         accounts: [entry('a@x.example.com', 'https://x.example.com', 'a'), entry('b@y.example.com', 'https://y.example.com', 'b')],

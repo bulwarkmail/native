@@ -234,12 +234,27 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
   if (!wasRegistered) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
 }
 
-// An account dropped because its credentials are gone: what sign-out would
-// have cleared beside them goes too, so signing the account in again later
-// starts afresh instead of reusing an old relay. Fire-and-forget.
-function forgetEvictedAccount(accountId: string): void {
+// An account dropped because its credentials are gone or were refused (a
+// session that expired): what sign-out would have cleared beside them goes
+// too, so signing the account in again later starts afresh instead of
+// reusing an old relay, and none of its mail, identities, folder icons or
+// calendar subscriptions stay behind on the device. Its queued sends stay on
+// disk, as on sign-out. The registry entry is read before it goes: it names
+// whose calendar subscriptions to forget. Never throws: a cleanup failure is
+// logged.
+async function evictAccount(accountId: string, opts: { clearCredentials: boolean }): Promise<void> {
+  const accountStore = useAccountStore.getState();
+  const entry = accountStore.getAccountById(accountId);
+  if (opts.clearCredentials) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
   void deleteIdToken(accountId).catch(() => undefined);
   void clearStoredRelayBaseUrl(accountId).catch(() => undefined);
+  accountStore.removeAccount(accountId);
+  useEmailStore.getState().removeAccount(accountId);
+  dropPendingMailFolder(accountId);
+  await forgetAccountData(
+    { appAccountId: accountId, serverUrl: entry?.serverUrl, username: entry?.username },
+    { lastAccount: useAccountStore.getState().accounts.length === 0 },
+  ).catch((e) => console.warn('[sign-out] cleanup failed', e));
 }
 
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
@@ -248,21 +263,23 @@ function forgetEvictedAccount(accountId: string): void {
 // refresh token only the webmail's token proxy understands.
 // Resolves what ending the account's provider session needs (#905), read
 // here while its credentials and registry entry are still in place, with the
-// server it signed in to for providerStillInUse.
-type AccountProviderLogout = ProviderLogout & { serverUrl: string };
+// server it signed in to and its stored token endpoint for providerStillInUse.
+type AccountProviderLogout = ProviderLogout & { serverUrl: string; tokenEndpoint?: string };
 
 async function revokeStoredRefreshToken(accountId: string): Promise<AccountProviderLogout | null> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
     if (!entry) return null;
-    const providerLogout = await captureProviderLogout(
-      accountId,
-      entry.endSessionEndpoint,
-      await jmapClient.getStoredCredentials(accountId),
-    ).catch(() => null);
+    const credentials = await jmapClient.getStoredCredentials(accountId);
+    const providerLogout = await captureProviderLogout(accountId, entry.endSessionEndpoint, credentials).catch(() => null);
     const tokens = await jmapClient.getStoredOAuthTokens(accountId);
     if (tokens && tokens.source !== 'pairing') await revokeRefreshToken(entry.serverUrl, tokens);
-    return providerLogout ? { ...providerLogout, serverUrl: entry.serverUrl } : null;
+    if (!providerLogout) return null;
+    return {
+      ...providerLogout,
+      serverUrl: entry.serverUrl,
+      ...(credentials?.tokenEndpoint ? { tokenEndpoint: credentials.tokenEndpoint } : {}),
+    };
   } catch {
     // never block sign-out
     return null;
@@ -279,19 +296,31 @@ function originOfUrl(url: string): string {
 // for the last of them: none of the accounts still registered may sign in
 // at the same provider. A hand-off account records no endpoint (the
 // webmail's client holds its provider session), but it signed in through
-// the same browser, so one on the same server counts as well. A password or
-// pairing account never used this browser's provider session and does not.
+// the same browser, so one on the same server counts as well, and so does
+// one on another server whose token endpoint is on the same origin as the
+// departing account's (a webmail elsewhere handing off to the same
+// provider). A password or pairing account never used this browser's
+// provider session and does not.
 async function providerStillInUse(providerLogout: AccountProviderLogout, remaining: AccountEntry[]): Promise<boolean> {
   const provider = providerOf(providerLogout.endpoint);
   if (remaining.some((a) => providerOf(a.endSessionEndpoint) === provider)) return true;
   const origin = originOfUrl(providerLogout.serverUrl);
+  const tokenOrigin = providerLogout.tokenEndpoint ? originOfUrl(providerLogout.tokenEndpoint) : null;
   for (const a of remaining) {
-    if (originOfUrl(a.serverUrl) !== origin) continue;
+    const sameServer = originOfUrl(a.serverUrl) === origin;
+    if (!sameServer && !tokenOrigin) continue;
     // An account whose credentials cannot be read may be a hand-off one:
-    // count it, as ending a provider session another account needs is worse
-    // than leaving one open.
+    // count it on the same server, as ending a provider session another
+    // account needs is worse than leaving one open. Elsewhere nothing says
+    // it went through this provider.
     const credentials = await jmapClient.getStoredCredentials(a.id).catch(() => 'unreadable' as const);
-    if (credentials === 'unreadable' || credentials?.tokenSource === 'handoff') return true;
+    if (credentials === 'unreadable') {
+      if (sameServer) return true;
+      continue;
+    }
+    if (credentials?.tokenSource !== 'handoff') continue;
+    if (sameServer) return true;
+    if (credentials.tokenEndpoint && originOfUrl(credentials.tokenEndpoint) === tokenOrigin) return true;
   }
   return false;
 }
@@ -950,11 +979,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const ok = await jmapClient.loadAccount(accountId);
       if (!ok) {
-        // Credentials missing - evict stale entry and surface error
-        forgetEvictedAccount(accountId);
-        accountStore.removeAccount(accountId);
-        useEmailStore.getState().removeAccount(accountId);
+        // Credentials missing - evict stale entry and surface error. The
+        // previous account gets the client back first, so nothing it sends
+        // while the cleanup runs goes out as the dropped one.
         restorePrevious();
+        await evictAccount(accountId, { clearCredentials: false });
         set({ isLoading: false, error: 'Session expired for this account' });
         return;
       }
@@ -966,10 +995,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       if (err instanceof AuthenticationError) {
-        await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
-        accountStore.removeAccount(accountId);
-        useEmailStore.getState().removeAccount(accountId);
         restorePrevious();
+        await evictAccount(accountId, { clearCredentials: true });
         set({ isLoading: false, error: 'Session expired for this account' });
         return;
       }
@@ -1105,9 +1132,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const ok = await jmapClient.loadAccount(target.id);
         if (!ok) {
           // No stored credentials (or corrupt) — genuine logout.
-          forgetEvictedAccount(target.id);
-          accountStore.removeAccount(target.id);
-          useEmailStore.getState().removeAccount(target.id);
+          await evictAccount(target.id, { clearCredentials: false });
           set({ isLoading: false, hasRestoredSession: true });
           return false;
         }
@@ -1148,9 +1173,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
         if (err instanceof AuthenticationError) {
           // Server reachable but credentials rejected — drop them.
-          await jmapClient.clearAccountCredentials(target.id).catch(() => undefined);
-          accountStore.removeAccount(target.id);
-          useEmailStore.getState().removeAccount(target.id);
+          await evictAccount(target.id, { clearCredentials: true });
           set({ isLoading: false, hasRestoredSession: true, error: 'Session expired' });
           return false;
         }
@@ -1220,8 +1243,7 @@ async function attemptSessionRetry(activeAccountId: string): Promise<boolean> {
     // StaleLoadError: a newer load owns the client; stay. NetworkError: stay.
     if (err instanceof AuthenticationError) {
       // Now we know the credentials are bad — fall back to logout flow.
-      await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
-      accountStore.removeAccount(activeAccountId);
+      await evictAccount(activeAccountId, { clearCredentials: true });
       // Only if that account is still the active one: after a switch, the
       // user is signed in to the other account, which this says nothing about.
       if (useAuthStore.getState().activeAccountId !== activeAccountId) return false;

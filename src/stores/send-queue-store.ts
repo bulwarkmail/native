@@ -15,6 +15,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { OutgoingEmail } from '../api/email';
+import { mayRestamp } from '../lib/queue-restamp';
 
 const KEY_PREFIX = 'webmail:sendqueue:v1:';
 const MAX_ENTRY_BYTES = 1024 * 1024;
@@ -159,6 +160,15 @@ interface SendQueueState {
    * with an `attemptStartedAt`, and in any other state.
    */
   releaseHold: (id: string) => Promise<void>;
+  /**
+   * queued (held `account_unavailable`, never attempted, no attachments) ->
+   * queued on `jmapAccountId`: replay found the entry's account renumbered
+   * and its identity on the session's primary (restampTarget). Clears the
+   * hold, drops `draftId` and the replied-to email ids (JMAP ids of the old
+   * account), and keeps the keyword and the `untrusted` list. Refused in any
+   * other state, and onto the account the entry already names.
+   */
+  restamp: (id: string, jmapAccountId: string) => Promise<void>;
   /** uncertain -> uncertain with `lastReconcileAt` now: replay looked for proof. */
   noteReconcile: (id: string) => Promise<void>;
   /**
@@ -348,6 +358,27 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
         (e) => {
           const { heldReason: _released, ...rest } = e;
           return rest;
+        },
+      ),
+
+    restamp: (id, jmapAccountId) =>
+      transition(
+        id,
+        (e) => !!jmapAccountId && e.jmapAccountId !== jmapAccountId && mayRestamp(e),
+        (e) => {
+          const { heldReason: _released, draftId: _draft, replyTo, ...rest } = e;
+          return {
+            ...rest,
+            jmapAccountId,
+            draftId: undefined,
+            ...(replyTo ? {
+              replyTo: {
+                ...replyTo,
+                emailIds: [],
+                ...(replyTo.jmapAccountId === e.jmapAccountId ? { jmapAccountId } : {}),
+              },
+            } : {}),
+          };
         },
       ),
 

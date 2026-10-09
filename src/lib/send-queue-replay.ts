@@ -23,12 +23,16 @@
 //   Drafts folder, a JMAP account the session does not serve) is held with a
 //   reason the Outbox shows, and skipped until the user's Retry clears it;
 //   the one exception is `account_unavailable` on an entry never attempted,
-//   released once the session serves that account again (releaseAccountHold).
+//   released once the session serves that account again, or re-stamped onto
+//   the session's primary when that holds the entry's identity and address
+//   (releaseAccountHold, restampTarget).
 // A queue replays only through its own account: entries of another app
 // account wait until it is active again (no detached clients).
 
 import { AuthenticationError, jmapClient } from '../api/jmap-client';
 import { destroyEmails, getEmailFlags, patchKeywordsForEmails, sendEmail } from '../api/email';
+import { getIdentities } from '../api/identity';
+import type { Identity } from '../api/types';
 import { RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, type RejectedRecipient } from '../api/jmap-result';
 import {
   findCopiesByMessageId,
@@ -43,6 +47,7 @@ import { toast } from '../stores/toast-store';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 import { trustRecipients, trustedSendersBookSyncOn } from './trust-recipients';
 import { isStaleLoad } from './network-error';
+import { mayRestamp, restampTarget } from './queue-restamp';
 
 /** How far before the attempt the copy lookup starts (generous: device clocks drift). */
 export const RECONCILE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -384,22 +389,73 @@ async function holdEntry(entry: QueuedSend, reason: HeldReason): Promise<void> {
   }
 }
 
+/** The session primary's identities, or null when they could not be read. */
+type PrimaryIdentities = (primaryId: string) => Promise<readonly Identity[] | null>;
+
+/** Reads the primary's identities at most once (per primary) for one flush pass. */
+function primaryIdentitiesOnce(): PrimaryIdentities {
+  let read: { primaryId: string; identities: Promise<readonly Identity[] | null> } | null = null;
+  return (primaryId) => {
+    if (read?.primaryId !== primaryId) {
+      read = {
+        primaryId,
+        identities: getIdentities(primaryId).catch((err: unknown) => {
+          console.warn('[send-queue] could not read the identities to re-stamp a held entry:', err);
+          return null;
+        }),
+      };
+    }
+    return read.identities;
+  };
+}
+
 /**
  * Clear an `account_unavailable` hold once the session serves that account
  * again, so the entry goes back to plain `queued` and is sent through the
  * usual markSending compare-and-set. Only for an entry never attempted (no
  * `attemptStartedAt`: it was held before markSending, so no request for it
  * was ever made); every other hold waits for the user. The store re-checks
- * all of that when the release runs. Resolves true when the hold was cleared.
+ * all of that when the release runs. When the account is still not served
+ * the entry may be re-stamped onto the session's primary instead
+ * (restampOntoPrimary). Resolves true when the hold was cleared.
  */
-async function releaseAccountHold(entry: QueuedSend): Promise<boolean> {
+async function releaseAccountHold(entry: QueuedSend, identitiesOf: PrimaryIdentities): Promise<boolean> {
   if (entry.state !== 'queued' || entry.heldReason !== 'account_unavailable' || entry.attemptStartedAt) return false;
-  if (!canReplay(entry.appAccountId) || !servesJmapAccount(entry.jmapAccountId)) return false;
+  if (!canReplay(entry.appAccountId)) return false;
+  if (!servesJmapAccount(entry.jmapAccountId)) return restampOntoPrimary(entry, identitiesOf);
   try {
     await useSendQueueStore.getState().releaseHold(entry.id);
     return true;
   } catch (err) {
     console.warn('[send-queue] could not release a held entry:', err);
+    return false;
+  }
+}
+
+/**
+ * Move a held entry whose JMAP account the session no longer serves onto the
+ * session's primary, when restampTarget allows it. Everything is judged
+ * again after the identities load: the app account, the primary and whether
+ * the old account came back may all have changed meanwhile. The store's
+ * restamp re-checks the entry itself. Resolves true when it was re-stamped.
+ */
+async function restampOntoPrimary(entry: QueuedSend, identitiesOf: PrimaryIdentities): Promise<boolean> {
+  const primaryId = jmapClient.connectedAccountId;
+  // Most held entries can never move: ask the server nothing for them.
+  if (!primaryId || primaryId === entry.jmapAccountId || !mayRestamp(entry)) return false;
+  const identities = await identitiesOf(primaryId);
+  if (!identities || !canReplay(entry.appAccountId) || jmapClient.connectedAccountId !== primaryId) return false;
+  const target = restampTarget(entry, {
+    primaryId,
+    servesEntryAccount: servesJmapAccount(entry.jmapAccountId),
+    identities,
+  });
+  if (!target) return false;
+  try {
+    await useSendQueueStore.getState().restamp(entry.id, target);
+    return true;
+  } catch (err) {
+    console.warn('[send-queue] could not re-stamp a held entry:', err);
     return false;
   }
 }
@@ -505,15 +561,17 @@ async function flushOnce(): Promise<'done' | 'stopped'> {
   // not reconciled in it; a later pass waits out RECONCILE_GRACE_MS.
   const ordered = [...(useSendQueueStore.getState().entries[appId] ?? [])]
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const identitiesOf = primaryIdentitiesOnce();
 
   for (const snapshot of ordered) {
     if (!canReplay(appId)) return 'stopped';
     let entry = liveEntry(appId, snapshot.id);
     if (!entry || entry.appAccountId !== appId) continue;
     // Held entries wait for the user's Retry, except one held only because
-    // its account was not served, which goes on once it is again.
+    // its account was not served, which goes on once it is again (or once
+    // it is re-stamped onto the primary).
     if (entry.state === 'queued' && entry.heldReason) {
-      if (!(await releaseAccountHold(entry))) continue;
+      if (!(await releaseAccountHold(entry, identitiesOf))) continue;
       entry = liveEntry(appId, snapshot.id);
       if (!entry || entry.state !== 'queued' || entry.heldReason || !canReplay(appId)) continue;
     }
