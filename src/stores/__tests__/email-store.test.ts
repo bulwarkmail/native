@@ -554,6 +554,50 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().mailboxSnapshots['mb-1']).toBeUndefined();
     });
+
+    // The pick decided to browse before the read; the search typed during it
+    // is re-run in the new folder, so the folder's browse seed never shows
+    // under it.
+    it('keeps a search typed while the cache was read, with its results, until it re-runs', async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      const releaseCacheRead = holdCacheRead();
+      const pick = useEmailStore.getState().selectMailbox('mb-2');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      useEmailStore.setState({ searchQuery: 'invoice', emails: [{ id: 'hit-1' } as any], totalEmails: 1 });
+      const seen: string[][] = [];
+      const unsubscribe = useEmailStore.subscribe((st, prev) => {
+        if (st.currentMailboxId === 'mb-2' && prev.currentMailboxId !== 'mb-2') seen.push(st.emails.map((e) => e.id));
+      });
+      releaseCacheRead();
+      await pick;
+      unsubscribe();
+
+      expect(seen).toEqual([['hit-1']]);
+      expect(useEmailStore.getState().searchQuery).toBe('invoice');
+    });
+
+    it('clears a search typed while the cache was read when folder changes clear the search', async () => {
+      useSettingsStore.getState().updateSetting('clearSearchOnFolderChange', true);
+      try {
+        mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+        const releaseCacheRead = holdCacheRead();
+        const pick = useEmailStore.getState().selectMailbox('mb-2');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        useEmailStore.setState({ searchQuery: 'invoice', emails: [{ id: 'hit-1' } as any], totalEmails: 1 });
+        const seen: string[][] = [];
+        const unsubscribe = useEmailStore.subscribe((st, prev) => {
+          if (st.currentMailboxId === 'mb-2' && prev.currentMailboxId !== 'mb-2') seen.push(st.emails.map((e) => e.id));
+        });
+        releaseCacheRead();
+        await pick;
+        unsubscribe();
+
+        expect(seen).toEqual([['cached-2']]);
+        expect(useEmailStore.getState().searchQuery).toBe('');
+      } finally {
+        useSettingsStore.getState().updateSetting('clearSearchOnFolderChange', false);
+      }
+    });
   });
 
   describe('loadMoreEmails', () => {

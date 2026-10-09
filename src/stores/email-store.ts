@@ -1341,7 +1341,7 @@ export const useEmailStore = create<EmailState>()(
     // folder (#553), so the current results stay on screen until it lands.
     let seededEmails: Email[] = browse ? incoming?.emails ?? [] : state.emails;
     let seededTotal = browse ? incoming?.total ?? 0 : state.totalEmails;
-    const seededQueryState = browse ? incoming?.queryState : undefined;
+    let seededQueryState = browse ? incoming?.queryState : undefined;
 
     if (browse && seededEmails.length === 0) {
       const cacheStore = useOfflineCacheStore.getState();
@@ -1373,8 +1373,19 @@ export const useEmailStore = create<EmailState>()(
     // a filter or search makes the visible list unrepresentative of the
     // cached "no-filter" snapshot.
     const now = get();
+    // Browse or keep the search as the view is now: a search typed during
+    // the cache read is re-run in the new folder (or cleared, with "Clear
+    // search when switching folders"), so the folder's browse seed must not
+    // show under it. Only the browse path awaited, so only it can change.
+    const nowBase = isBaseView(now.searchQuery, now.filters);
+    const clearNow = clearSearch || (!nowBase && useSettingsStore.getState().clearSearchOnFolderChange);
+    if (browse && !nowBase && !clearNow) {
+      seededEmails = now.emails;
+      seededTotal = now.totalEmails;
+      seededQueryState = undefined;
+    }
     let mailboxSnapshots = now.mailboxSnapshots;
-    if (now.currentMailboxId && now.currentMailboxId !== mailboxId && isBaseView(now.searchQuery, now.filters)) {
+    if (now.currentMailboxId && now.currentMailboxId !== mailboxId && nowBase) {
       mailboxSnapshots = {
         ...mailboxSnapshots,
         [now.currentMailboxId]: {
@@ -1386,7 +1397,7 @@ export const useEmailStore = create<EmailState>()(
     }
 
     set({
-      ...(clearSearch ? { searchQuery: '', filters: {}, searchSnippets: {} } : {}),
+      ...(clearNow ? { searchQuery: '', filters: {}, searchSnippets: {} } : {}),
       currentMailboxId: mailboxId,
       emails: seededEmails,
       totalEmails: seededTotal,
