@@ -176,11 +176,23 @@ export const useAccountStore = create<AccountState>()(
       name: 'account-registry',
       // Tiny, rarely written, and read straight from AsyncStorage by the
       // headless push task, so it isn't held back like the caches.
-      // A row with no account list is a failed read (persistReadFailed), not
-      // a registry with no accounts: cleanups key off what is missing here.
+      // A row with no account list, or an entry without a string id, is a
+      // failed read (persistReadFailed), not a registry missing those
+      // accounts: cleanups key off what is missing here.
+      // No `version` (so 0, as every stored row): zustand drops a row whose
+      // version differs when there is no `migrate`, and what `migrate`
+      // returns is never put through isValidState. Either way the registry
+      // would start short while the read counts as clean, and every cleanup
+      // would run for the accounts it lost. A version bump needs a migrate
+      // that keeps every account (and a test that it does).
       storage: createPersistStorage({
         writeDelayMs: 0,
-        isValidState: (state) => Array.isArray((state as { accounts?: unknown } | null)?.accounts),
+        isValidState: (state) => {
+          const accounts = (state as { accounts?: unknown } | null)?.accounts;
+          return Array.isArray(accounts) && accounts.every(
+            (a) => !!a && typeof a === 'object' && typeof (a as { id?: unknown }).id === 'string',
+          );
+        },
       }),
       partialize: (state) => ({
         accounts: state.accounts,

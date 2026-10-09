@@ -288,6 +288,7 @@ describe('a sign-out cleanup still running when the account signs in again', () 
         ['a rejected read', async () => { vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('CursorWindow')); }],
         ['corrupt JSON', () => AsyncStorage.setItem(REGISTRY, '{corrupt')],
         ['a row with no account list', () => AsyncStorage.setItem(REGISTRY, JSON.stringify({ state: { activeAccountId: ID }, version: 0 }))],
+        ['a row with an account that has no id', () => AsyncStorage.setItem(REGISTRY, JSON.stringify({ state: { accounts: [{ username: USER }], activeAccountId: ID }, version: 0 }))],
       ];
 
       it.each(spoilers)('keeps every marker and forgets nothing after %s', async (_, spoil) => {
