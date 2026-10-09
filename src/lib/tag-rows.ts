@@ -70,17 +70,20 @@ export function tagRows(
   };
   const visible = filterKeywordTree(tree, isVisible);
 
-  const holdsSelected = (node: KeywordNode): boolean =>
-    node.children.some((child) => child.id === opts.selectedId || holdsSelected(child));
+  const onSelectedPath = (node: KeywordNode): boolean =>
+    node.id === opts.selectedId || node.children.some(onSelectedPath);
 
   const rows: TagRow[] = [];
   const walk = (nodes: KeywordNode[]) => {
     for (const node of nodes) {
       const hasChildren = node.children.length > 0;
-      const expanded = !hasChildren || !opts.collapsed?.has(node.id) || holdsSelected(node);
+      // `expanded` is what is stored, so the chevron shows it and a tap
+      // opens the branch; a collapsed branch still lists the one child on the
+      // way down to the open tag view, and none of its siblings.
+      const expanded = !hasChildren || !opts.collapsed?.has(node.id);
       const def = byId.get(node.id);
       if (def) rows.push({ def, depth: node.depth, hasChildren, expanded });
-      if (expanded) walk(node.children);
+      walk(expanded ? node.children : node.children.filter(onSelectedPath));
     }
   };
   walk(visible);

@@ -539,9 +539,12 @@ export interface EmailState {
   ensureMailboxes: () => Promise<void>;
   /**
    * Show a folder. `byUser`: the user picked it in the drawer, so a folder
-   * link still waiting for this account is dropped.
+   * link still waiting for this account is dropped. Resolves true when this
+   * pick landed and is still the one shown, false when a newer pick or an
+   * account switch overtook it, so a follow-up (the unread filter) is not
+   * laid over the view that won.
    */
-  selectMailbox: (mailboxId: string, opts?: { byUser?: boolean }) => Promise<void>;
+  selectMailbox: (mailboxId: string, opts?: { byUser?: boolean }) => Promise<boolean>;
   /**
    * Cold start: show the Inbox of the active account, or with `restoreLast`
    * the folder remembered for it when that folder still exists. Once per
@@ -1316,8 +1319,11 @@ export const useEmailStore = create<EmailState>()(
     const startAccountId = get().activeAccountId;
     // A cold-start link waits for the folders to load before it opens its
     // folder; a folder the user picks by hand in that time wins over it.
-    if (opts?.byUser) dropPendingMailFolder(startAccountId);
+    // With no account shown there is no link of its own to drop, and
+    // dropPendingMailFolder(null) would drop every account's.
+    if (opts?.byUser && startAccountId) dropPendingMailFolder(startAccountId);
     if (startAccountId) startFolderSettled.add(startAccountId);
+    const overtaken = () => gen !== selectGen || get().activeAccountId !== startAccountId;
     const state = get();
     // Tuck the previously-visible mailbox into its snapshot so a return-trip
     // can restore it without a network call. Only do this for the base view —
@@ -1373,7 +1379,7 @@ export const useEmailStore = create<EmailState>()(
         }
       }
       // Overtaken while the cache was read: the newer pick or account owns the view.
-      if (gen !== selectGen || get().activeAccountId !== startAccountId) return;
+      if (overtaken()) return false;
     }
 
     set({
@@ -1396,10 +1402,11 @@ export const useEmailStore = create<EmailState>()(
     // switchAccount will run the network half once the client catches up.
     if (!jmapClientServesActiveAccount(get().activeAccountId)) {
       set({ loading: false });
-      return;
+      return true;
     }
 
     await get().refreshEmails();
+    return !overtaken();
   },
 
   loadMoreEmails: async () => {

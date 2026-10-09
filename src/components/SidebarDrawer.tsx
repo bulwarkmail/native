@@ -341,6 +341,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   // The tags section's "Show all", which lists the tags set to hide too.
   const [showAllTags, setShowAllTags] = React.useState(false);
   const [collapsedTags, setCollapsedTags] = React.useState<ReadonlySet<string>>(() => new Set());
+  // Bumped by each tag toggle, so a stored set read before it does not undo it.
+  const tagToggles = React.useRef(0);
   const [unifiedExpanded, setUnifiedExpanded] = React.useState(false);
   const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(() => new Set());
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
@@ -360,6 +362,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   React.useEffect(() => {
     void (async () => {
+      const togglesAtRead = tagToggles.current;
       try {
         const [rawExp, rawFld, rawTags, rawUnified, rawCollapsedTags] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.expanded),
@@ -387,7 +390,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         if (rawFld != null) setFoldersExpanded(rawFld === 'true');
         if (rawTags != null) setTagsExpanded(rawTags === 'true');
         if (rawUnified != null) setUnifiedExpanded(rawUnified === 'true');
-        if (rawCollapsedTags) {
+        if (rawCollapsedTags && tagToggles.current === togglesAtRead) {
           try {
             const ids = JSON.parse(rawCollapsedTags) as string[];
             if (Array.isArray(ids)) setCollapsedTags(new Set(ids));
@@ -426,13 +429,16 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   }, [persistExpanded]);
 
   const toggleTagCollapsed = React.useCallback((id: string) => {
+    tagToggles.current += 1;
     setCollapsedTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      // Tags deleted since they were collapsed are left out of what is stored.
+      const known = new Set(keywordDefs.map((kw) => kw.id));
+      const next = new Set([...prev].filter((tagId) => known.has(tagId)));
+      if (prev.has(id)) next.delete(id); else next.add(id);
       void AsyncStorage.setItem(STORAGE_KEYS.collapsedTags, JSON.stringify(Array.from(next))).catch(() => {});
       return next;
     });
-  }, []);
+  }, [keywordDefs]);
 
   const toggleSection = (key: 'foldersExpanded' | 'tagsExpanded' | 'unifiedExpanded', setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     setter((prev) => {
@@ -451,7 +457,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   // Tap the unread count → the folder filtered to unread (webmail sidebar).
   const handleSelectUnread = React.useCallback((id: string) => {
-    void selectMailbox(id, { byUser: true }).then(() => setFilters({ isUnread: true }));
+    // Only on the folder this tap opened: a pick overtaken by a later one or
+    // an account switch must not filter the view that won.
+    void selectMailbox(id, { byUser: true }).then((landed) => { if (landed) setFilters({ isUnread: true }); });
     onClose();
   }, [selectMailbox, setFilters, onClose]);
 
@@ -1096,7 +1104,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   {unifiedExpanded ? (
                     <ChevronDown size={14} color={c.textMuted} />
                   ) : (
-                    <ChevronRight size={14} color={c.textMuted} />
+                    <ChevronRight size={14} color={c.textMuted} style={forwardIconStyle(isLayoutRTL())} />
                   )}
                   <Text style={styles.sectionHeaderText}>{t('sidebar.unified_mailbox', 'Unified mailbox')}</Text>
                 </Pressable>
@@ -1151,7 +1159,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               {foldersExpanded ? (
                 <ChevronDown size={14} color={c.textMuted} />
               ) : (
-                <ChevronRight size={14} color={c.textMuted} />
+                <ChevronRight size={14} color={c.textMuted} style={forwardIconStyle(isLayoutRTL())} />
               )}
               <Text style={styles.sectionHeaderText}>{t('sidebar.folders', 'Folders')}</Text>
               <View style={{ flex: 1 }} />
@@ -1228,7 +1236,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   {tagsExpanded ? (
                     <ChevronDown size={14} color={c.textMuted} />
                   ) : (
-                    <ChevronRight size={14} color={c.textMuted} />
+                    <ChevronRight size={14} color={c.textMuted} style={forwardIconStyle(isLayoutRTL())} />
                   )}
                   <Text style={styles.sectionHeaderText}>{t('sidebar.tags', 'Tags')}</Text>
                 </Pressable>

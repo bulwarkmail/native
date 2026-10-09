@@ -90,6 +90,17 @@ describe('tagRows', () => {
         .toContain('work/q3');
     });
 
+    it('opens a collapsed branch only down to the selected tag, and still marks it collapsed', () => {
+      const tree = [kw('work'), kw('work/q3', { parentId: 'work' }), kw('work/q4', { parentId: 'work' })];
+      const collapsed = tagRows(tree, { nested: true, collapsed: new Set(['work']), selectedId: 'work/q3' });
+      expect(collapsed.rows.map((r) => r.def.id)).toEqual(['work', 'work/q3']);
+      expect(collapsed.rows[0]).toMatchObject({ hasChildren: true, expanded: false });
+      // The tap the chevron offers drops `work` from the set: the sibling shows.
+      const opened = tagRows(tree, { nested: true, collapsed: new Set(), selectedId: 'work/q3' });
+      expect(opened.rows.map((r) => r.def.id)).toEqual(['work', 'work/q3', 'work/q4']);
+      expect(opened.rows[0]).toMatchObject({ expanded: true });
+    });
+
     it('counts only visibility in hiddenCount, not collapsing', () => {
       expect(tagRows(defs, { ...base, collapsed: new Set(['work']) }).hiddenCount).toBe(0);
     });
