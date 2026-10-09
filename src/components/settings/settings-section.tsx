@@ -292,8 +292,8 @@ function makeStyles(c: ThemePalette) {
   settingContent: {
     flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 180,
-    minWidth: 180,
+    flexBasis: 160,
+    minWidth: 160,
     paddingRight: spacing.lg,
   },
   settingLabelRow: {
@@ -310,8 +310,10 @@ function makeStyles(c: ThemePalette) {
     color: c.mutedForeground,
     marginTop: 2,
   },
+  // marginLeft auto keeps the control on the right when it wraps below the text.
   settingRight: {
     flexShrink: 0,
+    marginLeft: 'auto',
   },
   // A row opened from Settings search. The negative margin keeps the
   // content where it was while the tint gets some room around it.

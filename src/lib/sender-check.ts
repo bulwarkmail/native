@@ -101,23 +101,39 @@ export function passesFromHeaderInfo(
 }
 
 /**
+ * The user's own copy of a message: in a Sent or Drafts folder, or a draft.
+ * The client writes these itself, so they carry no Authentication-Results.
+ */
+export function isOwnCopy(
+  email: { mailboxIds?: Record<string, boolean>; keywords?: Record<string, boolean> },
+  mailboxes: ReadonlyArray<{ id: string; role?: string | null }>,
+): boolean {
+  if (email.keywords?.$draft) return true;
+  const ids = email.mailboxIds ?? {};
+  return mailboxes.some((m) => ids[m.id] && (m.role === 'sent' || m.role === 'drafts'));
+}
+
+/**
  * The "via <identity>" badge: the message was sent as one of the user's
  * identities, or received at one other than the default (incl. +tag). A
  * legitimacy cue, so "sent as" needs the From to pass the sender check: a
  * forged From has no pinned results, so it reads as neither spoofed nor
- * passed. "Received at" is about the To, and is dropped only when the
- * message reads as spoofed.
+ * passed. The user's own copy (`ownCopy`: in Sent or Drafts, or a draft) is
+ * written by the client and never carries results, so it needs no pass.
+ * "Received at" is about the To, and is dropped only when the message reads
+ * as spoofed.
  */
 export function viaIdentityBadge(
   email: Pick<Email, 'from' | 'to' | 'cc' | 'bcc'>,
   identities: Identity[],
   headerInfo: Pick<EmailHeaderInfo, 'auth'>,
+  ownCopy = false,
 ): { identity: Identity; direction: 'from' | 'to' } | null {
   if (identities.length === 0 || isAuthenticationSpoofed(headerInfo.auth)) return null;
   const fromEmail = email.from?.[0]?.email?.trim().toLowerCase();
   const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
   if (sentAs) {
-    return passesFromHeaderInfo(headerInfo, fromEmail) ? { identity: sentAs, direction: 'from' } : null;
+    return ownCopy || passesFromHeaderInfo(headerInfo, fromEmail) ? { identity: sentAs, direction: 'from' } : null;
   }
   const received = findReceivingIdentity(identities, email);
   if (received && identities.length > 1 && received.id !== identities[0].id) {

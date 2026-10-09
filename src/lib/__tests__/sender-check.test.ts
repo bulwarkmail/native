@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { senderCheckText, trustSenderBannerMode, untrustedReplyAddresses, senderPassesCheck, passesFromHeaderInfo, viaIdentityBadge } from '../sender-check';
+import { senderCheckText, trustSenderBannerMode, untrustedReplyAddresses, senderPassesCheck, passesFromHeaderInfo, viaIdentityBadge, isOwnCopy } from '../sender-check';
 import { deriveHeaderInfo, getSenderVerification, parseAuthenticationResults } from '../email-headers';
 import type { MessageParams } from '../../i18n';
 
@@ -210,11 +210,38 @@ describe('viaIdentityBadge', () => {
     }
   });
 
+  it('shows "sent as" on an own copy, which never carries Authentication-Results', () => {
+    // A copy in Sent or Drafts is written by the client itself.
+    const sent = fromMe(null);
+    expect(viaIdentityBadge(sent, [me, alias], info(sent), true)).toEqual({ identity: me, direction: 'from' });
+    // A received message that claims to be from the user still needs the pass.
+    expect(viaIdentityBadge(sent, [me, alias], info(sent), false)).toBeNull();
+  });
+
+  it('shows no badge on an own copy that reads as spoofed', () => {
+    const spoofedCopy = fromMe('mx; dmarc=fail header.from=ours.example');
+    expect(viaIdentityBadge(spoofedCopy, [me, alias], info(spoofedCopy), true)).toBeNull();
+  });
+
   it('shows "received at" for a non-default identity unless the message reads as spoofed', () => {
     const toAlias = { ...fromMe(null), from: [{ email: 'x@else.example' }], to: [{ email: 'sales@ours.example' }] };
     expect(viaIdentityBadge(toAlias, [me, alias], deriveHeaderInfo(toAlias, 'mx'))).toEqual({ identity: alias, direction: 'to' });
     expect(viaIdentityBadge(toAlias, [me], deriveHeaderInfo(toAlias, 'mx'))).toBeNull();
     const spoofed = { ...toAlias, headers: [{ name: 'Authentication-Results', value: 'mx; dmarc=fail header.from=else.example' }] };
     expect(viaIdentityBadge(spoofed, [me, alias], deriveHeaderInfo(spoofed, 'mx'))).toBeNull();
+  });
+});
+
+describe('isOwnCopy', () => {
+  const mailboxes = [{ id: 'm1', role: 'inbox' }, { id: 'm2', role: 'sent' }, { id: 'm3', role: 'drafts' }];
+  it('is true in Sent or Drafts, or for a draft', () => {
+    expect(isOwnCopy({ mailboxIds: { m2: true } }, mailboxes)).toBe(true);
+    expect(isOwnCopy({ mailboxIds: { m3: true } }, mailboxes)).toBe(true);
+    expect(isOwnCopy({ mailboxIds: { m1: true }, keywords: { $draft: true } }, mailboxes)).toBe(true);
+  });
+  it('is false for received mail', () => {
+    expect(isOwnCopy({ mailboxIds: { m1: true } }, mailboxes)).toBe(false);
+    expect(isOwnCopy({ mailboxIds: { x9: true } }, mailboxes)).toBe(false);
+    expect(isOwnCopy({}, mailboxes)).toBe(false);
   });
 });

@@ -15,7 +15,7 @@ import { spacing, radius, typography, fontPx, type ThemePalette } from '../../th
 import { useColors } from '../../theme/colors';
 import { ALL_DEBUG_CATEGORIES, useSettingsStore, type DebugCategory } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useAccountStore } from '../../stores/account-store';
+import { useEmailStore } from '../../stores/email-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { useOutboxStore } from '../../stores/outbox-store';
 import { useSendQueueStore } from '../../stores/send-queue-store';
@@ -128,7 +128,7 @@ export function AboutDataSettings() {
   const handleExport = async () => {
     try {
       // The shown account's shared calendar colours only: the others' keys name their accounts.
-      const json = exportSettings(useAccountStore.getState().activeAccountId);
+      const json = exportSettings(useEmailStore.getState().activeAccountId);
       const file = new File(Paths.cache, `bulwark-settings-${new Date().toISOString().slice(0, 10)}.json`);
       file.write(json);
       if (await Sharing.isAvailableAsync()) {

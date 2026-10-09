@@ -18,7 +18,8 @@ import {
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
-import { senderCheckText, viaIdentityBadge } from '../../lib/sender-check';
+import { isOwnCopy, senderCheckText, viaIdentityBadge } from '../../lib/sender-check';
+import { useEmailStore } from '../../stores/email-store';
 
 interface Props {
   email: Email;
@@ -112,10 +113,13 @@ export function MessageHeader({ email, identities, headerInfo: info, onToggleSta
   const senderCheckColor = senderCheck?.tone === 'danger' ? c.error : c.warning;
 
   // "via <identity>": sent as or received at one of the user's identities;
-  // "sent as" only when the From passed the sender check.
+  // "sent as" only when the From passed the sender check, or on the user's
+  // own copy in Sent or Drafts.
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const ownCopy = React.useMemo(() => isOwnCopy(email, mailboxes), [email, mailboxes]);
   const viaIdentity = React.useMemo(
-    () => viaIdentityBadge(email, identities, info),
-    [email, identities, info],
+    () => viaIdentityBadge(email, identities, info, ownCopy),
+    [email, identities, info, ownCopy],
   );
 
   const tags = React.useMemo(
