@@ -55,6 +55,7 @@
     "react-native-sse": "^1.2.1",
     "react-native-svg": "15.12.1",
     "react-native-webview": "13.15.0",
+    "tldts": "^7.4.18",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

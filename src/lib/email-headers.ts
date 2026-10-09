@@ -7,6 +7,7 @@
 import type { Email, Identity } from '../api/types';
 import { parseUnsubscribeUrls, type UnsubscribeUrls } from './unsubscribe';
 import { resolveReplyFrom } from './reply-identity';
+import { domainsAlign } from './registrable-domain';
 
 /**
  * The identity a received message was addressed to (exact or `+tag`), for
@@ -178,12 +179,14 @@ export function getSenderVerification(
   const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
 
   if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
-  // A pass vouches for the From domain only when it is for that domain (or a
-  // parent or subdomain of it): anyone can pass SPF, DKIM and DMARC for a
-  // domain of their own, and with no DMARC record at the forged one nothing
-  // else would flag it. Stricter than webmail, which takes any pass
-  // (decision 2026-10-08). The same test as the invitation banner's, so the
-  // two never disagree about one message.
+  // A pass vouches for the From domain only when it aligns with it, DMARC's
+  // relaxed way: the same registrable domain by the public suffix list, so a
+  // sibling subdomain counts and another tenant of a shared suffix never
+  // does (this replaces the parent-or-subdomain rule of 2026-10-08). Anyone
+  // can pass SPF, DKIM and DMARC for a domain of their own, and with no DMARC
+  // record at the forged one nothing else would flag it. Stricter than
+  // webmail, which takes any pass. The same test as the invitation banner's,
+  // so the two never disagree about one message.
   if (isFromDomainAuthenticated(auth, fromEmail)) return null;
   return { status: 'unverified', domain, sentFrom };
 }
@@ -192,8 +195,9 @@ export function getSenderVerification(
  * Whether the receiving server's checks positively tie the message to its
  * From domain: the domain parses, nothing reads as spoofed, and there is a
  * DMARC pass for that domain or an SPF (MAIL FROM) or DKIM pass aligned with
- * it. Unlike getSenderVerification, no result, an unparsable domain or a
- * pass for another domain is never a yes.
+ * it (relaxed alignment: one registrable domain, see domainsAlign). Unlike
+ * getSenderVerification, no result, an unparsable domain or a pass for
+ * another domain is never a yes.
  */
 export function isFromDomainAuthenticated(
   auth: AuthenticationResults | null | undefined,
@@ -215,10 +219,6 @@ export function isFromDomainAuthenticated(
   const envelopeDomain = envelope ? domainOf(envelope) : undefined;
   if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return true;
   return hasAlignedDkimPass(auth, domain);
-}
-
-function domainsAlign(a: string, b: string): boolean {
-  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
 }
 
 function hasAlignedDkimPass(auth: AuthenticationResults, fromDomain: string): boolean {

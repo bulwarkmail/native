@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { senderCheckText, canOfferTrustSender } from '../sender-check';
-import { deriveHeaderInfo } from '../email-headers';
+import { deriveHeaderInfo, getSenderVerification, parseAuthenticationResults } from '../email-headers';
 import type { MessageParams } from '../../i18n';
 
 // Echoes the key and its params, so a test sees which string was picked.
@@ -98,5 +98,23 @@ describe('canOfferTrustSender', () => {
   it('hides it without a sender address', () => {
     expect(canOfferTrustSender(undefined, null)).toBe(false);
     expect(canOfferTrustSender('', null)).toBe(false);
+  });
+});
+
+describe('sender alignment by registrable domain', () => {
+  it('counts a DKIM pass for a sibling subdomain of the From domain', () => {
+    const auth = parseAuthenticationResults('mx; dkim=pass header.d=mailer.bank.example');
+    expect(getSenderVerification(auth, 'ceo@news.bank.example')).toBeNull();
+  });
+
+  it('does not count a pass for another tenant of a shared suffix', () => {
+    const auth = parseAuthenticationResults('mx; dkim=pass header.d=evil.github.io');
+    expect(getSenderVerification(auth, 'a@alice.github.io')?.status).toBe('unverified');
+  });
+
+  it('does not count a pass for a bare public suffix above the From domain', () => {
+    // The old parent-or-subdomain rule took co.uk as a parent of bank.co.uk.
+    const auth = parseAuthenticationResults('mx; dkim=pass header.d=co.uk');
+    expect(getSenderVerification(auth, 'support@bank.co.uk')?.status).toBe('unverified');
   });
 });
