@@ -21,13 +21,17 @@ import type { QueuedSend } from '../stores/send-queue-store';
 
 /**
  * The entry is one a re-stamp may move: queued, held account_unavailable,
- * never attempted, no attachments, and no error from an earlier attempt (an
- * entry the user put back with Retry after a failure is theirs to judge).
+ * never attempted and no attachments. "Never attempted" is the lasting
+ * `everAttempted` marker, not only `attemptStartedAt`: the user's Retry
+ * (requeue) clears that and `lastError`, and an entry that was sent once,
+ * failed or went uncertain and came back must never be moved to another
+ * account. `lastError` is checked too, for rows stored before the marker.
  */
 export function mayRestamp(entry: QueuedSend): boolean {
   return entry.state === 'queued'
     && entry.heldReason === 'account_unavailable'
     && !entry.attemptStartedAt
+    && !entry.everAttempted
     && !entry.lastError
     && !(entry.outgoing.attachments?.length);
 }

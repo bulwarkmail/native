@@ -515,6 +515,21 @@ describe('send-queue-store', () => {
         expect(entryOf('q1')).toEqual(before);
       });
 
+      it('refuses an entry that was sent once and put back by the user\'s Retry', async () => {
+        const s = await seedHeld({ heldReason: undefined, draftId: undefined, replyTo: undefined });
+        await s.markSending('q1');
+        await s.markUncertain('q1', 'net');
+        await s.requeue('q1');
+        // Retry cleared the attempt time and the error; the marker stays.
+        expect(entryOf('q1')).toMatchObject({ state: 'queued', everAttempted: true });
+        expect(entryOf('q1')!.attemptStartedAt).toBeUndefined();
+        expect(entryOf('q1')!.lastError).toBeUndefined();
+        expect((await stored('a1', 'q1')).everAttempted).toBe(true);
+        await s.hold('q1', 'account_unavailable');
+        await expect(s.restamp('q1', 'jNew')).rejects.toBeInstanceOf(SendQueueStateError);
+        expect(entryOf('q1')!.jmapAccountId).toBe('j1');
+      });
+
       it('refuses the account the entry already names, an empty id, and an unknown entry', async () => {
         const s = await seedHeld();
         await expect(s.restamp('q1', 'j1')).rejects.toBeInstanceOf(SendQueueStateError);

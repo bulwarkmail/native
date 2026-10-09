@@ -1170,6 +1170,22 @@ describe('flushSendQueue: a held send whose account id went stale', () => {
     expect(entries().map((e) => [e.jmapAccountId, e.heldReason])).toEqual([['jOld', 'account_unavailable'], ['jOld', 'account_unavailable']]);
   });
 
+  it('never re-stamps an entry that was sent once, went uncertain and was put back by the user\'s Retry', async () => {
+    await seed(stale({ heldReason: undefined, draftId: undefined }));
+    const store = useSendQueueStore.getState();
+    await store.hydrateAccount('A');
+    await store.markSending('q1');
+    await store.markUncertain('q1', 'network');
+    await store.requeue('q1');
+    await store.hold('q1', 'account_unavailable');
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockIdentities).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable', everAttempted: true });
+  });
+
   it('reads the primary\'s identities once per flush', async () => {
     await seed(stale({ id: 'q1' }));
     await seed(stale({ id: 'q2', createdAt: '2026-10-04T09:00:00.000Z' }));

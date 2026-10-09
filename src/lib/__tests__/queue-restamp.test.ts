@@ -25,6 +25,7 @@ describe('restampTarget', () => {
     ['failed', { state: 'failed' as const }],
     ['sending', { state: 'sending' as const }],
     ['with an error from an earlier attempt', { lastError: 'Connection lost' }],
+    ['that was ever attempted, even after a Retry', { everAttempted: true as const }],
   ])('never re-stamps an entry %s', (_l, patch) => {
     expect(restampTarget({ ...held, ...patch }, live)).toBeNull();
   });

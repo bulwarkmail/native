@@ -96,6 +96,12 @@ export interface QueuedSend {
   createdAt: string;
   state: QueuedSendState;
   attemptStartedAt?: string;
+  /**
+   * Set by markSending and never cleared (requeue and releaseUnsent keep it):
+   * a request for this message may have reached the server once, so it is
+   * never moved to another account (restamp).
+   */
+  everAttempted?: true;
   lastError?: string;
   /** Set on a `queued` entry replay cannot send; cleared by requeue. */
   heldReason?: HeldReason;
@@ -325,7 +331,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
     // A held entry is not sent until the user's Retry clears the hold.
     markSending: (id) =>
       transition(id, (e) => e.state === 'queued' && !e.heldReason, (e) => ({
-        ...e, state: 'sending', attemptStartedAt: new Date().toISOString(),
+        ...e, state: 'sending', attemptStartedAt: new Date().toISOString(), everAttempted: true,
       })),
 
     // From `queued` as well: replay found proof of an uncertain send that the
