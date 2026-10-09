@@ -103,6 +103,17 @@ describe('coalesceByKey', () => {
     await expect(joined).resolves.toBe(2);
     await expect(run('other')).resolves.toBe(3);
   });
+
+  it('keeps one key\'s flight while another key runs', async () => {
+    const resolvers: Record<string, Array<(v: number) => void>> = { a: [], b: [] };
+    const fn = vi.fn((k: string) => new Promise<number>((r) => { resolvers[k].push(r); }));
+    const run = coalesceByKey(fn);
+    const a1 = run('a'); void run('b'); const a2 = run('a');
+    expect(fn.mock.calls.map(([k]) => k)).toEqual(['a', 'b']);   // a2 joined a1, no second 'a' yet
+    resolvers.a[0](1); expect(await a1).toBe(1);
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(3));  // a2's one re-run
+    resolvers.a[1](2); expect(await a2).toBe(2);
+  });
 });
 
 describe('startSessionRetry', () => {

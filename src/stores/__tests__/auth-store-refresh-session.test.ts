@@ -40,16 +40,27 @@ vi.mock('../../lib/push-notifications', () => ({
   clearStoredRelayBaseUrl: vi.fn(async () => undefined),
 }));
 
+vi.mock('../../lib/push-inbox-only', async () => ({
+  gainedMailAccounts: (await vi.importActual<typeof import('../../lib/push-inbox-only')>('../../lib/push-inbox-only')).gainedMailAccounts,
+  resyncPushAfterSessionChange: vi.fn(async () => undefined),
+}));
+
 import { useAuthStore } from '../auth-store';
+import { resyncPushAfterSessionChange } from '../../lib/push-inbox-only';
 
 const ID = 'user@example.com@mail.example.com';
 const shared = { apiUrl: 'https://mail.example.com/jmap/', accounts: { 'acc-1': {}, dana: {} } };
+const ACTIVE = ID;
+const MAIL = { 'urn:ietf:params:jmap:mail': {} };
+const own = { apiUrl: 'https://mail.example.com/jmap/', accounts: { 'acc-1': { accountCapabilities: MAIL } } };
+const sharedMail = { apiUrl: 'https://mail.example.com/jmap/', accounts: { 'acc-1': { accountCapabilities: MAIL }, dana: { accountCapabilities: MAIL } } };
 
 beforeEach(async () => {
   client.username = 'user@example.com';
   client.serverUrl = 'https://mail.example.com';
   client.session = { apiUrl: 'https://mail.example.com/jmap/', accounts: { 'acc-1': {} } };
   client.refreshSession.mockReset();
+  vi.mocked(resyncPushAfterSessionChange).mockClear();
   await useAuthStore.getState().login('https://mail.example.com', 'user@example.com', 'pass');
 });
 
@@ -93,6 +104,38 @@ describe('refreshSessionFor', () => {
     client.refreshSession.mockImplementation(async () => shared);
     expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
     expect(useAuthStore.getState().session).toBe(before);
+  });
+
+  it('resyncs push once when the refreshed session names a new mail account', async () => {
+    useAuthStore.setState({ session: own as never });
+    client.refreshSession.mockImplementation(async () => { client.session = sharedMail; return sharedMail; });
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(true);
+    expect(resyncPushAfterSessionChange).toHaveBeenCalledTimes(1);
+    expect(resyncPushAfterSessionChange).toHaveBeenCalledWith(ACTIVE);
+  });
+
+  it('does not resync push when the refreshed session has the same accounts, or the refresh was overtaken', async () => {
+    useAuthStore.setState({ session: own as never });
+    const same = { ...own, accounts: { ...own.accounts } };
+    client.refreshSession.mockImplementation(async () => { client.session = same; return same; });
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(true);
+    // A non-mail share (calendars only) is no new mail account either.
+    const calendarShare = { ...own, accounts: { ...own.accounts, cal: { accountCapabilities: { 'urn:ietf:params:jmap:calendars': {} } } } };
+    client.refreshSession.mockImplementation(async () => { client.session = calendarShare; return calendarShare; });
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(true);
+    // Overtaken by a switch: the new mail account never reaches this store.
+    client.refreshSession.mockImplementation(async () => {
+      useAuthStore.setState({ activeAccountId: 'other@example.com@mail.example.com' });
+      client.session = sharedMail;
+      return sharedMail;
+    });
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
+    // Overtaken by the client swapping its session.
+    useAuthStore.setState({ activeAccountId: ID, session: own as never });
+    client.session = own;
+    client.refreshSession.mockImplementation(async () => sharedMail);
+    expect(await useAuthStore.getState().refreshSessionFor(ID)).toBe(false);
+    expect(resyncPushAfterSessionChange).not.toHaveBeenCalled();
   });
 
   it('waits out a sign-in or switch in progress, before and after the fetch', async () => {

@@ -56,6 +56,7 @@ import { singleFlightByKey } from '../lib/session-retry';
 // module need not export the class).
 import { isStaleLoad } from '../lib/network-error';
 import { clientServesAccount } from '../lib/active-client-account';
+import { gainedMailAccounts, resyncPushAfterSessionChange } from '../lib/push-inbox-only';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -1535,6 +1536,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       && !!get().session
       && clientServesAccount(appAccountId);
     if (!serves()) return false;
+    const before = get().session;
     let fresh: JMAPSession | null;
     try {
       fresh = await jmapClient.refreshSession();
@@ -1546,6 +1548,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // A switch, sign-out or a dropped session meanwhile: that owns the state.
     if (!fresh || !serves() || jmapClient.currentSession !== fresh) return false;
     set({ session: fresh });
+    // A new shared mail account needs the push filter re-applied to cover it.
+    if (gainedMailAccounts(before, fresh)) void resyncPushAfterSessionChange(appAccountId);
     return true;
   },
 

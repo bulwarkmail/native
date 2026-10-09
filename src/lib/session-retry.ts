@@ -71,23 +71,25 @@ export function singleFlightByKey<K, T>(fn: (key: K) => Promise<T>): (key: K) =>
  * one more after it (shared by every caller that joined), as the email
  * store's coalesceRefresh queues a re-run: the attempt in flight may have
  * started before what the joiner needs to see (a session fetched before a
- * new owner shared). A call for another key starts its own.
+ * new owner shared). Each key has its own slot, so a call for another key
+ * starts its own flight and never drops this one's: a dropped slot would
+ * let the next call for it start a second, overlapping attempt.
  */
 export function coalesceByKey<K, T>(fn: (key: K) => Promise<T>): (key: K) => Promise<T> {
-  interface Flight { key: K; promise: Promise<T>; next?: Promise<T> }
-  let inFlight: Flight | null = null;
+  interface Flight { promise: Promise<T>; next?: Promise<T> }
+  const inFlight = new Map<K, Flight>();
   const start = (key: K): Promise<T> => {
-    const flight = { key } as Flight;
+    const flight = {} as Flight;
     flight.promise = fn(key).finally(() => {
       // With a re-run queued, it takes over (and later callers join it).
-      if (inFlight === flight && !flight.next) inFlight = null;
+      if (inFlight.get(key) === flight && !flight.next) inFlight.delete(key);
     });
-    inFlight = flight;
+    inFlight.set(key, flight);
     return flight.promise;
   };
   return (key: K) => {
-    const current = inFlight;
-    if (!current || current.key !== key) return start(key);
+    const current = inFlight.get(key);
+    if (!current) return start(key);
     current.next ??= current.promise.then(() => undefined, () => undefined).then(() => start(key));
     return current.next;
   };

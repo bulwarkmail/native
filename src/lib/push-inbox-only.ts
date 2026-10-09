@@ -1,5 +1,8 @@
 import { jmapClient } from '../api/jmap-client';
+import type { JMAPSession } from '../api/types';
+import { useEmailStore } from '../stores/email-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { activeAppAccountId, clientServesAccount } from './active-client-account';
 import { generateAccountId } from './account-utils';
 import { getStoredRelayBaseUrl, hasNotificationPermission, resyncPushNotifications } from './push-notifications';
 import { markPushRenewed } from './push-renewal';
@@ -53,4 +56,40 @@ export function watchInboxOnlyChange(): () => void {
       }
     })();
   });
+}
+
+const MAIL_CAPABILITY = 'urn:ietf:params:jmap:mail';
+
+/** Whether `next` names a mail account that `prev` did not (a new share). */
+export function gainedMailAccounts(prev: JMAPSession | null, next: JMAPSession): boolean {
+  const before = prev?.accounts ?? {};
+  return Object.entries(next.accounts ?? {}).some(
+    ([id, account]) => !(id in before) && !!account.accountCapabilities?.[MAIL_CAPABILITY],
+  );
+}
+
+/**
+ * Re-run the push setup for app account `appAccountId` after its session
+ * gained a mail account, so the delivery filter covers the new share. Never
+ * throws.
+ */
+export async function resyncPushAfterSessionChange(appAccountId: string): Promise<void> {
+  // The resync acts on whatever the client serves: only while that is still
+  // this account, and it is the one shown.
+  const serves = () => activeAppAccountId() === appAccountId && clientServesAccount(appAccountId);
+  try {
+    // buildEmailPushConfig reads the loaded folder list, and an account
+    // missing from it gets the server's unfiltered fallback; so the folders
+    // load first (joining a load already running).
+    await useEmailStore.getState().fetchMailboxes();
+    if (!serves() || !useSettingsStore.getState().emailNotificationsEnabled) return;
+    const relayBaseUrl = await getStoredRelayBaseUrl(appAccountId);
+    if (!relayBaseUrl || !serves()) return;
+    // A session refresh never prompts for the permission.
+    if (!(await hasNotificationPermission()) || !serves()) return;
+    await resyncPushNotifications({ relayBaseUrl, accountLabel: jmapClient.username ?? undefined });
+    markPushRenewed(appAccountId);
+  } catch (error) {
+    console.warn('[push] re-sync after session change failed:', error instanceof Error ? error.message : error);
+  }
 }
