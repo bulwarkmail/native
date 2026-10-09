@@ -1,5 +1,5 @@
 // What signing an account out forgets on the device: its offline message
-// bodies, cached sending identities, folder icons and calendar subscriptions and, with the last account, every calendar
+// bodies, cached sending identities, folder icons, shared calendar colours and calendar subscriptions and, with the last account, every calendar
 // subscription (ownerless ones included) and the search history. Unsent outbox
 // changes are kept; queued sends are kept unless discardQueuedSends is set. Settings, locale, templates and keywords stay, as in the
 // webmail's sign-out cleanup.
@@ -11,6 +11,7 @@ import { useSendQueueStore } from './send-queue-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from './calendar-subscriptions-store';
 import { useSearchHistoryStore } from './search-history-store';
 import { useFolderIconsStore } from './folder-icons-store';
+import { useSettingsStore } from './settings-store';
 import { removeIdentityCache } from '../lib/identity-cache';
 
 export interface SignedOutAccount {
@@ -126,6 +127,7 @@ export async function forgetAccountData(
       await useFolderIconsStore.getState().hydrate();
     }
   });
+  await guarded(() => useSettingsStore.getState().forgetAccountCalendarColors(account.appAccountId));
   await guarded(async () => {
     // Queued and failed ops are the user's unsent changes: keep them so they
     // replay when this account signs in again.

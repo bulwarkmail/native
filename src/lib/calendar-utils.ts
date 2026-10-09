@@ -572,6 +572,12 @@ export function sharedCalendarColorKey(
  * The key overrides were stored under before they were per app account,
  * and the one a webmail settings import carries. Read only: writes use
  * sharedCalendarColorKey().
+ *
+ * Nothing names an app account in it, so every app account reads it (as a
+ * fallback, sharedCalendarColorFor): one whose JMAP ids collide with the
+ * account that set it shows that colour too. Kept so an override from
+ * before the upgrade, or from a webmail export, still shows; a reset writes
+ * a per-account key over it, for that account only.
  */
 export function legacySharedCalendarColorKey(
   cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,

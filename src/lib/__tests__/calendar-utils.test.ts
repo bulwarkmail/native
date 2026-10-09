@@ -21,6 +21,7 @@ import {
   sharedCalendarColorKey,
 } from '../calendar-utils';
 import type { Calendar, CalendarEvent } from '../../api/types';
+import { withoutAccountCalendarColors, exportableCalendarColors } from '../calendar-color-keys';
 import { useSettingsStore } from '../../stores/settings-store';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
@@ -327,6 +328,21 @@ describe('shared calendar colours', () => {
     expect(after['team|c1']).toBe('#00ff00');
     expect(sharedCalendarColorFor(after, 'A', cal)).toBe(color);
     expect(sharedCalendarColorFor(after, 'B', cal)).toBe('#00ff00');
+  });
+
+  it('forgets one app account\'s overrides, keeping the others\' and the old keys', () => {
+    const overrides = { 'team|c1': '#000001', 'A|team|c1': '#000002', 'A|x|y': '#000003', 'AB|team|c1': '#000004', 'B|team|c1': '#000005' };
+    expect(withoutAccountCalendarColors(overrides, 'A'))
+      .toEqual({ 'team|c1': '#000001', 'AB|team|c1': '#000004', 'B|team|c1': '#000005' });
+    // An old key whose JMAP account id happens to be the app account's stays.
+    expect(withoutAccountCalendarColors({ 'A|c1': '#000006' }, 'A')).toEqual({ 'A|c1': '#000006' });
+    expect(withoutAccountCalendarColors(overrides, '')).toBe(overrides);
+  });
+
+  it('exports the shown account\'s overrides under the old key, and no other account\'s', () => {
+    const overrides = { 'team|c1': '#000001', 'team|c2': '#000002', 'A|team|c1': '#000003', 'B|team|c9': '#000004' };
+    expect(exportableCalendarColors(overrides, 'A')).toEqual({ 'team|c1': '#000003', 'team|c2': '#000002' });
+    expect(exportableCalendarColors(overrides, null)).toEqual({ 'team|c1': '#000001', 'team|c2': '#000002' });
   });
 
   it('a reset picks a colour not already on screen', () => {

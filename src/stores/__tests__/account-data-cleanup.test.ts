@@ -23,6 +23,7 @@ import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSearchHistoryStore } from '../search-history-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from '../calendar-subscriptions-store';
 import { useFolderIconsStore } from '../folder-icons-store';
+import { useSettingsStore } from '../settings-store';
 
 const A = 'a@mail.example.com';
 const B = 'b@mail.example.com';
@@ -71,6 +72,20 @@ describe('forgetAccountData', () => {
     for (const k of bKeys) expect(await AsyncStorage.getItem(k)).not.toBeNull();
     expect(useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id)).toEqual(['s2']);
     expect(useOutboxStore.getState().entries).toHaveLength(1);
+  });
+
+  it('forgets the account\'s shared calendar colours and keeps the other account\'s and the old keys', async () => {
+    await useSettingsStore.getState().hydrate();
+    for (const key of [`${A}|team|c1`, `${B}|team|c1`, 'team|c1']) useSettingsStore.getState().setSharedCalendarColor(key, '#123456');
+    // Not while the account is back.
+    await forgetAccountData({ appAccountId: A }, { stillGone: () => false });
+    expect(Object.keys(useSettingsStore.getState().sharedCalendarColors)).toContain(`${A}|team|c1`);
+    await forgetAccountData({ appAccountId: A });
+    expect(Object.keys(useSettingsStore.getState().sharedCalendarColors).sort()).toEqual([`${B}|team|c1`, 'team|c1'].sort());
+    await vi.waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem('webmail:settings:v1')) ?? '{}');
+      expect(Object.keys(stored.sharedCalendarColors ?? {}).sort()).toEqual([`${B}|team|c1`, 'team|c1'].sort());
+    });
   });
 
   it('forgets the account\'s folder icons and keeps the other account\'s', async () => {

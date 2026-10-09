@@ -206,6 +206,20 @@ describe('settings-store', () => {
       expect(s.swipeMode).toBe('instant');
     });
 
+    // Per-account keys name the app account (user@server): only the shown
+    // account's go in the file, in the shape webmail reads.
+    it('exports the shown account\'s shared calendar colours under the old key, and no other account\'s', () => {
+      const set = useSettingsStore.getState().setSharedCalendarColor;
+      set('a@one.example|team|c1', '#000001');
+      set('b@two.example|team|c2', '#000002');
+      set('team|c3', '#000003');
+      const exported = JSON.parse(useSettingsStore.getState().exportSettings('a@one.example'));
+      expect(exported.sharedCalendarColors).toEqual({ 'team|c1': '#000001', 'team|c3': '#000003' });
+      // The stored overrides themselves are untouched.
+      expect(Object.keys(useSettingsStore.getState().sharedCalendarColors)).toHaveLength(3);
+      expect(JSON.parse(useSettingsStore.getState().exportSettings()).sharedCalendarColors).toEqual({ 'team|c3': '#000003' });
+    });
+
     it('round-trips through exportSettings', () => {
       useSettingsStore.getState().updateSetting('fontSize', 'large');
       const json = useSettingsStore.getState().exportSettings();
