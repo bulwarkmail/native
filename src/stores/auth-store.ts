@@ -234,11 +234,42 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
   if (!wasRegistered) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
 }
 
-// How long an eviction waits for the device cleanup before carrying on. The
-// cleanup is storage work, but a storage call that never settles must not
-// leave the app on the splash screen or a switch spinning; it goes on in the
-// background.
+// How long a sign-out or an eviction waits for the device cleanup before
+// carrying on. The cleanup is storage work, but a storage call that never
+// settles must not leave the app on the splash screen, a switch spinning or
+// the user stuck signed in; it goes on in the background.
 export const EVICTION_CLEANUP_TIMEOUT_MS = 5000;
+
+// Run a cleanup step that comes after the credential delete: a throw or a
+// rejection is logged, and it is waited for at most
+// EVICTION_CLEANUP_TIMEOUT_MS. Never throws.
+async function boundedCleanup(run: () => Promise<unknown>): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const cleanup = run().catch((e) => console.warn('[sign-out] cleanup failed', e));
+    const late = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn('[sign-out] cleanup still running, carrying on without it');
+        resolve();
+      }, EVICTION_CLEANUP_TIMEOUT_MS);
+    });
+    await Promise.race([cleanup, late]);
+  } catch (e) {
+    console.warn('[sign-out] cleanup failed', e);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// A local step after the credential delete (dropping cached state): a
+// failure is logged so the sign-out still finishes.
+function afterCredentials(run: () => void): void {
+  try {
+    run();
+  } catch (e) {
+    console.warn('[sign-out] cleanup failed', e);
+  }
+}
 
 // An account dropped because its credentials are gone or were refused (a
 // session that expired): what sign-out would have cleared beside them goes
@@ -255,26 +286,13 @@ async function evictAccount(accountId: string, opts: { clearCredentials: boolean
   if (opts.clearCredentials) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
   void deleteIdToken(accountId).catch(() => undefined);
   void clearStoredRelayBaseUrl(accountId).catch(() => undefined);
-  try {
-    accountStore.removeAccount(accountId);
-    useEmailStore.getState().removeAccount(accountId);
-    dropPendingMailFolder(accountId);
-    const cleanup = forgetAccountData(
-      { appAccountId: accountId, serverUrl: entry?.serverUrl, username: entry?.username },
-      { lastAccount: useAccountStore.getState().accounts.length === 0 },
-    ).catch((e) => console.warn('[sign-out] cleanup failed', e));
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<void>((resolve) => {
-      timer = setTimeout(() => {
-        console.warn('[sign-out] cleanup still running, carrying on without it');
-        resolve();
-      }, EVICTION_CLEANUP_TIMEOUT_MS);
-    });
-    await Promise.race([cleanup, late]);
-    clearTimeout(timer);
-  } catch (e) {
-    console.warn('[sign-out] eviction cleanup failed', e);
-  }
+  afterCredentials(() => accountStore.removeAccount(accountId));
+  afterCredentials(() => useEmailStore.getState().removeAccount(accountId));
+  afterCredentials(() => dropPendingMailFolder(accountId));
+  await boundedCleanup(() => forgetAccountData(
+    { appAccountId: accountId, serverUrl: entry?.serverUrl, username: entry?.username },
+    { lastAccount: useAccountStore.getState().accounts.length === 0 },
+  ));
 }
 
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
@@ -329,15 +347,11 @@ async function providerStillInUse(providerLogout: AccountProviderLogout, remaini
   for (const a of remaining) {
     const sameServer = originOfUrl(a.serverUrl) === origin;
     if (!sameServer && !tokenOrigin) continue;
-    // An account whose credentials cannot be read may be a hand-off one:
-    // count it on the same server, as ending a provider session another
-    // account needs is worse than leaving one open. Elsewhere nothing says
-    // it went through this provider.
+    // An account whose credentials cannot be read may be a hand-off one at
+    // this provider, on this server or another: count it, as ending a
+    // provider session another account needs is worse than leaving one open.
     const credentials = await jmapClient.getStoredCredentials(a.id).catch(() => 'unreadable' as const);
-    if (credentials === 'unreadable') {
-      if (sameServer) return true;
-      continue;
-    }
+    if (credentials === 'unreadable') return true;
     if (credentials?.tokenSource !== 'handoff') continue;
     if (sameServer) return true;
     if (credentials.tokenEndpoint && originOfUrl(credentials.tokenEndpoint) === tokenOrigin) return true;
@@ -866,20 +880,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (currentId) {
       providerLogout = await revokeStoredRefreshToken(currentId);
       await jmapClient.clearAccountCredentials(currentId);
-      accountStore.removeAccount(currentId);
+      afterCredentials(() => accountStore.removeAccount(currentId));
     } else {
       await jmapClient.logout();
     }
 
-    jmapClient.reset();
-    clearAccountFeatureStores(currentId);
+    afterCredentials(() => jmapClient.reset());
+    afterCredentials(() => clearAccountFeatureStores(currentId));
     const lastAccount = useAccountStore.getState().accounts.length === 0;
-    // Best-effort: a cleanup error must not leave the app half signed out.
+    // Best-effort and bounded: a cleanup error or a stuck storage call must
+    // not leave the app half signed out.
     if (currentId) {
-      await forgetAccountData({ appAccountId: currentId, serverUrl, username }, { lastAccount, discardQueuedSends: opts?.discardQueuedSends })
-        .catch((e) => console.warn('[sign-out] cleanup failed', e));
+      await boundedCleanup(() => forgetAccountData(
+        { appAccountId: currentId, serverUrl, username },
+        { lastAccount, discardQueuedSends: opts?.discardQueuedSends },
+      ));
     } else if (lastAccount) {
-      await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
+      await boundedCleanup(() => forgetSharedData());
     }
 
     // Switch to next remaining account, if any
@@ -936,15 +953,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (providerLogout && provider && !byProvider.has(provider)) byProvider.set(provider, providerLogout);
     }
     await jmapClient.clearAllCredentials(ids);
-    jmapClient.reset();
-    clearAllFeatureStores();
-    for (const a of signedOut) {
-      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false, discardQueuedSends: opts?.discardQueuedSends })
-        .catch((e) => console.warn('[sign-out] cleanup failed', e));
-    }
-    await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
+    afterCredentials(() => jmapClient.reset());
+    afterCredentials(() => clearAllFeatureStores());
+    // One bound for the whole cleanup: each step still runs after the one
+    // before, and a step's failure does not skip the rest.
+    await boundedCleanup(async () => {
+      for (const a of signedOut) {
+        await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false, discardQueuedSends: opts?.discardQueuedSends })
+          .catch((e) => console.warn('[sign-out] cleanup failed', e));
+      }
+      await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
+    });
 
-    for (const id of ids) accountStore.removeAccount(id);
+    for (const id of ids) afterCredentials(() => accountStore.removeAccount(id));
 
     set({
       isAuthenticated: false,
@@ -1073,14 +1094,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await clearStoredRelayBaseUrl(accountId).catch(() => undefined);
     const providerLogout = await revokeStoredRefreshToken(accountId);
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
-    useEmailStore.getState().removeAccount(accountId);
-    clearViewerCaches();
-    dropPendingMailFolder(accountId);
-    accountStore.removeAccount(accountId);
-    await forgetAccountData(
+    afterCredentials(() => useEmailStore.getState().removeAccount(accountId));
+    afterCredentials(() => clearViewerCaches());
+    afterCredentials(() => dropPendingMailFolder(accountId));
+    afterCredentials(() => accountStore.removeAccount(accountId));
+    await boundedCleanup(() => forgetAccountData(
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
       { lastAccount: useAccountStore.getState().accounts.length === 0, discardQueuedSends: opts?.discardQueuedSends },
-    ).catch((e) => console.warn('[sign-out] cleanup failed', e));
+    ));
     endProviderSessionsLater(providerLogout ? [providerLogout] : []);
   },
 

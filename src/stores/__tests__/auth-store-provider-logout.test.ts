@@ -254,7 +254,9 @@ describe('signing out of a direct PKCE account', () => {
       expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith(ADA.id);
     });
 
-    it('an unreadable account on another host does not hold it', async () => {
+    it('keeps the provider session while an account on another host has credentials it cannot read', async () => {
+      // It may be a hand-off account at this same provider: ending the
+      // session it may need is worse than leaving one open.
       const una = onHost('una@example.com', 'https://mail.other.example');
       accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [una, null, null]], ADA.id);
       (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
@@ -265,7 +267,10 @@ describe('signing out of a direct PKCE account', () => {
       });
 
       await useAuthStore.getState().logout();
-      await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+      expect(useAccountStore.getState().getAccountById(ADA.id)).toBeUndefined();
+      expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith(ADA.id);
     });
   });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
@@ -396,6 +396,69 @@ describe('auth-store', () => {
         } finally {
           vi.useRealTimers();
         }
+      });
+    });
+
+    describe('a device cleanup that never settles', () => {
+      const hang = () => (forgetAccountData as any).mockImplementationOnce(() => new Promise(() => undefined));
+      const run = async (p: Promise<unknown>) => {
+        await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+        await p;
+      };
+      let warn: ReturnType<typeof vi.spyOn>;
+      beforeEach(() => {
+        vi.useFakeTimers();
+        warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      });
+      afterEach(() => {
+        warn.mockRestore();
+        vi.useRealTimers();
+      });
+
+      it('does not stall logout, and the credentials are gone', async () => {
+        useAccountStore.setState({ accounts: [entry('me@mail.example.com', 'https://mail.example.com', 'me')] });
+        useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+        hang();
+        await run(useAuthStore.getState().logout());
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('me@mail.example.com');
+        expect(useAccountStore.getState().accounts).toEqual([]);
+        expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: false, activeAccountId: null });
+      });
+
+      it('does not stall removeAccount, and the credentials are gone', async () => {
+        useAccountStore.setState({ accounts: [
+          entry('other@x.example.com', 'https://x.example.com', 'other'),
+          entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+        ] });
+        useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+        hang();
+        await run(useAuthStore.getState().removeAccount('other@x.example.com'));
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('other@x.example.com');
+        expect(useAccountStore.getState().getAccountById('other@x.example.com')).toBeUndefined();
+        expect(useAuthStore.getState().activeAccountId).toBe('me@mail.example.com');
+      });
+
+      it('does not stall logoutAll, and every account and its credentials are gone', async () => {
+        useAccountStore.setState({
+          accounts: [entry('a@x.example.com', 'https://x.example.com', 'a'), entry('b@y.example.com', 'https://y.example.com', 'b')],
+        });
+        useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'a@x.example.com' });
+        hang();
+        await run(useAuthStore.getState().logoutAll());
+        expect(jmapClient.clearAllCredentials).toHaveBeenCalledWith(['a@x.example.com', 'b@y.example.com']);
+        expect(useAccountStore.getState().accounts).toEqual([]);
+        expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      });
+
+      it('logout finishes when a local step after the credential delete throws', async () => {
+        vi.useRealTimers();
+        useAccountStore.setState({ accounts: [entry('me@mail.example.com', 'https://mail.example.com', 'me')] });
+        useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+        (jmapClient.reset as any).mockImplementationOnce(() => { throw new Error('boom'); });
+        await useAuthStore.getState().logout();
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('me@mail.example.com');
+        expect(forgetAccountData).toHaveBeenCalled();
+        expect(useAuthStore.getState().isAuthenticated).toBe(false);
       });
     });
 
