@@ -77,12 +77,23 @@ export async function flushPersistedWrites(): Promise<void> {
 
 let flushesOnBackground = false;
 
+// Stores whose last read failed and that started empty instead. Their empty
+// state says nothing about what was stored: code that would delete data for
+// whatever is missing from one of them (the account registry) must not.
+const readFailures = new Set<string>();
+
+/** Whether the store's last read failed (it started empty instead of with what is stored). */
+export function persistReadFailed(name: string): boolean {
+  return readFailures.has(name);
+}
+
 /**
  * `writeDelayMs: 0` writes each changed slice straight away (still skipping
  * unchanged ones), for small stores that other code reads from AsyncStorage.
+ * `isValidState` checks a parsed row's state; one it refuses is a failed read.
  */
 export function createPersistStorage<S>(
-  { writeDelayMs = PERSIST_WRITE_DELAY_MS }: { writeDelayMs?: number } = {},
+  { writeDelayMs = PERSIST_WRITE_DELAY_MS, isValidState }: { writeDelayMs?: number; isValidState?: (state: unknown) => boolean } = {},
 ): PersistStorage<S> {
   if (!flushesOnBackground) {
     flushesOnBackground = true;
@@ -94,11 +105,19 @@ export function createPersistStorage<S>(
     getItem: async (name) => {
       try {
         const raw = await AsyncStorage.getItem(name);
-        if (raw === null) return null;
+        if (raw === null) {
+          readFailures.delete(name);
+          return null;
+        }
         const value = JSON.parse(raw) as StorageValue<S>;
+        if (isValidState && !isValidState((value as { state?: unknown } | null)?.state)) {
+          throw new Error('stored state has an unexpected shape');
+        }
         slotFor(name).stored = raw;
+        readFailures.delete(name);
         return value;
       } catch (err) {
+        readFailures.add(name);
         console.warn(`[persist] could not load '${name}', starting empty`, err);
         return null;
       }

@@ -37,15 +37,16 @@ function isEntry(v: unknown): v is ForgetPendingEntry {
     && (e.discardQueuedSends === undefined || typeof e.discardQueuedSends === 'boolean');
 }
 
-// The row as stored. Anything it cannot use reads as nothing, with one
-// warning per read: a cleanup it cannot read cannot be finished either.
-async function readRow(): Promise<ForgetPendingEntry[]> {
+// The row as stored, or null when storage could not be read at all. Anything
+// it cannot use reads as nothing, with one warning per read: a cleanup it
+// cannot read cannot be finished either.
+async function readRow(): Promise<ForgetPendingEntry[] | null> {
   let raw: string | null;
   try {
     raw = await AsyncStorage.getItem(FORGET_PENDING_KEY);
   } catch (e) {
     console.warn('[sign-out] could not read the pending cleanups', e);
-    return [];
+    return null;
   }
   if (raw === null) return [];
   let parsed: unknown;
@@ -65,17 +66,21 @@ async function readRow(): Promise<ForgetPendingEntry[]> {
 }
 
 /** The cleanups left unfinished. Never throws. */
-export function readForgetPending(): Promise<ForgetPendingEntry[]> {
-  return readRow();
+export async function readForgetPending(): Promise<ForgetPendingEntry[]> {
+  return (await readRow()) ?? [];
 }
 
 // Writes go one at a time, each reading the row afresh, so two made back to
 // back never lose each other's change. A failed write does not stop the next.
+// One whose read failed is not made: written over a row it could not see, it
+// would drop every other cleanup's entry. A row read but unusable is replaced.
 let writes: Promise<unknown> = Promise.resolve();
 
 function update(change: (entries: ForgetPendingEntry[]) => ForgetPendingEntry[]): Promise<void> {
   const next = writes.then(async () => {
-    const entries = change(await readRow());
+    const stored = await readRow();
+    if (!stored) throw new Error('pending cleanups unreadable, not written');
+    const entries = change(stored);
     if (entries.length) await AsyncStorage.setItem(FORGET_PENDING_KEY, JSON.stringify(entries));
     else await AsyncStorage.removeItem(FORGET_PENDING_KEY);
   });

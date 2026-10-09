@@ -18,6 +18,7 @@ import {
   createPersistStorage,
   flushPersistedWrites,
   memoizeSlice,
+  persistReadFailed,
   PERSIST_WRITE_DELAY_MS,
 } from '../persist-storage';
 
@@ -54,6 +55,34 @@ describe('createPersistStorage', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       await AsyncStorage.setItem('corrupt-row', '{"state":{"n":');
       expect(await createPersistStorage().getItem('corrupt-row')).toBeNull();
+    });
+
+    it('records a failed read until a read of the row works', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const name = freshName();
+      const storage = createPersistStorage();
+      getItem.mockRejectedValueOnce(new Error('disk'));
+      await storage.getItem(name);
+      expect(persistReadFailed(name)).toBe(true);
+      await AsyncStorage.setItem(name, '{corrupt');
+      await storage.getItem(name);
+      expect(persistReadFailed(name)).toBe(true);
+      await AsyncStorage.setItem(name, JSON.stringify({ state: { n: 1 }, version: 0 }));
+      await storage.getItem(name);
+      expect(persistReadFailed(name)).toBe(false);
+      expect(persistReadFailed(freshName())).toBe(false);
+    });
+
+    it('treats a row whose state it refuses as a failed read', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const name = freshName();
+      const storage = createPersistStorage({ isValidState: (s) => Array.isArray((s as { list?: unknown })?.list) });
+      await AsyncStorage.setItem(name, JSON.stringify({ state: { other: 1 }, version: 0 }));
+      expect(await storage.getItem(name)).toBeNull();
+      expect(persistReadFailed(name)).toBe(true);
+      await AsyncStorage.setItem(name, JSON.stringify({ state: { list: [] }, version: 0 }));
+      expect(await storage.getItem(name)).toEqual({ state: { list: [] }, version: 0 });
+      expect(persistReadFailed(name)).toBe(false);
     });
   });
 

@@ -20,7 +20,7 @@ import {
   type ForgetPendingEntry,
 } from './forget-pending';
 import { dropPendingMailFolder } from '../navigation/pending-mail-folder';
-import { flushPersistedWrites } from './persist-storage';
+import { flushPersistedWrites, persistReadFailed } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
 import { clearBodyHeights } from '../lib/body-heights';
@@ -411,6 +411,9 @@ async function settlePendingCleanup(accountId: string): Promise<() => void> {
     if (released) return;
     released = true;
     signInsUnderWay--;
+    // With no sign-in left under way, a registered key is a settled account:
+    // nothing is left to forget, and its marker must not outlive the record
+    // (a stale one would be run at a cold start that misread the registry).
     for (const [key, record] of held) {
       record.returning--;
       if (record.returning > 0) continue;
@@ -418,28 +421,43 @@ async function settlePendingCleanup(accountId: string): Promise<() => void> {
         // Its marker stays: the new run's own.
         record.skipped = false;
         void startCleanup(record.entry);
-      } else if (record.ended) {
-        dropCleanup(key, record);
+      } else if (!record.skipped || signInsUnderWay === 0) {
+        // Not ended yet: the run's end drops it.
+        record.skipped = false;
+        if (record.ended) dropCleanup(key, record);
       }
     }
     // Parked ones this sign-in never held (they started after it did).
     for (const [key, record] of [...pendingCleanups]) {
-      if (!record.ended || !record.skipped || record.returning > 0 || isRegistered(key)) continue;
-      record.skipped = false;
-      void startCleanup(record.entry);
+      if (!record.ended || !record.skipped || record.returning > 0) continue;
+      if (!isRegistered(key)) {
+        record.skipped = false;
+        void startCleanup(record.entry);
+      } else if (signInsUnderWay === 0) {
+        record.skipped = false;
+        dropCleanup(key, record);
+      }
     }
   };
   if (held.length) await waitAtMost(Promise.all(held.map(([, r]) => r.done)));
   return release;
 }
 
+// Whether the registry in memory is the one stored. One that timed out, or
+// whose read failed or found no account list, starts empty, and every
+// account, signed in or not, would look signed out.
+function registryLoaded(): boolean {
+  const { persist } = useAccountStore;
+  return persist.hasHydrated() && !persistReadFailed(persist.getOptions().name ?? '');
+}
+
 // Cleanups left unfinished by an app kill (forget-pending), finished now.
-// Only once the registry has loaded: one that timed out reads as empty, and
-// every account, signed in or not, would look signed out. A marker whose key
-// is registered again has nothing left to forget, and goes. Never throws.
+// Only once the registry has loaded (registryLoaded); else every marker is
+// kept for a later start. A marker whose key is registered again has
+// nothing left to forget, and goes. Never throws.
 async function resumeForgetPending(): Promise<void> {
   try {
-    if (!useAccountStore.persist.hasHydrated()) return;
+    if (!registryLoaded()) return;
     let entries: ForgetPendingEntry[] = [];
     await waitAtMost(readForgetPending().then((read) => { entries = read; }), EVICTION_CLEANUP_TIMEOUT_MS, 'reading the pending cleanups');
     for (const entry of entries) {
@@ -1195,6 +1213,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     for (const id of ids) afterCredentials(() => accountStore.removeAccount(id));
     afterCredentials(() => jmapClient.reset());
     clearAllFeatureStores();
+    // The shared cleanup's marker first: the loop below can take a bound per
+    // account, and an app killed during it must still forget the shared data.
+    await waitAtMost(markForgetPending({ key: SHARED_CLEANUP, kind: 'shared' }), FORGET_MARK_TIMEOUT_MS, 'noting the pending cleanup');
     // Each account's cleanup, and the shared one, with its own bound, so one
     // that hangs does not keep the others from running. Each forgets only
     // its own account (lastAccount stays false); the shared data goes last.
@@ -1387,9 +1408,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Drop offline mail left behind by accounts no longer registered; not
       // awaited so a slow storage scan never delays the restore. Only once
-      // the registry loaded: one that timed out reads as empty, and every
-      // account's mail would look orphaned.
-      if (useAccountStore.persist.hasHydrated()) {
+      // the registry loaded (registryLoaded): one that timed out or failed
+      // to read starts empty, and every account's mail would look orphaned.
+      if (registryLoaded()) {
         void sweepOrphanedOfflineCache(useAccountStore.getState().accounts.map((a) => a.id)).catch((e) =>
           console.warn('[offline-cache] orphan sweep failed', e),
         );

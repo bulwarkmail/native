@@ -67,6 +67,18 @@ describe('the pending sign-out cleanups row', () => {
     expect(await AsyncStorage.getItem(FORGET_PENDING_KEY)).toBeNull();
   });
 
+  it('writes nothing over a row it could not read, and replaces one it read but could not use', async () => {
+    await markForgetPending({ key: 'A', kind: 'evict' });
+    vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('disk'));
+    await expect(markForgetPending({ key: 'B', kind: 'evict' })).rejects.toThrow();
+    vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('disk'));
+    await expect(clearForgetPending('A')).rejects.toThrow();
+    expect((await readForgetPending()).map((e) => e.key)).toEqual(['A']);
+    await AsyncStorage.setItem(FORGET_PENDING_KEY, '{not json');
+    await markForgetPending({ key: 'B', kind: 'evict' });
+    expect((await readForgetPending()).map((e) => e.key)).toEqual(['B']);
+  });
+
   it('goes on writing after a write that failed', async () => {
     vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('full'));
     await expect(markForgetPending({ key: 'A', kind: 'evict' })).rejects.toThrow('full');

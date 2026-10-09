@@ -176,7 +176,12 @@ export const useAccountStore = create<AccountState>()(
       name: 'account-registry',
       // Tiny, rarely written, and read straight from AsyncStorage by the
       // headless push task, so it isn't held back like the caches.
-      storage: createPersistStorage({ writeDelayMs: 0 }),
+      // A row with no account list is a failed read (persistReadFailed), not
+      // a registry with no accounts: cleanups key off what is missing here.
+      storage: createPersistStorage({
+        writeDelayMs: 0,
+        isValidState: (state) => Array.isArray((state as { accounts?: unknown } | null)?.accounts),
+      }),
       partialize: (state) => ({
         accounts: state.accounts,
         activeAccountId: state.activeAccountId,

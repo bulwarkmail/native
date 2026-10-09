@@ -267,6 +267,71 @@ describe('a sign-out cleanup still running when the account signs in again', () 
       expect(await readForgetPending()).toEqual([]);
     });
 
+    describe('when the account registry could not be read', () => {
+      const REGISTRY = 'account-registry';
+      afterEach(async () => {
+        // A read that works again, for the cases after these.
+        await AsyncStorage.setItem(REGISTRY, JSON.stringify({ state: { accounts: [], activeAccountId: null, defaultAccountId: null }, version: 0 }));
+        await useAccountStore.persist.rehydrate();
+      });
+      // A cold start whose registry read fails starts with no accounts, though the account is live.
+      async function coldStartWithRegistry(spoil: () => Promise<void>) {
+        useAccountStore.setState({ accounts: [], activeAccountId: null, defaultAccountId: null });
+        await spoil();
+        await useAccountStore.persist.rehydrate();
+        expect(useAccountStore.persist.hasHydrated()).toBe(true);
+        expect(useAccountStore.getState().accounts).toEqual([]);
+      }
+      const spoilers: Array<[string, () => Promise<void>]> = [
+        ['a rejected read', async () => { vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('CursorWindow')); }],
+        ['corrupt JSON', () => AsyncStorage.setItem(REGISTRY, '{corrupt')],
+        ['a row with no account list', () => AsyncStorage.setItem(REGISTRY, JSON.stringify({ state: { activeAccountId: ID }, version: 0 }))],
+      ];
+
+      it.each(spoilers)('keeps every marker and forgets nothing after %s', async (_, spoil) => {
+        await markForgetPending({ key: ID, kind: 'signOut', discardQueuedSends: true, withShared: true });
+        await leftBehind();
+        await coldStartWithRegistry(spoil);
+        await useAuthStore.getState().restoreSession();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(await AsyncStorage.getItem(`webmail:sendqueue:v1:${ID}:q1`)).not.toBeNull();
+        expect(await AsyncStorage.getItem(`${IDENTITY_CACHE_PREFIX}${ID}`)).not.toBeNull();
+        expect(useCalendarSubscriptionsStore.getState().subscriptions).toHaveLength(1);
+        expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+        expect(await readForgetPending()).toEqual([expect.objectContaining({ key: ID, kind: 'signOut' })]);
+      });
+
+      it.each(spoilers)('sweeps no offline mail after %s, even with a legacy account migrated', async (_, spoil) => {
+        const index = `webmail:offline-cache:index:v2:${ID}`;
+        await AsyncStorage.setItem(index, '{"entries":{}}');
+        await coldStartWithRegistry(spoil);
+        (jmapClient.consumeLegacyCredentials as ReturnType<typeof vi.fn>)
+          .mockResolvedValueOnce({ serverUrl: SERVER, username: 'legacy@mail.example.com' });
+        (jmapClient.loadAccount as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NetworkError('offline'));
+        await useAuthStore.getState().restoreSession();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(useAccountStore.getState().accounts).toHaveLength(1);
+        expect(await AsyncStorage.getItem(index)).not.toBeNull();
+      });
+    });
+
+    it('forgets the shared data after a kill while signing every account out', async () => {
+      await leftBehind();
+      hangFirstStep();
+      const out = useAuthStore.getState().logoutAll({ discardQueuedSends: true });
+      await vi.advanceTimersByTimeAsync(1000);
+      // Still on the first account's bound.
+      expect((await readForgetPending()).map((e) => e.key).sort()).toEqual([ID, SHARED_CLEANUP].sort());
+
+      resetCleanupMemoryForTests(); // the kill
+      await useAuthStore.getState().restoreSession();
+      await vi.advanceTimersByTimeAsync(1000);
+      await expectAllForgotten();
+      await vi.advanceTimersByTimeAsync(60_000);
+      await out;
+      expect(await readForgetPending()).toEqual([]);
+    });
+
     it('leaves the markers alone when the account registry has not loaded', async () => {
       useAccountStore.setState({ accounts: [], activeAccountId: null, defaultAccountId: null });
       vi.spyOn(useAccountStore.persist, 'hasHydrated').mockReturnValue(false);
@@ -417,6 +482,42 @@ describe('a sign-out cleanup still running when the account signs in again', () 
 
     expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
     expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
+  });
+
+  // The shared step is skipped for another account's sign-in that then
+  // succeeds: that account is live, so the record and its marker both go.
+  it('drops the shared cleanup and its marker once the sign-in it skipped for settles', async () => {
+    const OTHER = 'other@mail.example.com';
+    const OTHER_ID = generateAccountId(OTHER, SERVER);
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    let releaseStep!: () => void;
+    vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount')
+      .mockImplementationOnce(() => new Promise<void>((r) => { releaseStep = r; }));
+    const signedOut = useAuthStore.getState().logout();
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    await signedOut;
+
+    let admit!: () => void;
+    (jmapClient.connect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((resolve) => {
+      admit = () => resolve({ apiUrl: `${SERVER}/jmap/` });
+    }));
+    const signIn = useAuthStore.getState().login(SERVER, OTHER, 'pw');
+    await vi.advanceTimersByTimeAsync(0);
+    useAccountStore.setState({ accounts: [{
+      id: OTHER_ID, serverUrl: SERVER, username: OTHER, displayName: OTHER, email: OTHER, avatarColor: '#000',
+      lastLoginAt: 0, isConnected: true, hasError: false, isDefault: true,
+    }] });
+    releaseStep();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await readForgetPending()).map((e) => e.key)).toContain(SHARED_CLEANUP);
+
+    admit();
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    await signIn;
+    expect(useAuthStore.getState().activeAccountId).toBe(OTHER_ID);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await readForgetPending()).toEqual([]);
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
   });
 
   it('still forgets the subscriptions when the first step hangs and nobody signs back in', async () => {
