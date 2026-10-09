@@ -922,7 +922,7 @@ describe('flushSendQueue: sending queued entries', () => {
   });
 
   it('P1: an account switch while markSending persists gives no send, and the entry is queued again', async () => {
-    await seed(entry());
+    await seed(entry({ schema: 2 })); // a current row: hydrate writes nothing back
     vi.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (k: string, v: string) => {
       if (v.includes('"state":"sending"')) {
         // B becomes active while the sending row is being written.
@@ -939,7 +939,7 @@ describe('flushSendQueue: sending queued entries', () => {
   });
 
   it('releases the entry when the client stops serving its JMAP account during markSending', async () => {
-    await seed(entry());
+    await seed(entry({ schema: 2 })); // a current row: hydrate writes nothing back
     vi.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (k: string, v: string) => {
       if (v.includes('"state":"sending"')) {
         client.getSubmissionAccountIds.mockReturnValue([]);
@@ -1089,8 +1089,9 @@ describe('flushSendQueue: a held send whose account id went stale', () => {
   // The server renumbered the account (a migration, a restore): the entry's
   // JMAP id is gone and the session's primary is the same mailbox now.
   const identity = (id: string, email: string) => ({ id, name: '', email, mayDelete: true });
+  // Rows written since the attempt mark (schema 2); older ones are never re-stamped.
   const stale = (over: Partial<QueuedSend> = {}) => entry({
-    jmapAccountId: 'jOld', heldReason: 'account_unavailable', identityId: 'iA', draftId: 'd-old',
+    schema: 2, jmapAccountId: 'jOld', heldReason: 'account_unavailable', identityId: 'iA', draftId: 'd-old',
     replyTo: { emailIds: ['e-old'], keyword: '$answered', jmapAccountId: 'jOld', untrusted: ['x@evil.test'] },
     ...over,
   });
@@ -1219,6 +1220,23 @@ describe('flushSendQueue: a held send whose account id went stale', () => {
     expect(mockIdentities).not.toHaveBeenCalled();
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jOld', draftId: 'd-old' });
+  });
+
+  it('never re-stamps a never-tried row from before the attempt mark, and sends it once its own account is served again', async () => {
+    const { schema: _none, ...old } = stale();
+    await seed(old as QueuedSend);
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockIdentities).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable', everAttempted: true, schema: 2 });
+
+    client.getSubmissionAccountIds.mockReturnValue(['jA', 'jOld']);
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jOld', draftId: 'd-old' });
+    expect(entries()).toEqual([]);
   });
 });
 

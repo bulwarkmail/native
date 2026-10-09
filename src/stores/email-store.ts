@@ -1325,29 +1325,14 @@ export const useEmailStore = create<EmailState>()(
     if (startAccountId) startFolderSettled.add(startAccountId);
     const overtaken = () => gen !== selectGen || get().activeAccountId !== startAccountId;
     const state = get();
-    // Tuck the previously-visible mailbox into its snapshot so a return-trip
-    // can restore it without a network call. Only do this for the base view —
-    // a filter or search makes the visible list unrepresentative of the
-    // cached "no-filter" snapshot.
-    let mailboxSnapshots = state.mailboxSnapshots;
     const baseView = isBaseView(state.searchQuery, state.filters);
-    if (state.currentMailboxId && state.currentMailboxId !== mailboxId && baseView) {
-      mailboxSnapshots = {
-        ...mailboxSnapshots,
-        [state.currentMailboxId]: {
-          emails: state.emails,
-          total: state.totalEmails,
-          queryState: state.queryState,
-        },
-      };
-    }
 
     // "Clear search when switching folders": drop the query and filters and
     // browse the folder, instead of re-running the search there.
     const clearSearch = !baseView && useSettingsStore.getState().clearSearchOnFolderChange;
     const browse = baseView || clearSearch;
 
-    const incoming = mailboxSnapshots[mailboxId];
+    const incoming = state.mailboxSnapshots[mailboxId];
     // Swap to the new mailbox's cached view immediately. If there's no
     // snapshot, fall through to the offline cache as a second-best seed;
     // if that's also empty we render the empty-state, not a spinner over
@@ -1380,6 +1365,24 @@ export const useEmailStore = create<EmailState>()(
       }
       // Overtaken while the cache was read: the newer pick or account owns the view.
       if (overtaken()) return false;
+    }
+
+    // Tuck the folder shown now into its snapshot so a return-trip can
+    // restore it without a network call. Read after the cache await, so a
+    // push or a snapshot written meanwhile is kept. Only for the base view:
+    // a filter or search makes the visible list unrepresentative of the
+    // cached "no-filter" snapshot.
+    const now = get();
+    let mailboxSnapshots = now.mailboxSnapshots;
+    if (now.currentMailboxId && now.currentMailboxId !== mailboxId && isBaseView(now.searchQuery, now.filters)) {
+      mailboxSnapshots = {
+        ...mailboxSnapshots,
+        [now.currentMailboxId]: {
+          emails: now.emails,
+          total: now.totalEmails,
+          queryState: now.queryState,
+        },
+      };
     }
 
     set({

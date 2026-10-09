@@ -100,6 +100,75 @@ describe('send-queue-store', () => {
     expect((await stored('a1', 'q1')).state).toBe('uncertain');
   });
 
+  describe('rows stored before the attempt mark', () => {
+    it('marks a row stored before the attempt mark as attempted, and writes it back', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({ heldReason: 'account_unavailable' })));
+      await useSendQueueStore.getState().hydrateAccount('a1');
+      expect(mem('a1')[0]).toMatchObject({ everAttempted: true, schema: 2 });
+      expect(await stored('a1', 'q1')).toMatchObject({ everAttempted: true, schema: 2, heldReason: 'account_unavailable' });
+    });
+
+    it('writes a sending row from then back once, as uncertain and marked', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({ state: 'sending' })));
+      const write = vi.spyOn(AsyncStorage, 'setItem');
+      write.mockClear(); // the shared mock keeps earlier calls
+      await useSendQueueStore.getState().hydrateAccount('a1');
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(await stored('a1', 'q1')).toMatchObject({ state: 'uncertain', everAttempted: true, schema: 2 });
+    });
+
+    it('rejects the hydrate with memory unchanged when the mark cannot be written', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry()));
+      vi.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
+      const s = useSendQueueStore.getState();
+      await expect(s.hydrateAccount('a1')).rejects.toThrow('disk full');
+      expect(mem('a1')).toEqual([]);
+      expect(useSendQueueStore.getState().hydrated.a1).toBeUndefined();
+      expect((await stored('a1', 'q1')).schema).toBeUndefined();
+      await s.hydrateAccount('a1');
+      expect(mem('a1')[0]).toMatchObject({ everAttempted: true, schema: 2 });
+    });
+
+    it('leaves a row enqueued now unmarked across a reload, and writes nothing back', async () => {
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await s.enqueue(entry({ id: 'q2' }));
+      expect(await stored('a1', 'q2')).toMatchObject({ schema: 2 });
+      await s.unloadAccount('a1');
+      const write = vi.spyOn(AsyncStorage, 'setItem');
+      write.mockClear(); // the shared mock keeps earlier calls
+      await s.hydrateAccount('a1');
+      expect(write).not.toHaveBeenCalled();
+      expect(mem('a1')[0]).toMatchObject({ schema: 2 });
+      expect(mem('a1')[0].everAttempted).toBeUndefined();
+    });
+
+    it('keeps the schema through every transition', async () => {
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await s.enqueue(entry());
+      await s.hold('q1', 'account_unavailable');
+      await s.releaseHold('q1');
+      await s.markSending('q1');
+      await s.markUncertain('q1', 'net');
+      await s.requeue('q1');
+      expect(mem('a1')[0].schema).toBe(2);
+      expect((await stored('a1', 'q1')).schema).toBe(2);
+    });
+
+    it('never re-stamps a row from before the mark, and still releases its hold and sends it', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({ heldReason: 'account_unavailable' })));
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await expect(s.restamp('q1', 'jNew')).rejects.toBeInstanceOf(SendQueueStateError);
+      expect(mem('a1')[0].jmapAccountId).toBe('j1');
+      await s.releaseHold('q1');
+      expect(mem('a1')[0].heldReason).toBeUndefined();
+      await s.markSending('q1');
+      expect(mem('a1')[0]).toMatchObject({ state: 'sending', jmapAccountId: 'j1' });
+    });
+  });
+
   it('hydrate merges: memory wins and is never downgraded', async () => {
     const s = useSendQueueStore.getState();
     await s.hydrateAccount('a1');
@@ -460,8 +529,9 @@ describe('send-queue-store', () => {
     });
 
     describe('restamp', () => {
+      // Rows written since the attempt mark (schema 2); older ones are never re-stamped.
       const heldEntry = (over: Partial<QueuedSend> = {}) => entry({
-        heldReason: 'account_unavailable', draftId: 'd1',
+        schema: 2, heldReason: 'account_unavailable', draftId: 'd1',
         replyTo: { emailIds: ['e1'], keyword: '$answered', jmapAccountId: 'j1', untrusted: ['a@b.example'] },
         ...over,
       });
