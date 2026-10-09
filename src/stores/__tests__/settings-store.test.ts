@@ -217,7 +217,17 @@ describe('settings-store', () => {
       expect(exported.sharedCalendarColors).toEqual({ 'team|c1': '#000001', 'team|c3': '#000003' });
       // The stored overrides themselves are untouched.
       expect(Object.keys(useSettingsStore.getState().sharedCalendarColors)).toHaveLength(3);
-      expect(JSON.parse(useSettingsStore.getState().exportSettings()).sharedCalendarColors).toEqual({ 'team|c3': '#000003' });
+      // No account shown: no colour at all (the old keys may be anyone's).
+      expect(JSON.parse(useSettingsStore.getState().exportSettings()).sharedCalendarColors).toEqual({});
+    });
+
+    it('exports the old keys only while the shown account may still read them', () => {
+      const s = useSettingsStore.getState();
+      s.setSharedCalendarColor('a@one.example|team|c1', '#000001');
+      s.setSharedCalendarColor('team|c3', '#000003');
+      s.seedLegacyCalendarColorReaders(['b@two.example']);
+      expect(JSON.parse(s.exportSettings('a@one.example')).sharedCalendarColors).toEqual({ 'team|c1': '#000001' });
+      expect(JSON.parse(s.exportSettings('b@two.example')).sharedCalendarColors).toEqual({ 'team|c3': '#000003' });
     });
 
     it('round-trips through exportSettings', () => {
@@ -311,6 +321,7 @@ describe('settings-store', () => {
   // accounts registered at the upgrade, each until its first full load.
   describe('legacy shared calendar colours', () => {
     const get = () => useSettingsStore.getState();
+    const KEY = 'webmail:settings:v1';
 
     it('lets only the accounts registered at the upgrade read legacy colours, then drops them', () => {
       const s = get();
@@ -386,6 +397,38 @@ describe('settings-store', () => {
       expect(get().sharedCalendarColors).toEqual({});
     });
 
+    // A failed or corrupt read leaves the defaults in memory: a write then
+    // would put them over every stored setting.
+    it.each([
+      ['corrupt JSON', '{corrupt', false],
+      ['a row that is not an object', '7', false],
+      ['a rejected read', JSON.stringify({ sharedCalendarColors: { 'team|c1': '#00ff00' } }), true],
+    ])('seeds nothing, and writes nothing, after %s', async (_, stored, rejectRead) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      await AsyncStorage.setItem(KEY, stored);
+      if (rejectRead) vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('CursorWindow'));
+      useSettingsStore.setState({ hydrated: false });
+      await get().hydrate();
+      expect(get().settingsReadFailed).toBe(true);
+      useSettingsStore.setState({ sharedCalendarColors: { 'team|c1': '#00ff00' } });
+      get().seedLegacyCalendarColorReaders(['A']);
+      expect(get().legacyCalendarColorReaders).toBeNull();
+      expect(await AsyncStorage.getItem(KEY)).toBe(stored);
+      warn.mockRestore();
+    });
+
+    it('a clean read, or none at all, lets the seed run', async () => {
+      useSettingsStore.setState({ hydrated: false });
+      await get().hydrate();
+      expect(get().settingsReadFailed).toBe(false);
+      await AsyncStorage.setItem(KEY, JSON.stringify({ sharedCalendarColors: { 'team|c1': '#00ff00' } }));
+      useSettingsStore.setState({ hydrated: false });
+      await get().hydrate();
+      expect(get().settingsReadFailed).toBe(false);
+      get().seedLegacyCalendarColorReaders(['A']);
+      expect(get().legacyCalendarColorReaders).toEqual(['A']);
+    });
+
     it('rejects a malformed stored readers list', () => {
       expect(mergeWithDefaults({ legacyCalendarColorReaders: 'A' } as never).legacyCalendarColorReaders).toBeNull();
       expect(mergeWithDefaults({ legacyCalendarColorReaders: [1] } as never).legacyCalendarColorReaders).toBeNull();
@@ -410,13 +453,15 @@ describe('settings-store', () => {
     it('reads storage once for concurrent calls and does not revert a later change', async () => {
       await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ density: 'compact' }));
       const spy = vi.spyOn(AsyncStorage, 'getItem');
+      // The mock is shared: count only this case's reads.
+      const before = spy.mock.calls.length;
       useSettingsStore.setState({ hydrated: false });
       const first = useSettingsStore.getState().hydrate();
       const second = useSettingsStore.getState().hydrate();
       await first;
       useSettingsStore.getState().setDensity('extra-compact');
       await second;
-      const reads = spy.mock.calls.filter(([k]) => k === 'webmail:settings:v1').length;
+      const reads = spy.mock.calls.slice(before).filter(([k]) => k === 'webmail:settings:v1').length;
       spy.mockRestore();
       expect(reads).toBe(1);
       expect(useSettingsStore.getState().density).toBe('extra-compact');

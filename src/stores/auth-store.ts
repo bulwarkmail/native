@@ -1423,8 +1423,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Once: the accounts registered now are the only ones that may read
       // the old shared calendar colour keys. Only from the stored registry
-      // (registryLoaded) and the stored settings, never an empty stand-in.
-      if (registryLoaded() && useSettingsStore.getState().hydrated) {
+      // (registryLoaded) and the stored settings read cleanly, never an empty
+      // stand-in for either (a write over unread settings would lose them).
+      const settings = useSettingsStore.getState();
+      if (registryLoaded() && settings.hydrated && !settings.settingsReadFailed) {
         useSettingsStore.getState().seedLegacyCalendarColorReaders(useAccountStore.getState().accounts.map((a) => a.id));
       }
 

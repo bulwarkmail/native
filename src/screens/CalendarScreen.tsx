@@ -417,6 +417,9 @@ export default function CalendarScreen() {
   // missingSharedCalendarColors). First, once per account registered at the
   // upgrade, its own full list claims the old-key colours of its shared
   // calendars (legacyCalendarColorClaim), so they keep the colour they had.
+  // On a cold start that list may be the account's own cached one from an
+  // earlier session (calendarsAppAccountId is persisted with it): still its
+  // own full load, so safe; a calendar shared since gets a fresh colour.
   React.useEffect(() => {
     const claimed = legacyCalendarColorClaim(
       storeCalendars, calendarsAppAccountId, sharedCalendarColors, shownAccountId ?? '', readsLegacy,

@@ -553,6 +553,15 @@ describe('the accounts that may read the old calendar colour keys', () => {
     expect(useSettingsStore.getState().legacyCalendarColorReaders).toEqual([ID]);
   });
 
+  it('are not chosen, and the stored settings not rewritten, when the settings read was corrupt', async () => {
+    await AsyncStorage.setItem('webmail:settings:v1', '{corrupt');
+    useSettingsStore.setState({ hydrated: false, legacyCalendarColorReaders: null });
+    await useAuthStore.getState().restoreSession();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(useSettingsStore.getState().legacyCalendarColorReaders).toBeNull();
+    expect(await AsyncStorage.getItem('webmail:settings:v1')).toBe('{corrupt');
+  });
+
   it('are not chosen while the account registry has not loaded', async () => {
     vi.spyOn(useAccountStore.persist, 'hasHydrated').mockReturnValue(false);
     const restored = useAuthStore.getState().restoreSession();

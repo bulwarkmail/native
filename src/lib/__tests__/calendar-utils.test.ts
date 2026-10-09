@@ -351,8 +351,17 @@ describe('shared calendar colours', () => {
 
   it('exports the shown account\'s overrides under the old key, and no other account\'s', () => {
     const overrides = { 'team|c1': '#000001', 'team|c2': '#000002', 'A|team|c1': '#000003', 'B|team|c9': '#000004' };
-    expect(exportableCalendarColors(overrides, 'A')).toEqual({ 'team|c1': '#000003', 'team|c2': '#000002' });
-    expect(exportableCalendarColors(overrides, null)).toEqual({ 'team|c1': '#000001', 'team|c2': '#000002' });
+    expect(exportableCalendarColors(overrides, 'A', true)).toEqual({ 'team|c1': '#000003', 'team|c2': '#000002' });
+  });
+
+  // An old key names no app account: once the shown account may no longer
+  // read them, they may be another account's, and an import of the file
+  // would make them the shown account's.
+  it('exports the old keys only while the shown account may still read them', () => {
+    const overrides = { 'team|c1': '#000001', 'team|c2': '#000002', 'A|team|c1': '#000003', 'B|team|c9': '#000004' };
+    expect(exportableCalendarColors(overrides, 'A', false)).toEqual({ 'team|c1': '#000003' });
+    expect(exportableCalendarColors(overrides, null, true)).toEqual({});
+    expect(exportableCalendarColors(overrides, '', true)).toEqual({});
   });
 
   // During a switch the list is still the previous account's: the shown

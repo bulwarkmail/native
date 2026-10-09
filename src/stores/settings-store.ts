@@ -12,6 +12,7 @@ import {
   exportableCalendarColors,
   importedCalendarColors,
   isLegacyCalendarColorKey,
+  readsLegacyCalendarColors,
   withoutAccountCalendarColors,
   withoutLegacyCalendarColors,
 } from '../lib/calendar-color-keys';
@@ -531,6 +532,11 @@ export interface SettingsState extends PersistedSettings {
   loading: boolean;
   error: string | null;
   hydrated: boolean;
+  // The stored settings were there but could not be read (a failed read,
+  // corrupt JSON, not an object): the defaults stand in for them, and a
+  // write made only for housekeeping must not put those over them
+  // (seedLegacyCalendarColorReaders). No stored settings at all is a clean read.
+  settingsReadFailed: boolean;
 
   /** Read the identities; concurrent calls share one request. */
   fetchIdentities: () => Promise<void>;
@@ -858,6 +864,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loading: false,
   error: null,
   hydrated: false,
+  settingsReadFailed: false,
 
   fetchIdentities: () => {
     const scope = identityScope();
@@ -920,14 +927,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-          set({ ...mergeWithDefaults(parsed), hydrated: true });
+          const parsed: unknown = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('stored settings are not an object');
+          set({ ...mergeWithDefaults(parsed as Partial<PersistedSettings>), hydrated: true, settingsReadFailed: false });
           return;
         }
+        set({ hydrated: true, settingsReadFailed: false });
+        return;
       } catch (err) {
         console.warn('[settings-store] hydrate failed', err);
       }
-      set({ hydrated: true });
+      set({ hydrated: true, settingsReadFailed: true });
     })().finally(() => { hydrateInFlight = null; });
     hydrateInFlight = promise;
     return promise;
@@ -1001,6 +1011,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   seedLegacyCalendarColorReaders: (appAccountIds) => {
     if (get().legacyCalendarColorReaders !== null) return;
+    // The stored settings could not be read: seeding would write the
+    // defaults over them. Left for a launch that reads them.
+    if (get().settingsReadFailed) return;
     const overrides = get().sharedCalendarColors;
     const anyLegacy = Object.keys(overrides).some(isLegacyCalendarColorKey);
     const readers = anyLegacy ? appAccountIds.filter((id) => !!id) : [];
@@ -1048,10 +1061,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     persist(snapshot(get()));
   },
 
-  // Only that app account's shared calendar colours (exportableCalendarColors).
+  // Only that app account's shared calendar colours, and the old keys while
+  // it may still read them (exportableCalendarColors).
   exportSettings: (appAccountId = null) => {
     const state = snapshot(get());
-    const sharedCalendarColors = exportableCalendarColors(state.sharedCalendarColors, appAccountId);
+    const sharedCalendarColors = exportableCalendarColors(
+      state.sharedCalendarColors, appAccountId,
+      readsLegacyCalendarColors(state.legacyCalendarColorReaders, appAccountId ?? ''),
+    );
     return JSON.stringify(toExportShape({ ...state, sharedCalendarColors }), null, 2);
   },
 

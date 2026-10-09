@@ -64,24 +64,29 @@ export function withoutAccountCalendarColors(
 }
 
 /**
- * The overrides a settings export carries: the old keys, with the shown app
- * account's own overrides written over them in the old shape (the one
- * webmail reads). No other app account's go in the file: their keys name
- * the account (`user@server`), and webmail can't use them. An import stores
+ * The overrides a settings export carries: the shown app account's own, in
+ * the old shape (the one webmail reads), over the old keys while that
+ * account may still read them (`readsLegacy`, readsLegacyCalendarColors).
+ * No other app account's go in the file: their keys name the account
+ * (`user@server`), and webmail can't use them. Nor do old keys the account
+ * may no longer read: they may be another account's, and an import stores
  * what the file holds as the shown account's (importedCalendarColors).
+ * Nothing without an account shown.
  */
 export function exportableCalendarColors(
   overrides: Record<string, string>,
   appAccountId: string | null,
+  readsLegacy: boolean,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [key, color] of Object.entries(overrides)) {
-    if (isLegacyCalendarColorKey(key)) out[key] = color;
-  }
-  if (appAccountId) {
+  if (!appAccountId) return out;
+  if (readsLegacy) {
     for (const [key, color] of Object.entries(overrides)) {
-      if (isAccountColorKey(key, appAccountId)) out[key.slice(appAccountId.length + 1)] = color;
+      if (isLegacyCalendarColorKey(key)) out[key] = color;
     }
+  }
+  for (const [key, color] of Object.entries(overrides)) {
+    if (isAccountColorKey(key, appAccountId)) out[key.slice(appAccountId.length + 1)] = color;
   }
   return out;
 }
