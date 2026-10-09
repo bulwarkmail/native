@@ -562,6 +562,11 @@ export interface PushSetupParams {
   // that outlives a permission change keeps pushing for mailboxes the user can
   // no longer read - recreating is the only client-side remedy (#841).
   forceRecreate?: boolean;
+  // The app account this run is for. The run works on whatever account the
+  // client serves, so with this set it gives up (an 'account' error, or null
+  // from a resync) once that is another one: a switch landing first must not
+  // set up, or mark renewed, the other account's push.
+  forAccountId?: string;
 }
 
 export interface PushSetupResult {
@@ -1012,6 +1017,8 @@ export async function setupPushNotifications(
 ): Promise<PushSetupResult> {
   // The filter must not be built from the pre-hydration default.
   await useSettingsStore.getState().hydrate();
+  // Before joining a run: one in flight is for the account served now.
+  if (params.forAccountId && loadedAppAccountId() !== params.forAccountId) throw accountChangedError();
   const inboxOnly = useSettingsStore.getState().pushNotifyInboxOnly;
   const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
   const existing = inFlightSetups.get(key);
@@ -1025,6 +1032,10 @@ export async function setupPushNotifications(
   });
   inFlightSetups.set(key, { run, inboxOnly });
   return run;
+}
+
+function accountChangedError(): PushSetupError {
+  return new PushSetupError('account', t('settings.notifications.push.err_account_changed', 'The account changed during setup. Try again.'));
 }
 
 function logPhase(phase: string, detail?: string): void {
@@ -1075,8 +1086,8 @@ async function setupPushNotificationsInner(
   if (!loadedId) {
     throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
-  if (loadedAppAccountId() !== loadedId) {
-    throw new PushSetupError('account', t('settings.notifications.push.err_account_changed', 'The account changed during setup. Try again.'));
+  if (loadedAppAccountId() !== loadedId || (params.forAccountId && loadedId !== params.forAccountId)) {
+    throw accountChangedError();
   }
   const accountId = loadedId;
 
@@ -1389,6 +1400,8 @@ export async function resyncPushNotifications(
   const serverUrl = jmapClient.serverUrl;
   if (!username || !serverUrl) return null;
   const accountId = generateAccountId(username, serverUrl);
+  // Another account than the caller's: nothing of it to bring up to date.
+  if (params.forAccountId && accountId !== params.forAccountId) return null;
   if (await AsyncStorage.getItem(optedOutKey(accountId))) return null;
   if (await wasRevokedOnServer(accountId)) {
     logPhase('revoked', 'subscription gone before it was due to expire; leaving push off');

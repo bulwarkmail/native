@@ -49,8 +49,9 @@ export function watchInboxOnlyChange(): () => void {
         // The resync asks for the permission when it's missing; a settings
         // toggle never prompts.
         if (!(await hasNotificationPermission())) return;
-        await resyncPushNotifications({ relayBaseUrl, accountLabel: jmapClient.username ?? undefined });
-        markPushRenewed(accountId);
+        // For the account the setting flipped under; null is push left off.
+        const result = await resyncPushNotifications({ relayBaseUrl, accountLabel: jmapClient.username ?? undefined, forAccountId: accountId });
+        if (result) markPushRenewed(accountId);
       } catch (error) {
         console.warn('[push] inbox-only re-sync failed:', error instanceof Error ? error.message : error);
       }
@@ -80,15 +81,21 @@ export async function resyncPushAfterSessionChange(appAccountId: string): Promis
   try {
     // buildEmailPushConfig reads the loaded folder list, and an account
     // missing from it gets the server's unfiltered fallback; so the folders
-    // load first (joining a load already running).
+    // load first. This starts before refreshSessionFor returns, so the share
+    // presenter's own folder fetch after the refresh joins this load rather
+    // than the other way round.
     await useEmailStore.getState().fetchMailboxes();
     if (!serves() || !useSettingsStore.getState().emailNotificationsEnabled) return;
     const relayBaseUrl = await getStoredRelayBaseUrl(appAccountId);
     if (!relayBaseUrl || !serves()) return;
     // A session refresh never prompts for the permission.
     if (!(await hasNotificationPermission()) || !serves()) return;
-    await resyncPushNotifications({ relayBaseUrl, accountLabel: jmapClient.username ?? undefined });
-    markPushRenewed(appAccountId);
+    const result = await resyncPushNotifications({
+      relayBaseUrl, accountLabel: jmapClient.username ?? undefined, forAccountId: appAccountId,
+    });
+    // Renewed only if it ran (null: push left off) for this account, still
+    // the one served: a switch during it must not push back its renewal.
+    if (result && serves()) markPushRenewed(appAccountId);
   } catch (error) {
     console.warn('[push] re-sync after session change failed:', error instanceof Error ? error.message : error);
   }

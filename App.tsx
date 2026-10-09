@@ -839,12 +839,14 @@ export default function App() {
       const relayBaseUrl = await getStoredRelayBaseUrl(activeAccountId);
       if (!relayBaseUrl) return;
       try {
-        await resyncPushNotifications({
+        const result = await resyncPushNotifications({
           relayBaseUrl,
           accountLabel: client.username ?? undefined,
+          forAccountId: activeAccountId,
         });
-        // Brought up to date just now: the renewal below can skip it.
-        if (activeAccountId) markPushRenewed(activeAccountId);
+        // Brought up to date just now: the renewal below can skip it. Not
+        // when it left push off (null).
+        if (result) markPushRenewed(activeAccountId);
         if (cancelled) return;
       } catch (error) {
         console.warn(

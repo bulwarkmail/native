@@ -323,6 +323,50 @@ describe('setupPushNotifications when the loaded account changes mid-setup', () 
   });
 });
 
+describe('a push setup for a named app account', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    listMock.mockResolvedValue([]);
+    installFetch({});
+  });
+
+  afterEach(() => {
+    (jmapClient as { username: string }).username = 'user@example.com';
+  });
+
+  it('gives up when the client serves another account from the start', async () => {
+    const other = generateAccountId('other@example.com', 'https://mail.example.com');
+    await expect(setupPushNotifications({ relayBaseUrl: RELAY, forAccountId: other })).rejects.toMatchObject({ phase: 'account' });
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v2:' + ACCOUNT_ID)).toBeNull();
+  });
+
+  it('runs for the account it names', async () => {
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY, forAccountId: ACCOUNT_ID });
+    expect(result.subscriptionId).toBe('new-server-id');
+  });
+
+  it('a resync for another account than the client serves does nothing', async () => {
+    const other = generateAccountId('other@example.com', 'https://mail.example.com');
+    expect(await resyncPushNotifications({ relayBaseUrl: RELAY, forAccountId: other })).toBeNull();
+    expect(listMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('a resync gives up when the client moves to another account before the setup starts', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem('push:subscriptionExpires:v1:' + ACCOUNT_ID, new Date(Date.now() + 3 * 86400000).toISOString());
+    // The switch lands while the revocation check lists the subscriptions.
+    listMock.mockImplementationOnce(async () => {
+      (jmapClient as { username: string }).username = 'other@example.com';
+      return [sub('existing', OUR_DCID)];
+    });
+    await expect(resyncPushNotifications({ relayBaseUrl: RELAY, forAccountId: ACCOUNT_ID })).rejects.toMatchObject({ phase: 'account' });
+    expect(createMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('setupPushNotifications and the Inbox-only setting', () => {
   beforeEach(async () => {
     vi.clearAllMocks();

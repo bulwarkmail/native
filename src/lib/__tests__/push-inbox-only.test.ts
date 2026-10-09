@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { JMAPSession } from '../../api/types';
+import { generateAccountId } from '../account-utils';
 
 const h = vi.hoisted(() => ({
   serves: true,
@@ -29,7 +30,8 @@ vi.mock('../active-client-account', () => ({
   activeAppAccountId: () => h.active,
 }));
 
-import { gainedMailAccounts, resyncPushAfterSessionChange, shouldResyncForInboxOnly } from '../push-inbox-only';
+import { gainedMailAccounts, resyncPushAfterSessionChange, shouldResyncForInboxOnly, watchInboxOnlyChange } from '../push-inbox-only';
+import { useSettingsStore } from '../../stores/settings-store';
 import { getStoredRelayBaseUrl, hasNotificationPermission, resyncPushNotifications } from '../push-notifications';
 import { markPushRenewed } from '../push-renewal';
 
@@ -84,7 +86,10 @@ describe('resyncPushAfterSessionChange', () => {
     vi.mocked(markPushRenewed).mockReset();
   });
 
-  it('resyncs push after the folders load, only while the client still serves the account', async () => {
+  const OK = { subscriptionId: 'sub', verified: true };
+
+  it('resyncs push for the account once the folders load, and marks it renewed', async () => {
+    vi.mocked(resyncPushNotifications).mockResolvedValue(OK);
     let loaded!: () => void;
     h.fetchMailboxes.mockImplementation(() => new Promise<undefined>((r) => { loaded = () => r(undefined); }));
     const done = resyncPushAfterSessionChange(ID);
@@ -93,20 +98,33 @@ describe('resyncPushAfterSessionChange', () => {
     expect(resyncPushNotifications).not.toHaveBeenCalled();
     loaded();
     await done;
-    expect(resyncPushNotifications).toHaveBeenCalledWith({ relayBaseUrl: 'https://relay', accountLabel: 'u' });
+    expect(resyncPushNotifications).toHaveBeenCalledWith({ relayBaseUrl: 'https://relay', accountLabel: 'u', forAccountId: ID });
     expect(markPushRenewed).toHaveBeenCalledWith(ID);
+  });
 
-    // A switch lands while the folders load: the resync is dropped.
-    vi.mocked(resyncPushNotifications).mockClear();
-    vi.mocked(markPushRenewed).mockClear();
+  it('does not mark renewed a resync that left push off', async () => {
+    await resyncPushAfterSessionChange(ID);
+    expect(resyncPushNotifications).toHaveBeenCalledTimes(1);
+    expect(markPushRenewed).not.toHaveBeenCalled();
+  });
+
+  it('drops the resync when a switch lands while the folders load', async () => {
     h.fetchMailboxes.mockImplementation(async () => { h.active = 'other@https://m'; return undefined; });
     await resyncPushAfterSessionChange(ID);
-    // And while the relay lookup runs.
-    h.active = ID;
-    h.fetchMailboxes.mockResolvedValue(undefined);
+    expect(resyncPushNotifications).not.toHaveBeenCalled();
+    expect(markPushRenewed).not.toHaveBeenCalled();
+  });
+
+  it('drops the resync when the client stops serving the account during the permission check', async () => {
     vi.mocked(hasNotificationPermission).mockImplementation(async () => { h.serves = false; return true; });
     await resyncPushAfterSessionChange(ID);
     expect(resyncPushNotifications).not.toHaveBeenCalled();
+    expect(markPushRenewed).not.toHaveBeenCalled();
+  });
+
+  it('does not mark the account renewed when a switch lands during the resync', async () => {
+    vi.mocked(resyncPushNotifications).mockImplementation(async () => { h.active = 'other@https://m'; return OK; });
+    await resyncPushAfterSessionChange(ID);
     expect(markPushRenewed).not.toHaveBeenCalled();
   });
 
@@ -133,5 +151,34 @@ describe('resyncPushAfterSessionChange', () => {
     expect(markPushRenewed).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledTimes(2);
     warn.mockRestore();
+  });
+});
+
+describe('watchInboxOnlyChange', () => {
+  const ID = generateAccountId('u', 'https://m');
+  const flip = async () => {
+    watchInboxOnlyChange();
+    const listener = vi.mocked(useSettingsStore.subscribe).mock.calls.at(-1)![0] as (a: unknown, b: unknown) => void;
+    listener(s(true), s(false));
+    await vi.waitFor(() => expect(resyncPushNotifications).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+  };
+  beforeEach(() => {
+    vi.mocked(getStoredRelayBaseUrl).mockReset().mockResolvedValue('https://relay');
+    vi.mocked(hasNotificationPermission).mockReset().mockResolvedValue(true);
+    vi.mocked(resyncPushNotifications).mockReset().mockResolvedValue(null);
+    vi.mocked(markPushRenewed).mockReset();
+  });
+
+  it('resyncs for the account the client served when the setting flipped, and marks it renewed', async () => {
+    vi.mocked(resyncPushNotifications).mockResolvedValue({ subscriptionId: 'sub', verified: true });
+    await flip();
+    expect(resyncPushNotifications).toHaveBeenCalledWith({ relayBaseUrl: 'https://relay', accountLabel: 'u', forAccountId: ID });
+    expect(markPushRenewed).toHaveBeenCalledWith(ID);
+  });
+
+  it('does not mark renewed a resync that left push off', async () => {
+    await flip();
+    expect(markPushRenewed).not.toHaveBeenCalled();
   });
 });
