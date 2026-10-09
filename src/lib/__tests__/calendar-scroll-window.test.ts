@@ -14,6 +14,7 @@ import {
   SCROLL_WINDOW_STEP,
   type ScrollWindowOptions,
 } from '../calendar-scroll-window';
+import { GREGORIAN, JALALI } from '../calendar-system';
 
 // #759: every calendar view keeps one window of days around the focused
 // day; edges double, navigation inside the window does not reset it.
@@ -186,6 +187,59 @@ describe('windowStateForJump', () => {
     expect(next.after).toBe(state.after);
     const window = computeScrollWindow(next, opts);
     expect(baseRange('month', prevMonth, opts).start.getTime()).toBeGreaterThan(window.start.getTime());
+  });
+
+  it('grows on the same anchor in a Jalali month grid with weeks from Saturday', () => {
+    const jalali: ScrollWindowOptions = { weekStartsOn: 6, calendar: JALALI };
+    // 15 Sep 2026 is in Shahrivar; step back to the start of Mordad.
+    const state = freshScrollWindowState('month', new Date(2026, 8, 15));
+    const prevMonth = JALALI.addMonths(JALALI.monthStart(new Date(2026, 8, 15)), -1);
+    const next = windowStateForJump(state, 'month', prevMonth, jalali);
+    expect(next.anchorKey).toBe(state.anchorKey);
+    expect(next.before).toBeGreaterThan(state.before);
+    const window = computeScrollWindow(next, jalali);
+    expect(baseRange('month', prevMonth, jalali).start.getTime()).toBeGreaterThan(window.start.getTime());
+  });
+
+  it('grows on the same anchor in the week view', () => {
+    // A fresh week window starts 35 days (five weeks) before the anchor's
+    // week: five weeks back is inside it, on its first row.
+    const anchor = new Date(2026, 8, 9);
+    const state = freshScrollWindowState('week', anchor);
+    const target = new Date(2026, 8, 9 - 35);
+    expect(scrollWindowContains(computeScrollWindow(state, opts), 'week', target, opts)).toBe(true);
+    const next = windowStateForJump(state, 'week', target, opts);
+    expect(next.anchorKey).toBe(state.anchorKey);
+    expect(next.before).toBeGreaterThan(state.before);
+    const window = computeScrollWindow(next, opts);
+    expect(baseRange('week', target, opts).start.getTime()).toBeGreaterThan(window.start.getTime());
+  });
+
+  it('grows no further than the cap, and leaves a window at the cap as it is', () => {
+    // Earliest month of each window whose grid fits inside it: the one a
+    // step back lands on the first rows of.
+    const earliestInside = (state: ReturnType<typeof freshScrollWindowState>) => {
+      const window = computeScrollWindow(state, opts);
+      for (let i = 0; ; i++) {
+        const at = GREGORIAN.addMonths(GREGORIAN.monthStart(window.start), i);
+        if (scrollWindowContains(window, 'month', at, opts)) return at;
+      }
+    };
+    let cappedGrowths = 0;
+    for (let m = 0; m < 12; m++) {
+      const anchorKey = `2026-${String(m + 1).padStart(2, '0')}-15`;
+      const near = { mode: 'month' as const, anchorKey, before: 240, after: 30 };
+      const grown = windowStateForJump(near, 'month', earliestInside(near), opts);
+      expect(grown.anchorKey).toBe(anchorKey);
+      expect(grown.before).toBeLessThanOrEqual(SCROLL_WINDOW_MAX.month);
+      if (grown !== near) {
+        expect(grown.before).toBe(SCROLL_WINDOW_MAX.month);
+        cappedGrowths++;
+      }
+      const atCap = { ...near, before: SCROLL_WINDOW_MAX.month };
+      expect(windowStateForJump(atCap, 'month', earliestInside(atCap), opts)).toBe(atCap);
+    }
+    expect(cappedGrowths).toBeGreaterThan(0);
   });
 
   it('still starts a fresh month window at a target outside it', () => {

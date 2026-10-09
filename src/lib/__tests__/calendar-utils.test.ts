@@ -15,6 +15,8 @@ import {
   CALENDAR_COLOR_PALETTE,
   applySharedCalendarColors,
   legacySharedCalendarColorKey,
+  missingSharedCalendarColors,
+  resetSharedCalendarColor,
   sharedCalendarColorFor,
   sharedCalendarColorKey,
 } from '../calendar-utils';
@@ -313,6 +315,45 @@ describe('shared calendar colours', () => {
 
   it('applies no per-account override when no account is shown', () => {
     expect(sharedCalendarColorFor({ 'A|team|c1': '#ff0000' }, '', cal)).toBeUndefined();
+  });
+
+  it('a reset shadows the old key for that account only, leaving it for the others', () => {
+    const overrides: Record<string, string> = { 'team|c1': '#00ff00' };
+    const { key, color } = resetSharedCalendarColor([cal], overrides, 'A', cal);
+    expect(key).toBe('A|team|c1');
+    // A fresh colour, not the one it had (so it never reverts to it).
+    expect(color.toLowerCase()).not.toBe('#00ff00');
+    const after = { ...overrides, [key]: color };
+    expect(after['team|c1']).toBe('#00ff00');
+    expect(sharedCalendarColorFor(after, 'A', cal)).toBe(color);
+    expect(sharedCalendarColorFor(after, 'B', cal)).toBe('#00ff00');
+  });
+
+  it('a reset picks a colour not already on screen', () => {
+    const own = { id: 'p', name: 'P', color: '#111111' } as Calendar;
+    const { color } = resetSharedCalendarColor([own, cal], { 'A|team|c1': '#222222' }, 'A', cal);
+    expect(['#111111', '#222222']).not.toContain(color.toLowerCase());
+  });
+
+  it('assigns a colour, under the shown account\'s key, only to shared calendars without one', () => {
+    const other = { ...cal, id: 'team:c2', originalId: 'c2' };
+    const legacy = { ...cal, id: 'team:c3', originalId: 'c3' };
+    const own = { id: 'p', name: 'P', color: '#111111' } as Calendar;
+    const overrides = { 'A|team|c1': '#ff0000', 'team|c3': '#00ff00', 'B|team|c2': '#0000ff' };
+    const assigned = missingSharedCalendarColors([cal, other, legacy, own], overrides, 'A');
+    expect(Object.keys(assigned)).toEqual(['A|team|c2']);
+    expect(['#111111', '#ff0000', '#00ff00', '#0000ff']).not.toContain(assigned['A|team|c2'].toLowerCase());
+  });
+
+  it('assigns nothing while no account is shown', () => {
+    expect(missingSharedCalendarColors([cal], {}, '')).toEqual({});
+  });
+
+  it('gives two new shared calendars different colours', () => {
+    const other = { ...cal, id: 'team:c2', originalId: 'c2' };
+    const assigned = Object.values(missingSharedCalendarColors([cal, other], {}, 'A'));
+    expect(assigned).toHaveLength(2);
+    expect(new Set(assigned.map((c) => c.toLowerCase())).size).toBe(2);
   });
 
   it('leaves personal calendars alone', () => {

@@ -628,6 +628,61 @@ export function applySharedCalendarColors(
   });
 }
 
+/** Colours already on screen: personal calendars' and every stored override. */
+function takenCalendarColors(calendars: Calendar[], overrides: Record<string, string>): Set<string> {
+  const used = new Set<string>();
+  for (const cal of calendars) {
+    if (!cal.isShared && cal.color) used.add(cal.color.toLowerCase());
+  }
+  for (const color of Object.values(overrides)) {
+    if (color) used.add(color.toLowerCase());
+  }
+  return used;
+}
+
+/**
+ * A random, not-yet-used colour for each shared calendar that has no
+ * override in app account `appAccountId` (one under the old key counts),
+ * as new-key → colour. Nothing while no account is shown.
+ */
+export function missingSharedCalendarColors(
+  calendars: Calendar[],
+  overrides: Record<string, string>,
+  appAccountId: string,
+): Record<string, string> {
+  const assigned: Record<string, string> = {};
+  if (!appAccountId) return assigned;
+  const missing = calendars.filter(
+    (cal) => cal.isShared && !sharedCalendarColorFor(overrides, appAccountId, cal),
+  );
+  if (missing.length === 0) return assigned;
+  const used = takenCalendarColors(calendars, overrides);
+  for (const cal of missing) {
+    const color = pickUnusedCalendarColor(used);
+    used.add(color.toLowerCase());
+    assigned[sharedCalendarColorKey(appAccountId, cal)] = color;
+  }
+  return assigned;
+}
+
+/**
+ * The override a reset writes: a fresh unused colour (never the one it
+ * had) under the account's own key. The old key is left alone: it is
+ * shared by every app account and a webmail import, and the new key
+ * shadows it for this account only.
+ */
+export function resetSharedCalendarColor(
+  calendars: Calendar[],
+  overrides: Record<string, string>,
+  appAccountId: string,
+  cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
+): { key: string; color: string } {
+  return {
+    key: sharedCalendarColorKey(appAccountId, cal),
+    color: pickUnusedCalendarColor(takenCalendarColors(calendars, overrides)),
+  };
+}
+
 export function getPrimaryCalendarId(
   event: Pick<CalendarEvent, 'calendarIds'>,
 ): string | undefined {
