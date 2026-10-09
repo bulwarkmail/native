@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { freeToastSlots, toast, useToastStore } from '../stores/toast-store';
 import { needsSessionRefresh, shareNotificationMessage } from './share-notification-toast';
 import { createNoticeWaiter, selectNoticeToasts } from './calendar-event-notification-toast';
-import { singleFlightByKey } from './session-retry';
+import { coalesceByKey } from './session-retry';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 import { hasCalendarCapability } from './capabilities';
 
@@ -20,9 +20,11 @@ import { hasCalendarCapability } from './capabilities';
 export function startShareNotificationToasts(): () => void {
   // Adding a toast notifies the toast subscription below synchronously.
   let presenting = false;
-  // One session refresh per app account at a time: a burst of shares from a
-  // new owner makes one request, and every batch fetches once it settles.
-  const refreshSession = singleFlightByKey((appAccountId: string) =>
+  // One session refresh per app account at a time; the batches that came
+  // during one share one more after it, since the one in flight may predate
+  // their owner's share. Each batch fetches once the refresh it waits on
+  // settles.
+  const refreshSession = coalesceByKey((appAccountId: string) =>
     useAuthStore.getState().refreshSessionFor(appAccountId).catch(() => false));
   const present = () => {
     if (presenting) return;

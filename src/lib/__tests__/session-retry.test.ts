@@ -4,6 +4,7 @@ import {
   nextSessionRetryDelay,
   shouldRetrySession,
   singleFlightByKey,
+  coalesceByKey,
   startSessionRetry,
 } from '../session-retry';
 
@@ -57,6 +58,50 @@ describe('singleFlightByKey', () => {
     const run = singleFlightByKey(fn as () => Promise<boolean>);
     await expect(run('k')).rejects.toThrow('x');
     await expect(run('k')).resolves.toBe(true);
+  });
+});
+
+describe('coalesceByKey', () => {
+  // A caller that joins mid-flight may need what changed after that run
+  // started (a session fetched before the new owner shared): it gets one
+  // more run, shared by everyone who joined.
+  it('runs once more after the attempt in flight for callers that joined it', async () => {
+    const resolvers: Array<(v: number) => void> = [];
+    const fn = vi.fn(() => new Promise<number>((r) => { resolvers.push(r); }));
+    const run = coalesceByKey(fn);
+    const first = run('k');
+    const joined = [run('k'), run('k')];
+    expect(fn).toHaveBeenCalledTimes(1);
+    resolvers[0](1);
+    expect(await first).toBe(1);
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(2));
+    // A caller during the re-run joins it, and queues one more after it.
+    const late = run('k');
+    resolvers[1](2);
+    expect(await joined[0]).toBe(2);
+    expect(await joined[1]).toBe(2);
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(3));
+    resolvers[2](3);
+    expect(await late).toBe(3);
+    // Settled: the next call starts afresh, with no re-run.
+    void run('k');
+    expect(fn).toHaveBeenCalledTimes(4);
+    resolvers[3](4);
+    await Promise.resolve();
+    expect(fn).toHaveBeenCalledTimes(4);
+  });
+
+  it('re-runs after a rejection too, and starts another key on its own', async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new Error('x'))
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(3);
+    const run = coalesceByKey(fn as (k: string) => Promise<number>);
+    const first = run('k');
+    const joined = run('k');
+    await expect(first).rejects.toThrow('x');
+    await expect(joined).resolves.toBe(2);
+    await expect(run('other')).resolves.toBe(3);
   });
 });
 
