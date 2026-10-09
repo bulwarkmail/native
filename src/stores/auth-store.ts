@@ -292,6 +292,8 @@ interface PendingCleanup {
   /** The cleanup itself, with its options (discardQueuedSends), to run again. */
   run: CleanupRun;
   done: Promise<void>;
+  /** The run has ended (a parked record is one that ended with `skipped`). */
+  ended: boolean;
 }
 const pendingCleanups = new Map<string, PendingCleanup>();
 
@@ -300,9 +302,13 @@ function isRegistered(key: string): boolean {
   return key === SHARED_CLEANUP ? accounts.length > 0 : accounts.some((a) => a.id === key);
 }
 
-// Start a tracked cleanup. Resolves when it ends; never rejects.
+// Start a tracked cleanup. Resolves when it ends; never rejects. One that
+// skipped steps with no sign-in holding it (its key was registered when a
+// step came up) stays in the map once it ends, parked: the next sign-in to
+// end with the key unregistered runs it again (settlePendingCleanup). Else
+// a registration undone without a cleanup of its own would leave the data.
 function startCleanup(key: string, run: CleanupRun): Promise<void> {
-  const record: PendingCleanup = { returning: 0, skipped: false, run, done: Promise.resolve() };
+  const record: PendingCleanup = { returning: 0, skipped: false, ended: false, run, done: Promise.resolve() };
   const stillGone = () => {
     const gone = record.returning === 0 && !isRegistered(key);
     if (!gone) record.skipped = true;
@@ -314,7 +320,9 @@ function startCleanup(key: string, run: CleanupRun): Promise<void> {
     } catch (e) {
       console.warn('[sign-out] cleanup failed', e);
     } finally {
-      if (pendingCleanups.get(key) === record) pendingCleanups.delete(key);
+      record.ended = true;
+      const parked = record.skipped && record.returning === 0;
+      if (pendingCleanups.get(key) === record && !parked) pendingCleanups.delete(key);
     }
   })();
   pendingCleanups.set(key, record);
@@ -348,20 +356,34 @@ async function settlePendingCleanup(accountId: string): Promise<() => void> {
       record.skipped = false;
       void startCleanup(key, record.run);
     }
+    // Parked ones this sign-in never held (they started after it did).
+    for (const [key, record] of [...pendingCleanups]) {
+      if (!record.ended || !record.skipped || record.returning > 0 || isRegistered(key)) continue;
+      record.skipped = false;
+      void startCleanup(key, record.run);
+    }
   };
   if (held.length) await waitAtMost(Promise.all(held.map(([, r]) => r.done)));
   return release;
 }
 
 // Forget a signed-out account's device data, tracked, waiting at most
-// EVICTION_CLEANUP_TIMEOUT_MS. Whether it was the last account is read when
-// that step is reached.
+// EVICTION_CLEANUP_TIMEOUT_MS, then the shared data (forgetSharedAfterLast),
+// which goes only if no account is registered when that step is reached.
 function forgetSignedOut(account: { appAccountId: string; serverUrl?: string | null; username?: string | null }, discardQueuedSends?: boolean): Promise<void> {
-  return waitAtMost(startCleanup(account.appAccountId, (stillGone) => forgetAccountData(account, {
-    lastAccount: () => useAccountStore.getState().accounts.length === 0,
-    discardQueuedSends,
-    stillGone,
-  })));
+  return waitAtMost(startCleanup(account.appAccountId, async (stillGone) => {
+    await forgetAccountData(account, { lastAccount: false, discardQueuedSends, stillGone });
+    if (stillGone()) await forgetSharedAfterLast();
+  }));
+}
+
+// The shared step of a signed-out account's cleanup, tracked under
+// SHARED_CLEANUP rather than inside that account's record. It runs whether
+// or not the account was the last: another account registered just then
+// (which may be undone) makes it skip and park, and it runs again once a
+// sign-in ends with no account registered.
+function forgetSharedAfterLast(): Promise<void> {
+  return startCleanup(SHARED_CLEANUP, (stillGone) => forgetSharedData(stillGone));
 }
 
 // Forget the data every account shares, tracked as forgetSignedOut is.
@@ -403,10 +425,8 @@ async function evictAccount(accountId: string, opts: { clearCredentials: boolean
     // would delete its new id token or relay.
     if (stillGone()) await waitAtMost(deleteIdToken(accountId));
     if (stillGone()) await waitAtMost(clearStoredRelayBaseUrl(accountId));
-    await forgetAccountData(account, {
-      lastAccount: () => useAccountStore.getState().accounts.length === 0,
-      stillGone,
-    });
+    await forgetAccountData(account, { lastAccount: false, stillGone });
+    if (stillGone()) await forgetSharedAfterLast();
   }));
 }
 

@@ -78,6 +78,14 @@ function forgetOpts(lastAccount: boolean) {
   };
 }
 
+// The shared step runs on its own (tracked under the shared key) after each
+// account's cleanup; whether it goes on is its `stillGone`, read now.
+function sharedStepGoesOn(): boolean {
+  const calls = (forgetSharedData as unknown as { mock: { calls: [(() => boolean)?][] } }).mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  return calls[calls.length - 1][0]?.() ?? true;
+}
+
 function resetAccountStore(): void {
   useAccountStore.setState({
     accounts: [],
@@ -162,7 +170,8 @@ describe('auth-store', () => {
 
       expect(forgetAccountData).toHaveBeenCalledWith({
         appAccountId: 'me@mail.example.com', serverUrl: 'https://mail.example.com', username: 'me',
-      }, forgetOpts(true));
+      }, forgetOpts(false));
+      expect(sharedStepGoesOn()).toBe(true);
     });
 
     it('logout is not the last account while another stays signed in', async () => {
@@ -174,6 +183,7 @@ describe('auth-store', () => {
       mockLoadAccount.mockResolvedValue(true);
       await useAuthStore.getState().logout().catch(() => undefined);
       expect((forgetAccountData as any).mock.calls[0][1]).toEqual(forgetOpts(false));
+      expect(sharedStepGoesOn()).toBe(false);
     });
 
     it('logout without a registry id still forgets shared data when nothing remains', async () => {
@@ -306,7 +316,8 @@ describe('auth-store', () => {
 
         expect(await useAuthStore.getState().restoreSession()).toBe(false);
 
-        expect(forgetAccountData).toHaveBeenCalledWith(forgotB[0], forgetOpts(true));
+        expect(forgetAccountData).toHaveBeenCalledWith(forgotB[0], forgetOpts(false));
+        expect(sharedStepGoesOn()).toBe(true);
         expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
         expect(useAccountStore.getState().accounts).toEqual([]);
       });
@@ -387,7 +398,8 @@ describe('auth-store', () => {
 
         expect(await useAuthStore.getState().retrySession()).toBe(false);
 
-        expect(forgetAccountData).toHaveBeenCalledWith(forgotB[0], forgetOpts(true));
+        expect(forgetAccountData).toHaveBeenCalledWith(forgotB[0], forgetOpts(false));
+        expect(sharedStepGoesOn()).toBe(true);
         expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
         expect(usePendingMailFolder.getState().target).toBeNull();
         expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: false, error: 'Session expired' });

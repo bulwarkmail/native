@@ -214,6 +214,48 @@ describe('a sign-out cleanup still running when the account signs in again', () 
     });
   });
 
+  // The last account's shared step, reached while another account is
+  // briefly registered, is skipped; once that account is gone again and its
+  // sign-in ends, the skip must not leave the search history behind.
+  it('forgets the shared data once a brief registration of another account is undone', async () => {
+    const OTHER = 'other@mail.example.com';
+    const OTHER_ID = generateAccountId(OTHER, SERVER);
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({
+      subscriptions: [{ id: 's0', owner: 'nobody', name: 's0', url: 'https://x/ownerless.ics', color: '#000', enabled: true } as never],
+    });
+    let releaseStep!: () => void;
+    vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount')
+      .mockImplementationOnce(() => new Promise<void>((r) => { releaseStep = r; }));
+    const signedOut = useAuthStore.getState().logout();
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    await signedOut;
+    expect(useAccountStore.getState().accounts).toEqual([]);
+
+    // Another account's sign-in: nothing of its own to hold.
+    let refuse!: (e: unknown) => void;
+    (jmapClient.connect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((_, reject) => { refuse = reject; }));
+    const signIn = useAuthStore.getState().login(SERVER, OTHER, 'pw').catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    // It is registered for a moment, while the signed-out account's cleanup
+    // reaches its shared step.
+    const { accounts } = useAccountStore.getState();
+    useAccountStore.setState({ accounts: [...accounts, { ...accounts[0] ?? {}, id: OTHER_ID, serverUrl: SERVER, username: OTHER } as never] });
+    releaseStep();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+
+    // Then undone, and the sign-in fails.
+    useAccountStore.setState({ accounts: [] });
+    refuse(new AuthenticationError('bad password'));
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    expect(await signIn).toBeInstanceOf(AuthenticationError);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+    expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
+  });
+
   it('still forgets the subscriptions when the first step hangs and nobody signs back in', async () => {
     vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount').mockImplementation(() => new Promise(() => undefined));
     useCalendarSubscriptionsStore.setState({
