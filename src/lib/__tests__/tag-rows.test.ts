@@ -68,4 +68,36 @@ describe('tagRows', () => {
     const def = kw('a');
     expect(tagRows([def], base).rows[0].def).toBe(def);
   });
+
+  describe('collapsed parents', () => {
+    const defs = [kw('work'), kw('work/q3', { parentId: 'work' }), kw('home')];
+
+    it('marks a parent expanded by default, and a leaf as having no children', () => {
+      const { rows } = tagRows(defs, { nested: true });
+      expect(rows.map((r) => r.def.id)).toEqual(['work', 'work/q3', 'home']);
+      expect(rows[0]).toMatchObject({ hasChildren: true, expanded: true });
+      expect(rows[1]).toMatchObject({ hasChildren: false });
+    });
+
+    it("hides a collapsed parent's children and marks the parent", () => {
+      const { rows } = tagRows(defs, { nested: true, collapsed: new Set(['work']) });
+      expect(rows.map((r) => r.def.id)).toEqual(['work', 'home']);
+      expect(rows[0]).toMatchObject({ hasChildren: true, expanded: false });
+    });
+
+    it('keeps the path to the selected tag open', () => {
+      expect(tagRows(defs, { nested: true, collapsed: new Set(['work']), selectedId: 'work/q3' }).rows.map((r) => r.def.id))
+        .toContain('work/q3');
+    });
+
+    it('counts only visibility in hiddenCount, not collapsing', () => {
+      expect(tagRows(defs, { ...base, collapsed: new Set(['work']) }).hiddenCount).toBe(0);
+    });
+
+    it('ignores collapsing when nesting is off', () => {
+      const { rows } = tagRows(defs, { nested: false, collapsed: new Set(['work']) });
+      expect(rows.map((r) => r.def.id)).toEqual(['work', 'work/q3', 'home']);
+      expect(rows[0].hasChildren).toBe(false);
+    });
+  });
 });

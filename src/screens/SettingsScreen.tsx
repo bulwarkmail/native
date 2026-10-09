@@ -53,7 +53,8 @@ import {
 } from '../lib/settings-search';
 import { SearchHighlightContext, type SearchHighlight } from '../components/settings/search-highlight';
 import { BUILTIN_THEMES } from '../theme/builtin-themes';
-import { getDictionary } from '../i18n';
+import { getDictionary, isLayoutRTL } from '../i18n';
+import { forwardIconStyle } from '../lib/rtl-layout';
 
 type Tab = SettingsTabId;
 
@@ -301,7 +302,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
       accessibilityRole="button"
       style={({ pressed }) => [styles.scopeBanner, pressed && styles.scopeBannerPressed]}
     >
-      <ArrowLeft size={16} color={c.mutedForeground} />
+      <ArrowLeft size={16} color={c.mutedForeground} style={forwardIconStyle(isLayoutRTL())} />
       <Text style={styles.scopeBack}>{t('settings.scoped.back', 'Back to my account')}</Text>
       <Text style={styles.scopeName} numberOfLines={1}>
         {t('settings.scoped.managing', 'Managing: {name}', { name: managedAccount.name })}
@@ -338,7 +339,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
             accessibilityLabel={t('common.back', 'Back')}
             style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
           >
-            <ArrowLeft size={20} color={c.text} />
+            <ArrowLeft size={20} color={c.text} style={forwardIconStyle(isLayoutRTL())} />
           </Pressable>
           <TabIcon size={20} color={c.mutedForeground} />
           <Text style={styles.headerTitle}>{tabLabel}</Text>
@@ -378,7 +379,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
             accessibilityLabel={t('common.back', 'Back')}
             style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
           >
-            <ArrowLeft size={20} color={c.text} />
+            <ArrowLeft size={20} color={c.text} style={forwardIconStyle(isLayoutRTL())} />
           </Pressable>
         ) : (
           <View style={styles.headerLeftSpacer} />
@@ -471,7 +472,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                         <Text style={styles.notWorkingText}>{badgeLabel}</Text>
                       </View>
                     ) : (
-                      <ChevronRight size={16} color={c.mutedForeground} />
+                      <ChevronRight size={16} color={c.mutedForeground} style={forwardIconStyle(isLayoutRTL())} />
                     )}
                   </Pressable>
                 );

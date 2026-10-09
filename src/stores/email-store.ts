@@ -61,12 +61,19 @@ import { useOfflineCacheStore } from './offline-cache-store';
 import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from './outbox-store';
 import { useTagCountsStore } from './tag-counts-store';
 import { toast } from './toast-store';
+import { dropPendingMailFolder } from '../navigation/pending-mail-folder';
 
 // Accounts whose start folder is settled this launch: their Inbox was opened
 // (or their last folder kept) on first show, or a folder was chosen, so a
 // deep link or notification tap keeps what it picked and a switch back keeps
 // the folder left.
 const startFolderSettled = new Set<string>();
+
+// Bumped by each `selectMailbox` and each account switch. A pick waits on the
+// offline cache for its seed; a later pick, or another account, may have come
+// to the front meanwhile, and the earlier pick must not then lay its folder
+// and messages over theirs (ids repeat across accounts).
+let selectGen = 0;
 
 // Accounts whose own folder list was read from the server this launch
 // (`fetchMailboxesImpl` took it in), and whose shared accounts' lists were
@@ -530,7 +537,11 @@ export interface EmailState {
    * one sign-in started.
    */
   ensureMailboxes: () => Promise<void>;
-  selectMailbox: (mailboxId: string) => Promise<void>;
+  /**
+   * Show a folder. `byUser`: the user picked it in the drawer, so a folder
+   * link still waiting for this account is dropped.
+   */
+  selectMailbox: (mailboxId: string, opts?: { byUser?: boolean }) => Promise<void>;
   /**
    * Cold start: show the Inbox of the active account, or with `restoreLast`
    * the folder remembered for it when that folder still exists. Once per
@@ -1144,6 +1155,9 @@ export const useEmailStore = create<EmailState>()(
       pointDependentStores(accountId);
       return;
     }
+    // A pick still reading its seed belongs to the account left, even if
+    // the user is back on it by the time the read lands.
+    selectGen++;
 
     const nextSnapshots = { ...state.accountSnapshots };
     if (state.activeAccountId) {
@@ -1297,8 +1311,13 @@ export const useEmailStore = create<EmailState>()(
     });
   },
 
-  selectMailbox: async (mailboxId) => {
-    if (get().activeAccountId) startFolderSettled.add(get().activeAccountId!);
+  selectMailbox: async (mailboxId, opts) => {
+    const gen = ++selectGen;
+    const startAccountId = get().activeAccountId;
+    // A cold-start link waits for the folders to load before it opens its
+    // folder; a folder the user picks by hand in that time wins over it.
+    if (opts?.byUser) dropPendingMailFolder(startAccountId);
+    if (startAccountId) startFolderSettled.add(startAccountId);
     const state = get();
     // Tuck the previously-visible mailbox into its snapshot so a return-trip
     // can restore it without a network call. Only do this for the base view —
@@ -1353,6 +1372,8 @@ export const useEmailStore = create<EmailState>()(
           console.warn('[email-store] cache seed failed:', err);
         }
       }
+      // Overtaken while the cache was read: the newer pick or account owns the view.
+      if (gen !== selectGen || get().activeAccountId !== startAccountId) return;
     }
 
     set({

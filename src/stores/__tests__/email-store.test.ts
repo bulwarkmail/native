@@ -107,7 +107,10 @@ vi.mock('../settings-store', () => {
 
 // offline-cache-store is touched by selectMailbox (cache-seed fallback) and
 // setActiveAccount (account switch). Stub it as an empty cache so tests don't need to set up
-// AsyncStorage.
+// AsyncStorage. `offlineSeed.read`, when set, stands in for a filled cache's read.
+const offlineSeed = vi.hoisted(() => ({
+  read: null as null | ((mailboxId: string, limit: number, accountId?: string) => Promise<unknown[]>),
+}));
 vi.mock('../offline-cache-store', () => ({
   useOfflineCacheStore: {
     getState: () => ({
@@ -115,8 +118,9 @@ vi.mock('../offline-cache-store', () => ({
       hydrated: true,
       hydrate: vi.fn(),
       setAccount: vi.fn(async () => undefined),
-      totalCount: () => 0,
-      getEmailsInMailbox: vi.fn(async () => []),
+      totalCount: () => (offlineSeed.read ? 1 : 0),
+      getEmailsInMailbox: vi.fn(async (mailboxId: string, limit: number, accountId?: string) =>
+        (offlineSeed.read ? offlineSeed.read(mailboxId, limit, accountId) : [])),
       has: () => false,
       get: vi.fn(async () => null),
       put: vi.fn(async () => undefined),
@@ -162,6 +166,7 @@ import { registerServedAccount } from './helpers/served-account';
 /** The scope an action passes: JMAP account `accountId` on the connection it started on. */
 const onAccount = (accountId: string) => expect.objectContaining({ accountId });
 import { useSettingsStore } from '../settings-store';
+import { setPendingMailFolder, usePendingMailFolder } from '../../navigation/pending-mail-folder';
 
 // The mocked client serves this account; the store checks that before acting.
 beforeEach(() => {
@@ -384,6 +389,104 @@ describe('email-store', () => {
       } finally {
         useSettingsStore.getState().updateSetting('clearSearchOnFolderChange', false);
       }
+    });
+  });
+
+  describe('selectMailbox: hand picks and the cache-seed race', () => {
+    afterEach(() => {
+      offlineSeed.read = null;
+      setPendingMailFolder(null);
+    });
+
+    it('a folder picked by hand drops a link still waiting for that account', async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      setPendingMailFolder({ ref: 'Work', appAccountId: TEST_ACCOUNT_ID, fromMailboxId: null });
+      await useEmailStore.getState().selectMailbox('mb-2', { byUser: true });
+      expect(usePendingMailFolder.getState().target).toBeNull();
+    });
+
+    it("keeps another account's link on a hand pick", async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      const target = { ref: 'Work', appAccountId: 'other-account', fromMailboxId: null };
+      setPendingMailFolder(target);
+      await useEmailStore.getState().selectMailbox('mb-2', { byUser: true });
+      expect(usePendingMailFolder.getState().target).toEqual(target);
+    });
+
+    it("the mail list's own pick keeps the link", async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      const target = { ref: 'Work', appAccountId: TEST_ACCOUNT_ID, fromMailboxId: null };
+      setPendingMailFolder(target);
+      await useEmailStore.getState().selectMailbox('mb-1');
+      expect(usePendingMailFolder.getState().target).toEqual(target);
+    });
+
+    it('a slower earlier pick never overrides a later one', async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      let releaseFirst: () => void = () => undefined;
+      offlineSeed.read = (mailboxId) => (mailboxId === 'mb-1'
+        ? new Promise((resolve) => { releaseFirst = () => resolve([{ id: 'cached-1' }]); })
+        : Promise.resolve([{ id: 'cached-2' }]));
+
+      const first = useEmailStore.getState().selectMailbox('mb-1');
+      await vi.waitFor(() => expect(offlineSeed.read).toBeTruthy());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      // Settle the later pick's whole load, so it is not the reason it wins.
+      mockQueryEmails.mockResolvedValue({ ids: ['e2'], total: 1, queryState: 'q-2' });
+      mockGetEmailsWithState.mockResolvedValue({ list: [{ id: 'e2', subject: 'Two' }], state: 'em-2' });
+      await useEmailStore.getState().selectMailbox('mb-2');
+      const queriesBefore = mockQueryEmails.mock.calls.length;
+      releaseFirst();
+      await first;
+
+      const state = useEmailStore.getState();
+      expect(state.currentMailboxId).toBe('mb-2');
+      expect(state.emails.map((e) => e.id)).toEqual(['e2']);
+      expect(state.loading).toBe(false);
+      // The overtaken pick did not go on to load its folder.
+      expect(mockQueryEmails.mock.calls.length).toBe(queriesBefore);
+    });
+
+    it('a pick an account switch overtook leaves the new account alone', async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      let releaseRead: () => void = () => undefined;
+      offlineSeed.read = () => new Promise((resolve) => { releaseRead = () => resolve([{ id: 'from-A' }]); });
+
+      const pick = useEmailStore.getState().selectMailbox('mb-1');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      // Another account comes to the front with its own folder and mail.
+      useEmailStore.setState({
+        activeAccountId: 'account-B', currentMailboxId: 'b-inbox', emails: [{ id: 'b-1' } as any], totalEmails: 1, loading: false,
+      });
+      releaseRead();
+      await pick;
+
+      const state = useEmailStore.getState();
+      expect(state.activeAccountId).toBe('account-B');
+      expect(state.currentMailboxId).toBe('b-inbox');
+      expect(state.emails.map((e) => e.id)).toEqual(['b-1']);
+      expect(state.totalEmails).toBe(1);
+      expect(state.loading).toBe(false);
+      expect(mockQueryEmails).not.toHaveBeenCalled();
+    });
+
+    it('a pick from before a switch away and back does not land', async () => {
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      let releaseRead: () => void = () => undefined;
+      offlineSeed.read = () => new Promise((resolve) => { releaseRead = () => resolve([{ id: 'stale' }]); });
+      useEmailStore.setState({ currentMailboxId: 'mb-0', emails: [{ id: 'kept' } as any], totalEmails: 1 });
+
+      const pick = useEmailStore.getState().selectMailbox('mb-1');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      useEmailStore.getState().setActiveAccount('account-B');
+      useEmailStore.getState().setActiveAccount(TEST_ACCOUNT_ID);
+      const shown = useEmailStore.getState().currentMailboxId;
+      releaseRead();
+      await pick;
+
+      const state = useEmailStore.getState();
+      expect(state.currentMailboxId).toBe(shown);
+      expect(state.emails.map((e) => e.id)).not.toContain('stale');
     });
   });
 

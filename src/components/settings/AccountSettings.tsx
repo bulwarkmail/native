@@ -17,6 +17,8 @@ import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
 import { fetchMailQuota, type MailQuota } from '../../api/quota';
 import { MAX_ACCOUNTS } from '../../lib/account-utils';
+import { forwardIconStyle } from '../../lib/rtl-layout';
+import { isLayoutRTL } from '../../i18n';
 import type { RootStackParamList } from '../../navigation/types';
 
 function formatFileSize(bytes: number): string {
@@ -273,7 +275,7 @@ export function AccountSettings() {
                     <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
                     <Text style={styles.rowSub}>{t('settings.account.shared_accounts.shared_label', 'Shared account')}</Text>
                   </View>
-                  {firstTab && <ChevronRight size={16} color={c.mutedForeground} />}
+                  {firstTab && <ChevronRight size={16} color={c.mutedForeground} style={forwardIconStyle(isLayoutRTL())} />}
                 </Pressable>
               );
             })}

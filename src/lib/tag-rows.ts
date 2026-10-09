@@ -18,6 +18,10 @@ import {
 export interface TagRow {
   def: KeywordDef;
   depth: number;
+  /** Whether the row has visible tags below it, so it shows a chevron. */
+  hasChildren: boolean;
+  /** Whether those tags are listed; false for a parent collapsed in the drawer. */
+  expanded: boolean;
 }
 
 export interface TagRowsOptions {
@@ -31,6 +35,11 @@ export interface TagRowsOptions {
   selectedId?: string | null;
   /** The drawer's "Show all", which overrides every visibility. */
   showAll?: boolean;
+  /**
+   * Parents the drawer has collapsed: their tags below are left out, except
+   * on the way down to `selectedId`, so the open tag view keeps its row.
+   */
+  collapsed?: ReadonlySet<string>;
 }
 
 export function tagRows(
@@ -61,12 +70,17 @@ export function tagRows(
   };
   const visible = filterKeywordTree(tree, isVisible);
 
+  const holdsSelected = (node: KeywordNode): boolean =>
+    node.children.some((child) => child.id === opts.selectedId || holdsSelected(child));
+
   const rows: TagRow[] = [];
   const walk = (nodes: KeywordNode[]) => {
     for (const node of nodes) {
+      const hasChildren = node.children.length > 0;
+      const expanded = !hasChildren || !opts.collapsed?.has(node.id) || holdsSelected(node);
       const def = byId.get(node.id);
-      if (def) rows.push({ def, depth: node.depth });
-      walk(node.children);
+      if (def) rows.push({ def, depth: node.depth, hasChildren, expanded });
+      if (expanded) walk(node.children);
     }
   };
   walk(visible);

@@ -6,7 +6,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { isLayoutRTL } from '../i18n';
-import { drawerClosedX, drawerSafeEdges } from '../lib/rtl-layout';
+import { drawerClosedX, drawerSafeEdges, forwardIconStyle } from '../lib/rtl-layout';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
@@ -61,6 +61,9 @@ const STORAGE_KEYS = {
   foldersExpanded: 'sidebar:foldersExpanded',
   tagsExpanded: 'sidebar:tagsExpanded',
   unifiedExpanded: 'sidebar:unifiedExpanded',
+  // Tag parents collapsed in the tags section. Tag definitions are kept for
+  // the device, not per account, so this is too; a new parent starts open.
+  collapsedTags: 'sidebar:collapsedTags',
 };
 
 type UnifiedRole = 'inbox' | 'sent' | 'drafts' | 'junk' | 'archive' | 'trash';
@@ -186,7 +189,7 @@ function SidebarRow({
             {isExpanded ? (
               <ChevronDown size={12} color={c.textMuted} />
             ) : (
-              <ChevronRight size={12} color={c.textMuted} />
+              <ChevronRight size={12} color={c.textMuted} style={forwardIconStyle(isLayoutRTL())} />
             )}
           </Pressable>
         ) : (
@@ -337,6 +340,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const [tagsExpanded, setTagsExpanded] = React.useState(true);
   // The tags section's "Show all", which lists the tags set to hide too.
   const [showAllTags, setShowAllTags] = React.useState(false);
+  const [collapsedTags, setCollapsedTags] = React.useState<ReadonlySet<string>>(() => new Set());
   const [unifiedExpanded, setUnifiedExpanded] = React.useState(false);
   const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(() => new Set());
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
@@ -357,11 +361,12 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   React.useEffect(() => {
     void (async () => {
       try {
-        const [rawExp, rawFld, rawTags, rawUnified] = await Promise.all([
+        const [rawExp, rawFld, rawTags, rawUnified, rawCollapsedTags] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.expanded),
           AsyncStorage.getItem(STORAGE_KEYS.foldersExpanded),
           AsyncStorage.getItem(STORAGE_KEYS.tagsExpanded),
           AsyncStorage.getItem(STORAGE_KEYS.unifiedExpanded),
+          AsyncStorage.getItem(STORAGE_KEYS.collapsedTags),
         ]);
         if (rawExp) {
           try {
@@ -382,6 +387,12 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         if (rawFld != null) setFoldersExpanded(rawFld === 'true');
         if (rawTags != null) setTagsExpanded(rawTags === 'true');
         if (rawUnified != null) setUnifiedExpanded(rawUnified === 'true');
+        if (rawCollapsedTags) {
+          try {
+            const ids = JSON.parse(rawCollapsedTags) as string[];
+            if (Array.isArray(ids)) setCollapsedTags(new Set(ids));
+          } catch { /* ignore */ }
+        }
       } catch { /* ignore */ }
     })();
   }, [mailboxes]);
@@ -414,7 +425,16 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     });
   }, [persistExpanded]);
 
-  const toggleSection = (key: keyof typeof STORAGE_KEYS, setter: React.Dispatch<React.SetStateAction<boolean>>) => {
+  const toggleTagCollapsed = React.useCallback((id: string) => {
+    setCollapsedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      void AsyncStorage.setItem(STORAGE_KEYS.collapsedTags, JSON.stringify(Array.from(next))).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const toggleSection = (key: 'foldersExpanded' | 'tagsExpanded' | 'unifiedExpanded', setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     setter((prev) => {
       const next = !prev;
       void AsyncStorage.setItem(STORAGE_KEYS[key], String(next)).catch(() => {});
@@ -425,13 +445,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const handleSelect = React.useCallback((id: string) => {
     // A tag view was open: leave it so the folder shows its own mail.
     if (filters.keyword) clearSearchAndFilters();
-    void selectMailbox(id);
+    void selectMailbox(id, { byUser: true });
     onClose();
   }, [selectMailbox, onClose, filters.keyword, clearSearchAndFilters]);
 
   // Tap the unread count → the folder filtered to unread (webmail sidebar).
   const handleSelectUnread = React.useCallback((id: string) => {
-    void selectMailbox(id).then(() => setFilters({ isUnread: true }));
+    void selectMailbox(id, { byUser: true }).then(() => setFilters({ isUnread: true }));
     onClose();
   }, [selectMailbox, setFilters, onClose]);
 
@@ -654,7 +674,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   if (!mb.isShared && owner) useFolderIconsStore.getState().setIcon(owner, mb.id, null);
                   if (currentMailboxId === mb.id) {
                     const inbox = ownMailboxes(mailboxes).find((m) => m.role === 'inbox');
-                    if (inbox) void selectMailbox(inbox.id);
+                    if (inbox) void selectMailbox(inbox.id, { byUser: true });
                   }
                 },
                 false,
@@ -809,8 +829,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const tagList = React.useMemo(
     () => tagRows(keywordDefs, {
       nested: nestedTags, counts: tagCounts, selectedId: selectedTagId, showAll: showAllTags, applyVisibility: true,
+      collapsed: collapsedTags,
     }),
-    [keywordDefs, nestedTags, tagCounts, selectedTagId, showAllTags],
+    [keywordDefs, nestedTags, tagCounts, selectedTagId, showAllTags, collapsedTags],
   );
 
   return (
@@ -1211,7 +1232,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   )}
                   <Text style={styles.sectionHeaderText}>{t('sidebar.tags', 'Tags')}</Text>
                 </Pressable>
-                {tagsExpanded && tagList.rows.map(({ def: kw, depth }) => {
+                {tagsExpanded && tagList.rows.map(({ def: kw, depth, hasChildren, expanded }) => {
                   const counts = tagCounts[kw.id];
                   const isSelected = kw.id === selectedTagId;
                   const dot = c.tags[kw.color]?.dot ?? c.textMuted;
@@ -1229,10 +1250,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       unread={counts?.unread ?? 0}
                       total={counts?.total ?? 0}
                       showTotal={showFolderTotalCount}
-                      hasChildren={false}
-                      isExpanded={false}
+                      hasChildren={hasChildren}
+                      isExpanded={expanded}
                       onPress={() => selectTag(kw.id)}
-                      onToggleExpand={() => {}}
+                      onToggleExpand={() => toggleTagCollapsed(kw.id)}
                     />
                   );
                 })}
