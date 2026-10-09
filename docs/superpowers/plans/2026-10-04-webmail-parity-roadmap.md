@@ -566,24 +566,24 @@ Left open:
   - sidebar apps in a Custom Tab;
   - folder links on a cold start.
 - **Follow-ups parked in the ledger:**
-  - Trust-on-reply and calendar trust-on-RSVP still file a flagged sender as trusted, and an already-trusted forged address still auto-loads remote content. Webmail behaves the same.
-  - Pin the `authserv-id` when judging the sender check. Until then, a message the receiving server stamped no Authentication-Results header on is judged by the sender's own topmost header.
-  - The sender check counts an SPF or DKIM pass only for the From domain, a parent or a subdomain of it (decision 2026-10-08, after the push security review). Webmail takes a pass for any domain, so a spoofer's own domain silences its warning when the forged domain has no DMARC record; worth raising upstream. Native's match is by suffix, not the organisational domain, so two sibling subdomains don't match.
-  - The shared-calendar colour override key (`accountId|originalId`) isn't scoped by app account. It's local only.
-  - A queued send held with a stale recorded JMAP id is not re-stamped automatically.
-  - The full list format's AM/PM is not in the region locale.
-  - The time zone list is hand-picked.
-  - The `selectMailbox` seed race (pre-existing).
-  - Two calendar-alert-scheduler tests fail under `TZ=Asia/Tokyo` (pre-existing).
-  - Hand-off accounts whose host differs from the sign-in address are not counted by the provider-in-use check. Matching their stored `tokenEndpoint` origin as well would cover it.
-  - About 60 inline `fontSize` literals across 29 files still ignore the font size setting, and the OS font scale still stacks with it (open product decision).
-  - Sidebar apps: no inline mode, and settings import doesn't filter invalid stored URLs (they're filtered at list and open time).
-  - A folder the user picks by hand while a cold-start link still waits is overridden when the link resolves.
+  - Trust-on-reply and calendar trust-on-RSVP still file a flagged sender as trusted, and an already-trusted forged address still auto-loads remote content. Webmail behaves the same. — done in 36e61ba, fbcffd2, a5ca1e3 and 165d0b2: a flagged or unverified sender is never filed as trusted on a reply or an RSVP, and a trusted address loads nothing unless the message passes
+  - Pin the `authserv-id` when judging the sender check. Until then, a message the receiving server stamped no Authentication-Results header on is judged by the sender's own topmost header. — done in 6eebb6b and 7f4293e (only your own server's results count; limits are in the cleanup section below)
+  - The sender check counts an SPF or DKIM pass only for the From domain, a parent or a subdomain of it (decision 2026-10-08, after the push security review). Webmail takes a pass for any domain, so a spoofer's own domain silences its warning when the forged domain has no DMARC record; worth raising upstream. Native's match is by suffix, not the organisational domain, so two sibling subdomains don't match. — sibling subdomains now align, done in 8f754a7 (public suffix list) and 6eebb6b
+  - The shared-calendar colour override key (`accountId|originalId`) isn't scoped by app account. It's local only. — done in 55f5847, 4cf5188, abb81ab, 88701ba and aa70c66
+  - A queued send held with a stale recorded JMAP id is not re-stamped automatically. — done in 3d444ed, d3c896a and 6161666 (a send that failed or went out once is left for you to retry)
+  - The full list format's AM/PM is not in the region locale. — already in the region locale, as webmail; pinned by a test in f1541dc
+  - The time zone list is hand-picked. — f1541dc and f0e29b9; Hermes has no Intl.supportedValuesOf yet, so devices keep the hand-picked list
+  - The `selectMailbox` seed race (pre-existing). — done in 633a851 and 92761db (a stale snapshot tuck is still parked)
+  - Two calendar-alert-scheduler tests fail under `TZ=Asia/Tokyo` (pre-existing). — done in 55f5847
+  - Hand-off accounts whose host differs from the sign-in address are not counted by the provider-in-use check. Matching their stored `tokenEndpoint` origin as well would cover it. — done in 3d444ed and c79a6ee
+  - About 60 inline `fontSize` literals across 29 files still ignore the font size setting, and the OS font scale still stacks with it (open product decision). — done in d1b30c7, 0a8b3a6, 9d82b0a, e455d30 and 4cf76ab (every screen follows the setting; the OS font scale is capped at 1.5 on body text)
+  - Sidebar apps: no inline mode, and settings import doesn't filter invalid stored URLs (they're filtered at list and open time). — the import filter is done in f1541dc; inline mode stays open
+  - A folder the user picks by hand while a cold-start link still waits is overridden when the link resolves. — done in 633a851
   - The shared-account calendar rename gate (`mayShare` or `mayWriteAll`) is unverified against Stalwart.
-  - The orphaned RN key `settings.account.shared_accounts.description_manage` is left in the locale files.
-  - `sync-locales.mjs --check` reports every locale stale because of line endings.
-  - The end-session test helper imports `@babel/core` and two plugins that aren't direct devDependencies. The lockfile hoists them today; pinning them as devDependencies would keep it that way.
-  - Local builds link the fork's origin from About, and an unpushed commit links to a 404.
+  - The orphaned RN key `settings.account.shared_accounts.description_manage` is left in the locale files. — already removed in c9e033d
+  - `sync-locales.mjs --check` reports every locale stale because of line endings. — done in f1541dc
+  - The end-session test helper imports `@babel/core` and two plugins that aren't direct devDependencies. The lockfile hoists them today; pinning them as devDependencies would keep it that way. — done in f1541dc
+  - Local builds link the fork's origin from About, and an unpushed commit links to a 404. — done in f1541dc
   - The area 08 items for RTL drawer side, cross-device settings sync and iOS push stay open.
 
 ## Phase 7 follow-ups (the last parity items, 2026-10-09)
@@ -622,15 +622,76 @@ Left open:
   - counter-proposal Apply against a real attendee;
   - the month back-arrow behaviour.
 - **Follow-ups parked in the ledger:**
-  - The public suffix list for domain alignment: `domainsAlign` matches by suffix, so sibling subdomains and shared suffixes are not told apart.
-  - A session re-fetch when a share arrives from a new owner.
-  - A raw unknown share `objectType`.
-  - Icons left behind by a session-expired eviction.
-  - Settings chevrons in RTL.
-  - Per-tag collapse in the drawer.
-  - The back-arrow remount: grow `before` instead of opening a fresh window.
-  - An iOS `onDismiss` fallback timer for the share sheet.
-  - Calendar notice toasts waiting for room (the presenter now waits, but a long wait is not capped).
-  - The `selectMailbox` seed race (pre-existing).
+  - The public suffix list for domain alignment: `domainsAlign` matches by suffix, so sibling subdomains and shared suffixes are not told apart. — done in 8f754a7 (tldts); the snapshot goes in the dependency routine, see below
+  - A session re-fetch when a share arrives from a new owner. — done in c40c5b4, 781c7a3 and cea5c29
+  - A raw unknown share `objectType`. — done in c40c5b4
+  - Icons left behind by a session-expired eviction. — done in 3d444ed
+  - Settings chevrons in RTL. — done in 633a851 and 92761db (the drawer's too)
+  - Per-tag collapse in the drawer. — done in 633a851 and 92761db
+  - The back-arrow remount: grow `before` instead of opening a fresh window. — done in 55f5847
+  - An iOS `onDismiss` fallback timer for the share sheet. — done in f1541dc (still to check on an iPhone)
+  - Calendar notice toasts waiting for room (the presenter now waits, but a long wait is not capped). — done in c40c5b4 and 781c7a3 (capped at 60 s, then acknowledged silently)
+  - The `selectMailbox` seed race (pre-existing). — done in 633a851 and 92761db (a stale snapshot tuck is still parked)
   - Commit 41ab162 fails the gate on its own (1b3a649 restores the key); offer to squash it at merge.
   - The behaviour changes the final review accepted: an unknown iTIP method with no authentication shows "authentication missing", and the banner shows the stored location and link for an event already in the calendar.
+
+## Follow-up cleanup 1 (2026-10-09)
+
+Done on `cleanup/follow-ups-1` (everything after afcf7b3). It closes the follow-ups the Phase 6e and Phase 7 lists above mark done, and three product decisions: the font size covers the whole app, the sender check reads only your own server's results, and a flagged sender is never trusted by replying.
+
+**What's new for users:**
+- The font size setting reaches every screen, and a large system font no longer overflows body text, badges, the inbox search box or the month view's event rows (the system font is capped at 1.5 times on body text).
+- The sender check reads only the results your own server stamped. A forged message, or a trusted address on one, loads nothing.
+- Trusted senders' images load only on a message that passes, and "Always trust this sender" is offered only then. A trusted sender whose message couldn't be verified says so once.
+- Replying to, or answering an invitation from, a flagged or unverified sender never makes them trusted, and a Reply-To outside the sender's domain is not trusted.
+- Sibling subdomains of one organisation count as the same sender; a stranger on a shared suffix (such as `co.uk`) does not.
+- Shared calendar colours are kept per account, and cleared on sign-out. Settings export carries only the shown account's.
+- Signing out, or an expired session, finishes forgetting the account's data even when the device cleanup hangs, and never erases an account signed straight back in.
+- A queued send that failed or went out once is left for you to retry; one that never went out moves to the account's new id.
+- A folder shared by a new owner shows up, calendar and share toasts no longer wait forever, and an unknown kind of share is named plainly.
+- Collapsing a tag folds only that tag, a folder you pick beats a waiting link, and chevrons point the right way in right-to-left languages.
+- Stepping back a month no longer reloads the grid. The time zone list is every zone the device knows, where the device can tell. Invalid sidebar apps are dropped on import.
+- About links a commit only when it is on origin. Settings controls wrap below their text when the row is too narrow.
+
+Left open:
+
+- **Device checks still to run** (all earlier ones from Phase 6e and Phase 7 stay open too):
+  - the font size at Large with a 2.0 system font, with calendar events and toasts on screen;
+  - the settings-row wrap on a phone (checked on the x86_64 emulator only);
+  - the month chips with events at Large and at a 2.0 system font;
+  - the iOS share sheet and its fallback timer;
+  - the font cap on a phone;
+  - pinning against the real server's authserv-id (the `Authentication-Results` header on a received message).
+- **Sender-check limits:**
+  - Stalwart must stamp its own `Authentication-Results` on every received message, and strip incoming ones that claim its id. This is unverified. On a server that does neither, another local user can forge a pass.
+  - Mail the server didn't stamp (same-server mail, for example) has no pass, so a trusted sender's images need a tap.
+  - A host whose MX authserv-id is on another domain than the JMAP host loses sender checks.
+  - A configured exact authserv-id is an option that would cover both of those.
+  - An IP or single-label host (`192.0.2.1`, `localhost`) needs an exact authserv-id.
+  - The trusted parent rule accepts sibling ids that exact-id stripping doesn't remove.
+- **Accepted behaviour changes:**
+  - trusted senders' images load only on a passing message, so on servers without usable results they never load by themselves;
+  - "Always trust" is offered only on a pass;
+  - reply-trust needs a pass;
+  - sibling subdomains now align (DMARC relaxed alignment);
+  - folders with an IP host need an exact authserv-id;
+  - settings controls wrap below their text, so some rows look different at default sizes (Font Size's buttons, for one);
+  - the RN patch that caps `Text` and `TextInput` at 1.5 must be refreshed on a React Native upgrade.
+- **Follow-ups parked in the ledger:**
+  - A durable forget-pending marker, so an app kill in the middle of a cleanup finishes it on the next start.
+  - Held sends from before 6161666 have no `everAttempted` mark, so they are treated as never tried.
+  - A restart that overlaps a second sign-in which holds no cleanup record can still lose one step.
+  - Detached push clients learn a new shared account at the next resync.
+  - The `coalesceByKey` note: it keeps a single trailing slot per key, and a burst can make two or more session refreshes.
+  - The `selectMailbox` snapshot tuck (a stale snapshot can still be tucked; pre-existing).
+  - The font guard test misses a non-literal `fontSize`.
+  - The public suffix list (tldts) is a snapshot; add a refresh to the dependency routine.
+  - A non-last sign-out leaves a parked shared-cleanup record until the next sign-in or sign-out.
+  - The legacy `accountId|originalId` calendar colour key is still read by every account.
+- **Upstream requests:** all of Phase 6e and Phase 7's still stand. Add: webmail treats the sender check as passing for any domain's SPF or DKIM, and trusts on reply.
+- **Still open from before:**
+  - sidebar apps' inline mode;
+  - the shared-account calendar rename gate (`mayShare` or `mayWriteAll`) against Stalwart;
+  - the 8 blocked parity items;
+  - the `settings.themes.default_name` overlay key, which the webmail catalog now ships;
+  - 41ab162 fails the gate on its own (squash at merge).
