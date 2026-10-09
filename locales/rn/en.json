@@ -470,6 +470,7 @@
     "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
     "thread_loading": "Loading conversation...",
+    "trusted_sender_unverified": "Images aren't loaded automatically because this message couldn't be verified as coming from {sender}.",
     "unsubscribe_banner": {
       "no_identity": "No sending identity available"
     },

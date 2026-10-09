@@ -13,7 +13,8 @@ import { UnsubscribeBanner } from './UnsubscribeBanner';
 import { ReadReceiptBanner } from './ReadReceiptBanner';
 import { SenderCheckBanner } from './SenderCheckBanner';
 import { useBodyOverride } from './use-body-override';
-import { deriveHeaderInfo, isFromDomainAuthenticated } from '../../lib/email-headers';
+import { deriveHeaderInfo } from '../../lib/email-headers';
+import { passesFromHeaderInfo } from '../../lib/sender-check';
 import { useAuthservHost } from '../../lib/authserv-host';
 import { chipCodeFor } from '../../lib/verification-code';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
@@ -76,7 +77,7 @@ export function MessageContent({
   const authservHost = useAuthservHost(appAccountId);
   const headerInfo = React.useMemo(() => deriveHeaderInfo(email, authservHost), [email, authservHost]);
   const from = email.from?.[0];
-  const senderAuthenticated = isFromDomainAuthenticated(headerInfo.auth, from?.email);
+  const senderAuthenticated = passesFromHeaderInfo(headerInfo, from?.email);
   const unwrap = useBodyOverride(email, jmapAccountId);
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);
 
@@ -141,7 +142,6 @@ export function MessageContent({
           <EmailBodyView
             email={email}
             senderEmail={from?.email}
-            senderVerification={headerInfo.senderVerification}
             senderAuthenticated={senderAuthenticated}
             jmapAccountId={jmapAccountId}
             onSwipe={onSwipe}

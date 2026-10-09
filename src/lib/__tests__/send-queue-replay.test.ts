@@ -852,6 +852,13 @@ describe('flushSendQueue: sending queued entries', () => {
     expect(opts.exclude).toEqual(['ceo@bank.example']);
   });
 
+  it('a reply queued before the sender check passes no exclude list, so nobody is trusted', async () => {
+    await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
+    await flushSendQueue();
+    const [, , opts] = (trustRecipients as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts).toHaveProperty('exclude', undefined);
+  });
+
   it('flags the original in its own account when replyTo carries one', async () => {
     await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered', jmapAccountId: 'jShared' } }));
     await flushSendQueue();

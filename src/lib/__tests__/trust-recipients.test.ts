@@ -15,7 +15,7 @@ beforeEach(() => {
 
 describe('trustRecipients', () => {
   it('trusts every accepted recipient', () => {
-    trustRecipients([{ email: 'ann@ok.example' }, { email: 'bob@ok.example' }], [{ email: 'bob@ok.example' }], { syncToBook: true });
+    trustRecipients([{ email: 'ann@ok.example' }, { email: 'bob@ok.example' }], [{ email: 'bob@ok.example' }], { syncToBook: true, exclude: [] });
     expect(addTrustedSender.mock.calls.map((c) => c[0])).toEqual(['ann@ok.example']);
     expect(addToTrustedSendersBook).toHaveBeenCalledWith('ann@ok.example');
   });
@@ -28,5 +28,13 @@ describe('trustRecipients', () => {
     );
     expect(addTrustedSender.mock.calls.map((c) => c[0])).toEqual(['ann@ok.example']);
     expect(addToTrustedSendersBook.mock.calls.map((c) => c[0])).toEqual(['ann@ok.example']);
+  });
+
+  // An Outbox entry from before the sender check, or a caller that never
+  // worked out who to leave out, fails closed.
+  it('trusts nobody without an exclude list', () => {
+    trustRecipients([{ email: 'ann@ok.example' }], undefined, { syncToBook: true, exclude: undefined });
+    expect(addTrustedSender).not.toHaveBeenCalled();
+    expect(addToTrustedSendersBook).not.toHaveBeenCalled();
   });
 });

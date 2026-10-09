@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../trusted-senders';
+import { isSenderContentTrusted, isSenderListed, isTrustedSendersSyncOn } from '../trusted-senders';
 
 const local = (list: string[]) => (email: string) => list.includes(email.toLowerCase());
 
@@ -63,5 +63,12 @@ describe('isSenderContentTrusted', () => {
     expect(isSenderContentTrusted('ceo@bank.example', { ...opts, senderAuthenticated: true })).toBe(true);
     expect(isSenderContentTrusted('ceo@bank.example', { ...opts, senderAuthenticated: false })).toBe(false);
     expect(isSenderContentTrusted('ceo@bank.example', { ...opts, senderAuthenticated: undefined })).toBe(false);
+  });
+
+  it('knows a listed address whatever the sender check says', () => {
+    const opts = { isLocallyTrusted: local(['ceo@bank.example']), syncEnabled: false, trustedBookEmails: [] };
+    expect(isSenderListed('CEO@bank.example', opts)).toBe(true);
+    expect(isSenderListed('other@bank.example', opts)).toBe(false);
+    expect(isSenderListed(undefined, opts)).toBe(false);
   });
 });

@@ -23,13 +23,7 @@ export function isTrustedSendersSyncOn(setting: boolean | null | undefined, hasC
  */
 export function isSenderContentTrusted(
   senderEmail: string | null | undefined,
-  opts: {
-    /** The settings store's local allow-list check. */
-    isLocallyTrusted: (email: string) => boolean;
-    /** Whether address book sync is in effect (`isTrustedSendersSyncOn`). */
-    syncEnabled: boolean;
-    /** Lowercased addresses filed in the "Trusted Senders" book. */
-    trustedBookEmails: readonly string[];
+  opts: SenderListOpts & {
     /**
      * Whether the owning server's checks tie this message to its From domain
      * (`senderPassesCheck`). Only `true` counts: unknown trusts nobody.
@@ -37,8 +31,22 @@ export function isSenderContentTrusted(
     senderAuthenticated: boolean | undefined;
   },
 ): boolean {
+  return opts.senderAuthenticated === true && isSenderListed(senderEmail, opts);
+}
+
+interface SenderListOpts {
+  /** The settings store's local allow-list check. */
+  isLocallyTrusted: (email: string) => boolean;
+  /** Whether address book sync is in effect (`isTrustedSendersSyncOn`). */
+  syncEnabled: boolean;
+  /** Lowercased addresses filed in the "Trusted Senders" book. */
+  trustedBookEmails: readonly string[];
+}
+
+/** Whether the address is on either trusted list, whatever the sender check says. */
+export function isSenderListed(senderEmail: string | null | undefined, opts: SenderListOpts): boolean {
   const email = senderEmail?.trim();
-  if (!email || opts.senderAuthenticated !== true) return false;
+  if (!email) return false;
   if (opts.isLocallyTrusted(email)) return true;
   return opts.syncEnabled && opts.trustedBookEmails.includes(email.toLowerCase());
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { senderCheckText, canOfferTrustSender, untrustedReplyAddresses, senderPassesCheck } from '../sender-check';
+import { senderCheckText, trustSenderBannerMode, untrustedReplyAddresses, senderPassesCheck, passesFromHeaderInfo } from '../sender-check';
 import { deriveHeaderInfo, getSenderVerification, parseAuthenticationResults } from '../email-headers';
 import type { MessageParams } from '../../i18n';
 
@@ -66,44 +66,34 @@ describe('senderCheckText - bidi controls', () => {
   });
 });
 
-describe('canOfferTrustSender', () => {
+describe('trustSenderBannerMode', () => {
   const headers = (value: string) => [{ name: 'Authentication-Results', value }];
   const from = [{ email: 'support@bank.example' }];
+  const passes = (results: string | null) =>
+    passesFromHeaderInfo(deriveHeaderInfo({ headers: results ? headers(results) : [], messageId: null, from }, 'mx'), from[0].email);
 
-  it('offers it for a sender the checks back', () => {
-    const info = deriveHeaderInfo({ headers: headers('mx; dkim=pass header.d=bank.example'), messageId: null, from }, 'mx');
-    expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(true);
+  // "Always trust" only where trusting would let the next message load: a
+  // message that passes the sender check.
+  it('offers trust for a sender the checks back', () => {
+    const ok = passes('mx; dkim=pass header.d=bank.example');
+    expect(trustSenderBannerMode('support@bank.example', { listed: false, senderAuthenticated: ok })).toBe('offer_trust');
   });
 
-  it('offers it when there are no results to judge by', () => {
-    expect(canOfferTrustSender('support@bank.example', null)).toBe(true);
+  it('offers nothing for an untrusted sender whose message did not pass', () => {
+    for (const results of [null, 'mx; spf=none smtp.mailfrom=x@web1.hoster.example; dmarc=none', 'mx; dmarc=fail header.from=bank.example']) {
+      expect(trustSenderBannerMode('support@bank.example', { listed: false, senderAuthenticated: passes(results) })).toBe('none');
+    }
+    expect(trustSenderBannerMode('support@bank.example', { listed: false, senderAuthenticated: undefined })).toBe('none');
   });
 
-  it('hides it for an unverified sender', () => {
-    const info = deriveHeaderInfo({ headers: headers('mx; spf=none smtp.mailfrom=x@web1.hoster.example; dmarc=none'), messageId: null, from }, 'mx');
-    expect(info.senderVerification?.status).toBe('unverified');
-    expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(false);
+  it('explains instead for a trusted sender whose message did not pass', () => {
+    expect(trustSenderBannerMode('support@bank.example', { listed: true, senderAuthenticated: false })).toBe('trusted_unverified');
+    expect(trustSenderBannerMode('support@bank.example', { listed: true, senderAuthenticated: undefined })).toBe('trusted_unverified');
   });
 
-  it('hides it for a failed check', () => {
-    const info = deriveHeaderInfo({ headers: headers('mx; dmarc=fail header.from=bank.example'), messageId: null, from }, 'mx');
-    expect(info.senderVerification?.status).toBe('failed');
-    expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(false);
-  });
-
-  it('offers nothing a forged authserv-id would back', () => {
-    const info = deriveHeaderInfo({ headers: headers('evil.example; dkim=pass header.d=bank.example'), messageId: null, from }, 'jmap.example.com');
-    expect(info.auth).toBeUndefined();
-    expect(info.senderVerification).toBeNull();
-  });
-
-  it('hides it while the verdict is unknown', () => {
-    expect(canOfferTrustSender('support@bank.example', undefined)).toBe(false);
-  });
-
-  it('hides it without a sender address', () => {
-    expect(canOfferTrustSender(undefined, null)).toBe(false);
-    expect(canOfferTrustSender('', null)).toBe(false);
+  it('offers nothing without a sender address', () => {
+    expect(trustSenderBannerMode(undefined, { listed: false, senderAuthenticated: true })).toBe('none');
+    expect(trustSenderBannerMode('', { listed: true, senderAuthenticated: false })).toBe('none');
   });
 });
 
@@ -128,6 +118,8 @@ describe('sender alignment by registrable domain', () => {
 const fromBank = (results: string | null) => ({
   from: [{ name: 'CEO', email: 'CEO@Bank.example' }],
   replyTo: [{ email: ' Pay@Evil.example ' }],
+  to: undefined as { email: string }[] | undefined,
+  cc: undefined as { email: string }[] | undefined,
   headers: results ? [{ name: 'Authentication-Results', value: results }] : [],
   messageId: ['m1@bank.example'],
 });
@@ -151,6 +143,14 @@ describe('untrustedReplyAddresses', () => {
   it('judges only by the owning server\'s results', () => {
     // A pass under another server's id is no pass.
     expect(untrustedReplyAddresses(verifiedFromBank, 'other.example')).toEqual(['ceo@bank.example', 'pay@evil.example']);
+  });
+
+  // A forger picks the To and Cc too: a reply-all must not trust them.
+  it('lists every recipient of a message that did not pass, and none of one that did', () => {
+    const recipients = { to: [{ email: 'me@ours.example' }, { email: 'Mule@Evil.example' }], cc: [{ email: 'cfo@bank.example' }] };
+    expect(untrustedReplyAddresses({ ...forgedFromBank, ...recipients }, 'mx'))
+      .toEqual(['ceo@bank.example', 'pay@evil.example', 'me@ours.example', 'mule@evil.example', 'cfo@bank.example']);
+    expect(untrustedReplyAddresses({ ...verifiedFromBank, ...recipients }, 'mx')).toEqual([]);
   });
 
   it('lists each address once', () => {
