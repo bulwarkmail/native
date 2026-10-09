@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
@@ -2254,7 +2254,7 @@ function makeStyles(c: ThemePalette) {
     paddingHorizontal: 4,
   },
   filterBadgeText: {
-    fontSize: 10,
+    fontSize: fontPx(10),
     fontWeight: '700',
     color: c.primaryForeground,
     lineHeight: 14,

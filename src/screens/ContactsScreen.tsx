@@ -50,7 +50,7 @@ import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { useSettingsStore } from '../stores/settings-store';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -727,7 +727,7 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
     backgroundColor: c.primary,
   },
-  filterBadgeText: { fontSize: 10, fontWeight: '700', color: c.primaryForeground },
+  filterBadgeText: { fontSize: fontPx(10), fontWeight: '700', color: c.primaryForeground },
   addBtn: {
     width: 36,
     height: 36,

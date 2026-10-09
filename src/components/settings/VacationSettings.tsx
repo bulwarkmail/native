@@ -7,7 +7,7 @@ import {
 import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-section';
 import Button from '../Button';
 import RichTextEditor, { type RichTextEditorHandle } from '../RichTextEditor';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
 import { useVacationStore } from '../../stores/vacation-store';
@@ -575,7 +575,7 @@ function makeStyles(c: ThemePalette) {
   },
   pillActive: { backgroundColor: c.successBg },
   pillInactive: { backgroundColor: c.muted },
-  pillText: { fontSize: 11, fontWeight: '500' },
+  pillText: { fontSize: fontPx(11), fontWeight: '500' },
   pillTextActive: { color: c.success },
   pillTextInactive: { color: c.mutedForeground },
   dateInput: {

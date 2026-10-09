@@ -17,7 +17,7 @@ import { singleLine } from '../../lib/single-line';
 import { previewLine } from '../../lib/preview-text';
 import { prefetchMessage } from '../../lib/email-detail-cache';
 import SenderAvatar from '../SenderAvatar';
-import { radius, spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { radius, spacing, typography, componentSizes, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 
 const EMAIL_LIMIT = 5;
@@ -285,7 +285,7 @@ function makeStyles(c: ThemePalette) {
     ...typography.bodyMedium,
     color: c.textSecondary,
     textTransform: 'uppercase',
-    fontSize: 11,
+    fontSize: fontPx(11),
     letterSpacing: 0.6,
   },
   sectionBody: { paddingLeft: spacing.lg + spacing.xs, gap: spacing.xs },

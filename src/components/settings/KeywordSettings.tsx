@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Plus, Pencil, Trash2, Check, X, RotateCcw, ScanSearch, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch, RadioGroup, Select } from './settings-section';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useKeywordsStore, type KeywordDef } from '../../stores/keywords-store';
 import { DARK_COLORS } from '../../theme/tokens';
@@ -426,7 +426,7 @@ function makeStyles(c: ThemePalette) {
   },
   kwDot: { width: 20, height: 20, borderRadius: 10 },
   kwLabel: { ...typography.bodyMedium, color: c.text, flex: 1 },
-  kwId: { fontSize: 10, color: c.mutedForeground, fontFamily: 'monospace' },
+  kwId: { fontSize: fontPx(10), color: c.mutedForeground, fontFamily: 'monospace' },
   iconBtn: {
     width: 28,
     height: 28,

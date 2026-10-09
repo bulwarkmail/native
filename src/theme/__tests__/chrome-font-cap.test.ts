@@ -15,6 +15,11 @@ const CHROME_TEXT: Array<[string, string]> = [
   ['App.tsx', 'chrome.tabLabel'],
   ['App.tsx', 'chrome.tabBadge'],
   ['src/components/SwipeableRow.tsx', 'styles.bandLabel'],
+  ['src/components/calendar/EventBlock.tsx', 'styles.blockTitle'],
+  ['src/components/calendar/EventBlock.tsx', 'styles.blockTime'],
+  ['src/components/calendar/EventBlock.tsx', 'styles.barTitle'],
+  ['src/components/calendar/MonthView.tsx', 'styles.monthLabel'],
+  ['src/components/calendar/MonthView.tsx', 'styles.chipText'],
   ['src/components/email/ListAttachmentChips.tsx', 'styles.name'],
   ['src/components/email/ListAttachmentChips.tsx', 'styles.moreText'],
   ['src/components/email/VerificationCodeChip.tsx', 'styles.code'],
@@ -26,12 +31,15 @@ const CHROME_TEXT: Array<[string, string]> = [
 function textsStyledWith(path: string, style: string): boolean[] {
   const text = readFileSync(join(ROOT, path), 'utf8');
   const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  // The whole name: `styles.chipText` is not `styles.chipTextInactive`, a
+  // nested Text that inherits its parent's cap.
+  const named = new RegExp(`${style.replace('.', '\\.')}(?![\\w$])`);
   const found: boolean[] = [];
   const visit = (node: ts.Node) => {
     if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(file) === 'Text') {
       const attrs = node.attributes.properties.filter(ts.isJsxAttribute);
       const styleAttr = attrs.find((a) => a.name.getText(file) === 'style');
-      if (styleAttr?.initializer?.getText(file).includes(style)) {
+      if (named.test(styleAttr?.initializer?.getText(file) ?? '')) {
         const cap = attrs.find((a) => a.name.getText(file) === 'maxFontSizeMultiplier');
         found.push(cap?.initializer?.getText(file) === '{CHROME_MAX_FONT_SCALE}');
       }

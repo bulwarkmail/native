@@ -9,7 +9,7 @@ import {
   LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Download,
   type LucideIcon,
 } from 'lucide-react-native';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { ReadingSettings } from '../components/settings/ReadingSettings';
 import { NotificationSettings } from '../components/settings/NotificationSettings';
@@ -590,7 +590,7 @@ function makeStyles(c: ThemePalette) {
     },
     groupHeader: { paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: 6 },
     groupLabel: {
-      fontSize: 11, fontWeight: '600',
+      fontSize: fontPx(11), fontWeight: '600',
       textTransform: 'uppercase', letterSpacing: 0.8,
       color: c.mutedForeground,
     },
@@ -613,7 +613,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.full,
       paddingHorizontal: 6, paddingVertical: 2,
     },
-    experimentalText: { fontSize: 10, fontWeight: '500', color: c.warning },
+    experimentalText: { fontSize: fontPx(10), fontWeight: '500', color: c.warning },
 
     tabItemDisabled: { opacity: 0.55 },
     tabItemLabelDisabled: { color: c.mutedForeground },
@@ -622,7 +622,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.full,
       paddingHorizontal: 8, paddingVertical: 2,
     },
-    notWorkingText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
+    notWorkingText: { fontSize: fontPx(10), fontWeight: '500', color: c.mutedForeground },
 
     logoutSection: {
       borderTopWidth: 1, borderTopColor: c.border,

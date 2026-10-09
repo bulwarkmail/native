@@ -12,7 +12,7 @@ import {
   FolderInput, Copy, ShieldAlert, ShieldCheck, X, Check,
   Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter,
 } from 'lucide-react-native';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
 import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
@@ -1626,9 +1626,9 @@ function makeStyles(c: ThemePalette) {
   },
   subjectText: {
     flex: 1,
-    fontSize: 20,
+    fontSize: fontPx(20),
     fontWeight: '700',
-    lineHeight: 28,
+    lineHeight: fontPx(28),
     color: c.text,
     letterSpacing: -0.2,
   },

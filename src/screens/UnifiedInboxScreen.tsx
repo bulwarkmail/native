@@ -28,7 +28,7 @@ import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
-import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
+import { spacing, typography, componentSizes, radius, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'UnifiedInbox'>;
@@ -625,7 +625,7 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.muted,
       maxWidth: 140,
     },
-    sharedBadgeText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
+    sharedBadgeText: { fontSize: fontPx(10), fontWeight: '500', color: c.mutedForeground },
     preview: { ...typography.caption, color: c.textMuted },
   });
 }

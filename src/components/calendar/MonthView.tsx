@@ -10,7 +10,7 @@ import {
   type Locale,
 } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { componentSizes, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, componentSizes, fontPx, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import {
   buildEventDayIndex,
@@ -177,6 +177,7 @@ function MonthWeekRowInner({
               {monthLabel && (
                 <Text
                   numberOfLines={1}
+                  maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
                   style={[
                     styles.monthLabel,
                     !sameMonth && styles.dayTextMuted,
@@ -229,7 +230,11 @@ function MonthWeekRowInner({
                       ]}
                     >
                       {task && <TaskCircle task={task} color={colors.text} size={8} />}
-                      <Text style={[styles.chipText, styles.chipTextFlex, { color: colors.text }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.chipText, styles.chipTextFlex, { color: colors.text }]}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+                      >
                         {event.showWithoutTime
                           ? null
                           : `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `}
@@ -356,7 +361,7 @@ function makeStyles(c: ThemePalette) {
   dayText: { ...typography.body, color: c.text },
   // Day 1 under its month's name: both fit the 36px circle.
   dayTextUnderLabel: { lineHeight: 16 },
-  monthLabel: { fontSize: 8, lineHeight: 10, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase' },
+  monthLabel: { fontSize: fontPx(8), lineHeight: fontPx(10), fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase' },
   dayTextMuted: { color: c.textMuted },
   todayCircle: { backgroundColor: c.primary },
   todayText: { color: c.textInverse, fontWeight: '700' },
@@ -391,12 +396,12 @@ function makeStyles(c: ThemePalette) {
   chipInactive: { borderWidth: 1, paddingHorizontal: 1, paddingVertical: 0 },
   // Colour comes from eventBlockColors(): computed from the calendar colour,
   // never a theme colour.
-  chipText: { fontSize: 9, lineHeight: 11, fontWeight: '500' },
+  chipText: { fontSize: fontPx(9), lineHeight: fontPx(11), fontWeight: '500' },
   chipTextInactive: { textDecorationLine: 'line-through' },
   overflowText: {
     color: c.textMuted,
-    fontSize: 9,
-    lineHeight: 10,
+    fontSize: fontPx(9),
+    lineHeight: fontPx(10),
     marginLeft: 1,
     textAlign: 'center',
   },

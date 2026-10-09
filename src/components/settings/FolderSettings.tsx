@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import { SettingsSection, Select } from './settings-section';
 import Button from '../Button';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { ownMailboxes, mailboxSubtreeIds, buildMailboxTree, flattenAll, type MailboxNode } from '../../lib/mailbox-tree';
 import { planFolderMove, siblingsOf, withSortOrders, withUnlistedFolders, type SortOrderUpdate } from '../../lib/folder-reorder';
@@ -678,13 +678,13 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
       backgroundColor: c.primaryBg,
     },
-    rolePillText: { fontSize: 10, fontWeight: '500', color: c.primary },
+    rolePillText: { fontSize: fontPx(10), fontWeight: '500', color: c.primary },
     folderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     unreadBadge: {
       paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
       backgroundColor: c.primary,
     },
-    unreadText: { fontSize: 10, fontWeight: '500', color: c.primaryForeground },
+    unreadText: { fontSize: fontPx(10), fontWeight: '500', color: c.primaryForeground },
     total: { ...typography.caption, color: c.mutedForeground, minWidth: 32, textAlign: 'right' },
     moveButtons: { flexDirection: 'row', gap: 2 },
     moveBtn: { padding: spacing.xs, borderRadius: radius.sm },

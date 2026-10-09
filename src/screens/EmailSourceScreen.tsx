@@ -8,7 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { fetchRawEmail, shareEmailEml } from '../lib/email-export';
-import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
+import { spacing, typography, componentSizes, radius, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore } from '../stores/locale-store';
 
@@ -157,8 +157,8 @@ function makeStyles(c: ThemePalette) {
   noticeAction: { ...typography.caption, color: c.primary, fontWeight: '600' },
   source: {
     fontFamily: 'monospace',
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: fontPx(11),
+    lineHeight: fontPx(16),
     color: c.text,
   },
   });

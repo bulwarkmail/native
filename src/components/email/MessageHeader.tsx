@@ -4,7 +4,7 @@ import {
   Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock, AlertTriangle,
 } from 'lucide-react-native';
 import type { Email, EmailAddress, Identity } from '../../api/types';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -393,7 +393,7 @@ function makeStyles(c: ThemePalette) {
     detailRow: { flexDirection: 'row', gap: spacing.sm },
     detailLabel: { ...typography.caption, color: c.textMuted, width: 92 },
     detailValue: { ...typography.caption, color: c.text, flex: 1 },
-    detailMono: { fontFamily: 'monospace', fontSize: 11 },
+    detailMono: { fontFamily: 'monospace', fontSize: fontPx(11) },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs },
     chip: {
       flexDirection: 'row',

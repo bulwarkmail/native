@@ -5,7 +5,7 @@ import {
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type SidebarApp } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -251,7 +251,7 @@ function makeStyles(c: ThemePalette) {
   },
   modeBadgeInline: { backgroundColor: 'rgba(59, 130, 246, 0.1)' },
   modeBadgeTab: { backgroundColor: c.muted },
-  modeBadgeText: { fontSize: 10, fontWeight: '500' },
+  modeBadgeText: { fontSize: fontPx(10), fontWeight: '500' },
   iconBtn: {
     width: 28,
     height: 28,

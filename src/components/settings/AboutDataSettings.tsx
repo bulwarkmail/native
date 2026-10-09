@@ -11,7 +11,7 @@ import { CloudDownload, ExternalLink } from 'lucide-react-native';
 import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import Dialog from '../Dialog';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { ALL_DEBUG_CATEGORIES, useSettingsStore, type DebugCategory } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -447,7 +447,7 @@ function makeStyles(c: ThemePalette) {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: { fontSize: 24, fontWeight: '700', color: c.primaryForeground },
+  logoText: { fontSize: fontPx(24), fontWeight: '700', color: c.primaryForeground },
   aboutTitle: { ...typography.bodyMedium, color: c.text },
   aboutVersion: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
   aboutCommit: { color: c.mutedForeground, opacity: 0.6 },

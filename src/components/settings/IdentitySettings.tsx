@@ -13,7 +13,7 @@ import {
 import { Plus, Star, Trash2, X } from 'lucide-react-native';
 import { SettingsSection } from './settings-section';
 import Button from '../Button';
-import { typography, spacing, radius, type ThemePalette } from '../../theme/tokens';
+import { typography, spacing, radius, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import {
@@ -423,7 +423,7 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
       backgroundColor: c.primaryBg,
     },
-    badgeText: { fontSize: 10, fontWeight: '500', color: c.primary },
+    badgeText: { fontSize: fontPx(10), fontWeight: '500', color: c.primary },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalSheet: {
@@ -447,7 +447,7 @@ function makeStyles(c: ThemePalette) {
     },
     inputDisabled: { opacity: 0.6 },
     bodyInput: { minHeight: 100, textAlignVertical: 'top' },
-    mono: { fontFamily: 'monospace', fontSize: 13 },
+    mono: { fontFamily: 'monospace', fontSize: fontPx(13) },
     hint: { ...typography.caption, color: c.mutedForeground },
     hintError: { color: c.error },
     modalActions: {

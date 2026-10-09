@@ -29,7 +29,7 @@ import SenderAvatar from '../components/SenderAvatar';
 import Dialog from '../components/Dialog';
 import { ContactActivity } from '../components/contacts/ContactActivity';
 import AddressBookPickerSheet from '../components/contacts/AddressBookPickerSheet';
-import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 
@@ -977,7 +977,7 @@ function makeStyles(c: ThemePalette) {
       ...typography.bodyMedium,
       color: c.textSecondary,
       textTransform: 'uppercase',
-      fontSize: 11,
+      fontSize: fontPx(11),
       letterSpacing: 0.6,
     },
     sectionBody: {

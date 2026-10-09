@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { applyFontScale, FONT_SCALE, typography } from '../tokens';
+import { applyFontScale, FONT_SCALE, fontPx, typography } from '../tokens';
 import { scaledPalette } from '../colors';
 import { syncFontScale } from '../dynamic';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -42,6 +42,16 @@ describe('applyFontScale', () => {
     applyFontScale(1.125);
     expect(typography.caption).toBe(entry);
     expect({ ...typography.caption }.fontSize).toBe(14);
+  });
+
+  it('fontPx follows the font size setting from the base, in half points', () => {
+    expect(fontPx(14.5)).toBe(14.5);
+    applyFontScale(1.125);
+    expect(fontPx(10)).toBe(11.5);
+    applyFontScale(0.875);
+    expect(fontPx(14.5)).toBe(12.5);
+    applyFontScale(1);
+    expect(fontPx(13)).toBe(13);
   });
 });
 

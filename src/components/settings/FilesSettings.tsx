@@ -4,7 +4,7 @@ import {
   Folder, FileText, FileCode, FileAudio, File, Image as ImageIcon,
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import {
   useSettingsStore,
@@ -267,7 +267,7 @@ function makeStyles(c: ThemePalette) {
     borderBottomColor: c.border,
     backgroundColor: c.muted,
   },
-  listHeaderText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
+  listHeaderText: { fontSize: fontPx(10), fontWeight: '500', color: c.mutedForeground },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -277,8 +277,8 @@ function makeStyles(c: ThemePalette) {
     borderBottomWidth: 1,
     borderBottomColor: c.border,
   },
-  listName: { fontSize: 11, color: c.text, flex: 1 },
-  listMeta: { fontSize: 10, color: c.mutedForeground, width: 60, textAlign: 'right' },
+  listName: { fontSize: fontPx(11), color: c.text, flex: 1 },
+  listMeta: { fontSize: fontPx(10), color: c.mutedForeground, width: 60, textAlign: 'right' },
   gridWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -292,6 +292,6 @@ function makeStyles(c: ThemePalette) {
     width: 72,
     borderRadius: radius.sm,
   },
-  gridName: { fontSize: 9, color: c.text, textAlign: 'center' },
+  gridName: { fontSize: fontPx(9), color: c.text, textAlign: 'center' },
 });
 }

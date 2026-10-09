@@ -14,7 +14,7 @@ import {
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search, Globe,
   MoreHorizontal, Share2, type LucideIcon,
 } from 'lucide-react-native';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
 import { useEmailStore, spannedAccounts, requireShownAccountScope, emptyFolder } from '../stores/email-store';
@@ -1474,8 +1474,8 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.textMuted,
   },
   accountMenuStatusText: {
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: fontPx(10),
+    lineHeight: fontPx(12),
     color: c.textMuted,
     flexShrink: 1,
   },
@@ -1501,7 +1501,7 @@ function makeStyles(c: ThemePalette) {
     ...typography.body,
     color: c.text,
     flexShrink: 1,
-    fontSize: 13,
+    fontSize: fontPx(13),
   },
 
   // Scroll

@@ -59,7 +59,7 @@ import { acceptedFileName, fileNameProblem } from '../lib/file-name-rules';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import type { FileNode } from '../api/types';
-import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import {
   useSettingsStore, type FilesViewMode, type FilesSortKey, type FilesSortDir,
@@ -1530,7 +1530,7 @@ function makeStyles(c: ThemePalette) {
     },
     noticeText: {
       flex: 1,
-      fontSize: 12,
+      fontSize: fontPx(12),
       color: c.textSecondary,
     },
     header: {
