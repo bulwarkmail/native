@@ -31,8 +31,9 @@ export interface ComposeReplyContext {
   /** Owning JMAP account when the original lives in a shared/group account. */
   jmapAccountId?: string;
   /**
-   * Lowercased From and Reply-To of an original that failed or couldn't pass
-   * the sender check: sending the reply never files them as trusted.
+   * Lowercased From and Reply-To of an original that didn't pass the sender
+   * check (failed, unverified or no results): sending the reply never files
+   * them as trusted.
    */
   untrustedAddresses?: string[];
   /** Whether the original passed the sender check (senderPassesCheck). */

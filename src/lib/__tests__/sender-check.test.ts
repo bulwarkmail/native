@@ -142,9 +142,15 @@ describe('untrustedReplyAddresses', () => {
     expect(untrustedReplyAddresses(verifiedFromBank, 'mx')).toEqual([]);
   });
 
+  // "Failed or couldn't be verified": only a positive pass trusts.
+  it('flags a message with no results to judge by', () => {
+    expect(untrustedReplyAddresses(fromBank(null), 'mx')).toEqual(['ceo@bank.example', 'pay@evil.example']);
+    expect(untrustedReplyAddresses(verifiedFromBank, null)).toEqual(['ceo@bank.example', 'pay@evil.example']);
+  });
+
   it('judges only by the owning server\'s results', () => {
-    // Another server's id: no results, so nothing to flag.
-    expect(untrustedReplyAddresses(forgedFromBank, 'other.example')).toEqual([]);
+    // A pass under another server's id is no pass.
+    expect(untrustedReplyAddresses(verifiedFromBank, 'other.example')).toEqual(['ceo@bank.example', 'pay@evil.example']);
   });
 
   it('lists each address once', () => {

@@ -80,13 +80,14 @@ type SenderSource = Pick<Email, 'from' | 'replyTo' | 'headers' | 'messageId'>;
 
 /**
  * Who replying to `source` must not file as trusted: its From and Reply-To
- * (trimmed, lowercased, once each) when the server's checks flag it, failed
- * or unverified; nobody otherwise. Replying to a forgery would otherwise
- * trust the forged address. `serverHost` is the owning account's authserv
- * host (authservHostFor), never the live client's.
+ * (trimmed, lowercased, once each) unless the message passes the sender
+ * check (senderPassesCheck). Failed, unverified and no results to judge by
+ * all count: replying to a forgery would otherwise trust the forged address.
+ * `serverHost` is the owning account's authserv host (authservHostFor),
+ * never the live client's.
  */
 export function untrustedReplyAddresses(source: SenderSource, serverHost: string | null): string[] {
-  if (!deriveHeaderInfo(source, serverHost).senderVerification) return [];
+  if (senderPassesCheck(source, serverHost)) return [];
   const out = new Set<string>();
   for (const a of [...(source.from ?? []), ...(source.replyTo ?? [])]) {
     const email = a.email?.trim().toLowerCase();

@@ -29,6 +29,8 @@ describe('replyComposeParams', () => {
   });
 
   it('judges by the owning server only', () => {
-    expect(replyComposeParams('reply', verified, 'j1', null)?.replyTo?.senderAuthenticated).toBe(false);
+    const ctx = replyComposeParams('reply', verified, 'j1', null)?.replyTo;
+    expect(ctx?.senderAuthenticated).toBe(false);
+    expect(ctx?.untrustedAddresses).toEqual(['ceo@bank.example', 'pay@evil.example']);
   });
 });
