@@ -236,6 +236,24 @@ describe('signing out of a direct PKCE account', () => {
       await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
     });
 
+    it('keeps the provider session when a hand-off account\'s stored token endpoint is corrupt', async () => {
+      // The check failing must keep the session, never end it.
+      const gil = onHost('gil@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', TOKEN), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+      const readOthers = storedCredentials.getMockImplementation() as (id: string) => Promise<Record<string, unknown> | null>;
+      storedCredentials.mockImplementation(async (id: string) => {
+        const c = await readOthers(id);
+        return id === gil.id && c ? { ...c, tokenEndpoint: 42 } : c;
+      });
+
+      await useAuthStore.getState().logout();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+      expect(useAccountStore.getState().getAccountById(ADA.id)).toBeUndefined();
+      expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith(ADA.id);
+    });
+
     it('an unreadable account on another host does not hold it', async () => {
       const una = onHost('una@example.com', 'https://mail.other.example');
       accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [una, null, null]], ADA.id);

@@ -51,7 +51,7 @@ import { sweepOrphanedOfflineCache } from '../offline-cache-store';
 import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
 import { clearStoredRelayBaseUrl, teardownPushNotifications } from '../../lib/push-notifications';
 import { setPendingMailFolder, usePendingMailFolder } from '../../navigation/pending-mail-folder';
-import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
+import { useAuthStore, HYDRATION_TIMEOUT_MS, EVICTION_CLEANUP_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
 import { useContactsStore } from '../contacts-store';
@@ -337,7 +337,65 @@ describe('auth-store', () => {
 
         expect(useAuthStore.getState()).toMatchObject({ activeAccountId: 'a@x.example.com', isLoading: false, error: 'Session expired for this account' });
         expect(warn).toHaveBeenCalled();
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
+        expect(useAccountStore.getState().getAccountById('b@y.example.com')).toBeUndefined();
         warn.mockRestore();
+      });
+
+      it('deletes the credentials before the cleanup starts', async () => {
+        signedInToA();
+        const { AuthenticationError } = await import('../../api/jmap-client');
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+
+        await useAuthStore.getState().switchAccount('b@y.example.com');
+
+        const cleared = (jmapClient.clearAccountCredentials as any).mock.invocationCallOrder[0];
+        const forgot = (forgetAccountData as any).mock.invocationCallOrder[0];
+        expect(cleared).toBeLessThan(forgot);
+      });
+
+      it('restoreSession and a session retry still drop the account when the cleanup fails', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const { AuthenticationError } = await import('../../api/jmap-client');
+
+        useAccountStore.setState({ accounts: [B()], activeAccountId: 'b@y.example.com', defaultAccountId: 'b@y.example.com' });
+        (forgetAccountData as any).mockRejectedValueOnce(new Error('disk'));
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+        expect(await useAuthStore.getState().restoreSession()).toBe(false);
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
+        expect(useAccountStore.getState().accounts).toEqual([]);
+        expect(useAuthStore.getState().error).toBe('Session expired');
+
+        vi.clearAllMocks();
+        useAccountStore.setState({ accounts: [B()], activeAccountId: 'b@y.example.com' });
+        useAuthStore.setState({ isAuthenticated: true, session: null, activeAccountId: 'b@y.example.com', client: jmapClient, error: null });
+        (forgetAccountData as any).mockRejectedValueOnce(new Error('disk'));
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+        expect(await useAuthStore.getState().retrySession()).toBe(false);
+        expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith('b@y.example.com');
+        expect(useAccountStore.getState().accounts).toEqual([]);
+        expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: false, error: 'Session expired' });
+        warn.mockRestore();
+      });
+
+      it('does not wait for ever on a cleanup that never settles', async () => {
+        vi.useFakeTimers();
+        try {
+          const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+          useAccountStore.setState({ accounts: [B()], activeAccountId: 'b@y.example.com', defaultAccountId: 'b@y.example.com' });
+          (forgetAccountData as any).mockImplementationOnce(() => new Promise(() => undefined));
+          mockLoadAccount.mockResolvedValueOnce(false);
+
+          const restored = useAuthStore.getState().restoreSession();
+          await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+
+          expect(await restored).toBe(false);
+          expect(useAuthStore.getState()).toMatchObject({ isLoading: false, hasRestoredSession: true });
+          expect(useAccountStore.getState().accounts).toEqual([]);
+          warn.mockRestore();
+        } finally {
+          vi.useRealTimers();
+        }
       });
     });
 

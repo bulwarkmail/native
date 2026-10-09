@@ -234,27 +234,47 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
   if (!wasRegistered) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
 }
 
+// How long an eviction waits for the device cleanup before carrying on. The
+// cleanup is storage work, but a storage call that never settles must not
+// leave the app on the splash screen or a switch spinning; it goes on in the
+// background.
+export const EVICTION_CLEANUP_TIMEOUT_MS = 5000;
+
 // An account dropped because its credentials are gone or were refused (a
 // session that expired): what sign-out would have cleared beside them goes
 // too, so signing the account in again later starts afresh instead of
 // reusing an old relay, and none of its mail, identities, folder icons or
 // calendar subscriptions stay behind on the device. Its queued sends stay on
 // disk, as on sign-out. The registry entry is read before it goes: it names
-// whose calendar subscriptions to forget. Never throws: a cleanup failure is
-// logged.
+// whose calendar subscriptions to forget. The credentials go first, before
+// anything that can fail or take long. Never throws and never hangs: a
+// cleanup failure is logged, a slow one is left to finish on its own.
 async function evictAccount(accountId: string, opts: { clearCredentials: boolean }): Promise<void> {
   const accountStore = useAccountStore.getState();
   const entry = accountStore.getAccountById(accountId);
   if (opts.clearCredentials) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
   void deleteIdToken(accountId).catch(() => undefined);
   void clearStoredRelayBaseUrl(accountId).catch(() => undefined);
-  accountStore.removeAccount(accountId);
-  useEmailStore.getState().removeAccount(accountId);
-  dropPendingMailFolder(accountId);
-  await forgetAccountData(
-    { appAccountId: accountId, serverUrl: entry?.serverUrl, username: entry?.username },
-    { lastAccount: useAccountStore.getState().accounts.length === 0 },
-  ).catch((e) => console.warn('[sign-out] cleanup failed', e));
+  try {
+    accountStore.removeAccount(accountId);
+    useEmailStore.getState().removeAccount(accountId);
+    dropPendingMailFolder(accountId);
+    const cleanup = forgetAccountData(
+      { appAccountId: accountId, serverUrl: entry?.serverUrl, username: entry?.username },
+      { lastAccount: useAccountStore.getState().accounts.length === 0 },
+    ).catch((e) => console.warn('[sign-out] cleanup failed', e));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn('[sign-out] cleanup still running, carrying on without it');
+        resolve();
+      }, EVICTION_CLEANUP_TIMEOUT_MS);
+    });
+    await Promise.race([cleanup, late]);
+    clearTimeout(timer);
+  } catch (e) {
+    console.warn('[sign-out] eviction cleanup failed', e);
+  }
 }
 
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
