@@ -116,7 +116,11 @@ export function MessageHeader({ email, identities, headerInfo: info, onToggleSta
   // "sent as" only when the From passed the sender check, or on the user's
   // own copy in Sent or Drafts.
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  const ownCopy = React.useMemo(() => isOwnCopy(email, mailboxes), [email, mailboxes]);
+  const shownMailboxId = useEmailStore((s) => s.currentMailboxId);
+  const ownCopy = React.useMemo(
+    () => isOwnCopy(email, mailboxes, shownMailboxId),
+    [email, mailboxes, shownMailboxId],
+  );
   const viaIdentity = React.useMemo(
     () => viaIdentityBadge(email, identities, info, ownCopy),
     [email, identities, info, ownCopy],

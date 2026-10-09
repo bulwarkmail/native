@@ -233,15 +233,29 @@ describe('viaIdentityBadge', () => {
 });
 
 describe('isOwnCopy', () => {
-  const mailboxes = [{ id: 'm1', role: 'inbox' }, { id: 'm2', role: 'sent' }, { id: 'm3', role: 'drafts' }];
-  it('is true in Sent or Drafts, or for a draft', () => {
-    expect(isOwnCopy({ mailboxIds: { m2: true } }, mailboxes)).toBe(true);
-    expect(isOwnCopy({ mailboxIds: { m3: true } }, mailboxes)).toBe(true);
-    expect(isOwnCopy({ mailboxIds: { m1: true }, keywords: { $draft: true } }, mailboxes)).toBe(true);
+  const mailboxes = [
+    { id: 'm1', role: 'inbox' },
+    { id: 'm2', role: 'sent' },
+    { id: 'm3', role: 'drafts' },
+    // A shared account's Sent, namespaced in the store.
+    { id: 'team:m2', role: 'sent', isShared: true },
+  ];
+  it('is true in the users own Sent or Drafts while an own folder is shown', () => {
+    expect(isOwnCopy({ mailboxIds: { m2: true } }, mailboxes, 'm1')).toBe(true);
+    expect(isOwnCopy({ mailboxIds: { m3: true } }, mailboxes, 'm2')).toBe(true);
   });
-  it('is false for received mail', () => {
-    expect(isOwnCopy({ mailboxIds: { m1: true } }, mailboxes)).toBe(false);
-    expect(isOwnCopy({ mailboxIds: { x9: true } }, mailboxes)).toBe(false);
-    expect(isOwnCopy({}, mailboxes)).toBe(false);
+  it('is false for received mail, and for a draft flag alone', () => {
+    expect(isOwnCopy({ mailboxIds: { m1: true } }, mailboxes, 'm1')).toBe(false);
+    // Another user can set $draft on a message in a shared folder.
+    expect(isOwnCopy({ mailboxIds: { m1: true }, keywords: { $draft: true } }, mailboxes, 'm1')).toBe(false);
+    expect(isOwnCopy({}, mailboxes, 'm1')).toBe(false);
+  });
+  it('is false while a shared folder is shown, as its raw ids can equal the users own', () => {
+    // A shared account message whose raw folder id is "m2" is not in the users Sent.
+    expect(isOwnCopy({ mailboxIds: { m2: true } }, mailboxes, 'team:m2')).toBe(false);
+  });
+  it('is false when the shown folder is unknown or virtual', () => {
+    expect(isOwnCopy({ mailboxIds: { m2: true } }, mailboxes, 'unified-inbox')).toBe(false);
+    expect(isOwnCopy({ mailboxIds: { m2: true } }, mailboxes, null)).toBe(false);
   });
 });

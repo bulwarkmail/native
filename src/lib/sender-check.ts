@@ -101,16 +101,21 @@ export function passesFromHeaderInfo(
 }
 
 /**
- * The user's own copy of a message: in a Sent or Drafts folder, or a draft.
- * The client writes these itself, so they carry no Authentication-Results.
+ * The user's own copy of a message: in their own Sent or Drafts folder,
+ * which only the user (or their client) writes to. Judged only while one of
+ * the user's own folders is shown: a shared account's raw folder ids can
+ * equal the user's own, and the email carries no account. A $draft keyword
+ * alone doesn't count, as another user can set it in a shared folder.
  */
 export function isOwnCopy(
   email: { mailboxIds?: Record<string, boolean>; keywords?: Record<string, boolean> },
-  mailboxes: ReadonlyArray<{ id: string; role?: string | null }>,
+  mailboxes: ReadonlyArray<{ id: string; role?: string | null; isShared?: boolean }>,
+  shownMailboxId: string | null | undefined,
 ): boolean {
-  if (email.keywords?.$draft) return true;
+  const shown = shownMailboxId ? mailboxes.find((m) => m.id === shownMailboxId) : undefined;
+  if (!shown || shown.isShared) return false;
   const ids = email.mailboxIds ?? {};
-  return mailboxes.some((m) => ids[m.id] && (m.role === 'sent' || m.role === 'drafts'));
+  return mailboxes.some((m) => !m.isShared && ids[m.id] && (m.role === 'sent' || m.role === 'drafts'));
 }
 
 /**
@@ -118,7 +123,7 @@ export function isOwnCopy(
  * identities, or received at one other than the default (incl. +tag). A
  * legitimacy cue, so "sent as" needs the From to pass the sender check: a
  * forged From has no pinned results, so it reads as neither spoofed nor
- * passed. The user's own copy (`ownCopy`: in Sent or Drafts, or a draft) is
+ * passed. The user's own copy (`ownCopy`: in their own Sent or Drafts) is
  * written by the client and never carries results, so it needs no pass.
  * "Received at" is about the To, and is dropped only when the message reads
  * as spoofed.
