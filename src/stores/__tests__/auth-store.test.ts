@@ -345,6 +345,27 @@ describe('auth-store', () => {
         expect(useAccountStore.getState().getAccountById('b@y.example.com')).toBeUndefined();
       });
 
+      it('leaves the stores alone when a switch lands while the expired account\'s credentials are deleted', async () => {
+        useAccountStore.setState({ accounts: [A(), B()], activeAccountId: 'b@y.example.com' });
+        useEmailStore.getState().setActiveAccount('b@y.example.com');
+        useAuthStore.setState({ isAuthenticated: true, session: null, activeAccountId: 'b@y.example.com', client: jmapClient });
+        const { AuthenticationError } = await import('../../api/jmap-client');
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('expired'));
+        (jmapClient.clearAccountCredentials as any).mockImplementationOnce(async () => {
+          // The user switches to A meanwhile; A's contacts are on screen.
+          useEmailStore.getState().setActiveAccount('a@x.example.com');
+          useAuthStore.setState({ activeAccountId: 'a@x.example.com', session: { apiUrl: 'x' } as never });
+          useContactsStore.setState({ contacts: [{ id: 'a-contact' } as never] });
+        });
+
+        expect(await useAuthStore.getState().retrySession()).toBe(false);
+
+        expect(useContactsStore.getState().contacts).toEqual([{ id: 'a-contact' }]);
+        expect(jmapClient.reset).not.toHaveBeenCalled();
+        expect(useAccountStore.getState().getAccountById('b@y.example.com')).toBeUndefined();
+        expect(useAuthStore.getState().activeAccountId).toBe('a@x.example.com');
+      });
+
       it('forgets the account restoreSession finds with rejected credentials', async () => {
         useAccountStore.setState({ accounts: [A(), B()], activeAccountId: 'b@y.example.com', defaultAccountId: 'a@x.example.com' });
         const { AuthenticationError } = await import('../../api/jmap-client');
