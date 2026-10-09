@@ -13,7 +13,7 @@ import Button from '../Button';
 import Dialog from '../Dialog';
 import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { ALL_DEBUG_CATEGORIES, useSettingsStore, type DebugCategory } from '../../stores/settings-store';
+import { ALL_DEBUG_CATEGORIES, importSkipsCalendarColors, useSettingsStore, type DebugCategory } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
@@ -160,13 +160,19 @@ export function AboutDataSettings() {
       if (picked.canceled || !picked.assets?.[0]) return;
       const json = await new File(picked.assets[0].uri).text();
       // The file's shared calendar colours go to the shown account only.
-      const ok = importSettings(json, useEmailStore.getState().activeAccountId);
-      Alert.alert(
-        t('settings.advanced.import_settings.label', 'Import Settings'),
-        ok
-          ? t('settings.import_success', 'Settings imported successfully')
-          : t('settings.import_error', 'Failed to import settings'),
-      );
+      const shownAccount = useEmailStore.getState().activeAccountId;
+      const ok = importSettings(json, shownAccount);
+      let message = ok
+        ? t('settings.import_success', 'Settings imported successfully')
+        : t('settings.import_error', 'Failed to import settings');
+      // With no account shown the colours have no account to go to.
+      if (ok && importSkipsCalendarColors(json, shownAccount)) {
+        message = t(
+          'settings.import_calendar_colors_skipped',
+          'Settings imported. Shared calendar colors were skipped: sign in to an account and import again to keep them.',
+        );
+      }
+      Alert.alert(t('settings.advanced.import_settings.label', 'Import Settings'), message);
     } catch (err) {
       Alert.alert(
         t('settings.advanced.import_settings.label', 'Import Settings'),

@@ -1003,6 +1003,7 @@
       "save_failed": "Save failed",
       "text_signature": "Plain-text signature"
     },
+    "import_calendar_colors_skipped": "Settings imported. Shared calendar colors were skipped: sign in to an account and import again to keep them.",
     "keywords": {
       "description_mobile": "Colored tags to organize your mail.",
       "discover": {

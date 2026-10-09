@@ -493,4 +493,9 @@ describe('legacy calendar colour keys', () => {
     expect(importedCalendarColors(current, file, null)).toBe(current);
     expect(importedCalendarColors(current, file, '')).toBe(current);
   });
+
+  it('imports only keys of exactly the old two parts', () => {
+    // `A|c1` would read as an old key, which every reader may claim.
+    expect(importedCalendarColors({}, { c1: '#00ff00', 'team|c2': '#0000ff' }, 'A')).toEqual({ 'A|team|c2': '#0000ff' });
+  });
 });

@@ -717,9 +717,32 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
 };
 
 // The string-valued entries of a settings file's shared calendar colours.
+// A colour a calendar can be painted with (what the colour pickers write).
+const CALENDAR_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
 function importableCalendarColors(v: unknown): Record<string, string> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
-  return Object.fromEntries(Object.entries(v).filter(([, c]) => typeof c === 'string')) as Record<string, string>;
+  return Object.fromEntries(
+    Object.entries(v).filter(([, c]) => typeof c === 'string' && CALENDAR_COLOR.test(c)),
+  ) as Record<string, string>;
+}
+
+/**
+ * Whether importing `json` would leave out shared calendar colours it holds
+ * because no account is shown (they are stored as the shown account's), so
+ * the import can say so.
+ */
+export function importSkipsCalendarColors(json: string, appAccountId: string | null): boolean {
+  if (appAccountId) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+  const colors = importableCalendarColors(fromExportShape(parsed as Record<string, unknown>).sharedCalendarColors);
+  return Object.keys(colors).some((key) => key.split('|').length === 2);
 }
 
 // `appAccountId` taken off the old colour key readers, over `overrides`;
@@ -1147,7 +1170,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // defaults, so run again on the stored row it would drop the reader
     // with nothing claimed. (The readers are null then, so this is moot.)
     if (!appAccountId || !readers?.includes(appAccountId) || get().settingsReadFailed) return;
-    editSettings((s) => withoutLegacyReader({ ...s.sharedCalendarColors, ...claimed }, readers, appAccountId));
+    // A key the live map already has was set since the claim was worked
+    // out (a sidebar pick): it stays.
+    editSettings((s) => withoutLegacyReader({ ...claimed, ...s.sharedCalendarColors }, readers, appAccountId));
   },
 
   noteSignedInWhileColorReadersUnseeded: async (appAccountId) => {

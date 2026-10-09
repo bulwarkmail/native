@@ -36,9 +36,11 @@ export function withoutLegacyCalendarColors(overrides: Record<string, string>): 
 
 /**
  * The overrides after a settings import: `current`, with each old-shape key
- * in the file written as the shown app account's (over its own). Keys in
- * the file with more parts are ignored: they name an app account the file
- * can't vouch for. With no account shown, the file colours nothing.
+ * in the file (exactly `accountId|originalId`) written as the shown app
+ * account's (over its own). Other keys are ignored: more parts name an app
+ * account the file can't vouch for, and one part would come out as
+ * `A|c1`, which reads as an old key every reader may claim. With no
+ * account shown, the file colours nothing.
  */
 export function importedCalendarColors(
   current: Record<string, string>,
@@ -48,7 +50,7 @@ export function importedCalendarColors(
   if (!appAccountId) return current;
   const out = { ...current };
   for (const [key, color] of Object.entries(fromFile)) {
-    if (isLegacyCalendarColorKey(key)) out[`${appAccountId}|${key}`] = color;
+    if (key.split('|').length === 2) out[`${appAccountId}|${key}`] = color;
   }
   return out;
 }

@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useSettingsStore,
   discardSettingsEditsForTests,
+  importSkipsCalendarColors,
   mergeWithDefaults,
   toExportShape,
   fromExportShape,
@@ -304,6 +305,25 @@ describe('settings-store', () => {
       expect(useSettingsStore.getState().sharedCalendarColors).toEqual({ 'B|team|c1': '#222222' });
     });
 
+    it('imports only colour values', () => {
+      const s = useSettingsStore.getState();
+      s.importSettings(JSON.stringify({ sharedCalendarColors: {
+        'team|c1': '#00ff00', 'team|c2': '#ABC', 'team|c3': 'red', 'team|c4': '#12', 'team|c5': 'url(x)', 'team|c6': '#00ff00 ',
+      } }), 'A');
+      expect(useSettingsStore.getState().sharedCalendarColors).toEqual({ 'A|team|c1': '#00ff00', 'A|team|c2': '#ABC' });
+    });
+
+    it('tells when an import skips the colours for want of a shown account', () => {
+      const file = JSON.stringify({ sharedCalendarColors: { 'team|c1': '#00ff00' }, fontSize: 'large' });
+      expect(importSkipsCalendarColors(file, null)).toBe(true);
+      expect(importSkipsCalendarColors(file, '')).toBe(true);
+      expect(importSkipsCalendarColors(file, 'A')).toBe(false);
+      // Nothing it could have imported: nothing skipped.
+      expect(importSkipsCalendarColors(JSON.stringify({ fontSize: 'large' }), null)).toBe(false);
+      expect(importSkipsCalendarColors(JSON.stringify({ sharedCalendarColors: { c1: 'red' } }), null)).toBe(false);
+      expect(importSkipsCalendarColors('not json', null)).toBe(false);
+    });
+
     it('never exports or imports the legacy readers list', () => {
       const s = useSettingsStore.getState();
       s.setSharedCalendarColor('team|c1', '#00ff00');
@@ -384,6 +404,16 @@ describe('settings-store', () => {
       s.finishLegacyCalendarColors('C', { 'C|team|c1': '#00ff00' });
       expect(get().sharedCalendarColors).toEqual({ 'team|c1': '#00ff00' });
       expect(get().legacyCalendarColorReaders).toEqual(['A']);
+    });
+
+    it('a claim never replaces a colour the account set since', () => {
+      const s = get();
+      s.setSharedCalendarColor('team|c1', '#00ff00');
+      s.seedLegacyCalendarColorReaders(['A']);
+      // Picked from the sidebar after the claim was worked out.
+      s.setSharedCalendarColor('A|team|c1', '#111111');
+      s.finishLegacyCalendarColors('A', { 'A|team|c1': '#00ff00', 'A|team|c2': '#222222' });
+      expect(get().sharedCalendarColors).toEqual({ 'A|team|c1': '#111111', 'A|team|c2': '#222222' });
     });
 
     it('forgetting an account takes it off the readers list', async () => {
