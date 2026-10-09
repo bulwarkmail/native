@@ -9,7 +9,8 @@ import { useCalendarStore } from '../stores/calendar-store';
 // Mirrors the webmail's lib/clear-cached-data.ts.
 //
 // Deliberately excluded: 'account-registry' (accounts), 'webmail:settings:v1'
-// / 'webmail:locale:v1' (preferences), 'webmail:templates:v1' /
+// / 'webmail:locale:v1' (preferences), 'webmail:settings:v1:corrupt' (the
+// only copy of settings that could not be read: the user's, not the server's), 'webmail:templates:v1' /
 // 'webmail:keywords:v1' / 'calendar-subscriptions' (user-created content),
 // the offline body cache (managed on its own pane) and push registrations.
 export const CACHE_STORAGE_KEYS = [

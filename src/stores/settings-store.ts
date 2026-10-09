@@ -130,6 +130,10 @@ export const ALL_DEBUG_CATEGORIES: DebugCategory[] = [
 ];
 
 const STORAGE_KEY = 'webmail:settings:v1';
+// Where a stored settings row that can never be read (corrupt JSON, not an
+// object) is moved before the defaults are written over it. One slot: a
+// later one replaces it.
+export const CORRUPT_SETTINGS_KEY = 'webmail:settings:v1:corrupt';
 // The app accounts signed in while the old-colour readers were unseeded
 // (legacyCalendarColorNonReaders). A row of its own, not in the settings:
 // a sign-in after a failed settings read must still be recorded.
@@ -643,6 +647,8 @@ function snapshot(state: SettingsState): PersistedSettings {
 }
 
 function persist(state: PersistedSettings): void {
+  // Backstop for editSettings: never the defaults over settings not read.
+  if (useSettingsStore.getState().settingsReadFailed) return;
   void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch((err) => {
     console.warn('[settings-store] persist failed', err);
   });
@@ -911,21 +917,67 @@ async function readLegacyColorNonReaders(): Promise<NonReadersRead> {
   }
 }
 
-type ReadResult = { ok: true; settings: PersistedSettings | null } | { ok: false };
+// `corrupt` is the row when it was read but is not settings (it never will
+// be); null when the read itself was refused (it may work later).
+type ReadResult = { ok: true; settings: PersistedSettings | null } | { ok: false; corrupt: string | null };
 
 // The stored settings, merged over the defaults; null when there are none.
-// Not ok when the row is there but cannot be read or is not an object.
 async function readStoredSettings(): Promise<ReadResult> {
+  let raw: string | null;
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ok: true, settings: null };
+    raw = await AsyncStorage.getItem(STORAGE_KEY);
+  } catch (err) {
+    console.warn('[settings-store] hydrate failed', err);
+    return { ok: false, corrupt: null };
+  }
+  if (!raw) return { ok: true, settings: null };
+  try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('stored settings are not an object');
     return { ok: true, settings: mergeWithDefaults(parsed as Partial<PersistedSettings>) };
   } catch (err) {
     console.warn('[settings-store] hydrate failed', err);
-    return { ok: false };
+    return { ok: false, corrupt: raw };
   }
+}
+
+// A row that can never be read would hold every write back for good, so it
+// is kept aside (CORRUPT_SETTINGS_KEY, as it was) and the app goes on from
+// the defaults. Only once that copy is written: until then, blocked as for
+// a refused read, and the next try copies it again.
+async function settleRead(read: ReadResult): Promise<ReadResult> {
+  if (read.ok || read.corrupt === null) return read;
+  try {
+    await AsyncStorage.setItem(CORRUPT_SETTINGS_KEY, read.corrupt);
+  } catch (err) {
+    console.warn('[settings-store] could not keep the unreadable settings aside', err);
+    return read;
+  }
+  console.warn(`[settings-store] unreadable settings kept at ${CORRUPT_SETTINGS_KEY}; starting from the defaults`);
+  return { ok: true, settings: null };
+}
+
+// After a read: the stored settings (the defaults when there are none, or
+// once an unreadable row was kept aside), with the edits held meanwhile run
+// again on them in order and written. An edit is a change to the state, not
+// the value it produced over the defaults, so a trusted sender added
+// meanwhile joins the stored list instead of replacing it.
+function applyRead(read: ReadResult, written: boolean): void {
+  const store = useSettingsStore;
+  if (!read.ok) {
+    store.setState({ hydrated: true, settingsReadFailed: true });
+    retryOnForeground();
+    return;
+  }
+  const edits = editsWhileUnread;
+  editsWhileUnread = [];
+  let next: SettingsState = { ...store.getState(), ...(read.settings ?? DEFAULT_PERSISTED) };
+  for (const change of edits) {
+    const patch = change(next);
+    if (patch) next = { ...next, ...patch };
+  }
+  store.setState({ ...snapshot(next), hydrated: true, settingsReadFailed: false });
+  if (edits.length || written) persist(snapshot(store.getState()));
 }
 
 // A change to the settings, worked out from the state it is given (null for
@@ -939,28 +991,32 @@ export function discardSettingsEditsForTests(): void {
   editsWhileUnread = [];
 }
 
-// Every settings write goes through here. After a failed read the defaults
-// stand in for the stored settings, and writing them would replace every
-// stored setting (the auto-assigned calendar colours, a trusted sender added
-// by the Outbox replay, any edit). So nothing is written then: the edit shows
-// at once, is kept, and the read is tried again. When it works, the kept
-// edits run again on the stored settings and are written (retryReadSettings).
-// Re-running them is safe because each is worked out from the state it is
-// given; keeping them only in memory means an app killed first loses them,
-// which is still better than losing everything stored.
+// Every settings write goes through here. Before the stored settings are
+// read, or after a read that failed, the defaults stand in for them, and
+// writing those would replace every stored setting (the auto-assigned
+// calendar colours, a trusted sender added by the Outbox replay, any edit).
+// So nothing is written then: the edit shows at once, is kept, and the read
+// is started (or tried again). When it works, the kept edits run again on
+// the stored settings and are written (applyRead). Re-running them is safe
+// because each is worked out from the state it is given; keeping them only
+// in memory means an app killed first loses them, which is still better than
+// losing everything stored.
 function editSettings(change: SettingsEdit): void {
   const store = useSettingsStore;
   const patch = change(store.getState());
   if (patch) store.setState(patch);
-  if (!store.getState().settingsReadFailed) {
+  const { hydrated, settingsReadFailed } = store.getState();
+  if (hydrated && !settingsReadFailed) {
     if (patch) persist(snapshot(store.getState()));
     return;
   }
   // Kept even when it changes nothing over the defaults: on the stored
   // settings it may (a forgotten account's colours).
-  if (editsWhileUnread.length === 0) console.warn('[settings-store] settings could not be read; changes are kept until they can');
+  if (settingsReadFailed && editsWhileUnread.length === 0) {
+    console.warn('[settings-store] settings could not be read; changes are kept until they can');
+  }
   editsWhileUnread.push(change);
-  void store.getState().retryReadSettings();
+  void (settingsReadFailed ? store.getState().retryReadSettings() : store.getState().hydrate());
 }
 
 let retriesOnForeground = false;
@@ -1051,12 +1107,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           : get().legacyCalendarColorNonReaders,
         legacyCalendarColorNonReadersReadFailed: !nonReaders.ok,
       });
-      if (read.ok) {
-        set({ ...(read.settings ?? {}), hydrated: true, settingsReadFailed: false });
-        return;
-      }
-      set({ hydrated: true, settingsReadFailed: true });
-      retryOnForeground();
+      const settled = await settleRead(read);
+      applyRead(settled, settled !== read);
     })().finally(() => { hydrateInFlight = null; });
     hydrateInFlight = promise;
     return promise;
@@ -1067,20 +1119,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (hydrateInFlight) return hydrateInFlight;
     const promise = (async () => {
       const read = await readStoredSettings();
-      if (!read.ok || !get().settingsReadFailed) return;
-      // The edits made meanwhile run again on what is stored, in order: an
-      // edit is a change to the state, not the value it produced over the
-      // defaults, so a trusted sender added meanwhile joins the stored list
-      // instead of replacing it.
-      const edits = editsWhileUnread;
-      editsWhileUnread = [];
-      let next: SettingsState = { ...get(), ...(read.settings ?? DEFAULT_PERSISTED) };
-      for (const change of edits) {
-        const patch = change(next);
-        if (patch) next = { ...next, ...patch };
-      }
-      set({ ...snapshot(next), settingsReadFailed: false });
-      if (edits.length) persist(snapshot(get()));
+      if (!get().settingsReadFailed) return;
+      const settled = await settleRead(read);
+      // Still refused: stays blocked, the edits kept, for the next try.
+      if (!settled.ok) return;
+      applyRead(settled, settled !== read);
     })().finally(() => { hydrateInFlight = null; });
     hydrateInFlight = promise;
     return promise;

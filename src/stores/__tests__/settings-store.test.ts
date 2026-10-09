@@ -431,16 +431,13 @@ describe('settings-store', () => {
       expect(get().sharedCalendarColors).toEqual({});
     });
 
-    // A failed or corrupt read leaves the defaults in memory: a write then
-    // would put them over every stored setting.
-    it.each([
-      ['corrupt JSON', '{corrupt', false],
-      ['a row that is not an object', '7', false],
-      ['a rejected read', JSON.stringify({ sharedCalendarColors: { 'team|c1': '#00ff00' } }), true],
-    ])('seeds nothing, and writes nothing, after %s', async (_, stored, rejectRead) => {
+    // A refused read leaves the defaults in memory: a write then would put
+    // them over every stored setting.
+    it('seeds nothing, and writes nothing, after a refused read', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const stored = JSON.stringify({ sharedCalendarColors: { 'team|c1': '#00ff00' } });
       await AsyncStorage.setItem(KEY, stored);
-      if (rejectRead) vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('CursorWindow'));
+      vi.mocked(AsyncStorage.getItem).mockRejectedValueOnce(new Error('CursorWindow'));
       useSettingsStore.setState({ hydrated: false });
       await get().hydrate();
       expect(get().settingsReadFailed).toBe(true);
@@ -450,6 +447,22 @@ describe('settings-store', () => {
       expect(await AsyncStorage.getItem(KEY)).toBe(stored);
       warn.mockRestore();
     });
+
+    // A row that can never be read is kept aside: the seed then works from
+    // the defaults, which hold no old colour to read.
+    it.each([['corrupt JSON', '{corrupt'], ['a row that is not an object', '7']])(
+      'seeds nobody after %s, the row kept aside', async (_, stored) => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        await AsyncStorage.setItem(KEY, stored);
+        useSettingsStore.setState({ hydrated: false });
+        await get().hydrate();
+        expect(get().settingsReadFailed).toBe(false);
+        get().seedLegacyCalendarColorReaders(['A']);
+        expect(get().legacyCalendarColorReaders).toEqual([]);
+        expect(await AsyncStorage.getItem(`${KEY}:corrupt`)).toBe(stored);
+        warn.mockRestore();
+      },
+    );
 
     it('a clean read, or none at all, lets the seed run', async () => {
       useSettingsStore.setState({ hydrated: false });

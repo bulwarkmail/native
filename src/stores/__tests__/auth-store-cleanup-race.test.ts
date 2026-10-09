@@ -602,13 +602,33 @@ describe('the accounts that may read the old calendar colour keys', () => {
     expect(useSettingsStore.getState().legacyCalendarColorReaders).toEqual([ID]);
   });
 
-  it('are not chosen, and the stored settings not rewritten, when the settings read was corrupt', async () => {
+  it('are not chosen, and the stored settings not rewritten, when the settings read was refused', async () => {
+    const stored = JSON.stringify({ sharedCalendarColors: { 'team|c1': '#00ff00' } });
+    await AsyncStorage.setItem('webmail:settings:v1', stored);
+    useSettingsStore.setState({ hydrated: false, legacyCalendarColorReaders: null });
+    const realGetItem = vi.mocked(AsyncStorage.getItem).getMockImplementation()!;
+    vi.mocked(AsyncStorage.getItem).mockImplementation(async (key: string) => {
+      if (key === 'webmail:settings:v1') throw new Error('CursorWindow');
+      return realGetItem(key);
+    });
+    try {
+      await useAuthStore.getState().restoreSession();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(useSettingsStore.getState().legacyCalendarColorReaders).toBeNull();
+      expect(await realGetItem('webmail:settings:v1')).toBe(stored);
+    } finally {
+      vi.mocked(AsyncStorage.getItem).mockImplementation(realGetItem);
+    }
+  });
+
+  it('are none when the settings row was corrupt, which is kept aside', async () => {
     await AsyncStorage.setItem('webmail:settings:v1', '{corrupt');
     useSettingsStore.setState({ hydrated: false, legacyCalendarColorReaders: null });
     await useAuthStore.getState().restoreSession();
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(useSettingsStore.getState().legacyCalendarColorReaders).toBeNull();
-    expect(await AsyncStorage.getItem('webmail:settings:v1')).toBe('{corrupt');
+    // Its old colours went with it: nothing left to read.
+    expect(useSettingsStore.getState().legacyCalendarColorReaders).toEqual([]);
+    expect(await AsyncStorage.getItem('webmail:settings:v1:corrupt')).toBe('{corrupt');
   });
 
   // A start whose seed was skipped leaves the list unseeded; an account
