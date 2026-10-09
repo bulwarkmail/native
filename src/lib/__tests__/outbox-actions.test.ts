@@ -137,6 +137,22 @@ describe('outbox actions', () => {
     expect(back.heldReason).toBeUndefined();
   });
 
+  // A request for it may have reached the server: put back, it must still
+  // never be moved to another account.
+  it('keeps the attempt mark on an entry put back, whether the draft failed or the account changed', async () => {
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'uncertain', everAttempted: true, outgoing: { subject: 'x' } }] };
+    state.createFails = true;
+    await expect(saveEntryAsDraft(e('uncertain'))).rejects.toMatchObject({ code: 'draft_failed_restored' });
+    expect((state.enqueued[0] as { everAttempted?: true }).everAttempted).toBe(true);
+
+    state.enqueued = [];
+    state.createFails = false;
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', everAttempted: true, outgoing: { subject: 'x' } }] };
+    state.onBoxes = () => { state.active = 'B'; };
+    await expect(saveEntryAsDraft(e('queued'))).rejects.toMatchObject({ code: 'wrong_account' });
+    expect((state.enqueued[0] as { everAttempted?: true }).everAttempted).toBe(true);
+  });
+
   it('re-checks the account right before creating the draft: a switch means no write, the entry back as it was', async () => {
     state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', outgoing: { subject: 'x' } }] };
     state.onBoxes = () => { state.active = 'B'; };

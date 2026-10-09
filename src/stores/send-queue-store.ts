@@ -287,9 +287,15 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
           if (!parsed || inMemory.has(parsed.id)) continue; // corrupt rows stay on disk untouched
           let entry = parsed;
           if (entry.state === 'sending') entry = { ...entry, state: 'uncertain' };
-          if (entry.schema !== 2) entry = { ...entry, everAttempted: true, schema: 2 };
+          // Any stamp at all is from enqueue (a later version's too, which
+          // must not be taken back to 2).
+          if (typeof (entry.schema as unknown) !== 'number') entry = { ...entry, everAttempted: true, schema: 2 };
           // One write per repaired row; a failed write-back rejects the
-          // hydrate with memory untouched.
+          // hydrate with memory untouched. That holds the account's queue
+          // back (no replay; the composer's already-queued check refuses
+          // with OutboxCheckError) only while storage refuses writes, when
+          // no send could be queued or marked anyway: hydrated stays unset,
+          // so the next flush or send tries the hydrate again.
           if (entry !== parsed) await AsyncStorage.setItem(key, JSON.stringify(entry));
           loaded.push(entry);
         }

@@ -156,6 +156,28 @@ describe('send-queue-store', () => {
       expect((await stored('a1', 'q1')).schema).toBe(2);
     });
 
+    it('keeps the schema through a re-stamp and a release of an unsent attempt', async () => {
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await s.enqueue(entry({ heldReason: 'account_unavailable' }));
+      await s.restamp('q1', 'jNew');
+      expect(mem('a1')[0]).toMatchObject({ jmapAccountId: 'jNew', schema: 2 });
+      await s.markSending('q1');
+      await s.releaseUnsent('q1');
+      expect(mem('a1')[0]).toMatchObject({ state: 'queued', schema: 2 });
+      expect((await stored('a1', 'q1')).schema).toBe(2);
+    });
+
+    it('leaves a row from a later version alone', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify({ ...entry(), schema: 3 }));
+      const write = vi.spyOn(AsyncStorage, 'setItem');
+      write.mockClear(); // the shared mock keeps earlier calls
+      await useSendQueueStore.getState().hydrateAccount('a1');
+      expect(write).not.toHaveBeenCalled();
+      expect(mem('a1')[0]).toMatchObject({ schema: 3 });
+      expect(mem('a1')[0].everAttempted).toBeUndefined();
+    });
+
     it('never re-stamps a row from before the mark, and still releases its hold and sends it', async () => {
       await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({ heldReason: 'account_unavailable' })));
       const s = useSendQueueStore.getState();
