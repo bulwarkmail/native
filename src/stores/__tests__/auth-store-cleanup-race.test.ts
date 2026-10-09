@@ -303,17 +303,29 @@ describe('a sign-out cleanup still running when the account signs in again', () 
         expect(await readForgetPending()).toEqual([expect.objectContaining({ key: ID, kind: 'signOut' })]);
       });
 
-      it.each(spoilers)('sweeps no offline mail after %s, even with a legacy account migrated', async (_, spoil) => {
+      it.each(spoilers)('sweeps no offline mail after %s', async (_, spoil) => {
         const index = `webmail:offline-cache:index:v2:${ID}`;
         await AsyncStorage.setItem(index, '{"entries":{}}');
         await coldStartWithRegistry(spoil);
-        (jmapClient.consumeLegacyCredentials as ReturnType<typeof vi.fn>)
-          .mockResolvedValueOnce({ serverUrl: SERVER, username: 'legacy@mail.example.com' });
         (jmapClient.loadAccount as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NetworkError('offline'));
         await useAuthStore.getState().restoreSession();
         await vi.advanceTimersByTimeAsync(60_000);
-        expect(useAccountStore.getState().accounts).toHaveLength(1);
         expect(await AsyncStorage.getItem(index)).not.toBeNull();
+      });
+
+      // The migration writes a one-account registry: never over a stored
+      // one that could not be read. The old credentials wait for a start
+      // that reads it.
+      it.each(spoilers)('migrates no single-slot account after %s', async (_, spoil) => {
+        await coldStartWithRegistry(spoil);
+        (jmapClient.consumeLegacyCredentials as ReturnType<typeof vi.fn>)
+          .mockResolvedValueOnce({ serverUrl: SERVER, username: 'legacy@mail.example.com' });
+        await useAuthStore.getState().restoreSession();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(jmapClient.consumeLegacyCredentials).not.toHaveBeenCalled();
+        expect(useAccountStore.getState().accounts).toEqual([]);
+        // The old slot is still there for a later start, not for the next case.
+        vi.mocked(jmapClient.consumeLegacyCredentials).mockReset().mockResolvedValue(null);
       });
     });
 
@@ -520,6 +532,38 @@ describe('a sign-out cleanup still running when the account signs in again', () 
     await vi.advanceTimersByTimeAsync(60_000);
     expect(await readForgetPending()).toEqual([]);
     expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+  });
+
+  // The account's own sign-in gave up waiting and released before the run
+  // reached a step; the run then skips for another account's sign-in that
+  // ends before it does. Nobody is left to release it, so its end decides.
+  it('drops the marker of a run that ends skipped after every sign-in released it', async () => {
+    const OTHER = 'other@mail.example.com';
+    let releaseStep!: () => void;
+    vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount')
+      .mockImplementationOnce(() => new Promise<void>((r) => { releaseStep = r; }));
+    const signedOut = useAuthStore.getState().logout();
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    await signedOut;
+
+    let admit!: () => void;
+    (jmapClient.connect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((resolve) => {
+      admit = () => resolve({ apiUrl: `${SERVER}/jmap/` });
+    }));
+    const other = useAuthStore.getState().login(SERVER, OTHER, 'pw', { addAccount: true }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    const own = useAuthStore.getState().login(SERVER, USER, 'pw');
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    await own;
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toContain(ID);
+
+    // The run goes on (and skips) while the other sign-in ends.
+    releaseStep();
+    admit();
+    await vi.advanceTimersByTimeAsync(EVICTION_CLEANUP_TIMEOUT_MS);
+    await other;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((await readForgetPending()).map((e) => e.key)).not.toContain(ID);
   });
 
   it('still forgets the subscriptions when the first step hangs and nobody signs back in', async () => {

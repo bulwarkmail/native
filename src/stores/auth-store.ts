@@ -382,7 +382,12 @@ function startCleanup(entry: ForgetPendingEntry): Promise<void> {
       console.warn('[sign-out] cleanup failed', e);
     } finally {
       record.ended = true;
-      if (record.returning === 0 && !record.skipped) dropCleanup(key, record);
+      // Skipped, but every sign-in has released it and the key is
+      // registered: a settled account, so nothing is left to forget, and no
+      // release is left to drop it (its marker must not outlive it).
+      if (record.returning === 0 && (!record.skipped || (signInsUnderWay === 0 && isRegistered(key)))) {
+        dropCleanup(key, record);
+      }
     }
   })();
   pendingCleanups.set(key, record);
@@ -1405,8 +1410,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const accountStore = useAccountStore.getState();
 
       // Legacy migration: if there are no registered accounts but the old
-      // single-slot credentials exist, register them before restoring.
-      if (accountStore.accounts.length === 0) {
+      // single-slot credentials exist, register them before restoring. Only
+      // from the stored registry (registryLoaded; a row never written counts):
+      // one that failed to read starts empty too, and the migration would
+      // write a one-account registry over it. The old slot is kept then.
+      if (accountStore.accounts.length === 0 && registryLoaded()) {
         const legacy = await jmapClient.consumeLegacyCredentials();
         if (legacy) {
           accountStore.addAccount({
