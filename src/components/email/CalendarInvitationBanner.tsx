@@ -47,6 +47,7 @@ import { getCalendarColor, getEventStartDate, timePattern } from '../../lib/cale
 import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { AccountNotServedError, requireShownAccountScope, useEmailStore } from '../../stores/email-store';
 import { useAccountStore } from '../../stores/account-store';
+import { authservHostFor, useAuthservHost } from '../../lib/authserv-host';
 import { toDisplayDate } from '../../lib/calendar-timezone';
 import { isServerRecurrenceInstance } from '../../lib/recurrence-instances';
 import { invitationViewTarget } from '../../lib/invitation-view-target';
@@ -210,6 +211,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   // No live fallback: without the account the message was shown in, a write
   // is refused by the store rather than sent for whichever account is shown.
   const ownerAppAccountId = appAccountId;
+  // Authentication-Results count only under the owning account's server's id.
+  const authservHost = useAuthservHost(ownerAppAccountId);
   const attachment = React.useMemo(() => findCalendarAttachment(email), [email]);
   // Login address + identities + aliases, so invitations addressed to an
   // alias still show the RSVP buttons. Only an invitation looks the aliases up.
@@ -337,9 +340,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const trustStored = method === 'counter' ? (storedEvent ?? existing) : existing;
   const trust = React.useMemo(
     () => (event
-      ? getInvitationTrustAssessment(event, email, method, { stored: trustStored, userAddresses: ownAddresses })
+      ? getInvitationTrustAssessment(event, email, method, { stored: trustStored, userAddresses: ownAddresses, serverHost: authservHost })
       : null),
-    [event, email, method, trustStored, ownAddresses],
+    [event, email, method, trustStored, ownAddresses, authservHost],
   );
 
   if (!attachment || !enabled || state === 'error') return null;
@@ -400,7 +403,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     return format(date, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale });
   };
   const review = reviewCounterProposal({
-    method, proposed: event, stored: storedEvent, userAddresses: ownAddresses, email, formatDateTime: formatChangeTime,
+    method, proposed: event, stored: storedEvent, userAddresses: ownAddresses, email, serverHost: authservHost,
+    formatDateTime: formatChangeTime,
   });
   const proposedChanges = review?.changes ?? [];
   const showApply = !!review?.canApply;
@@ -470,7 +474,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
       );
       const fresh = found && found.id === storedEvent.id
         ? reviewCounterProposal({
-          method, proposed: event, stored: found, userAddresses: addresses, email, formatDateTime: formatChangeTime,
+          method, proposed: event, stored: found, userAddresses: addresses, email,
+          serverHost: authservHostFor(ownerAppAccountId), formatDateTime: formatChangeTime,
         })
         : null;
       if (!found || !fresh?.patch || !proposalStillMatches(confirmed, fresh)) {

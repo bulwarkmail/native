@@ -1,0 +1,90 @@
+import { splitAuthResinfo } from './email-headers';
+import { registrableDomain } from './registrable-domain';
+
+// The authserv-id opens the header, so reading this far is plenty; the cap
+// keeps a padded header from costing more than this to search for it.
+const MAX_HEADER_LENGTH = 16 * 1024;
+// A host name or IPv4 address. Anything else (a quoted string, a stray `=`
+// from a header with no authserv-id) is no id we could match a server with.
+const AUTHSERV_ID_RE = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/;
+
+/**
+ * The host of an `http(s)://` server URL: lowercased, with no port, brackets
+ * or trailing dot. Null for anything else. Read by hand rather than through
+ * `new URL()`, whose RN polyfill normalises its input.
+ */
+export function serverHostOf(serverUrl: string | null | undefined): string | null {
+  const match = /^https?:\/\//i.exec(serverUrl?.trim() ?? '');
+  if (!match || !serverUrl) return null;
+  const rest = serverUrl.trim().slice(match[0].length);
+  let authority = rest;
+  for (const end of ['/', '?', '#']) {
+    const at = authority.indexOf(end);
+    if (at >= 0) authority = authority.slice(0, at);
+  }
+  authority = authority.slice(authority.lastIndexOf('@') + 1);
+  let host: string;
+  if (authority.startsWith('[')) {
+    const close = authority.indexOf(']');
+    if (close < 0) return null;
+    host = authority.slice(1, close);
+  } else {
+    const colon = authority.indexOf(':');
+    host = colon >= 0 ? authority.slice(0, colon) : authority;
+  }
+  host = host.toLowerCase().replace(/\.$/, '');
+  return host || null;
+}
+
+/**
+ * The authserv-id of one Authentication-Results header (RFC 8601 §2.2): the
+ * token before the first `;` outside comments and quotes, without a version,
+ * lowercased, a trailing dot dropped. Null when the header has no `;` in its
+ * first 16 KiB (every valid one has one: "none" is written `; none`), or
+ * opens with no plain host name.
+ */
+export function authservIdOf(header: string): string | null {
+  const parts = splitAuthResinfo(header.slice(0, MAX_HEADER_LENGTH));
+  if (parts.length < 2) return null;
+  const id = parts[0].split(/\s/, 1)[0].toLowerCase().replace(/\.$/, '');
+  return AUTHSERV_ID_RE.test(id) ? id : null;
+}
+
+function isAtOrUnder(name: string, domain: string): boolean {
+  return name === domain || name.endsWith(`.${domain}`);
+}
+
+/**
+ * Whether a header under `authservId` is the receiving server's own: the id
+ * is the JMAP server's host or its registrable domain, or a host under
+ * either (a mail domain's MX is rarely the JMAP host itself).
+ */
+export function isTrustedAuthservId(authservId: string, serverHost: string): boolean {
+  if (!authservId || !serverHost) return false;
+  if (isAtOrUnder(authservId, serverHost)) return true;
+  const domain = registrableDomain(serverHost);
+  return !!domain && isAtOrUnder(authservId, domain);
+}
+
+/**
+ * The Authentication-Results headers (in message order) when the topmost one
+ * is the receiving server's own, by its authserv-id; else none. Only the
+ * topmost is judged: a sender can write a header under the server's id
+ * anywhere below it, so a match lower down proves nothing. The ones below a
+ * trusted top stay, for the parser to treat as foreign (they can only make
+ * SPF worse). With no trusted top, or an unknown host, the message has no
+ * results the app trusts.
+ *
+ * The limit is the server's: RFC 8601 §5 has a receiving MTA remove any
+ * incoming header that claims its own authserv-id. A server that doesn't
+ * lets a forged header with its id pass as topmost on mail it never
+ * stamped.
+ */
+export function pinAuthenticationResults(
+  headers: readonly string[],
+  serverHost: string | null | undefined,
+): string[] {
+  if (!serverHost || headers.length === 0) return [];
+  const id = authservIdOf(headers[0]);
+  return id && isTrustedAuthservId(id, serverHost) ? [...headers] : [];
+}

@@ -2,6 +2,7 @@ import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddr
 import {
   headerValues, isFromDomainAuthenticated, parseAuthenticationResults, type AuthenticationResults,
 } from './email-headers';
+import { pinAuthenticationResults } from './authserv';
 import { plainDisplayText, plainStoredText } from './display-text';
 import { localDateTimeToInstant } from './time-zone';
 
@@ -452,14 +453,17 @@ export function calendarInvitationKey(
 
 /**
  * Authentication results of an email, derived from its raw headers. Uses the
- * mail viewer's rule: only the topmost header (our own server's) can supply a
- * pass; lower, sender-written headers may only escalate SPF to a failure.
+ * mail viewer's rule: only the topmost header can supply a pass, and only
+ * when it carries the account's server's authserv-id; lower, sender-written
+ * headers may only escalate SPF to a failure. Null when the topmost header
+ * is not the server's own.
  */
 export function getEmailAuthenticationResults(
-  email?: Pick<Email, 'headers'> | null,
+  email: Pick<Email, 'headers'> | null | undefined,
+  serverHost: string | null | undefined,
 ): AuthenticationResults | null {
   if (!email?.headers) return null;
-  const values = headerValues(email.headers, 'Authentication-Results');
+  const values = pinAuthenticationResults(headerValues(email.headers, 'Authentication-Results'), serverHost);
   if (values.length === 0) return null;
   return parseAuthenticationResults(values);
 }
@@ -507,6 +511,11 @@ export interface InvitationTrustContext {
   stored?: Partial<CalendarEvent> | null;
   /** The user's addresses in the account the event lives in. */
   userAddresses?: readonly string[];
+  /**
+   * The host of the server holding the message's account, whose
+   * Authentication-Results alone count. Unknown: nothing is verified.
+   */
+  serverHost?: string | null;
 }
 
 // Whether `address` is an attendee (not the organizer) of the stored event.
@@ -550,7 +559,7 @@ export function getInvitationTrustAssessment(
   const organizerEmail = getOrganizerEmail(event);
   const fromEmail = getPrimaryAddressEmail(email?.from);
   const senderEmail = fromEmail || getPrimaryAddressEmail(email?.replyTo);
-  const auth = getEmailAuthenticationResults(email);
+  const auth = getEmailAuthenticationResults(email, context?.serverHost);
   const verified = isFromDomainAuthenticated(auth, fromEmail);
   const failed = hasAuthenticationFailure(auth);
   const responder = isResponseMethod(method) ? responderOnStoredEvent(event, context) : null;
@@ -989,14 +998,15 @@ function proposerHold(
   email: Pick<Email, 'from' | 'replyTo' | 'headers'> | null | undefined,
   proposerEmail: string | null,
   userAddresses: readonly string[],
+  serverHost: string | null,
 ): ProposalHold | null {
   if (!proposerEmail) return 'proposer_unknown';
   if (!isAttendeeOf(stored, proposerEmail)) return 'proposer_not_attendee';
   // The From itself: a Reply-To is anyone's to set.
   const from = getPrimaryAddressEmail(email?.from);
   if (from !== proposerEmail) return 'sender_not_proposer';
-  if (!fromIsAuthenticated(getEmailAuthenticationResults(email), from)) return 'sender_unverified';
-  if (getInvitationTrustAssessment(proposed, email, 'counter', { stored, userAddresses }).level !== 'trusted') {
+  if (!fromIsAuthenticated(getEmailAuthenticationResults(email, serverHost), from)) return 'sender_unverified';
+  if (getInvitationTrustAssessment(proposed, email, 'counter', { stored, userAddresses, serverHost }).level !== 'trusted') {
     return 'sender_unverified';
   }
   return null;
@@ -1020,9 +1030,11 @@ export function reviewCounterProposal(args: {
   stored: Partial<CalendarEvent> | null;
   userAddresses: readonly string[];
   email: Pick<Email, 'from' | 'replyTo' | 'headers'> | null | undefined;
+  /** The host of the server holding the message's account (see InvitationTrustContext). */
+  serverHost: string | null;
   formatDateTime: (iso: string | null) => string;
 }): CounterProposalReview | null {
-  const { method, proposed, stored, userAddresses, email, formatDateTime } = args;
+  const { method, proposed, stored, userAddresses, email, serverHost, formatDateTime } = args;
   if (method !== 'counter' || !stored || !isUserOrganizer(stored, userAddresses)) return null;
   if (!isSameInvitationEvent(stored, proposed)) return null;
   const responder = findRespondingAttendee(proposed);
@@ -1036,7 +1048,7 @@ export function reviewCounterProposal(args: {
   if (content.items.length === 0 && content.refused.length === 0) {
     return { changes: [], patch: null, canApply: false, hold: null, proposer };
   }
-  const hold = proposerHold(proposed, stored, email, proposerEmail, userAddresses)
+  const hold = proposerHold(proposed, stored, email, proposerEmail, userAddresses, serverHost)
     ?? (content.refused.length > 0 ? 'unsupported' : null)
     ?? (patch ? null : 'not_applicable');
   const canApply = !hold && canApplyProposal({

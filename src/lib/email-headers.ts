@@ -8,6 +8,7 @@ import type { Email, Identity } from '../api/types';
 import { parseUnsubscribeUrls, type UnsubscribeUrls } from './unsubscribe';
 import { resolveReplyFrom } from './reply-identity';
 import { domainsAlign } from './registrable-domain';
+import { pinAuthenticationResults } from './authserv';
 
 /**
  * The identity a received message was addressed to (exact or `+tag`), for
@@ -194,8 +195,9 @@ export function getSenderVerification(
 /**
  * Whether the receiving server's checks positively tie the message to its
  * From domain: the domain parses, nothing reads as spoofed, and there is a
- * DMARC pass for that domain or an SPF (MAIL FROM) or DKIM pass aligned with
- * it (relaxed alignment: one registrable domain, see domainsAlign). Unlike
+ * DMARC pass whose header.from aligns with that domain, or an SPF (MAIL
+ * FROM) or DKIM pass aligned with it (relaxed alignment: one registrable
+ * domain, see domainsAlign). Unlike
  * getSenderVerification, no result, an unparsable domain or a pass for
  * another domain is never a yes.
  */
@@ -206,10 +208,12 @@ export function isFromDomainAuthenticated(
   if (!auth || !fromEmail) return false;
   const domain = domainOf(fromEmail);
   if (!domain || isAuthenticationSpoofed(auth)) return false;
-  if (auth.dmarc?.result === 'pass') {
-    const dmarcDomain = auth.dmarc.domain ? domainOf(`@${auth.dmarc.domain}`) : undefined;
-    if (!auth.dmarc.domain || (dmarcDomain && domainsAlign(dmarcDomain, domain))) return true;
-  }
+  // A DMARC pass vouches only for the header.from it names: one that names
+  // none says nothing about this From (Stalwart always writes header.from).
+  const dmarcDomain = auth.dmarc?.result === 'pass' && auth.dmarc.domain
+    ? domainOf(`@${auth.dmarc.domain}`)
+    : undefined;
+  if (dmarcDomain && domainsAlign(dmarcDomain, domain)) return true;
   const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
   // Only a MAIL FROM pass: a HELO pass proves nothing about who wrote it.
   const spfPass = auth.spf?.all
@@ -240,9 +244,10 @@ interface ResInfo {
  * Split one Authentication-Results header into its `;`-separated parts
  * (RFC 8601), dropping comments. A `;` inside a quoted string or a comment
  * does not split: both can carry sender-chosen text such as the envelope
- * address.
+ * address. Parts are trimmed but kept when empty, so the first is always
+ * the authserv-id's.
  */
-function splitResinfo(header: string): string[] {
+export function splitAuthResinfo(header: string): string[] {
   const parts: string[] = [];
   let current = '';
   let depth = 0;
@@ -276,7 +281,7 @@ function splitResinfo(header: string): string[] {
     current += c;
   }
   parts.push(current);
-  return parts.map((part) => part.trim()).filter(Boolean);
+  return parts.map((part) => part.trim());
 }
 
 const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;
@@ -309,7 +314,7 @@ function parseResinfo(part: string): ResInfo | null {
 }
 
 function parseResinfos(header: string): ResInfo[] {
-  return splitResinfo(header)
+  return splitAuthResinfo(header)
     .map(parseResinfo)
     .filter((info): info is ResInfo => info !== null);
 }
@@ -517,11 +522,16 @@ export interface EmailHeaderInfo {
 /** Everything the reader derives from a message's raw headers, in one pass. */
 export function deriveHeaderInfo(
   email: Pick<Email, 'headers' | 'messageId'> & Partial<Pick<Email, 'from'>>,
+  serverHost: string | null | undefined,
 ): EmailHeaderInfo {
   const headers = email.headers;
-  const authHeaders = headerValues(headers, 'Authentication-Results');
-  // The last hop's results are prepended, so the first header is the
-  // receiving server's own verdict; the parser trusts that one for DKIM/DMARC.
+  // Anyone can write an Authentication-Results header; the receiving MTA
+  // prepends its own and removes incoming ones that claim its id (RFC 8601
+  // §5). So the topmost header is the server's verdict only when it carries
+  // the account's server's authserv-id; otherwise there are no results. The
+  // parser trusts that one for DKIM/DMARC and treats the ones below as
+  // foreign. See pinAuthenticationResults.
+  const authHeaders = pinAuthenticationResults(headerValues(headers, 'Authentication-Results'), serverHost);
   const auth = authHeaders.length ? parseAuthenticationResults(authHeaders) : undefined;
 
   const spamRaw = headerValue(headers, 'X-Spam-Status')

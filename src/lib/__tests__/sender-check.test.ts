@@ -71,7 +71,7 @@ describe('canOfferTrustSender', () => {
   const from = [{ email: 'support@bank.example' }];
 
   it('offers it for a sender the checks back', () => {
-    const info = deriveHeaderInfo({ headers: headers('mx; dkim=pass header.d=bank.example'), messageId: null, from });
+    const info = deriveHeaderInfo({ headers: headers('mx; dkim=pass header.d=bank.example'), messageId: null, from }, 'mx');
     expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(true);
   });
 
@@ -80,15 +80,21 @@ describe('canOfferTrustSender', () => {
   });
 
   it('hides it for an unverified sender', () => {
-    const info = deriveHeaderInfo({ headers: headers('mx; spf=none smtp.mailfrom=x@web1.hoster.example; dmarc=none'), messageId: null, from });
+    const info = deriveHeaderInfo({ headers: headers('mx; spf=none smtp.mailfrom=x@web1.hoster.example; dmarc=none'), messageId: null, from }, 'mx');
     expect(info.senderVerification?.status).toBe('unverified');
     expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(false);
   });
 
   it('hides it for a failed check', () => {
-    const info = deriveHeaderInfo({ headers: headers('mx; dmarc=fail header.from=bank.example'), messageId: null, from });
+    const info = deriveHeaderInfo({ headers: headers('mx; dmarc=fail header.from=bank.example'), messageId: null, from }, 'mx');
     expect(info.senderVerification?.status).toBe('failed');
     expect(canOfferTrustSender('support@bank.example', info.senderVerification)).toBe(false);
+  });
+
+  it('offers nothing a forged authserv-id would back', () => {
+    const info = deriveHeaderInfo({ headers: headers('evil.example; dkim=pass header.d=bank.example'), messageId: null, from }, 'jmap.example.com');
+    expect(info.auth).toBeUndefined();
+    expect(info.senderVerification).toBeNull();
   });
 
   it('hides it while the verdict is unknown', () => {

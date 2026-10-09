@@ -13,7 +13,7 @@ import { useKeywordsStore, keywordToken } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import { useDateRegion } from '../../lib/use-date-region';
 import {
-  deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
+  deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
@@ -23,7 +23,8 @@ import { senderCheckText } from '../../lib/sender-check';
 interface Props {
   email: Email;
   identities: Identity[];
-  headerInfo?: EmailHeaderInfo;
+  /** Derived by the caller, pinned to the owning account's server (see deriveHeaderInfo). */
+  headerInfo: EmailHeaderInfo;
   onToggleStar?: (email: Email) => void;
   onAddressPress: (address: EmailAddress) => void;
   /** Compact variant for collapsed thread cards. */
@@ -92,7 +93,7 @@ function DetailRow({ label, value, styles, mono }: { label: string; value?: stri
  * "Show details" panel (recipients & routing, authentication, identifiers,
  * mailing list, properties) the webmail viewer shows.
  */
-export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact }: Props) {
+export function MessageHeader({ email, identities, headerInfo: info, onToggleStar, onAddressPress, compact }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -103,7 +104,6 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);
 
-  const info = React.useMemo(() => headerInfo ?? deriveHeaderInfo(email), [headerInfo, email]);
   const from = email.from?.[0];
   const starred = !!email.keywords?.$flagged;
   const displayDate = emailDisplayDate(email);
