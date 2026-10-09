@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import { SettingsSection, Select } from './settings-section';
 import Button from '../Button';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { ownMailboxes, mailboxSubtreeIds, buildMailboxTree, flattenAll, type MailboxNode } from '../../lib/mailbox-tree';
 import { planFolderMove, siblingsOf, withSortOrders, withUnlistedFolders, type SortOrderUpdate } from '../../lib/folder-reorder';
@@ -35,6 +35,7 @@ import { folderIconComponent } from '../folder-icon';
 import { folderIconPrunePlan } from '../../lib/folder-icon-prune';
 import { useAuthStore } from '../../stores/auth-store';
 import { MailboxShareSheet, canOfferMailboxShare } from '../MailboxShareSheet';
+import { createAfterDismiss } from '../../lib/after-dismiss';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -230,18 +231,16 @@ export function FolderSettings() {
     || iconPicked
   );
   // iOS can't present the share sheet while the editor is still sliding
-  // away: it opens once the editor is gone (onDismiss is iOS only).
-  const shareAfterEditor = useRef<{ mailbox: Mailbox; owner: string | null } | null>(null);
+  // away: it opens once the editor is gone (onDismiss is iOS only), or after
+  // a timeout when onDismiss never comes.
+  const [shareAfterEditor] = useState(() => createAfterDismiss<{ mailbox: Mailbox; owner: string | null }>(setSharing));
+  useEffect(() => () => shareAfterEditor.cancel(), [shareAfterEditor]);
   const openShareFromEditor = (target: { mailbox: Mailbox; owner: string | null }) => {
     closeEditor();
-    if (Platform.OS === 'ios') shareAfterEditor.current = target;
+    if (Platform.OS === 'ios') shareAfterEditor.arm(target);
     else setSharing(target);
   };
-  const onEditorDismissed = () => {
-    const target = shareAfterEditor.current;
-    shareAfterEditor.current = null;
-    if (target) setSharing(target);
-  };
+  const onEditorDismissed = () => shareAfterEditor.dismissed();
 
   // Settings lists only own folders, so the ids here are the raw JMAP ids the
   // shown account's scope writes to.
@@ -679,13 +678,13 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
       backgroundColor: c.primaryBg,
     },
-    rolePillText: { fontSize: 10, fontWeight: '500', color: c.primary },
+    rolePillText: { fontSize: fontPx(10), fontWeight: '500', color: c.primary },
     folderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     unreadBadge: {
       paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
       backgroundColor: c.primary,
     },
-    unreadText: { fontSize: 10, fontWeight: '500', color: c.primaryForeground },
+    unreadText: { fontSize: fontPx(10), fontWeight: '500', color: c.primaryForeground },
     total: { ...typography.caption, color: c.mutedForeground, minWidth: 32, textAlign: 'right' },
     moveButtons: { flexDirection: 'row', gap: 2 },
     moveBtn: { padding: spacing.xs, borderRadius: radius.sm },

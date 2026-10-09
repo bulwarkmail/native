@@ -103,3 +103,63 @@ export function selectNoticeToasts<N>(
     overflow: toasts.length - keep,
   };
 }
+
+/**
+ * How long a batch waits for a free toast slot. Three toasts the user must
+ * keep (an Undo, errors) can sit for a long time; past this the batch is
+ * acknowledged without a toast, so its notices don't stay queued forever.
+ */
+export const NOTICE_WAIT_CAP_MS = 60_000;
+
+/**
+ * Whether a waiting batch is shown now (there is room), waits on (no room,
+ * the clock started at `waitingSince`) or is dropped (waited past the cap).
+ * Showing or dropping it resets the clock.
+ */
+export function noticeWaitStep(
+  waitingSince: number | null,
+  now: number,
+  room: number,
+): { action: 'show' | 'wait' | 'drop'; waitingSince: number | null } {
+  if (room > 0) return { action: 'show', waitingSince: null };
+  if (waitingSince === null) return { action: 'wait', waitingSince: now };
+  if (now - waitingSince >= NOTICE_WAIT_CAP_MS) return { action: 'drop', waitingSince: null };
+  return { action: 'wait', waitingSince };
+}
+
+export interface NoticeWaiter {
+  /** What to do with the waiting batch given `room` free slots; a wait arms the timer. */
+  step(room: number): 'show' | 'drop' | 'wait';
+  /** The batch is gone: stop the clock and the timer. */
+  reset(): void;
+}
+
+/**
+ * One presenter's wait for room: the clock of `noticeWaitStep` and a single
+ * timer that calls `present` again when the wait reaches the cap, so a batch
+ * is dropped even when no toast ever leaves.
+ */
+export function createNoticeWaiter(present: () => void): NoticeWaiter {
+  let waitingSince: number | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const clearTimer = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  return {
+    step(room) {
+      const now = Date.now();
+      const next = noticeWaitStep(waitingSince, now, room);
+      waitingSince = next.waitingSince;
+      clearTimer();
+      if (next.action === 'wait') {
+        timer = setTimeout(present, Math.max(0, next.waitingSince! + NOTICE_WAIT_CAP_MS - now));
+      }
+      return next.action;
+    },
+    reset() {
+      waitingSince = null;
+      clearTimer();
+    },
+  };
+}

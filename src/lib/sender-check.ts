@@ -3,7 +3,9 @@
 // functions so the choice of words and of actions can be tested.
 
 import type { MessageParams } from '../i18n';
-import type { SenderVerification } from './email-headers';
+import type { Email, Identity } from '../api/types';
+import { deriveHeaderInfo, domainOf, findReceivingIdentity, isAuthenticationSpoofed, isFromDomainAuthenticated, type EmailHeaderInfo, type SenderVerification } from './email-headers';
+import { domainsAlign } from './registrable-domain';
 
 export type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
 
@@ -63,14 +65,128 @@ export function senderCheckText(verification: SenderVerification | null, t: Tran
 }
 
 /**
- * Whether to offer "Always trust this sender". Not for a sender the checks
- * don't back: trusting a forged address would load remote content for the
- * next forgery too. Nor while the verdict is unknown (`undefined`); `null`
- * means the checks back the sender or there are none to judge by.
+ * What the blocked-content banner says about the sender:
+ * - `offer_trust`: "Always trust this sender". Only on a message that passes
+ *   the sender check, the only kind a trusted address loads on its own;
+ *   offered elsewhere, the next message would ask again.
+ * - `trusted_unverified`: the sender is already trusted but this message
+ *   didn't pass, so say why it is blocked. Not when `senderWarned` (the
+ *   sender-check banner shows): it already says so, and once is enough.
+ * - `none`: neither (an unknown verdict, `undefined`, counts as no pass).
  */
-export function canOfferTrustSender(
-  senderEmail: string | undefined,
-  v: SenderVerification | null | undefined,
+export type TrustSenderBannerMode = 'offer_trust' | 'trusted_unverified' | 'none';
+
+export function trustSenderBannerMode(
+  senderEmail: string | null | undefined,
+  { listed, senderAuthenticated, senderWarned = false }: {
+    listed: boolean;
+    senderAuthenticated: boolean | undefined;
+    senderWarned?: boolean;
+  },
+): TrustSenderBannerMode {
+  if (!senderEmail?.trim()) return 'none';
+  if (senderAuthenticated === true) return listed ? 'none' : 'offer_trust';
+  return listed && !senderWarned ? 'trusted_unverified' : 'none';
+}
+
+/**
+ * Whether the server's checks positively tie a message to its From domain,
+ * from its derived header info (already pinned to the owning server).
+ */
+export function passesFromHeaderInfo(
+  headerInfo: Pick<EmailHeaderInfo, 'auth'>,
+  fromEmail: string | null | undefined,
 ): boolean {
-  return !!senderEmail && v === null;
+  return isFromDomainAuthenticated(headerInfo.auth, fromEmail);
+}
+
+/**
+ * The user's own copy of a message: in their own Sent or Drafts folder,
+ * which only the user (or their client) writes to. Judged only while one of
+ * the user's own folders is shown: a shared account's raw folder ids can
+ * equal the user's own, and the email carries no account. A $draft keyword
+ * alone doesn't count, as another user can set it in a shared folder.
+ */
+export function isOwnCopy(
+  email: { mailboxIds?: Record<string, boolean>; keywords?: Record<string, boolean> },
+  mailboxes: ReadonlyArray<{ id: string; role?: string | null; isShared?: boolean }>,
+  shownMailboxId: string | null | undefined,
+): boolean {
+  const shown = shownMailboxId ? mailboxes.find((m) => m.id === shownMailboxId) : undefined;
+  if (!shown || shown.isShared) return false;
+  const ids = email.mailboxIds ?? {};
+  return mailboxes.some((m) => !m.isShared && ids[m.id] && (m.role === 'sent' || m.role === 'drafts'));
+}
+
+/**
+ * The "via <identity>" badge: the message was sent as one of the user's
+ * identities, or received at one other than the default (incl. +tag). A
+ * legitimacy cue, so "sent as" needs the From to pass the sender check: a
+ * forged From has no pinned results, so it reads as neither spoofed nor
+ * passed. The user's own copy (`ownCopy`: in their own Sent or Drafts) is
+ * written by the client and never carries results, so it needs no pass.
+ * "Received at" is about the To, and is dropped only when the message reads
+ * as spoofed.
+ */
+export function viaIdentityBadge(
+  email: Pick<Email, 'from' | 'to' | 'cc' | 'bcc'>,
+  identities: Identity[],
+  headerInfo: Pick<EmailHeaderInfo, 'auth'>,
+  ownCopy = false,
+): { identity: Identity; direction: 'from' | 'to' } | null {
+  if (identities.length === 0 || isAuthenticationSpoofed(headerInfo.auth)) return null;
+  const fromEmail = email.from?.[0]?.email?.trim().toLowerCase();
+  const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
+  if (sentAs) {
+    return ownCopy || passesFromHeaderInfo(headerInfo, fromEmail) ? { identity: sentAs, direction: 'from' } : null;
+  }
+  const received = findReceivingIdentity(identities, email);
+  if (received && identities.length > 1 && received.id !== identities[0].id) {
+    return { identity: received, direction: 'to' };
+  }
+  return null;
+}
+
+type SenderSource = Pick<Email, 'from' | 'replyTo' | 'to' | 'cc' | 'headers' | 'messageId'>;
+
+/**
+ * Who replying to `source` must not file as trusted: every address on it,
+ * From, Reply-To, To and Cc (trimmed, lowercased, once each), unless the
+ * message passes the sender check (senderPassesCheck). Failed, unverified
+ * and no results to judge by all count: replying to a forgery would
+ * otherwise trust the forged address, and a reply-all the To and Cc the
+ * forger picked.
+ * On a pass, a Reply-To outside the From's domain (domainsAlign) still
+ * counts: the signature behind the pass may not cover Reply-To, so a
+ * replayed message can carry one the sender never wrote.
+ * `serverHost` is the owning account's authserv host (authservHostFor),
+ * never the live client's.
+ */
+export function untrustedReplyAddresses(source: SenderSource, serverHost: string | null): string[] {
+  const passes = senderPassesCheck(source, serverHost);
+  const addresses = passes
+    ? source.replyTo ?? []
+    : [...(source.from ?? []), ...(source.replyTo ?? []), ...(source.to ?? []), ...(source.cc ?? [])];
+  const fromDomain = passes ? domainOf(source.from?.[0]?.email ?? '') : undefined;
+  const out = new Set<string>();
+  for (const a of addresses) {
+    const email = a.email?.trim().toLowerCase();
+    if (!email) continue;
+    if (passes) {
+      const domain = domainOf(email);
+      if (fromDomain && domain && domainsAlign(domain, fromDomain)) continue;
+    }
+    out.add(email);
+  }
+  return [...out];
+}
+
+/**
+ * Whether the owning server's checks positively tie `source` to its From
+ * domain (isFromDomainAuthenticated on the pinned results). Unlike a null
+ * sender check, no results to judge by is a no: a trusted address's remote
+ * content loads on its own only for a message that passes.
+ */
+export function senderPassesCheck(source: Pick<Email, 'from' | 'headers' | 'messageId'>, serverHost: string | null): boolean {
+  return passesFromHeaderInfo(deriveHeaderInfo(source, serverHost), source.from?.[0]?.email);
 }

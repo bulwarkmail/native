@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bandEdgeStyle, drawerClosedX, drawerSafeEdges, toggleThumbX } from '../rtl-layout';
+import { bandEdgeStyle, drawerClosedX, drawerSafeEdges, forwardIconStyle, toggleThumbX } from '../rtl-layout';
 import { resolveRelease } from '../../components/swipe-gesture';
 
 describe('rtl-layout', () => {
@@ -25,6 +25,11 @@ describe('rtl-layout', () => {
     expect(toggleThumbX(true, false)).toBe(24);
     expect(toggleThumbX(false, true)).toBe(-4);
     expect(toggleThumbX(true, true)).toBe(-24);
+  });
+
+  it('mirrors a forward icon only in RTL', () => {
+    expect(forwardIconStyle(true)).toEqual({ transform: [{ scaleX: -1 }] });
+    expect(forwardIconStyle(false)).toBeUndefined();
   });
 
   it('leaves swipe actions physical: a rightward drag still fires rightAction in RTL', () => {

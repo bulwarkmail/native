@@ -555,15 +555,49 @@ export function getEventColor(
 // live in the settings store keyed by sharedCalendarColorKey().
 
 /**
- * Stable key for a shared calendar's local color override. Built from the
- * owning JMAP account + the calendar id so it stays unique across accounts.
+ * Stable key for a shared calendar's local color override. JMAP ids repeat
+ * across app accounts (two servers can both have `team|c1`), so the key
+ * names the app account first, then the owning JMAP account and calendar.
  */
 export function sharedCalendarColorKey(
+  appAccountId: string,
   cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
 ): string {
   // Keyed on the raw server id (like webmail) so the key doesn't depend on
   // the store's `${accountId}:${id}` namespacing format.
+  return `${appAccountId}|${cal.accountId ?? ''}|${cal.originalId ?? cal.id}`;
+}
+
+/**
+ * The key overrides were stored under before they were per app account,
+ * and the one a webmail settings import carries. Read only: writes use
+ * sharedCalendarColorKey().
+ *
+ * Nothing names an app account in it, so every app account reads it (as a
+ * fallback, sharedCalendarColorFor): one whose JMAP ids collide with the
+ * account that set it shows that colour too. Kept so an override from
+ * before the upgrade, or from a webmail export, still shows; a reset writes
+ * a per-account key over it, for that account only.
+ */
+export function legacySharedCalendarColorKey(
+  cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
+): string {
   return `${cal.accountId ?? ''}|${cal.originalId ?? cal.id}`;
+}
+
+/**
+ * The viewer's override for a shared calendar in app account
+ * `appAccountId`: the per-account one, else one under the old key, so an
+ * existing override or a webmail import still shows.
+ */
+export function sharedCalendarColorFor(
+  overrides: Record<string, string>,
+  appAccountId: string,
+  cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
+): string | undefined {
+  return (appAccountId ? overrides[sharedCalendarColorKey(appAccountId, cal)] : undefined)
+    || overrides[legacySharedCalendarColorKey(cal)]
+    || undefined;
 }
 
 /**
@@ -590,13 +624,84 @@ export function pickUnusedCalendarColor(usedColors: Iterable<string>): string {
 export function applySharedCalendarColors(
   calendars: Calendar[],
   overrides: Record<string, string>,
+  appAccountId: string,
 ): Calendar[] {
   return calendars.map((cal) => {
     if (!cal.isShared) return cal;
-    const override = overrides[sharedCalendarColorKey(cal)];
+    const override = sharedCalendarColorFor(overrides, appAccountId, cal);
     if (!override) return cal;
     return { ...cal, color: override, colorIsLocalOverride: true };
   });
+}
+
+/** Colours already on screen: personal calendars' and every stored override. */
+function takenCalendarColors(calendars: Calendar[], overrides: Record<string, string>): Set<string> {
+  const used = new Set<string>();
+  for (const cal of calendars) {
+    if (!cal.isShared && cal.color) used.add(cal.color.toLowerCase());
+  }
+  for (const color of Object.values(overrides)) {
+    if (color) used.add(color.toLowerCase());
+  }
+  return used;
+}
+
+/**
+ * The app account whose overrides paint a calendar list: the shown one,
+ * but only once the list was loaded for it (`loadedFor`). During a switch
+ * the list is still the previous account's, and the shown account's keys
+ * would name other calendars that happen to share their ids. '' applies
+ * only the old keys.
+ */
+export function calendarColorAccount(loadedFor: string | null | undefined, shownAccountId: string | null | undefined): string {
+  return shownAccountId && loadedFor === shownAccountId ? shownAccountId : '';
+}
+
+/**
+ * A random, not-yet-used colour for each shared calendar that has no
+ * override in the shown app account `appAccountId` (one under the old key
+ * counts), as new-key → colour. Nothing while no account is shown, or while
+ * `calendars` were loaded for another account (`loadedFor`): during a
+ * switch the list is still the previous account's, and its ids would name
+ * other calendars under the new account's key.
+ */
+export function missingSharedCalendarColors(
+  calendars: Calendar[],
+  loadedFor: string | null,
+  overrides: Record<string, string>,
+  appAccountId: string,
+): Record<string, string> {
+  const assigned: Record<string, string> = {};
+  if (!appAccountId || loadedFor !== appAccountId) return assigned;
+  const missing = calendars.filter(
+    (cal) => cal.isShared && !sharedCalendarColorFor(overrides, appAccountId, cal),
+  );
+  if (missing.length === 0) return assigned;
+  const used = takenCalendarColors(calendars, overrides);
+  for (const cal of missing) {
+    const color = pickUnusedCalendarColor(used);
+    used.add(color.toLowerCase());
+    assigned[sharedCalendarColorKey(appAccountId, cal)] = color;
+  }
+  return assigned;
+}
+
+/**
+ * The override a reset writes: a fresh unused colour (never the one it
+ * had) under the account's own key. The old key is left alone: it is
+ * shared by every app account and a webmail import, and the new key
+ * shadows it for this account only.
+ */
+export function resetSharedCalendarColor(
+  calendars: Calendar[],
+  overrides: Record<string, string>,
+  appAccountId: string,
+  cal: Pick<Calendar, 'id' | 'accountId' | 'originalId'>,
+): { key: string; color: string } {
+  return {
+    key: sharedCalendarColorKey(appAccountId, cal),
+    color: pickUnusedCalendarColor(takenCalendarColors(calendars, overrides)),
+  };
 }
 
 export function getPrimaryCalendarId(

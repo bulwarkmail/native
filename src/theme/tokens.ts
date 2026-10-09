@@ -328,6 +328,12 @@ type TypographyKey = keyof typeof BASE_TYPOGRAPHY;
 // as `maxFontSizeMultiplier`; the font size setting still applies in full.
 export const CHROME_MAX_FONT_SCALE = 1.3;
 
+// The most the OS font scale may enlarge any other text. A patch to
+// react-native's Text and TextInput (patches/react-native+0.81.5.patch) makes
+// this the default `maxFontSizeMultiplier` of every top-level Text and every
+// TextInput; a nested Text inherits its parent's cap. Keep the two in step.
+export const BODY_MAX_FONT_SCALE = 1.5;
+
 // The Appearance font size setting, as webmail's root font size (14px, 16px
 // or 18px over a 16px base).
 export const FONT_SCALE = { small: 0.875, medium: 1, large: 1.125 } as const;
@@ -340,9 +346,25 @@ export const typography: { readonly [K in TypographyKey]: Readonly<TextStyleToke
     Object.entries(BASE_TYPOGRAPHY).map(([key, style]) => [key, { ...style }]),
   ) as Record<TypographyKey, TextStyleToken>;
 
+// The factor applyFontScale last set, for fontPx.
+let fontFactor = 1;
+
+// A one-off text size (a badge, a code block) at the font size setting:
+// `px` times the factor, to the nearest half point. Like `typography`, call it
+// inside a style builder, never at module scope.
+export function fontPx(px: number): number {
+  return Math.round(px * fontFactor * 2) / 2;
+}
+
+// The factor itself, for a style cache that must rebuild when it changes.
+export function fontScaleFactor(): number {
+  return fontFactor;
+}
+
 // Sets every entry to its base size times `factor`. Always from the base, so
 // calling it again with the same factor changes nothing.
 export function applyFontScale(factor: number): void {
+  fontFactor = factor;
   const live = typography as Record<TypographyKey, TextStyleToken>;
   for (const key of Object.keys(BASE_TYPOGRAPHY) as TypographyKey[]) {
     const base = BASE_TYPOGRAPHY[key];

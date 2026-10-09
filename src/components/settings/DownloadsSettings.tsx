@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { RotateCcw } from 'lucide-react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import Input from '../Input';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type SpaceReplacement, type PostExportAction } from '../../stores/settings-store';
 import {
@@ -179,7 +179,7 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.muted,
       gap: 2,
     },
-    previewLabel: { fontSize: 11, fontWeight: '600', color: c.mutedForeground, textTransform: 'uppercase' },
+    previewLabel: { fontSize: fontPx(11), fontWeight: '600', color: c.mutedForeground, textTransform: 'uppercase' },
     previewValue: { ...typography.captionMedium, color: c.text },
     tokenWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.md },
     tokenPill: {
@@ -188,6 +188,6 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.xs,
       backgroundColor: c.muted,
     },
-    tokenText: { fontSize: 11, color: c.mutedForeground },
+    tokenText: { fontSize: fontPx(11), color: c.mutedForeground },
   });
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   FlatList,
   View,
+  useWindowDimensions,
   type ListRenderItemInfo,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -16,7 +17,9 @@ import {
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
 import {
   dayIndexIn,
+  monthChipRowHeight,
   monthFocusRow,
+  monthMountPosition,
   monthKeyOf,
   monthMask,
   sampledRow,
@@ -27,7 +30,6 @@ import { useCalendarLocale } from '../../lib/calendar-locale';
 import { displayNow } from '../../lib/calendar-timezone';
 import {
   MONTH_ROW_HEIGHT,
-  MONTH_ROW_HEIGHT_CHIPS,
   MonthWeekRow,
   MonthWeekdayHeader,
   useMonthStyles,
@@ -120,7 +122,11 @@ function MonthScrollViewInner({
   }, [window]);
   const weeksRef = React.useRef(weeks);
   weeksRef.current = weeks;
-  const rowHeight = showTimeInMonthView ? MONTH_ROW_HEIGHT_CHIPS : MONTH_ROW_HEIGHT;
+  // The chip row grows with the font size setting (useMonthStyles re-renders
+  // on it) and the OS font scale; the rows, getItemLayout and the sampling
+  // all read this one value.
+  const { fontScale } = useWindowDimensions();
+  const rowHeight = showTimeInMonthView ? monthChipRowHeight(fontScale) : MONTH_ROW_HEIGHT;
   const viewportHeight = rowHeight * VISIBLE_ROWS;
 
   // The month in focus: set by navigation, then by what scrolls under the
@@ -176,10 +182,15 @@ function MonthScrollViewInner({
   const handledNonceRef = React.useRef(focus.nonce);
   const initialRef = React.useRef<{ rowHeight: number; row: number } | null>(null);
   if (initialRef.current === null || initialRef.current.rowHeight !== rowHeight) {
-    initialRef.current = {
+    const mount = monthMountPosition(
+      topRowRef.current ?? monthFocusRow(window, focus.date, weeks.length, opts),
       rowHeight,
-      row: topRowRef.current ?? monthFocusRow(window, focus.date, weeks.length, opts),
-    };
+      weeks.length,
+    );
+    initialRef.current = { rowHeight, row: mount.row };
+    // The remounted list starts at that row: the old offset was in the old
+    // row height, and the sampling and navigation read this one.
+    offsetRef.current = mount.offset;
   }
   React.useEffect(() => {
     if (handledNonceRef.current === focus.nonce) return;

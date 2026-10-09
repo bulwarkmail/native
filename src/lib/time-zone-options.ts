@@ -1,8 +1,8 @@
 import { AUTO_TIME_ZONE, isValidTimeZone } from './time-zone';
 
-// The zones offered in the time zone pickers: a hand-picked list. The
-// device zone and a synced zone missing from it are added by
-// `timeZoneOptions`.
+// The zones offered in the time zone pickers when the runtime cannot list
+// its own (see `availableTimeZones`). The device zone and a synced zone
+// missing from it are added by `timeZoneOptions`.
 export const COMMON_TIME_ZONES: readonly string[] = [
   'UTC',
   'Europe/London', 'Europe/Dublin', 'Europe/Lisbon',
@@ -22,18 +22,40 @@ export const COMMON_TIME_ZONES: readonly string[] = [
 ];
 
 /**
+ * Every zone the runtime knows, from `Intl.supportedValuesOf('timeZone')`,
+ * else the hand-picked list. Today's Hermes has no `supportedValuesOf` (its
+ * Intl offers only `supportedLocalesOf` and `getCanonicalLocales`), so the
+ * device keeps the hand-picked list until Hermes adds it; Node and the web
+ * get the full list.
+ */
+export function availableTimeZones(
+  intl: { supportedValuesOf?: (key: 'timeZone') => string[] } = Intl as never,
+): readonly string[] {
+  if (typeof intl.supportedValuesOf !== 'function') return COMMON_TIME_ZONES;
+  try {
+    const zones = intl.supportedValuesOf('timeZone');
+    return Array.isArray(zones) && zones.length > 0 ? zones : COMMON_TIME_ZONES;
+  } catch {
+    return COMMON_TIME_ZONES;
+  }
+}
+
+/**
  * Select options for the time zone setting: automatic first, then the
- * device zone, the common zones and the current one, sorted by name.
+ * device zone, the available zones and the current one, sorted by name.
  */
 export function timeZoneOptions(
   deviceZone: string,
   current: string | undefined,
   autoLabel: string,
+  zones: readonly string[] = availableTimeZones(),
 ): { value: string; label: string }[] {
-  const zones = new Set<string>([deviceZone, ...COMMON_TIME_ZONES]);
-  if (current && current !== AUTO_TIME_ZONE && isValidTimeZone(current)) zones.add(current);
+  // V8's `supportedValuesOf` lists no `UTC` (only the Etc/ aliases' targets),
+  // and UTC has always been offered.
+  const offered = new Set<string>(['UTC', deviceZone, ...zones]);
+  if (current && current !== AUTO_TIME_ZONE && isValidTimeZone(current)) offered.add(current);
   return [
     { value: AUTO_TIME_ZONE, label: autoLabel },
-    ...[...zones].sort().map((z) => ({ value: z, label: z.replace(/_/g, ' ') })),
+    ...[...offered].sort().map((z) => ({ value: z, label: z.replace(/_/g, ' ') })),
   ];
 }

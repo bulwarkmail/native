@@ -1,11 +1,29 @@
 import { addDays, differenceInCalendarDays } from 'date-fns';
 import { baseRange, type DayRange, type ScrollWindowOptions } from './calendar-scroll-window';
 import { GREGORIAN, type CalendarSystem } from './calendar-system';
+import { CHROME_MAX_FONT_SCALE, fontPx } from '../theme/tokens';
 
 /**
  * Geometry of the freely scrolling month view (#759, webmail
  * calendar-month-view): one fixed-height row per week of the window.
  */
+
+/**
+ * Height of a week row with event chips (#666): 4px padding above and below,
+ * the 36px day circle, 2px, then two chips (an 11px line and 1px padding
+ * each, 1px apart) or one chip and a 10px "+N" line, and 1px to spare. The
+ * lines follow the font size setting and, up to CHROME_MAX_FONT_SCALE (the
+ * chip and "+N" Text cap it), the OS font scale, which Android applies to
+ * lineHeight. Whole pixels, so every row and getItemLayout offset agree.
+ * Call it in render, like fontPx.
+ */
+export function monthChipRowHeight(osFontScale: number): number {
+  const scale = Math.min(Math.max(osFontScale, 1), CHROME_MAX_FONT_SCALE);
+  const line = (px: number) => Math.ceil(fontPx(px) * scale);
+  const chip = line(11) + 2;
+  const chips = Math.max(2 * chip + 1, chip + 1 + line(10));
+  return 4 + 36 + 2 + chips + 4 + 1;
+}
 
 /** Fraction of the viewport height at which the "current month" is sampled. */
 export const VISIBLE_MONTH_SAMPLE = 0.4;
@@ -33,6 +51,17 @@ export function monthFocusRow(
   const gridStart = baseRange('month', date, opts).start;
   const row = Math.floor(differenceInCalendarDays(gridStart, window.start) / 7);
   return Math.max(0, Math.min(rowCount - 1, row));
+}
+
+/**
+ * Where the list mounts (its `initialScrollIndex`, clamped to the rows it
+ * has) and the scroll offset that row has at `rowHeight`. After a remount
+ * for a new row height the old offset is in the old height's units, so it
+ * is reset to this one until the list reports a scroll.
+ */
+export function monthMountPosition(row: number, rowHeight: number, rowCount: number): { row: number; offset: number } {
+  const at = Math.max(0, Math.min(rowCount - 1, row));
+  return { row: at, offset: at * rowHeight };
 }
 
 /** Row under the sample line for a scroll offset. */

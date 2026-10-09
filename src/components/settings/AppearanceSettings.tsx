@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ThemeMode, type FontSize, type Density } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -187,14 +187,14 @@ function makeStyles(c: ThemePalette) {
     flex: 1,
   },
   densityTime: {
-    fontSize: 10,
+    fontSize: fontPx(10),
     color: c.mutedForeground,
   },
   densitySubject: {
     ...typography.caption,
   },
   densityPreviewText: {
-    fontSize: 11,
+    fontSize: fontPx(11),
     color: c.textMuted,
   },
   divider: {

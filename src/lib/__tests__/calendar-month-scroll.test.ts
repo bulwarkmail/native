@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { applyFontScale, CHROME_MAX_FONT_SCALE, FONT_SCALE, fontPx } from '../../theme/tokens';
 import { dayKey } from '../calendar-utils';
 import {
   computeScrollWindow,
@@ -9,7 +10,9 @@ import {
   dayIndexIn,
   monthFocusRow,
   monthKeyOf,
+  monthChipRowHeight,
   monthMask,
+  monthMountPosition,
   sampledRow,
   weekDays,
   windowWeekStarts,
@@ -87,6 +90,17 @@ describe('sampledRow', () => {
   });
 });
 
+describe('monthMountPosition', () => {
+  // A row height change remounts the list at its top row: the offset the
+  // sampling reads must be that row's in the new height, not the old offset.
+  it('puts the offset at the mount row in the new row height', () => {
+    expect(monthMountPosition(10, 74, 50)).toEqual({ row: 10, offset: 740 });
+    expect(monthMountPosition(80, 60, 50)).toEqual({ row: 49, offset: 49 * 60 });
+    expect(monthMountPosition(-2, 60, 50)).toEqual({ row: 0, offset: 0 });
+    expect(monthMountPosition(3, 60, 0)).toEqual({ row: 0, offset: 0 });
+  });
+});
+
 describe('monthMask / monthKeyOf', () => {
   it('marks the days of the month in focus', () => {
     const days = weekDays(new Date(2026, 8, 28)); // Sep 28 .. Oct 4
@@ -113,5 +127,44 @@ describe('dayIndexIn', () => {
     expect(dayIndexIn(days, new Date(2026, 9, 5))).toBe(-1);
     expect(dayIndexIn(days, new Date(2026, 8, 27))).toBe(-1);
     expect(dayIndexIn([], new Date())).toBe(-1);
+  });
+});
+
+describe('monthChipRowHeight', () => {
+  afterEach(() => applyFontScale(1));
+
+  // What a chip row holds: 4px padding above and below, the 36px day circle,
+  // 2px, then two chips (an 11px line and 1px padding each, 1px apart) or one
+  // chip, 1px and a 10px "+N" line. Lines grow with the font size setting and
+  // the OS scale, which Android applies to lineHeight up to the chrome cap.
+  function content(osScale: number): number {
+    const line = (px: number) => fontPx(px) * Math.min(osScale, CHROME_MAX_FONT_SCALE);
+    const chip = line(11) + 2;
+    return 4 + 36 + 2 + Math.max(2 * chip + 1, chip + 1 + line(10)) + 4;
+  }
+
+  it('keeps the 74px row at Medium with no OS scale', () => {
+    expect(monthChipRowHeight(1)).toBe(74);
+  });
+
+  it('grows with the font size setting and fits two chips, or a chip and +N, at Large', () => {
+    const medium = monthChipRowHeight(1);
+    applyFontScale(FONT_SCALE.large);
+    expect(monthChipRowHeight(1)).toBeGreaterThan(medium);
+    expect(monthChipRowHeight(1)).toBeGreaterThanOrEqual(content(1));
+  });
+
+  it('fits the OS font scale up to the chrome cap, and no further', () => {
+    applyFontScale(FONT_SCALE.large);
+    expect(monthChipRowHeight(1.3)).toBeGreaterThanOrEqual(content(1.3));
+    expect(monthChipRowHeight(2)).toBe(monthChipRowHeight(CHROME_MAX_FONT_SCALE));
+    expect(monthChipRowHeight(0.85)).toBe(monthChipRowHeight(1));
+  });
+
+  it('is a whole number of pixels, so rows and getItemLayout offsets agree', () => {
+    for (const factor of Object.values(FONT_SCALE)) {
+      applyFontScale(factor);
+      for (const os of [1, 1.15, 1.3, 2]) expect(Number.isInteger(monthChipRowHeight(os))).toBe(true);
+    }
   });
 });

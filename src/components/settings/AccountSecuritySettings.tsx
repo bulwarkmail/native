@@ -8,7 +8,7 @@ import {
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Input from '../Input';
 import Button from '../Button';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { jmapClient } from '../../api/jmap-client';
 import {
@@ -1055,7 +1055,7 @@ function makeStyles(c: ThemePalette) {
     pwLabel: { ...typography.caption, color: c.mutedForeground, marginBottom: 4 },
     pwInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     eyeBtn: { padding: spacing.sm },
-    fieldHint: { ...typography.caption, color: c.mutedForeground, marginTop: 4, fontSize: 11 },
+    fieldHint: { ...typography.caption, color: c.mutedForeground, marginTop: 4, fontSize: fontPx(11) },
     errorText: { ...typography.caption, color: c.error },
 
     panel: {
@@ -1092,7 +1092,7 @@ function makeStyles(c: ThemePalette) {
     credMeta: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
     ipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
     ipPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.xs, backgroundColor: c.background, borderWidth: 1, borderColor: c.border },
-    ipText: { fontSize: 10, fontFamily: 'monospace', color: c.mutedForeground },
+    ipText: { fontSize: fontPx(10), fontFamily: 'monospace', color: c.mutedForeground },
     iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
     keyChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
     emptyText: { ...typography.caption, color: c.mutedForeground, fontStyle: 'italic' },

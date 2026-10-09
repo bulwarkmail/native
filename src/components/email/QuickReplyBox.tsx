@@ -40,6 +40,8 @@ import { emailDisplayDate } from '../../lib/email-date';
 import { sendErrorAlert } from '../../lib/send-errors';
 import { formatRejectedRecipients } from '../../api/jmap-result';
 import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
+import { untrustedReplyAddresses } from '../../lib/sender-check';
+import { authservHostFor } from '../../lib/authserv-host';
 
 interface Props {
   email: Email;
@@ -228,7 +230,12 @@ export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreO
             jmapAccountId: queueAccountId,
             identityId: identity.id,
             outgoing,
-            replyTo: { emailIds: [email.id], keyword: '$answered', jmapAccountId },
+            // The replay trusts the recipients; never a sender the owning
+            // server's checks flag.
+            replyTo: {
+              emailIds: [email.id], keyword: '$answered', jmapAccountId,
+              untrusted: untrustedReplyAddresses(email, authservHostFor(ownerAppAccountId ?? undefined)),
+            },
           }));
           messageIdRef.current = null;
           setText('');

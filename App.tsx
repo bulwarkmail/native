@@ -103,7 +103,7 @@ import { useSendQueueStore } from './src/stores/send-queue-store';
 import { flushSendQueue, hasNewEntry } from './src/lib/send-queue-replay';
 import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
-import { CHROME_MAX_FONT_SCALE, spacing, typography, type ThemePalette } from './src/theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, typography, fontPx, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
 import { syncFontScale } from './src/theme/dynamic';
 
@@ -287,15 +287,17 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       top: -2,
       right: -6,
       minWidth: 16,
-      height: 16,
+      // Not a fixed height: Android scales lineHeight by the OS font scale
+      // (up to CHROME_MAX_FONT_SCALE), and a 16px box clipped the count.
+      minHeight: 16,
       paddingHorizontal: 4,
-      borderRadius: 8,
+      borderRadius: 999,
       overflow: 'hidden',
       backgroundColor: c.error,
       color: c.primaryForeground,
-      fontSize: 10,
+      fontSize: fontPx(10),
       fontWeight: '700',
-      lineHeight: 16,
+      lineHeight: fontPx(16),
       textAlign: 'center',
     },
   }), [c]);

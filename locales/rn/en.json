@@ -470,6 +470,7 @@
     "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
     "thread_loading": "Loading conversation...",
+    "trusted_sender_unverified": "Images aren't loaded automatically because this message couldn't be verified as coming from {sender}.",
     "unsubscribe_banner": {
       "no_identity": "No sending identity available"
     },
@@ -1301,7 +1302,10 @@
     }
   },
   "share_notifications": {
-    "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}"
+    "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}",
+    "object": {
+      "other": "shared item"
+    }
   },
   "sharing": {
     "confirm_manager_title": "Make them a manager?",

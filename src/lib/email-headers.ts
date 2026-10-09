@@ -7,6 +7,9 @@
 import type { Email, Identity } from '../api/types';
 import { parseUnsubscribeUrls, type UnsubscribeUrls } from './unsubscribe';
 import { resolveReplyFrom } from './reply-identity';
+import { domainsAlign } from './registrable-domain';
+import { pinAuthenticationResults } from './authserv';
+import { splitAuthResinfo } from './auth-resinfo';
 
 /**
  * The identity a received message was addressed to (exact or `+tag`), for
@@ -130,7 +133,8 @@ function hasDkimPass(auth: AuthenticationResults): boolean {
   return auth.dkim?.result === 'pass' || !!auth.dkim?.all?.some((entry) => entry.result === 'pass');
 }
 
-function domainOf(address: string): string | undefined {
+/** The domain of an address, lowercased; undefined when it isn't a host name. */
+export function domainOf(address: string): string | undefined {
   const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
   // The address can be sender-written: cap it at a DNS name's length, and
   // match labels that can't overlap, so no input makes the test backtrack.
@@ -178,12 +182,14 @@ export function getSenderVerification(
   const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
 
   if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
-  // A pass vouches for the From domain only when it is for that domain (or a
-  // parent or subdomain of it): anyone can pass SPF, DKIM and DMARC for a
-  // domain of their own, and with no DMARC record at the forged one nothing
-  // else would flag it. Stricter than webmail, which takes any pass
-  // (decision 2026-10-08). The same test as the invitation banner's, so the
-  // two never disagree about one message.
+  // A pass vouches for the From domain only when it aligns with it, DMARC's
+  // relaxed way: the same registrable domain by the public suffix list, so a
+  // sibling subdomain counts and another tenant of a shared suffix never
+  // does (this replaces the parent-or-subdomain rule of 2026-10-08). Anyone
+  // can pass SPF, DKIM and DMARC for a domain of their own, and with no DMARC
+  // record at the forged one nothing else would flag it. Stricter than
+  // webmail, which takes any pass. The same test as the invitation banner's,
+  // so the two never disagree about one message.
   if (isFromDomainAuthenticated(auth, fromEmail)) return null;
   return { status: 'unverified', domain, sentFrom };
 }
@@ -191,9 +197,11 @@ export function getSenderVerification(
 /**
  * Whether the receiving server's checks positively tie the message to its
  * From domain: the domain parses, nothing reads as spoofed, and there is a
- * DMARC pass for that domain or an SPF (MAIL FROM) or DKIM pass aligned with
- * it. Unlike getSenderVerification, no result, an unparsable domain or a
- * pass for another domain is never a yes.
+ * DMARC pass whose header.from aligns with that domain, or an SPF (MAIL
+ * FROM) or DKIM pass aligned with it (relaxed alignment: one registrable
+ * domain, see domainsAlign). Unlike
+ * getSenderVerification, no result, an unparsable domain or a pass for
+ * another domain is never a yes.
  */
 export function isFromDomainAuthenticated(
   auth: AuthenticationResults | null | undefined,
@@ -202,10 +210,12 @@ export function isFromDomainAuthenticated(
   if (!auth || !fromEmail) return false;
   const domain = domainOf(fromEmail);
   if (!domain || isAuthenticationSpoofed(auth)) return false;
-  if (auth.dmarc?.result === 'pass') {
-    const dmarcDomain = auth.dmarc.domain ? domainOf(`@${auth.dmarc.domain}`) : undefined;
-    if (!auth.dmarc.domain || (dmarcDomain && domainsAlign(dmarcDomain, domain))) return true;
-  }
+  // A DMARC pass vouches only for the header.from it names: one that names
+  // none says nothing about this From (Stalwart always writes header.from).
+  const dmarcDomain = auth.dmarc?.result === 'pass' && auth.dmarc.domain
+    ? domainOf(`@${auth.dmarc.domain}`)
+    : undefined;
+  if (dmarcDomain && domainsAlign(dmarcDomain, domain)) return true;
   const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
   // Only a MAIL FROM pass: a HELO pass proves nothing about who wrote it.
   const spfPass = auth.spf?.all
@@ -215,10 +225,6 @@ export function isFromDomainAuthenticated(
   const envelopeDomain = envelope ? domainOf(envelope) : undefined;
   if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return true;
   return hasAlignedDkimPass(auth, domain);
-}
-
-function domainsAlign(a: string, b: string): boolean {
-  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
 }
 
 function hasAlignedDkimPass(auth: AuthenticationResults, fromDomain: string): boolean {
@@ -234,49 +240,6 @@ interface ResInfo {
   method: string;
   result: string;
   props: Record<string, string>;
-}
-
-/**
- * Split one Authentication-Results header into its `;`-separated parts
- * (RFC 8601), dropping comments. A `;` inside a quoted string or a comment
- * does not split: both can carry sender-chosen text such as the envelope
- * address.
- */
-function splitResinfo(header: string): string[] {
-  const parts: string[] = [];
-  let current = '';
-  let depth = 0;
-  let quoted = false;
-  for (let i = 0; i < header.length; i++) {
-    const c = header[i];
-    if (c === '\\' && (quoted || depth > 0)) {
-      if (depth === 0) current += c + (header[i + 1] ?? '');
-      i++;
-      continue;
-    }
-    if (quoted) {
-      current += c;
-      if (c === '"') quoted = false;
-      continue;
-    }
-    if (c === '(') {
-      depth++;
-      continue;
-    }
-    if (depth > 0) {
-      if (c === ')' && --depth === 0) current += ' ';
-      continue;
-    }
-    if (c === '"') quoted = true;
-    if (c === ';') {
-      parts.push(current);
-      current = '';
-      continue;
-    }
-    current += c;
-  }
-  parts.push(current);
-  return parts.map((part) => part.trim()).filter(Boolean);
 }
 
 const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;
@@ -309,7 +272,7 @@ function parseResinfo(part: string): ResInfo | null {
 }
 
 function parseResinfos(header: string): ResInfo[] {
-  return splitResinfo(header)
+  return splitAuthResinfo(header)
     .map(parseResinfo)
     .filter((info): info is ResInfo => info !== null);
 }
@@ -517,11 +480,16 @@ export interface EmailHeaderInfo {
 /** Everything the reader derives from a message's raw headers, in one pass. */
 export function deriveHeaderInfo(
   email: Pick<Email, 'headers' | 'messageId'> & Partial<Pick<Email, 'from'>>,
+  serverHost: string | null | undefined,
 ): EmailHeaderInfo {
   const headers = email.headers;
-  const authHeaders = headerValues(headers, 'Authentication-Results');
-  // The last hop's results are prepended, so the first header is the
-  // receiving server's own verdict; the parser trusts that one for DKIM/DMARC.
+  // Anyone can write an Authentication-Results header; the receiving MTA
+  // prepends its own and removes incoming ones that claim its id (RFC 8601
+  // §5). So the topmost header is the server's verdict only when it carries
+  // the account's server's authserv-id; otherwise there are no results. The
+  // parser trusts that one for DKIM/DMARC and treats the ones below as
+  // foreign. See pinAuthenticationResults.
+  const authHeaders = pinAuthenticationResults(headerValues(headers, 'Authentication-Results'), serverHost);
   const auth = authHeaders.length ? parseAuthenticationResults(authHeaders) : undefined;
 
   const spamRaw = headerValue(headers, 'X-Spam-Status')

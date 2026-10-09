@@ -1,0 +1,57 @@
+diff --git a/node_modules/react-native/Libraries/Components/TextInput/TextInput.js b/node_modules/react-native/Libraries/Components/TextInput/TextInput.js
+index 1e95eb6..e785f78 100644
+--- a/node_modules/react-native/Libraries/Components/TextInput/TextInput.js
++++ b/node_modules/react-native/Libraries/Components/TextInput/TextInput.js
+@@ -885,6 +885,9 @@ const TextInput: component(
+ ) = function TextInput({
+   ref: forwardedRef,
+   allowFontScaling = true,
++  // Bulwark: caps the OS font scale at BODY_MAX_FONT_SCALE (src/theme/tokens.ts)
++  // unless the input names its own cap.
++  maxFontSizeMultiplier = 1.5,
+   rejectResponderTermination = true,
+   underlineColorAndroid = 'transparent',
+   autoComplete,
+@@ -904,6 +907,7 @@ const TextInput: component(
+   return (
+     <InternalTextInput
+       allowFontScaling={allowFontScaling}
++      maxFontSizeMultiplier={maxFontSizeMultiplier}
+       rejectResponderTermination={rejectResponderTermination}
+       underlineColorAndroid={underlineColorAndroid}
+       editable={readOnly !== undefined ? !readOnly : editable}
+diff --git a/node_modules/react-native/Libraries/Text/Text.js b/node_modules/react-native/Libraries/Text/Text.js
+index b08b8f3..f0d33f9 100644
+--- a/node_modules/react-native/Libraries/Text/Text.js
++++ b/node_modules/react-native/Libraries/Text/Text.js
+@@ -169,7 +169,14 @@ const TextImpl: component(
+ 
+   const _nativeID = id ?? nativeID;
+ 
++  // Bulwark: a top-level Text caps the OS font scale at BODY_MAX_FONT_SCALE
++  // (src/theme/tokens.ts) unless it names its own cap. A nested Text keeps what
++  // it was given, so it inherits its parent's cap (CHROME_MAX_FONT_SCALE too).
+   const hasTextAncestor = useContext(TextAncestorContext);
++  const _maxFontSizeMultiplier =
++    restProps.maxFontSizeMultiplier === undefined
++      ? 1.5
++      : restProps.maxFontSizeMultiplier;
+   if (hasTextAncestor) {
+     if (isPressable) {
+       return (
+@@ -247,6 +254,7 @@ const TextImpl: component(
+         ref={forwardedRef}
+         textProps={{
+           ...restProps,
++          maxFontSizeMultiplier: _maxFontSizeMultiplier,
+           accessibilityLabel: _accessibilityLabel,
+           accessibilityState: _accessibilityState,
+           accessible: _accessible,
+@@ -280,6 +288,7 @@ const TextImpl: component(
+     nativeText = (
+       <NativeText
+         {...restProps}
++        maxFontSizeMultiplier={_maxFontSizeMultiplier}
+         accessibilityLabel={_accessibilityLabel}
+         accessibilityState={_accessibilityState}
+         accessible={_accessible}

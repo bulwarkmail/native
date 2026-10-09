@@ -37,8 +37,8 @@ import { useContactsStore, mergeServerHits, type RecipientSuggestion } from '../
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useHasContacts } from '../lib/capabilities';
-import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
-import { trustRecipients } from '../lib/trust-recipients';
+import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { trustRecipients, trustedSendersBookSyncOn } from '../lib/trust-recipients';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import {
@@ -793,18 +793,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // Remote images in a quoted original stay blocked in the editor whenever
   // the viewer blocks them; the sent HTML keeps them. Read once: the editor
-  // page is built on mount.
+  // page is built on mount. The viewer's own test, sender check included.
   const blockRemoteImages = React.useMemo(() => {
     const settings = useSettingsStore.getState();
-    const sender = replyTo?.from.email?.trim().toLowerCase();
     return shouldBlockEditorRemoteImages({
       seedHtml: draft ? draft.htmlBody : replyTo?.htmlBody,
       isDraft: !!draft,
       externalContentPolicy: settings.externalContentPolicy,
-      senderTrusted: !!sender && (
-        settings.isSenderTrusted(sender)
-        || useContactsStore.getState().trustedSenderEmails.includes(sender)
-      ),
+      senderTrusted: isSenderContentTrusted(replyTo?.from.email, {
+        isLocallyTrusted: settings.isSenderTrusted,
+        syncEnabled: trustedSendersBookSyncOn(),
+        trustedBookEmails: useContactsStore.getState().trustedSenderEmails,
+        senderAuthenticated: replyTo?.senderAuthenticated,
+      }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2693,6 +2694,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   emailIds: [replyTo.originalEmailId],
                   keyword: mode === 'forward' ? '$forwarded' : '$answered',
                   jmapAccountId: replyTo.jmapAccountId,
+                  untrusted: replyTo.untrustedAddresses,
                 }
               : undefined,
           }));
@@ -2750,10 +2752,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
         ).catch(() => undefined);
       }
       // People you reply to are people you trust: allow their remote content
-      // from now on (webmail 1.5.x).
+      // from now on (webmail 1.5.x). Not the sender of a message that failed
+      // or couldn't pass the sender check: that address may be forged.
       if (isReplyLike && mode !== 'forward') {
         trustRecipients([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients, {
           syncToBook: stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts),
+          exclude: replyTo?.untrustedAddresses,
         });
       }
       // Some recipients were refused though the message went to the rest.

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react-native';
 import { SettingsSection, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { FiltersReloadedError, useFilterStore } from '../../stores/filter-store';
@@ -26,6 +26,8 @@ import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-v
 import { supportsPeriods } from '../../lib/sieve/period';
 import { periodLabel } from '../../lib/filters/rule-period';
 import { clientServesAccount } from '../../lib/active-client-account';
+import { forwardIconStyle } from '../../lib/rtl-layout';
+import { isLayoutRTL } from '../../i18n';
 
 type Translate = (key: string, fallback?: string) => string;
 type PeriodLabel = ReturnType<typeof periodLabel>;
@@ -109,8 +111,8 @@ function makeSummaryStyles(c: ThemePalette) {
   return StyleSheet.create({
     wrap: { gap: 4, marginTop: 6 },
     row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
-    keyword: { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
-    joiner: { fontSize: 10, fontStyle: 'italic', color: c.mutedForeground },
+    keyword: { fontSize: fontPx(10), fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
+    joiner: { fontSize: fontPx(10), fontStyle: 'italic', color: c.mutedForeground },
     chip: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radius.xs, backgroundColor: c.muted },
     chipText: { ...typography.caption, color: c.text },
     chipKey: { fontWeight: '500' },
@@ -394,7 +396,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
             {onOpenVacation && (
               <View style={styles.vacationConfigure}>
                 <Text style={styles.vacationConfigureText}>{t('settings.filters.vacation_configure', 'Configure')}</Text>
-                <ChevronRight size={14} color={c.success} />
+                <ChevronRight size={14} color={c.success} style={forwardIconStyle(isLayoutRTL())} />
               </View>
             )}
           </Pressable>
@@ -639,7 +641,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.xs,
     },
     originBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full, backgroundColor: c.muted },
-    originBadgeText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
+    originBadgeText: { fontSize: fontPx(10), fontWeight: '500', color: c.mutedForeground },
 
     reorderCol: { alignItems: 'center' },
     reorderBtn: { padding: 2 },

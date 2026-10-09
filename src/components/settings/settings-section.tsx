@@ -271,8 +271,12 @@ function makeStyles(c: ThemePalette) {
     color: c.textSecondary,
     marginTop: 2,
   },
+  // The control goes below the text when the two don't fit side by side
+  // (a narrow screen, a large font), rather than squeezing the text to a
+  // word a line.
   settingItem: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
@@ -286,7 +290,10 @@ function makeStyles(c: ThemePalette) {
     opacity: 0.6,
   },
   settingContent: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 160,
+    minWidth: 160,
     paddingRight: spacing.lg,
   },
   settingLabelRow: {
@@ -303,8 +310,10 @@ function makeStyles(c: ThemePalette) {
     color: c.mutedForeground,
     marginTop: 2,
   },
+  // marginLeft auto keeps the control on the right when it wraps below the text.
   settingRight: {
     flexShrink: 0,
+    marginLeft: 'auto',
   },
   // A row opened from Settings search. The negative margin keeps the
   // content where it was while the tint gets some room around it.

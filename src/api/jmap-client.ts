@@ -901,6 +901,43 @@ export class JMAPClient {
   }
 
   /**
+   * Refetch the session document for the live connection (say, to learn an
+   * account shared with the user since it opened). Not a load: the
+   * generation, credentials and account stay, so requests in flight on this
+   * connection keep going. The new document is swapped in only while the
+   * same connection still serves and no load, connect, restore or reset
+   * started meanwhile; otherwise resolves null having changed nothing.
+   */
+  async refreshSession(): Promise<JMAPSession | null> {
+    const ctx = this.ctx;
+    const startedAt = this.loadGeneration;
+    if (!ctx.credentials || !ctx.session || !ctx.accountId) return null;
+    const stillServes = () => {
+      const live = this.ctx;
+      return this.loadGeneration === startedAt
+        && live.gen === ctx.gen
+        && !!live.session
+        && live.accountId === ctx.accountId
+        && sameAccount(live.credentials, ctx.credentials);
+    };
+    let doc: JMAPSession;
+    try {
+      doc = await this.fetchSession(ctx.credentials.serverUrl, this.liveScope(ctx));
+    } catch (err) {
+      if (err instanceof StaleLoadError || !stillServes()) return null;
+      throw err;
+    }
+    if (!stillServes()) return null;
+    // A document that no longer has the connection's account is not swapped
+    // in: every request made on it names that account.
+    if (!Object.prototype.hasOwnProperty.call(doc.accounts ?? {}, ctx.accountId)) return null;
+    const live = this.ctx;
+    const session = this.rewriteSessionUrls(doc, live.credentials!.serverUrl, live.credentials!);
+    this.ctx = { ...live, session };
+    return session;
+  }
+
+  /**
    * Snapshot of the live connection so a failed "add account" / switch can put
    * the previous account back without a network round-trip.
    */

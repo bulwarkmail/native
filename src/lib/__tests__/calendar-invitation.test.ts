@@ -97,10 +97,10 @@ describe('authentication results', () => {
         { name: 'Authentication-Results', value: 'evil.example; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example' },
       ],
     });
-    const auth = getEmailAuthenticationResults(forged);
+    const auth = getEmailAuthenticationResults(forged, 'mx.example');
     expect(auth?.dmarc?.result).toBe('fail');
     expect(auth?.dkim?.result).not.toBe('pass');
-    expect(getInvitationTrustAssessment(request, forged, 'request').level).toBe('warning');
+    expect(getInvitationTrustAssessment(request, forged, 'request', { serverHost: 'mx.example' }).level).toBe('warning');
   });
 
   it('does not let a lower header fill a mechanism the topmost one omits', () => {
@@ -111,16 +111,27 @@ describe('authentication results', () => {
         { name: 'Authentication-Results', value: 'evil.example; dkim=pass header.d=example.com; dmarc=pass header.from=example.com' },
       ],
     });
-    const auth = getEmailAuthenticationResults(forged);
+    const auth = getEmailAuthenticationResults(forged, 'mx.example');
     expect(auth?.dkim?.result).not.toBe('pass');
     expect(auth?.dmarc?.result).not.toBe('pass');
-    expect(getInvitationTrustAssessment(request, forged, 'request').reason).toBe('authentication_missing');
+    expect(getInvitationTrustAssessment(request, forged, 'request', { serverHost: 'mx.example' }).reason).toBe('authentication_missing');
+  });
+
+  it('never verifies an invitation whose only pass is under a foreign authserv-id', () => {
+    const forgedPass = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [{ name: 'Authentication-Results', value: 'evil.example; dkim=pass header.d=example.com; dmarc=pass header.from=example.com' }],
+    });
+    expect(getEmailAuthenticationResults(forgedPass, 'jmap.example.com')).toBeNull();
+    expect(getInvitationTrustAssessment(request, forgedPass, 'request', { serverHost: 'jmap.example.com' }).reason).toBe('authentication_missing');
+    // Without a known host nothing is trusted at all.
+    expect(getInvitationTrustAssessment(request, forgedPass, 'request').reason).toBe('authentication_missing');
   });
 
   it('reads the Authentication-Results header from the email headers', () => {
     const e = email({ headers: [{ name: 'Authentication-Results', value: 'x; dmarc=fail header.from=evil.com' }] });
-    expect(getEmailAuthenticationResults(e)?.dmarc?.result).toBe('fail');
-    expect(getEmailAuthenticationResults(email({}))).toBeNull();
+    expect(getEmailAuthenticationResults(e, 'x')?.dmarc?.result).toBe('fail');
+    expect(getEmailAuthenticationResults(email({}), 'x')).toBeNull();
   });
 });
 
@@ -130,12 +141,12 @@ describe('getInvitationTrustAssessment', () => {
       from: [{ email: 'alice@example.com' }],
       headers: [{ name: 'Authentication-Results', value: 'x; dkim=pass header.d=example.com' }],
     });
-    expect(getInvitationTrustAssessment(request, e, 'request').level).toBe('trusted');
+    expect(getInvitationTrustAssessment(request, e, 'request', { serverHost: 'x' }).level).toBe('trusted');
   });
 
   it('warns when the sender differs from the organizer and is unverified', () => {
     const e = email({ from: [{ email: 'mallory@evil.com' }] });
-    const a = getInvitationTrustAssessment(request, e, 'request');
+    const a = getInvitationTrustAssessment(request, e, 'request', { serverHost: 'x' });
     expect(a.level).toBe('warning');
     expect(a.reason).toBe('sender_mismatch_unverified');
   });
@@ -145,31 +156,31 @@ describe('getInvitationTrustAssessment', () => {
       from: [{ email: 'alice@example.com' }],
       headers: [{ name: 'Authentication-Results', value: 'x; spf=fail smtp.mailfrom=example.com' }],
     });
-    expect(getInvitationTrustAssessment(request, failed, 'request').reason).toBe('authentication_failed');
+    expect(getInvitationTrustAssessment(request, failed, 'request', { serverHost: 'x' }).reason).toBe('authentication_failed');
     const mismatch = email({
       from: [{ email: 'assistant@example.com' }],
       headers: [{ name: 'Authentication-Results', value: 'x; dmarc=pass header.from=example.com' }],
     });
-    expect(getInvitationTrustAssessment(request, mismatch, 'request')).toMatchObject({ level: 'caution', reason: 'sender_mismatch' });
+    expect(getInvitationTrustAssessment(request, mismatch, 'request', { serverHost: 'x' })).toMatchObject({ level: 'caution', reason: 'sender_mismatch' });
   });
 
   it('cautions when a scheduling message carries no authentication at all', () => {
     const e = email({ from: [{ email: 'alice@example.com' }] });
-    expect(getInvitationTrustAssessment(request, e, 'request').reason).toBe('authentication_missing');
-    expect(getInvitationTrustAssessment(request, e, 'unknown').reason).toBe('authentication_missing');
+    expect(getInvitationTrustAssessment(request, e, 'request', { serverHost: 'x' }).reason).toBe('authentication_missing');
+    expect(getInvitationTrustAssessment(request, e, 'unknown', { serverHost: 'x' }).reason).toBe('authentication_missing');
   });
 
   it('never calls an invitation with no METHOD and no organizer verified without a pass', () => {
     // Nobody to compare the sender with must not read as "Sender verified".
     const bare = { uid: 'u1', title: 'Payment overdue' };
     const e = email({ from: [{ email: 'billing@yourbank.example' }] });
-    expect(getInvitationTrustAssessment(bare, e)).toMatchObject({ level: 'caution', reason: 'authentication_missing' });
-    expect(getInvitationTrustAssessment(bare, email({}), 'unknown').level).not.toBe('trusted');
+    expect(getInvitationTrustAssessment(bare, e, undefined, { serverHost: 'x' })).toMatchObject({ level: 'caution', reason: 'authentication_missing' });
+    expect(getInvitationTrustAssessment(bare, email({}), 'unknown', { serverHost: 'x' }).level).not.toBe('trusted');
     const passed = email({
       from: [{ email: 'billing@yourbank.example' }],
       headers: [{ name: 'Authentication-Results', value: 'x; dmarc=pass header.from=yourbank.example' }],
     });
-    expect(getInvitationTrustAssessment(bare, passed, 'unknown').level).toBe('trusted');
+    expect(getInvitationTrustAssessment(bare, passed, 'unknown', { serverHost: 'x' }).level).toBe('trusted');
   });
 });
 
@@ -283,7 +294,7 @@ describe('the actor address is the one the trust row checked', () => {
         b: { name: 'Bob', calendarAddress: 'mailto:bob@example.com', roles: { attendee: true } },
       },
     };
-    const trust = getInvitationTrustAssessment(event, verifiedFrom('mallory@evil.example'), 'request');
+    const trust = getInvitationTrustAssessment(event, verifiedFrom('mallory@evil.example'), 'request', { serverHost: 'x' });
     const actor = getInvitationActorSummary(event, 'request')!;
     expect(actor.email).toBe('mallory@evil.example');
     expect(actor.email).toBe(trust.organizerEmail);
@@ -343,9 +354,9 @@ describe('the actor address is the one the trust row checked', () => {
     };
     const actor = getInvitationActorSummary(reply, 'reply')!;
     expect(actor.email).toBe('bob@example.com');
-    const fromBob = getInvitationTrustAssessment(reply, email({ from: [{ email: 'Bob@Example.com' }] }), 'reply');
+    const fromBob = getInvitationTrustAssessment(reply, email({ from: [{ email: 'Bob@Example.com' }] }), 'reply', { serverHost: 'x' });
     expect(invitationSentFrom(actor.email, fromBob.senderEmail)).toBeNull();
-    const fromMallory = getInvitationTrustAssessment(reply, verifiedFrom('mallory@evil.example'), 'reply');
+    const fromMallory = getInvitationTrustAssessment(reply, verifiedFrom('mallory@evil.example'), 'reply', { serverHost: 'x' });
     expect(invitationSentFrom(actor.email, fromMallory.senderEmail)).toBe('mallory@evil.example');
     expect(invitationSentFrom(null, 'mallory@evil.example')).toBe('mallory@evil.example');
     expect(invitationSentFrom('bob@example.com', null)).toBeNull();
@@ -609,7 +620,7 @@ describe('who may have a counter proposal applied', () => {
   const authed = (from: string, results = 'mx.example.com; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com') =>
     email({ from: [{ email: from }], headers: [{ name: 'Authentication-Results', value: results }] });
   const review = (proposed: Partial<CalendarEvent>, mail: ReturnType<typeof email>, storedEvent: Partial<CalendarEvent> = stored) =>
-    reviewCounterProposal({ method: 'counter', proposed, stored: storedEvent, userAddresses: [me], email: mail, formatDateTime: iso });
+    reviewCounterProposal({ method: 'counter', proposed, stored: storedEvent, userAddresses: [me], email: mail, serverHost: 'mx.example.com', formatDateTime: iso });
 
   it('offers Apply for a genuine counter from an attendee, authenticated', () => {
     const r = review(counter(), authed('bob@example.com'));
@@ -633,6 +644,15 @@ describe('who may have a counter proposal applied', () => {
     // A pass for another domain proves nothing about example.com.
     expect(review(counter(), authed('bob@example.com', 'mx.example.com; dkim=pass header.d=evil.example.net')))
       .toMatchObject({ canApply: false, hold: 'sender_unverified' });
+  });
+
+  it('holds Apply on a counter-proposal authenticated under a foreign authserv-id', () => {
+    const args = {
+      method: 'counter' as const, proposed: counter(), stored, userAddresses: [me], formatDateTime: iso,
+      email: authed('bob@example.com', 'evil.example; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com'),
+    };
+    expect(reviewCounterProposal({ ...args, serverHost: 'jmap.example.com' })?.hold).toBe('sender_unverified');
+    expect(reviewCounterProposal({ ...args, serverHost: 'evil.example' })?.hold).toBeNull();
   });
 
   it('withholds Apply when the From domain does not parse, whatever the results say', () => {
@@ -691,7 +711,7 @@ describe('who may have a counter proposal applied', () => {
   });
 
   it('reviews nothing for a user who does not organize it, or another event with the UID', () => {
-    expect(reviewCounterProposal({ method: 'counter', proposed: counter(), stored, userAddresses: ['other@example.com'], email: authed('bob@example.com'), formatDateTime: iso })).toBeNull();
+    expect(reviewCounterProposal({ method: 'counter', proposed: counter(), stored, userAddresses: ['other@example.com'], email: authed('bob@example.com'), serverHost: 'mx.example.com', formatDateTime: iso })).toBeNull();
     const elsewhere = typed({ ...counter(), organizerCalendarAddress: 'mailto:someone@example.org' });
     expect(review(elsewhere, authed('bob@example.com'))).toBeNull();
   });
@@ -706,7 +726,7 @@ describe('who may have a counter proposal applied', () => {
   });
 
   it('compares an attendee\'s answer with the attendee, not the organizer', () => {
-    const context = { stored, userAddresses: [me] };
+    const context = { stored, userAddresses: [me], serverHost: 'mx.example.com' };
     const t = getInvitationTrustAssessment(counter(), authed('bob@example.com'), 'counter', context);
     expect(t).toMatchObject({ level: 'trusted', expectedSender: 'attendee', expectedSenderEmail: 'bob@example.com' });
     const spoof = getInvitationTrustAssessment(counter(), email({ from: [{ email: 'mallory@evil.com' }] }), 'counter', context);
@@ -725,13 +745,13 @@ describe('who may have a counter proposal applied', () => {
     });
     const fromMallory = authed('mallory@evil.example', 'mx.example.com; dkim=pass header.d=evil.example; dmarc=pass header.from=evil.example');
     for (const method of ['counter', 'refresh', 'reply'] as const) {
-      expect(getInvitationTrustAssessment(forged, fromMallory, method)).toMatchObject({ level: 'caution', reason: 'responder_not_on_event' });
+      expect(getInvitationTrustAssessment(forged, fromMallory, method, { serverHost: 'mx.example.com' })).toMatchObject({ level: 'caution', reason: 'responder_not_on_event' });
       // A stored event the user doesn't organize backs nothing either.
-      expect(getInvitationTrustAssessment(forged, fromMallory, method, { stored: { ...forged, id: 'x' }, userAddresses: [me] }).level).not.toBe('trusted');
+      expect(getInvitationTrustAssessment(forged, fromMallory, method, { stored: { ...forged, id: 'x' }, userAddresses: [me], serverHost: 'mx.example.com' }).level).not.toBe('trusted');
     }
     // A REFRESH with a spoofed From and a DKIM pass for another domain, no DMARC.
     const spoofed = authed('ceo@corp.example', 'mx.example.com; dkim=pass header.d=evil.example');
-    expect(getInvitationTrustAssessment(forged, spoofed, 'refresh')).toMatchObject({ level: 'caution', reason: 'responder_not_on_event' });
+    expect(getInvitationTrustAssessment(forged, spoofed, 'refresh', { serverHost: 'mx.example.com' })).toMatchObject({ level: 'caution', reason: 'responder_not_on_event' });
   });
 
   it('counts only a pass for the From domain as verified', () => {
@@ -739,7 +759,7 @@ describe('who may have a counter proposal applied', () => {
       from: [{ email: 'alice@example.com' }],
       headers: [{ name: 'Authentication-Results', value: 'x; dkim=pass header.d=other.example.net' }],
     });
-    expect(getInvitationTrustAssessment(request, e, 'request')).toMatchObject({ level: 'caution', reason: 'authentication_missing' });
+    expect(getInvitationTrustAssessment(request, e, 'request', { serverHost: 'x' })).toMatchObject({ level: 'caution', reason: 'authentication_missing' });
   });
 });
 

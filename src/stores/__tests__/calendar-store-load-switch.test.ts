@@ -435,3 +435,29 @@ describe('residual minors', () => {
     expect(mockGetCalendars).not.toHaveBeenCalled();
   });
 });
+
+describe('the account the calendars were loaded for', () => {
+  // The calendar screen colours new shared calendars under the shown
+  // account's key: it must know whose calendars the list holds.
+  it('is recorded by a calendar load and cleared on reset', async () => {
+    expect(useCalendarStore.getState().calendarsAppAccountId).toBeNull();
+    mockGetCalendars.mockResolvedValueOnce([cal]);
+    expect(await useCalendarStore.getState().fetchCalendars()).toBe(true);
+    expect(useCalendarStore.getState().calendarsAppAccountId).toBe(A);
+    switchToB();
+    expect(useCalendarStore.getState().calendarsAppAccountId).toBeNull();
+    mockGetCalendars.mockResolvedValueOnce([cal]);
+    expect(await useCalendarStore.getState().fetchCalendars()).toBe(true);
+    expect(useCalendarStore.getState().calendarsAppAccountId).toBe(B);
+  });
+
+  it('is not set by A\'s load landing after the switch', async () => {
+    const aLoad = deferred<unknown[]>();
+    mockGetCalendars.mockReturnValueOnce(aLoad.promise);
+    const pending = useCalendarStore.getState().fetchCalendars();
+    switchToB();
+    aLoad.resolve([cal]);
+    expect(await pending).toBe(false);
+    expect(useCalendarStore.getState().calendarsAppAccountId).toBeNull();
+  });
+});

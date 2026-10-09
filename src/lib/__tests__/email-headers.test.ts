@@ -131,7 +131,7 @@ describe('deriveHeaderInfo', () => {
         { name: 'Authentication-Results', value: 'mx; dmarc=fail header.from=x.example' },
       ],
       messageId: ['abc@x.example'],
-    });
+    }, 'mx');
     expect(info.readReceiptRequestedBy).toBe('s@x.example');
     expect(info.messageId).toBe('abc@x.example');
     expect(info.spamScore?.score).toBe(0.1);
@@ -145,7 +145,7 @@ describe('deriveHeaderInfo', () => {
         { name: 'Authentication-Results', value: 'x; dmarc=pass' },
       ],
       messageId: null,
-    });
+    }, 'mx');
     expect(info.auth?.dmarc).toBeUndefined();
   });
 
@@ -157,7 +157,7 @@ describe('deriveHeaderInfo', () => {
       ],
       messageId: null,
       from: [{ name: 'Bank', email: 'support@bank.example' }],
-    });
+    }, 'mx');
     expect(info.senderVerification).toEqual({ status: 'unverified', domain: 'bank.example', sentFrom: 'web1.hoster.example' });
   });
 
@@ -166,13 +166,51 @@ describe('deriveHeaderInfo', () => {
       headers: [{ name: 'Subject', value: 'Authentication-Results: mx; dmarc=fail' }],
       messageId: null,
       from: [{ email: 'support@bank.example' }],
-    });
+    }, 'mx');
     expect(info.senderVerification).toBeNull();
-    expect(deriveHeaderInfo({ headers: undefined, messageId: null }).senderVerification).toBeNull();
+    expect(deriveHeaderInfo({ headers: undefined, messageId: null }, 'mx').senderVerification).toBeNull();
+  });
+
+  const ar = (...values: string[]) => values.map((value) => ({ name: 'Authentication-Results', value }));
+
+  it('gives no results for a pass under an authserv-id the server does not own', () => {
+    const info = deriveHeaderInfo({ headers: ar('evil.example; dmarc=pass header.from=bank.example'), messageId: null, from: [{ email: 'ceo@bank.example' }] }, 'jmap.example.com');
+    expect(info.auth).toBeUndefined();
+    expect(info.senderVerification).toBeNull();
+  });
+
+  it('reads results from a topmost header the server owns, and treats lower ones as foreign', () => {
+    const info = deriveHeaderInfo({
+      headers: ar(
+        'mx1.example.com; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example',
+        'mx1.example.com; spf=fail smtp.mailfrom=bank.example',
+      ),
+      messageId: null,
+      from: [{ email: 'ceo@bank.example' }],
+    }, 'jmap.example.com');
+    expect(info.auth?.dmarc?.result).toBe('pass');
+    expect(info.auth?.spf).toMatchObject({ result: 'fail', foreign: true });
+  });
+
+  it('gives no results when the server\'s id appears only below an untrusted top header', () => {
+    const info = deriveHeaderInfo({
+      headers: ar(
+        'relay.other.example; spf=none smtp.mailfrom=bank.example',
+        'mail.example.com; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example',
+      ),
+      messageId: null,
+      from: [{ email: 'ceo@bank.example' }],
+    }, 'jmap.example.com');
+    expect(info.auth).toBeUndefined();
+    expect(info.senderVerification).toBeNull();
+  });
+
+  it('gives no results when the server host is unknown', () => {
+    expect(deriveHeaderInfo({ headers: ar('mx; dmarc=pass'), messageId: null }, null).auth).toBeUndefined();
   });
 
   it('copes with no headers', () => {
-    const info = deriveHeaderInfo({ headers: undefined, messageId: null });
+    const info = deriveHeaderInfo({ headers: undefined, messageId: null }, 'mx');
     expect(info.readReceiptRequestedBy).toBeNull();
     expect(info.auth).toBeUndefined();
     expect(info.list).toEqual({});
@@ -296,12 +334,12 @@ describe('getSenderVerification - sender-written input', () => {
     headers: values.map((value) => ({ name: 'Authentication-Results', value })),
     messageId: null,
     from,
-  });
+  }, 'mx');
 
   it('reads a hostile envelope address in linear time', () => {
     const hostile = 'x; spf=fail smtp.mailfrom=x@' + 'a.'.repeat(100_000) + '<';
     const started = performance.now();
-    const info = derive('mx.example.org; dkim=none; dmarc=none', hostile);
+    const info = derive('mx; dkim=none; dmarc=none', hostile);
     expect(performance.now() - started).toBeLessThan(1000);
     expect(info.senderVerification?.sentFrom).toBeUndefined();
   });
@@ -309,7 +347,7 @@ describe('getSenderVerification - sender-written input', () => {
   it('reads a quoted local part as part of the envelope address, not all of it', () => {
     // SPF passed for evil.example; the quoted local part must not pass for the
     // From domain's own envelope.
-    const info = derive('mx.example.org; spf=pass smtp.mailfrom="support@bank.example"@evil.example; dmarc=none header.from=bank.example');
+    const info = derive('mx; spf=pass smtp.mailfrom="support@bank.example"@evil.example; dmarc=none header.from=bank.example');
     expect(info.auth?.spf?.domain).toBe('"support@bank.example"@evil.example');
     expect(info.senderVerification).toEqual({ status: 'unverified', domain: 'bank.example', sentFrom: 'evil.example' });
   });
@@ -362,5 +400,28 @@ describe('isFromDomainAuthenticated', () => {
     expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=evil.example'), 'a@example.com')).toBe(false);
     // A HELO pass says nothing about the author.
     expect(isFromDomainAuthenticated(auth('mx; spf=pass smtp.helo=partner.example'), 'bob@partner.example')).toBe(false);
+  });
+  it('takes a DMARC pass only for the header.from it names', () => {
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass'), 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass policy.dmarc=reject'), 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from='), 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=news.example.com'), 'a@example.com')).toBe(true);
+  });
+  it('keeps passing a Stalwart-written header under the server\'s own authserv-id', () => {
+    // Stalwart's layout: its hostname, then one resinfo per line, DMARC with header.from.
+    const stalwart = 'mail.example.org;\r\n\tdkim=pass header.d=example.com header.s=sel header.b=AbC123;\r\n'
+      + '\tspf=pass (mail.example.org: domain of a@example.com designates 192.0.2.1 as permitted sender) smtp.mailfrom=a@example.com;\r\n'
+      + '\tiprev=pass policy.iprev=192.0.2.1;\r\n\tdmarc=pass header.from=example.com policy.dmarc=none';
+    const dmarcOnly = 'mail.example.org;\r\n\tdmarc=pass header.from=example.com policy.dmarc=reject';
+    for (const value of [stalwart, dmarcOnly]) {
+      const info = deriveHeaderInfo({
+        headers: [{ name: 'Authentication-Results', value }],
+        messageId: null,
+        from: [{ email: 'a@example.com' }],
+      }, 'mail.example.org');
+      expect(info.auth?.dmarc).toMatchObject({ result: 'pass', domain: 'example.com' });
+      expect(isFromDomainAuthenticated(info.auth, 'a@example.com')).toBe(true);
+      expect(info.senderVerification).toBeNull();
+    }
   });
 });

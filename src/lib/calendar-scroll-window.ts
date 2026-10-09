@@ -177,6 +177,8 @@ export function scrollWindowContains(
  * window at the target. A grid target also needs a row of room above it
  * while the window can still grow: scrolled to row 0, the list reaches its
  * start edge and prepends rows while it is still settling on the target.
+ * That room is grown on the same anchor, so the list keeps its key and
+ * isn't remounted (a step back a month just scrolls).
  */
 export function windowStateForJump(
   state: ScrollWindowState,
@@ -187,12 +189,17 @@ export function windowStateForJump(
   const current = normalizeScrollWindowState(state, mode, date);
   const loaded = computeScrollWindow(current, opts);
   if (!scrollWindowContains(loaded, mode, date, opts)) return freshScrollWindowState(mode, date);
-  const grid = mode === 'month' || mode === 'week';
-  if (grid && loaded.canExtendStart
-    && subDays(baseRange(mode, date, opts).start, 7).getTime() < loaded.start.getTime()) {
-    return freshScrollWindowState(mode, date);
+  if (mode !== 'month' && mode !== 'week') return current;
+  const rowAbove = subDays(baseRange(mode, date, opts).start, 7).getTime();
+  let next = current;
+  let window = loaded;
+  while (window.canExtendStart && rowAbove < window.start.getTime()) {
+    const grown = growScrollWindow(next, 'before');
+    if (grown === next) break;
+    next = grown;
+    window = computeScrollWindow(next, opts);
   }
-  return current;
+  return next;
 }
 
 /**

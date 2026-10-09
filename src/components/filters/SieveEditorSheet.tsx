@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, AlertTriangle, CheckCircle } from 'lucide-react-native';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -225,8 +225,8 @@ function makeStyles(c: ThemePalette) {
       padding: spacing.md,
       color: c.text,
       fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-      fontSize: 13,
-      lineHeight: 20,
+      fontSize: fontPx(13),
+      lineHeight: fontPx(20),
     },
     lineCount: { ...typography.caption, color: c.mutedForeground, textAlign: 'right' },
 

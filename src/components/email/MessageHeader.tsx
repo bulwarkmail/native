@@ -4,7 +4,7 @@ import {
   Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock, AlertTriangle,
 } from 'lucide-react-native';
 import type { Email, EmailAddress, Identity } from '../../api/types';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -13,17 +13,19 @@ import { useKeywordsStore, keywordToken } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import { useDateRegion } from '../../lib/use-date-region';
 import {
-  deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
+  deliveryDeltaMs, formatDelta, isAuthenticationSpoofed,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
-import { senderCheckText } from '../../lib/sender-check';
+import { isOwnCopy, senderCheckText, viaIdentityBadge } from '../../lib/sender-check';
+import { useEmailStore } from '../../stores/email-store';
 
 interface Props {
   email: Email;
   identities: Identity[];
-  headerInfo?: EmailHeaderInfo;
+  /** Derived by the caller, pinned to the owning account's server (see deriveHeaderInfo). */
+  headerInfo: EmailHeaderInfo;
   onToggleStar?: (email: Email) => void;
   onAddressPress: (address: EmailAddress) => void;
   /** Compact variant for collapsed thread cards. */
@@ -92,7 +94,7 @@ function DetailRow({ label, value, styles, mono }: { label: string; value?: stri
  * "Show details" panel (recipients & routing, authentication, identifiers,
  * mailing list, properties) the webmail viewer shows.
  */
-export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact }: Props) {
+export function MessageHeader({ email, identities, headerInfo: info, onToggleStar, onAddressPress, compact }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -103,7 +105,6 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);
 
-  const info = React.useMemo(() => headerInfo ?? deriveHeaderInfo(email), [headerInfo, email]);
   const from = email.from?.[0];
   const starred = !!email.keywords?.$flagged;
   const displayDate = emailDisplayDate(email);
@@ -111,20 +112,19 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const senderCheck = senderCheckText(info.senderVerification, t);
   const senderCheckColor = senderCheck?.tone === 'danger' ? c.error : c.warning;
 
-  // "via <identity>": the message was sent by one of the user's identities or
-  // received at one of them (incl. +tag); hidden when the From can't be
-  // trusted so a forged From doesn't get a legitimacy badge.
-  const viaIdentity = React.useMemo(() => {
-    if (spoofed || identities.length === 0) return null;
-    const fromEmail = from?.email?.toLowerCase();
-    const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
-    if (sentAs) return { identity: sentAs, direction: 'from' as const };
-    const received = findReceivingIdentity(identities, email);
-    if (received && identities.length > 1 && received.id !== identities[0].id) {
-      return { identity: received, direction: 'to' as const };
-    }
-    return null;
-  }, [spoofed, identities, from?.email, email]);
+  // "via <identity>": sent as or received at one of the user's identities;
+  // "sent as" only when the From passed the sender check, or on the user's
+  // own copy in Sent or Drafts.
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const shownMailboxId = useEmailStore((s) => s.currentMailboxId);
+  const ownCopy = React.useMemo(
+    () => isOwnCopy(email, mailboxes, shownMailboxId),
+    [email, mailboxes, shownMailboxId],
+  );
+  const viaIdentity = React.useMemo(
+    () => viaIdentityBadge(email, identities, info, ownCopy),
+    [email, identities, info, ownCopy],
+  );
 
   const tags = React.useMemo(
     () => keywordDefs.filter((kw) => !!email.keywords?.[keywordToken(kw.id)]),
@@ -393,7 +393,7 @@ function makeStyles(c: ThemePalette) {
     detailRow: { flexDirection: 'row', gap: spacing.sm },
     detailLabel: { ...typography.caption, color: c.textMuted, width: 92 },
     detailValue: { ...typography.caption, color: c.text, flex: 1 },
-    detailMono: { fontFamily: 'monospace', fontSize: 11 },
+    detailMono: { fontFamily: 'monospace', fontSize: fontPx(11) },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs },
     chip: {
       flexDirection: 'row',

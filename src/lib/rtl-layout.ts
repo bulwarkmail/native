@@ -48,3 +48,12 @@ export function toggleThumbX(on: boolean, rtl: boolean): number {
   const x = on ? 24 : 4;
   return rtl ? -x : x;
 }
+
+/**
+ * Mirrors an icon that points the way the reader goes: a "go into" chevron
+ * or a back arrow. Lucide draws them for left-to-right, and RN does not flip
+ * icons under RTL, so a forward chevron would point back at the reader.
+ */
+export function forwardIconStyle(rtl: boolean): { transform: [{ scaleX: -1 }] } | undefined {
+  return rtl ? { transform: [{ scaleX: -1 }] } : undefined;
+}

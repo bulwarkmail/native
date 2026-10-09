@@ -34,7 +34,7 @@ export interface BuildQueuedSendParams {
   draftId?: string | null;
   /** The user's chosen schedule; stored as an absolute ISO time. */
   scheduledAt?: Date;
-  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded'; jmapAccountId?: string };
+  replyTo?: QueuedSend['replyTo'];
   now?: Date;
 }
 

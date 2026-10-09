@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeRemoteUrl, buildSourceLink, REPO_URL } from '../source-link';
+import { normalizeRemoteUrl, buildSourceLink, commitOnOrigin, REPO_URL } from '../source-link';
 
 const SHA = 'a'.repeat(40);
 
@@ -50,5 +50,14 @@ describe('buildSourceLink', () => {
     expect(buildSourceLink('http://github.com/a/b', SHA)).toBe(REPO_URL);
     expect(buildSourceLink('javascript:alert(1)', SHA)).toBe(REPO_URL);
     expect(buildSourceLink('https://github.com/a/b', 'x/../../y')).toBe('https://github.com/a/b');
+  });
+});
+
+describe('commitOnOrigin', () => {
+  it('links a commit only when it can be on origin', () => {
+    expect(commitOnOrigin({ ci: true, dirty: ' M x', remoteBranches: '' })).toBe(true);
+    expect(commitOnOrigin({ ci: false, dirty: '', remoteBranches: '  origin/main' })).toBe(true);
+    expect(commitOnOrigin({ ci: false, dirty: ' M App.tsx', remoteBranches: '  origin/main' })).toBe(false);
+    expect(commitOnOrigin({ ci: false, dirty: '', remoteBranches: '' })).toBe(false);
   });
 });

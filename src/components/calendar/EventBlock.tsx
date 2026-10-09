@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } fro
 import type { CalendarEvent } from '../../api/types';
 import type { EventBlockColors } from '../../lib/event-colors';
 import { isTaskDone, isTaskEvent, taskIdOfEvent } from '../../lib/calendar-tasks';
+import { useColors } from '../../theme/colors';
+import { CHROME_MAX_FONT_SCALE, fontPx, fontScaleFactor, type ThemePalette } from '../../theme/tokens';
 
 // Events in the week and day grids, shared by the paged WeekView and the
 // scrolling TimeGridScrollView. Every event is a solid block of its calendar
@@ -72,6 +74,7 @@ export function taskControlFor(
  * opening the task. Hollow while open, filled once done.
  */
 export function TaskCircle({ task, color, size = 11 }: { task: TaskControl; color: string; size?: number }) {
+  const styles = useStyles();
   return (
     <Pressable
       onPress={task.onToggle}
@@ -121,6 +124,7 @@ export function TimedEventBlock({
   task,
   onPress,
 }: TimedEventBlockProps) {
+  const styles = useStyles();
   const inactive = colors.border !== null;
   return (
     <Pressable
@@ -148,12 +152,13 @@ export function TimedEventBlock({
         <Text
           style={[styles.blockTitle, styles.taskTitle, { color: colors.text }, inactive && styles.struck]}
           numberOfLines={1}
+          maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
         >
           {title}
         </Text>
       </View>
       {timeLabel !== null && (
-        <Text style={[styles.blockTime, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.blockTime, { color: colors.text }]} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
           {timeLabel}
         </Text>
       )}
@@ -185,6 +190,7 @@ export function AllDayEventBar({
   task,
   onPress,
 }: AllDayEventBarProps) {
+  const styles = useStyles();
   const inactive = colors.border !== null;
   return (
     <Pressable
@@ -199,7 +205,11 @@ export function AllDayEventBar({
     >
       <View style={styles.taskRow}>
         {task && <TaskCircle task={task} color={colors.text} />}
-        <Text style={[styles.barTitle, styles.taskTitle, { color: colors.text }]} numberOfLines={1}>
+        <Text
+          style={[styles.barTitle, styles.taskTitle, { color: colors.text }]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+        >
           {continuesBefore ? '… ' : ''}
           <Text style={inactive && styles.struck}>{title}</Text>
         </Text>
@@ -208,7 +218,22 @@ export function AllDayEventBar({
   );
 }
 
-const styles = StyleSheet.create({
+// Text sizes follow the font size setting, so the styles rebuild when it or
+// the palette changes; a grid draws many blocks, so they share one build
+// rather than each memoising its own. The boxes are fixed, so their Text caps
+// the OS font scale at CHROME_MAX_FONT_SCALE.
+let cached: { c: ThemePalette; factor: number; styles: ReturnType<typeof makeStyles> } | null = null;
+
+function useStyles() {
+  const c = useColors();
+  const factor = fontScaleFactor();
+  if (cached === null || cached.c !== c || cached.factor !== factor) {
+    cached = { c, factor, styles: makeStyles() };
+  }
+  return cached.styles;
+}
+
+const makeStyles = () => StyleSheet.create({
   block: {
     position: 'absolute',
     borderWidth: 1,
@@ -217,8 +242,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   outline: { ...StyleSheet.absoluteFillObject, borderWidth: 1 },
-  blockTitle: { fontSize: 12, lineHeight: 15, fontWeight: '500' },
-  blockTime: { fontSize: 10.5, lineHeight: 13, fontWeight: '400', opacity: 0.85 },
+  blockTitle: { fontSize: fontPx(12), lineHeight: fontPx(15), fontWeight: '500' },
+  blockTime: { fontSize: fontPx(10.5), lineHeight: fontPx(13), fontWeight: '400', opacity: 0.85 },
   struck: { textDecorationLine: 'line-through' },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   taskTitle: { flexShrink: 1 },
@@ -231,5 +256,5 @@ const styles = StyleSheet.create({
   },
   // The outline takes the place of a pixel of padding.
   barInactive: { borderWidth: 1, paddingHorizontal: 3 },
-  barTitle: { fontSize: 12, lineHeight: 15, fontWeight: '500' },
+  barTitle: { fontSize: fontPx(12), lineHeight: fontPx(15), fontWeight: '500' },
 });

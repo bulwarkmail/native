@@ -12,7 +12,7 @@ import {
   FolderInput, Copy, ShieldAlert, ShieldCheck, X, Check,
   Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter,
 } from 'lucide-react-native';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
 import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
@@ -42,6 +42,7 @@ import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
 } from '../lib/mailbox-tree';
 import { replyComposeParams } from '../lib/reply-compose';
+import { authservHostFor } from '../lib/authserv-host';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
@@ -568,9 +569,11 @@ function EmailViewer({ route, navigation }: Props) {
   const navigateCompose = React.useCallback((mode: 'reply' | 'replyAll' | 'forward', target?: Email) => {
     const source = target ?? email;
     if (!source) return;
-    const params = replyComposeParams(mode, source, ownerAccountId);
+    // The sender check reads the viewer's account's server results: the
+    // message is that account's, whichever is live now.
+    const params = replyComposeParams(mode, source, ownerAccountId, authservHostFor(viewerAppAccountId));
     if (params) navigation.navigate('Compose', params);
-  }, [email, navigation, ownerAccountId]);
+  }, [email, navigation, ownerAccountId, viewerAppAccountId]);
 
   // Opened to reply (a widget's Reply): the composer follows as soon as the
   // message is here, once. If it never loads, the reader's error says why.
@@ -1623,9 +1626,9 @@ function makeStyles(c: ThemePalette) {
   },
   subjectText: {
     flex: 1,
-    fontSize: 20,
+    fontSize: fontPx(20),
     fontWeight: '700',
-    lineHeight: 28,
+    lineHeight: fontPx(28),
     color: c.text,
     letterSpacing: -0.2,
   },

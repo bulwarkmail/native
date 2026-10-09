@@ -206,6 +206,20 @@ describe('settings-store', () => {
       expect(s.swipeMode).toBe('instant');
     });
 
+    // Per-account keys name the app account (user@server): only the shown
+    // account's go in the file, in the shape webmail reads.
+    it('exports the shown account\'s shared calendar colours under the old key, and no other account\'s', () => {
+      const set = useSettingsStore.getState().setSharedCalendarColor;
+      set('a@one.example|team|c1', '#000001');
+      set('b@two.example|team|c2', '#000002');
+      set('team|c3', '#000003');
+      const exported = JSON.parse(useSettingsStore.getState().exportSettings('a@one.example'));
+      expect(exported.sharedCalendarColors).toEqual({ 'team|c1': '#000001', 'team|c3': '#000003' });
+      // The stored overrides themselves are untouched.
+      expect(Object.keys(useSettingsStore.getState().sharedCalendarColors)).toHaveLength(3);
+      expect(JSON.parse(useSettingsStore.getState().exportSettings()).sharedCalendarColors).toEqual({ 'team|c3': '#000003' });
+    });
+
     it('round-trips through exportSettings', () => {
       useSettingsStore.getState().updateSetting('fontSize', 'large');
       const json = useSettingsStore.getState().exportSettings();
@@ -232,6 +246,24 @@ describe('settings-store', () => {
       expect(useSettingsStore.getState().calendarFirstDayOfWeek).toBe(6);
       useSettingsStore.getState().importSettings(JSON.stringify({ firstDayOfWeek: 3 }));
       expect(useSettingsStore.getState().calendarFirstDayOfWeek).toBe(1);
+    });
+
+    it('imports the valid sidebar apps and drops the rest', () => {
+      const ok = { id: 'a', name: 'A', url: 'HTTPS://a.example/x', openMode: 'tab', showOnMobile: true };
+      expect(useSettingsStore.getState().importSettings(JSON.stringify({
+        sidebarApps: [
+          ok,
+          { ...ok, id: 'b', url: 'http://x.example' },
+          { ...ok, id: 'c', url: 'https://a.example\\@b.example' },
+          { ...ok, id: 'd', name: 7 },
+        ],
+        fontSize: 'large',
+      }))).toBe(true);
+      const s = useSettingsStore.getState();
+      expect(s.sidebarApps.map((a) => a.id)).toEqual(['a']);
+      expect(s.sidebarApps[0].url).toBe('https://a.example/x');
+      // The rest of the file still imports.
+      expect(s.fontSize).toBe('large');
     });
 
     it('rejects non-object JSON', () => {

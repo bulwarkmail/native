@@ -459,6 +459,101 @@ describe('send-queue-store', () => {
       await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
     });
 
+    describe('restamp', () => {
+      const heldEntry = (over: Partial<QueuedSend> = {}) => entry({
+        heldReason: 'account_unavailable', draftId: 'd1',
+        replyTo: { emailIds: ['e1'], keyword: '$answered', jmapAccountId: 'j1', untrusted: ['a@b.example'] },
+        ...over,
+      });
+      const seedHeld = async (over: Partial<QueuedSend> = {}) => {
+        await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(heldEntry(over)));
+        const s = useSendQueueStore.getState();
+        await s.hydrateAccount('a1');
+        return s;
+      };
+      const entryOf = (id: string) => mem('a1').find((e) => e.id === id);
+
+      it('restamp drops the draft and the replied-to ids, and keeps the trust list', async () => {
+        const s = await seedHeld();
+        await s.restamp('q1', 'jNew');
+        expect(entryOf('q1')).toMatchObject({ jmapAccountId: 'jNew', draftId: undefined, replyTo: { emailIds: [], untrusted: ['a@b.example'] } });
+        expect(entryOf('q1')).toMatchObject({ state: 'queued', replyTo: { keyword: '$answered', jmapAccountId: 'jNew' } });
+        expect(entryOf('q1')!.heldReason).toBeUndefined();
+        const disk = await stored('a1', 'q1');
+        expect(disk).toMatchObject({ jmapAccountId: 'jNew', replyTo: { emailIds: [], untrusted: ['a@b.example'], jmapAccountId: 'jNew' } });
+        expect(disk.draftId).toBeUndefined();
+        expect(disk.heldReason).toBeUndefined();
+        await s.markSending('q1');
+      });
+
+      it('keeps a replied-to account that was not the old one', async () => {
+        const s = await seedHeld({ replyTo: { emailIds: ['e1'], keyword: '$forwarded', jmapAccountId: 'jShared' } });
+        await s.restamp('q1', 'jNew');
+        expect(entryOf('q1')!.replyTo).toEqual({ emailIds: [], keyword: '$forwarded', jmapAccountId: 'jShared' });
+      });
+
+      it('re-stamps an entry that replies to nothing', async () => {
+        const s = await seedHeld({ replyTo: undefined, draftId: undefined });
+        await s.restamp('q1', 'jNew');
+        expect(entryOf('q1')!.jmapAccountId).toBe('jNew');
+        expect(entryOf('q1')!.replyTo).toBeUndefined();
+      });
+
+      it.each([
+        ['ever attempted', { attemptStartedAt: '2026-10-04T00:01:00Z' }],
+        ['with attachments', { outgoing: { ...entry().outgoing, attachments: [{ blobId: 'b1', type: 'text/plain', name: 'a.txt' }] } }],
+        ['held for another reason', { heldReason: 'no_sent' as const }],
+        ['not held', { heldReason: undefined }],
+        ['uncertain', { state: 'uncertain' as const, attemptStartedAt: '2026-10-04T00:01:00Z' }],
+        ['failed', { state: 'failed' as const }],
+        ['with an error from an earlier attempt', { lastError: 'Connection lost' }],
+      ])('refuses an entry %s, and leaves it as it was', async (_l, patch) => {
+        const s = await seedHeld(patch);
+        const before = await stored('a1', 'q1');
+        await expect(s.restamp('q1', 'jNew')).rejects.toBeInstanceOf(SendQueueStateError);
+        expect(await stored('a1', 'q1')).toEqual(before);
+        expect(entryOf('q1')).toEqual(before);
+      });
+
+      it('refuses an entry that was sent once and put back by the user\'s Retry', async () => {
+        const s = await seedHeld({ heldReason: undefined, draftId: undefined, replyTo: undefined });
+        await s.markSending('q1');
+        await s.markUncertain('q1', 'net');
+        await s.requeue('q1');
+        // Retry cleared the attempt time and the error; the marker stays.
+        expect(entryOf('q1')).toMatchObject({ state: 'queued', everAttempted: true });
+        expect(entryOf('q1')!.attemptStartedAt).toBeUndefined();
+        expect(entryOf('q1')!.lastError).toBeUndefined();
+        expect((await stored('a1', 'q1')).everAttempted).toBe(true);
+        await s.hold('q1', 'account_unavailable');
+        await expect(s.restamp('q1', 'jNew')).rejects.toBeInstanceOf(SendQueueStateError);
+        expect(entryOf('q1')!.jmapAccountId).toBe('j1');
+      });
+
+      it('refuses the account the entry already names, an empty id, and an unknown entry', async () => {
+        const s = await seedHeld();
+        await expect(s.restamp('q1', 'j1')).rejects.toBeInstanceOf(SendQueueStateError);
+        await expect(s.restamp('q1', '')).rejects.toBeInstanceOf(SendQueueStateError);
+        await expect(s.restamp('nope', 'jNew')).rejects.toBeInstanceOf(SendQueueStateError);
+        expect(entryOf('q1')!.jmapAccountId).toBe('j1');
+      });
+
+      it('refuses an entry that was marked sending before the re-stamp ran', async () => {
+        const s = await seedHeld();
+        await s.releaseHold('q1');
+        await s.markSending('q1');
+        await expect(s.restamp('q1', 'jNew')).rejects.toBeInstanceOf(SendQueueStateError);
+        expect(entryOf('q1')).toMatchObject({ state: 'sending', jmapAccountId: 'j1' });
+      });
+
+      it('leaves memory as it was when the row write fails', async () => {
+        const s = await seedHeld();
+        vi.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
+        await expect(s.restamp('q1', 'jNew')).rejects.toThrow('disk full');
+        expect(entryOf('q1')).toMatchObject({ jmapAccountId: 'j1', heldReason: 'account_unavailable', draftId: 'd1' });
+      });
+    });
+
     it('noteReconcile stamps an uncertain entry only; a new attempt or a requeue clears the stamp', async () => {
       const s = await setup();
       await expect(s.noteReconcile('q1')).rejects.toBeInstanceOf(SendQueueStateError);

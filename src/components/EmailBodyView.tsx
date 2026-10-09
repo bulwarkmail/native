@@ -12,9 +12,9 @@ import { bodyDocument } from '../lib/email-body-document';
 import { estimateBodyHeight, lastBodyHeight, rememberBodyHeight } from '../lib/body-heights';
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
-import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
-import { canOfferTrustSender } from '../lib/sender-check';
-import type { SenderVerification } from '../lib/email-headers';
+import { isSenderListed, isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { trustSenderBannerMode } from '../lib/sender-check';
+import { plainDisplayText } from '../lib/display-text';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -29,11 +29,13 @@ interface EmailBodyViewProps {
   email: Email;
   senderEmail?: string;
   /**
-   * The sender check (see getSenderVerification). "Always trust" is offered
-   * only when this is null: set means the checks don't back the sender, and
-   * left out means the verdict is unknown.
+   * Whether the message passed the sender check (senderPassesCheck). A
+   * trusted sender's remote content loads on its own, and "Always trust" is
+   * offered, only when true; left out means the verdict is unknown.
    */
-  senderVerification?: SenderVerification | null;
+  senderAuthenticated?: boolean;
+  /** The sender-check banner shows above: the content banner doesn't say it again. */
+  senderWarned?: boolean;
   /** Owning account when the message lives in a shared/group mailbox. */
   jmapAccountId?: string;
   // The body is a native WebView, which on Android swallows horizontal touches
@@ -526,7 +528,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, senderVerification, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  email, senderEmail, senderAuthenticated, senderWarned, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -570,11 +572,14 @@ export default function EmailBodyView({
   }, [email, bodyOverride]);
   const rawHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
   const text = picked.text;
-  const trusted = isSenderContentTrusted(senderEmail, {
+  // isSenderContentTrusted, split so the banner can tell a trusted sender
+  // whose message didn't pass from one who isn't trusted at all.
+  const senderListed = isSenderListed(senderEmail, {
     isLocallyTrusted: isSenderTrusted,
     syncEnabled: syncTrustedSenders,
     trustedBookEmails: trustedSenderEmails,
   });
+  const trusted = senderListed && senderAuthenticated === true;
 
   // One-time override: user tapped "Load images" for this email only.
   const [allowOnce, setAllowOnce] = React.useState(false);
@@ -730,7 +735,8 @@ export default function EmailBodyView({
     : fill ? styles.webContainerFill : { height: estimate };
 
   const onLoadImages = () => setAllowOnce(true);
-  const offerTrustSender = canOfferTrustSender(senderEmail, senderVerification);
+  const bannerMode = trustSenderBannerMode(senderEmail, { listed: senderListed, senderAuthenticated, senderWarned });
+  const offerTrustSender = bannerMode === 'offer_trust';
   const onTrustSender = () => {
     if (senderEmail && offerTrustSender) {
       // Keep the local allow-list for instant effect, and file the sender in
@@ -764,6 +770,15 @@ export default function EmailBodyView({
           <Text style={styles.bannerText}>
             {t('email_viewer.external_content_warning', 'Images and external content have been blocked')}
           </Text>
+          {bannerMode === 'trusted_unverified' && (
+            <Text style={styles.bannerText}>
+              {t(
+                'email_viewer.trusted_sender_unverified',
+                "Images aren't loaded automatically because this message couldn't be verified as coming from {sender}.",
+                { sender: plainDisplayText(senderEmail) },
+              )}
+            </Text>
+          )}
           <View style={styles.bannerActions}>
             {externalContentPolicy === 'ask' && (
               <Pressable style={styles.bannerButton} onPress={onLoadImages} hitSlop={8}>

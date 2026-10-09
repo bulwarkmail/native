@@ -13,8 +13,16 @@ import {
   timePattern,
   layoutOverlappingEvents,
   CALENDAR_COLOR_PALETTE,
+  applySharedCalendarColors,
+  legacySharedCalendarColorKey,
+  missingSharedCalendarColors,
+  resetSharedCalendarColor,
+  sharedCalendarColorFor,
+  calendarColorAccount,
+  sharedCalendarColorKey,
 } from '../calendar-utils';
-import type { CalendarEvent } from '../../api/types';
+import type { Calendar, CalendarEvent } from '../../api/types';
+import { withoutAccountCalendarColors, exportableCalendarColors } from '../calendar-color-keys';
 import { useSettingsStore } from '../../stores/settings-store';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
@@ -276,5 +284,115 @@ describe('layoutOverlappingEvents', () => {
       ev({ id: 'all', showWithoutTime: true, duration: 'P1D' }),
     ];
     expect(layoutOverlappingEvents(events, day)).toHaveLength(0);
+  });
+});
+
+describe('shared calendar colours', () => {
+  // JMAP ids repeat across app accounts: the same `team|c1` can be two
+  // different calendars on two servers, so the key names the app account.
+  const cal = { id: 'team:c1', originalId: 'c1', accountId: 'team', isShared: true, name: 'T' } as Calendar;
+
+  it('keys an override by app account, JMAP account and the raw calendar id', () => {
+    expect(sharedCalendarColorKey('A', cal)).toBe('A|team|c1');
+    expect(legacySharedCalendarColorKey(cal)).toBe('team|c1');
+  });
+
+  it('keeps two app accounts\' overrides for the same JMAP calendar apart', () => {
+    const overrides = { [sharedCalendarColorKey('A', cal)]: '#ff0000' };
+    expect(applySharedCalendarColors([cal], overrides, 'A')[0].color).toBe('#ff0000');
+    expect(applySharedCalendarColors([cal], overrides, 'B')[0].color).toBeUndefined();
+  });
+
+  it('still shows an override stored under the old key', () => {
+    expect(sharedCalendarColorFor({ 'team|c1': '#00ff00' }, 'A', cal)).toBe('#00ff00');
+    const [shown] = applySharedCalendarColors([cal], { 'team|c1': '#00ff00' }, 'A');
+    expect(shown.color).toBe('#00ff00');
+    expect(shown.colorIsLocalOverride).toBe(true);
+  });
+
+  it('prefers the per-account override over the old key', () => {
+    const overrides = { 'team|c1': '#00ff00', 'A|team|c1': '#0000ff' };
+    expect(sharedCalendarColorFor(overrides, 'A', cal)).toBe('#0000ff');
+  });
+
+  it('applies no per-account override when no account is shown', () => {
+    expect(sharedCalendarColorFor({ 'A|team|c1': '#ff0000' }, '', cal)).toBeUndefined();
+  });
+
+  it('a reset shadows the old key for that account only, leaving it for the others', () => {
+    const overrides: Record<string, string> = { 'team|c1': '#00ff00' };
+    const { key, color } = resetSharedCalendarColor([cal], overrides, 'A', cal);
+    expect(key).toBe('A|team|c1');
+    // A fresh colour, not the one it had (so it never reverts to it).
+    expect(color.toLowerCase()).not.toBe('#00ff00');
+    const after = { ...overrides, [key]: color };
+    expect(after['team|c1']).toBe('#00ff00');
+    expect(sharedCalendarColorFor(after, 'A', cal)).toBe(color);
+    expect(sharedCalendarColorFor(after, 'B', cal)).toBe('#00ff00');
+  });
+
+  it('forgets one app account\'s overrides, keeping the others\' and the old keys', () => {
+    const overrides = { 'team|c1': '#000001', 'A|team|c1': '#000002', 'A|x|y': '#000003', 'AB|team|c1': '#000004', 'B|team|c1': '#000005' };
+    expect(withoutAccountCalendarColors(overrides, 'A'))
+      .toEqual({ 'team|c1': '#000001', 'AB|team|c1': '#000004', 'B|team|c1': '#000005' });
+    // An old key whose JMAP account id happens to be the app account's stays.
+    expect(withoutAccountCalendarColors({ 'A|c1': '#000006' }, 'A')).toEqual({ 'A|c1': '#000006' });
+    expect(withoutAccountCalendarColors(overrides, '')).toBe(overrides);
+  });
+
+  it('exports the shown account\'s overrides under the old key, and no other account\'s', () => {
+    const overrides = { 'team|c1': '#000001', 'team|c2': '#000002', 'A|team|c1': '#000003', 'B|team|c9': '#000004' };
+    expect(exportableCalendarColors(overrides, 'A')).toEqual({ 'team|c1': '#000003', 'team|c2': '#000002' });
+    expect(exportableCalendarColors(overrides, null)).toEqual({ 'team|c1': '#000001', 'team|c2': '#000002' });
+  });
+
+  // During a switch the list is still the previous account's: the shown
+  // account's overrides would paint other calendars with the same ids.
+  it('paints per-account overrides only on the shown account\'s own list', () => {
+    expect(calendarColorAccount('A', 'A')).toBe('A');
+    expect(calendarColorAccount('B', 'A')).toBe('');
+    expect(calendarColorAccount(null, 'A')).toBe('');
+    expect(calendarColorAccount('A', null)).toBe('');
+    const [shown] = applySharedCalendarColors([cal], { 'A|team|c1': '#ff0000' }, calendarColorAccount('B', 'A'));
+    expect(shown.color).toBeUndefined();
+  });
+
+  it('a reset picks a colour not already on screen', () => {
+    const own = { id: 'p', name: 'P', color: '#111111' } as Calendar;
+    const { color } = resetSharedCalendarColor([own, cal], { 'A|team|c1': '#222222' }, 'A', cal);
+    expect(['#111111', '#222222']).not.toContain(color.toLowerCase());
+  });
+
+  it('assigns a colour, under the shown account\'s key, only to shared calendars without one', () => {
+    const other = { ...cal, id: 'team:c2', originalId: 'c2' };
+    const legacy = { ...cal, id: 'team:c3', originalId: 'c3' };
+    const own = { id: 'p', name: 'P', color: '#111111' } as Calendar;
+    const overrides = { 'A|team|c1': '#ff0000', 'team|c3': '#00ff00', 'B|team|c2': '#0000ff' };
+    const assigned = missingSharedCalendarColors([cal, other, legacy, own], 'A', overrides, 'A');
+    expect(Object.keys(assigned)).toEqual(['A|team|c2']);
+    expect(['#111111', '#ff0000', '#00ff00', '#0000ff']).not.toContain(assigned['A|team|c2'].toLowerCase());
+  });
+
+  it('assigns nothing while no account is shown', () => {
+    expect(missingSharedCalendarColors([cal], null, {}, '')).toEqual({});
+  });
+
+  it('assigns nothing while the list still holds another account\'s calendars, then under the new one', () => {
+    // A switch shows B at once; the store holds A's list until B's loads.
+    expect(missingSharedCalendarColors([cal], 'A', {}, 'B')).toEqual({});
+    expect(missingSharedCalendarColors([cal], null, {}, 'B')).toEqual({});
+    expect(Object.keys(missingSharedCalendarColors([cal], 'B', {}, 'B'))).toEqual(['B|team|c1']);
+  });
+
+  it('gives two new shared calendars different colours', () => {
+    const other = { ...cal, id: 'team:c2', originalId: 'c2' };
+    const assigned = Object.values(missingSharedCalendarColors([cal, other], 'A', {}, 'A'));
+    expect(assigned).toHaveLength(2);
+    expect(new Set(assigned.map((c) => c.toLowerCase())).size).toBe(2);
+  });
+
+  it('leaves personal calendars alone', () => {
+    const own = { ...cal, isShared: false, color: '#123456' };
+    expect(applySharedCalendarColors([own], { 'A|team|c1': '#ff0000' }, 'A')[0]).toBe(own);
   });
 });

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { X, ExternalLink, Share2, Download } from 'lucide-react-native';
 import type { Email } from '../../api/types';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import EmailBodyView from '../EmailBodyView';
@@ -242,7 +242,7 @@ function makeStyles(c: ThemePalette) {
     buttonText: { ...typography.bodySemibold, color: c.primaryForeground },
     imageScroll: { alignItems: 'center', justifyContent: 'center', padding: spacing.lg, flexGrow: 1 },
     textScroll: { padding: spacing.lg },
-    text: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18, color: c.text },
+    text: { fontFamily: 'monospace', fontSize: fontPx(12), lineHeight: fontPx(18), color: c.text },
     emlHeader: { padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: c.border, gap: 2 },
     emlSubject: { ...typography.bodySemibold, color: c.text },
     emlMeta: { ...typography.caption, color: c.textSecondary },

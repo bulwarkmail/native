@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
@@ -1385,6 +1385,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <TextInput
             ref={searchInputRef}
             style={styles.searchInput}
+            maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
             placeholder={t('email_list.search_placeholder', 'Search mail...')}
             placeholderTextColor={c.textMuted}
             value={searchInput}
@@ -1434,7 +1435,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              <Text style={styles.filterBadgeText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{activeFilterCount}</Text>
             </View>
           )}
         </Pressable>
@@ -2224,7 +2225,9 @@ function makeStyles(c: ThemePalette) {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    height: componentSizes.inputHeight, // h-10 = 40px
+    // h-10 = 40px at the default sizes; grows rather than clipping the
+    // field at a large OS font size.
+    minHeight: componentSizes.inputHeight,
     backgroundColor: c.surface,
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -2246,18 +2249,19 @@ function makeStyles(c: ThemePalette) {
     top: 2,
     right: 2,
     minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    // Grows with its count: a fixed height clipped it at a large system font.
+    minHeight: 16,
+    borderRadius: 999,
     backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
   filterBadgeText: {
-    fontSize: 10,
+    fontSize: fontPx(10),
     fontWeight: '700',
     color: c.primaryForeground,
-    lineHeight: 14,
+    lineHeight: fontPx(14),
   },
   searchClearButton: {
     width: 20,

@@ -15,7 +15,7 @@ vi.mock('../../api/blob', () => ({ uploadBytes: vi.fn() }));
 vi.mock('react', () => ({ default: {} }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
+import { forgetAccountData, forgetSharedData, CLEANUP_STEP_TIMEOUT_MS } from '../account-data-cleanup';
 import { signOutNeedsConfirm, countQueuedSends } from '../../lib/sign-out-guard';
 import { useOutboxStore } from '../outbox-store';
 import { useSendQueueStore } from '../send-queue-store';
@@ -23,6 +23,7 @@ import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSearchHistoryStore } from '../search-history-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from '../calendar-subscriptions-store';
 import { useFolderIconsStore } from '../folder-icons-store';
+import { useSettingsStore } from '../settings-store';
 
 const A = 'a@mail.example.com';
 const B = 'b@mail.example.com';
@@ -71,6 +72,20 @@ describe('forgetAccountData', () => {
     for (const k of bKeys) expect(await AsyncStorage.getItem(k)).not.toBeNull();
     expect(useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id)).toEqual(['s2']);
     expect(useOutboxStore.getState().entries).toHaveLength(1);
+  });
+
+  it('forgets the account\'s shared calendar colours and keeps the other account\'s and the old keys', async () => {
+    await useSettingsStore.getState().hydrate();
+    for (const key of [`${A}|team|c1`, `${B}|team|c1`, 'team|c1']) useSettingsStore.getState().setSharedCalendarColor(key, '#123456');
+    // Not while the account is back.
+    await forgetAccountData({ appAccountId: A }, { stillGone: () => false });
+    expect(Object.keys(useSettingsStore.getState().sharedCalendarColors)).toContain(`${A}|team|c1`);
+    await forgetAccountData({ appAccountId: A });
+    expect(Object.keys(useSettingsStore.getState().sharedCalendarColors).sort()).toEqual([`${B}|team|c1`, 'team|c1'].sort());
+    await vi.waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem('webmail:settings:v1')) ?? '{}');
+      expect(Object.keys(stored.sharedCalendarColors ?? {}).sort()).toEqual([`${B}|team|c1`, 'team|c1'].sort());
+    });
   });
 
   it('forgets the account\'s folder icons and keeps the other account\'s', async () => {
@@ -198,6 +213,65 @@ describe('forgetAccountData', () => {
     } finally {
       set.mockRestore();
       warn.mockRestore();
+    }
+  });
+});
+
+describe('forgetAccountData while the account may come back', () => {
+  const ownerA = subscriptionOwner('https://mail.example.com', 'a');
+  const signedOutA = { appAccountId: A, serverUrl: 'https://mail.example.com', username: 'a' };
+
+  it('runs no step once stillGone is false', async () => {
+    const keys = await seed(A);
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub('s1', ownerA)] });
+    useSearchHistoryStore.setState({ recentSearches: ['x'] });
+    await forgetAccountData(signedOutA, { lastAccount: true, stillGone: () => false });
+    for (const k of keys) expect(await AsyncStorage.getItem(k)).not.toBeNull();
+    expect(useCalendarSubscriptionsStore.getState().subscriptions).toHaveLength(1);
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual(['x']);
+  });
+
+  it('stops at the step where the account came back', async () => {
+    await seed(A);
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub('s1', ownerA)] });
+    let back = false;
+    const clear = vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount').mockImplementationOnce(async () => { back = true; });
+    try {
+      await forgetAccountData(signedOutA, { stillGone: () => !back });
+      expect(clear).toHaveBeenCalledTimes(1);
+      expect(await AsyncStorage.getItem(`webmail:identities:v1:${A}`)).not.toBeNull();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions).toHaveLength(1);
+    } finally {
+      clear.mockRestore();
+    }
+  });
+
+  it('reads lastAccount when the shared step is reached', async () => {
+    useSearchHistoryStore.setState({ recentSearches: ['x'] });
+    let last = true;
+    const clear = vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount').mockImplementationOnce(async () => { last = false; });
+    try {
+      await forgetAccountData(signedOutA, { lastAccount: () => last });
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual(['x']);
+    } finally {
+      clear.mockRestore();
+    }
+  });
+
+  it('a step that never settles does not keep the later ones from running', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const clear = vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount').mockImplementationOnce(() => new Promise(() => undefined));
+    try {
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub('s1', ownerA)] });
+      const done = forgetAccountData(signedOutA);
+      await vi.advanceTimersByTimeAsync(CLEANUP_STEP_TIMEOUT_MS);
+      await done;
+      expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
+    } finally {
+      clear.mockRestore();
+      warn.mockRestore();
+      vi.useRealTimers();
     }
   });
 });

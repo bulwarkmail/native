@@ -198,6 +198,92 @@ describe('signing out of a direct PKCE account', () => {
     expect(useAuthStore.getState().activeAccountId).toBe(eve.id);
   });
 
+  describe('a hand-off account on another host', () => {
+    const TOKEN = 'https://sso.example.com/realms/r/protocol/openid-connect/token';
+    const onHost = (username: string, host: string): AccountEntry => ({
+      ...entry(username), id: generateAccountId(username, host), serverUrl: host,
+    });
+    const withToken = (source: OAuthTokenSource, tokenEndpoint: string): OAuthTokens => ({ ...bundle(source), tokenEndpoint });
+
+    it('keeps the provider session while a hand-off account on another host signed in at the same token endpoint', async () => {
+      // The webmail at mail.other.example hands off sign-ins to the same
+      // provider: its grant hangs on the browser's provider session too.
+      const gil = onHost('gil@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', 'https://SSO.example.com/realms/r/token'), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+      await useAuthStore.getState().logout();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().activeAccountId).toBe(gil.id);
+    });
+
+    it('matches a token endpoint that spells out the default port', async () => {
+      const gil = onHost('gil@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', 'https://sso.example.com:443/realms/r/token'), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+      await useAuthStore.getState().logout();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+    });
+
+    it('ends the session when that hand-off account signed in at another provider', async () => {
+      const gil = onHost('gil@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', 'https://sso.other.example/token'), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+      await useAuthStore.getState().logout();
+      await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+    });
+
+    it('a password or pairing account at the same token endpoint on another host does not hold it', async () => {
+      const pia = onHost('pia@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [pia, withToken('pairing', TOKEN), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+      await useAuthStore.getState().logout();
+      await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+    });
+
+    it('keeps the provider session when a hand-off account\'s stored token endpoint is corrupt', async () => {
+      // The check failing must keep the session, never end it.
+      const gil = onHost('gil@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', TOKEN), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+      const readOthers = storedCredentials.getMockImplementation() as (id: string) => Promise<Record<string, unknown> | null>;
+      storedCredentials.mockImplementation(async (id: string) => {
+        const c = await readOthers(id);
+        return id === gil.id && c ? { ...c, tokenEndpoint: 42 } : c;
+      });
+
+      await useAuthStore.getState().logout();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+      expect(useAccountStore.getState().getAccountById(ADA.id)).toBeUndefined();
+      expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith(ADA.id);
+    });
+
+    it('keeps the provider session while an account on another host has credentials it cannot read', async () => {
+      // It may be a hand-off account at this same provider: ending the
+      // session it may need is worse than leaving one open.
+      const una = onHost('una@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [una, null, null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+      const readOthers = storedCredentials.getMockImplementation() as (id: string) => Promise<unknown>;
+      storedCredentials.mockImplementation(async (id: string) => {
+        if (id === una.id) throw new Error('keystore unavailable');
+        return readOthers(id);
+      });
+
+      await useAuthStore.getState().logout();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+      expect(useAccountStore.getState().getAccountById(ADA.id)).toBeUndefined();
+      expect(jmapClient.clearAccountCredentials).toHaveBeenCalledWith(ADA.id);
+    });
+  });
+
   it('keeps the provider session while an account on the same server has credentials it cannot read', async () => {
     // It may be a hand-off account; ending the session it may need is worse
     // than leaving one open. Bob, at another provider, takes over, so Una is

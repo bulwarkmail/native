@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react-native';
-import { spacing, radius, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { useShouldAnimate } from '../theme/dynamic';
 import { useToastStore, type Toast } from '../stores/toast-store';
@@ -271,14 +271,14 @@ function makeStyles(c: ThemePalette, scheme: 'light' | 'dark') {
     // Centred on the title's first line.
     icon: { marginTop: 1 },
     body: { flex: 1 },
-    title: { fontSize: 14.5, lineHeight: 20, fontWeight: '500', color: c.text },
-    message: { fontSize: 13, lineHeight: 18, color: c.mutedForeground, marginTop: 2 },
+    title: { fontSize: fontPx(14.5), lineHeight: fontPx(20), fontWeight: '500', color: c.text },
+    message: { fontSize: fontPx(13), lineHeight: fontPx(18), color: c.mutedForeground, marginTop: 2 },
     // One action sits beside the text; two stack so neither label is cut.
     actions: { alignSelf: 'center', alignItems: 'flex-end', gap: spacing.sm },
     action: {},
     actionPressed: { opacity: 0.6 },
     actionUnderline: { borderBottomWidth: 1, borderBottomColor: c.text },
-    actionText: { fontSize: 13, lineHeight: 16, fontWeight: '600', color: c.text },
+    actionText: { fontSize: fontPx(13), lineHeight: fontPx(16), fontWeight: '600', color: c.text },
     countdownTrack: {
       position: 'absolute',
       left: 0,

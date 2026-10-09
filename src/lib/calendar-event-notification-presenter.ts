@@ -4,7 +4,12 @@ import { useCalendarStore } from '../stores/calendar-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { freeToastSlots, toast, useToastStore } from '../stores/toast-store';
 import { setPendingCalendarOpen } from '../navigation/pending-calendar-open';
-import { buildNoticeToasts, selectNoticeToasts, type NoticeToast } from './calendar-event-notification-toast';
+import {
+  buildNoticeToasts,
+  createNoticeWaiter,
+  selectNoticeToasts,
+  type NoticeToast,
+} from './calendar-event-notification-toast';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 
 function activeJmapAccountId(): string | undefined {
@@ -27,11 +32,26 @@ export function startCalendarEventNotificationToasts(openCalendar: () => void): 
     if (presenting) return;
     const store = useCalendarEventNotificationStore.getState();
     const batch = store.pending;
-    if (batch.length === 0) return;
+    if (batch.length === 0) {
+      waiter.reset();
+      return;
+    }
     // Never push the user's Undo or an error out of the toast host: with no
-    // room, wait for a toast to leave (the toast subscription).
+    // room, wait for a toast to leave (the toast subscription), but no longer
+    // than the cap; then the batch goes without a toast.
     const room = freeToastSlots(useToastStore.getState().toasts);
-    if (room === 0) return;
+    const step = waiter.step(room);
+    if (step === 'wait') return;
+    if (step === 'drop') {
+      console.warn('[calendar-notices] no room for a toast within the wait cap; acknowledging', batch.length, 'without one');
+    } else {
+      showToasts(batch, room);
+    }
+    void useCalendarStore.getState().refresh().catch(() => undefined);
+    // Removes them from the store before anything else can see them again.
+    void store.acknowledge(batch.map((n) => n.id));
+  };
+  const showToasts = (batch: ReturnType<typeof useCalendarEventNotificationStore.getState>['pending'], room: number) => {
     const { t } = useLocaleStore.getState();
     // Only offered while the client really serves the active app account:
     // JMAP account ids repeat across servers, so they alone can't tell.
@@ -72,15 +92,14 @@ export function startCalendarEventNotificationToasts(openCalendar: () => void): 
     } finally {
       presenting = false;
     }
-    void useCalendarStore.getState().refresh().catch(() => undefined);
-    // Removes them from the store before anything else can see them again.
-    void store.acknowledge(batch.map((n) => n.id));
   };
+  const waiter = createNoticeWaiter(present);
   present();
   const unsubscribeNotices = useCalendarEventNotificationStore.subscribe(present);
   const unsubscribeToasts = useToastStore.subscribe(present);
   return () => {
     unsubscribeNotices();
     unsubscribeToasts();
+    waiter.reset();
   };
 }

@@ -17,18 +17,34 @@ export function isTrustedSendersSyncOn(setting: boolean | null | undefined, hasC
  * ordinary contact is never trusted just for being in the address book: the
  * From header is trivially spoofed, so that would let anyone who knows a
  * contact's address load pixels (webmail `components/email/email-viewer.tsx`).
+ * For the same reason a listed address counts only on a message that passes
+ * the sender check (`senderPassesCheck`): a forged one with a trusted From
+ * waits for a tap.
  */
 export function isSenderContentTrusted(
   senderEmail: string | null | undefined,
-  opts: {
-    /** The settings store's local allow-list check. */
-    isLocallyTrusted: (email: string) => boolean;
-    /** Whether address book sync is in effect (`isTrustedSendersSyncOn`). */
-    syncEnabled: boolean;
-    /** Lowercased addresses filed in the "Trusted Senders" book. */
-    trustedBookEmails: readonly string[];
+  opts: SenderListOpts & {
+    /**
+     * Whether the owning server's checks tie this message to its From domain
+     * (`senderPassesCheck`). Only `true` counts: unknown trusts nobody.
+     */
+    senderAuthenticated: boolean | undefined;
   },
 ): boolean {
+  return opts.senderAuthenticated === true && isSenderListed(senderEmail, opts);
+}
+
+interface SenderListOpts {
+  /** The settings store's local allow-list check. */
+  isLocallyTrusted: (email: string) => boolean;
+  /** Whether address book sync is in effect (`isTrustedSendersSyncOn`). */
+  syncEnabled: boolean;
+  /** Lowercased addresses filed in the "Trusted Senders" book. */
+  trustedBookEmails: readonly string[];
+}
+
+/** Whether the address is on either trusted list, whatever the sender check says. */
+export function isSenderListed(senderEmail: string | null | undefined, opts: SenderListOpts): boolean {
   const email = senderEmail?.trim();
   if (!email) return false;
   if (opts.isLocallyTrusted(email)) return true;

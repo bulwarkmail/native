@@ -35,7 +35,7 @@ The app covers 486 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 - Sort order presets, unread-first order, and a choice between opening the Inbox or the last folder on start
 - Search with folder scope from a folder tree, size and body filters, recent searches and highlighted matches; global search across mail, contacts, calendar and files
 - HTML mail with dark mode, remote content blocked until allowed, and a list of trusted senders
-- SPF, DKIM and DMARC results, a warning when the sender could not be verified, and the full header details
+- SPF, DKIM and DMARC results read only from your own server's check, a warning when the sender could not be verified, and the full header details
 - Unsubscribe banner, read receipts, a copy chip for verification codes in the list and the message
 - Attachments: previews for images, PDF, text, audio and video, thumbnails, download all, `winmail.dat` and attached `.eml` messages
 - View source, export as `.eml`, import `.eml`, and create a filter rule from a message
@@ -75,7 +75,7 @@ The app covers 486 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 
 **Settings and appearance**
 - Light, dark and system themes, plus six built-in colour themes from the webmail
-- Font size for most of the app (a few screens still use fixed sizes), list density, and an option to turn animations off
+- Font size for the whole app, with the system font size capped where text would overflow, list density, and an option to turn animations off
 - 27 languages, including right-to-left layouts (see below)
 - Date format region, 12 or 24-hour time and an app-wide time zone
 - Settings search, settings export and import

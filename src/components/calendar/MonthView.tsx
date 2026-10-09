@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import {
   addDays,
   endOfWeek,
@@ -10,7 +10,7 @@ import {
   type Locale,
 } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { componentSizes, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, componentSizes, fontPx, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import {
   buildEventDayIndex,
@@ -21,7 +21,7 @@ import {
   type EventDayIndex,
   type TimeFormat,
 } from '../../lib/calendar-utils';
-import { dayIndexIn, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
+import { dayIndexIn, monthChipRowHeight, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
@@ -31,10 +31,10 @@ import { TaskCircle, taskControlFor } from './EventBlock';
 
 type WeekStart = 0 | 1 | 6;
 
-// Height of a week row with dots, and with event chips (#666). The freely
-// scrolling month uses them as fixed row heights.
+// Height of a week row with dots: fixed boxes, no text that grows. A row
+// with event chips is monthChipRowHeight(). The freely scrolling month uses
+// them as fixed row heights.
 export const MONTH_ROW_HEIGHT = 54;
-export const MONTH_ROW_HEIGHT_CHIPS = 74;
 // Corner radius of event bars (repos/branding/APP.md).
 const EVENT_RADIUS = 2;
 
@@ -67,9 +67,12 @@ export function weekNumberFor(date: Date, weekStartsOn: WeekStart): number {
 
 export type MonthStyles = ReturnType<typeof makeStyles>;
 
+// Rebuilt with the palette, which changes with the font size setting, and
+// with the OS font scale, which the chip row height follows.
 export function useMonthStyles(): MonthStyles {
   const c = useColors();
-  return React.useMemo(() => makeStyles(c), [c]);
+  const { fontScale } = useWindowDimensions();
+  return React.useMemo(() => makeStyles(c, fontScale), [c, fontScale]);
 }
 
 export function MonthWeekdayHeader({
@@ -177,6 +180,7 @@ function MonthWeekRowInner({
               {monthLabel && (
                 <Text
                   numberOfLines={1}
+                  maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
                   style={[
                     styles.monthLabel,
                     !sameMonth && styles.dayTextMuted,
@@ -206,7 +210,7 @@ function MonthWeekRowInner({
                   />
                 ))}
                 {overflow > 0 && (
-                  <Text style={styles.overflowText}>+{overflow}</Text>
+                  <Text style={styles.overflowText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>+{overflow}</Text>
                 )}
               </View>
             )}
@@ -229,7 +233,11 @@ function MonthWeekRowInner({
                       ]}
                     >
                       {task && <TaskCircle task={task} color={colors.text} size={8} />}
-                      <Text style={[styles.chipText, styles.chipTextFlex, { color: colors.text }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.chipText, styles.chipTextFlex, { color: colors.text }]}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+                      >
                         {event.showWithoutTime
                           ? null
                           : `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `}
@@ -239,7 +247,7 @@ function MonthWeekRowInner({
                   );
                 })}
                 {overflow > 0 && (
-                  <Text style={styles.overflowText}>+{overflow}</Text>
+                  <Text style={styles.overflowText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>+{overflow}</Text>
                 )}
               </View>
             )}
@@ -320,7 +328,7 @@ function MonthViewInner({
 
 export const MonthView = React.memo(MonthViewInner);
 
-function makeStyles(c: ThemePalette) {
+function makeStyles(c: ThemePalette, osFontScale: number) {
   return StyleSheet.create({
   grid: { paddingHorizontal: spacing.sm },
   weekdayRow: { flexDirection: 'row', paddingHorizontal: spacing.xs, marginBottom: 4 },
@@ -345,7 +353,7 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: 4,
   },
   dayCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
-  dayCellTall: { minHeight: MONTH_ROW_HEIGHT_CHIPS, paddingHorizontal: 1 },
+  dayCellTall: { minHeight: monthChipRowHeight(osFontScale), paddingHorizontal: 1 },
   dayNumber: {
     width: 36,
     height: 36,
@@ -356,7 +364,7 @@ function makeStyles(c: ThemePalette) {
   dayText: { ...typography.body, color: c.text },
   // Day 1 under its month's name: both fit the 36px circle.
   dayTextUnderLabel: { lineHeight: 16 },
-  monthLabel: { fontSize: 8, lineHeight: 10, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase' },
+  monthLabel: { fontSize: fontPx(8), lineHeight: fontPx(10), fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase' },
   dayTextMuted: { color: c.textMuted },
   todayCircle: { backgroundColor: c.primary },
   todayText: { color: c.textInverse, fontWeight: '700' },
@@ -391,12 +399,12 @@ function makeStyles(c: ThemePalette) {
   chipInactive: { borderWidth: 1, paddingHorizontal: 1, paddingVertical: 0 },
   // Colour comes from eventBlockColors(): computed from the calendar colour,
   // never a theme colour.
-  chipText: { fontSize: 9, lineHeight: 11, fontWeight: '500' },
+  chipText: { fontSize: fontPx(9), lineHeight: fontPx(11), fontWeight: '500' },
   chipTextInactive: { textDecorationLine: 'line-through' },
   overflowText: {
     color: c.textMuted,
-    fontSize: 9,
-    lineHeight: 10,
+    fontSize: fontPx(9),
+    lineHeight: fontPx(10),
     marginLeft: 1,
     textAlign: 'center',
   },

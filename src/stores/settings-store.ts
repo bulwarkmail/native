@@ -7,6 +7,8 @@ import { generateAccountId } from '../lib/account-utils';
 import { writeIdentityCache } from '../lib/identity-cache';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 import { isValidHourPair, isValidWorkingDays } from '../lib/calendar-display-range';
+import { sanitizeSidebarAppUrl } from '../lib/sidebar-app-url';
+import { exportableCalendarColors, withoutAccountCalendarColors } from '../lib/calendar-color-keys';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -564,6 +566,8 @@ export interface SettingsState extends PersistedSettings {
   // Shared-calendar color overrides
   setSharedCalendarColor: (key: string, color: string) => void;
   removeSharedCalendarColor: (key: string) => void;
+  /** Drop a signed-out app account's shared calendar colours (old keys stay). */
+  forgetAccountCalendarColors: (appAccountId: string) => Promise<void>;
 
   // Sidebar apps
   addSidebarApp: (app: Omit<SidebarApp, 'id'>) => void;
@@ -575,7 +579,8 @@ export interface SettingsState extends PersistedSettings {
   resetToDefaults: () => void;
   // JSON blob in the webmail's export shape (lib/settings export) so a file
   // round-trips between the two clients. See SETTINGS_KEY_MAP.
-  exportSettings: () => string;
+  /** The settings file, with app account `appAccountId`'s shared calendar colours (and no other's). */
+  exportSettings: (appAccountId?: string | null) => string;
   // Returns false when the JSON is not a settings object. Unknown keys and
   // invalid values are ignored; device-local keys are never imported.
   importSettings: (json: string) => boolean;
@@ -667,6 +672,18 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
     && typeof (a as SidebarApp).name === 'string'
     && typeof (a as SidebarApp).url === 'string'),
 };
+
+function importableSidebarApps(apps: readonly unknown[]): SidebarApp[] {
+  const out: SidebarApp[] = [];
+  for (const a of apps) {
+    if (!a || typeof a !== 'object') continue;
+    const app = a as SidebarApp;
+    if (typeof app.id !== 'string' || typeof app.name !== 'string' || typeof app.url !== 'string') continue;
+    const url = sanitizeSidebarAppUrl(app.url);
+    if (url) out.push({ ...app, url });
+  }
+  return out;
+}
 
 export function mergeWithDefaults(parsed: Partial<PersistedSettings>): PersistedSettings {
   const out: Record<string, unknown> = { ...DEFAULT_PERSISTED };
@@ -925,6 +942,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     persist(snapshot(get()));
   },
 
+  forgetAccountCalendarColors: async (appAccountId) => {
+    // Read the stored settings first: a write before that would put the
+    // defaults over every other setting.
+    await get().hydrate();
+    const current = get().sharedCalendarColors;
+    const kept = withoutAccountCalendarColors(current, appAccountId);
+    if (kept === current) return;
+    set({ sharedCalendarColors: kept });
+    persist(snapshot(get()));
+  },
+
   addSidebarApp: (app) => {
     const id = `app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     set({ sidebarApps: [...get().sidebarApps, { ...app, id }] });
@@ -953,7 +981,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     persist(snapshot(get()));
   },
 
-  exportSettings: () => JSON.stringify(toExportShape(snapshot(get())), null, 2),
+  // Only that app account's shared calendar colours (exportableCalendarColors).
+  exportSettings: (appAccountId = null) => {
+    const state = snapshot(get());
+    const sharedCalendarColors = exportableCalendarColors(state.sharedCalendarColors, appAccountId);
+    return JSON.stringify(toExportShape({ ...state, sharedCalendarColors }), null, 2);
+  },
 
   importSettings: (json) => {
     let parsed: unknown;
@@ -964,6 +997,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
     const incoming = fromExportShape(parsed as Record<string, unknown>);
+    // An imported app is opened later, so one whose URL fails the check is
+    // dropped here rather than the whole list; the rest of the file still
+    // imports. Hydrate does not filter, so an app saved before the check
+    // stays editable.
+    if (Array.isArray(incoming.sidebarApps)) incoming.sidebarApps = importableSidebarApps(incoming.sidebarApps);
     // Validate against the current state so keys absent from the file keep
     // their value instead of snapping back to the default.
     const merged = mergeWithDefaults({ ...snapshot(get()), ...incoming });

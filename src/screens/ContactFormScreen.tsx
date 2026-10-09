@@ -29,7 +29,7 @@ import { jmapClient } from '../api/jmap-client';
 import { isShownAccount, requireShownAccountScope, useEmailStore } from '../stores/email-store';
 import Dialog from '../components/Dialog';
 import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 
@@ -1592,7 +1592,7 @@ function makeStyles(c: ThemePalette) {
       ...typography.bodyMedium,
       color: c.textSecondary,
       textTransform: 'uppercase',
-      fontSize: 11,
+      fontSize: fontPx(11),
       letterSpacing: 0.6,
     },
     sectionBody: { gap: spacing.sm, paddingLeft: spacing.lg + spacing.xs },

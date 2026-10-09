@@ -50,7 +50,7 @@ import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { useSettingsStore } from '../stores/settings-store';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, fontPx, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -485,7 +485,9 @@ export default function ContactsScreen() {
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
                   >
-                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+                    <Text style={styles.filterBadgeText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
+                      {activeFilterCount}
+                    </Text>
                   </View>
                 )}
               </Pressable>
@@ -720,14 +722,15 @@ function makeStyles(c: ThemePalette) {
     top: 2,
     right: 2,
     minWidth: 16,
-    height: 16,
+    // Grows with its count: a fixed height clipped it at a large system font.
+    minHeight: 16,
     paddingHorizontal: 4,
-    borderRadius: 8,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: c.primary,
   },
-  filterBadgeText: { fontSize: 10, fontWeight: '700', color: c.primaryForeground },
+  filterBadgeText: { fontSize: fontPx(10), fontWeight: '700', color: c.primaryForeground },
   addBtn: {
     width: 36,
     height: 36,

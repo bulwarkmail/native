@@ -1,10 +1,41 @@
 # Changes since 4 October 2026
 
-The webmail parity work from 4 to 8 October 2026: 349 commits (72 features, 237 fixes, and docs, tests and chores) in eleven merged pull requests, plus phases 6e and 7 on `parity/phase-6e-settings-ui` and `parity/phase-7-final-items`, which are not merged yet. At the start, 380 of the 489 tracked webmail parity items were done and 109 were open ([roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md)). Now 486 of 494 are done and 8 are open ([PARITY_CHECKLIST.md](PARITY_CHECKLIST.md)); five items were added during the work.
+The webmail parity work from 4 to 8 October 2026: 349 commits (72 features, 237 fixes, and docs, tests and chores) in eleven merged pull requests, plus phases 6e and 7, merged afterwards, and a follow-up cleanup on `cleanup/follow-ups-1`, which is not merged yet and adds 35 commits (34 fixes and a plan). At the start, 380 of the 489 tracked webmail parity items were done and 109 were open ([roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md)). Now 486 of 494 are done and 8 are open ([PARITY_CHECKLIST.md](PARITY_CHECKLIST.md)); five items were added during the work.
 
 The phases are listed newest first. Short hashes are in parentheses. What each phase left open is in the roadmap's follow-up sections.
 
-## Phase 7: the last parity items (unmerged)
+## Follow-up cleanup 1 (unmerged)
+
+Branch `cleanup/follow-ups-1`, everything after afcf7b3.
+
+### Improvements
+- The font size setting reaches every screen, and a large system font is capped at 1.5 times on body text so it no longer overflows (d1b30c7, 0a8b3a6).
+- The tab bar's unread count, the filter count, the inbox search box and Settings descriptions stay readable at a large system font, and a wrapped settings control stays on the right (0a8b3a6, e455d30, 4cf76ab, 7d3c75c).
+- The month view's event rows grow with the font size, so two chips no longer clip at Large (9d82b0a).
+- The sender check reads only your own server's results, and sibling subdomains of one organisation count as the same sender (6eebb6b, 8f754a7).
+- A trusted sender's images load only on a message that passes, "Always trust" is offered only then, and a trusted sender's unverified message says so once (36e61ba, a5ca1e3, dfb8dad).
+- Shared calendar colours are kept per account, and a new shared calendar is coloured for the account on screen (55f5847, 4cf5188, abb81ab).
+- A folder shared by a new owner shows up, and an unknown kind of share is named plainly (c40c5b4, 781c7a3, cea5c29).
+- Collapsing a tag folds only that tag, a folder you pick beats a waiting link, and Settings and drawer chevrons point the right way in right-to-left languages (633a851, 92761db).
+- Stepping back a month no longer reloads the grid (55f5847).
+- The time zone list holds every zone the device knows, where the device can tell, and is built once per change (f1541dc, f0e29b9).
+- Invalid sidebar apps are dropped on import, About links a commit only when it is on origin, and the locale check passes on any line ending (f1541dc).
+
+### Fixes
+- Replying to, or answering an invitation from, a forged, flagged or unverified sender no longer makes them trusted, and a forged trusted address loads nothing (36e61ba, fbcffd2, a5ca1e3).
+- A Reply-To outside the sender's domain is not trusted on reply, and the "sent as" badge shows only when the From passed, and on your own copies in Sent and Drafts (165d0b2, 7d3c75c, c1deae7).
+- An IP or single-label mail host trusts only its own authserv-id, and server hosts are read the way the connection reads them (7f4293e).
+- An expired or signed-out account is forgotten even when its device cleanup fails or never ends, without erasing an account signed straight back in, and signing out no longer stalls on a stuck cleanup (b9d646f, 3d444ed, c79a6ee, 33aa72d, 1da1023).
+- A provider session that hand-off accounts share is kept, and an unreadable account elsewhere keeps it too (3d444ed, c79a6ee).
+- A held send that failed or went out once is left for you to retry, and one that never went out moves to the account's new id (3d444ed, d3c896a, 6161666).
+- A signed-out account's shared calendar colours and search history are forgotten, and export carries only the shown account's colours (aa70c66, ba114ef).
+- The shown account's calendar colours are never painted on the previous account's calendars during a switch (88701ba).
+- Calendar and share notices no longer wait forever (c40c5b4, 781c7a3).
+- The reminder tests pass in any time zone (55f5847).
+- The filter count stays inside its badge, and a null text cap means no cap (e455d30).
+- Month navigation stays in step after a row height change (4cf76ab).
+
+## Phase 7: the last parity items
 
 Branch `parity/phase-7-final-items`, everything after a5e415e.
 
@@ -36,7 +67,7 @@ Branch `parity/phase-7-final-items`, everything after a5e415e.
 - The Jalali calendar shows the selected day in Persian, and stepping back to a month keeps a row above it (807dd56).
 - A folder settings description no screen shows any more is removed from every language (825bb6c).
 
-## Phase 6e: settings, UI and security (unmerged)
+## Phase 6e: settings, UI and security
 
 Branch `parity/phase-6e-settings-ui`, everything after 3719f21.
 

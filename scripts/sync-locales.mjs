@@ -1,7 +1,9 @@
 // Vendor the webmail locale catalogs into ./locales/<lang>/common.json.
 // Run from the RN repo root: `node scripts/sync-locales.mjs [--check] [--from <dir>]`.
 //
-// The webmail catalog is the source of truth and is copied verbatim. Keys the
+// The webmail catalog is the source of truth and is copied with only its line
+// endings changed: the webmail checkout's catalogs are CRLF and ours are LF,
+// so `\r\n` becomes `\n` both when comparing and when copying. Keys the
 // native app needs that the webmail does not have live in ./locales/rn/<lang>.json
 // and are merged on top at runtime (src/i18n/index.ts) - they are never written
 // into the vendored files, so a re-sync cannot lose them. Keys that later land
@@ -9,7 +11,7 @@
 //
 // In environments where the parent repo isn't checked out (e.g. CI clone of
 // the standalone RN repo), this is a no-op — vendored files stay as-is.
-import { readdir, mkdir, copyFile, readFile } from 'node:fs/promises';
+import { readdir, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +43,11 @@ function flatten(obj, prefix = '', out = new Map()) {
   return out;
 }
 
+// The catalog with CRLF line endings turned into LF.
+async function readCatalog(path) {
+  return (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
+}
+
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
@@ -64,14 +71,14 @@ for (const lang of langs) {
       problems++;
       continue;
     }
-    const [a, b] = await Promise.all([readFile(src, 'utf8'), readFile(dest, 'utf8')]);
+    const [a, b] = await Promise.all([readCatalog(src), readFile(dest, 'utf8')]);
     if (a !== b) {
       console.log(`stale: locales/${lang}/common.json differs from the webmail`);
       problems++;
     }
   } else {
     await mkdir(destDir, { recursive: true });
-    await copyFile(src, dest);
+    await writeFile(dest, await readCatalog(src));
     copied++;
   }
 

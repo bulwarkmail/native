@@ -14,6 +14,7 @@ vi.mock('../../api/jmap-client', () => {
     jmapClient: {
       isConnected: true,
       accountId: 'jA',
+      connectedAccountId: 'jA',
       getSubmissionAccountIds: vi.fn(() => ['jA']),
       // The server has since dropped every extension: replay must not care.
       supportsSubmissionExtension: vi.fn(() => false),
@@ -27,6 +28,7 @@ vi.mock('../../api/email', () => ({
   getEmailFlags: vi.fn(async () => ({ list: [], notFound: [] })),
   destroyEmails: vi.fn(async () => undefined),
 }));
+vi.mock('../../api/identity', () => ({ getIdentities: vi.fn(async () => []) }));
 vi.mock('../../api/sent-lookup', () => ({
   findCopiesByMessageId: vi.fn(),
   findSubmissionsForEmails: vi.fn(async () => []),
@@ -44,6 +46,7 @@ vi.mock('../../stores/toast-store', () => ({
 import { jmapClient, AuthenticationError, NetworkError, RequestTimeoutError, RateLimitError } from '../../api/jmap-client';
 import { sendEmail, patchKeywordsForEmails, getEmailFlags, destroyEmails } from '../../api/email';
 import { findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes } from '../../api/sent-lookup';
+import { getIdentities } from '../../api/identity';
 import {
   RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, SendUnconfirmedError,
 } from '../../api/jmap-result';
@@ -62,10 +65,11 @@ const mockDestroy = destroyEmails as unknown as ReturnType<typeof vi.fn>;
 const mockFind = findCopiesByMessageId as unknown as ReturnType<typeof vi.fn>;
 const mockSubs = findSubmissionsForEmails as unknown as ReturnType<typeof vi.fn>;
 const mockBoxes = resolveSendMailboxes as unknown as ReturnType<typeof vi.fn>;
+const mockIdentities = getIdentities as unknown as ReturnType<typeof vi.fn>;
 const mockActive = activeAppAccountId as unknown as ReturnType<typeof vi.fn>;
 const mockServes = clientServesActiveAccount as unknown as ReturnType<typeof vi.fn>;
 const client = jmapClient as unknown as {
-  isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn>;
+  isConnected: boolean; accountId: string; connectedAccountId: string | null; getSubmissionAccountIds: ReturnType<typeof vi.fn>;
   supportsSubmissionExtension: ReturnType<typeof vi.fn>; request: ReturnType<typeof vi.fn>;
 };
 
@@ -112,7 +116,9 @@ beforeEach(async () => {
   useNetworkStore.setState({ online: true });
   client.isConnected = true;
   client.accountId = 'jA';
+  client.connectedAccountId = 'jA';
   client.getSubmissionAccountIds.mockReturnValue(['jA']);
+  mockIdentities.mockResolvedValue([]);
   mockActive.mockReturnValue('A');
   mockServes.mockReturnValue(true);
   mockBoxes.mockResolvedValue({ sentId: 'm-sent', draftsId: 'm-drafts' });
@@ -836,6 +842,23 @@ describe('flushSendQueue: sending queued entries', () => {
     expect(refused).toEqual([{ email: 'cc@x.test', smtpReply: '550' }]);
   });
 
+  it('a replayed reply trusts every accepted recipient except the flagged sender', async () => {
+    await seed(entry({
+      outgoing: { ...entry().outgoing, to: [{ email: 'ceo@bank.example' }, { email: 'ann@ok.example' }], cc: [] },
+      replyTo: { emailIds: ['orig-1'], keyword: '$answered', untrusted: ['ceo@bank.example'] },
+    }));
+    await flushSendQueue();
+    const [, , opts] = (trustRecipients as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts.exclude).toEqual(['ceo@bank.example']);
+  });
+
+  it('a reply queued before the sender check passes no exclude list, so nobody is trusted', async () => {
+    await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
+    await flushSendQueue();
+    const [, , opts] = (trustRecipients as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(opts).toHaveProperty('exclude', undefined);
+  });
+
   it('flags the original in its own account when replyTo carries one', async () => {
     await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered', jmapAccountId: 'jShared' } }));
     await flushSendQueue();
@@ -1059,6 +1082,143 @@ describe('flushSendQueue: preconditions and accounts', () => {
     expect(useSendQueueStore.getState().hydrated.A).toBeFalsy();
     await flushSendQueue();
     expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('flushSendQueue: a held send whose account id went stale', () => {
+  // The server renumbered the account (a migration, a restore): the entry's
+  // JMAP id is gone and the session's primary is the same mailbox now.
+  const identity = (id: string, email: string) => ({ id, name: '', email, mayDelete: true });
+  const stale = (over: Partial<QueuedSend> = {}) => entry({
+    jmapAccountId: 'jOld', heldReason: 'account_unavailable', identityId: 'iA', draftId: 'd-old',
+    replyTo: { emailIds: ['e-old'], keyword: '$answered', jmapAccountId: 'jOld', untrusted: ['x@evil.test'] },
+    ...over,
+  });
+
+  it('sends a stale held entry once, on the live primary, after re-stamping it', async () => {
+    await seed(stale());
+    mockIdentities.mockResolvedValue([identity('iA', 'ME@a.test')]);
+    await flushSendQueue();
+    expect(mockIdentities).toHaveBeenCalledWith('jA');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][1]).toBe('iA');
+    expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jA', draftId: undefined });
+    expect(entries()).toEqual([]);
+    // No JMAP id of the old account is used on the new one.
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+    expect(trustRecipients).toHaveBeenCalledWith(expect.anything(), undefined, expect.objectContaining({ exclude: ['x@evil.test'] }));
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-stamps nothing when a switch lands while the identities load', async () => {
+    await seed(stale());
+    mockIdentities.mockImplementation(async () => {
+      mockActive.mockReturnValue('B');
+      return [identity('iA', 'me@a.test')];
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable', draftId: 'd-old' });
+  });
+
+  it('re-stamps nothing when the primary changes while the identities load', async () => {
+    await seed(stale());
+    mockIdentities.mockImplementation(async () => {
+      client.connectedAccountId = 'jOther';
+      return [identity('iA', 'me@a.test')];
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable' });
+  });
+
+  it('re-stamps nothing while the client does not serve the active account', async () => {
+    await seed(stale());
+    await useSendQueueStore.getState().hydrateAccount('A');
+    mockServes.mockReturnValue(false);
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    expect(mockIdentities).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('keeps holding when the primary\'s identity has another address, or the entry\'s identity is missing', async () => {
+    await seed(stale());
+    mockIdentities.mockResolvedValue([identity('iA', 'someone-else@a.test'), identity('iB', 'me@a.test')]);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable' });
+  });
+
+  it('keeps holding when the identities cannot be read', async () => {
+    await seed(stale());
+    mockIdentities.mockRejectedValue(new Error('network'));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable' });
+  });
+
+  it('never re-stamps an entry that was ever attempted or carries attachments, and asks for no identities for them', async () => {
+    await seed(stale({ id: 'q1', attemptStartedAt: HOUR_AGO() }));
+    await seed(stale({ id: 'q2', outgoing: { ...entry({ id: 'q2' }).outgoing, attachments: [{ blobId: 'b1', type: 'text/plain', name: 'a.txt' }] } }));
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockIdentities).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries().map((e) => [e.jmapAccountId, e.heldReason])).toEqual([['jOld', 'account_unavailable'], ['jOld', 'account_unavailable']]);
+  });
+
+  it('never re-stamps an entry that was sent once, went uncertain and was put back by the user\'s Retry', async () => {
+    await seed(stale({ heldReason: undefined, draftId: undefined }));
+    const store = useSendQueueStore.getState();
+    await store.hydrateAccount('A');
+    await store.markSending('q1');
+    await store.markUncertain('q1', 'network');
+    await store.requeue('q1');
+    await store.hold('q1', 'account_unavailable');
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockIdentities).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable', everAttempted: true });
+  });
+
+  it('reads the primary\'s identities once per flush', async () => {
+    await seed(stale({ id: 'q1' }));
+    await seed(stale({ id: 'q2', createdAt: '2026-10-04T09:00:00.000Z' }));
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    expect(mockIdentities).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(mockSend.mock.calls.map((c) => c[4].accountId)).toEqual(['jA', 'jA']);
+  });
+
+  it('re-stamps nothing when the old account comes back while the identities load, and sends it there later', async () => {
+    await seed(stale());
+    mockIdentities.mockImplementation(async () => {
+      client.getSubmissionAccountIds.mockReturnValue(['jA', 'jOld']);
+      return [identity('iA', 'me@a.test')];
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ jmapAccountId: 'jOld', heldReason: 'account_unavailable', draftId: 'd-old' });
+
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jOld', draftId: 'd-old' });
+  });
+
+  it('releases rather than re-stamps once the session serves the old account again', async () => {
+    await seed(stale());
+    client.getSubmissionAccountIds.mockReturnValue(['jA', 'jOld']);
+    mockIdentities.mockResolvedValue([identity('iA', 'me@a.test')]);
+    await flushSendQueue();
+    expect(mockIdentities).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jOld', draftId: 'd-old' });
   });
 });
 

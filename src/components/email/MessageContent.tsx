@@ -14,6 +14,8 @@ import { ReadReceiptBanner } from './ReadReceiptBanner';
 import { SenderCheckBanner } from './SenderCheckBanner';
 import { useBodyOverride } from './use-body-override';
 import { deriveHeaderInfo } from '../../lib/email-headers';
+import { passesFromHeaderInfo } from '../../lib/sender-check';
+import { useAuthservHost } from '../../lib/authserv-host';
 import { chipCodeFor } from '../../lib/verification-code';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
 
@@ -71,10 +73,13 @@ export function MessageContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [email.id, email.subject, email.preview, email.htmlBody, email.textBody, email.bodyValues, showVerificationCodes],
   );
-  const headerInfo = React.useMemo(() => deriveHeaderInfo(email), [email]);
+  // Authentication-Results count only under the owning account's server's id.
+  const authservHost = useAuthservHost(appAccountId);
+  const headerInfo = React.useMemo(() => deriveHeaderInfo(email, authservHost), [email, authservHost]);
+  const from = email.from?.[0];
+  const senderAuthenticated = passesFromHeaderInfo(headerInfo, from?.email);
   const unwrap = useBodyOverride(email, jmapAccountId);
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);
-  const from = email.from?.[0];
 
   const chips = (
     <AttachmentChips
@@ -137,7 +142,8 @@ export function MessageContent({
           <EmailBodyView
             email={email}
             senderEmail={from?.email}
-            senderVerification={headerInfo.senderVerification}
+            senderAuthenticated={senderAuthenticated}
+            senderWarned={!!headerInfo.senderVerification}
             jmapAccountId={jmapAccountId}
             onSwipe={onSwipe}
             onZoomChange={onZoomChange}
