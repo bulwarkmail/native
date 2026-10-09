@@ -234,6 +234,24 @@ describe('settings-store', () => {
       expect(useSettingsStore.getState().calendarFirstDayOfWeek).toBe(1);
     });
 
+    it('imports the valid sidebar apps and drops the rest', () => {
+      const ok = { id: 'a', name: 'A', url: 'HTTPS://a.example/x', openMode: 'tab', showOnMobile: true };
+      expect(useSettingsStore.getState().importSettings(JSON.stringify({
+        sidebarApps: [
+          ok,
+          { ...ok, id: 'b', url: 'http://x.example' },
+          { ...ok, id: 'c', url: 'https://a.example\\@b.example' },
+          { ...ok, id: 'd', name: 7 },
+        ],
+        fontSize: 'large',
+      }))).toBe(true);
+      const s = useSettingsStore.getState();
+      expect(s.sidebarApps.map((a) => a.id)).toEqual(['a']);
+      expect(s.sidebarApps[0].url).toBe('https://a.example/x');
+      // The rest of the file still imports.
+      expect(s.fontSize).toBe('large');
+    });
+
     it('rejects non-object JSON', () => {
       expect(useSettingsStore.getState().importSettings('[1,2]')).toBe(false);
       expect(useSettingsStore.getState().importSettings('not json')).toBe(false);

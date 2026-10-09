@@ -47,4 +47,14 @@ function buildSourceLink(sourceUrl, commit) {
   return /^[0-9a-f]{7,40}$/i.test(sha) ? `${repo}/commit/${sha}` : repo;
 }
 
-module.exports = { REPO_URL, normalizeRemoteUrl, buildSourceLink };
+// Whether the build's commit can be linked: a commit that never reached
+// origin, or a tree with edits on top of it, would 404 or show other code.
+// CI builds a pushed commit. Otherwise `dirty` is `git status --porcelain
+// --untracked-files=no` (empty when clean) and `remoteBranches` is `git branch
+// -r --contains HEAD --list 'origin/*'` (empty when no origin branch has it).
+function commitOnOrigin({ ci, dirty, remoteBranches }) {
+  if (ci) return true;
+  return !String(dirty || '').trim() && !!String(remoteBranches || '').trim();
+}
+
+module.exports = { REPO_URL, normalizeRemoteUrl, buildSourceLink, commitOnOrigin };

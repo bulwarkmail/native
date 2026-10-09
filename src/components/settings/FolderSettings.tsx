@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +35,7 @@ import { folderIconComponent } from '../folder-icon';
 import { folderIconPrunePlan } from '../../lib/folder-icon-prune';
 import { useAuthStore } from '../../stores/auth-store';
 import { MailboxShareSheet, canOfferMailboxShare } from '../MailboxShareSheet';
+import { createAfterDismiss } from '../../lib/after-dismiss';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -230,18 +231,16 @@ export function FolderSettings() {
     || iconPicked
   );
   // iOS can't present the share sheet while the editor is still sliding
-  // away: it opens once the editor is gone (onDismiss is iOS only).
-  const shareAfterEditor = useRef<{ mailbox: Mailbox; owner: string | null } | null>(null);
+  // away: it opens once the editor is gone (onDismiss is iOS only), or after
+  // a timeout when onDismiss never comes.
+  const [shareAfterEditor] = useState(() => createAfterDismiss<{ mailbox: Mailbox; owner: string | null }>(setSharing));
+  useEffect(() => () => shareAfterEditor.cancel(), [shareAfterEditor]);
   const openShareFromEditor = (target: { mailbox: Mailbox; owner: string | null }) => {
     closeEditor();
-    if (Platform.OS === 'ios') shareAfterEditor.current = target;
+    if (Platform.OS === 'ios') shareAfterEditor.arm(target);
     else setSharing(target);
   };
-  const onEditorDismissed = () => {
-    const target = shareAfterEditor.current;
-    shareAfterEditor.current = null;
-    if (target) setSharing(target);
-  };
+  const onEditorDismissed = () => shareAfterEditor.dismissed();
 
   // Settings lists only own folders, so the ids here are the raw JMAP ids the
   // shown account's scope writes to.

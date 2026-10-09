@@ -7,6 +7,7 @@ import { generateAccountId } from '../lib/account-utils';
 import { writeIdentityCache } from '../lib/identity-cache';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 import { isValidHourPair, isValidWorkingDays } from '../lib/calendar-display-range';
+import { sanitizeSidebarAppUrl } from '../lib/sidebar-app-url';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -668,6 +669,18 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
     && typeof (a as SidebarApp).url === 'string'),
 };
 
+function importableSidebarApps(apps: readonly unknown[]): SidebarApp[] {
+  const out: SidebarApp[] = [];
+  for (const a of apps) {
+    if (!a || typeof a !== 'object') continue;
+    const app = a as SidebarApp;
+    if (typeof app.id !== 'string' || typeof app.name !== 'string' || typeof app.url !== 'string') continue;
+    const url = sanitizeSidebarAppUrl(app.url);
+    if (url) out.push({ ...app, url });
+  }
+  return out;
+}
+
 export function mergeWithDefaults(parsed: Partial<PersistedSettings>): PersistedSettings {
   const out: Record<string, unknown> = { ...DEFAULT_PERSISTED };
   for (const k of PERSIST_KEYS) {
@@ -964,6 +977,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
     const incoming = fromExportShape(parsed as Record<string, unknown>);
+    // An imported app is opened later, so one whose URL fails the check is
+    // dropped here rather than the whole list; the rest of the file still
+    // imports. Hydrate does not filter, so an app saved before the check
+    // stays editable.
+    if (Array.isArray(incoming.sidebarApps)) incoming.sidebarApps = importableSidebarApps(incoming.sidebarApps);
     // Validate against the current state so keys absent from the file keep
     // their value instead of snapping back to the default.
     const merged = mergeWithDefaults({ ...snapshot(get()), ...incoming });

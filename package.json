@@ -59,6 +59,9 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/plugin-transform-flow-strip-types": "^7.27.1",
+    "@babel/plugin-transform-modules-commonjs": "^7.28.6",
     "@types/react": "~19.1.0",
     "patch-package": "8.0.1",
     "typescript": "~5.9.2",

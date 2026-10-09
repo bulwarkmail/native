@@ -199,6 +199,11 @@ describe('date format region', () => {
       .toBe('28/04/2026, 15:31');
   });
 
+  it('writes the full format\'s AM/PM in the region locale', () => {
+    expect(formatListDate(OLDER, { dateFormat: 'full', timeFormat: '12h', locale: 'en', dateLocale: 'en-GB', timeZone: 'UTC' }))
+      .toBe('28/04/2026, 03:31 pm');
+  });
+
   it('keeps weekday and month names in the language', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);

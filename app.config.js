@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execSync } = require('node:child_process');
 
-const { normalizeRemoteUrl } = require('./src/lib/source-link');
+const { normalizeRemoteUrl, commitOnOrigin } = require('./src/lib/source-link');
 
 const VERSION = fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim();
 
@@ -31,6 +31,15 @@ function git(args) {
   }
 }
 const GIT_COMMIT = (process.env.GITHUB_SHA || git('rev-parse HEAD')).toLowerCase();
+// A local build links its commit only when origin has it and the tree has no
+// edits on top; otherwise About links the repository and shows the short
+// commit as plain text.
+const CI = !!process.env.GITHUB_SHA;
+const LINK_COMMIT = commitOnOrigin({
+  ci: CI,
+  dirty: CI ? '' : git('status --porcelain --untracked-files=no'),
+  remoteBranches: CI ? '' : git("branch -r --contains HEAD --list 'origin/*'"),
+});
 const SOURCE_URL = normalizeRemoteUrl(git('remote get-url origin')) || '';
 
 // App Store Connect rejects a build whose CFBundleVersion it has already seen
@@ -116,7 +125,7 @@ module.exports = {
     ],
     extra: {
       commit: COMMIT,
-      gitCommit: /^[0-9a-f]{40}$/.test(GIT_COMMIT) ? GIT_COMMIT : '',
+      gitCommit: LINK_COMMIT && /^[0-9a-f]{40}$/.test(GIT_COMMIT) ? GIT_COMMIT : '',
       sourceUrl: SOURCE_URL,
     },
   },
