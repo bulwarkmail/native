@@ -218,6 +218,16 @@ describe('signing out of a direct PKCE account', () => {
       expect(useAuthStore.getState().activeAccountId).toBe(gil.id);
     });
 
+    it('matches a token endpoint that spells out the default port', async () => {
+      const gil = onHost('gil@example.com', 'https://mail.other.example');
+      accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', 'https://sso.example.com:443/realms/r/token'), null]], ADA.id);
+      (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+      await useAuthStore.getState().logout();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mockOpen).not.toHaveBeenCalled();
+    });
+
     it('ends the session when that hand-off account signed in at another provider', async () => {
       const gil = onHost('gil@example.com', 'https://mail.other.example');
       accounts([[ADA, withToken('native', TOKEN), 'ada-id-token'], [gil, withToken('handoff', 'https://sso.other.example/token'), null]], ADA.id);

@@ -47,22 +47,60 @@ async function hasUnsentChanges(appAccountId: string): Promise<boolean> {
 }
 
 /**
+ * How long one cleanup step is waited for before the next one runs. A storage
+ * call that never settles must not keep the later steps (the calendar
+ * subscriptions, whose feed URLs can be secret) from running. Longer than a
+ * sign-out and a sign-in wait for a cleanup together (auth-store), so a step
+ * that hangs is still in flight when the account returns; the steps after it
+ * then see `stillGone` false.
+ */
+export const CLEANUP_STEP_TIMEOUT_MS = 15_000;
+
+/**
  * Run one cleanup step, logging a failure instead of throwing, so a step that
- * fails (storage full, a corrupt entry) does not skip the steps after it.
+ * fails (storage full, a corrupt entry) or never settles does not skip the
+ * steps after it.
  */
 async function step(run: () => unknown): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await run();
+    const late = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn('[sign-out] cleanup step still running, going on without it');
+        resolve();
+      }, CLEANUP_STEP_TIMEOUT_MS);
+    });
+    await Promise.race([Promise.resolve().then(run), late]);
   } catch (e) {
     console.warn('[sign-out] cleanup failed', e);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-/** Data that is not kept per account: forgotten once no account is signed in. */
-export async function forgetSharedData(): Promise<void> {
+/**
+ * Data that is not kept per account: forgotten once no account is signed in.
+ * `stillGone` is checked before each step: false once an account signs in.
+ */
+export async function forgetSharedData(stillGone: () => boolean = () => true): Promise<void> {
   // Ownerless subscriptions belong to no login, and their feed URLs can be secret.
-  await step(() => useCalendarSubscriptionsStore.setState({ subscriptions: [] }));
-  await step(() => useSearchHistoryStore.getState().clearRecentSearches());
+  if (stillGone()) await step(() => useCalendarSubscriptionsStore.setState({ subscriptions: [] }));
+  if (stillGone()) await step(() => useSearchHistoryStore.getState().clearRecentSearches());
+}
+
+export interface ForgetOptions {
+  /**
+   * Whether no account is signed in any more: forgetSharedData runs as well.
+   * A function is read when that step is reached, not when the cleanup starts.
+   */
+  lastAccount?: boolean | (() => boolean);
+  discardQueuedSends?: boolean;
+  /**
+   * Checked before every step: false once the account signs in again (the
+   * app account id is the same), and the cleanup stops there, so a cleanup
+   * still running in the background never forgets the live account's data.
+   */
+  stillGone?: () => boolean;
 }
 
 /**
@@ -72,11 +110,14 @@ export async function forgetSharedData(): Promise<void> {
  */
 export async function forgetAccountData(
   account: SignedOutAccount,
-  opts: { lastAccount?: boolean; discardQueuedSends?: boolean } = {},
+  opts: ForgetOptions = {},
 ): Promise<void> {
-  await step(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
-  await step(() => removeIdentityCache(account.appAccountId));
-  await step(async () => {
+  const gone = opts.stillGone ?? (() => true);
+  // Each step only while the account is still signed out.
+  const guarded = (run: () => unknown) => (gone() ? step(run) : Promise.resolve());
+  await guarded(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
+  await guarded(() => removeIdentityCache(account.appAccountId));
+  await guarded(async () => {
     useFolderIconsStore.getState().forgetAccount(account.appAccountId);
     // The forget is written once the stored icons are read. A read that
     // fails would leave them on disk until some later change, so read again
@@ -85,7 +126,7 @@ export async function forgetAccountData(
       await useFolderIconsStore.getState().hydrate();
     }
   });
-  await step(async () => {
+  await guarded(async () => {
     // Queued and failed ops are the user's unsent changes: keep them so they
     // replay when this account signs in again.
     if (await hasUnsentChanges(account.appAccountId)) {
@@ -99,17 +140,18 @@ export async function forgetAccountData(
   // this account's rows go; clearAccount needs no hydration and bypasses the
   // discard rules.
   if (opts.discardQueuedSends) {
-    await step(() => useSendQueueStore.getState().clearAccount(account.appAccountId));
+    await guarded(() => useSendQueueStore.getState().clearAccount(account.appAccountId));
   } else {
     // Kept rows are not actionable while signed out: drop them from memory
     // so the Outbox and the counts do not offer them.
-    await step(() => useSendQueueStore.getState().unloadAccount(account.appAccountId));
+    await guarded(() => useSendQueueStore.getState().unloadAccount(account.appAccountId));
   }
   const { serverUrl, username } = account;
   if (serverUrl && username) {
-    await step(() => useCalendarSubscriptionsStore.getState().forgetSubscriptions(
+    await guarded(() => useCalendarSubscriptionsStore.getState().forgetSubscriptions(
       subscriptionOwner(serverUrl, username),
     ));
   }
-  if (opts.lastAccount) await forgetSharedData();
+  const last = typeof opts.lastAccount === 'function' ? opts.lastAccount : () => !!opts.lastAccount;
+  if (gone() && last()) await forgetSharedData(() => gone() && last());
 }
