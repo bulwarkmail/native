@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { senderCheckText, trustSenderBannerMode, untrustedReplyAddresses, senderPassesCheck, passesFromHeaderInfo } from '../sender-check';
+import { senderCheckText, trustSenderBannerMode, untrustedReplyAddresses, senderPassesCheck, passesFromHeaderInfo, viaIdentityBadge } from '../sender-check';
 import { deriveHeaderInfo, getSenderVerification, parseAuthenticationResults } from '../email-headers';
 import type { MessageParams } from '../../i18n';
 
@@ -128,10 +128,20 @@ const unverifiedFromBank = fromBank('mx; spf=pass smtp.mailfrom=evil.example; dk
 const verifiedFromBank = fromBank('mx; spf=pass smtp.mailfrom=bank.example; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example');
 
 describe('untrustedReplyAddresses', () => {
-  it('lists the From and Reply-To of a failed or unverified message, and nobody for a verified one', () => {
+  it('lists the From and Reply-To of a failed or unverified message', () => {
     expect(untrustedReplyAddresses(forgedFromBank, 'mx')).toEqual(['ceo@bank.example', 'pay@evil.example']);
     expect(untrustedReplyAddresses(unverifiedFromBank, 'mx')).toEqual(['ceo@bank.example', 'pay@evil.example']);
-    expect(untrustedReplyAddresses(verifiedFromBank, 'mx')).toEqual([]);
+  });
+
+  // A pass on From says nothing about a Reply-To the signature may not cover
+  // (a replayed DKIM-signed message with one added).
+  it('on a verified message, lists only a Reply-To outside the From domain', () => {
+    expect(untrustedReplyAddresses(verifiedFromBank, 'mx')).toEqual(['pay@evil.example']);
+    expect(untrustedReplyAddresses({ ...verifiedFromBank, replyTo: [{ email: 'Billing@Mail.Bank.example' }] }, 'mx'))
+      .toEqual([]);
+    expect(untrustedReplyAddresses({ ...verifiedFromBank, replyTo: [{ email: 'x@bank.example.evil.example' }, { email: 'nodomain' }] }, 'mx'))
+      .toEqual(['x@bank.example.evil.example', 'nodomain']);
+    expect(untrustedReplyAddresses({ ...verifiedFromBank, replyTo: undefined }, 'mx')).toEqual([]);
   });
 
   // "Failed or couldn't be verified": only a positive pass trusts.
@@ -146,11 +156,11 @@ describe('untrustedReplyAddresses', () => {
   });
 
   // A forger picks the To and Cc too: a reply-all must not trust them.
-  it('lists every recipient of a message that did not pass, and none of one that did', () => {
+  it('lists every recipient of a message that did not pass, and of one that did only an outside Reply-To', () => {
     const recipients = { to: [{ email: 'me@ours.example' }, { email: 'Mule@Evil.example' }], cc: [{ email: 'cfo@bank.example' }] };
     expect(untrustedReplyAddresses({ ...forgedFromBank, ...recipients }, 'mx'))
       .toEqual(['ceo@bank.example', 'pay@evil.example', 'me@ours.example', 'mule@evil.example', 'cfo@bank.example']);
-    expect(untrustedReplyAddresses({ ...verifiedFromBank, ...recipients }, 'mx')).toEqual([]);
+    expect(untrustedReplyAddresses({ ...verifiedFromBank, ...recipients }, 'mx')).toEqual(['pay@evil.example']);
   });
 
   it('lists each address once', () => {
@@ -170,5 +180,34 @@ describe('senderPassesCheck', () => {
     expect(senderPassesCheck(fromBank(null), 'mx')).toBe(false);
     expect(senderPassesCheck(verifiedFromBank, 'other.example')).toBe(false);
     expect(senderPassesCheck(verifiedFromBank, null)).toBe(false);
+  });
+});
+
+describe('viaIdentityBadge', () => {
+  const me = { id: 'i1', name: 'Me', email: 'me@ours.example' } as never;
+  const alias = { id: 'i2', name: 'Sales', email: 'sales@ours.example' } as never;
+  const fromMe = (results: string | null) => ({
+    from: [{ email: 'Me@Ours.example' }],
+    to: [{ email: 'someone@else.example' }],
+    headers: results ? [{ name: 'Authentication-Results', value: results }] : [],
+    messageId: ['m@ours.example'],
+  });
+  const info = (email: ReturnType<typeof fromMe>) => deriveHeaderInfo(email, 'mx');
+
+  it('shows "sent as" only on a message whose From passed the sender check', () => {
+    const passed = fromMe('mx; dkim=pass header.d=ours.example');
+    expect(viaIdentityBadge(passed, [me, alias], info(passed))).toEqual({ identity: me, direction: 'from' });
+    // A forger's own header, or none at all, leaves no pinned results: no badge.
+    for (const forged of [fromMe(null), fromMe('evil.example; dkim=pass header.d=ours.example'), fromMe('mx; dkim=fail header.d=ours.example')]) {
+      expect(viaIdentityBadge(forged, [me, alias], info(forged))).toBeNull();
+    }
+  });
+
+  it('shows "received at" for a non-default identity unless the message reads as spoofed', () => {
+    const toAlias = { ...fromMe(null), from: [{ email: 'x@else.example' }], to: [{ email: 'sales@ours.example' }] };
+    expect(viaIdentityBadge(toAlias, [me, alias], deriveHeaderInfo(toAlias, 'mx'))).toEqual({ identity: alias, direction: 'to' });
+    expect(viaIdentityBadge(toAlias, [me], deriveHeaderInfo(toAlias, 'mx'))).toBeNull();
+    const spoofed = { ...toAlias, headers: [{ name: 'Authentication-Results', value: 'mx; dmarc=fail header.from=else.example' }] };
+    expect(viaIdentityBadge(spoofed, [me, alias], deriveHeaderInfo(spoofed, 'mx'))).toBeNull();
   });
 });

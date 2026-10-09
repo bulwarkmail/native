@@ -133,7 +133,8 @@ function hasDkimPass(auth: AuthenticationResults): boolean {
   return auth.dkim?.result === 'pass' || !!auth.dkim?.all?.some((entry) => entry.result === 'pass');
 }
 
-function domainOf(address: string): string | undefined {
+/** The domain of an address, lowercased; undefined when it isn't a host name. */
+export function domainOf(address: string): string | undefined {
   const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
   // The address can be sender-written: cap it at a DNS name's length, and
   // match labels that can't overlap, so no input makes the test backtrack.

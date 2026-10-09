@@ -3,8 +3,9 @@
 // functions so the choice of words and of actions can be tested.
 
 import type { MessageParams } from '../i18n';
-import type { Email } from '../api/types';
-import { deriveHeaderInfo, isFromDomainAuthenticated, type EmailHeaderInfo, type SenderVerification } from './email-headers';
+import type { Email, Identity } from '../api/types';
+import { deriveHeaderInfo, domainOf, findReceivingIdentity, isAuthenticationSpoofed, isFromDomainAuthenticated, type EmailHeaderInfo, type SenderVerification } from './email-headers';
+import { domainsAlign } from './registrable-domain';
 
 export type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
 
@@ -94,6 +95,32 @@ export function passesFromHeaderInfo(
   return isFromDomainAuthenticated(headerInfo.auth, fromEmail);
 }
 
+/**
+ * The "via <identity>" badge: the message was sent as one of the user's
+ * identities, or received at one other than the default (incl. +tag). A
+ * legitimacy cue, so "sent as" needs the From to pass the sender check: a
+ * forged From has no pinned results, so it reads as neither spoofed nor
+ * passed. "Received at" is about the To, and is dropped only when the
+ * message reads as spoofed.
+ */
+export function viaIdentityBadge(
+  email: Pick<Email, 'from' | 'to' | 'cc' | 'bcc'>,
+  identities: Identity[],
+  headerInfo: Pick<EmailHeaderInfo, 'auth'>,
+): { identity: Identity; direction: 'from' | 'to' } | null {
+  if (identities.length === 0 || isAuthenticationSpoofed(headerInfo.auth)) return null;
+  const fromEmail = email.from?.[0]?.email?.trim().toLowerCase();
+  const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
+  if (sentAs) {
+    return passesFromHeaderInfo(headerInfo, fromEmail) ? { identity: sentAs, direction: 'from' } : null;
+  }
+  const received = findReceivingIdentity(identities, email);
+  if (received && identities.length > 1 && received.id !== identities[0].id) {
+    return { identity: received, direction: 'to' };
+  }
+  return null;
+}
+
 type SenderSource = Pick<Email, 'from' | 'replyTo' | 'to' | 'cc' | 'headers' | 'messageId'>;
 
 /**
@@ -103,15 +130,27 @@ type SenderSource = Pick<Email, 'from' | 'replyTo' | 'to' | 'cc' | 'headers' | '
  * and no results to judge by all count: replying to a forgery would
  * otherwise trust the forged address, and a reply-all the To and Cc the
  * forger picked.
+ * On a pass, a Reply-To outside the From's domain (domainsAlign) still
+ * counts: the signature behind the pass may not cover Reply-To, so a
+ * replayed message can carry one the sender never wrote.
  * `serverHost` is the owning account's authserv host (authservHostFor),
  * never the live client's.
  */
 export function untrustedReplyAddresses(source: SenderSource, serverHost: string | null): string[] {
-  if (senderPassesCheck(source, serverHost)) return [];
+  const passes = senderPassesCheck(source, serverHost);
+  const addresses = passes
+    ? source.replyTo ?? []
+    : [...(source.from ?? []), ...(source.replyTo ?? []), ...(source.to ?? []), ...(source.cc ?? [])];
+  const fromDomain = passes ? domainOf(source.from?.[0]?.email ?? '') : undefined;
   const out = new Set<string>();
-  for (const a of [...(source.from ?? []), ...(source.replyTo ?? []), ...(source.to ?? []), ...(source.cc ?? [])]) {
+  for (const a of addresses) {
     const email = a.email?.trim().toLowerCase();
-    if (email) out.add(email);
+    if (!email) continue;
+    if (passes) {
+      const domain = domainOf(email);
+      if (fromDomain && domain && domainsAlign(domain, fromDomain)) continue;
+    }
+    out.add(email);
   }
   return [...out];
 }

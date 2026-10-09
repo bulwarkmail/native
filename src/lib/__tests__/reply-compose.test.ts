@@ -22,9 +22,9 @@ describe('replyComposeParams', () => {
     }
   });
 
-  it('flags nobody on a verified message, and says it passed', () => {
+  it('on a verified message, flags only a Reply-To outside the From domain, and says it passed', () => {
     const ctx = replyComposeParams('reply', verified, 'j1', 'mx')?.replyTo;
-    expect(ctx?.untrustedAddresses).toEqual([]);
+    expect(ctx?.untrustedAddresses).toEqual(['pay@evil.example']);
     expect(ctx?.senderAuthenticated).toBe(true);
   });
 

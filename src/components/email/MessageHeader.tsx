@@ -13,12 +13,12 @@ import { useKeywordsStore, keywordToken } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import { useDateRegion } from '../../lib/use-date-region';
 import {
-  deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
+  deliveryDeltaMs, formatDelta, isAuthenticationSpoofed,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
-import { senderCheckText } from '../../lib/sender-check';
+import { senderCheckText, viaIdentityBadge } from '../../lib/sender-check';
 
 interface Props {
   email: Email;
@@ -111,20 +111,12 @@ export function MessageHeader({ email, identities, headerInfo: info, onToggleSta
   const senderCheck = senderCheckText(info.senderVerification, t);
   const senderCheckColor = senderCheck?.tone === 'danger' ? c.error : c.warning;
 
-  // "via <identity>": the message was sent by one of the user's identities or
-  // received at one of them (incl. +tag); hidden when the From can't be
-  // trusted so a forged From doesn't get a legitimacy badge.
-  const viaIdentity = React.useMemo(() => {
-    if (spoofed || identities.length === 0) return null;
-    const fromEmail = from?.email?.toLowerCase();
-    const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
-    if (sentAs) return { identity: sentAs, direction: 'from' as const };
-    const received = findReceivingIdentity(identities, email);
-    if (received && identities.length > 1 && received.id !== identities[0].id) {
-      return { identity: received, direction: 'to' as const };
-    }
-    return null;
-  }, [spoofed, identities, from?.email, email]);
+  // "via <identity>": sent as or received at one of the user's identities;
+  // "sent as" only when the From passed the sender check.
+  const viaIdentity = React.useMemo(
+    () => viaIdentityBadge(email, identities, info),
+    [email, identities, info],
+  );
 
   const tags = React.useMemo(
     () => keywordDefs.filter((kw) => !!email.keywords?.[keywordToken(kw.id)]),
