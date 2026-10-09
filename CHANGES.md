@@ -23,7 +23,7 @@ Branch `cleanup/follow-ups-1`, everything after afcf7b3.
 
 ### Fixes
 - Replying to, or answering an invitation from, a forged, flagged or unverified sender no longer makes them trusted, and a forged trusted address loads nothing (36e61ba, fbcffd2, a5ca1e3).
-- A Reply-To outside the sender's domain is not trusted on reply, and the "sent as" badge shows only when the From passed, still on your own sent and draft copies (165d0b2, 7d3c75c).
+- A Reply-To outside the sender's domain is not trusted on reply, and the "sent as" badge shows only when the From passed, and on your own copies in Sent and Drafts (165d0b2, 7d3c75c, c1deae7).
 - An IP or single-label mail host trusts only its own authserv-id, and server hosts are read the way the connection reads them (7f4293e).
 - An expired or signed-out account is forgotten even when its device cleanup fails or never ends, without erasing an account signed straight back in, and signing out no longer stalls on a stuck cleanup (b9d646f, 3d444ed, c79a6ee, 33aa72d, 1da1023).
 - A provider session that hand-off accounts share is kept, and an unreadable account elsewhere keeps it too (3d444ed, c79a6ee).
