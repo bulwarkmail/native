@@ -188,6 +188,7 @@ export default function CalendarScreen() {
   const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
   const legacyCalendarColorReaders = useSettingsStore((s) => s.legacyCalendarColorReaders);
   const finishLegacyCalendarColors = useSettingsStore((s) => s.finishLegacyCalendarColors);
+  const settingsReadFailed = useSettingsStore((s) => s.settingsReadFailed);
   const contacts = useContactsStore((s) => s.contacts);
   const calendarTimeZone = useSettingsStore((s) => s.calendarTimeZone);
 
@@ -420,7 +421,11 @@ export default function CalendarScreen() {
   // On a cold start that list may be the account's own cached one from an
   // earlier session (calendarsAppAccountId is persisted with it): still its
   // own full load, so safe; a calendar shared since gets a fresh colour.
+  // Not while the stored settings could not be read: the colours they hold
+  // are unknown, so which calendars lack one is too (the kept colours would
+  // replace them once the settings read). It runs once they read.
   React.useEffect(() => {
+    if (settingsReadFailed) return;
     const claimed = legacyCalendarColorClaim(
       storeCalendars, calendarsAppAccountId, sharedCalendarColors, shownAccountId ?? '', readsLegacy,
     );
@@ -431,7 +436,7 @@ export default function CalendarScreen() {
     for (const [key, color] of Object.entries(assigned)) setSharedCalendarColor(key, color);
   }, [
     storeCalendars, calendarsAppAccountId, sharedCalendarColors, setSharedCalendarColor,
-    shownAccountId, readsLegacy, finishLegacyCalendarColors,
+    shownAccountId, readsLegacy, finishLegacyCalendarColors, settingsReadFailed,
   ]);
 
   const allCalendars = React.useMemo(

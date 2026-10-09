@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
 import { jmapClient } from '../api/jmap-client';
@@ -533,9 +534,9 @@ export interface SettingsState extends PersistedSettings {
   error: string | null;
   hydrated: boolean;
   // The stored settings were there but could not be read (a failed read,
-  // corrupt JSON, not an object): the defaults stand in for them, and a
-  // write made only for housekeeping must not put those over them
-  // (seedLegacyCalendarColorReaders). No stored settings at all is a clean read.
+  // corrupt JSON, not an object): the defaults stand in for them, so nothing
+  // is written until a read succeeds (see editSettings). No stored settings
+  // at all is a clean read.
   settingsReadFailed: boolean;
 
   /** Read the identities; concurrent calls share one request. */
@@ -552,6 +553,8 @@ export interface SettingsState extends PersistedSettings {
    */
   refreshIdentities: () => Promise<void>;
   hydrate: () => Promise<void>;
+  /** After a failed read: read the stored settings again, and on success apply the edits made meanwhile and write. */
+  retryReadSettings: () => Promise<void>;
 
   // Generic setter — preferred for new code.
   updateSetting: <K extends keyof PersistedSettings>(
@@ -855,6 +858,68 @@ function identityCacheAccount(): string | null {
 }
 
 let hydrateInFlight: Promise<void> | null = null;
+
+type ReadResult = { ok: true; settings: PersistedSettings | null } | { ok: false };
+
+// The stored settings, merged over the defaults; null when there are none.
+// Not ok when the row is there but cannot be read or is not an object.
+async function readStoredSettings(): Promise<ReadResult> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!raw) return { ok: true, settings: null };
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('stored settings are not an object');
+    return { ok: true, settings: mergeWithDefaults(parsed as Partial<PersistedSettings>) };
+  } catch (err) {
+    console.warn('[settings-store] hydrate failed', err);
+    return { ok: false };
+  }
+}
+
+// A change to the settings, worked out from the state it is given (null for
+// none). Kept while the stored settings could not be read, to run again on
+// them once they read.
+type SettingsEdit = (state: SettingsState) => Partial<PersistedSettings> | null;
+let editsWhileUnread: SettingsEdit[] = [];
+
+/** Test-only: forget the edits held since a failed read. */
+export function discardSettingsEditsForTests(): void {
+  editsWhileUnread = [];
+}
+
+// Every settings write goes through here. After a failed read the defaults
+// stand in for the stored settings, and writing them would replace every
+// stored setting (the auto-assigned calendar colours, a trusted sender added
+// by the Outbox replay, any edit). So nothing is written then: the edit shows
+// at once, is kept, and the read is tried again. When it works, the kept
+// edits run again on the stored settings and are written (retryReadSettings).
+// Re-running them is safe because each is worked out from the state it is
+// given; keeping them only in memory means an app killed first loses them,
+// which is still better than losing everything stored.
+function editSettings(change: SettingsEdit): void {
+  const store = useSettingsStore;
+  const patch = change(store.getState());
+  if (patch) store.setState(patch);
+  if (!store.getState().settingsReadFailed) {
+    if (patch) persist(snapshot(store.getState()));
+    return;
+  }
+  // Kept even when it changes nothing over the defaults: on the stored
+  // settings it may (a forgotten account's colours).
+  if (editsWhileUnread.length === 0) console.warn('[settings-store] settings could not be read; changes are kept until they can');
+  editsWhileUnread.push(change);
+  void store.getState().retryReadSettings();
+}
+
+let retriesOnForeground = false;
+function retryOnForeground(): void {
+  if (retriesOnForeground) return;
+  retriesOnForeground = true;
+  AppState.addEventListener('change', (next) => {
+    if (next === 'active') void useSettingsStore.getState().retryReadSettings();
+  });
+}
+
 let identitiesInFlight: { scope: string | null; promise: Promise<void> } | null = null;
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -924,60 +989,70 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // changed a setting would put the stored value back.
     if (hydrateInFlight) return hydrateInFlight;
     const promise = (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed: unknown = JSON.parse(raw);
-          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('stored settings are not an object');
-          set({ ...mergeWithDefaults(parsed as Partial<PersistedSettings>), hydrated: true, settingsReadFailed: false });
-          return;
-        }
-        set({ hydrated: true, settingsReadFailed: false });
+      const read = await readStoredSettings();
+      if (read.ok) {
+        set({ ...(read.settings ?? {}), hydrated: true, settingsReadFailed: false });
         return;
-      } catch (err) {
-        console.warn('[settings-store] hydrate failed', err);
       }
       set({ hydrated: true, settingsReadFailed: true });
+      retryOnForeground();
     })().finally(() => { hydrateInFlight = null; });
     hydrateInFlight = promise;
     return promise;
   },
 
-  updateSetting: (key, value) => {
-    set({ [key]: value } as Partial<SettingsState>);
-    persist(snapshot(get()));
+  retryReadSettings: () => {
+    if (!get().settingsReadFailed) return Promise.resolve();
+    if (hydrateInFlight) return hydrateInFlight;
+    const promise = (async () => {
+      const read = await readStoredSettings();
+      if (!read.ok || !get().settingsReadFailed) return;
+      // The edits made meanwhile run again on what is stored, in order: an
+      // edit is a change to the state, not the value it produced over the
+      // defaults, so a trusted sender added meanwhile joins the stored list
+      // instead of replacing it.
+      const edits = editsWhileUnread;
+      editsWhileUnread = [];
+      let next: SettingsState = { ...get(), ...(read.settings ?? DEFAULT_PERSISTED) };
+      for (const change of edits) {
+        const patch = change(next);
+        if (patch) next = { ...next, ...patch };
+      }
+      set({ ...snapshot(next), settingsReadFailed: false });
+      if (edits.length) persist(snapshot(get()));
+    })().finally(() => { hydrateInFlight = null; });
+    hydrateInFlight = promise;
+    return promise;
   },
 
-  setExternalContentPolicy: (policy) => { set({ externalContentPolicy: policy }); persist(snapshot(get())); },
-  setSenderFavicons: (enabled) => { set({ senderFavicons: enabled }); persist(snapshot(get())); },
-  setGroupContactsByLetter: (enabled) => { set({ groupContactsByLetter: enabled }); persist(snapshot(get())); },
-  setTheme: (theme) => { set({ theme }); persist(snapshot(get())); },
-  setFontSize: (fontSize) => { set({ fontSize }); persist(snapshot(get())); },
-  setDensity: (density) => { set({ density }); persist(snapshot(get())); },
-  setShowToolbarLabels: (enabled) => { set({ showToolbarLabels: enabled }); persist(snapshot(get())); },
-  setAnimationsEnabled: (enabled) => { set({ animationsEnabled: enabled }); persist(snapshot(get())); },
-  setEmailAlwaysLightMode: (enabled) => { set({ emailAlwaysLightMode: enabled }); persist(snapshot(get())); },
-  setAutoSelectReplyIdentity: (enabled) => { set({ autoSelectReplyIdentity: enabled }); persist(snapshot(get())); },
-  setAttachmentReminderEnabled: (enabled) => { set({ attachmentReminderEnabled: enabled }); persist(snapshot(get())); },
-  setAttachmentReminderKeywords: (keywords) => { set({ attachmentReminderKeywords: keywords }); persist(snapshot(get())); },
-  setSwipeLeftAction: (action) => { set({ swipeLeftAction: action }); persist(snapshot(get())); },
-  setSwipeRightAction: (action) => { set({ swipeRightAction: action }); persist(snapshot(get())); },
-  setSwipeMode: (mode) => { set({ swipeMode: mode }); persist(snapshot(get())); },
-  setArchiveMode: (mode) => { set({ archiveMode: mode }); persist(snapshot(get())); },
+  updateSetting: (key, value) => editSettings(() => ({ [key]: value } as Partial<PersistedSettings>)),
+
+  setExternalContentPolicy: (policy) => editSettings(() => ({ externalContentPolicy: policy })),
+  setSenderFavicons: (enabled) => editSettings(() => ({ senderFavicons: enabled })),
+  setGroupContactsByLetter: (enabled) => editSettings(() => ({ groupContactsByLetter: enabled })),
+  setTheme: (theme) => editSettings(() => ({ theme })),
+  setFontSize: (fontSize) => editSettings(() => ({ fontSize })),
+  setDensity: (density) => editSettings(() => ({ density })),
+  setShowToolbarLabels: (enabled) => editSettings(() => ({ showToolbarLabels: enabled })),
+  setAnimationsEnabled: (enabled) => editSettings(() => ({ animationsEnabled: enabled })),
+  setEmailAlwaysLightMode: (enabled) => editSettings(() => ({ emailAlwaysLightMode: enabled })),
+  setAutoSelectReplyIdentity: (enabled) => editSettings(() => ({ autoSelectReplyIdentity: enabled })),
+  setAttachmentReminderEnabled: (enabled) => editSettings(() => ({ attachmentReminderEnabled: enabled })),
+  setAttachmentReminderKeywords: (keywords) => editSettings(() => ({ attachmentReminderKeywords: keywords })),
+  setSwipeLeftAction: (action) => editSettings(() => ({ swipeLeftAction: action })),
+  setSwipeRightAction: (action) => editSettings(() => ({ swipeRightAction: action })),
+  setSwipeMode: (mode) => editSettings(() => ({ swipeMode: mode })),
+  setArchiveMode: (mode) => editSettings(() => ({ archiveMode: mode })),
 
   addTrustedSender: (email) => {
     const normalized = stripDisplayName(email);
     if (!normalized) return;
-    const current = get().trustedSenders;
-    if (current.includes(normalized)) return;
-    set({ trustedSenders: [...current, normalized] });
-    persist(snapshot(get()));
+    editSettings((s) => (s.trustedSenders.includes(normalized) ? null : { trustedSenders: [...s.trustedSenders, normalized] }));
   },
 
   removeTrustedSender: (email) => {
     const normalized = stripDisplayName(email);
-    set({ trustedSenders: get().trustedSenders.filter((e) => e !== normalized) });
-    persist(snapshot(get()));
+    editSettings((s) => ({ trustedSenders: s.trustedSenders.filter((e) => e !== normalized) }));
   },
 
   isSenderTrusted: (email) => {
@@ -985,28 +1060,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return get().trustedSenders.includes(normalized);
   },
 
-  setSharedCalendarColor: (key, color) => {
-    set({ sharedCalendarColors: { ...get().sharedCalendarColors, [key]: color } });
-    persist(snapshot(get()));
-  },
+  setSharedCalendarColor: (key, color) => editSettings((s) => ({ sharedCalendarColors: { ...s.sharedCalendarColors, [key]: color } })),
 
-  removeSharedCalendarColor: (key) => {
-    const { [key]: _removed, ...rest } = get().sharedCalendarColors;
-    set({ sharedCalendarColors: rest });
-    persist(snapshot(get()));
-  },
+  removeSharedCalendarColor: (key) => editSettings((s) => {
+    const { [key]: _removed, ...rest } = s.sharedCalendarColors;
+    return { sharedCalendarColors: rest };
+  }),
 
   forgetAccountCalendarColors: async (appAccountId) => {
     // Read the stored settings first: a write before that would put the
     // defaults over every other setting.
     await get().hydrate();
-    const current = get().sharedCalendarColors;
-    const readers = get().legacyCalendarColorReaders;
-    const wasReader = !!appAccountId && !!readers?.includes(appAccountId);
-    const kept = withoutAccountCalendarColors(current, appAccountId);
-    if (kept === current && !wasReader) return;
-    set(wasReader ? withoutLegacyReader(kept, readers!, appAccountId) : { sharedCalendarColors: kept });
-    persist(snapshot(get()));
+    // After a failed read this runs again on the stored row once it reads
+    // (editSettings), so the account's colours still go.
+    editSettings((s) => {
+      const current = s.sharedCalendarColors;
+      const readers = s.legacyCalendarColorReaders;
+      const wasReader = !!appAccountId && !!readers?.includes(appAccountId);
+      const kept = withoutAccountCalendarColors(current, appAccountId);
+      if (kept === current && !wasReader) return null;
+      return wasReader ? withoutLegacyReader(kept, readers!, appAccountId) : { sharedCalendarColors: kept };
+    });
   },
 
   seedLegacyCalendarColorReaders: (appAccountIds) => {
@@ -1018,48 +1092,36 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const anyLegacy = Object.keys(overrides).some(isLegacyCalendarColorKey);
     const readers = anyLegacy ? appAccountIds.filter((id) => !!id) : [];
     // No account registered to claim them: they go now.
-    set({
+    editSettings(() => ({
       legacyCalendarColorReaders: readers,
       sharedCalendarColors: readers.length ? overrides : withoutLegacyCalendarColors(overrides),
-    });
-    persist(snapshot(get()));
+    }));
   },
 
   finishLegacyCalendarColors: (appAccountId, claimed) => {
     const readers = get().legacyCalendarColorReaders;
     // Not a reader (finished already, or registered later): it may claim nothing.
-    if (!appAccountId || !readers?.includes(appAccountId)) return;
-    set(withoutLegacyReader({ ...get().sharedCalendarColors, ...claimed }, readers, appAccountId));
-    persist(snapshot(get()));
+    // Never after a failed read either: the claim was made from the
+    // defaults, so run again on the stored row it would drop the reader
+    // with nothing claimed. (The readers are null then, so this is moot.)
+    if (!appAccountId || !readers?.includes(appAccountId) || get().settingsReadFailed) return;
+    editSettings((s) => withoutLegacyReader({ ...s.sharedCalendarColors, ...claimed }, readers, appAccountId));
   },
 
   addSidebarApp: (app) => {
     const id = `app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-    set({ sidebarApps: [...get().sidebarApps, { ...app, id }] });
-    persist(snapshot(get()));
+    editSettings((s) => ({ sidebarApps: [...s.sidebarApps, { ...app, id }] }));
   },
 
-  updateSidebarApp: (id, updates) => {
-    set({
-      sidebarApps: get().sidebarApps.map((a) => (a.id === id ? { ...a, ...updates } : a)),
-    });
-    persist(snapshot(get()));
-  },
+  updateSidebarApp: (id, updates) => editSettings((s) => ({
+    sidebarApps: s.sidebarApps.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+  })),
 
-  removeSidebarApp: (id) => {
-    set({ sidebarApps: get().sidebarApps.filter((a) => a.id !== id) });
-    persist(snapshot(get()));
-  },
+  removeSidebarApp: (id) => editSettings((s) => ({ sidebarApps: s.sidebarApps.filter((a) => a.id !== id) })),
 
-  reorderSidebarApps: (apps) => {
-    set({ sidebarApps: apps });
-    persist(snapshot(get()));
-  },
+  reorderSidebarApps: (apps) => editSettings(() => ({ sidebarApps: apps })),
 
-  resetToDefaults: () => {
-    set({ ...DEFAULT_PERSISTED });
-    persist(snapshot(get()));
-  },
+  resetToDefaults: () => editSettings(() => ({ ...DEFAULT_PERSISTED })),
 
   // Only that app account's shared calendar colours, and the old keys while
   // it may still read them (exportableCalendarColors).
@@ -1088,16 +1150,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (Array.isArray(incoming.sidebarApps)) incoming.sidebarApps = importableSidebarApps(incoming.sidebarApps);
     // The file's colours name no app account: they become the shown
     // account's, and never replace another account's (importedCalendarColors).
-    const fileColors = incoming.sharedCalendarColors;
+    const fileColors = importableCalendarColors(incoming.sharedCalendarColors);
     delete incoming.sharedCalendarColors;
     // Validate against the current state so keys absent from the file keep
     // their value instead of snapping back to the default.
-    const merged = mergeWithDefaults({ ...snapshot(get()), ...incoming });
-    merged.sharedCalendarColors = importedCalendarColors(
-      merged.sharedCalendarColors, importableCalendarColors(fileColors), appAccountId,
-    );
-    set({ ...merged });
-    persist(snapshot(get()));
+    editSettings((s) => {
+      const merged = mergeWithDefaults({ ...snapshot(s), ...incoming });
+      merged.sharedCalendarColors = importedCalendarColors(merged.sharedCalendarColors, fileColors, appAccountId);
+      return merged;
+    });
     return true;
   },
 

@@ -5,6 +5,7 @@ vi.mock('../../api/identity', () => ({ getIdentities: vi.fn(async () => []) }));
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useSettingsStore,
+  discardSettingsEditsForTests,
   mergeWithDefaults,
   toExportShape,
   fromExportShape,
@@ -12,6 +13,9 @@ import {
 
 describe('settings-store', () => {
   beforeEach(async () => {
+    // A failed read left by an earlier test would hold every write back.
+    discardSettingsEditsForTests();
+    useSettingsStore.setState({ settingsReadFailed: false });
     await AsyncStorage.clear();
     useSettingsStore.getState().resetToDefaults();
   });
