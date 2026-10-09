@@ -271,8 +271,12 @@ function makeStyles(c: ThemePalette) {
     color: c.textSecondary,
     marginTop: 2,
   },
+  // The control goes below the text when the two don't fit side by side
+  // (a narrow screen, a large font), rather than squeezing the text to a
+  // word a line.
   settingItem: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
@@ -286,7 +290,10 @@ function makeStyles(c: ThemePalette) {
     opacity: 0.6,
   },
   settingContent: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 180,
+    minWidth: 180,
     paddingRight: spacing.lg,
   },
   settingLabelRow: {

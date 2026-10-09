@@ -53,6 +53,17 @@ export function monthFocusRow(
   return Math.max(0, Math.min(rowCount - 1, row));
 }
 
+/**
+ * Where the list mounts (its `initialScrollIndex`, clamped to the rows it
+ * has) and the scroll offset that row has at `rowHeight`. After a remount
+ * for a new row height the old offset is in the old height's units, so it
+ * is reset to this one until the list reports a scroll.
+ */
+export function monthMountPosition(row: number, rowHeight: number, rowCount: number): { row: number; offset: number } {
+  const at = Math.max(0, Math.min(rowCount - 1, row));
+  return { row: at, offset: at * rowHeight };
+}
+
 /** Row under the sample line for a scroll offset. */
 export function sampledRow(
   offset: number,

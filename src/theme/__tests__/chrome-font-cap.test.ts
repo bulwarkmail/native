@@ -10,8 +10,9 @@ import { CHROME_MAX_FONT_SCALE } from '../tokens';
 
 const ROOT = join(__dirname, '..', '..', '..');
 
-// File, and a piece of the `style` the chrome Text carries.
-const CHROME_TEXT: Array<[string, string]> = [
+// File, a piece of the `style` the chrome Text carries, and the element
+// when it is not a Text.
+const CHROME_TEXT: Array<[string, string, string?]> = [
   ['App.tsx', 'chrome.tabLabel'],
   ['App.tsx', 'chrome.tabBadge'],
   ['src/components/SwipeableRow.tsx', 'styles.bandLabel'],
@@ -28,10 +29,12 @@ const CHROME_TEXT: Array<[string, string]> = [
   ['src/screens/EmailListScreen.tsx', 'styles.chipText'],
   ['src/screens/EmailListScreen.tsx', 'styles.filterBadgeText'],
   ['src/screens/EmailListScreen.tsx', 'styles.triToggleText'],
+  // The inbox search field: its placeholder sits in the search box.
+  ['src/screens/EmailListScreen.tsx', 'styles.searchInput', 'TextInput'],
 ];
 
 // Every <Text> whose style mentions `style`, and whether it caps the scale.
-function textsStyledWith(path: string, style: string): boolean[] {
+function textsStyledWith(path: string, style: string, tag = 'Text'): boolean[] {
   const text = readFileSync(join(ROOT, path), 'utf8');
   const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   // The whole name: `styles.chipText` is not `styles.chipTextInactive`, a
@@ -39,7 +42,7 @@ function textsStyledWith(path: string, style: string): boolean[] {
   const named = new RegExp(`${style.replace('.', '\\.')}(?![\\w$])`);
   const found: boolean[] = [];
   const visit = (node: ts.Node) => {
-    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(file) === 'Text') {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(file) === tag) {
       const attrs = node.attributes.properties.filter(ts.isJsxAttribute);
       const styleAttr = attrs.find((a) => a.name.getText(file) === 'style');
       if (named.test(styleAttr?.initializer?.getText(file) ?? '')) {
@@ -58,10 +61,19 @@ describe('fixed chrome text', () => {
     expect(CHROME_MAX_FONT_SCALE).toBeCloseTo(1.3);
   });
 
-  it.each(CHROME_TEXT)('%s: the Text styled %s caps it', (path, style) => {
-    const texts = textsStyledWith(path, style);
+  it.each(CHROME_TEXT)('%s: the text styled %s caps it', (path, style, tag) => {
+    const texts = textsStyledWith(path, style, tag);
     expect(texts.length).toBeGreaterThan(0);
     expect(texts.every(Boolean)).toBe(true);
+  });
+
+  // At a 2.0 OS scale the capped field is still taller than 40px: the box
+  // grows to fit it instead of clipping the placeholder.
+  it('the inbox search box grows with its field', () => {
+    const screen = readFileSync(join(ROOT, 'src/screens/EmailListScreen.tsx'), 'utf8');
+    const area = /searchInputArea: \{([^}]*)\}/.exec(screen)?.[1] ?? '';
+    expect(area).toMatch(/minHeight: componentSizes\.inputHeight/);
+    expect(area).not.toMatch(/(?<!min)height:/i);
   });
 
   it('the tab label follows the font size setting through typography.tabLabel', () => {

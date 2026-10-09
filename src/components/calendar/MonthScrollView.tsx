@@ -19,6 +19,7 @@ import {
   dayIndexIn,
   monthChipRowHeight,
   monthFocusRow,
+  monthMountPosition,
   monthKeyOf,
   monthMask,
   sampledRow,
@@ -181,10 +182,15 @@ function MonthScrollViewInner({
   const handledNonceRef = React.useRef(focus.nonce);
   const initialRef = React.useRef<{ rowHeight: number; row: number } | null>(null);
   if (initialRef.current === null || initialRef.current.rowHeight !== rowHeight) {
-    initialRef.current = {
+    const mount = monthMountPosition(
+      topRowRef.current ?? monthFocusRow(window, focus.date, weeks.length, opts),
       rowHeight,
-      row: topRowRef.current ?? monthFocusRow(window, focus.date, weeks.length, opts),
-    };
+      weeks.length,
+    );
+    initialRef.current = { rowHeight, row: mount.row };
+    // The remounted list starts at that row: the old offset was in the old
+    // row height, and the sampling and navigation read this one.
+    offsetRef.current = mount.offset;
   }
   React.useEffect(() => {
     if (handledNonceRef.current === focus.nonce) return;

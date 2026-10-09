@@ -1385,6 +1385,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <TextInput
             ref={searchInputRef}
             style={styles.searchInput}
+            maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
             placeholder={t('email_list.search_placeholder', 'Search mail...')}
             placeholderTextColor={c.textMuted}
             value={searchInput}
@@ -2224,7 +2225,9 @@ function makeStyles(c: ThemePalette) {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    height: componentSizes.inputHeight, // h-10 = 40px
+    // h-10 = 40px at the default sizes; grows rather than clipping the
+    // field at a large OS font size.
+    minHeight: componentSizes.inputHeight,
     backgroundColor: c.surface,
     borderRadius: radius.sm,
     borderWidth: 1,

@@ -12,6 +12,7 @@ import {
   monthKeyOf,
   monthChipRowHeight,
   monthMask,
+  monthMountPosition,
   sampledRow,
   weekDays,
   windowWeekStarts,
@@ -86,6 +87,17 @@ describe('sampledRow', () => {
     expect(sampledRow(-50, 324, 54, 20)).toBe(1);
     expect(sampledRow(100000, 324, 54, 20)).toBe(19);
     expect(sampledRow(0, 324, 54, 0)).toBe(0);
+  });
+});
+
+describe('monthMountPosition', () => {
+  // A row height change remounts the list at its top row: the offset the
+  // sampling reads must be that row's in the new height, not the old offset.
+  it('puts the offset at the mount row in the new row height', () => {
+    expect(monthMountPosition(10, 74, 50)).toEqual({ row: 10, offset: 740 });
+    expect(monthMountPosition(80, 60, 50)).toEqual({ row: 49, offset: 49 * 60 });
+    expect(monthMountPosition(-2, 60, 50)).toEqual({ row: 0, offset: 0 });
+    expect(monthMountPosition(3, 60, 0)).toEqual({ row: 0, offset: 0 });
   });
 });
 
