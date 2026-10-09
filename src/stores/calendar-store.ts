@@ -209,6 +209,10 @@ export interface LoadedRange {
 
 export interface CalendarState {
   calendars: Calendar[];
+  // The app account `calendars` were loaded for; null until a load lands
+  // (and after a reset). JMAP ids repeat across accounts, so a per-account
+  // write about these calendars checks it against the shown account.
+  calendarsAppAccountId: string | null;
   events: CalendarEvent[];
   tasks: CalendarEvent[];
   // Store ids of calendars that hold only Task objects (VTODO-only CalDAV
@@ -675,6 +679,7 @@ export const useCalendarStore = create<CalendarState>()(
   persist(
     (set, get) => ({
   calendars: [],
+  calendarsAppAccountId: null,
   events: [],
   tasks: [],
   taskOnlyCalendarIds: [],
@@ -732,7 +737,7 @@ export const useCalendarStore = create<CalendarState>()(
             : undefined,
         ]);
         if (!loadIsCurrent(load)) return false;
-        set({ calendars: calendars ?? [] });
+        set({ calendars: calendars ?? [], calendarsAppAccountId: load.appAccountId });
         return true;
       } catch (err) {
         if (isStaleLoad(err) || !loadIsCurrent(load)) return false;
@@ -1459,6 +1464,7 @@ export const useCalendarStore = create<CalendarState>()(
     tasksInFlight = null;
     set({
       calendars: [],
+      calendarsAppAccountId: null,
       events: [],
       tasks: [],
       taskOnlyCalendarIds: [],
@@ -1477,6 +1483,7 @@ export const useCalendarStore = create<CalendarState>()(
       storage: createPersistStorage(),
       partialize: (state) => ({
         calendars: state.calendars,
+        calendarsAppAccountId: state.calendarsAppAccountId,
         events: state.events,
         tasks: state.tasks,
         taskOnlyCalendarIds: state.taskOnlyCalendarIds,

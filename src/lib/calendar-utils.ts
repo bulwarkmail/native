@@ -642,16 +642,20 @@ function takenCalendarColors(calendars: Calendar[], overrides: Record<string, st
 
 /**
  * A random, not-yet-used colour for each shared calendar that has no
- * override in app account `appAccountId` (one under the old key counts),
- * as new-key → colour. Nothing while no account is shown.
+ * override in the shown app account `appAccountId` (one under the old key
+ * counts), as new-key → colour. Nothing while no account is shown, or while
+ * `calendars` were loaded for another account (`loadedFor`): during a
+ * switch the list is still the previous account's, and its ids would name
+ * other calendars under the new account's key.
  */
 export function missingSharedCalendarColors(
   calendars: Calendar[],
+  loadedFor: string | null,
   overrides: Record<string, string>,
   appAccountId: string,
 ): Record<string, string> {
   const assigned: Record<string, string> = {};
-  if (!appAccountId) return assigned;
+  if (!appAccountId || loadedFor !== appAccountId) return assigned;
   const missing = calendars.filter(
     (cal) => cal.isShared && !sharedCalendarColorFor(overrides, appAccountId, cal),
   );

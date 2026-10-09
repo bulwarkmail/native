@@ -340,18 +340,25 @@ describe('shared calendar colours', () => {
     const legacy = { ...cal, id: 'team:c3', originalId: 'c3' };
     const own = { id: 'p', name: 'P', color: '#111111' } as Calendar;
     const overrides = { 'A|team|c1': '#ff0000', 'team|c3': '#00ff00', 'B|team|c2': '#0000ff' };
-    const assigned = missingSharedCalendarColors([cal, other, legacy, own], overrides, 'A');
+    const assigned = missingSharedCalendarColors([cal, other, legacy, own], 'A', overrides, 'A');
     expect(Object.keys(assigned)).toEqual(['A|team|c2']);
     expect(['#111111', '#ff0000', '#00ff00', '#0000ff']).not.toContain(assigned['A|team|c2'].toLowerCase());
   });
 
   it('assigns nothing while no account is shown', () => {
-    expect(missingSharedCalendarColors([cal], {}, '')).toEqual({});
+    expect(missingSharedCalendarColors([cal], null, {}, '')).toEqual({});
+  });
+
+  it('assigns nothing while the list still holds another account\'s calendars, then under the new one', () => {
+    // A switch shows B at once; the store holds A's list until B's loads.
+    expect(missingSharedCalendarColors([cal], 'A', {}, 'B')).toEqual({});
+    expect(missingSharedCalendarColors([cal], null, {}, 'B')).toEqual({});
+    expect(Object.keys(missingSharedCalendarColors([cal], 'B', {}, 'B'))).toEqual(['B|team|c1']);
   });
 
   it('gives two new shared calendars different colours', () => {
     const other = { ...cal, id: 'team:c2', originalId: 'c2' };
-    const assigned = Object.values(missingSharedCalendarColors([cal, other], {}, 'A'));
+    const assigned = Object.values(missingSharedCalendarColors([cal, other], 'A', {}, 'A'));
     expect(assigned).toHaveLength(2);
     expect(new Set(assigned.map((c) => c.toLowerCase())).size).toBe(2);
   });

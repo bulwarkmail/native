@@ -369,6 +369,7 @@ export default function CalendarScreen() {
   const [shareTarget, setShareTarget] = React.useState<Calendar | null>(null);
   const syncDueSubscriptions = useCalendarSubscriptionsStore((s) => s.syncDue);
   const storeCalendars = useCalendarStore((s) => s.calendars);
+  const calendarsAppAccountId = useCalendarStore((s) => s.calendarsAppAccountId);
   const taskOnlyCalendarIds = useCalendarStore((s) => s.taskOnlyCalendarIds);
   const hiddenCalendarIds = useCalendarStore((s) => s.hiddenCalendarIds);
   const loading = useCalendarStore((s) => s.loading);
@@ -403,10 +404,14 @@ export default function CalendarScreen() {
   // once per calendar (guarded by the presence of an existing key), and the
   // user can still overwrite it from the sidebar. Keyed by the account the
   // render shows (ids repeat across accounts), not a sheet's captured one.
+  // Waits until the list is the shown account's own (see
+  // missingSharedCalendarColors).
   React.useEffect(() => {
-    const assigned = missingSharedCalendarColors(storeCalendars, sharedCalendarColors, shownAccountId ?? '');
+    const assigned = missingSharedCalendarColors(
+      storeCalendars, calendarsAppAccountId, sharedCalendarColors, shownAccountId ?? '',
+    );
     for (const [key, color] of Object.entries(assigned)) setSharedCalendarColor(key, color);
-  }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor, shownAccountId]);
+  }, [storeCalendars, calendarsAppAccountId, sharedCalendarColors, setSharedCalendarColor, shownAccountId]);
 
   const allCalendars = React.useMemo(
     () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar(undefined, birthdayCalendarColor)] : displayCalendars),
