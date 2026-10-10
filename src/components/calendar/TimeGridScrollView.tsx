@@ -289,6 +289,7 @@ function TimeGridScrollViewInner({
   const handleLongPressAt = React.useCallback(
     (day: Date, hour: number) => {
       if (!onCreateAtTime) return;
+      setDraft(null);
       // A display date (that hour in the calendar's zone); the editor turns
       // it into the real instant when it saves (eventTimeFieldsToSave).
       const date = new Date(day);
@@ -297,6 +298,14 @@ function TimeGridScrollViewInner({
     },
     [onCreateAtTime],
   );
+
+  // A tap on an empty slot marks it with a "New event" block; tapping that
+  // block creates the event. Two taps, so a stray tap never opens the editor.
+  const [draft, setDraft] = React.useState<{ key: string; hour: number } | null>(null);
+  const handleTapAt = React.useCallback((day: Date, hour: number) => {
+    const key = dayKey(day);
+    setDraft((cur) => (cur && cur.key === key && cur.hour === hour ? null : { key, hour }));
+  }, []);
 
   const todayKey = dayKey(displayNow());
   const renderItem = React.useCallback(
@@ -313,11 +322,13 @@ function TimeGridScrollViewInner({
         styles={styles}
         onSelectEvent={onSelectEvent}
         onLongPressAt={onCreateAtTime ? handleLongPressAt : undefined}
+        onTapAt={onCreateAtTime ? handleTapAt : undefined}
+        draftHour={draft && draft.key === dayKey(day) ? draft.hour : -1}
       />
     ),
     [
       layoutsFor, colWidth, todayKey, nowMinutes, calendars, timeFormat, currentUserEmails, c, styles,
-      onSelectEvent, onCreateAtTime, handleLongPressAt,
+      onSelectEvent, onCreateAtTime, handleLongPressAt, handleTapAt, draft,
     ],
   );
 
@@ -443,6 +454,7 @@ function TimeGridScrollViewInner({
               data={days}
               keyExtractor={dayKey}
               renderItem={renderItem}
+              extraData={draft}
               getItemLayout={getItemLayout}
               initialScrollIndex={initialIndexRef.current.index}
               // Days added at the start keep the columns on screen in place.
@@ -535,6 +547,8 @@ const DayColumn = React.memo(function DayColumn({
   styles,
   onSelectEvent,
   onLongPressAt,
+  onTapAt,
+  draftHour,
 }: {
   day: Date;
   layouts: TimedEventLayout[];
@@ -548,6 +562,9 @@ const DayColumn = React.memo(function DayColumn({
   styles: GridStyles;
   onSelectEvent?: (event: CalendarEvent) => void;
   onLongPressAt?: (day: Date, hour: number) => void;
+  onTapAt?: (day: Date, hour: number) => void;
+  /** Hour of the "New event" block in this column, or -1. */
+  draftHour: number;
 }) {
   const { t } = useCalendarLocale();
   const handleLongPress = React.useCallback(
@@ -556,9 +573,16 @@ const DayColumn = React.memo(function DayColumn({
     },
     [onLongPressAt, day],
   );
+  const handlePress = React.useCallback(
+    (e: GestureResponderEvent) => {
+      onTapAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
+    },
+    [onTapAt, day],
+  );
   return (
     <Pressable
       style={[styles.dayCol, { width }]}
+      onPress={onTapAt ? handlePress : undefined}
       onLongPress={onLongPressAt ? handleLongPress : undefined}
     >
       {layouts.map(({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
@@ -585,6 +609,18 @@ const DayColumn = React.memo(function DayColumn({
           />
         );
       })}
+      {draftHour >= 0 && (
+        <Pressable
+          style={[styles.draft, { top: draftHour * HOUR_HEIGHT, height: HOUR_HEIGHT - 1 }]}
+          onPress={() => onLongPressAt?.(day, draftHour)}
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar.events.new_event', 'New event')}
+        >
+          <Text style={styles.draftText} numberOfLines={1}>
+            {t('calendar.events.new_event', 'New event')}
+          </Text>
+        </Pressable>
+      )}
       {nowMinutes >= 0 && (
         <View pointerEvents="none" style={[styles.nowLine, { top: (nowMinutes / 60) * HOUR_HEIGHT }]}>
           <View style={styles.nowDot} />
@@ -684,5 +720,18 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.error,
   },
   nowBar: { flex: 1, height: 1, backgroundColor: c.error },
+  draft: {
+    position: 'absolute',
+    left: 1,
+    right: 2,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: c.primary,
+    backgroundColor: c.primaryBg,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    zIndex: 2,
+  },
+  draftText: { fontSize: 12, lineHeight: 16, fontWeight: '500', color: c.text },
   });
 }

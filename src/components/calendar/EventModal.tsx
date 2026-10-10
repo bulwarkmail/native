@@ -99,9 +99,11 @@ interface EventModalProps {
   onClose: () => void;
 }
 
+// A time already on the hour or half hour (a tapped slot) stays as it is.
 function nextHalfHour(d: Date): Date {
   const date = new Date(d);
   const min = date.getMinutes();
+  if (min % 30 === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0) return date;
   const add = min < 30 ? 30 - min : 60 - min;
   date.setMinutes(date.getMinutes() + add, 0, 0);
   return date;

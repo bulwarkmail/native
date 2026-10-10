@@ -1106,7 +1106,7 @@ export default function CalendarScreen() {
             weekStartsOn={calendarFirstDayOfWeek}
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
-            onSelectDate={handleSelectDate}
+            onSelectDate={viewMode === 'day' ? handleSelectDate : openDay}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
           />
@@ -1121,7 +1121,7 @@ export default function CalendarScreen() {
             weekStartsOn={calendarFirstDayOfWeek}
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
-            onSelectDate={handleSelectDate}
+            onSelectDate={openDay}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
           />
