@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Etkinlik oluşturmak için + simgesine dokunun"
     },
+    "fab": {
+      "event": "Etkinlik",
+      "task": "Görev"
+    },
     "form": {
       "description_placeholder": "Notlar, gündem…",
       "location_placeholder": "Yer veya adres",
@@ -127,6 +131,10 @@
       "not_found": "Bu görev artık kullanılamıyor.",
       "save_error": "Görev kaydedilemedi",
       "update_error": "Görev güncellenemedi"
+    },
+    "views": {
+      "schedule": "Program",
+      "three_days": "3 gün"
     }
   },
   "common": {

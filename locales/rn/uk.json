@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Натисніть +, щоб створити"
     },
+    "fab": {
+      "event": "Подія",
+      "task": "Завдання"
+    },
     "form": {
       "description_placeholder": "Нотатки, порядок денний…",
       "location_placeholder": "Місце або адреса",
@@ -127,6 +131,10 @@
       "not_found": "Це завдання більше недоступне.",
       "save_error": "Не вдалося зберегти завдання",
       "update_error": "Не вдалося оновити завдання"
+    },
+    "views": {
+      "schedule": "Розклад",
+      "three_days": "3 дні"
     }
   },
   "common": {

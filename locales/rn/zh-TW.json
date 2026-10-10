@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "點選 + 即可建立"
     },
+    "fab": {
+      "event": "活動",
+      "task": "工作"
+    },
     "form": {
       "description_placeholder": "備註、議程…",
       "location_placeholder": "地點或地址",
@@ -127,6 +131,10 @@
       "not_found": "此任務已不存在。",
       "save_error": "儲存任務失敗",
       "update_error": "更新任務失敗"
+    },
+    "views": {
+      "schedule": "行程",
+      "three_days": "3 天"
     }
   },
   "common": {

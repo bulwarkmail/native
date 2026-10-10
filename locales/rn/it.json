@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Tocca + per crearne uno"
     },
+    "fab": {
+      "event": "Evento",
+      "task": "Attività"
+    },
     "form": {
       "description_placeholder": "Note, ordine del giorno…",
       "location_placeholder": "Luogo o indirizzo",
@@ -127,6 +131,10 @@
       "not_found": "Questa attività non è più disponibile.",
       "save_error": "Impossibile salvare l'attività",
       "update_error": "Impossibile aggiornare l'attività"
+    },
+    "views": {
+      "schedule": "Programma",
+      "three_days": "3 giorni"
     }
   },
   "common": {

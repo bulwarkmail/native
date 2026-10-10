@@ -52,6 +52,8 @@ interface TasksSheetProps {
   timeFormat?: TimeFormat;
   // Task to open in the editor when the sheet appears (from a calendar chip).
   initialTaskId?: string | null;
+  // Open straight on an empty editor (the calendar's "new task" button).
+  startNew?: boolean;
   onClose: () => void;
   onCreate: (task: Partial<CalendarEvent>, calendarId: string) => Promise<void> | void;
   onUpdate?: (id: string, changes: Partial<CalendarEvent>) => Promise<void> | void;
@@ -94,6 +96,7 @@ export function TasksSheet({
   calendars,
   timeFormat,
   initialTaskId,
+  startNew = false,
   onClose,
   onCreate,
   onUpdate,
@@ -132,10 +135,10 @@ export function TasksSheet({
       setExpanded(true);
     } else {
       setEditor(emptyTaskEditor(defaultCalendarId));
-      setExpanded(false);
+      setExpanded(startNew);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, initialTaskId]);
+  }, [visible, initialTaskId, startNew]);
 
   React.useEffect(() => {
     if (visible && !editor.calendarId && defaultCalendarId) {

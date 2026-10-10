@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Tap + to create one"
     },
+    "fab": {
+      "event": "Event",
+      "task": "Task"
+    },
     "form": {
       "description_placeholder": "Notes, agenda…",
       "location_placeholder": "Place or address",
@@ -127,6 +131,10 @@
       "not_found": "This task is no longer available.",
       "save_error": "Failed to save task",
       "update_error": "Failed to update task"
+    },
+    "views": {
+      "schedule": "Schedule",
+      "three_days": "3 days"
     }
   },
   "common": {

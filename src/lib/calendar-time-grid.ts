@@ -16,7 +16,12 @@ import type { DayRange, WeekStartsOn } from './calendar-scroll-window';
  * window, scrolling sideways and snapping to whole days.
  */
 
-export type TimeGridMode = 'week' | 'day';
+export type TimeGridMode = 'week' | '3day' | 'day';
+
+/** Day columns on one screen. */
+export function columnsPerScreen(mode: TimeGridMode): number {
+  return mode === 'week' ? 7 : mode === '3day' ? 3 : 1;
+}
 
 /** Every day of the window, in order. */
 export function windowDays(window: DayRange): Date[] {
@@ -28,7 +33,8 @@ export function windowDays(window: DayRange): Date[] {
 
 /**
  * The column navigation aligns with the start of the viewport: the focused
- * week's first day in the week view, the focused day in the day view.
+ * week's first day in the week view, the focused day in the day and
+ * three-day views.
  */
 export function timeGridFocusColumn(
   window: DayRange,

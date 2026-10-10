@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Udalosť vytvoríte klepnutím na +"
     },
+    "fab": {
+      "event": "Udalosť",
+      "task": "Úloha"
+    },
     "form": {
       "description_placeholder": "Poznámky, program…",
       "location_placeholder": "Miesto alebo adresa",
@@ -127,6 +131,10 @@
       "not_found": "Táto úloha už nie je k dispozícii.",
       "save_error": "Úlohu sa nepodarilo uložiť",
       "update_error": "Úlohu sa nepodarilo aktualizovať"
+    },
+    "views": {
+      "schedule": "Program",
+      "three_days": "3 dni"
     }
   },
   "common": {

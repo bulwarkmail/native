@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Pieskarieties +, lai izveidotu notikumu"
     },
+    "fab": {
+      "event": "Notikums",
+      "task": "Uzdevums"
+    },
     "form": {
       "description_placeholder": "Piezīmes, darba kārtība…",
       "location_placeholder": "Vieta vai adrese",
@@ -127,6 +131,10 @@
       "not_found": "Šis uzdevums vairs nav pieejams.",
       "save_error": "Neizdevās saglabāt uzdevumu",
       "update_error": "Neizdevās atjaunināt uzdevumu"
+    },
+    "views": {
+      "schedule": "Grafiks",
+      "three_days": "3 dienas"
     }
   },
   "common": {

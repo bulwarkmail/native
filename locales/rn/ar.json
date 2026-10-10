@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "اضغط + لإنشاء حدث"
     },
+    "fab": {
+      "event": "حدث",
+      "task": "مهمة"
+    },
     "form": {
       "description_placeholder": "ملاحظات، جدول أعمال…",
       "location_placeholder": "المكان أو العنوان",
@@ -127,6 +131,10 @@
       "not_found": "لم تعد هذه المهمة متاحة.",
       "save_error": "فشل حفظ المهمة",
       "update_error": "فشل تحديث المهمة"
+    },
+    "views": {
+      "schedule": "الجدول",
+      "three_days": "3 أيام"
     }
   },
   "common": {

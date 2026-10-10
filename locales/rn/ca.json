@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Toqueu + per crear-ne un"
     },
+    "fab": {
+      "event": "Esdeveniment",
+      "task": "Tasca"
+    },
     "form": {
       "description_placeholder": "Notes, ordre del dia…",
       "location_placeholder": "Lloc o adreça",
@@ -127,6 +131,10 @@
       "not_found": "Aquesta tasca ja no està disponible.",
       "save_error": "No s'ha pogut desar la tasca",
       "update_error": "No s'ha pogut actualitzar la tasca"
+    },
+    "views": {
+      "schedule": "Agenda",
+      "three_days": "3 dies"
     }
   },
   "common": {

@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Tippen Sie auf +, um einen zu erstellen"
     },
+    "fab": {
+      "event": "Termin",
+      "task": "Aufgabe"
+    },
     "form": {
       "description_placeholder": "Notizen, Tagesordnung…",
       "location_placeholder": "Ort oder Adresse",
@@ -127,6 +131,10 @@
       "not_found": "Diese Aufgabe ist nicht mehr verfügbar.",
       "save_error": "Aufgabe konnte nicht gespeichert werden",
       "update_error": "Aufgabe konnte nicht aktualisiert werden"
+    },
+    "views": {
+      "schedule": "Terminübersicht",
+      "three_days": "3 Tage"
     }
   },
   "common": {

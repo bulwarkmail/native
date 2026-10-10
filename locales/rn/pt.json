@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Toque em + para criar um"
     },
+    "fab": {
+      "event": "Evento",
+      "task": "Tarefa"
+    },
     "form": {
       "description_placeholder": "Notas, pauta…",
       "location_placeholder": "Local ou endereço",
@@ -127,6 +131,10 @@
       "not_found": "Esta tarefa não está mais disponível.",
       "save_error": "Falha ao salvar a tarefa",
       "update_error": "Falha ao atualizar a tarefa"
+    },
+    "views": {
+      "schedule": "Programação",
+      "three_days": "3 dias"
     }
   },
   "common": {

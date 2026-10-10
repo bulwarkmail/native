@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "+ をタップして作成"
     },
+    "fab": {
+      "event": "予定",
+      "task": "タスク"
+    },
     "form": {
       "description_placeholder": "メモ、議題…",
       "location_placeholder": "場所または住所",
@@ -127,6 +131,10 @@
       "not_found": "このタスクは利用できなくなりました。",
       "save_error": "タスクの保存に失敗しました",
       "update_error": "タスクの更新に失敗しました"
+    },
+    "views": {
+      "schedule": "スケジュール",
+      "three_days": "3 日"
     }
   },
   "common": {

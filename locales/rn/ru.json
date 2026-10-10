@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Нажмите +, чтобы создать"
     },
+    "fab": {
+      "event": "Мероприятие",
+      "task": "Задача"
+    },
     "form": {
       "description_placeholder": "Заметки, повестка…",
       "location_placeholder": "Место или адрес",
@@ -127,6 +131,10 @@
       "not_found": "Эта задача больше недоступна.",
       "save_error": "Не удалось сохранить задачу",
       "update_error": "Не удалось обновить задачу"
+    },
+    "views": {
+      "schedule": "Расписание",
+      "three_days": "3 дня"
     }
   },
   "common": {

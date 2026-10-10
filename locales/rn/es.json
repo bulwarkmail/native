@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Toca + para crear uno"
     },
+    "fab": {
+      "event": "Evento",
+      "task": "Tarea"
+    },
     "form": {
       "description_placeholder": "Notas, orden del día…",
       "location_placeholder": "Lugar o dirección",
@@ -127,6 +131,10 @@
       "not_found": "Esta tarea ya no está disponible.",
       "save_error": "No se pudo guardar la tarea",
       "update_error": "No se pudo actualizar la tarea"
+    },
+    "views": {
+      "schedule": "Agenda",
+      "three_days": "3 días"
     }
   },
   "common": {

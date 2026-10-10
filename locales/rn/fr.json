@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Appuyez sur + pour en créer un"
     },
+    "fab": {
+      "event": "Événement",
+      "task": "Tâche"
+    },
     "form": {
       "description_placeholder": "Notes, ordre du jour…",
       "location_placeholder": "Lieu ou adresse",
@@ -127,6 +131,10 @@
       "not_found": "Cette tâche n'est plus disponible.",
       "save_error": "Échec de l'enregistrement de la tâche",
       "update_error": "Échec de la mise à jour de la tâche"
+    },
+    "views": {
+      "schedule": "Planning",
+      "three_days": "3 jours"
     }
   },
   "common": {

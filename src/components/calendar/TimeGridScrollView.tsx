@@ -37,6 +37,7 @@ import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import {
   buildAllDaySegments,
+  columnsPerScreen,
   headerColumnRange,
   hourAtOffset,
   timeGridFocusColumn,
@@ -119,7 +120,7 @@ function TimeGridScrollViewInner({
     [eventsByDay, events],
   );
 
-  const perScreen = mode === 'week' ? 7 : 1;
+  const perScreen = columnsPerScreen(mode);
   const { width: screenWidth } = useWindowDimensions();
   const [rootWidth, setRootWidth] = React.useState(screenWidth);
   const listWidth = Math.max(perScreen, rootWidth - GUTTER_WIDTH);

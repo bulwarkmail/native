@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Tik op + om er een te maken"
     },
+    "fab": {
+      "event": "Afspraak",
+      "task": "Taak"
+    },
     "form": {
       "description_placeholder": "Notities, agendapunten…",
       "location_placeholder": "Plaats of adres",
@@ -127,6 +131,10 @@
       "not_found": "Deze taak is niet meer beschikbaar.",
       "save_error": "Taak opslaan mislukt",
       "update_error": "Taak bijwerken mislukt"
+    },
+    "views": {
+      "schedule": "Planning",
+      "three_days": "3 dagen"
     }
   },
   "common": {

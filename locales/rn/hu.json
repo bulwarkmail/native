@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Esemény létrehozásához koppints a + gombra"
     },
+    "fab": {
+      "event": "Esemény",
+      "task": "Feladat"
+    },
     "form": {
       "description_placeholder": "Jegyzetek, napirend…",
       "location_placeholder": "Hely vagy cím",
@@ -127,6 +131,10 @@
       "not_found": "Ez a feladat már nem érhető el.",
       "save_error": "Nem sikerült menteni a feladatot",
       "update_error": "Nem sikerült frissíteni a feladatot"
+    },
+    "views": {
+      "schedule": "Ütemezés",
+      "three_days": "3 nap"
     }
   },
   "common": {

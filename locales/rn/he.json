@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "הקש על + כדי ליצור"
     },
+    "fab": {
+      "event": "אירוע",
+      "task": "משימה"
+    },
     "form": {
       "description_placeholder": "הערות, סדר יום…",
       "location_placeholder": "מקום או כתובת",
@@ -127,6 +131,10 @@
       "not_found": "המשימה הזו אינה זמינה עוד.",
       "save_error": "שמירת המשימה נכשלה",
       "update_error": "עדכון המשימה נכשל"
+    },
+    "views": {
+      "schedule": "לוח זמנים",
+      "three_days": "3 ימים"
     }
   },
   "common": {

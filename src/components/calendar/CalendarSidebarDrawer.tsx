@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  Check, X, Upload, Rss, Shuffle, Star, Plus, Pencil, Share2, Eraser, Trash2,
+  Check, X, Upload, Rss, Shuffle, Star, Plus, Pencil, Share2, Eraser, Trash2, RefreshCw,
+  type LucideIcon,
 } from 'lucide-react-native';
 import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -23,8 +24,19 @@ import { BIRTHDAY_CALENDAR_ID } from '../../lib/birthday-calendar';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useLocaleStore } from '../../stores/locale-store';
 
+/** A calendar view listed at the top of the drawer. */
+export interface DrawerViewOption {
+  key: string;
+  label: string;
+  Icon: LucideIcon;
+}
+
 interface CalendarSidebarDrawerProps {
   visible: boolean;
+  views?: DrawerViewOption[];
+  activeView?: string;
+  onSelectView?: (key: string) => void;
+  onRefresh?: () => void;
   calendars: Calendar[];
   hiddenCalendarIds: string[];
   onToggle: (id: string) => void;
@@ -48,6 +60,10 @@ interface CalendarSidebarDrawerProps {
 
 export function CalendarSidebarDrawer({
   visible,
+  views,
+  activeView,
+  onSelectView,
+  onRefresh,
   calendars,
   hiddenCalendarIds,
   onToggle,
@@ -161,10 +177,44 @@ export function CalendarSidebarDrawer({
             >
               <X size={20} color={c.text} />
             </Pressable>
-            <Text style={styles.headerTitle}>{t('calendar.my_calendars', 'Calendars')}</Text>
+            <Text style={styles.headerTitle}>{t('calendar.title', 'Calendar')}</Text>
           </View>
 
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            {views && views.length > 0 && (
+              <View style={styles.viewsSection}>
+                {views.map(({ key, label, Icon }) => {
+                  const active = key === activeView;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => onSelectView?.(key)}
+                      style={({ pressed }) => [
+                        styles.viewRow,
+                        active && styles.viewRowActive,
+                        pressed && !active && styles.rowPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Icon size={16} color={active ? c.text : c.textSecondary} />
+                      <Text style={[styles.viewText, active && styles.viewTextActive]}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+                {onRefresh && (
+                  <Pressable
+                    onPress={onRefresh}
+                    style={({ pressed }) => [styles.viewRow, styles.refreshRow, pressed && styles.rowPressed]}
+                    accessibilityRole="button"
+                  >
+                    <RefreshCw size={16} color={c.textSecondary} />
+                    <Text style={styles.viewText}>{t('common.refresh', 'Refresh')}</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
             {calendars.length === 0 && (
               <Text style={styles.empty}>{t('calendar.drawer.no_calendars', 'No calendars yet.')}</Text>
             )}
@@ -431,6 +481,27 @@ function makeStyles(c: ThemePalette) {
   headerTitle: { ...typography.h3, color: c.text },
 
   scroll: { flex: 1 },
+
+  viewsSection: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border,
+  },
+  // Same rows as the mail drawer's folders (SidebarDrawer).
+  viewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    minHeight: 44,
+    borderLeftWidth: 2,
+    borderLeftColor: 'transparent',
+  },
+  viewRowActive: { backgroundColor: c.accent, borderLeftColor: c.primary },
+  refreshRow: { marginTop: spacing.xs },
+  viewText: { ...typography.body, color: c.text },
+  viewTextActive: { ...typography.bodySemibold },
   scrollContent: { paddingBottom: spacing.lg },
 
   empty: {

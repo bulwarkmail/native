@@ -27,6 +27,10 @@
       "export_ics_short": ".ics",
       "tap_to_create": "Trykk på + for å opprette en"
     },
+    "fab": {
+      "event": "Hendelse",
+      "task": "Oppgave"
+    },
     "form": {
       "description_placeholder": "Notater, agenda…",
       "location_placeholder": "Sted eller adresse",
@@ -127,6 +131,10 @@
       "not_found": "Denne oppgaven er ikke lenger tilgjengelig.",
       "save_error": "Kunne ikke lagre oppgaven",
       "update_error": "Kunne ikke oppdatere oppgaven"
+    },
+    "views": {
+      "schedule": "Timeplan",
+      "three_days": "3 dager"
     }
   },
   "common": {
