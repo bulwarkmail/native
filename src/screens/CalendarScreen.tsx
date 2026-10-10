@@ -8,13 +8,10 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  ScrollView,
-  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Calendar as CalendarIcon,
-  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -37,7 +34,7 @@ import {
   type Locale,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
-import { displayNow, isDisplayToday } from '../lib/calendar-timezone';
+import { displayNow } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useCalendarStore } from '../stores/calendar-store';
@@ -47,7 +44,6 @@ import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
 import { TimeGridScrollView } from '../components/calendar/TimeGridScrollView';
 import { AgendaView } from '../components/calendar/AgendaView';
-import { EventCard } from '../components/calendar/EventCard';
 import { EventDetailSheet } from '../components/calendar/EventDetailSheet';
 import { EventModal } from '../components/calendar/EventModal';
 import {
@@ -83,14 +79,11 @@ import {
   applySharedCalendarColors,
   buildEventDayIndex,
   dayKey,
-  eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
   getTaskDueDate,
   pickUnusedCalendarColor,
   sharedCalendarColorKey,
-  type EventDayIndex,
-  type TimeFormat,
 } from '../lib/calendar-utils';
 import { buildReplyTo } from '../lib/calendar-invitation';
 import {
@@ -230,7 +223,6 @@ export default function CalendarScreen() {
   const [tasksVisible, setTasksVisible] = React.useState(false);
   const [importVisible, setImportVisible] = React.useState(false);
   const [subscriptionsVisible, setSubscriptionsVisible] = React.useState(false);
-  const [refreshing, setRefreshing] = React.useState(false);
 
   const hydrate = useCalendarStore((s) => s.hydrate);
   const fetchCalendarsAction = useCalendarStore((s) => s.fetchCalendars);
@@ -565,6 +557,16 @@ export default function CalendarScreen() {
     setSelectedDate(date);
   }, []);
 
+  // A day in the month grid or a day header in the week grids opens that
+  // day, as in Google Calendar.
+  const openDay = React.useCallback((date: Date) => {
+    setSelectedDate(date);
+    setViewMode('day');
+    setVisibleDate(null);
+    setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+    setWindowState(freshScrollWindowState('day', date));
+  }, []);
+
   const openCreate = React.useCallback((date?: Date) => {
     setModalEvent(null);
     setModalDate(date);
@@ -807,14 +809,7 @@ export default function CalendarScreen() {
     [deleteEvent, reportError],
   );
 
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refresh]);
+  const onRefresh = React.useCallback(() => refresh(), [refresh]);
 
   // The store flips the checkbox optimistically and reverts it when the
   // server refuses; say so instead of leaving the user guessing.
@@ -958,7 +953,6 @@ export default function CalendarScreen() {
     [t, removeCalendar, reportError],
   );
 
-  const isSelectedToday = isDisplayToday(selectedDate);
   const titleDate = (monthPanelOpen && panelMonth) || visibleDate || focus.date;
 
   return (
@@ -1075,7 +1069,7 @@ export default function CalendarScreen() {
             showTimeInMonthView={calendarShowTimeInMonth}
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
-            onSelectDate={handleSelectDate}
+            onSelectDate={openDay}
             onLongPressDate={openCreate}
           />
         )}
@@ -1089,9 +1083,10 @@ export default function CalendarScreen() {
             weekStartsOn={calendarFirstDayOfWeek}
             showWeekNumbers={calendarShowWeekNumbers}
             showTimeInMonthView={calendarShowTimeInMonth}
+            fill
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
-            onSelectDate={handleSelectDate}
+            onSelectDate={openDay}
             onLongPressDate={openCreate}
           />
         )}
@@ -1151,26 +1146,9 @@ export default function CalendarScreen() {
           />
         )}
 
-        {viewMode === 'month' && (
-          <View style={styles.dayDetail}>
-            <View style={styles.dayDetailHeader}>
-              <Text style={styles.dayDetailTitle}>
-                {isSelectedToday
-                  ? t('calendar.events.today_header', 'Today')
-                  : format(selectedDate, 'EEEE, MMMM d', { locale })}
-              </Text>
-              {loading && <ActivityIndicator size="small" color={c.textMuted} />}
-            </View>
-            <DayEventList
-              date={selectedDate}
-              eventsByDay={eventsByDay}
-              calendars={calendars}
-              timeFormat={calendarTimeFormat}
-              currentUserEmails={currentUserEmails}
-              onSelectEvent={handleSelectEvent}
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-            />
+        {loading && (
+          <View style={styles.loadingBadge} pointerEvents="none">
+            <ActivityIndicator size="small" color={c.textMuted} />
           </View>
         )}
       </View>
@@ -1303,67 +1281,6 @@ export default function CalendarScreen() {
   );
 }
 
-function DayEventList({
-  date,
-  eventsByDay,
-  calendars,
-  timeFormat,
-  currentUserEmails,
-  onSelectEvent,
-  refreshing,
-  onRefresh,
-}: {
-  date: Date;
-  eventsByDay: EventDayIndex;
-  calendars: Calendar[];
-  timeFormat?: TimeFormat;
-  currentUserEmails?: string[];
-  onSelectEvent?: (event: CalendarEvent) => void;
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const t = useLocaleStore((s) => s.t);
-  const dayEvents = React.useMemo(
-    () => eventsOnDayFromIndex(eventsByDay, date),
-    [eventsByDay, date],
-  );
-  if (dayEvents.length === 0) {
-    return (
-      <ScrollView
-        contentContainerStyle={styles.emptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.textMuted} />
-        }
-      >
-        <CalendarDays size={32} color={c.surfaceActive} />
-        <Text style={styles.emptyTitle}>{t('calendar.events.no_events', 'No events')}</Text>
-        <Text style={styles.emptySubtitle}>{t('calendar.events.tap_to_create', 'Tap + to create one')}</Text>
-      </ScrollView>
-    );
-  }
-  return (
-    <ScrollView
-      contentContainerStyle={styles.dayList}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.textMuted} />
-      }
-    >
-      {dayEvents.map((event) => (
-        <EventCard
-          key={event.id}
-          event={event}
-          calendars={calendars}
-          timeFormat={timeFormat}
-          currentUserEmails={currentUserEmails}
-          onPress={onSelectEvent}
-        />
-      ))}
-    </ScrollView>
-  );
-}
-
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
@@ -1414,28 +1331,7 @@ function makeStyles(c: ThemePalette) {
 
   content: { flex: 1 },
 
-  dayDetail: {
-    flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
-  },
-  dayDetailHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  dayDetailTitle: { ...typography.bodyMedium, color: c.text },
-  dayList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
-
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    gap: spacing.xs,
-    flexGrow: 1,
-  },
-  emptyTitle: { ...typography.bodyMedium, color: c.textSecondary },
-  emptySubtitle: { ...typography.caption, color: c.textMuted },
+  // Loading shows as a small spinner over the view's top corner.
+  loadingBadge: { position: 'absolute', top: spacing.xs, right: spacing.md },
   });
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   FlatList,
   View,
+  type LayoutChangeEvent,
   type ListRenderItemInfo,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -26,8 +27,7 @@ import {
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { displayNow } from '../../lib/calendar-timezone';
 import {
-  MONTH_ROW_HEIGHT,
-  MONTH_ROW_HEIGHT_CHIPS,
+  MONTH_ROW_HEIGHT_FULL_MIN,
   MonthWeekRow,
   MonthWeekdayHeader,
   useMonthStyles,
@@ -117,7 +117,14 @@ function MonthScrollViewInner({
   }, [window]);
   const weeksRef = React.useRef(weeks);
   weeksRef.current = weeks;
-  const rowHeight = showTimeInMonthView ? MONTH_ROW_HEIGHT_CHIPS : MONTH_ROW_HEIGHT;
+  // Six weeks fill the space under the weekday initials, like Google
+  // Calendar's month; rows wait for that space to be measured.
+  const [listHeight, setListHeight] = React.useState(0);
+  const handleListLayout = React.useCallback((e: LayoutChangeEvent) => {
+    const height = e.nativeEvent.layout.height;
+    if (height > 0) setListHeight(height);
+  }, []);
+  const rowHeight = Math.max(MONTH_ROW_HEIGHT_FULL_MIN, Math.floor(listHeight / VISIBLE_ROWS));
   const viewportHeight = rowHeight * VISIBLE_ROWS;
 
   // The month in focus: set by navigation, then by what scrolls under the
@@ -196,6 +203,7 @@ function MonthScrollViewInner({
           timeFormat={timeFormat}
           currentUserEmails={currentUserEmails}
           labelMonths
+          variant="full"
           height={rowHeight}
           locale={locale}
           styles={styles}
@@ -232,8 +240,10 @@ function MonthScrollViewInner({
   );
 
   return (
-    <View style={styles.grid}>
+    <View style={styles.fullGrid}>
       <MonthWeekdayHeader weekStartsOn={weekStartsOn} showWeekNumbers={showWeekNumbers} styles={styles} />
+      <View style={styles.fullRows} onLayout={handleListLayout}>
+      {listHeight > 0 && (
       <FlatList
         key={rowHeight}
         ref={listRef}
@@ -261,6 +271,8 @@ function MonthScrollViewInner({
         maxToRenderPerBatch={VISIBLE_ROWS}
         windowSize={5}
       />
+      )}
+      </View>
     </View>
   );
 }
