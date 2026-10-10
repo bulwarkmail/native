@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -114,6 +115,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val ctx = reactApplicationContext
         val intent = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data = Uri.parse("bulwark-notification://$notificationId")
             if (emailId != null) putExtra(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
             if (threadId != null) putExtra(NotificationTapStore.EXTRA_THREAD_ID, threadId)
             if (subject != null) putExtra(NotificationTapStore.EXTRA_SUBJECT, subject)
@@ -157,7 +159,11 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             it.groupKey?.endsWith(groupKey) == true &&
                 (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) == 0
         }
-        val count = maxOf(children.size, 1)
+        if (children.size < 2) {
+            manager.cancel(groupKey, groupKey.hashCode())
+            return
+        }
+        val count = children.size
         val inbox = NotificationCompat.InboxStyle()
         children.sortedByDescending { it.postTime }.take(5).forEach { sbn ->
             val extras = sbn.notification.extras
@@ -172,6 +178,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
 
         val intent = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data = Uri.parse("bulwark-group-summary://$groupKey")
             if (accountId != null) putExtra(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
         }
         val pending = PendingIntent.getActivity(

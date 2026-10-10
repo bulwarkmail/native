@@ -41,6 +41,14 @@ describe('viewerPages', () => {
     expect(pages).toEqual([{ id: 'u1', threadId: 't-u1' }, LIST[3]]);
   });
 
+  it('is a single page when opened with a single emailId from notification tap', () => {
+    const pages = viewerPages({
+      emailId: 'q2', threadId: 'tq', emailIds: ['q2'],
+      list: LIST, threading: true,
+    });
+    expect(pages).toEqual([LIST[1]]);
+  });
+
   it('is a single page for a message the list does not hold', () => {
     const pages = viewerPages({
       emailId: 'm9', threadId: 't9', list: LIST, threading: true,
