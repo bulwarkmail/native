@@ -123,6 +123,7 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
     subject: payload.subject,
     // A group mailbox's message lives under another JMAP account (#839).
     jmapAccountId: notificationTapJmapAccountId(payload),
+    ...(payload.action === 'reply' ? { action: 'reply' as const } : {}),
   });
 }
 

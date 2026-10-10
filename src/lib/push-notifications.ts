@@ -1443,6 +1443,8 @@ export interface NotificationTapPayload {
   // The JMAP account the message lives in: a group or shared mailbox's account
   // when it isn't the user's own. Absent on older notifications.
   jmapAccountId?: string;
+  // Notification action tapped (e.g. 'reply' to jump straight to Compose)
+  action?: 'reply';
 }
 
 /**

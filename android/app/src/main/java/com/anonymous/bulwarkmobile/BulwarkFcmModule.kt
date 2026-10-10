@@ -73,14 +73,20 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val groupTitle = options.takeIf { it.hasKey("groupTitle") }?.getString("groupTitle")
             ?: accountId ?: "Bulwark Mail"
 
+        val preview = options.takeIf { it.hasKey("preview") }?.getString("preview")
+        val markReadLabel = options.takeIf { it.hasKey("markReadLabel") }?.getString("markReadLabel") ?: "Mark as read"
+        val deleteLabel = options.takeIf { it.hasKey("deleteLabel") }?.getString("deleteLabel") ?: "Delete"
+        val replyLabel = options.takeIf { it.hasKey("replyLabel") }?.getString("replyLabel") ?: "Reply"
+
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
         // block waiting for the favicon request.
         thread(name = "bulwark-notification") {
             val largeIcon = iconUrl?.let { fetchBitmap(it) }
                 ?: makeLetterAvatar(initials, bgColorHex)
             postNotification(
-                notificationId, title, body, largeIcon, bgColorHex,
+                notificationId, title, body, preview, largeIcon, bgColorHex,
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                groupTitle, markReadLabel, deleteLabel, replyLabel,
             )
             if (groupKey != null) postGroupSummary(groupKey, groupTitle, bgColorHex, accountId)
             promise.resolve(null)
@@ -103,6 +109,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         notificationId: String,
         title: String,
         body: String,
+        preview: String?,
         largeIcon: Bitmap,
         colorHex: String,
         emailId: String?,
@@ -111,6 +118,10 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         accountId: String?,
         jmapAccountId: String?,
         groupKey: String?,
+        groupTitle: String?,
+        markReadLabel: String,
+        deleteLabel: String,
+        replyLabel: String,
     ) {
         val ctx = reactApplicationContext
         val intent = Intent(ctx, MainActivity::class.java).apply {
@@ -129,12 +140,25 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val bigText = buildString {
+            if (!subject.isNullOrBlank()) append(subject)
+            if (!preview.isNullOrBlank()) {
+                if (isNotEmpty()) append("\n")
+                append(preview)
+            }
+        }
+
         val builder = NotificationCompat.Builder(ctx, BulwarkMessagingService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(largeIcon)
             .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(subject ?: preview ?: body)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(if (bigText.isNotBlank()) bigText else body)
+                    .setBigContentTitle(title)
+                    .setSummaryText(groupTitle)
+            )
             .setColor(parseColor(colorHex, fallback = Color.parseColor("#2563eb")))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -142,6 +166,69 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         if (groupKey != null) {
             builder.setGroup(groupKey)
             builder.setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+        }
+
+        if (emailId != null && accountId != null) {
+            // Action 1: Mark as read
+            val markReadIntent = Intent(ctx, BulwarkNotificationActionReceiver::class.java).apply {
+                action = ACTION_MARK_READ
+                data = Uri.parse("bulwark-action-read://$notificationId")
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+                putExtra(EXTRA_ACTION, "markRead")
+                putExtra(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
+                putExtra(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
+                if (jmapAccountId != null) putExtra(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID, jmapAccountId)
+            }
+            val markReadPending = PendingIntent.getBroadcast(
+                ctx,
+                (notificationId + ":read").hashCode(),
+                markReadIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(0, markReadLabel, markReadPending).build()
+            )
+
+            // Action 2: Delete
+            val deleteIntent = Intent(ctx, BulwarkNotificationActionReceiver::class.java).apply {
+                action = ACTION_DELETE
+                data = Uri.parse("bulwark-action-delete://$notificationId")
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+                putExtra(EXTRA_ACTION, "delete")
+                putExtra(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
+                putExtra(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
+                if (jmapAccountId != null) putExtra(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID, jmapAccountId)
+            }
+            val deletePending = PendingIntent.getBroadcast(
+                ctx,
+                (notificationId + ":delete").hashCode(),
+                deleteIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(0, deleteLabel, deletePending).build()
+            )
+
+            // Action 3: Reply
+            val replyIntent = Intent(ctx, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                data = Uri.parse("bulwark-reply://$notificationId")
+                putExtra(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
+                if (threadId != null) putExtra(NotificationTapStore.EXTRA_THREAD_ID, threadId)
+                if (subject != null) putExtra(NotificationTapStore.EXTRA_SUBJECT, subject)
+                putExtra(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
+                if (jmapAccountId != null) putExtra(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID, jmapAccountId)
+                putExtra(EXTRA_ACTION, "reply")
+            }
+            val replyPending = PendingIntent.getActivity(
+                ctx,
+                (notificationId + ":reply").hashCode(),
+                replyIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(0, replyLabel, replyPending).build()
+            )
         }
 
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -279,6 +366,11 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         private const val MAX_FAVICON_BYTES = 1 * 1024 * 1024
 
         @Volatile private var currentInstance: BulwarkFcmModule? = null
+
+        const val EXTRA_ACTION = "bulwark.notification.action"
+        const val EXTRA_NOTIFICATION_ID = "bulwark.notification.notificationId"
+        const val ACTION_MARK_READ = "com.anonymous.bulwarkmobile.ACTION_MARK_READ"
+        const val ACTION_DELETE = "com.anonymous.bulwarkmobile.ACTION_DELETE"
 
         fun emit(eventName: String, params: WritableMap?) {
             val module = currentInstance ?: return
