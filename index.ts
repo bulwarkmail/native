@@ -16,6 +16,12 @@ AppRegistry.registerHeadlessTask('BulwarkPushTask', () => async (data: Parameter
   await Promise.allSettled([pushBackgroundTask(data), refreshWidgetsInBackground()]);
 });
 
+// Notification quick actions (Mark as read, Delete): run without launching the app UI.
+AppRegistry.registerHeadlessTask('BulwarkNotificationAction', () => async (data: unknown) => {
+  const { handleNotificationAction } = require('./src/lib/push-background-task') as typeof import('./src/lib/push-background-task');
+  await Promise.allSettled([handleNotificationAction(data), refreshWidgetsInBackground()]);
+});
+
 // Device sync (Android, #34): the contacts and calendar sync adapters run the
 // sync engine through this task, headless or next to the UI. The engine is
 // required on first use so an app start does not load it.

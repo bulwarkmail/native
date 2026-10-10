@@ -4,14 +4,19 @@ import {
   Dimensions,
   Easing,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { openExternalUrl } from '../../lib/open-url';
+import { toast } from '../../stores/toast-store';
+import { ToastHost } from '../ToastHost';
 import { splitTextLinks } from '../../lib/linkify-text';
+import { findMeetingLink, locationAction, mapsUrl, primaryLocationName } from '../../lib/event-links';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   AlignLeft,
@@ -184,8 +189,11 @@ export function EventDetailSheet({
   const recurrence = recurrenceLabel(event, t, locale);
   const reminders = alertsToReminders(event.alerts);
   const participants = getParticipantList(event, { resolveName: resolveContactName });
-  const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
-  const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
+  const location = primaryLocationName(event);
+  // Invitations (Teams above all) leave virtualLocations empty and bury the
+  // join URL in the description; surface it as the meeting link anyway.
+  const meeting = findMeetingLink(event);
+  const videoUri = meeting?.uri;
   const isCancelled = event.status === 'cancelled';
 
   // Can the signed-in user RSVP? Only when they appear as a non-organizer
@@ -206,6 +214,23 @@ export function EventDetailSheet({
     onRsvp && myParticipantId && !userIsOrganizer && editability !== 'read-only',
   );
   const myStatus = myParticipantId ? event.participants?.[myParticipantId]?.participationStatus : undefined;
+
+  const openLocation = () => {
+    if (!location) return;
+    const action = locationAction(location, meeting);
+    if (action.kind === 'url') {
+      void openExternalUrl(action.uri, { confirm: true });
+    } else {
+      void openExternalUrl(mapsUrl(action.query, Platform.OS));
+    }
+  };
+
+  const copyLocation = () => {
+    if (!location) return;
+    void Clipboard.setStringAsync(location).then(() => {
+      toast.success(t('notifications.copied_to_clipboard', 'Copied to clipboard'));
+    }).catch(() => {});
+  };
 
   const doRsvp = async (status: RsvpStatus) => {
     if (!onRsvp || !myParticipantId || rsvpBusy) return;
@@ -263,7 +288,21 @@ export function EventDetailSheet({
           >
             <DetailRow icon={<Clock size={16} color={c.textMuted} />} text={range} />
             {location ? (
-              <DetailRow icon={<MapPin size={16} color={c.textMuted} />} text={location} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <MapPin size={16} color={c.textMuted} />
+                </View>
+                <Text
+                  style={[styles.detailText, styles.detailLink]}
+                  numberOfLines={3}
+                  onPress={openLocation}
+                  onLongPress={copyLocation}
+                  accessibilityRole="link"
+                  accessibilityHint={t('calendar.detail.location_hint', 'Opens the location; long-press to copy it')}
+                >
+                  {location}
+                </Text>
+              </View>
             ) : null}
             {videoUri ? (
               <View style={styles.detailRow}>
@@ -274,7 +313,10 @@ export function EventDetailSheet({
                   style={styles.joinBtn}
                   onPress={() => { void openExternalUrl(videoUri, { confirm: true }); }}
                 >
-                  <Text style={styles.joinBtnText}>{t('calendar.detail.open_link', 'Open link')}</Text>
+                  <Text style={styles.joinBtnText}>
+                    {t('calendar.detail.open_link', 'Open link')}
+                    {meeting?.provider ? ` · ${meeting.provider}` : ''}
+                  </Text>
                 </Pressable>
               </View>
             ) : null}
@@ -414,6 +456,9 @@ export function EventDetailSheet({
           )}
         </SafeAreaView>
       </Animated.View>
+      {/* The screen's own toast host sits under this Modal; this one shows
+          the copy confirmation above the sheet. */}
+      <ToastHost />
     </Modal>
   );
 }

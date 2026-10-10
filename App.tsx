@@ -119,9 +119,11 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
   navigationRef.navigate('EmailThread', {
     emailId: payload.emailId,
     threadId: payload.threadId,
+    emailIds: [payload.emailId],
     subject: payload.subject,
     // A group mailbox's message lives under another JMAP account (#839).
     jmapAccountId: notificationTapJmapAccountId(payload),
+    ...(payload.action === 'reply' ? { action: 'reply' as const } : {}),
   });
 }
 

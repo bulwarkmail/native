@@ -13,6 +13,9 @@
       "indigo": "Indigo",
       "teal": "Teal"
     },
+    "detail": {
+      "location_hint": "Opens the location; long-press to copy it"
+    },
     "drawer": {
       "my_calendars": "My calendars",
       "no_calendars": "No calendars yet.",

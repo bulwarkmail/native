@@ -12,6 +12,7 @@ import {
   getFaviconDomain,
   getFaviconUrl,
 } from './avatar-utils';
+import { singleLine } from './single-line';
 import {
   lastNotifiedKey,
   migrateLegacyPushKeys,
@@ -87,6 +88,7 @@ interface ShowNotificationOptions {
   notificationId: string;
   title: string;
   body: string;
+  preview?: string;
   initials: string;
   bgColorHex: string;
   iconUrl?: string;
@@ -101,6 +103,9 @@ interface ShowNotificationOptions {
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
   groupTitle: string;
+  markReadLabel?: string;
+  deleteLabel?: string;
+  replyLabel?: string;
 }
 
 interface BulwarkFcmNative {
@@ -505,10 +510,16 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const faviconDomain = favicons ? getFaviconDomain(address) : null;
     const iconUrl = faviconDomain ? getFaviconUrl(faviconDomain) : undefined;
 
+    const preview = email.preview ? singleLine(email.preview) : undefined;
+    const markReadLabel = translate(locale, 'email_viewer.mark_read', 'Mark as read');
+    const deleteLabel = translate(locale, 'email_viewer.delete', 'Delete');
+    const replyLabel = translate(locale, 'email_viewer.reply', 'Reply');
+
     await native.showNotification({
       notificationId: `mail:${email.id}`,
       title,
       body,
+      preview,
       initials,
       bgColorHex,
       iconUrl,
@@ -519,6 +530,9 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
       jmapAccountId: emailAccountId,
       groupKey,
       groupTitle,
+      markReadLabel,
+      deleteLabel,
+      replyLabel,
     });
   }
 
@@ -538,4 +552,95 @@ function hslToHex(hsl: string): string {
     return Math.round(255 * c).toString(16).padStart(2, '0');
   };
   return `#${component(0)}${component(8)}${component(4)}`;
+}
+
+export interface NotificationActionPayload {
+  action: 'markRead' | 'delete';
+  emailId: string;
+  accountId: string;
+  jmapAccountId?: string;
+}
+
+export function parseNotificationActionPayload(data: unknown): NotificationActionPayload | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  const action = (d.action ?? d['bulwark.notification.action']) as 'markRead' | 'delete' | undefined;
+  const emailId = (d.emailId ?? d['bulwark.notification.emailId']) as string | undefined;
+  const accountId = (d.accountId ?? d['bulwark.notification.accountId']) as string | undefined;
+  const jmapAccountId = (d.jmapAccountId ?? d['bulwark.notification.jmapAccountId']) as string | undefined;
+
+  if ((action === 'markRead' || action === 'delete') && emailId && accountId) {
+    return { action, emailId, accountId, jmapAccountId };
+  }
+  return null;
+}
+
+export async function handleNotificationAction(data: unknown): Promise<void> {
+  const payload = parseNotificationActionPayload(data);
+  if (!payload) {
+    console.warn('[push] invalid notification action payload', data);
+    return;
+  }
+  const { action, emailId, accountId, jmapAccountId } = payload;
+  console.log(`[push] executing notification action "${action}" for email ${emailId}`);
+
+  try {
+    const session = await openDetachedSession(accountId);
+    if (!session) {
+      console.warn('[push] failed to open detached session for account', accountId);
+      return;
+    }
+    const emailAccountId = jmapAccountId ?? session.jmapAccountId;
+
+    if (action === 'markRead') {
+      const res = await jmapPost(session, [
+        [
+          'Email/set',
+          {
+            accountId: emailAccountId,
+            update: {
+              [emailId]: { 'keywords/$seen': true },
+            },
+          },
+          '0',
+        ],
+      ]);
+      assertEmailUpdated(res, emailId);
+    } else if (action === 'delete') {
+      const mbRes = await jmapPost(session, [
+        ['Mailbox/get', { accountId: emailAccountId, properties: ['id', 'role'] }, '0'],
+      ]);
+      const [mbName, mbBody] = mbRes[0] ?? [];
+      const mailboxes = mbName === 'Mailbox/get' ? ((mbBody?.list as Mailbox[]) ?? []) : [];
+      const trash = mailboxes.find((m) => m.role === 'trash');
+      // Never destroy from a notification: without a Trash (a shared
+      // account, or a Mailbox/get that failed) the message stays put.
+      if (!trash) {
+        console.warn('[push] no trash mailbox for notification delete', emailAccountId);
+        return;
+      }
+      const res = await jmapPost(session, [
+        [
+          'Email/set',
+          {
+            accountId: emailAccountId,
+            update: {
+              [emailId]: { mailboxIds: { [trash.id]: true } },
+            },
+          },
+          '0',
+        ],
+      ]);
+      assertEmailUpdated(res, emailId);
+    }
+  } catch (err) {
+    console.warn('[push] notification action failed', action, emailId, err);
+  }
+}
+
+function assertEmailUpdated(responses: Array<[string, Record<string, any>, string]>, emailId: string): void {
+  const [name, body] = responses[0] ?? [];
+  if (name !== 'Email/set' || !body?.updated || !(emailId in body.updated)) {
+    throw new Error(`Email/set did not update ${emailId}: ${JSON.stringify(body?.notUpdated?.[emailId] ?? body ?? null)}`);
+  }
 }
