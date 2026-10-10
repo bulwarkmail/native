@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Niets gepland. Tik om aan te maken.",
       "tap_to_create": "Tik op + om er een te maken"
     },
     "fab": {

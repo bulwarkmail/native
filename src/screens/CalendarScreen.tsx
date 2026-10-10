@@ -1141,8 +1141,10 @@ export default function CalendarScreen() {
             eventsByDay={eventsByDay}
             calendars={calendars}
             timeFormat={calendarTimeFormat}
+            weekStartsOn={calendarFirstDayOfWeek}
             currentUserEmails={currentUserEmails}
             onSelectEvent={handleSelectEvent}
+            onCreateAt={openCreate}
           />
         )}
 

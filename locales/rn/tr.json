@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Bağlantı",
       "export_ics_short": ".ics",
+      "nothing_planned": "Planlanmış bir şey yok. Oluşturmak için dokunun.",
       "tap_to_create": "Etkinlik oluşturmak için + simgesine dokunun"
     },
     "fab": {

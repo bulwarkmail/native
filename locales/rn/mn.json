@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Холбоос",
       "export_ics_short": ".ics",
+      "nothing_planned": "Төлөвлөсөн зүйл алга. Үүсгэхийн тулд товшино уу.",
       "tap_to_create": "Үүсгэхийн тулд + товшино уу"
     },
     "fab": {

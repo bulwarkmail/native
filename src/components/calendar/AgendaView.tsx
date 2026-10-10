@@ -9,8 +9,8 @@ import {
   type LayoutChangeEvent,
   type ViewToken,
 } from 'react-native';
-import { format, type Locale } from 'date-fns';
-import { displayNow, isDisplayToday, isDisplayTomorrow } from '../../lib/calendar-timezone';
+import { endOfWeek, format, startOfWeek, type Locale } from 'date-fns';
+import { displayNow, isDisplayToday } from '../../lib/calendar-timezone';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -47,25 +47,28 @@ interface AgendaViewProps {
   /** Reports the first day in view as the user scrolls. */
   onVisibleDateChange?: (date: Date) => void;
   timeFormat?: TimeFormat;
+  weekStartsOn?: 0 | 1 | 6;
   /** The user's addresses, to draw events they declined as inactive. */
   currentUserEmails?: string[];
   onSelectEvent?: (event: CalendarEvent) => void;
+  /** Tapping an empty "today" row creates an event on that day. */
+  onCreateAt?: (date: Date) => void;
 }
 
 interface DaySection extends AgendaDay {
   key: string;
-  title: string;
+  /** Set on the first day of a month in the list: the month's name. */
+  monthTitle: string | null;
+  /** Set on the first day of a week in the list: the week's range. */
+  weekTitle: string | null;
 }
 
-function formatDayHeader(
-  date: Date,
-  t: (key: string, fallback?: string) => string,
-  locale: Locale,
-): string {
-  // Today and tomorrow on a clock in the calendar's time zone.
-  if (isDisplayToday(date)) return t('calendar.events.today_header', 'Today');
-  if (isDisplayTomorrow(date)) return t('calendar.events.tomorrow_header', 'Tomorrow');
-  return format(date, 'EEEE, MMM d', { locale });
+// The week separators: "Oct 11 – 17", or "Sep 27 – Oct 3" across months.
+function formatWeekRange(date: Date, weekStartsOn: 0 | 1 | 6, locale: Locale): string {
+  const start = startOfWeek(date, { weekStartsOn });
+  const end = endOfWeek(date, { weekStartsOn });
+  const sameMonth = start.getMonth() === end.getMonth();
+  return `${format(start, 'MMM d', { locale })} – ${format(end, sameMonth ? 'd' : 'MMM d', { locale })}`;
 }
 
 const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 };
@@ -92,8 +95,10 @@ export function AgendaView({
   isLoading = false,
   onVisibleDateChange,
   timeFormat,
+  weekStartsOn = 1,
   currentUserEmails,
   onSelectEvent,
+  onCreateAt,
 }: AgendaViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -104,15 +109,21 @@ export function AgendaView({
     [eventsByDay, events],
   );
 
-  const sections = React.useMemo<DaySection[]>(
-    () =>
-      buildAgendaDays(index, loaded, displayNow()).map((day) => ({
-        ...day,
-        key: dayKey(day.date),
-        title: formatDayHeader(day.date, t, locale),
-      })),
-    [index, loaded, t, locale],
-  );
+  // A heading where a month starts and a separator where a week starts,
+  // then the days.
+  const sections = React.useMemo<DaySection[]>(() => {
+    let lastMonth = '';
+    let lastWeek = '';
+    return buildAgendaDays(index, loaded, displayNow()).map((day) => {
+      const month = format(day.date, 'yyyy-MM');
+      const week = dayKey(startOfWeek(day.date, { weekStartsOn }));
+      const monthTitle = month !== lastMonth ? format(day.date, 'LLLL yyyy', { locale }) : null;
+      const weekTitle = week !== lastWeek ? formatWeekRange(day.date, weekStartsOn, locale) : null;
+      lastMonth = month;
+      lastWeek = week;
+      return { ...day, key: dayKey(day.date), monthTitle, weekTitle };
+    });
+  }, [index, loaded, weekStartsOn, locale]);
 
   const listRef = React.useRef<SectionList<CalendarEvent, DaySection>>(null);
   const sectionsRef = React.useRef(sections);
@@ -297,7 +308,7 @@ export function AgendaView({
       ref={listRef}
       sections={sections}
       keyExtractor={(item, i) => `${item.id}:${i}`}
-      stickySectionHeadersEnabled
+      stickySectionHeadersEnabled={false}
       // Earlier days are inserted above what the user is reading without
       // moving it.
       maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -314,32 +325,42 @@ export function AgendaView({
       initialNumToRender={12}
       maxToRenderPerBatch={12}
       windowSize={11}
-      renderSectionHeader={({ section }) => {
-        const today = isDisplayToday(section.date);
-        return (
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, today && styles.sectionTitleToday]}>
-              {section.title}
-            </Text>
-            <Text style={styles.sectionSub}>{format(section.date, 'PP', { locale })}</Text>
+      renderSectionHeader={({ section }) =>
+        section.monthTitle || section.weekTitle ? (
+          <View>
+            {section.monthTitle && <Text style={styles.monthTitle}>{section.monthTitle}</Text>}
+            {section.weekTitle && <Text style={styles.weekTitle}>{section.weekTitle}</Text>}
           </View>
-        );
-      }}
-      renderItem={({ item }) => (
-        <View style={styles.itemWrap}>
-          <EventCard
-            event={item}
-            calendars={calendars}
-            timeFormat={timeFormat}
-            currentUserEmails={currentUserEmails}
-            onPress={onSelectEvent}
-          />
+        ) : null
+      }
+      renderItem={({ item, index: i, section }) => (
+        <View style={[styles.row, i === section.data.length - 1 && styles.rowLast]}>
+          <DateColumn date={section.date} show={i === 0} locale={locale} styles={styles} />
+          <View style={styles.eventCol}>
+            <EventCard
+              event={item}
+              calendars={calendars}
+              timeFormat={timeFormat}
+              currentUserEmails={currentUserEmails}
+              onPress={onSelectEvent}
+              day={section.date}
+            />
+          </View>
         </View>
       )}
       renderSectionFooter={({ section }) =>
         section.data.length === 0 ? (
-          <View style={styles.emptyDayWrap}>
-            <Text style={styles.emptyDayText}>{t('calendar.events.no_events', 'No events')}</Text>
+          <View style={[styles.row, styles.rowLast]}>
+            <DateColumn date={section.date} show locale={locale} styles={styles} />
+            <Pressable
+              style={styles.emptyDay}
+              onPress={onCreateAt ? () => onCreateAt(section.date) : undefined}
+              accessibilityRole={onCreateAt ? 'button' : undefined}
+            >
+              <Text style={styles.emptyDayText}>
+                {t('calendar.events.nothing_planned', 'Nothing planned. Tap to create.')}
+              </Text>
+            </Pressable>
           </View>
         ) : null
       }
@@ -347,24 +368,79 @@ export function AgendaView({
   );
 }
 
+type AgendaStyles = ReturnType<typeof makeStyles>;
+
+// The day on the left of its first row: weekday over the day number, today
+// in a filled circle.
+function DateColumn({
+  date,
+  show,
+  locale,
+  styles,
+}: {
+  date: Date;
+  show: boolean;
+  locale: Locale;
+  styles: AgendaStyles;
+}) {
+  if (!show) return <View style={styles.dateCol} />;
+  const today = isDisplayToday(date);
+  return (
+    <View style={styles.dateCol}>
+      <Text style={[styles.dateWeekday, today && styles.dateWeekdayToday]}>
+        {format(date, 'EEE', { locale })}
+      </Text>
+      <View style={[styles.dateNumber, today && styles.dateNumberToday]}>
+        <Text style={[styles.dateNumberText, today && styles.dateNumberTextToday]}>
+          {format(date, 'd')}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const DATE_COL_WIDTH = 52;
+
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: spacing.sm,
+  monthTitle: {
+    ...typography.h2,
+    fontWeight: '500',
+    color: c.text,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: c.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.sm,
   },
-  sectionTitle: { ...typography.bodyMedium, color: c.text },
-  sectionTitleToday: { color: c.primary },
-  sectionSub: { ...typography.caption, color: c.textMuted },
-  itemWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  emptyDayWrap: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  emptyDayText: { ...typography.caption, color: c.textMuted, textAlign: 'center' },
+  weekTitle: {
+    ...typography.caption,
+    color: c.textMuted,
+    paddingLeft: DATE_COL_WIDTH + spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingRight: spacing.lg,
+    paddingLeft: spacing.sm,
+  },
+  rowLast: { paddingBottom: spacing.sm },
+  dateCol: { width: DATE_COL_WIDTH, alignItems: 'center' },
+  dateWeekday: { ...typography.captionMedium, color: c.textSecondary },
+  dateWeekdayToday: { color: c.primary },
+  dateNumber: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateNumberToday: { backgroundColor: c.primary },
+  dateNumberText: { fontSize: 20, lineHeight: 26, fontWeight: '500', color: c.text },
+  dateNumberTextToday: { color: c.primaryForeground },
+  eventCol: { flex: 1, marginLeft: spacing.md },
+  emptyDay: { flex: 1, marginLeft: spacing.md, paddingTop: 18 },
+  emptyDayText: { ...typography.body, color: c.textSecondary },
   emptyWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
   edge: {
     paddingHorizontal: spacing.lg,

@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Saite",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nekas nav ieplānots. Pieskarieties, lai izveidotu.",
       "tap_to_create": "Pieskarieties +, lai izveidotu notikumu"
     },
     "fab": {

@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Посилання",
       "export_ics_short": ".ics",
+      "nothing_planned": "Нічого не заплановано. Торкніться, щоб створити.",
       "tap_to_create": "Натисніть +, щоб створити"
     },
     "fab": {

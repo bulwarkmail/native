@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "קישור",
       "export_ics_short": ".ics",
+      "nothing_planned": "אין תוכניות. הקש כדי ליצור.",
       "tap_to_create": "הקש על + כדי ליצור"
     },
     "fab": {

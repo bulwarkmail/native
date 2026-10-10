@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nimic planificat. Atinge pentru a crea.",
       "tap_to_create": "Atingeți + pentru a crea unul"
     },
     "fab": {

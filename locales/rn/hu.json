@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Hivatkozás",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nincs terv. Koppintson a létrehozáshoz.",
       "tap_to_create": "Esemény létrehozásához koppints a + gombra"
     },
     "fab": {

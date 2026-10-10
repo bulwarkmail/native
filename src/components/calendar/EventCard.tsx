@@ -8,6 +8,7 @@ import { useColors } from '../../theme/colors';
 import {
   eventTimeRange,
   getEventColor,
+  isTimedEventFullDayOnDate,
   timePattern,
   type TimeFormat,
 } from '../../lib/calendar-utils';
@@ -22,6 +23,8 @@ interface EventCardProps {
   currentUserEmails?: string[];
   onPress?: (event: CalendarEvent) => void;
   onLongPress?: (event: CalendarEvent) => void;
+  /** The day the row is listed under: a timed event filling it reads as all day. */
+  day?: Date;
 }
 
 function participantCount(event: CalendarEvent): number {
@@ -33,12 +36,14 @@ function participantCount(event: CalendarEvent): number {
  * colour before the title, no card and no bar. Declined and cancelled events
  * get a hollow dot and a struck-through, muted title.
  */
-export function EventCard({ event, calendars, timeFormat, currentUserEmails, onPress, onLongPress }: EventCardProps) {
+export function EventCard({ event, calendars, timeFormat, currentUserEmails, onPress, onLongPress, day }: EventCardProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const color = getEventColor(event, calendars);
-  const { start, end, allDay } = eventTimeRange(event);
+  const range = eventTimeRange(event);
+  const { start, end } = range;
+  const allDay = range.allDay || (!!day && isTimedEventFullDayOnDate(event, day));
   const fmt = timePattern(timeFormat);
   const time = allDay
     ? t('calendar.events.all_day', 'All day')
@@ -59,7 +64,7 @@ export function EventCard({ event, calendars, timeFormat, currentUserEmails, onP
           <Text style={[styles.title, inactive && styles.titleInactive]} numberOfLines={1}>
             {event.title || t('calendar.events.no_title', '(No title)')}
           </Text>
-          {event.showWithoutTime && (
+          {allDay && (
             <View style={styles.allDayBadge}>
               <Text style={styles.allDayText}>{t('calendar.events.all_day', 'All day')}</Text>
             </View>
@@ -70,7 +75,7 @@ export function EventCard({ event, calendars, timeFormat, currentUserEmails, onP
             </View>
           )}
         </View>
-        {!event.showWithoutTime && (
+        {!allDay && (
           <View style={styles.detailRow}>
             <Clock size={12} color={c.textMuted} />
             <Text style={styles.detailText}>{time}</Text>

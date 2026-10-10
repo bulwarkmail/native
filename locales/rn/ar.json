@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "رابط",
       "export_ics_short": ".ics",
+      "nothing_planned": "لا شيء مخطط. انقر للإنشاء.",
       "tap_to_create": "اضغط + لإنشاء حدث"
     },
     "fab": {

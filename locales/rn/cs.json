@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Odkaz",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nic naplánováno. Klepnutím vytvoříte.",
       "tap_to_create": "Událost vytvoříte klepnutím na +"
     },
     "fab": {

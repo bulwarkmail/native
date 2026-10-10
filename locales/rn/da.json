@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Intet planlagt. Tryk for at oprette.",
       "tap_to_create": "Tryk på + for at oprette en"
     },
     "fab": {

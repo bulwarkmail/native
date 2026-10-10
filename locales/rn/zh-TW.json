@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "連結",
       "export_ics_short": ".ics",
+      "nothing_planned": "沒有安排。輕觸即可建立。",
       "tap_to_create": "點選 + 即可建立"
     },
     "fab": {

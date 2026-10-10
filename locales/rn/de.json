@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nichts geplant. Zum Erstellen tippen.",
       "tap_to_create": "Tippen Sie auf +, um einen zu erstellen"
     },
     "fab": {

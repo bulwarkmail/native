@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nic nie zaplanowano. Dotknij, aby utworzyć.",
       "tap_to_create": "Stuknij +, aby utworzyć wydarzenie"
     },
     "fab": {

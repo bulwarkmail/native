@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "링크",
       "export_ics_short": ".ics",
+      "nothing_planned": "계획된 일정이 없습니다. 탭하여 만드세요.",
       "tap_to_create": "+를 눌러 만들어 보세요"
     },
     "fab": {

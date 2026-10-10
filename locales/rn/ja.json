@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "リンク",
       "export_ics_short": ".ics",
+      "nothing_planned": "予定はありません。タップして作成",
       "tap_to_create": "+ をタップして作成"
     },
     "fab": {

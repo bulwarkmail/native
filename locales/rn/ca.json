@@ -25,6 +25,7 @@
     "events": {
       "copy_link_short": "Enllaç",
       "export_ics_short": ".ics",
+      "nothing_planned": "Res planificat. Toca per crear.",
       "tap_to_create": "Toqueu + per crear-ne un"
     },
     "fab": {
