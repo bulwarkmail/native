@@ -287,6 +287,32 @@ describe('pushBackgroundTask notifications', () => {
       ['Email/set', { accountId: 'jmap-primary', update: { m1: { mailboxIds: { 'trash-box': true } } } }, '0'],
     ]);
   });
+
+  it.each([
+    ['has no trash mailbox', ['Mailbox/get', { list: [{ id: 'inbox', role: 'inbox' }] }, '0']],
+    ['cannot list mailboxes', ['error', { type: 'accountNotFound' }, '0']],
+  ])('never destroys from a notification when the account %s', async (_label, mailboxResponse) => {
+    const postCalls: any[] = [];
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: any) => {
+      if (opts?.body) postCalls.push(JSON.parse(opts.body));
+      return {
+        ok: true,
+        json: async () => (url.endsWith('/.well-known/jmap')
+          ? {
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }
+          : { methodResponses: [mailboxResponse] }),
+      };
+    });
+
+    await handleNotificationAction({ action: 'delete', emailId: 'm1', accountId: LOCAL, jmapAccountId: 'shared' });
+
+    expect(postCalls).toHaveLength(1);
+    expect(postCalls[0].methodCalls[0][0]).toBe('Mailbox/get');
+    expect(postCalls[0].methodCalls[0][1].accountId).toBe('shared');
+  });
 });
 
 describe('pushes for device sync (#34)', () => {

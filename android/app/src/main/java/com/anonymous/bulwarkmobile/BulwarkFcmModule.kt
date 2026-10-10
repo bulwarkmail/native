@@ -152,7 +152,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(largeIcon)
             .setContentTitle(title)
-            .setContentText(subject ?: preview ?: body)
+            // body is the subject with the "(No subject)" fallback; an empty
+            // subject is "" here, not null, so `subject ?: ...` showed a blank line.
+            .setContentText(body)
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText(if (bigText.isNotBlank()) bigText else body)
@@ -206,7 +208,10 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             builder.addAction(
-                NotificationCompat.Action.Builder(0, deleteLabel, deletePending).build()
+                NotificationCompat.Action.Builder(0, deleteLabel, deletePending)
+                    // Android 12+: unlock first, so a locked phone can't delete mail.
+                    .setAuthenticationRequired(true)
+                    .build()
             )
 
             // Action 3: Reply

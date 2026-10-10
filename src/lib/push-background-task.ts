@@ -593,7 +593,7 @@ export async function handleNotificationAction(data: unknown): Promise<void> {
     const emailAccountId = jmapAccountId ?? session.jmapAccountId;
 
     if (action === 'markRead') {
-      await jmapPost(session, [
+      const res = await jmapPost(session, [
         [
           'Email/set',
           {
@@ -605,41 +605,42 @@ export async function handleNotificationAction(data: unknown): Promise<void> {
           '0',
         ],
       ]);
+      assertEmailUpdated(res, emailId);
     } else if (action === 'delete') {
       const mbRes = await jmapPost(session, [
         ['Mailbox/get', { accountId: emailAccountId, properties: ['id', 'role'] }, '0'],
       ]);
-      const [, mbBody] = mbRes[0] ?? [];
-      const mailboxes = ((mbBody?.list as Mailbox[]) ?? []);
+      const [mbName, mbBody] = mbRes[0] ?? [];
+      const mailboxes = mbName === 'Mailbox/get' ? ((mbBody?.list as Mailbox[]) ?? []) : [];
       const trash = mailboxes.find((m) => m.role === 'trash');
-
-      if (trash) {
-        await jmapPost(session, [
-          [
-            'Email/set',
-            {
-              accountId: emailAccountId,
-              update: {
-                [emailId]: { mailboxIds: { [trash.id]: true } },
-              },
-            },
-            '0',
-          ],
-        ]);
-      } else {
-        await jmapPost(session, [
-          [
-            'Email/set',
-            {
-              accountId: emailAccountId,
-              destroy: [emailId],
-            },
-            '0',
-          ],
-        ]);
+      // Never destroy from a notification: without a Trash (a shared
+      // account, or a Mailbox/get that failed) the message stays put.
+      if (!trash) {
+        console.warn('[push] no trash mailbox for notification delete', emailAccountId);
+        return;
       }
+      const res = await jmapPost(session, [
+        [
+          'Email/set',
+          {
+            accountId: emailAccountId,
+            update: {
+              [emailId]: { mailboxIds: { [trash.id]: true } },
+            },
+          },
+          '0',
+        ],
+      ]);
+      assertEmailUpdated(res, emailId);
     }
   } catch (err) {
     console.warn('[push] notification action failed', action, emailId, err);
+  }
+}
+
+function assertEmailUpdated(responses: Array<[string, Record<string, any>, string]>, emailId: string): void {
+  const [name, body] = responses[0] ?? [];
+  if (name !== 'Email/set' || !body?.updated || !(emailId in body.updated)) {
+    throw new Error(`Email/set did not update ${emailId}: ${JSON.stringify(body?.notUpdated?.[emailId] ?? body ?? null)}`);
   }
 }
