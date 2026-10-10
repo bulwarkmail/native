@@ -2,6 +2,7 @@ import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
   Modal, useWindowDimensions, Animated, Easing, Alert, FlatList,
+  Keyboard, Dimensions, Platform,
 } from 'react-native';
 import type { NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -639,6 +640,42 @@ function EmailViewer({ route, navigation }: Props) {
   };
 
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
+
+  // Track the visible keyboard obstruction so quick reply stays visible and
+  // the bottom bar hides while typing. On Android edge-to-edge, the IME inset
+  // is measured from the top of the gesture bar rather than screen bottom,
+  // so we derive obstruction height from Dimensions.screen.
+  const [kbObstruction, setKbObstruction] = React.useState(0);
+  React.useEffect(() => {
+    const recompute = (endY?: number, height?: number) => {
+      const screenH = Dimensions.get('screen').height;
+      if (typeof endY === 'number' && screenH - endY > 0) {
+        setKbObstruction(screenH - endY);
+      } else if (typeof height === 'number' && height > 0) {
+        setKbObstruction(height);
+      } else {
+        setKbObstruction(0);
+      }
+    };
+    const subs =
+      Platform.OS === 'ios'
+        ? [
+            Keyboard.addListener('keyboardWillChangeFrame', (e) => {
+              recompute(e.endCoordinates?.screenY, e.endCoordinates?.height);
+            }),
+            Keyboard.addListener('keyboardWillHide', () => setKbObstruction(0)),
+          ]
+        : [
+            Keyboard.addListener('keyboardDidShow', (e) => {
+              recompute(e.endCoordinates?.screenY, e.endCoordinates?.height);
+            }),
+            Keyboard.addListener('keyboardDidHide', () => setKbObstruction(0)),
+          ];
+    return () => {
+      for (const s of subs) s.remove();
+    };
+  }, []);
+
   // Drop optional toolbar buttons on narrow screens.
   const showMarkUnread = windowWidth >= 340;
   const showArchive = windowWidth >= 400 && canArchive;
@@ -738,7 +775,7 @@ function EmailViewer({ route, navigation }: Props) {
             initialNumToRender={1}
             maxToRenderPerBatch={2}
             removeClippedSubviews
-            scrollEnabled={!pagerLocked}
+            scrollEnabled={!pagerLocked && kbObstruction === 0}
             onScrollBeginDrag={releaseNeighbours}
             onMomentumScrollEnd={onMomentumEnd}
             renderItem={({ item, index }) => (
@@ -769,6 +806,7 @@ function EmailViewer({ route, navigation }: Props) {
                   scheduleMarkRead={scheduleMarkRead}
                   styles={styles}
                   bottomBarHeight={bottomBarHeight}
+                  kbObstruction={item.id === activeEmailId ? kbObstruction : 0}
                   onToggleStar={toggleStarFor}
                   onAddressPress={setAddressSheet}
                   onEmailPatched={onEmailPatched}
@@ -780,33 +818,35 @@ function EmailViewer({ route, navigation }: Props) {
             )}
           />
 
-          {/* Bottom action bar */}
-          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
-            <BottomBarButton
-              icon={<ChevronLeft size={20} color={c.textMuted} />}
-              label={t('email_viewer.previous', 'Prev')}
-              onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
-              disabled={!prevEmail}
-            />
-            {bottomActions.map((id) => {
-              const def = quickActionRegistry[id];
-              return (
-                <BottomBarButton
-                  key={id}
-                  icon={def.icon(20, c.textSecondary)}
-                  label={def.label}
-                  onPress={def.available ? def.onPress : undefined}
-                  disabled={!def.available}
-                />
-              );
-            })}
-            <BottomBarButton
-              icon={<ChevronRight size={20} color={c.textMuted} />}
-              label={t('email_viewer.next', 'Next')}
-              onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
-              disabled={!nextEmail}
-            />
-          </View>
+          {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
+          {kbObstruction === 0 && (
+            <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
+              <BottomBarButton
+                icon={<ChevronLeft size={20} color={c.textMuted} />}
+                label={t('email_viewer.previous', 'Prev')}
+                onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
+                disabled={!prevEmail}
+              />
+              {bottomActions.map((id) => {
+                const def = quickActionRegistry[id];
+                return (
+                  <BottomBarButton
+                    key={id}
+                    icon={def.icon(20, c.textSecondary)}
+                    label={def.label}
+                    onPress={def.available ? def.onPress : undefined}
+                    disabled={!def.available}
+                  />
+                );
+              })}
+              <BottomBarButton
+                icon={<ChevronRight size={20} color={c.textMuted} />}
+                label={t('email_viewer.next', 'Next')}
+                onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
+                disabled={!nextEmail}
+              />
+            </View>
+          )}
         </>
       )}
 
@@ -917,6 +957,7 @@ interface EmailPaneProps {
   scheduleMarkRead: (email: Email) => () => void;
   styles: ReturnType<typeof makeStyles>;
   bottomBarHeight: number;
+  kbObstruction: number;
   onToggleStar: (email: Email) => void;
   onAddressPress: (address: EmailAddress) => void;
   onEmailPatched: (email: Email) => void;
@@ -933,7 +974,7 @@ interface EmailPaneProps {
 function EmailPane({
   id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
   threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
-  ensureThread, scheduleMarkRead, styles, bottomBarHeight, onToggleStar, onAddressPress,
+  ensureThread, scheduleMarkRead, styles, bottomBarHeight, kbObstruction, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
   const c = useColors();
@@ -1028,13 +1069,42 @@ function EmailPane({
     onZoomChange(z);
   };
 
+  const scrollRef = React.useRef<ScrollView>(null);
+  const isInputFocused = React.useRef(false);
+
+  const bottomPadding = kbObstruction > 0
+    ? kbObstruction + spacing.md
+    : bottomBarHeight + spacing.lg;
+
+  const handleQuickReplyFocus = () => {
+    isInputFocused.current = true;
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const handleQuickReplyBlur = () => {
+    isInputFocused.current = false;
+  };
+
+  React.useEffect(() => {
+    if (kbObstruction > 0 && isInputFocused.current) {
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+    }
+  }, [kbObstruction]);
+
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.scroll}
       // At least a page tall: a single message's body takes the space below
       // its header, and the quick reply stays at the bottom however the body
       // grows or shrinks once it has measured itself.
-      contentContainerStyle={[styles.paneContent, { paddingBottom: bottomBarHeight + spacing.lg }]}
+      contentContainerStyle={[styles.paneContent, { paddingBottom: bottomPadding }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       scrollEnabled={!pinching}
     >
       {/* Subject block */}
@@ -1112,6 +1182,8 @@ function EmailPane({
             jmapAccountId={jmapAccountId}
             onMoreOptions={() => onReply('reply', newest)}
             onSent={onEmailPatched}
+            onFocus={handleQuickReplyFocus}
+            onBlur={handleQuickReplyBlur}
           />
         )}
       </View>

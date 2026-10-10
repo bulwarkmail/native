@@ -29,6 +29,8 @@ interface Props {
   onMoreOptions: (draft: string) => void;
   /** Reflect `$answered` in the caller's cache. */
   onSent?: (email: Email) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 /**
@@ -36,7 +38,7 @@ interface Props {
  * to the sender with the original quoted, sent through the identity that
  * received the message. "More options" hands the text to the full composer.
  */
-export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: Props) {
+export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onFocus, onBlur }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -147,6 +149,8 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       <TextInput
         value={text}
         onChangeText={setText}
+        onFocus={onFocus}
+        onBlur={onBlur}
         placeholder={t('email_viewer.quick_reply_placeholder', 'Write a quick reply...')}
         placeholderTextColor={c.textMuted}
         style={styles.input}
