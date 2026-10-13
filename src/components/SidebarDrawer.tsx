@@ -26,7 +26,7 @@ import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
-import { showUnifiedSection } from '../lib/unified-section';
+import { showUnifiedSection, visibleCrossViews } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -327,6 +327,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
+  const enableCrossUnreadView = useSettingsStore((s) => s.enableCrossUnreadView);
+  const enableCrossStarredView = useSettingsStore((s) => s.enableCrossStarredView);
+  const enableCrossAllView = useSettingsStore((s) => s.enableCrossAllView);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
@@ -638,12 +641,16 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   // ── Unified rows ──────────────────────────────────────────────────────
   // Shown only when the views hold more than this account's own folders:
   // cross-account with several accounts, or group inboxes to merge (#843).
+  // The cross-folder views can also be turned on alone (single account).
   // Counts are projected from the mailbox lists we hold: the active
   // account's (own + shared) plus, cross-account, the tucked-away snapshots
   // of the other accounts.
   const hasSharedInbox = mailboxes.some((m) => m.isShared && m.role === 'inbox');
   const showUnified = showUnifiedSection({
     accountCount: accounts.length, unifiedCrossAccount, includeGroupInUnified, hasSharedInbox,
+  });
+  const crossViews = visibleCrossViews({
+    showUnified, enableCrossUnreadView, enableCrossStarredView, enableCrossAllView,
   });
   const unifiedCounts = React.useMemo(() => {
     const pools: Mailbox[][] = [mailboxes];
@@ -977,7 +984,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
             </Pressable>
 
             {/* Unified per-role and cross views */}
-            {showUnified && (
+            {(showUnified || crossViews.length > 0) && (
               <>
                 <Pressable style={styles.sectionHeader} onPress={() => toggleSection('unifiedExpanded', setUnifiedExpanded)}>
                   {unifiedExpanded ? (
@@ -993,7 +1000,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       { view: 'unread' as const, Icon: MailOpen, label: t('sidebar.unified_all_unread', 'All unread'), unread: unifiedCounts.crossUnread },
                       { view: 'starred' as const, Icon: Star, label: t('sidebar.unified_all_starred', 'All starred'), unread: 0 },
                       { view: 'all' as const, Icon: Mails, label: t('sidebar.unified_all_mail', 'All mail'), unread: unifiedCounts.crossUnread },
-                    ]).map((row) => (
+                    ]).filter((row) => crossViews.includes(row.view)).map((row) => (
                       <SidebarRow
                         key={row.view}
                         icon={<row.Icon size={16} color={c.textSecondary} />}
@@ -1009,7 +1016,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                         onToggleExpand={() => {}}
                       />
                     ))}
-                    {unifiedCounts.roles.map((r) => {
+                    {showUnified && unifiedCounts.roles.map((r) => {
                       const Icon = unifiedIcon(r.role);
                       return (
                         <SidebarRow

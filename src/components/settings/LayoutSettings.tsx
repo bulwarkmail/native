@@ -90,6 +90,9 @@ export function LayoutSettings() {
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
+  const enableCrossUnreadView = useSettingsStore((s) => s.enableCrossUnreadView);
+  const enableCrossStarredView = useSettingsStore((s) => s.enableCrossStarredView);
+  const enableCrossAllView = useSettingsStore((s) => s.enableCrossAllView);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const invalidateListOrder = useEmailStore((s) => s.invalidateListOrder);
   const order = React.useMemo(() => sanitizeSortLevels(messageListOrderRaw), [messageListOrderRaw]);
@@ -182,9 +185,27 @@ export function LayoutSettings() {
         <SettingItem
           label={t('settings.layout.unified_cross_account', 'Unified views across accounts')}
           description={t('settings.layout.unified_cross_account_description', 'Combine every signed-in account in "All inboxes". Off keeps the unified views inside the active account and its shared folders.')}
-          noBorder
         >
           <ToggleSwitch checked={unifiedCrossAccount} onChange={(v) => update('unifiedCrossAccount', v)} />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.appearance.cross_unread.label_mobile', 'All unread')}
+          description={t('settings.appearance.cross_unread.description', 'Show an Unread entry in the Unified Mailbox listing unread mail across the selected folders.')}
+        >
+          <ToggleSwitch checked={enableCrossUnreadView} onChange={(v) => update('enableCrossUnreadView', v)} />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.appearance.cross_starred.label_mobile', 'All starred')}
+          description={t('settings.appearance.cross_starred.description', 'Show a Starred entry in the Unified Mailbox listing flagged/starred mail across the selected folders.')}
+        >
+          <ToggleSwitch checked={enableCrossStarredView} onChange={(v) => update('enableCrossStarredView', v)} />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.appearance.cross_all.label_mobile', 'All mail')}
+          description={t('settings.appearance.cross_all.description', 'Show an All mail entry in the Unified Mailbox listing all mail across the selected folders.')}
+          noBorder
+        >
+          <ToggleSwitch checked={enableCrossAllView} onChange={(v) => update('enableCrossAllView', v)} />
         </SettingItem>
       </View>
 

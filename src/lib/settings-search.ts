@@ -71,6 +71,9 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.layout.show_folder_total_count',
     'settings.layout.show_avatars_in_junk',
     'settings.layout.unified_cross_account',
+    'settings.appearance.cross_unread',
+    'settings.appearance.cross_starred',
+    'settings.appearance.cross_all',
   ],
   reading: [
     'settings.email_behavior.mark_read',
