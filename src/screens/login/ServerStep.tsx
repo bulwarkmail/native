@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { ClipboardPaste, Globe, QrCode } from '../../components/icons';
+import { ClipboardPaste, Globe, QrCode, ShieldCheck, X } from '../../components/icons';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { Button, Input } from '../../components';
@@ -16,6 +16,16 @@ interface ServerStepProps {
   /** Set when we got here because discovery came back empty for this domain. */
   failedDomain?: string | null;
   notice?: { title: string; detail?: string } | null;
+  /**
+   * TLS client certificate for a reverse proxy that asks for one (#3).
+   * Undefined where the platform has no certificate store to pick from.
+   */
+  clientCert?: {
+    alias: string | null;
+    busy: boolean;
+    onPick: () => void;
+    onClear: () => void;
+  };
 }
 
 /**
@@ -31,6 +41,7 @@ export default function ServerStep({
   onPaste,
   failedDomain,
   notice,
+  clientCert,
 }: ServerStepProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -82,6 +93,38 @@ export default function ServerStep({
             {t('login.mobile.server_paste_hint', 'Have a sign-in link instead? Paste it here.')}
           </Text>
         </Pressable>
+        {clientCert ? (
+          <Pressable
+            onPress={clientCert.onPick}
+            disabled={clientCert.busy}
+            hitSlop={8}
+            style={styles.scanRow}
+            accessibilityRole="button"
+            testID="login-client-cert"
+          >
+            <ShieldCheck size={15} color={clientCert.alias ? c.success : c.textMuted} />
+            <Text style={styles.scanText}>
+              {clientCert.alias
+                ? t('login.mobile.server_cert_active', 'Signing in with the client certificate "{alias}". Tap to choose another.', { alias: clientCert.alias })
+                : t('login.mobile.server_cert_hint', 'Does your server ask for a client certificate? Pick one installed on this phone.')}
+            </Text>
+          </Pressable>
+        ) : null}
+        {clientCert?.alias ? (
+          <Pressable
+            onPress={clientCert.onClear}
+            disabled={clientCert.busy}
+            hitSlop={8}
+            style={styles.scanRow}
+            accessibilityRole="button"
+            testID="login-client-cert-clear"
+          >
+            <X size={15} color={c.textMuted} />
+            <Text style={styles.scanText}>
+              {t('login.mobile.server_cert_clear', 'Sign in without the certificate')}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

@@ -20,6 +20,12 @@ import {
   normalizeServerUrl,
 } from '../lib/server-discovery';
 import { describeLoginError, type LoginErrorCopy } from '../lib/login-errors';
+import {
+  clearClientCertAlias,
+  getClientCertAlias,
+  isClientCertSupported,
+  pickClientCertAlias,
+} from '../lib/client-cert';
 import LoginShell from './login/LoginShell';
 import ChooseStep from './login/ChooseStep';
 import EmailStep from './login/EmailStep';
@@ -109,6 +115,19 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // Addresses typed before on this device (last 5) plus the registry's, so a
   // returning user taps instead of retyping. Never contains passwords.
   const [recentEmails, setRecentEmails] = React.useState<string[]>([]);
+
+  // TLS client certificate (#3). Every request from discovery on presents
+  // the picked certificate (lib/client-cert secureFetch), so a server behind
+  // a proxy that demands one has to get it before the first sign-in - the
+  // settings screen that also offers it is only reachable afterwards. The
+  // choice is device-wide, as in the settings.
+  const certSupported = isClientCertSupported();
+  const [certAlias, setCertAlias] = React.useState<string | null>(null);
+  const [certBusy, setCertBusy] = React.useState(false);
+  React.useEffect(() => {
+    if (!certSupported) return;
+    void getClientCertAlias().then(setCertAlias).catch(() => undefined);
+  }, [certSupported]);
   React.useEffect(() => {
     void AsyncStorage.getItem(RECENT_EMAILS_KEY).then((raw) => {
       try {
@@ -135,6 +154,36 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // Servers we already hold credentials for. Discovery trusts these without a
   // probe, which makes "second account on the same host" instant.
   const knownServerUrls = React.useMemo(() => accounts.map((a) => a.serverUrl), [accounts]);
+
+  const pickCert = React.useCallback(async () => {
+    if (certBusy) return;
+    setCertBusy(true);
+    setNotice(null);
+    try {
+      // The host narrows the system picker to certificates issued for it.
+      const normalized = normalizeServerUrl(serverInput);
+      const host = normalized ? new URL(normalized).hostname : null;
+      const alias = await pickClientCertAlias(host);
+      if (alias !== null) setCertAlias(alias);
+    } catch (err) {
+      setNotice({
+        title: t('login.mobile.server_cert_failed', 'Could not pick a certificate'),
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setCertBusy(false);
+    }
+  }, [certBusy, serverInput, t]);
+  const clearCert = React.useCallback(async () => {
+    if (certBusy) return;
+    setCertBusy(true);
+    try {
+      await clearClientCertAlias();
+      setCertAlias(null);
+    } finally {
+      setCertBusy(false);
+    }
+  }, [certBusy]);
   const knownServerUrl = React.useMemo(() => {
     const active = accounts.find((a) => a.id === activeAccountId);
     return active?.serverUrl ?? accounts[0]?.serverUrl ?? null;
@@ -562,6 +611,12 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
             onPaste={() => setPasteVisible(true)}
             failedDomain={failedDomain}
             notice={notice}
+            clientCert={certSupported ? {
+              alias: certAlias,
+              busy: certBusy,
+              onPick: () => { void pickCert(); },
+              onClear: () => { void clearCert(); },
+            } : undefined}
           />
         ) : null}
 
