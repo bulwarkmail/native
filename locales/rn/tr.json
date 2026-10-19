@@ -445,7 +445,6 @@
     "open_error": "Dosya açılamadı",
     "open_with": "Birlikte aç…",
     "preview_too_large": "Bu dosya, önizleme için çok büyük.",
-    "selected_count": "{count, plural, one {# seçildi} other {# seçildi}}",
     "share_add_people": "Kişi ekle",
     "share_empty": "Henüz kimseyle paylaşılmadı",
     "share_error": "Paylaşım güncellenemedi",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Eklentiler",
-      "themes": "Temalar",
       "updates": "Güncellemeler"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Varsayılan açık ve koyu paletler.",
-      "default_name": "Bulwark",
-      "mobile_description": "Bir renk teması seçin. Temalar Görünüm'deki açık/koyu ayarını izler; özel tema paketleri webmail'de yönetilir.",
-      "title": "Temalar"
+      "mobile_description": "Bir renk teması seçin. Temalar Görünüm'deki açık/koyu ayarını izler; özel tema paketleri webmail'de yönetilir."
     },
     "vacation": {
       "warnings": {

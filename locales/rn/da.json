@@ -445,7 +445,6 @@
     "open_error": "Kunne ikke åbne filen",
     "open_with": "Åbn med…",
     "preview_too_large": "Denne fil er for stor til forhåndsvisning.",
-    "selected_count": "{count, plural, one {# valgt} other {# valgte}}",
     "share_add_people": "Tilføj personer",
     "share_empty": "Ikke delt med nogen endnu",
     "share_error": "Kunne ikke opdatere deling",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Temaer",
       "updates": "Opdateringer"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Standardpaletterne til lys og mørk.",
-      "default_name": "Bulwark",
-      "mobile_description": "Vælg et farvetema. Temaer følger indstillingen for lys/mørk under Udseende; brugerdefinerede temapakker administreres i webmailen.",
-      "title": "Temaer"
+      "mobile_description": "Vælg et farvetema. Temaer følger indstillingen for lys/mørk under Udseende; brugerdefinerede temapakker administreres i webmailen."
     },
     "vacation": {
       "warnings": {

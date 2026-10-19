@@ -445,7 +445,6 @@
     "open_error": "ファイルを開けませんでした",
     "open_with": "別のアプリで開く…",
     "preview_too_large": "このファイルは大きすぎるため、プレビューできません。",
-    "selected_count": "{count, plural, other {#件選択中}}",
     "share_add_people": "ユーザーを追加",
     "share_empty": "まだ誰にも共有されていません",
     "share_error": "共有の更新に失敗しました",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "プラグイン",
-      "themes": "テーマ",
       "updates": "アップデート"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "デフォルトのライト／ダークパレットです。",
-      "default_name": "Bulwark",
-      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。",
-      "title": "テーマ"
+      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。"
     },
     "vacation": {
       "warnings": {

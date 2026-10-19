@@ -445,7 +445,6 @@
     "open_error": "Nie udało się otworzyć pliku",
     "open_with": "Otwórz za pomocą…",
     "preview_too_large": "Ten plik jest zbyt duży, aby wyświetlić podgląd.",
-    "selected_count": "{count, plural, one {# zaznaczony} few {# zaznaczone} many {# zaznaczonych} other {# zaznaczonego}}",
     "share_add_people": "Dodaj osoby",
     "share_empty": "Jeszcze nikomu nie udostępniono",
     "share_error": "Nie udało się zaktualizować udostępniania",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Wtyczki",
-      "themes": "Motywy",
       "updates": "Aktualizacje"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Domyślne jasne i ciemne palety kolorów.",
-      "default_name": "Bulwark",
-      "mobile_description": "Wybierz motyw kolorystyczny. Motywy stosują ustawienie jasny/ciemny z sekcji Wygląd; własnymi pakietami motywów zarządza się w webmailu.",
-      "title": "Motywy"
+      "mobile_description": "Wybierz motyw kolorystyczny. Motywy stosują ustawienie jasny/ciemny z sekcji Wygląd; własnymi pakietami motywów zarządza się w webmailu."
     },
     "vacation": {
       "warnings": {

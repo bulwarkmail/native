@@ -284,7 +284,6 @@
     "attach_camera": "Camera",
     "attachment_reminder_body": "Your message mentions \"{keyword}\" but no file is attached. Send anyway?",
     "attachment_reminder_title": "Forgot an attachment?",
-    "attachment_too_large": "This file is larger than the server allows ({size} > {max}).",
     "attachments_too_large_total": "The attachments would exceed the {max} this server allows per message.",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
     "format_plain_text": "Switch to plain text",
@@ -297,6 +296,7 @@
     "no_sent_folder": "No Sent folder found",
     "permission_camera": "Camera permission is required to take a photo.",
     "permission_photos": "Photo library permission is required to attach images.",
+    "read_receipt_off": "Request a read receipt",
     "recipient_add_contact": "Add to contacts",
     "recipient_copy": "Copy address",
     "recipient_move_to": "Move to {field}",
@@ -322,15 +322,14 @@
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
     "toolbar": {
-      "background_color": "Background color",
       "insert_image": "Insert image",
-      "remove_background_color": "Remove background color",
       "remove_link": "Remove link"
     },
     "undo_send_label": "Sending in {seconds}s…",
     "upload_failed_short": "Upload failed",
     "uploading": "Uploading...",
     "uploading_pct": "Uploading {pct}%",
+    "use_template": "Template",
     "validation": {
       "subject_required": "Add a subject"
     }
@@ -422,16 +421,16 @@
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",
     "preview": {
-      "open_external": "Open in app",
-      "pdf_external": "PDFs open in your PDF viewer on this device.",
-      "unsupported": "No preview for this file type.",
-      "media_unsupported": "This file can't be played here.",
-      "pdf_protected": "This PDF is password-protected. Open it in another app to enter the password.",
-      "pdf_unreadable": "This PDF can't be shown here.",
       "archive_files": "{count, plural, one {# file} other {# files}}",
       "archive_first_files": "The first {count} files",
       "archive_protected": "This archive is password-protected. Open it in another app to enter the password.",
-      "archive_unreadable": "This archive can't be opened here."
+      "archive_unreadable": "This archive can't be opened here.",
+      "media_unsupported": "This file can't be played here.",
+      "open_external": "Open in app",
+      "pdf_external": "PDFs open in your PDF viewer on this device.",
+      "pdf_protected": "This PDF is password-protected. Open it in another app to enter the password.",
+      "pdf_unreadable": "This PDF can't be shown here.",
+      "unsupported": "No preview for this file type."
     },
     "received_via": "to {name}",
     "remove_color": "Remove tag",
@@ -462,7 +461,23 @@
     "open_error": "Could not open the file",
     "open_with": "Open with…",
     "preview_too_large": "This file is too large to preview.",
-    "selected_count": "{count, plural, one {# selected} other {# selected}}",
+    "settings_behavior": "Behavior",
+    "settings_colored_icons": "Colored Icons",
+    "settings_colored_icons_desc": "Use colorful icons instead of monochrome",
+    "settings_default_sort": "Default Sort",
+    "settings_default_sort_desc": "Choose the default sorting for files",
+    "settings_default_view": "Default View",
+    "settings_default_view_desc": "Choose between grid and list layout",
+    "settings_display": "Display",
+    "settings_icons": "Icons",
+    "settings_show_hidden": "Show Hidden Files",
+    "settings_show_hidden_desc": "Display files and folders that start with a dot",
+    "settings_show_icons": "Show File Icons",
+    "settings_show_icons_desc": "Display icons next to files and folders",
+    "settings_show_thumbnails": "Show Thumbnails",
+    "settings_show_thumbnails_desc": "Display image previews instead of icons for image files",
+    "settings_sort_direction": "Sort Direction",
+    "settings_sort_direction_desc": "Choose ascending or descending order",
     "share_add_people": "Add people",
     "share_empty": "Not shared with anyone yet",
     "share_error": "Failed to update sharing",
@@ -477,6 +492,7 @@
     "share_unavailable": "Sharing is not available on this device",
     "shared_with": "Shared with",
     "sharing_access": "Sharing & access",
+    "upload": "Upload",
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
     "uploading_progress": "Uploading {current}/{total} · {name}"
   },
@@ -843,12 +859,6 @@
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
       },
-      "reply_identity_match": {
-        "description": "Which received addresses count as yours. Exact address only picks one of your configured identities. Same domain also treats any other address on one of your identity domains as a catch-all alias and rewrites the From header to it. Choose exact address if those addresses are distribution lists rather than aliases.",
-        "domain": "Any address on my domains",
-        "exact": "Exact address only",
-        "label": "Received Address Matching"
-      },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
       },
@@ -1184,38 +1194,37 @@
       "mobile_explainer": "S/MIME is not available in the mobile app yet. Manage keys and certificates in the webmail; signed messages are shown without verification here."
     },
     "summary": {
+      "composing": "Signature, send delay, drafts",
+      "contacts": "Address books, sorting",
+      "content_senders": "Remote images, trusted senders",
+      "downloads": "File names for saved mail",
       "events_off": "events off",
       "events_on": "events on",
+      "files": "View, sorting, thumbnails",
+      "filters": "Rules for incoming mail",
+      "folders": "Create, rename, roles",
+      "identities": "Addresses you send from",
+      "keywords": "Tag names and colours",
+      "layout": "Quick actions, swipes, list order",
       "mail_off": "Mail off",
       "mail_on": "Mail on",
       "offline_off": "Offline mail off",
       "offline_on": "Offline mail on · {days, plural, one {# day} other {# days}}, {mb} MB",
-      "version": "Version {version}",
-      "week_starts": "week starts {day}",
-      "layout": "Quick actions, swipes, list order",
       "reading": "Read status, delete, attachments",
-      "composing": "Signature, send delay, drafts",
-      "identities": "Addresses you send from",
-      "vacation": "Automatic reply while away",
-      "filters": "Rules for incoming mail",
-      "templates": "Reusable messages",
-      "folders": "Create, rename, roles",
-      "keywords": "Tag names and colours",
-      "downloads": "File names for saved mail",
       "security": "Password, two-factor, app passwords",
-      "content_senders": "Remote images, trusted senders",
-      "contacts": "Address books, sorting",
-      "files": "View, sorting, thumbnails",
       "sidebar_apps": "Web apps in the side menu",
-      "updates": "Install new versions"
+      "templates": "Reusable messages",
+      "updates": "Install new versions",
+      "vacation": "Automatic reply while away",
+      "version": "Version {version}",
+      "week_starts": "week starts {day}"
     },
     "tabs": {
-      "plugins": "Plugins",
-      "themes": "Themes",
-      "updates": "Updates",
-      "storage": "Storage & backup",
       "about": "About",
-      "troubleshooting": "Troubleshooting"
+      "plugins": "Plugins",
+      "storage": "Storage & backup",
+      "troubleshooting": "Troubleshooting",
+      "updates": "Updates"
     },
     "templates": {
       "delete_confirm": "Permanently delete \"{name}\"?",
@@ -1231,9 +1240,7 @@
     },
     "themes": {
       "default_description": "The default light and dark palettes.",
-      "default_name": "Bulwark",
-      "mobile_description": "Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail.",
-      "title": "Themes"
+      "mobile_description": "Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail."
     },
     "troubleshooting": {
       "cache_desc": "When a list looks stale or wrong.",
@@ -1242,6 +1249,14 @@
       "title": "Troubleshooting"
     },
     "vacation": {
+      "date_range": {
+        "description": "Optionally limit the auto-reply to a specific period",
+        "title": "Date Range"
+      },
+      "message": {
+        "description": "The message that will be sent as a reply",
+        "title": "Auto-Reply Message"
+      },
       "warnings": {
         "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\""
       }

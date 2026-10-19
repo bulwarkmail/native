@@ -445,7 +445,6 @@
     "open_error": "No s'ha pogut obrir el fitxer",
     "open_with": "Obre amb…",
     "preview_too_large": "Aquest fitxer és massa gran per previsualitzar-lo.",
-    "selected_count": "{count, plural, one {# seleccionat} other {# seleccionats}}",
     "share_add_people": "Afegeix persones",
     "share_empty": "Encara no s'ha compartit amb ningú",
     "share_error": "No s'ha pogut actualitzar la compartició",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Connectors",
-      "themes": "Temes",
       "updates": "Actualitzacions"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Les paletes clara i fosca per defecte.",
-      "default_name": "Bulwark",
-      "mobile_description": "Trieu un tema de color. Els temes segueixen el paràmetre clar/fosc d'Aparença; els paquets de temes personalitzats es gestionen al webmail.",
-      "title": "Temes"
+      "mobile_description": "Trieu un tema de color. Els temes segueixen el paràmetre clar/fosc d'Aparença; els paquets de temes personalitzats es gestionen al webmail."
     },
     "vacation": {
       "warnings": {

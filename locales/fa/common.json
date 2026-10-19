@@ -17,17 +17,24 @@
     "reconnecting": "ارتباط قطع شد. در حال تلاش برای اتصال مجدد…",
     "error": {
       "invalid_credentials": "ایمیل یا رمز عبور نامعتبر است. اطلاعات خود را بررسی و دوباره تلاش کنید.",
+      "invalid_token": "سرور این توکن دسترسی را نپذیرفت. بررسی کنید که کامل باشد و منقضی یا لغو نشده باشد.",
       "connection_failed": "امکان اتصال به سرور وجود ندارد. اتصال اینترنت خود را بررسی کنید.",
       "cors_blocked": "سرور در دسترس است اما درخواست‌های cross-origin را مسدود می‌کند.",
       "server_error": "سرور موقتاً در دسترس نیست. لطفاً بعداً تلاش کنید.",
       "generic": "خطای غیرمنتظره‌ای رخ داد. اگر ادامه داشت با مدیر سیستم تماس بگیرید.",
       "totp_required": "کد احراز هویت دو مرحله‌ای لازم است.",
       "totp_invalid": "کد احراز هویت نامعتبر است. برنامه authenticator خود را بررسی کنید.",
-      "oauth_discovery_failed": "ورود یکپارچه فعال است اما ارائه‌دهنده هویت در دسترس نیست."
+      "oauth_discovery_failed": "ورود یکپارچه فعال است اما ارائه‌دهنده هویت در دسترس نیست.",
+      "token_exchange_failed": "رمز عبور و کد پذیرفته شد، اما سرور ایمیل از شروع نشست برای این برنامه خودداری کرد. از مدیر سیستم بخواهید تنظیمات کلاینت OAuth را بررسی کند."
     },
     "show_password": "نمایش رمز عبور",
     "hide_password": "مخفی کردن رمز عبور",
     "totp_toggle": "کد احراز هویت دو مرحله‌ای دارم",
+    "token_toggle": "ورود با توکن دسترسی",
+    "password_toggle": "ورود با رمز عبور",
+    "token_label": "توکن دسترسی",
+    "token_placeholder": "توکن API خود را وارد کنید",
+    "token_hint": "در تنظیمات سرویس ایمیل خود یک توکن API بسازید و آن را اینجا وارد کنید.",
     "remember_me": "مرا به خاطر بسپار",
     "config_error": {
       "title": "خطای پیکربندی",
@@ -53,6 +60,12 @@
     "demo_login_button": "راه‌اندازی نسخه آزمایشی",
     "demo_tagline": "تجربه یک سرویس ایمیل کامل. بدون نیاز به حساب کاربری.",
     "demo_no_signup": "نیازی به ثبت‌نام نیست - آزادانه با داده‌های نمونه کاوش کنید",
+    "mobile_handoff": {
+      "title": "Open the Bulwark mobile app?",
+      "description": "This sign-in page was opened by an app on this device. Your sign-in for {username} will be handed to the app that registered the Bulwark link. Continue only if you started this from the Bulwark mobile app.",
+      "confirm": "Hand over to the app",
+      "cancel": "Stay in the webmail"
+    },
     "oauth_completing": "در حال تکمیل ورود...",
     "oauth_error": {
       "title": "احراز هویت ناموفق",
@@ -114,6 +127,7 @@
     "unified_archive": "همه بایگانی‌ها",
     "unified_junk": "همه هرزنامه‌ها",
     "all_accounts": "همه حساب‌ها",
+    "all_accounts_loading": "در حال بارگیری حساب‌ها: {loaded} از {total}",
     "unified_mailbox": "صندوق پستی یکپارچه",
     "expand": "باز کردن",
     "collapse": "جمع کردن",
@@ -134,7 +148,13 @@
     "show_all_tags": "نمایش همه ({count})",
     "show_fewer_tags": "نمایش کمتر",
     "folders": "پوشه‌ها",
+    "your_folders": "پوشه‌های شما",
+    "create_folder": "ایجاد پوشه",
+    "show_more": "بیشتر",
+    "show_fewer": "کمتر",
     "shared": "اشتراکی",
+    "shared_account_hidden": "از نوار کناری پنهان شد. از تنظیمات › چیدمان دوباره نمایش دهید.",
+    "notifications_muted": "اعلان‌ها بی‌صدا",
     "mail": "ایمیل",
     "nav_label": "ناوبری",
     "add_app": "برنامه‌ها",
@@ -143,7 +163,17 @@
     "unified_all_starred": "همه ستاره‌دارها",
     "unified_all_unread": "همه خوانده‌نشده‌ها",
     "remove_account": "Remove account",
-    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later.",
+    "labels": "برچسب‌ها",
+    "create_label": "ایجاد برچسب جدید",
+    "mv_tasks": "وظایف",
+    "mv_side_panel": "پنل کناری",
+    "mv_open_full": "باز کردن در نمای کامل",
+    "mv_previous_day": "روز قبل",
+    "mv_next_day": "روز بعد",
+    "mv_add_another_account": "افزودن حساب دیگر",
+    "mv_manage_account": "مدیریت حساب",
+    "mv_storage_used": "{percent}٪ از {total} استفاده شده"
   },
   "protocol_handlers": {
     "title": "برنامه‌های پیش‌فرض",
@@ -214,6 +244,13 @@
     "show_on_mobile": "نمایش در موبایل"
   },
   "email_list": {
+    "columns": {
+      "from": "از",
+      "to": "به",
+      "subject": "موضوع",
+      "date": "تاریخ",
+      "size": "اندازه"
+    },
     "no_emails": "پیامی یافت نشد",
     "no_emails_description": "این صندوق پستی خالی است",
     "no_search_results": "نتیجه‌ای یافت نشد",
@@ -229,6 +266,7 @@
     "replied": "پاسخ داده شده",
     "forwarded": "بازارسال شده",
     "has_attachment": "دارای پیوست",
+    "conversations_range": "{from}–{to, number} از {total, number}",
     "conversations_count": "{count} از {total} مکالمه",
     "conversations_count_plus": "+{count} مکالمه",
     "conversations_count_simple": "{count} مکالمه",
@@ -254,6 +292,7 @@
       "button": "خالی کردن پوشه",
       "confirm_title": "خالی کردن پوشه",
       "confirm_message": "همه ایمیل‌های این پوشه برای همیشه حذف خواهند شد.",
+      "confirm_message_trash": "همه ایمیل‌های این پوشه به زباله‌دان منتقل می‌شوند.",
       "confirm_button": "خالی کردن پوشه",
       "junk_hint": "می‌توانید پوشه هرزنامه را خالی کنید.",
       "trash_hint": "می‌توانید پوشه زباله‌دان را خالی کنید."
@@ -310,6 +349,8 @@
     "view_source": "مشاهده منبع",
     "fullscreen": "تمام‌صفحه",
     "exit_fullscreen": "خروج از تمام‌صفحه",
+    "view_in_dark_mode": "نمایش در حالت تیره",
+    "view_in_light_mode": "نمایش در حالت روشن",
     "export_email": "خروجی .eml",
     "forward_as_attachment": "ارسال به‌عنوان پیوست",
     "import_email": "وارد کردن .eml یا .zip",
@@ -334,6 +375,15 @@
     "external_content_warning": "تصاویر و محتوای خارجی مسدود شده‌اند",
     "load_external_content": "بارگذاری تصاویر",
     "trust_sender": "همیشه به این فرستنده اعتماد کن",
+    "sender_check": {
+      "unverified_label": "فرستنده تأییدنشده",
+      "failed_label": "بررسی فرستنده ناموفق بود",
+      "unverified": "این پیام ادعا می‌کند از {domain} است، اما هیچ چیزی این را تأیید نمی‌کند. امضای معتبری از {domain} ندارد و از سروری که {domain} مجاز دانسته ارسال نشده است.",
+      "unverified_sent_from": "این پیام ادعا می‌کند از {domain} است، اما از {host} ارسال شده و امضای معتبری از {domain} ندارد.",
+      "failed": "این پیام ادعا می‌کند از {domain} است، اما در بررسی‌های فرستنده برای این دامنه رد شده است. ممکن است جعلی باشد.",
+      "failed_sent_from": "این پیام ادعا می‌کند از {domain} است، اما از {host} ارسال شده و در بررسی‌های فرستنده برای {domain} رد شده است. ممکن است جعلی باشد.",
+      "caution": "مراقب پیوندها، پیوست‌ها و درخواست‌های رمز عبور یا اطلاعات پرداخت باشید."
+    },
     "back_to_list": "بازگشت به لیست",
     "view_contact": "مشاهده مخاطب",
     "message_details": "جزئیات پیام",
@@ -552,6 +602,8 @@
     "more": "بیشتر",
     "scheduled_banner": "زمان‌بندی شده برای ارسال در {date}",
     "scheduled_send_created": "ایمیل برای ارسال زمان‌بندی شد",
+    "sending_in": "ارسال تا {seconds} ثانیه دیگر",
+    "undo_send_failed": "لغو ممکن نشد. شاید پیام ارسال شده باشد.",
     "cancel_scheduled_send": "لغو ارسال",
     "reschedule_send": "باززمان‌بندی",
     "cancel_and_edit": "لغو و ویرایش",
@@ -576,19 +628,25 @@
       "not_in_contacts": "در مخاطبین شما نیست",
       "add_to_contacts": "افزودن به مخاطبین",
       "copied": "کپی شد!",
-      "copy_failed": "کپی ناموفق بود"
+      "copy_failed": "کپی ناموفق بود",
+      "view_contact": "مشاهده مخاطب",
+      "view_details": "مشاهده جزئیات"
     },
-    "send_now": "ارسال فوری"
+    "send_now": "ارسال فوری",
+    "verification_code": {
+      "copy": "کپی کد {code}",
+      "copied": "کد کپی شد",
+      "copy_failed": "کپی کد ممکن نشد"
+    },
+    "mv_position": "{index} از {total}",
+    "plugin_panel_show": "نمایش پنل افزونه",
+    "plugin_panel_hide": "پنهان کردن پنل افزونه"
   },
   "email_composer": {
-    "read_receipt_on": "درخواست تأیید خواندن فعال (کلیک برای غیرفعال کردن)",
-    "read_receipt_off": "درخواست تأیید خواندن",
-    "dsn_on": "اعلان تحویل درخواست شد (برای غیرفعال کردن کلیک کنید)",
-    "dsn_off": "درخواست اعلان تحویل",
-    "format_plain_text": "تغییر به متن ساده",
-    "format_rich_text": "تغییر به متن غنی (HTML)",
-    "require_tls_on": "تحویل رمزگذاری‌شده الزامی است (برای غیرفعال کردن کلیک کنید)",
-    "require_tls_off": "الزام تحویل رمزگذاری‌شده (TLS)",
+    "select_from_directory": "انتخاب از فهرست",
+    "minimize": "کوچک کردن",
+    "maximize": "تمام‌صفحه",
+    "restore": "بازگردانی",
     "new_message": "پیام جدید",
     "signature_edit_hint": "برای ویرایش امضا دوبار کلیک کنید",
     "reply": "پاسخ",
@@ -608,9 +666,16 @@
     "attach": "پیوست",
     "attach_photos": "عکس و ویدیو",
     "attach_files": "فایل‌ها",
+    "attach_from_files": "پیوست از فایل‌ها",
+    "files_picker": {
+      "attach": "{count, plural, =0 {پیوست} one {پیوست ۱ فایل} other {پیوست # فایل}}",
+      "empty_folder": "این پوشه خالی است",
+      "load_failed": "فایل‌های شما بارگیری نشد"
+    },
     "discard": "دور انداختن",
     "discard_draft_title": "دور انداختن پیش‌نویس؟",
     "discard_draft_confirm": "تغییرات ذخیره نشده دارید. پیش‌نویس دور انداخته شود؟",
+    "discard_draft_message": "پیش‌نویس حذف می‌شود.",
     "saving": "در حال ذخیره...",
     "sending": "در حال ارسال...",
     "add_link": "افزودن لینک",
@@ -629,6 +694,7 @@
       "forward": "Fwd:",
       "reply": "Re:"
     },
+    "forward_batch_count": "{count} ایمیل",
     "no_subject": "(بدون موضوع)",
     "unknown_sender": "ناشناس",
     "quote": {
@@ -650,11 +716,27 @@
       "email_placeholder": "alias@example.com",
       "envelope_notice": "اگر سرور شما این آدرس را به‌عنوان فرستندهٔ پاکت نپذیرد، به‌جای آن {identity} استفاده می‌شود و گیرندگان می‌توانند آن را در سرآیند Return-Path ببینند."
     },
-    "use_template": "قالب",
     "save_as_template": "ذخیره به عنوان قالب",
+    "attach_from_device": "بارگذاری از این دستگاه",
+    "templates_menu": "قالب‌ها",
+    "insert_template": "درج قالب",
+    "options": "گزینه‌ها",
+    "option_plain_text": "متن ساده",
+    "option_plain_text_hint": "ارسال بدون قالب‌بندی",
+    "option_read_receipt": "درخواست رسید خواندن",
+    "option_read_receipt_hint": "از گیرنده بخواهید باز کردن را تأیید کند",
+    "option_dsn": "اعلان تحویل",
+    "option_dsn_hint": "دریافت گزارش وقتی سرور آن را تحویل داد",
+    "option_require_tls": "الزام تحویل رمزگذاری‌شده",
+    "option_require_tls_hint": "فقط از طریق TLS تحویل شود، وگرنه برگشت بخورد",
+    "option_priority": "اولویت",
+    "option_priority_high": "بالا",
+    "option_priority_normal": "عادی",
+    "option_priority_low": "پایین",
     "validation": {
       "recipient_required": "یک گیرنده اضافه کنید",
       "body_required": "پیامی بنویسید یا فایلی پیوست کنید",
+      "invalid_recipients": "ارسال نشد - این نشانی‌ها را بررسی کنید: {addresses}",
       "attachments_uploading": "پیوست‌ها هنوز در حال بارگذاری هستند — پس از اتمام ارسال می‌شود",
       "attachment_upload_failed": "ارسال نشد - بارگذاری یک پیوست ناموفق بود. آن را حذف کنید و دوباره تلاش کنید."
     },
@@ -667,6 +749,11 @@
     "show_less": "نمایش کمتر",
     "send_failed": "ارسال ایمیل ناموفق بود",
     "send_timeout": "سرور دیگر پاسخ نمی‌دهد. پیش از ارسال دوباره، پوشهٔ ارسال‌شده‌ها را بررسی کنید — ممکن است پیام ارسال شده باشد.",
+    "send_offline": "به نظر می‌رسد آفلاین هستید. پیام هنوز اینجاست، وقتی آنلاین شدید دوباره ارسالش کنید.",
+    "formatting": "قالب‌بندی",
+    "send_recipients_rejected": "ارسال نشد - سرور همه گیرندگان را رد کرد.",
+    "send_plugin_failed": "ارسال نشد - افزونه‌ای که ارسال را انجام می‌دهد با خطا مواجه شد یا بیش از حد طول کشید. پیش از ارسال دوباره، پوشه ارسال‌شده را بررسی کنید.",
+    "send_some_recipients_rejected": "ارسال شد، اما نه برای این گیرندگان - سرور آنها را رد کرد.",
     "continue_draft": "ادامه پیش‌نویس",
     "close_draft_title": "ذخیره یا دور انداختن پیش‌نویس؟",
     "close_draft_message": "تغییرات ذخیره نشده دارید. ذخیره یا دور انداختن؟",
@@ -694,6 +781,11 @@
     },
     "schedule_send": "زمان‌بندی ارسال",
     "schedule_send_description": "زمان انتشار پیام توسط سرور را انتخاب کنید.",
+    "schedule_preset": {
+      "tomorrow_morning": "فردا صبح",
+      "tomorrow_afternoon": "فردا بعدازظهر",
+      "monday_morning": "دوشنبه صبح"
+    },
     "schedule_send_required": "تاریخ و زمان را انتخاب کنید.",
     "schedule_send_invalid": "تاریخ و زمان معتبر وارد کنید.",
     "schedule_send_future": "تاریخ و زمان در آینده انتخاب کنید.",
@@ -706,8 +798,13 @@
     "recipient_edit_name": "ویرایش نام نمایشی",
     "recipient_email_placeholder": "آدرس ایمیل",
     "recipient_name_placeholder": "نام نمایشی",
+    "invalid_recipient": "نشانی ایمیل معتبر نیست",
     "autocomplete_search_server": "جستجو در سرور",
     "autocomplete_searching": "در حال جستجو...",
+    "mention_recipients": "گیرندگان",
+    "mention_card_not_recipient": "در «به» یا «رونوشت» نیست، پس این پیام را دریافت نمی‌کند.",
+    "mention_card_add": "افزودن به {field}",
+    "mention_card_remove": "حذف اشاره",
     "toolbar": {
       "bold": "پررنگ",
       "italic": "کج",
@@ -744,7 +841,9 @@
       "background_color": "رنگ پس‌زمینه",
       "remove_background_color": "حذف رنگ پس‌زمینه"
     },
-    "send_filing_warning": "ارسال شد - اما پاک‌سازی پس از ارسال ناموفق بود، ممکن است پیش‌نویس قدیمی باقی بماند."
+    "send_filing_warning": "ارسال شد - اما پاک‌سازی پس از ارسال ناموفق بود، ممکن است پیش‌نویس قدیمی باقی بماند.",
+    "pop_out": "باز کردن پاسخ در پنجره جدا",
+    "send_guard_failed": "ارسال نشد - افزونه‌ای که پیام‌ها را پیش از ارسال بررسی می‌کند ناموفق بود یا پاسخ نداد."
   },
   "confirm_dialog": {
     "confirm": "تأیید",
@@ -801,6 +900,10 @@
     "emails_moved": "{count} ایمیل منتقل شد",
     "moved_to_mailbox": "منتقل شد به {mailbox}",
     "move_failed": "انتقال ناموفق بود",
+    "removed_from_folder": "از {mailbox} حذف شد",
+    "remove_from_folder_failed": "حذف از این پوشه انجام نشد",
+    "emails_copied": "{count} ایمیل کپی شد",
+    "copy_failed": "کپی ناموفق بود",
     "move_error": "انتقال ایمیل‌ها به پوشه انتخاب شده ممکن نیست",
     "email_tagged": "ایمیل برچسب‌گذاری شد",
     "emails_tagged": "{count} ایمیل برچسب‌گذاری شد",
@@ -814,8 +917,8 @@
     "identity_delete_failed": "حذف هویت ناموفق بود: {error}",
     "identity_unauthorized": "شما مجاز به ارسال از این آدرس ایمیل نیستید",
     "identity_not_found": "هویت یافت نشد",
-    "vacation_saved": "تنظیمات پاسخ‌گوی خودکار ذخیره شد",
-    "vacation_save_failed": "ذخیره تنظیمات پاسخ‌گوی خودکار ناموفق بود",
+    "vacation_saved": "تنظیمات غیبت ذخیره شد",
+    "vacation_save_failed": "ذخیره تنظیمات غیبت ناموفق بود",
     "filters_saved": "فیلترها با موفقیت ذخیره شدند",
     "filters_save_failed": "ذخیره فیلترها ناموفق بود",
     "filters_deleted": "قانون فیلتر حذف شد",
@@ -825,7 +928,20 @@
     "templates_import_empty": "قالبی در فایل یافت نشد",
     "export_email_error": "خروجی ایمیل ناموفق بود",
     "import_email_success": "ایمیل با موفقیت وارد شد",
-    "import_email_error": "وارد کردن ایمیل ناموفق بود"
+    "import_email_error": "وارد کردن ایمیل ناموفق بود",
+    "rule_created": "قانون ایجاد شد",
+    "rule_merged": "به قانون «{name}» افزوده شد",
+    "rule_already_covered": "قانون «{name}» از قبل این را پوشش می‌دهد",
+    "rule_apply_existing": "{count, plural, one {اعمال روی # پیام موجود} other {اعمال روی # پیام موجود}}",
+    "rule_applied": "{count, plural, =0 {هیچ پیامی نیاز به تغییر نداشت} one {قانون روی # پیام اعمال شد} other {قانون روی # پیام اعمال شد}}",
+    "rule_apply_failed": "اعمال قانون روی پیام‌های موجود ممکن نشد",
+    "rule_edit": "ویرایش قانون",
+    "rule_undo": "بازگردانی",
+    "rule_undone": "تغییر قانون بازگردانده شد",
+    "rule_undo_failed": "بازگردانی تغییر قانون ممکن نشد",
+    "rule_undo_conflict": "فیلترهای شما از آن زمان تغییر کرده‌اند. تغییر را در تنظیمات فیلترها بازگردانید.",
+    "rule_folder_failed": "ایجاد پوشه ممکن نشد",
+    "vacation_filters_save_failed": "تنظیمات غیبت ذخیره شد، اما ذخیره بازارسال و گیرندگان پاسخ ناموفق بود"
   },
   "date": {
     "today": "امروز",
@@ -913,7 +1029,7 @@
       "privacy": "حریم خصوصی و امنیت",
       "account": "حساب",
       "identities": "هویت‌ها",
-      "vacation": "پاسخ‌گوی خودکار",
+      "vacation": "غیبت",
       "advanced": "پیشرفته",
       "calendar": "تقویم",
       "filters": "فیلترها",
@@ -928,12 +1044,25 @@
       "sidebar_apps": "برنامه‌های نوار کناری",
       "notifications": "اعلان‌ها",
       "layout": "چیدمان",
+      "themes": "پوسته‌ها",
       "reading": "خواندن",
       "composing": "نوشتن",
       "downloads": "دانلودها",
       "content_senders": "محتوا و فرستندگان",
       "about_data": "درباره و داده‌ها",
       "debug": "اشکال‌زدایی"
+    },
+    "themes": {
+      "title": "پوسته‌ها",
+      "description": "از میان پوسته‌هایی که مدیر شما منتشر کرده و پیش‌تنظیم‌های داخلی انتخاب کنید.",
+      "locked": "انتخاب پوسته توسط مدیر قفل شده است.",
+      "forced": "پوسته «{name}» توسط مدیر اجباری شده و قابل تغییر نیست",
+      "admin_theme": "پوسته مدیر",
+      "activated": "پوسته فعال شد",
+      "default_restored": "پوسته پیش‌فرض بازیابی شد",
+      "default_name": "پیش‌فرض",
+      "default_badge": "پیش‌فرض",
+      "admin_enforced": "اجباری از سوی مدیر"
     },
     "tab_groups": {
       "general": "عمومی",
@@ -1025,6 +1154,12 @@
         "regular": "معمولی",
         "comfortable": "راحت"
       },
+      "interface_layout": {
+        "label": "چیدمان رابط",
+        "description": "جای جست‌وجو، ناوبری و نوارهای ابزار",
+        "default": "پیش‌فرض",
+        "mountain_view": "Mountain View"
+      },
       "animations": {
         "label": "فعال کردن انیمیشن‌ها",
         "description": "نمایش transitions و افکت‌های نرم"
@@ -1073,6 +1208,14 @@
         "label": "Tint List Rows by Tag Color",
         "description": "Shade each message row with its first tag color. Disable to keep rows plain; tag dots and chips still show the color."
       },
+      "show_account_dot": {
+        "label": "Show Account Dot",
+        "description": "In the unified view, show a dot in the account color next to the sender, so you can tell which account a message came from. Has no effect while rows are tinted by account color."
+      },
+      "tint_list_rows_by_account": {
+        "label": "Tint List Rows by Account Color",
+        "description": "In the unified view, shade each row with its account color instead of showing the account dot. Takes precedence over the tag tint; tags keep their color on their chips."
+      },
       "show_folder_total_count": {
         "label": "نمایش تعداد کل پیام‌ها",
         "description": "تعداد کل پیام‌ها را در کنار پوشه‌ها و برچسب‌ها، همراه با تعداد خوانده‌نشده‌ها نمایش می‌دهد. برای نمایش فقط تعداد خوانده‌نشده‌ها غیرفعال کنید."
@@ -1080,6 +1223,10 @@
       "favicon_unread_badge": {
         "label": "Unread Count on Tab Icon",
         "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
+      },
+      "show_shared_mail_accounts": {
+        "label": "نمایش حساب‌های ایمیل اشتراکی",
+        "description": "پوشه‌های صندوق‌هایی که با شما به اشتراک گذاشته شده‌اند در نوار کناری زیر «اشتراکی» نمایش داده شوند. برای پنهان کردن همه خاموش کنید، یا حساب‌های جداگانه را در پایین پنهان کنید. تقویم‌ها و مخاطبان آن‌ها باقی می‌مانند."
       },
       "pro_interface": {
         "label": "رابط حرفه‌ای (آزمایشی)",
@@ -1117,6 +1264,7 @@
       "cancel": "انصراف",
       "migrating": "در حال به‌روزرسانی برچسب روی ایمیل‌های موجود…",
       "migration_error": "به‌روزرسانی برچسب ناموفق بود",
+      "filters_migration_error": "برخی قوانین فیلتر هنوز از برچسب قدیمی استفاده می‌کنند — آن‌ها را دستی به‌روزرسانی کنید",
       "nesting": {
         "label": "برچسب‌های تودرتو",
         "description": "برچسب‌ها را زیر برچسب‌های دیگر قرار دهید و آن‌ها را به‌صورت درختی در نوار کناری نمایش دهید."
@@ -1190,6 +1338,18 @@
         "confirm_revoke_message": "بی‌درنگ دریافت اعلان‌های پس‌زمینه را متوقف می‌کند. با روشن‌کردن دوبارهٔ پوش روی آن دستگاه، دوباره ثبت می‌شود.",
         "confirm_revoke_message_this": "این دستگاه بی‌درنگ دریافت اعلان‌های پس‌زمینه را متوقف می‌کند."
       },
+      "push_all": {
+          "title": "All accounts",
+          "description": "Turn push on or off for several accounts at once. One browser subscription serves them all.",
+          "select_all": "Select every connected account",
+          "state_on": "notifications on",
+          "state_off": "notifications off",
+          "enable_selected": "Enable for selected",
+          "disable_selected": "Disable for selected",
+          "result_enabled": "Notifications enabled for {count} accounts.",
+          "result_partial": "Enabled for {enabled} accounts; {failed} could not be enabled.",
+          "result_disabled": "Notifications disabled for {count} accounts."
+        },
       "sound_selection": {
         "title": "صدای اعلان",
         "description": "صدای پخش شده برای اعلان‌ها",
@@ -1239,8 +1399,8 @@
       "date_locale": {
         "label": "Date format region",
         "description": "How numeric dates are ordered (day, month, year)",
-        "auto": "Automatic (match language)",
-        "iso": "ISO 8601 (YYYY-MM-DD)",
+        "auto": "Automatic",
+        "iso": "ISO 8601",
         "dmy": "Day/Month/Year",
         "mdy": "Month/Day/Year"
       },
@@ -1324,6 +1484,10 @@
         "label": "حذف دائمی هرزنامه",
         "description": "حذف مستقیم هرزنامه"
       },
+      "confirm_bulk_delete": {
+        "label": "تأیید پیش از حذف چند پیام",
+        "description": "پیش از انتقال چند پیام انتخاب‌شده به زباله‌دان بپرس. حذف دائمی همیشه می‌پرسد."
+      },
       "mail_layout": {
         "label": "چیدمان ایمیل",
         "description": "انتخاب چیدمان",
@@ -1334,10 +1498,18 @@
         "horizontal": "پنل پایین",
         "horizontal_description": "لیست بالا، پنل پایین"
       },
+      "list_columns": {
+        "label": "نمایش فهرست به‌صورت ستونی",
+        "description": "ردیف‌های تک‌خطی را به‌صورت جدولی با ستون‌های فرستنده، موضوع، تاریخ و اندازه زیر یک سرستون نشان می‌دهد."
+      },
       "show_preview": {
         "label": "نمایش پیش‌نمایش",
         "description": "پیش‌نمایش در لیست",
         "focus_description": "پیش‌نمایش در نمای متمرکز"
+      },
+      "show_verification_codes": {
+        "label": "نمایش کدهای تأیید",
+        "description": "پیشنهاد کد ایمیل‌های ورود و تأیید برای کپی با یک کلیک، در فهرست به مدت یک روز و در پیام"
       },
       "disable_threading": {
         "label": "غیرفعال کردن گروه‌بندی",
@@ -1369,7 +1541,7 @@
       },
       "sub_address_delimiter": {
         "label": "جداکننده زیرآدرس",
-        "description": "کاراکتر جداکننده",
+        "description": "کاراکتری که نام کاربری را از برچسب زیرآدرس جدا می‌کند. با جداکننده‌ای که سرور ایمیل شما استفاده می‌کند مطابقت دهید (مثلاً user{delimiter}tag@domain.com).",
         "option": "{delimiter}  (user{delimiter}tag@domain.com)",
         "custom": "سفارشی…",
         "custom_input_label": "کاراکتر سفارشی"
@@ -1449,7 +1621,7 @@
       },
       "default_mail_program": {
         "label": "برنامه ایمیل پیش‌فرض",
-        "description": "ثبت برای mailto:",
+        "description": "{appName} را به‌عنوان برنامهٔ پیش‌فرض ایمیل برای پیوندهای mailto: ثبت کنید",
         "button": "تنظیم به عنوان پیش‌فرض",
         "success": "ثبت شد",
         "error": "پشتیبانی نمی‌شود"
@@ -1466,6 +1638,17 @@
       "empty_subject_warning": {
         "label": "هشدار موضوع خالی",
         "description": "پیش از ارسال پیام بدون موضوع تأیید بگیرید."
+      },
+      "recipient_mentions": {
+        "label": "اشاره به گیرندگان با @",
+        "description": "تایپ @ در متن پیام، گیرندگان را پیشنهاد می‌دهد و نام کوچک فرد انتخاب‌شده را درج می‌کند. Enter یا Tab نام برجسته‌شده را انتخاب می‌کند."
+      },
+      "mention_adds_recipient": {
+        "label": "مخاطبان در اشاره با @",
+        "description": "با تایپ @ مخاطبان شما و افراد فهرست سازمان هم پیشنهاد می‌شوند. انتخاب کسی که هنوز گیرنده نیست، او را به پیام اضافه می‌کند.",
+        "to": "افزودن به «به»",
+        "cc": "افزودن به «رونوشت»",
+        "off": "فقط گیرندگان"
       },
       "hide_inline_image_attachments": {
         "label": "مخفی کردن تصاویر داخلی",
@@ -1561,6 +1744,7 @@
       "auth_method_label": "احراز هویت",
       "auth_method_oauth": "SSO",
       "auth_method_basic": "رمز عبور",
+      "auth_method_token": "توکن دسترسی",
       "demo_account": "حساب آزمایشی",
       "email": {
         "label": "آدرس ایمیل",
@@ -1590,6 +1774,40 @@
         "move_down": "پایین",
         "drag_handle": "کشیدن",
         "add": "افزودن"
+      },
+      "backup": {
+        "title": "Account list backup",
+        "description": "Keep the list of accounts in this browser on the server, encrypted with a password only you know, and bring it back on another device. Mailbox passwords are not saved: you sign in to each restored account yourself.",
+        "description_passwords": "Keep the list of accounts in this browser on the server, encrypted with a password only you know, and bring it back on another device. You can include the mailbox passwords, so the restored accounts sign in by themselves.",
+        "status_none": "No list is saved for {account}.",
+        "status_saved": "A list is saved for {account}.",
+        "save": "Save list",
+        "restore": "Restore list",
+        "delete": "Delete saved list",
+        "cancel": "Cancel",
+        "delete_confirm": "Delete the saved account list from the server?",
+        "password": "Backup password",
+        "password_hint": "At least 10 characters. It cannot be recovered: if you forget it, save the list again with a new one.",
+        "restore_hint": "The password chosen when the list was saved.",
+        "confirm": "Confirm password",
+        "include_passwords": "Include mailbox passwords",
+        "include_passwords_hint": "Accounts signed in here with a password will sign in by themselves after a restore. Anyone who knows the backup password gets into every mailbox in the list.",
+        "saved": "List saved ({count, plural, one {# account} other {# accounts}}).",
+        "restored": "Accounts added: {added}. Accounts already here and updated: {updated}. Open each new account from the account list to sign in.",
+        "restored_signed_in": "Accounts added: {added}. Accounts already here and updated: {updated}.",
+        "skipped": "{count, plural, one {# account was} other {# accounts were}} not added: the account limit is reached.",
+        "saved_passwords": "Passwords included for {count, plural, one {# account} other {# accounts}}.",
+        "signed_in": "Signed in to {count, plural, one {# account} other {# accounts}} with the saved password.",
+        "sign_in_failed": "{count, plural, one {# saved password was} other {# saved passwords were}} refused: sign in to those accounts from the account list.",
+        "deleted": "Saved list deleted.",
+        "errors": {
+          "mismatch": "The passwords do not match.",
+          "password_length": "Use at least 10 characters.",
+          "unlock_failed": "Wrong password, or the list was saved for another account.",
+          "owner_signin_required": "Sign in to this account again, then retry.",
+          "https_required": "This needs a secure (HTTPS) connection.",
+          "storage_failed": "The server could not read or store the list. Try again later."
+        }
       },
       "shared_accounts": {
         "title": "اشتراکی با من",
@@ -1709,14 +1927,36 @@
       },
       "link_device": {
         "title": "اتصال موبایل",
-        "description": "ورود با QR code",
+        "description": "بدون وارد کردن رمز عبور در گوشی، به برنامه Bulwark Mail وارد شوید. گوشی شما ورود جداگانه‌ای دریافت می‌کند، بنابراین خروج از اینجا باعث خروج آن نمی‌شود.",
         "generate": "نمایش QR",
         "regenerate": "کد جدید",
-        "instructions": "با برنامه اسکن کنید",
+        "instructions": "برنامه Bulwark Mail را باز کنید و در صفحه ورود روی \"Scan a sign-in code\" بزنید (یا اگر از قبل وارد شده‌اید، \"Add account\" → \"Scan a sign-in code\")، سپس دوربین را به این سمت بگیرید.",
         "expires_in": "منقضی در {seconds} ثانیه",
         "expired": "منقضی شده",
-        "generating": "در حال تولید…",
-        "error": "خطا"
+        "error": "خطا",
+        "password_prompt": "برای تأیید هویت، رمز عبور خود را وارد کنید. گوشی شما ورود جداگانه‌ای دریافت می‌کند؛ رمز عبور شما به گوشی ارسال نمی‌شود.",
+        "show_password": "نمایش رمز عبور",
+        "hide_password": "پنهان کردن رمز عبور",
+        "continue": "ادامه",
+        "error_wrong_password": "رمز عبور نادرست است. دوباره تلاش کنید.",
+        "totp_prompt": "کد برنامه احراز هویت خود را وارد کنید.",
+        "error_password_or_code": "رمز عبور یا کد نادرست است.",
+        "error_not_signed_in": "نشست شما منقضی شده است. برای اتصال دستگاه دوباره وارد شوید.",
+        "error_impersonation": "هنگام مشاهده صندوق پستی کاربر دیگر نمی‌توان دستگاه متصل کرد.",
+        "error_too_many_attempts": "تلاش‌های بیش از حد. کمی صبر کنید و دوباره تلاش کنید.",
+        "error_session_secret": "اتصال دستگاه روی این سرور راه‌اندازی نشده است (SESSION_SECRET وجود ندارد). با مدیر سیستم تماس بگیرید.",
+        "error_server_unreachable": "دسترسی به سرور ایمیل شما ممکن نشد. دوباره تلاش کنید.",
+        "error_pairing_unavailable": "سرور ایمیل شما اجازه اتصال دستگاه به این روش را نمی‌دهد. با مدیر سیستم تماس بگیرید.",
+        "qr_alt": "کد QR ورود",
+        "link_label": "پیوند ورود",
+        "copy_link": "کپی پیوند ورود",
+        "copied": "کپی شد",
+        "copy_hint": "دوربین ندارید؟ پیوند را کپی کنید و در برنامه با \"Paste sign-in link\" جای‌گذاری کنید.",
+        "success_title": "ورود در گوشی شما انجام شد",
+        "success_body": "می‌توانید این صفحه را ببندید. برای اتصال دستگاه دیگر، کد جدیدی نمایش دهید.",
+        "link_another": "اتصال دستگاه دیگر",
+        "use_sso": "به‌جای آن از ورود یکپارچه استفاده کنید",
+        "error_insecure_server": "برنامه موبایل فقط از طریق https به سرورهای ایمیل وصل می‌شود و این سرور از http استفاده می‌کند."
       },
       "public_keys": {
         "name_label": "نام کلید عمومی",
@@ -1744,28 +1984,24 @@
       }
     },
     "vacation": {
-      "title": "پاسخ‌گوی خودکار",
-      "description": "پاسخ خودکار به ایمیل‌های ورودی در زمان غیبت",
+      "title": "غیبت",
+      "description": "رسیدگی خودکار به ایمیل‌های ورودی در زمان غیبت",
       "loading": "در حال بارگذاری تنظیمات پاسخ‌گوی خودکار...",
       "not_supported": "سرور ایمیل شما از پاسخ خودکار پشتیبانی نمی‌کند.",
       "fetch_error": "بارگذاری تنظیمات پاسخ‌گوی خودکار ناموفق بود. لطفاً دوباره تلاش کنید.",
       "status": {
-        "label": "پاسخ‌گوی خودکار",
+        "label": "ارسال پاسخ خودکار",
         "description": "ارسال پاسخ خودکار به افرادی که به شما ایمیل می‌زنند",
         "active": "فعال",
         "inactive": "غیرفعال"
       },
       "date_range": {
-        "title": "بازه زمانی",
-        "description": "محدود کردن پاسخ خودکار به یک بازه زمانی خاص",
         "start": "تاریخ شروع",
         "start_description": "برای بدون محدودیت شروع خالی بگذارید",
         "end": "تاریخ پایان",
         "end_description": "برای بدون محدودیت پایان خالی بگذارید"
       },
       "message": {
-        "title": "پیام پاسخ خودکار",
-        "description": "پیامی که به عنوان پاسخ ارسال خواهد شد",
         "subject_label": "موضوع",
         "subject_description": "خط موضوع پاسخ خودکار",
         "subject_placeholder": "خارج از دفتر",
@@ -1785,10 +2021,32 @@
       "saving": "در حال ذخیره...",
       "warnings": {
         "end_before_start": "تاریخ پایان باید بعد از تاریخ شروع باشد",
+        "invalid_date": "تاریخ شروع و پایان معتبر را همراه با ساعت وارد کنید یا فیلد را خالی بگذارید",
         "start_in_past": "تاریخ شروع در گذشته است",
         "empty_body": "بدنه پیام خالی است - گیرندگان پاسخ خالی دریافت می‌کنند",
         "subject_too_long": "موضوع برای سرور بیش از حد طولانی است (حداکثر {max} بایت).",
-        "body_too_long": "پیام برای سرور بیش از حد طولانی است (حداکثر {max} بایت، همراه با قالب‌بندی)."
+        "body_too_long": "پیام برای سرور بیش از حد طولانی است (حداکثر {max} بایت، همراه با قالب‌بندی).",
+        "forward_address": "یک نشانی معتبر برای بازارسال وارد کنید",
+        "not_running": "بازارسال یا گیرندگان پاسخ ذخیره شده‌اند اما اکنون فعال نیستند. برای فعال‌سازی دوباره ذخیره کنید."
+      },
+      "forward": {
+        "title": "بازارسال",
+        "description": "پیام‌های ورودی را با یا بدون پاسخ خودکار، در بازه زمانی بالا به نشانی دیگری بازارسال می‌کند (بدون تاریخ پایان، تا زمانی که خاموش شود). هرزنامه بازارسال نمی‌شود.",
+        "enabled_label": "بازارسال پیام‌ها",
+        "to_label": "ارسال به",
+        "to_placeholder": "email@example.com",
+        "keep_label": "نگه داشتن در صندوق ورودی",
+        "keep_description": "در غیر این صورت پیام فقط بازارسال می‌شود: در این صندوق پستی نمی‌ماند و هیچ قانون فیلتری روی آن اجرا نمی‌شود."
+      },
+      "audience": {
+        "label": "پاسخ به",
+        "description": "فرستندگان داخلی: {domains}",
+        "all": "همه فرستندگان",
+        "internal": "فقط فرستندگان داخلی",
+        "external": "فقط فرستندگان خارجی"
+      },
+      "auto_reply": {
+        "title": "پاسخ خودکار"
       }
     },
     "folders": {
@@ -1813,11 +2071,25 @@
       "reorder": "برای تغییر ترتیب بکشید",
       "reorder_error": "تغییر ترتیب پوشه‌ها ناموفق بود",
       "move_error": "انتقال پوشه ناموفق بود",
+      "select_folder": "انتخاب {name}",
+      "select_hint": "انتخاب. Shift+کلیک همه پوشه‌ها را تا آخرین پوشه‌ای که کلیک کردید انتخاب می‌کند.",
+      "selected_count": "{count, plural, one {# پوشه} other {# پوشه}} انتخاب شد",
+      "move_to": "انتقال به...",
+      "move_to_top_level": "سطح بالا",
+      "move": "انتقال",
+      "clear_selection": "پاک کردن انتخاب",
+      "folders_moved": "{count, plural, one {# پوشه منتقل شد} other {# پوشه منتقل شد}}",
+      "move_partial_error": "{count, plural, one {# پوشه} other {# پوشه}} منتقل نشد",
       "subfolder_of": "داخل {name}",
       "subfolder_name": "نام زیرپوشه",
       "new_folder_name": "نام پوشه",
       "rename": "تغییر نام",
       "change_icon": "تغییر آیکون",
+      "count_mode": "شمارنده برای {name}",
+      "count_mode_default": "شمارنده: پیش‌فرض",
+      "count_mode_unread": "فقط خوانده‌نشده",
+      "count_mode_all": "خوانده‌نشده و کل",
+      "count_mode_none": "بدون شمارنده",
       "delete": "حذف",
       "confirm_delete": "آیا از حذف \"{name}\" اطمینان دارید؟ ایمیل‌های این پوشه به زباله‌دان منتقل می‌شوند.",
       "create": "ایجاد",
@@ -1867,7 +2139,11 @@
       },
       "sender_favicons": {
         "label": "Favicon فرستنده",
-        "description": "نمایش آیکون وبسایت به عنوان تصویر پروفایل فرستندگان تجاری"
+        "description": "نمایش آیکون وبسایت به عنوان تصویر پروفایل فرستندگان تجاری",
+        "refresh_label": "بازخوانی آیکون فرستندگان",
+        "refresh_description": "آیکون وب‌سایت‌ها را دوباره دریافت کن، مثلاً وقتی فرستنده آیکون خود را تغییر داده است",
+        "refresh_button": "بازخوانی",
+        "refresh_done": "آیکون فرستندگان دوباره دریافت می‌شود"
       },
       "show_avatars_in_junk": {
         "label": "نمایش آواتار در پوشه هرزنامه",
@@ -1899,7 +2175,34 @@
         "button": "وارد کردن"
       },
       "about": {
-        "title": "Bulwark Webmail"
+        "title": "Bulwark Webmail",
+        "source_code": "کد منبع"
+      },
+      "spam_siege": {
+        "title": "Spam Siege",
+        "intro": "پیش از آنکه هرزنامه و فیشینگ به صندوق ورودی برسند، روی آن‌ها کلیک کنید. ایمیل‌های واقعی را عبور دهید. اگر هر سه سپر را از دست بدهید، صندوق ورودی سقوط می‌کند.",
+        "kinds": {
+          "spam": "هرزنامه",
+          "phishing": "فیشینگ",
+          "legit": "ایمیل واقعی"
+        },
+        "click_to_block": "برای مسدود کردن کلیک کنید",
+        "let_through": "بگذارید عبور کند",
+        "start": "شروع",
+        "play_again": "بازی دوباره",
+        "score": "امتیاز",
+        "combo": "پاداش زنجیره",
+        "shields_left": "{count} از {total} سپر باقی مانده",
+        "seconds": "{seconds} ث",
+        "best": "بهترین: {score}",
+        "new_best": "رکورد جدید",
+        "held": "صندوق ورودی مقاومت کرد",
+        "overrun": "صندوق ورودی سقوط کرد",
+        "stats": {
+          "caught": "مسدودشده",
+          "delivered": "تحویل‌شده",
+          "mistakes": "اشتباه‌ها"
+        }
       }
     },
     "sidebar_apps": {
@@ -1941,7 +2244,7 @@
       },
       "attachment_template": {
         "label": "نام فایل پیوست",
-        "description": "قالب استفاده شده هنگام دانلود یا کشیدن پیوست."
+        "description": "قالبی که هنگام دانلود یا بیرون کشیدن پیوست استفاده می‌شود. اگر '{filename}' و '{ext}' را حذف کنید، پسوند اصلی فایل حفظ می‌شود."
       },
       "bundle_template": {
         "label": "نام فایل .zip چند ایمیل",
@@ -2020,7 +2323,8 @@
         "subject": "موضوع",
         "header": "هدر سفارشی",
         "size": "حجم",
-        "body": "بدنه"
+        "body": "بدنه",
+        "all": "همه پیام‌ها"
       },
       "comparators": {
         "has_any": "وجود دارد",
@@ -2033,7 +2337,9 @@
         "ends_with": "پایان می‌یابد با",
         "matches": "مطابقت با الگو",
         "greater_than": "بزرگتر از",
-        "less_than": "کوچکتر از"
+        "less_than": "کوچکتر از",
+        "address_is": "نشانی‌اش این است",
+        "domain_is": "دامنه‌اش این است"
       },
       "action_types": {
         "move": "انتقال به پوشه",
@@ -2053,6 +2359,7 @@
       "forward_placeholder": "email@example.com",
       "forward_keep_copy": "نگه‌داشتن یک نسخه",
       "forward_limit": "سقف بازارسال برای هر پیام در این سرور: {count}. بازارسال‌های اضافه نادیده گرفته می‌شوند.",
+      "forward_unavailable": "این سرور اجازهٔ بازارسال نمی‌دهد. اقدام‌های بازارسال در قانون‌های فیلتر اثری ندارند.",
       "reject_message": "پیام رد",
       "reject_placeholder": "ایمیل شما رد شد",
       "label_name": "نام برچسب",
@@ -2108,7 +2415,38 @@
         "actions_count": "{count, plural, one {# عملیات} other {# عملیات}}"
       },
       "origin_external": "خارجی",
-      "managed_by_tooltip": "مدیریت شده توسط {source}. در آن برنامه ویرایش کنید یا از ویرایشگر خام Sieve استفاده کنید."
+      "managed_by_tooltip": "مدیریت شده توسط {source}. در آن برنامه ویرایش کنید یا از ویرایشگر خام Sieve استفاده کنید.",
+      "quick_rule_names": {
+        "move_sender": "انتقال از {sender} به {folder}",
+        "move_domain": "انتقال از @{domain} به {folder}",
+        "move_list": "انتقال فهرست {list} به {folder}",
+        "mark_read": "علامت خوانده‌شده برای {sender}",
+        "tag": "برچسب {tag} برای {sender}",
+        "block": "مسدود کردن {sender}",
+        "custom": "پیام‌های {sender}",
+        "custom_plain": "قانون جدید",
+        "senders": "{count, plural, one {# فرستنده} other {# فرستنده}}"
+      },
+      "suggestions": "پیشنهادها",
+      "suggest_subject": "موضوع «{subject}»",
+      "suggest_to": "به {address}",
+      "suggest_cc": "رونوشت {address}",
+      "suggest_list": "List-Id",
+      "suggest_domain": "@{domain}",
+      "apply_existing": "روی پیام‌هایی که از قبل در این پوشه هستند هم اعمال شود",
+      "apply_existing_unsupported": "فقط قانون‌هایی که فرستنده، گیرندگان، موضوع یا سرایندها را بررسی می‌کنند و پیام را منتقل، کپی، خوانده‌شده، ستاره‌دار یا برچسب‌دار می‌کنند، روی پیام‌های موجود اعمال می‌شوند.",
+      "period_title": "بازه زمانی",
+      "period_start": "تاریخ شروع",
+      "period_end": "تاریخ پایان",
+      "validation_period_order": "تاریخ پایان باید بعد از تاریخ شروع باشد",
+      "period_toggle": "فقط در یک بازه زمانی فعال باشد",
+      "period_hint": "برای پیام‌هایی اعمال می‌شود که در این بازه می‌رسند. برای باز گذاشتن هر طرف، فیلد آن را خالی بگذارید.",
+      "validation_period_empty": "تاریخ شروع یا پایان بازه را وارد کنید",
+      "validation_period_invalid": "برای بازه یک تاریخ معتبر همراه با ساعت وارد کنید یا فیلد را خالی بگذارید",
+      "apply_existing_period": "قانونی که بازه زمانی دارد فقط روی پیام‌هایی عمل می‌کند که در آن بازه می‌رسند، بنابراین روی پیام‌های موجود اجرا نمی‌شود.",
+      "period_status_scheduled": "زمان‌بندی‌شده",
+      "period_status_active": "فعال",
+      "period_status_expired": "منقضی‌شده"
     },
     "templates": {
       "title": "قالب‌های ایمیل",
@@ -2147,12 +2485,6 @@
       "display": {
         "title": "نمایش",
         "description": "پیکربندی نحوه نمایش فایل‌ها و پوشه‌ها"
-      },
-      "folder_layout": {
-        "label": "ناوبری پوشه",
-        "description": "انتخاب نحوه نمایش پوشه‌ها: داخلی با فایل‌ها یا درخت کناری",
-        "inline": "داخلی",
-        "sidebar": "نوار کناری"
       },
       "default_view": {
         "label": "نمای پیش‌فرض",
@@ -2230,17 +2562,41 @@
     "pin": "سنجاق کردن",
     "unpin": "برداشتن سنجاق",
     "move_to": "انتقال به...",
+    "copy_to_account": "کپی به حساب...",
+    "remove_from_folder": "حذف از این پوشه",
     "archive": "بایگانی",
     "delete": "حذف",
     "mark_as_spam": "گزارش هرزنامه",
     "not_spam": "هرزنامه نیست",
     "tag": "برچسب",
     "items_selected": "{count} ایمیل انتخاب شده",
+    "forward_as_attachments": "ارسال به‌عنوان پیوست‌ها",
     "edit_draft": "ویرایش پیش‌نویس",
     "cancel_scheduled_send": "لغو ارسال",
     "reschedule_send": "باززمان‌بندی",
     "cancel_and_edit": "لغو و ویرایش",
-    "cancel_and_compose_again": "لغو و نوشتن مجدد"
+    "cancel_and_compose_again": "لغو و نوشتن مجدد",
+    "rules": {
+      "title": "قانون‌ها",
+      "move_from": "همیشه پیام‌های {sender} را منتقل کن",
+      "move_from_domain": "همیشه پیام‌های @{domain} را منتقل کن",
+      "move_from_list": "همیشه پیام‌های این فهرست را منتقل کن",
+      "mark_read_from": "همیشه پیام‌های {sender} را خوانده‌شده علامت بزن",
+      "tag_with": "همیشه این برچسب را بزن",
+      "block": "{count, plural, one {مسدود کردن فرستنده} other {مسدود کردن # فرستنده}}",
+      "no_junk": "این حساب پوشهٔ هرزنامه ندارد",
+      "create": "ایجاد قانون…",
+      "manage": "مدیریت قانون‌ها",
+      "senders_count": "{count, plural, one {# فرستنده} other {# فرستنده}}",
+      "cross_account": "پیام‌هایی از یک حساب انتخاب کنید",
+      "opaque_hint": "فیلترهای شما دستی ویرایش شده‌اند. تنظیمات فیلترها را باز کنید",
+      "loading": "در حال بارگذاری قوانین…",
+      "load_failed": "بارگذاری قوانین ممکن نشد",
+      "none": "هنوز قانونی وجود ندارد",
+      "new_mail_only": "فقط برای پیام‌های جدید",
+      "running": "در حال اجرای «{name}» روی {folder}…"
+    },
+    "find_emails_from": "یافتن ایمیل‌های {name}"
   },
   "mailbox_context_menu": {
     "mark_folder_read": "علامت‌گذاری پوشه خوانده شده",
@@ -2255,6 +2611,12 @@
     "empty_folder_generic": "خالی کردن پوشه",
     "delete_folder": "حذف پوشه",
     "refresh": "بازنشانی",
+    "hide_shared_account": "پنهان کردن از نوار کناری",
+    "mute_notifications": "بی‌صدا کردن اعلان‌ها",
+    "unmute_notifications": "فعال کردن اعلان‌ها",
+    "mute_account_notifications": "بی‌صدا کردن اعلان‌های این حساب",
+    "unmute_account_notifications": "فعال کردن اعلان‌های این حساب",
+    "reset_folder_notifications": "بازنشانی اعلان‌های پوشه‌ها",
     "mark_all_confirm_title": "علامت‌گذاری همه",
     "mark_all_confirm_message": "همه پیام‌های خوانده نشده علامت‌گذاری شوند؟",
     "delete_confirm_title": "حذف پوشه",
@@ -2298,7 +2660,10 @@
       "next_email": "ایمیل بعدی",
       "previous_email": "ایمیل قبلی",
       "open_email": "باز کردن ایمیل",
-      "close_email": "بستن / لغو انتخاب"
+      "close_email": "بستن / لغو انتخاب",
+      "go_to_folder": "رفتن به پوشه",
+      "next_unread": "ایمیل خوانده‌نشده بعدی",
+      "no_more_unread": "ایمیل خوانده‌نشده‌ای پایین‌تر در فهرست نیست"
     },
     "actions": {
       "reply": "پاسخ",
@@ -2317,10 +2682,12 @@
       "help": "نمایش میانبرها",
       "refresh": "بازنشانی ایمیل‌ها",
       "select_all": "انتخاب همه",
-      "global_search": "جستجو در همه جا"
+      "global_search": "جستجو در همه جا",
+      "extend_selection": "گسترش انتخاب به پایین / بالا"
     },
     "threads": {
-      "expand_collapse": "باز/بسته کردن رشته"
+      "expand_collapse": "باز/بسته کردن رشته",
+      "select_mountain_view": "انتخاب گفت‌وگو"
     },
     "composer": {
       "send": "ارسال ایمیل",
@@ -2435,6 +2802,48 @@
     }
   },
   "contacts": {
+    "directory": {
+      "title": "فهرست سازمانی",
+      "search_placeholder": "جستجوی نام یا نشانی ایمیل",
+      "refresh": "تازه‌سازی فهرست",
+      "retry": "تلاش دوباره",
+      "loading": "در حال بارگذاری فهرست…",
+      "unavailable_title": "فهرستی وجود ندارد",
+      "unavailable_hint": "سرور ایمیل شما فهرستی از حساب‌ها ارائه نمی‌دهد.",
+      "forbidden_title": "فهرست در دسترس نیست",
+      "forbidden_hint": "سرور ایمیل اجازه مرور فهرست را به این حساب نمی‌دهد. از مدیر سیستم بپرسید.",
+      "error_title": "بارگذاری فهرست ممکن نشد",
+      "error_hint": "اتصال خود را بررسی کنید و دوباره تلاش کنید.",
+      "empty_title": "فهرست خالی است",
+      "empty_hint": "سرور ایمیل هیچ حسابی با نشانی ایمیل نشان نمی‌دهد.",
+      "no_match": "هیچ‌کس در فهرست با جستجوی شما مطابقت ندارد",
+      "refresh_failed": "تازه‌سازی فهرست ممکن نشد. آخرین فهرست بارگذاری‌شده نمایش داده می‌شود.",
+      "select_page": "انتخاب همه در این صفحه",
+      "deselect_page": "لغو انتخاب همه در این صفحه",
+      "select_entry": "انتخاب {name}",
+      "range": "{from}–{to} از {total}",
+      "page": "صفحه {page} از {count}",
+      "previous_page": "صفحه قبل",
+      "next_page": "صفحه بعد",
+      "picker_title": "انتخاب از فهرست",
+      "cancel": "لغو",
+      "selected_count": "{count} انتخاب شد",
+      "add_to": "افزودن به «به»",
+      "add_cc": "افزودن به «رونوشت»",
+      "add_bcc": "افزودن به «رونوشت پنهان»",
+      "select_hint": "برای دیدن جزئیات، یک نفر را انتخاب کنید",
+      "write_email": "نوشتن ایمیل",
+      "add_to_contacts": "افزودن به مخاطبان",
+      "email": "ایمیل",
+      "read_only_note": "ورودی‌های فهرست از سرور ایمیل شما می‌آیند و اینجا قابل ویرایش نیستند.",
+      "type": {
+        "individual": "شخص",
+        "group": "گروه",
+        "resource": "منبع",
+        "location": "مکان",
+        "other": "سایر"
+      }
+    },
     "title": "مخاطبین",
     "search_placeholder": "جستجوی مخاطبین...",
     "create_new": "مخاطب جدید",
@@ -2796,6 +3205,10 @@
       "tasks_hint": "وظایف (k)"
     },
     "events": {
+      "hidden_before": "{count, plural, other {# رویداد قبلی}}",
+      "hidden_after": "{count, plural, other {# رویداد بعدی}}",
+      "show_all_hours": "نمایش همه ساعت‌ها",
+      "show_display_hours": "فقط نمایش {start} – {end}",
       "create": "ایجاد رویداد",
       "edit": "ویرایش رویداد",
       "delete": "حذف رویداد",
@@ -2803,6 +3216,8 @@
       "no_events": "رویدادی نیست",
       "all_day": "تمام روز",
       "more": "+{count} بیشتر",
+      "show_more": "نمایش بیشتر",
+      "show_less": "نمایش کمتر",
       "no_title": "(بدون عنوان)",
       "resize": "تغییر اندازه رویداد",
       "duplicate": "کپی",
@@ -2825,6 +3240,7 @@
       "save_note": "ذخیره",
       "note_saved": "یادداشت اضافه شد",
       "open_link": "باز کردن لینک",
+      "copy_location": "کپی مکان",
       "meeting_link": "لینک جلسه",
       "tentative": "احتمالی",
       "cancelled": "لغو شده",
@@ -2949,9 +3365,26 @@
       "add": "افزودن یادآور",
       "remove": "حذف یادآور",
       "amount": "مقدار یادآور",
-      "unit": "واحد یادآور"
+      "unit": "واحد یادآور",
+      "action": "نوع یادآور",
+      "action_display": "اعلان",
+      "action_email": "ایمیل",
+      "by_email": "{label} از طریق ایمیل",
+      "kept": "{count, plural, one {# یادآور دیگر که اینجا قابل ویرایش نیست حفظ می‌شود} other {# یادآور دیگر که اینجا قابل ویرایش نیستند حفظ می‌شوند}}",
+      "other": "{count, plural, one {# یادآور دیگر} other {# یادآور دیگر}}",
+      "calendar_defaults": "یادآورهای پیش‌فرض تقویم",
+      "customize": "سفارشی‌سازی",
+      "use_defaults": "استفاده از یادآورهای پیش‌فرض تقویم"
     },
     "settings": {
+      "limit_hours": "محدود کردن ساعت‌های نمایش",
+      "limit_hours_desc": "در نمای روز و هفته فقط این ساعت‌ها نمایش داده می‌شوند. رویدادهای خارج از آن‌ها از طریق پیکان‌های بالا و پایین هر روز در دسترس هستند.",
+      "visible_hours": "ساعت‌های نمایش",
+      "visible_hours_start": "شروع ساعت‌های نمایش",
+      "visible_hours_end": "پایان ساعت‌های نمایش",
+      "hide_non_working_days": "پنهان کردن روزهای تعطیل",
+      "hide_non_working_days_desc": "روزهایی که کار نمی‌کنید از نمای هفته حذف می‌شوند. رویدادهای آن‌ها همچنان در نمای ماه، روز و دستور کار نمایش داده می‌شوند.",
+      "working_days": "روزهای کاری",
       "title": "تنظیمات تقویم",
       "default_view": "نمای پیش‌فرض",
       "week_starts_on": "شروع هفته",
@@ -2975,7 +3408,7 @@
       "enable_tasks": "فعال کردن وظایف",
       "enable_tasks_desc": "نمایش نمای وظایف در تقویم برای مدیریت کارها",
       "show_tasks_on_calendar": "نمایش وظایف روی تقویم",
-      "show_tasks_on_calendar_desc": "نمایش برچسب وظایف در نماهای روز و هفته",
+      "show_tasks_on_calendar_desc": "نمایش وظایف در نماهای ماه، هفته و روز",
       "hover_preview": "پیش‌نمایش هاور رویداد",
       "hover_preview_desc": "نمایش popover جزئیات هنگام هاور روی رویدادهای تقویم",
       "hover_preview_instant": "بلافاصله",
@@ -3061,7 +3494,9 @@
     },
     "quick_create": {
       "placeholder": "عنوان رویداد جدید",
-      "aria_label": "ایجاد سریع رویداد"
+      "aria_label": "ایجاد سریع رویداد",
+      "add_title": "افزودن عنوان",
+      "more_options": "گزینه‌های بیشتر"
     },
     "nav_prev": "قبلی",
     "nav_next": "بعدی",
@@ -3136,11 +3571,21 @@
       "url_copied": "آدرس CalDAV در کلیپ‌بورد کپی شد",
       "share": "اشتراک‌گذاری تقویم",
       "new_event_in_calendar": "رویداد جدید در این تقویم",
+      "shared_with": "به اشتراک گذاشته شده با {names}",
+      "shared_with_count": "{count, plural, one {با ۱ نفر به اشتراک گذاشته شده} other {با # نفر به اشتراک گذاشته شده}}",
+      "move_up": "انتقال به بالا",
+      "move_down": "انتقال به پایین",
       "kind": "محتوا",
       "kind_events": "رویدادها",
       "kind_tasks": "وظایف",
       "kind_both": "رویدادها و وظایف",
-      "kind_hint": "تعیین می‌کند کدام برنامه‌ها این تقویم را هنگام همگام‌سازی از طریق CalDAV می‌بینند. بعداً قابل تغییر نیست."
+      "kind_hint": "تعیین می‌کند کدام برنامه‌ها این تقویم را هنگام همگام‌سازی از طریق CalDAV می‌بینند. بعداً قابل تغییر نیست.",
+      "default_alerts": "یادآورهای پیش‌فرض",
+      "default_alerts_title": "یادآورهای پیش‌فرض برای \"{name}\"",
+      "default_alerts_hint": "رویدادهای جدید این تقویم این یادآورها را دریافت می‌کنند، مگر اینکه در خود رویداد تغییر داده شوند. تغییر آن‌ها در اینجا رویدادهای موجود را تغییر نمی‌دهد. یادآورهای ایمیلی توسط سرور ایمیل ارسال می‌شوند.",
+      "default_alerts_timed": "رویدادهای دارای زمان",
+      "default_alerts_all_day": "رویدادهای تمام‌روز",
+      "default_alerts_updated": "یادآورهای پیش‌فرض به‌روزرسانی شد"
     },
     "subscription": {
       "title": "اشتراک iCal",
@@ -3220,7 +3665,13 @@
       "due_today": "امروز",
       "due_tomorrow": "فردا",
       "overdue": "عقب‌افتاده"
-    }
+    },
+    "toolbar": {
+      "more": "اقدامات بیشتر",
+      "select_view": "تغییر نما، نمای فعلی: {view}"
+    },
+    "other_calendars": "تقویم‌های دیگر",
+    "calendar_options": "گزینه‌های {name}"
   },
   "calendar_event_notifications": {
     "someone": "کسی",
@@ -3276,6 +3727,7 @@
     "body_placeholder": "بدنه شامل...",
     "folder": "پوشه",
     "all_folders": "همه پوشه‌ها",
+    "all_folders_except_spam_trash": "همه پوشه‌ها به‌جز هرزنامه و زباله‌دان",
     "has_attachment": "پیوست",
     "date_after": "بعد از",
     "date_before": "قبل از",
@@ -3299,7 +3751,13 @@
     "suggestions_people": "افراد",
     "suggestions_from": "جستجوی ایمیل‌های از {address}",
     "suggestions_to": "جستجوی ایمیل‌های به {address}",
-    "suggestions_remove_recent": "حذف از جستجوهای اخیر"
+    "suggestions_remove_recent": "حذف از جستجوهای اخیر",
+    "has_words": "شامل کلمات",
+    "size": "اندازه",
+    "date_within": "تاریخ",
+    "search_in": "جستجو در",
+    "has_attachment_check": "دارای پیوست",
+    "search": "جستجو"
   },
   "welcome": {
     "title": "به صندوق پستی خود خوش آمدید",
@@ -3307,6 +3765,8 @@
     "tip_shortcuts": "کلید ? را برای مشاهده میانبرها فشار دهید",
     "tip_sidebar": "تقویم، مخاطبین و تنظیمات در نوار کناری",
     "tip_settings": "تجربه خود را در تنظیمات سفارشی کنید",
+    "tip_compose_touch": "برای نوشتن ایمیل جدید روی دکمه مداد بزنید",
+    "tip_sidebar_touch": "تقویم، مخاطبین و تنظیمات در نوار پایین هستند",
     "got_it": "متوجه شدم",
     "settings": "تنظیمات",
     "dismiss": "رد کردن",
@@ -3330,8 +3790,6 @@
     "title": "فایل‌ها",
     "search_placeholder": "جستجوی فایل‌ها...",
     "empty_state_title": "هنوز فایلی نیست",
-    "empty_state_description": "فایل آپلود کنید یا پوشه ایجاد کنید",
-    "upload": "بارگذاری",
     "upload_files": "بارگذاری فایل‌ها",
     "new_folder": "پوشه جدید",
     "new_folder_name": "نام پوشه",
@@ -3350,13 +3808,11 @@
     "type": "نوع",
     "folder": "پوشه",
     "file": "فایل",
-    "parent_directory": "پوشه والد",
-    "breadcrumb_root": "خانه",
-    "other_accounts": "سایر حساب‌ها",
     "no_accounts": "حساب متصلی نیست.",
-    "drop_files_here": "فایل‌ها یا پوشه‌ها را برای بارگذاری اینجا رها کنید",
     "uploading": "در حال بارگذاری...",
     "upload_success": "{count, plural, one {۱ فایل بارگذاری شد} other {# فایل بارگذاری شد}}",
+    "upload_canceled": "بارگذاری لغو شد",
+    "upload_canceled_partial": "{count, plural, one {۱ فایل} other {# فایل}} پیش از لغو بارگذاری شد",
     "upload_error": "بارگذاری فایل ناموفق بود",
     "create_folder_success": "پوشه ایجاد شد",
     "create_folder_error": "ایجاد پوشه ناموفق بود",
@@ -3389,7 +3845,6 @@
     "file_name": "نام فایل",
     "retry": "تلاش مجدد",
     "refresh": "بازنشانی",
-    "toggle_favorite": "تغییر وضعیت علاقه‌مندی",
     "duplicate": "کپی",
     "duplicate_success": "با موفقیت کپی شد",
     "duplicate_error": "کپی ناموفق بود",
@@ -3401,8 +3856,8 @@
     "create_file_error": "ایجاد فایل ناموفق بود",
     "favorites": "مورد علاقه‌ها",
     "recent": "اخیر",
-    "properties": "ویژگی‌ها",
-    "open_folder": "باز کردن پوشه",
+    "show_in_folder": "نمایش در پوشه",
+    "remove_from_recent": "حذف از اخیر",
     "upload_folder": "بارگذاری پوشه",
     "file_too_large": "\"{name}\" بیش از حداکثر حجم مجاز است ({max})",
     "undo": "بازگردانی",
@@ -3412,35 +3867,57 @@
     "open_folder_tree": "باز کردن درخت پوشه",
     "file_list": "فایل‌ها و پوشه‌ها",
     "context_menu": "عملیات‌ها",
-    "settings_title": "تنظیمات فایل",
-    "settings_display": "نمایش",
-    "settings_default_view": "نمای پیش‌فرض",
-    "settings_default_view_desc": "انتخاب بین چیدمان grid یا لیست",
-    "settings_default_sort": "مرتب‌سازی پیش‌فرض",
-    "settings_default_sort_desc": "انتخاب مرتب‌سازی پیش‌فرض فایل‌ها",
-    "settings_sort_direction": "جهت مرتب‌سازی",
-    "settings_sort_direction_desc": "انتخاب ترتیب صعودی یا نزولی",
     "settings_ascending": "صعودی",
     "settings_descending": "نزولی",
-    "settings_icons": "آیکون‌ها",
-    "settings_show_icons": "نمایش آیکون فایل",
-    "settings_show_icons_desc": "نمایش آیکون کنار فایل‌ها و پوشه‌ها",
-    "settings_colored_icons": "آیکون‌های رنگی",
-    "settings_colored_icons_desc": "استفاده از آیکون‌های رنگی به جای تک‌رنگ",
-    "settings_show_thumbnails": "نمایش thumbnail",
-    "settings_show_thumbnails_desc": "نمایش پیش‌نمایش تصویر به جای آیکون",
-    "settings_behavior": "رفتار",
-    "settings_show_hidden": "نمایش فایل‌های مخفی",
-    "settings_show_hidden_desc": "نمایش فایل‌ها و پوشه‌هایی که با نقطه شروع می‌شوند",
-    "settings_folder_layout": "ناوبری پوشه",
-    "settings_folder_layout_desc": "انتخاب نحوه نمایش پوشه‌ها",
-    "settings_folder_layout_inline": "داخلی",
-    "settings_folder_layout_sidebar": "نوار کناری",
     "disabled_title": "ویژگی فایل‌ها توسط مدیر غیرفعال شده",
     "disabled_description": "بارگذاری فایل‌های حجیم از طریق WebDAV می‌تواند باعث ناپایداری سرور شود.",
-    "stability_warning": "بارگذاری فایل‌های حجیم می‌تواند باعث ناپایداری سرور شود. با احتیاط استفاده کنید.",
     "migration_title": "در حال به‌روزرسانی فایل‌های شما…",
-    "migration_description": "سازمان‌دهی پوشه‌ها و فایل‌ها در ساختار مناسب. فقط یک بار انجام می‌شود."
+    "migration_description": "سازمان‌دهی پوشه‌ها و فایل‌ها در ساختار مناسب. فقط یک بار انجام می‌شود.",
+    "new": "جدید",
+    "my_files": "فایل‌های من",
+    "folders": "پوشه‌ها",
+    "files_heading": "فایل‌ها",
+    "open": "باز کردن",
+    "star": "افزودن به مورد علاقه‌ها",
+    "unstar": "حذف از مورد علاقه‌ها",
+    "expand_folder": "باز کردن {name}",
+    "collapse_folder": "بستن {name}",
+    "sidebar_hint": "پوشه‌های مورد علاقه و فایل‌هایی که باز کرده‌اید اینجا نمایش داده می‌شوند.",
+    "breadcrumbs": "مسیر پوشه",
+    "show_path": "نمایش پوشه‌های پنهان در مسیر",
+    "selection_actions": "عملیات برای موارد انتخاب‌شده",
+    "selected_count": "{count, plural, one {۱ مورد انتخاب شد} other {# مورد انتخاب شد}}",
+    "clear_selection": "لغو انتخاب",
+    "select_all": "انتخاب همه",
+    "select_item": "انتخاب {name}",
+    "more_actions": "عملیات بیشتر برای {name}",
+    "paste_here": "چسباندن در این پوشه",
+    "paste_count": "{count, plural, one {چسباندن ۱ مورد} other {چسباندن # مورد}}",
+    "sort_by": "مرتب‌سازی بر اساس",
+    "view_mode": "نما",
+    "clear_search": "پاک کردن جستجو",
+    "no_results_for": "هیچ موردی در این پوشه با \"{query}\" مطابقت ندارد",
+    "download_count": "{count, plural, one {دانلود ۱ فایل} other {دانلود # فایل}}",
+    "delete_count": "{count, plural, one {حذف ۱ مورد} other {حذف # مورد}}",
+    "close_details": "بستن جزئیات",
+    "file_kind": "فایل {ext}",
+    "folder_summary": "{folders, plural, =0 {بدون پوشه} one {۱ پوشه} other {# پوشه}}، {files, plural, =0 {بدون فایل} one {۱ فایل} other {# فایل}}",
+    "details_hint": "یک فایل یا پوشه را انتخاب کنید تا جزئیات آن را ببینید.",
+    "sharing": "اشتراک‌گذاری",
+    "shared_with_count": "{count, plural, one {با ۱ نفر به اشتراک گذاشته شده} other {با # نفر به اشتراک گذاشته شده}}",
+    "only_you": "فقط شما",
+    "empty_folder_title": "این پوشه خالی است",
+    "empty_folder_description": "فایل‌ها را اینجا رها کنید یا از دستگاه خود بارگذاری کنید.",
+    "empty_folder_read_only": "نمی‌توانید به این پوشه فایل اضافه کنید.",
+    "choose_account": "انتخاب حساب",
+    "drop_to_upload": "برای بارگذاری در {folder} رها کنید",
+    "uploading_count": "در حال بارگذاری {current} از {total}",
+    "dismiss": "بستن",
+    "zoom_in": "بزرگ‌نمایی",
+    "zoom_out": "کوچک‌نمایی",
+    "zoom_reset": "متناسب با صفحه",
+    "rotate": "چرخش",
+    "close_preview": "بستن"
   },
   "smime": {
     "your_certificates": "گواهی‌های شما",
@@ -3483,7 +3960,7 @@
     "processing": "در حال پردازش…",
     "close": "بستن",
     "certificate_details": "جزئیات گواهی",
-    "cert_subject": "موضوع",
+    "cert_subject": "دارنده",
     "cert_issuer": "صادرکننده",
     "cert_email": "ایمیل",
     "cert_serial": "شماره سریال",
@@ -3613,6 +4090,354 @@
       "failed_detail": "احراز هویت ناموفق بود: {error}",
       "missing_params": "کد احراز هویت یا حالت وجود ندارد.",
       "delivery_failed": "نتیجه احراز هویت به برگه برنامه ارسال نشد. لطفاً این پنجره را ببندید و دوباره تلاش کنید."
+    },
+    "settings": {
+      "title": "افزونه‌ها",
+      "description": "افزونه‌هایی که مدیر سیستم اضافه کرده است. آن‌ها را برای حساب خود روشن یا خاموش کنید.",
+      "description_uploads": "افزونه‌ها قابلیت‌هایی به ایمیل تحت وب اضافه می‌کنند. آن‌ها را برای حساب خود روشن یا خاموش کنید، یا افزونه خودتان را نصب کنید.",
+      "description_demo": "افزونه‌ها در نسخه آزمایشی در دسترس نیستند.",
+      "install_button": "نصب افزونه",
+      "install_hint": "یک فایل ZIP افزونه انتخاب کنید.",
+      "install_hint_approval": "یک فایل ZIP افزونه انتخاب کنید. پیش از آنکه بتوانید آن را روشن کنید، مدیر سیستم باید آن را تأیید کند.",
+      "install_uploads_off": "مدیر سیستم اجازه نصب افزونه را نمی‌دهد.",
+      "install_managed_id": "مدیر سیستم از قبل افزونه‌ای با این نام ارائه می‌دهد، بنابراین نمی‌توان آن را جایگزین کرد.",
+      "install_invalid": "این فایل افزونه‌ای قابل نصب نیست: {details}",
+      "toast_installed": "افزونه نصب شد. آن را در پایین روشن کنید.",
+      "toast_installed_pending": "افزونه نصب شد و برای تأیید به مدیر سیستم ارسال شد.",
+      "toast_enabled": "{name} روشن است",
+      "toast_disabled": "{name} خاموش است",
+      "toast_removed": "{name} حذف شد",
+      "toast_forced": "مدیر سیستم {name} را روشن نگه می‌دارد",
+      "toast_approval_requested": "{name} در انتظار تأیید مدیر سیستم است",
+      "empty_title": "هنوز افزونه‌ای وجود ندارد",
+      "empty_admin": "مدیر سیستم هیچ افزونه‌ای اضافه نکرده است.",
+      "empty_uploads": "برای شروع، یک افزونه را از فایل ZIP نصب کنید.",
+      "empty_demo": "افزونه‌ها به یک حساب واقعی نیاز دارند، بنابراین نسخه آزمایشی هیچ افزونه‌ای ندارد.",
+      "syncing": "در حال بررسی افزونه‌ها با سرور…",
+      "status_installed": "خاموش",
+      "status_enabled": "در حال راه‌اندازی",
+      "status_running": "روشن",
+      "status_disabled": "خاموش",
+      "status_error": "مشکل",
+      "badge_forced": "الزامی",
+      "badge_managed": "از طرف مدیر سیستم",
+      "badge_yours": "نصب‌شده توسط شما",
+      "badge_awaiting": "در انتظار تأیید",
+      "toggle_label": "روشن یا خاموش کردن {name}",
+      "forced_note": "مدیر سیستم این افزونه را الزامی کرده است، بنابراین نمی‌توان آن را خاموش کرد.",
+      "permissions": "چه کارهایی می‌تواند انجام دهد",
+      "permissions_managed": "چه کارهایی می‌تواند انجام دهد (تأییدشده توسط مدیر سیستم)",
+      "settings": "تنظیمات",
+      "remove": "حذف",
+      "remove_title": "{name} حذف شود؟",
+      "remove_message": "افزونه و هر چیزی که در این مرورگر ذخیره کرده است پاک می‌شود. بعداً می‌توانید دوباره آن را نصب کنید.",
+      "remove_confirm": "حذف",
+      "error_user_plugins_off": "مدیر سیستم افزونه‌هایی را که کاربران نصب می‌کنند خاموش کرده است، بنابراین این افزونه اجرا نمی‌شود.",
+      "error_approval_unavailable": "این افزونه پیش از الزامی شدن تأیید نصب شده است. آن را حذف و دوباره نصب کنید تا برای تأیید ارسال شود.",
+      "error_approval_denied": "مدیر سیستم این افزونه را تأیید نکرد.",
+      "error_approval_pending": "در انتظار تأیید این افزونه توسط مدیر سیستم.",
+      "error_auto_disabled": "به‌دلیل خطاهای پی‌درپی خاموش شد. برای تلاش دوباره آن را روشن کنید.",
+      "accounts_heading": "حساب‌های متصل",
+      "account_on": "{label} روی {host}",
+      "account_waiting": "{label} روی {host} (ورود کامل نشده)",
+      "disconnect": "قطع اتصال",
+      "disconnect_failed": "قطع اتصال {label} ممکن نشد"
+    },
+    "consent": {
+      "title": "به {name} اجازه این کار داده شود؟",
+      "intro": "این افزونه مجوزهای زیر را درخواست می‌کند. فقط در صورتی آن‌ها را دریافت می‌کند که شما اجازه دهید.",
+      "high_risk_note": "موارد علامت‌دار به افزونه اجازه دسترسی به محتوای ایمیل‌های شما یا ارسال داده به جای دیگر را می‌دهند. فقط برای افزونه‌هایی که به آن‌ها اعتماد دارید اجازه دهید.",
+      "revoke_hint": "هر زمان می‌توانید افزونه را در تنظیمات خاموش یا حذف کنید.",
+      "deny": "اجازه نده",
+      "allow": "اجازه بده"
+    },
+    "permissions": {
+      "none": "به هیچ مجوز خاصی نیاز ندارد.",
+      "high_risk": "نیازمند احتیاط",
+      "email_read": {
+        "title": "خواندن ایمیل‌های شما",
+        "body": "دیدن فرستندگان، گیرندگان، موضوع‌ها و متن کامل هر پیامی در حساب شما، و پوشه‌های شما."
+      },
+      "email_write": {
+        "title": "تغییر و سازمان‌دهی ایمیل‌های شما",
+        "body": "افزودن یا حذف برچسب‌ها، پرچم‌ها و کلیدواژه‌های دیگر روی پیام‌های شما، انتقال آن‌ها بین پوشه‌های شما و به بایگانی، و ذخیره پیش‌نویس‌ها."
+      },
+      "email_send": {
+        "title": "تغییر ایمیل پیش از ارسال",
+        "body": "خواندن و تغییر گیرندگان، موضوع، متن و پیوست‌های پیام‌هایی که می‌نویسید، و جلوگیری از ارسال یک پیام."
+      },
+      "crypto_full": {
+        "title": "دسترسی کامل به این برنامه",
+        "body": "با همان دسترسی‌های خود ایمیل تحت وب اجرا می‌شود. می‌تواند همه ایمیل‌ها و کلیدهای ذخیره‌شده شما را بخواند و از طرف شما عمل کند. فقط برای افزونه‌هایی که کاملاً به آن‌ها اعتماد دارید اجازه دهید."
+      },
+      "email_raw_send": {
+        "title": "ارسال پیام‌هایی که خودش ساخته است",
+        "body": "ارسال پیام‌های کامل، مثلاً امضاشده یا رمزنگاری‌شده، از حساب شما."
+      },
+      "email_blob_read": {
+        "title": "خواندن محتوای خام پیام‌ها",
+        "body": "خواندن داده‌های اصلی پیام‌ها و پیوست‌های شما، و هر فایلی که پیش از ارسال پیوست می‌کنید."
+      },
+      "email_blob_write": {
+        "title": "جایگزینی پیوست‌ها پیش از ارسال",
+        "body": "بارگذاری فایل در سرور ایمیل شما و جایگزینی فایلی که پیوست کرده‌اید با فایلی دیگر، پیش از ارسال پیام."
+      },
+      "email_render_takeover": {
+        "title": "تغییر نحوه نمایش پیام‌ها",
+        "body": "جایگزینی متن پیام‌هایی که باز می‌کنید و فهرست پیام‌ها، مثلاً برای نمایش محتوای رمزگشایی‌شده."
+      },
+      "calendar_read": {
+        "title": "خواندن تقویم شما",
+        "body": "دیدن تقویم‌ها و رویدادهای شما."
+      },
+      "calendar_write": {
+        "title": "تغییر تقویم شما",
+        "body": "ایجاد، تغییر و حذف رویدادها."
+      },
+      "contacts_read": {
+        "title": "خواندن مخاطبان شما",
+        "body": "جست‌وجو و خواندن دفترچه‌های آدرس شما."
+      },
+      "contacts_write": {
+        "title": "تغییر مخاطبان شما",
+        "body": "ایجاد، تغییر و حذف مخاطبان و دفترچه‌های آدرس."
+      },
+      "files_read": {
+        "title": "خواندن فایل‌های شما",
+        "body": "مرور و باز کردن فایل‌های ذخیره‌شده در حساب شما."
+      },
+      "files_write": {
+        "title": "تغییر فایل‌های شما",
+        "body": "بارگذاری، تغییر نام، جابه‌جایی و حذف فایل‌ها در حساب شما."
+      },
+      "identity_read": {
+        "title": "دیدن آدرس‌های فرستنده شما",
+        "body": "دیدن آدرس‌هایی که از آن‌ها ایمیل می‌فرستید و امضاهای آن‌ها."
+      },
+      "identity_write": {
+        "title": "تغییر آدرس‌های فرستنده شما",
+        "body": "ایجاد، تغییر و حذف آدرس‌های فرستنده و امضاها."
+      },
+      "filters_read": {
+        "title": "خواندن فیلترهای ایمیل شما",
+        "body": "دیدن قوانینی که ایمیل‌های ورودی شما را مرتب می‌کنند."
+      },
+      "filters_write": {
+        "title": "تغییر فیلترهای ایمیل شما",
+        "body": "افزودن قانون به فیلترهای سمت سرور. این قوانین می‌توانند ایمیل‌های ورودی را جابه‌جا، هدایت یا حذف کنند."
+      },
+      "tasks_read": {
+        "title": "خواندن کارهای شما",
+        "body": "دیدن فهرست‌های کار و کارهای شما."
+      },
+      "tasks_write": {
+        "title": "تغییر کارهای شما",
+        "body": "ایجاد، تغییر، تکمیل و حذف کارها."
+      },
+      "templates_read": {
+        "title": "خواندن قالب‌های شما",
+        "body": "دیدن قالب‌های پیام ذخیره‌شده شما."
+      },
+      "templates_write": {
+        "title": "تغییر قالب‌های شما",
+        "body": "ایجاد، تغییر و حذف قالب‌های پیام."
+      },
+      "smime_read": {
+        "title": "دیدن وضعیت S/MIME شما",
+        "body": "دیدن اینکه آیا کلیدها و گواهی‌های S/MIME دارید، بدون دسترسی به کلیدها."
+      },
+      "vacation_read": {
+        "title": "دیدن پاسخ خودکار شما",
+        "body": "دیدن اینکه آیا پاسخ خودکار شما روشن است و چه متنی دارد."
+      },
+      "vacation_write": {
+        "title": "تغییر پاسخ خودکار شما",
+        "body": "روشن یا خاموش کردن پاسخ خودکار و تغییر متن و تاریخ‌های آن."
+      },
+      "settings_read": {
+        "title": "خواندن تنظیمات شما",
+        "body": "دیدن ترجیحات و تعریف برچسب‌های شما."
+      },
+      "settings_write": {
+        "title": "تغییر تنظیمات شما",
+        "body": "افزودن و مرتب کردن برچسب‌ها و تغییر ترجیحات شما."
+      },
+      "security_read": {
+        "title": "دیدن امنیت حساب شما",
+        "body": "دیدن اینکه آیا احراز هویت دو مرحله‌ای و رمزنگاری روشن هستند، بدون دسترسی به اطلاعات محرمانه."
+      },
+      "auth_observe": {
+        "title": "باخبر شدن از ورود شما",
+        "body": "باخبر شدن وقتی وارد می‌شوید، حساب را عوض می‌کنید یا نشست شما تمدید می‌شود."
+      },
+      "auth_emit": {
+        "title": "خارج کردن شما از حساب",
+        "body": "خارج کردن شما از ایمیل تحت وب."
+      },
+      "account_read": {
+        "title": "دیدن حساب‌های شما",
+        "body": "دیدن حساب‌هایی که اضافه کرده‌اید، همراه با آدرس‌ها و سرورهای آن‌ها."
+      },
+      "http_post": {
+        "title": "استفاده از سرور ایمیل تحت وب از طرف شما",
+        "body": "فراخوانی این نقاط پایانی سرور با اطلاعات ورود شما:"
+      },
+      "http_fetch": {
+        "title": "اتصال به وب‌سایت‌های دیگر",
+        "body": "ارسال درخواست به این سایت‌ها. هر چیزی که افزونه بتواند بخواند ممکن است به آنجا ارسال شود:"
+      },
+      "admin_config": {
+        "title": "خواندن تنظیمات خود از مدیر سیستم",
+        "body": "خواندن تنظیماتی که مدیر سیستم برای این افزونه ذخیره کرده است."
+      },
+      "ui_observe": {
+        "title": "دنبال کردن جای شما در برنامه",
+        "body": "دانستن اینکه کدام صفحه باز است و واکنش به پیوندهایی که روی آن‌ها کلیک می‌کنید."
+      },
+      "ui_toolbar": {
+        "title": "افزودن دکمه به نوارهای ابزار",
+        "body": "نمایش دکمه‌های خودش در نوار ابزار پیام‌ها، روی پیام باز و در نوار بالا."
+      },
+      "ui_app_top_banner": {
+        "title": "نمایش بنر در بالا",
+        "body": "نمایش یک اطلاعیه در سراسر بالای برنامه."
+      },
+      "ui_email_banner": {
+        "title": "نمایش اطلاعیه روی پیام‌ها",
+        "body": "نمایش اطلاعیه‌ها و خلاصه‌های خودش بالا، داخل و بین بخش‌های پیام یا مکالمه باز."
+      },
+      "ui_email_footer": {
+        "title": "افزودن محتوا زیر پیام‌ها",
+        "body": "نمایش محتوای خودش زیر پیام باز."
+      },
+      "ui_contact_cryptokeys": {
+        "title": "نمایش کلیدهای رمزنگاری مخاطبان",
+        "body": "نمایش و مدیریت کلیدهای رمزنگاری یک مخاطب."
+      },
+      "ui_email_details": {
+        "title": "افزودن پنل به جزئیات پیام",
+        "body": "نمایش پنل خودش کنار یا زیر پیام باز."
+      },
+      "ui_download_file": {
+        "title": "ذخیره فایل در دستگاه شما",
+        "body": "ارائه فایل‌هایی که خودش ساخته است برای دانلود."
+      },
+      "ui_message_list_tabs": {
+        "title": "افزودن برگه به صندوق ورودی",
+        "body": "مرتب کردن صندوق ورودی شما در برگه‌هایی مانند به‌روزرسانی‌ها یا تبلیغات."
+      },
+      "ui_composer_toolbar": {
+        "title": "افزودن به ویرایشگر",
+        "body": "نمایش دکمه‌ها، گزینه‌های منو و بخش‌های خودش هنگام نوشتن پیام."
+      },
+      "ui_composer_sidebar": {
+        "title": "افزودن پنل به ویرایشگر",
+        "body": "نمایش پنل خودش کنار پیامی که می‌نویسید."
+      },
+      "ui_sidebar_widget": {
+        "title": "افزودن به نوار کناری",
+        "body": "نمایش کادرها و بخش‌های خودش در نوار کناری ایمیل."
+      },
+      "ui_settings_section": {
+        "title": "افزودن صفحه تنظیمات",
+        "body": "نمایش صفحه خودش در تنظیمات."
+      },
+      "ui_context_menu": {
+        "title": "افزودن به منوی پیام",
+        "body": "افزودن گزینه به منویی که با کلیک راست روی پیام باز می‌شود."
+      },
+      "ui_navigation_rail": {
+        "title": "افزودن به نوار ناوبری",
+        "body": "نمایش دکمه خودش در نوار ناوبری."
+      },
+      "ui_keyboard": {
+        "title": "افزودن میانبرهای صفحه کلید",
+        "body": "واکنش به میانبرهای صفحه کلیدی که خودش تعریف می‌کند."
+      },
+      "ui_calendar_action": {
+        "title": "افزودن به نمای تقویم",
+        "body": "نمایش دکمه‌ها و بخش‌های خودش روی رویدادها، و برچسب‌های کوتاه و نقطه‌ها روی روزهای تقویم."
+      },
+      "ui_admin_page": {
+        "title": "افزودن صفحه مدیریت",
+        "body": "نمایش صفحه خودش در تنظیمات مدیریت."
+      },
+      "app_lifecycle": {
+        "title": "باخبر شدن از شروع و توقف برنامه",
+        "body": "باخبر شدن وقتی برنامه شروع می‌شود، آفلاین می‌شود یا از حساب خارج می‌شوید."
+      },
+      "compose_open": {
+        "title": "باز کردن ویرایشگر برای شما",
+        "body": "باز کردن پیامی تازه با گیرندگان، متن یا پیوست‌های ازپیش‌پرشده. تصمیم ارسال همچنان با شماست."
+      },
+      "compose_read": {
+        "title": "خواندن پیامی که می‌نویسید",
+        "body": "خواندن متن پیام هنگام نوشتن آن، وقتی افزونه را در ویرایشگر به کار می‌برید. امضا و پیام نقل‌شده را نمی‌خواند."
+      },
+      "compose_write": {
+        "title": "تغییر پیامی که می‌نویسید",
+        "body": "جایگزینی یا افزودن متن در پیام هنگام نوشتن آن، وقتی افزونه را در ویرایشگر به کار می‌برید. هر تغییر را می‌توانید برگردانید و تصمیم ارسال همچنان با شماست."
+      },
+      "ui_notifications": {
+        "title": "نمایش اعلان‌ها",
+        "body": "نمایش اعلان روی دستگاه شما، یا داخل برنامه اگر اجازه اعلان نداده‌اید. هر اعلان نام افزونه را نشان می‌دهد."
+      },
+      "ui_message_list": {
+        "title": "افزودن به فهرست پیام‌ها",
+        "body": "نمایش محتوای خودش بالای فهرست پیام‌ها، و دکمه‌ها روی پیام‌ها و در نوار ابزار پیام‌های انتخاب‌شده."
+      },
+      "ui_contacts": {
+        "title": "افزودن به نمای مخاطبین",
+        "body": "نمایش بخش‌های خودش در جزئیات مخاطب و دکمه‌ها در فهرست مخاطبین."
+      },
+      "ui_tasks": {
+        "title": "افزودن به نمای وظایف",
+        "body": "نمایش بخش‌های خودش در جزئیات وظیفه و دکمه‌ها در فهرست وظایف."
+      },
+      "ui_files": {
+        "title": "افزودن به نمای فایل‌ها",
+        "body": "نمایش بخش‌های خودش در پیش‌نمایش فایل و گزینه‌ها در منوی فایل."
+      },
+      "ui_commands": {
+        "title": "افزودن فرمان",
+        "body": "افزودن گزینه‌های خودش به پالت فرمان (Ctrl+K)."
+      },
+      "ui_app_page": {
+        "title": "افزودن صفحه",
+        "body": "افزودن صفحه‌های خودش به برنامه، هر کدام با یک دکمه در نوار ناوبری."
+      },
+      "http_proxy": {
+        "title": "استفاده از حساب‌هایی که متصل می‌کنید",
+        "body": "ارسال درخواست از طریق سرور Bulwark با حساب یا کلیدی که شما یا مدیرتان راه‌اندازی کرده‌اید. افزونه هرگز گذرواژه را نمی‌بیند، اما می‌تواند هر کاری را که آن حساب روی سرور خودش می‌تواند انجام دهد، انجام دهد."
+      }
+    },
+    "dialog": {
+      "from_plugin": "از افزونه {name}",
+      "ok": "تأیید",
+      "submit": "ارسال",
+      "confirm": "تأیید",
+      "cancel": "لغو",
+      "close": "بستن",
+      "turn_off": "خاموش کردن {name}",
+      "plugin_menu": "گزینه‌های {name}",
+      "password_note": "این فرم از افزونه {name} است، نه از وب‌میل. فقط اگر به این افزونه اعتماد دارید گذرواژه وارد کنید.",
+      "toast_auto_disabled": "{name} به‌دلیل خطاهای پی‌درپی خاموش شد."
+    },
+    "connect": {
+      "title": "اتصال {label}",
+      "intro_password": "{name} می‌خواهد از حساب {label} شما استفاده کند. Bulwark گذرواژه را روی سرور خودش نگه می‌دارد و فقط آن را به {host} می‌فرستد. افزونه هرگز آن را نمی‌بیند.",
+      "intro_password_any": "{name} می‌خواهد از حساب {label} شما استفاده کند. Bulwark گذرواژه را روی سرور خودش نگه می‌دارد و فقط آن را به سروری که اینجا وارد می‌کنید می‌فرستد. افزونه هرگز آن را نمی‌بیند.",
+      "intro_signin": "{name} می‌خواهد به حساب {label} شما وارد شود. سرور را اینجا وارد کنید، سپس در صفحهٔ خود آن سرور وارد شوید. Bulwark دسترسی‌ای را که می‌گیرد روی سرور خودش نگه می‌دارد؛ افزونه هرگز آن را نمی‌بیند.",
+      "server": "آدرس سرور",
+      "server_hint": "cloud.example.com",
+      "username": "نام کاربری",
+      "secret": "گذرواژه یا کلید",
+      "connect": "اتصال",
+      "continue": "ادامه",
+      "cancel": "انصراف",
+      "saving": "در حال ذخیره…",
+      "error_server": "آدرس سرور را وارد کنید، برای نمونه https://cloud.example.com",
+      "error_save": "ذخیره نشد: {error}"
     }
   },
   "global_search": {
@@ -3641,5 +4466,41 @@
     "preview_empty": "برای پیش‌نمایش یک نتیجه انتخاب کنید",
     "open_full": "باز کردن",
     "view_label": "نما"
+  },
+  "top_bar": {
+    "more": "گزینه‌های بیشتر"
+  },
+  "plugin_pages": {
+    "loading": "در حال بارگذاری صفحه",
+    "not_available_title": "این صفحه در دسترس نیست",
+    "not_available_description": "افزونه‌ای که آن را اضافه کرده خاموش است یا دیگر نصب نیست.",
+    "back_to_mail": "بازگشت به ایمیل",
+    "settings_group": "افزونه‌ها"
+  },
+  "command_palette": {
+    "title": "پالت فرمان",
+    "open": "باز کردن پالت فرمان",
+    "placeholder": "یک فرمان بنویسید",
+    "no_results": "فرمان منطبقی پیدا نشد",
+    "go_to": "رفتن به {name}",
+    "compose": "پیام جدید",
+    "search": "جستجو در ایمیل",
+    "theme_dark": "رفتن به پوسته تیره",
+    "theme_light": "رفتن به پوسته روشن",
+    "shortcuts": "نمایش میانبرهای صفحه کلید",
+    "group_navigation": "رفتن به",
+    "group_actions": "کارها",
+    "group_plugins": "افزونه‌ها"
+  },
+  "notification_center": {
+    "title": "اعلان‌ها",
+    "mark_all_read": "علامت‌گذاری همه به‌عنوان خوانده‌شده",
+    "clear": "پاک کردن",
+    "empty": "اعلانی نیست",
+    "close": "بستن",
+    "unread": "خوانده‌نشده",
+    "unread_count": "{count} خوانده‌نشده",
+    "level_error": "خطا",
+    "level_warning": "هشدار"
   }
 }

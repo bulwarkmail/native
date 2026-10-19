@@ -17,17 +17,24 @@
     "reconnecting": "З'єднання втрачено. Спроба повторного підключення…",
     "error": {
       "invalid_credentials": "Неправильна адреса електронної пошти або пароль. Перевірте свої облікові дані та повторіть спробу.",
+      "invalid_token": "Сервер не прийняв цей токен доступу. Перевірте, чи його скопійовано повністю, чи не минув термін його дії і чи його не відкликано.",
       "connection_failed": "Не вдалося підключитися до сервера. Перевірте підключення до Інтернету та повторіть спробу.",
       "cors_blocked": "Сервер доступний, але він блокує перехресні запити. Перевірте налаштування CORS свого сервера JMAP і дозвольте цей домен.",
       "server_error": "Сервер тимчасово недоступний. Спробуйте пізніше.",
       "generic": "Сталася неочікувана помилка. Якщо це не зникне, зверніться до адміністратора.",
       "totp_required": "Потрібен код двофакторної автентифікації. Будь ласка, введіть свій код нижче.",
       "totp_invalid": "Недійсний код автентифікації. Перевірте свою програму автентифікації та повторіть спробу.",
-      "oauth_discovery_failed": "Система єдиного входу ввімкнена, але зв’язатися з постачальником ідентифікаційної інформації не вдалося. Перевірте конфігурацію OAuth."
+      "oauth_discovery_failed": "Система єдиного входу ввімкнена, але зв’язатися з постачальником ідентифікаційної інформації не вдалося. Перевірте конфігурацію OAuth.",
+      "token_exchange_failed": "Пароль і код прийнято, але поштовий сервер відмовився відкрити сеанс для цього застосунку. Попросіть адміністратора перевірити налаштування OAuth-клієнта."
     },
     "show_password": "Показати пароль",
     "hide_password": "Приховати пароль",
     "totp_toggle": "У мене є код 2FA",
+    "token_toggle": "Увійти за допомогою токена доступу",
+    "password_toggle": "Увійти за допомогою пароля",
+    "token_label": "Токен доступу",
+    "token_placeholder": "Вставте свій API-токен",
+    "token_hint": "Створіть API-токен у налаштуваннях свого поштового провайдера та вставте його сюди.",
     "remember_me": "пам'ятай мене",
     "config_error": {
       "title": "Помилка конфігурації",
@@ -53,6 +60,12 @@
     "demo_login_button": "Запустити демонстрацію",
     "demo_tagline": "Спробуйте повнофункціональний поштовий клієнт. Обліковий запис не потрібен.",
     "demo_no_signup": "Реєстрація не потрібна - вільно досліджуйте з зразками даних",
+    "mobile_handoff": {
+      "title": "Open the Bulwark mobile app?",
+      "description": "This sign-in page was opened by an app on this device. Your sign-in for {username} will be handed to the app that registered the Bulwark link. Continue only if you started this from the Bulwark mobile app.",
+      "confirm": "Hand over to the app",
+      "cancel": "Stay in the webmail"
+    },
     "oauth_completing": "Завершення входу...",
     "oauth_error": {
       "title": "Помилка автентифікації",
@@ -114,6 +127,7 @@
     "unified_archive": "Усі архіви",
     "unified_junk": "Весь спам",
     "all_accounts": "Усі облікові записи",
+    "all_accounts_loading": "Завантаження облікових записів: {loaded} з {total}",
     "unified_mailbox": "Спільна поштова скринька",
     "expand": "Розгорнути",
     "collapse": "Згорнути",
@@ -134,16 +148,32 @@
     "show_all_tags": "Показати всі ({count})",
     "show_fewer_tags": "Показати менше",
     "folders": "Папки",
+    "your_folders": "Ваші теки",
+    "create_folder": "Створити теку",
+    "show_more": "Більше",
+    "show_fewer": "Менше",
     "mail": "Пошта",
     "nav_label": "Навігація",
     "add_app": "програми",
     "shared": "Спільні",
+    "shared_account_hidden": "Приховано з бічної панелі. Повернути можна в Налаштування › Макет.",
+    "notifications_muted": "Сповіщення вимкнено",
     "scheduled": "Заплановано",
     "unified_all_unread": "Усі непрочитані",
     "unified_all_starred": "Усі позначені",
     "unified_all_mail": "Уся пошта",
     "remove_account": "Remove account",
-    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later.",
+    "labels": "Мітки",
+    "create_label": "Створити мітку",
+    "mv_tasks": "Завдання",
+    "mv_side_panel": "Бічна панель",
+    "mv_open_full": "Відкрити повністю",
+    "mv_previous_day": "Попередній день",
+    "mv_next_day": "Наступний день",
+    "mv_add_another_account": "Додати інший обліковий запис",
+    "mv_manage_account": "Керувати обліковим записом",
+    "mv_storage_used": "Використано {percent}% з {total}"
   },
   "protocol_handlers": {
     "title": "Програми за замовчуванням",
@@ -214,6 +244,13 @@
     "show_on_mobile": "Показати на мобільному"
   },
   "email_list": {
+    "columns": {
+      "from": "Від",
+      "to": "Кому",
+      "subject": "Тема",
+      "date": "Дата",
+      "size": "Розмір"
+    },
     "no_emails": "Повідомлень не знайдено",
     "no_emails_description": "Ця поштова скринька порожня",
     "no_search_results": "Результатів не знайдено",
@@ -229,6 +266,7 @@
     "replied": "Відповіли",
     "forwarded": "Переслано",
     "has_attachment": "З вкладенням",
+    "conversations_range": "{from}–{to, number} з {total, number}",
     "conversations_count": "{count} з {total} розмов",
     "conversations_count_plus": "{count}+ розмов",
     "conversations_count_simple": "{count} розмов",
@@ -254,6 +292,7 @@
       "button": "Порожня папка",
       "confirm_title": "Порожня папка",
       "confirm_message": "Усі електронні листи в цій папці буде остаточно видалено. Цю дію не можна скасувати.",
+      "confirm_message_trash": "Усі листи з цієї папки буде переміщено в кошик.",
       "confirm_button": "Порожня папка",
       "junk_hint": "Ви можете очистити папку «Сміття», щоб остаточно видалити всі повідомлення.",
       "trash_hint": "Ви можете очистити папку «Кошик», щоб остаточно видалити всі повідомлення."
@@ -310,6 +349,8 @@
     "view_source": "Переглянути джерело",
     "fullscreen": "На весь екран",
     "exit_fullscreen": "Вийти з повноекранного режиму",
+    "view_in_dark_mode": "Перегляд у темному режимі",
+    "view_in_light_mode": "Перегляд у світлому режимі",
     "export_email": "Експортувати як .eml",
     "forward_as_attachment": "Переслати як вкладення",
     "import_email": "Імпорт .eml або .zip",
@@ -334,6 +375,15 @@
     "external_content_warning": "Зображення та зовнішній вміст заблоковано",
     "load_external_content": "Завантажити зображення",
     "trust_sender": "Завжди довіряйте цьому відправнику",
+    "sender_check": {
+      "unverified_label": "Неперевірений відправник",
+      "failed_label": "Перевірку відправника не пройдено",
+      "unverified": "Це повідомлення нібито надіслано з домену {domain}, але ніщо цього не підтверджує. Воно не має дійсного підпису домену {domain} і надійшло не з сервера, якому домен {domain} дозволяє надсилання.",
+      "unverified_sent_from": "Це повідомлення нібито надіслано з домену {domain}, але насправді його надіслано з домену {host}, і воно не має дійсного підпису домену {domain}.",
+      "failed": "Це повідомлення нібито надіслано з домену {domain}, але воно не пройшло перевірку відправника цього домену. Можливо, воно підроблене.",
+      "failed_sent_from": "Це повідомлення нібито надіслано з домену {domain}, але насправді його надіслано з домену {host}, і воно не пройшло перевірку відправника домену {domain}. Можливо, воно підроблене.",
+      "caution": "Будьте обережні з посиланнями, вкладеннями та запитами паролів чи платіжних даних."
+    },
     "back_to_list": "Повернутися до списку",
     "view_contact": "Переглянути контакт",
     "message_details": "Деталі повідомлення",
@@ -552,6 +602,8 @@
     },
     "scheduled_banner": "Заплановано на надсилання {date}",
     "scheduled_send_created": "Лист заплановано до надсилання",
+    "sending_in": "Надсилання через {seconds} с",
+    "undo_send_failed": "Не вдалося скасувати. Можливо, повідомлення вже надіслано.",
     "cancel_scheduled_send": "Скасувати надсилання",
     "reschedule_send": "Перенести",
     "cancel_and_edit": "Скасувати й редагувати",
@@ -576,19 +628,25 @@
       "not_in_contacts": "Немає у ваших контактах",
       "add_to_contacts": "Додати до контактів",
       "copied": "Скопійовано!",
-      "copy_failed": "Не вдалося скопіювати"
+      "copy_failed": "Не вдалося скопіювати",
+      "view_contact": "Переглянути контакт",
+      "view_details": "Докладніше"
     },
-    "send_now": "Надіслати зараз"
+    "send_now": "Надіслати зараз",
+    "verification_code": {
+      "copy": "Скопіювати код {code}",
+      "copied": "Код скопійовано",
+      "copy_failed": "Не вдалося скопіювати код"
+    },
+    "mv_position": "{index} з {total}",
+    "plugin_panel_show": "Показати панель плагіна",
+    "plugin_panel_hide": "Сховати панель плагіна"
   },
   "email_composer": {
-    "read_receipt_on": "Запитано сповіщення про прочитання (натисніть, щоб вимкнути)",
-    "read_receipt_off": "Запитати сповіщення про прочитання",
-    "dsn_on": "Запитано сповіщення про доставку (натисніть, щоб вимкнути)",
-    "dsn_off": "Запитати сповіщення про доставку",
-    "format_plain_text": "Перемкнути на простий текст",
-    "format_rich_text": "Перемкнути на форматований текст (HTML)",
-    "require_tls_on": "Потрібна зашифрована доставка (натисніть, щоб вимкнути)",
-    "require_tls_off": "Вимагати зашифровану доставку (TLS)",
+    "select_from_directory": "Вибрати з довідника",
+    "minimize": "Згорнути",
+    "maximize": "На весь екран",
+    "restore": "Відновити",
     "new_message": "Нове повідомлення",
     "signature_edit_hint": "Двічі клацніть, щоб редагувати підпис",
     "reply": "Відповісти",
@@ -608,9 +666,16 @@
     "attach": "Прикріпити",
     "attach_photos": "Photos & Videos",
     "attach_files": "Files",
+    "attach_from_files": "Прикріпити з Файлів",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Прикріпити} one {Прикріпити # файл} few {Прикріпити # файли} many {Прикріпити # файлів} other {Прикріпити # файлу}}",
+      "empty_folder": "Ця папка порожня",
+      "load_failed": "Не вдалося завантажити ваші файли"
+    },
     "discard": "Відкинути",
     "discard_draft_title": "Відхилити чернетку?",
     "discard_draft_confirm": "У вас є незбережені зміни. Ви хочете відхилити цю чернетку?",
+    "discard_draft_message": "Чернетку буде видалено.",
     "saving": "Збереження...",
     "draft_saved": "Чернетку збережено",
     "save_failed": "Не вдалося зберегти",
@@ -626,6 +691,7 @@
       "forward": "Fwd:",
       "reply": "Re:"
     },
+    "forward_batch_count": "{count, plural, one {1 лист} few {# листи} many {# листів} other {# листів}}",
     "no_subject": "(без теми)",
     "unknown_sender": "Невідомий",
     "quote": {
@@ -647,11 +713,27 @@
       "email_placeholder": "alias@example.com",
       "envelope_notice": "Якщо ваш сервер не приймає цю адресу як відправника конверта, замість неї використовується {identity}, і одержувачі бачитимуть її в заголовку Return-Path."
     },
-    "use_template": "Шаблон",
     "save_as_template": "Зберегти як шаблон",
+    "attach_from_device": "Завантажити з цього пристрою",
+    "templates_menu": "Шаблони",
+    "insert_template": "Вставити шаблон",
+    "options": "Параметри",
+    "option_plain_text": "Звичайний текст",
+    "option_plain_text_hint": "Надіслати без форматування",
+    "option_read_receipt": "Запросити сповіщення про прочитання",
+    "option_read_receipt_hint": "Попросити одержувача підтвердити відкриття",
+    "option_dsn": "Сповіщення про доставку",
+    "option_dsn_hint": "Отримати звіт, коли сервер доставить лист",
+    "option_require_tls": "Вимагати шифровану доставку",
+    "option_require_tls_hint": "Доставляти лише через TLS, інакше повернути",
+    "option_priority": "Важливість",
+    "option_priority_high": "Висока",
+    "option_priority_normal": "Звичайна",
+    "option_priority_low": "Низька",
     "validation": {
       "recipient_required": "Додайте одержувача для надсилання",
       "body_required": "Напишіть повідомлення або прикріпіть файл",
+      "invalid_recipients": "Не надіслано - перевірте ці адреси: {addresses}",
       "attachments_uploading": "Вкладення ще завантажуються — надсилання почнеться після завершення",
       "attachment_upload_failed": "Не надіслано — не вдалося завантажити вкладення. Видаліть його та спробуйте ще раз."
     },
@@ -664,6 +746,11 @@
     "show_less": "Показувати менше",
     "send_failed": "Не вдалося надіслати електронний лист",
     "send_timeout": "Сервер перестав відповідати. Перш ніж надсилати знову, перевірте теку «Надіслані» — лист міг уже піти.",
+    "send_offline": "Схоже, ви не в мережі. Повідомлення збережено, надішліть його знову, коли з'явиться зв'язок.",
+    "formatting": "Форматування",
+    "send_recipients_rejected": "Не надіслано — сервер відхилив усіх одержувачів.",
+    "send_plugin_failed": "Не надіслано: плагін, який відповідає за надсилання, завершився з помилкою або працював задовго. Перевірте папку «Надіслані», перш ніж надсилати знову.",
+    "send_some_recipients_rejected": "Надіслано, але не цим одержувачам — сервер їх відхилив.",
     "continue_draft": "Продовжити чернетку",
     "close_draft_title": "Зберегти чи видалити чернетку?",
     "close_draft_message": "У вас є незбережені зміни. Зберегти це як чернетку чи видалити?",
@@ -694,6 +781,11 @@
     "sending": "Надсилання...",
     "schedule_send": "Запланувати надсилання",
     "schedule_send_description": "Виберіть, коли сервер має надіслати це повідомлення.",
+    "schedule_preset": {
+      "tomorrow_morning": "Завтра вранці",
+      "tomorrow_afternoon": "Завтра вдень",
+      "monday_morning": "У понеділок вранці"
+    },
     "schedule_send_required": "Виберіть дату й час.",
     "schedule_send_invalid": "Введіть дійсні дату й час.",
     "schedule_send_future": "Виберіть дату й час у майбутньому.",
@@ -706,8 +798,13 @@
     "recipient_edit_name": "Змінити відображуване ім'я",
     "recipient_email_placeholder": "Адреса ел. пошти",
     "recipient_name_placeholder": "Відображуване ім'я",
+    "invalid_recipient": "Недійсна адреса електронної пошти",
     "autocomplete_search_server": "Шукати на сервері",
     "autocomplete_searching": "Пошук...",
+    "mention_recipients": "Одержувачі",
+    "mention_card_not_recipient": "Немає в полях «Кому» та «Копія», тож лист не отримає.",
+    "mention_card_add": "Додати в {field}",
+    "mention_card_remove": "Прибрати згадку",
     "toolbar": {
       "bold": "Жирний",
       "italic": "Курсив",
@@ -744,7 +841,9 @@
       "background_color": "Колір фону",
       "remove_background_color": "Прибрати колір фону"
     },
-    "send_filing_warning": "Надіслано - але подальше очищення не вдалося, може залишитися застаріла чернетка."
+    "send_filing_warning": "Надіслано - але подальше очищення не вдалося, може залишитися застаріла чернетка.",
+    "pop_out": "Відкрити відповідь в окремому вікні",
+    "send_guard_failed": "Не надіслано: плагін, що перевіряє листи перед надсиланням, завершився з помилкою або не відповів."
   },
   "confirm_dialog": {
     "confirm": "Підтвердити",
@@ -801,6 +900,10 @@
     "emails_moved": "{count} електронних листів переміщено",
     "moved_to_mailbox": "Переміщено до {mailbox}",
     "move_failed": "Не вдалося перемістити",
+    "removed_from_folder": "Прибрано з папки {mailbox}",
+    "remove_from_folder_failed": "Не вдалося прибрати з цієї папки",
+    "emails_copied": "{count} електронних листів скопійовано",
+    "copy_failed": "Не вдалося скопіювати",
     "move_error": "Не вдалося перемістити електронні листи до вибраної папки",
     "email_tagged": "Електронна пошта позначена тегами",
     "emails_tagged": "{count} електронних листів позначено тегами",
@@ -814,8 +917,8 @@
     "identity_delete_failed": "Не вдалося видалити особу: {error}",
     "identity_unauthorized": "Ви не авторизовані надсилати з цієї електронної адреси",
     "identity_not_found": "Особа не знайдена",
-    "vacation_saved": "Налаштування автовідповідача збережено",
-    "vacation_save_failed": "Не вдалося зберегти налаштування автовідповідача",
+    "vacation_saved": "Налаштування відсутності збережено",
+    "vacation_save_failed": "Не вдалося зберегти налаштування відсутності",
     "filters_saved": "Фільтри успішно збережено",
     "filters_save_failed": "Не вдалося зберегти фільтри",
     "filters_deleted": "Правило фільтра видалено",
@@ -825,7 +928,20 @@
     "templates_import_empty": "У файлі не знайдено шаблонів",
     "export_email_error": "Не вдалося експортувати електронну пошту",
     "import_email_success": "Електронну пошту успішно імпортовано",
-    "import_email_error": "Не вдалося імпортувати електронну пошту"
+    "import_email_error": "Не вдалося імпортувати електронну пошту",
+    "rule_created": "Правило створено",
+    "rule_merged": "Додано до правила «{name}»",
+    "rule_already_covered": "Уже охоплено правилом «{name}»",
+    "rule_apply_existing": "{count, plural, one {Застосувати до # наявного листа} few {Застосувати до # наявних листів} many {Застосувати до # наявних листів} other {Застосувати до # наявного листа}}",
+    "rule_applied": "{count, plural, =0 {Жоден лист не потребував змін} one {Правило застосовано до # листа} few {Правило застосовано до # листів} many {Правило застосовано до # листів} other {Правило застосовано до # листа}}",
+    "rule_apply_failed": "Не вдалося застосувати правило до наявних листів",
+    "rule_edit": "Редагувати правило",
+    "rule_undo": "Скасувати",
+    "rule_undone": "Зміну правила скасовано",
+    "rule_undo_failed": "Не вдалося скасувати зміну правила",
+    "rule_undo_conflict": "Ваші фільтри відтоді змінилися. Скасуйте зміну в налаштуваннях фільтрів.",
+    "rule_folder_failed": "Не вдалося створити папку",
+    "vacation_filters_save_failed": "Налаштування відсутності збережено, але пересилання та отримувачів відповіді зберегти не вдалося"
   },
   "date": {
     "today": "Сьогодні",
@@ -906,11 +1022,11 @@
       "appearance": "Зовнішній вигляд",
       "language": "Мова, регіон і час",
       "email": "Поведінка електронної пошти",
-      "composer": "Композитор",
+      "composer": "Редактор",
       "privacy": "Конфіденційність і безпека",
       "account": "Обліковий запис",
       "identities": "Ідентичності",
-      "vacation": "Відповідач у відпустці",
+      "vacation": "Відсутність",
       "advanced": "Просунутий",
       "calendar": "Календар",
       "filters": "Фільтри",
@@ -925,12 +1041,25 @@
       "sidebar_apps": "Програми бічної панелі",
       "notifications": "Сповіщення",
       "layout": "Макет",
+      "themes": "Теми",
       "reading": "Читання",
       "composing": "Написання",
       "downloads": "Завантаження",
       "content_senders": "Вміст і відправники",
       "about_data": "Про програму та дані",
       "debug": "Налагодження"
+    },
+    "themes": {
+      "title": "Теми",
+      "description": "Виберіть тему, розгорнуту вашим адміністратором, або одну з вбудованих.",
+      "locked": "Вибір теми заблоковано адміністратором.",
+      "forced": "Тему «{name}» встановлено адміністратором, і її не можна змінити",
+      "admin_theme": "Тема адміністратора",
+      "activated": "Тему активовано",
+      "default_restored": "Тему за замовчуванням відновлено",
+      "default_name": "За замовчуванням",
+      "default_badge": "За замовчуванням",
+      "admin_enforced": "Встановлено адміністратором"
     },
     "tab_groups": {
       "general": "Загальний",
@@ -1022,6 +1151,12 @@
         "regular": "Регулярний",
         "comfortable": "Комфортно"
       },
+      "interface_layout": {
+        "label": "Макет інтерфейсу",
+        "description": "Де розташовані пошук, навігація та панелі інструментів",
+        "default": "За замовчуванням",
+        "mountain_view": "Mountain View"
+      },
       "animations": {
         "label": "Увімкнути анімацію",
         "description": "Показувати плавні переходи та ефекти"
@@ -1070,6 +1205,14 @@
         "label": "Tint List Rows by Tag Color",
         "description": "Shade each message row with its first tag color. Disable to keep rows plain; tag dots and chips still show the color."
       },
+      "show_account_dot": {
+        "label": "Show Account Dot",
+        "description": "In the unified view, show a dot in the account color next to the sender, so you can tell which account a message came from. Has no effect while rows are tinted by account color."
+      },
+      "tint_list_rows_by_account": {
+        "label": "Tint List Rows by Account Color",
+        "description": "In the unified view, shade each row with its account color instead of showing the account dot. Takes precedence over the tag tint; tags keep their color on their chips."
+      },
       "show_folder_total_count": {
         "label": "Показувати загальну кількість повідомлень",
         "description": "Показує загальну кількість повідомлень поруч із теками та мітками, разом із кількістю непрочитаних. Вимкніть, щоб показувати лише непрочитані."
@@ -1077,6 +1220,10 @@
       "favicon_unread_badge": {
         "label": "Unread Count on Tab Icon",
         "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
+      },
+      "show_shared_mail_accounts": {
+        "label": "Показувати спільні поштові акаунти",
+        "description": "Показувати папки скриньок, до яких вам надано доступ, у розділі «Спільні» на бічній панелі. Вимкніть, щоб приховати всі, або приховайте окремі акаунти нижче. Їхні календарі та контакти залишаться."
       },
       "pro_interface": {
         "label": "Pro-інтерфейс (експериментальний)",
@@ -1114,6 +1261,7 @@
       "cancel": "Скасувати",
       "migrating": "Оновлення ключового слова в наявних електронних листах…",
       "migration_error": "Не вдалося оновити ключове слово в існуючих електронних листах",
+      "filters_migration_error": "Деякі правила фільтрів досі використовують старий тег — оновіть їх вручну",
       "nesting": {
         "label": "Вкладені теги",
         "description": "Вкладайте теги в інші теги та показуйте їх на бічній панелі у вигляді дерева."
@@ -1151,6 +1299,18 @@
         "swift": "Швидкий жест",
         "relax": "Розслабтеся"
       },
+      "push_all": {
+          "title": "All accounts",
+          "description": "Turn push on or off for several accounts at once. One browser subscription serves them all.",
+          "select_all": "Select every connected account",
+          "state_on": "notifications on",
+          "state_off": "notifications off",
+          "enable_selected": "Enable for selected",
+          "disable_selected": "Disable for selected",
+          "result_enabled": "Notifications enabled for {count} accounts.",
+          "result_partial": "Enabled for {enabled} accounts; {failed} could not be enabled.",
+          "result_disabled": "Notifications disabled for {count} accounts."
+        },
       "sound_selection": {
         "title": "Звук сповіщення",
         "description": "Виберіть звук для сповіщень",
@@ -1226,8 +1386,8 @@
       "date_format": {
         "label": "Формат дати",
         "description": "Як відображаються дати у списку листів",
-        "smart": "Розумний (за регіоном)",
-        "relative": "Відносний (1 год тому, 2 дн тому)",
+        "smart": "Розумний",
+        "relative": "Відносний",
         "full": "Завжди повна дата",
         "preview_today": "Сьогодні:",
         "preview_this_week": "Цього тижня:",
@@ -1236,8 +1396,8 @@
       "date_locale": {
         "label": "Date format region",
         "description": "How numeric dates are ordered (day, month, year)",
-        "auto": "Automatic (match language)",
-        "iso": "ISO 8601 (YYYY-MM-DD)",
+        "auto": "Automatic",
+        "iso": "ISO 8601",
         "dmy": "Day/Month/Year",
         "mdy": "Month/Day/Year"
       },
@@ -1321,6 +1481,10 @@
         "label": "Видалити непотріб назавжди",
         "description": "Назавжди видаляйте електронні листи з папки «Сміття» замість того, щоб переміщувати їх у кошик"
       },
+      "confirm_bulk_delete": {
+        "label": "Підтверджувати видалення кількох листів",
+        "description": "Питати перед переміщенням кількох вибраних листів до кошика. Остаточне видалення завжди питає."
+      },
       "mail_layout": {
         "label": "Макет пошти",
         "description": "Вибирайте між класичною розділеною панеллю читання та зосередженим потоком читання у стилі Gmail.",
@@ -1331,10 +1495,18 @@
         "horizontal": "Область читання знизу",
         "horizontal_description": "Показуйте список повідомлень угорі та відкривайте вибране повідомлення в області читання під ним."
       },
+      "list_columns": {
+        "label": "Показувати список стовпцями",
+        "description": "Показує однорядкові рядки як таблицю зі стовпцями «Від», «Тема», «Дата» і «Розмір» під заголовком."
+      },
       "show_preview": {
         "label": "Показати попередній перегляд тексту",
         "description": "Відобразити попередній перегляд електронної пошти в списку",
         "focus_description": "Відображати вбудований текст попереднього перегляду всередині однорядкового списку повідомлень у фокусі"
+      },
+      "show_verification_codes": {
+        "label": "Показувати коди підтвердження",
+        "description": "Пропонувати код із листів для входу та підтвердження для копіювання одним кліком: у списку протягом доби та в самому листі"
       },
       "disable_threading": {
         "label": "Вимкнути групування розмов",
@@ -1464,6 +1636,17 @@
         "label": "Попередження про порожню тему",
         "description": "Запитувати підтвердження перед надсиланням листа без теми."
       },
+      "recipient_mentions": {
+        "label": "Згадувати одержувачів через @",
+        "description": "Під час введення @ у тексті листа пропонуються його одержувачі, і вставляється ім'я вибраного. Enter або Tab вибирає виділене ім'я."
+      },
+      "mention_adds_recipient": {
+        "label": "Контакти в згадках через @",
+        "description": "Під час введення @ також пропонуються ваші контакти та люди з каталогу. Якщо вибрати того, кого ще немає серед одержувачів, його буде додано до листа.",
+        "to": "Додати в «Кому»",
+        "cc": "Додати в «Копія»",
+        "off": "Лише одержувачі"
+      },
       "hide_inline_image_attachments": {
         "label": "Приховувати вбудовані зображення з вкладень",
         "description": "Зображення, вбудовані в тіло повідомлення, не відображаються як окремі вкладення"
@@ -1505,7 +1688,7 @@
       }
     },
     "composer": {
-      "title": "Композитор",
+      "title": "Редактор",
       "description": "Налаштування параметрів композиції електронної пошти",
       "autosave": {
         "label": "Інтервал автозбереження",
@@ -1558,6 +1741,7 @@
       "auth_method_label": "Аутентифікація",
       "auth_method_oauth": "Єдиний вхід (OAuth/OIDC)",
       "auth_method_basic": "Пароль",
+      "auth_method_token": "Токен доступу",
       "demo_account": "Демо-рахунок",
       "email": {
         "label": "Адреса електронної пошти",
@@ -1587,6 +1771,40 @@
         "move_down": "Перемістити вниз",
         "drag_handle": "Перетягніть, щоб змінити порядок",
         "add": "Додати обліковий запис"
+      },
+      "backup": {
+        "title": "Account list backup",
+        "description": "Keep the list of accounts in this browser on the server, encrypted with a password only you know, and bring it back on another device. Mailbox passwords are not saved: you sign in to each restored account yourself.",
+        "description_passwords": "Keep the list of accounts in this browser on the server, encrypted with a password only you know, and bring it back on another device. You can include the mailbox passwords, so the restored accounts sign in by themselves.",
+        "status_none": "No list is saved for {account}.",
+        "status_saved": "A list is saved for {account}.",
+        "save": "Save list",
+        "restore": "Restore list",
+        "delete": "Delete saved list",
+        "cancel": "Cancel",
+        "delete_confirm": "Delete the saved account list from the server?",
+        "password": "Backup password",
+        "password_hint": "At least 10 characters. It cannot be recovered: if you forget it, save the list again with a new one.",
+        "restore_hint": "The password chosen when the list was saved.",
+        "confirm": "Confirm password",
+        "include_passwords": "Include mailbox passwords",
+        "include_passwords_hint": "Accounts signed in here with a password will sign in by themselves after a restore. Anyone who knows the backup password gets into every mailbox in the list.",
+        "saved": "List saved ({count, plural, one {# account} other {# accounts}}).",
+        "restored": "Accounts added: {added}. Accounts already here and updated: {updated}. Open each new account from the account list to sign in.",
+        "restored_signed_in": "Accounts added: {added}. Accounts already here and updated: {updated}.",
+        "skipped": "{count, plural, one {# account was} other {# accounts were}} not added: the account limit is reached.",
+        "saved_passwords": "Passwords included for {count, plural, one {# account} other {# accounts}}.",
+        "signed_in": "Signed in to {count, plural, one {# account} other {# accounts}} with the saved password.",
+        "sign_in_failed": "{count, plural, one {# saved password was} other {# saved passwords were}} refused: sign in to those accounts from the account list.",
+        "deleted": "Saved list deleted.",
+        "errors": {
+          "mismatch": "The passwords do not match.",
+          "password_length": "Use at least 10 characters.",
+          "unlock_failed": "Wrong password, or the list was saved for another account.",
+          "owner_signin_required": "Sign in to this account again, then retry.",
+          "https_required": "This needs a secure (HTTPS) connection.",
+          "storage_failed": "The server could not read or store the list. Try again later."
+        }
       },
       "shared_accounts": {
         "title": "Доступні мені",
@@ -1702,14 +1920,36 @@
       },
       "link_device": {
         "title": "Прив'язати мобільний застосунок",
-        "description": "Увійдіть у мобільний застосунок Bulwark Mail без введення даних. Створіть тут QR-код і відскануйте його на екрані входу в застосунку.",
+        "description": "Увійдіть у застосунок Bulwark Mail на телефоні, не вводячи там пароль. Телефон отримує власний вхід, тож вихід тут не завершує сеанс на ньому.",
         "generate": "Показати QR-код",
         "regenerate": "Показати новий код",
-        "instructions": "Відкрийте застосунок Bulwark Mail, натисніть \"Сканувати QR-код\" на екрані входу та наведіть камеру сюди.",
+        "instructions": "Відкрийте застосунок Bulwark Mail і натисніть \"Scan a sign-in code\" на екрані входу (або \"Add account\" → \"Scan a sign-in code\", якщо ви вже увійшли), потім наведіть камеру сюди.",
         "expires_in": "Термін дії коду закінчиться через {seconds} секунд. Його можна використати лише один раз.",
         "expired": "Термін дії цього коду закінчився.",
-        "generating": "Створення…",
-        "error": "Не вдалося створити код прив'язки. Будь ласка, спробуйте ще раз."
+        "error": "Не вдалося створити код прив'язки. Будь ласка, спробуйте ще раз.",
+        "password_prompt": "Введіть пароль, щоб підтвердити, що це ви. Телефон отримує власний вхід; ваш пароль на телефон не передається.",
+        "show_password": "Показати пароль",
+        "hide_password": "Приховати пароль",
+        "continue": "Продовжити",
+        "error_wrong_password": "Неправильний пароль. Спробуйте ще раз.",
+        "totp_prompt": "Введіть код із застосунку-автентифікатора.",
+        "error_password_or_code": "Неправильний пароль або код.",
+        "error_not_signed_in": "Ваш сеанс завершився. Увійдіть знову, щоб прив'язати пристрій.",
+        "error_impersonation": "Не можна прив'язувати пристрої, поки ви переглядаєте поштову скриньку іншого користувача.",
+        "error_too_many_attempts": "Забагато спроб. Зачекайте трохи й спробуйте знову.",
+        "error_session_secret": "Прив'язку пристроїв на цьому сервері не налаштовано (відсутній SESSION_SECRET). Зверніться до адміністратора.",
+        "error_server_unreachable": "Не вдалося зв'язатися з вашим поштовим сервером. Спробуйте ще раз.",
+        "error_pairing_unavailable": "Ваш поштовий сервер не дозволяє прив'язувати пристрої таким способом. Зверніться до адміністратора.",
+        "qr_alt": "QR-код для входу",
+        "link_label": "Посилання для входу",
+        "copy_link": "Скопіювати посилання для входу",
+        "copied": "Скопійовано",
+        "copy_hint": "Немає камери? Скопіюйте посилання та вставте його в застосунку через \"Paste sign-in link\".",
+        "success_title": "Вхід на телефоні виконано",
+        "success_body": "Цю сторінку можна закрити. Щоб прив'язати ще один пристрій, покажіть новий код.",
+        "link_another": "Прив'язати ще один пристрій",
+        "use_sso": "Натомість використати єдиний вхід",
+        "error_insecure_server": "Мобільний застосунок підключається до поштових серверів лише через https, а цей сервер використовує http."
       },
       "public_keys": {
         "name_label": "Назва відкритого ключа",
@@ -1737,28 +1977,24 @@
       }
     },
     "vacation": {
-      "title": "Відповідач у відпустці",
-      "description": "Автоматично відповідайте на вхідні листи, поки вас немає",
+      "title": "Відсутність",
+      "description": "Автоматично обробляйте вхідні листи, поки вас немає",
       "loading": "Завантаження налаштувань відпустки...",
       "not_supported": "Ваш поштовий сервер не підтримує відповіді про відпустку.",
       "fetch_error": "Не вдалося завантажити налаштування відпустки. Спробуйте ще раз.",
       "status": {
-        "label": "Відповідач у відпустці",
+        "label": "Відповідати автоматично",
         "description": "Надсилайте автоматичну відповідь людям, які надсилають вам електронні листи",
         "active": "Активний",
         "inactive": "Неактивний"
       },
       "date_range": {
-        "title": "Діапазон дат",
-        "description": "За бажанням можна обмежити автоматичну відповідь певним періодом",
         "start": "Дата початку",
         "start_description": "Залиште пустим, щоб не було обмеження на початок",
         "end": "Дата закінчення",
         "end_description": "Залиште пустим, щоб не було кінцевого обмеження"
       },
       "message": {
-        "title": "Повідомлення автоматичної відповіді",
-        "description": "Повідомлення, яке буде надіслано у відповідь",
         "subject_label": "Тема",
         "subject_description": "Тема автоматичної відповіді",
         "subject_placeholder": "Поза офісом",
@@ -1778,10 +2014,32 @@
       "saving": "Збереження...",
       "warnings": {
         "end_before_start": "Дата завершення має бути після дати початку",
+        "invalid_date": "Вкажіть дійсні дати початку й закінчення з часом або залиште поле порожнім",
         "start_in_past": "Дата початку в минулому",
         "empty_body": "Тіло повідомлення порожнє - одержувачі отримають порожню відповідь",
         "subject_too_long": "Тема задовга для сервера (не більше {max} байтів).",
-        "body_too_long": "Повідомлення задовге для сервера (не більше {max} байтів разом із форматуванням)."
+        "body_too_long": "Повідомлення задовге для сервера (не більше {max} байтів разом із форматуванням).",
+        "forward_address": "Вкажіть дійсну адресу для пересилання",
+        "not_running": "Пересилання або отримувачів відповіді збережено, але зараз вони не діють. Збережіть, щоб знову їх увімкнути."
+      },
+      "forward": {
+        "title": "Пересилання",
+        "description": "Пересилає вхідні листи на іншу адресу, з автовідповіддю або без неї, у зазначений вище період (без дати завершення, доки пересилання не вимкнуть). Спам не пересилається.",
+        "enabled_label": "Пересилати листи",
+        "to_label": "Переслати до",
+        "to_placeholder": "email@example.com",
+        "keep_label": "Зберігати у вхідних",
+        "keep_description": "Інакше лист лише пересилається: він не залишається в цій поштовій скриньці, і до нього не застосовується жодне правило фільтра."
+      },
+      "audience": {
+        "label": "Відповідати",
+        "description": "Внутрішні відправники: {domains}",
+        "all": "Усім відправникам",
+        "internal": "Лише внутрішнім відправникам",
+        "external": "Лише зовнішнім відправникам"
+      },
+      "auto_reply": {
+        "title": "Автовідповідь"
       }
     },
     "folders": {
@@ -1806,11 +2064,25 @@
       "reorder": "Перетягніть, щоб змінити порядок",
       "reorder_error": "Не вдалося змінити порядок папок",
       "move_error": "Не вдалося перемістити папку",
+      "select_folder": "Вибрати {name}",
+      "select_hint": "Вибрати. Shift+клацання вибирає всі папки до останньої, яку ви клацнули.",
+      "selected_count": "{count, plural, one {Вибрано # папку} few {Вибрано # папки} many {Вибрано # папок} other {Вибрано # папки}}",
+      "move_to": "Перемістити до...",
+      "move_to_top_level": "Верхній рівень",
+      "move": "Перемістити",
+      "clear_selection": "Зняти виділення",
+      "folders_moved": "{count, plural, one {Переміщено # папку} few {Переміщено # папки} many {Переміщено # папок} other {Переміщено # папки}}",
+      "move_partial_error": "{count, plural, one {Не вдалося перемістити # папку} few {Не вдалося перемістити # папки} many {Не вдалося перемістити # папок} other {Не вдалося перемістити # папки}}",
       "subfolder_of": "Всередині {name}",
       "subfolder_name": "Назва вкладеної папки",
       "new_folder_name": "Назва папки",
       "rename": "Перейменувати",
       "change_icon": "Змінити значок",
+      "count_mode": "Лічильник для {name}",
+      "count_mode_default": "Лічильник: типово",
+      "count_mode_unread": "Лише непрочитані",
+      "count_mode_all": "Непрочитані й усього",
+      "count_mode_none": "Без лічильника",
       "delete": "Видалити",
       "confirm_delete": "Ви впевнені, що хочете видалити \"{name}\"? Електронні листи в цій папці буде переміщено в кошик.",
       "create": "Створити",
@@ -1860,7 +2132,11 @@
       },
       "sender_favicons": {
         "label": "Favicons відправника",
-        "description": "Показувати піктограми веб-сайтів як зображення профілю для бізнес-відправників"
+        "description": "Показувати піктограми веб-сайтів як зображення профілю для бізнес-відправників",
+        "refresh_label": "Оновити значки відправників",
+        "refresh_description": "Заново завантажити значки сайтів, наприклад якщо відправник змінив свій",
+        "refresh_button": "Оновити",
+        "refresh_done": "Значки відправників буде завантажено заново"
       },
       "show_avatars_in_junk": {
         "label": "Показувати аватари в папці «Спам»",
@@ -1892,7 +2168,34 @@
         "button": "Імпорт"
       },
       "about": {
-        "title": "Оплот веб-пошти"
+        "title": "Оплот веб-пошти",
+        "source_code": "Вихідний код"
+      },
+      "spam_siege": {
+        "title": "Spam Siege",
+        "intro": "Натискайте на спам і фішинг, доки вони не потрапили у вхідні. Справжні листи пропускайте. Втратите всі три щити — вхідні впадуть.",
+        "kinds": {
+          "spam": "Спам",
+          "phishing": "Фішинг",
+          "legit": "Справжній лист"
+        },
+        "click_to_block": "Натисніть, щоб заблокувати",
+        "let_through": "Пропустити",
+        "start": "Почати",
+        "play_again": "Грати ще",
+        "score": "Очки",
+        "combo": "Бонус за серію",
+        "shields_left": "Залишилось щитів: {count} з {total}",
+        "seconds": "{seconds} с",
+        "best": "Рекорд: {score}",
+        "new_best": "Новий рекорд",
+        "held": "Вхідні встояли",
+        "overrun": "Вхідні захоплено",
+        "stats": {
+          "caught": "Заблоковано",
+          "delivered": "Доставлено",
+          "mistakes": "Помилки"
+        }
       }
     },
     "sidebar_apps": {
@@ -2013,7 +2316,8 @@
         "subject": "Тема",
         "header": "Спеціальний заголовок",
         "size": "Розмір",
-        "body": "Тіло"
+        "body": "Тіло",
+        "all": "Усі листи"
       },
       "comparators": {
         "has_any": "присутнє",
@@ -2026,7 +2330,9 @@
         "ends_with": "закінчується на",
         "matches": "відповідає шаблону",
         "greater_than": "більше ніж",
-        "less_than": "менше ніж"
+        "less_than": "менше ніж",
+        "address_is": "— це адреса",
+        "domain_is": "має домен"
       },
       "action_types": {
         "move": "Перемістити в папку",
@@ -2046,6 +2352,7 @@
       "forward_placeholder": "email@example.com",
       "forward_keep_copy": "Зберегти копію",
       "forward_limit": "Ліміт пересилань на один лист на цьому сервері: {count}. Зайві пересилання пропускаються.",
+      "forward_unavailable": "Цей сервер не дозволяє пересилання. Дії пересилання в правилах фільтрів не спрацюють.",
       "reject_message": "Повідомлення про відмову",
       "reject_placeholder": "Ваш лист було відхилено",
       "label_name": "Назва мітки",
@@ -2101,7 +2408,38 @@
         "actions_count": "{count, plural, one {# дія} few {# дії} many {# дій} other {# дій}}"
       },
       "origin_external": "Зовнішнє",
-      "managed_by_tooltip": "Керується {source}. Редагуйте в тому додатку або використовуйте редактор Sieve."
+      "managed_by_tooltip": "Керується {source}. Редагуйте в тому додатку або використовуйте редактор Sieve.",
+      "quick_rule_names": {
+        "move_sender": "Переміщувати від {sender} до {folder}",
+        "move_domain": "Переміщувати від @{domain} до {folder}",
+        "move_list": "Переміщувати розсилку {list} до {folder}",
+        "mark_read": "Позначати прочитаними від {sender}",
+        "tag": "Додавати мітку {tag} для {sender}",
+        "block": "Блокувати {sender}",
+        "custom": "Листи від {sender}",
+        "custom_plain": "Нове правило",
+        "senders": "{count, plural, one {# відправника} few {# відправників} many {# відправників} other {# відправника}}"
+      },
+      "suggestions": "Підказки",
+      "suggest_subject": "Тема «{subject}»",
+      "suggest_to": "Кому {address}",
+      "suggest_cc": "Копія {address}",
+      "suggest_list": "List-Id",
+      "suggest_domain": "@{domain}",
+      "apply_existing": "Застосувати й до листів, які вже є в цій папці",
+      "apply_existing_unsupported": "До наявних листів можна застосувати лише правила, що перевіряють відправника, одержувачів, тему або заголовки й переміщують, копіюють, позначають прочитаними, зірочкою чи міткою.",
+      "period_title": "Діапазон дат",
+      "period_start": "Дата початку",
+      "period_end": "Дата закінчення",
+      "validation_period_order": "Дата завершення має бути після дати початку",
+      "period_toggle": "Активне лише в певний період",
+      "period_hint": "Діє для листів, що надходять у цей період. Залиште поле порожнім, щоб не обмежувати цю межу.",
+      "validation_period_empty": "Вкажіть дату початку або закінчення періоду",
+      "validation_period_invalid": "Вкажіть для періоду дійсну дату з часом або залиште поле порожнім",
+      "apply_existing_period": "Правило з періодом діє лише на листи, що надходять у цей період, тому його не можна застосувати до наявних листів.",
+      "period_status_scheduled": "заплановано",
+      "period_status_active": "активне",
+      "period_status_expired": "завершено"
     },
     "templates": {
       "title": "Шаблони електронної пошти",
@@ -2140,12 +2478,6 @@
       "display": {
         "title": "Дисплей",
         "description": "Налаштувати спосіб відображення файлів і папок"
-      },
-      "folder_layout": {
-        "label": "Навігація по папках",
-        "description": "Виберіть спосіб відображення папок: у рядку з файлами чи в дереві бічної панелі",
-        "inline": "Вбудований",
-        "sidebar": "Бічна панель"
       },
       "default_view": {
         "label": "Перегляд за умовчанням",
@@ -2209,7 +2541,7 @@
     "email_list_error": "Неможливо завантажити електронні листи",
     "viewer_error_title": "Неможливо відобразити електронну пошту",
     "viewer_error_description": "Під час відтворення цього електронного листа виникла проблема. Він може містити непідтримуваний вміст.",
-    "composer_error": "Не вдалося завантажити композитор",
+    "composer_error": "Не вдалося завантажити редактор листа",
     "settings_error_title": "Налаштування недоступні",
     "settings_error_description": "Не вдалося завантажити налаштування. Ваші налаштування можуть не зберегтися.",
     "try_again": "Спробуйте знову",
@@ -2230,17 +2562,41 @@
     "pin": "Закріпити",
     "unpin": "Відкріпити",
     "move_to": "Перейти до...",
+    "copy_to_account": "Копіювати в обліковий запис...",
+    "remove_from_folder": "Прибрати з цієї папки",
     "archive": "Архів",
     "delete": "Видалити",
     "mark_as_spam": "Повідомити про спам",
     "not_spam": "Не спам",
     "tag": "Мітка",
     "items_selected": "Вибрано електронних листів: {count}",
+    "forward_as_attachments": "Переслати як вкладення",
     "edit_draft": "Редагувати чернетку",
     "cancel_scheduled_send": "Скасувати надсилання",
     "reschedule_send": "Перенести",
     "cancel_and_edit": "Скасувати й редагувати",
-    "cancel_and_compose_again": "Скасувати й написати знову"
+    "cancel_and_compose_again": "Скасувати й написати знову",
+    "rules": {
+      "title": "Правила",
+      "move_from": "Завжди переміщувати листи від {sender}",
+      "move_from_domain": "Завжди переміщувати листи від @{domain}",
+      "move_from_list": "Завжди переміщувати листи з цієї розсилки",
+      "mark_read_from": "Завжди позначати листи від {sender} прочитаними",
+      "tag_with": "Завжди додавати мітку",
+      "block": "{count, plural, =1 {Заблокувати відправника} one {Заблокувати # відправника} few {Заблокувати # відправників} many {Заблокувати # відправників} other {Заблокувати # відправника}}",
+      "no_junk": "У цьому обліковому записі немає папки «Спам»",
+      "create": "Створити правило…",
+      "manage": "Керувати правилами",
+      "senders_count": "{count, plural, one {# відправника} few {# відправників} many {# відправників} other {# відправника}}",
+      "cross_account": "Виберіть листи з одного облікового запису",
+      "opaque_hint": "Ваші фільтри відредаговано вручну. Відкрийте налаштування фільтрів",
+      "loading": "Завантаження правил…",
+      "load_failed": "Не вдалося завантажити правила",
+      "none": "Правил поки немає",
+      "new_mail_only": "Лише для нових листів",
+      "running": "Виконується «{name}» у теці {folder}…"
+    },
+    "find_emails_from": "Знайти листи від {name}"
   },
   "mailbox_context_menu": {
     "mark_folder_read": "Позначити папку як прочитану",
@@ -2255,6 +2611,12 @@
     "empty_folder_generic": "Очистити папку",
     "delete_folder": "Видалити папку",
     "refresh": "Оновити",
+    "hide_shared_account": "Приховати з бічної панелі",
+    "mute_notifications": "Вимкнути сповіщення",
+    "unmute_notifications": "Увімкнути сповіщення",
+    "mute_account_notifications": "Вимкнути сповіщення для цього облікового запису",
+    "unmute_account_notifications": "Увімкнути сповіщення для цього облікового запису",
+    "reset_folder_notifications": "Скинути сповіщення папок",
     "mark_all_confirm_title": "Позначити всі папки як прочитані",
     "mark_all_confirm_message": "Позначити всі непрочитані повідомлення у вашому особистому акаунті як прочитані?",
     "delete_confirm_title": "Видалити папку",
@@ -2292,13 +2654,16 @@
       "actions": "Дії електронної пошти",
       "global": "Глобальний",
       "threads": "Нитки",
-      "composer": "Композитор"
+      "composer": "Редактор"
     },
     "navigation": {
       "next_email": "Наступний електронний лист",
       "previous_email": "Попередній електронний лист",
       "open_email": "Відкрийте електронну пошту",
-      "close_email": "Закрити / Скасувати вибір"
+      "close_email": "Закрити / Скасувати вибір",
+      "go_to_folder": "Перейти до теки",
+      "next_unread": "Наступний непрочитаний лист",
+      "no_more_unread": "Нижче в списку більше немає непрочитаних листів"
     },
     "actions": {
       "reply": "Відповісти",
@@ -2317,10 +2682,12 @@
       "help": "Показати ярлики",
       "refresh": "Оновити електронні листи",
       "select_all": "Вибрати все",
-      "global_search": "Шукати скрізь"
+      "global_search": "Шукати скрізь",
+      "extend_selection": "Розширити виділення вниз / вгору"
     },
     "threads": {
-      "expand_collapse": "Розгорнути/згорнути ланцюжок"
+      "expand_collapse": "Розгорнути/згорнути ланцюжок",
+      "select_mountain_view": "Вибрати листування"
     },
     "composer": {
       "send": "Надіслати лист",
@@ -2435,6 +2802,48 @@
     }
   },
   "contacts": {
+    "directory": {
+      "title": "Довідник",
+      "search_placeholder": "Пошук за ім'ям або адресою",
+      "refresh": "Оновити довідник",
+      "retry": "Повторити",
+      "loading": "Завантаження довідника…",
+      "unavailable_title": "Немає довідника",
+      "unavailable_hint": "Ваш поштовий сервер не надає довідник облікових записів.",
+      "forbidden_title": "Довідник недоступний",
+      "forbidden_hint": "Ваш поштовий сервер не дозволяє цьому обліковому запису переглядати довідник. Зверніться до адміністратора.",
+      "error_title": "Не вдалося завантажити довідник",
+      "error_hint": "Перевірте з'єднання та спробуйте ще раз.",
+      "empty_title": "Довідник порожній",
+      "empty_hint": "Ваш поштовий сервер не повертає облікових записів з адресою електронної пошти.",
+      "no_match": "У довіднику ніхто не відповідає запиту",
+      "refresh_failed": "Не вдалося оновити довідник. Показано останній завантажений список.",
+      "select_page": "Вибрати всіх на цій сторінці",
+      "deselect_page": "Зняти вибір на цій сторінці",
+      "select_entry": "Вибрати {name}",
+      "range": "{from}–{to} з {total}",
+      "page": "Сторінка {page} з {count}",
+      "previous_page": "Попередня сторінка",
+      "next_page": "Наступна сторінка",
+      "picker_title": "Вибрати з довідника",
+      "cancel": "Скасувати",
+      "selected_count": "Вибрано: {count}",
+      "add_to": "Додати в «Кому»",
+      "add_cc": "Додати в «Копія»",
+      "add_bcc": "Додати в «Прихована копія»",
+      "select_hint": "Виберіть людину, щоб побачити подробиці",
+      "write_email": "Написати листа",
+      "add_to_contacts": "Додати до контактів",
+      "email": "Ел. пошта",
+      "read_only_note": "Записи довідника надходять з вашого поштового сервера, тут їх не можна змінити.",
+      "type": {
+        "individual": "Людина",
+        "group": "Група",
+        "resource": "Ресурс",
+        "location": "Місце",
+        "other": "Інше"
+      }
+    },
     "title": "Контакти",
     "search_placeholder": "Пошук контактів...",
     "create_new": "Новий контакт",
@@ -2506,7 +2915,7 @@
       "categories": "Категорії",
       "related_contacts": "Пов'язані контакти",
       "crypto_keys": "Крипто ключі",
-      "cert_issuer": "Емітент",
+      "cert_issuer": "Видавець",
       "cert_expires": "Термін дії закінчується",
       "cert_expired": "Термін дії минув",
       "cert_fingerprint": "Відбиток пальця",
@@ -2796,6 +3205,10 @@
       "tasks_hint": "Завдання (k)"
     },
     "events": {
+      "hidden_before": "{count, plural, one {# раніша подія} few {# раніші події} many {# раніших подій} other {# раніших події}}",
+      "hidden_after": "{count, plural, one {# пізніша подія} few {# пізніші події} many {# пізніших подій} other {# пізніших події}}",
+      "show_all_hours": "Показати всі години",
+      "show_display_hours": "Показати лише {start} – {end}",
       "create": "Створити подію",
       "edit": "Редагувати подію",
       "delete": "Видалити подію",
@@ -2803,6 +3216,8 @@
       "no_events": "Подій немає",
       "all_day": "Весь день",
       "more": "+ ще {count}",
+      "show_more": "Показувати більше",
+      "show_less": "Показувати менше",
       "no_title": "(Без назви)",
       "resize": "Змінити розмір події",
       "duplicate": "дублікат",
@@ -2825,6 +3240,7 @@
       "save_note": "зберегти",
       "note_saved": "Примітка додана",
       "open_link": "Відкрити посилання",
+      "copy_location": "Копіювати місце",
       "meeting_link": "Посилання на зустріч",
       "tentative": "Орієнтовний",
       "cancelled": "Скасовано",
@@ -2949,9 +3365,26 @@
       "add": "Додати нагадування",
       "remove": "Видалити нагадування",
       "amount": "Кількість нагадування",
-      "unit": "Одиниця нагадування"
+      "unit": "Одиниця нагадування",
+      "action": "Тип нагадування",
+      "action_display": "Сповіщення",
+      "action_email": "Ел. пошта",
+      "by_email": "{label} електронною поштою",
+      "kept": "{count, plural, one {Зберігається ще # нагадування, яке не можна змінити тут} few {Зберігаються ще # нагадування, які не можна змінити тут} many {Зберігаються ще # нагадувань, які не можна змінити тут} other {Зберігаються ще # нагадування, які не можна змінити тут}}",
+      "other": "{count, plural, one {Ще # нагадування} few {Ще # нагадування} many {Ще # нагадувань} other {Ще # нагадування}}",
+      "calendar_defaults": "Типові нагадування календаря",
+      "customize": "Налаштувати",
+      "use_defaults": "Використовувати типові нагадування календаря"
     },
     "settings": {
+      "limit_hours": "Обмежити видимі години",
+      "limit_hours_desc": "Показувати в поданнях дня і тижня лише ці години. Події поза ними доступні через стрілки вгорі та внизу кожного дня.",
+      "visible_hours": "Видимі години",
+      "visible_hours_start": "Початок видимих годин",
+      "visible_hours_end": "Кінець видимих годин",
+      "hide_non_working_days": "Приховувати неробочі дні",
+      "hide_non_working_days_desc": "Не показувати в поданні тижня дні, коли ви не працюєте. Їхні події й далі видно в поданнях місяця, дня та порядку денного.",
+      "working_days": "Робочі дні",
       "title": "Налаштування календаря",
       "default_view": "Перегляд за замовчуванням",
       "week_starts_on": "Тиждень починається о",
@@ -2975,7 +3408,7 @@
       "enable_tasks": "Увімкнути завдання",
       "enable_tasks_desc": "Показати перегляд завдань у календарі для керування справами",
       "show_tasks_on_calendar": "Показати завдання в календарі",
-      "show_tasks_on_calendar_desc": "Відображення фішок завдань у режимі перегляду календаря дня та тижня",
+      "show_tasks_on_calendar_desc": "Відображати завдання в режимах перегляду календаря місяця, тижня та дня",
       "hover_preview": "Попередній перегляд подій",
       "hover_preview_desc": "Показувати спливаюче вікно з деталями під час наведення курсора на події календаря",
       "hover_preview_instant": "Миттєво",
@@ -3035,7 +3468,9 @@
     },
     "quick_create": {
       "placeholder": "Нова назва події",
-      "aria_label": "Швидке створення події"
+      "aria_label": "Швидке створення події",
+      "add_title": "Додайте назву",
+      "more_options": "Більше параметрів"
     },
     "nav_prev": "Попередній",
     "nav_next": "Далі",
@@ -3109,11 +3544,21 @@
       "url_copied": "URL-адресу CalDAV скопійовано в буфер обміну",
       "share": "Поділитися календарем",
       "new_event_in_calendar": "Нова подія в цьому календарі",
+      "shared_with": "Доступ надано: {names}",
+      "shared_with_count": "{count, plural, one {Доступ надано # особі} few {Доступ надано # особам} many {Доступ надано # особам} other {Доступ надано # особи}}",
+      "move_up": "Перемістити вгору",
+      "move_down": "Перемістити вниз",
       "kind": "Вміст",
       "kind_events": "Події",
       "kind_tasks": "Завдання",
       "kind_both": "Події та завдання",
-      "kind_hint": "Визначає, які застосунки бачать цей календар під час синхронізації через CalDAV. Пізніше змінити не можна."
+      "kind_hint": "Визначає, які застосунки бачать цей календар під час синхронізації через CalDAV. Пізніше змінити не можна.",
+      "default_alerts": "Типові нагадування",
+      "default_alerts_title": "Типові нагадування для «{name}»",
+      "default_alerts_hint": "Нові події в цьому календарі отримують ці нагадування, якщо їх не змінити в самій події. Зміни тут не впливають на наявні події. Нагадування електронною поштою надсилає поштовий сервер.",
+      "default_alerts_timed": "Події з часом",
+      "default_alerts_all_day": "Події на весь день",
+      "default_alerts_updated": "Типові нагадування оновлено"
     },
     "subscription": {
       "title": "Підписка iCal",
@@ -3220,7 +3665,13 @@
       "bah": "Bahman",
       "esf": "Esfand"
     },
-    "nav_open_menu": "Відкрити меню"
+    "nav_open_menu": "Відкрити меню",
+    "toolbar": {
+      "more": "Інші дії",
+      "select_view": "Змінити вигляд, зараз {view}"
+    },
+    "other_calendars": "Інші календарі",
+    "calendar_options": "Параметри: {name}"
   },
   "advanced_search": {
     "title": "Розширений пошук",
@@ -3234,6 +3685,7 @@
     "body_placeholder": "Тіло містить...",
     "folder": "Папка",
     "all_folders": "Всі папки",
+    "all_folders_except_spam_trash": "Всі папки, крім спаму та кошика",
     "has_attachment": "Додатки",
     "date_after": "Після",
     "date_before": "Раніше",
@@ -3257,7 +3709,13 @@
     "suggestions_people": "Люди",
     "suggestions_from": "Шукати листи від {address}",
     "suggestions_to": "Шукати листи для {address}",
-    "suggestions_remove_recent": "Видалити з останніх пошуків"
+    "suggestions_remove_recent": "Видалити з останніх пошуків",
+    "has_words": "Містить слова",
+    "size": "Розмір",
+    "date_within": "Дата",
+    "search_in": "Шукати в",
+    "has_attachment_check": "Є вкладення",
+    "search": "Шукати"
   },
   "welcome": {
     "title": "Ласкаво просимо до вашої поштової скриньки",
@@ -3265,6 +3723,8 @@
     "tip_shortcuts": "Натисніть ? щоб побачити всі комбінації клавіш",
     "tip_sidebar": "Знайдіть Календар, Контакти та Налаштування в меню бічної панелі",
     "tip_settings": "Налаштуйте свій досвід у налаштуваннях",
+    "tip_compose_touch": "Торкніться кнопки з олівцем, щоб написати новий лист",
+    "tip_sidebar_touch": "Календар, Контакти й Налаштування є на нижній панелі",
     "got_it": "зрозумів",
     "settings": "Налаштування",
     "dismiss": "Відхилити",
@@ -3288,8 +3748,6 @@
     "title": "Файли",
     "search_placeholder": "Пошук файлів...",
     "empty_state_title": "Файлів ще немає",
-    "empty_state_description": "Щоб почати, завантажте файли або створіть папки",
-    "upload": "Завантажити",
     "upload_files": "Завантажити файли",
     "new_folder": "Нова папка",
     "new_folder_name": "Назва папки",
@@ -3308,11 +3766,10 @@
     "type": "Тип",
     "folder": "Папка",
     "file": "Файл",
-    "parent_directory": "Батьківський каталог",
-    "breadcrumb_root": "додому",
-    "drop_files_here": "Перетягніть файли або папки сюди, щоб завантажити",
     "uploading": "Завантаження...",
     "upload_success": "{count, plural, one {1 файл завантажено} few {# файли завантажено} many {# файлів завантажено} other {# файлів завантажено}}",
+    "upload_canceled": "Завантаження скасовано",
+    "upload_canceled_partial": "{count, plural, one {# файл було завантажено} few {# файли було завантажено} many {# файлів було завантажено} other {# файлу було завантажено}} до скасування",
     "upload_error": "Не вдалося завантажити файл",
     "create_folder_success": "Папка створена",
     "create_folder_error": "Не вдалося створити папку",
@@ -3345,7 +3802,6 @@
     "file_name": "Ім'я файлу",
     "retry": "Повторіть спробу",
     "refresh": "Оновити",
-    "toggle_favorite": "Перемкнути улюблене",
     "duplicate": "дублікат",
     "duplicate_success": "Продубльовано успішно",
     "duplicate_error": "Не вдалося скопіювати",
@@ -3357,8 +3813,8 @@
     "create_file_error": "Не вдалося створити файл",
     "favorites": "Вибране",
     "recent": "Останні",
-    "properties": "Властивості",
-    "open_folder": "Відкрити папку",
+    "show_in_folder": "Показати в папці",
+    "remove_from_recent": "Прибрати з останніх",
     "upload_folder": "Завантажити папку",
     "file_too_large": "\"{name}\" перевищує максимальний розмір файлу ({max})",
     "undo": "Скасувати",
@@ -3367,38 +3823,59 @@
     "toolbar": "Дії з файлами",
     "file_list": "Файли та папки",
     "context_menu": "Дії",
-    "settings_title": "Параметри файлу",
-    "settings_display": "Дисплей",
-    "settings_default_view": "Перегляд за умовчанням",
-    "settings_default_view_desc": "Вибір між сіткою та списком",
-    "settings_default_sort": "Типове сортування",
-    "settings_default_sort_desc": "Виберіть стандартне сортування для файлів",
-    "settings_sort_direction": "Напрямок сортування",
-    "settings_sort_direction_desc": "Виберіть порядок зростання або спадання",
     "settings_ascending": "Висхідний",
     "settings_descending": "Спускається",
-    "settings_icons": "Ікони",
-    "settings_show_icons": "Показати значки файлів",
-    "settings_show_icons_desc": "Відображення піктограм біля файлів і папок",
-    "settings_colored_icons": "Кольорові значки",
-    "settings_colored_icons_desc": "Використовуйте кольорові значки замість монохромних",
-    "settings_show_thumbnails": "Показати мініатюри",
-    "settings_show_thumbnails_desc": "Відображати попередній перегляд зображень замість піктограм для файлів зображень",
-    "settings_behavior": "Поведінка",
-    "settings_show_hidden": "Показати приховані файли",
-    "settings_show_hidden_desc": "Відображення файлів і папок, які починаються з крапки",
-    "settings_folder_layout": "Навігація по папках",
-    "settings_folder_layout_desc": "Виберіть спосіб відображення папок: у рядку з файлами чи в дереві бічної панелі",
-    "settings_folder_layout_inline": "Вбудований",
-    "settings_folder_layout_sidebar": "Бічна панель",
     "disabled_title": "Функцію файлів вимкнено вашим адміністратором",
     "disabled_description": "Завантаження великих файлів через WebDAV може спричинити нестабільність Stalwart/RocksDB, зокрема збої через брак пам’яті та невідновне використання диска. Видалені файли не можуть бути негайно очищені зі сховища BLOB-об’єктів. Ця функція не рекомендована для робочих середовищ.",
-    "stability_warning": "Завантаження великих файлів може спричинити нестабільність сервера. Видалені файли не можуть бути негайно видалені зі сховища. Використовуйте з обережністю.",
     "no_accounts": "Немає підключених облікових записів.",
     "open_folder_tree": "Відкрити дерево тек",
-    "other_accounts": "Інші облікові записи",
     "migration_title": "Оновлення ваших файлів…",
-    "migration_description": "Папки та файли впорядковуються у правильну структуру. Це відбувається лише один раз."
+    "migration_description": "Папки та файли впорядковуються у правильну структуру. Це відбувається лише один раз.",
+    "new": "Створити",
+    "my_files": "Мої файли",
+    "folders": "Папки",
+    "files_heading": "Файли",
+    "open": "Відкрити",
+    "star": "Додати до вибраного",
+    "unstar": "Прибрати з вибраного",
+    "expand_folder": "Розгорнути {name}",
+    "collapse_folder": "Згорнути {name}",
+    "sidebar_hint": "Додавайте папки до вибраного й відкривайте файли, щоб знаходити їх тут.",
+    "breadcrumbs": "Шлях до папки",
+    "show_path": "Показати приховані папки в шляху",
+    "selection_actions": "Дії з вибраними елементами",
+    "selected_count": "{count, plural, one {Вибрано # елемент} few {Вибрано # елементи} many {Вибрано # елементів} other {Вибрано # елемента}}",
+    "clear_selection": "Скасувати вибір",
+    "select_all": "Вибрати все",
+    "select_item": "Вибрати {name}",
+    "more_actions": "Інші дії для {name}",
+    "paste_here": "Вставити в цю папку",
+    "paste_count": "{count, plural, one {Вставити # елемент} few {Вставити # елементи} many {Вставити # елементів} other {Вставити # елемента}}",
+    "sort_by": "Сортування",
+    "view_mode": "Вигляд",
+    "clear_search": "Очистити пошук",
+    "no_results_for": "У цій папці нічого не знайдено за запитом «{query}»",
+    "download_count": "{count, plural, one {Завантажити # файл} few {Завантажити # файли} many {Завантажити # файлів} other {Завантажити # файлу}}",
+    "delete_count": "{count, plural, one {Видалити # елемент} few {Видалити # елементи} many {Видалити # елементів} other {Видалити # елемента}}",
+    "close_details": "Закрити подробиці",
+    "file_kind": "Файл {ext}",
+    "folder_summary": "{folders, plural, =0 {Немає папок} one {# папка} few {# папки} many {# папок} other {# папки}}, {files, plural, =0 {немає файлів} one {# файл} few {# файли} many {# файлів} other {# файлу}}",
+    "details_hint": "Виберіть файл або папку, щоб переглянути подробиці.",
+    "sharing": "Спільний доступ",
+    "shared_with_count": "{count, plural, one {Доступ надано # особі} few {Доступ надано # особам} many {Доступ надано # особам} other {Доступ надано # особи}}",
+    "only_you": "Лише ви",
+    "empty_folder_title": "Ця папка порожня",
+    "empty_folder_description": "Перетягніть файли сюди або завантажте їх зі свого пристрою.",
+    "empty_folder_read_only": "Ви не можете додавати файли до цієї папки.",
+    "choose_account": "Виберіть обліковий запис",
+    "drop_to_upload": "Відпустіть, щоб завантажити в {folder}",
+    "uploading_count": "Завантаження {current} з {total}",
+    "dismiss": "Закрити",
+    "zoom_in": "Збільшити",
+    "zoom_out": "Зменшити",
+    "zoom_reset": "За розміром екрана",
+    "rotate": "Повернути",
+    "close_preview": "Закрити"
   },
   "smime": {
     "your_certificates": "Ваші сертифікати",
@@ -3441,8 +3918,8 @@
     "processing": "Обробка…",
     "close": "Закрити",
     "certificate_details": "Деталі сертифіката",
-    "cert_subject": "Тема",
-    "cert_issuer": "Емітент",
+    "cert_subject": "Суб'єкт",
+    "cert_issuer": "Видавець",
     "cert_email": "Електронна пошта",
     "cert_serial": "Серійний номер",
     "cert_validity": "Термін дії",
@@ -3510,7 +3987,7 @@
     "settings_desc": "Налаштуйте все: тему, щільність, підписи, фільтри, комбінації клавіш, стандартні параметри календаря тощо.",
     "shortcuts_title": "Комбінації клавіш",
     "shortcuts_desc": "Це подобається досвідченим користувачам. Натисніть ? у будь-який час, щоб переглянути всі доступні ярлики. Ви можете переходити, створювати та керувати електронними листами, не торкаючись миші.",
-    "compose_open_title": "Композитор",
+    "compose_open_title": "Редактор листів",
     "compose_open_desc": "Це редактор електронних листів. Додайте одержувачів, напишіть повідомлення, вкладіть файли та використовуйте форматування розширеного тексту. Ви також можете зберігати чернетки та використовувати шаблони.",
     "calendar_view_title": "Ваш календар",
     "calendar_view_desc": "Ось ваш календар із зразками подій. За допомогою панелі інструментів можна переключатися між переглядами дня, тижня, місяця та порядку денного.",
@@ -3613,6 +4090,354 @@
       "failed_detail": "Не вдалося виконати авторизацію: {error}",
       "missing_params": "Відсутній код авторизації або стан.",
       "delivery_failed": "Не вдалося передати результат авторизації на вкладку програми. Закрийте це вікно та спробуйте ще раз."
+    },
+    "settings": {
+      "title": "Плагіни",
+      "description": "Плагіни, які додав ваш адміністратор. Вмикайте й вимикайте їх для свого облікового запису.",
+      "description_uploads": "Плагіни додають у webmail нові функції. Вмикайте й вимикайте їх для свого облікового запису або встановлюйте власні.",
+      "description_demo": "У демо-режимі плагіни недоступні.",
+      "install_button": "Встановити плагін",
+      "install_hint": "Виберіть ZIP-файл плагіна.",
+      "install_hint_approval": "Виберіть ZIP-файл плагіна. Перш ніж ви зможете його ввімкнути, його має схвалити адміністратор.",
+      "install_uploads_off": "Ваш адміністратор не дозволяє встановлювати плагіни.",
+      "install_managed_id": "Ваш адміністратор уже надає плагін із такою назвою, тому його не можна замінити.",
+      "install_invalid": "Цей файл не є плагіном, який можна встановити: {details}",
+      "toast_installed": "Плагін встановлено. Увімкніть його нижче.",
+      "toast_installed_pending": "Плагін встановлено й надіслано вашому адміністратору на схвалення.",
+      "toast_enabled": "Плагін {name} увімкнено",
+      "toast_disabled": "Плагін {name} вимкнено",
+      "toast_removed": "Плагін {name} видалено",
+      "toast_forced": "Ваш адміністратор вимагає, щоб плагін {name} залишався ввімкненим",
+      "toast_approval_requested": "Плагін {name} чекає на схвалення вашим адміністратором",
+      "empty_title": "Плагінів поки немає",
+      "empty_admin": "Ваш адміністратор не додав жодного плагіна.",
+      "empty_uploads": "Щоб почати, встановіть плагін із ZIP-файлу.",
+      "empty_demo": "Плагінам потрібен справжній обліковий запис, тому в демо-режимі їх немає.",
+      "syncing": "Перевірка плагінів на сервері…",
+      "status_installed": "Вимкнено",
+      "status_enabled": "Запускається",
+      "status_running": "Увімкнено",
+      "status_disabled": "Вимкнено",
+      "status_error": "Помилка",
+      "badge_forced": "Обов'язковий",
+      "badge_managed": "Від вашого адміністратора",
+      "badge_yours": "Встановлено вами",
+      "badge_awaiting": "Чекає на схвалення",
+      "toggle_label": "Увімкнути або вимкнути плагін {name}",
+      "forced_note": "Ваш адміністратор вимагає цей плагін, тому його не можна вимкнути.",
+      "permissions": "Що він може робити",
+      "permissions_managed": "Що він може робити (схвалено вашим адміністратором)",
+      "settings": "Налаштування",
+      "remove": "Видалити",
+      "remove_title": "Видалити плагін {name}?",
+      "remove_message": "Плагін і все, що він зберіг у цьому браузері, буде видалено. Пізніше його можна встановити знову.",
+      "remove_confirm": "Видалити",
+      "error_user_plugins_off": "Ваш адміністратор вимкнув плагіни, встановлені користувачами, тому цей плагін не працює.",
+      "error_approval_unavailable": "Цей плагін встановлено ще до того, як з'явилося схвалення. Видаліть і встановіть його знову, щоб надіслати на схвалення.",
+      "error_approval_denied": "Ваш адміністратор не схвалив цей плагін.",
+      "error_approval_pending": "Очікується, що ваш адміністратор схвалить цей плагін.",
+      "error_auto_disabled": "Вимкнено, бо постійно виникали помилки. Увімкніть його знову, щоб спробувати ще раз.",
+      "accounts_heading": "Підключені облікові записи",
+      "account_on": "{label} на {host}",
+      "account_waiting": "{label} на {host} (вхід не завершено)",
+      "disconnect": "Відключити",
+      "disconnect_failed": "Не вдалося відключити {label}"
+    },
+    "consent": {
+      "title": "Дозволити плагіну {name} це?",
+      "intro": "Плагін запитує дозволи, наведені нижче. Він отримає їх, лише якщо ви дозволите.",
+      "high_risk_note": "Позначені пункти дають плагіну доступ до вмісту вашої пошти або дозволяють йому передавати дані деінде. Дозволяйте їх лише плагінам, яким довіряєте.",
+      "revoke_hint": "Ви будь-коли можете вимкнути або видалити плагін у налаштуваннях.",
+      "deny": "Не дозволяти",
+      "allow": "Дозволити"
+    },
+    "permissions": {
+      "none": "Йому не потрібні особливі дозволи.",
+      "high_risk": "Потребує обережності",
+      "email_read": {
+        "title": "Читати вашу пошту",
+        "body": "Бачити відправників, одержувачів, теми й повний текст будь-якого листа у вашому обліковому записі, а також ваші папки."
+      },
+      "email_write": {
+        "title": "Змінювати й упорядковувати вашу пошту",
+        "body": "Додавати й прибирати теги, позначки та інші ключові слова у ваших листах, переміщувати їх між вашими папками та в архів, а також зберігати чернетки."
+      },
+      "email_send": {
+        "title": "Змінювати листи перед надсиланням",
+        "body": "Читати й змінювати одержувачів, тему, текст і вкладення листів, які ви пишете, а також зупиняти надсилання листа."
+      },
+      "crypto_full": {
+        "title": "Повний доступ до програми",
+        "body": "Працює з тими самими правами, що й сам webmail. Може читати всю вашу пошту та збережені ключі й діяти від вашого імені. Дозволяйте це лише плагінам, яким повністю довіряєте."
+      },
+      "email_raw_send": {
+        "title": "Надсилати власні листи",
+        "body": "Надсилати з вашого облікового запису готові листи, наприклад підписані або зашифровані."
+      },
+      "email_blob_read": {
+        "title": "Читати вихідні дані листів",
+        "body": "Читати вихідні дані ваших листів і вкладень, а також кожного файлу, який ви прикріплюєте, до надсилання."
+      },
+      "email_blob_write": {
+        "title": "Замінювати вкладення перед надсиланням",
+        "body": "Завантажувати файли на ваш поштовий сервер і замінювати прикріплений файл іншим до надсилання листа."
+      },
+      "email_render_takeover": {
+        "title": "Змінювати показ листів",
+        "body": "Замінювати текст відкритих листів і листів у списку повідомлень, наприклад щоб показати розшифрований вміст."
+      },
+      "calendar_read": {
+        "title": "Читати ваш календар",
+        "body": "Бачити ваші календарі та їхні події."
+      },
+      "calendar_write": {
+        "title": "Змінювати ваш календар",
+        "body": "Створювати, змінювати й видаляти події."
+      },
+      "contacts_read": {
+        "title": "Читати ваші контакти",
+        "body": "Шукати у ваших адресних книгах і читати їх."
+      },
+      "contacts_write": {
+        "title": "Змінювати ваші контакти",
+        "body": "Створювати, змінювати й видаляти контакти та адресні книги."
+      },
+      "files_read": {
+        "title": "Читати ваші файли",
+        "body": "Переглядати й відкривати файли, що зберігаються у вашому обліковому записі."
+      },
+      "files_write": {
+        "title": "Змінювати ваші файли",
+        "body": "Завантажувати, перейменовувати, переміщувати й видаляти файли у вашому обліковому записі."
+      },
+      "identity_read": {
+        "title": "Бачити ваші адреси відправника",
+        "body": "Бачити адреси, з яких ви надсилаєте листи, та їхні підписи."
+      },
+      "identity_write": {
+        "title": "Змінювати ваші адреси відправника",
+        "body": "Створювати, змінювати й видаляти адреси відправника та підписи."
+      },
+      "filters_read": {
+        "title": "Читати ваші фільтри пошти",
+        "body": "Бачити правила, які сортують вхідну пошту."
+      },
+      "filters_write": {
+        "title": "Змінювати ваші фільтри пошти",
+        "body": "Додавати правила до фільтрів на сервері. Такі правила можуть переміщувати, пересилати або видаляти вхідну пошту."
+      },
+      "tasks_read": {
+        "title": "Читати ваші завдання",
+        "body": "Бачити ваші списки завдань і завдання."
+      },
+      "tasks_write": {
+        "title": "Змінювати ваші завдання",
+        "body": "Створювати, змінювати, завершувати й видаляти завдання."
+      },
+      "templates_read": {
+        "title": "Читати ваші шаблони",
+        "body": "Бачити збережені шаблони листів."
+      },
+      "templates_write": {
+        "title": "Змінювати ваші шаблони",
+        "body": "Створювати, змінювати й видаляти шаблони листів."
+      },
+      "smime_read": {
+        "title": "Бачити ваш стан S/MIME",
+        "body": "Бачити, чи маєте ви ключі та сертифікати S/MIME, без доступу до самих ключів."
+      },
+      "vacation_read": {
+        "title": "Бачити вашу автовідповідь",
+        "body": "Бачити, чи ввімкнено автовідповідь і що в ній написано."
+      },
+      "vacation_write": {
+        "title": "Змінювати вашу автовідповідь",
+        "body": "Вмикати й вимикати автовідповідь, змінювати її текст і дати."
+      },
+      "settings_read": {
+        "title": "Читати ваші налаштування",
+        "body": "Бачити ваші параметри та визначення тегів."
+      },
+      "settings_write": {
+        "title": "Змінювати ваші налаштування",
+        "body": "Додавати теги, змінювати їхній порядок і змінювати ваші параметри."
+      },
+      "security_read": {
+        "title": "Бачити безпеку облікового запису",
+        "body": "Бачити, чи ввімкнено двофакторну автентифікацію та шифрування, без доступу до секретів."
+      },
+      "auth_observe": {
+        "title": "Знати, коли ви входите",
+        "body": "Отримувати сповіщення, коли ви входите, перемикаєте обліковий запис або ваш сеанс подовжується."
+      },
+      "auth_emit": {
+        "title": "Виконувати вихід",
+        "body": "Виконувати ваш вихід із webmail."
+      },
+      "account_read": {
+        "title": "Бачити ваші облікові записи",
+        "body": "Бачити додані вами облікові записи, їхні адреси та сервери."
+      },
+      "http_post": {
+        "title": "Звертатися до сервера webmail від вашого імені",
+        "body": "Викликати ці адреси сервера з вашими обліковими даними:"
+      },
+      "http_fetch": {
+        "title": "Підключатися до інших сайтів",
+        "body": "Надсилати запити на ці сайти. Туди може потрапити все, що плагін може прочитати:"
+      },
+      "admin_config": {
+        "title": "Читати свої налаштування від адміністратора",
+        "body": "Читати налаштування, які ваш адміністратор зберіг для цього плагіна."
+      },
+      "ui_observe": {
+        "title": "Стежити, де ви в програмі",
+        "body": "Знати, яку сторінку відкрито, і реагувати на посилання, які ви натискаєте."
+      },
+      "ui_toolbar": {
+        "title": "Додавати кнопки на панелі інструментів",
+        "body": "Показувати власні кнопки на панелі інструментів листів, у відкритому листі та на верхній панелі."
+      },
+      "ui_app_top_banner": {
+        "title": "Показувати банер угорі",
+        "body": "Показувати сповіщення у верхній частині програми."
+      },
+      "ui_email_banner": {
+        "title": "Показувати сповіщення в листах",
+        "body": "Показувати власні сповіщення та підсумки над частинами відкритого листа або розмови, усередині них і між ними."
+      },
+      "ui_email_footer": {
+        "title": "Додавати вміст під листами",
+        "body": "Показувати власний вміст під відкритим листом."
+      },
+      "ui_contact_cryptokeys": {
+        "title": "Показувати ключі шифрування контактів",
+        "body": "Показувати ключі шифрування контакту й керувати ними."
+      },
+      "ui_email_details": {
+        "title": "Додавати панелі до листа",
+        "body": "Показувати власну панель поруч із відкритим листом або під ним."
+      },
+      "ui_download_file": {
+        "title": "Зберігати файли на ваш пристрій",
+        "body": "Пропонувати для завантаження створені ним файли."
+      },
+      "ui_message_list_tabs": {
+        "title": "Додавати вкладки у «Вхідні»",
+        "body": "Розподіляти вхідні листи за вкладками, наприклад «Оновлення» або «Акції»."
+      },
+      "ui_composer_toolbar": {
+        "title": "Додавати елементи в редактор листа",
+        "body": "Показувати власні кнопки, пункти меню й розділи, поки ви пишете лист."
+      },
+      "ui_composer_sidebar": {
+        "title": "Додавати панель у редактор листа",
+        "body": "Показувати власну панель поруч із листом, який ви пишете."
+      },
+      "ui_sidebar_widget": {
+        "title": "Додавати елементи на бічну панель",
+        "body": "Показувати власні блоки й розділи на бічній панелі пошти."
+      },
+      "ui_settings_section": {
+        "title": "Додавати сторінку налаштувань",
+        "body": "Показувати власну сторінку в налаштуваннях."
+      },
+      "ui_context_menu": {
+        "title": "Додавати пункти в меню листа",
+        "body": "Додавати пункти в меню, яке відкривається, коли ви клацаєте лист правою кнопкою."
+      },
+      "ui_navigation_rail": {
+        "title": "Додавати кнопку на панель навігації",
+        "body": "Показувати власну кнопку на панелі навігації."
+      },
+      "ui_keyboard": {
+        "title": "Додавати сполучення клавіш",
+        "body": "Реагувати на сполучення клавіш, які він визначає."
+      },
+      "ui_calendar_action": {
+        "title": "Додавати елементи в інтерфейс календаря",
+        "body": "Показувати власні кнопки й розділи в подіях, а також короткі мітки й крапки на днях календаря."
+      },
+      "ui_admin_page": {
+        "title": "Додавати сторінку адміністрування",
+        "body": "Показувати власну сторінку в налаштуваннях адміністратора."
+      },
+      "app_lifecycle": {
+        "title": "Знати, коли програма запускається й зупиняється",
+        "body": "Отримувати сповіщення, коли програма запускається, втрачає зв'язок або ви виходите."
+      },
+      "compose_open": {
+        "title": "Відкривати редактор листа",
+        "body": "Відкривати новий лист із уже заповненими одержувачами, текстом або вкладеннями. Надсилати його чи ні, як і раніше, вирішуєте ви."
+      },
+      "compose_read": {
+        "title": "Читати лист, який ви пишете",
+        "body": "Читати текст листа, поки ви його пишете, коли ви користуєтеся плагіном у редакторі. Без підпису та цитованого листа."
+      },
+      "compose_write": {
+        "title": "Змінювати лист, який ви пишете",
+        "body": "Замінювати або додавати текст у листі, поки ви його пишете, коли ви користуєтеся плагіном у редакторі. Кожну зміну можна скасувати, а надсилати чи ні, вирішуєте ви."
+      },
+      "ui_notifications": {
+        "title": "Показувати сповіщення",
+        "body": "Показувати сповіщення на вашому пристрої або в програмі, якщо ви їх не дозволили. У кожному вказано назву плагіна."
+      },
+      "ui_message_list": {
+        "title": "Додавати елементи до списку повідомлень",
+        "body": "Показувати власний вміст над списком повідомлень, а також кнопки на листах і на панелі вибраних листів."
+      },
+      "ui_contacts": {
+        "title": "Додавати елементи в інтерфейс контактів",
+        "body": "Показувати власні розділи в картці контакту й кнопки в списку контактів."
+      },
+      "ui_tasks": {
+        "title": "Додавати елементи в інтерфейс завдань",
+        "body": "Показувати власні розділи в подробицях завдання й кнопки в списку завдань."
+      },
+      "ui_files": {
+        "title": "Додавати елементи в інтерфейс файлів",
+        "body": "Показувати власні розділи в попередньому перегляді файлу й пункти в меню файлу."
+      },
+      "ui_commands": {
+        "title": "Додавати команди",
+        "body": "Додавати власні пункти до палітри команд (Ctrl+K)."
+      },
+      "ui_app_page": {
+        "title": "Додавати сторінки",
+        "body": "Додавати до програми власні сторінки, кожну з кнопкою на панелі навігації."
+      },
+      "http_proxy": {
+        "title": "Використовувати підключені вами облікові записи",
+        "body": "Надсилати запити через сервер Bulwark з обліковим записом або ключем, який налаштували ви або ваш адміністратор. Плагін ніколи не бачить пароль, але може робити на цьому сервері все, що може цей обліковий запис."
+      }
+    },
+    "dialog": {
+      "from_plugin": "Від плагіна {name}",
+      "ok": "OK",
+      "submit": "Надіслати",
+      "confirm": "Підтвердити",
+      "cancel": "Скасувати",
+      "close": "Закрити",
+      "turn_off": "Вимкнути {name}",
+      "plugin_menu": "Параметри {name}",
+      "password_note": "Ця форма від плагіна {name}, а не від вебпошти. Вводьте пароль, лише якщо довіряєте цьому плагіну.",
+      "toast_auto_disabled": "{name} вимкнено, бо постійно виникали помилки."
+    },
+    "connect": {
+      "title": "Підключити {label}",
+      "intro_password": "{name} хоче використовувати ваш обліковий запис {label}. Bulwark зберігає пароль на своєму сервері й надсилає його лише на {host}. Плагін ніколи його не бачить.",
+      "intro_password_any": "{name} хоче використовувати ваш обліковий запис {label}. Bulwark зберігає пароль на своєму сервері й надсилає його лише на сервер, який ви вкажете тут. Плагін ніколи його не бачить.",
+      "intro_signin": "{name} хоче увійти до вашого облікового запису {label}. Вкажіть тут сервер, а потім увійдіть на його власній сторінці. Bulwark зберігає отриманий доступ на своєму сервері; плагін ніколи його не бачить.",
+      "server": "Адреса сервера",
+      "server_hint": "cloud.example.com",
+      "username": "Ім'я користувача",
+      "secret": "Пароль або ключ",
+      "connect": "Підключити",
+      "continue": "Продовжити",
+      "cancel": "Скасувати",
+      "saving": "Збереження…",
+      "error_server": "Вкажіть адресу сервера, наприклад https://cloud.example.com",
+      "error_save": "Не вдалося зберегти: {error}"
     }
   },
   "global_search": {
@@ -3641,5 +4466,41 @@
     "preview_empty": "Виберіть результат для перегляду",
     "open_full": "Відкрити",
     "view_label": "Вигляд"
+  },
+  "top_bar": {
+    "more": "Інші дії"
+  },
+  "plugin_pages": {
+    "loading": "Завантаження сторінки",
+    "not_available_title": "Ця сторінка недоступна",
+    "not_available_description": "Плагін, який її додав, вимкнено або більше не встановлено.",
+    "back_to_mail": "Повернутися до пошти",
+    "settings_group": "Плагіни"
+  },
+  "command_palette": {
+    "title": "Палітра команд",
+    "open": "Відкрити палітру команд",
+    "placeholder": "Введіть команду",
+    "no_results": "Немає відповідних команд",
+    "go_to": "Перейти: {name}",
+    "compose": "Новий лист",
+    "search": "Шукати в пошті",
+    "theme_dark": "Увімкнути темну тему",
+    "theme_light": "Увімкнути світлу тему",
+    "shortcuts": "Показати комбінації клавіш",
+    "group_navigation": "Перейти",
+    "group_actions": "Дії",
+    "group_plugins": "Плагіни"
+  },
+  "notification_center": {
+    "title": "Сповіщення",
+    "mark_all_read": "Позначити всі як прочитані",
+    "clear": "Очистити",
+    "empty": "Немає сповіщень",
+    "close": "Закрити",
+    "unread": "Непрочитане",
+    "unread_count": "Непрочитаних: {count}",
+    "level_error": "Помилка",
+    "level_warning": "Попередження"
   }
 }

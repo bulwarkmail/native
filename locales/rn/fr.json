@@ -445,7 +445,6 @@
     "open_error": "Impossible d'ouvrir le fichier",
     "open_with": "Ouvrir avec…",
     "preview_too_large": "Ce fichier est trop volumineux pour être prévisualisé.",
-    "selected_count": "{count, plural, one {# sélectionné} other {# sélectionnés}}",
     "share_add_people": "Ajouter des personnes",
     "share_empty": "Pas encore partagé",
     "share_error": "Échec de la mise à jour du partage",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Thèmes",
       "updates": "Mises à jour"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Les palettes claire et sombre par défaut.",
-      "default_name": "Bulwark",
-      "mobile_description": "Choisissez un thème de couleurs. Les thèmes suivent le réglage clair/sombre de l'Apparence. Les packs de thèmes personnalisés se gèrent dans le webmail.",
-      "title": "Thèmes"
+      "mobile_description": "Choisissez un thème de couleurs. Les thèmes suivent le réglage clair/sombre de l'Apparence. Les packs de thèmes personnalisés se gèrent dans le webmail."
     },
     "vacation": {
       "warnings": {

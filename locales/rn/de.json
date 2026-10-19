@@ -451,7 +451,6 @@
     "open_error": "Die Datei konnte nicht geöffnet werden",
     "open_with": "Öffnen mit…",
     "preview_too_large": "Diese Datei ist zu groß für eine Vorschau.",
-    "selected_count": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
     "share_add_people": "Personen hinzufügen",
     "share_empty": "Noch mit niemandem geteilt",
     "share_error": "Freigabe konnte nicht aktualisiert werden",
@@ -1120,7 +1119,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Designs",
       "updates": "Updates",
       "storage": "Speicher & Sicherung",
       "about": "Über",
@@ -1140,9 +1138,7 @@
     },
     "themes": {
       "default_description": "Die Standardpaletten für Hell und Dunkel.",
-      "default_name": "Bulwark",
-      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet.",
-      "title": "Designs"
+      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet."
     },
     "vacation": {
       "warnings": {

@@ -445,7 +445,6 @@
     "open_error": "Súbor sa nepodarilo otvoriť",
     "open_with": "Otvoriť pomocou…",
     "preview_too_large": "Tento súbor je príliš veľký na náhľad.",
-    "selected_count": "{count, plural, one {# vybraná} few {# vybrané} many {# vybranej} other {# vybraných}}",
     "share_add_people": "Pridať osoby",
     "share_empty": "Zatiaľ nikomu nezdieľané",
     "share_error": "Aktualizácia zdieľania zlyhala",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Pluginy",
-      "themes": "Témy",
       "updates": "Aktualizácie"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Predvolené svetlé a tmavé palety.",
-      "default_name": "Bulwark",
-      "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile.",
-      "title": "Témy"
+      "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile."
     },
     "vacation": {
       "warnings": {

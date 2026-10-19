@@ -445,7 +445,6 @@
     "open_error": "無法開啟檔案",
     "open_with": "以其他應用程式開啟…",
     "preview_too_large": "此檔案太大，無法預覽。",
-    "selected_count": "{count, plural, other {已選取 # 項}}",
     "share_add_people": "新增使用者",
     "share_empty": "尚未與任何人分享",
     "share_error": "無法更新分享設定",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "外掛程式",
-      "themes": "主題",
       "updates": "更新"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "預設的淺色與深色配色。",
-      "default_name": "Bulwark",
-      "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。",
-      "title": "主題"
+      "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。"
     },
     "vacation": {
       "warnings": {

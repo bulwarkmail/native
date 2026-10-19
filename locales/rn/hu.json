@@ -445,7 +445,6 @@
     "open_error": "Nem sikerült megnyitni a fájlt",
     "open_with": "Megnyitás ezzel…",
     "preview_too_large": "Ez a fájl túl nagy az előnézethez.",
-    "selected_count": "{count, plural, one {# kijelölve} other {# kijelölve}}",
     "share_add_people": "Személyek hozzáadása",
     "share_empty": "Még nincs megosztva senkivel",
     "share_error": "Nem sikerült frissíteni a megosztást",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Bővítmények",
-      "themes": "Témák",
       "updates": "Frissítések"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Az alapértelmezett világos és sötét paletták.",
-      "default_name": "Bulwark",
-      "mobile_description": "Válassz színtémát. A témák a Megjelenés világos/sötét beállítását követik; az egyéni témacsomagokat a webmailben kezelheted.",
-      "title": "Témák"
+      "mobile_description": "Válassz színtémát. A témák a Megjelenés világos/sötét beállítását követik; az egyéni témacsomagokat a webmailben kezelheted."
     },
     "vacation": {
       "warnings": {

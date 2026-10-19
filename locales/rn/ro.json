@@ -445,7 +445,6 @@
     "open_error": "Fișierul nu a putut fi deschis",
     "open_with": "Deschideți cu…",
     "preview_too_large": "Acest fișier este prea mare pentru previzualizare.",
-    "selected_count": "{count, plural, one {# element selectat} few {# elemente selectate} other {# de elemente selectate}}",
     "share_add_people": "Adăugați persoane",
     "share_empty": "Nu a fost partajat încă cu nimeni",
     "share_error": "Nu s-a putut actualiza partajarea",
@@ -1102,7 +1101,6 @@
     },
     "tabs": {
       "plugins": "Pluginuri",
-      "themes": "Teme",
       "updates": "Actualizări"
     },
     "templates": {
@@ -1119,9 +1117,7 @@
     },
     "themes": {
       "default_description": "Paletele implicite, luminoasă și întunecată.",
-      "default_name": "Bulwark",
-      "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail.",
-      "title": "Teme"
+      "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail."
     },
     "vacation": {
       "warnings": {
