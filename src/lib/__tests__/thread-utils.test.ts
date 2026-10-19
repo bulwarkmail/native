@@ -4,6 +4,7 @@ import {
   expandThreadSelection,
   getEmailTagIds,
   getThreadTagIds,
+  resolveEmailTags,
   tagIdFromKeyword,
   threadKeyOf,
   rowKeyOf,
@@ -28,6 +29,15 @@ describe('tag ids', () => {
       email('a', 't', '2026-01-01T00:00:00Z', { '$label:work': true }),
       email('b', 't', '2026-01-02T00:00:00Z', { '$label:todo': true, '$label:work': true }),
     ])).toEqual(['work', 'todo']);
+  });
+
+  it('keeps a tag with no local definition, grey and under its raw id (#79)', () => {
+    const defs = [{ id: 'work', label: 'Work', color: 'blue' as const }];
+    expect(resolveEmailTags({ '$label:work': true, '$label:pgp-encrypted': true, $seen: true }, defs)).toEqual([
+      { id: 'work', label: 'Work', color: 'blue' },
+      { id: 'pgp-encrypted', label: 'pgp-encrypted', color: 'gray' },
+    ]);
+    expect(resolveEmailTags(undefined, defs)).toEqual([]);
   });
 
   it('extracts the tag id from a keyword', () => {

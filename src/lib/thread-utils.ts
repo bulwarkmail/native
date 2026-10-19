@@ -1,4 +1,5 @@
 import type { Email } from '../api/types';
+import type { KeywordDef } from '../stores/keywords-store';
 
 // Port of the webmail's `lib/thread-utils.ts` (tag id extraction, thread
 // grouping helpers) trimmed to what the native list needs.
@@ -21,6 +22,21 @@ export function getEmailTagIds(keywords: Record<string, boolean> | undefined): s
     else if (key.startsWith(KEYWORD_PREFIX_LEGACY)) tags.add(key.slice(KEYWORD_PREFIX_LEGACY.length));
   }
   return [...tags];
+}
+
+/**
+ * The tags to draw for a message: every tag id on it, with its local
+ * definition where there is one. A tag no local definition explains (set by
+ * another client or by the server) is kept, grey and labelled with its raw
+ * id, so the header shows the same tags as the list row (#79).
+ */
+export function resolveEmailTags(
+  keywords: Record<string, boolean> | undefined,
+  defs: readonly KeywordDef[],
+): KeywordDef[] {
+  return getEmailTagIds(keywords).map(
+    (id) => defs.find((d) => d.id === id) ?? { id, label: id, color: 'gray' },
+  );
 }
 
 /**

@@ -9,7 +9,7 @@ import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useKeywordsStore, keywordToken } from '../../stores/keywords-store';
+import { useKeywordsStore } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import {
   deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
@@ -17,6 +17,7 @@ import {
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
+import { resolveEmailTags } from '../../lib/thread-utils';
 
 interface Props {
   email: Email;
@@ -121,10 +122,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
     return null;
   }, [spoofed, identities, from?.email, email]);
 
-  const tags = React.useMemo(
-    () => keywordDefs.filter((kw) => !!email.keywords?.[keywordToken(kw.id)]),
-    [keywordDefs, email.keywords],
-  );
+  const tags = React.useMemo(() => resolveEmailTags(email.keywords, keywordDefs), [keywordDefs, email.keywords]);
   const important = !!email.keywords?.$important;
   const answered = !!email.keywords?.$answered;
   const forwarded = !!email.keywords?.$forwarded;
