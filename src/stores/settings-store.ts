@@ -4,6 +4,7 @@ import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
 import { jmapClient } from '../api/jmap-client';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
+import { EMPTY_NOTIFICATION_MUTES, normalizeNotificationMutes, type NotificationMutes } from '../lib/notification-mutes';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -260,6 +261,9 @@ interface PersistedSettings {
   // Notifications. Sound/vibration live in the Android notification channel
   // (the OS owns them after channel creation), so there are no sound keys.
   emailNotificationsEnabled: boolean;
+  // Accounts and folders whose new mail does not notify (#78), keyed by the
+  // server's JMAP ids; see lib/notification-mutes.
+  notificationMutes: NotificationMutes;
   calendarNotificationsEnabled: boolean;
   calendarInvitationParsingEnabled: boolean;
   // Inbox unread count on the app icon (iOS, see lib/app-badge). Same
@@ -413,6 +417,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   filesShowHiddenFiles: false,
 
   emailNotificationsEnabled: true,
+  notificationMutes: EMPTY_NOTIFICATION_MUTES,
   calendarNotificationsEnabled: true,
   calendarInvitationParsingEnabled: true,
   appIconUnreadBadge: true,
@@ -605,6 +610,8 @@ export function mergeWithDefaults(parsed: Partial<PersistedSettings>): Persisted
     if (validator && !validator(v)) continue;
     if (k === 'bottomQuickActions') {
       out[k] = normalizeBottomQuickActions(v);
+    } else if (k === 'notificationMutes') {
+      out[k] = normalizeNotificationMutes(v);
     } else if (Array.isArray(def)) {
       if (Array.isArray(v)) out[k] = v;
     } else if (typeof def === 'object') {

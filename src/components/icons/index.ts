@@ -29,6 +29,7 @@ const G = {
   'ban': ["M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0","M5.7 5.7l12.6 12.6"],
   'beach': ["M17.553 16.75a7.5 7.5 0 0 0 -10.606 0","M18 3.804a6 6 0 0 0 -8.196 2.196l10.392 6a6 6 0 0 0 -2.196 -8.196","M16.732 10c1.658 -2.87 2.225 -5.644 1.268 -6.196c-.957 -.552 -3.075 1.326 -4.732 4.196","M15 9l-3 5.196","M3 19.25a2.4 2.4 0 0 1 1 -.25a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 1 .25"],
   'bell': ["M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6","M9 17v1a3 3 0 0 0 6 0v-1"],
+  'bell-off': ["M9.346 5.353c.21 -.129 .428 -.246 .654 -.353a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3m-1 3h-13a4 4 0 0 0 2 -3v-3a6.996 6.996 0 0 1 1.273 -3.707","M9 17v1a3 3 0 0 0 6 0v-1","M3 3l18 18"],
   'bell-ringing': ["M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6","M9 17v1a3 3 0 0 0 6 0v-1","M21 6.727a11.05 11.05 0 0 0 -2.794 -3.727","M3 6.727a11.05 11.05 0 0 1 2.792 -3.727"],
   'bold': ["M7 5h6a3.5 3.5 0 0 1 0 7h-6l0 -7","M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7"],
   'book': ["M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0","M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0","M3 6l0 13","M12 6l0 13","M21 6l0 13"],
@@ -190,6 +191,7 @@ export const ArrowUpDown = makeIcon('ArrowUpDown', G['arrows-sort']);
 export const ArrowUpNarrowWide = makeIcon('ArrowUpNarrowWide', G['sort-ascending']);
 export const Ban = makeIcon('Ban', G['ban']);
 export const Bell = makeIcon('Bell', G['bell']);
+export const BellOff = makeIcon('BellOff', G['bell-off']);
 export const BellRing = makeIcon('BellRing', G['bell-ringing']);
 export const Bold = makeIcon('Bold', G['bold']);
 export const Book = makeIcon('Book', G['book-2']);

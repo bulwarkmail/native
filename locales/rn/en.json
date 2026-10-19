@@ -996,6 +996,8 @@
       "email": {
         "app_icon_badge": "Unread count on app icon",
         "app_icon_badge_desc": "Show the inbox unread count as a badge on the app icon.",
+        "mute_account": "Mute this account",
+        "mute_account_desc": "No alerts for new mail in this account. Long-press a folder in the sidebar to mute or unmute it on its own.",
         "sound_channel_hint": "Sound and vibration for mail alerts are controlled by the Android notification channel: long-press a notification or open the system app settings."
       },
       "push": {

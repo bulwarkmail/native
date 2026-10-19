@@ -37,6 +37,7 @@ const MAP = {
   ArrowUpNarrowWide: 'sort-ascending',
   Ban: 'ban',
   Bell: 'bell',
+  BellOff: 'bell-off',
   BellRing: 'bell-ringing',
   Bold: 'bold',
   Book: 'book-2',

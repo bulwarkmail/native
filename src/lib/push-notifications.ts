@@ -14,6 +14,13 @@ import { JMAPMethodError, requireMethodResult } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
 import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
+import {
+  EMPTY_NOTIFICATION_MUTES,
+  isAccountMuted,
+  mailboxOverridesForAccount,
+  type NotificationMutes,
+} from './notification-mutes';
+import { useSettingsStore } from '../stores/settings-store';
 import { t } from '../stores/locale-store';
 import {
   authorityOfType,
@@ -296,32 +303,62 @@ export function serverSupportsEmailPush(): boolean {
  * a Junk-role mailbox (Sieve `fileinto` doesn't set the keyword). The two are
  * ANDed so a stale mailbox id - the user deleted and recreated Junk - degrades
  * to keyword-only filtering rather than letting everything through.
+ *
+ * Muted accounts and folders (#78) are cut out of the same filter: a muted
+ * folder joins Junk in the "not only in" list; a muted account only lets
+ * through mail in the folders the user unmuted again, or nothing at all.
  */
-export async function buildEmailPushConfig(): Promise<Record<string, EmailPushConfig>> {
+export async function buildEmailPushConfig(
+  mutes: NotificationMutes = EMPTY_NOTIFICATION_MUTES,
+): Promise<Record<string, EmailPushConfig>> {
   const primary = jmapClient.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
+  const mailboxIdsByAccount = new Map<string, Set<string>>();
   // The mail store loads the same folders at the same moment (sign-in,
   // start): reuse its list rather than a second Mailbox/get of our own.
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
   const loaded = username && serverUrl ? await loadedMailboxes(generateAccountId(username, serverUrl)) : null;
-  const all = loaded ?? [
-    ...(await getMailboxes().catch(() => [] as Mailbox[])),
-    ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
-  ];
+  // With mutes a swallowed fetch failure would look like "no such folder"
+  // and unmute everything, so let the real error surface; otherwise the
+  // filter can still degrade to keyword-only on a transient miss.
+  const hasMutes = mutes.accounts.length > 0 || Object.keys(mutes.mailboxes).length > 0;
+  const all = loaded ?? (hasMutes
+    ? [...(await getMailboxes()), ...(await getSharedMailboxes())]
+    : [
+      ...(await getMailboxes().catch(() => [] as Mailbox[])),
+      ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
+    ]);
   for (const m of all) {
     const accountId = m.accountId || primary;
-    const junk = junkByAccount.get(accountId) ?? [];
     // Shared-account mailboxes carry a client-side "<account>:<id>" id;
     // the server only knows the original.
-    if (m.role === 'junk') junk.push(m.originalId ?? m.id);
+    const serverId = m.originalId ?? m.id;
+    const ids = mailboxIdsByAccount.get(accountId) ?? new Set<string>();
+    ids.add(serverId);
+    mailboxIdsByAccount.set(accountId, ids);
+    const junk = junkByAccount.get(accountId) ?? [];
+    if (m.role === 'junk') junk.push(serverId);
     junkByAccount.set(accountId, junk);
   }
 
   const config: Record<string, EmailPushConfig> = {};
   for (const [accountId, junkIds] of junkByAccount) {
+    // Settings for folders that no longer exist are left out.
+    const existing = mailboxIdsByAccount.get(accountId) ?? new Set<string>();
+    const overrides = mailboxOverridesForAccount(mutes, accountId);
     const conditions: Record<string, unknown>[] = [{ notKeyword: '$junk' }];
-    if (junkIds.length > 0) conditions.push({ inMailboxOtherThan: [...junkIds].sort() });
+    if (isAccountMuted(mutes, accountId)) {
+      const allowed = overrides.unmuted
+        .filter((id) => existing.has(id) && !junkIds.includes(id))
+        .sort();
+      if (allowed.length === 0) conditions.push(NEVER_MATCH);
+      else if (allowed.length === 1) conditions.push({ inMailbox: allowed[0] });
+      else conditions.push({ operator: 'OR', conditions: allowed.map((id) => ({ inMailbox: id })) });
+    } else {
+      const excluded = new Set([...junkIds, ...overrides.muted.filter((id) => existing.has(id))]);
+      if (excluded.size > 0) conditions.push({ inMailboxOtherThan: [...excluded].sort() });
+    }
     config[accountId] = {
       // Always the operator form: that's how the server echoes it back, so a
       // stored config compares equal to a freshly built one.
@@ -332,6 +369,10 @@ export async function buildEmailPushConfig(): Promise<Record<string, EmailPushCo
   }
   return config;
 }
+
+// Contradicts the `notKeyword: '$junk'` every filter starts with, so the AND
+// never matches: the account stays in the map but never pushes.
+const NEVER_MATCH = { hasKeyword: '$junk' } as const;
 
 function normalizeEmailPush(value: unknown): string {
   const sortKeys = (v: unknown): unknown => {
@@ -980,7 +1021,7 @@ async function setupPushNotificationsInner(
   if (params.forceRecreate) await AsyncStorage.removeItem(emailPushRefusedKey(accountId));
   const refusedBefore = await readRefusedEmailPushAccounts(accountId);
   const emailPush = serverSupportsEmailPush()
-    ? withoutAccounts(await buildEmailPushConfig(), refusedBefore)
+    ? withoutAccounts(await buildEmailPushConfig(useSettingsStore.getState().notificationMutes), refusedBefore)
     : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);

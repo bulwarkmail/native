@@ -9,7 +9,7 @@ import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
-  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus,
+  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Bell, BellOff, RotateCcw,
   type AppIcon,
 } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -40,6 +40,11 @@ import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import { setPendingSettingsTab } from '../navigation/pending-settings-tab';
+import {
+  isAccountMuted, isMailboxMuted, mailboxOverridesForAccount, resetMailboxMutes, setAccountMuted, setMailboxMuted,
+  type NotificationMutes,
+} from '../lib/notification-mutes';
+import { serverSupportsEmailPush } from '../lib/push-notifications';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -157,6 +162,8 @@ interface SidebarRowProps {
   showTotal: boolean;
   hasChildren: boolean;
   isExpanded: boolean;
+  /** New mail here does not notify (#78). */
+  muted?: boolean;
   onPress: () => void;
   onLongPress?: () => void;
   onToggleExpand: () => void;
@@ -165,7 +172,7 @@ interface SidebarRowProps {
 
 function SidebarRow({
   icon, label, depth, isSelected, isAccountHeader, unread, total, showTotal,
-  hasChildren, isExpanded, onPress, onLongPress, onToggleExpand, onPressUnread,
+  hasChildren, isExpanded, muted, onPress, onLongPress, onToggleExpand, onPressUnread,
 }: SidebarRowProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -215,6 +222,11 @@ function SidebarRow({
       >
         {label}
       </Text>
+      {muted && (
+        <View style={styles.rowMuted} accessibilityLabel={t('sidebar.notifications_muted', 'Notifications muted')}>
+          <BellOff size={12} color={c.textMuted} />
+        </View>
+      )}
       <RowCounts unread={unread} total={total} showTotal={showTotal} onPressUnread={onPressUnread} />
     </Pressable>
   );
@@ -334,6 +346,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
+  const notificationMutes = useSettingsStore((s) => s.notificationMutes);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
@@ -459,6 +473,41 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     id: mb.originalId ?? mb.id,
     accountId: mb.isShared ? mb.accountId : undefined,
   });
+
+  // Notification mutes (#78). Muting only takes effect through the server's
+  // emailPush filter, so the actions show only where that exists. The
+  // settings are keyed by the server's ids: a folder of the own account may
+  // carry no accountId, so the client's stands in.
+  let primaryJmapAccountId: string | null = null;
+  try { primaryJmapAccountId = jmapClient.accountId; } catch { primaryJmapAccountId = null; }
+  const canMute = primaryJmapAccountId !== null && serverSupportsEmailPush();
+  const muteAccountOf = (accountId?: string | null): string => accountId || primaryJmapAccountId || '';
+  const saveMutes = (next: NotificationMutes) => updateSetting('notificationMutes', next);
+  const muteActionsForAccount = (accountId: string): SheetAction[] => {
+    const muted = isAccountMuted(notificationMutes, accountId);
+    const overrides = mailboxOverridesForAccount(notificationMutes, accountId);
+    const actions: SheetAction[] = [{
+      key: 'mute',
+      label: muted
+        ? t('mailbox_context_menu.unmute_account_notifications', 'Unmute notifications for this account')
+        : t('mailbox_context_menu.mute_account_notifications', 'Mute notifications for this account'),
+      icon: muted ? Bell : BellOff,
+      onPress: () => saveMutes(setAccountMuted(notificationMutes, accountId, !muted)),
+    }];
+    if (overrides.muted.length + overrides.unmuted.length > 0) {
+      actions.push({
+        key: 'reset-mutes',
+        label: t('mailbox_context_menu.reset_folder_notifications', 'Reset folder notification settings'),
+        icon: RotateCcw,
+        onPress: () => saveMutes(resetMailboxMutes(notificationMutes, accountId)),
+      });
+    }
+    return actions;
+  };
+  const openOwnAccountSheet = () => {
+    if (!canMute) return;
+    setSheet({ title: username ?? t('sidebar.folders', 'Folders'), actions: muteActionsForAccount(muteAccountOf()) });
+  };
   const runFolderAction = async (label: string, work: () => Promise<unknown>, affectsCurrent: boolean) => {
     setBusy(true);
     try {
@@ -498,6 +547,18 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     ];
     if (subtree.length > 1) {
       actions.push({ key: 'tree', label: t('mailbox_context_menu.mark_folder_tree_read', 'Mark folder & subfolders as read'), icon: CheckCheck, onPress: () => markRead(subtree) });
+    }
+    if (canMute) {
+      const accountId = muteAccountOf(mb.accountId);
+      const muted = isMailboxMuted(notificationMutes, accountId, ref.id);
+      actions.push({
+        key: 'mute',
+        label: muted
+          ? t('mailbox_context_menu.unmute_notifications', 'Unmute notifications')
+          : t('mailbox_context_menu.mute_notifications', 'Mute notifications'),
+        icon: muted ? Bell : BellOff,
+        onPress: () => saveMutes(setMailboxMuted(notificationMutes, accountId, ref.id, !muted)),
+      });
     }
     if (!mb.isShared) {
       actions.push({
@@ -622,6 +683,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
         onPress: () => markRead(mailboxes.filter((m) => m.isShared && m.accountId === accountId).map((m) => m.id)),
       },
     ];
+    if (canMute) actions.push(...muteActionsForAccount(accountId));
     if (canCreate) {
       actions.push({
         key: 'new',
@@ -1036,7 +1098,14 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
           )}
 
           {/* Folders section */}
-          <Pressable style={styles.sectionHeader} onPress={() => toggleSection('foldersExpanded', setFoldersExpanded)}>
+          <Pressable
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('foldersExpanded', setFoldersExpanded)}
+            // The own account's notification mutes (#78), like the webmail's
+            // menu on this header.
+            onLongPress={canMute ? openOwnAccountSheet : undefined}
+            delayLongPress={350}
+          >
             {foldersExpanded ? (
               <ChevronDown size={14} color={c.textMuted} />
             ) : (
@@ -1090,6 +1159,9 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                     unread={node.unreadEmails}
                     total={node.totalEmails}
                     showTotal={showFolderTotalCount && !node.isAccountNode}
+                    muted={canMute && (node.isAccountNode
+                      ? isAccountMuted(notificationMutes, muteAccountOf(node.accountId))
+                      : isMailboxMuted(notificationMutes, muteAccountOf(node.accountId), node.originalId ?? node.id))}
                     hasChildren={hasChildren}
                     isExpanded={isExpanded}
                     onPress={
@@ -1458,6 +1530,7 @@ function makeStyles(c: ThemePalette) {
     ...typography.bodySemibold,
     color: c.text,
   },
+  rowMuted: { marginLeft: spacing.xs },
   rowLabelAccount: {
     fontSize: 13,
     lineHeight: 18,

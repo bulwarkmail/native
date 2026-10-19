@@ -39,6 +39,9 @@ import {
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
 import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
+
+// Pause between a mute change and the push-filter update it sends (#78).
+const MUTES_RESYNC_DELAY_MS = 1_000;
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
 import EmailThreadScreen from './src/screens/EmailThreadScreen';
@@ -683,6 +686,41 @@ export default function App() {
       unsubscribeUp();
     };
   }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId]);
+
+  // Muting a folder or account changes the server-side push filter (#78),
+  // which the setup above would only send at the next launch. Send it now,
+  // after a short pause so a few taps in a row make one update. Compared by
+  // content, since hydration hands back an equal but new object; the value
+  // seen first after hydration is the baseline, not a change.
+  const notificationMutes = useSettingsStore((s) => s.notificationMutes);
+  const settingsHydrated = useSettingsStore((s) => s.hydrated);
+  const mutesKey = JSON.stringify(notificationMutes);
+  const lastMutesKey = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!settingsHydrated) return;
+    if (lastMutesKey.current === null || lastMutesKey.current === mutesKey) {
+      lastMutesKey.current = mutesKey;
+      return;
+    }
+    lastMutesKey.current = mutesKey;
+    if (!isAuthenticated || !client || !emailNotificationsEnabled) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const relayBaseUrl = await getStoredRelayBaseUrl();
+      if (!relayBaseUrl || cancelled) return;
+      try {
+        await resyncPushNotifications({ relayBaseUrl, accountLabel: client.username ?? undefined });
+      } catch (error) {
+        console.warn('[push] mute update failed:', error instanceof Error ? error.message : error);
+      }
+    }, MUTES_RESYNC_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // Only a change of the mutes should send an update; the rest is read live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mutesKey, settingsHydrated]);
 
   // Live updates (SSE with polling fallback), re-armed on every account
   // switch and every re-established session — the singleton `client` object
