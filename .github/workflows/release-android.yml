@@ -1,4 +1,4 @@
-name: Release Android APK
+name: Release Android
 
 on:
   release:
@@ -137,7 +137,7 @@ jobs:
           ORG_GRADLE_PROJECT_BULWARK_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleGithubRelease --no-daemon
 
       - name: Put apksigner on the PATH
         run: |
@@ -188,7 +188,7 @@ jobs:
           # Oldest signer first: apksigner uses it for v2, and the rotated key
           # for v3 from API 28. Without --rotation-min-sdk-version it would
           # only rotate on Android 13+ (v3.1) and leave 9-12L on the debug key.
-          APK=android/app/build/outputs/apk/release/app-release.apk
+          APK=android/app/build/outputs/apk/github/release/app-github-release.apk
           apksigner sign \
             --v4-signing-enabled false \
             --ks android/app/debug.keystore --ks-key-alias androiddebugkey \
@@ -210,7 +210,7 @@ jobs:
           ROTATED: ${{ steps.rotation.outputs.rotated }}
         run: |
           set -euo pipefail
-          APK=android/app/build/outputs/apk/release/app-release.apk
+          APK=android/app/build/outputs/apk/github/release/app-github-release.apk
           apksigner verify --verbose --print-certs "$APK"
           # build-tools 36 prints "Signer #1 certificate SHA-256 digest: …",
           # 37 prints "V3.0 Signer: certificate …" and "V2 Signer: …".
@@ -248,12 +248,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(cat VERSION | tr -d '[:space:]')
-          SRC=android/app/build/outputs/apk/release/app-release.apk
+          SRC=android/app/build/outputs/apk/github/release/app-github-release.apk
           DEST="bulwark-mobile-${VERSION}-${GITHUB_SHA::7}.apk"
           cp "$SRC" "$DEST"
           sha256sum "$DEST" > "$DEST.sha256"
 
-          MAPPING_SRC=android/app/build/outputs/mapping/release/mapping.txt
+          MAPPING_SRC=android/app/build/outputs/mapping/githubRelease/mapping.txt
           MAPPING=""
           if [ -f "$MAPPING_SRC" ]; then
             MAPPING="bulwark-mobile-${VERSION}-${GITHUB_SHA::7}-mapping.txt"
@@ -299,12 +299,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A manual run with no tag only builds: it must not replace the APK
+          # of the latest release with one from another commit.
           if [ "${{ github.event_name }}" = "release" ]; then
             TAG="${{ github.event.release.tag_name }}"
-          elif [ -n "${{ github.event.inputs.attach_to_release_tag }}" ]; then
-            TAG="${{ github.event.inputs.attach_to_release_tag }}"
           else
-            TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || true)
+            TAG="${{ github.event.inputs.attach_to_release_tag }}"
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if [ -n "$TAG" ]; then
@@ -319,3 +319,148 @@ jobs:
         with:
           tag_name: ${{ steps.target_tag.outputs.tag }}
           files: ${{ steps.artifact.outputs.files }}
+
+  # The Google Play bundle (docs/android-release.md, "Google Play"). It is
+  # signed with the release key, which Play knows as the upload key; Play
+  # re-signs what it delivers with its own app signing key. A separate job so
+  # the GitHub APK isn't held up by the three-ABI native build.
+  play-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - name: Require the release signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE_BASE64" ] || missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -n "$KEYSTORE_PASSWORD" ] || missing="$missing ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || missing="$missing ANDROID_KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || missing="$missing ANDROID_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error title=Release signing is not configured::Missing repository secrets:$missing. See docs/android-release.md."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Decode and check the upload key
+        id: key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/release.keystore"
+          CERT="$RUNNER_TEMP/release-cert.der"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          keytool -exportcert -keystore "$KEYSTORE" -alias "$KEY_ALIAS" \
+            -storepass:env KEYSTORE_PASSWORD -file "$CERT"
+          CERT_SHA256=$(sha256sum "$CERT" | cut -d' ' -f1)
+          if [ "$CERT_SHA256" = "$DEBUG_CERT_SHA256" ]; then
+            echo "::error title=Upload key is a debug key::ANDROID_KEYSTORE_BASE64 holds the Android debug key."
+            exit 1
+          fi
+          echo "store_file=$KEYSTORE" >> "$GITHUB_OUTPUT"
+          echo "cert_sha256=$CERT_SHA256" >> "$GITHUB_OUTPUT"
+
+      # Play splits a bundle per ABI, so the extra architectures cost a phone
+      # nothing and let 32-bit ARM phones and x86_64 Chromebooks install it.
+      - name: Build the Play bundle
+        working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_BULWARK_RELEASE_STORE_FILE: ${{ steps.key.outputs.store_file }}
+          ORG_GRADLE_PROJECT_BULWARK_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_BULWARK_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_BULWARK_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundlePlayRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86_64
+
+      # Play rejects a bundle signed with another key than the registered
+      # upload key, and its policies reject a self-updater and the media
+      # permission. Catch all three here instead of in the Play Console.
+      - name: Check the bundle
+        env:
+          RELEASE_CERT_SHA256: ${{ steps.key.outputs.cert_sha256 }}
+        run: |
+          set -euo pipefail
+          AAB=android/app/build/outputs/bundle/playRelease/app-play-release.aab
+          SIGNER=$(keytool -printcert -jarfile "$AAB" | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 | tr -d ':' | tr 'A-F' 'a-f')
+          echo "Bundle signer SHA-256: $SIGNER"
+          if [ "$SIGNER" != "$RELEASE_CERT_SHA256" ]; then
+            echo "::error title=Wrong bundle signer::Expected the upload key $RELEASE_CERT_SHA256, got '$SIGNER'."
+            exit 1
+          fi
+          MANIFEST=$(unzip -p "$AAB" base/manifest/AndroidManifest.xml | tr -c '[:print:]' '\n')
+          if ! grep -q 'org.bulwarkmail.mobile' <<< "$MANIFEST"; then
+            echo "::error title=Wrong package::The bundle is not org.bulwarkmail.mobile."
+            exit 1
+          fi
+          for permission in REQUEST_INSTALL_PACKAGES READ_MEDIA_IMAGES READ_MEDIA_VIDEO RECORD_AUDIO; do
+            if grep -q "android.permission.$permission" <<< "$MANIFEST"; then
+              echo "::error title=Permission not allowed on Play::The Play bundle declares $permission."
+              exit 1
+            fi
+          done
+
+      - name: Name the bundle and R8 mapping with version
+        id: artifact
+        run: |
+          set -euo pipefail
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          AAB="bulwark-mobile-play-${VERSION}-${GITHUB_SHA::7}.aab"
+          MAPPING="bulwark-mobile-play-${VERSION}-${GITHUB_SHA::7}-mapping.txt"
+          cp android/app/build/outputs/bundle/playRelease/app-play-release.aab "$AAB"
+          cp android/app/build/outputs/mapping/playRelease/mapping.txt "$MAPPING"
+          echo "aab=$AAB" >> "$GITHUB_OUTPUT"
+          echo "mapping=$MAPPING" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.aab }}
+          path: |
+            ${{ steps.artifact.outputs.aab }}
+            ${{ steps.artifact.outputs.mapping }}
+          if-no-files-found: error
+
+      # Runs once PLAY_SERVICE_ACCOUNT_JSON is set. Play only accepts API
+      # uploads after the first bundle was uploaded by hand in the Console, and
+      # releases of an app that was never published must be drafts; switch
+      # `status` to `completed` after the first production release.
+      - name: Upload to Google Play (internal testing, draft)
+        if: env.PLAY_SERVICE_ACCOUNT_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.bulwarkmail.mobile
+          releaseFiles: ${{ steps.artifact.outputs.aab }}
+          mappingFile: ${{ steps.artifact.outputs.mapping }}
+          track: internal
+          status: draft

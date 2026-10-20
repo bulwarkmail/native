@@ -889,14 +889,8 @@ export default function ContactFormScreen() {
     : [form.given, form.surname].filter(Boolean).join(' ').trim() || form.full.trim();
 
   const pickPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        t('contacts.form.photo_permission_title', 'Photo access needed'),
-        t('contacts.form.photo_permission_message', 'Grant photo library permission to pick a contact photo.'),
-      );
-      return;
-    }
+    // The system photo picker needs no media permission (and Play rejects
+    // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,

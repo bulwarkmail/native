@@ -1625,14 +1625,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   const pickPhotoAttachments = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        t('email_composer.attach', 'Attach'),
-        t('email_composer.permission_photos', 'Photo library permission is required to attach images.'),
-      );
-      return;
-    }
+    // The system photo picker needs no media permission (and Play rejects
+    // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
@@ -1729,14 +1723,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const insertInlineImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        t('email_composer.attach', 'Attach'),
-        t('email_composer.permission_photos', 'Photo library permission is required to attach images.'),
-      );
-      return;
-    }
+    // The system photo picker needs no media permission (and Play rejects
+    // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
