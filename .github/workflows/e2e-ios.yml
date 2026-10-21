@@ -9,6 +9,11 @@ name: iOS simulator tests
 
 on:
   workflow_dispatch:
+    inputs:
+      app_run_id:
+        description: "Reuse the simulator app from this earlier run instead of building (run id)"
+        type: string
+        required: false
   release:
     types: [published]
 
@@ -20,6 +25,9 @@ jobs:
   simulator:
     runs-on: macos-latest
     timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
     env:
       EXPO_NO_TELEMETRY: "1"
       OUT: ${{ github.workspace }}/e2e-output
@@ -28,6 +36,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
+        if: inputs.app_run_id == ''
         with:
           node-version: 20
           cache: npm
@@ -38,6 +47,7 @@ jobs:
           java-version: 17
 
       - name: Cache CocoaPods
+        if: inputs.app_run_id == ''
         uses: actions/cache@v4
         with:
           path: |
@@ -47,12 +57,15 @@ jobs:
           restore-keys: pods-${{ runner.os }}-
 
       - name: Install JS dependencies
+        if: inputs.app_run_id == ''
         run: npm ci
 
       - name: Generate the iOS project
+        if: inputs.app_run_id == ''
         run: npx expo prebuild --platform ios --clean
 
       - name: Build for the simulator
+        if: inputs.app_run_id == ''
         run: |
           WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
@@ -74,16 +87,32 @@ jobs:
             tail -n 80 "$OUT/xcodebuild.log"
             exit 1
           fi
-          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
-          echo "APP=$APP" >> "$GITHUB_ENV"
-          echo "Built $APP"
+          # Packed as a tar: artifacts drop the executable bit, which would
+          # leave a reused app unable to launch.
+          tar -C build/Build/Products/Release-iphonesimulator -czf "$RUNNER_TEMP/simulator-app.tar.gz" BulwarkMobile.app
 
       - name: Upload the simulator app
+        if: inputs.app_run_id == ''
         uses: actions/upload-artifact@v4
         with:
-          name: bulwark-mobile-simulator-${{ github.sha }}
-          path: build/Build/Products/Release-iphonesimulator/*.app
+          name: simulator-app
+          path: ${{ runner.temp }}/simulator-app.tar.gz
           if-no-files-found: error
+
+      - name: Download the simulator app from an earlier run
+        if: inputs.app_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          run-id: ${{ inputs.app_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}
+
+      - name: Unpack the simulator app
+        run: |
+          mkdir -p "$RUNNER_TEMP/app"
+          tar -C "$RUNNER_TEMP/app" -xzf "$RUNNER_TEMP/simulator-app.tar.gz"
+          echo "APP=$RUNNER_TEMP/app/BulwarkMobile.app" >> "$GITHUB_ENV"
 
       - name: Boot a simulator
         run: |
@@ -114,7 +143,7 @@ jobs:
           USERNAME: ${{ vars.E2E_USERNAME }}
           PASSWORD: ${{ secrets.E2E_PASSWORD }}
           # The XCTest driver takes a while to come up on a cold runner.
-          MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "600000"
           MAESTRO_CLI_NO_ANALYTICS: "1"
         run: |
           maestro --version
@@ -131,14 +160,30 @@ jobs:
             ARGS+=(--exclude-tags signed-in)
           fi
 
-          # Screenshots land in the working directory, so run from the output
-          # folder. Debug output is left out on purpose: it logs typed text,
-          # including the password, and artifacts here are public.
+          # Warm-up with the launch flow alone. It types nothing, so its debug
+          # log holds no secrets and can be printed when the driver won't start.
+          # The real run below keeps debug output off: it would log the password,
+          # and artifacts here are public.
           set +e
+          touch "$RUNNER_TEMP/flows-started"
           (cd "$OUT/screenshots" && maestro --device "$UDID" test \
-            --format junit --output "$OUT/report.xml" \
-            "${ARGS[@]}" "$GITHUB_WORKSPACE/.maestro")
+            --debug-output "$RUNNER_TEMP/maestro-warmup" "$GITHUB_WORKSPACE/.maestro/launch.yaml")
           STATUS=$?
+          if [ $STATUS -ne 0 ]; then
+            echo "::group::Maestro warm-up log"
+            find "$RUNNER_TEMP/maestro-warmup" -name 'maestro.log' -exec tail -n 300 {} \;
+            echo "::endgroup::"
+            echo "::group::xcodebuild logs of the driver"
+            find "$HOME/Library/Logs" "$HOME/.maestro" "$TMPDIR" -name '*.log' -newer "$RUNNER_TEMP/flows-started" 2>/dev/null \
+              | grep -i -E 'xctest|xcodebuild|maestro' | grep -v maestro-warmup | head -5 \
+              | while read -r f; do echo "== $f"; tail -n 80 "$f"; done
+            echo "::endgroup::"
+          else
+            (cd "$OUT/screenshots" && maestro --device "$UDID" test \
+              --format junit --output "$OUT/report.xml" \
+              "${ARGS[@]}" "$GITHUB_WORKSPACE/.maestro")
+            STATUS=$?
+          fi
           set -e
 
           kill -INT "$RECORDER" || true
