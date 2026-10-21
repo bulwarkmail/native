@@ -132,6 +132,12 @@ jobs:
           # first time a text field gets focus, and typed text goes nowhere.
           xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
           xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardContinuousPathEnabled -bool false
+          # Predictions, autocorrect and password AutoFill can swallow or
+          # rewrite what XCTest types.
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardPrediction -bool false
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardAutocorrection -bool false
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardAutocapitalization -bool false
+          xcrun simctl spawn "$UDID" defaults write com.apple.WebUI AutoFillPasswords -bool false || true
           xcrun simctl install "$UDID" "$APP"
           echo "UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl list devices | grep "$UDID"
@@ -173,6 +179,10 @@ jobs:
           (cd "$OUT/screenshots" && maestro --device "$UDID" test \
             --debug-output "$RUNNER_TEMP/maestro-warmup" "$GITHUB_WORKSPACE/.maestro/launch.yaml")
           STATUS=$?
+          echo "::group::Maestro warm-up log (typing)"
+          find "$RUNNER_TEMP/maestro-warmup" -name 'maestro.log' -exec grep -n -i -E "inputText|typeText|keyboard|input_text|Exception|error" {} \; | tail -n 120
+          echo "::endgroup::"
+          maestro --device "$UDID" hierarchy > "$OUT/hierarchy-warmup.json" 2>/dev/null || true
           if [ $STATUS -ne 0 ]; then
             echo "::group::Maestro warm-up log"
             find "$RUNNER_TEMP/maestro-warmup" -name 'maestro.log' -exec tail -n 300 {} \;

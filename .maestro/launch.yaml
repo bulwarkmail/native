@@ -1,5 +1,6 @@
 # Fresh install: the app starts and shows the sign-in choices.
 # Needs no server, so it also runs when the test account secrets are missing.
+# It types only a made-up address, so its debug log is safe to print.
 appId: org.bulwarkmail.mobile
 name: Launch to sign-in
 tags:
@@ -18,4 +19,9 @@ tags:
     visible:
       id: login-server-input
     timeout: 10000
+- tapOn:
+    id: login-server-input
+- runFlow: subflows/dismiss-keyboard-tip.yaml
+- inputText: "mail.example.com"
 - takeScreenshot: 02-server-step
+- assertVisible: "mail.example.com"
