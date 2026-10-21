@@ -1,0 +1,16 @@
+# Settings → Account lists the accounts on this device; the active one is
+# ACTIVE. Goes back to Mail afterwards.
+appId: org.bulwarkmail.mobile
+---
+- tapOn:
+    id: tab-settings
+- extendedWaitUntil:
+    visible: "Account"
+    timeout: 10000
+- tapOn: "Account"
+- extendedWaitUntil:
+    visible: ${ACTIVE}
+    timeout: 20000
+- takeScreenshot: accounts-${ACTIVE}
+- tapOn:
+    id: tab-mail

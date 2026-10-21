@@ -1,0 +1,25 @@
+# Type TEXT into the field with id FIELD and check it arrived in full.
+#
+# iOS drops keystrokes while the edit menu (the "AutoFill" bubble) opens,
+# which happens when a flow taps a field that already has focus; an
+# auto-focused field is left alone. Retyped up to twice if text got lost.
+appId: org.bulwarkmail.mobile
+---
+- retry:
+    maxRetries: 2
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: ${FIELD}
+              focused: true
+          commands:
+            - tapOn:
+                id: ${FIELD}
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - eraseText: 80
+      - inputText: ${TEXT}
+      - assertVisible:
+          id: ${FIELD}
+          text: ${TEXT_PATTERN || TEXT}

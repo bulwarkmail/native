@@ -1,0 +1,16 @@
+# Signed in: sign out of the active account from the end of Settings.
+appId: org.bulwarkmail.mobile
+---
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element: "Sign Out"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Sign Out"
+- extendedWaitUntil:
+    visible: "The account is removed from this device.*"
+    timeout: 10000
+- tapOn:
+    text: "Sign out"
+    below: "The account is removed from this device.*"

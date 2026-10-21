@@ -1,0 +1,32 @@
+# The QR scanner with camera access denied, then allowed (the simulator has
+# no camera, so nothing can be scanned). Neither may crash the app.
+appId: org.bulwarkmail.mobile
+name: Scanner without camera
+tags:
+  - signin
+---
+- runFlow:
+    file: ../subflows/start.yaml
+    env:
+      CAMERA: deny
+- tapOn: "Scan a sign-in code.*"
+- extendedWaitUntil:
+    visible: "Camera access is turned off.*|Scanning a sign-in QR code uses the camera.*"
+    timeout: 15000
+- takeScreenshot: scanner-01-denied
+- tapOn: "Close"
+- assertVisible: "Enter server details manually"
+
+- runFlow:
+    file: ../subflows/start.yaml
+    env:
+      CAMERA: allow
+- tapOn: "Scan a sign-in code.*"
+- extendedWaitUntil:
+    visible: "Sign-in code"
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: scanner-02-allowed
+- tapOn: "Close"
+- assertVisible: "Enter server details manually"

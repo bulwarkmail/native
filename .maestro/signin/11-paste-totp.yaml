@@ -1,0 +1,15 @@
+# "Paste sign-in link" for a TOTP account.
+appId: org.bulwarkmail.mobile
+name: Paste sign-in link, TOTP account
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /pair?user=${TOTP_ACCOUNT}&deliver=pbcopy
+- runFlow: ../subflows/paste-link.yaml
+- runFlow: ../subflows/finish-two-factor-if-asked.yaml
+- runFlow: ../subflows/inbox.yaml
+- takeScreenshot: paste-totp-01-inbox

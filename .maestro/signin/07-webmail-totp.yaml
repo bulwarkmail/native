@@ -1,0 +1,22 @@
+# Webmail hand-off for a TOTP account: the webmail asks for the code; if it
+# hands back the password, the app finishes with a code of its own.
+appId: org.bulwarkmail.mobile
+name: Webmail hand-off with TOTP
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${WEBMAIL}
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- runFlow:
+    file: ../subflows/webmail-login-page.yaml
+    env:
+      LOGIN: ${TOTP_ACCOUNT}@example.org
+      TOTP: "yes"
+- runFlow: ../subflows/finish-two-factor-if-asked.yaml
+- runFlow: ../subflows/inbox.yaml
+- takeScreenshot: webmail-totp-01-inbox

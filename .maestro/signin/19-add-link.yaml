@@ -1,0 +1,30 @@
+# Second account from a sign-in link opened by another app while signed in.
+appId: org.bulwarkmail.mobile
+name: Add account, sign-in link
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/password-sign-in.yaml
+    env:
+      LOGIN: ${ACCOUNT}@example.org
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /pair?user=${ACCOUNT2}&deliver=openurl
+- extendedWaitUntil:
+    visible: "Sign in with a link."
+    timeout: 60000
+- takeScreenshot: add-link-01-prompt
+- assertVisible: "This link adds an account.*"
+- tapOn:
+    text: "Continue"
+    below: "Sign in with a link."
+- runFlow: ../subflows/inbox.yaml
+- runFlow:
+    file: ../subflows/check-active-account.yaml
+    env:
+      ACTIVE: ${ACCOUNT2}@example.org
+- assertVisible: ${ACCOUNT}@example.org
+- takeScreenshot: add-link-02-two-accounts

@@ -1,0 +1,31 @@
+# The Bulwark webmail's sign-in page inside the auth session (the app's
+# "Sign in via webmail" hand-off). env LOGIN, TOTP=yes for a TOTP account.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible: "user@example.com"
+    timeout: 60000
+- takeScreenshot: webmail-login-page
+- tapOn: "user@example.com"
+- inputText: ${LOGIN}
+- tapOn: "Enter your password"
+- inputText: ${PASSWORD}
+- tapOn:
+    text: "Sign in"
+    index: 1
+- runFlow:
+    when:
+      true: ${TOTP == 'yes'}
+    commands:
+      - extendedWaitUntil:
+          visible: "000000"
+          timeout: 30000
+      - runScript:
+          file: ../scripts/helper.js
+          env:
+            CALL: /totp
+      - tapOn: "000000"
+      - inputText: ${output.helper.code}
+      - tapOn:
+          text: "Sign in|Verify"
+          index: 1

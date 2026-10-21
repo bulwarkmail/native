@@ -1,0 +1,21 @@
+# The two-factor field is showing (it focuses itself): type a fresh code from
+# the helper and sign in.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible: "Two-factor code"
+    timeout: 30000
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /totp
+- waitForAnimationToEnd:
+    timeout: 3000
+- inputText: ${output.helper.code}
+# The number pad has no return key.
+- runFlow:
+    when:
+      notVisible: "Sign in"
+    commands:
+      - hideKeyboard
+- tapOn: "Sign in"

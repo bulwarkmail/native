@@ -1,17 +1,34 @@
 name: iOS simulator tests
 
-# Builds the app for the iOS Simulator (no signing needed), runs the Maestro
-# flows in .maestro/ against it and uploads screenshots and a screen recording.
+# Builds the app for the iOS Simulator (no signing needed) and runs the
+# Maestro flows in .maestro/ on iPhone and iPad simulators:
 #
-# The signed-in flow needs the E2E_SERVER and E2E_USERNAME variables and the
-# E2E_PASSWORD secret (a test account on a server the runner can reach).
-# Without them only the launch flow runs.
+# - signin: every sign-in method (.maestro/signin), on an iPhone and an iPad
+# - features: the app feature by feature (.maestro/features), on iPhone and
+#   iPad in light and dark, plus the iPad in landscape (split layout)
+#
+# Each leg signs in with its own account on the test server (e2e-* accounts
+# on VM 106, password E2E_PASSWORD), so parallel legs never share a mailbox.
+# scripts/e2e/helper.mjs runs next to the simulator for what a flow can't do
+# itself: TOTP codes, fresh webmail pairing links, mail sent by userb.
+#
+# Artifacts per leg: screenshots, a screen recording, the app log and a JUnit
+# report. They are public; see scripts/e2e/run-flows.sh for how secrets are
+# kept out of them.
 
 on:
   workflow_dispatch:
     inputs:
       app_run_id:
         description: "Reuse the simulator app from this earlier run instead of building (run id)"
+        type: string
+        required: false
+      legs:
+        description: "Legs to run: all, signin, features, or a comma list (signin-phone, features-tablet-dark, ...)"
+        type: string
+        default: all
+      flows:
+        description: "Only these flows (comma list of file names without .yaml); empty runs all"
         type: string
         required: false
   release:
@@ -21,33 +38,55 @@ concurrency:
   group: e2e-ios-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  simulator:
-    runs-on: macos-latest
-    timeout-minutes: 75
-    permissions:
-      contents: read
-      actions: read
-    env:
-      EXPO_NO_TELEMETRY: "1"
-      OUT: ${{ github.workspace }}/e2e-output
+env:
+  EXPO_NO_TELEMETRY: "1"
+  MAESTRO_CLI_NO_ANALYTICS: "1"
+  # The XCTest driver takes minutes to come up on a cold runner.
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: "600000"
 
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      signin: ${{ steps.plan.outputs.signin }}
+      features: ${{ steps.plan.outputs.features }}
+    steps:
+      - id: plan
+        env:
+          LEGS: ${{ inputs.legs || 'all' }}
+        run: |
+          node -e '
+            const legs = (process.env.LEGS || "all").split(",").map((s) => s.trim()).filter(Boolean);
+            const want = (name, group) => legs.includes("all") || legs.includes(group) || legs.includes(name);
+            const signin = ["phone", "tablet"]
+              .map((device) => ({ name: `signin-${device}`, device }))
+              .filter((l) => want(l.name, "signin"));
+            const features = [
+              { name: "features-phone-light", device: "phone", appearance: "light", orientation: "portrait", account: "e2e-phone-light" },
+              { name: "features-phone-dark", device: "phone", appearance: "dark", orientation: "portrait", account: "e2e-phone-dark" },
+              { name: "features-tablet-light", device: "tablet", appearance: "light", orientation: "portrait", account: "e2e-tablet-light" },
+              { name: "features-tablet-dark", device: "tablet", appearance: "dark", orientation: "portrait", account: "e2e-tablet-dark" },
+              { name: "features-tablet-landscape", device: "tablet", appearance: "light", orientation: "landscape", account: "e2e-tablet-land" },
+            ].filter((l) => want(l.name, "features"));
+            const fs = require("fs");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT,
+              `signin=${JSON.stringify({ include: signin })}\nfeatures=${JSON.stringify({ include: features })}\n`);
+            console.log({ signin: signin.map((l) => l.name), features: features.map((l) => l.name) });
+          '
+
+  build:
+    if: inputs.app_run_id == ''
+    runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-        if: inputs.app_run_id == ''
         with:
           node-version: 20
           cache: npm
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
       - name: Cache CocoaPods
-        if: inputs.app_run_id == ''
         uses: actions/cache@v4
         with:
           path: |
@@ -57,22 +96,19 @@ jobs:
           restore-keys: pods-${{ runner.os }}-
 
       - name: Install JS dependencies
-        if: inputs.app_run_id == ''
         run: npm ci
 
       - name: Generate the iOS project
-        if: inputs.app_run_id == ''
         run: npx expo prebuild --platform ios --clean
 
       - name: Build for the simulator
-        if: inputs.app_run_id == ''
         run: |
           WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          mkdir -p e2e-build
           # Release bundles the JS into the app, so no Metro server is needed.
           # arm64 only: the runner is Apple silicon, and a second simulator
           # architecture would double the build time.
-          mkdir -p "$OUT"
           if ! xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -82,145 +118,98 @@ jobs:
             -derivedDataPath build \
             ARCHS=arm64 \
             CODE_SIGNING_ALLOWED=NO \
-            > "$OUT/xcodebuild.log" 2>&1; then
-            grep -E "error:|fatal error" "$OUT/xcodebuild.log" | head -n 50 || true
-            tail -n 80 "$OUT/xcodebuild.log"
+            > e2e-build/xcodebuild.log 2>&1; then
+            grep -E "error:|fatal error" e2e-build/xcodebuild.log | head -n 50 || true
+            tail -n 80 e2e-build/xcodebuild.log
             exit 1
           fi
           # Packed as a tar: artifacts drop the executable bit, which would
           # leave a reused app unable to launch.
           tar -C build/Build/Products/Release-iphonesimulator -czf "$RUNNER_TEMP/simulator-app.tar.gz" BulwarkMobile.app
+          ls -la "$RUNNER_TEMP/simulator-app.tar.gz"
 
       - name: Upload the simulator app
-        if: inputs.app_run_id == ''
         uses: actions/upload-artifact@v4
         with:
           name: simulator-app
           path: ${{ runner.temp }}/simulator-app.tar.gz
           if-no-files-found: error
 
-      - name: Download the simulator app from an earlier run
-        if: inputs.app_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: simulator-app
-          run-id: ${{ inputs.app_run_id }}
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}
-
-      - name: Unpack the simulator app
-        run: |
-          mkdir -p "$RUNNER_TEMP/app"
-          tar -C "$RUNNER_TEMP/app" -xzf "$RUNNER_TEMP/simulator-app.tar.gz"
-          echo "APP=$RUNNER_TEMP/app/BulwarkMobile.app" >> "$GITHUB_ENV"
-
-      - name: Boot a simulator
-        run: |
-          # The newest iPhone on the newest runtime the image ships.
-          UDID=$(xcrun simctl list devices available -j | jq -r '
-            [.devices | to_entries[]
-              | select(.key | test("SimRuntime.iOS"))
-              | .value[] | select(.name | startswith("iPhone")) | .udid] | last')
-          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
-            xcrun simctl list devices available
-            echo "::error::No iPhone simulator available"
-            exit 1
-          fi
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
-          # A fresh simulator shows the slide-to-type tip over the keyboard the
-          # first time a text field gets focus, and typed text goes nowhere.
-          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
-          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardContinuousPathEnabled -bool false
-          # Predictions, autocorrect and password AutoFill can swallow or
-          # rewrite what XCTest types.
-          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardPrediction -bool false
-          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardAutocorrection -bool false
-          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardAutocapitalization -bool false
-          xcrun simctl spawn "$UDID" defaults write com.apple.WebUI AutoFillPasswords -bool false || true
-          xcrun simctl install "$UDID" "$APP"
-          echo "UDID=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl list devices | grep "$UDID"
-
-      - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Run the flows
-        env:
-          SERVER: ${{ vars.E2E_SERVER }}
-          USERNAME: ${{ vars.E2E_USERNAME }}
-          PASSWORD: ${{ secrets.E2E_PASSWORD }}
-          # The XCTest driver takes a while to come up on a cold runner.
-          MAESTRO_DRIVER_STARTUP_TIMEOUT: "600000"
-          MAESTRO_CLI_NO_ANALYTICS: "1"
-        run: |
-          maestro --version
-          mkdir -p "$OUT/screenshots"
-
-          xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/run.mp4" &
-          RECORDER=$!
-
-          ARGS=()
-          if [ -n "$SERVER" ] && [ -n "$USERNAME" ] && [ -n "$PASSWORD" ]; then
-            ARGS+=(-e "SERVER=$SERVER" -e "USERNAME=$USERNAME" -e "PASSWORD=$PASSWORD")
-          else
-            echo "::notice::E2E_SERVER, E2E_USERNAME or E2E_PASSWORD is not set - running the launch flow only."
-            ARGS+=(--exclude-tags signed-in)
-          fi
-
-          # Warm-up with the launch flow alone. It types nothing, so its debug
-          # log holds no secrets and can be printed when the driver won't start.
-          # The real run below keeps debug output off: it would log the password,
-          # and artifacts here are public.
-          set +e
-          touch "$RUNNER_TEMP/flows-started"
-          (cd "$OUT/screenshots" && maestro --device "$UDID" test \
-            --debug-output "$RUNNER_TEMP/maestro-warmup" "$GITHUB_WORKSPACE/.maestro/launch.yaml")
-          STATUS=$?
-          echo "::group::Maestro warm-up log (typing)"
-          find "$RUNNER_TEMP/maestro-warmup" -name 'maestro.log' -exec grep -n -i -E "inputText|typeText|keyboard|input_text|Exception|error" {} \; | tail -n 120
-          echo "::endgroup::"
-          maestro --device "$UDID" hierarchy > "$OUT/hierarchy-warmup.json" 2>/dev/null || true
-          if [ $STATUS -ne 0 ]; then
-            echo "::group::Maestro warm-up log"
-            find "$RUNNER_TEMP/maestro-warmup" -name 'maestro.log' -exec tail -n 300 {} \;
-            echo "::endgroup::"
-            echo "::group::xcodebuild logs of the driver"
-            find "$HOME/Library/Logs" "$HOME/.maestro" "$TMPDIR" -name '*.log' -newer "$RUNNER_TEMP/flows-started" 2>/dev/null \
-              | grep -i -E 'xctest|xcodebuild|maestro' | grep -v maestro-warmup | head -5 \
-              | while read -r f; do echo "== $f"; tail -n 80 "$f"; done
-            echo "::endgroup::"
-          else
-            (cd "$OUT/screenshots" && maestro --device "$UDID" test \
-              --format junit --output "$OUT/report.xml" \
-              "${ARGS[@]}" "$GITHUB_WORKSPACE/.maestro")
-            STATUS=$?
-          fi
-          set -e
-
-          kill -INT "$RECORDER" || true
-          wait "$RECORDER" || true
-
-          # Newer Maestro versions write screenshots (and a screenshot of any
-          # failed step) under ~/.maestro/tests instead. Copy only the images:
-          # the JSON next to them holds the typed password.
-          find "$HOME/.maestro/tests" -name '*.png' -exec cp {} "$OUT/screenshots/" \; 2>/dev/null || true
-          ls -la "$OUT/screenshots"
-          exit $STATUS
-
-      - name: Grab the app log on failure
-        if: failure() && env.UDID != ''
-        run: |
-          xcrun simctl spawn "$UDID" log show --last 10m --style compact \
-            --predicate 'process CONTAINS "Bulwark"' > "$OUT/app.log" 2>&1 || true
-          tail -n 100 "$OUT/app.log" || true
-
-      - name: Upload screenshots and recording
-        if: always()
+      - name: Upload the build log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-ios-${{ github.run_number }}
-          path: e2e-output/
-          if-no-files-found: ignore
+          name: xcodebuild-log
+          path: e2e-build/
+
+  signin:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      fromJson(needs.plan.outputs.signin).include[0] != null
+    runs-on: macos-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.signin) }}
+    env:
+      OUT: ${{ github.workspace }}/e2e-output
+      DEVICE: ${{ matrix.device }}
+      APPEARANCE: light
+      ORIENTATION: portrait
+      E2E_SERVER: ${{ vars.E2E_SERVER }}
+      E2E_WEBMAIL: https://bulwark.internal.bulwarkmail.org
+      E2E_ACCOUNT: e2e-login-${{ matrix.device }}
+      E2E_ACCOUNT2: e2e-second-${{ matrix.device }}
+      E2E_TOTP_ACCOUNT: e2e-totp-${{ matrix.device }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_USERB_PASSWORD: ${{ secrets.E2E_USERB_PASSWORD }}
+      E2E_TOTP_SECRET: ${{ secrets.E2E_TOTP_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-ios-leg
+        with:
+          suite: signin
+          app_run_id: ${{ inputs.app_run_id }}
+          flows: ${{ inputs.flows }}
+          playwright: "true"
+          name: ${{ matrix.name }}
+
+  features:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      fromJson(needs.plan.outputs.features).include[0] != null
+    runs-on: macos-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.features) }}
+    env:
+      OUT: ${{ github.workspace }}/e2e-output
+      DEVICE: ${{ matrix.device }}
+      APPEARANCE: ${{ matrix.appearance }}
+      ORIENTATION: ${{ matrix.orientation }}
+      E2E_SERVER: ${{ vars.E2E_SERVER }}
+      E2E_WEBMAIL: https://bulwark.internal.bulwarkmail.org
+      E2E_ACCOUNT: ${{ matrix.account }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_USERB_PASSWORD: ${{ secrets.E2E_USERB_PASSWORD }}
+      E2E_TOTP_SECRET: ${{ secrets.E2E_TOTP_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-ios-leg
+        with:
+          suite: features
+          app_run_id: ${{ inputs.app_run_id }}
+          flows: ${{ inputs.flows }}
+          playwright: "false"
+          name: ${{ matrix.name }}

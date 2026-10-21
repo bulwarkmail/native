@@ -1,0 +1,10 @@
+# A sign-in link from another app asks first. Continue.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible: "Sign in with a link.|Open the sign-in page of.*"
+    timeout: ${LINK_WAIT || 60000}
+- takeScreenshot: link-confirm-prompt
+- tapOn:
+    text: "Continue"
+    below: "Sign in with a link."

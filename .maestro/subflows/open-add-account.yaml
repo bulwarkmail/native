@@ -1,0 +1,17 @@
+# Signed in: Settings → Account → Add account, up to the add-mode choices.
+appId: org.bulwarkmail.mobile
+---
+- tapOn:
+    id: tab-settings
+- extendedWaitUntil:
+    visible: "Account"
+    timeout: 10000
+- tapOn: "Account"
+- scrollUntilVisible:
+    element: "Add account"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Add account"
+- extendedWaitUntil:
+    visible: "Add another account"
+    timeout: 10000

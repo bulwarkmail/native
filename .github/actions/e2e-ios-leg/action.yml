@@ -1,0 +1,92 @@
+name: iOS simulator test leg
+description: Boot a simulator, install the app and run one suite of Maestro flows
+
+inputs:
+  suite:
+    description: Folder under .maestro (signin or features)
+    required: true
+  name:
+    description: Leg name, used for the artifact
+    required: true
+  app_run_id:
+    description: Take the simulator app from this run instead of the current one
+    required: false
+    default: ""
+  flows:
+    description: Comma list of flow names to run instead of the whole suite
+    required: false
+    default: ""
+  playwright:
+    description: Install Playwright for the helper's webmail pairing
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Download the simulator app (this run)
+      if: inputs.app_run_id == ''
+      uses: actions/download-artifact@v4
+      with:
+        name: simulator-app
+        path: ${{ runner.temp }}
+
+    - name: Download the simulator app (earlier run)
+      if: inputs.app_run_id != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: simulator-app
+        run-id: ${{ inputs.app_run_id }}
+        github-token: ${{ github.token }}
+        path: ${{ runner.temp }}
+
+    - name: Unpack the simulator app
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/app"
+        tar -C "$RUNNER_TEMP/app" -xzf "$RUNNER_TEMP/simulator-app.tar.gz"
+        echo "APP=$RUNNER_TEMP/app/BulwarkMobile.app" >> "$GITHUB_ENV"
+
+    - name: Boot a simulator
+      shell: bash
+      run: bash scripts/e2e/boot-sim.sh "$DEVICE" "$APPEARANCE" "$APP"
+
+    - name: Install Maestro
+      shell: bash
+      run: |
+        curl -fsSL "https://get.maestro.mobile.dev" | bash
+        echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+    - name: Install Playwright for the helper
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/pw"
+        cd "$RUNNER_TEMP/pw"
+        npm init -y >/dev/null
+        npm install --no-audit --no-fund playwright@1.59.1 >/dev/null
+        npx playwright install chromium >/dev/null
+        echo "PLAYWRIGHT_DIR=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+    - name: Start the test helper
+      shell: bash
+      run: |
+        mkdir -p "$OUT/helper"
+        HELPER_SHOTS="$OUT/helper" nohup node scripts/e2e/helper.mjs > "$OUT/helper/helper.log" 2>&1 &
+        for i in $(seq 1 20); do
+          curl -fs http://127.0.0.1:8787/health >/dev/null && break
+          sleep 0.5
+        done
+        curl -fs http://127.0.0.1:8787/health
+
+    - name: Run the flows
+      shell: bash
+      run: bash scripts/e2e/run-flows.sh "${{ inputs.suite }}" "${{ inputs.flows }}"
+
+    - name: Upload screenshots, recording and logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-ios-${{ inputs.name }}
+        path: e2e-output/
+        if-no-files-found: ignore

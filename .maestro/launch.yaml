@@ -1,6 +1,7 @@
-# Fresh install: the app starts and shows the sign-in choices.
-# Needs no server, so it also runs when the test account secrets are missing.
-# It types only a made-up address, so its debug log is safe to print.
+# Fresh install: the app starts and shows the sign-in choices, and typing
+# into a field works. Needs no server, so it runs before every suite as the
+# warm-up for the XCTest driver. It types only a made-up address, so its
+# debug log is safe to print.
 appId: org.bulwarkmail.mobile
 name: Launch to sign-in
 tags:
@@ -13,15 +14,16 @@ tags:
 - extendedWaitUntil:
     visible: "Enter server details manually"
     timeout: 120000
-- takeScreenshot: 01-sign-in-choices
+- takeScreenshot: warmup-01-sign-in-choices
 - tapOn: "Enter server details manually"
 - extendedWaitUntil:
     visible:
       id: login-server-input
     timeout: 10000
-- tapOn:
-    id: login-server-input
 - runFlow: subflows/dismiss-keyboard-tip.yaml
-- inputText: "mail.example.com"
-- takeScreenshot: 02-server-step
-- assertVisible: "mail.example.com"
+- runFlow:
+    file: subflows/type.yaml
+    env:
+      FIELD: login-server-input
+      TEXT: typing-probe.example.net
+- takeScreenshot: warmup-02-typed

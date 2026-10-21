@@ -1,0 +1,25 @@
+# Stalwart's own sign-in page inside the auth session. env LOGIN, TOTP (any
+# non-empty value: the account needs a one-time code).
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible: "you@example.com"
+    timeout: 60000
+- takeScreenshot: stalwart-login-page
+- tapOn: "you@example.com"
+- inputText: ${LOGIN}
+- tapOn: "••••••••"
+- inputText: ${PASSWORD}
+- runFlow:
+    when:
+      true: ${TOTP == 'yes'}
+    commands:
+      - runScript:
+          file: ../scripts/helper.js
+          env:
+            CALL: /totp
+      - tapOn: "000000"
+      - inputText: ${output.helper.code}
+- tapOn:
+    text: "Sign in"
+    index: 1

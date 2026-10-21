@@ -1,0 +1,12 @@
+# Some routes hand the app a password for a TOTP account; the app then asks
+# for a code itself. Answer it when it shows up.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible: "Two-factor code|Inbox"
+    timeout: 90000
+- runFlow:
+    when:
+      visible: "Two-factor code"
+    commands:
+      - runFlow: two-factor.yaml

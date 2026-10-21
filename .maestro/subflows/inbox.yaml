@@ -1,0 +1,18 @@
+# Signed in: the tab bar is there and the inbox shows messages. Dismisses the
+# one-time prompts on the way.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible:
+      id: tab-mail
+    timeout: 90000
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 60000
+- assertVisible: ${INBOX_TEXT || 'Your verification code'}

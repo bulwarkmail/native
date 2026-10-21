@@ -1,0 +1,20 @@
+# OAuth with Stalwart's own authorization server: the confirm step's
+# Continue opens an ASWebAuthenticationSession on Stalwart's sign-in page.
+appId: org.bulwarkmail.mobile
+name: OAuth (Stalwart)
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${SERVER}
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- runFlow:
+    file: ../subflows/stalwart-login-page.yaml
+    env:
+      LOGIN: ${ACCOUNT}@example.org
+- runFlow: ../subflows/inbox.yaml
+- takeScreenshot: oauth-01-inbox

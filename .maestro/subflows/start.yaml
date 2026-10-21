@@ -1,0 +1,20 @@
+# Fresh install state, rotated for the landscape leg, on the sign-in choices.
+# env CAMERA: allow (default) or deny.
+appId: org.bulwarkmail.mobile
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      notifications: allow
+      camera: ${CAMERA || 'allow'}
+      photos: allow
+- runFlow:
+    when:
+      true: ${ORIENTATION == 'landscape'}
+    commands:
+      - setOrientation: LANDSCAPE_LEFT
+# A cold start of a release build on a CI simulator can be slow.
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 120000
