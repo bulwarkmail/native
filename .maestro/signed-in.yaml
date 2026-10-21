@@ -19,6 +19,7 @@ tags:
 
 - tapOn:
     id: login-server-input
+- runFlow: subflows/dismiss-keyboard-tip.yaml
 - inputText: ${SERVER}
 - pressKey: Enter
 

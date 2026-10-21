@@ -128,6 +128,10 @@ jobs:
           fi
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          # A fresh simulator shows the slide-to-type tip over the keyboard the
+          # first time a text field gets focus, and typed text goes nowhere.
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences KeyboardContinuousPathEnabled -bool false
           xcrun simctl install "$UDID" "$APP"
           echo "UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl list devices | grep "$UDID"
