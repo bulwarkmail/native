@@ -1,0 +1,167 @@
+name: iOS simulator tests
+
+# Builds the app for the iOS Simulator (no signing needed), runs the Maestro
+# flows in .maestro/ against it and uploads screenshots and a screen recording.
+#
+# The signed-in flow needs the E2E_SERVER and E2E_USERNAME variables and the
+# E2E_PASSWORD secret (a test account on a server the runner can reach).
+# Without them only the launch flow runs.
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+concurrency:
+  group: e2e-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    timeout-minutes: 75
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      OUT: ${{ github.workspace }}/e2e-output
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods/repos
+          key: pods-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: pods-${{ runner.os }}-
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Build for the simulator
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          # Release bundles the JS into the app, so no Metro server is needed.
+          # arm64 only: the runner is Apple silicon, and a second simulator
+          # architecture would double the build time.
+          mkdir -p "$OUT"
+          if ! xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            > "$OUT/xcodebuild.log" 2>&1; then
+            grep -E "error:|fatal error" "$OUT/xcodebuild.log" | head -n 50 || true
+            tail -n 80 "$OUT/xcodebuild.log"
+            exit 1
+          fi
+          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          echo "Built $APP"
+
+      - name: Upload the simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: bulwark-mobile-simulator-${{ github.sha }}
+          path: build/Build/Products/Release-iphonesimulator/*.app
+          if-no-files-found: error
+
+      - name: Boot a simulator
+        run: |
+          # The newest iPhone on the newest runtime the image ships.
+          UDID=$(xcrun simctl list devices available -j | jq -r '
+            [.devices | to_entries[]
+              | select(.key | test("SimRuntime.iOS"))
+              | .value[] | select(.name | startswith("iPhone")) | .udid] | last')
+          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
+            xcrun simctl list devices available
+            echo "::error::No iPhone simulator available"
+            exit 1
+          fi
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep "$UDID"
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run the flows
+        env:
+          SERVER: ${{ vars.E2E_SERVER }}
+          USERNAME: ${{ vars.E2E_USERNAME }}
+          PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          # The XCTest driver takes a while to come up on a cold runner.
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
+          MAESTRO_CLI_NO_ANALYTICS: "1"
+        run: |
+          maestro --version
+          mkdir -p "$OUT/screenshots"
+
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/run.mp4" &
+          RECORDER=$!
+
+          ARGS=()
+          if [ -n "$SERVER" ] && [ -n "$USERNAME" ] && [ -n "$PASSWORD" ]; then
+            ARGS+=(-e "SERVER=$SERVER" -e "USERNAME=$USERNAME" -e "PASSWORD=$PASSWORD")
+          else
+            echo "::notice::E2E_SERVER, E2E_USERNAME or E2E_PASSWORD is not set - running the launch flow only."
+            ARGS+=(--exclude-tags signed-in)
+          fi
+
+          # Screenshots land in the working directory, so run from the output
+          # folder. Debug output is left out on purpose: it logs typed text,
+          # including the password, and artifacts here are public.
+          set +e
+          (cd "$OUT/screenshots" && maestro --device "$UDID" test \
+            --format junit --output "$OUT/report.xml" \
+            "${ARGS[@]}" "$GITHUB_WORKSPACE/.maestro")
+          STATUS=$?
+          set -e
+
+          kill -INT "$RECORDER" || true
+          wait "$RECORDER" || true
+
+          # Newer Maestro versions write screenshots (and a screenshot of any
+          # failed step) under ~/.maestro/tests instead. Copy only the images:
+          # the JSON next to them holds the typed password.
+          find "$HOME/.maestro/tests" -name '*.png' -exec cp {} "$OUT/screenshots/" \; 2>/dev/null || true
+          ls -la "$OUT/screenshots"
+          exit $STATUS
+
+      - name: Grab the app log on failure
+        if: failure() && env.UDID != ''
+        run: |
+          xcrun simctl spawn "$UDID" log show --last 10m --style compact \
+            --predicate 'process CONTAINS "Bulwark"' > "$OUT/app.log" 2>&1 || true
+          tail -n 100 "$OUT/app.log" || true
+
+      - name: Upload screenshots and recording
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-${{ github.run_number }}
+          path: e2e-output/
+          if-no-files-found: ignore

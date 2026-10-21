@@ -1,0 +1,21 @@
+# Fresh install: the app starts and shows the sign-in choices.
+# Needs no server, so it also runs when the test account secrets are missing.
+appId: org.bulwarkmail.mobile
+name: Launch to sign-in
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# A cold start of a release build on a CI simulator can be slow.
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 120000
+- takeScreenshot: 01-sign-in-choices
+- tapOn: "Enter server details manually"
+- extendedWaitUntil:
+    visible:
+      id: login-server-input
+    timeout: 10000
+- takeScreenshot: 02-server-step

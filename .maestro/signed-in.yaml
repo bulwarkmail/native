@@ -1,0 +1,99 @@
+# Signs in with a password and walks the main screens.
+# Run with: maestro test -e SERVER=... -e USERNAME=... -e PASSWORD=... .maestro/signed-in.yaml
+appId: org.bulwarkmail.mobile
+name: Sign in and browse
+tags:
+  - signed-in
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    # The calendar tab asks for notification permission for reminders;
+    # granting it up front keeps the system alert from covering the screen.
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 120000
+- tapOn: "Enter server details manually"
+
+- tapOn:
+    id: login-server-input
+- inputText: ${SERVER}
+- pressKey: Enter
+
+# Servers that offer OAuth land on a confirm step first; switch to the
+# password form there. Others go straight to it.
+- extendedWaitUntil:
+    visible: "Sign in with a password instead|Email or username"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Sign in with a password instead"
+    commands:
+      - tapOn: "Sign in with a password instead"
+
+- tapOn:
+    id: login-username-input
+- eraseText
+- inputText: ${USERNAME}
+- tapOn:
+    id: login-password-input
+- inputText: ${PASSWORD}
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible:
+      id: tab-mail
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
+
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 60000
+- takeScreenshot: 10-inbox
+
+- tapOn:
+    id: email-row
+    index: 0
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 11-message
+- tapOn: "Back"
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 10000
+
+- tapOn:
+    id: tab-calendar
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 20-calendar
+
+- tapOn:
+    id: tab-contacts
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 30-contacts
+
+- tapOn:
+    id: tab-files
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 40-files
+
+- tapOn:
+    id: tab-settings
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 50-settings
+
+# Still alive after the walk: the tab bar is there and the app didn't crash.
+- assertVisible:
+    id: tab-mail
