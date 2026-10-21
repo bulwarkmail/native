@@ -297,6 +297,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Mail"
         options={{
           title: tabLabels.mail,
+          tabBarButtonTestID: 'tab-mail',
           tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
           tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
           tabBarBadgeStyle: {
@@ -320,6 +321,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={CalendarScreen}
         options={{
           title: tabLabels.calendar,
+          tabBarButtonTestID: 'tab-calendar',
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
           tabBarItemStyle: hasCalendar ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasCalendar ? tabLabels.calendar : unavailable(tabLabels.calendar),
@@ -335,6 +337,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={ContactsTab}
         options={{
           title: tabLabels.contacts,
+          tabBarButtonTestID: 'tab-contacts',
           tabBarIcon: ({ color, size }) => <BookUser size={size} color={color} />,
           tabBarItemStyle: hasContacts ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasContacts ? tabLabels.contacts : unavailable(tabLabels.contacts),
@@ -350,6 +353,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={FilesScreen}
         options={{
           title: tabLabels.files,
+          tabBarButtonTestID: 'tab-files',
           tabBarIcon: ({ color, size }) => <HardDrive size={size} color={color} />,
           tabBarItemStyle: hasFiles ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasFiles ? tabLabels.files : unavailable(tabLabels.files),
@@ -364,6 +368,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Settings"
         options={{
           title: tabLabels.settings,
+          tabBarButtonTestID: 'tab-settings',
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       >

@@ -176,6 +176,7 @@ const EmailRow = React.memo(function EmailRow({
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={300}
+      testID="email-row"
     >
       {unread && (
         <View

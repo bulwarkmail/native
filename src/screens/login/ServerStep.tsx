@@ -61,6 +61,7 @@ export default function ServerStep({
       <Input
         label={t('login.mobile.server_label', 'Server address')}
         placeholder="mail.example.com"
+        testID="login-server-input"
         value={value}
         onChangeText={onChange}
         autoFocus

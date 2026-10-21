@@ -61,6 +61,7 @@ export default function PasswordStep({
         placeholder={t('login.username_placeholder', 'user@example.com')}
         value={email}
         onChangeText={onChangeEmail}
+        testID="login-username-input"
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete="email"
@@ -76,6 +77,7 @@ export default function PasswordStep({
         placeholder={t('login.password_placeholder', 'Enter your password')}
         value={password}
         onChangeText={onChangePassword}
+        testID="login-password-input"
         autoFocus={Boolean(email)}
         secureTextEntry={!showPassword}
         autoComplete="current-password"
