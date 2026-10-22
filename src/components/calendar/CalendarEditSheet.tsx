@@ -74,9 +74,9 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
 
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.title}>
                 {calendar

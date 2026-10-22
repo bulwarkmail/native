@@ -298,7 +298,7 @@ export function Select({ value, onChange, options, style }: SelectProps) {
         animationType="fade"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setOpen(false)}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setOpen(false)}>
           <View style={styles.modalContent}>
             <ScrollView>
               {options.map((opt) => {

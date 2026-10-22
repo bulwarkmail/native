@@ -326,8 +326,8 @@ export default function ScheduledScreen({ navigation }: Props) {
 
       {/* Per-message actions */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!actionsFor} transparent animationType="fade" onRequestClose={() => setActionsFor(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setActionsFor(null)}>
-          <Pressable style={styles.card} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setActionsFor(null)}>
+          <Pressable accessible={false} style={styles.card} onPress={() => {}}>
             <Text style={styles.cardTitle} numberOfLines={2}>
               {actionsFor?.subject || t('email_composer.no_subject', '(No Subject)')}
             </Text>
@@ -349,8 +349,8 @@ export default function ScheduledScreen({ navigation }: Props) {
 
       {/* Reschedule presets */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!rescheduleFor && customStage === null} transparent animationType="fade" onRequestClose={() => setRescheduleFor(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setRescheduleFor(null)}>
-          <Pressable style={styles.card} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setRescheduleFor(null)}>
+          <Pressable accessible={false} style={styles.card} onPress={() => {}}>
             <Text style={styles.cardTitle}>{t('email_list.reschedule_send', 'Reschedule')}</Text>
             {reschedulePresets.map((preset) => (
               <Pressable
@@ -379,8 +379,8 @@ export default function ScheduledScreen({ navigation }: Props) {
 
       {customStage !== null && Platform.OS === 'ios' && (
         <Modal supportedOrientations={MODAL_ORIENTATIONS} transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
-            <Pressable style={styles.card} onPress={() => {}}>
+          <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
+            <Pressable accessible={false} style={styles.card} onPress={() => {}}>
               <DateTimePicker
                 value={customDraftRef.current}
                 mode="datetime"

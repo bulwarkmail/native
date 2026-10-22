@@ -196,8 +196,8 @@ export function ContentSendersSettings() {
         animationType="fade"
         onRequestClose={() => setModalOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setModalOpen(false)}>
-          <Pressable style={styles.modalCard} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setModalOpen(false)}>
+          <Pressable accessible={false} style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('settings.email_behavior.trusted_senders.modal_title', 'Trusted Senders')}</Text>
               <Pressable

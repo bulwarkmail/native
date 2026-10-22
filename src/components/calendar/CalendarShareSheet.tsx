@@ -160,9 +160,9 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
 
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <View style={styles.titleRow}>
                 <Users size={18} color={c.textMuted} />

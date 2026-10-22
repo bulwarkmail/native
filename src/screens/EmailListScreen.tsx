@@ -1609,9 +1609,9 @@ export default function EmailListScreen({
         animationType="fade"
         onRequestClose={() => setFilterMenuOpen(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setFilterMenuOpen(false)}>
+        <TouchableWithoutFeedback accessible={false} onPress={() => setFilterMenuOpen(false)}>
           <View style={styles.filterBackdrop}>
-            <TouchableWithoutFeedback>
+            <TouchableWithoutFeedback accessible={false}>
               <View style={styles.filterMenu}>
                 <View style={styles.filterMenuHeader}>
                   <Text style={styles.filterMenuTitle}>{t('email_list.filter_title', 'Filter emails')}</Text>

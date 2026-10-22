@@ -1179,9 +1179,9 @@ function PromptModal(props: PromptModalProps) {
       animationType="fade"
       onRequestClose={props.onCancel}
     >
-      <TouchableWithoutFeedback onPress={props.onCancel}>
+      <TouchableWithoutFeedback accessible={false} onPress={props.onCancel}>
         <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.dialog}>
               <Text style={styles.title}>{props.title}</Text>
               <TextInput
@@ -1246,9 +1246,9 @@ function ActionsSheet({
   const modified = modifiedOf(target);
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {target.displayName}
@@ -1370,9 +1370,9 @@ function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: 
   const currentParent = target.parentId ?? null;
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {t('files.move_to', 'Move to…')} · {target.displayName}
@@ -1427,9 +1427,9 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
   const keys: FilesSortKey[] = ['name', 'size', 'modified'];
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Sort')}</Text>
               {keys.map((k) => (

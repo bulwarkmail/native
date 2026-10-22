@@ -377,8 +377,8 @@ function OptionsSheet({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.scheduleCard} onPress={() => {}}>
+      <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
           {!!title && <Text style={styles.modalTitle} numberOfLines={2}>{title}</Text>}
           {options.map((opt) => (
             <Pressable
@@ -2647,8 +2647,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
       {/* Text / background colour palette */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!colorTarget} transparent animationType="fade" onRequestClose={() => setColorTarget(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setColorTarget(null)}>
-          <Pressable style={styles.scheduleCard} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setColorTarget(null)}>
+          <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>
               {colorTarget === 'background'
                 ? t('email_composer.toolbar.background_color', 'Background color')
@@ -2716,8 +2716,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
         animationType="fade"
         onRequestClose={() => setScheduleSheetOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setScheduleSheetOpen(false)}>
-          <Pressable style={styles.scheduleCard} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setScheduleSheetOpen(false)}>
+          <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>
               {t('email_composer.schedule_send', 'Schedule send')}
             </Text>
@@ -2750,8 +2750,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
       {customStage !== null && Platform.OS === 'ios' && (
         <Modal supportedOrientations={MODAL_ORIENTATIONS} transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
-            <Pressable style={styles.scheduleCard} onPress={() => {}}>
+          <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
+            <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
               <DateTimePicker
                 value={customDraftRef.current}
                 mode="datetime"
