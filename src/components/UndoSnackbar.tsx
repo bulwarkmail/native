@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { undoSnackbarColors } from './undo-snackbar-colors';
 import { useEmailStore } from '../stores/email-store';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -158,6 +159,7 @@ export function UndoSnackbar() {
 }
 
 function makeStyles(c: ThemePalette) {
+  const colors = undoSnackbarColors(c);
   return StyleSheet.create({
     wrap: {
       position: 'absolute',
@@ -170,7 +172,7 @@ function makeStyles(c: ThemePalette) {
       paddingLeft: spacing.lg,
       paddingRight: spacing.sm,
       borderRadius: radius.md,
-      backgroundColor: c.text,
+      backgroundColor: colors.bar,
       shadowColor: '#000',
       shadowOpacity: 0.3,
       shadowRadius: 12,
@@ -179,7 +181,7 @@ function makeStyles(c: ThemePalette) {
     },
     label: {
       ...typography.body,
-      color: c.background,
+      color: colors.label,
       flex: 1,
     },
     undoBtn: {
@@ -192,7 +194,7 @@ function makeStyles(c: ThemePalette) {
     },
     undoText: {
       ...typography.bodySemibold,
-      color: c.primary,
+      color: colors.action,
       letterSpacing: 0.5,
     },
     sendNowText: {
