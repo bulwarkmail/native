@@ -32,6 +32,7 @@ import { getEmailInitials } from '../lib/avatar-utils';
 import { useContactsStore, type RecipientSuggestion } from '../stores/contacts-store';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { useLayout } from '../lib/use-layout';
+import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useHasContacts } from '../lib/capabilities';
@@ -375,8 +376,18 @@ function OptionsSheet({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // An option may open a system picker, which iOS only shows once this
+  // modal is gone.
+  const afterDismiss = React.useRef(createAfterDismissQueue(Platform.OS)).current;
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      supportedOrientations={MODAL_ORIENTATIONS}
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={afterDismiss.flush}
+    >
       <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
         <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
           {!!title && <Text style={styles.modalTitle} numberOfLines={2}>{title}</Text>}
@@ -384,7 +395,7 @@ function OptionsSheet({
             <Pressable
               key={opt.label}
               style={styles.scheduleRow}
-              onPress={() => { onClose(); opt.onPress(); }}
+              onPress={() => { onClose(); afterDismiss.run(opt.onPress); }}
             >
               <Text style={[styles.scheduleRowLabel, opt.destructive && { color: c.error }]}>{opt.label}</Text>
             </Pressable>
