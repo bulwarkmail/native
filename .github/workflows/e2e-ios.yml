@@ -179,7 +179,7 @@ jobs:
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       fromJson(needs.plan.outputs.signin).include[0] != null
     runs-on: macos-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     permissions:
       contents: read
       actions: read
