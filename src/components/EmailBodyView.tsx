@@ -19,7 +19,7 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
-import { perfEndAfterPaint } from '../lib/perf-marks';
+import { perfEndAfterPaint, perfLap } from '../lib/perf-marks';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -684,6 +684,9 @@ export default function EmailBodyView({
     [prepared.isHtml, prepared.applyInversion, quoteLabels],
   );
 
+  // Performance harness: how much of opening a message is the WebView.
+  React.useEffect(() => { perfLap('open-message', 'body-mounted'); }, []);
+
   const onMessage = (e: WebViewMessageEvent) => {
     const data = e.nativeEvent.data;
     // The body reported its size: it is laid out (performance harness).
@@ -791,6 +794,7 @@ export default function EmailBodyView({
           injectedJavaScript={injectedJs}
           onMessage={onMessage}
           onLoadEnd={() => {
+            perfLap('open-message', 'webview-loaded');
             // A (re)load resets the page's zoom state to 1 — drop any host-side
             // scroll locks so they can't go stale (e.g. cid images arriving
             // reload the source mid-zoom).

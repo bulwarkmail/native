@@ -46,6 +46,14 @@ export function perfEnd(name: string, detail?: Record<string, string | number | 
   perfMark(name, { ms: Date.now() - t0, ...detail });
 }
 
+/** Log how far into a running span a step got, without ending it. */
+export function perfLap(name: string, lap: string): void {
+  if (!enabled) return;
+  const t0 = started.get(name);
+  if (t0 === undefined) return;
+  perfMark(`${name}:${lap}`, { ms: Date.now() - t0 });
+}
+
 /**
  * End a span once the next frames are drawn: two animation frames after the
  * state change that rendered the result, so the time includes commit and
