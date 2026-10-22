@@ -31,6 +31,36 @@ appId: org.bulwarkmail.mobile
                 end: 50%,40%
                 duration: 600
 - tapOn: ${ROW}
+- waitForAnimationToEnd:
+    timeout: 5000
+# PROOF can be further down the page: scroll the page (the right-hand pane
+# on the iPad) until it shows.
+- runFlow:
+    when:
+      true: ${DEVICE == 'tablet'}
+    commands:
+      - repeat:
+          while:
+            notVisible: ${PROOF}
+          times: 6
+          commands:
+            - swipe:
+                start: 75%,80%
+                end: 75%,40%
+                duration: 600
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - repeat:
+          while:
+            notVisible: ${PROOF}
+          times: 6
+          commands:
+            - swipe:
+                start: 50%,80%
+                end: 50%,40%
+                duration: 600
 - extendedWaitUntil:
     visible: ${PROOF}
     timeout: 20000

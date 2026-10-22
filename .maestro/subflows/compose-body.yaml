@@ -9,12 +9,14 @@ appId: org.bulwarkmail.mobile
     commands:
       - tapOn: "Write your message.*"
 # A tap on the WebView doesn't always take the focus from the Subject field
-# (on the iPad the body once went into Subject): drop the keyboard first.
+# (on the iPad the body once went into Subject); a second tap does.
+# (hideKeyboard fails here: the composer's keyboard has no dismiss key.)
 - runFlow:
     when:
       notVisible: "Write your message.*"
     commands:
-      - hideKeyboard
+      - tapOn:
+          point: "50%,50%"
       - waitForAnimationToEnd:
           timeout: 2000
       - tapOn:

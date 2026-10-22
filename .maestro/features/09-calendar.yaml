@@ -47,11 +47,23 @@ tags:
     timeout: 10000
 - tapOn: "Title"
 - inputText: ${output.event}
+# Close the keyboard first: a tap while it slides away lands on a form that
+# is still moving.
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 3000
 - scrollUntilVisible:
     element: "Add reminder"
     direction: DOWN
     timeout: 10000
-- tapOn: "Add reminder"
+- repeat:
+    while:
+      notVisible: "15 minutes before"
+    times: 2
+    commands:
+      - tapOn: "Add reminder"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - scrollUntilVisible:
     element: "15 minutes before"
     direction: DOWN
