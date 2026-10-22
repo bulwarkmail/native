@@ -105,9 +105,24 @@ function simctl(args, input) {
   });
 }
 
+// simctl pbcopy times out now and then (seen on the iPad simulator); a
+// second or third try goes through.
+async function pbcopy(text) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await simctl(['pbcopy', UDID], text);
+      return;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      log(`pbcopy attempt ${attempt} failed, trying again`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+}
+
 async function deliver(link, how) {
   if (how === 'openurl') await simctl(['openurl', UDID, link]);
-  else if (how === 'pbcopy') await simctl(['pbcopy', UDID], link);
+  else if (how === 'pbcopy') await pbcopy(link);
   else if (how !== 'none') throw new Error(`unknown deliver=${how}`);
 }
 
@@ -398,7 +413,7 @@ const routes = {
     return { ok: true };
   },
   async '/clipboard'(q) {
-    await simctl(['pbcopy', UDID], q.get('text') || '');
+    await pbcopy(q.get('text') || '');
     return { ok: true };
   },
 };
