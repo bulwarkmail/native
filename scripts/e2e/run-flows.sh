@@ -34,17 +34,20 @@ maestro --version
 xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/run.mp4" &
 RECORDER=$!
 
-# Warm-up: the XCTest driver takes minutes to start on a cold runner.
-WARMUP_START=$(date +%s)
-(cd "$OUT/screenshots" && capped maestro --device "$UDID" test \
-  --debug-output "$RUNNER_TEMP/maestro-warmup" "$ROOT/.maestro/launch.yaml")
-STATUS=$?
-echo "warm-up took $(( $(date +%s) - WARMUP_START )) s (status $STATUS)"
-if [ $STATUS -ne 0 ]; then
-  echo "::group::Maestro warm-up log"
-  find "$RUNNER_TEMP/maestro-warmup" -name 'maestro.log' -exec tail -n 300 {} \;
+# Warm-up: the XCTest driver takes minutes to start on a cold runner. When
+# it dies on the way (it does, now and then), a second try starts a new one
+# instead of losing the whole leg.
+for attempt in 1 2; do
+  WARMUP_START=$(date +%s)
+  (cd "$OUT/screenshots" && capped maestro --device "$UDID" test \
+    --debug-output "$RUNNER_TEMP/maestro-warmup-$attempt" "$ROOT/.maestro/launch.yaml")
+  STATUS=$?
+  echo "warm-up $attempt took $(( $(date +%s) - WARMUP_START )) s (status $STATUS)"
+  [ $STATUS -eq 0 ] && break
+  echo "::group::Maestro warm-up log $attempt"
+  find "$RUNNER_TEMP/maestro-warmup-$attempt" -name 'maestro.log' -exec tail -n 300 {} \;
   echo "::endgroup::"
-fi
+done
 
 if [ $STATUS -eq 0 ]; then
   ARGS=(
