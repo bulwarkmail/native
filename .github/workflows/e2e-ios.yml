@@ -44,7 +44,8 @@ on:
     types: [published]
 
 concurrency:
-  group: e2e-ios-${{ github.ref }}
+  # Per branch and set of legs: a perf run doesn't cancel a feature run.
+  group: e2e-ios-${{ github.ref }}-${{ inputs.legs || 'all' }}
   cancel-in-progress: true
 
 env:
