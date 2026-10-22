@@ -9,8 +9,8 @@
 import { Platform, Settings } from 'react-native';
 
 function readEnabled(): boolean {
-  if (Platform.OS !== 'ios') return false;
   try {
+    if (Platform.OS !== 'ios') return false;
     const value = Settings.get('perfMarks') as unknown;
     return value === true || value === 'YES' || value === 'true' || value === 1 || value === '1';
   } catch {
