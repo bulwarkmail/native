@@ -35,41 +35,41 @@ tags:
     timeout: 3000
 - pressKey: Home
 
+# 1. The banner shows (and what it says).
+- evalScript: ${output.subject0 = 'E2E push banner ' + Date.now()}
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject0)}
+- extendedWaitUntil:
+    visible: ".*${output.subject0}.*|.*New message.*"
+    timeout: 30000
+- takeScreenshot: push-01-banner
+
+# 2. A tap opens the message, app in the background. The banner shows for a
+# few seconds and finding it takes Maestro about as long; taps on the lock
+# screen list do nothing on these simulators. So tap where the banner
+# appears, right after the push.
 - evalScript: ${output.subject = 'E2E push ' + Date.now()}
 - runScript:
     file: ../scripts/helper.js
     env:
       CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject)}
-# The banner shows for a few seconds: catch it with either text, then check.
-- extendedWaitUntil:
-    visible: ".*${output.subject}.*|.*New message.*"
-    timeout: 30000
-- takeScreenshot: push-01-banner
-- runFlow:
-    file: ../subflows/tap-notification.yaml
-    env:
-      TEXT: ".*${output.subject}.*|.*New message.*"
+- runFlow: ../subflows/tap-banner.yaml
 - extendedWaitUntil:
     visible: "Reply All"
     timeout: 60000
 - assertVisible: ".*${output.subject}.*"
 - takeScreenshot: push-02-opened-warm
 
-# Cold start: the app isn't running when the notification is tapped.
+# 3. The same from a cold start: the app isn't running.
 - stopApp
 - evalScript: ${output.subject2 = 'E2E push cold ' + Date.now()}
 - runScript:
     file: ../scripts/helper.js
     env:
       CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject2)}
-- extendedWaitUntil:
-    visible: ".*${output.subject2}.*|.*New message.*"
-    timeout: 30000
-- takeScreenshot: push-03-banner-cold
-- runFlow:
-    file: ../subflows/tap-notification.yaml
-    env:
-      TEXT: ".*${output.subject2}.*|.*New message.*"
+- runFlow: ../subflows/tap-banner.yaml
 - extendedWaitUntil:
     visible: "Reply All"
     timeout: 90000
