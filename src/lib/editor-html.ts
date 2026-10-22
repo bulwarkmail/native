@@ -64,6 +64,33 @@ export function shouldBlockEditorRemoteImages(opts: {
   return !senderTrusted;
 }
 
+/**
+ * Page-script function for a tap on the empty space under the editor: focus
+ * it with the caret where the user's own text goes, in front of the
+ * signature or the quoted message, else at the end. A string, embedded in
+ * the page script and run by the unit test against stand-in DOM objects.
+ */
+export const FOCUS_END_SOURCE = `function focusEnd(editor) {
+    editor.focus();
+    var sel = window.getSelection();
+    if (!sel) return;
+    var stop = editor.querySelector('[data-signature-block="start"], [data-signature-block="separator"], [data-quoted-html]');
+    var range = document.createRange();
+    var prev = stop ? stop.previousElementSibling : null;
+    if (prev) {
+      range.selectNodeContents(prev);
+      range.collapse(false);
+    } else if (stop) {
+      range.setStartBefore(stop);
+      range.collapse(true);
+    } else {
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }`;
+
 export function buildEditorHtml(opts: {
   initialHtml: string;
   placeholder: string;
@@ -261,6 +288,8 @@ export function buildEditorHtml(opts: {
   });
 
   // ── Bridge: receive commands from RN ───────────────────────────────
+  ${FOCUS_END_SOURCE}
+
   window.__rne = {
     exec: function (command, value) {
       editor.focus();
@@ -363,6 +392,7 @@ export function buildEditorHtml(opts: {
       post('htmlSnapshot', { id: id, html: editor.innerHTML });
     },
     focus: function () { editor.focus(); },
+    focusEnd: function () { focusEnd(editor); },
   };
 
   reportHeight();

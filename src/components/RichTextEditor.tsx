@@ -66,6 +66,8 @@ export interface RichTextEditorHandle {
    */
   getHtml(timeoutMs?: number): Promise<string>;
   focus(): void;
+  /** Focus with the caret where new text goes (before signature / quote). */
+  focusEnd(): void;
   /** Drop the caret, which closes the keyboard. */
   blur(): void;
 }
@@ -186,6 +188,9 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         pendingSnapshots.current.set(id, { resolve, reject, timer });
         call(`window.__rne && window.__rne.getHtml(${id})`);
       }),
+    focusEnd: () => {
+      call(`window.__rne && window.__rne.focusEnd()`);
+    },
     focus: () => {
       call(`window.__rne && window.__rne.focus()`);
     },

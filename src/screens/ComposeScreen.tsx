@@ -2495,6 +2495,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
               onViewportShift={onEditorViewportShift}
             />
           )}
+          {/* The empty space under the body looks like part of it (on a
+              tablet, most of the panel): a tap there starts typing in it. */}
+          <Pressable
+            style={styles.bodyFiller}
+            accessible={false}
+            onPress={() => {
+              if (plainTextMode) plainBodyRef.current?.focus();
+              else editorRef.current?.focusEnd();
+            }}
+          />
         </ScrollView>
 
         {/* A phone in landscape with the keyboard up has room for a few lines
@@ -2991,6 +3001,7 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.background,
   },
   scrollContent: { flexGrow: 1 },
+  bodyFiller: { flexGrow: 1, minHeight: 48 },
 
   header: {
     flexDirection: 'row',
