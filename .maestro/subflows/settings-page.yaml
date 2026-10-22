@@ -4,6 +4,7 @@
 # (Swipe coordinates have to be literals.)
 appId: org.bulwarkmail.mobile
 ---
+- evalScript: ${output.swiped = false}
 - runFlow:
     when:
       true: ${DEVICE == 'tablet'}
@@ -16,6 +17,17 @@ appId: org.bulwarkmail.mobile
             - swipe:
                 start: 18%,80%
                 end: 18%,40%
+                duration: 600
+            - evalScript: ${output.swiped = true}
+      # The row counts as visible as soon as its top edge shows: one more
+      # short scroll brings all of it on screen, so the tap lands on it.
+      - runFlow:
+          when:
+            true: ${output.swiped}
+          commands:
+            - swipe:
+                start: 18%,70%
+                end: 18%,55%
                 duration: 600
 - runFlow:
     when:
@@ -30,9 +42,35 @@ appId: org.bulwarkmail.mobile
                 start: 50%,80%
                 end: 50%,40%
                 duration: 600
+            - evalScript: ${output.swiped = true}
+      - runFlow:
+          when:
+            true: ${output.swiped}
+          commands:
+            - swipe:
+                start: 50%,70%
+                end: 50%,55%
+                duration: 600
+# A tap while the list still coasts from the swipe only stops it.
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn: ${ROW}
 - waitForAnimationToEnd:
     timeout: 5000
+# On the phone the page replaces the list: make sure it opened before
+# scrolling (else the swipes below scroll the list away).
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - runFlow:
+          when:
+            notVisible: "Back"
+          commands:
+            - tapOn: ${ROW}
+      - extendedWaitUntil:
+          visible: "Back"
+          timeout: 10000
 # PROOF can be further down the page: scroll the page (the right-hand pane
 # on the iPad) until it shows.
 - runFlow:

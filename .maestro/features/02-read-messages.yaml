@@ -44,7 +44,9 @@ tags:
     visible: ".*q3-report.pdf.*"
     timeout: 20000
 - takeScreenshot: read-04-attachment
-- tapOn: ".*q3-report.pdf.*"
+# The message's attachment chip (name and size); on the iPad the list row
+# next to it shows the name too.
+- tapOn: ".*q3-report.pdf.*[0-9]+ B.*"
 - extendedWaitUntil:
     visible: "Share"
     timeout: 30000

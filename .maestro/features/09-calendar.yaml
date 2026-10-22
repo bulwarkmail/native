@@ -12,13 +12,7 @@ tags:
 - extendedWaitUntil:
     visible: ".*Would Like to Send You Notifications.*|Go to today"
     timeout: 30000
-- runFlow:
-    when:
-      visible: ".*Would Like to Send You Notifications.*"
-    commands:
-      - tapOn:
-          text: "Allow"
-          optional: true
+- runFlow: ../subflows/allow-notifications.yaml
 - extendedWaitUntil:
     visible: "Go to today"
     timeout: 30000

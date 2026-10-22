@@ -20,7 +20,10 @@ tags:
     timeout: 10000
 - takeScreenshot: swipe-01-archived
 - assertNotVisible: ".*Grüße aus München.*"
-- tapOn: "UNDO"
+- tapOn:
+    text: "UNDO"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
     visible: ".*Grüße aus München.*"
     timeout: 15000

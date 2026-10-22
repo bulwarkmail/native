@@ -21,12 +21,18 @@ tags:
 - extendedWaitUntil:
     visible: "Move to..."
     timeout: 10000
-- tapOn: "Projects"
+- tapOn:
+    text: "Projects"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
     visible: "Moved to Projects"
     timeout: 15000
 - takeScreenshot: actions-02-moved
-- tapOn: "UNDO"
+- tapOn:
+    text: "UNDO"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
 - runFlow: ../subflows/close-message.yaml
 - extendedWaitUntil:
     visible: ".*Weekly digest.*"
@@ -38,15 +44,18 @@ tags:
     env:
       SUBJECT: Weekly digest
 - takeScreenshot: actions-03a-before-delete
-- tapOn: "Delete"
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: actions-03b-after-delete
+- tapOn:
+    text: "Delete"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
     visible: "Email moved to Trash"
     timeout: 15000
 - takeScreenshot: actions-03-deleted
-- tapOn: "UNDO"
+- tapOn:
+    text: "UNDO"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
 - runFlow: ../subflows/close-message.yaml
 - extendedWaitUntil:
     visible: ".*Weekly digest.*"
