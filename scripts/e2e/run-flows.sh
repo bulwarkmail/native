@@ -114,6 +114,25 @@ find "$DEBUG_DIR" -type f | sed "s|$DEBUG_DIR/||" > "$OUT/debug-files.txt" 2>/de
 xcrun simctl spawn "$UDID" log show --last 90m --style compact \
   --predicate 'process == "BulwarkMobile"' > "$OUT/app.log" 2>&1 || true
 
+# Push: what iOS did with the notification (the extension's own log, and
+# SpringBoard / usernotificationsd / apsd lines naming the app), plus the
+# notification settings the simulator stored for it.
+if [ "$SUITE" = push ]; then
+  xcrun simctl spawn "$UDID" log show --last 90m --style compact --info --predicate \
+    'process == "NotificationService" OR ((process == "SpringBoard" OR process CONTAINS "usernotification" OR process == "apsd") AND eventMessage CONTAINS[c] "bulwarkmail")' \
+    > "$OUT/push.log" 2>&1 || true
+  SIMDATA="$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data"
+  {
+    find "$SIMDATA/Library" \( -path '*BulletinBoard*' -o -path '*UserNotifications*' \) -maxdepth 4 2>/dev/null | head -50
+    for f in $(find "$SIMDATA/Library" \( -path '*BulletinBoard*' -o -path '*UserNotifications*' \) -name '*.plist' 2>/dev/null | head -20); do
+      echo "== $f"
+      plutil -p "$f" 2>/dev/null | grep -i -A12 bulwarkmail | head -60
+    done
+    echo "== app extension in the bundle"
+    ls "$(xcrun simctl get_app_container "$UDID" org.bulwarkmail.mobile app 2>/dev/null)/PlugIns" 2>&1
+  } > "$OUT/push-settings.txt" 2>&1 || true
+fi
+
 # Scrub secrets from every text file that gets uploaded.
 find "$OUT" -type f \( -name '*.xml' -o -name '*.log' -o -name '*.json' -o -name '*.txt' \) -print0 |
   while IFS= read -r -d '' f; do
