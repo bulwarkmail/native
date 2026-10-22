@@ -102,6 +102,8 @@ jobs:
         run: npx expo prebuild --platform ios --clean
 
       - name: Build for the simulator
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
@@ -117,12 +119,23 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
             ARCHS=arm64 \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER= \
             > e2e-build/xcodebuild.log 2>&1; then
             grep -E "error:|fatal error" e2e-build/xcodebuild.log | head -n 50 || true
             tail -n 80 e2e-build/xcodebuild.log
             exit 1
           fi
+          # Signed ad hoc ("Sign to Run Locally"): no certificate needed, and
+          # Xcode embeds the simulator entitlements the keychain needs. An
+          # unsigned build has none, and every expo-secure-store call fails
+          # with "A required entitlement isn't present".
+          APP_PATH=build/Build/Products/Release-iphonesimulator/BulwarkMobile.app
+          echo "Simulated entitlements:"
+          xcrun otool -X -s __TEXT __entitlements "$APP_PATH/BulwarkMobile" | head -20 || true
+          codesign -d --entitlements - "$APP_PATH" 2>&1 | head -20 || true
           # Packed as a tar: artifacts drop the executable bit, which would
           # leave a reused app unable to launch.
           tar -C build/Build/Products/Release-iphonesimulator -czf "$RUNNER_TEMP/simulator-app.tar.gz" BulwarkMobile.app
