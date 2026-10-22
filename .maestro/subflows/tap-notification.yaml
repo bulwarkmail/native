@@ -2,6 +2,8 @@
 # goes away after a few seconds, often between Maestro finding it and
 # tapping it (the tap then lands on whatever is below): wait until it is
 # gone, pull Notification Center down from the top left, and tap there.
+# A tap while the pull-down still moves does nothing, so tap until the
+# notification is gone (the app opened).
 appId: org.bulwarkmail.mobile
 ---
 - extendedWaitUntil:
@@ -15,4 +17,13 @@ appId: org.bulwarkmail.mobile
 - extendedWaitUntil:
     visible: ${TEXT}
     timeout: 10000
-- tapOn: ${TEXT}
+- waitForAnimationToEnd:
+    timeout: 3000
+- repeat:
+    while:
+      visible: ${TEXT}
+    times: 3
+    commands:
+      - tapOn: ${TEXT}
+      - waitForAnimationToEnd:
+          timeout: 4000
