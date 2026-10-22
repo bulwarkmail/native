@@ -72,6 +72,26 @@ export function perfOnce(name: string, detail?: Record<string, string | number |
   perfMark(name, detail);
 }
 
+/**
+ * The modules whose own evaluation took longest so far, when the bundle was
+ * built with BULWARK_MODULE_TIMINGS (scripts/perf/module-timings.js): the
+ * 60 slowest as "id:ms" pairs, plus the total. Logged once, at first inbox.
+ */
+export function logModuleTimes(): void {
+  if (!enabled || onceDone.has('module-times')) return;
+  const times = (globalThis as { __bulwarkModuleTimes?: Record<string, number> }).__bulwarkModuleTimes;
+  if (!times) return;
+  onceDone.add('module-times');
+  const entries = Object.entries(times);
+  const total = entries.reduce((sum, [, ms]) => sum + ms, 0);
+  const top = entries
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 60)
+    .map(([id, ms]) => `${id}:${Math.round(ms * 10) / 10}`)
+    .join(',');
+  perfMark('module-times', { total: Math.round(total), count: entries.length, top });
+}
+
 /** Test hook. */
 export function resetPerfMarks(): void {
   started.clear();

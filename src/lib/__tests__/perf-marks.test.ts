@@ -59,4 +59,20 @@ describe('perf marks', () => {
     expect(log).toHaveBeenCalledTimes(1);
     expect(String(log.mock.calls[0][0])).toContain('"rows":3');
   });
+  it('logs the slowest modules once, with the total', async () => {
+    const m = await load('ios', true);
+    (globalThis as { __bulwarkModuleTimes?: Record<string, number> }).__bulwarkModuleTimes = { 7: 12.34, 3: 50, 9: 1 };
+    try {
+      m.logModuleTimes();
+      m.logModuleTimes();
+      const lines = log.mock.calls.map((c: unknown[]) => String(c[0])).filter((l: string) => l.includes('module-times'));
+      expect(lines).toHaveLength(1);
+      const mark = JSON.parse(lines[0].slice('[perf] '.length));
+      expect(mark.total).toBe(63);
+      expect(mark.count).toBe(3);
+      expect(mark.top).toBe('3:50,7:12.3,9:1');
+    } finally {
+      delete (globalThis as { __bulwarkModuleTimes?: unknown }).__bulwarkModuleTimes;
+    }
+  });
 });

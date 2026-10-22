@@ -56,7 +56,7 @@ import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
-import { createFrameMonitor, perfOnce, perfStart } from '../lib/perf-marks';
+import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/perf-marks';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 function getSenderName(email: Email, unknownLabel: string): string {
@@ -479,7 +479,10 @@ export default function EmailListScreen({
   React.useEffect(() => { perfOnce('list-mounted'); }, []);
   React.useEffect(() => {
     if (visibleEmails.length > 0) {
-      requestAnimationFrame(() => perfOnce('inbox-rendered', { rows: visibleEmails.length }));
+      requestAnimationFrame(() => {
+        perfOnce('inbox-rendered', { rows: visibleEmails.length });
+        logModuleTimes();
+      });
     }
   }, [visibleEmails.length]);
   const threadGroups = React.useMemo(
