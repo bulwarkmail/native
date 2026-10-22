@@ -111,8 +111,10 @@ find "$DEBUG_DIR" "$HOME/.maestro/tests" -name '*.png' -exec cp {} "$OUT/screens
 node "$ROOT/scripts/e2e/failed-steps.mjs" "$DEBUG_DIR" > "$OUT/steps.txt" 2>&1 || true
 find "$DEBUG_DIR" -type f | sed "s|$DEBUG_DIR/||" > "$OUT/debug-files.txt" 2>/dev/null || true
 
-xcrun simctl spawn "$UDID" log show --last 90m --style compact \
-  --predicate 'process == "BulwarkMobile"' > "$OUT/app.log" 2>&1 || true
+# --info: console.log of the JS lands at info level.
+xcrun simctl spawn "$UDID" log show --last 90m --style compact --info \
+  --predicate 'process == "BulwarkMobile" AND (subsystem == "com.facebook.react.log" OR messageType >= 16)' \
+  > "$OUT/app.log" 2>&1 || true
 
 # Push: what iOS did with the notification (the extension's own log, and
 # SpringBoard / usernotificationsd / apsd lines naming the app), plus the

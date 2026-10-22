@@ -15,3 +15,5 @@ appId: org.bulwarkmail.mobile
 - tapOn:
     text: "Sign out"
     rightOf: "Cancel"
+    below: "The account is removed from this device.*"
+- takeScreenshot: sign-out-tapped
