@@ -27,6 +27,7 @@ import {
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
+import { perfMark } from '../lib/perf-marks';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -763,6 +764,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   restoreSession: async () => {
     set({ isLoading: true });
+    perfMark('restore-start');
     try {
       // Wait for persisted caches to finish hydrating from AsyncStorage.
       // Otherwise we read empty defaults and bounce the user back to the
@@ -775,6 +777,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         waitForHydration(useCalendarStore),
         waitForHydration(useContactsStore),
       ]);
+      perfMark('restore-hydrated');
       const accountStore = useAccountStore.getState();
 
       // Legacy migration: if there are no registered accounts but the old
@@ -810,6 +813,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       try {
         const ok = await jmapClient.loadAccount(target.id);
+        perfMark('restore-session');
         if (!ok) {
           // No stored credentials (or corrupt) — genuine logout.
           accountStore.removeAccount(target.id);
@@ -863,6 +867,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const session = jmapClient.currentSession!;
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
+      perfMark('restore-done');
       // Refresh the cached mailbox list + current folder now that the session
       // is live. Feature stores show persisted data immediately; this swaps
       // in fresh data once the network round-trip completes.

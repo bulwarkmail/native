@@ -476,6 +476,7 @@ export default function EmailListScreen({
   );
   // Performance harness (off unless launched with -perfMarks YES).
   const scrollMonitor = React.useMemo(() => createFrameMonitor('list-scroll'), []);
+  React.useEffect(() => { perfOnce('list-mounted'); }, []);
   React.useEffect(() => {
     if (visibleEmails.length > 0) {
       requestAnimationFrame(() => perfOnce('inbox-rendered', { rows: visibleEmails.length }));
