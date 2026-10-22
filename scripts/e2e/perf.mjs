@@ -11,7 +11,10 @@
 //      stays signed in),
 //   2. cold-starts it `--cold` times: terminate, launch, wait for
 //      `inbox-rendered`; cold start = that mark's time minus the launch time
-//      taken on this machine (the simulator shares the host clock),
+//      taken on this machine (the simulator shares the host clock). The
+//      first launch after the install is much slower and swings a lot (iOS
+//      does its first-launch work for the new binary), so it is reported on
+//      its own as `first-start-*`; `cold-start-*` are the launches after it,
 //   3. runs the Maestro interaction flows once each (open messages, switch
 //      tabs, open compose, scroll), which produce the other marks. Each flow
 //      is its own run, so one that fails costs only its own metric.
@@ -102,7 +105,7 @@ function waitForMark(name, timeoutMs) {
 // ── steps ───────────────────────────────────────────────────────────────────
 const samples = []; // { label, metric, ms, round }
 
-async function coldStart(label, round) {
+async function coldStart(label, round, first) {
   try { simctl('terminate', UDID, BUNDLE); } catch { /* not running */ }
   await sleep(1500);
   const pending = waitForMark('inbox-rendered', 120_000);
@@ -114,8 +117,9 @@ async function coldStart(label, round) {
     console.log(`  ${label} cold start: no inbox-rendered mark within 120 s`);
     return;
   }
-  samples.push({ label, round, metric: 'cold-start-to-inbox', ms: mark.t - t0 });
-  if (bundle) samples.push({ label, round, metric: 'cold-start-to-bundle', ms: bundle.t - t0 });
+  const kind = first ? 'first-start' : 'cold-start';
+  samples.push({ label, round, metric: `${kind}-to-inbox`, ms: mark.t - t0 });
+  if (bundle) samples.push({ label, round, metric: `${kind}-to-bundle`, ms: bundle.t - t0 });
   console.log(`  ${label} cold start ${mark.t - t0} ms (bundle ${bundle ? bundle.t - t0 : '?'} ms, rows ${mark.rows})`);
   await sleep(3000);
 }
@@ -185,7 +189,7 @@ if (final && process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITH
       currentLabel = app.label;
       try { simctl('terminate', UDID, BUNDLE); } catch { /* not running */ }
       simctl('install', UDID, app.path);
-      for (let i = 0; i < coldRuns; i++) await coldStart(app.label, round);
+      for (let i = 0; i < coldRuns; i++) await coldStart(app.label, round, i === 0);
       const got = await runFlows(app.label);
       for (const m of got) {
         const metric = m.n === 'tab-switch' && m.to ? `tab-switch:${m.to}` : m.n;

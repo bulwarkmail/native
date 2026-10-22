@@ -325,7 +325,7 @@ jobs:
           if [ -d "$RUNNER_TEMP/base/app/BulwarkMobile.app" ]; then
             APPS=(--app "base=$RUNNER_TEMP/base/app/BulwarkMobile.app" "${APPS[@]}")
           fi
-          node scripts/e2e/perf.mjs "${APPS[@]}" --rounds "${{ inputs.perf_rounds || 5 }}" --cold 3 \
+          node scripts/e2e/perf.mjs "${APPS[@]}" --rounds "${{ inputs.perf_rounds || 5 }}" --cold 5 \
             --flows "$(ls "$GITHUB_WORKSPACE"/.maestro/perf/[0-9]-*.yaml | paste -sd, -)" --out "$OUT"
 
       - name: Upload results
