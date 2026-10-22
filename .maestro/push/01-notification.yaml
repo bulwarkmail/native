@@ -1,0 +1,52 @@
+# Push on iOS: the relay's payload carries only ids; the notification service
+# extension (plugins/ios-push) fetches sender and subject before the banner
+# shows. A tap opens the message, with the app running and from a cold start.
+# The helper sends the message as userb and pushes with simctl, so this needs
+# no APNs key.
+appId: org.bulwarkmail.mobile
+name: Push notification on iOS
+tags:
+  - push
+---
+- runFlow: ../subflows/signed-in.yaml
+# The settings page writes what the extension needs; give it a moment.
+- waitForAnimationToEnd:
+    timeout: 3000
+- pressKey: Home
+
+- evalScript: ${output.subject = 'E2E push ' + Date.now()}
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject)}
+- extendedWaitUntil:
+    visible: ".*${output.subject}.*"
+    timeout: 30000
+- takeScreenshot: push-01-banner
+# Sender and subject come from the extension, not the relay.
+- assertVisible: ".*User B.*"
+- assertNotVisible: ".*New message.*"
+- tapOn: ".*${output.subject}.*"
+- extendedWaitUntil:
+    visible: "Reply All"
+    timeout: 60000
+- assertVisible: ".*${output.subject}.*"
+- takeScreenshot: push-02-opened-warm
+
+# Cold start: the app isn't running when the notification is tapped.
+- stopApp
+- evalScript: ${output.subject2 = 'E2E push cold ' + Date.now()}
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject2)}
+- extendedWaitUntil:
+    visible: ".*${output.subject2}.*"
+    timeout: 30000
+- takeScreenshot: push-03-banner-cold
+- tapOn: ".*${output.subject2}.*"
+- extendedWaitUntil:
+    visible: "Reply All"
+    timeout: 90000
+- assertVisible: ".*${output.subject2}.*"
+- takeScreenshot: push-04-opened-cold

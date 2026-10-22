@@ -16,6 +16,10 @@
 //   GET /send?to=&subject=&attach=1&html=1  userb sends a message over JMAP
 //   GET /find?subject=&as=userb&timeout=    wait until a message with that subject
 //                                     arrives; answers {found, attachments}
+//   GET /simpush?to=&subject=         userb sends a message to `to`; then the
+//                                     relay's APNs payload for it (ids only) is
+//                                     pushed to the simulator with simctl push,
+//                                     so the app's notification extension runs
 //   GET /openurl?url=                 simctl openurl for other links (mailto:, ...)
 //   GET /clipboard?text=              simctl pbcopy of a plain value
 //
@@ -27,6 +31,8 @@
 // E2E_USERB_PASSWORD, E2E_TOTP_SECRET (base32), E2E_WEBMAIL (test webmail base URL), UDID
 // (booted simulator), PLAYWRIGHT_DIR (node_modules folder with playwright).
 
+import fs from 'node:fs';
+import os from 'node:os';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -300,6 +306,8 @@ async function findMail({ as = 'userb', subject, timeout = 30 }) {
     if (hit) {
       return {
         found: true,
+        id: hit.id,
+        accountId: s.accountId,
         attachments: (hit.attachments || []).map((a) => a.name),
         from: hit.from?.[0]?.email ?? null,
       };
@@ -356,6 +364,34 @@ const routes = {
   },
   async '/find'(q) {
     return findMail({ as: q.get('as') || 'userb', subject: q.get('subject'), timeout: Number(q.get('timeout') || 30) });
+  },
+  async '/simpush'(q) {
+    const to = q.get('to');
+    const subject = q.get('subject');
+    await sendMail({ from: 'userb', to, subject, attach: false, html: false });
+    const found = await findMail({ as: to, subject, timeout: 60 });
+    if (!found.found) throw new Error('the message did not arrive');
+    // The same payload the relay sends (relay/src/apns.ts apnsPayload).
+    const payload = {
+      aps: {
+        alert: { title: 'Bulwark Mail', body: 'New message' },
+        sound: 'default',
+        'mutable-content': 1,
+        'thread-id': found.accountId,
+      },
+      body: {
+        kind: 'jmap-email-push',
+        accountLabel: `${to}@${DOMAIN}`,
+        accountId: found.accountId,
+        emailIds: [found.id],
+        changed: {},
+      },
+    };
+    const file = path.join(os.tmpdir(), `push-${Date.now()}.json`);
+    fs.writeFileSync(file, JSON.stringify(payload));
+    await simctl(['push', UDID, 'org.bulwarkmail.mobile', file]);
+    log(`simpush: ${to} "${subject}"`);
+    return { ok: true, emailId: found.id };
   },
   async '/openurl'(q) {
     await simctl(['openurl', UDID, q.get('url')]);
