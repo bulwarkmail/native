@@ -6,6 +6,10 @@ import { registerWidgetTaskHandler } from 'react-native-android-widget';
 import { pushBackgroundTask } from './src/lib/push-background-task';
 import { widgetTaskHandler } from './src/widgets/task-handler';
 import { refreshWidgetsInBackground } from './src/widgets/sync';
+import { perfMark } from './src/lib/perf-marks';
+
+// Every import above has run: the bundle is loaded (performance harness).
+perfMark('bundle-loaded');
 import { markUiStarted } from './src/widgets/ui-presence';
 
 // Runs in a fresh headless JS runtime when BulwarkPushTaskService is started

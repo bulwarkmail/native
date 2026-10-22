@@ -19,6 +19,7 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
+import { perfEndAfterPaint } from '../lib/perf-marks';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -685,6 +686,8 @@ export default function EmailBodyView({
 
   const onMessage = (e: WebViewMessageEvent) => {
     const data = e.nativeEvent.data;
+    // The body reported its size: it is laid out (performance harness).
+    perfEndAfterPaint('open-message');
     // Swipe/zoom messages arrive as JSON; the height reporter posts a bare number.
     if (data.charCodeAt(0) === 123 /* '{' */) {
       try {

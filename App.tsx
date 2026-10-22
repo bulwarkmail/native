@@ -94,6 +94,7 @@ import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
+import { perfEndAfterPaint, perfMarksEnabled, perfStart } from './src/lib/perf-marks';
 import { useColors } from './src/theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -261,6 +262,10 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <PushOnboardingPrompt />
       <AppIconBadge />
     <Tab.Navigator
+      screenListeners={perfMarksEnabled() ? ({ route }) => ({
+        tabPress: () => perfStart('tab-switch'),
+        focus: () => perfEndAfterPaint('tab-switch', { to: route.name }),
+      }) : undefined}
       screenOptions={{
         headerShown: false,
         // Tabs out of view stop re-rendering until they are shown again.

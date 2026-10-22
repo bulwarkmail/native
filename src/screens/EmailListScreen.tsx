@@ -56,6 +56,7 @@ import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
+import { createFrameMonitor, perfOnce, perfStart } from '../lib/perf-marks';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 function getSenderName(email: Email, unknownLabel: string): string {
@@ -473,6 +474,13 @@ export default function EmailListScreen({
     () => collapseThreads(emails, disableThreading),
     [emails, disableThreading],
   );
+  // Performance harness (off unless launched with -perfMarks YES).
+  const scrollMonitor = React.useMemo(() => createFrameMonitor('list-scroll'), []);
+  React.useEffect(() => {
+    if (visibleEmails.length > 0) {
+      requestAnimationFrame(() => perfOnce('inbox-rendered', { rows: visibleEmails.length }));
+    }
+  }, [visibleEmails.length]);
   const threadGroups = React.useMemo(
     () => groupByThread(emails, disableThreading),
     [emails, disableThreading],
@@ -645,7 +653,10 @@ export default function EmailListScreen({
       const email = emailsRef.current.find((e) => rowKeyOf(e) === id);
       if (!email) return;
       if (isDraftEmail(email, currentRoleRef.current)) void openDraftRef.current(email);
-      else onEmailPressRef.current?.(email);
+      else {
+        perfStart('open-message');
+        onEmailPressRef.current?.(email);
+      }
     }
   }, [toggleSelect]);
 
@@ -1563,6 +1574,8 @@ export default function EmailListScreen({
           contentContainerStyle={styles.listContent}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.3}
+          onScrollBeginDrag={scrollMonitor.start}
+          onMomentumScrollEnd={scrollMonitor.stop}
           refreshing={loading}
           onRefresh={handleRefresh}
         />
@@ -1570,7 +1583,10 @@ export default function EmailListScreen({
 
       {/* Compose FAB - matches webmail mobile: PenSquare, h-14 w-14, rounded-full, shadow-lg */}
       <Pressable
-        onPress={onComposePress}
+        onPress={() => {
+          perfStart('compose-open');
+          onComposePress?.();
+        }}
         style={({ pressed }) => [
           styles.fab,
           // Lifted over the phone's undo bar, which used to cover it.

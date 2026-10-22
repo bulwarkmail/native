@@ -3,6 +3,7 @@ import { StyleSheet, View, Platform } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
+import { perfEndAfterPaint } from '../lib/perf-marks';
 import { buildEditorHtml, MIN_EDITOR_HEIGHT } from '../lib/editor-html';
 
 export type RichTextCommand =
@@ -202,6 +203,7 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     }
     if (!readyRef.current) {
       readyRef.current = true;
+      perfEndAfterPaint('compose-open');
       const queued = queuedRef.current;
       queuedRef.current = [];
       for (const script of queued) webViewRef.current?.injectJavaScript(`${script}; true;`);
