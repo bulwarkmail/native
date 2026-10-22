@@ -639,6 +639,12 @@
       "up_to_date": "Already up to date"
     }
   },
+  "push": {
+    "ios": {
+      "more_messages": "and {count} more",
+      "no_subject": "(no subject)"
+    }
+  },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",
     "dismiss": "Not now",
@@ -1008,6 +1014,8 @@
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
         "err_android_only": "Push notifications are only available on Android.",
+        "err_apns_empty": "iOS returned an empty push token.",
+        "err_apns_token": "iOS could not issue a push token ({detail}).",
         "err_fcm_empty": "Firebase returned an empty device token.",
         "err_fcm_token": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device.",
         "err_fcm_token_up": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.",
@@ -1015,6 +1023,7 @@
         "err_no_account": "No account loaded - cannot set up push.",
         "err_permission": "Notification permission was not granted.",
         "err_relay_https": "The relay URL must use https://.",
+        "err_relay_no_apns": "The push relay at {url} does not deliver to iPhones and iPads yet.",
         "err_relay_rejected": "The push relay rejected the registration: {detail}",
         "err_relay_unreachable": "Could not reach the push relay at {url} ({detail}).",
         "err_up_android_only": "UnifiedPush is only available on Android.",
