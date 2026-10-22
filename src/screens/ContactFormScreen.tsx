@@ -1254,6 +1254,7 @@ export default function ContactFormScreen() {
                     style={styles.input}
                     placeholder={t('contacts.form.given_name', 'First name')}
                     ref={givenRef}
+                    testID="contact-first-name"
                     returnKeyType="next"
                     blurOnSubmit={false}
                     onSubmitEditing={() => middleRef.current?.focus()}
@@ -1280,6 +1281,7 @@ export default function ContactFormScreen() {
                     style={styles.input}
                     placeholder={t('contacts.form.surname', 'Last name')}
                     ref={surnameRef}
+                    testID="contact-last-name"
                     returnKeyType="next"
                     blurOnSubmit={false}
                     onSubmitEditing={() => fullRef.current?.focus()}
@@ -1347,6 +1349,7 @@ export default function ContactFormScreen() {
                   style={styles.input}
                   placeholder={t('contacts.form.email_placeholder', 'email@example.com')}
                   ref={i === 0 ? firstEmailRef : undefined}
+                  testID={`contact-email-${i}`}
                   placeholderTextColor={c.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
