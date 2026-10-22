@@ -6,8 +6,10 @@ appId: org.bulwarkmail.mobile
     direction: DOWN
     timeout: 30000
 - tapOn: ".*${SUBJECT}.*"
+# The message toolbar's "more" button: "Reply All" shows on the phone, but
+# the iPad pane has a quick reply box instead for mail to one recipient.
 - extendedWaitUntil:
-    visible: "Reply All"
+    visible: "more"
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 5000
