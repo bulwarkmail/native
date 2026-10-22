@@ -15,6 +15,7 @@ import {
   type OAuthTokenSource,
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
+import { writeSharedSecret, moveToSharedGroup } from '../lib/ios-push-shared';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 
 // Refresh OAuth access tokens this many ms before they actually expire so
@@ -40,7 +41,7 @@ const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
 const CREDENTIALS_PREFIX = 'jmap_credentials__';
 
 // SecureStore keys: letters, digits, ".", "-", "_" only - no "@" or "/".
-function credentialsKey(accountId: string): string {
+export function credentialsKey(accountId: string): string {
   return CREDENTIALS_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
@@ -260,10 +261,7 @@ export class JMAPClient {
     this.firstTouchGate.reset();
 
     const accountId = generateAccountId(username, baseUrl);
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(this.credentials));
 
     return this.session;
   }
@@ -342,10 +340,7 @@ export class JMAPClient {
     this.credentials.username = username;
 
     const accountId = generateAccountId(username, baseUrl);
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(this.credentials));
 
     return { session: this.session, username, accountId };
   }
@@ -367,13 +362,34 @@ export class JMAPClient {
       this.credentials.username,
       this.credentials.serverUrl,
     );
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(this.credentials));
     for (const l of this.tokenRefreshListeners) {
       try { l(); } catch { /* ignore */ }
     }
+  }
+
+  /**
+   * Take the stored OAuth tokens when they are newer than the ones in memory:
+   * on iOS the notification extension refreshes them too and writes the new
+   * bundle back. True when the in-memory tokens changed.
+   */
+  private async adoptStoredTokens(): Promise<boolean> {
+    const current = this.credentials;
+    if (!current?.accessToken || !current.refreshToken) return false;
+    const accountId = generateAccountId(current.username, current.serverUrl);
+    const stored = await this.getStoredCredentials(accountId).catch(() => null);
+    if (!stored?.accessToken || stored.accessToken === current.accessToken) return false;
+    if ((stored.expiresAt ?? 0) <= (current.expiresAt ?? 0)) return false;
+    this.credentials = {
+      ...current,
+      accessToken: stored.accessToken,
+      refreshToken: stored.refreshToken ?? current.refreshToken,
+      expiresAt: stored.expiresAt,
+    };
+    for (const l of this.tokenRefreshListeners) {
+      try { l(); } catch { /* ignore */ }
+    }
+    return true;
   }
 
   private currentOAuthTokens(): OAuthTokens | null {
@@ -414,10 +430,17 @@ export class JMAPClient {
   // consumers of `authHeader` (SSE stream, file downloads) can make sure the
   // header they capture is not about to expire.
   async ensureFreshToken(): Promise<void> {
-    const tokens = this.currentOAuthTokens();
+    let tokens = this.currentOAuthTokens();
     if (!tokens) return;
     if (tokens.expiresAt == null) return;
     if (tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
+    // Another process may have refreshed already (the iOS notification
+    // extension); use its tokens rather than spend a refresh token the
+    // server has replaced.
+    if (await this.adoptStoredTokens()) {
+      tokens = this.currentOAuthTokens();
+      if (!tokens || (tokens.expiresAt != null && tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return;
+    }
     try {
       const next = await refreshOAuthAccessToken(tokens);
       await this.persistRefreshedTokens(next);
@@ -433,6 +456,10 @@ export class JMAPClient {
   // the account instead of evicting it (webmail 1.7.6 "keep the session when
   // the auth server is briefly unreachable").
   async forceRefreshToken(): Promise<boolean> {
+    if (!this.currentOAuthTokens()) return false;
+    // A newer token in storage (refreshed by the iOS notification extension)
+    // is worth a retry before refreshing again.
+    if (await this.adoptStoredTokens()) return true;
     const tokens = this.currentOAuthTokens();
     if (!tokens) return false;
     try {
@@ -459,10 +486,7 @@ export class JMAPClient {
       this.credentials.username,
       this.credentials.serverUrl,
     );
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(this.credentials));
   }
 
   // Legacy single-slot restore - kept for backward-compat tests. New code
@@ -490,6 +514,9 @@ export class JMAPClient {
   async loadAccount(accountId: string): Promise<boolean> {
     const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
     if (!stored) return false;
+    // iOS: credentials saved before the notification extension existed move
+    // to the keychain group it can read (a no-op elsewhere and afterwards).
+    void moveToSharedGroup(credentialsKey(accountId)).catch(() => undefined);
 
     let creds: StoredCredentials;
     try {
@@ -566,7 +593,7 @@ export class JMAPClient {
       const creds: StoredCredentials = JSON.parse(stored);
       // Re-save under the per-account key before dropping the legacy entry
       const accountId = generateAccountId(creds.username, creds.serverUrl);
-      await SecureStore.setItemAsync(credentialsKey(accountId), stored);
+      await writeSharedSecret(credentialsKey(accountId), stored);
       await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
       return creds;
     } catch {
@@ -1159,7 +1186,7 @@ export class JMAPClient {
   }
 
   async setStoredCredentials(accountId: string, creds: StoredCredentials): Promise<void> {
-    await SecureStore.setItemAsync(credentialsKey(accountId), JSON.stringify(creds));
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(creds));
   }
 
   // ── Blob Download ─────────────────────────────────────
