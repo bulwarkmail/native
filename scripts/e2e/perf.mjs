@@ -120,17 +120,59 @@ async function coldStart(label, round) {
   await sleep(3000);
 }
 
-function runFlow(label, flow) {
+// All interaction flows in one Maestro process: every process start brings
+// the XCTest driver up again (30-60 s). A failing flow doesn't stop the
+// others; a hung driver is killed after FLOW_CAP_MS.
+const FLOW_CAP_MS = 12 * 60 * 1000;
+function runFlows(label) {
   const before = marks.length;
   const env = maestroEnv.flatMap((kv) => ['-e', kv]);
-  const res = spawn('maestro', ['--device', UDID, 'test', ...env, flow], { stdio: 'inherit' });
+  const res = spawn('maestro', ['--device', UDID, 'test', ...env, ...flows], { stdio: 'inherit' });
+  const cap = setTimeout(() => res.kill('SIGKILL'), FLOW_CAP_MS);
   return new Promise((resolve) => {
     res.on('exit', (code) => {
+      clearTimeout(cap);
       const got = marks.slice(before).filter((m) => typeof m.ms === 'number');
-      console.log(`  ${label} ${path.basename(flow)}: exit ${code}, ${got.length} timed marks`);
+      console.log(`  ${label} interactions: exit ${code}, ${got.length} timed marks`);
       resolve(got);
     });
   });
+}
+
+function writeReport(final = false) {
+
+const median = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+};
+const metrics = [...new Set(samples.map((s) => s.metric))].sort();
+const labels = apps.map((a) => a.label);
+const lines = [
+  `| metric | ${labels.map((l) => `${l} median (n)`).join(' | ')} |${labels.length === 2 ? ' change |' : ''}`,
+  `|---|${labels.map(() => '---').join('|')}|${labels.length === 2 ? '---|' : ''}`,
+];
+for (const metric of metrics) {
+  const cells = labels.map((l) => {
+    const xs = samples.filter((s) => s.label === l && s.metric === metric).map((s) => s.ms);
+    return xs.length ? { med: median(xs), n: xs.length } : null;
+  });
+  let change = '';
+  if (labels.length === 2 && cells[0] && cells[1]) {
+    change = ` ${Math.round(((cells[1].med - cells[0].med) / cells[0].med) * 100)}% |`;
+  } else if (labels.length === 2) change = ' |';
+  lines.push(`| ${metric} | ${cells.map((c) => (c ? `${c.med} ms (${c.n})` : '-')).join(' | ')} |${change}`);
+}
+const scroll = labels.map((l) => {
+  const xs = samples.filter((s) => s.label === l && s.metric === 'list-scroll');
+  if (!xs.length) return null;
+  return `${l}: median ${median(xs.map((s) => s.long))} long frames of ${median(xs.map((s) => s.frames))}, worst ${median(xs.map((s) => s.worst))} ms`;
+}).filter(Boolean);
+const md = [...lines, '', ...scroll.map((s) => `- list-scroll ${s}`), ''].join('\n');
+fs.writeFileSync(path.join(out, 'perf.json'), JSON.stringify({ apps, rounds, coldRuns, samples }, null, 1));
+fs.writeFileSync(path.join(out, 'perf.md'), md);
+console.log(md);
+if (final && process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Performance\n\n${md}\n`);
 }
 
 (async () => {
@@ -144,47 +186,16 @@ function runFlow(label, flow) {
       try { simctl('terminate', UDID, BUNDLE); } catch { /* not running */ }
       simctl('install', UDID, app.path);
       for (let i = 0; i < coldRuns; i++) await coldStart(app.label, round);
-      const got = [];
-      for (const flow of flows) got.push(...(await runFlow(app.label, flow)));
+      const got = await runFlows(app.label);
       for (const m of got) {
         const metric = m.n === 'tab-switch' && m.to ? `tab-switch:${m.to}` : m.n;
         samples.push({ label: app.label, round, metric, ms: m.ms, ...(m.long !== undefined ? { long: m.long, frames: m.frames, worst: m.worst } : {}) });
       }
     }
+    // A job that runs out of time still leaves the rounds it finished.
+    writeReport();
   }
   stream.kill();
-
-  const median = (xs) => {
-    const s = [...xs].sort((a, b) => a - b);
-    const m = Math.floor(s.length / 2);
-    return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
-  };
-  const metrics = [...new Set(samples.map((s) => s.metric))].sort();
-  const labels = apps.map((a) => a.label);
-  const lines = [
-    `| metric | ${labels.map((l) => `${l} median (n)`).join(' | ')} |${labels.length === 2 ? ' change |' : ''}`,
-    `|---|${labels.map(() => '---').join('|')}|${labels.length === 2 ? '---|' : ''}`,
-  ];
-  for (const metric of metrics) {
-    const cells = labels.map((l) => {
-      const xs = samples.filter((s) => s.label === l && s.metric === metric).map((s) => s.ms);
-      return xs.length ? { med: median(xs), n: xs.length } : null;
-    });
-    let change = '';
-    if (labels.length === 2 && cells[0] && cells[1]) {
-      change = ` ${Math.round(((cells[1].med - cells[0].med) / cells[0].med) * 100)}% |`;
-    } else if (labels.length === 2) change = ' |';
-    lines.push(`| ${metric} | ${cells.map((c) => (c ? `${c.med} ms (${c.n})` : '-')).join(' | ')} |${change}`);
-  }
-  const scroll = labels.map((l) => {
-    const xs = samples.filter((s) => s.label === l && s.metric === 'list-scroll');
-    if (!xs.length) return null;
-    return `${l}: median ${median(xs.map((s) => s.long))} long frames of ${median(xs.map((s) => s.frames))}, worst ${median(xs.map((s) => s.worst))} ms`;
-  }).filter(Boolean);
-  const md = [...lines, '', ...scroll.map((s) => `- list-scroll ${s}`), ''].join('\n');
-  fs.writeFileSync(path.join(out, 'perf.json'), JSON.stringify({ apps, rounds, coldRuns, samples }, null, 1));
-  fs.writeFileSync(path.join(out, 'perf.md'), md);
-  console.log(md);
-  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Performance\n\n${md}\n`);
+  writeReport(true);
   process.exit(0);
 })();
