@@ -1,0 +1,11 @@
+# Performance runs: sign in once (ACCOUNT, the bulk account with thousands of
+# messages). Later installs of other builds keep the data and the keychain.
+appId: org.bulwarkmail.mobile
+name: Perf sign-in
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/password-sign-in.yaml
+    env:
+      LOGIN: ${ACCOUNT}@example.org
+      INBOX_TEXT: ".*Bulk.*"

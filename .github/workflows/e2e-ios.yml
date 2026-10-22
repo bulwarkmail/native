@@ -24,12 +24,21 @@ on:
         type: string
         required: false
       legs:
-        description: "Legs to run: all, signin, features, or a comma list (signin-phone, features-tablet-dark, ...)"
+        description: "Legs to run: all, signin, features, perf, or a comma list (signin-phone, features-tablet-dark, ...)"
         type: string
         default: all
       flows:
         description: "Only these flows (comma list of file names without .yaml); empty runs all"
         type: string
+        required: false
+      perf_base_run_id:
+        description: "perf leg: compare against the simulator app of this run (run id)"
+        type: string
+        required: false
+      perf_rounds:
+        description: "perf leg: rounds (each: 3 cold starts and the interaction flow per app)"
+        type: string
+        default: "5"
         required: false
   release:
     types: [published]
@@ -226,3 +235,95 @@ jobs:
           flows: ${{ inputs.flows }}
           playwright: "false"
           name: ${{ matrix.name }}
+
+  # Part 2 of docs/ios-test-2026-10.md: timing marks from the app
+  # (src/lib/perf-marks.ts), read by scripts/e2e/perf.mjs. Compares the app
+  # of this run (or app_run_id) with the app of perf_base_run_id, alternating
+  # them on one simulator so both sides share the runner.
+  perf:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      contains(inputs.legs, 'perf')
+    runs-on: macos-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    env:
+      OUT: ${{ github.workspace }}/e2e-output
+      DEVICE: phone
+      APPEARANCE: light
+      ORIENTATION: portrait
+      E2E_SERVER: ${{ vars.E2E_SERVER }}
+      E2E_ACCOUNT: e2e-bulk
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the app under test (this run)
+        if: inputs.app_run_id == ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          path: ${{ runner.temp }}/cand
+      - name: Download the app under test (earlier run)
+        if: inputs.app_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          run-id: ${{ inputs.app_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/cand
+      - name: Download the baseline app
+        if: inputs.perf_base_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          run-id: ${{ inputs.perf_base_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/base
+
+      - name: Unpack
+        run: |
+          for side in cand base; do
+            [ -f "$RUNNER_TEMP/$side/simulator-app.tar.gz" ] || continue
+            mkdir -p "$RUNNER_TEMP/$side/app"
+            tar -C "$RUNNER_TEMP/$side/app" -xzf "$RUNNER_TEMP/$side/simulator-app.tar.gz"
+          done
+          echo "APP=$RUNNER_TEMP/cand/app/BulwarkMobile.app" >> "$GITHUB_ENV"
+
+      - name: Boot a simulator
+        run: bash scripts/e2e/boot-sim.sh "$DEVICE" "$APPEARANCE" "$APP"
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Sign in once
+        run: |
+          mkdir -p "$OUT/screenshots"
+          cd "$OUT/screenshots"
+          # Warm-up for the driver, then the sign-in (keychain survives reinstalls).
+          maestro --device "$UDID" test "$GITHUB_WORKSPACE/.maestro/launch.yaml"
+          maestro --device "$UDID" test -e "SERVER=$E2E_SERVER" -e "PASSWORD=$E2E_PASSWORD" \
+            -e "ACCOUNT=$E2E_ACCOUNT" -e "ORIENTATION=portrait" "$GITHUB_WORKSPACE/.maestro/perf/sign-in.yaml"
+
+      - name: Measure
+        run: |
+          APPS=(--app "cand=$RUNNER_TEMP/cand/app/BulwarkMobile.app")
+          if [ -d "$RUNNER_TEMP/base/app/BulwarkMobile.app" ]; then
+            APPS=(--app "base=$RUNNER_TEMP/base/app/BulwarkMobile.app" "${APPS[@]}")
+          fi
+          node scripts/e2e/perf.mjs "${APPS[@]}" --rounds "${{ inputs.perf_rounds || 5 }}" --cold 3 \
+            --flow "$GITHUB_WORKSPACE/.maestro/perf/interactions.yaml" --out "$OUT"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-perf
+          path: e2e-output/
+          if-no-files-found: ignore
