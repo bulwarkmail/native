@@ -1,14 +1,25 @@
 # Type TEXT into a web page field found by its placeholder HINT (the sign-in
-# pages in the auth session). First character alone, as in type.yaml.
+# pages in the auth session), and check it arrived as typed. Now and then a
+# stray character lands in front of it on the CI simulator; then select the
+# field's text and type over it. SECRET=yes skips the check (a password
+# field shows dots).
 appId: org.bulwarkmail.mobile
 ---
-- evalScript: ${output.webHead = TEXT.slice(0, 1); output.webTail = TEXT.slice(1)}
 - tapOn: ${HINT}
 - waitForAnimationToEnd:
     timeout: 3000
-- inputText: ${output.webHead}
-- extendedWaitUntil:
-    visible: "zz-no-such-element-zz"
-    timeout: 1000
-    optional: true
-- inputText: ${output.webTail}
+- inputText: ${TEXT}
+- runFlow:
+    when:
+      true: ${SECRET != 'yes'}
+    commands:
+      - runFlow:
+          when:
+            notVisible: ${TEXT}
+          commands:
+            - longPressOn: ".*${TEXT}.*"
+            - tapOn:
+                text: "Select All"
+                optional: true
+            - inputText: ${TEXT}
+            - assertVisible: ${TEXT}
