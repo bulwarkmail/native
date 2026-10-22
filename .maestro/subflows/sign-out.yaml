@@ -11,6 +11,7 @@ appId: org.bulwarkmail.mobile
 - extendedWaitUntil:
     visible: "The account is removed from this device.*"
     timeout: 10000
+# The dialog's button, not the Settings row of the same name behind it.
 - tapOn:
     text: "Sign out"
-    below: "The account is removed from this device.*"
+    rightOf: "Cancel"

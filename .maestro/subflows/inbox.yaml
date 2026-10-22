@@ -11,6 +11,9 @@ appId: org.bulwarkmail.mobile
       visible: "Not now"
     commands:
       - tapOn: "Not now"
+# Adding an account from Settings returns to Settings.
+- tapOn:
+    id: tab-mail
 - extendedWaitUntil:
     visible:
       id: email-row
