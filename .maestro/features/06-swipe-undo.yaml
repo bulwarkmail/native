@@ -9,6 +9,7 @@ tags:
 - scrollUntilVisible:
     element: ".*Grüße aus München.*"
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - swipe:
     from: ".*Grüße aus München.*"

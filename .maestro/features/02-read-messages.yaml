@@ -53,9 +53,11 @@ tags:
 - takeScreenshot: read-05-attachment-preview
 - assertVisible: "q3-report.pdf"
 - tapOn: "Close"
+# Back on the message (the iPad pane has a quick reply instead of Reply All).
 - extendedWaitUntil:
-    visible: "Reply All"
+    notVisible: "Share"
     timeout: 10000
+- assertVisible: ".*q3-report.pdf.*"
 - runFlow: ../subflows/close-message.yaml
 
 # A thread (Projects/Alpha)

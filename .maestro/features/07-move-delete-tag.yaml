@@ -52,7 +52,13 @@ tags:
     visible: ".*Weekly digest.*"
     timeout: 15000
 
-# Select from the list and star, then unstar
+# Select from the list and star, then unstar. On a phone the row can be
+# below the fold (earlier runs left mail on top).
+- scrollUntilVisible:
+    element: ".*Grüße aus München.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - longPressOn: ".*Grüße aus München.*"
 - extendedWaitUntil:
     visible: "Clear selection"
