@@ -59,9 +59,6 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
-      - name: Generate the iOS project
-        run: npx expo prebuild --platform ios --clean
-
       - name: Check for signing credentials
         id: creds
         env:
@@ -69,13 +66,68 @@ jobs:
           ASC_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
           PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          NSE_PROFILE: ${{ secrets.IOS_NSE_PROVISIONING_PROFILE_BASE64 }}
         run: |
           if [ -n "$CERT" ] && [ -n "$ASC_KEY" ] && [ -n "$TEAM" ] && [ -n "$PROFILE" ]; then
+            if [ -z "$NSE_PROFILE" ]; then
+              # The notification service extension (plugins/ios-push) is its
+              # own App ID and needs its own App Store profile.
+              echo "::error::IOS_NSE_PROVISIONING_PROFILE_BASE64 is not set: the notification extension (org.bulwarkmail.mobile.NotificationService) can't be signed."
+              exit 1
+            fi
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Signing secrets are not configured - compiling without signing. No IPA will be produced."
           fi
+
+      - name: Install the provisioning profiles
+        if: steps.creds.outputs.signed == 'true'
+        id: profiles
+        env:
+          APP_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          NSE_PROFILE_BASE64: ${{ secrets.IOS_NSE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          # Xcode moved the profile directory in 16; write both so this does not
+          # silently stop working on a runner image bump.
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          mkdir -p ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles
+
+          # One App Store profile per target: the app and its notification
+          # service extension (plugins/ios-push).
+          for side in app nse; do
+            if [ "$side" = app ]; then DATA="$APP_PROFILE_BASE64"; else DATA="$NSE_PROFILE_BASE64"; fi
+            PROFILE="$RUNNER_TEMP/$side.mobileprovision"
+            echo "$DATA" | base64 -d > "$PROFILE"
+
+            # A .mobileprovision is a CMS-signed plist, so it has to be decoded
+            # before anything inside it can be read.
+            PLIST=$(security cms -D -i "$PROFILE")
+            UUID=$(echo "$PLIST" | plutil -extract UUID raw -)
+            NAME=$(echo "$PLIST" | plutil -extract Name raw -)
+            # application-identifier is "TEAMID.bundle.id" - deriving the bundle
+            # ID from the profile keeps ExportOptions honest if app.config.js
+            # changes.
+            APP_ID=$(echo "$PLIST" | plutil -extract Entitlements.application-identifier raw -)
+            BUNDLE_ID="${APP_ID#*.}"
+            EXPIRY=$(echo "$PLIST" | plutil -extract ExpirationDate raw -)
+
+            cp "$PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
+            cp "$PROFILE" ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$UUID".mobileprovision
+
+            echo "${side}_uuid=$UUID" >> "$GITHUB_OUTPUT"
+            echo "${side}_name=$NAME" >> "$GITHUB_OUTPUT"
+            echo "${side}_bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
+            echo "$side: profile '$NAME' ($UUID) for $BUNDLE_ID, expires $EXPIRY"
+          done
+
+      - name: Generate the iOS project
+        env:
+          # plugins/ios-push names each target's profile: the command line
+          # can't, it would give every target the same one.
+          IOS_APP_PROFILE: ${{ steps.profiles.outputs.app_uuid }}
+          IOS_NSE_PROFILE: ${{ steps.profiles.outputs.nse_uuid }}
+        run: npx expo prebuild --platform ios --clean
 
       - name: Resolve workspace and scheme
         id: xcode
@@ -141,38 +193,6 @@ jobs:
           echo "$ASC_KEY_BASE64" | base64 -d > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
           chmod 600 ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
-      - name: Install the provisioning profile
-        if: steps.creds.outputs.signed == 'true'
-        id: profile
-        env:
-          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          PROFILE="$RUNNER_TEMP/profile.mobileprovision"
-          echo "$PROFILE_BASE64" | base64 -d > "$PROFILE"
-
-          # A .mobileprovision is a CMS-signed plist, so it has to be decoded
-          # before anything inside it can be read.
-          PLIST=$(security cms -D -i "$PROFILE")
-          UUID=$(echo "$PLIST" | plutil -extract UUID raw -)
-          NAME=$(echo "$PLIST" | plutil -extract Name raw -)
-          # application-identifier is "TEAMID.bundle.id" - deriving the bundle ID
-          # from the profile keeps ExportOptions honest if app.config.js changes.
-          APP_ID=$(echo "$PLIST" | plutil -extract Entitlements.application-identifier raw -)
-          BUNDLE_ID="${APP_ID#*.}"
-          EXPIRY=$(echo "$PLIST" | plutil -extract ExpirationDate raw -)
-
-          # Xcode moved the profile directory in 16; write both so this does not
-          # silently stop working on a runner image bump.
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          mkdir -p ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles
-          cp "$PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
-          cp "$PROFILE" ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$UUID".mobileprovision
-
-          echo "uuid=$UUID" >> "$GITHUB_OUTPUT"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
-          echo "Profile '$NAME' ($UUID) for $BUNDLE_ID, expires $EXPIRY"
-
       - name: Archive
         if: steps.creds.outputs.signed == 'true'
         env:
@@ -192,8 +212,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/Bulwark.xcarchive" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="${{ steps.profile.outputs.uuid }}"
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
       # Signing failures report a symptom ("no profiles found") rather than the
       # setting that caused it, and a re-run costs ~30 minutes. Dump the
@@ -215,8 +234,10 @@ jobs:
         id: export
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PROFILE_NAME: ${{ steps.profile.outputs.name }}
-          BUNDLE_ID: ${{ steps.profile.outputs.bundle_id }}
+          PROFILE_NAME: ${{ steps.profiles.outputs.app_name }}
+          BUNDLE_ID: ${{ steps.profiles.outputs.app_bundle_id }}
+          NSE_PROFILE_NAME: ${{ steps.profiles.outputs.nse_name }}
+          NSE_BUNDLE_ID: ${{ steps.profiles.outputs.nse_bundle_id }}
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -230,6 +251,7 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
               <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+              <key>${NSE_BUNDLE_ID}</key><string>${NSE_PROFILE_NAME}</string>
             </dict>
             <key>uploadSymbols</key><true/>
             <key>destination</key><string>export</string>
