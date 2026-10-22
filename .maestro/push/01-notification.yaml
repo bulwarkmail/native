@@ -9,7 +9,23 @@ tags:
   - push
 ---
 - runFlow: ../subflows/signed-in.yaml
-# The settings page writes what the extension needs; give it a moment.
+# Without notification permission iOS drops the push silently, and the
+# launch-time grant doesn't reach it on these simulators: let the app ask
+# (the Calendar tab does, for event reminders) and allow.
+- tapOn:
+    id: tab-calendar
+- extendedWaitUntil:
+    visible: ".*Would Like to Send You Notifications.*|Go to today"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: ".*Would Like to Send You Notifications.*"
+    commands:
+      - tapOn:
+          text: "Allow"
+          optional: true
+- tapOn:
+    id: tab-mail
 - waitForAnimationToEnd:
     timeout: 3000
 - pressKey: Home
