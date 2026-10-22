@@ -318,7 +318,7 @@ jobs:
             APPS=(--app "base=$RUNNER_TEMP/base/app/BulwarkMobile.app" "${APPS[@]}")
           fi
           node scripts/e2e/perf.mjs "${APPS[@]}" --rounds "${{ inputs.perf_rounds || 5 }}" --cold 3 \
-            --flow "$GITHUB_WORKSPACE/.maestro/perf/interactions.yaml" --out "$OUT"
+            --flows "$(ls "$GITHUB_WORKSPACE"/.maestro/perf/[0-9]-*.yaml | paste -sd, -)" --out "$OUT"
 
       - name: Upload results
         if: always()

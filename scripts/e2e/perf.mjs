@@ -2,7 +2,7 @@
 // Performance harness for the iOS simulator (Part 2 of docs/ios-test-2026-10.md).
 //
 //   node scripts/e2e/perf.mjs --app base=<path.app> --app cand=<path.app> \
-//     --rounds 5 --cold 3 --flow .maestro/perf/interactions.yaml --out <dir>
+//     --rounds 5 --cold 3 --flows .maestro/perf/1-open-message.yaml,... --out <dir>
 //
 // The app logs `[perf] {...}` lines when launched with `-perfMarks YES`
 // (src/lib/perf-marks.ts); they reach the simulator's system log at info
@@ -12,8 +12,9 @@
 //   2. cold-starts it `--cold` times: terminate, launch, wait for
 //      `inbox-rendered`; cold start = that mark's time minus the launch time
 //      taken on this machine (the simulator shares the host clock),
-//   3. runs the Maestro interaction flow once (open messages, switch tabs,
-//      open compose, scroll), which produces the other marks.
+//   3. runs the Maestro interaction flows once each (open messages, switch
+//      tabs, open compose, scroll), which produce the other marks. Each flow
+//      is its own run, so one that fails costs only its own metric.
 // Apps alternate inside every round, so both sides of a comparison see the
 // same runner, the same simulator and the same server load.
 //
@@ -39,7 +40,7 @@ const UDID = process.env.UDID;
 const BUNDLE = 'org.bulwarkmail.mobile';
 const rounds = Number(opt('rounds', 5));
 const coldRuns = Number(opt('cold', 3));
-const flow = opt('flow', '.maestro/perf/interactions.yaml');
+const flows = (opt('flows', '') || '').split(',').filter(Boolean);
 const out = opt('out', 'perf-output');
 const maestroEnv = (opt('env', '') || '').split(',').filter(Boolean);
 fs.mkdirSync(out, { recursive: true });
@@ -119,14 +120,14 @@ async function coldStart(label, round) {
   await sleep(3000);
 }
 
-function runFlow(label) {
+function runFlow(label, flow) {
   const before = marks.length;
   const env = maestroEnv.flatMap((kv) => ['-e', kv]);
   const res = spawn('maestro', ['--device', UDID, 'test', ...env, flow], { stdio: 'inherit' });
   return new Promise((resolve) => {
     res.on('exit', (code) => {
       const got = marks.slice(before).filter((m) => typeof m.ms === 'number');
-      console.log(`  ${label} interactions: exit ${code}, ${got.length} timed marks`);
+      console.log(`  ${label} ${path.basename(flow)}: exit ${code}, ${got.length} timed marks`);
       resolve(got);
     });
   });
@@ -143,7 +144,8 @@ function runFlow(label) {
       try { simctl('terminate', UDID, BUNDLE); } catch { /* not running */ }
       simctl('install', UDID, app.path);
       for (let i = 0; i < coldRuns; i++) await coldStart(app.label, round);
-      const got = await runFlow(app.label);
+      const got = [];
+      for (const flow of flows) got.push(...(await runFlow(app.label, flow)));
       for (const m of got) {
         const metric = m.n === 'tab-switch' && m.to ? `tab-switch:${m.to}` : m.n;
         samples.push({ label: app.label, round, metric, ms: m.ms, ...(m.long !== undefined ? { long: m.long, frames: m.frames, worst: m.worst } : {}) });

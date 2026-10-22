@@ -1,0 +1,27 @@
+# Perf: open a message and go back, five times. The app is already running
+# with -perfMarks YES (no launchApp here: it would drop the launch argument).
+appId: org.bulwarkmail.mobile
+name: Perf open message
+---
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 60000
+- repeat:
+    times: 5
+    commands:
+      - tapOn:
+          id: email-row
+          index: 1
+      - extendedWaitUntil:
+          visible: "Reply All"
+          timeout: 30000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          when:
+            visible: "Back"
+          commands:
+            - tapOn: "Back"
+      - waitForAnimationToEnd:
+          timeout: 3000
