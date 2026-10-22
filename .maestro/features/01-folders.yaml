@@ -14,7 +14,8 @@ tags:
 - assertVisible: "Sent([ ,].*)?"
 - assertVisible: "Drafts([ ,].*)?"
 - assertVisible: "Archive([ ,].*)?"
-- assertVisible: "Projects([ ,].*)?"
+# Parent folders read "Collapse, Projects" (the chevron comes first).
+- assertVisible: ".*Projects.*"
 - tapOn: "Archive([ ,].*)?"
 - extendedWaitUntil:
     visible: ".*Invoice 2025-12.*"
@@ -26,10 +27,7 @@ tags:
     when:
       notVisible: "Alpha([ ,].*)?"
     commands:
-      - tapOn:
-          text: "Expand"
-          rightOf: "Projects([ ,].*)?"
-          optional: true
+      - tapOn: "Expand, Projects.*"
 - tapOn: "Alpha([ ,].*)?"
 - extendedWaitUntil:
     visible: ".*Project Alpha kickoff.*"

@@ -8,6 +8,15 @@ tags:
 - evalScript: ${output.event = 'E2E event ' + DEVICE + ' ' + Date.now() % 100000}
 - tapOn:
     id: tab-calendar
+# The first visit asks for notification permission (event reminders).
+- extendedWaitUntil:
+    visible: ".*Would Like to Send You Notifications.*|Go to today"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: ".*Would Like to Send You Notifications.*"
+    commands:
+      - tapOn: "Allow"
 - extendedWaitUntil:
     visible: "Go to today"
     timeout: 30000
@@ -36,7 +45,6 @@ tags:
     timeout: 10000
 - tapOn: "Title"
 - inputText: ${output.event}
-- hideKeyboard
 - scrollUntilVisible:
     element: "Add reminder"
     direction: DOWN
@@ -64,22 +72,29 @@ tags:
 - takeScreenshot: calendar-06-detail
 - assertVisible: ".*15 minutes before.*"
 
-# Edit the title
+# Edit: add a location (an empty field, so no cursor games in the title)
 - tapOn: "Edit"
 - extendedWaitUntil:
     visible: "Edit event"
     timeout: 10000
-- tapOn: ${output.event}
-- inputText: " edited"
-- hideKeyboard
+- scrollUntilVisible:
+    element: "Place or address"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Place or address"
+- inputText: "Room 42"
 - tapOn: "Save"
 - extendedWaitUntil:
-    visible: ".*${output.event} edited.*"
+    visible: ".*Room 42.*"
     timeout: 20000
 - takeScreenshot: calendar-07-edited
 
-# Delete
-- tapOn: ".*${output.event} edited.*"
+# Delete (the detail sheet is still open after saving)
+- runFlow:
+    when:
+      notVisible: "Delete"
+    commands:
+      - tapOn: ".*${output.event}.*"
 - extendedWaitUntil:
     visible: "Delete"
     timeout: 10000
@@ -91,7 +106,7 @@ tags:
     text: "Delete"
     below: "Delete this event.*"
 - extendedWaitUntil:
-    notVisible: ".*${output.event} edited.*"
+    notVisible: ".*${output.event}.*"
     timeout: 20000
 - takeScreenshot: calendar-08-deleted
 - tapOn:

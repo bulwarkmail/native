@@ -14,6 +14,7 @@ tags:
 - assertNotVisible: ".*Weekly digest.*"
 - takeScreenshot: search-01-hit
 - tapOn: "Clear search"
+- tapOn: "Search mail..."
 - inputText: "zzqx-no-such-mail"
 - pressKey: Enter
 - extendedWaitUntil:
@@ -24,4 +25,3 @@ tags:
 - extendedWaitUntil:
     visible: ".*Weekly digest.*"
     timeout: 30000
-- hideKeyboard

@@ -27,17 +27,26 @@ tags:
 - extendedWaitUntil:
     visible: "Save"
     timeout: 10000
-- tapOn:
-    text: "First name"
-    index: 1
-- inputText: "E2E"
-- tapOn:
-    text: "Last name"
-    index: 1
-- inputText: ${output.last}
-- tapOn: "email@example.com"
-- inputText: "e2e.contact@example.net"
-- hideKeyboard
+- runFlow:
+    file: ../subflows/type.yaml
+    env:
+      FIELD: contact-first-name
+      TEXT: E2E
+- runFlow:
+    file: ../subflows/type.yaml
+    env:
+      FIELD: contact-last-name
+      TEXT: ${output.last}
+- scrollUntilVisible:
+    element:
+      id: contact-email-0
+    direction: DOWN
+    timeout: 10000
+- runFlow:
+    file: ../subflows/type.yaml
+    env:
+      FIELD: contact-email-0
+      TEXT: e2e.contact@example.net
 - takeScreenshot: contacts-03-form
 - tapOn: "Save"
 - extendedWaitUntil:

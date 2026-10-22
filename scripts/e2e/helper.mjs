@@ -287,9 +287,13 @@ async function sendMail({ from = 'userb', to, subject, text, html, attach }) {
 async function findMail({ as = 'userb', subject, timeout = 30 }) {
   const s = await jmapSession(as);
   const deadline = Date.now() + timeout * 1000;
+  // Stalwart's subject filter finds nothing for "Re: x" or "Fwd: x" (it
+  // indexes the base subject), so search without the prefixes and compare
+  // the full subject below.
+  const base = subject.replace(/^((re|fwd?|aw|wg)\s*:\s*)+/i, '');
   for (;;) {
     const [[, q], [, got]] = await jmap(as, [
-      ['Email/query', { accountId: s.accountId, filter: { subject }, sort: [{ property: 'receivedAt', isAscending: false }], limit: 5 }, '0'],
+      ['Email/query', { accountId: s.accountId, filter: { subject: base }, sort: [{ property: 'receivedAt', isAscending: false }], limit: 10 }, '0'],
       ['Email/get', { accountId: s.accountId, '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' }, properties: ['subject', 'attachments', 'mailboxIds', 'from'] }, '1'],
     ]);
     const hit = got.list.find((m) => m.subject === subject);

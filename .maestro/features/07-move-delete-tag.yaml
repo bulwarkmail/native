@@ -55,7 +55,16 @@ tags:
     timeout: 10000
 - takeScreenshot: actions-04-selected
 - tapOn: "Star"
-- tapOn: "Clear selection"
+# A bulk action ends selection mode by itself.
+- runFlow:
+    when:
+      visible: "Clear selection"
+    commands:
+      - tapOn: "Clear selection"
 - longPressOn: ".*Grüße aus München.*"
 - tapOn: "Unstar|Star"
-- tapOn: "Clear selection"
+- runFlow:
+    when:
+      visible: "Clear selection"
+    commands:
+      - tapOn: "Clear selection"
