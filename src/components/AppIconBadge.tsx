@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { appBadgeCount, setAppBadge } from '../lib/app-badge';
 import { jmapClient } from '../api/jmap-client';
 import { writeIosPushSettings } from '../lib/ios-push-shared';
+import { shareAccountWithExtension } from '../lib/push-notifications';
 
 /**
  * Keeps the app icon badge on the active account's inbox unread count (see
@@ -21,6 +22,8 @@ export function AppIconBadge() {
   const enabled = useSettingsStore((s) => s.appIconUnreadBadge);
   const count = useEmailStore((s) => appBadgeCount(s.mailboxes, enabled));
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  // The JMAP session comes up after the account is known (offline start).
+  const haveSession = useAuthStore((s) => s.session != null);
   const t = useLocaleStore((s) => s.t);
 
   useEffect(() => {
@@ -35,6 +38,10 @@ export function AppIconBadge() {
     } catch {
       jmapAccountId = null;
     }
+    // The extension learns how to reach the active account as soon as it is
+    // signed in, so a push for it shows sender and subject even before (or
+    // without) this device's own push setup, e.g. after a reinstall.
+    if (activeAccountId) void shareAccountWithExtension(activeAccountId, jmapAccountId);
     void writeIosPushSettings({
       badge: enabled,
       activeAccountId: jmapAccountId,
@@ -43,7 +50,7 @@ export function AppIconBadge() {
         more: t('push.ios.more_messages', 'and {count} more'),
       },
     }).catch(() => undefined);
-  }, [enabled, activeAccountId, t]);
+  }, [enabled, activeAccountId, haveSession, t]);
 
   useEffect(() => () => { void setAppBadge(0); }, []);
 
