@@ -29,6 +29,9 @@ import {
   persistedAccounts,
 } from '../device-sync/app/prefs';
 import { CALENDAR_AUTHORITY, CONTACTS_AUTHORITY, type Authority } from '../device-sync/types';
+import * as Notifications from 'expo-notifications';
+import { credentialsKey } from '../api/jmap-client';
+import { apnsEnvironment, removeIosPushAccount, writeIosPushAccount } from './ios-push-shared';
 import {
   getUnifiedPushDistributors,
   isUnifiedPushSupported,
@@ -524,12 +527,12 @@ function getNative(): BulwarkFcmNative | null {
   return (NativeModules as Record<string, unknown>).BulwarkFcm as BulwarkFcmNative | undefined ?? null;
 }
 
-/** True on platforms that have a push transport wired up (Android only). */
+/** True on platforms that have a push transport wired up: FCM or UnifiedPush on Android, APNs on iOS. */
 export function isPushSupported(): boolean {
-  return getNative() !== null || isUnifiedPushSupported();
+  return Platform.OS === 'ios' || getNative() !== null || isUnifiedPushSupported();
 }
 
-export type PushTransport = 'fcm' | 'unifiedpush';
+export type PushTransport = 'fcm' | 'unifiedpush' | 'apns';
 
 export async function getStoredPushTransport(): Promise<PushTransport | null> {
   const raw = await AsyncStorage.getItem(PUSH_TRANSPORT_KEY);
@@ -545,6 +548,8 @@ export async function setStoredPushTransport(transport: PushTransport | null): P
 }
 
 export async function getEffectivePushTransport(): Promise<PushTransport> {
+  // iOS has one way in: APNs, through the relay.
+  if (Platform.OS === 'ios') return 'apns';
   return (await getStoredPushTransport()) ?? 'fcm';
 }
 
@@ -637,6 +642,14 @@ export async function dismissPushPrompt(accountId: string): Promise<void> {
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return true;
+    const asked = await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
+    return asked.granted;
+  }
   if (Platform.OS !== 'android') return true;
   if (Platform.Version < 33) return true;
   const status = await PermissionsAndroid.request(
@@ -684,6 +697,26 @@ async function getFcmTokenOrThrow(native: BulwarkFcmNative): Promise<string> {
   }
   if (!token) {
     throw new PushSetupError('token', t('settings.notifications.push.err_fcm_empty', 'Firebase returned an empty device token.'));
+  }
+  return token;
+}
+
+// The APNs device token (hex). iOS hands it out once notifications are
+// allowed; expo-notifications asks the OS for it.
+async function getApnsTokenOrThrow(): Promise<string> {
+  let token: string | null = null;
+  try {
+    const result = await Notifications.getDevicePushTokenAsync();
+    token = typeof result.data === 'string' ? result.data : null;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new PushSetupError(
+      'token',
+      t('settings.notifications.push.err_apns_token', 'iOS could not issue a push token ({detail}).', { detail }),
+    );
+  }
+  if (!token) {
+    throw new PushSetupError('token', t('settings.notifications.push.err_apns_empty', 'iOS returned an empty push token.'));
   }
   return token;
 }
@@ -776,6 +809,64 @@ async function registerWithRelay(params: {
       }),
     );
   }
+}
+
+async function registerWithRelayApns(params: {
+  relayBaseUrl: string;
+  subscriptionId: string;
+  deviceToken: string;
+  accountLabel?: string;
+}): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(buildRelayUrl(params.relayBaseUrl, '/api/push/register/apns'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        subscriptionId: params.subscriptionId,
+        deviceToken: params.deviceToken,
+        environment: apnsEnvironment(),
+        accountLabel: params.accountLabel,
+      }),
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_unreachable', 'Could not reach the push relay at {url} ({detail}).', {
+        url: params.relayBaseUrl,
+        detail,
+      }),
+    );
+  }
+  if (res.status === 503) {
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_no_apns', 'The push relay at {url} does not deliver to iPhones and iPads yet.', {
+        url: params.relayBaseUrl,
+      }),
+    );
+  }
+  if (!res.ok) {
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_rejected', 'The push relay rejected the registration: {detail}', {
+        detail: await readRelayError(res),
+      }),
+    );
+  }
+}
+
+/**
+ * Tell the iOS notification extension how to reach an account: which stored
+ * credentials to use and the JMAP API URL. Without it the extension shows the
+ * relay's placeholder text.
+ */
+async function shareAccountWithExtension(accountId: string, jmapAccountId: string | null): Promise<void> {
+  if (Platform.OS !== 'ios' || !jmapAccountId) return;
+  const apiUrl = jmapClient.currentSession?.apiUrl;
+  if (!apiUrl) return;
+  await writeIosPushAccount(jmapAccountId, { credentialsKey: credentialsKey(accountId), apiUrl }).catch(() => undefined);
 }
 
 async function registerWithRelayUnifiedPush(params: {
@@ -948,6 +1039,9 @@ async function setupPushNotificationsInner(
   if (transport === 'fcm' && !native) {
     throw new PushSetupError('platform', t('settings.notifications.push.err_android_only', 'Push notifications are only available on Android.'));
   }
+  if (transport === 'apns' && Platform.OS !== 'ios') {
+    throw new PushSetupError('platform', 'APNs is only available on iOS.');
+  }
   if (transport === 'unifiedpush' && !isUnifiedPushSupported()) {
     throw new PushSetupError('platform', t('settings.notifications.push.err_up_android_only', 'UnifiedPush is only available on Android.'));
   }
@@ -967,8 +1061,11 @@ async function setupPushNotificationsInner(
   logPhase('token', transport);
   let fcmToken: string | null = null;
   let upEndpoint: UnifiedPushEndpoint | null = null;
+  let apnsToken: string | null = null;
   if (transport === 'unifiedpush') {
     upEndpoint = await getUnifiedPushEndpointOrThrow(relayBaseUrl);
+  } else if (transport === 'apns') {
+    apnsToken = await getApnsTokenOrThrow();
   } else {
     fcmToken = await getFcmTokenOrThrow(native!);
   }
@@ -993,7 +1090,14 @@ async function setupPushNotificationsInner(
   // individually and tags it with the JMAP account id so the headless task
   // can route it.
   logPhase('relay', relayBaseUrl);
-  if (upEndpoint) {
+  if (apnsToken) {
+    await registerWithRelayApns({
+      relayBaseUrl,
+      subscriptionId: deviceClientId,
+      deviceToken: apnsToken,
+      accountLabel: params.accountLabel,
+    });
+  } else if (upEndpoint) {
     await registerWithRelayUnifiedPush({
       relayBaseUrl,
       subscriptionId: deviceClientId,
@@ -1043,6 +1147,7 @@ async function setupPushNotificationsInner(
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
           await writePushJmapAccountId(accountId, jmapAccountId);
+          await shareAccountWithExtension(accountId, jmapAccountId);
           await AsyncStorage.removeItem(optedOutKey(accountId));
           logPhase('done', 'reused existing subscription');
           return { subscriptionId: storedServerId, verified: true };
@@ -1125,6 +1230,7 @@ async function setupPushNotificationsInner(
   }
   await addPushAccountId(accountId);
   await writePushJmapAccountId(accountId, jmapAccountId);
+  await shareAccountWithExtension(accountId, jmapAccountId);
   await AsyncStorage.removeItem(optedOutKey(accountId));
   logPhase('done', 'subscription verified');
 
@@ -1196,6 +1302,10 @@ async function deregisterFromRelay(
 }
 
 async function clearAccountPushKeys(accountId: string): Promise<void> {
+  if (Platform.OS === 'ios') {
+    const jmapAccountId = (await readPushJmapAccountIds())[accountId];
+    if (jmapAccountId) await removeIosPushAccount(jmapAccountId);
+  }
   await AsyncStorage.multiRemove([
     subscriptionIdKey(accountId),
     deviceClientIdKey(accountId),
@@ -1509,6 +1619,17 @@ export function notificationTapJmapAccountId(payload: NotificationTapPayload): s
 // before JS was ready to handle it. Subsequent taps while running are delivered
 // via addNotificationTapListener.
 export async function getInitialNotificationTap(): Promise<NotificationTapPayload | null> {
+  if (Platform.OS === 'ios') {
+    const response = await Notifications.getLastNotificationResponseAsync().catch(() => null);
+    if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return null;
+    const handledKey = 'push:lastHandledResponse:v1';
+    const id = response.notification.request.identifier;
+    // The last response survives app restarts; open it once.
+    if ((await AsyncStorage.getItem(handledKey)) === id) return null;
+    const payload = await iosTapPayload(response.notification.request.content.data);
+    if (payload) await AsyncStorage.setItem(handledKey, id);
+    return payload;
+  }
   if (Platform.OS !== 'android') return null;
   const native = (NativeModules as Record<string, unknown>).BulwarkFcm as
     | { getInitialNotification?: () => Promise<NotificationTapPayload | null> }
@@ -1524,8 +1645,47 @@ export async function getInitialNotificationTap(): Promise<NotificationTapPayloa
 export function addNotificationTapListener(
   listener: (payload: NotificationTapPayload) => void,
 ): () => void {
+  if (Platform.OS === 'ios') {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+      const id = response.notification.request.identifier;
+      void iosTapPayload(response.notification.request.content.data).then((payload) => {
+        if (!payload) return;
+        void AsyncStorage.setItem('push:lastHandledResponse:v1', id);
+        listener(payload);
+      });
+    });
+    return () => sub.remove();
+  }
   if (Platform.OS !== 'android') return () => undefined;
   const emitter = new NativeEventEmitter(NativeModules.BulwarkFcm);
   const sub = emitter.addListener('fcm:notificationTap', listener);
   return () => sub.remove();
+}
+
+/**
+ * A tapped iOS mail notification as the app opens it. The relay puts the
+ * JMAP account and message ids into the payload's `body`, which
+ * expo-notifications hands over as `data`; the notification extension adds
+ * the message (and thread) it showed. Calendar reminders and other local
+ * notifications carry no `kind` and are left to their own handlers.
+ */
+export async function iosTapPayload(data: unknown): Promise<NotificationTapPayload | null> {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  if (d.kind !== 'jmap-email-push' && d.kind !== 'jmap-state-change') return null;
+  const jmapAccountId = typeof d.accountId === 'string' ? d.accountId : '';
+  const ids = Array.isArray(d.emailIds) ? d.emailIds.filter((v): v is string => typeof v === 'string') : [];
+  const emailId = typeof d.emailId === 'string' && d.emailId ? d.emailId : ids[0];
+  if (!emailId) return null;
+  // The local account the subscription belongs to: the one whose push
+  // setup recorded this JMAP account id.
+  const byLocal = await readPushJmapAccountIds();
+  const accountId = Object.keys(byLocal).find((local) => byLocal[local] === jmapAccountId);
+  return {
+    emailId,
+    threadId: typeof d.threadId === 'string' ? d.threadId : '',
+    accountId,
+    jmapAccountId: jmapAccountId || undefined,
+  };
 }
