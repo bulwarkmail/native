@@ -1,25 +1,44 @@
 # Type TEXT into the field with id FIELD and check it arrived in full.
 #
 # iOS drops keystrokes while the edit menu (the "AutoFill" bubble) opens,
-# which happens when a flow taps a field that already has focus; an
-# auto-focused field is left alone. Retyped up to twice if text got lost.
+# which happens when a flow taps a field that already has focus. Maestro
+# can't see the focus of a React Native field, so a caller passes TAP=no for
+# a field that focuses itself. Retyped up to twice if text got lost (the
+# retry taps: by then the field has focus and the menu is harmless).
 appId: org.bulwarkmail.mobile
 ---
-- retry:
-    maxRetries: 2
+- runFlow:
+    when:
+      true: ${TAP != 'no'}
     commands:
-      - runFlow:
-          when:
-            notVisible:
-              id: ${FIELD}
-              focused: true
+      - tapOn:
+          id: ${FIELD}
+- waitForAnimationToEnd:
+    timeout: 3000
+# ERASE=yes: the field already holds text.
+- runFlow:
+    when:
+      true: ${ERASE == 'yes'}
+    commands:
+      - eraseText: 80
+- inputText: ${TEXT}
+- runFlow:
+    when:
+      notVisible:
+        id: ${FIELD}
+        text: ${TEXT_PATTERN || TEXT}
+    commands:
+      - retry:
+          maxRetries: 2
           commands:
             - tapOn:
                 id: ${FIELD}
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - eraseText: 80
-      - inputText: ${TEXT}
-      - assertVisible:
-          id: ${FIELD}
-          text: ${TEXT_PATTERN || TEXT}
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - eraseText: 80
+            - waitForAnimationToEnd:
+                timeout: 1000
+            - inputText: ${TEXT}
+            - assertVisible:
+                id: ${FIELD}
+                text: ${TEXT_PATTERN || TEXT}

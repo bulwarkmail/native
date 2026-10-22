@@ -25,5 +25,6 @@ tags:
     file: subflows/type.yaml
     env:
       FIELD: login-server-input
+      TAP: "no"
       TEXT: typing-probe.example.net
 - takeScreenshot: warmup-02-typed

@@ -1,0 +1,61 @@
+# Message actions with undo: move to a folder, delete to Trash, select and
+# star from the list.
+appId: org.bulwarkmail.mobile
+name: Move, delete, select
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+
+# Move via More → Move to...
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Weekly digest
+- tapOn: "more"
+- extendedWaitUntil:
+    visible: "More actions"
+    timeout: 10000
+- takeScreenshot: actions-01-more
+- tapOn: "Move to..."
+- extendedWaitUntil:
+    visible: "Move to..."
+    timeout: 10000
+- tapOn: "Projects"
+- extendedWaitUntil:
+    visible: "Moved to Projects"
+    timeout: 15000
+- takeScreenshot: actions-02-moved
+- tapOn: "UNDO"
+- runFlow: ../subflows/close-message.yaml
+- extendedWaitUntil:
+    visible: ".*Weekly digest.*"
+    timeout: 15000
+
+# Delete (to Trash) and undo
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Weekly digest
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "Email moved to Trash"
+    timeout: 15000
+- takeScreenshot: actions-03-deleted
+- tapOn: "UNDO"
+- runFlow: ../subflows/close-message.yaml
+- extendedWaitUntil:
+    visible: ".*Weekly digest.*"
+    timeout: 15000
+
+# Select from the list and star, then unstar
+- longPressOn: ".*Grüße aus München.*"
+- extendedWaitUntil:
+    visible: "Clear selection"
+    timeout: 10000
+- takeScreenshot: actions-04-selected
+- tapOn: "Star"
+- tapOn: "Clear selection"
+- longPressOn: ".*Grüße aus München.*"
+- tapOn: "Unstar|Star"
+- tapOn: "Clear selection"

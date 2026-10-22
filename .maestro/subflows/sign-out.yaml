@@ -4,10 +4,10 @@ appId: org.bulwarkmail.mobile
 - tapOn:
     id: tab-settings
 - scrollUntilVisible:
-    element: "Sign Out"
+    element: "Sign out"
     direction: DOWN
     timeout: 30000
-- tapOn: "Sign Out"
+- tapOn: "Sign out"
 - extendedWaitUntil:
     visible: "The account is removed from this device.*"
     timeout: 10000

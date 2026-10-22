@@ -1,0 +1,24 @@
+# Settings list: scroll to the row ROW (regex on "Title, summary"), open it,
+# check PROOF shows, screenshot, and go back on a phone. On the iPad the list
+# is a left column, so scroll there instead of the middle of the screen.
+appId: org.bulwarkmail.mobile
+---
+- repeat:
+    while:
+      notVisible: ${ROW}
+    times: 10
+    commands:
+      - swipe:
+          start: "${DEVICE == 'tablet' ? '18%,80%' : '50%,80%'}"
+          end: "${DEVICE == 'tablet' ? '18%,40%' : '50%,40%'}"
+          duration: 600
+- tapOn: ${ROW}
+- extendedWaitUntil:
+    visible: ${PROOF}
+    timeout: 20000
+- takeScreenshot: settings-${NAME}
+- runFlow:
+    when:
+      visible: "Back"
+    commands:
+      - tapOn: "Back"

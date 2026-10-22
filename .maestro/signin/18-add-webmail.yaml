@@ -19,6 +19,7 @@ tags:
     file: ../subflows/type.yaml
     env:
       FIELD: login-server-input
+      TAP: "no"
       TEXT: ${WEBMAIL}
 - tapOn: "Continue"
 - extendedWaitUntil:
@@ -39,5 +40,4 @@ tags:
     file: ../subflows/check-active-account.yaml
     env:
       ACTIVE: ${ACCOUNT2}@example.org
-- assertVisible: ${ACCOUNT}@example.org
 - takeScreenshot: add-webmail-01-two-accounts

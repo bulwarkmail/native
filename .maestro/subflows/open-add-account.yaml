@@ -1,12 +1,14 @@
-# Signed in: Settings → Account → Add account, up to the add-mode choices.
+# Signed in: Settings → account card → Account page → Add account, up to the
+# add-mode choices. (On the iPad split layout the Account page is already
+# open; tapping the card again is harmless.)
 appId: org.bulwarkmail.mobile
 ---
 - tapOn:
     id: tab-settings
 - extendedWaitUntil:
-    visible: "Account"
+    visible: ".*@example.org, .*"
     timeout: 10000
-- tapOn: "Account"
+- tapOn: ".*@example.org, .*"
 - scrollUntilVisible:
     element: "Add account"
     direction: DOWN

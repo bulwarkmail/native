@@ -1,0 +1,8 @@
+# Open folder FOLDER from the drawer or docked sidebar.
+appId: org.bulwarkmail.mobile
+---
+- runFlow: open-drawer.yaml
+- tapOn: ${FOLDER}
+- extendedWaitUntil:
+    visible: ${FOLDER}
+    timeout: 15000

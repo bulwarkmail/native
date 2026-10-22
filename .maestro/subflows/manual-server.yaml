@@ -11,6 +11,7 @@ appId: org.bulwarkmail.mobile
     file: type.yaml
     env:
       FIELD: login-server-input
+      TAP: "no"
       TEXT: ${HOST}
 - tapOn: "Continue"
 - extendedWaitUntil:

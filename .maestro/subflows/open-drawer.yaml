@@ -1,0 +1,12 @@
+# Show the folder list: the modal drawer, or nothing to do where the sidebar
+# is docked (iPad landscape).
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      visible: "Toggle menu"
+    commands:
+      - tapOn: "Toggle menu"
+- extendedWaitUntil:
+    visible: "Scheduled"
+    timeout: 10000

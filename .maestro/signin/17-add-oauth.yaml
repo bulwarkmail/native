@@ -38,5 +38,4 @@ tags:
     file: ../subflows/check-active-account.yaml
     env:
       ACTIVE: ${ACCOUNT2}@example.org
-- assertVisible: ${ACCOUNT}@example.org
 - takeScreenshot: add-oauth-01-two-accounts

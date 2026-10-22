@@ -1,0 +1,98 @@
+# Calendar: the views, create an event with a reminder, edit it, delete it.
+appId: org.bulwarkmail.mobile
+name: Calendar
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.event = 'E2E event ' + DEVICE + ' ' + Date.now() % 100000}
+- tapOn:
+    id: tab-calendar
+- extendedWaitUntil:
+    visible: "Go to today"
+    timeout: 30000
+- takeScreenshot: calendar-01-month
+
+- tapOn: "Open menu"
+- tapOn: "Schedule"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: calendar-02-schedule
+- tapOn: "Open menu"
+- tapOn: "Day"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: calendar-03-day
+- tapOn: "Open menu"
+- tapOn: "Week"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: calendar-04-week
+
+# Create
+- tapOn: "New event"
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 10000
+- tapOn: "Title"
+- inputText: ${output.event}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Add reminder"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Add reminder"
+- tapOn: "15 minutes before"
+- takeScreenshot: calendar-05-editor
+- tapOn: "Save"
+- extendedWaitUntil:
+    notVisible: "New event"
+    timeout: 20000
+
+# Find it in the schedule and open it
+- tapOn: "Open menu"
+- tapOn: "Schedule"
+- tapOn: "Go to today"
+- scrollUntilVisible:
+    element: ".*${output.event}.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: ".*${output.event}.*"
+- extendedWaitUntil:
+    visible: "Edit"
+    timeout: 10000
+- takeScreenshot: calendar-06-detail
+- assertVisible: ".*15 minutes before.*"
+
+# Edit the title
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Edit event"
+    timeout: 10000
+- tapOn: ${output.event}
+- inputText: " edited"
+- hideKeyboard
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: ".*${output.event} edited.*"
+    timeout: 20000
+- takeScreenshot: calendar-07-edited
+
+# Delete
+- tapOn: ".*${output.event} edited.*"
+- extendedWaitUntil:
+    visible: "Delete"
+    timeout: 10000
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "Delete this event.*"
+    timeout: 10000
+- tapOn:
+    text: "Delete"
+    below: "Delete this event.*"
+- extendedWaitUntil:
+    notVisible: ".*${output.event} edited.*"
+    timeout: 20000
+- takeScreenshot: calendar-08-deleted
+- tapOn:
+    id: tab-mail

@@ -1,0 +1,16 @@
+# Back to the inbox list, from wherever in the Mail tab.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      visible: "Back"
+    commands:
+      - tapOn: "Back"
+- runFlow:
+    file: go-to-folder.yaml
+    env:
+      FOLDER: Inbox
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 60000

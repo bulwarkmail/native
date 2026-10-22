@@ -1,0 +1,71 @@
+# Opening messages: plain text, HTML with blocked remote content, a thread,
+# and a PDF attachment in the in-app preview.
+appId: org.bulwarkmail.mobile
+name: Read messages
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+
+# Plain text
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Grüße aus München
+- extendedWaitUntil:
+    visible: ".*Jürgen.*"
+    timeout: 10000
+- takeScreenshot: read-01-plain
+- runFlow: ../subflows/close-message.yaml
+
+# HTML newsletter
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Weekly digest
+- extendedWaitUntil:
+    visible: ".*5 new articles.*|Weekly digest"
+    timeout: 20000
+- takeScreenshot: read-02-html
+- runFlow:
+    when:
+      visible: "Load images"
+    commands:
+      - tapOn: "Load images"
+      - takeScreenshot: read-03-html-images
+- runFlow: ../subflows/close-message.yaml
+
+# Attachment and its preview
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Q3 report
+- extendedWaitUntil:
+    visible: ".*q3-report.pdf.*"
+    timeout: 20000
+- takeScreenshot: read-04-attachment
+- tapOn: ".*q3-report.pdf.*"
+- extendedWaitUntil:
+    visible: "Share"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: read-05-attachment-preview
+- assertVisible: "q3-report.pdf"
+- tapOn: "Close"
+- extendedWaitUntil:
+    visible: "Reply All"
+    timeout: 10000
+- runFlow: ../subflows/close-message.yaml
+
+# A thread (Projects/Alpha)
+- runFlow:
+    file: ../subflows/go-to-folder.yaml
+    env:
+      FOLDER: "Alpha.*"
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Project Alpha kickoff
+- takeScreenshot: read-06-thread
+- runFlow: ../subflows/go-to-inbox.yaml

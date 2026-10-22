@@ -1,0 +1,8 @@
+# Leave the message view: Back on a phone; the split layout keeps the list.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      visible: "Back"
+    commands:
+      - tapOn: "Back"

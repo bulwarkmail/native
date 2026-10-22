@@ -1,0 +1,13 @@
+# From a message list: open the message whose row mentions SUBJECT.
+appId: org.bulwarkmail.mobile
+---
+- scrollUntilVisible:
+    element: ".*${SUBJECT}.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: ".*${SUBJECT}.*"
+- extendedWaitUntil:
+    visible: "Reply All"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000

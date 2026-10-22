@@ -1,0 +1,66 @@
+# Contacts: the list, a contact's detail, create one and delete it again.
+appId: org.bulwarkmail.mobile
+name: Contacts
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.last = 'Tester' + Date.now() % 100000}
+- tapOn:
+    id: tab-contacts
+- extendedWaitUntil:
+    visible: "All Contacts"
+    timeout: 30000
+- takeScreenshot: contacts-01-list
+- tapOn: ".*Alice.*"
+- extendedWaitUntil:
+    visible: "Email"
+    timeout: 10000
+- takeScreenshot: contacts-02-detail
+- runFlow:
+    when:
+      visible: "Back"
+    commands:
+      - tapOn: "Back"
+
+- tapOn: "New Contact"
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 10000
+- tapOn:
+    text: "First name"
+    index: 1
+- inputText: "E2E"
+- tapOn:
+    text: "Last name"
+    index: 1
+- inputText: ${output.last}
+- tapOn: "email@example.com"
+- inputText: "e2e.contact@example.net"
+- hideKeyboard
+- takeScreenshot: contacts-03-form
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: ".*${output.last}.*"
+    timeout: 20000
+- takeScreenshot: contacts-04-created
+
+- runFlow:
+    when:
+      notVisible: "More actions"
+    commands:
+      - tapOn: ".*E2E ${output.last}.*"
+- tapOn: "More actions"
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "Delete contact"
+    timeout: 10000
+- tapOn:
+    text: "Delete"
+    below: "Are you sure.*"
+- extendedWaitUntil:
+    notVisible: ".*E2E ${output.last}.*"
+    timeout: 20000
+- takeScreenshot: contacts-05-deleted
+- tapOn:
+    id: tab-mail

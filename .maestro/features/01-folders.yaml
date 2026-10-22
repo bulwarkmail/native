@@ -1,0 +1,38 @@
+# Mailbox list and folders: the drawer (or docked sidebar) lists the role
+# folders and custom ones; opening a folder shows its messages.
+appId: org.bulwarkmail.mobile
+name: Folders
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- takeScreenshot: folders-01-inbox
+- assertVisible: ".*Your verification code.*"
+- runFlow: ../subflows/open-drawer.yaml
+- takeScreenshot: folders-02-drawer
+- assertVisible: "Inbox.*"
+- assertVisible: "Sent.*"
+- assertVisible: "Drafts.*"
+- assertVisible: "Archive.*"
+- assertVisible: "Projects.*"
+- tapOn: "Archive.*"
+- extendedWaitUntil:
+    visible: ".*Invoice 2025-12.*"
+    timeout: 20000
+- takeScreenshot: folders-03-archive
+- runFlow: ../subflows/open-drawer.yaml
+# Projects/Alpha holds the seeded thread.
+- runFlow:
+    when:
+      notVisible: "Alpha.*"
+    commands:
+      - tapOn:
+          text: "Expand"
+          rightOf: "Projects.*"
+          optional: true
+- tapOn: "Alpha.*"
+- extendedWaitUntil:
+    visible: ".*Project Alpha kickoff.*"
+    timeout: 20000
+- takeScreenshot: folders-04-alpha
+- runFlow: ../subflows/go-to-inbox.yaml

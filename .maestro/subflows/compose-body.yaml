@@ -1,0 +1,19 @@
+# In the composer: type BODY into the editor. The rich editor is a WebView
+# whose placeholder is CSS, so it may not be exposed; then tap the middle of
+# the screen, which is the body area below Subject (above the keyboard).
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      visible: "Write your message.*"
+    commands:
+      - tapOn: "Write your message.*"
+- runFlow:
+    when:
+      notVisible: "Write your message.*"
+    commands:
+      - tapOn:
+          point: "50%,50%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- inputText: ${BODY}

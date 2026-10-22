@@ -1,0 +1,62 @@
+# Compose a new message with a photo attached and send it to userb; userb's
+# mailbox (checked over JMAP) must get it with the attachment.
+appId: org.bulwarkmail.mobile
+name: Compose and send with attachment
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.subject = 'E2E compose ' + DEVICE + '-' + APPEARANCE + '-' + ORIENTATION + ' ' + Date.now()}
+- tapOn: "Compose"
+- extendedWaitUntil:
+    visible: "New Message"
+    timeout: 15000
+- tapOn: "Recipient email addresses"
+- inputText: "userb@example.org"
+- pressKey: Enter
+- tapOn:
+    text: "Subject"
+    index: 1
+- inputText: ${output.subject}
+- runFlow:
+    file: ../subflows/compose-body.yaml
+    env:
+      BODY: "Hello from the iOS simulator test."
+- takeScreenshot: compose-01-filled
+
+# Attach a photo from the library (boot-sim.sh adds one).
+- tapOn: "Attach"
+- extendedWaitUntil:
+    visible: "Photos & Videos"
+    timeout: 10000
+- tapOn: "Photos & Videos"
+- extendedWaitUntil:
+    visible: "Photos|Cancel"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: compose-02-photo-picker
+- tapOn:
+    text: "Photo.*"
+    index: 0
+- runFlow:
+    when:
+      visible: "Add|Done"
+    commands:
+      - tapOn: "Add|Done"
+- extendedWaitUntil:
+    visible: ".*(png|jpg|jpeg|heic|PNG|JPG|JPEG|HEIC).*"
+    timeout: 60000
+- takeScreenshot: compose-03-attached
+
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Email sent successfully"
+    timeout: 60000
+- runFlow:
+    file: ../subflows/assert-delivered.yaml
+    env:
+      SUBJECT: ${output.subject}
+- assertTrue:
+    condition: ${output.helper.attachments.length > 0}
+    label: "the sent message carries the photo"

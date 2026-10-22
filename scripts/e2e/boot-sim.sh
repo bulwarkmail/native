@@ -44,6 +44,8 @@ xcrun simctl spawn "$UDID" defaults write com.apple.WebUI AutoFillPasswords -boo
 
 xcrun simctl ui "$UDID" appearance "$APPEARANCE"
 xcrun simctl install "$UDID" "$APP"
+# A photo for the compose flow's attachment.
+xcrun simctl addmedia "$UDID" "$(dirname "$0")/../../assets/icon.png" || true
 
 {
   echo "UDID=$UDID"

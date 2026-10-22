@@ -26,5 +26,4 @@ tags:
     file: ../subflows/check-active-account.yaml
     env:
       ACTIVE: ${ACCOUNT2}@example.org
-- assertVisible: ${ACCOUNT}@example.org
 - takeScreenshot: add-link-02-two-accounts

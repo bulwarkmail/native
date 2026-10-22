@@ -1,0 +1,58 @@
+# Files: open a folder, preview a text and a PDF file, create and delete a
+# folder.
+appId: org.bulwarkmail.mobile
+name: Files
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.folder = 'E2E folder ' + Date.now() % 100000}
+- tapOn:
+    id: tab-files
+- extendedWaitUntil:
+    visible: ".*Documents.*"
+    timeout: 30000
+- takeScreenshot: files-01-root
+- tapOn: ".*Documents.*"
+- extendedWaitUntil:
+    visible: ".*readme.txt.*"
+    timeout: 20000
+- tapOn: ".*readme.txt.*"
+- extendedWaitUntil:
+    visible: "readme.txt"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: files-02-text-preview
+- tapOn: "Close"
+- tapOn: ".*q3-report.pdf.*"
+- extendedWaitUntil:
+    visible: "q3-report.pdf"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: files-03-pdf-preview
+- tapOn: "Close"
+- tapOn: "Back"
+
+- tapOn: "New Folder"
+- tapOn: "Folder name"
+- inputText: ${output.folder}
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: ".*${output.folder}.*"
+    timeout: 20000
+- takeScreenshot: files-04-folder-created
+- longPressOn: ".*${output.folder}.*"
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "Delete this item.*"
+    timeout: 10000
+- tapOn:
+    text: "Delete"
+    below: "Delete this item.*"
+- extendedWaitUntil:
+    notVisible: ".*${output.folder}.*"
+    timeout: 20000
+- tapOn:
+    id: tab-mail
