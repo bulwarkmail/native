@@ -10,12 +10,12 @@ tags:
 - assertVisible: ".*Your verification code.*"
 - runFlow: ../subflows/open-drawer.yaml
 - takeScreenshot: folders-02-drawer
-- assertVisible: "Inbox.*"
-- assertVisible: "Sent.*"
-- assertVisible: "Drafts.*"
-- assertVisible: "Archive.*"
-- assertVisible: "Projects.*"
-- tapOn: "Archive.*"
+- assertVisible: "Inbox([ ,].*)?"
+- assertVisible: "Sent([ ,].*)?"
+- assertVisible: "Drafts([ ,].*)?"
+- assertVisible: "Archive([ ,].*)?"
+- assertVisible: "Projects([ ,].*)?"
+- tapOn: "Archive([ ,].*)?"
 - extendedWaitUntil:
     visible: ".*Invoice 2025-12.*"
     timeout: 20000
@@ -24,13 +24,13 @@ tags:
 # Projects/Alpha holds the seeded thread.
 - runFlow:
     when:
-      notVisible: "Alpha.*"
+      notVisible: "Alpha([ ,].*)?"
     commands:
       - tapOn:
           text: "Expand"
-          rightOf: "Projects.*"
+          rightOf: "Projects([ ,].*)?"
           optional: true
-- tapOn: "Alpha.*"
+- tapOn: "Alpha([ ,].*)?"
 - extendedWaitUntil:
     visible: ".*Project Alpha kickoff.*"
     timeout: 20000

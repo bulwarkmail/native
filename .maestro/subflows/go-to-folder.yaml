@@ -2,8 +2,8 @@
 appId: org.bulwarkmail.mobile
 ---
 - runFlow: open-drawer.yaml
-# A folder row reads "<name> <unread> / <total>".
-- tapOn: ${FOLDER}( .*)?
+# A folder row's label joins its texts: "<name>, <unread>, /, <total>".
+- tapOn: ${FOLDER}([ ,].*)?
 - extendedWaitUntil:
     visible: ${FOLDER}
     timeout: 15000

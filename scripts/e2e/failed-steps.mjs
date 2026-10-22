@@ -68,4 +68,21 @@ for (const file of walkFiles(root).filter((f) => /commands-.*\.json$/.test(f))) 
     }
   }
 }
+// Maestro 2 keeps the screen hierarchy of each failed step under
+// screen-hierarchy/; it holds what the screen showed (like the screenshot).
+for (const file of walkFiles(root).filter((f) => f.includes('screen-hierarchy') && f.endsWith('.json'))) {
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    continue;
+  }
+  const h = findHierarchy(data);
+  if (!h) continue;
+  const parts = file.split(path.sep).join('/').split('/');
+  out.push(`== ${parts[parts.length - 3]} / ${parts[parts.length - 1]}`);
+  const lines = [];
+  tree(h, 0, lines);
+  out.push(...lines.slice(0, 300).map((l) => `    ${l}`));
+}
 process.stdout.write(out.join('\n') + '\n');

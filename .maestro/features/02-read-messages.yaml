@@ -62,7 +62,7 @@ tags:
 - runFlow:
     file: ../subflows/go-to-folder.yaml
     env:
-      FOLDER: "Alpha.*"
+      FOLDER: Alpha
 - runFlow:
     file: ../subflows/open-message.yaml
     env:
