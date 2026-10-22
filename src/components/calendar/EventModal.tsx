@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Modal,
   View,
   Text,
   ScrollView,
@@ -69,6 +68,7 @@ import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { SafeAreaModal } from '../SafeAreaModal';
 import ToggleSwitch from '../ToggleSwitch';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -419,7 +419,7 @@ export function EventModal({
   );
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS}
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
@@ -838,7 +838,7 @@ export function EventModal({
           />
         )}
       </SafeAreaView>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

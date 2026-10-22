@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../../theme/colors';
 import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
+import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 interface SieveEditorSheetProps {
@@ -63,7 +64,7 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
   }, [script, showSaveWarning, onSave]);
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable
@@ -174,7 +175,7 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
           </View>
         </View>
       </SafeAreaView>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

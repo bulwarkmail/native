@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, Modal, Pressable, ScrollView, Image, ActivityIndicator, Platform, PixelRatio, Alert,
+  View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Platform, PixelRatio, Alert,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ import { formatFullDateTime } from '../../lib/email-date';
 import type { EmlPreview } from './use-body-override';
 import { useFilePreview } from './use-file-preview';
 import { ArchiveSummary, PreviewPartList, type PreviewPart } from './PreviewPartList';
+import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 export interface PreviewItem {
@@ -432,9 +433,9 @@ export function AttachmentPreviewModal({
   );
   if (docked) return item || loading ? content : null;
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!item || loading} animationType="slide" onRequestClose={onClose}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={!!item || loading} animationType="slide" onRequestClose={onClose}>
       {content}
-    </Modal>
+    </SafeAreaModal>
   );
 }
 
