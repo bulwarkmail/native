@@ -1,8 +1,10 @@
 # Type TEXT into a web page field found by its placeholder HINT (the sign-in
 # pages in the auth session), and check it arrived as typed. Now and then a
-# stray character lands in front of it on the CI simulator; then select the
-# field's text and type over it. SECRET=yes skips the check (a password
-# field shows dots).
+# stray character lands in front of it on the CI simulator; then erase the
+# field and type again. The caret is still at the end of what was just
+# typed, so eraseText (which deletes before the caret) empties it; selecting
+# the text with a long press didn't work and appended instead. SECRET=yes
+# skips the check (a password field shows dots).
 appId: org.bulwarkmail.mobile
 ---
 - tapOn: ${HINT}
@@ -13,13 +15,13 @@ appId: org.bulwarkmail.mobile
     when:
       true: ${SECRET != 'yes'}
     commands:
-      - runFlow:
-          when:
+      - repeat:
+          while:
             notVisible: ${TEXT}
+          times: 2
           commands:
-            - longPressOn: ".*${TEXT}.*"
-            - tapOn:
-                text: "Select All"
-                optional: true
+            - eraseText: 150
+            - waitForAnimationToEnd:
+                timeout: 2000
             - inputText: ${TEXT}
-            - assertVisible: ${TEXT}
+      - assertVisible: ${TEXT}
