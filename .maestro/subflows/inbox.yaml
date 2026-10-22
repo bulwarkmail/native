@@ -18,5 +18,9 @@ appId: org.bulwarkmail.mobile
     visible:
       id: email-row
     timeout: 60000
-# Rows are one element: sender, subject and preview together.
-- assertVisible: ${INBOX_TEXT || '.*Your verification code.*'}
+# Rows are one element: sender, subject and preview together. Mail the
+# tests sent earlier can push the seeded row below the fold.
+- scrollUntilVisible:
+    element: ${INBOX_TEXT || '.*Your verification code.*'}
+    direction: DOWN
+    timeout: 30000
