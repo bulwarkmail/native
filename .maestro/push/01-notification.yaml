@@ -45,6 +45,10 @@ tags:
     visible: ".*${output.subject0}.*|.*New message.*"
     timeout: 30000
 - takeScreenshot: push-01-banner
+# Let it go, so the next tap can't hit this one.
+- extendedWaitUntil:
+    notVisible: ".*${output.subject0}.*|.*New message.*"
+    timeout: 20000
 
 # 2. A tap opens the message, app in the background. The banner shows for a
 # few seconds and finding it takes Maestro about as long; taps on the lock
