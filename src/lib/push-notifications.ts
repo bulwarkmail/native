@@ -862,7 +862,7 @@ async function registerWithRelayApns(params: {
  * credentials to use and the JMAP API URL. Without it the extension shows the
  * relay's placeholder text.
  */
-async function shareAccountWithExtension(accountId: string, jmapAccountId: string | null): Promise<void> {
+export async function shareAccountWithExtension(accountId: string, jmapAccountId: string | null): Promise<void> {
   if (Platform.OS !== 'ios' || !jmapAccountId) return;
   const apiUrl = jmapClient.currentSession?.apiUrl;
   if (!apiUrl) return;
