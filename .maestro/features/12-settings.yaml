@@ -12,27 +12,27 @@ tags:
     timeout: 20000
 - takeScreenshot: settings-00-list
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: account, ROW: ".*@example.org, .*", PROOF: "Logged-in accounts|Display Name"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: language, ROW: "Language, Region & Time, .*", PROOF: "Date Format"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: notifications, ROW: "Notifications, .*", PROOF: "Email Notifications"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: appearance, ROW: "Appearance, .*", PROOF: "Choose your preferred color scheme"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: layout, ROW: "Layout, .*", PROOF: "Tune the email list interactions for mobile."}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: reading, ROW: "Reading, .*", PROOF: "Mark as Read"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: composing, ROW: "Composing, .*", PROOF: "Composer"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: identities, ROW: "Identities, .*", PROOF: "Sending Identities"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: vacation, ROW: "Out of Office, .*", PROOF: "Reply automatically"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: filters, ROW: "Filters, .*", PROOF: "Email Filters"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: templates, ROW: "Templates, .*", PROOF: "Email Templates"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: folders, ROW: "Folders, .*", PROOF: ".*Inbox.*"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: tags, ROW: "Tags, .*", PROOF: "Email Tags"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: downloads, ROW: "Downloads, .*", PROOF: "Email .*eml.* filename"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: security, ROW: "Security, .*", PROOF: "Account Security|Detecting server capabilities.*"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: content, ROW: "Content & Senders, .*", PROOF: "External Content"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", PROOF: "Default view"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: contacts, ROW: "Contacts, .*", PROOF: "Group by first letter"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: files, ROW: "Files, .*", PROOF: "Default View"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: sidebar-apps, ROW: "Sidebar Apps, .*", PROOF: "Keep Apps Loaded"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: themes, ROW: "Themes, .*", PROOF: "The default light and dark palettes."}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: storage, ROW: "Storage & backup, .*", PROOF: "Offline mail.*"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: about, ROW: "About, .*", PROOF: "This device"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: language, ROW: "Language, Region & Time, .*", Q: "Language", PROOF: "Date Format"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: notifications, ROW: "Notifications, .*", Q: "Notifications", PROOF: "Email Notifications"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: appearance, ROW: "Appearance, .*", Q: "Appearance", PROOF: "Choose your preferred color scheme"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: layout, ROW: "Layout, .*", Q: "Layout", PROOF: "Tune the email list interactions for mobile."}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: reading, ROW: "Reading, .*", Q: "Reading", PROOF: "Mark as Read"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: composing, ROW: "Composing, .*", Q: "Composing", PROOF: "Composer"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: identities, ROW: "Identities, .*", Q: "Identities", PROOF: "Sending Identities"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: vacation, ROW: "Out of Office, .*", Q: "Office", PROOF: "Reply automatically"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: filters, ROW: "Filters, .*", Q: "Filters", PROOF: "Email Filters"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: templates, ROW: "Templates, .*", Q: "Templates", PROOF: "Email Templates"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: folders, ROW: "Folders, .*", Q: "Folders", PROOF: ".*Inbox.*"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: tags, ROW: "Tags, .*", Q: "Tags", PROOF: "Email Tags"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: downloads, ROW: "Downloads, .*", Q: "Downloads", PROOF: "Email .*eml.* filename"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: security, ROW: "Security, .*", Q: "Security", PROOF: "Account Security|Detecting server capabilities.*"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: content, ROW: "Content & Senders, .*", Q: "Content", PROOF: "External Content"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", Q: "Calendar", PROOF: "Default view"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: contacts, ROW: "Contacts, .*", Q: "Contacts", PROOF: "Group by first letter"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: files, ROW: "Files, .*", Q: "Files", PROOF: "Default View"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: sidebar-apps, ROW: "Sidebar Apps, .*", Q: "Sidebar", PROOF: "Keep Apps Loaded"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: themes, ROW: "Themes, .*", Q: "Themes", PROOF: "The default light and dark palettes."}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: storage, ROW: "Storage & backup, .*", Q: "Storage", PROOF: "Offline mail.*"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: about, ROW: "About, .*", Q: "About", PROOF: "This device"}}
 - tapOn:
     id: tab-mail

@@ -21,6 +21,7 @@ tags:
 - runFlow:
     file: ../subflows/compose-body.yaml
     env:
+      FROM_SUBJECT: "yes"
       BODY: "Hello from the iOS simulator test."
 - takeScreenshot: compose-01-filled
 

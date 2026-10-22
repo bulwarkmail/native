@@ -1,56 +1,37 @@
-# Settings list: scroll to the row ROW (regex on "Title, summary"), open it,
-# check PROOF shows, screenshot, and go back on a phone. On the iPad the list
-# is a left column, so scroll there instead of the middle of the screen.
-# (Swipe coordinates have to be literals.)
+# Settings list: find the row ROW (regex on "Title, summary"), open it,
+# check PROOF shows, screenshot, and go back on a phone.
+#
+# A row can count as visible while it is under the phone's tab bar or half
+# off the iPad's screen, and the tap then misses. The phone scrolls it to the
+# middle. The iPad's list is a left column that Maestro's scroll (always in
+# the middle of the screen) doesn't reach, so it searches for the page (Q,
+# a word of its title) instead, which puts the row near the top.
 appId: org.bulwarkmail.mobile
 ---
-- evalScript: ${output.swiped = false}
 - runFlow:
     when:
-      true: ${DEVICE == 'tablet'}
+      true: ${DEVICE == 'tablet' && !!Q}
     commands:
       - repeat:
           while:
             notVisible: ${ROW}
-          times: 10
+          times: 2
           commands:
-            - swipe:
-                start: 18%,80%
-                end: 18%,40%
-                duration: 600
-            - evalScript: ${output.swiped = true}
-      # The row counts as visible as soon as its top edge shows: one more
-      # short scroll brings all of it on screen, so the tap lands on it.
-      - runFlow:
-          when:
-            true: ${output.swiped}
-          commands:
-            - swipe:
-                start: 18%,70%
-                end: 18%,55%
-                duration: 600
+            - tapOn: "Search settings"
+            - eraseText: 40
+            - inputText: ${Q}
+            - waitForAnimationToEnd:
+                timeout: 3000
 - runFlow:
     when:
       true: ${DEVICE != 'tablet'}
     commands:
-      - repeat:
-          while:
-            notVisible: ${ROW}
-          times: 10
-          commands:
-            - swipe:
-                start: 50%,80%
-                end: 50%,40%
-                duration: 600
-            - evalScript: ${output.swiped = true}
-      - runFlow:
-          when:
-            true: ${output.swiped}
-          commands:
-            - swipe:
-                start: 50%,70%
-                end: 50%,55%
-                duration: 600
+      - scrollUntilVisible:
+          element: ${ROW}
+          direction: DOWN
+          centerElement: true
+          visibilityPercentage: 100
+          timeout: 30000
 # A tap while the list still coasts from the swipe only stops it.
 - waitForAnimationToEnd:
     timeout: 5000

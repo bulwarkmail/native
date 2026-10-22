@@ -21,6 +21,7 @@ tags:
 - runFlow:
     file: ../subflows/compose-body.yaml
     env:
+      FROM_SUBJECT: "yes"
       BODY: "Scheduled from the iOS simulator test."
 - tapOn: "Schedule send"
 - extendedWaitUntil:
