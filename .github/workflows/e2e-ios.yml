@@ -122,6 +122,11 @@ jobs:
       - name: Build for the simulator
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # The bundle times each module's evaluation for the perf leg, and
+          # Metro writes which id is which module (metro.config.js; a branch
+          # without that support ignores both).
+          BULWARK_MODULE_TIMINGS: '1'
+          BULWARK_MODULE_MAP: ${{ runner.temp }}/module-map.json
         run: |
           WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
@@ -156,7 +161,13 @@ jobs:
           codesign -d --entitlements - "$APP_PATH" 2>&1 | head -20 || true
           # Packed as a tar: artifacts drop the executable bit, which would
           # leave a reused app unable to launch.
-          tar -C build/Build/Products/Release-iphonesimulator -czf "$RUNNER_TEMP/simulator-app.tar.gz" BulwarkMobile.app
+          tar -C build/Build/Products/Release-iphonesimulator -cf "$RUNNER_TEMP/simulator-app.tar" BulwarkMobile.app
+          if [ -f "$RUNNER_TEMP/module-map.json" ]; then
+            tar -C "$RUNNER_TEMP" -rf "$RUNNER_TEMP/simulator-app.tar" module-map.json
+          else
+            echo "no module map (branch without module timings)"
+          fi
+          gzip -f "$RUNNER_TEMP/simulator-app.tar"
           ls -la "$RUNNER_TEMP/simulator-app.tar.gz"
 
       - name: Upload the simulator app

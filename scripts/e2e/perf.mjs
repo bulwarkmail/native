@@ -104,12 +104,14 @@ function waitForMark(name, timeoutMs) {
 
 // ── steps ───────────────────────────────────────────────────────────────────
 const samples = []; // { label, metric, ms, round }
+const moduleRuns = {}; // label -> [{ total, top: { id: ms } }] (module-times marks)
 
 async function coldStart(label, round, first) {
   try { simctl('terminate', UDID, BUNDLE); } catch { /* not running */ }
   await sleep(1500);
   const pending = waitForMark('inbox-rendered', 120_000);
   const bundlePending = waitForMark('bundle-loaded', 120_000);
+  const modulesPending = waitForMark('module-times', 125_000);
   const t0 = Date.now();
   simctl('launch', UDID, BUNDLE, '-perfMarks', 'YES');
   const [mark, bundle] = await Promise.all([pending, bundlePending]);
@@ -118,6 +120,17 @@ async function coldStart(label, round, first) {
     return;
   }
   const kind = first ? 'first-start' : 'cold-start';
+  // Builds made with BULWARK_MODULE_TIMINGS log how long each module took
+  // to evaluate, right after the first inbox (src/lib/perf-marks.ts).
+  const modules = await Promise.race([modulesPending, sleep(3000).then(() => null)]);
+  if (modules && !first) {
+    const top = {};
+    for (const pair of String(modules.top || '').split(',')) {
+      const [id, ms] = pair.split(':');
+      if (id) top[id] = Number(ms);
+    }
+    (moduleRuns[label] ||= []).push({ total: modules.total, top });
+  }
   samples.push({ label, round, metric: `${kind}-to-inbox`, ms: mark.t - t0 });
   if (bundle) samples.push({ label, round, metric: `${kind}-to-bundle`, ms: bundle.t - t0 });
   // The start-up timeline: every mark between launch and the inbox, as time
@@ -185,7 +198,28 @@ const scroll = labels.map((l) => {
   if (!xs.length) return null;
   return `${l}: median ${median(xs.map((s) => s.long))} long frames of ${median(xs.map((s) => s.frames))}, worst ${median(xs.map((s) => s.worst))} ms`;
 }).filter(Boolean);
-const md = [...lines, '', ...scroll.map((s) => `- list-scroll ${s}`), ''].join('\n');
+// The slowest modules at start-up per app, by median over the launches.
+const moduleSections = [];
+for (const app of apps) {
+  const runs = moduleRuns[app.label];
+  if (!runs?.length) continue;
+  let names = {};
+  try { names = JSON.parse(fs.readFileSync(path.join(path.dirname(app.path), 'module-map.json'), 'utf8')); } catch { /* no map */ }
+  const ids = new Set(runs.flatMap((r) => Object.keys(r.top)));
+  const rows = [...ids]
+    .map((id) => ({ id, ms: median(runs.map((r) => r.top[id] ?? 0)) }))
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 30);
+  moduleSections.push(
+    `### Slowest modules at start-up: ${app.label} (own evaluation time, median of ${runs.length} launches; all modules ${median(runs.map((r) => r.total))} ms)`,
+    '',
+    '| module | ms |',
+    '|---|---|',
+    ...rows.map((r) => `| ${names[r.id] ?? `#${r.id}`} | ${r.ms} |`),
+    '',
+  );
+}
+const md = [...lines, '', ...scroll.map((s) => `- list-scroll ${s}`), '', ...moduleSections].join('\n');
 fs.writeFileSync(path.join(out, 'perf.json'), JSON.stringify({ apps, rounds, coldRuns, samples }, null, 1));
 fs.writeFileSync(path.join(out, 'perf.md'), md);
 console.log(md);
