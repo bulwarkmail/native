@@ -35,8 +35,9 @@ tags:
     file: ../scripts/helper.js
     env:
       CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject)}
+# The banner shows for a few seconds: catch it with either text, then check.
 - extendedWaitUntil:
-    visible: ".*${output.subject}.*"
+    visible: ".*${output.subject}.*|.*New message.*"
     timeout: 30000
 - takeScreenshot: push-01-banner
 # Sender and subject come from the extension, not the relay.

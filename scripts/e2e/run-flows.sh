@@ -121,7 +121,7 @@ xcrun simctl spawn "$UDID" log show --last 90m --style compact --info \
 # notification settings the simulator stored for it.
 if [ "$SUITE" = push ]; then
   xcrun simctl spawn "$UDID" log show --last 90m --style compact --info --predicate \
-    'process == "NotificationService" OR ((process == "SpringBoard" OR process CONTAINS "usernotification" OR process == "apsd") AND eventMessage CONTAINS[c] "bulwarkmail")' \
+    'process == "NotificationService" OR subsystem == "org.bulwarkmail.mobile.NotificationService" OR ((process == "SpringBoard" OR process CONTAINS "usernotification" OR process == "apsd") AND eventMessage CONTAINS[c] "bulwarkmail")' \
     > "$OUT/push.log" 2>&1 || true
   SIMDATA="$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data"
   {
