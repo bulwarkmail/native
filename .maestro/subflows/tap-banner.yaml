@@ -1,8 +1,0 @@
-# Tap the notification banner at the top of the screen, at once (it shows
-# for a few seconds only).
-appId: org.bulwarkmail.mobile
----
-- tapOn:
-    point: "50%,9%"
-    waitToSettleTimeoutMs: 500
-    retryTapIfNoChange: false

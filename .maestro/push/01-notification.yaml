@@ -49,13 +49,12 @@ tags:
 # 2. A tap opens the message, app in the background. The banner shows for a
 # few seconds and finding it takes Maestro about as long; taps on the lock
 # screen list do nothing on these simulators. So tap where the banner
-# appears, right after the push.
+# appears, right after the push (push-and-tap.yaml).
 - evalScript: ${output.subject = 'E2E push ' + Date.now()}
-- runScript:
-    file: ../scripts/helper.js
+- runFlow:
+    file: ../subflows/push-and-tap.yaml
     env:
-      CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject)}
-- runFlow: ../subflows/tap-banner.yaml
+      SUBJECT: ${output.subject}
 - extendedWaitUntil:
     visible: "Reply All"
     timeout: 60000
@@ -65,11 +64,10 @@ tags:
 # 3. The same from a cold start: the app isn't running.
 - stopApp
 - evalScript: ${output.subject2 = 'E2E push cold ' + Date.now()}
-- runScript:
-    file: ../scripts/helper.js
+- runFlow:
+    file: ../subflows/push-and-tap.yaml
     env:
-      CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject2)}
-- runFlow: ../subflows/tap-banner.yaml
+      SUBJECT: ${output.subject2}
 - extendedWaitUntil:
     visible: "Reply All"
     timeout: 90000
