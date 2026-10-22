@@ -120,6 +120,19 @@ async function coldStart(label, round, first) {
   const kind = first ? 'first-start' : 'cold-start';
   samples.push({ label, round, metric: `${kind}-to-inbox`, ms: mark.t - t0 });
   if (bundle) samples.push({ label, round, metric: `${kind}-to-bundle`, ms: bundle.t - t0 });
+  // The start-up timeline: every mark between launch and the inbox, as time
+  // since launch, plus how long each persisted cache took to read and parse.
+  if (!first) {
+    for (const m of marks) {
+      if (m.t < t0 || m.t > mark.t || m.n === 'inbox-rendered' || m.n === 'bundle-loaded') continue;
+      const key = m.store ? `${m.n}:${m.store}` : m.n;
+      samples.push({ label, round, metric: `start:${key}`, ms: m.t - t0 });
+      if (m.n === 'hydrate') {
+        samples.push({ label, round, metric: `hydrate-read:${m.store}`, ms: m.readMs });
+        samples.push({ label, round, metric: `hydrate-parse:${m.store}`, ms: m.parseMs, kb: m.kb });
+      }
+    }
+  }
   console.log(`  ${label} cold start ${mark.t - t0} ms (bundle ${bundle ? bundle.t - t0 : '?'} ms, rows ${mark.rows})`);
   await sleep(3000);
 }
