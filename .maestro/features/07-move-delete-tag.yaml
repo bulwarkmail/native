@@ -25,10 +25,8 @@ tags:
     text: "Projects"
     # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
     waitToSettleTimeoutMs: 500
-- extendedWaitUntil:
-    visible: "Moved to Projects"
-    timeout: 15000
 - takeScreenshot: actions-02-moved
+# Tap UNDO at once (see 06-swipe-undo: a late tap opens the composer).
 - tapOn:
     text: "UNDO"
     # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
@@ -48,9 +46,6 @@ tags:
     text: "Delete"
     # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
     waitToSettleTimeoutMs: 500
-- extendedWaitUntil:
-    visible: "Email moved to Trash"
-    timeout: 15000
 - takeScreenshot: actions-03-deleted
 - tapOn:
     text: "UNDO"
