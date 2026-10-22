@@ -54,6 +54,7 @@ if [ $STATUS -eq 0 ]; then
     -e "ACCOUNT2=${E2E_ACCOUNT2:-}"
     -e "TOTP_ACCOUNT=${E2E_TOTP_ACCOUNT:-}"
     -e "WEBMAIL=${E2E_WEBMAIL:-}"
+    -e "WEBMAIL_BETA=${E2E_WEBMAIL_BETA:-https://bulwark-beta.internal.bulwarkmail.org}"
     -e "HELPER=http://127.0.0.1:${HELPER_PORT:-8787}"
     -e "ORIENTATION=${ORIENTATION:-portrait}"
     -e "DEVICE=${DEVICE:-phone}"

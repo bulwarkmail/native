@@ -1,5 +1,7 @@
 # Webmail hand-off for a TOTP account: the webmail asks for the code; if it
-# hands back the password, the app finishes with a code of its own.
+# hands back the password, the app finishes with a code of its own. Uses the
+# beta webmail: the stable one still has 06's session in the browser, which
+# strands the hand-off (see 20-webmail-session.yaml).
 appId: org.bulwarkmail.mobile
 name: Webmail hand-off with TOTP
 tags:
@@ -9,7 +11,7 @@ tags:
 - runFlow:
     file: ../subflows/manual-server.yaml
     env:
-      HOST: ${WEBMAIL}
+      HOST: ${WEBMAIL_BETA}
 - tapOn: "Continue"
 - runFlow: ../subflows/allow-auth-session.yaml
 - runFlow:
