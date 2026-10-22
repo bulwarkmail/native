@@ -2,9 +2,21 @@
 # is docked (iPad landscape).
 appId: org.bulwarkmail.mobile
 ---
+- waitForAnimationToEnd:
+    timeout: 3000
 - runFlow:
     when:
       visible: "Toggle menu"
+    commands:
+      - tapOn: "Toggle menu"
+- extendedWaitUntil:
+    visible: "Scheduled.*"
+    timeout: 5000
+    optional: true
+# Once more if the first tap went to a list still settling.
+- runFlow:
+    when:
+      notVisible: "Scheduled.*"
     commands:
       - tapOn: "Toggle menu"
 - extendedWaitUntil:

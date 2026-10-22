@@ -35,9 +35,11 @@ tags:
       BODY: "Reply from the iOS simulator test."
 - takeScreenshot: incoming-03-reply
 - tapOn: "Send"
+# The toast is gone after a few seconds; delivery is checked below.
 - extendedWaitUntil:
     visible: "Email sent successfully"
-    timeout: 60000
+    timeout: 20000
+    optional: true
 - runFlow:
     file: ../subflows/assert-delivered.yaml
     env:
@@ -60,7 +62,8 @@ tags:
 - tapOn: "Send"
 - extendedWaitUntil:
     visible: "Email sent successfully"
-    timeout: 60000
+    timeout: 20000
+    optional: true
 - runFlow:
     file: ../subflows/assert-delivered.yaml
     env:

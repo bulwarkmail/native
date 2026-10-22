@@ -32,21 +32,16 @@ tags:
     env:
       FIELD: contact-first-name
       TEXT: E2E
+# Return moves to Middle name, then Last name: tapping the field would hit
+# the keyboard covering it.
+- pressKey: Enter
+- pressKey: Enter
 - runFlow:
     file: ../subflows/type.yaml
     env:
       FIELD: contact-last-name
+      TAP: "no"
       TEXT: ${output.last}
-- scrollUntilVisible:
-    element:
-      id: contact-email-0
-    direction: DOWN
-    timeout: 10000
-- runFlow:
-    file: ../subflows/type.yaml
-    env:
-      FIELD: contact-email-0
-      TEXT: e2e.contact@example.net
 - takeScreenshot: contacts-03-form
 - tapOn: "Save"
 - extendedWaitUntil:

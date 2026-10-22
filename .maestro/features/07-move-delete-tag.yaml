@@ -37,7 +37,11 @@ tags:
     file: ../subflows/open-message.yaml
     env:
       SUBJECT: Weekly digest
+- takeScreenshot: actions-03a-before-delete
 - tapOn: "Delete"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: actions-03b-after-delete
 - extendedWaitUntil:
     visible: "Email moved to Trash"
     timeout: 15000

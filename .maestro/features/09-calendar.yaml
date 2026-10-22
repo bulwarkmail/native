@@ -16,7 +16,9 @@ tags:
     when:
       visible: ".*Would Like to Send You Notifications.*"
     commands:
-      - tapOn: "Allow"
+      - tapOn:
+          text: "Allow"
+          optional: true
 - extendedWaitUntil:
     visible: "Go to today"
     timeout: 30000

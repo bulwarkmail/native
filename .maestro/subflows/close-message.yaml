@@ -6,3 +6,6 @@ appId: org.bulwarkmail.mobile
       visible: "Back"
     commands:
       - tapOn: "Back"
+# A tap during the transition lands on stale coordinates.
+- waitForAnimationToEnd:
+    timeout: 5000
