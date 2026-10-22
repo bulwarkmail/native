@@ -22,6 +22,13 @@ COMMIT = COMMIT.slice(0, 7);
 // fall back to 1 (never uploaded).
 const IOS_BUILD_NUMBER = process.env.IOS_BUILD_NUMBER || '1';
 
+// Apple team: prefixes the keychain groups the app shares with its
+// notification service extension (plugins/ios-push). Not a secret.
+const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID || '8ZANF9LQ39';
+// Which APNs host the device tokens belong to: TestFlight and App Store builds
+// use production, simulators and development builds the sandbox.
+const APS_ENVIRONMENT = process.env.APS_ENVIRONMENT === 'development' ? 'development' : 'production';
+
 module.exports = {
   expo: {
     name: 'Bulwark Mobile',
@@ -96,12 +103,17 @@ module.exports = {
           microphonePermission: false,
         },
       ],
+      ['./plugins/ios-push', { apsEnvironment: APS_ENVIRONMENT, teamId: APPLE_TEAM_ID }],
     ],
     extra: {
       commit: COMMIT,
       // Settings → About → Source code. A modified build sets SOURCE_CODE_URL
       // to where its own source is (AGPL §13); the default is upstream.
       sourceCodeUrl: process.env.SOURCE_CODE_URL || 'https://github.com/bulwarkmail/native',
+      // src/lib/ios-push-shared.ts
+      iosSharedKeychainGroup: `${APPLE_TEAM_ID}.org.bulwarkmail.shared`,
+      iosAppKeychainGroup: `${APPLE_TEAM_ID}.org.bulwarkmail.mobile`,
+      apnsEnvironment: APS_ENVIRONMENT === 'development' ? 'sandbox' : 'production',
     },
   },
 };
