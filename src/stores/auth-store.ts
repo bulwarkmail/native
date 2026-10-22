@@ -602,10 +602,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     jmapClient.reset();
     clearAccountFeatureStores(currentId);
 
-    // Switch to next remaining account, if any
-    const remaining = accountStore.accounts;
+    // Switch to next remaining account, if any. Read the store again:
+    // `accountStore` is the state from before removeAccount.
+    const after = useAccountStore.getState();
+    const remaining = after.accounts.filter((a) => a.id !== currentId);
     if (remaining.length > 0) {
-      const next = accountStore.getDefaultAccount() ?? remaining[0];
+      const next = after.getDefaultAccount() ?? remaining[0];
       try {
         await get().switchAccount(next.id);
         return;
