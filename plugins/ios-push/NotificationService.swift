@@ -1,5 +1,9 @@
 import Foundation
+import os
 import UserNotifications
+
+/// Ids and steps only, never credentials or message content.
+let pushLog = Logger(subsystem: "org.bulwarkmail.mobile.NotificationService", category: "push")
 
 /// Turns the relay's content-blind push ("New message" plus ids) into a real
 /// notification: sender, subject and preview, fetched over JMAP on this
@@ -50,12 +54,16 @@ final class NotificationService: UNNotificationServiceExtension {
   }
 
   static func enrich(_ content: UNMutableNotificationContent, push: [String: Any]?) async -> UNMutableNotificationContent {
-    guard let push,
-          let accountId = push["accountId"] as? String, !accountId.isEmpty,
-          let account = SharedKeychain.readJSON("bulwark_push_account__\(sanitize(accountId))"),
+    guard let push, let accountId = push["accountId"] as? String, !accountId.isEmpty else {
+      pushLog.error("push without an account id")
+      return content
+    }
+    pushLog.info("push for account \(accountId, privacy: .public), group \(SharedKeychain.group ?? "none", privacy: .public)")
+    guard let account = SharedKeychain.readJSON("bulwark_push_account__\(sanitize(accountId))"),
           let credentialsKey = account["credentialsKey"] as? String,
           let apiString = account["apiUrl"] as? String,
           let apiUrl = URL(string: apiString) else {
+      pushLog.error("no shared account entry for \(accountId, privacy: .public)")
       return content
     }
     let emailIds = push["emailIds"] as? [String] ?? []
@@ -69,6 +77,7 @@ final class NotificationService: UNNotificationServiceExtension {
     do {
       let authorization = try await Jmap.authorization(credentialsKey: credentialsKey)
       let result = try await Jmap.fetch(apiUrl: apiUrl, accountId: accountId, emailIds: emailIds, authorization: authorization)
+      pushLog.info("fetched \(result.emails.count, privacy: .public) of \(emailIds.count, privacy: .public) messages")
 
       if let first = result.emails.first {
         content.title = first.sender
@@ -91,6 +100,7 @@ final class NotificationService: UNNotificationServiceExtension {
       }
     } catch {
       // Keep the placeholder.
+      pushLog.error("fetch failed: \(String(describing: error), privacy: .public)")
     }
     var userInfo = content.userInfo
     userInfo["body"] = body

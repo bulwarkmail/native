@@ -23,7 +23,11 @@ enum SharedKeychain {
       kSecReturnData as String: true,
     ]
     var item: CFTypeRef?
-    guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    guard status == errSecSuccess else {
+      pushLog.error("keychain read of \(key, privacy: .public) failed: \(status, privacy: .public)")
+      return nil
+    }
     return item as? Data
   }
 
