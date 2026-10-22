@@ -1,0 +1,14 @@
+# Type TEXT into a web page field found by its placeholder HINT (the sign-in
+# pages in the auth session). First character alone, as in type.yaml.
+appId: org.bulwarkmail.mobile
+---
+- evalScript: ${output.webHead = TEXT.slice(0, 1); output.webTail = TEXT.slice(1)}
+- tapOn: ${HINT}
+- waitForAnimationToEnd:
+    timeout: 3000
+- inputText: ${output.webHead}
+- extendedWaitUntil:
+    visible: "zz-no-such-element-zz"
+    timeout: 1000
+    optional: true
+- inputText: ${output.webTail}

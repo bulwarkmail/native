@@ -15,4 +15,5 @@ appId: org.bulwarkmail.mobile
     visible:
       id: email-row
     timeout: 60000
-- assertVisible: ${INBOX_TEXT || 'Your verification code'}
+# Rows are one element: sender, subject and preview together.
+- assertVisible: ${INBOX_TEXT || '.*Your verification code.*'}

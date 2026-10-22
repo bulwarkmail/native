@@ -6,10 +6,16 @@ appId: org.bulwarkmail.mobile
     visible: "user@example.com"
     timeout: 60000
 - takeScreenshot: webmail-login-page
-- tapOn: "user@example.com"
-- inputText: ${LOGIN}
-- tapOn: "Enter your password"
-- inputText: ${PASSWORD}
+- runFlow:
+    file: type-web.yaml
+    env:
+      HINT: "user@example.com"
+      TEXT: ${LOGIN}
+- runFlow:
+    file: type-web.yaml
+    env:
+      HINT: "Enter your password"
+      TEXT: ${PASSWORD}
 - tapOn: "Sign in"
 - runFlow:
     when:
@@ -26,3 +32,9 @@ appId: org.bulwarkmail.mobile
       - inputText: ${output.helper.code}
       - tapOn: "Sign in|Verify"
 
+# Before handing over, the webmail asks whether the app may take the sign-in.
+- extendedWaitUntil:
+    visible: "Hand over to the app"
+    timeout: 60000
+- takeScreenshot: webmail-handover-prompt
+- tapOn: "Hand over to the app"

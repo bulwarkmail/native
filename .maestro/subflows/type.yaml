@@ -1,12 +1,14 @@
 # Type TEXT into the field with id FIELD and check it arrived in full.
 #
-# iOS drops keystrokes while the edit menu (the "AutoFill" bubble) opens,
-# which happens when a flow taps a field that already has focus. Maestro
-# can't see the focus of a React Native field, so a caller passes TAP=no for
-# a field that focuses itself. Retyped up to twice if text got lost (the
-# retry taps: by then the field has focus and the menu is harmless).
+# iOS drops keystrokes in two situations seen on the CI simulator: while the
+# edit menu (the "AutoFill" bubble) opens, which happens when a flow taps a
+# field that already has focus, and right after the first character, while
+# the field re-renders. So: no tap for a field that focuses itself (TAP=no;
+# Maestro can't see a React Native field's focus), type the first character,
+# wait until it shows, then type the rest. Retyped up to twice.
 appId: org.bulwarkmail.mobile
 ---
+- evalScript: ${output.typeHead = TEXT.slice(0, 1); output.typeTail = TEXT.slice(1)}
 - runFlow:
     when:
       true: ${TAP != 'no'}
@@ -21,7 +23,14 @@ appId: org.bulwarkmail.mobile
       true: ${ERASE == 'yes'}
     commands:
       - runFlow: clear-field.yaml
-- inputText: ${TEXT}
+- inputText: ${output.typeHead}
+- extendedWaitUntil:
+    visible:
+      id: ${FIELD}
+      text: "${output.typeHead}.*"
+    timeout: 5000
+    optional: true
+- inputText: ${output.typeTail}
 - runFlow:
     when:
       notVisible:
@@ -31,11 +40,15 @@ appId: org.bulwarkmail.mobile
       - retry:
           maxRetries: 2
           commands:
-            - runFlow:
-                file: clear-field.yaml
-            - waitForAnimationToEnd:
-                timeout: 1000
-            - inputText: ${TEXT}
+            - runFlow: clear-field.yaml
+            - inputText: ${output.typeHead}
+            - extendedWaitUntil:
+                visible:
+                  id: ${FIELD}
+                  text: "${output.typeHead}.*"
+                timeout: 5000
+                optional: true
+            - inputText: ${output.typeTail}
             - assertVisible:
                 id: ${FIELD}
                 text: ${TEXT_PATTERN || TEXT}

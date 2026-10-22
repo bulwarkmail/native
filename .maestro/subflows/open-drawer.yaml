@@ -8,5 +8,5 @@ appId: org.bulwarkmail.mobile
     commands:
       - tapOn: "Toggle menu"
 - extendedWaitUntil:
-    visible: "Scheduled"
+    visible: "Scheduled.*"
     timeout: 10000

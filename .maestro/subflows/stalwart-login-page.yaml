@@ -6,10 +6,16 @@ appId: org.bulwarkmail.mobile
     visible: "you@example.com"
     timeout: 60000
 - takeScreenshot: stalwart-login-page
-- tapOn: "you@example.com"
-- inputText: ${LOGIN}
-- tapOn: "••••••••"
-- inputText: ${PASSWORD}
+- runFlow:
+    file: type-web.yaml
+    env:
+      HINT: "you@example.com"
+      TEXT: ${LOGIN}
+- runFlow:
+    file: type-web.yaml
+    env:
+      HINT: "••••••••"
+      TEXT: ${PASSWORD}
 - runFlow:
     when:
       true: ${TOTP == 'yes'}

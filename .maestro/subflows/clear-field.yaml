@@ -1,13 +1,11 @@
-# Empty the field with id FIELD. A tap puts the cursor where it lands, and
-# eraseText only deletes before the cursor, so select everything first.
+# Empty the field with id FIELD. A tap puts the cursor where it lands and
+# eraseText only deletes before the cursor, so erase in passes: each tap
+# lands in the middle of what is left.
 appId: org.bulwarkmail.mobile
 ---
-- longPressOn:
-    id: ${FIELD}
-- runFlow:
-    when:
-      visible: "Select All"
+- repeat:
+    times: 4
     commands:
-      - tapOn: "Select All"
-      - pressKey: Backspace
-- eraseText: 120
+      - tapOn:
+          id: ${FIELD}
+      - eraseText: 100
