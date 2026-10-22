@@ -1,8 +1,13 @@
-# Push on iOS: the relay's payload carries only ids; the notification service
-# extension (plugins/ios-push) fetches sender and subject before the banner
-# shows. A tap opens the message, with the app running and from a cold start.
-# The helper sends the message as userb and pushes with simctl, so this needs
-# no APNs key.
+# Push on iOS: the relay's payload carries only ids and a placeholder text.
+# A tap opens the message, with the app running and from a cold start. The
+# helper sends the message as userb and pushes the relay's payload with
+# simctl, so this needs no APNs key.
+#
+# simctl push hands the payload to the simulator as a local notification
+# request: the notification service extension (plugins/ios-push), which
+# puts sender and subject in, never runs that way (the log shows no
+# NotificationService process). So the banner shows the placeholder here;
+# the extension needs a real APNs push to be tested.
 appId: org.bulwarkmail.mobile
 name: Push notification on iOS
 tags:
@@ -40,10 +45,10 @@ tags:
     visible: ".*${output.subject}.*|.*New message.*"
     timeout: 30000
 - takeScreenshot: push-01-banner
-# Sender and subject come from the extension, not the relay.
-- assertVisible: ".*User B.*"
-- assertNotVisible: ".*New message.*"
-- tapOn: ".*${output.subject}.*"
+- runFlow:
+    file: ../subflows/tap-notification.yaml
+    env:
+      TEXT: ".*${output.subject}.*|.*New message.*"
 - extendedWaitUntil:
     visible: "Reply All"
     timeout: 60000
@@ -58,10 +63,13 @@ tags:
     env:
       CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(output.subject2)}
 - extendedWaitUntil:
-    visible: ".*${output.subject2}.*"
+    visible: ".*${output.subject2}.*|.*New message.*"
     timeout: 30000
 - takeScreenshot: push-03-banner-cold
-- tapOn: ".*${output.subject2}.*"
+- runFlow:
+    file: ../subflows/tap-notification.yaml
+    env:
+      TEXT: ".*${output.subject2}.*|.*New message.*"
 - extendedWaitUntil:
     visible: "Reply All"
     timeout: 90000

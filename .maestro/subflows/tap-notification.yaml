@@ -1,0 +1,16 @@
+# Tap the notification matching TEXT: the banner while it shows, else the
+# entry in Notification Center (pulled down from the top left).
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      notVisible: ${TEXT}
+    commands:
+      - swipe:
+          start: 20%,1%
+          end: 20%,60%
+          duration: 500
+      - extendedWaitUntil:
+          visible: ${TEXT}
+          timeout: 10000
+- tapOn: ${TEXT}
