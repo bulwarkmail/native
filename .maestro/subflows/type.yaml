@@ -20,7 +20,7 @@ appId: org.bulwarkmail.mobile
     when:
       true: ${ERASE == 'yes'}
     commands:
-      - eraseText: 80
+      - runFlow: clear-field.yaml
 - inputText: ${TEXT}
 - runFlow:
     when:
@@ -31,11 +31,8 @@ appId: org.bulwarkmail.mobile
       - retry:
           maxRetries: 2
           commands:
-            - tapOn:
-                id: ${FIELD}
-            - waitForAnimationToEnd:
-                timeout: 2000
-            - eraseText: 80
+            - runFlow:
+                file: clear-field.yaml
             - waitForAnimationToEnd:
                 timeout: 1000
             - inputText: ${TEXT}

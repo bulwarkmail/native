@@ -3,10 +3,10 @@
 appId: org.bulwarkmail.mobile
 ---
 - extendedWaitUntil:
-    visible: "Two-factor code|Inbox"
+    visible: "Authentication code|Inbox"
     timeout: 90000
 - runFlow:
     when:
-      visible: "Two-factor code"
+      visible: "Authentication code"
     commands:
       - runFlow: two-factor.yaml

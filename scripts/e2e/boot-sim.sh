@@ -43,6 +43,28 @@ xcrun simctl spawn "$UDID" defaults write $PREFS KeyboardShowPredictionBar -bool
 xcrun simctl spawn "$UDID" defaults write com.apple.WebUI AutoFillPasswords -bool false || true
 
 xcrun simctl ui "$UDID" appearance "$APPEARANCE"
+# The app is built without signing (no certificate on the runner), so it
+# carries no entitlements and every keychain call (expo-secure-store, which
+# holds the credentials) fails with "A required entitlement isn't present".
+# Sign it ad hoc with the keychain entitlement, as Xcode's "Sign to Run
+# Locally" does for simulator builds.
+ENT="$RUNNER_TEMP/simulator.entitlements"
+cat > "$ENT" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>application-identifier</key>
+  <string>8ZANF9LQ39.org.bulwarkmail.mobile</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>8ZANF9LQ39.org.bulwarkmail.mobile</string>
+  </array>
+</dict>
+</plist>
+PLIST
+codesign --force --sign - --entitlements "$ENT" --timestamp=none "$APP"
+codesign -d --entitlements - "$APP" 2>/dev/null | grep -c keychain-access-groups
 xcrun simctl install "$UDID" "$APP"
 # A photo for the compose flow's attachment.
 xcrun simctl addmedia "$UDID" "$(dirname "$0")/../../assets/icon.png" || true

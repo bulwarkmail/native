@@ -1,9 +1,18 @@
 # A sign-in link from another app asks first. Continue.
 appId: org.bulwarkmail.mobile
 ---
+# simctl openurl acts like a link from another app: iOS asks first.
+- extendedWaitUntil:
+    visible: "Open in .*Bulwark Mobile.*|Sign in with a link.|Open the sign-in page of.*"
+    timeout: ${LINK_WAIT || 60000}
+- runFlow:
+    when:
+      visible: "Open in .*Bulwark Mobile.*"
+    commands:
+      - tapOn: "Open"
 - extendedWaitUntil:
     visible: "Sign in with a link.|Open the sign-in page of.*"
-    timeout: ${LINK_WAIT || 60000}
+    timeout: 20000
 - takeScreenshot: link-confirm-prompt
 - tapOn:
     text: "Continue"

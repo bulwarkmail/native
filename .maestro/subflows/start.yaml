@@ -2,6 +2,13 @@
 # env CAMERA: allow (default) or deny.
 appId: org.bulwarkmail.mobile
 ---
+# A system prompt left over from an earlier flow ("Open in …?") stays on
+# screen across app launches.
+- runFlow:
+    when:
+      visible: "Open in .*"
+    commands:
+      - tapOn: "Cancel"
 - launchApp:
     clearState: true
     clearKeychain: true

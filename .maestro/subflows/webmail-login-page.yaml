@@ -10,9 +10,7 @@ appId: org.bulwarkmail.mobile
 - inputText: ${LOGIN}
 - tapOn: "Enter your password"
 - inputText: ${PASSWORD}
-- tapOn:
-    text: "Sign in"
-    index: 1
+- tapOn: "Sign in"
 - runFlow:
     when:
       true: ${TOTP == 'yes'}
@@ -26,6 +24,5 @@ appId: org.bulwarkmail.mobile
             CALL: /totp
       - tapOn: "000000"
       - inputText: ${output.helper.code}
-      - tapOn:
-          text: "Sign in|Verify"
-          index: 1
+      - tapOn: "Sign in|Verify"
+
