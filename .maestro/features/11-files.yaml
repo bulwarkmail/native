@@ -44,7 +44,14 @@ tags:
     timeout: 20000
 - takeScreenshot: files-04-folder-created
 - longPressOn: ".*${output.folder}.*"
-- tapOn: "Delete"
+- repeat:
+    while:
+      notVisible: "Delete this item.*"
+    times: 3
+    commands:
+      - tapOn: "Delete"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - extendedWaitUntil:
     visible: "Delete this item.*"
     timeout: 10000

@@ -64,7 +64,8 @@ tags:
     visible: "Clear selection"
     timeout: 10000
 - takeScreenshot: actions-04-selected
-- tapOn: "Star"
+# Star (or Unstar, when an earlier run left it starred), then toggle back.
+- tapOn: "Star|Unstar"
 # A bulk action ends selection mode by itself.
 - runFlow:
     when:

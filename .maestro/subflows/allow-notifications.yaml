@@ -1,0 +1,12 @@
+# The app asks for notification permission now and then (calendar
+# reminders, push). The system alert covers the whole app, so XCTest sees
+# nothing else until it is answered: allow it when it is up.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      visible: ".*Would Like to Send You Notifications.*"
+    commands:
+      - tapOn:
+          text: "Allow"
+          optional: true

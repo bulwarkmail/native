@@ -13,8 +13,12 @@ appId: org.bulwarkmail.mobile
     commands:
       - setOrientation: LANDSCAPE_LEFT
 - extendedWaitUntil:
-    visible: "Enter server details manually|Inbox"
+    visible: "Enter server details manually|Inbox|.*Would Like to Send You Notifications.*"
     timeout: 120000
+- runFlow: allow-notifications.yaml
+- extendedWaitUntil:
+    visible: "Enter server details manually|Inbox"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Enter server details manually"
@@ -23,6 +27,7 @@ appId: org.bulwarkmail.mobile
           file: password-sign-in.yaml
           env:
             LOGIN: ${ACCOUNT}@example.org
+- runFlow: allow-notifications.yaml
 - tapOn:
     id: tab-mail
 - runFlow: go-to-inbox.yaml

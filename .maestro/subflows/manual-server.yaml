@@ -17,3 +17,15 @@ appId: org.bulwarkmail.mobile
 - extendedWaitUntil:
     visible: "Sign in with a password instead"
     timeout: 20000
+    optional: true
+# Once in a while the tap doesn't reach the button (it moves as the keyboard
+# goes away): tap again if the form is still there.
+- runFlow:
+    when:
+      visible:
+        id: login-server-input
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000
