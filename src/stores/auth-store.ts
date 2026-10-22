@@ -811,6 +811,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // data from a previous session.
       useEmailStore.getState().setActiveAccount(target.id);
 
+      // Start from the session saved at the last connect: the cached mail
+      // shows without waiting for the server, and a fresh session follows.
+      let fromCache = false;
+      try {
+        fromCache = await jmapClient.loadAccountFromCache(target.id);
+      } catch {
+        fromCache = false;
+      }
+      if (fromCache) {
+        accountStore.setActiveAccount(target.id);
+        applyConnectedState(set, jmapClient.currentSession!, target.serverUrl, target.username, target.id);
+        perfMark('restore-done', { cached: true });
+        refetchFeatureStores();
+        void revalidateRestoredSession(target.id);
+        void syncAccountDisplayName(target.id);
+        return true;
+      }
+
       try {
         const ok = await jmapClient.loadAccount(target.id);
         perfMark('restore-session');
@@ -928,6 +946,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+/**
+ * After a start from the saved session: fetch a fresh one. New capabilities
+ * or URLs replace the saved ones; bad credentials go the way of any 401 on a
+ * live session (retrySession, then the sign-in screen); no network marks the
+ * account offline, as a start without network always did.
+ */
+async function revalidateRestoredSession(accountId: string): Promise<void> {
+  const before = jmapClient.accountId;
+  try {
+    const fresh = await jmapClient.revalidateSession();
+    if (!fresh || useAuthStore.getState().activeAccountId !== accountId) return;
+    useAuthStore.setState({ session: fresh, accountId: jmapClient.accountId });
+    useAccountStore.getState().updateAccount(accountId, { isConnected: true, hasError: false, errorMessage: undefined });
+    if (jmapClient.accountId !== before) refetchFeatureStores();
+  } catch (err) {
+    if (useAuthStore.getState().activeAccountId !== accountId) return;
+    if (err instanceof AuthenticationError) {
+      useAuthStore.setState({ session: null });
+      await useAuthStore.getState().retrySession();
+      return;
+    }
+    useAccountStore.getState().updateAccount(accountId, {
+      isConnected: false,
+      hasError: true,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 // A 401 on a live session (revoked password/token, expired refresh token)
 // used to leave the user on a dead session until relaunch: nothing outside

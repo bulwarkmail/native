@@ -6,6 +6,8 @@ vi.mock('../../api/jmap-client', () => ({
     logout: vi.fn(),
     restoreSession: vi.fn(),
     loadAccount: vi.fn(),
+    loadAccountFromCache: vi.fn(async () => false),
+    revalidateSession: vi.fn(async () => null),
     consumeLegacyCredentials: vi.fn(async () => null),
     clearAccountCredentials: vi.fn(async () => undefined),
     clearAllCredentials: vi.fn(async () => undefined),
@@ -35,7 +37,7 @@ vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
 }));
 
-import { jmapClient } from '../../api/jmap-client';
+import { jmapClient, AuthenticationError } from '../../api/jmap-client';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
@@ -49,6 +51,8 @@ import { lastBodyHeight, rememberBodyHeight } from '../../lib/body-heights';
 const mockConnect = jmapClient.connect as ReturnType<typeof vi.fn>;
 const mockLogout = jmapClient.logout as ReturnType<typeof vi.fn>;
 const mockLoadAccount = jmapClient.loadAccount as ReturnType<typeof vi.fn>;
+const mockLoadFromCache = jmapClient.loadAccountFromCache as ReturnType<typeof vi.fn>;
+const mockRevalidate = jmapClient.revalidateSession as ReturnType<typeof vi.fn>;
 
 function resetAccountStore(): void {
   useAccountStore.setState({
@@ -234,6 +238,61 @@ describe('auth-store', () => {
 
       expect(restored).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    describe('from the session saved at the last connect', () => {
+      function registerAccount() {
+        useAccountStore.setState({
+          accounts: [{
+            id: 'acc-1', serverUrl: 'https://mail.example.com', username: 'user',
+            displayName: 'user', email: 'user', avatarColor: '#000', lastLoginAt: 0,
+            isConnected: true, hasError: false, isDefault: true,
+          }],
+          activeAccountId: 'acc-1',
+          defaultAccountId: 'acc-1',
+        });
+      }
+
+      // Start-up used to wait for the server's session document before the
+      // cached inbox could show.
+      it('shows the account without waiting for the server', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockReturnValueOnce(new Promise(() => undefined));
+
+        const restored = await useAuthStore.getState().restoreSession();
+
+        expect(restored).toBe(true);
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+        expect(useAuthStore.getState().activeAccountId).toBe('acc-1');
+        expect(mockLoadAccount).not.toHaveBeenCalled();
+        expect(mockRevalidate).toHaveBeenCalledTimes(1);
+      });
+
+      it('signs out when the server refuses the stored credentials', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockRejectedValueOnce(new AuthenticationError('Invalid credentials'));
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('Invalid credentials'));
+
+        await useAuthStore.getState().restoreSession();
+        await vi.waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+
+        expect(useAuthStore.getState().error).toBe('Session expired');
+        expect(useAccountStore.getState().accounts).toEqual([]);
+      });
+
+      it('stays signed in and marks the account offline without network', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockRejectedValueOnce(new Error('Network request failed'));
+
+        await useAuthStore.getState().restoreSession();
+        await vi.waitFor(() => expect(useAccountStore.getState().accounts[0].hasError).toBe(true));
+
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+        expect(useAccountStore.getState().accounts[0].isConnected).toBe(false);
+      });
     });
 
     it('stops waiting for a persisted store that never finishes hydrating', async () => {

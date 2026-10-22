@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   JMAPSession,
   JMAPMethodCall,
@@ -42,6 +43,20 @@ const CREDENTIALS_PREFIX = 'jmap_credentials__';
 // SecureStore keys: letters, digits, ".", "-", "_" only - no "@" or "/".
 function credentialsKey(accountId: string): string {
   return CREDENTIALS_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+// The session document from the account's last connect (URLs, account ids,
+// capabilities; no secrets). Start-up uses it to show the account without
+// waiting for the network, then fetches a fresh one (revalidateSession).
+const SESSION_CACHE_PREFIX = 'jmap_session_cache__';
+
+function sessionCacheKey(accountId: string): string {
+  return SESSION_CACHE_PREFIX + accountId;
+}
+
+interface CachedSession {
+  serverUrl: string;
+  session: JMAPSession;
 }
 
 export interface StoredCredentials {
@@ -524,7 +539,72 @@ export class JMAPClient {
       );
     }
     this._accountId = this.resolveAccountId(this.session);
+    this.rememberSession(accountId);
     return true;
+  }
+
+  /**
+   * Start-up without a network round trip: the account's credentials and the
+   * session document saved at its last connect. Returns false when either is
+   * missing (or the saved one is for another server); the caller then uses
+   * loadAccount. A wrong password or revoked token surfaces on the first
+   * request (401, onAuthFailure) or in revalidateSession.
+   */
+  async loadAccountFromCache(accountId: string): Promise<boolean> {
+    const [stored, cachedRaw] = await Promise.all([
+      SecureStore.getItemAsync(credentialsKey(accountId)),
+      AsyncStorage.getItem(sessionCacheKey(accountId)).catch(() => null),
+    ]);
+    if (!stored || !cachedRaw) return false;
+    let creds: StoredCredentials;
+    let cached: CachedSession;
+    try {
+      creds = JSON.parse(stored);
+      cached = JSON.parse(cachedRaw);
+    } catch {
+      return false;
+    }
+    if (!cached?.session?.apiUrl || cached.serverUrl !== creds.serverUrl) return false;
+    let accountIdInSession: string;
+    try {
+      accountIdInSession = this.resolveAccountId(cached.session);
+    } catch {
+      return false;
+    }
+    this.credentials = creds;
+    this.firstTouchGate.reset();
+    this.session = cached.session;
+    this._accountId = accountIdInSession;
+    return true;
+  }
+
+  /**
+   * Fetch a fresh session document for the account the client holds now,
+   * after a start from the saved one. Resolves null when the client moved to
+   * another account meanwhile (the result is dropped). Throws
+   * AuthenticationError / NetworkError like loadAccount.
+   */
+  async revalidateSession(): Promise<JMAPSession | null> {
+    const creds = this.credentials;
+    if (!creds) return null;
+    let fresh: JMAPSession;
+    try {
+      fresh = this.rewriteSessionUrls(await this.fetchSession(creds.serverUrl), creds.serverUrl);
+    } catch (err) {
+      if (this.credentials !== creds) return null;
+      throw err;
+    }
+    if (this.credentials !== creds) return null;
+    this.session = fresh;
+    this._accountId = this.resolveAccountId(fresh);
+    this.rememberSession(generateAccountId(creds.username, creds.serverUrl));
+    return fresh;
+  }
+
+  private rememberSession(accountId: string): void {
+    if (!this.session || !this.credentials) return;
+    const entry: CachedSession = { serverUrl: this.credentials.serverUrl, session: this.session };
+    void AsyncStorage.setItem(sessionCacheKey(accountId), JSON.stringify(entry)).catch(() => undefined);
   }
 
   /**
@@ -548,12 +628,14 @@ export class JMAPClient {
 
   async clearAccountCredentials(accountId: string): Promise<void> {
     await SecureStore.deleteItemAsync(credentialsKey(accountId));
+    await AsyncStorage.removeItem(sessionCacheKey(accountId)).catch(() => undefined);
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
     await Promise.all([
       SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
       ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
+      ...accountIds.map((id) => AsyncStorage.removeItem(sessionCacheKey(id)).catch(() => undefined)),
     ]);
   }
 
@@ -616,6 +698,7 @@ export class JMAPClient {
     await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
     if (currentAccountId) {
       await SecureStore.deleteItemAsync(credentialsKey(currentAccountId));
+      await AsyncStorage.removeItem(sessionCacheKey(currentAccountId)).catch(() => undefined);
     }
   }
 
@@ -835,6 +918,7 @@ export class JMAPClient {
     const baseUrl = this.credentials.serverUrl;
     this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
     this._accountId = this.resolveAccountId(this.session);
+    this.rememberSession(generateAccountId(this.credentials.username, baseUrl));
     return this.session;
   }
 
