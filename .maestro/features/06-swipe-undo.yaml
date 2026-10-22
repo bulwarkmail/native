@@ -6,6 +6,10 @@ tags:
   - features
 ---
 - runFlow: ../subflows/signed-in.yaml
+- scrollUntilVisible:
+    element: ".*Grüße aus München.*"
+    direction: DOWN
+    timeout: 20000
 - swipe:
     from: ".*Grüße aus München.*"
     direction: LEFT

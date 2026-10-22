@@ -52,11 +52,16 @@ tags:
     direction: DOWN
     timeout: 10000
 - tapOn: "Add reminder"
+- scrollUntilVisible:
+    element: "15 minutes before"
+    direction: DOWN
+    timeout: 10000
 - tapOn: "15 minutes before"
 - takeScreenshot: calendar-05-editor
 - tapOn: "Save"
+# The editor closes (its Save goes; the FAB is labelled "New event" too).
 - extendedWaitUntil:
-    notVisible: "New event"
+    notVisible: "Save"
     timeout: 20000
 
 # Find it in the schedule and open it

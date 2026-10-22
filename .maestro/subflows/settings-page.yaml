@@ -1,17 +1,35 @@
 # Settings list: scroll to the row ROW (regex on "Title, summary"), open it,
 # check PROOF shows, screenshot, and go back on a phone. On the iPad the list
 # is a left column, so scroll there instead of the middle of the screen.
+# (Swipe coordinates have to be literals.)
 appId: org.bulwarkmail.mobile
 ---
-- repeat:
-    while:
-      notVisible: ${ROW}
-    times: 10
+- runFlow:
+    when:
+      true: ${DEVICE == 'tablet'}
     commands:
-      - swipe:
-          start: "${DEVICE == 'tablet' ? '18%,80%' : '50%,80%'}"
-          end: "${DEVICE == 'tablet' ? '18%,40%' : '50%,40%'}"
-          duration: 600
+      - repeat:
+          while:
+            notVisible: ${ROW}
+          times: 10
+          commands:
+            - swipe:
+                start: 18%,80%
+                end: 18%,40%
+                duration: 600
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - repeat:
+          while:
+            notVisible: ${ROW}
+          times: 10
+          commands:
+            - swipe:
+                start: 50%,80%
+                end: 50%,40%
+                duration: 600
 - tapOn: ${ROW}
 - extendedWaitUntil:
     visible: ${PROOF}
