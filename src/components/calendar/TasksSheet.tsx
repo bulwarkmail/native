@@ -4,7 +4,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -45,6 +44,7 @@ import { formatCalendarDate } from '../../lib/date-format';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 type TaskFilter = 'all' | 'pending' | 'completed' | 'overdue';
 
@@ -235,7 +235,7 @@ export function TasksSheet({
   ];
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
@@ -480,7 +480,7 @@ export function TasksSheet({
           }}
         />
       )}
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

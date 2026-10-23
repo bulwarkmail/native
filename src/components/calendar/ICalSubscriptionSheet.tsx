@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput, ActivityIndicator, Alert,
+  View, Text, StyleSheet, ScrollView, Pressable, Animated, Easing, TextInput, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Plus, RefreshCw, Trash2, Rss, AlertTriangle } from '../icons';
@@ -19,6 +19,7 @@ import {
 import { jmapClient } from '../../api/jmap-client';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 // The webmail's refresh intervals and their labels.
 const INTERVAL_OPTIONS: { minutes: number; key: string; fallback: string }[] = [
@@ -135,7 +136,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
@@ -313,7 +314,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
           <View style={{ height: insets.bottom }} />
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

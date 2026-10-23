@@ -3,7 +3,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -63,6 +62,7 @@ import { recurrenceEndLabel, recurrenceIntervalLabel } from '../../lib/recurrenc
 import type { TranslateFn } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 
@@ -248,7 +248,7 @@ export function EventDetailSheet({
   };
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS}
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}
       transparent
       animationType="none"
@@ -464,7 +464,7 @@ export function EventDetailSheet({
       {/* The screen's own toast host sits under this Modal; this one shows
           the copy confirmation above the sheet. */}
       <ToastHost />
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

@@ -39,6 +39,7 @@ import type { RootStackParamList } from '../navigation/types';
 import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { confirmSignOut } from '../lib/sign-out-confirm';
+import { SafeAreaModal } from './SafeAreaModal';
 import { setPendingSettingsTab } from '../navigation/pending-settings-tab';
 import {
   isAccountMuted, isMailboxMuted, mailboxOverridesForAccount, resetMailboxMutes, setAccountMuted, setMailboxMuted,
@@ -1240,8 +1241,11 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     );
   }
 
+  // Its own safe-area provider: the panel's SafeAreaView starts off screen
+  // (it slides in), and without one it measured no insets on iOS, so the
+  // account header sat under the status bar.
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS}
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}
       transparent
       animationType="none"
@@ -1268,7 +1272,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
           onClose={() => setPrompt(null)}
         />
       )}
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

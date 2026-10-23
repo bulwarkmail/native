@@ -3,7 +3,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +23,7 @@ import { BIRTHDAY_CALENDAR_ID } from '../../lib/birthday-calendar';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 /** A calendar view listed at the top of the drawer. */
 export interface DrawerViewOption {
@@ -157,7 +157,7 @@ export function CalendarSidebarDrawer({
   };
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS}
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}
       transparent
       animationType="none"
@@ -271,7 +271,7 @@ export function CalendarSidebarDrawer({
           </ScrollView>
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 
