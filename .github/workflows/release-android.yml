@@ -441,6 +441,7 @@ jobs:
           cp android/app/build/outputs/mapping/playRelease/mapping.txt "$MAPPING"
           echo "aab=$AAB" >> "$GITHUB_OUTPUT"
           echo "mapping=$MAPPING" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -450,11 +451,11 @@ jobs:
             ${{ steps.artifact.outputs.mapping }}
           if-no-files-found: error
 
-      # Runs once PLAY_SERVICE_ACCOUNT_JSON is set. Play only accepts API
-      # uploads after the first bundle was uploaded by hand in the Console, and
-      # releases of an app that was never published must be drafts; switch
-      # `status` to `completed` after the first production release.
-      - name: Upload to Google Play (internal testing, draft)
+      # Runs once PLAY_SERVICE_ACCOUNT_JSON is set (Play only accepts API
+      # uploads after the first bundle was uploaded by hand in the Console).
+      # Every release goes out to the internal and closed (beta) testers right
+      # away; closed testing may wait for Google's review first.
+      - name: Upload to Google Play (internal and closed testing)
         if: env.PLAY_SERVICE_ACCOUNT_JSON != ''
         uses: r0adkll/upload-google-play@v1
         with:
@@ -462,5 +463,6 @@ jobs:
           packageName: org.bulwarkmail.mobile
           releaseFiles: ${{ steps.artifact.outputs.aab }}
           mappingFile: ${{ steps.artifact.outputs.mapping }}
-          track: internal
-          status: draft
+          releaseName: ${{ steps.artifact.outputs.version }}
+          tracks: internal,beta
+          status: completed

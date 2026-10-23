@@ -228,9 +228,11 @@ The `play-bundle` job builds `bundlePlayRelease` for arm64-v8a, armeabi-v7a and
 x86_64 (Play splits the bundle per ABI), checks the signer, the package name and
 the permissions, and keeps the AAB and its R8 mapping as a workflow artifact.
 With the `PLAY_SERVICE_ACCOUNT_JSON` secret set (vault: "Google Play – service
-account bulwark-google-play-api") it also uploads the bundle to the internal
-testing track as a draft. Play only accepts API uploads once a first bundle has
-been uploaded by hand in the Play Console.
+account bulwark-google-play-api") it also uploads the bundle and rolls it out
+on the internal and closed (beta) testing tracks, so testers get every release
+without a step in the Play Console; closed testing may wait for Google's
+review. Play only accepts API uploads once a first bundle has been uploaded by
+hand in the Play Console.
 
 The `github` flavor stays on the old Firebase project until the app registers
 its new FCM token with the relay when the token changes; moving it before that
