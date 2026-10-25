@@ -16,6 +16,14 @@ describe('describeLoginError', () => {
     expect(copy.detail).toMatch(/app password/i);
   });
 
+  it('blames a refused access token on the token, not on a password', () => {
+    for (const err of [named('InvalidTokenError', 'Invalid access token'), 'Invalid access token']) {
+      const copy = describeLoginError(err);
+      expect(copy.detail).toMatch(/access token/);
+      expect(copy.detail).not.toMatch(/password/i);
+    }
+  });
+
   it('explains the auth store\'s "Session expired" notice', () => {
     expect(describeLoginError('Session expired').title).toBe('Your session has expired. Please sign in again.');
     expect(describeLoginError('Session expired for this account').title).toBe('Your session has expired. Please sign in again.');

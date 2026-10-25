@@ -80,6 +80,7 @@ function signInLinkConfirmation(
  */
 export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: LoginScreenProps) {
   const login = useAuthStore((state) => state.login);
+  const loginWithToken = useAuthStore((state) => state.loginWithToken);
   const loginViaWebmail = useAuthStore((state) => state.loginViaWebmail);
   const loginViaPairing = useAuthStore((state) => state.loginViaPairing);
   const clearError = useAuthStore((state) => state.clearError);
@@ -102,6 +103,10 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // common no-2FA sign-in stays a two-field form.
   const [totp, setTotp] = React.useState('');
   const [totpRequired, setTotpRequired] = React.useState(false);
+  // Access-token (Bearer) sign-in in place of username and password, for
+  // providers that hand out API tokens (Fastmail accepts nothing else).
+  const [tokenMode, setTokenMode] = React.useState(false);
+  const [accessToken, setAccessToken] = React.useState('');
   const [failedDomain, setFailedDomain] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<LoginErrorCopy | null>(null);
   const [searching, setSearching] = React.useState(false);
@@ -261,6 +266,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       setPassword(pending.password);
       setServerUrl(pending.serverUrl);
       setTotpRequired(true);
+      setTokenMode(false);
       setBusy(null);
       setNotice(describeLoginError(err, { serverUrl: target, t }));
       setHistory((prev) => [...prev, step]);
@@ -340,6 +346,26 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       setNotice({ title: t('login.mobile.notice_need_server', 'We need a server address first') });
       return;
     }
+
+    if (tokenMode) {
+      if (!accessToken.trim()) {
+        setNotice({ title: t('login.token_placeholder', 'Paste your API token') });
+        return;
+      }
+      setNotice(null);
+      setBusy('connecting');
+      const wasAuthenticated = useAuthStore.getState().isAuthenticated;
+      try {
+        await loginWithToken(target, accessToken, { addAccount: isAddMode });
+        finishIfSignedIn(wasAuthenticated);
+      } catch (err) {
+        setNotice(describeLoginError(err, { serverUrl: target, t }));
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
     if (!email.trim() || !password) {
       setNotice({ title: t('login.mobile.notice_need_credentials', 'Enter your email and password') });
       return;
@@ -369,7 +395,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     } finally {
       setBusy(null);
     }
-  }, [email, finishIfSignedIn, isAddMode, login, password, serverInput, serverUrl, totp, totpRequired, t]);
+  }, [accessToken, email, finishIfSignedIn, isAddMode, login, loginWithToken, password, serverInput, serverUrl, tokenMode, totp, totpRequired, t]);
 
   // A sign-in code, however it arrived: scanned, pasted, or a tapped
   // `bulwarkmail://` link.
@@ -517,7 +543,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       <SigningInStep
         phase={busy}
         serverUrl={pairing ? pairingWebmailUrl : serverUrl || knownServerUrl}
-        email={pairing ? null : email.trim() || null}
+        email={pairing || tokenMode ? null : email.trim() || null}
       />
     );
   }
@@ -655,6 +681,17 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
             }}
             onSubmit={() => void handlePasswordSubmit()}
             notice={notice}
+            tokenMode={tokenMode}
+            token={accessToken}
+            onChangeToken={(value) => {
+              setNotice(null);
+              setAccessToken(value);
+            }}
+            onToggleTokenMode={() => {
+              setNotice(null);
+              clearError();
+              setTokenMode((v) => !v);
+            }}
           />
         ) : null}
       </LoginShell>

@@ -8,7 +8,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 
 import * as SecureStore from 'expo-secure-store';
-import { JMAPClient, AuthenticationError, RateLimitError, parseHoldLimit } from '../jmap-client';
+import { JMAPClient, AuthenticationError, InvalidTokenError, RateLimitError, parseHoldLimit } from '../jmap-client';
 import type { JMAPSession } from '../types';
 
 const MOCK_SESSION: JMAPSession = {
@@ -113,8 +113,10 @@ describe('JMAPClient', () => {
   });
 
   describe('connectWithToken', () => {
+    const TOKEN_SESSION = { ...MOCK_SESSION, username: 'user@example.com' };
+
     it('should use Bearer auth', async () => {
-      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      global.fetch = mockFetch([{ status: 200, json: TOKEN_SESSION }]) as any;
 
       await client.connectWithToken('https://mail.example.com', 'my-token');
 
@@ -127,6 +129,70 @@ describe('JMAPClient', () => {
         }),
       );
       expect(client.isConnected).toBe(true);
+    });
+
+    it('names the account after the session and remembers the token', async () => {
+      global.fetch = mockFetch([{ status: 200, json: TOKEN_SESSION }]) as any;
+
+      const { username, accountId } = await client.connectWithToken('https://mail.example.com/', 'my-token');
+
+      expect(username).toBe('user@example.com');
+      expect(accountId).toBe('user@example.com@mail.example.com');
+      const [key, stored] = vi.mocked(SecureStore.setItemAsync).mock.calls.at(-1)!;
+      expect(key).toContain('user_example.com');
+      expect(JSON.parse(stored)).toMatchObject({
+        serverUrl: 'https://mail.example.com',
+        username: 'user@example.com',
+        accessToken: 'my-token',
+      });
+      expect(client.usesPastedToken).toBe(true);
+    });
+
+    it('refuses a token the server rejects', async () => {
+      global.fetch = mockFetch([{ status: 401 }]) as any;
+
+      await expect(client.connectWithToken('https://mail.example.com', 'bad')).rejects.toThrow(InvalidTokenError);
+      expect(client.isConnected).toBe(false);
+    });
+
+    it('refuses a session that does not name the account', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+
+      await expect(client.connectWithToken('https://mail.example.com', 'my-token')).rejects.toThrow('did not name the account');
+      expect(client.isConnected).toBe(false);
+    });
+
+    it('keeps a download host the server runs on another HTTPS origin', async () => {
+      global.fetch = mockFetch([{
+        status: 200,
+        json: {
+          ...TOKEN_SESSION,
+          apiUrl: 'https://api.fastmail.com/jmap/api/',
+          downloadUrl: 'https://www.fastmailusercontent.com/jmap/download/{accountId}/{blobId}/{name}?type={type}',
+          uploadUrl: 'https://api.fastmail.com/jmap/upload/{accountId}/',
+        },
+      }]) as any;
+
+      const { session } = await client.connectWithToken('https://api.fastmail.com', 'my-token');
+
+      expect(session.downloadUrl).toBe('https://www.fastmailusercontent.com/jmap/download/{accountId}/{blobId}/{name}?type={type}');
+      expect(session.uploadUrl).toBe('https://api.fastmail.com/jmap/upload/{accountId}/');
+    });
+
+    it('still moves self-reported internal hosts onto the server address', async () => {
+      global.fetch = mockFetch([{
+        status: 200,
+        json: {
+          ...TOKEN_SESSION,
+          apiUrl: 'http://localhost:8080/jmap/',
+          downloadUrl: 'http://localhost:8080/download/{accountId}/{blobId}/{name}?type={type}',
+        },
+      }]) as any;
+
+      const { session } = await client.connectWithToken('https://mail.example.com', 'my-token');
+
+      expect(session.apiUrl).toBe('https://mail.example.com/jmap/');
+      expect(session.downloadUrl).toBe('https://mail.example.com/download/{accountId}/{blobId}/{name}?type={type}');
     });
   });
 

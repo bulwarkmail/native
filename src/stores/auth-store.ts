@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { jmapClient, AuthenticationError, NetworkError, type ClientSnapshot } from '../api/jmap-client';
+import { jmapClient, AuthenticationError, InvalidTokenError, NetworkError, type ClientSnapshot } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
 import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-security';
 import { useAccountStore } from './account-store';
@@ -86,6 +86,8 @@ export interface AuthState {
     password: string,
     opts?: { addAccount?: boolean; totp?: string },
   ) => Promise<void>;
+  /** Access-token (Bearer) sign-in with a token the user pasted, e.g. a Fastmail API token. */
+  loginWithToken: (serverUrl: string, token: string, opts?: { addAccount?: boolean }) => Promise<void>;
   loginViaWebmail: (webmailUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
   /** OAuth/OIDC (PKCE) straight against the mail server's authorization server. */
   loginViaOAuth: (serverUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
@@ -255,10 +257,23 @@ async function syncAccountDisplayName(accountId: string): Promise<void> {
 // pairing both end here). Bootstraps a JMAP session from the token bundle,
 // registers the account, and flips the store to connected. Throws on failure
 // so the caller can surface a flow-specific error.
-async function completeOAuthHandoff(
+function completeOAuthHandoff(
   set: (partial: Partial<AuthState>) => void,
   get: () => AuthState,
   result: Extract<HandoffResult, { flow: 'oauth' }>,
+  opts?: { addAccount?: boolean },
+): Promise<void> {
+  return completeBearerSignIn(set, get, result.serverUrl, () => jmapClient.connectWithOAuth(result.serverUrl, result.tokens), opts);
+}
+
+// Connects with `connect` (an OAuth bundle or a pasted access token, where the
+// server names the account), registers the account, and flips the store to
+// connected.
+async function completeBearerSignIn(
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+  serverUrl: string,
+  connect: () => Promise<{ session: JMAPSession; username: string; accountId: string }>,
   opts?: { addAccount?: boolean },
 ): Promise<void> {
   // Adding an account must not destroy the live one: the singleton keeps the
@@ -268,7 +283,7 @@ async function completeOAuthHandoff(
 
   let connected: { session: JMAPSession; username: string; accountId: string };
   try {
-    connected = await jmapClient.connectWithOAuth(result.serverUrl, result.tokens);
+    connected = await connect();
   } catch (err) {
     if (previous) jmapClient.restoreSnapshot(previous);
     throw err;
@@ -279,7 +294,7 @@ async function completeOAuthHandoff(
   const wasRegistered = !!accountStore.getAccountById(accountId);
   try {
     accountStore.addAccount({
-      serverUrl: result.serverUrl.replace(/\/+$/, ''),
+      serverUrl: serverUrl.replace(/\/+$/, ''),
       username,
       displayName: username,
       email: username,
@@ -300,7 +315,7 @@ async function completeOAuthHandoff(
   accountStore.setActiveAccount(accountId);
   useEmailStore.getState().setActiveAccount(accountId);
 
-  applyConnectedState(set, session, result.serverUrl.replace(/\/+$/, ''), username, accountId);
+  applyConnectedState(set, session, serverUrl.replace(/\/+$/, ''), username, accountId);
   // Start on the folder list now rather than once the mail screen has
   // mounted; the screen joins this load.
   void useEmailStore.getState().fetchMailboxes();
@@ -410,6 +425,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             ? err.message
             : 'Connection failed';
       set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  loginWithToken: async (serverUrl, typedToken, opts) => {
+    set({ isLoading: true, error: null });
+    // Pasted tokens often come with the scheme or surrounding whitespace.
+    const token = typedToken.trim().replace(/^Bearer\s+/i, '');
+    const base = serverUrl.replace(/\/+$/, '');
+    try {
+      if (!token || /\s/.test(token)) throw new InvalidTokenError();
+      await completeBearerSignIn(set, get, base, () => jmapClient.connectWithToken(base, token), opts);
+      set({ pendingTotpLogin: null });
+    } catch (err) {
+      set({ isLoading: false, error: err instanceof Error ? err.message : 'Connection failed' });
       throw err;
     }
   },

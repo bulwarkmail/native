@@ -177,6 +177,12 @@ export class JMAPClient {
     return !!this.credentials?.accessToken;
   }
 
+  // A pasted access token, as opposed to an OAuth bundle (which always names
+  // the token endpoint it renews at).
+  get usesPastedToken(): boolean {
+    return !!this.credentials?.accessToken && !this.credentials.tokenEndpoint;
+  }
+
   get isConnected(): boolean {
     return this.session !== null && this._accountId !== null;
   }
@@ -294,15 +300,42 @@ export class JMAPClient {
     return session;
   }
 
-  async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
+  /**
+   * Access-token login (an API token the user pasted, e.g. from Fastmail).
+   * The token is the whole credential: it names the account, so the username
+   * comes from the session, and with no refresh token it lasts until the
+   * provider expires or revokes it.
+   */
+  async connectWithToken(
+    serverUrl: string,
+    accessToken: string,
+  ): Promise<{ session: JMAPSession; username: string; accountId: string }> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
     this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
 
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
+    try {
+      this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
+    } catch (err) {
+      this.credentials = null;
+      if (err instanceof AuthenticationError || (err instanceof Error && /^Session discovery failed: 403\b/.test(err.message))) {
+        throw new InvalidTokenError();
+      }
+      throw err;
+    }
     this._accountId = this.resolveAccountId(this.session);
     this.firstTouchGate.reset();
 
-    return this.session;
+    const username = this.session.username;
+    if (!username) {
+      this.reset();
+      throw new Error('The server did not name the account');
+    }
+    this.credentials.username = username;
+
+    const accountId = generateAccountId(username, baseUrl);
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(this.credentials));
+
+    return { session: this.session, username, accountId };
   }
 
   // OAuth login via webmail handoff. The webmail did the OAuth dance against
@@ -612,16 +645,26 @@ export class JMAPClient {
   // URL polyfill mutates inputs (appends trailing slashes, normalises
   // characters) and would corrupt the RFC 6570 templates {accountId}/{blobId}
   // before the caller has a chance to substitute values into them.
+  //
+  // A URL on another HTTPS origin than the server's own apiUrl is one it
+  // deliberately hosts elsewhere (Fastmail serves downloads from a separate
+  // domain) and is kept; everything else moves onto the origin we connected to.
   private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
     const serverOrigin = extractOrigin(serverUrl);
+    const reportedOrigin = session.apiUrl ? extractOrigin(session.apiUrl) : null;
     const rewrite = (url: string | undefined): string | undefined =>
       rewriteSessionUrl(url, serverOrigin);
+    const rewriteHosted = (url: string | undefined): string | undefined => {
+      const origin = url ? extractOrigin(url) : null;
+      const hostedElsewhere = !!origin && !!reportedOrigin && origin !== reportedOrigin && /^https:/i.test(origin);
+      return hostedElsewhere ? url : rewrite(url);
+    };
     return {
       ...session,
       apiUrl: rewrite(session.apiUrl) ?? session.apiUrl,
-      downloadUrl: rewrite(session.downloadUrl) ?? session.downloadUrl,
-      uploadUrl: rewrite(session.uploadUrl) ?? session.uploadUrl,
-      eventSourceUrl: rewrite(session.eventSourceUrl) ?? session.eventSourceUrl,
+      downloadUrl: rewriteHosted(session.downloadUrl) ?? session.downloadUrl,
+      uploadUrl: rewriteHosted(session.uploadUrl) ?? session.uploadUrl,
+      eventSourceUrl: rewriteHosted(session.eventSourceUrl) ?? session.eventSourceUrl,
     };
   }
 
@@ -1280,6 +1323,14 @@ export class AuthenticationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AuthenticationError';
+  }
+}
+
+// The server refused a pasted access token (wrong, expired or revoked).
+export class InvalidTokenError extends Error {
+  constructor() {
+    super('Invalid access token');
+    this.name = 'InvalidTokenError';
   }
 }
 
