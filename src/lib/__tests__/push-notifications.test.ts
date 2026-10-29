@@ -514,6 +514,35 @@ describe('push types for device sync (#34)', () => {
     expect(destroyMock).not.toHaveBeenCalled();
   });
 
+  it("retries with the mail types alone when Stalwart refuses the types property", async () => {
+    await syncing({ [CONTACTS]: true });
+    // Stalwart's own answer to a type it doesn't know.
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Invalid data type.', ['types']));
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(createMock.mock.calls.map((c) => c[0].types))
+      .toEqual([['EmailDelivery', 'ContactCard', 'AddressBook'], ['EmailDelivery']]);
+  });
+
+  it('does not drop the device sync types over a failure that is not about them', async () => {
+    await syncing({ [CONTACTS]: true });
+    for (const failure of [
+      new Error('Network request failed'),
+      new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']),
+      new JMAPSetError('overQuota', 'There are too many subscriptions'),
+    ]) {
+      createMock.mockClear();
+      createMock.mockRejectedValueOnce(failure);
+      const err = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((e) => e);
+      expect(err).toBeInstanceOf(PushSetupError);
+      expect(createMock.mock.calls.map((c) => c[0].types)).toEqual([['EmailDelivery', 'ContactCard', 'AddressBook']]);
+    }
+
+    // The next attempt (the next launch) subscribes with them.
+    createMock.mockClear();
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(createMock.mock.calls.map((c) => c[0].types)).toEqual([['EmailDelivery', 'ContactCard', 'AddressBook']]);
+  });
+
   it('subscribes with them', async () => {
     await syncing({ [CALENDAR]: true });
     await setupPushNotifications({ relayBaseUrl: RELAY });

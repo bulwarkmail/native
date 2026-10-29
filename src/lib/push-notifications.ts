@@ -275,7 +275,8 @@ const EMAIL_PUSH_PROPERTIES = ['id', 'threadId'];
 // user re-enables it from settings.
 const SUBSCRIPTION_EXPIRES_DAYS = 90;
 // When an existing subscription has less than this much lifetime left, push
-// expires forward on the next app start.
+// expires forward on the next app start. Stalwart (0.16 and 1.0) clamps every
+// expiry to seven days, so there each start refreshes it.
 const SUBSCRIPTION_REFRESH_THRESHOLD_DAYS = 7;
 // A recorded subscription missing from the server was revoked only if it still
 // had at least this long to live; closer to its expiry (or with the clock a
@@ -509,9 +510,24 @@ async function writeWithEmailPush<T>(
 }
 
 /**
+ * Whether a refused subscription write may be about its types. A failed
+ * request says nothing about them, and a SetError naming other properties
+ * (the push URL, the emailPush map) or meaning the subscription limit or a
+ * missing record would fail the same way with fewer types; retrying those
+ * with the mail types alone would only drop device sync's on a write that
+ * later goes through.
+ */
+function mayConcernTypes(err: unknown): boolean {
+  if (!(err instanceof JMAPMethodError)) return false;
+  if (!isJMAPSetError(err)) return true;
+  if (err.type !== 'invalidProperties') return false;
+  return !err.properties || err.properties.includes('types');
+}
+
+/**
  * Run a subscription write with the account's push types and, when the server
- * refuses it while they include device sync's, once more with the mail types
- * alone: mail push never depends on device sync (#34).
+ * refuses it over them while they include device sync's, once more with the
+ * mail types alone: mail push never depends on device sync (#34).
  */
 async function writeWithPushTypes<T>(
   types: readonly string[],
@@ -520,7 +536,7 @@ async function writeWithPushTypes<T>(
   try {
     return await write(types);
   } catch (err) {
-    if (sameTypes(types, PUSH_TYPES)) throw err;
+    if (sameTypes(types, PUSH_TYPES) || !mayConcernTypes(err)) throw err;
     logPhase('jmap', 'push types refused, retrying with the mail types alone');
     return write(PUSH_TYPES);
   }
@@ -1301,10 +1317,12 @@ async function setupPushNotificationsInner(
   }
 
   // Reap leftover Stalwart subscriptions that would otherwise starve the new
-  // one's verification. Stalwart emits only one PushVerification per account
-  // per ~60s and picks the oldest unverified subscription, so a single stale
-  // straggler blocks every fresh attempt - the symptom is the confusing
-  // "Timed out waiting for PushVerification" error. We can't read a
+  // one's verification. Stalwart (0.16 and 1.0) emits only one
+  // PushVerification per account per 60 s, to the newest unverified
+  // subscription, and sends the next one when that window has passed: every
+  // straggler created or touched just before ours delays it by a window, and
+  // a swarm of them ends in the confusing "Timed out waiting for
+  // PushVerification" error. We can't read a
   // subscription's verified state or URL over JMAP (Stalwart hides both), only
   // its deviceClientId, so we decide what's safe to remove like this:
   //   - same deviceClientId as ours: a previous attempt from THIS device,
@@ -1663,7 +1681,8 @@ export async function teardownPushNotifications(): Promise<void> {
     if (storedSubId) {
       // Will only succeed if the jmapClient happens to be authenticated to
       // this account right now. We don't switch the client to attempt each
-      // one; the subscription will expire server-side instead (90-day TTL).
+      // one; the subscription expires server-side instead (Stalwart keeps
+      // one for at most seven days without a refresh).
       await destroyPushSubscription(storedSubId).catch(() => undefined);
     }
     if (relayBaseUrl && storedDcid) {
