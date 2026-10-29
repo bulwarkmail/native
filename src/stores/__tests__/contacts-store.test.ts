@@ -71,6 +71,7 @@ import {
   selectGroupMembers,
   sortContactsByName,
   selectCreateTargetBookId,
+  selectImportUidMatches,
   CONTACTS_STALE_MS,
 } from '../contacts-store';
 import type { AddressBook, ContactCard } from '../../api/types';
@@ -429,6 +430,7 @@ describe('contacts-store', () => {
       const result = await useContactsStore.getState().importContacts(
         [{ id: 'import-1', uid: 'urn:uuid:aaa', addressBookIds: { x: true }, name: { full: 'New' } }],
         'ab-1',
+        new Set(['urn:uuid:aaa']),
       );
       expect(mockCreateContact).not.toHaveBeenCalled();
       expect(mockUpdateContact).toHaveBeenCalledWith('c1', { name: { full: 'New' } }, undefined);
@@ -445,9 +447,51 @@ describe('contacts-store', () => {
       const result = await useContactsStore.getState().importContacts(
         [{ id: 'import-1', uid: 'urn:uuid:bbb', name: { full: 'B' } }],
         'ab-1',
+        new Set(['urn:uuid:bbb']),
       );
       expect(mockUpdateContact).toHaveBeenCalledWith('m', { name: { full: 'B' } }, undefined);
       expect(result).toMatchObject({ imported: 0, updated: 1, failed: 0, failures: [] });
+    });
+
+    // Another app's export numbers its cards "1", "2": the same UID can be
+    // another contact, which the import replaced wholesale without asking.
+    it('replaces a card with the same UID only when the user chose to', async () => {
+      useContactsStore.setState({
+        addressBooks: [{ id: 'ab-1', name: 'P' }],
+        contacts: [card('c1', { uid: '1', name: { full: 'Anna' } }), card('c2', { uid: '2', name: { full: 'Ben' } })],
+      });
+      mockCreateContact.mockRejectedValueOnce(new Error('Contact with UID 3 already exists with id c9. (uid)'));
+      const result = await useContactsStore.getState().importContacts(
+        [
+          { id: 'import-1', uid: '1', name: { full: 'Carla' } },
+          { id: 'import-2', uid: '2', name: { full: 'Ben B.' } },
+          { id: 'import-3', uid: '3', name: { full: 'Dora' } },
+        ],
+        'ab-1',
+        new Set(['2']),
+      );
+      expect(mockUpdateContact).toHaveBeenCalledTimes(1);
+      expect(mockUpdateContact).toHaveBeenCalledWith('c2', { name: { full: 'Ben B.' } }, undefined);
+      expect(result).toMatchObject({ imported: 0, updated: 1, failed: 2 });
+      expect(result.failures.map((f) => f.name)).toEqual(['Carla', 'Dora']);
+      expect(useContactsStore.getState().contacts.map((c) => c.name?.full)).toEqual(['Anna', 'Ben B.']);
+    });
+
+    it('tells the import sheet which cards an import would replace, in the target book\'s account', () => {
+      const state = {
+        addressBooks: [
+          { id: 'ab-1', name: 'P' },
+          { id: 'acc-team:ab-9', originalId: 'ab-9', name: 'Team', isShared: true, accountId: 'acc-team' },
+        ] as AddressBook[],
+        contacts: [
+          card('c1', { uid: '1' }),
+          card('acc-team:t1', { uid: '2', isShared: true, accountId: 'acc-team' }),
+        ],
+      };
+      const incoming = [{ uid: '1' }, { uid: '2' }, { uid: '3' }, {}];
+      expect([...selectImportUidMatches(state, incoming, 'ab-1')].map(([i, c]) => [i, c.id])).toEqual([[0, 'c1']]);
+      expect([...selectImportUidMatches(state, incoming, 'acc-team:ab-9')].map(([i, c]) => [i, c.id]))
+        .toEqual([[1, 'acc-team:t1']]);
     });
   });
 

@@ -5,7 +5,9 @@ import { MoveSheet } from '../MoveSheet';
 import { FilterRuleModal } from './FilterRuleModal';
 import type { Email, Mailbox } from '../../api/types';
 import { getSieveAccountId, getSieveCapabilities } from '../../api/sieve';
-import { OpaqueFiltersError, updateAccountFilters } from '../../api/sieve-rules';
+import { FiltersLoginChangedError, OpaqueFiltersError, updateAccountFilters } from '../../api/sieve-rules';
+import { jmapClient } from '../../api/jmap-client';
+import { servedLoginOf } from '../../lib/draft-login';
 import { supportsPeriods } from '../../lib/sieve/period';
 import {
   applyQuickRule,
@@ -22,6 +24,7 @@ import {
 } from '../../lib/sieve/quick-rules';
 import type { FilterRule } from '../../lib/sieve/types';
 import { generateUUID } from '../../lib/uuid';
+import { useAccountStore } from '../../stores/account-store';
 import { useFilterStore } from '../../stores/filter-store';
 import { useKeywordsStore } from '../../stores/keywords-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -56,9 +59,20 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
   const identities = useSettingsStore((s) => s.identities);
   const keywords = useKeywordsStore((s) => s.keywords);
   const [step, setStep] = React.useState<Step>({ kind: 'menu' });
+  // The login and Sieve account the sheet opened in. The rule is built from
+  // that login's message and folders; after a switch it must not go into the
+  // other login, where the same ids name other folders.
+  const openedIn = React.useRef<{ login: string | null; accountId: string | null }>({ login: null, accountId: null });
 
   React.useEffect(() => {
-    if (visible) setStep({ kind: 'menu' });
+    if (!visible) return;
+    setStep({ kind: 'menu' });
+    let accountId: string | null = null;
+    try { accountId = getSieveAccountId(); } catch { /* not connected yet */ }
+    // Not connected yet (a cold start), the cached message is the active
+    // login's.
+    const login = servedLoginOf(jmapClient) ?? useAccountStore.getState().activeAccountId;
+    openedIn.current = { login, accountId };
   }, [visible]);
 
   const ownAddresses = React.useMemo(
@@ -85,11 +99,17 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
 
   /** Write `modify`'s rules into the own account's script and say how it went. */
   const write = async (modify: (rules: FilterRule[]) => FilterRule[] | null) => {
-    const accountId = getSieveAccountId();
+    const { login } = openedIn.current;
+    let accountId = openedIn.current.accountId;
     try {
-      await updateAccountFilters(modify, accountId);
+      // Read now only when the sheet opened before the session was up;
+      // updateAccountFilters refuses it unless the login is still the same.
+      accountId ??= getSieveAccountId();
+      await updateAccountFilters(modify, accountId, login);
     } catch (err) {
-      if (err instanceof OpaqueFiltersError) {
+      if (err instanceof FiltersLoginChangedError) {
+        toast.error(t('context_menu.rules.login_changed', 'You switched accounts, so the rule was not saved'));
+      } else if (err instanceof OpaqueFiltersError) {
         toast.error(t('context_menu.rules.opaque_hint', 'Your filters were edited by hand. Open Filters settings'));
       } else {
         toast.error(t('notifications.filters_save_failed', 'Failed to save filters'), err instanceof Error ? err.message : undefined);

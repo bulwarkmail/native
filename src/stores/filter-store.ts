@@ -17,7 +17,9 @@ import {
   updateSieveScript,
   validateSieveScript,
 } from '../api/sieve';
-import { OpaqueFiltersError } from '../api/sieve-rules';
+import { FiltersLoginChangedError, OpaqueFiltersError } from '../api/sieve-rules';
+import { jmapClient } from '../api/jmap-client';
+import { servedLoginOf } from '../lib/draft-login';
 
 export { OpaqueFiltersError };
 
@@ -414,7 +416,8 @@ function sameForward(a: VacationForward | null, b: VacationForward | null): bool
  * active filters script, so for it the script is activated even without
  * rules, and created when there is none. `audience` likewise replaces who
  * gets the auto-reply (null: everyone). `period` is the vacation's, which
- * whatever forwarding there is keeps to.
+ * whatever forwarding there is keeps to. `login` is the login the vacation
+ * was saved in: once the client serves another, nothing is written.
  */
 export async function syncVacationWithFilters(
   enabled: boolean,
@@ -422,6 +425,7 @@ export async function syncVacationWithFilters(
   forward?: VacationForward | null,
   audience?: VacationAudience | null,
   period?: { from: string | null; until: string | null },
+  login?: string | null,
 ): Promise<void> {
   const sieveAccountId = accountId ?? getSieveAccountId();
   const capabilities = getSieveCapabilities(sieveAccountId);
@@ -474,6 +478,7 @@ export async function syncVacationWithFilters(
     extensions: capabilities?.sieveExtensions,
   });
   const activate = enabled || forwarding || !!target?.isActive;
+  if (login !== undefined && servedLoginOf(jmapClient) !== login) throw new FiltersLoginChangedError();
   if (target) {
     await updateSieveScript(target.id, content, activate, sieveAccountId);
   } else {

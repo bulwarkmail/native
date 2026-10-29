@@ -90,4 +90,21 @@ describe('updateAccountFilters', () => {
     await expect(updateAccountFilters(() => [rule('new')], 'own')).rejects.toBeInstanceOf(FiltersLoginChangedError);
     expect(api.createSieveScript).not.toHaveBeenCalled();
   });
+
+  // A rule made from a message and the folders of the login the sheet
+  // opened in, saved after a switch.
+  it('writes nothing into another login than the one the rule was built in', async () => {
+    api.getSieveScripts.mockResolvedValue([]);
+    const modify = vi.fn(() => [rule('new')]);
+    client.username = 'other@example.net';
+    await expect(updateAccountFilters(modify, 'own', 'me@example.org@mail.example.org'))
+      .rejects.toBeInstanceOf(FiltersLoginChangedError);
+    expect(api.getSieveScripts).not.toHaveBeenCalled();
+    expect(modify).not.toHaveBeenCalled();
+    expect(api.createSieveScript).not.toHaveBeenCalled();
+
+    client.username = 'me@example.org';
+    expect(await updateAccountFilters(modify, 'own', 'me@example.org@mail.example.org')).toBe(true);
+    expect(api.createSieveScript).toHaveBeenCalledTimes(1);
+  });
 });

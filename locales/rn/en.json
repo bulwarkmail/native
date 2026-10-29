@@ -273,7 +273,9 @@
       "into_named": "Import into {name}",
       "no_address_book": "Create an address book before importing contacts.",
       "picker_failed": "Could not open the file picker",
+      "replaces": "Replaces {name}",
       "unnamed": "Unnamed contact",
+      "update_existing": "Update existing",
       "updated_count": "{count, plural, one {1 contact was already there and has been updated.} other {# contacts were already there and have been updated.}}"
     },
     "no_tags_hint": "No tags yet. Type one above.",
@@ -287,7 +289,10 @@
   },
   "context_menu": {
     "color_tag": "Tag",
-    "remove_color": "Remove tag"
+    "remove_color": "Remove tag",
+    "rules": {
+      "login_changed": "You switched accounts, so the rule was not saved"
+    }
   },
   "deep_link": {
     "open_failed": "Couldn't open this"
@@ -719,6 +724,9 @@
       "username_label": "Email or username",
       "your_server": "your server"
     }
+  },
+  "notifications": {
+    "vacation_filters_off": "Out of office settings saved, but your filters are switched off. Save again to turn them back on."
   },
   "offline": {
     "banner": "You are offline",

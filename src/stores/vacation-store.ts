@@ -6,6 +6,8 @@ import {
   type VacationResponse,
 } from '../api/vacation';
 import { isSieveSupported } from '../api/sieve';
+import { jmapClient } from '../api/jmap-client';
+import { servedLoginOf } from '../lib/draft-login';
 import type { VacationAudience, VacationForward } from '../lib/sieve/types';
 import { withVacationPeriod } from '../lib/sieve/vacation-forward';
 import { readVacationFilters, syncVacationWithFilters, type VacationFilters } from './filter-store';
@@ -19,9 +21,17 @@ export type VacationForwardSettings = Pick<VacationForward, 'enabled' | 'to' | '
  * or still run, and the auto-reply may go to the wrong senders.
  */
 export class VacationFiltersError extends Error {
-  constructor(cause: unknown) {
+  /**
+   * The auto-reply was turned on and the filters script could not be made
+   * to run next to it: Stalwart's vacation script took over, and no filter
+   * runs until the card is saved again.
+   */
+  readonly filtersOff: boolean;
+
+  constructor(cause: unknown, filtersOff = false) {
     super(cause instanceof Error ? cause.message : 'Failed to save the forwarding');
     this.name = 'VacationFiltersError';
+    this.filtersOff = filtersOff;
   }
 }
 
@@ -147,8 +157,13 @@ export const useVacationStore = create<VacationState>((set, get) => ({
   save: async (updates) => {
     const { forward: forwardSettings, audience, ...vacationUpdates } = updates;
     const accountId = get().accountId ?? undefined;
+    // The client serves one login at a time, and account ids repeat across
+    // logins: after a switch, the sync below would write this login's
+    // forwarding, recipients and period into the other login's filters.
+    const login = servedLoginOf(jmapClient);
+    const loginChanged = () => servedLoginOf(jmapClient) !== login;
     // What the save leaves in the store is dropped once another account took over.
-    const superseded = () => (get().accountId ?? undefined) !== accountId;
+    const superseded = () => (get().accountId ?? undefined) !== accountId || loginChanged();
     set({ isSaving: true, error: null });
     try {
       await setVacationResponse(vacationUpdates, accountId);
@@ -169,21 +184,33 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     let filtersError: VacationFiltersError | null = null;
     let filtersState: Partial<VacationState> = {};
     const needsSync = vacationUpdates.isEnabled !== undefined || forwardSettings !== undefined || audience !== undefined;
+    const enabled = vacationUpdates.isEnabled ?? state.isEnabled;
+    // Turning the auto-reply on activates Stalwart's vacation script, which
+    // switches the filters off until the sync includes it in them again.
+    const turnedOn = vacationUpdates.isEnabled === true;
+    if (needsSync && loginChanged()) {
+      set({ isSaving: false });
+      throw new VacationFiltersError(new Error('Another account took over before the filters were updated'), turnedOn);
+    }
     if (needsSync && isSieveSupported(accountId)) {
       let synced = false;
       try {
-        await syncVacationWithFilters(
-          vacationUpdates.isEnabled ?? state.isEnabled, accountId, forwardSettings, audience, period,
-        );
+        await syncVacationWithFilters(enabled, accountId, forwardSettings, audience, period, login);
         synced = true;
       } catch (err) {
         console.warn('[vacation] Failed to keep filters active next to the vacation response:', err);
         // Forwarding that is or was on may now not run, or still run; an
         // auto-reply meant for some senders may go to everyone, or the other
-        // way round.
-        if (forwardSettings?.enabled || state.forward?.enabled || audience || state.audience) {
-          filtersError = new VacationFiltersError(err);
+        // way round; the filters may be off.
+        if (turnedOn || forwardSettings?.enabled || state.forward?.enabled || audience || state.audience) {
+          filtersError = new VacationFiltersError(err, turnedOn);
         }
+      }
+      // The filters read below would be the other login's.
+      if (loginChanged()) {
+        set({ isSaving: false });
+        if (filtersError) throw filtersError;
+        return;
       }
       // What the filters script holds now, and whether it runs. After a
       // failed save the card keeps what the user set, to save it again.

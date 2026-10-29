@@ -253,7 +253,9 @@
       "into_address_book": "In Adressbuch importieren",
       "into_named": "In {name} importieren",
       "no_address_book": "Erstellen Sie ein Adressbuch, bevor Sie Kontakte importieren.",
-      "picker_failed": "Die Dateiauswahl konnte nicht geöffnet werden"
+      "picker_failed": "Die Dateiauswahl konnte nicht geöffnet werden",
+      "replaces": "Ersetzt {name}",
+      "update_existing": "Vorhandenen aktualisieren"
     },
     "no_tags_hint": "Noch keine Kategorien. Geben Sie oben eine ein.",
     "picker": {
@@ -266,7 +268,10 @@
   },
   "context_menu": {
     "color_tag": "Label",
-    "remove_color": "Label entfernen"
+    "remove_color": "Label entfernen",
+    "rules": {
+      "login_changed": "Sie haben das Konto gewechselt, daher wurde die Regel nicht gespeichert"
+    }
   },
   "device_sync": {
     "auth_problem_text": "Der Server akzeptiert die Anmeldung von {account} nicht mehr, daher werden die Kontakte und Kalender dieses Kontos auf diesem Gerät nicht mehr synchronisiert. Melden Sie sich erneut an, um fortzufahren. Auf diesem Gerät vorgenommene Änderungen bleiben erhalten.",
@@ -653,6 +658,9 @@
       "username_label": "E-Mail oder Benutzername",
       "your_server": "Ihrem Server"
     }
+  },
+  "notifications": {
+    "vacation_filters_off": "Abwesenheits-Einstellungen gespeichert, aber Ihre Filter sind ausgeschaltet. Speichern Sie noch einmal, um sie wieder einzuschalten."
   },
   "offline": {
     "banner": "Sie sind offline",

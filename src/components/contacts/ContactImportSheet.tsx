@@ -8,7 +8,7 @@ import { Upload, X, Check, FileText, AlertTriangle, BookUser } from '../icons';
 import type { ContactCard } from '../../api/types';
 import { parseVCard, detectDuplicates } from '../../lib/vcard';
 import { getContactDisplayName, getContactPrimaryEmail } from '../../lib/contact-utils';
-import { useContactsStore, type ContactImportResult } from '../../stores/contacts-store';
+import { selectImportUidMatches, useContactsStore, type ContactImportResult } from '../../stores/contacts-store';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -49,6 +49,7 @@ export default function ContactImportSheet({
   const insets = useSafeAreaInsets();
   const t = useLocaleStore((s) => s.t);
   const existing = useContactsStore((s) => s.contacts);
+  const addressBooks = useContactsStore((s) => s.addressBooks);
   const importContacts = useContactsStore((s) => s.importContacts);
 
   const [parsed, setParsed] = React.useState<ContactCard[]>([]);
@@ -57,6 +58,28 @@ export default function ContactImportSheet({
   const [error, setError] = React.useState<string | null>(null);
   const [importing, setImporting] = React.useState(false);
   const [result, setResult] = React.useState<ContactImportResult | null>(null);
+  // Cards whose UID the target's account already has: importing one replaces
+  // that card, which may be another contact (an older export, another app's
+  // "1", "2" UIDs). Left unselected, like an e-mail duplicate, until the user
+  // picks them.
+  const uidMatches = React.useMemo(
+    () => selectImportUidMatches({ contacts: existing, addressBooks }, parsed, targetBookId),
+    [existing, addressBooks, parsed, targetBookId],
+  );
+  // Another target book (another account) or a refreshed list can match
+  // cards the user has not seen marked yet: those start unselected too.
+  const shownMatches = React.useRef<Map<number, ContactCard>>(new Map());
+  React.useEffect(() => {
+    const before = shownMatches.current;
+    shownMatches.current = uidMatches;
+    const fresh = [...uidMatches.keys()].filter((idx) => !before.has(idx));
+    if (fresh.length === 0) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const idx of fresh) next.delete(idx);
+      return next;
+    });
+  }, [uidMatches]);
 
   const slideY = React.useRef(new Animated.Value(900)).current;
   // Centred on a wide window, clear of side insets in landscape.
@@ -120,8 +143,9 @@ export default function ContactImportSheet({
         return;
       }
       const dupes = detectDuplicates(existing, contacts);
+      const replaces = selectImportUidMatches({ contacts: existing, addressBooks }, contacts, targetBookId);
       const initial = new Set<number>();
-      contacts.forEach((_, idx) => { if (!dupes.has(idx)) initial.add(idx); });
+      contacts.forEach((_, idx) => { if (!dupes.has(idx) && !replaces.has(idx)) initial.add(idx); });
       setParsed(contacts);
       setDuplicates(dupes);
       setSelected(initial);
@@ -152,9 +176,15 @@ export default function ContactImportSheet({
     }
     const toImport = parsed.filter((_, i) => selected.has(i));
     if (toImport.length === 0) return;
+    // Only the existing cards the user left selected are replaced.
+    const updateUids = new Set<string>();
+    for (const idx of selected) {
+      const uid = parsed[idx]?.uid;
+      if (uid && uidMatches.has(idx)) updateUids.add(uid);
+    }
     setImporting(true);
     try {
-      const outcome = await importContacts(toImport, targetBookId);
+      const outcome = await importContacts(toImport, targetBookId, updateUids);
       setResult(outcome);
       onImported?.(outcome.imported + outcome.updated);
     } catch (e) {
@@ -276,6 +306,8 @@ export default function ContactImportSheet({
                   const name = getContactDisplayName(contact);
                   const email = getContactPrimaryEmail(contact);
                   const isDupe = duplicates.has(idx);
+                  const replaces = uidMatches.get(idx);
+                  const replacesName = replaces ? getContactDisplayName(replaces) || getContactPrimaryEmail(replaces) : '';
                   const isSelected = selected.has(idx);
                   return (
                     <Pressable
@@ -294,8 +326,15 @@ export default function ContactImportSheet({
                         {!!email && !!name && (
                           <Text style={styles.rowEmail} numberOfLines={1}>{email}</Text>
                         )}
+                        {!!replaces && !!replacesName && replacesName !== (name || email) && (
+                          <Text style={styles.rowEmail} numberOfLines={1}>
+                            {t('contacts.import.replaces', 'Replaces {name}', { name: replacesName })}
+                          </Text>
+                        )}
                       </View>
-                      {isDupe && (
+                      {replaces ? (
+                        <Text style={styles.dupeBadge}>{t('contacts.import.update_existing', 'Update existing')}</Text>
+                      ) : isDupe && (
                         <Text style={styles.dupeBadge}>{t('contacts.import.duplicate', 'Duplicate')}</Text>
                       )}
                     </Pressable>
