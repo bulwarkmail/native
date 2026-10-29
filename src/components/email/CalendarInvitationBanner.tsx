@@ -5,7 +5,7 @@ import {
   CalendarPlus, Check, HelpCircle, X, MapPin, Video, Clock, CalendarDays, AlertTriangle,
   ShieldCheck, ShieldAlert, ChevronDown,
 } from '../icons';
-import { format, parseISO } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -17,9 +17,11 @@ import {
   calendarInvitationKey,
   findCalendarAttachment,
   findParticipantByEmail,
+  getInvitationDisplayRange,
   getInvitationMethod,
   getInvitationTrustAssessment,
   getOrganizerName,
+  invitationZoneLabel,
   buildReplyTo,
   type InvitationMethod,
   type InvitationTrustAssessment,
@@ -65,7 +67,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = getDateFnsLocale(locale);
   const enabled = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const calendars = useCalendarStore((s) => s.calendars);
@@ -172,13 +175,25 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   }
   if (!event) return null;
 
-  const startStr = event.showWithoutTime ? event.start : (event.utcStart || event.start);
-  const startDate = startStr ? parseISO(startStr) : null;
-  const dateLabel = startDate && !isNaN(startDate.getTime())
-    ? (event.showWithoutTime
-        ? format(startDate, 'EEEE, MMM d, yyyy', { locale: dateLocale })
-        : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale }))
-    : null;
+  // In the user's zone, with its name, for an event at a fixed moment; the
+  // organizer's wall clock otherwise read as a device time (webmail #1252).
+  const range = getInvitationDisplayRange(event);
+  let dateLabel: string | null = null;
+  if (range) {
+    const time = timePattern(timeFormat);
+    if (event.showWithoutTime) {
+      const day = 'EEEE, MMM d, yyyy';
+      dateLabel = format(range.start, day, { locale: dateLocale })
+        + (range.end ? ` – ${format(range.end, day, { locale: dateLocale })}` : '');
+    } else {
+      dateLabel = format(range.start, `EEE, MMM d · ${time}`, { locale: dateLocale });
+      if (range.end) {
+        dateLabel += ` – ${format(range.end, isSameDay(range.start, range.end) ? time : `EEE, MMM d · ${time}`, { locale: dateLocale })}`;
+      }
+      const zone = range.instant ? invitationZoneLabel(range.instant, locale) : null;
+      if (zone) dateLabel += ` ${zone}`;
+    }
+  }
   const organizer = getOrganizerName(event);
   const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
   const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;

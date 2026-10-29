@@ -1,4 +1,6 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
+import { parseDuration, parseLocalDateTime } from './calendar-utils';
+import { getEffectiveTimeZone, isValidTimeZone, localDateTimeToInstant, toDisplayDate } from './calendar-timezone';
 
 // ─── Address helpers ─────────────────────────────────────
 
@@ -450,4 +452,76 @@ export function getInvitationTrustAssessment(
     return { level: 'caution', reason: 'authentication_missing', senderEmail, organizerEmail };
   }
   return { level: 'trusted', reason: null, senderEmail, organizerEmail };
+}
+
+// ─── When ────────────────────────────────────────────────
+
+/** What the invitation banner shows as an event's time. */
+export interface InvitationDisplayRange {
+  /** Display dates (see toDisplayDate): their local fields are what to show. */
+  start: Date;
+  end: Date | null;
+  /**
+   * The real start instant, for an event at a fixed moment (a UTC time or a
+   * zoned wall clock) shown in the user's zone: worth a zone label. Unset
+   * for all-day and floating events, which read the same everywhere.
+   */
+  instant?: Date;
+}
+
+const HAS_UTC_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * The banner's start and end of an invitation. CalendarEvent/parse gives
+ * `start` as a wall clock in `timeZone` and no `utcStart`, so the start has
+ * to be resolved in that zone and shown in the user's: read as a device
+ * time, it showed the organizer's clock without saying so (webmail #1252).
+ * An all-day event gets its last day (the end is exclusive) or none for a
+ * single day; a floating time stays as written.
+ */
+export function getInvitationDisplayRange(
+  event: Partial<Pick<CalendarEvent, 'start' | 'duration' | 'timeZone' | 'showWithoutTime' | 'utcStart' | 'utcEnd'>>,
+): InvitationDisplayRange | null {
+  if (!event.start) return null;
+  const durationMs = parseDuration(event.duration);
+  if (event.showWithoutTime) {
+    const start = parseLocalDateTime(event.start.slice(0, 10));
+    if (isNaN(start.getTime())) return null;
+    const days = Math.round(durationMs / 86_400_000);
+    if (days <= 1) return { start, end: null };
+    const last = new Date(start);
+    last.setDate(last.getDate() + days - 1);
+    return { start, end: last };
+  }
+
+  let instant: Date | null = null;
+  if (event.utcStart) instant = new Date(event.utcStart);
+  else if (HAS_UTC_OFFSET.test(event.start)) instant = new Date(event.start);
+  else if (event.timeZone && isValidTimeZone(event.timeZone)) instant = localDateTimeToInstant(event.start, event.timeZone);
+  if (instant && !isNaN(instant.getTime())) {
+    let end: Date | null = event.utcEnd ? new Date(event.utcEnd) : null;
+    if ((!end || isNaN(end.getTime())) && durationMs > 0) end = new Date(instant.getTime() + durationMs);
+    return {
+      start: toDisplayDate(instant),
+      end: end && !isNaN(end.getTime()) && end.getTime() > instant.getTime() ? toDisplayDate(end) : null,
+      instant,
+    };
+  }
+
+  // Floating: the same wall clock everywhere.
+  const start = parseLocalDateTime(event.start);
+  if (isNaN(start.getTime())) return null;
+  return { start, end: durationMs > 0 ? new Date(start.getTime() + durationMs) : null };
+}
+
+/** The short name of the user's calendar zone at `instant` ("CET", "GMT+1"), or null. */
+export function invitationZoneLabel(instant: Date, locale?: string): string | null {
+  try {
+    const part = new Intl.DateTimeFormat(locale, { timeZone: getEffectiveTimeZone(), timeZoneName: 'short' })
+      .formatToParts(instant)
+      .find((p) => p.type === 'timeZoneName');
+    return part?.value ?? null;
+  } catch {
+    return null;
+  }
 }

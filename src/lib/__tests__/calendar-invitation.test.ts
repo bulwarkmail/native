@@ -1,15 +1,56 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { format } from 'date-fns';
 import type { Email } from '../../api/types';
+import { useSettingsStore } from '../../stores/settings-store';
 import {
   calendarInvitationKey,
   extractMethodFromContentType,
   extractMethodFromRawIcs,
   findCalendarAttachment,
   getEmailAuthenticationResults,
+  getInvitationDisplayRange,
   getInvitationMethod,
   getInvitationTrustAssessment,
+  invitationZoneLabel,
   parseAuthenticationResults,
 } from '../calendar-invitation';
+
+describe('getInvitationDisplayRange (webmail #1252)', () => {
+  afterEach(() => {
+    useSettingsStore.setState({ calendarTimeZone: 'auto' });
+  });
+  const shown = (d: Date | null | undefined) => (d ? format(d, 'yyyy-MM-dd HH:mm') : null);
+
+  it('shows an organizer\'s wall clock in the user\'s zone', () => {
+    useSettingsStore.setState({ calendarTimeZone: 'Europe/Warsaw' });
+    // As CalendarEvent/parse gives an Exchange invitation from London: no utcStart.
+    const range = getInvitationDisplayRange({ start: '2026-10-20T15:00:00', timeZone: 'Europe/London', duration: 'PT25M' });
+    expect(shown(range?.start)).toBe('2026-10-20 16:00');
+    expect(shown(range?.end)).toBe('2026-10-20 16:25');
+    expect(range?.instant?.toISOString()).toBe('2026-10-20T14:00:00.000Z');
+    expect(invitationZoneLabel(range!.instant!, 'en')).toBeTruthy();
+  });
+
+  it('takes the server\'s UTC start when it has one', () => {
+    useSettingsStore.setState({ calendarTimeZone: 'America/New_York' });
+    const range = getInvitationDisplayRange({ start: '2026-10-20T15:00:00', timeZone: 'Europe/London', utcStart: '2026-10-20T14:00:00Z', utcEnd: '2026-10-20T15:00:00Z' });
+    expect(shown(range?.start)).toBe('2026-10-20 10:00');
+    expect(shown(range?.end)).toBe('2026-10-20 11:00');
+  });
+
+  it('leaves floating times and all-day dates as written', () => {
+    useSettingsStore.setState({ calendarTimeZone: 'America/New_York' });
+    const floating = getInvitationDisplayRange({ start: '2026-10-20T15:00:00', duration: 'PT1H' });
+    expect(shown(floating?.start)).toBe('2026-10-20 15:00');
+    expect(floating?.instant).toBeUndefined();
+    const oneDay = getInvitationDisplayRange({ start: '2026-10-20T00:00:00', duration: 'P1D', showWithoutTime: true });
+    expect(shown(oneDay?.start)).toBe('2026-10-20 00:00');
+    expect(oneDay?.end).toBeNull();
+    // The stored end is exclusive: three days end on the third.
+    const threeDays = getInvitationDisplayRange({ start: '2026-10-20T00:00:00', duration: 'P3D', showWithoutTime: true });
+    expect(shown(threeDays?.end)).toBe('2026-10-22 00:00');
+  });
+});
 
 const request = {
   organizerCalendarAddress: 'mailto:alice@example.com',
