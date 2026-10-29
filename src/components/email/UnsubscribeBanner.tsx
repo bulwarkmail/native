@@ -13,7 +13,9 @@ import { sendEmail } from '../../api/email';
 import { pruneEmailSubmissions } from '../../api/submissions';
 import { SubmissionQuotaError } from '../../api/jmap-result';
 import { sendFailureMessage } from '../../lib/send-failure-message';
-import { isValidUnsubscribeUrl, parseMailtoUrl, isOneClickUnsubscribe } from '../../lib/unsubscribe';
+import {
+  isValidUnsubscribeUrl, parseUnsubscribeMailto, isOneClickUnsubscribe, unsubscribeConfirmMessage,
+} from '../../lib/unsubscribe';
 import type { ListHeaders } from '../../lib/email-headers';
 import { findReceivingIdentity } from '../../lib/email-headers';
 import { mailboxesOfAccount } from '../../lib/mailbox-tree';
@@ -66,6 +68,12 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
   const unsub = list.listUnsubscribe;
   const method = unsub?.preferred;
   const url = method === 'http' ? unsub?.http : unsub?.mailto;
+  // The sender wrote this URL: only one recipient and a short subject and
+  // body are sent, and the confirmation shows all of them first.
+  const mailtoFields = React.useMemo(
+    () => (method === 'mailto' && url ? parseUnsubscribeMailto(url) : null),
+    [method, url],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -76,7 +84,7 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
     return () => { cancelled = true; };
   }, [messageKey]);
 
-  if (hidden || !url || !method) return null;
+  if (hidden || !url || !method || (method === 'mailto' && !mailtoFields)) return null;
 
   const dismiss = () => {
     dismissed.add(messageKey);
@@ -100,7 +108,7 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
           await WebBrowser.openBrowserAsync(url);
         }
       } else {
-        const fields = parseMailtoUrl(url);
+        const fields = mailtoFields;
         if (!fields) throw new Error('invalid mailto');
         const identity = findReceivingIdentity(identities, email) ?? identities[0];
         if (!identity) throw new Error(t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
@@ -112,8 +120,7 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
         await sendEmail(
           {
             from: [{ name: identity.name, email: identity.email }],
-            to: fields.to.map((address) => ({ email: address })),
-            cc: fields.cc?.map((address) => ({ email: address })),
+            to: [{ email: fields.to[0] }],
             subject: fields.subject ?? '',
             textBody: fields.body ?? '',
           },
@@ -141,7 +148,10 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
       t('email_viewer.unsubscribe_banner.confirm_title', 'Unsubscribe from this sender?'),
       method === 'http'
         ? t('email_viewer.unsubscribe_banner.confirm_message_http', 'The unsubscribe page will open in a new tab.')
-        : t('email_viewer.unsubscribe_banner.confirm_message_mailto', 'An unsubscribe email will be sent to the sender.'),
+        : unsubscribeConfirmMessage(
+          t('email_viewer.unsubscribe_banner.confirm_message_mailto', 'An unsubscribe email will be sent to the sender.'),
+          mailtoFields,
+        ),
       [
         { text: t('email_viewer.unsubscribe_banner.cancel', 'Cancel'), style: 'cancel' },
         { text: t('email_viewer.unsubscribe_banner.confirm_button', 'Confirm'), onPress: () => { void perform(); } },

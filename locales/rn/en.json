@@ -1327,6 +1327,13 @@
       }
     }
   },
+  "shared_tags": {
+    "description": "Tags of your group mailboxes. Everyone in the group sees the same names and colors on its mail.",
+    "empty": "No shared tags yet.",
+    "loading": "Loading…",
+    "title": "Shared tags",
+    "unsupported": "This mail server can't keep shared tags, so this mailbox shows your own tags."
+  },
   "sharing": {
     "directory_failed": "Couldn't load the list of users and groups.",
     "directory_not_browsable": "Your server doesn't let you browse its user directory.",

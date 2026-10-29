@@ -20,6 +20,7 @@ function matches(email: FakeEmail, filter: Filter | undefined, textModel: Stalwa
   if (!filter) return true;
   return textFilterMatches(textModel, filter, { subject: email.subject ?? '', body: email.preview ?? '' }, (key, value) => {
     if (key === 'inMailbox') return !!email.mailboxIds[value as string];
+    if (key === 'inMailboxOtherThan') return !(value as string[]).some((id) => email.mailboxIds[id]);
     if (key === 'hasKeyword') return !!email.keywords[value as string];
     if (key === 'notKeyword') return !email.keywords[value as string];
     throw new Error(`fake server: unsupported filter ${key}`);

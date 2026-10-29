@@ -239,11 +239,18 @@ describe('JMAP Metadata in the request-building sources', () => {
     /(['"`])metadata(\/[^'"`\n]*)?\1/,
   ];
 
+  // Stalwart 1.0.0 serves Metadata. The one module that reads it (a group's
+  // shared tags) asks only accounts that advertise it, in a request of its
+  // own; its tests cover that.
+  const METADATA_READER = 'src/api/bulwark-metadata.ts';
+
   it('never names a JMAP Metadata property, argument or capability in code', () => {
     const files = [...sourceFiles('src'), 'App.tsx'];
     expect(files).toContain('src/api/email.ts');
+    expect(files).toContain(METADATA_READER);
     const hits: string[] = [];
     for (const file of files) {
+      if (file === METADATA_READER) continue;
       const code = withoutComments(readFileSync(path.join(root, file), 'utf8'));
       for (const pattern of FORBIDDEN) {
         const match = code.match(pattern);

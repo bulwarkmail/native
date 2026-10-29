@@ -264,11 +264,55 @@ export interface EmailFilters {
   keyword?: string;
 }
 
-/** The folder scope a query runs in, resolving the unset default. */
-export function effectiveFolderScope(searchQuery: string, filters: EmailFilters): SearchFolderScope {
+/**
+ * The `folder` value of the "All folders except Spam and Trash" scope when
+ * it is picked explicitly (from inside Spam or Trash, where it is not the
+ * default). It spans the folders like "All folders".
+ */
+export const SCOPE_EXCEPT_TRASH_JUNK = 'all-except-trash-junk';
+
+/**
+ * The folder scope a query runs in, resolving the unset default. A search
+ * from inside Spam or Trash looks there; anywhere else it spans every
+ * folder (and leaves Spam and Trash out, see `searchSkipsTrashAndJunk`).
+ * Webmail 763732fdc, 3904af2cb.
+ */
+export function effectiveFolderScope(
+  searchQuery: string,
+  filters: EmailFilters,
+  openRole?: string | null,
+): SearchFolderScope {
   if (filters.keyword) return 'all';
+  if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return 'all';
   if (filters.folder) return filters.folder;
-  return searchQuery.trim() ? 'all' : 'current';
+  if (!searchQuery.trim()) return 'current';
+  return isTrashOrJunkRole(openRole) ? 'current' : 'all';
+}
+
+/** Trash, or Junk under either role name servers use. */
+export function isTrashOrJunkRole(role: string | null | undefined): boolean {
+  return role === 'trash' || role === 'junk' || role === 'spam';
+}
+
+/**
+ * Whether a search across folders leaves every account's Trash and Junk
+ * out: the default scope does, "All folders" picked explicitly doesn't.
+ */
+export function searchSkipsTrashAndJunk(
+  searchQuery: string,
+  filters: EmailFilters,
+  openRole?: string | null,
+): boolean {
+  if (filters.keyword) return false;
+  if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return true;
+  if (filters.folder) return false;
+  return effectiveFolderScope(searchQuery, filters, openRole) === 'all';
+}
+
+// The role of the folder on screen.
+function openRoleOf(state: Partial<Pick<EmailState, 'mailboxes' | 'currentMailboxId'>>): string | undefined {
+  if (!state.currentMailboxId || !state.mailboxes) return undefined;
+  return state.mailboxes.find((m) => m.id === state.currentMailboxId)?.role ?? undefined;
 }
 
 // Snapshot of an action that can still be reversed via the undo snackbar.
@@ -487,7 +531,7 @@ function buildJmapFilter(
 // The raw mailbox id an Email/query is scoped to: the open folder, an
 // explicitly picked folder, or undefined for "all folders" (#788).
 function queryScope(state: EmailState, current: MailboxRef): { mailboxId: string | undefined; accountId?: string } {
-  const scope = effectiveFolderScope(state.searchQuery, state.filters);
+  const scope = effectiveFolderScope(state.searchQuery, state.filters, openRoleOf(state));
   if (scope === 'current') return { mailboxId: current.id, accountId: current.accountId };
   if (scope === 'all') return { mailboxId: undefined, accountId: current.accountId };
   const ref = refFor(state.mailboxes, scope);
@@ -552,8 +596,29 @@ function isUnsupportedSort(err: unknown): boolean {
 // to one folder stays in its account.
 
 /** Whether the list on screen spans the own and the shared accounts. */
-export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>): boolean {
-  return effectiveFolderScope(state.searchQuery, state.filters) === 'all';
+export function spansAccounts(
+  state: Pick<EmailState, 'searchQuery' | 'filters'> & Partial<Pick<EmailState, 'mailboxes' | 'currentMailboxId'>>,
+): boolean {
+  return effectiveFolderScope(state.searchQuery, state.filters, openRoleOf(state)) === 'all';
+}
+
+// The raw JMAP ids of one account's Trash and Junk (undefined = the user's own).
+function trashAndJunkIds(mailboxes: Mailbox[], accountId: string | undefined): string[] {
+  return accountMailboxes(mailboxes, accountId)
+    .filter((m) => isTrashOrJunkRole(m.role))
+    .map((m) => m.originalId ?? m.id);
+}
+
+// `filter` AND `extra`, flattened into an existing top-level AND.
+function andFilter(
+  filter: Record<string, unknown> | undefined,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!filter || Object.keys(filter).length === 0) return extra;
+  if (filter.operator === 'AND' && Array.isArray(filter.conditions)) {
+    return { operator: 'AND', conditions: [...(filter.conditions as unknown[]), extra] };
+  }
+  return { operator: 'AND', conditions: [filter, extra] };
 }
 
 /**
@@ -635,6 +700,22 @@ function listComparator(state: EmailState): (a: Email, b: Email) => number {
   return compareEmails(levels, { pinnedFirst: true });
 }
 
+/**
+ * The total that drives load-more. RFC 8620 makes Email/query's `total`
+ * optional and some servers leave it out (#1364); the API layer reads a
+ * missing one as 0, which stopped the list after its first page. A total
+ * below the rows already loaded is one the server didn't give: then a full
+ * page says there may be more (one more than loaded keeps load-more asking)
+ * and a short page that the end is reached. `rowsLoaded` counts this page.
+ */
+export function pagingTotal(serverTotal: number, rowsLoaded: number, pageLength: number, limit: number): number {
+  if (serverTotal > 0 && serverTotal >= rowsLoaded) return serverTotal;
+  // One Email/get caps a page below `emailsPerPage` on some servers.
+  const maxGet = typeof jmapClient.getMaxObjectsInGet === 'function' ? jmapClient.getMaxObjectsInGet() : limit;
+  const fullPage = pageLength > 0 && pageLength >= Math.min(limit, maxGet);
+  return fullPage ? rowsLoaded + 1 : rowsLoaded;
+}
+
 interface SpanningPage {
   /** Stamped rows of every account that answered, merged under the list order. */
   list: Email[];
@@ -659,14 +740,23 @@ async function fetchSpanningPage(
 ): Promise<SpanningPage> {
   const primary = jmapClient.accountId;
   const threads = !useSettingsStore.getState().disableThreading;
-  const run = async (accounts: Array<string | undefined>) => queryEmailPagesAcrossAccounts(
-    await Promise.all(accounts.map(async (accountId) => ({
+  const skipTrashAndJunk = searchSkipsTrashAndJunk(state.searchQuery, state.filters, openRoleOf(state));
+  const run = async (accounts: Array<string | undefined>) => {
+    const targets = await Promise.all(accounts.map(async (accountId) => ({
       accountId,
       position: loaded[accountId ?? primary] ?? 0,
       sort: await resolveSort(state, accountId),
-    }))),
-    { limit, filter, threads },
-  );
+    })));
+    if (!skipTrashAndJunk) return queryEmailPagesAcrossAccounts(targets, { limit, filter, threads });
+    // Each account leaves its own Trash and Junk out, so each gets its own
+    // filter (and request).
+    const pages = await Promise.all(targets.map((target) => {
+      const ids = trashAndJunkIds(state.mailboxes, target.accountId);
+      const scoped = ids.length > 0 ? andFilter(filter, { inMailboxOtherThan: ids }) : filter;
+      return queryEmailPagesAcrossAccounts([target], { limit, filter: scoped, threads });
+    }));
+    return pages.map((p) => p[0]);
+  };
   let pages = await run(spannedAccounts(state.mailboxes));
   const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
   if (refused.length > 0) {
@@ -684,7 +774,7 @@ async function fetchSpanningPage(
       if (!firstError) firstError = p.error;
       continue;
     }
-    page.total += p.total;
+    page.total += pagingTotal(p.total, (loaded[stamp] ?? 0) + p.list.length, p.list.length, limit);
     for (const e of p.list) page.list.push({ ...e, jmapAccountId: stamp });
     for (const th of p.threads) page.threads.push({ ...th, id: `${stamp}:${th.id}` });
   }
@@ -1143,7 +1233,7 @@ export const useEmailStore = create<EmailState>()(
         });
         return;
       }
-      const { list, total, threads } = await queryEmailPage(scope.mailboxId, {
+      const { list, total: serverTotal, ids, threads } = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
         sort: await resolveSort(state, scope.accountId),
@@ -1152,6 +1242,7 @@ export const useEmailStore = create<EmailState>()(
         threads: !useSettingsStore.getState().disableThreading,
       });
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      const total = pagingTotal(serverTotal, position + ids.length, ids.length, limit);
       // A message that arrived between pages shifts positions and would come
       // back a second time — drop ids we already show (duplicate keys).
       const existingIds = new Set(get().emails.map((e) => e.id));
@@ -1687,13 +1778,21 @@ export const useEmailStore = create<EmailState>()(
       // delete action, also clear unread state for messages moved to trash.
       if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
         const patch = { $seen: true };
-        await applyOrQueue({
-          kind: 'keywords',
-          emailId,
-          accountId: source.accountId,
-          patch,
-        });
-        patchCache(emailId, { mailboxIds: target, keywords: patch }, source.accountId);
+        // The message is in Trash already: a refused read flag leaves it
+        // unread there, it doesn't make the delete fail.
+        let markedRead = true;
+        try {
+          await applyOrQueue({
+            kind: 'keywords',
+            emailId,
+            accountId: source.accountId,
+            patch,
+          });
+        } catch (err) {
+          console.warn('[email-store] delete: marking read failed', err);
+          markedRead = false;
+        }
+        patchCache(emailId, { mailboxIds: target, ...(markedRead ? { keywords: patch } : {}) }, source.accountId);
       } else {
         patchCache(emailId, { mailboxIds: target }, source.accountId);
       }
@@ -1891,26 +1990,36 @@ export const useEmailStore = create<EmailState>()(
     // message kept every row of the selection, the deleted ones included.
     let refusal: unknown = null;
     const kept = new Set<string>();
-    const step = async (run: () => Promise<void>, keepRefused: boolean) => {
+    const step = async (run: () => Promise<void>) => {
       try {
         await run();
       } catch (err) {
         const failed = failedIdsOf(err);
         if (!failed) throw err;
         refusal ??= err;
-        if (keepRefused) for (const id of failed) kept.add(id);
+        for (const id of failed) kept.add(id);
       }
     };
+    // Moved to Trash but left unread: the row has still left the folder, and
+    // the delete did what was asked, so a refused read flag is no failure.
+    const leftUnread = new Set<string>();
     await applyOrQueueBatch(ops, async () => {
       if (toDestroy.length > 0) {
-        await step(() => apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId), true);
+        await step(() => apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId));
       }
       if (toTrash.length > 0) {
-        await step(() => apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId), true);
+        await step(() => apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId));
       }
-      if (toMarkRead.length > 0) {
-        // Moved but left unread: the row has still left the folder.
-        await step(() => patchKeywordsForEmails([...markReadIds], markReadPatch, source.accountId), false);
+      const markRead = [...markReadIds].filter((id) => !kept.has(id));
+      if (markRead.length > 0) {
+        try {
+          await patchKeywordsForEmails(markRead, markReadPatch, source.accountId);
+        } catch (err) {
+          // A lost connection queues the whole batch instead.
+          if (isTransientNetworkError(err)) throw err;
+          console.warn('[email-store] delete: marking read failed', err);
+          for (const id of failedIdsOf(err) ?? markRead) leftUnread.add(id);
+        }
       }
     });
     const destroyed = toDestroy.filter((e) => !kept.has(e.id));
@@ -1920,7 +2029,7 @@ export const useEmailStore = create<EmailState>()(
     for (const e of trashed) {
       patchCache(e.id, {
         mailboxIds: mailboxesAfterMove(e.mailboxIds, source.id, trash.id),
-        ...(markReadIds.has(e.id) ? { keywords: markReadPatch } : {}),
+        ...(markReadIds.has(e.id) && !leftUnread.has(e.id) ? { keywords: markReadPatch } : {}),
       }, source.accountId);
     }
 
@@ -2283,10 +2392,15 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   const settings = useSettingsStore.getState();
   const to = toMailboxId ? refFor(state.mailboxes, toMailboxId) : undefined;
   const ops: OutboxOp[] = [];
-  const runs: Array<() => Promise<unknown>> = [];
-  const cacheUpdates: Array<() => void> = [];
+  // Each server write with the rows it files and their account. `keeps`: a
+  // row the server refuses stays where it is (a move); a refused keyword
+  // patch (marking read on the way to Trash) still lets the row go.
+  const runs: Array<{ run: () => Promise<unknown>; accountId?: string; ids: string[]; keeps: boolean }> = [];
+  // `withPatch` is false for a row whose keyword patch the server refused.
+  const cacheUpdates: Array<{ key: string; apply: (withPatch: boolean) => void }> = [];
   const items: UndoEntry['items'] = [];
-  const gone: Email[] = [];
+  const gone: Array<{ email: Email; key: string }> = [];
+  const keyOf = (accountId: string | undefined, id: string) => `${accountId ?? ''}:${id}`;
   const copies: Array<{ accountId?: string; emails: Email[] }> = [];
   let missing: string | null = null;
   let refreshFolders = false;
@@ -2307,8 +2421,11 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         ...(keywordPatch ? { originalKeywords: { ...e.keywords } } : {}),
         accountId,
       });
-      cacheUpdates.push(() => patchCache(e.id, { mailboxIds, ...(patch ? { keywords: patch } : {}) }, accountId));
-      gone.push(e);
+      cacheUpdates.push({
+        key: keyOf(accountId, e.id),
+        apply: (withPatch) => patchCache(e.id, { mailboxIds, ...(patch && withPatch ? { keywords: patch } : {}) }, accountId),
+      });
+      gone.push({ email: e, key: keyOf(accountId, e.id) });
     }
   };
 
@@ -2327,17 +2444,22 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       for (const e of rows) {
         ops.push({ kind: 'archive', emailId: e.id, accountId, archiveMailboxId: archiveId, mode, receivedAt: e.receivedAt });
         items.push({ email: e, originalMailboxIds: { ...e.mailboxIds }, accountId });
-        cacheUpdates.push(() => patchCache(e.id, { mailboxIds: { [archiveId]: true } }, accountId));
-        gone.push(e);
+        cacheUpdates.push({ key: keyOf(accountId, e.id), apply: () => patchCache(e.id, { mailboxIds: { [archiveId]: true } }, accountId) });
+        gone.push({ email: e, key: keyOf(accountId, e.id) });
       }
       if (rows.length > 0) {
-        runs.push(() => apiArchiveEmails(
-          rows.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
-          archiveId,
-          mode,
-          toRawMailboxes(mailboxes),
+        runs.push({
+          run: () => apiArchiveEmails(
+            rows.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
+            archiveId,
+            mode,
+            toRawMailboxes(mailboxes),
+            accountId,
+          ),
           accountId,
-        ));
+          ids: ids(rows),
+          keeps: true,
+        });
         if (mode !== 'single') refreshFolders = true;
       }
     } else if (action === 'delete') {
@@ -2345,10 +2467,12 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       const destroy = emails.filter((e) => destroysOnDelete(state, e));
       const toTrash = emails.filter((e) => !destroy.includes(e));
       if (destroy.length > 0) {
-        for (const e of destroy) ops.push({ kind: 'destroy', emailId: e.id, accountId });
-        runs.push(() => apiDestroyEmails(ids(destroy), accountId));
-        cacheUpdates.push(() => dropFromCache(ids(destroy), accountId));
-        gone.push(...destroy);
+        for (const e of destroy) {
+          ops.push({ kind: 'destroy', emailId: e.id, accountId });
+          cacheUpdates.push({ key: keyOf(accountId, e.id), apply: () => dropFromCache([e.id], accountId) });
+          gone.push({ email: e, key: keyOf(accountId, e.id) });
+        }
+        runs.push({ run: () => apiDestroyEmails(ids(destroy), accountId), accountId, ids: ids(destroy), keeps: true });
       }
       if (toTrash.length > 0 && !trash) {
         missing = t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.');
@@ -2358,8 +2482,20 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         const unread = settings.deleteAction === 'trash-and-read' ? toTrash.filter((e) => !e.keywords?.$seen) : [];
         const read = new Set(unread);
         for (const e of toTrash) fileInto(accountId, [e], trashId, read.has(e) ? { $seen: true } : undefined);
-        runs.push(() => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), accountId));
-        if (unread.length > 0) runs.push(() => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId));
+        runs.push({
+          run: () => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), accountId),
+          accountId,
+          ids: ids(toTrash),
+          keeps: true,
+        });
+        if (unread.length > 0) {
+          runs.push({
+            run: () => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId),
+            accountId,
+            ids: ids(unread),
+            keeps: false,
+          });
+        }
       }
     } else if (action === 'spam' || action === 'notSpam') {
       const dest = action === 'spam' ? findJunkMailbox(mailboxes) : mailboxes.find((m) => m.role === 'inbox');
@@ -2369,9 +2505,14 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       }
       const destId = dest.originalId ?? dest.id;
       fileInto(accountId, emails, destId, keywordPatch);
-      runs.push(() => (action === 'spam'
-        ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
-        : apiUndoSpam(ids(emails), destId, accountId)));
+      runs.push({
+        run: () => (action === 'spam'
+          ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
+          : apiUndoSpam(ids(emails), destId, accountId)),
+        accountId,
+        ids: ids(emails),
+        keeps: true,
+      });
     } else if (to) {
       if (to.accountId !== accountId) {
         copies.push({ accountId, emails });
@@ -2383,13 +2524,39 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       });
       if (rows.length === 0) continue;
       fileInto(accountId, rows, to.id);
-      runs.push(() => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), accountId));
+      runs.push({
+        run: () => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), accountId),
+        accountId,
+        ids: ids(rows),
+        keeps: true,
+      });
     }
   }
 
+  // The server refuses messages one by one and applies the rest, and one
+  // account may refuse what another takes (a read-only share): the refused
+  // rows stay, the others are filed, and the first refusal is reported once
+  // the list shows the rest. Before, one refused message kept every row.
+  const refused = new Set<string>();
+  const unpatched = new Set<string>();
+  let refusal: unknown = null;
   if (ops.length > 0) {
     const { queued } = await applyOrQueueBatch(ops, async () => {
-      for (const run of runs) await run();
+      for (const { run, accountId, ids, keeps } of runs) {
+        try {
+          await run();
+        } catch (err) {
+          // A lost connection queues the whole batch instead.
+          if (isTransientNetworkError(err)) throw err;
+          const failed = (failedIdsOf(err) ?? ids).map((id) => keyOf(accountId, id));
+          if (keeps) {
+            refusal ??= err;
+            for (const key of failed) refused.add(key);
+          } else {
+            for (const key of failed) unpatched.add(key);
+          }
+        }
+      }
     });
     // Year/month archiving may have created folders.
     if (refreshFolders && !queued) void get().fetchMailboxes();
@@ -2397,15 +2564,20 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   for (const copy of copies) {
     try {
       await crossAccountMove(copy.emails, { accountId: copy.accountId, id: '' }, to!);
-      gone.push(...copy.emails);
+      gone.push(...copy.emails.map((email) => ({ email, key: keyOf(copy.accountId, email.id) })));
       dropFromCache(copy.emails.map((e) => e.id), copy.accountId);
     } catch (err) {
       missing = err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed');
     }
   }
-  for (const update of cacheUpdates) update();
+  for (const { key, apply } of cacheUpdates) if (!refused.has(key)) apply(!unpatched.has(key));
+  if (refused.size > 0) {
+    const filed = items.filter((it) => !refused.has(keyOf(it.accountId, it.email.id)));
+    items.length = 0;
+    items.push(...filed);
+  }
 
-  const goneKeys = new Set(gone.map(rowKeyOf));
+  const goneKeys = new Set(gone.filter(({ key }) => !refused.has(key)).map(({ email }) => rowKeyOf(email)));
   const count = items.length;
   const targetName = toMailboxId ? mailboxPath(state.mailboxes, toMailboxId) : undefined;
   const label = action === 'archive'
@@ -2436,6 +2608,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       : {}),
     ...(missing ? { error: missing } : {}),
   });
+  if (refusal) throw refusal;
 }
 
 // ── Refresh implementations (wrapped by coalesceRefresh above) ─────────
@@ -2832,7 +3005,9 @@ async function refreshEmailsImpl(): Promise<void> {
           const trimmed = out.slice(0, Math.max(limit, baseEmails.length));
 
           const nextQueryState = queryChanges.newQueryState;
-          const nextTotal = queryChanges.total;
+          // Without a total from the server, a window of at least a page
+          // may go on past it.
+          const nextTotal = pagingTotal(queryChanges.total, trimmed.length, trimmed.length, limit);
 
           if (viewChanged()) return;
 
@@ -2896,11 +3071,12 @@ async function refreshEmailsImpl(): Promise<void> {
 
       if (viewChanged()) return;
 
+      const total = pagingTotal(queryRes.total, queryRes.ids.length, queryRes.ids.length, limit);
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
         // until the view is re-opened, instead of vanishing under them.
         emails: baseView ? queryRes.list : mergeRetainedRows(get().emails, queryRes.list, get().retainedIds),
-        totalEmails: queryRes.total,
+        totalEmails: total,
         threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
         loading: false,
       };
@@ -2916,7 +3092,7 @@ async function refreshEmailsImpl(): Promise<void> {
           ...get().mailboxSnapshots,
           [currentMailboxId]: {
             emails: queryRes.list,
-            total: queryRes.total,
+            total,
             queryState: queryRes.queryState,
           },
         };

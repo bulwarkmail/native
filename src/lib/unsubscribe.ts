@@ -117,3 +117,55 @@ export function parseMailtoUrl(url: string): MailtoFields | null {
   if (to.length === 0 && cc.length === 0) return null;
   return { to, cc: cc.length ? cc : undefined, subject, body };
 }
+
+const UNSUBSCRIBE_SUBJECT_MAX = 200;
+const UNSUBSCRIBE_BODY_MAX = 500;
+
+export interface UnsubscribeMailto {
+  to: [string];
+  subject?: string;
+  body?: string;
+}
+
+/**
+ * Parse a List-Unsubscribe mailto: URL for a one-tap send from the user's
+ * own account (port of the webmail's parseUnsubscribeMailto, f0aa0eeda).
+ * The newsletter's sender wrote this URL, so it is held to what an
+ * unsubscribe request needs: exactly one recipient, taken from the address
+ * part (`to=` and `cc=` query fields are ignored, a list of addresses is
+ * refused), a single-line subject and a short body. The confirmation shows
+ * all three before anything is sent.
+ */
+export function parseUnsubscribeMailto(url: string): UnsubscribeMailto | null {
+  const parsed = parseMailtoUrl(url);
+  if (!parsed) return null;
+
+  const rest = url.slice(7);
+  const queryIndex = rest.indexOf('?');
+  const addressPart = queryIndex === -1 ? rest : rest.slice(0, queryIndex);
+  const addresses = addressPart.split(',').filter((a) => a.trim() !== '');
+  if (addresses.length !== 1) return null;
+  let to: string;
+  try {
+    to = decodeURIComponent(addresses[0]).trim();
+  } catch {
+    to = addresses[0].trim();
+  }
+  if (!isValidEmail(to)) return null;
+
+  const subject = parsed.subject?.replace(/[\r\n]+/g, ' ').trim().slice(0, UNSUBSCRIBE_SUBJECT_MAX) || undefined;
+  const body = parsed.body?.slice(0, UNSUBSCRIBE_BODY_MAX) || undefined;
+  return { to: [to], subject, body };
+}
+
+/**
+ * The mailto confirmation text: the explanation, then the address, subject
+ * and body that will be sent, so nothing leaves the account unseen.
+ */
+export function unsubscribeConfirmMessage(intro: string, fields: UnsubscribeMailto | null): string {
+  if (!fields) return intro;
+  const lines = [intro, '', fields.to[0]];
+  if (fields.subject) lines.push(fields.subject);
+  if (fields.body) lines.push('', fields.body);
+  return lines.join('\n');
+}

@@ -46,6 +46,7 @@ import {
   type NotificationMutes,
 } from '../lib/notification-mutes';
 import { serverSupportsEmailPush } from '../lib/push-notifications';
+import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -64,41 +65,28 @@ const UNIFIED_ROLES: UnifiedRole[] = ['sent', 'drafts', 'archive', 'junk', 'tras
 // in for them (#495).
 const HIDDEN_WITH_VIRTUAL_ROW = new Set(['scheduled']);
 
-// Distinct icons for the special-use roles (#288), then a name-based guess
-// for servers that don't set roles, then a plain folder.
-function iconFor(
-  role: string | null | undefined,
-  name: string | undefined,
-  hasChildren: boolean,
-  isExpanded: boolean,
-): AppIcon {
-  switch (role) {
-    case 'inbox': return Inbox;
-    case 'sent': return Send;
-    case 'drafts': return FileIcon;
-    case 'trash': return Trash2;
-    case 'junk':
-    case 'spam': return Ban;
-    case 'archive': return Archive;
-    case 'important': return Flag;
-    case 'flagged': return Star;
-    case 'all': return Mails;
-    case 'memos': return StickyNote;
-    case 'scheduled': return Clock;
-    case 'snoozed': return AlarmClock;
-    case 'shared': return Users;
-    default: break;
-  }
-  const lower = (name ?? '').toLowerCase();
-  if (lower.includes('inbox')) return Inbox;
-  if (lower.includes('sent')) return Send;
-  if (lower.includes('draft')) return FileIcon;
-  if (lower.includes('trash') || lower.includes('deleted')) return Trash2;
-  if (lower.includes('junk') || lower.includes('spam')) return Ban;
-  if (lower.includes('archive')) return Archive;
-  if (lower.includes('star') || lower.includes('flag')) return Star;
-  if (hasChildren) return isExpanded ? FolderOpen : Folder;
-  return Folder;
+// Distinct icons for the special-use roles (#288), else a plain folder: by
+// role only, never by name (lib/mailbox-icon.ts, #80).
+const ICONS: Record<MailboxIconKind, AppIcon> = {
+  inbox: Inbox,
+  sent: Send,
+  drafts: FileIcon,
+  trash: Trash2,
+  junk: Ban,
+  archive: Archive,
+  important: Flag,
+  flagged: Star,
+  all: Mails,
+  memos: StickyNote,
+  scheduled: Clock,
+  snoozed: AlarmClock,
+  shared: Users,
+  folder: Folder,
+  'folder-open': FolderOpen,
+};
+
+function iconFor(role: string | null | undefined, hasChildren: boolean, isExpanded: boolean): AppIcon {
+  return ICONS[mailboxIconKind(role, hasChildren, isExpanded)];
 }
 
 const ROLE_COLOR_FIXED: Record<string, string> = {
@@ -745,7 +733,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     };
   }, [mailboxes, accountSnapshots, activeAccountId, unifiedCrossAccount, includeGroupInUnified]);
 
-  const unifiedIcon = (role: UnifiedRole): AppIcon => iconFor(role, undefined, false, false);
+  const unifiedIcon = (role: UnifiedRole): AppIcon => iconFor(role, false, false);
 
   const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -1139,7 +1127,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                 // tapping it only opens or closes that account's folders.
                 const Icon = node.isAccountNode
                   ? Users
-                  : iconFor(node.role, node.name, hasChildren, isExpanded);
+                  : iconFor(node.role, hasChildren, isExpanded);
                 const isSelected = !node.isAccountNode && !tagViewActive && node.id === currentMailboxId;
                 return (
                   <SidebarRow

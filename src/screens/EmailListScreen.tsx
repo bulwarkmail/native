@@ -23,14 +23,17 @@ import { OfflineBanner } from '../components/OfflineBanner';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
   useEmailStore, effectiveFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  searchSkipsTrashAndJunk, isTrashOrJunkRole, SCOPE_EXCEPT_TRASH_JUNK, spannedAccounts,
   type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
-import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
+import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/keywords-store';
+import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
@@ -172,6 +175,7 @@ const EmailRow = React.memo(function EmailRow({
   const key = rowKeyOf(item);
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
+  const verificationCode = useListVerificationCode(item);
 
   return (
     <Pressable
@@ -270,6 +274,7 @@ const EmailRow = React.memo(function EmailRow({
             {singleLine(item.preview)}
           </Text>
         )}
+        {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} inList />}
         {onOpenAttachment && (
           <ListAttachmentChips
             email={item}
@@ -472,6 +477,24 @@ export default function EmailListScreen({
   const currentRole = currentMailbox?.role ?? null;
   // The JMAP account behind the open folder (undefined = the user's own).
   const currentOwnerAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
+
+  // A group account's messages carry its shared tags (#1310): read them for
+  // every shared account in the sidebar, and name a row's tags by the
+  // account it lives in.
+  const sharedTags = useKeywordsStore((s) => s.sharedTags);
+  const loadSharedTags = useKeywordsStore((s) => s.loadSharedTags);
+  React.useEffect(() => {
+    for (const accountId of spannedAccounts(mailboxes)) if (accountId) void loadSharedTags(accountId);
+  }, [mailboxes, loadSharedTags]);
+  const keywordDefsByAccount = React.useMemo(() => {
+    const login = currentTagsLogin();
+    const out = new Map<string, KeywordDef[]>();
+    for (const [accountId, entry] of Object.entries(sharedTags)) {
+      if (entry.login === login) out.set(accountId, mergeSharedTags(entry.tags, keywordDefs));
+    }
+    return out;
+  }, [sharedTags, keywordDefs]);
+  const folderKeywordDefs = (currentOwnerAccountId && keywordDefsByAccount.get(currentOwnerAccountId)) || keywordDefs;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
 
@@ -784,7 +807,7 @@ export default function EmailListScreen({
           showPreview={showPreview}
           showRecipient={showRecipient}
           tagIds={rowTagIds.get(key) ?? ''}
-          keywordDefs={keywordDefs}
+          keywordDefs={(item.jmapAccountId && keywordDefsByAccount.get(item.jmapAccountId)) || folderKeywordDefs}
           disableAvatarImages={inJunk && !showAvatarsInJunk}
           answered={flags?.answered ?? false}
           forwarded={flags?.forwarded ?? false}
@@ -801,7 +824,7 @@ export default function EmailListScreen({
     [
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showRecipient, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );
@@ -1000,9 +1023,12 @@ export default function EmailListScreen({
     }
   }, [backStep, clearSelection, clearSearchAndFilters]);
   useBackWhileFocused(backStep !== 'leave', handleBack);
-  const folderScope = effectiveFolderScope(storeSearchQuery, filters);
+  const openRole = currentMailbox?.role;
+  const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole);
+  // The default search scope leaves Spam and Trash out; "All folders" doesn't.
+  const skipsTrashAndJunk = searchSkipsTrashAndJunk(storeSearchQuery, filters, openRole);
   // Accounts an "All folders" list could not reach (#1082).
-  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters })
+  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters, mailboxes, currentMailboxId })
     ? Object.values(accountErrors)
     : [];
   const scopeFolderName = React.useMemo(() => {
@@ -1013,11 +1039,16 @@ export default function EmailListScreen({
   const keywordFilterLabel = React.useMemo(() => {
     if (!filters.keyword) return null;
     const id = filters.keyword.replace(/^\$label:/, '').replace(/^\$color:/, '');
-    return keywordDefs.find((k) => k.id === id)?.label ?? id;
-  }, [filters.keyword, keywordDefs]);
+    return folderKeywordDefs.find((k) => k.id === id)?.label ?? id;
+  }, [filters.keyword, folderKeywordDefs]);
   const setFolderScope = (scope: string) => {
     const updated: EmailFilters = { ...filters };
-    if (scope === 'current') delete updated.folder;
+    // The scope a search gets by default stays unset, so it keeps following
+    // the open folder; any other pick is kept as it is.
+    const isDefault = scope === SCOPE_EXCEPT_TRASH_JUNK
+      ? !isTrashOrJunkRole(openRole)
+      : scope === 'current' && isTrashOrJunkRole(openRole);
+    if (isDefault) delete updated.folder;
     else updated.folder = scope;
     setFilters(updated);
   };
@@ -1399,7 +1430,9 @@ export default function EmailListScreen({
             <FilterChip
               icon={<Folder size={12} color={c.textSecondary} />}
               label={
-                folderScope === 'all'
+                skipsTrashAndJunk
+                  ? t('advanced_search.all_folders_except_spam_trash', 'All folders except Spam and Trash')
+                  : folderScope === 'all'
                   ? t('email_list.scope_all_folders', 'All folders')
                   : folderScope === 'current'
                     ? t('email_list.scope_this_folder', 'This folder')
@@ -1717,8 +1750,13 @@ export default function EmailListScreen({
                     <Text style={styles.filterFieldLabel}>{t('advanced_search.folder', 'Folder')}</Text>
                     <View style={styles.filterToggleGroup}>
                       <ScopeChip
+                        label={t('advanced_search.all_folders_except_spam_trash', 'All folders except Spam and Trash')}
+                        active={skipsTrashAndJunk}
+                        onPress={() => setFolderScope(SCOPE_EXCEPT_TRASH_JUNK)}
+                      />
+                      <ScopeChip
                         label={t('email_list.scope_all_folders', 'All folders')}
-                        active={folderScope === 'all'}
+                        active={folderScope === 'all' && !skipsTrashAndJunk}
                         onPress={() => setFolderScope('all')}
                       />
                       <ScopeChip
@@ -1890,7 +1928,7 @@ export default function EmailListScreen({
       <TagSheet
         visible={tagSheetOpen}
         onClose={() => setTagSheetOpen(false)}
-        keywords={keywordDefs}
+        keywords={folderKeywordDefs}
         selectedEmails={selectedEmails}
         onToggle={handleBatchTagToggle}
       />

@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image as ImageIcon, ShieldCheck } from './icons';
 import type { Email } from '../api/types';
-import { extractCidRefs } from '../lib/email-html';
+import { extractCidRefs, isUserLinkNavigation } from '../lib/email-html';
 import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
 import { buildQuoteCollapseScript } from '../lib/quote-collapse';
 import { bodyDocument } from '../lib/email-body-document';
@@ -13,6 +13,7 @@ import { estimateBodyHeight, lastBodyHeight, rememberBodyHeight } from '../lib/b
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { senderVerificationOf } from '../lib/email-headers';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -563,7 +564,15 @@ export default function EmailBodyView({
   }, [email, bodyOverride]);
   const rawHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
   const text = picked.text;
-  const trusted = isSenderContentTrusted(senderEmail, {
+  // A From address the server's checks don't back may be forged: neither
+  // honour an earlier "Always trust" for it nor offer one, or a forgery of a
+  // trusted sender would load remote content (and trusting it would let the
+  // next forgery do the same).
+  const unverifiedSender = React.useMemo(
+    () => senderVerificationOf(email) !== null,
+    [email.headers, email.from],
+  );
+  const trusted = !unverifiedSender && isSenderContentTrusted(senderEmail, {
     isLocallyTrusted: isSenderTrusted,
     syncEnabled: syncTrustedSenders,
     trustedBookEmails: trustedSenderEmails,
@@ -768,7 +777,7 @@ export default function EmailBodyView({
                 <Text style={styles.bannerButtonText}>{t('email_viewer.load_external_content', 'Load images')}</Text>
               </Pressable>
             )}
-            {senderEmail ? (
+            {senderEmail && !unverifiedSender ? (
               <Pressable style={styles.bannerButton} onPress={onTrustSender} hitSlop={8}>
                 <ShieldCheck size={14} color={c.textSecondary} />
                 <Text style={styles.bannerButtonText}>{t('email_viewer.trust_sender', 'Always trust this sender')}</Text>
@@ -834,6 +843,11 @@ export default function EmailBodyView({
             // any other) navigation would replace the email body with no way
             // back, so it is refused; images are reachable via the chips.
             if (!url || url === 'about:blank') return true;
+            // A message opens links only when the user taps one. The page
+            // runs no script of its own, so nothing else should navigate;
+            // iOS says how a navigation started, so anything but a tap is
+            // refused there as well. Android always reports 'other'.
+            if (!isUserLinkNavigation(request, Platform.OS)) return false;
             if (/^mailto:/i.test(url)) {
               openMailto(url);
               return false;

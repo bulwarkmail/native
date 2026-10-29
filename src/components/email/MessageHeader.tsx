@@ -9,15 +9,18 @@ import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useKeywordsStore } from '../../stores/keywords-store';
+import { useAccountKeywordDefs } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import {
   deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
+  getSenderVerification, describeSenderVerification,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
 import { resolveEmailTags } from '../../lib/thread-utils';
+import { findVerificationCode, verificationCodeBodyText } from '../../lib/verification-code';
+import { VerificationCodeChip } from './VerificationCodeChip';
 
 interface Props {
   email: Email;
@@ -27,6 +30,8 @@ interface Props {
   onAddressPress: (address: EmailAddress) => void;
   /** Compact variant for collapsed thread cards. */
   compact?: boolean;
+  /** JMAP account the message lives in (a group's shared tags name its tags). */
+  jmapAccountId?: string;
 }
 
 function addressLabel(a: EmailAddress): string {
@@ -91,13 +96,14 @@ function DetailRow({ label, value, styles, mono }: { label: string; value?: stri
  * "Show details" panel (recipients & routing, authentication, identifiers,
  * mailing list, properties) the webmail viewer shows.
  */
-export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact }: Props) {
+export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact, jmapAccountId }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
-  const keywordDefs = useKeywordsStore((s) => s.keywords);
+  const keywordDefs = useAccountKeywordDefs(jmapAccountId ?? email.jmapAccountId);
+  const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);
 
@@ -106,6 +112,24 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const starred = !!email.keywords?.$flagged;
   const displayDate = emailDisplayDate(email);
   const spoofed = isAuthenticationSpoofed(info.auth);
+  // The server's checks don't back the visible From domain: say so next to
+  // the name and above the body, not only in the collapsed details.
+  const verification = React.useMemo(
+    () => getSenderVerification(info.auth, from?.email),
+    [info.auth, from?.email],
+  );
+  const verificationText = verification ? describeSenderVerification(verification, t) : null;
+  // The sign-in code of the message, offered for copying. Looked up again
+  // only when the message or its loaded body changes, not on a keyword change.
+  const verificationCode = React.useMemo(
+    () => (showVerificationCodes && !compact
+      ? findVerificationCode(email.subject, verificationCodeBodyText(email))
+      : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showVerificationCodes, compact, email.id, email.subject, email.bodyValues],
+  );
+  const verificationColor = verification?.status === 'failed' ? c.error : c.warning;
+  const verificationBg = verification?.status === 'failed' ? c.errorBg : c.warningBg;
 
   // "via <identity>": the message was sent by one of the user's identities or
   // received at one of them (incl. +tag); hidden when the From can't be
@@ -159,6 +183,15 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
               <Text style={styles.email} numberOfLines={1}>{from.email}</Text>
             ) : null}
           </Pressable>
+          {verificationText && (
+            <View
+              style={[styles.badge, styles.verificationBadge, { backgroundColor: verificationBg }]}
+              accessibilityLabel={verificationText.message}
+            >
+              <ShieldAlert size={11} color={verificationColor} />
+              <Text style={[styles.badgeText, { color: verificationColor }]}>{verificationText.label}</Text>
+            </View>
+          )}
           {!compact && (
             <>
               <AddressList label={t('email_viewer.to', 'To').toLowerCase()} addresses={email.to} onPress={onAddressPress} styles={styles} />
@@ -231,6 +264,21 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
               <Text style={styles.badgeText}>{t('email_viewer.smime_unsupported', 'Signed/encrypted with S/MIME - not supported on mobile')}</Text>
             </View>
           )}
+        </View>
+      )}
+
+      {verificationCode && <VerificationCodeChip code={verificationCode} />}
+
+      {!compact && verificationText && (
+        <View style={[styles.verificationNotice, { borderColor: verificationColor }]} accessibilityRole="alert">
+          <ShieldAlert size={18} color={verificationColor} />
+          <View style={styles.verificationBody}>
+            <Text style={[styles.verificationLabel, { color: verificationColor }]}>{verificationText.label}</Text>
+            <Text style={styles.verificationMessage}>{verificationText.message}</Text>
+            <Text style={styles.verificationCaution}>
+              {t('email_viewer.sender_check.caution', 'Be careful with links, attachments and requests for passwords or payment details.')}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -345,6 +393,19 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.surfaceHover,
     },
     badgeDot: { width: 8, height: 8, borderRadius: 4 },
+    verificationBadge: { alignSelf: 'flex-start', marginTop: 4 },
+    verificationNotice: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      backgroundColor: c.surface,
+    },
+    verificationBody: { flex: 1, minWidth: 0, gap: 2 },
+    verificationLabel: { ...typography.small, fontWeight: '600' },
+    verificationMessage: { ...typography.caption, color: c.text },
+    verificationCaution: { ...typography.caption, color: c.textSecondary },
     badgeText: { ...typography.small, color: c.textSecondary },
     detailsToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
     detailsToggleText: { ...typography.caption, color: c.primary, fontWeight: '600' },

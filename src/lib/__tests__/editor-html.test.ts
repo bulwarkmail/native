@@ -5,7 +5,7 @@ import {
 import { LIGHT_COLORS, DARK_COLORS } from '../../theme/tokens';
 
 function extractScript(html: string): string {
-  const m = html.match(/<script>([\s\S]*?)<\/script>/);
+  const m = html.match(/<script(?: nonce="[0-9a-f]+")?>([\s\S]*?)<\/script>/);
   expect(m, 'page must contain an inline <script>').toBeTruthy();
   return m![1];
 }
@@ -72,7 +72,18 @@ describe('editor CSP', () => {
     const html = buildEditorHtml(base);
     expect(html.indexOf('Content-Security-Policy')).toBeLessThan(html.indexOf('<body>'));
     expect(cspOf(html)).toContain("default-src 'none'");
-    expect(cspOf(html)).toContain("script-src 'unsafe-inline'");
+  });
+
+  // An `<img onerror>` in a quoted original or a paste must not run: only the
+  // page's own script, which carries a fresh nonce, may.
+  it('runs only its own script, never inline handlers', () => {
+    const html = buildEditorHtml(base);
+    const csp = cspOf(html);
+    const nonce = csp.match(/script-src 'nonce-([0-9a-f]{32})'/)?.[1];
+    expect(nonce).toBeTruthy();
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+    expect(html).toContain(`<script nonce="${nonce}">`);
+    expect(cspOf(buildEditorHtml(base))).not.toBe(csp);
   });
 
   it('blocks remote images and fonts but keeps data: and blob: images', () => {
@@ -84,7 +95,9 @@ describe('editor CSP', () => {
 
   it('allows remote images when not blocking', () => {
     expect(buildEditorCsp(false)).toContain('img-src data: blob: https: http:');
-    expect(cspOf(buildEditorHtml(base))).toBe(buildEditorCsp(false));
+    const csp = cspOf(buildEditorHtml(base));
+    const nonce = csp.match(/'nonce-([0-9a-f]+)'/)![1];
+    expect(csp).toBe(buildEditorCsp(false, nonce));
   });
 });
 

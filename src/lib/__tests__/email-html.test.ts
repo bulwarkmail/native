@@ -12,6 +12,7 @@ import {
   hasNativeDarkMode,
   sniffImageMime,
   TRANSPARENT_BLOCKED_PIXEL,
+  isUserLinkNavigation,
 } from '../email-html';
 
 describe('stripDangerousTags', () => {
@@ -45,6 +46,46 @@ describe('stripDangerousTags', () => {
   it('blocks entity-obfuscated javascript: URLs', () => {
     expect(stripDangerousTags('<a href="&#x6A;avascript:alert(1)">x</a>')).toContain('#blocked');
     expect(stripDangerousTags('<a href="java\nscript:alert(1)">x</a>')).toContain('#blocked');
+  });
+
+  // GHSA-g35q-3gpc-x2rr: the browser starts a new attribute after a slash or
+  // right after a closing quote, with no whitespace in between.
+  it('drops on* handlers that follow a slash or a quote', () => {
+    for (const input of [
+      '<img src="x"/onerror=alert(1)>',
+      '<img/onerror=alert(1) src=x>',
+      '<img src="x"onerror="alert(1)">',
+      "<img src='x'/onerror='alert(1)'>",
+      '<body/onload=alert(1)>',
+      '<img src=x ONERROR=alert(1)>',
+    ]) {
+      expect(stripDangerousTags(input), input).not.toMatch(/onerror|onload/i);
+    }
+  });
+
+  it('reads an attribute after a slash as a new, URI-checked attribute', () => {
+    expect(stripDangerousTags('<a title="x"/href="javascript:alert(1)">l</a>')).toContain('href="#blocked"');
+  });
+
+  it('leaves no tag hidden behind a stray quote in an attribute name', () => {
+    expect(stripDangerousTags('<img x"=y onerror=alert(1) src=z>')).not.toMatch(/onerror/i);
+  });
+
+  it('does not read tags inside a stylesheet, where the browser sees text', () => {
+    const out = stripDangerousTags('<style>/*<a b="*/</style><img src=x onerror=alert(1) c="">');
+    expect(out).toContain('<style>/*<a b="*/</style>');
+    expect(out).not.toMatch(/onerror/i);
+  });
+
+  it('ends comments where the browser does', () => {
+    expect(stripDangerousTags('a<!-- x --!><img src=x onerror=alert(1)>')).not.toMatch(/onerror/i);
+    expect(stripDangerousTags('<p>a</p><!--> <img src=x onerror=alert(1)>')).not.toMatch(/onerror/i);
+  });
+
+  it('writes a < that starts no tag as text and keeps ordinary markup', () => {
+    expect(stripDangerousTags('<p>1 < 2</p>')).toBe('<p>1 &lt; 2</p>');
+    expect(stripDangerousTags('<p class="a" data-x=\'b "c"\'>t</p><br/>'))
+      .toBe('<p class="a" data-x="b &quot;c&quot;">t</p><br />');
   });
 });
 
@@ -126,6 +167,21 @@ describe('blockExternalResources', () => {
     expect(html).not.toContain('https://t');
   });
 
+  it('keeps CSS-escaped markup inside the scrubbed sheet', () => {
+    const { html } = prepareEmailHtml(
+      '<style>.a{background:url(https://t/x.png)} \\3c /style\\3e \\3c img src=x onerror=alert(1)\\3e </style><p>x</p>',
+      { blockRemoteImages: true },
+    );
+    expect(html).not.toMatch(/<img/i);
+    expect(html).not.toMatch(/<\/style>\s*<img/i);
+  });
+
+  it('finds the image behind a stray quote, as the browser does', () => {
+    const { html, blocked } = blockExternalResources('<img x"=y src=https://t/a.png>');
+    expect(blocked).toBe(true);
+    expect(html).toContain('data-blocked-src="https://t/a.png"');
+  });
+
   it('reports nothing blocked for a local-only body', () => {
     const { html, blocked } = blockExternalResources('<p style="color:red">hi</p><img src="cid:x">');
     expect(blocked).toBe(false);
@@ -142,6 +198,16 @@ describe('prepareEmailHtml', () => {
     expect(strict.html).toContain("media-src 'none'");
     const open = prepareEmailHtml('<p>x</p>', { blockRemoteImages: false });
     expect(open.html).toContain('img-src data: cid: https: http:');
+  });
+
+  // The bridge scripts are injected by the WebView, so the page itself never
+  // needs to run a script or an inline handler.
+  it('runs no script or inline handler from the page in either mode', () => {
+    for (const blockRemoteImages of [true, false]) {
+      expect(prepareEmailHtml('<p>x</p>', { blockRemoteImages }).html).toContain("script-src 'none'");
+    }
+    expect(wrapPlainTextEmail('x')).toContain("script-src 'none'");
+    expect(prepareEmailHtml('<p>x</p>').html).not.toMatch(/<script/i);
   });
 
   it('evaluates native dark mode once and reports the inversion decision', () => {
@@ -261,5 +327,19 @@ describe('reading width on a wide pane', () => {
     expect(html).toMatch(/@media \(min-width: 840px\) \{\s*body \{ max-width: 720px;/);
     const plain = wrapPlainTextEmail('Hello');
     expect(plain).toContain('@media (min-width: 840px) { body { max-width: 80ch; } }');
+  });
+});
+
+describe('isUserLinkNavigation', () => {
+  it('opens only tapped links in the top frame on iOS', () => {
+    expect(isUserLinkNavigation({ navigationType: 'click', isTopFrame: true }, 'ios')).toBe(true);
+    expect(isUserLinkNavigation({ navigationType: 'other', isTopFrame: true }, 'ios')).toBe(false);
+    expect(isUserLinkNavigation({ navigationType: 'formsubmit' }, 'ios')).toBe(false);
+    expect(isUserLinkNavigation({ navigationType: 'click', isTopFrame: false }, 'ios')).toBe(false);
+  });
+
+  it('keeps taps working on Android, which always reports other', () => {
+    expect(isUserLinkNavigation({ navigationType: 'other', isTopFrame: true }, 'android')).toBe(true);
+    expect(isUserLinkNavigation({ navigationType: 'other', isTopFrame: false }, 'android')).toBe(false);
   });
 });

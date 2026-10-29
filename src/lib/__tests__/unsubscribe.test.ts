@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseUnsubscribeUrls, isValidUnsubscribeUrl, parseMailtoUrl, isOneClickUnsubscribe,
+  parseUnsubscribeMailto, unsubscribeConfirmMessage,
 } from '../unsubscribe';
 
 describe('parseUnsubscribeUrls', () => {
@@ -44,5 +45,38 @@ describe('isOneClickUnsubscribe', () => {
     expect(isOneClickUnsubscribe('List-Unsubscribe=One-Click', 'https://x/u')).toBe(true);
     expect(isOneClickUnsubscribe('List-Unsubscribe=One-Click', 'http://x/u')).toBe(false);
     expect(isOneClickUnsubscribe(undefined, 'https://x/u')).toBe(false);
+  });
+});
+
+describe('parseUnsubscribeMailto', () => {
+  it('sends to the one address in the URL and ignores to= and cc= fields', () => {
+    expect(parseUnsubscribeMailto('mailto:unsub@list.example?to=victim@corp.example&cc=boss@corp.example&subject=stop'))
+      .toEqual({ to: ['unsub@list.example'], subject: 'stop', body: undefined });
+  });
+
+  it('refuses a list of addresses or no address in the address part', () => {
+    expect(parseUnsubscribeMailto('mailto:a@list.example,b@corp.example')).toBeNull();
+    expect(parseUnsubscribeMailto('mailto:?to=a@list.example')).toBeNull();
+    expect(parseUnsubscribeMailto('mailto:?cc=a@list.example')).toBeNull();
+  });
+
+  it('keeps the subject on one line and caps subject and body', () => {
+    const long = 'x'.repeat(2000);
+    const r = parseUnsubscribeMailto(`mailto:u@list.example?subject=a%0D%0ABcc:%20x@y.example%20${long}&body=${long}`);
+    expect(r?.subject).not.toMatch(/[\r\n]/);
+    expect(r?.subject?.length).toBe(200);
+    expect(r?.body?.length).toBe(500);
+  });
+});
+
+describe('unsubscribeConfirmMessage', () => {
+  it('shows the address, subject and body that will be sent', () => {
+    const msg = unsubscribeConfirmMessage('An unsubscribe email will be sent.', {
+      to: ['unsub@list.example'], subject: 'stop', body: 'remove me',
+    });
+    expect(msg).toContain('unsub@list.example');
+    expect(msg).toContain('stop');
+    expect(msg).toContain('remove me');
+    expect(unsubscribeConfirmMessage('Intro', null)).toBe('Intro');
   });
 });

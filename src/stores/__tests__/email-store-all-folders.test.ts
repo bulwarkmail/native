@@ -155,7 +155,15 @@ function seed() {
 
 const ids = () => useEmailStore.getState().emails.map((e) => e.id);
 
+// "All folders" picked explicitly, unless a test picked a folder: the default
+// scope also leaves Trash and Junk out (see "the default search scope").
 async function search(query: string) {
+  const { filters } = useEmailStore.getState();
+  if (!filters.folder) useEmailStore.setState({ filters: { ...filters, folder: 'all' } });
+  await searchDefault(query);
+}
+
+async function searchDefault(query: string) {
   useEmailStore.getState().setSearchQuery(query);
   await vi.waitFor(() => expect(useEmailStore.getState().loading).toBe(false));
 }
@@ -179,6 +187,36 @@ beforeEach(() => {
     mailboxes: MAILBOXES,
     currentMailboxId: 'inbox',
     pendingUndo: null,
+  });
+});
+
+// Webmail 763732fdc / 3904af2cb: a search leaves Spam and Trash out unless
+// "All folders" is picked, and one started inside them searches them.
+describe('the default search scope', () => {
+  it("leaves every account's Trash and Junk out", async () => {
+    await searchDefault('zephyr');
+
+    expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, args]) => [args.accountId, args.filter])).toEqual([
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr' }, { inMailboxOtherThan: ['trash', 'junk'] }] }],
+      ['team', { operator: 'AND', conditions: [{ text: 'zephyr' }, { inMailboxOtherThan: ['t-trash', 't-junk'] }] }],
+    ]);
+  });
+
+  it('searches Trash itself when the search starts there', async () => {
+    useEmailStore.setState({ currentMailboxId: 'team:t-trash' });
+    await searchDefault('zephyr');
+
+    expect(ids()).toEqual(['m5']);
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, args]) => args.accountId)).toEqual(['team']);
+  });
+
+  it('keeps Trash and Junk in when "All folders" is picked', async () => {
+    useEmailStore.setState({ filters: { folder: 'all' } });
+    await searchDefault('zephyr');
+    expect(ids()).toContain('m5');
   });
 });
 
@@ -420,6 +458,36 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
       ['team', { m1: { mailboxIds: { 't-trash': true } } }],
     ]);
     expect(server.current!.accounts.team.map((e) => e.id)).not.toContain('m5');
+  });
+
+  // The refused message keeps its row; the others go, in both accounts,
+  // and only they can be undone. Before, one refusal kept every row.
+  it('deletes the rest of a selection across accounts when the server refuses one message', async () => {
+    await search('zephyr');
+    server.current!.refusing.set('team', new Set(['m2']));
+
+    const err = await useEmailStore.getState()
+      .deleteEmailsBatch(['team:m1', 'team:m2', 'c:o1'], 'trash', 'inbox')
+      .catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ failedIds: ['m2'] });
+    expect(ids()).not.toContain('m1');
+    expect(ids()).not.toContain('o1');
+    expect(ids()).toContain('m2');
+    expect(server.current!.accounts.c.find((e) => e.id === 'o1')!.mailboxIds).toEqual({ trash: true });
+    expect(useEmailStore.getState().pendingUndo?.items.map((it) => it.email.id).sort()).toEqual(['m1', 'o1']);
+  });
+
+  it('files the rest when one account refuses a whole move', async () => {
+    await search('zephyr');
+    server.current!.failing.set('team', 'forbidden');
+
+    const err = await useEmailStore.getState().archiveEmailsBatch(['team:m1', 'c:o1']).catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ type: 'forbidden' });
+    expect(ids()).toContain('m1');
+    expect(ids()).not.toContain('o1');
+    expect(server.current!.accounts.c.find((e) => e.id === 'o1')!.mailboxIds).toEqual({ archive: true });
   });
 
   it('files spam in each row\'s own Junk', async () => {
