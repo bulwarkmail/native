@@ -2,7 +2,7 @@ import type { FileNode } from './types';
 import { jmapClient } from './jmap-client';
 import {
   createFolder, deleteFileNodes, destroyEmptyFolders, filesAccountId, getAllFileNodes, isCrossAccountId,
-  updateFileNodes,
+  isFolder, updateFileNodes,
 } from './files';
 import { JMAPSetError } from './jmap-result';
 import { getUniqueName } from '../lib/filenode-name';
@@ -168,8 +168,9 @@ export async function moveToTrash(
 
 /**
  * Put items of the trash back into the folder each came from, or the root
- * when that folder is gone or in the trash itself. A name taken there by now
- * gets " (1)" and so on. Their trash folders go once they are empty.
+ * when that folder is gone or in the trash itself (unless it comes back in
+ * the same call). A name taken there by now gets " (1)" and so on. Their
+ * trash folders go once they are empty.
  *
  * The drive is read again first, and that is what counts: the listing on
  * screen (for an undo, the one from before the delete) misses a folder
@@ -195,13 +196,14 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
     return item ? [item] : [];
   });
   if (pending.length === 0) return result;
-  // Names taken in each folder, so a restored item never clashes.
+  // Names taken in each folder, so a restored item never clashes. Folders of
+  // the trash count too: one restored below may be the target.
   const taken = new Map<string | null, Set<string>>();
   const namesIn = (parentId: string | null): Set<string> => {
     let names = taken.get(parentId);
     if (!names) {
       names = new Set(nodes
-        .filter((n) => (n.parentId ?? null) === parentId && !n.isShared && !hidden.has(n.id))
+        .filter((n) => (n.parentId ?? null) === parentId && !n.isShared)
         .map((n) => n.name));
       // Something named ".Trash" doesn't go back to the root under that name.
       if (parentId === null) names.add(TRASH_FOLDER_NAME);
@@ -210,22 +212,57 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
     return names;
   };
 
+  // An item may come from a folder that is among the items too, or inside
+  // one of them (deleted from it before the folder itself went). Once that
+  // item is back, so is the folder: the item waits for it instead of going
+  // to the root.
+  const restoring = new Set(pending.map((item) => item.node.id));
+  const holder = (folderId: string | null): string | null => {
+    const seen = new Set<string>();
+    for (let cur = folderId ? places.byId.get(folderId) : undefined; cur && hidden.has(cur.id) && !seen.has(cur.id);
+      cur = cur.parentId ? places.byId.get(cur.parentId) : undefined) {
+      seen.add(cur.id);
+      if (restoring.has(cur.id)) return cur.id;
+    }
+    return null;
+  };
+  const restored = new Set<string>();
+  const tried = new Set<string>();
   const updates: Record<string, Partial<Pick<FileNode, 'name' | 'parentId'>>> = {};
   const targets = new Map<string, string | null>();
-  for (const item of pending) {
-    const target = restoreTarget(item, places);
-    const used = namesIn(target);
-    const name = getUniqueName(item.node.name, used);
-    used.add(name);
-    // The name only goes along when it has to change: the listing shows a
-    // WebDAV name decoded, and sending that back would rename the file.
-    updates[item.node.id] = name === item.node.name ? { parentId: target } : { parentId: target, name };
-    targets.set(item.node.id, target);
+  for (let rest = pending; rest.length > 0;) {
+    const waits = (item: TrashedItem) => {
+      const h = holder(item.fromParentId);
+      return h !== null && h !== item.node.id && !tried.has(h);
+    };
+    let round = rest.filter((item) => !waits(item));
+    // Only a loop of folders (impossible in a tree) leaves none ready.
+    if (round.length === 0) round = rest;
+    rest = rest.filter((item) => !round.includes(item));
+
+    const roundUpdates: typeof updates = {};
+    for (const item of round) {
+      const from = item.fromParentId;
+      const h = holder(from);
+      const origin = from ? places.byId.get(from) : undefined;
+      const target = h !== null && restored.has(h) && origin && isFolder(origin) && !origin.isShared
+        ? from
+        : restoreTarget(item, places);
+      const used = namesIn(target);
+      const name = getUniqueName(item.node.name, used);
+      used.add(name);
+      // The name only goes along when it has to change: the listing shows a
+      // WebDAV name decoded, and sending that back would rename the file.
+      roundUpdates[item.node.id] = name === item.node.name ? { parentId: target } : { parentId: target, name };
+      targets.set(item.node.id, target);
+    }
+    Object.assign(updates, roundUpdates);
+    assertDrive(drive);
+    const update = await updateFileNodes(roundUpdates);
+    for (const id of Object.keys(roundUpdates)) tried.add(id);
+    for (const id of update.updated) restored.add(id);
+    result.refused.push(...Object.values(update.notUpdated));
   }
-  assertDrive(drive);
-  const update = await updateFileNodes(updates);
-  result.refused.push(...Object.values(update.notUpdated));
-  const restored = new Set(update.updated);
   if (restored.size === 0) {
     throw result.refused[0] ?? new JMAPSetError('setError', 'Failed to restore');
   }

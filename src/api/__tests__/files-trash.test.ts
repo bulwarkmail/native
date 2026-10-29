@@ -277,6 +277,38 @@ describe('restoreFromTrash', () => {
     expect(byId('a2')).toMatchObject({ parentId: 'docs', name: 'a.txt' });
   });
 
+  it('puts an item back into its folder when that folder is restored with it', async () => {
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'a'), 1730112000007);
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'docs'), 1730112000008);
+    const nodes = listed();
+    const { done } = await restoreFromTrash(trashedItems(nodes));
+    expect(done.map((i) => [i.node.id, i.node.parentId]).sort()).toEqual([['a', 'docs'], ['docs', null]]);
+    expect(byId('docs')!.parentId).toBeNull();
+    expect(byId('a')).toMatchObject({ parentId: 'docs', name: 'a.txt' });
+    expect(store.some((n) => /^\d+~/.test(n.name))).toBe(false);
+  });
+
+  it('puts an item back into a folder inside one restored with it, under a free name', async () => {
+    store.push({ id: 'sub', parentId: 'docs', name: 'Sub', blobId: null }, { id: 'c', parentId: 'sub', name: 'c.txt', blobId: 'bc' });
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'c'), 1730112000007);
+    store.push({ id: 'c2', parentId: 'sub', name: 'c.txt', blobId: 'bc2' });
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'docs'), 1730112000008);
+    await restoreFromTrash(trashedItems(listed()));
+    expect(byId('docs')!.parentId).toBeNull();
+    expect(byId('c')).toMatchObject({ parentId: 'sub', name: 'c (1).txt' });
+    expect(byId('c2')).toMatchObject({ parentId: 'sub', name: 'c.txt' });
+  });
+
+  it('puts the item at the root when its folder could not be restored with it', async () => {
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'a'), 1730112000007);
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'docs'), 1730112000008);
+    refuseUpdate.add('docs');
+    const { done, refused } = await restoreFromTrash(trashedItems(listed()));
+    expect(done.map((i) => i.node.id)).toEqual(['a']);
+    expect(refused).toHaveLength(1);
+    expect(byId('a')!.parentId).toBeNull();
+  });
+
   it('gives a folder named .Trash that goes back to the root another name', async () => {
     store.push({ id: 'x', parentId: 'docs', name: '.Trash', blobId: null }, { id: 'xin', parentId: 'x', name: 'in.txt', blobId: 'bi' });
     let nodes = listed();
