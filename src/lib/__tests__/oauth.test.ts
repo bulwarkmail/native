@@ -126,6 +126,38 @@ describe('oauth token refresh deduplication', () => {
     expect(mockSecureFetch).not.toHaveBeenCalled();
   });
 
+  it('does not bring back a chain forgotten while its refresh was in flight', async () => {
+    const tokens: OAuthTokens = {
+      accessToken: 'a1',
+      refreshToken: 'r1',
+      tokenEndpoint: 'https://auth.example.com/token',
+      clientId: 'bulwark-webmail',
+    };
+    let answer!: () => void;
+    mockSecureFetch.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => { answer = resolve; });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: 'a2', refresh_token: 'r2', expires_in: 3600 }),
+      } as Response;
+    });
+
+    const inFlight = refreshOAuthAccessToken(tokens);
+    await vi.waitFor(() => expect(mockSecureFetch).toHaveBeenCalledTimes(1));
+    // The account signs out before the token endpoint answers.
+    forgetRefreshRotations('r1');
+    answer();
+    await inFlight;
+
+    // A stale copy refreshed later doesn't get the signed-out account's
+    // successor, nor one of the successor's.
+    mockSecureFetch.mockResolvedValue({ ok: false, status: 400 } as Response);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toThrow('400');
+    await expect(refreshOAuthAccessToken({ ...tokens, accessToken: 'a2', refreshToken: 'r2' })).rejects.toThrow('400');
+    expect(mockSecureFetch).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps refreshing with the same token on a server that does not rotate', async () => {
     const tokens: OAuthTokens = {
       accessToken: 'a1',

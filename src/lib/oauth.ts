@@ -547,9 +547,26 @@ const ROTATED_MAX = 64;
 // A successor whose access token has less left than this is refreshed in
 // turn rather than handed out.
 const SUCCESSOR_MIN_LIFETIME_MS = 60_000;
+// Refresh tokens whose chain was dropped on sign-out. A refresh that was in
+// flight then returns afterwards and must not put the chain back.
+const forgotten = new Set<string>();
+const FORGOTTEN_MAX = 256;
+
+function markForgotten(refreshToken: string): void {
+  forgotten.delete(refreshToken);
+  if (forgotten.size >= FORGOTTEN_MAX) {
+    const oldest = forgotten.values().next().value;
+    if (oldest !== undefined) forgotten.delete(oldest);
+  }
+  forgotten.add(refreshToken);
+}
 
 function rememberRotation(previous: string, next: OAuthTokens): void {
   if (!next.refreshToken || next.refreshToken === previous) return;
+  if (forgotten.has(previous)) {
+    markForgotten(next.refreshToken);
+    return;
+  }
   if (!rotatedTo.has(previous) && rotatedTo.size >= ROTATED_MAX) {
     const oldest = rotatedTo.keys().next().value;
     if (oldest !== undefined) rotatedTo.delete(oldest);
@@ -572,13 +589,15 @@ function latestRotation(refreshToken: string): OAuthTokens | null {
 /** Test hook. */
 export function resetRefreshRotations(): void {
   rotatedTo.clear();
+  forgotten.clear();
 }
 
 /**
  * Drop the rotation chain `refreshToken` is part of, its predecessors and
  * successors both, when its account signs out. A stale copy of the bundle
  * refreshed later would otherwise get the successor from here and could
- * write the removed account's tokens back.
+ * write the removed account's tokens back. A refresh of the chain still in
+ * flight doesn't add it again when it returns.
  */
 export function forgetRefreshRotations(refreshToken: string | undefined): void {
   if (!refreshToken) return;
@@ -593,7 +612,10 @@ export function forgetRefreshRotations(refreshToken: string | undefined): void {
       if (next.refreshToken && !chain.has(next.refreshToken)) { chain.add(next.refreshToken); grew = true; }
     }
   }
-  for (const token of chain) rotatedTo.delete(token);
+  for (const token of chain) {
+    rotatedTo.delete(token);
+    markForgotten(token);
+  }
 }
 
 // OAuth refresh — exchanges the refresh token at the original token endpoint

@@ -16,7 +16,7 @@
 //   someone else wrote.
 
 import { jmapClient, type StoredCredentials } from '../api/jmap-client';
-import { refreshOAuthAccessToken } from './oauth';
+import { forgetRefreshRotations, refreshOAuthAccessToken } from './oauth';
 
 const TOKEN_REFRESH_LEEWAY_MS = 60_000;
 
@@ -29,7 +29,8 @@ function expiresSoon(expiresAt: number | undefined): boolean {
  * stored when needed. Password credentials come back as they are; so does
  * an account whose credentials are gone from storage (signed out). A failed
  * refresh returns what there is, and the request that uses it fails on its
- * own.
+ * own. When the account signs out while the refresh runs, its fresh tokens
+ * are dropped and this throws.
  */
 export async function freshStoredCredentials(
   accountId: string,
@@ -58,6 +59,7 @@ export async function freshStoredCredentials(
     if (!expiresSoon(base.expiresAt)) return base;
   }
 
+  let signedOut = false;
   try {
     const next = await refreshOAuthAccessToken({
       accessToken: base.accessToken!,
@@ -75,11 +77,20 @@ export async function freshStoredCredentials(
       clientId: next.clientId,
     };
     const current = await jmapClient.getStoredCredentials(accountId);
-    if (current && current.refreshToken === base.refreshToken && current.accessToken !== tokens.accessToken) {
+    if (!current) {
+      // Signed out meanwhile: the sign-out forgot the chain before this
+      // refresh returned. Nobody may use the tokens it bought.
+      forgetRefreshRotations(base.refreshToken);
+      forgetRefreshRotations(tokens.refreshToken);
+      signedOut = true;
+      throw new Error('Account signed out');
+    }
+    if (current.refreshToken === base.refreshToken && current.accessToken !== tokens.accessToken) {
       await jmapClient.setStoredCredentials(accountId, { ...current, ...tokens });
     }
     return { ...base, ...tokens };
-  } catch {
+  } catch (err) {
+    if (signedOut) throw err;
     return base;
   }
 }
