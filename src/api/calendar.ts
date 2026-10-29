@@ -1,6 +1,6 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { Calendar, CalendarEvent, CalendarRights } from './types';
+import type { Alert, Calendar, CalendarEvent, CalendarRights } from './types';
 import { JMAPSetError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
 import { formatWallClock, getEffectiveTimeZone, getTimeZoneOffsetMs } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, isTaskLikeObject, type ScannedCalendarObject } from '../lib/calendar-component-detection';
@@ -1295,6 +1295,9 @@ export interface CalendarUpdates {
   description?: string | null;
   sortOrder?: number;
   isSubscribed?: boolean;
+  // `{}` clears them: Stalwart refuses null for these maps.
+  defaultAlertsWithTime?: Record<string, Alert>;
+  defaultAlertsWithoutTime?: Record<string, Alert>;
 }
 
 // Rename / recolour / describe a calendar (Calendar/set update).

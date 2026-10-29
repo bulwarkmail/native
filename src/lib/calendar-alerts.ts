@@ -1,4 +1,4 @@
-import type { Alert, CalendarEvent } from '../api/types';
+import type { Alert, Calendar, CalendarEvent } from '../api/types';
 import { formatMessage, type MessageParams } from '../i18n/format';
 
 // A reminder, expressed as "minutes before the event start". 0 means "at the
@@ -128,6 +128,57 @@ export function withOwnAlertIds(alerts: Alert[], taken: Iterable<string>): Recor
 
 function reminderMinutes(reminders: Reminder[]): number[] {
   return [...new Set(reminders.map((r) => r.minutesBefore))].sort((a, b) => b - a);
+}
+
+/** Whether two reminder lists remind at the same times. */
+export function sameReminders(a: Reminder[], b: Reminder[]): boolean {
+  const x = reminderMinutes(a);
+  const y = reminderMinutes(b);
+  return x.length === y.length && x.every((minutes, i) => minutes === y[i]);
+}
+
+// ─── A calendar's default alerts (#1209) ─────────────────
+
+/** The alerts `calendar` gives an event with a time, or an all-day one, that uses its defaults. */
+export function calendarDefaultAlerts(
+  calendar: Pick<Calendar, 'defaultAlertsWithTime' | 'defaultAlertsWithoutTime'> | null | undefined,
+  allDay: boolean,
+): Record<string, Alert> {
+  return (allDay ? calendar?.defaultAlertsWithoutTime : calendar?.defaultAlertsWithTime) ?? {};
+}
+
+/**
+ * A calendar's default alerts as the editor's reminders set them, with the
+ * ones it can't show (`preserved`) kept as they were. Under ids of their own,
+ * `${idPrefix}-1` and on: Stalwart 1.0 refuses default alert ids that another
+ * calendar of the account uses ("Default alert ids must be unique across all
+ * calendars in the account."), so the prefix names the calendar and the
+ * list; it also shows them in an event that uses them under the same ids,
+ * where an event's own reminder-N alerts must not meet them. An emptied list
+ * is `{}`: Stalwart refuses null for these maps.
+ */
+/** The id prefix of `calendar`'s default alerts for timed or all-day events, unique in its account. */
+export function defaultAlertIdPrefix(calendar: Pick<Calendar, 'id' | 'originalId'>, allDay: boolean): string {
+  return `cal-${calendar.originalId || calendar.id}-${allDay ? 'allday' : 'timed'}`;
+}
+
+export function remindersToDefaultAlerts(
+  reminders: Reminder[],
+  preserved: Record<string, Alert> = {},
+  idPrefix = 'default',
+): Record<string, Alert> {
+  const alerts: Record<string, Alert> = { ...preserved };
+  let n = 0;
+  for (const minutesBefore of reminderMinutes(reminders)) {
+    let key = `${idPrefix}-${++n}`;
+    while (key in alerts) key = `${idPrefix}-${++n}`;
+    alerts[key] = {
+      '@type': 'Alert',
+      trigger: { '@type': 'OffsetTrigger', offset: minutesBeforeToOffset(minutesBefore), relativeTo: 'start' },
+      action: 'display',
+    };
+  }
+  return alerts;
 }
 
 /**

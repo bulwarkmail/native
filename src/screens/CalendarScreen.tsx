@@ -93,7 +93,7 @@ import { buildReplyTo } from '../lib/calendar-invitation';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
 import { deleteOccurrence, saveOccurrenceEdit, type SeriesEdit } from '../lib/recurrence-scope-edit';
 import { participantLimitMessage } from '../lib/calendar-participants';
-import { maxParticipantsPerEvent } from '../api/calendar';
+import { maxParticipantsPerEvent, type CalendarUpdates } from '../api/calendar';
 import { useContactNameResolver } from '../lib/contact-name-resolver';
 import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from '../lib/birthday-calendar';
 import { moveCalendar } from '../lib/calendar-sort';
@@ -880,7 +880,10 @@ export default function CalendarScreen() {
       } else {
         // Only what the user changed: an untouched colour another client
         // wrote may be one Stalwart 1.0 refuses.
-        const changes = changedCalendarFields(calendarEditTarget.calendar, values);
+        const changes: CalendarUpdates = changedCalendarFields(calendarEditTarget.calendar, values);
+        // The default reminders come only when the user changed them.
+        if (values.defaultAlertsWithTime) changes.defaultAlertsWithTime = values.defaultAlertsWithTime;
+        if (values.defaultAlertsWithoutTime) changes.defaultAlertsWithoutTime = values.defaultAlertsWithoutTime;
         if (Object.keys(changes).length > 0) await updateCalendar(calendarEditTarget.calendar.id, changes);
       }
     },

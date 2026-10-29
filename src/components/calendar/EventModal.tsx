@@ -50,8 +50,10 @@ import { useCalendarLocale } from '../../lib/calendar-locale';
 import { formatCalendarDate } from '../../lib/date-format';
 import {
   alertsToReminders,
+  calendarDefaultAlerts,
   reminderFieldsToSave,
   preservedAlerts,
+  withOwnAlertIds,
   formatReminder,
   REMINDER_PRESETS,
   REMINDER_UNIT_MINUTES,
@@ -228,6 +230,10 @@ export function EventModal({
   const [customRule, setCustomRule] = React.useState<RecurrenceRule | null>(null);
   const [recurrenceEditorOpen, setRecurrenceEditorOpen] = React.useState(false);
   const [reminders, setReminders] = React.useState<Reminder[]>([]);
+  // A new event starts on its calendar's default reminders (#1209) until
+  // the user customizes them.
+  const [useDefaults, setUseDefaults] = React.useState(false);
+  const onDefaults = !event && useDefaults;
   // Alerts the picker can't show (absolute / end-relative / non-display)
   // ride along untouched so a save never drops them.
   const [preserved, setPreserved] = React.useState<Record<string, Alert>>({});
@@ -268,6 +274,7 @@ export function EventModal({
       setCustomRule(detected === 'custom' ? event.recurrenceRules?.[0] ?? null : null);
       setRecurrenceEditorOpen(false);
       setReminders(alertsToReminders(event.alerts));
+      setUseDefaults(false);
       setPreserved(preservedAlerts(event.alerts));
       setSendInvitations(true);
       setCustomReminderOpen(false);
@@ -286,6 +293,7 @@ export function EventModal({
       setCustomRule(null);
       setRecurrenceEditorOpen(false);
       setReminders([]);
+      setUseDefaults(true);
       setPreserved({});
       setSendInvitations(true);
       setCustomReminderOpen(false);
@@ -369,7 +377,11 @@ export function EventModal({
         recurrenceRules: clearedOr(recurrenceRules, 'recurrenceRules'),
         // Untouched reminders are not sent: an event on its calendar's
         // default alerts keeps them.
-        ...reminderFieldsToSave(event, reminders, preserved, defaultAlertIds),
+        // A new event on its calendar's defaults: the server copies them
+        // into it (sending them as alerts too would double them).
+        ...(onDefaults
+          ? { useDefaultAlerts: true }
+          : reminderFieldsToSave(event, reminders, preserved, defaultAlertIds)),
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };
@@ -455,6 +467,18 @@ export function EventModal({
   const availablePresets = REMINDER_PRESETS.filter(
     (p) => !reminders.some((r) => r.minutesBefore === p),
   );
+  // The selected calendar's defaults, for an event with a time or all day.
+  const calendarDefaults = calendarDefaultAlerts(selectedCalendar, allDay);
+  const defaultReminders = alertsToReminders(calendarDefaults);
+  // Start the event's own reminders from the defaults, to change them.
+  const customizeReminders = () => {
+    setReminders(defaultReminders);
+    // Under ids of their own: Stalwart 1.0 drops an event's alert under a
+    // default alert's id.
+    const kept = preservedAlerts(calendarDefaults);
+    setPreserved(withOwnAlertIds(Object.values(kept), Object.keys(calendarDefaults)));
+    setUseDefaults(false);
+  };
 
   return (
     <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
@@ -654,7 +678,36 @@ export function EventModal({
           </Section>
 
           <Section icon={<Bell size={16} color={c.textMuted} />} label={t('calendar.alerts.title', 'Reminders')}>
-            {reminders.length > 0 && (
+            {onDefaults && (
+              <View style={{ gap: spacing.xs }}>
+                <Text style={styles.defaultsCaption}>{t('calendar.alerts.calendar_defaults', 'Calendar defaults')}</Text>
+                {defaultReminders.length === 0 && (
+                  <Text style={styles.defaultsCaption}>{t('calendar.alerts.none', 'No reminders')}</Text>
+                )}
+                {defaultReminders.map((r) => (
+                  <View key={r.minutesBefore} style={styles.reminderRow}>
+                    <Text style={styles.fieldText}>{formatReminder(r.minutesBefore, t)}</Text>
+                  </View>
+                ))}
+                <Pressable style={styles.addRow} onPress={customizeReminders} accessibilityRole="button">
+                  <Text style={styles.addRowText}>{t('calendar.alerts.customize', 'Customize')}</Text>
+                </Pressable>
+              </View>
+            )}
+            {!onDefaults && !event && (
+              <Pressable
+                style={styles.addRow}
+                onPress={() => {
+                  setUseDefaults(true);
+                  setReminderPickerOpen(false);
+                  setCustomReminderOpen(false);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.addRowText}>{t('calendar.alerts.use_defaults', 'Use calendar defaults')}</Text>
+              </Pressable>
+            )}
+            {!onDefaults && reminders.length > 0 && (
               <View style={{ gap: spacing.xs }}>
                 {reminders.map((r) => (
                   <View key={r.minutesBefore} style={styles.reminderRow}>
@@ -672,7 +725,7 @@ export function EventModal({
                 ))}
               </View>
             )}
-            {availablePresets.length > 0 && (
+            {!onDefaults && availablePresets.length > 0 && (
               <Pressable
                 style={styles.addRow}
                 onPress={() => setReminderPickerOpen((v) => !v)}
@@ -1035,6 +1088,7 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: spacing.sm,
   },
   addRowText: { ...typography.body, color: c.primary },
+  defaultsCaption: { ...typography.caption, color: c.textMuted },
 
   popover: {
     borderWidth: 1,

@@ -41,6 +41,8 @@ import { editorTimesChanged, editorTimesFromEvent, eventTimeFieldsToSave } from 
 import { participantFieldsToSave, participantLimitOf, seedAttendees, type Attendee } from '../../lib/calendar-participants';
 import { expandRecurringEvents } from '../../lib/recurrence-expansion';
 import { getEventStartDate } from '../../lib/calendar-utils';
+import { alertsToReminders, calendarDefaultAlerts, defaultAlertIdPrefix, remindersToDefaultAlerts } from '../../lib/calendar-alerts';
+import { getEffectiveAlerts } from '../../lib/calendar-alert-scheduler';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -695,6 +697,60 @@ live('live Stalwart calendar', () => {
         .find((r) => r[2] === 'g')?.[1].list as Record<string, any>[];
       expect(list).toHaveLength(1);
       expect(list[0].recurrenceOverrides?.['2027-10-11T10:00:00']?.title).toBe(`${RUN} owner second`);
+    }, 60_000);
+  });
+
+  describe('a calendar\'s default reminders (#1209)', () => {
+    let defaultsCalendarId = '';
+    let otherCalendarId = '';
+
+    afterAll(async () => {
+      const ids = [defaultsCalendarId, otherCalendarId].filter(Boolean);
+      if (ids.length > 0) {
+        await raw(client, [['Calendar/set', { accountId: client.accountId, destroy: ids, onDestroyRemoveEvents: true }, '0']]).catch(() => undefined);
+      }
+    }, 30_000);
+
+    it('are set and cleared in the calendar and given to a new event that uses them', async () => {
+      await connectSingleton();
+      const [[, made]] = await raw(client, [['Calendar/set', {
+        accountId: client.accountId, create: { c: { name: `${RUN} defaults`, color: '#3b82f6' } },
+      }, '0']]);
+      defaultsCalendarId = made.created?.c?.id ?? '';
+      expect(defaultsCalendarId, JSON.stringify(made.notCreated)).toBeTruthy();
+      await useCalendarStore.getState().fetchCalendars();
+
+      // As the calendar editor saves them.
+      // Another calendar of the account with defaults under the plain ids
+      // the editor wrote before: 1.0 wants them unique in the account.
+      const plain = await raw(client, [['Calendar/set', {
+        accountId: client.accountId,
+        create: { o: { name: `${RUN} other defaults`, defaultAlertsWithTime: remindersToDefaultAlerts([{ minutesBefore: 5 }]) } },
+      }, '0']]);
+      otherCalendarId = plain[0][1].created?.o?.id ?? '';
+      const target = { id: defaultsCalendarId };
+      await useCalendarStore.getState().updateCalendar(defaultsCalendarId, {
+        defaultAlertsWithTime: remindersToDefaultAlerts([{ minutesBefore: 15 }], {}, defaultAlertIdPrefix(target, false)),
+        defaultAlertsWithoutTime: remindersToDefaultAlerts([{ minutesBefore: 60 * 24 }], {}, defaultAlertIdPrefix(target, true)),
+      });
+      await useCalendarStore.getState().fetchCalendars();
+      const cal = useCalendarStore.getState().calendars.find((c) => c.id === defaultsCalendarId)!;
+      expect(alertsToReminders(calendarDefaultAlerts(cal, false))).toEqual([{ minutesBefore: 15 }]);
+      expect(alertsToReminders(calendarDefaultAlerts(cal, true))).toEqual([{ minutesBefore: 60 * 24 }]);
+
+      // As the event editor creates an event on the defaults.
+      const created = await useCalendarStore.getState().createEvent({
+        '@type': 'Event', title: `${RUN} on defaults`, start: '2027-12-03T09:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin', useDefaultAlerts: true,
+      } as Partial<CalendarEvent>, defaultsCalendarId);
+      const [stored] = await getEvents([created.id]);
+      expect(stored.useDefaultAlerts).toBe(true);
+      const effective = getEffectiveAlerts(stored, useCalendarStore.getState().calendars) ?? {};
+      expect(alertsToReminders(effective)).toEqual([{ minutesBefore: 15 }]);
+
+      // Emptied.
+      await useCalendarStore.getState().updateCalendar(defaultsCalendarId, { defaultAlertsWithTime: remindersToDefaultAlerts([]) });
+      const [[, after]] = await raw(client, [['Calendar/get', { accountId: client.accountId, ids: [defaultsCalendarId], properties: ['defaultAlertsWithTime'] }, '0']]);
+      expect(Object.keys(after.list[0].defaultAlertsWithTime ?? {})).toEqual([]);
     }, 60_000);
   });
 
