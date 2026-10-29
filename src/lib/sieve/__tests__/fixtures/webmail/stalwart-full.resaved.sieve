@@ -36,10 +36,6 @@ if size :over 10000000 {
 }
 
 # --- External rules (managed outside Bulwark) ---
-
-
-
-
 # Hand-written rule
 if header :contains "X-Spam-Flag" "YES" {
     fileinto "Junk";
