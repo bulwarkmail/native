@@ -334,6 +334,8 @@
     "send_now": "Send now",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
+    "send_unconfirmed_body": "The server did not confirm the send. Check your Sent folder before sending again. Your draft has been kept.",
+    "send_unconfirmed_title": "Send not confirmed",
     "submission_limit": "The server refused to send the message because a limit was reached: {reason}",
     "submission_quota": "The server has too many sent-message records for this account. Bulwark removed the ones it could; if this keeps happening, ask your administrator to raise the email submission limit.",
     "toolbar": {
@@ -451,6 +453,7 @@
       "unsupported": "No preview for this file type."
     },
     "quick_reply_login_switched": "This message is in another account. Switch back to it to reply.",
+    "quick_reply_unconfirmed": "The server did not confirm the send. Check your Sent folder before sending again.",
     "received_via": "to {name}",
     "remove_color": "Remove tag",
     "replied": "Replied",

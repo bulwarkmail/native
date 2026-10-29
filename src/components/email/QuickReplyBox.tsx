@@ -11,7 +11,7 @@ import { toast } from '../../stores/toast-store';
 import { currentSendLogin, useSendUndoStore } from '../../stores/send-undo-store';
 import { useAccountStore } from '../../stores/account-store';
 import { loginMovedFrom } from '../../lib/compose-login';
-import { sendEmail, patchKeywordsForEmails } from '../../api/email';
+import { sendEmail, patchKeywordsForEmails, SendUnconfirmedError } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { pruneEmailSubmissions } from '../../api/submissions';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
@@ -167,6 +167,17 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
         toast.success(t('notifications.email_sent', 'Email sent successfully'));
       }
     } catch (err) {
+      if (err instanceof SendUnconfirmedError) {
+        // It may have gone out: the text stays, and Sent tells (#1019).
+        Alert.alert(
+          t('email_composer.send_unconfirmed_title', 'Send not confirmed'),
+          t(
+            'email_viewer.quick_reply_unconfirmed',
+            'The server did not confirm the send. Check your Sent folder before sending again.',
+          ),
+        );
+        return;
+      }
       Alert.alert(t('email_composer.send_failed', 'Failed to send'), sendFailureMessage(err, t));
     } finally {
       setSending(false);

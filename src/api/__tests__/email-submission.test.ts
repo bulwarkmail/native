@@ -17,7 +17,9 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail } from '../email';
+import {
+  cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail, SendUnconfirmedError,
+} from '../email';
 import { ScheduleTooLateError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -255,6 +257,22 @@ describe('sendEmail', () => {
 
     await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, { draftsMailboxId: 'drafts-mb' }))
       .rejects.toThrow('Invalid envelope');
+  });
+
+  // #1019: an answer without the submission confirms nothing. The draft
+  // stays, and so does the copy, which may be the one that went out.
+  it('reports a send the server did not confirm as unconfirmed, and keeps the draft', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+      ],
+    });
+
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, {
+      draftsMailboxId: 'drafts-mb', draftId: 'old-draft',
+    })).rejects.toBeInstanceOf(SendUnconfirmedError);
+    // No destroy of the old draft version, nor of the copy.
+    expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
   it('still fails when the message could not be created', async () => {

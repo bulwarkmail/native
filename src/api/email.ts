@@ -1650,6 +1650,18 @@ function submissionError(err: { description?: string; type?: string }, fallback:
   return new ScheduleTooLateError(limit);
 }
 
+/**
+ * The send request came back without an EmailSubmission and without an
+ * error: nothing confirms the message left, and it may have (webmail
+ * SendUnconfirmedError, #1019). The draft is kept.
+ */
+export class SendUnconfirmedError extends Error {
+  constructor() {
+    super('Send confirmation was not received. Check Sent before sending again. Your draft has been kept.');
+    this.name = 'SendUnconfirmedError';
+  }
+}
+
 export interface SendEmailOptions {
   /**
    * Drafts folder id. When given, the message is created there with `$draft`
@@ -1803,6 +1815,14 @@ export async function sendEmail(
       sendAt = created?.sendAt;
     }
   }
+
+  // No submission came back and nothing said why: an answer cut short, or a
+  // server that skipped the call. Nothing confirms the message left, and it
+  // may have. Reporting it as sent dropped the draft and closed the composer
+  // (#1019); this keeps both, and the copy made for it too, since it may be
+  // the one that went out.
+  if (!failure && !emailSubmissionId) failure = new SendUnconfirmedError();
+  if (failure instanceof SendUnconfirmedError) throw failure;
 
   if (failure) {
     // Nothing went out. A message created before the submission was refused

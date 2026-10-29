@@ -43,7 +43,8 @@ import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import {
-  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
+  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, SendUnconfirmedError,
+  type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
@@ -2295,6 +2296,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
           t(
             'email_composer.send_timeout_body',
             'The message may already have gone out. Check your Sent folder before sending it again.',
+          ),
+        );
+        return;
+      }
+      if (e instanceof SendUnconfirmedError) {
+        // The message may have gone out: the composer and the draft stay,
+        // and the user checks Sent rather than sending it twice (#1019).
+        Alert.alert(
+          t('email_composer.send_unconfirmed_title', 'Send not confirmed'),
+          t(
+            'email_composer.send_unconfirmed_body',
+            'The server did not confirm the send. Check your Sent folder before sending again. Your draft has been kept.',
           ),
         );
         return;
