@@ -8,8 +8,13 @@ vi.mock('../../api/vacation', () => ({
 
 vi.mock('../../api/sieve', () => ({ isSieveSupported: vi.fn(() => false) }));
 
+const NO_FILTERS = {
+  includesVacation: false, forward: null, forwardAvailable: false,
+  audience: null, audienceAvailable: false, notRunning: false,
+};
+
 vi.mock('../filter-store', () => ({
-  isVacationIncludedInFilters: vi.fn(async () => false),
+  readVacationFilters: vi.fn(async () => NO_FILTERS),
   syncVacationWithFilters: vi.fn(async () => undefined),
 }));
 
@@ -39,7 +44,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.isVacationSupported.mockReturnValue(true);
   sieveApi.isSieveSupported.mockReturnValue(false);
-  filterStore.isVacationIncludedInFilters.mockResolvedValue(false);
+  filterStore.readVacationFilters.mockResolvedValue(NO_FILTERS);
   useVacationStore.getState().reset();
 });
 
@@ -96,12 +101,12 @@ describe('vacation-store account scoping', () => {
 describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
   it('reports the auto-reply as on while the filters script includes it', async () => {
     sieveApi.isSieveSupported.mockReturnValue(true);
-    filterStore.isVacationIncludedInFilters.mockResolvedValue(true);
+    filterStore.readVacationFilters.mockResolvedValue({ ...NO_FILTERS, includesVacation: true });
     api.getVacationResponse.mockResolvedValue(responder({ isEnabled: false, subject: 'Away' }));
 
     await useVacationStore.getState().fetch('team');
 
-    expect(filterStore.isVacationIncludedInFilters).toHaveBeenCalledWith('team');
+    expect(filterStore.readVacationFilters).toHaveBeenCalledWith('team');
     expect(useVacationStore.getState()).toMatchObject({ isEnabled: true, subject: 'Away' });
   });
 
@@ -111,7 +116,9 @@ describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
     await useVacationStore.getState().fetch();
 
     await useVacationStore.getState().save({ isEnabled: true });
-    expect(filterStore.syncVacationWithFilters).toHaveBeenCalledWith(true, undefined);
+    expect(filterStore.syncVacationWithFilters).toHaveBeenCalledWith(
+      true, undefined, undefined, undefined, { from: null, until: null },
+    );
 
     await useVacationStore.getState().save({ subject: 'Only the subject' });
     expect(filterStore.syncVacationWithFilters).toHaveBeenCalledTimes(1);
@@ -124,6 +131,48 @@ describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
 
     await expect(useVacationStore.getState().save({ isEnabled: false })).resolves.toBeUndefined();
     expect(useVacationStore.getState()).toMatchObject({ isEnabled: false, isSaving: false, error: null });
+    warn.mockRestore();
+  });
+
+  // #1152: forwarding and who gets the reply live in the filters script.
+  it('loads the stored forwarding and audience', async () => {
+    sieveApi.isSieveSupported.mockReturnValue(true);
+    const forward = { enabled: true, to: 'backup@example.org', keepCopy: false };
+    const audience = { only: 'internal' as const, domains: ['example.org'] };
+    filterStore.readVacationFilters.mockResolvedValue({
+      ...NO_FILTERS, forward, forwardAvailable: true, audience, audienceAvailable: true,
+    });
+    api.getVacationResponse.mockResolvedValue(responder());
+
+    await useVacationStore.getState().fetch();
+    expect(useVacationStore.getState()).toMatchObject({
+      forward, forwardAvailable: true, audience, audienceAvailable: true,
+    });
+  });
+
+  it('saves forwarding and audience in the vacation period, not to the responder', async () => {
+    sieveApi.isSieveSupported.mockReturnValue(true);
+    api.getVacationResponse.mockResolvedValue(responder({ fromDate: '2026-11-02T08:00:00Z' }));
+    await useVacationStore.getState().fetch();
+
+    const forward = { enabled: true, to: 'backup@example.org', keepCopy: true };
+    const audience = { only: 'external' as const, domains: ['example.org'] };
+    await useVacationStore.getState().save({ toDate: '2026-11-14T00:00:00Z', forward, audience });
+    expect(api.setVacationResponse).toHaveBeenCalledWith({ toDate: '2026-11-14T00:00:00Z' }, undefined);
+    expect(filterStore.syncVacationWithFilters).toHaveBeenCalledWith(
+      false, undefined, forward, audience, { from: '2026-11-02T08:00:00Z', until: '2026-11-14T00:00:00Z' },
+    );
+  });
+
+  it('reports a forwarding that could not be saved', async () => {
+    sieveApi.isSieveSupported.mockReturnValue(true);
+    filterStore.syncVacationWithFilters.mockRejectedValueOnce(new Error('boom'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(useVacationStore.getState().save({
+      forward: { enabled: true, to: 'backup@example.org', keepCopy: false },
+    })).rejects.toThrow('boom');
+    expect(useVacationStore.getState().isSaving).toBe(false);
     warn.mockRestore();
   });
 

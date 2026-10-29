@@ -5,6 +5,8 @@ import {
   isConditionValueEmpty,
   describeCondition,
   summarizeRule,
+  comparatorsFor,
+  takesNoValue,
 } from '../condition-value';
 import type { FilterRule } from '../types';
 
@@ -57,5 +59,25 @@ describe('summaries', () => {
     expect(summarizeRule(rule, t)).toBe(
       'from contains "@a.com" or "@b.com" or attachment has_any (+1) → move "Archive", stop',
     );
+  });
+
+  it('describes "all messages" by its field alone', () => {
+    expect(describeCondition({ field: 'all', comparator: 'any', value: '' }, t)).toBe('all');
+  });
+});
+
+describe('the comparators the editor offers', () => {
+  it('offers exact address and domain on the address fields only', () => {
+    for (const field of ['from', 'to', 'cc'] as const) {
+      expect(comparatorsFor(field)).toEqual(expect.arrayContaining(['address_is', 'domain_is']));
+    }
+    expect(comparatorsFor('subject')).not.toContain('address_is');
+    expect(comparatorsFor('header')).not.toContain('domain_is');
+  });
+
+  it('offers "all messages" without a value', () => {
+    expect(comparatorsFor('all')).toEqual(['any']);
+    expect(takesNoValue({ field: 'all', comparator: 'any', value: '' })).toBe(true);
+    expect(takesNoValue({ field: 'subject', comparator: 'contains', value: '' })).toBe(false);
   });
 });

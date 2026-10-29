@@ -1,4 +1,4 @@
-import type { FilterCondition, FilterRule } from './types';
+import type { FilterComparator, FilterCondition, FilterConditionField, FilterRule } from './types';
 
 // Helpers for the string | string[] condition value (1.7.3 "extended rules").
 // Mirrors the webmail's filter-rule-modal.tsx: conditions are stored as
@@ -27,12 +27,35 @@ export function isHasAnyCondition(cond: FilterCondition): boolean {
   return cond.field === 'attachment' && cond.comparator === 'has_any';
 }
 
+/** Conditions that test without a value: "has an attachment" and "all messages". */
+export function takesNoValue(cond: FilterCondition): boolean {
+  return cond.field === 'all' || isHasAnyCondition(cond);
+}
+
+const TEXT_COMPARATORS: FilterComparator[] = ['contains', 'not_contains', 'is', 'not_is', 'starts_with', 'ends_with', 'matches'];
+// The `address` test (webmail 1.13): exact address or exact domain, where
+// "contains" would also match joanna@ for anna@, or acme.com.evil for acme.com.
+const ADDRESS_COMPARATORS: FilterComparator[] = [...TEXT_COMPARATORS, 'address_is', 'domain_is'];
+const SIZE_COMPARATORS: FilterComparator[] = ['greater_than', 'less_than'];
+const ATTACHMENT_COMPARATORS: FilterComparator[] = ['has_any', 'has_type'];
+// "All messages" (#1154): Sieve `true`, nothing to compare.
+const ALL_MESSAGES_COMPARATORS: FilterComparator[] = ['any'];
+
+/** The comparators the rule editor offers for a field (webmail filter-rule-modal.tsx). */
+export function comparatorsFor(field: FilterConditionField): FilterComparator[] {
+  if (field === 'size') return SIZE_COMPARATORS;
+  if (field === 'attachment') return ATTACHMENT_COMPARATORS;
+  if (field === 'all') return ALL_MESSAGES_COMPARATORS;
+  if (field === 'from' || field === 'to' || field === 'cc') return ADDRESS_COMPARATORS;
+  return TEXT_COMPARATORS;
+}
+
 type Translate = (key: string, fallback?: string) => string;
 
 // Human-readable value part of a condition: `"a"`, or `"a" or "b"` for lists
 // using the locale's OR glue, or nothing for the value-less has_any test.
 export function formatConditionValue(cond: FilterCondition, t: Translate): string {
-  if (isHasAnyCondition(cond)) return '';
+  if (isHasAnyCondition(cond) || cond.field === 'all') return '';
   if (Array.isArray(cond.value)) {
     return cond.value.map((v) => `"${v}"`).join(` ${t('settings.filters.or', 'or')} `);
   }
@@ -41,6 +64,8 @@ export function formatConditionValue(cond: FilterCondition, t: Translate): strin
 
 export function describeCondition(cond: FilterCondition, t: Translate): string {
   const field = t(`settings.filters.condition_fields.${cond.field}`, cond.field);
+  // "All messages" says it all; it has no comparator to show.
+  if (cond.field === 'all') return field;
   const comparator = t(`settings.filters.comparators.${cond.comparator}`, cond.comparator);
   const value = formatConditionValue(cond, t);
   return value ? `${field} ${comparator} ${value}` : `${field} ${comparator}`;

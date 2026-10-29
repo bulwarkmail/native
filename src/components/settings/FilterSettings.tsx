@@ -21,12 +21,25 @@ import { FilterRuleModal } from '../filters/FilterRuleModal';
 import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
+import { periodStatus, supportsPeriods } from '../../lib/sieve/period';
 import Badge from '../Badge';
 
 type Translate = (key: string, fallback?: string) => string;
 
 function isReadonlyRule(r: FilterRule): boolean {
   return r.origin === 'external' || r.origin === 'opaque';
+}
+
+/** Whether a rule with a period is waiting for it, in it, or past it. */
+function PeriodBadge({ rule, t }: { rule: FilterRule; t: Translate }) {
+  const status = periodStatus(rule);
+  if (!status) return null;
+  const label = status === 'scheduled'
+    ? t('settings.filters.period_status_scheduled', 'scheduled')
+    : status === 'active'
+      ? t('settings.filters.period_status_active', 'active')
+      : t('settings.filters.period_status_expired', 'expired');
+  return <Badge>{label}</Badge>;
 }
 
 // Expanded "IF ... / THEN ..." view (webmail VisualRuleSummary, 1.4.6): every
@@ -147,6 +160,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     selectAccount, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
+  const periodsSupported = useFilterStore((s) => supportsPeriods(s.sieveCapabilities?.sieveExtensions));
 
   const [editingRule, setEditingRule] = useState<FilterRule | undefined>();
   const [showRuleModal, setShowRuleModal] = useState(false);
@@ -397,7 +411,10 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                     style={{ flex: 1, minWidth: 0 }}
                     onPress={() => { setEditingRule(rule); setShowRuleModal(true); }}
                   >
-                    <Text style={styles.ruleName} numberOfLines={1}>{rule.name}</Text>
+                    <View style={styles.ruleNameRow}>
+                      <Text style={styles.ruleName} numberOfLines={1}>{rule.name}</Text>
+                      <PeriodBadge rule={rule} t={t} />
+                    </View>
                     {expandedView ? (
                       <VisualRuleSummary rule={rule} t={t} c={c} />
                     ) : (
@@ -487,6 +504,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         visible={showRuleModal}
         rule={editingRule}
         mailboxes={mailboxes}
+        periodsSupported={periodsSupported}
         onSave={handleSaveRule}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />

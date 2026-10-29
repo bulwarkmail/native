@@ -4,14 +4,18 @@ import { WebView } from 'react-native-webview';
 import {
   AlertTriangle, Eye, EyeOff, Bold, Italic, Underline, List as ListIcon,
 } from '../icons';
-import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
+import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-section';
 import Button from '../Button';
 import RichTextEditor, { type RichTextEditorHandle } from '../RichTextEditor';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useVacationStore } from '../../stores/vacation-store';
+import { useVacationStore, VacationFiltersError, type VacationForwardSettings } from '../../stores/vacation-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useSettingsStore } from '../../stores/settings-store';
+import { isValidEmail } from '../../lib/recipients';
+import { ownDomains } from '../../lib/sieve/vacation-audience';
+import type { VacationForward } from '../../lib/sieve/types';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { stripDangerousTags, escapeHtml } from '../../lib/email-html';
 import {
@@ -26,6 +30,16 @@ import {
 // are typed as local wall-clock time and sent as RFC 8621 UTCDate strings;
 // the optional HTML body is edited in the composer's rich-text editor and
 // sanitised on save, with the plain-text part derived from it when left blank.
+// Forwarding and "reply to internal/external senders only" (webmail 1.13,
+// #1152) live in the filters script, so they are offered only where that
+// script can carry them (see readVacationFilters).
+
+type AudienceChoice = 'all' | 'internal' | 'external';
+
+function sameForward(a: VacationForwardSettings | null, b: VacationForward | null): boolean {
+  if (!a || !b) return a === b;
+  return a.enabled === b.enabled && a.to === b.to && a.keepCopy === b.keepCopy;
+}
 
 export function VacationSettings() {
   const c = useColors();
@@ -46,6 +60,13 @@ export function VacationSettings() {
   const editorRef = useRef<RichTextEditorHandle>(null);
   // Seed the editor once per load; RichTextEditor only reads initialHtml on mount.
   const [editorSeed, setEditorSeed] = useState(store.htmlBody || '');
+  const [forwardEnabled, setForwardEnabled] = useState(store.forward?.enabled ?? false);
+  const [forwardTo, setForwardTo] = useState(store.forward?.to ?? '');
+  const [forwardKeep, setForwardKeep] = useState(store.forward?.keepCopy ?? false);
+  const [audienceOnly, setAudienceOnly] = useState<AudienceChoice>(store.audience?.only ?? 'all');
+  // "Internal" are the account's own domains, as its identities give them.
+  const identities = useSettingsStore((s) => s.identities);
+  const domains = useMemo(() => ownDomains(identities.map((i) => i.email)), [identities]);
 
   // The store reuses `error` for save failures too, so remember whether the
   // initial fetch itself failed (that's the only case that blanks the form).
@@ -66,10 +87,40 @@ export function VacationSettings() {
     setHtmlEnabled(!!store.htmlBody);
     setHtmlBody(store.htmlBody || '');
     setEditorSeed(store.htmlBody || '');
+    setForwardEnabled(store.forward?.enabled ?? false);
+    setForwardTo(store.forward?.to ?? '');
+    setForwardKeep(store.forward?.keepCopy ?? false);
+    setAudienceOnly(store.audience?.only ?? 'all');
   }, [
     store.hasLoaded, store.isEnabled, store.fromDate, store.toDate,
-    store.subject, store.textBody, store.htmlBody,
+    store.subject, store.textBody, store.htmlBody, store.forward, store.audience,
   ]);
+
+  // Who gets the auto-reply as a save stores it: everyone, or the senders
+  // from (or not from) the account's domains as they are now. The domains
+  // come from the signed-in user's identities, so a managed (shared) account
+  // offers no narrowing rather than one built from the wrong domains.
+  const canNarrow = store.audienceAvailable && !managedAccountId && domains.length > 0;
+  const audienceSettings = !canNarrow
+    ? undefined
+    : audienceOnly === 'all' ? null : { only: audienceOnly, domains };
+  const audienceChanged = canNarrow && (
+    audienceOnly !== (store.audience?.only ?? 'all') ||
+    (audienceOnly !== 'all' && domains.join(',') !== (store.audience?.domains ?? []).join(','))
+  );
+
+  // Forwarding as a save stores it: an address that is off is kept for next
+  // time if it is usable, and dropped otherwise.
+  const forwardAddress = forwardTo.trim();
+  const forwardInvalid = store.forwardAvailable && forwardEnabled && !isValidEmail(forwardAddress);
+  const forwardSettings: VacationForwardSettings | null | undefined = !store.forwardAvailable
+    ? undefined
+    : forwardEnabled || isValidEmail(forwardAddress)
+      ? { enabled: forwardEnabled, to: forwardAddress, keepCopy: forwardKeep }
+      : null;
+  // Only what was changed here is sent: the rest stays as the server has it,
+  // which another device may have changed since this one loaded.
+  const forwardChanged = forwardSettings !== undefined && !sameForward(forwardSettings, store.forward);
 
   const fromParsed = parseLocalInput(fromDate);
   const toParsed = parseLocalInput(toDate);
@@ -99,9 +150,11 @@ export function VacationSettings() {
     (formatError ? true : localInputToUtcIso(toDate) !== normalizeUtcIso(store.toDate)) ||
     subject !== store.subject ||
     body !== store.textBody ||
-    (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '');
+    (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '') ||
+    forwardChanged ||
+    audienceChanged;
 
-  const canSave = hasChanges && !endBeforeStart && !formatError && !store.isSaving;
+  const canSave = hasChanges && !endBeforeStart && !formatError && !forwardInvalid && !store.isSaving;
 
   const handleSave = useCallback(async () => {
     // Read the live editor DOM rather than trusting onChange state (issue #9).
@@ -129,6 +182,8 @@ export function VacationSettings() {
         subject: subject.trim(),
         textBody,
         htmlBody: sanitizedHtml,
+        forward: forwardChanged ? forwardSettings : undefined,
+        audience: audienceChanged ? audienceSettings : undefined,
       });
       if (!sanitizedHtml) {
         setHtmlEnabled(false);
@@ -137,11 +192,16 @@ export function VacationSettings() {
       Alert.alert(t('notifications.vacation_saved', 'Vacation responder settings saved'));
     } catch (err) {
       Alert.alert(
-        t('notifications.vacation_save_failed', 'Failed to save vacation responder settings'),
+        err instanceof VacationFiltersError
+          ? t('notifications.vacation_filters_save_failed', 'Out of office settings saved, but the forwarding and reply recipients could not be saved')
+          : t('notifications.vacation_save_failed', 'Failed to save vacation responder settings'),
         err instanceof Error ? err.message : undefined,
       );
     }
-  }, [htmlBody, htmlEnabled, body, enabled, fromDate, toDate, subject, store, t]);
+  }, [
+    htmlBody, htmlEnabled, body, enabled, fromDate, toDate, subject, store, t,
+    forwardChanged, forwardSettings, audienceChanged, audienceSettings,
+  ]);
 
   const title = t('settings.vacation.title', 'Vacation Responder');
   const description = t('settings.vacation.description', "Automatically reply to incoming emails while you're away");
@@ -202,7 +262,33 @@ export function VacationSettings() {
             <ToggleSwitch checked={enabled} onChange={setEnabled} />
           </View>
         </SettingItem>
+        {canNarrow && (
+          <SettingItem
+            label={t('settings.vacation.audience.label', 'Reply to')}
+            description={t('settings.vacation.audience.description', 'Internal senders: {domains}', { domains: domains.join(', ') })}
+            noBorder
+          >
+            <Select
+              value={audienceOnly}
+              onChange={(v) => setAudienceOnly(v as AudienceChoice)}
+              options={[
+                { value: 'all', label: t('settings.vacation.audience.all', 'All senders') },
+                { value: 'internal', label: t('settings.vacation.audience.internal', 'Internal senders only') },
+                { value: 'external', label: t('settings.vacation.audience.external', 'External senders only') },
+              ]}
+            />
+          </SettingItem>
+        )}
       </SettingsSection>
+
+      {store.notRunning && (
+        <View style={styles.warnRow}>
+          <AlertTriangle size={14} color={c.warning} />
+          <Text style={styles.warnText}>
+            {t('settings.vacation.warnings.not_running', 'Forwarding or the reply recipients are saved but not active right now. Save to turn them back on.')}
+          </Text>
+        </View>
+      )}
 
       <SettingsSection
         title={t('settings.vacation.date_range.title', 'Date Range')}
@@ -329,6 +415,55 @@ export function VacationSettings() {
                 <Text style={styles.previewBody}>{body}</Text>
               )}
             </View>
+          )}
+        </SettingsSection>
+      )}
+
+      {store.forwardAvailable && (
+        <SettingsSection
+          title={t('settings.vacation.forward.title', 'Forwarding')}
+          description={t('settings.vacation.forward.description', 'Passes incoming messages on to another address, with or without the auto-reply, within the period above (without an end date, until switched off). Spam is not forwarded.')}
+        >
+          <SettingItem label={t('settings.vacation.forward.enabled_label', 'Forward messages')} noBorder={!forwardEnabled}>
+            <ToggleSwitch
+              checked={forwardEnabled}
+              onChange={setForwardEnabled}
+              accessibilityLabel={t('settings.vacation.forward.enabled_label', 'Forward messages')}
+            />
+          </SettingItem>
+          {forwardEnabled && (
+            <>
+              <View style={styles.bodyBlock}>
+                <Text style={styles.bodyLabel}>{t('settings.vacation.forward.to_label', 'Forward to')}</Text>
+                <TextInput
+                  value={forwardTo}
+                  onChangeText={setForwardTo}
+                  placeholder={t('settings.vacation.forward.to_placeholder', 'email@example.com')}
+                  placeholderTextColor={c.mutedForeground}
+                  accessibilityLabel={t('settings.vacation.forward.to_label', 'Forward to')}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[styles.subjectInput, forwardInvalid && !!forwardAddress && styles.inputInvalid]}
+                />
+                {forwardInvalid && (
+                  <Text style={[styles.bodyDesc, { color: c.error }]}>
+                    {t('settings.vacation.warnings.forward_address', 'Enter a valid address to forward to')}
+                  </Text>
+                )}
+              </View>
+              <SettingItem
+                label={t('settings.vacation.forward.keep_label', 'Keep in inbox')}
+                description={t('settings.vacation.forward.keep_description', 'Otherwise the message is only forwarded: it is not kept in this mailbox, and no filter rule runs on it.')}
+                noBorder
+              >
+                <ToggleSwitch
+                  checked={forwardKeep}
+                  onChange={setForwardKeep}
+                  accessibilityLabel={t('settings.vacation.forward.keep_label', 'Keep in inbox')}
+                />
+              </SettingItem>
+            </>
           )}
         </SettingsSection>
       )}

@@ -47,7 +47,7 @@ const TRANSLATED_PANES: Record<string, string[]> = {
   'settings/device-sync/DeviceSyncAccountRow.tsx': [],
   'settings/device-sync/DeviceSyncCollectionsSheet.tsx': [],
   'settings/device-sync/status.ts': [],
-  'filters/FilterRuleModal.tsx': [],
+  'filters/FilterRuleModal.tsx': ['YYYY-MM-DD HH:MM'],
   'filters/SieveEditorSheet.tsx': [],
 };
 
