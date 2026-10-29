@@ -1270,9 +1270,25 @@ export async function setEmailMailboxes(
 export async function destroyEmails(ids: string[], accountIdOverride?: string): Promise<void> {
   if (ids.length === 0) return;
   const accountId = accountIdOverride ?? jmapClient.accountId;
+  // Every slice goes out before a refusal is thrown, and the error names the
+  // ids that are still there (failedIds): the server destroyed the rest, and
+  // the list must drop those rather than keep them until the next refresh
+  // (webmail ac99c68ef).
+  let refusal: JMAPSetError | null = null;
+  const failed: string[] = [];
   for (const slice of batched(ids, maxInSet())) {
     const res = await jmapClient.request([['Email/set', { accountId, destroy: slice }, '0']]);
-    assertEmailsDestroyed(requireMethodResult(res, '0', 'Email/set'));
+    try {
+      assertEmailsDestroyed(requireMethodResult(res, '0', 'Email/set'));
+    } catch (err) {
+      if (!(err instanceof JMAPSetError)) throw err;
+      refusal ??= err;
+      failed.push(...(err.failedIds ?? []));
+    }
+  }
+  if (refusal) {
+    refusal.failedIds = failed;
+    throw refusal;
   }
 }
 
@@ -1282,9 +1298,12 @@ function assertEmailsDestroyed(body: Record<string, any>): void {
   const real = Object.entries(notDestroyed).filter(([, err]) => err?.type !== 'notFound');
   if (real.length > 0) {
     const [id, err] = real[0];
-    throw new Error(
+    const error = new JMAPSetError(
+      err.type || 'setError',
       `Failed to delete ${real.length} email(s), first: ${id} – ${err.type || 'unknown'}${err.description ? ` (${err.description})` : ''}`,
     );
+    error.failedIds = real.map(([failedId]) => failedId);
+    throw error;
   }
 }
 
