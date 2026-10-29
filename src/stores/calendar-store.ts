@@ -315,12 +315,51 @@ export function calendarStoreGeneration(): number {
   return storeGeneration;
 }
 
-/** A range load the store's reset overtook: what it read belongs to the account before. */
+/**
+ * A load or write the store's reset overtook: what it read belongs to the
+ * account before, and what it had still to write would reach the next one.
+ */
 export class CalendarAccountChangedError extends Error {
   constructor() {
-    super('The calendar was reset while its events were loading');
+    super(t('calendar.account_changed', 'The account changed while the calendar was loading or saving.'));
     this.name = 'CalendarAccountChangedError';
   }
+}
+
+/**
+ * The account a write is made for, taken when it starts: the store
+ * generation and the primary JMAP account the client serves. Calendar and
+ * event ids repeat across accounts, so a write still under way after an
+ * account switch must not send its next step, which would reach the next
+ * account, nor change the store, which shows that account by then.
+ */
+interface WriteScope {
+  generation: number;
+  primaryAccountId: string | null;
+}
+
+function connectedAccountId(): string | null {
+  return jmapClient.isConnected ? jmapClient.accountId : null;
+}
+
+function writeScope(): WriteScope {
+  return { generation: storeGeneration, primaryAccountId: connectedAccountId() };
+}
+
+function inScope(scope: WriteScope): boolean {
+  return scope.generation === storeGeneration && connectedAccountId() === scope.primaryAccountId;
+}
+
+function assertInScope(scope: WriteScope): void {
+  if (!inScope(scope)) throw new CalendarAccountChangedError();
+}
+
+/**
+ * The JMAP account a write goes to, named on every request: a shared
+ * calendar's owner, else the primary account the write started in.
+ */
+function writeAccount(scope: WriteScope, accountId: string | undefined): string | undefined {
+  return accountId ?? scope.primaryAccountId ?? undefined;
 }
 
 /**
@@ -540,6 +579,7 @@ async function updateBaseEvent(
   updates: Record<string, unknown>,
   sendSchedulingMessages: boolean | undefined,
   accountId: string | undefined,
+  scope: WriteScope,
 ): Promise<void> {
   const writesOverrides = Object.keys(updates).some((key) => key.split('/', 1)[0] === 'recurrenceOverrides');
   if (writesOverrides && overrideSeriesKeysRejected) {
@@ -551,6 +591,7 @@ async function updateBaseEvent(
   } catch (err) {
     if (!writesOverrides || !isOverrideSeriesKeyRejection(err)) throw err;
     overrideSeriesKeysRejected = true;
+    assertInScope(scope);
     await apiUpdateEvent(id, withoutOverrideSeriesKeys(updates), sendSchedulingMessages, accountId);
   }
 }
@@ -569,6 +610,7 @@ async function updateOccurrence(
   patchFor: (options: OverridePatchOptions) => Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
   accountId: string | undefined,
+  scope: WriteScope,
 ): Promise<void> {
   if (!syntheticIdRejected) {
     try {
@@ -578,10 +620,11 @@ async function updateOccurrence(
       if (!isSyntheticIdMutationUnsupported(err)) throw err;
       syntheticIdRejected = true;
     }
+    assertInScope(scope);
   }
   const fallback = buildFallbackOverridePatch(instance, patchFor({ seriesKeys: true }));
   if (!fallback || !instance.baseEventId) throw new Error('Cannot resolve the occurrence to override');
-  await updateBaseEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId);
+  await updateBaseEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId, scope);
 }
 
 /**
@@ -639,11 +682,14 @@ async function updateOccurrenceInTwoSteps(
   patch: Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
   accountId: string | undefined,
+  scope: WriteScope,
 ): Promise<void> {
-  await updateOccurrence(instance, syntheticId, (options) => withNewOverrideDetails(instance, {}, options), false, accountId);
+  await updateOccurrence(instance, syntheticId, (options) => withNewOverrideDetails(instance, {}, options), false, accountId, scope);
+  assertInScope(scope);
   const current = await findServerOccurrence(instance, accountId).catch(() => null);
+  assertInScope(scope);
   if (!current) throw new OccurrenceNotFoundAgainError();
-  await updateOccurrence(current, current.id, () => patch, sendSchedulingMessages, accountId);
+  await updateOccurrence(current, current.id, () => patch, sendSchedulingMessages, accountId, scope);
 }
 
 /**
@@ -656,8 +702,9 @@ async function updateOccurrenceInTwoSteps(
  * never shown. 0.16 stores and shows it either way; its series keeps the
  * same alerts.
  */
-async function stopSeriesDefaultAlerts(baseId: string, accountId: string | undefined): Promise<void> {
+async function stopSeriesDefaultAlerts(baseId: string, accountId: string | undefined, scope: WriteScope): Promise<void> {
   const [base] = await fetchEvents([baseId], accountId);
+  assertInScope(scope);
   if (!base?.useDefaultAlerts) return;
   const shown = base.alerts ?? {};
   await apiUpdateEvent(baseId, {
@@ -673,6 +720,7 @@ async function destroyOccurrence(
   syntheticId: string,
   sendSchedulingMessages: boolean | undefined,
   accountId: string | undefined,
+  scope: WriteScope,
 ): Promise<void> {
   if (!syntheticIdRejected) {
     try {
@@ -682,6 +730,7 @@ async function destroyOccurrence(
       if (!isSyntheticIdMutationUnsupported(err)) throw err;
       syntheticIdRejected = true;
     }
+    assertInScope(scope);
   }
   const fallback = buildFallbackExcludePatch(instance);
   if (!fallback || !instance.baseEventId) throw new Error('Cannot resolve the occurrence to exclude');
@@ -697,11 +746,12 @@ async function updateBrowserOccurrence(
   target: MutationTarget,
   updates: Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
+  scope: WriteScope,
 ): Promise<void> {
   const occurrence = target.storeEvent!;
   const patch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates, { seriesKeys: true }));
   if (!patch) throw new Error('Cannot resolve the occurrence to override');
-  await updateBaseEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+  await updateBaseEvent(target.realId, patch, sendSchedulingMessages, writeAccount(scope, target.accountId), scope);
 }
 
 /**
@@ -714,21 +764,25 @@ async function updateBrowserOccurrenceInTwoSteps(
   target: MutationTarget,
   updates: Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
+  scope: WriteScope,
 ): Promise<void> {
   const steps = buildOverrideInTwoSteps(target.storeEvent!, updates);
   if (!steps) throw new Error('Cannot resolve the occurrence to override');
-  await updateBaseEvent(target.realId, steps.quiet, false, target.accountId);
-  await updateBaseEvent(target.realId, steps.change, sendSchedulingMessages, target.accountId);
+  const accountId = writeAccount(scope, target.accountId);
+  await updateBaseEvent(target.realId, steps.quiet, false, accountId, scope);
+  assertInScope(scope);
+  await updateBaseEvent(target.realId, steps.change, sendSchedulingMessages, accountId, scope);
 }
 
 /** Delete one occurrence the device expanded by excluding it on its base event. */
 async function destroyBrowserOccurrence(
   target: MutationTarget,
   sendSchedulingMessages: boolean | undefined,
+  scope: WriteScope,
 ): Promise<void> {
   const patch = buildFallbackExcludePatch(target.storeEvent!);
   if (!patch) throw new Error('Cannot resolve the occurrence to exclude');
-  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, writeAccount(scope, target.accountId));
 }
 
 /**
@@ -964,6 +1018,7 @@ export const useCalendarStore = create<CalendarState>()(
     // Shared calendars live in the owner's account — route the create there,
     // and against the calendar's raw server id (calendarId is the namespaced
     // store id for shared calendars).
+    const scope = writeScope();
     const calendars = get().calendars;
     const cal = calendars.find((c) => c.id === calendarId);
     const accountId = cal?.accountId;
@@ -973,19 +1028,22 @@ export const useCalendarStore = create<CalendarState>()(
       event,
       cal?.originalId || calendarId,
       schedule,
-      accountId,
+      writeAccount(scope, accountId),
     );
+    // Made; the store shows another account by now.
+    if (!inScope(scope)) return created;
     // The /set echo lacks server-computed properties (utcStart/utcEnd, the
     // normalised recurrence rule); re-read the event so it renders at the
     // right instant, then expand a recurring series across the loaded range
     // instead of showing a single instance until the next refresh.
     let full = created;
     try {
-      const fetched = (await fetchEvents([created.id], accountId)) ?? [];
+      const fetched = (await fetchEvents([created.id], writeAccount(scope, accountId))) ?? [];
       if (fetched[0]) full = fetched[0];
     } catch {
       // Keep the echo; the next refresh reconciles.
     }
+    if (!inScope(scope)) return full;
     // Map the same way fetchEvents does so the optimistic insert doesn't
     // collide with the user's own events and stays visible under the right
     // calendar filter.
@@ -1004,8 +1062,10 @@ export const useCalendarStore = create<CalendarState>()(
     // A change to an occurrence stays on that occurrence: through its
     // synthetic id, or as an override on the base event it was expanded
     // from. Everything else goes to the stored event.
+    const scope = writeScope();
     const target = resolveMutationTarget(get().events, id, 'occurrence');
     const { storeEvent, realId, accountId } = target;
+    const account = writeAccount(scope, accountId);
     // Remap namespaced (shared-calendar) store ids in calendarIds back to the
     // raw server ids the owning account knows.
     const patch: Record<string, unknown> = { ...changes };
@@ -1042,15 +1102,16 @@ export const useCalendarStore = create<CalendarState>()(
         : storeEvent.participants);
     if (target.isOccurrence && storeEvent) {
       if (stopsDefaultAlerts && storeEvent.baseEventId) {
-        await stopSeriesDefaultAlerts(storeEvent.baseEventId, accountId);
+        await stopSeriesDefaultAlerts(storeEvent.baseEventId, account, scope);
+        assertInScope(scope);
       }
       if (twoSteps) {
         try {
-          await updateOccurrenceInTwoSteps(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+          await updateOccurrenceInTwoSteps(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, account, scope);
         } catch (err) {
           // Its quiet override is on the server, and the series' occurrences
           // may have other ids now: a retry must not go to the ones in view.
-          if (err instanceof OccurrenceNotFoundAgainError) await get().refresh().catch(() => undefined);
+          if (err instanceof OccurrenceNotFoundAgainError && inScope(scope)) await get().refresh().catch(() => undefined);
           throw err;
         }
       } else {
@@ -1059,19 +1120,25 @@ export const useCalendarStore = create<CalendarState>()(
           realId,
           (options) => withNewOverrideDetails(storeEvent, patch as Partial<CalendarEvent>, options),
           schedule,
-          accountId,
+          account,
+          scope,
         );
       }
     } else if (target.isBrowserOccurrence) {
-      if (stopsDefaultAlerts) await stopSeriesDefaultAlerts(realId, accountId);
+      if (stopsDefaultAlerts) {
+        await stopSeriesDefaultAlerts(realId, account, scope);
+        assertInScope(scope);
+      }
       if (twoSteps) {
-        await updateBrowserOccurrenceInTwoSteps(target, patch as Partial<CalendarEvent>, schedule);
+        await updateBrowserOccurrenceInTwoSteps(target, patch as Partial<CalendarEvent>, schedule, scope);
       } else {
-        await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule);
+        await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule, scope);
       }
     } else {
-      await updateBaseEvent(realId, patch, schedule, accountId);
+      await updateBaseEvent(realId, patch, schedule, account, scope);
     }
+    // Saved; the store shows another account by now, whose events can carry the same ids.
+    if (!inScope(scope)) return;
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
     });
@@ -1089,19 +1156,24 @@ export const useCalendarStore = create<CalendarState>()(
   deleteEvent: async (id) => {
     // Deleting an occurrence removes just that one: through its synthetic
     // id, or by excluding it on the base event it was expanded from.
+    const scope = writeScope();
     const target = resolveMutationTarget(get().events, id, 'occurrence');
     const { storeEvent, realId, accountId } = target;
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
     const schedule = hasSchedulingParticipants(storeEvent) ? true : undefined;
     if (target.isOccurrence && storeEvent) {
-      await destroyOccurrence(storeEvent, realId, schedule, accountId);
+      await destroyOccurrence(storeEvent, realId, schedule, writeAccount(scope, accountId), scope);
+      if (!inScope(scope)) return;
       set({ events: get().events.filter((e) => e.id !== id) });
     } else if (target.isBrowserOccurrence) {
-      await destroyBrowserOccurrence(target, schedule);
+      await destroyBrowserOccurrence(target, schedule, scope);
+      if (!inScope(scope)) return;
       set({ events: get().events.filter((e) => e.id !== id) });
     } else {
-      await apiDeleteEvents([realId], schedule, accountId);
+      await apiDeleteEvents([realId], schedule, writeAccount(scope, accountId));
+      // Deleted; the store shows another account by now, whose events can carry the same ids.
+      if (!inScope(scope)) return;
       knownMasters.delete(id);
       // Destroying a master removes every expanded occurrence of it, not
       // just the tapped one.
@@ -1127,7 +1199,10 @@ export const useCalendarStore = create<CalendarState>()(
     // and its SEQUENCE - a change that raises it from a stale one goes out
     // lower than the attendees' copies, which 0.16 refuses.
     const realId = seriesIdOf(event);
+    const generation = storeGeneration;
     const fetched = (await fetchEvents([realId], event.accountId)) ?? [];
+    // Read from the account before a reset: not the next account's master.
+    if (generation !== storeGeneration) throw new CalendarAccountChangedError();
     const master = fetched[0];
     if (!master) return null;
     // Known from here on, so a change to it is sent to its own account under
@@ -1147,10 +1222,12 @@ export const useCalendarStore = create<CalendarState>()(
     // isn't in the store; the caller hands it over instead. With scope
     // 'series' an occurrence answers for its whole series: the stored event
     // is updated.
+    const write = writeScope();
     const target = resolveMutationTarget(get().events, eventId, scope);
     const storeEvent = target.storeEvent ?? event;
     const realId = target.storeEvent || !event ? target.realId : seriesIdOf(event);
     const accountId = target.storeEvent ? target.accountId : event?.accountId ?? target.accountId;
+    const account = writeAccount(write, accountId);
     const occurrence = scope === 'occurrence' && (target.isOccurrence || target.isBrowserOccurrence)
       ? target.storeEvent ?? null
       : null;
@@ -1164,9 +1241,9 @@ export const useCalendarStore = create<CalendarState>()(
       const patch = patchFor({ seriesKeys: true });
       if (!patch) throw new Error('Participant not found on this occurrence');
       if (target.isOccurrence) {
-        await updateOccurrence(occurrence, target.realId, (options) => patchFor(options) ?? {}, true, accountId);
+        await updateOccurrence(occurrence, target.realId, (options) => patchFor(options) ?? {}, true, account, write);
       } else {
-        await updateBrowserOccurrence(target, patch, true);
+        await updateBrowserOccurrence(target, patch, true, write);
       }
     } else {
       // Repair events that are missing the organizer (e.g. imported ones) so
@@ -1175,8 +1252,10 @@ export const useCalendarStore = create<CalendarState>()(
         replyTo?.imip && storeEvent && !storeEvent.organizerCalendarAddress
           ? replyTo.imip
           : undefined;
-      await apiRsvpEvent(realId, participantId, status, repair, accountId);
+      await apiRsvpEvent(realId, participantId, status, repair, account);
     }
+    // Answered; the store shows another account by now, whose events can carry the same ids.
+    if (!inScope(write)) return;
     requestDeviceSync(CALENDAR_AUTHORITY);
     set({
       events: get().events.map((e) => {
@@ -1196,11 +1275,12 @@ export const useCalendarStore = create<CalendarState>()(
 
   importEvents: async (events, calendarId) => {
     if (events.length === 0) return { imported: 0, refused: [] };
+    const scope = writeScope();
     // Shared calendars live in the owner's account and carry a namespaced
     // store id — resolve the raw server id + owning account so dedup and
     // create target the right place.
     const cal = get().calendars.find((c) => c.id === calendarId);
-    const accountId = cal?.accountId;
+    const accountId = writeAccount(scope, cal?.accountId);
     const serverCalendarId = cal?.originalId || calendarId;
     const refused: RefusedImport[] = [];
     // Stalwart enforces UID uniqueness across calendars (#113):
@@ -1211,7 +1291,9 @@ export const useCalendarStore = create<CalendarState>()(
     let linked = 0;
     try {
       const existingIds = await queryEvents([], '', '', accountId);
+      assertInScope(scope);
       const existing = await getEventIdentities(existingIds, accountId);
+      assertInScope(scope);
       const byUid = new Map<string, EventIdentityFields>();
       for (const e of existing) if (e.uid) byUid.set(e.uid, e);
       const fresh: Partial<CalendarEvent>[] = [];
@@ -1222,6 +1304,7 @@ export const useCalendarStore = create<CalendarState>()(
           continue;
         }
         if (found.calendarIds?.[serverCalendarId]) continue;
+        assertInScope(scope);
         try {
           await apiUpdateEvent(
             found.id,
@@ -1236,7 +1319,8 @@ export const useCalendarStore = create<CalendarState>()(
         }
       }
       toCreate = fresh;
-    } catch {
+    } catch (err) {
+      if (err instanceof CalendarAccountChangedError) throw err;
       // Couldn't dedupe — proceed and let the server reject genuine dupes.
     }
     const prepared = toCreate.map(prepareImportedEvent);
@@ -1244,6 +1328,8 @@ export const useCalendarStore = create<CalendarState>()(
     try {
       // Batch in chunks of 50 to avoid oversized requests.
       for (let i = 0; i < prepared.length; i += 50) {
+        // The rest would go to the next account's calendar of the same id.
+        assertInScope(scope);
         try {
           const result = await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
           count += result.created;
@@ -1259,7 +1345,7 @@ export const useCalendarStore = create<CalendarState>()(
       }
     } finally {
       // Also when a chunk was refused: show what did get in.
-      if (count > 0 || linked > 0) {
+      if ((count > 0 || linked > 0) && inScope(scope)) {
         requestDeviceSync(CALENDAR_AUTHORITY);
         await get().refresh();
       }
@@ -1269,15 +1355,20 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   createCalendar: async (name, color, description) => {
-    const created = await apiCreateCalendar(name, color, description);
+    const scope = writeScope();
+    const created = await apiCreateCalendar(name, color, description, writeAccount(scope, undefined));
+    // Made in the account before a switch: not one of the next account's.
+    if (!inScope(scope)) return created;
     set({ calendars: sortCalendars([...get().calendars, created]) });
     requestDeviceSync(CALENDAR_AUTHORITY);
     return created;
   },
 
   updateCalendar: async (id, updates) => {
+    const scope = writeScope();
     const cal = get().calendars.find((c) => c.id === id);
-    await apiUpdateCalendar(cal?.originalId || id, updates, cal?.accountId);
+    await apiUpdateCalendar(cal?.originalId || id, updates, writeAccount(scope, cal?.accountId));
+    if (!inScope(scope)) return;
     set({
       calendars: sortCalendars(get().calendars.map((c) => (c.id === id ? { ...c, ...updates } as Calendar : c))),
     });
@@ -1287,6 +1378,7 @@ export const useCalendarStore = create<CalendarState>()(
   reorderCalendars: async (orderedIds) => {
     const updates = sortOrderUpdates(get().calendars, orderedIds);
     if (updates.length === 0) return;
+    const scope = writeScope();
     const before = get().calendars;
     const withSortOrders = (sortOrders: Map<string, number>) => sortCalendars(before.map((c) =>
       sortOrders.has(c.id) ? { ...c, sortOrder: sortOrders.get(c.id)! } : c));
@@ -1295,23 +1387,28 @@ export const useCalendarStore = create<CalendarState>()(
     const saved = new Map<string, number>();
     try {
       for (const { id, sortOrder } of updates) {
+        // The rest would renumber the next account's calendars of the same ids.
+        assertInScope(scope);
         const cal = before.find((c) => c.id === id);
-        await apiUpdateCalendar(cal?.originalId || id, { sortOrder }, cal?.accountId);
+        await apiUpdateCalendar(cal?.originalId || id, { sortOrder }, writeAccount(scope, cal?.accountId));
         saved.set(id, sortOrder);
       }
     } catch (err) {
       // Show the order the server now holds: the moves saved before the
-      // failure stay, the rest are undone.
-      set({ calendars: withSortOrders(saved) });
+      // failure stay, the rest are undone. Not over the next account's list.
+      if (inScope(scope)) set({ calendars: withSortOrders(saved) });
       throw err;
     } finally {
-      if (saved.size > 0) requestDeviceSync(CALENDAR_AUTHORITY);
+      if (saved.size > 0 && inScope(scope)) requestDeviceSync(CALENDAR_AUTHORITY);
     }
   },
 
   removeCalendar: async (id) => {
+    const scope = writeScope();
     const cal = get().calendars.find((c) => c.id === id);
-    await apiDeleteCalendar(cal?.originalId || id, cal?.accountId);
+    await apiDeleteCalendar(cal?.originalId || id, writeAccount(scope, cal?.accountId));
+    // Removed; the next account may have a calendar of the same id.
+    if (!inScope(scope)) return;
     set({
       calendars: get().calendars.filter((c) => c.id !== id),
       events: get().events.filter((e) => !e.calendarIds?.[id]),
@@ -1322,9 +1419,10 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   clearCalendarEvents: async (id) => {
+    const scope = writeScope();
     const cal = get().calendars.find((c) => c.id === id);
     try {
-      const cleared = await apiClearCalendarEvents(cal?.originalId || id, cal?.accountId);
+      const cleared = await apiClearCalendarEvents(cal?.originalId || id, writeAccount(scope, cal?.accountId));
       requestDeviceSync(CALENDAR_AUTHORITY);
       return cleared;
     } finally {
@@ -1334,8 +1432,10 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   shareCalendar: async (id, principalId, rights) => {
+    const scope = writeScope();
     const cal = get().calendars.find((c) => c.id === id);
-    await apiSetCalendarShare(cal?.originalId || id, principalId, rights, cal?.accountId);
+    await apiSetCalendarShare(cal?.originalId || id, principalId, rights, writeAccount(scope, cal?.accountId));
+    if (!inScope(scope)) return;
     set({
       calendars: get().calendars.map((c) => {
         if (c.id !== id) return c;
@@ -1348,8 +1448,10 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   setDefaultCalendar: async (id) => {
+    const scope = writeScope();
     const cal = get().calendars.find((c) => c.id === id);
-    await apiSetDefaultCalendar(cal?.originalId || id, cal?.accountId);
+    await apiSetDefaultCalendar(cal?.originalId || id, writeAccount(scope, cal?.accountId));
+    if (!inScope(scope)) return;
     set({
       calendars: get().calendars.map((c) => {
         if (c.id === id) return { ...c, isDefault: true };
@@ -1364,20 +1466,24 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   createTask: async (task, calendarId) => {
+    const scope = writeScope();
     const cal = get().calendars.find((c) => c.id === calendarId);
     await apiCreateEvent(
       { ...task, '@type': 'Task' },
       cal?.originalId || calendarId,
       undefined,
-      cal?.accountId,
+      writeAccount(scope, cal?.accountId),
     );
     await get().fetchTasks();
   },
 
   updateTask: async (id, changes) => {
+    const scope = writeScope();
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiUpdateEvent(realId, changes, undefined, task?.accountId);
+    await apiUpdateEvent(realId, changes, undefined, writeAccount(scope, task?.accountId));
+    // Saved; the next account's tasks can carry the same ids.
+    if (!inScope(scope)) return;
     set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
   },
 
@@ -1395,19 +1501,23 @@ export const useCalendarStore = create<CalendarState>()(
     // Flip the checkbox right away and put it back if the server refuses.
     const patchTask = (changes: Partial<CalendarEvent>) =>
       set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+    const scope = writeScope();
     patchTask(next);
     try {
-      await apiUpdateEvent(task.originalId || id, next, undefined, task.accountId);
+      await apiUpdateEvent(task.originalId || id, next, undefined, writeAccount(scope, task.accountId));
     } catch (err) {
-      patchTask({ progress: task.progress, percentComplete: task.percentComplete });
+      // Not on the next account's task of the same id.
+      if (inScope(scope)) patchTask({ progress: task.progress, percentComplete: task.percentComplete });
       throw err;
     }
   },
 
   deleteTask: async (id) => {
+    const scope = writeScope();
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiDeleteEvents([realId], undefined, task?.accountId);
+    await apiDeleteEvents([realId], undefined, writeAccount(scope, task?.accountId));
+    if (!inScope(scope)) return;
     set({ tasks: get().tasks.filter((t) => t.id !== id) });
   },
 

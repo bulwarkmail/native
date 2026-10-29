@@ -6,6 +6,7 @@
     "not_starred": "Not starred"
   },
   "calendar": {
+    "account_changed": "The account changed while the calendar was loading or saving.",
     "alerts": {
       "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}"
     },

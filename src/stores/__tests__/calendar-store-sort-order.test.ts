@@ -60,8 +60,8 @@ describe('calendar order', () => {
     await done;
 
     expect(mockUpdateCalendar.mock.calls).toEqual([
-      ['b', { sortOrder: 1 }, undefined],
-      ['a', { sortOrder: 2 }, undefined],
+      ['b', { sortOrder: 1 }, 'acc-1'],
+      ['a', { sortOrder: 2 }, 'acc-1'],
     ]);
   });
 

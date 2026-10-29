@@ -111,7 +111,7 @@ describe.each(['0.16.23', '1.0'])('a first change to one server occurrence on St
       ['s9', { title: 'Standup, room 2', participants }, true],
     ]);
     // Looked up around the occurrence, expanded.
-    expect(mockGetEvents).toHaveBeenCalledWith(['s9', 'other'], undefined, { expanded: true });
+    expect(mockGetEvents).toHaveBeenCalledWith(['s9', 'other'], 'acc-1', { expanded: true });
   });
 
   it('sends the change to the same id when the override keeps it (recurrence-keyed ids, live)', async () => {
@@ -134,7 +134,7 @@ describe.each(['0.16.23', '1.0'])('a first change to one server occurrence on St
     } as Partial<CalendarEvent>, { sendSchedulingMessages: true });
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
-    expect(mockUpdate.mock.calls[0]).toEqual(['s1', expect.objectContaining({ participants: askedAgain }), true, undefined]);
+    expect(mockUpdate.mock.calls[0]).toEqual(['s1', expect.objectContaining({ participants: askedAgain }), true, 'acc-1']);
   });
 
   it('sends the change once to an occurrence that has its override already', async () => {
@@ -248,7 +248,7 @@ describe('an occurrence\'s alerts on a series that uses the calendar\'s default 
 
     await useCalendarStore.getState().updateEvent(`base:${RID}`, edit);
 
-    expect(mockUpdate.mock.calls[0]).toEqual(['base', { useDefaultAlerts: false, alerts: null }, false, undefined]);
+    expect(mockUpdate.mock.calls[0]).toEqual(['base', { useDefaultAlerts: false, alerts: null }, false, 'acc-1']);
     expect(mockUpdate.mock.calls[1][0]).toBe('base');
     expect(mockUpdate.mock.calls[1][1]).toHaveProperty('recurrenceOverrides');
   });
