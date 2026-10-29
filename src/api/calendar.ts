@@ -420,10 +420,11 @@ export function resetSyntheticIdSupport(): void {
 }
 
 // The Calendar properties the app reads, which the default list on 0.16 and
-// 1.0 covers. Stalwart 1.0 advertises JMAP Metadata but its handlers are
-// still `todo!()`: a get that selects `metadata` or `privateMetadata` panics
-// on the server. An explicit list keeps them out even if a later release
-// adds them to the default. 0.16.6 knows every one of these.
+// 1.0 covers. The pre-releases of Stalwart 1.0 advertised JMAP Metadata with
+// handlers that were still `todo!()`: a get that selected `metadata` or
+// `privateMetadata` panicked on the server (1.0.0 answers it). An explicit
+// list keeps them, and whatever else a release adds to the default, out of
+// every calendar load. 0.16.6 knows every one of these.
 const CALENDAR_PROPERTIES = [
   'id', 'name', 'description', 'color', 'sortOrder', 'isSubscribed', 'isVisible', 'isDefault',
   'myRights', 'shareWith', 'defaultAlertsWithTime', 'defaultAlertsWithoutTime',
