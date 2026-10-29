@@ -684,10 +684,30 @@ export class PushSetupError extends Error {
   }
 }
 
+/**
+ * Whether the server refused the push address itself. Stalwart checks the
+ * URL when a subscription is created: 0.16.27 and 1.0 refuse plain http and
+ * private or reserved IP addresses, and 1.0 also refuses any host that is not
+ * a public domain name (localhost, .local, .lan, .internal, a single label).
+ */
+function isRefusedPushUrl(err: unknown): boolean {
+  return isJMAPSetError(err) && err.type === 'invalidProperties' && !!err.properties?.includes('url');
+}
+
 // A subscription write the mail server refused or could not take. The
 // refusals a user can do something about read as plain text; anything else
 // keeps the error's own message.
-function subscriptionError(err: unknown): PushSetupError {
+function subscriptionError(err: unknown, relayBaseUrl: string): PushSetupError {
+  if (isRefusedPushUrl(err)) {
+    return new PushSetupError(
+      'jmap',
+      t(
+        'settings.notifications.push.err_url_refused',
+        'The mail server refuses to send notifications to the relay at {url}. It only accepts https addresses on a public domain name, not a private IP address or a local name such as localhost, .local or .lan. Use the hosted relay, or give your relay a public domain name.',
+        { url: relayBaseUrl },
+      ),
+    );
+  }
   const type = err instanceof JMAPMethodError ? err.type : undefined;
   if (type === 'forbidden') {
     return new PushSetupError(
@@ -1204,6 +1224,9 @@ async function setupPushNotificationsInner(
   await migrateLegacyPushKeys();
 
   const deviceClientId = await getOrCreateDeviceClientId(accountId);
+  // The relay a working registration goes through, put back should the mail
+  // server refuse the new one's address.
+  const previousRelayBaseUrl = await getStoredRelayBaseUrl();
   await setStoredRelayBaseUrl(relayBaseUrl);
 
   // Register this account's device-client-id with the relay. Multiple
@@ -1291,7 +1314,7 @@ async function setupPushNotificationsInner(
           // Nothing the server said about the subscription (a failed request,
           // rate limiting, a refused method call): it keeps delivering, and
           // the next run tries again.
-          throw subscriptionError(err);
+          throw subscriptionError(err, relayBaseUrl);
         }
         if (refreshed) {
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
@@ -1377,7 +1400,15 @@ async function setupPushNotificationsInner(
     serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
-    throw subscriptionError(err);
+    // The server will never take this relay's address. Whatever registration
+    // still works goes through the relay used before: keep that one stored
+    // (token refreshes and the next launch register with it) and drop the
+    // record this run left on the refused relay.
+    if (isRefusedPushUrl(err) && previousRelayBaseUrl !== relayBaseUrl) {
+      await setStoredRelayBaseUrl(previousRelayBaseUrl);
+      await deregisterFromRelay(relayBaseUrl, deviceClientId);
+    }
+    throw subscriptionError(err, relayBaseUrl);
   }
 
   logPhase('verify');

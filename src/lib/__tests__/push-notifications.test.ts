@@ -371,6 +371,45 @@ describe('setupPushNotifications subscription shape', () => {
     expect(result.subscriptionId).toBe('new-server-id');
   });
 
+  it('says the mail server refuses a relay that is not on a public domain (Stalwart 1.0)', async () => {
+    const relay = 'https://relay.home.lan';
+    createMock.mockRejectedValueOnce(new JMAPSetError(
+      'invalidProperties',
+      'Failed to create push subscription new: invalidProperties – properties=[url] – Host is not a public domain name',
+      ['url'],
+    ));
+    const err = await setupPushNotifications({ relayBaseUrl: relay }).catch((e) => e);
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.phase).toBe('jmap');
+    expect(err.message).toContain(relay);
+    expect(err.message).toContain('public domain name');
+    expect(err.message).not.toContain('properties=[url]');
+  });
+
+  it('keeps the relay a working registration goes through when the server refuses the new one', async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ id: 'existing', deviceClientId: OUR_DCID, expires: new Date(Date.now() + 5 * 86400000).toISOString(), types: ['EmailDelivery'] }]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.home.lan', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    expect(destroyMock).not.toHaveBeenCalledWith('existing');
+    const deleted = fetchMock.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE').map((c) => String(c[0]));
+    expect(deleted).toEqual([`https://relay.home.lan/api/push/register/${OUR_DCID}`]);
+
+    // The same relay refused (a server that tightened its rules) stays as it is.
+    fetchMock.mockClear();
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+    await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true }).catch(() => undefined);
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+    expect(fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+  });
+
   it('rejects plain-http relay URLs', async () => {
     await expect(setupPushNotifications({ relayBaseUrl: 'http://relay.example.com' })).rejects.toMatchObject({ phase: 'relay' });
     expect(createMock).not.toHaveBeenCalled();
