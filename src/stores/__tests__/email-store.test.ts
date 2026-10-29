@@ -1067,6 +1067,55 @@ describe('email-store', () => {
       useSettingsStore.getState().updateSetting('deleteAction', 'trash');
     });
 
+    // The messages are in Trash: a refused read flag must not report the
+    // delete as failed or keep the rows.
+    it('batch delete with trash-and-read reports no failure when only the read flag is refused', async () => {
+      const { JMAPSetError } = await import('../../api/jmap-result');
+      const refusal = new JMAPSetError('forbidden', 'Failed to update 1 email(s), first: e1 – forbidden');
+      refusal.failedIds = ['e1'];
+      mockPatchKeywords.mockRejectedValueOnce(refusal);
+      useSettingsStore.getState().updateSetting('deleteAction', 'trash-and-read');
+      useEmailStore.setState({
+        mailboxes: [
+          { id: 'mb-1', name: 'Inbox', role: 'inbox', isShared: false } as any,
+          { id: 'mb-trash', name: 'Trash', role: 'trash', isShared: false } as any,
+        ],
+        currentMailboxId: 'mb-1',
+        emails: [
+          { id: 'e1', keywords: {}, mailboxIds: { 'mb-1': true } } as any,
+          { id: 'e2', keywords: {}, mailboxIds: { 'mb-1': true } } as any,
+        ],
+      });
+
+      try {
+        await expect(useEmailStore.getState().deleteEmailsBatch(['e1', 'e2'], 'mb-trash', 'mb-1')).resolves.toBeUndefined();
+      } finally {
+        useSettingsStore.getState().updateSetting('deleteAction', 'trash');
+      }
+      expect(useEmailStore.getState().emails).toEqual([]);
+      expect(useEmailStore.getState().pendingUndo?.items).toHaveLength(2);
+    });
+
+    it('single delete with trash-and-read reports no failure when the read flag is refused', async () => {
+      mockPatchKeywords.mockRejectedValueOnce(new Error('forbidden'));
+      useSettingsStore.getState().updateSetting('deleteAction', 'trash-and-read');
+      useEmailStore.setState({
+        mailboxes: [
+          { id: 'mb-1', name: 'Inbox', role: 'inbox', isShared: false } as any,
+          { id: 'mb-trash', name: 'Trash', role: 'trash', isShared: false } as any,
+        ],
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e1', keywords: {}, mailboxIds: { 'mb-1': true } } as any],
+      });
+
+      try {
+        await expect(useEmailStore.getState().deleteEmail('e1', 'mb-trash', 'mb-1')).resolves.toBeUndefined();
+      } finally {
+        useSettingsStore.getState().updateSetting('deleteAction', 'trash');
+      }
+      expect(useEmailStore.getState().emails).toEqual([]);
+    });
+
     it('drops the rows the server deleted when it refused others of the selection', async () => {
       const { JMAPSetError } = await import('../../api/jmap-result');
       const refusal = new JMAPSetError('forbidden', 'Failed to delete 1 email(s), first: e2 – forbidden');

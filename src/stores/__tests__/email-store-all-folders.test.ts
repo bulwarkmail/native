@@ -460,6 +460,36 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
     expect(server.current!.accounts.team.map((e) => e.id)).not.toContain('m5');
   });
 
+  // The refused message keeps its row; the others go, in both accounts,
+  // and only they can be undone. Before, one refusal kept every row.
+  it('deletes the rest of a selection across accounts when the server refuses one message', async () => {
+    await search('zephyr');
+    server.current!.refusing.set('team', new Set(['m2']));
+
+    const err = await useEmailStore.getState()
+      .deleteEmailsBatch(['team:m1', 'team:m2', 'c:o1'], 'trash', 'inbox')
+      .catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ failedIds: ['m2'] });
+    expect(ids()).not.toContain('m1');
+    expect(ids()).not.toContain('o1');
+    expect(ids()).toContain('m2');
+    expect(server.current!.accounts.c.find((e) => e.id === 'o1')!.mailboxIds).toEqual({ trash: true });
+    expect(useEmailStore.getState().pendingUndo?.items.map((it) => it.email.id).sort()).toEqual(['m1', 'o1']);
+  });
+
+  it('files the rest when one account refuses a whole move', async () => {
+    await search('zephyr');
+    server.current!.failing.set('team', 'forbidden');
+
+    const err = await useEmailStore.getState().archiveEmailsBatch(['team:m1', 'c:o1']).catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ type: 'forbidden' });
+    expect(ids()).toContain('m1');
+    expect(ids()).not.toContain('o1');
+    expect(server.current!.accounts.c.find((e) => e.id === 'o1')!.mailboxIds).toEqual({ archive: true });
+  });
+
   it('files spam in each row\'s own Junk', async () => {
     await search('zephyr');
     await useEmailStore.getState().markSpam(['team:m2']);

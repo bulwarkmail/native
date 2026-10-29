@@ -1778,13 +1778,21 @@ export const useEmailStore = create<EmailState>()(
       // delete action, also clear unread state for messages moved to trash.
       if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
         const patch = { $seen: true };
-        await applyOrQueue({
-          kind: 'keywords',
-          emailId,
-          accountId: source.accountId,
-          patch,
-        });
-        patchCache(emailId, { mailboxIds: target, keywords: patch }, source.accountId);
+        // The message is in Trash already: a refused read flag leaves it
+        // unread there, it doesn't make the delete fail.
+        let markedRead = true;
+        try {
+          await applyOrQueue({
+            kind: 'keywords',
+            emailId,
+            accountId: source.accountId,
+            patch,
+          });
+        } catch (err) {
+          console.warn('[email-store] delete: marking read failed', err);
+          markedRead = false;
+        }
+        patchCache(emailId, { mailboxIds: target, ...(markedRead ? { keywords: patch } : {}) }, source.accountId);
       } else {
         patchCache(emailId, { mailboxIds: target }, source.accountId);
       }
@@ -1982,26 +1990,36 @@ export const useEmailStore = create<EmailState>()(
     // message kept every row of the selection, the deleted ones included.
     let refusal: unknown = null;
     const kept = new Set<string>();
-    const step = async (run: () => Promise<void>, keepRefused: boolean) => {
+    const step = async (run: () => Promise<void>) => {
       try {
         await run();
       } catch (err) {
         const failed = failedIdsOf(err);
         if (!failed) throw err;
         refusal ??= err;
-        if (keepRefused) for (const id of failed) kept.add(id);
+        for (const id of failed) kept.add(id);
       }
     };
+    // Moved to Trash but left unread: the row has still left the folder, and
+    // the delete did what was asked, so a refused read flag is no failure.
+    const leftUnread = new Set<string>();
     await applyOrQueueBatch(ops, async () => {
       if (toDestroy.length > 0) {
-        await step(() => apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId), true);
+        await step(() => apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId));
       }
       if (toTrash.length > 0) {
-        await step(() => apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId), true);
+        await step(() => apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId));
       }
-      if (toMarkRead.length > 0) {
-        // Moved but left unread: the row has still left the folder.
-        await step(() => patchKeywordsForEmails([...markReadIds], markReadPatch, source.accountId), false);
+      const markRead = [...markReadIds].filter((id) => !kept.has(id));
+      if (markRead.length > 0) {
+        try {
+          await patchKeywordsForEmails(markRead, markReadPatch, source.accountId);
+        } catch (err) {
+          // A lost connection queues the whole batch instead.
+          if (isTransientNetworkError(err)) throw err;
+          console.warn('[email-store] delete: marking read failed', err);
+          for (const id of failedIdsOf(err) ?? markRead) leftUnread.add(id);
+        }
       }
     });
     const destroyed = toDestroy.filter((e) => !kept.has(e.id));
@@ -2011,7 +2029,7 @@ export const useEmailStore = create<EmailState>()(
     for (const e of trashed) {
       patchCache(e.id, {
         mailboxIds: mailboxesAfterMove(e.mailboxIds, source.id, trash.id),
-        ...(markReadIds.has(e.id) ? { keywords: markReadPatch } : {}),
+        ...(markReadIds.has(e.id) && !leftUnread.has(e.id) ? { keywords: markReadPatch } : {}),
       }, source.accountId);
     }
 
@@ -2374,10 +2392,15 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   const settings = useSettingsStore.getState();
   const to = toMailboxId ? refFor(state.mailboxes, toMailboxId) : undefined;
   const ops: OutboxOp[] = [];
-  const runs: Array<() => Promise<unknown>> = [];
-  const cacheUpdates: Array<() => void> = [];
+  // Each server write with the rows it files and their account. `keeps`: a
+  // row the server refuses stays where it is (a move); a refused keyword
+  // patch (marking read on the way to Trash) still lets the row go.
+  const runs: Array<{ run: () => Promise<unknown>; accountId?: string; ids: string[]; keeps: boolean }> = [];
+  // `withPatch` is false for a row whose keyword patch the server refused.
+  const cacheUpdates: Array<{ key: string; apply: (withPatch: boolean) => void }> = [];
   const items: UndoEntry['items'] = [];
-  const gone: Email[] = [];
+  const gone: Array<{ email: Email; key: string }> = [];
+  const keyOf = (accountId: string | undefined, id: string) => `${accountId ?? ''}:${id}`;
   const copies: Array<{ accountId?: string; emails: Email[] }> = [];
   let missing: string | null = null;
   let refreshFolders = false;
@@ -2398,8 +2421,11 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         ...(keywordPatch ? { originalKeywords: { ...e.keywords } } : {}),
         accountId,
       });
-      cacheUpdates.push(() => patchCache(e.id, { mailboxIds, ...(patch ? { keywords: patch } : {}) }, accountId));
-      gone.push(e);
+      cacheUpdates.push({
+        key: keyOf(accountId, e.id),
+        apply: (withPatch) => patchCache(e.id, { mailboxIds, ...(patch && withPatch ? { keywords: patch } : {}) }, accountId),
+      });
+      gone.push({ email: e, key: keyOf(accountId, e.id) });
     }
   };
 
@@ -2418,17 +2444,22 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       for (const e of rows) {
         ops.push({ kind: 'archive', emailId: e.id, accountId, archiveMailboxId: archiveId, mode, receivedAt: e.receivedAt });
         items.push({ email: e, originalMailboxIds: { ...e.mailboxIds }, accountId });
-        cacheUpdates.push(() => patchCache(e.id, { mailboxIds: { [archiveId]: true } }, accountId));
-        gone.push(e);
+        cacheUpdates.push({ key: keyOf(accountId, e.id), apply: () => patchCache(e.id, { mailboxIds: { [archiveId]: true } }, accountId) });
+        gone.push({ email: e, key: keyOf(accountId, e.id) });
       }
       if (rows.length > 0) {
-        runs.push(() => apiArchiveEmails(
-          rows.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
-          archiveId,
-          mode,
-          toRawMailboxes(mailboxes),
+        runs.push({
+          run: () => apiArchiveEmails(
+            rows.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
+            archiveId,
+            mode,
+            toRawMailboxes(mailboxes),
+            accountId,
+          ),
           accountId,
-        ));
+          ids: ids(rows),
+          keeps: true,
+        });
         if (mode !== 'single') refreshFolders = true;
       }
     } else if (action === 'delete') {
@@ -2436,10 +2467,12 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       const destroy = emails.filter((e) => destroysOnDelete(state, e));
       const toTrash = emails.filter((e) => !destroy.includes(e));
       if (destroy.length > 0) {
-        for (const e of destroy) ops.push({ kind: 'destroy', emailId: e.id, accountId });
-        runs.push(() => apiDestroyEmails(ids(destroy), accountId));
-        cacheUpdates.push(() => dropFromCache(ids(destroy), accountId));
-        gone.push(...destroy);
+        for (const e of destroy) {
+          ops.push({ kind: 'destroy', emailId: e.id, accountId });
+          cacheUpdates.push({ key: keyOf(accountId, e.id), apply: () => dropFromCache([e.id], accountId) });
+          gone.push({ email: e, key: keyOf(accountId, e.id) });
+        }
+        runs.push({ run: () => apiDestroyEmails(ids(destroy), accountId), accountId, ids: ids(destroy), keeps: true });
       }
       if (toTrash.length > 0 && !trash) {
         missing = t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.');
@@ -2449,8 +2482,20 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         const unread = settings.deleteAction === 'trash-and-read' ? toTrash.filter((e) => !e.keywords?.$seen) : [];
         const read = new Set(unread);
         for (const e of toTrash) fileInto(accountId, [e], trashId, read.has(e) ? { $seen: true } : undefined);
-        runs.push(() => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), accountId));
-        if (unread.length > 0) runs.push(() => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId));
+        runs.push({
+          run: () => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), accountId),
+          accountId,
+          ids: ids(toTrash),
+          keeps: true,
+        });
+        if (unread.length > 0) {
+          runs.push({
+            run: () => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId),
+            accountId,
+            ids: ids(unread),
+            keeps: false,
+          });
+        }
       }
     } else if (action === 'spam' || action === 'notSpam') {
       const dest = action === 'spam' ? findJunkMailbox(mailboxes) : mailboxes.find((m) => m.role === 'inbox');
@@ -2460,9 +2505,14 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       }
       const destId = dest.originalId ?? dest.id;
       fileInto(accountId, emails, destId, keywordPatch);
-      runs.push(() => (action === 'spam'
-        ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
-        : apiUndoSpam(ids(emails), destId, accountId)));
+      runs.push({
+        run: () => (action === 'spam'
+          ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
+          : apiUndoSpam(ids(emails), destId, accountId)),
+        accountId,
+        ids: ids(emails),
+        keeps: true,
+      });
     } else if (to) {
       if (to.accountId !== accountId) {
         copies.push({ accountId, emails });
@@ -2474,13 +2524,39 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       });
       if (rows.length === 0) continue;
       fileInto(accountId, rows, to.id);
-      runs.push(() => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), accountId));
+      runs.push({
+        run: () => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), accountId),
+        accountId,
+        ids: ids(rows),
+        keeps: true,
+      });
     }
   }
 
+  // The server refuses messages one by one and applies the rest, and one
+  // account may refuse what another takes (a read-only share): the refused
+  // rows stay, the others are filed, and the first refusal is reported once
+  // the list shows the rest. Before, one refused message kept every row.
+  const refused = new Set<string>();
+  const unpatched = new Set<string>();
+  let refusal: unknown = null;
   if (ops.length > 0) {
     const { queued } = await applyOrQueueBatch(ops, async () => {
-      for (const run of runs) await run();
+      for (const { run, accountId, ids, keeps } of runs) {
+        try {
+          await run();
+        } catch (err) {
+          // A lost connection queues the whole batch instead.
+          if (isTransientNetworkError(err)) throw err;
+          const failed = (failedIdsOf(err) ?? ids).map((id) => keyOf(accountId, id));
+          if (keeps) {
+            refusal ??= err;
+            for (const key of failed) refused.add(key);
+          } else {
+            for (const key of failed) unpatched.add(key);
+          }
+        }
+      }
     });
     // Year/month archiving may have created folders.
     if (refreshFolders && !queued) void get().fetchMailboxes();
@@ -2488,15 +2564,20 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   for (const copy of copies) {
     try {
       await crossAccountMove(copy.emails, { accountId: copy.accountId, id: '' }, to!);
-      gone.push(...copy.emails);
+      gone.push(...copy.emails.map((email) => ({ email, key: keyOf(copy.accountId, email.id) })));
       dropFromCache(copy.emails.map((e) => e.id), copy.accountId);
     } catch (err) {
       missing = err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed');
     }
   }
-  for (const update of cacheUpdates) update();
+  for (const { key, apply } of cacheUpdates) if (!refused.has(key)) apply(!unpatched.has(key));
+  if (refused.size > 0) {
+    const filed = items.filter((it) => !refused.has(keyOf(it.accountId, it.email.id)));
+    items.length = 0;
+    items.push(...filed);
+  }
 
-  const goneKeys = new Set(gone.map(rowKeyOf));
+  const goneKeys = new Set(gone.filter(({ key }) => !refused.has(key)).map(({ email }) => rowKeyOf(email)));
   const count = items.length;
   const targetName = toMailboxId ? mailboxPath(state.mailboxes, toMailboxId) : undefined;
   const label = action === 'archive'
@@ -2527,6 +2608,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       : {}),
     ...(missing ? { error: missing } : {}),
   });
+  if (refusal) throw refusal;
 }
 
 // ── Refresh implementations (wrapped by coalesceRefresh above) ─────────
