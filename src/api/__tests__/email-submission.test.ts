@@ -107,7 +107,7 @@ describe('rescheduleScheduledSend', () => {
     expect(result).toEqual({ emailSubmissionId: 'sub-2', sendAt: '2026-09-25T08:00:00Z' });
     const [lookup] = mockRequest.mock.calls[0][0];
     expect(lookup).toEqual([
-      'EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope', 'sendAt'] }, '0',
+      'EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope', 'sendAt', 'identityId'] }, '0',
     ]);
     expect(createdArgs().create.replacement.envelope).toEqual({
       mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '7200' } },
@@ -216,6 +216,37 @@ describe('rescheduleScheduledSend', () => {
     // Half an hour was left of the original hold.
     expect(createdArgs(1).create.replacement.envelope.mailFrom.parameters).toEqual({ HOLDFOR: '1800' });
     vi.mocked(Date.now).mockRestore();
+  });
+
+  // A group send's undo entry carried the login's own identity id, which
+  // names nothing in the group account: both creates were refused and the
+  // message went back to Drafts unsent.
+  it("submits the replacement and the put-back through the original's identity, not the caller's", async () => {
+    const lookup = structuredClone(LOOKUP);
+    (lookup.methodResponses[0][1] as { list: Array<Record<string, unknown>> }).list[0].identityId = 'grp-identity';
+    mockRequest
+      .mockResolvedValueOnce(lookup)
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce(REFUSED('Quota exceeded'))
+      .mockResolvedValueOnce(set({ created: { replacement: { id: 'sub-3' } } }));
+
+    await rescheduleScheduledSend({ ...SCHEDULED, identityId: 'own-identity', accountId: 'grp-1' }, 0).catch(() => undefined);
+
+    expect(createdArgs(0).create.replacement.identityId).toBe('grp-identity');
+    expect(createdArgs(1).create.replacement.identityId).toBe('grp-identity');
+  });
+
+  it("keeps the caller's identity when the server does not name one", async () => {
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce({ methodResponses: REPLACED });
+
+    await rescheduleScheduledSend(SCHEDULED, 0);
+
+    expect(createdArgs().create.replacement.identityId).toBe('id-1');
   });
 
   it('moves the message back to Drafts when neither the replacement nor the original can be made', async () => {

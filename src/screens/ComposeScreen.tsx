@@ -2407,7 +2407,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       } else if (result.scheduled) {
         // Undo-send window: the undo bar offers Undo / Send now.
         useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
-          identityId: primaryIdentity.id,
+          // The identity the message went out through, as the submission
+          // account names it: "Send now" submits again with it.
+          identityId: target.identityId,
           accountId: submissionAccountId,
           login: ownerLoginRef.current,
           from: outgoing.from,

@@ -2230,7 +2230,7 @@ export async function rescheduleScheduledSend(
   const lookup = await jmapClient.request(
     [
       ['EmailSubmission/get', {
-        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'sendAt'],
+        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'sendAt', 'identityId'],
       }, '0'],
       ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
       ['Mailbox/get', { accountId, ids: null, properties: ['id', 'role'] }, '2'],
@@ -2240,8 +2240,14 @@ export async function rescheduleScheduledSend(
   const original = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
     envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
     sendAt?: string;
+    identityId?: string;
   }> | undefined)?.[0];
   const envelope = original?.envelope;
+  // The original's identity is one of the submission account's. The caller's
+  // may be the composer's, from the login's own account: for a group
+  // identity's message that id names nothing in the group account, and the
+  // replacement and the put-back were both refused (webmail parity).
+  const identityId = original?.identityId || scheduled.identityId;
   const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
   const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
   const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
@@ -2271,7 +2277,7 @@ export async function rescheduleScheduledSend(
             create: {
               replacement: {
                 emailId: scheduled.emailId,
-                identityId: scheduled.identityId,
+                identityId,
                 envelope: {
                   mailFrom: seconds === undefined
                     ? { email: mailFrom }
