@@ -5,7 +5,7 @@ import { CAPABILITIES } from '../api/types';
 import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
 import { secureFetch } from './client-cert';
-import { refreshOAuthAccessToken, type OAuthTokens } from './oauth';
+import { freshStoredCredentials } from './stored-token-refresh';
 import {
   generateEmailAvatarColor,
   getEmailInitials,
@@ -43,7 +43,6 @@ const NOTIFIED_IDS_LIMIT = 200;
 // Legacy state-change payloads carry no ids; look at this many newest unread
 // inbox messages and notify the ones we have not shown yet.
 const LEGACY_QUERY_LIMIT = 5;
-const TOKEN_REFRESH_LEEWAY_MS = 60_000;
 
 const EMAIL_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size', 'receivedAt', 'from', 'subject', 'preview',
@@ -312,48 +311,10 @@ function rewriteApiUrl(session: JMAPSession, serverUrl: string): string {
   return serverOrigin + session.apiUrl.slice(apiOrigin.length);
 }
 
-async function ensureFreshCredentials(
-  accountId: string,
-  creds: StoredCredentials,
-): Promise<StoredCredentials> {
-  if (
-    !creds.accessToken || !creds.refreshToken || !creds.tokenEndpoint
-    || !creds.clientId || creds.expiresAt == null
-  ) {
-    return creds;
-  }
-  if (creds.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return creds;
-  try {
-    const tokens: OAuthTokens = {
-      accessToken: creds.accessToken,
-      refreshToken: creds.refreshToken,
-      expiresAt: creds.expiresAt,
-      tokenEndpoint: creds.tokenEndpoint,
-      clientId: creds.clientId,
-    };
-    const next = await refreshOAuthAccessToken(tokens);
-    const updated: StoredCredentials = {
-      ...creds,
-      accessToken: next.accessToken,
-      refreshToken: next.refreshToken ?? creds.refreshToken,
-      expiresAt: next.expiresAt,
-      tokenEndpoint: next.tokenEndpoint,
-      clientId: next.clientId,
-    };
-    const current = await jmapClient.getStoredCredentials(accountId);
-    if (!current || current.accessToken !== updated.accessToken) {
-      await jmapClient.setStoredCredentials(accountId, updated);
-    }
-    return updated;
-  } catch {
-    return creds;
-  }
-}
-
 async function openDetachedSession(accountId: string): Promise<DetachedSession | null> {
   let creds = await jmapClient.getStoredCredentials(accountId);
   if (!creds) return null;
-  creds = await ensureFreshCredentials(accountId, creds);
+  creds = await freshStoredCredentials(accountId, creds);
   const baseUrl = creds.serverUrl.replace(/\/+$/, '');
   const authHeader = authHeaderFor(creds);
   const res = await secureFetch(`${baseUrl}/.well-known/jmap`, {

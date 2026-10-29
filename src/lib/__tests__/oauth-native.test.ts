@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as WebBrowser from 'expo-web-browser';
 
-vi.mock('../client-cert', () => ({
-  secureFetch: vi.fn(),
-}));
+// One fake server behind both: the client check and registration go out
+// with fetchWithoutForeignRedirect.
+vi.mock('../client-cert', () => {
+  const fetchFn = vi.fn();
+  return { secureFetch: fetchFn, fetchWithoutForeignRedirect: fetchFn };
+});
 
 import { secureFetch } from '../client-cert';
 import { loginWithPkce, pkceScopes, type OAuthMetadata } from '../oauth-native';
@@ -97,6 +100,37 @@ describe('loginWithPkce on Stalwart', () => {
     expect(params.get('client_id')).toBe('swc1.abc');
     expect(params.get('redirect_uri')).toBe(REGISTERED_REDIRECT_URI);
     expect(redirectUri).toBe(REGISTERED_REDIRECT_URI);
+  });
+
+  it('registers its client on 1.0 when the metadata names another public address', async () => {
+    const registered: string[] = [];
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('https://mail.example.com/api/auth/client')) return answer({ error: 'invalid_client' });
+      if (url.endsWith('/auth/register')) {
+        registered.push(url);
+        return answer({ client_id: 'swc1.pub' }, 201);
+      }
+      return answer({}, 404);
+    });
+    const advertised: OAuthMetadata = {
+      ...stalwart,
+      issuer: 'https://stalwart.internal.example.net',
+      authorization_endpoint: 'https://stalwart.internal.example.net/login',
+      token_endpoint: 'https://stalwart.internal.example.net/auth/token',
+      registration_endpoint: 'https://stalwart.internal.example.net/auth/register',
+    };
+    const { params } = await openedSession(advertised);
+
+    expect(params.get('client_id')).toBe('swc1.pub');
+    expect(registered).toEqual(['https://stalwart.internal.example.net/auth/register']);
+  });
+
+  it('says the server is unreachable instead of opening the browser with a client it may not know', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Network request failed'));
+    const err = await loginWithPkce('https://mail.example.com', stalwart).catch((e) => e);
+
+    expect(err.name).toBe('NetworkError');
+    expect(mockOpenAuthSession).not.toHaveBeenCalled();
   });
 
   it('keeps the webmail client and the app scheme on 0.16', async () => {

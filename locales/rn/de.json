@@ -1090,6 +1090,7 @@
       "password": {
         "change": "Passwort ändern",
         "changed": "Ihr Kontopasswort wurde aktualisiert.",
+        "changed_sign_in_again": "Ihr Kontopasswort wurde aktualisiert. Melden Sie sich mit dem neuen Passwort erneut an.",
         "changed_title": "Passwort geändert",
         "description": "Das Passwort für dieses Konto ändern.",
         "error": "Passwort konnte nicht geändert werden.",
@@ -1114,6 +1115,7 @@
         "disable": "Deaktivieren",
         "disable_error": "Zwei-Faktor-Authentifizierung konnte nicht deaktiviert werden.",
         "disable_hint": "Geben Sie Ihr Passwort ein, um die Zwei-Faktor-Authentifizierung zu deaktivieren.",
+        "disable_hint_code": "Geben Sie Ihr Passwort und einen Code aus Ihrer Authentifizierungs-App ein, um die Zwei-Faktor-Authentifizierung zu deaktivieren.",
         "enable_error": "Zwei-Faktor-Authentifizierung konnte nicht aktiviert werden.",
         "enabled_message": "Bei der nächsten Anmeldung werden Sie nach einem Code gefragt.",
         "enabled_title": "Zwei-Faktor-Authentifizierung aktiviert",

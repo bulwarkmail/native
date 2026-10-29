@@ -8,10 +8,20 @@ const { fake } = vi.hoisted(() => ({
     oauthClientId: null as string | null,
     stalwart: true,
     responses: [] as unknown[],
+    sent: [] as unknown[][],
+    updatePassword: async (_password: string) => undefined,
+    usesBearerAuth: false,
+    username: 'u@example.org' as string | null,
+    serverUrl: 'https://mail.example.org' as string | null,
+    storedSource: undefined as string | undefined,
+    async getStoredOAuthTokens() {
+      return this.storedSource ? { source: this.storedSource } : null;
+    },
     hasAccountCapability(cap: string) {
       return cap === 'urn:stalwart:jmap' && this.stalwart;
     },
-    async request() {
+    async request(calls: unknown[][]) {
+      this.sent.push(...calls);
       return { methodResponses: this.responses };
     },
   },
@@ -19,7 +29,14 @@ const { fake } = vi.hoisted(() => ({
 
 vi.mock('../jmap-client', () => ({ jmapClient: fake }));
 
-import { AccountSecurityForbiddenError, fetchAuthInfo, isLimitedStalwartSignIn } from '../account-security';
+import {
+  AccountSecurityForbiddenError,
+  changePassword,
+  disableTotp,
+  fetchAuthInfo,
+  isLimitedStalwartSignIn,
+  signedInWithPassword,
+} from '../account-security';
 
 const queries = [
   ['x:AppPassword/query', { ids: [] }, 'aq'],
@@ -73,5 +90,54 @@ describe('isLimitedStalwartSignIn', () => {
     expect(isLimitedStalwartSignIn()).toBe(false);
     fake.oauthClientId = null;
     expect(isLimitedStalwartSignIn()).toBe(false);
+  });
+});
+
+describe('changes that need the current code with TOTP on', () => {
+  const singletonSent = () => (fake.sent.at(-1)![1] as { update: { singleton: Record<string, unknown> } }).update.singleton;
+
+  beforeEach(() => {
+    fake.sent = [];
+    fake.responses = [['x:AccountPassword/set', { updated: { singleton: null } }, '0']];
+  });
+
+  it('sends the code with a password change, patching only otpAuth/otpCode', async () => {
+    await changePassword('old', 'new-password', ' 123456 ');
+    expect(singletonSent()).toEqual({ currentSecret: 'old', secret: 'new-password', 'otpAuth/otpCode': '123456' });
+  });
+
+  it('sends no OTP field without TOTP', async () => {
+    await changePassword('old', 'new-password');
+    expect(singletonSent()).toEqual({ currentSecret: 'old', secret: 'new-password' });
+  });
+
+  it('sends the code when turning TOTP off', async () => {
+    await disableTotp('pw', '654321');
+    expect(singletonSent()).toEqual({ currentSecret: 'pw', otpAuth: { otpUrl: null, otpCode: '654321' } });
+  });
+
+  it("shows Stalwart's reason when it refuses the change", async () => {
+    fake.responses = [['x:AccountPassword/set', {
+      notUpdated: { singleton: { type: 'forbidden', description: 'Current OTP code is required to change the password or OTP auth.' } },
+    }, '0']];
+    await expect(changePassword('old', 'new-password')).rejects.toThrow('Current OTP code is required');
+  });
+});
+
+describe('signedInWithPassword', () => {
+  it('is true for Basic auth and for the password + TOTP sign-in, which holds tokens', async () => {
+    fake.usesBearerAuth = false;
+    expect(await signedInWithPassword()).toBe(true);
+    fake.usesBearerAuth = true;
+    fake.storedSource = 'totp';
+    expect(await signedInWithPassword()).toBe(true);
+  });
+
+  it('is false for a browser or webmail sign-in', async () => {
+    fake.usesBearerAuth = true;
+    for (const source of ['native', 'handoff', 'pairing', undefined]) {
+      fake.storedSource = source;
+      expect(await signedInWithPassword()).toBe(false);
+    }
   });
 });

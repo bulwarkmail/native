@@ -574,6 +574,28 @@ export function resetRefreshRotations(): void {
   rotatedTo.clear();
 }
 
+/**
+ * Drop the rotation chain `refreshToken` is part of, its predecessors and
+ * successors both, when its account signs out. A stale copy of the bundle
+ * refreshed later would otherwise get the successor from here and could
+ * write the removed account's tokens back.
+ */
+export function forgetRefreshRotations(refreshToken: string | undefined): void {
+  if (!refreshToken) return;
+  const chain = new Set<string>([refreshToken]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [previous, next] of rotatedTo) {
+      const linked = chain.has(previous) || (!!next.refreshToken && chain.has(next.refreshToken));
+      if (!linked) continue;
+      if (!chain.has(previous)) { chain.add(previous); grew = true; }
+      if (next.refreshToken && !chain.has(next.refreshToken)) { chain.add(next.refreshToken); grew = true; }
+    }
+  }
+  for (const token of chain) rotatedTo.delete(token);
+}
+
 // OAuth refresh — exchanges the refresh token at the original token endpoint
 // for a new access token. Returns the updated bundle so the caller can
 // persist it.

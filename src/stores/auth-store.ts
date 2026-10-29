@@ -16,6 +16,8 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useOutboxStore } from './outbox-store';
+import { useSearchHistoryStore } from './search-history-store';
+import { useCalendarSubscriptionsStore } from './calendar-subscriptions-store';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -27,6 +29,7 @@ import {
   HandoffCancelledError,
   HandoffError,
   PairingError,
+  forgetRefreshRotations,
   type HandoffResult,
 } from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
@@ -129,8 +132,19 @@ function clearAllFeatureStores(): void {
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
   useFilterStore.getState().clearState();
+  clearDeviceWideAccountData();
   // Cache writes are held back briefly; get the signed-out data off disk now.
   void flushPersistedWrites();
+}
+
+// Kept across accounts, not per account, so they go only once nobody is
+// signed in (webmail lib/sign-out-cleanup.ts): the recent searches name what
+// the accounts' mail is about, and calendar feed URLs are often secret.
+// Templates and tag names stay, as in the webmail: they are the user's own
+// work on this device, not a copy of an account's data.
+function clearDeviceWideAccountData(): void {
+  useSearchHistoryStore.getState().clearRecentSearches();
+  useCalendarSubscriptionsStore.getState().clearAll();
 }
 
 // Drop the named account from the email cache, then reset the (per-session,
@@ -371,11 +385,14 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { 
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
 // QR-paired bundles are left alone: webmail up to 1.11 handed the phone the
 // desktop's own refresh token, and newer ones hand out a separate grant whose
-// refresh token only the webmail's token proxy understands.
+// refresh token only the webmail's token proxy understands. The account's
+// chain also leaves the in-process rotation memory either way, so a stale copy
+// refreshed after the sign-out can't pick up its tokens from there.
 async function revokeStoredRefreshToken(accountId: string): Promise<void> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
     const tokens = await jmapClient.getStoredOAuthTokens(accountId);
+    forgetRefreshRotations(tokens?.refreshToken);
     if (!entry || !tokens || tokens.source === 'pairing') return;
     await revokeRefreshToken(entry.serverUrl, tokens);
   } catch {
@@ -742,6 +759,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // That was the last account.
+    if (useAccountStore.getState().accounts.length === 0) clearDeviceWideAccountData();
     set({
       isAuthenticated: false,
       isLoading: false,

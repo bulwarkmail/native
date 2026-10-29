@@ -1,11 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../client-cert', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../client-cert')>();
-  return { ...actual, secureFetch: vi.fn() };
-});
-
-import { secureFetch } from '../client-cert';
+import { setManualFetchForTests } from '../client-cert';
 import {
   exchangePasswordForTokens,
   resetLoginClients,
@@ -15,15 +10,21 @@ import {
 } from '../totp-login';
 import { describeLoginError } from '../login-errors';
 
-const fetchMock = secureFetch as unknown as ReturnType<typeof vi.fn>;
+// The fetch that honours `redirect: 'manual'` (Expo's on a device). Tests that
+// model React Native's own fetch take it away.
+const fetchMock = vi.fn();
 const BASE = 'https://mail.example.com';
 
-function json(body: unknown, status = 200, extra?: { url?: string; redirected?: boolean }): Response {
+beforeEach(() => {
+  setManualFetchForTests(fetchMock as unknown as Parameters<typeof setManualFetchForTests>[0]);
+});
+afterEach(() => {
+  setManualFetchForTests(undefined);
+  vi.unstubAllGlobals();
+});
+
+function json(body: unknown, status = 200): Response {
   const res = new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-  if (extra) {
-    Object.defineProperty(res, 'url', { value: extra.url });
-    Object.defineProperty(res, 'redirected', { value: extra.redirected });
-  }
   return res;
 }
 
@@ -147,16 +148,68 @@ describe('exchangePasswordForTokens', () => {
     expect((await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e)).code).toBe('totp_required');
   });
 
-  it('does not post the password when the server redirects to another host', async () => {
-    const calls: string[] = [];
-    fetchMock.mockImplementation(async (url: string) => {
-      calls.push(url);
-      return json({}, 404, { url: 'https://evil.example/api/auth/client', redirected: true });
-    });
-    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e);
+  // The probe can't stand in for this check: it is skipped with a remembered
+  // client, and a redirect may apply to /api/auth alone.
+  function redirectingServer(target: string) {
+    const received: Call[] = [];
+    const server = async (url: string, init?: RequestInit): Promise<Response> => {
+      const body = typeof init?.body === 'string' ? init.body : undefined;
+      received.push({ url, method: init?.method ?? 'GET', body });
+      if (url === `${BASE}/api/auth`) {
+        return new Response(null, { status: 307, headers: { Location: `${target}/api/auth` } });
+      }
+      if (url.startsWith(target)) return json({ type: 'authenticated', client_code: 'stolen' });
+      return json({}, 404);
+    };
+    return { received, server };
+  }
+
+  it('does not follow a redirect of the password post to another host', async () => {
+    const { received, server } = redirectingServer('https://evil.example');
+    fetchMock.mockImplementation(server);
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1', { clientId: 'bulwark-webmail' }).catch((e) => e);
 
     expect(err).toBeInstanceOf(TotpLoginError);
-    expect(calls.some((u) => u.endsWith('/api/auth'))).toBe(false);
+    expect(err.code).toBe('login_failed');
+    expect(fetchMock.mock.calls.every(([, init]) => init?.redirect === 'manual')).toBe(true);
+    expect(received.some((c) => c.url.startsWith('https://evil.example'))).toBe(false);
+  });
+
+  it('follows a redirect within the server, keeping the post', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === 'http://mail.example.com/api/auth') {
+        return new Response(null, { status: 308, headers: { Location: `${BASE}/api/auth` } });
+      }
+      if (url === `${BASE}/api/auth` && init?.method === 'POST') return json({ type: 'authenticated', client_code: 'c' });
+      if (url === 'http://mail.example.com/auth/token') return json({ access_token: 'at', refresh_token: 'rt' });
+      return json({}, 404);
+    });
+    const tokens = await exchangePasswordForTokens('http://mail.example.com', 'u', 'pw', '1', { clientId: 'bulwark-webmail' });
+
+    expect(tokens.accessToken).toBe('at');
+  });
+
+  it('refuses the answer when the platform fetch followed a redirect to another host', async () => {
+    // React Native's fetch follows redirects itself and never sets
+    // `redirected`; only `url` tells where the answer came from.
+    setManualFetchForTests(null);
+    const { received, server } = redirectingServer('https://evil.example');
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      let res = await server(url, init);
+      let at = url;
+      const location = res.headers.get('location');
+      if (res.status === 307 && location) {
+        at = location;
+        res = await server(location, init);
+      }
+      Object.defineProperty(res, 'url', { value: at });
+      return res;
+    });
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1', { clientId: 'bulwark-webmail' }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(TotpLoginError);
+    expect(err.code).toBe('login_failed');
+    expect(received.some((c) => c.url.endsWith('/auth/token'))).toBe(false);
   });
 });
 
@@ -166,10 +219,43 @@ describe('resolveLoginClient', () => {
     resetLoginClients();
   });
 
-  it('keeps the webmail client when the server is unreachable, without remembering it', async () => {
+  it('says the server is unreachable, not that it refused the app, and remembers nothing', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e);
+
+    expect(err.name).toBe('NetworkError');
+    expect(describeLoginError(err, { serverUrl: BASE }).title).toBe("Can't reach mail.example.com");
+    expect(fetchMock.mock.calls.some(([url]) => url === `${BASE}/api/auth`)).toBe(false);
+    fakeServer('1.0');
+    expect((await resolveLoginClient(BASE)).clientId).toBe('swc1.1');
+  });
+
+  it.each([503, 429])('does not remember the webmail client after a %i from the client check', async (status) => {
+    fetchMock.mockResolvedValueOnce(json({ error: 'busy' }, status));
     expect((await resolveLoginClient(BASE)).clientId).toBe('bulwark-webmail');
     fakeServer('1.0');
     expect((await resolveLoginClient(BASE)).clientId).toBe('swc1.1');
+  });
+
+  it('remembers the webmail client on a server without the client check', async () => {
+    fakeServer('0.16');
+    await resolveLoginClient(BASE);
+    const calls = fakeServer('0.16');
+    expect((await resolveLoginClient(BASE)).clientId).toBe('bulwark-webmail');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('registers at the endpoint the OAuth metadata names', async () => {
+    const urls: string[] = [];
+    fetchMock.mockImplementation(async (url: string) => {
+      urls.push(url.split('?')[0]);
+      if (url.startsWith(`${BASE}/api/auth/client`)) return json({ error: 'invalid_client' });
+      if (url === 'https://public.example.com/auth/register') return json({ client_id: 'swc1.pub' }, 201);
+      return json({}, 404);
+    });
+    const client = await resolveLoginClient(BASE, { registrationEndpoint: 'https://public.example.com/auth/register' });
+
+    expect(client.clientId).toBe('swc1.pub');
+    expect(urls).toEqual([`${BASE}/api/auth/client`, 'https://public.example.com/auth/register']);
   });
 });

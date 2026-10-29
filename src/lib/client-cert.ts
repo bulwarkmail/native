@@ -239,3 +239,67 @@ export async function secureFetch(
     return buildResponse(raw);
   }
 }
+
+// ── fetchWithoutForeignRedirect ──────────────────────────────
+
+type ManualFetch = (url: string, init: RequestInit) => Promise<Response>;
+
+// undefined: not looked up yet; null: not available (unit tests in Node).
+let manualFetch: ManualFetch | null | undefined;
+
+// React Native's own fetch (whatwg-fetch over XMLHttpRequest) can't be told
+// not to follow redirects: OkHttp and NSURLSession follow them, a 307/308
+// with the original method and body, OkHttp even from https to http. Expo's
+// fetch takes `redirect: 'manual'` and hands the 3xx back.
+function getManualFetch(): ManualFetch | null {
+  if (manualFetch !== undefined) return manualFetch;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('expo/fetch') as { fetch?: unknown };
+    manualFetch = typeof mod.fetch === 'function' ? (mod.fetch as ManualFetch) : null;
+  } catch {
+    manualFetch = null;
+  }
+  return manualFetch;
+}
+
+/** Test hook: the fetch that honours `redirect: 'manual'` (Expo's on a device). */
+export function setManualFetchForTests(impl: ManualFetch | null | undefined): void {
+  manualFetch = impl;
+}
+
+/**
+ * `secureFetch` for requests that carry a secret in the body (a password, a
+ * PKCE verifier, an authorization code): they follow a redirect only within
+ * the same host or an http→https upgrade of it, as `secureFetch`'s native
+ * path does; any other 3xx comes back to the caller unfollowed. Where no
+ * fetch can be told so (Node, or Expo's missing), it falls back to the
+ * platform fetch, and the caller still checks `response.url` afterwards.
+ */
+export async function fetchWithoutForeignRedirect(
+  url: string,
+  init?: SecureFetchInit,
+): Promise<Response> {
+  const native = getNative();
+  if (native && (await getClientCertAlias())) return secureFetch(url, init);
+  const doFetch: ManualFetch = getManualFetch() ?? ((u, i) => fetch(u, i));
+  const { timeoutMs: _timeoutMs, ...rest } = init ?? {};
+  let currentUrl = url;
+  for (let hop = 0; ; hop++) {
+    const response = await doFetch(currentUrl, { ...rest, redirect: 'manual' });
+    const status = response.status;
+    const location = response.headers?.get?.('location');
+    if (
+      (status === 301 || status === 302 || status === 303 || status === 307 || status === 308) &&
+      location &&
+      hop < MAX_REDIRECTS
+    ) {
+      const next = resolveRedirect(currentUrl, location);
+      if (mayFollowRedirect(currentUrl, next)) {
+        currentUrl = next;
+        continue;
+      }
+    }
+    return response;
+  }
+}
