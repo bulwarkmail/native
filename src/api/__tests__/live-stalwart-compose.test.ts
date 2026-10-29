@@ -110,8 +110,8 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(filed.mailboxIds[sent]).toBe(true);
 
       // Cancel send: nothing goes out, and the message is a draft again.
-      const inDrafts = await cancelScheduledToDrafts(second, await getMailboxes(), singleton.accountId);
-      expect(inDrafts).toBe(true);
+      const cancelled = await cancelScheduledToDrafts(second, await getMailboxes(), singleton.accountId);
+      expect(cancelled).toEqual({ inDrafts: true });
       expect((await listScheduledEmails()).some((s) => s.emailId === result.emailId)).toBe(false);
       const [restored] = await getFullEmails([result.emailId!]);
       expect(restored.mailboxIds[drafts]).toBe(true);

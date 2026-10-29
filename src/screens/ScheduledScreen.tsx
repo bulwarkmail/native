@@ -194,9 +194,17 @@ export default function ScheduledScreen({ navigation }: Props) {
           style: 'destructive',
           onPress: () => {
             void runAction(item, async () => {
-              const inDrafts = await cancelScheduledToDrafts(item, mailboxes, jmapClient.accountId);
+              const { inDrafts, moveError } = await cancelScheduledToDrafts(item, mailboxes, jmapClient.accountId);
               clearUndoFor(item);
               removeItem(item);
+              if (moveError) {
+                // Not scheduled any more either way: it just stayed in Sent.
+                toast.warning(
+                  t('scheduled.cancelled_not_moved', 'Send cancelled, but not moved to Drafts'),
+                  { message: t('scheduled.cancelled_not_moved_body', 'The message will not be sent. It is still in Sent.') },
+                );
+                return;
+              }
               toast.success(
                 t('scheduled.send_cancelled', 'Send cancelled'),
                 inDrafts
@@ -252,8 +260,17 @@ export default function ScheduledScreen({ navigation }: Props) {
   const onEdit = (item: ScheduledEmail) => {
     void runAction(item, async () => {
       // A message held in a shared account goes back to that account's Drafts.
-      await cancelScheduledToDrafts(item, mailboxes, jmapClient.accountId);
+      const { moveError } = await cancelScheduledToDrafts(item, mailboxes, jmapClient.accountId);
       clearUndoFor(item);
+      if (moveError) {
+        // Opening it in the composer would edit the copy in Sent.
+        removeItem(item);
+        toast.warning(
+          t('scheduled.cancelled_not_moved', 'Send cancelled, but not moved to Drafts'),
+          { message: t('scheduled.cancelled_not_moved_body', 'The message will not be sent. It is still in Sent.') },
+        );
+        return;
+      }
       const email = await getFullEmail(item.emailId, item.accountId);
       removeItem(item);
       navigation.replace('Compose', { draft: draftContextFromEmail(email, scheduledAccountOverride(item, jmapClient.accountId)) });
