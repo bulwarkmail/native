@@ -29,6 +29,7 @@ import { formatQuoteDate } from '../lib/quote-header';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { isPendingSend, sameScheduledSend, scheduledSendKey } from '../lib/scheduled-send-key';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Scheduled'>;
 
@@ -79,7 +80,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   }, [load]);
 
   const runAction = async (item: ScheduledEmail, action: () => Promise<void>, failTitle: string) => {
-    setBusyId(item.emailSubmissionId);
+    setBusyId(scheduledSendKey(item));
     try {
       await action();
     } catch (e) {
@@ -124,7 +125,11 @@ export default function ScheduledScreen({ navigation }: Props) {
     toast.warning(title, { message, duration: 10_000 });
   };
 
-  const removeItem = (id: string) => setItems((prev) => prev.filter((i) => i.emailSubmissionId !== id));
+  // Submission ids repeat across accounts: a row is its account and id.
+  const removeItem = (item: ScheduledEmail) => setItems((prev) => prev.filter((i) => !sameScheduledSend(i, item)));
+  const clearUndoFor = (item: ScheduledEmail) => {
+    if (isPendingSend(useSendUndoStore.getState().pending, item, jmapClient.accountId)) useSendUndoStore.getState().clear();
+  };
 
   const onCancel = (item: ScheduledEmail) => {
     Alert.alert(
@@ -138,10 +143,8 @@ export default function ScheduledScreen({ navigation }: Props) {
           onPress: () => {
             void runAction(item, async () => {
               await cancelScheduledSend(item.emailSubmissionId, item.accountId);
-              if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
-                useSendUndoStore.getState().clear();
-              }
-              removeItem(item.emailSubmissionId);
+              clearUndoFor(item);
+              removeItem(item);
             }, t('scheduled.cancel_failed', 'Cancel failed'));
           },
         },
@@ -152,10 +155,8 @@ export default function ScheduledScreen({ navigation }: Props) {
   const onSendNow = (item: ScheduledEmail) => {
     void runAction(item, async () => {
       const result = await rescheduleScheduledSend(item, 0);
-      if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
-        useSendUndoStore.getState().clear();
-      }
-      removeItem(item.emailSubmissionId);
+      clearUndoFor(item);
+      removeItem(item);
       warnRefused(result.refusedRecipients);
     }, t('scheduled.send_now_failed', 'Could not send now'));
   };
@@ -179,10 +180,9 @@ export default function ScheduledScreen({ navigation }: Props) {
     }
     void runAction(item, async () => {
       const result = await rescheduleScheduledSend(item, seconds);
-      const pending = useSendUndoStore.getState().pending;
-      if (pending?.emailSubmissionId === item.emailSubmissionId) useSendUndoStore.getState().clear();
+      clearUndoFor(item);
       setItems((prev) => prev
-        .map((i) => (i.emailSubmissionId === item.emailSubmissionId
+        .map((i) => (sameScheduledSend(i, item)
           ? { ...i, emailSubmissionId: result.emailSubmissionId ?? i.emailSubmissionId, sendAt: result.sendAt ?? date.toISOString() }
           : i))
         .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime()));
@@ -195,9 +195,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   const onEdit = (item: ScheduledEmail) => {
     void runAction(item, async () => {
       await cancelScheduledSend(item.emailSubmissionId, item.accountId);
-      if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
-        useSendUndoStore.getState().clear();
-      }
+      clearUndoFor(item);
       // A message held in a shared account goes back to that account's Drafts.
       const shared = item.accountId !== jmapClient.accountId;
       const scope = shared
@@ -214,7 +212,7 @@ export default function ScheduledScreen({ navigation }: Props) {
         );
       }
       const email = await getFullEmail(item.emailId, item.accountId);
-      removeItem(item.emailSubmissionId);
+      removeItem(item);
       navigation.replace('Compose', { draft: draftContextFromEmail(email, shared ? item.accountId : undefined) });
     }, t('scheduled.edit_failed', 'Could not open the message for editing'));
   };
@@ -273,7 +271,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   };
 
   const renderItem = ({ item }: { item: ScheduledEmail }) => {
-    const busy = busyId === item.emailSubmissionId;
+    const busy = busyId === scheduledSendKey(item);
     return (
       <Pressable style={styles.row} onPress={() => setActionsFor(item)} disabled={busy}>
         <View style={styles.rowMain}>
@@ -347,7 +345,7 @@ export default function ScheduledScreen({ navigation }: Props) {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(i) => i.emailSubmissionId}
+          keyExtractor={scheduledSendKey}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           // A stack screen has no tab bar: the list ends clear of the gesture bar.
