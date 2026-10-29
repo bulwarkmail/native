@@ -156,8 +156,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   }, [storeEvents, event?.uid, serverMatch]);
 
   const trust = React.useMemo(
-    () => (event ? getInvitationTrustAssessment(event, email, method) : null),
-    [event, email, method],
+    () => (event ? getInvitationTrustAssessment(event, email, method, currentUserEmails) : null),
+    [event, email, method, currentUserEmails],
   );
 
   if (!attachment || !enabled || state === 'error') return null;

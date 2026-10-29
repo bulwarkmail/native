@@ -266,9 +266,23 @@ export function calendarInvitationKey(
 
 // ─── Authentication-Results / trust ──────────────────────
 
+interface SpfCheck {
+  result: string;
+  identity?: string;
+  domain?: string;
+}
+
+interface DkimCheck {
+  result: string;
+  domain?: string;
+  selector?: string;
+}
+
 export interface AuthenticationResults {
-  spf?: { result: string; domain?: string };
-  dkim?: { result: string; domain?: string; selector?: string };
+  /** The headline result; `all` every identity checked (MAIL FROM, HELO). */
+  spf?: SpfCheck & { all?: SpfCheck[] };
+  /** The first signature; `all` every one the header lists. */
+  dkim?: DkimCheck & { all?: DkimCheck[] };
   dmarc?: { result: string; domain?: string; policy?: string };
 }
 
@@ -281,7 +295,7 @@ export function parseAuthenticationResults(header: string): AuthenticationResult
   const severity: Record<string, number> = {
     fail: 6, softfail: 5, permerror: 4, temperror: 3, neutral: 2, none: 1, pass: 0,
   };
-  const spf: Array<{ result: string; identity?: string; domain?: string }> = [];
+  const spf: SpfCheck[] = [];
   let m: RegExpExecArray | null;
   while ((m = spfRegex.exec(header)) !== null) {
     spf.push({ result: m[1].toLowerCase(), identity: m[2], domain: m[3] });
@@ -292,10 +306,16 @@ export function parseAuthenticationResults(header: string): AuthenticationResult
       const s = severity[cur.result] ?? -1;
       if (s >= severity.temperror && s > (severity[primary.result] ?? -1)) primary = cur;
     }
-    results.spf = { result: primary.result, domain: primary.domain };
+    results.spf = { result: primary.result, identity: primary.identity, domain: primary.domain, all: spf };
   }
-  const dkim = header.match(/dkim=(\w+)(?:\s+header\.d=([^\s;]+))?(?:\s+header\.s=([^\s;]+))?/);
-  if (dkim) results.dkim = { result: dkim[1].toLowerCase(), domain: dkim[2], selector: dkim[3] };
+  // A message can carry several signatures (the sender's and a mailing
+  // list's or a sending service's): alignment looks at each.
+  const dkimRegex = /dkim=(\w+)(?:\s+\([^)]*\))?(?:\s+header\.d=([^\s;]+))?(?:\s+header\.s=([^\s;]+))?/g;
+  const dkim: DkimCheck[] = [];
+  while ((m = dkimRegex.exec(header)) !== null) {
+    dkim.push({ result: m[1].toLowerCase(), domain: m[2], selector: m[3] });
+  }
+  if (dkim.length > 0) results.dkim = { ...dkim[0], all: dkim };
   const dmarc = header.match(/dmarc=(\w+)(?:\s+header\.from=([^\s;]+))?(?:\s+policy\.dmarc=(\w+))?/);
   if (dmarc) results.dmarc = { result: dmarc[1].toLowerCase(), domain: dmarc[2], policy: dmarc[3] };
   return results;
@@ -322,10 +342,43 @@ export function getEmailAuthenticationResults(
   return merged;
 }
 
-function hasVerifiedAuthentication(auth?: AuthenticationResults | null): boolean {
-  return Boolean(
-    auth?.dmarc?.result === 'pass' || auth?.dkim?.result === 'pass' || auth?.spf?.result === 'pass',
-  );
+function domainOf(address: string | undefined): string | undefined {
+  if (!address) return undefined;
+  const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
+  return /^[^\s<>@]+\.[^\s<>@]+$/.test(domain) ? domain : undefined;
+}
+
+/**
+ * Whether `candidate` is the From domain or a parent or child of it: the
+ * relaxed alignment DMARC applies, without a public-suffix list.
+ */
+function alignedWith(fromDomain: string, candidate: string | undefined): boolean {
+  const other = domainOf(candidate);
+  if (!other) return false;
+  return other === fromDomain || other.endsWith(`.${fromDomain}`) || fromDomain.endsWith(`.${other}`);
+}
+
+/**
+ * Whether the receiving server's checks tie the message to the domain of its
+ * From address: a DMARC pass, or an SPF (MAIL FROM, never HELO) or DKIM pass
+ * for a domain aligned with it. A bare pass says nothing about the visible
+ * sender: anyone passes SPF for an envelope domain of their own, or signs
+ * with their own key, and still writes the organizer's address in From; with
+ * no DMARC policy on that domain the verdict is `dmarc=none` (#1374). Mirrors
+ * the webmail's hasAlignedAuthenticationPass.
+ */
+export function hasAlignedAuthenticationPass(
+  auth: AuthenticationResults | null | undefined,
+  fromEmail: string | null | undefined,
+): boolean {
+  if (!auth || !fromEmail) return false;
+  const fromDomain = domainOf(fromEmail);
+  if (!fromDomain) return false;
+  if (auth.dmarc?.result === 'pass') return true;
+  const spf = auth.spf?.all ?? (auth.spf ? [auth.spf] : []);
+  if (spf.some((e) => e.identity !== 'helo' && e.result === 'pass' && alignedWith(fromDomain, e.domain))) return true;
+  const dkim = auth.dkim?.all ?? (auth.dkim ? [auth.dkim] : []);
+  return dkim.some((e) => e.result === 'pass' && alignedWith(fromDomain, e.domain));
 }
 
 function hasAuthenticationFailure(auth?: AuthenticationResults | null): boolean {
@@ -361,19 +414,28 @@ export interface InvitationTrustAssessment {
  * email plus whether the sender matches the event's organizer. A spoofed
  * invitation from an unauthenticated sender must not look like a real one.
  * Port of the webmail's getInvitationTrustAssessment.
+ *
+ * `ownAddresses` are the reader's own addresses. Mail from another user on
+ * the reader's domains that carries no Authentication-Results header at all
+ * was handed in by a signed-in user rather than received from outside:
+ * Stalwart adds the header to everything that arrives on port 25 (#1374).
  */
 export function getInvitationTrustAssessment(
   event: Partial<CalendarEvent>,
   email?: Pick<Email, 'from' | 'replyTo' | 'headers'> | null,
   method: InvitationMethod = inferInvitationMethod(event),
+  ownAddresses: readonly string[] = [],
 ): InvitationTrustAssessment {
   const organizerEmail = getOrganizerEmail(event);
   const senderEmail = getPrimaryAddressEmail(email?.from) || getPrimaryAddressEmail(email?.replyTo);
   const auth = getEmailAuthenticationResults(email);
-  const verified = hasVerifiedAuthentication(auth);
+  const verified = hasAlignedAuthenticationPass(auth, getPrimaryAddressEmail(email?.from));
   const failed = hasAuthenticationFailure(auth);
   const senderMismatch = Boolean(senderEmail && organizerEmail && senderEmail !== organizerEmail);
-  const expectsAuthenticatedTransport = method !== 'unknown';
+  const senderDomain = domainOf(senderEmail ?? undefined);
+  const internal = Boolean(email && !auth && senderDomain
+    && ownAddresses.some((address) => domainOf(address) === senderDomain));
+  const expectsAuthenticatedTransport = method !== 'unknown' && !internal;
 
   if (senderMismatch && (failed || !verified)) {
     return { level: 'warning', reason: 'sender_mismatch_unverified', senderEmail, organizerEmail };
