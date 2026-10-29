@@ -762,6 +762,7 @@
     "cancelled_not_moved_body": "The message will not be sent. It is still in Sent.",
     "edit_failed": "Could not open the message for editing",
     "keep_scheduled": "Keep scheduled",
+    "login_switched": "These scheduled messages belong to another account. Switch back to it to change them.",
     "no_longer_scheduled": "This message is no longer scheduled.",
     "reschedule_failed": "Reschedule failed",
     "reschedule_lost": "The message is no longer scheduled. Check Drafts and Sent before sending it again.",

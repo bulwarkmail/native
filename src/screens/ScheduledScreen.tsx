@@ -30,6 +30,9 @@ import { isPendingSend, sameScheduledSend, scheduledSendKey } from '../lib/sched
 import { rescheduleErrorNotice, rescheduleLostMessage, restoredSubmission } from '../lib/compose-reschedule';
 import { cancelScheduledToDrafts, scheduledAccountOverride } from '../lib/compose-scheduled';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import { loginMovedFrom } from '../lib/compose-login';
+import { servedLoginOf } from '../lib/draft-login';
+import { useAuthStore } from '../stores/auth-store';
 import { ScheduledMessageView } from '../components/compose/ScheduledMessageView';
 import type { Email } from '../api/types';
 
@@ -56,7 +59,23 @@ export default function ScheduledScreen({ navigation }: Props) {
   const [viewEmail, setViewEmail] = React.useState<Email | null>(null);
   const [viewError, setViewError] = React.useState<string | null>(null);
   const viewSeq = React.useRef(0);
+  // The login the rows were read for. Submission and email ids repeat across
+  // logins: after a switch (a notification or link for another account) the
+  // rows on screen are the old login's, and acting on them would cancel or
+  // send whatever the new one has under the same ids.
+  const ownerRef = React.useRef<string | null>(null);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  const session = useAuthStore((s) => s.session);
+  const refuseOtherLogin = React.useCallback(() => {
+    if (!loginMovedFrom(ownerRef.current)) return false;
+    Alert.alert(
+      t('email_composer.login_switched_title', 'Account switched'),
+      t('scheduled.login_switched', 'These scheduled messages belong to another account. Switch back to it to change them.'),
+    );
+    return true;
+  }, [t]);
   const openView = React.useCallback((item: ScheduledEmail) => {
+    if (refuseOtherLogin()) return;
     const seq = ++viewSeq.current;
     setViewing(item);
     setViewEmail(null);
@@ -65,7 +84,7 @@ export default function ScheduledScreen({ navigation }: Props) {
       (email) => { if (viewSeq.current === seq) setViewEmail(email); },
       (e: unknown) => { if (viewSeq.current === seq) setViewError(e instanceof Error ? e.message : String(e)); },
     );
-  }, []);
+  }, [refuseOtherLogin]);
   const closeView = React.useCallback(() => {
     viewSeq.current += 1;
     setViewing(null);
@@ -87,23 +106,49 @@ export default function ScheduledScreen({ navigation }: Props) {
     return extra > 0 ? `${name} +${extra}` : name;
   };
 
+  // Only the latest read is shown: one started before a switch of logins may
+  // finish after the next one.
+  const loadSeq = React.useRef(0);
   const load = React.useCallback(async () => {
+    const seq = ++loadSeq.current;
+    const owner = servedLoginOf(jmapClient);
     setLoading(true);
     setError(null);
     try {
-      setItems(await listScheduledEmails());
+      const list = await listScheduledEmails();
+      if (seq !== loadSeq.current) return;
+      // Switched during the read: the next session reads again.
+      if (loginMovedFrom(owner)) return;
+      ownerRef.current = owner;
+      setItems(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('email_list.error', 'Error'));
+      if (seq === loadSeq.current) setError(e instanceof Error ? e.message : t('email_list.error', 'Error'));
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [t]);
 
+  // Read on mount and again for every session; rows, the open view and the
+  // menus of another login go at once.
   React.useEffect(() => {
+    if (ownerRef.current !== null && loginMovedFrom(ownerRef.current)) {
+      ownerRef.current = null;
+      setItems([]);
+      setActionsFor(null);
+      setRescheduleFor(null);
+      setCustomStage(null);
+    }
     void load();
-  }, [load]);
+  }, [activeAccountId, session, load]);
+
+  // A message that is gone from the list (sent, cancelled, read again after
+  // a switch) closes its view.
+  React.useEffect(() => {
+    if (viewing && !items.some((i) => sameScheduledSend(i, viewing))) closeView();
+  }, [items, viewing, closeView]);
 
   const runAction = async (item: ScheduledEmail, action: () => Promise<void>, failTitle: string) => {
+    if (refuseOtherLogin()) return;
     setBusyId(scheduledSendKey(item));
     try {
       await action();
