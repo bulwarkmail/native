@@ -197,7 +197,8 @@ export function NotificationSettings() {
       message: t('settings.notifications.push.status_busy', 'Working…'),
     });
     try {
-      await setStoredRelayBaseUrl(trimmed);
+      // The setup stores the relay itself, and keeps the one in use when the
+      // mail server refuses the new one's address.
       await setupPushNotifications({
         relayBaseUrl: trimmed,
         accountLabel: username ?? undefined,

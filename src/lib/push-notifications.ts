@@ -275,7 +275,8 @@ const EMAIL_PUSH_PROPERTIES = ['id', 'threadId'];
 // user re-enables it from settings.
 const SUBSCRIPTION_EXPIRES_DAYS = 90;
 // When an existing subscription has less than this much lifetime left, push
-// expires forward on the next app start.
+// expires forward on the next app start. Stalwart (0.16 and 1.0) clamps every
+// expiry to seven days, so there each start refreshes it.
 const SUBSCRIPTION_REFRESH_THRESHOLD_DAYS = 7;
 // A recorded subscription missing from the server was revoked only if it still
 // had at least this long to live; closer to its expiry (or with the clock a
@@ -509,9 +510,24 @@ async function writeWithEmailPush<T>(
 }
 
 /**
+ * Whether a refused subscription write may be about its types. A failed
+ * request says nothing about them, and a SetError naming other properties
+ * (the push URL, the emailPush map) or meaning the subscription limit or a
+ * missing record would fail the same way with fewer types; retrying those
+ * with the mail types alone would only drop device sync's on a write that
+ * later goes through.
+ */
+function mayConcernTypes(err: unknown): boolean {
+  if (!(err instanceof JMAPMethodError)) return false;
+  if (!isJMAPSetError(err)) return true;
+  if (err.type !== 'invalidProperties') return false;
+  return !err.properties || err.properties.includes('types');
+}
+
+/**
  * Run a subscription write with the account's push types and, when the server
- * refuses it while they include device sync's, once more with the mail types
- * alone: mail push never depends on device sync (#34).
+ * refuses it over them while they include device sync's, once more with the
+ * mail types alone: mail push never depends on device sync (#34).
  */
 async function writeWithPushTypes<T>(
   types: readonly string[],
@@ -520,7 +536,7 @@ async function writeWithPushTypes<T>(
   try {
     return await write(types);
   } catch (err) {
-    if (sameTypes(types, PUSH_TYPES)) throw err;
+    if (sameTypes(types, PUSH_TYPES) || !mayConcernTypes(err)) throw err;
     logPhase('jmap', 'push types refused, retrying with the mail types alone');
     return write(PUSH_TYPES);
   }
@@ -668,10 +684,30 @@ export class PushSetupError extends Error {
   }
 }
 
+/**
+ * Whether the server refused the push address itself. Stalwart checks the
+ * URL when a subscription is created: 0.16.27 and 1.0 refuse plain http and
+ * private or reserved IP addresses, and 1.0 also refuses any host that is not
+ * a public domain name (localhost, .local, .lan, .internal, a single label).
+ */
+function isRefusedPushUrl(err: unknown): boolean {
+  return isJMAPSetError(err) && err.type === 'invalidProperties' && !!err.properties?.includes('url');
+}
+
 // A subscription write the mail server refused or could not take. The
 // refusals a user can do something about read as plain text; anything else
 // keeps the error's own message.
-function subscriptionError(err: unknown): PushSetupError {
+function subscriptionError(err: unknown, relayBaseUrl: string): PushSetupError {
+  if (isRefusedPushUrl(err)) {
+    return new PushSetupError(
+      'jmap',
+      t(
+        'settings.notifications.push.err_url_refused',
+        'The mail server refuses to send notifications to the relay at {url}. It only accepts https addresses on a public domain name, not a private IP address or a local name such as localhost, .local or .lan. Use the hosted relay, or give your relay a public domain name.',
+        { url: relayBaseUrl },
+      ),
+    );
+  }
   const type = err instanceof JMAPMethodError ? err.type : undefined;
   if (type === 'forbidden') {
     return new PushSetupError(
@@ -1188,6 +1224,9 @@ async function setupPushNotificationsInner(
   await migrateLegacyPushKeys();
 
   const deviceClientId = await getOrCreateDeviceClientId(accountId);
+  // The relay a working registration goes through, put back should the mail
+  // server refuse the new one's address.
+  const previousRelayBaseUrl = await getStoredRelayBaseUrl();
   await setStoredRelayBaseUrl(relayBaseUrl);
 
   // Register this account's device-client-id with the relay. Multiple
@@ -1275,7 +1314,7 @@ async function setupPushNotificationsInner(
           // Nothing the server said about the subscription (a failed request,
           // rate limiting, a refused method call): it keeps delivering, and
           // the next run tries again.
-          throw subscriptionError(err);
+          throw subscriptionError(err, relayBaseUrl);
         }
         if (refreshed) {
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
@@ -1301,10 +1340,12 @@ async function setupPushNotificationsInner(
   }
 
   // Reap leftover Stalwart subscriptions that would otherwise starve the new
-  // one's verification. Stalwart emits only one PushVerification per account
-  // per ~60s and picks the oldest unverified subscription, so a single stale
-  // straggler blocks every fresh attempt - the symptom is the confusing
-  // "Timed out waiting for PushVerification" error. We can't read a
+  // one's verification. Stalwart (0.16 and 1.0) emits only one
+  // PushVerification per account per 60 s, to the newest unverified
+  // subscription, and sends the next one when that window has passed: every
+  // straggler created or touched just before ours delays it by a window, and
+  // a swarm of them ends in the confusing "Timed out waiting for
+  // PushVerification" error. We can't read a
   // subscription's verified state or URL over JMAP (Stalwart hides both), only
   // its deviceClientId, so we decide what's safe to remove like this:
   //   - same deviceClientId as ours: a previous attempt from THIS device,
@@ -1359,7 +1400,15 @@ async function setupPushNotificationsInner(
     serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
-    throw subscriptionError(err);
+    // The server will never take this relay's address. Whatever registration
+    // still works goes through the relay used before: keep that one stored
+    // (token refreshes and the next launch register with it) and drop the
+    // record this run left on the refused relay.
+    if (isRefusedPushUrl(err) && previousRelayBaseUrl !== relayBaseUrl) {
+      await setStoredRelayBaseUrl(previousRelayBaseUrl);
+      await deregisterFromRelay(relayBaseUrl, deviceClientId);
+    }
+    throw subscriptionError(err, relayBaseUrl);
   }
 
   logPhase('verify');
@@ -1497,6 +1546,43 @@ export async function forgetPushServerState(accountId: string): Promise<void> {
  */
 export async function forgetPushSubscriptionExpiry(accountId: string): Promise<void> {
   await AsyncStorage.removeItem(subscriptionExpiresKey(accountId));
+}
+
+// Stalwart (0.16 and 1.0) keeps a subscription for seven days from its last
+// refresh, and only the app's start refreshes it. Someone who reads new mail
+// from the notifications without opening the app would lose push after a
+// week, so a push handled in the background extends the subscription too,
+// at most about once a day: once less than this much of it is left.
+const BACKGROUND_EXTEND_BELOW_MS = 6 * 24 * 60 * 60 * 1000;
+
+/**
+ * The account's subscription when a background push should extend it: it is
+ * recorded with a known expiry that has not passed yet (a lapsed one is the
+ * launch-time resync's to re-create) and is less than six days away. Carries
+ * this device's client id, so the caller can make sure a server that reused
+ * the id hands back our own subscription.
+ */
+export async function pushSubscriptionDueForExtension(
+  accountId: string,
+): Promise<{ id: string; deviceClientId: string | null } | null> {
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return null;
+  const id = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+  if (!id) return null;
+  const expires = Date.parse((await AsyncStorage.getItem(subscriptionExpiresKey(accountId))) ?? '');
+  if (!Number.isFinite(expires)) return null;
+  const left = expires - Date.now();
+  if (left <= 0 || left >= BACKGROUND_EXTEND_BELOW_MS) return null;
+  return { id, deviceClientId: await AsyncStorage.getItem(deviceClientIdKey(accountId)) };
+}
+
+/** The expiry to ask for when extending a subscription; servers clamp it. */
+export function wantedPushSubscriptionExpires(): string {
+  return expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS);
+}
+
+/** Record the expiry the server reported for the account's subscription. */
+export async function recordPushSubscriptionExpires(accountId: string, expires: string): Promise<void> {
+  await AsyncStorage.setItem(subscriptionExpiresKey(accountId), expires);
 }
 
 /**
@@ -1663,7 +1749,8 @@ export async function teardownPushNotifications(): Promise<void> {
     if (storedSubId) {
       // Will only succeed if the jmapClient happens to be authenticated to
       // this account right now. We don't switch the client to attempt each
-      // one; the subscription will expire server-side instead (90-day TTL).
+      // one; the subscription expires server-side instead (Stalwart keeps
+      // one for at most seven days without a refresh).
       await destroyPushSubscription(storedSubId).catch(() => undefined);
     }
     if (relayBaseUrl && storedDcid) {

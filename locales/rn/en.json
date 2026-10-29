@@ -1060,6 +1060,7 @@
         "err_relay_rejected": "The push relay rejected the registration: {detail}",
         "err_relay_unreachable": "Could not reach the push relay at {url} ({detail}).",
         "err_up_android_only": "UnifiedPush is only available on Android.",
+        "err_url_refused": "The mail server refuses to send notifications to the relay at {url}. It only accepts https addresses on a public domain name, not a private IP address or a local name such as localhost, .local or .lan. Use the hosted relay, or give your relay a public domain name.",
         "err_verify_rejected": "The mail server rejected the verification code: {detail}",
         "err_verify_relay": "The relay never received the verification code from the mail server (last relay response: {detail}).",
         "err_verify_timeout": "The mail server did not send a verification code to the relay within 75 s. Check that the server can reach the relay URL.",
