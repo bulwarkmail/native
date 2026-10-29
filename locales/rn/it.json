@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Hai dimenticato un allegato?",
     "attachments_too_large_total": "Gli allegati supererebbero i {max} consentiti da questo server per messaggio.",
     "editor_unavailable": "Impossibile leggere il contenuto del messaggio. Copia il testo, poi chiudi e riapri l'editor.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Allega} one {Allega 1 file} other {Allega # file}}",
+      "empty_folder": "Questa cartella è vuota",
+      "load_failed": "Impossibile caricare i tuoi file"
+    },
     "from_options": "Opzioni mittente",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identità non disponibile",
@@ -457,6 +462,14 @@
     "remove_color": "Rimuovi etichetta",
     "replied": "Risposto",
     "reschedule_recipients_refused": "Non è stato cambiato nulla: il server ha rifiutato {recipients}.",
+    "save_to_files": {
+      "title": "Salva in File",
+      "save_here": "Salva qui",
+      "saved": "Salvato in File",
+      "saved_to": "In {folder}",
+      "failed": "Impossibile salvare in File",
+      "load_failed": "Impossibile caricare le cartelle. Riprova."
+    },
     "sender_actions": "Mittente…",
     "set_color": "Imposta etichetta",
     "show_all_count": "Mostra tutto ({count})",

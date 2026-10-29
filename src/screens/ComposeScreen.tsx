@@ -68,8 +68,11 @@ import {
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
 import { sendTargetFor } from '../lib/compose-send-account';
+import { attachmentFromFileNode } from '../lib/compose-files';
+import { supportsFiles } from '../api/files';
+import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
 import {
-  ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
+  assertComposerLogin, ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../lib/compose-login';
 import {
   initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs, withSnapshotBody,
@@ -86,7 +89,7 @@ import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
-import type { EmailAddress, Identity } from '../api/types';
+import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -1779,11 +1782,56 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const [attachMenuOpen, setAttachMenuOpen] = React.useState(false);
+  // Files in the user's Files on the server, when it keeps them (#1179).
+  const [filesPickerOpen, setFilesPickerOpen] = React.useState(false);
+  const hasServerFiles = supportsFiles();
   const attachOptions: SheetOption[] = [
     { label: t('email_composer.attach_photos', 'Photos & Videos'), onPress: () => { void pickPhotoAttachments(); } },
     { label: t('email_composer.attach_camera', 'Camera'), onPress: () => { void takePhotoAttachment(); } },
-    { label: t('email_composer.attach_files', 'Files'), onPress: () => { void pickFileAttachments(); } },
+    {
+      // Next to "Attach from Files" a plain "Files" would read as the same.
+      label: hasServerFiles
+        ? t('email_composer.attach_from_device', 'Upload from this device')
+        : t('email_composer.attach_files', 'Files'),
+      onPress: () => { void pickFileAttachments(); },
+    },
+    ...(hasServerFiles ? [{
+      label: t('email_composer.attach_from_files', 'Attach from Files'),
+      onPress: () => { if (!refuseAttachAfterSwitch()) setFilesPickerOpen(true); },
+    }] : []),
   ];
+
+  // A file from Files is attached by its blob: nothing is downloaded or
+  // uploaded, except a copy when Files lives in another account.
+  const attachFileNodes = (nodes: FileNode[]) => {
+    setFilesPickerOpen(false);
+    for (const node of nodes) {
+      if (refuseAttachAfterSwitch()) return;
+      if (!checkAttachmentSize(node.size ?? 0, false)) continue;
+      const entry: AttachmentEntry = {
+        localId: genLocalId(),
+        name: node.name,
+        type: node.type || 'application/octet-stream',
+        size: node.size ?? 0,
+        uri: '',
+        inline: false,
+        uploading: true,
+      };
+      setAttachments((prev) => [...prev, entry]);
+      void (async () => {
+        try {
+          assertComposerLogin(ownerLoginRef.current);
+          const part = await attachmentFromFileNode(node);
+          updateAttachment(entry.localId, { blobId: part.blobId, type: part.type, size: part.size || entry.size, uploading: false });
+        } catch (e) {
+          const message = e instanceof ComposerLoginMovedError
+            ? t('email_composer.upload_login_switched', 'Not uploaded: the account was switched')
+            : e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
+          updateAttachment(entry.localId, { uploading: false, error: message });
+        }
+      })();
+    }
+  };
 
   const insertInlineImages = async (assets: Array<{ uri: string; mimeType?: string | null; fileName?: string | null; fileSize?: number | null }>) => {
     if (refuseAttachAfterSwitch()) return;
@@ -3130,6 +3178,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <FilesPickerSheet
+        visible={filesPickerOpen}
+        mode="files"
+        onClose={() => setFilesPickerOpen(false)}
+        onPickFiles={attachFileNodes}
+      />
 
       <TemplateSheet
         visible={templateSheetOpen}

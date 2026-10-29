@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Glemt en vedhæftning?",
     "attachments_too_large_total": "Vedhæftningerne ville overskride de {max}, som denne server tillader pr. besked.",
     "editor_unavailable": "Beskedens indhold kunne ikke læses. Kopiér din tekst, og luk og genåbn derefter editoren.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Vedhæft} one {Vedhæft 1 fil} other {Vedhæft # filer}}",
+      "empty_folder": "Denne mappe er tom",
+      "load_failed": "Dine filer kunne ikke indlæses"
+    },
     "from_options": "Afsenderindstillinger",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitet ikke tilgængelig",
@@ -452,6 +457,14 @@
     "remove_color": "Fjern tag",
     "replied": "Besvaret",
     "reschedule_recipients_refused": "Intet blev ændret: serveren afviste {recipients}.",
+    "save_to_files": {
+      "title": "Gem i Filer",
+      "save_here": "Gem her",
+      "saved": "Gemt i Filer",
+      "saved_to": "I {folder}",
+      "failed": "Kunne ikke gemme i Filer",
+      "load_failed": "Mapperne kunne ikke indlæses. Prøv igen."
+    },
     "sender_actions": "Afsender…",
     "set_color": "Sæt tag",
     "show_all_count": "Vis alle ({count})",

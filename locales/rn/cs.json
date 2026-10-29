@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Nezapomněli jste přílohu?",
     "attachments_too_large_total": "Přílohy by překročily limit {max}, který tento server povoluje na jednu zprávu.",
     "editor_unavailable": "Obsah zprávy se nepodařilo načíst. Zkopírujte svůj text a poté editor zavřete a znovu otevřete.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Připojit} one {Připojit 1 soubor} few {Připojit # soubory} other {Připojit # souborů}}",
+      "empty_folder": "Tato složka je prázdná",
+      "load_failed": "Vaše soubory se nepodařilo načíst"
+    },
     "from_options": "Možnosti odesílatele",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identita není k dispozici",
@@ -455,6 +460,14 @@
     "remove_color": "Odebrat štítek",
     "replied": "Zodpovězeno",
     "reschedule_recipients_refused": "Nic se nezměnilo: server odmítl {recipients}.",
+    "save_to_files": {
+      "title": "Uložit do Souborů",
+      "save_here": "Uložit sem",
+      "saved": "Uloženo do Souborů",
+      "saved_to": "Do složky {folder}",
+      "failed": "Nepodařilo se uložit do Souborů",
+      "load_failed": "Složky se nepodařilo načíst. Zkuste to znovu."
+    },
     "sender_actions": "Odesílatel…",
     "set_color": "Nastavit štítek",
     "show_all_count": "Zobrazit vše ({count})",

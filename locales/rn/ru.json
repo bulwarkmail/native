@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Забыли вложение?",
     "attachments_too_large_total": "Вложения превысят лимит {max} на одно письмо, установленный этим сервером.",
     "editor_unavailable": "Не удалось прочитать содержимое письма. Скопируйте текст, затем закройте и снова откройте редактор.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Прикрепить} one {Прикрепить # файл} few {Прикрепить # файла} many {Прикрепить # файлов} other {Прикрепить # файла}}",
+      "empty_folder": "Эта папка пуста",
+      "load_failed": "Не удалось загрузить ваши файлы"
+    },
     "from_options": "Параметры отправителя",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Удостоверение недоступно",
@@ -458,6 +463,14 @@
     "remove_color": "Убрать тег",
     "replied": "Отвечено",
     "reschedule_recipients_refused": "Ничего не изменилось: сервер отклонил {recipients}.",
+    "save_to_files": {
+      "title": "Сохранить в «Файлы»",
+      "save_here": "Сохранить сюда",
+      "saved": "Сохранено в «Файлы»",
+      "saved_to": "В папку {folder}",
+      "failed": "Не удалось сохранить в «Файлы»",
+      "load_failed": "Не удалось загрузить папки. Повторите попытку."
+    },
     "sender_actions": "Отправитель…",
     "set_color": "Назначить тег",
     "show_all_count": "Показать все ({count})",

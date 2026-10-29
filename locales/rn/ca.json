@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Us heu oblidat d'un fitxer adjunt?",
     "attachments_too_large_total": "Els fitxers adjunts superarien els {max} que aquest servidor permet per missatge.",
     "editor_unavailable": "No s'ha pogut llegir el contingut del missatge. Copieu el text i, després, tanqueu i torneu a obrir el redactor.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Adjunta} one {Adjunta 1 fitxer} other {Adjunta # fitxers}}",
+      "empty_folder": "Aquesta carpeta és buida",
+      "load_failed": "No s'han pogut carregar els teus fitxers"
+    },
     "from_options": "Opcions del remitent",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitat no disponible",
@@ -455,6 +460,14 @@
     "remove_color": "Elimina l'etiqueta",
     "replied": "Respost",
     "reschedule_recipients_refused": "No s'ha canviat res: el servidor ha rebutjat {recipients}.",
+    "save_to_files": {
+      "title": "Desa a Fitxers",
+      "save_here": "Desa aquí",
+      "saved": "S'ha desat a Fitxers",
+      "saved_to": "A {folder}",
+      "failed": "No s'ha pogut desar a Fitxers",
+      "load_failed": "No s'han pogut carregar les carpetes. Torna-ho a provar."
+    },
     "sender_actions": "Remitent…",
     "set_color": "Estableix l'etiqueta",
     "show_all_count": "Mostra-ho tot ({count})",

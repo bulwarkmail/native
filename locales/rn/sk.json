@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Nezabudli ste prílohu?",
     "attachments_too_large_total": "Prílohy by prekročili limit {max}, ktorý tento server povoľuje na jednu správu.",
     "editor_unavailable": "Obsah správy sa nepodarilo načítať. Skopírujte si text a potom editor zatvorte a znova otvorte.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Priložiť} one {Priložiť 1 súbor} few {Priložiť # súbory} other {Priložiť # súborov}}",
+      "empty_folder": "Tento priečinok je prázdny",
+      "load_failed": "Vaše súbory sa nepodarilo načítať"
+    },
     "from_options": "Možnosti odosielateľa",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identita nie je k dispozícii",
@@ -454,6 +459,14 @@
     "remove_color": "Odstrániť štítok",
     "replied": "Zodpovedané",
     "reschedule_recipients_refused": "Nič sa nezmenilo: server odmietol {recipients}.",
+    "save_to_files": {
+      "title": "Uložiť do Súborov",
+      "save_here": "Uložiť sem",
+      "saved": "Uložené do Súborov",
+      "saved_to": "Do priečinka {folder}",
+      "failed": "Nepodarilo sa uložiť do Súborov",
+      "load_failed": "Priečinky sa nepodarilo načítať. Skúste to znova."
+    },
     "sender_actions": "Odosielateľ…",
     "set_color": "Nastaviť štítok",
     "show_all_count": "Zobraziť všetko ({count})",

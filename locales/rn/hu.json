@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Elfelejtetted a csatolmányt?",
     "attachments_too_large_total": "A csatolmányok túllépnék a szerver által üzenetenként engedélyezett méretet ({max}).",
     "editor_unavailable": "Nem sikerült beolvasni az üzenet tartalmát. Másold ki a szöveget, majd zárd be és nyisd meg újra a szerkesztőt.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Csatolás} one {1 fájl csatolása} other {# fájl csatolása}}",
+      "empty_folder": "Ez a mappa üres",
+      "load_failed": "A fájlokat nem sikerült betölteni"
+    },
     "from_options": "Feladó beállításai",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Az azonosság nem érhető el",
@@ -451,6 +456,14 @@
     "remove_color": "Címke eltávolítása",
     "replied": "Megválaszolva",
     "reschedule_recipients_refused": "Semmi sem változott: a kiszolgáló elutasította a következőt: {recipients}.",
+    "save_to_files": {
+      "title": "Mentés a Fájlokba",
+      "save_here": "Mentés ide",
+      "saved": "Mentve a Fájlokba",
+      "saved_to": "Ide: {folder}",
+      "failed": "Nem sikerült menteni a Fájlokba",
+      "load_failed": "Nem sikerült betölteni a mappákat. Próbálja újra."
+    },
     "sender_actions": "Feladó…",
     "set_color": "Címke beállítása",
     "show_all_count": "Összes megjelenítése ({count})",

@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Pièce jointe oubliée ?",
     "attachments_too_large_total": "Les pièces jointes dépasseraient les {max} autorisés par ce serveur pour un message.",
     "editor_unavailable": "Impossible de lire le contenu du message. Copiez votre texte, puis fermez et rouvrez l'éditeur.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Joindre} one {Joindre 1 fichier} other {Joindre # fichiers}}",
+      "empty_folder": "Ce dossier est vide",
+      "load_failed": "Impossible de charger vos fichiers"
+    },
     "from_options": "Options d'expéditeur",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identité indisponible",
@@ -459,6 +464,14 @@
     "remove_color": "Retirer l'étiquette",
     "replied": "Répondu",
     "reschedule_recipients_refused": "Rien n’a été modifié : le serveur a refusé {recipients}.",
+    "save_to_files": {
+      "title": "Enregistrer dans Fichiers",
+      "save_here": "Enregistrer ici",
+      "saved": "Enregistré dans Fichiers",
+      "saved_to": "Dans {folder}",
+      "failed": "Impossible d'enregistrer dans Fichiers",
+      "load_failed": "Impossible de charger vos dossiers. Réessayez."
+    },
     "sender_actions": "Expéditeur…",
     "set_color": "Définir l'étiquette",
     "show_all_count": "Tout afficher ({count})",

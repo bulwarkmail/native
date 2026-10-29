@@ -286,6 +286,11 @@
     "attachment_reminder_title": "Anhang vergessen?",
     "attachments_too_large_total": "Die Anhänge würden die {max} überschreiten, die dieser Server pro Nachricht erlaubt.",
     "editor_unavailable": "Der Nachrichteninhalt konnte nicht gelesen werden. Kopieren Sie Ihren Text, schließen Sie dann den Editor und öffnen Sie ihn erneut.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Anhängen} one {1 Datei anhängen} other {# Dateien anhängen}}",
+      "empty_folder": "Dieser Ordner ist leer",
+      "load_failed": "Ihre Dateien konnten nicht geladen werden"
+    },
     "from_options": "Absenderoptionen",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identität nicht verfügbar",
@@ -462,6 +467,14 @@
     "remove_color": "Label entfernen",
     "replied": "Beantwortet",
     "reschedule_recipients_refused": "Nichts wurde geändert: Der Server hat {recipients} abgelehnt.",
+    "save_to_files": {
+      "title": "In Dateien speichern",
+      "save_here": "Hier speichern",
+      "saved": "In Dateien gespeichert",
+      "saved_to": "In {folder}",
+      "failed": "Konnte nicht in Dateien gespeichert werden",
+      "load_failed": "Ihre Ordner konnten nicht geladen werden. Versuchen Sie es erneut."
+    },
     "sender_actions": "Absender…",
     "set_color": "Label setzen",
     "show_all_count": "Alle anzeigen ({count})",

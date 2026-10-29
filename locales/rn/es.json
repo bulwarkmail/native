@@ -284,6 +284,11 @@
     "attachment_reminder_title": "¿Olvidaste un adjunto?",
     "attachments_too_large_total": "Los adjuntos superarían los {max} que este servidor permite por mensaje.",
     "editor_unavailable": "No se pudo leer el contenido del mensaje. Copia tu texto y luego cierra y vuelve a abrir el editor.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Adjuntar} one {Adjuntar 1 archivo} other {Adjuntar # archivos}}",
+      "empty_folder": "Esta carpeta está vacía",
+      "load_failed": "No se pudieron cargar tus archivos"
+    },
     "from_options": "Opciones de remitente",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identidad no disponible",
@@ -461,6 +466,14 @@
     "remove_color": "Eliminar etiqueta",
     "replied": "Respondido",
     "reschedule_recipients_refused": "No se cambió nada: el servidor rechazó {recipients}.",
+    "save_to_files": {
+      "title": "Guardar en Archivos",
+      "save_here": "Guardar aquí",
+      "saved": "Guardado en Archivos",
+      "saved_to": "En {folder}",
+      "failed": "No se pudo guardar en Archivos",
+      "load_failed": "No se pudieron cargar tus carpetas. Vuelve a intentarlo."
+    },
     "sender_actions": "Remitente…",
     "set_color": "Establecer etiqueta",
     "show_all_count": "Mostrar todo ({count})",

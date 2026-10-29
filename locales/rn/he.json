@@ -284,6 +284,11 @@
     "attachment_reminder_title": "שכחת קובץ מצורף?",
     "attachments_too_large_total": "הקבצים המצורפים יחרגו מהמגבלה של {max} להודעה שהשרת הזה מאפשר.",
     "editor_unavailable": "לא ניתן היה לקרוא את תוכן ההודעה. העתק את הטקסט, ואז סגור ופתח מחדש את חלון הכתיבה.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {צירוף} one {צירוף קובץ 1} other {צירוף # קבצים}}",
+      "empty_folder": "התיקייה הזו ריקה",
+      "load_failed": "לא ניתן היה לטעון את הקבצים שלך"
+    },
     "from_options": "אפשרויות שולח",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "הזהות אינה זמינה",
@@ -453,6 +458,14 @@
     "remove_color": "הסר תג",
     "replied": "נענה",
     "reschedule_recipients_refused": "דבר לא השתנה: השרת דחה את {recipients}.",
+    "save_to_files": {
+      "title": "שמירה בקבצים",
+      "save_here": "שמירה כאן",
+      "saved": "נשמר בקבצים",
+      "saved_to": "ב{folder}",
+      "failed": "לא ניתן היה לשמור בקבצים",
+      "load_failed": "לא ניתן היה לטעון את התיקיות. נסו שוב."
+    },
     "sender_actions": "שולח…",
     "set_color": "הגדר תג",
     "show_all_count": "הצג הכול ({count})",

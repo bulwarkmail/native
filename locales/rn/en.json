@@ -484,6 +484,13 @@
     "remove_color": "Remove tag",
     "replied": "Replied",
     "reschedule_recipients_refused": "Nothing was changed: the server refused {recipients}.",
+    "save_to_files": {
+      "failed": "Couldn't save to Files",
+      "save_here": "Save here",
+      "saved": "Saved to Files",
+      "saved_to": "In {folder}",
+      "title": "Save to Files"
+    },
     "sender_actions": "Sender…",
     "set_color": "Set tag",
     "show_all_count": "Show all ({count})",

@@ -284,6 +284,11 @@
     "attachment_reminder_title": "پیوست را فراموش کرده‌اید؟",
     "attachments_too_large_total": "پیوست‌ها از سقف {max} که این سرور برای هر پیام مجاز می‌داند بیشتر می‌شوند.",
     "editor_unavailable": "خواندن محتوای پیام ممکن نشد. متن خود را کپی کنید، سپس ویرایشگر را ببندید و دوباره باز کنید.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {پیوست} one {پیوست ۱ فایل} other {پیوست # فایل}}",
+      "empty_folder": "این پوشه خالی است",
+      "load_failed": "فایل‌های شما بارگیری نشد"
+    },
     "from_options": "گزینه‌های فرستنده",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "هویت در دسترس نیست",
@@ -449,6 +454,14 @@
     "remove_color": "حذف برچسب",
     "replied": "پاسخ داده شده",
     "reschedule_recipients_refused": "چیزی تغییر نکرد: سرور {recipients} را رد کرد.",
+    "save_to_files": {
+      "title": "ذخیره در فایل‌ها",
+      "save_here": "ذخیره در اینجا",
+      "saved": "در فایل‌ها ذخیره شد",
+      "saved_to": "در {folder}",
+      "failed": "ذخیره در فایل‌ها ممکن نشد",
+      "load_failed": "پوشه‌ها بارگذاری نشدند. دوباره امتحان کنید."
+    },
     "sender_actions": "فرستنده…",
     "set_color": "تنظیم برچسب",
     "show_all_count": "نمایش همه ({count})",

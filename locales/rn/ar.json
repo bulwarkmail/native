@@ -284,6 +284,11 @@
     "attachment_reminder_title": "هل نسيت إرفاق ملف؟",
     "attachments_too_large_total": "ستتجاوز المرفقات الحد {max} الذي يسمح به هذا الخادم لكل رسالة.",
     "editor_unavailable": "تعذّرت قراءة محتوى الرسالة. انسخ النص، ثم أغلق نافذة الإنشاء وأعد فتحها.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {إرفاق} one {إرفاق ملف واحد} other {إرفاق # ملفات}}",
+      "empty_folder": "هذا المجلد فارغ",
+      "load_failed": "تعذّر تحميل ملفاتك"
+    },
     "from_options": "خيارات المرسل",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "الهوية غير متاحة",
@@ -450,6 +455,14 @@
     "remove_color": "إزالة الوسم",
     "replied": "تم الرد عليها",
     "reschedule_recipients_refused": "لم يتغيّر شيء: رفض الخادم {recipients}.",
+    "save_to_files": {
+      "title": "حفظ في الملفات",
+      "save_here": "حفظ هنا",
+      "saved": "حُفظ في الملفات",
+      "saved_to": "في {folder}",
+      "failed": "تعذّر الحفظ في الملفات",
+      "load_failed": "تعذّر تحميل مجلداتك. حاول مرة أخرى."
+    },
     "sender_actions": "المرسل…",
     "set_color": "تعيين وسم",
     "show_all_count": "عرض الكل ({count})",

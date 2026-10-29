@@ -284,6 +284,11 @@
     "attachment_reminder_title": "忘記新增附件了嗎？",
     "attachments_too_large_total": "附件將超過此伺服器每封郵件 {max} 的上限。",
     "editor_unavailable": "無法讀取郵件內容。請先複製您的文字，再關閉並重新開啟撰寫畫面。",
+    "files_picker": {
+      "attach": "{count, plural, =0 {附加} other {附加 # 個檔案}}",
+      "empty_folder": "此資料夾是空的",
+      "load_failed": "無法載入你的檔案"
+    },
     "from_options": "寄件者選項",
     "group_chip": "{name}（{count}）",
     "identity_unavailable": "寄件身分無法使用",
@@ -454,6 +459,14 @@
     "remove_color": "移除標籤",
     "replied": "已回覆",
     "reschedule_recipients_refused": "未作任何變更：伺服器拒絕了 {recipients}。",
+    "save_to_files": {
+      "title": "儲存到檔案",
+      "save_here": "儲存在這裡",
+      "saved": "已儲存到檔案",
+      "saved_to": "在 {folder} 中",
+      "failed": "無法儲存到檔案",
+      "load_failed": "無法載入資料夾。請再試一次。"
+    },
     "sender_actions": "寄件者…",
     "set_color": "設定標籤",
     "show_all_count": "顯示全部（{count}）",

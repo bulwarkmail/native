@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Glemt et vedlegg?",
     "attachments_too_large_total": "Vedleggene ville overskride grensen på {max} per melding som denne serveren tillater.",
     "editor_unavailable": "Kunne ikke lese innholdet i meldingen. Kopier teksten din, og lukk og åpne skrivevinduet på nytt.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Legg ved} one {Legg ved 1 fil} other {Legg ved # filer}}",
+      "empty_folder": "Denne mappen er tom",
+      "load_failed": "Filene dine kunne ikke lastes inn"
+    },
     "from_options": "Avsenderalternativer",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identiteten er ikke tilgjengelig",
@@ -452,6 +457,14 @@
     "remove_color": "Fjern etiketten",
     "replied": "Besvart",
     "reschedule_recipients_refused": "Ingenting ble endret: serveren avviste {recipients}.",
+    "save_to_files": {
+      "title": "Lagre i Filer",
+      "save_here": "Lagre her",
+      "saved": "Lagret i Filer",
+      "saved_to": "I {folder}",
+      "failed": "Kunne ikke lagre i Filer",
+      "load_failed": "Kunne ikke laste inn mappene. Prøv igjen."
+    },
     "sender_actions": "Avsender…",
     "set_color": "Legg til etikett",
     "show_all_count": "Vis alle ({count})",

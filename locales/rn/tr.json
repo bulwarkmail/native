@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Ek eklemeyi mi unuttunuz?",
     "attachments_too_large_total": "Ekler, bu sunucunun ileti başına izin verdiği {max} sınırını aşacak.",
     "editor_unavailable": "İleti içeriği okunamadı. Metninizi kopyalayın, ardından düzenleyiciyi kapatıp yeniden açın.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Ekle} one {1 dosya ekle} other {# dosya ekle}}",
+      "empty_folder": "Bu klasör boş",
+      "load_failed": "Dosyalarınız yüklenemedi"
+    },
     "from_options": "Gönderen seçenekleri",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Kimlik kullanılamıyor",
@@ -456,6 +461,14 @@
     "remove_color": "Etiketi kaldır",
     "replied": "Yanıtlandı",
     "reschedule_recipients_refused": "Hiçbir şey değiştirilmedi: sunucu şu alıcıları reddetti: {recipients}.",
+    "save_to_files": {
+      "title": "Dosyalar'a kaydet",
+      "save_here": "Buraya kaydet",
+      "saved": "Dosyalar'a kaydedildi",
+      "saved_to": "{folder} içine",
+      "failed": "Dosyalar'a kaydedilemedi",
+      "load_failed": "Klasörler yüklenemedi. Yeniden deneyin."
+    },
     "sender_actions": "Gönderen…",
     "set_color": "Etiket ayarla",
     "show_all_count": "Tümünü göster ({count})",

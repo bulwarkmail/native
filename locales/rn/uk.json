@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Забули вкладення?",
     "attachments_too_large_total": "Вкладення перевищать ліміт {max} на один лист, встановлений цим сервером.",
     "editor_unavailable": "Не вдалося прочитати вміст листа. Скопіюйте текст, потім закрийте й знову відкрийте редактор.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Прикріпити} one {Прикріпити # файл} few {Прикріпити # файли} many {Прикріпити # файлів} other {Прикріпити # файлу}}",
+      "empty_folder": "Ця папка порожня",
+      "load_failed": "Не вдалося завантажити ваші файли"
+    },
     "from_options": "Параметри відправника",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Ідентичність недоступна",
@@ -457,6 +462,14 @@
     "remove_color": "Прибрати тег",
     "replied": "Відповіли",
     "reschedule_recipients_refused": "Нічого не змінено: сервер відхилив {recipients}.",
+    "save_to_files": {
+      "title": "Зберегти у «Файли»",
+      "save_here": "Зберегти сюди",
+      "saved": "Збережено у «Файли»",
+      "saved_to": "У теку {folder}",
+      "failed": "Не вдалося зберегти у «Файли»",
+      "load_failed": "Не вдалося завантажити теки. Спробуйте ще раз."
+    },
     "sender_actions": "Відправник…",
     "set_color": "Призначити тег",
     "show_all_count": "Показати всі ({count})",

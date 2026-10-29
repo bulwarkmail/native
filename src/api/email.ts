@@ -2490,3 +2490,28 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
   }
   return emailId;
 }
+
+/**
+ * Copy blobs into another account of the login (RFC 8620 §6.3): the blob of
+ * an attachment in a shared or group mailbox, filed in the user's Files, or
+ * a file attached to a message of another account. Resolves with the new
+ * blobId for each. Stalwart answers Blob/copy only with the blob capability
+ * in `using`. Same account: the ids as they are, nothing is sent.
+ */
+export async function copyBlobs(fromAccountId: string, blobIds: string[], toAccountId: string): Promise<Record<string, string>> {
+  if (blobIds.length === 0 || fromAccountId === toAccountId) {
+    return Object.fromEntries(blobIds.map((id) => [id, id]));
+  }
+  const res = await jmapClient.request(
+    [['Blob/copy', { fromAccountId, accountId: toAccountId, blobIds }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.BLOB],
+  );
+  const body = requireMethodResult(res, '0', 'Blob/copy');
+  const copied = (body.copied ?? {}) as Record<string, string>;
+  const missing = blobIds.find((id) => !copied[id]);
+  if (missing) {
+    const error = (body.notCopied ?? {})[missing] as { type?: string; description?: string } | undefined;
+    throw new Error(error?.description || error?.type || 'Blob/copy did not copy the blob');
+  }
+  return copied;
+}

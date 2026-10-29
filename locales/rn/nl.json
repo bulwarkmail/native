@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Bijlage vergeten?",
     "attachments_too_large_total": "De bijlagen zouden de {max} overschrijden die deze server per bericht toestaat.",
     "editor_unavailable": "Kon de inhoud van het bericht niet lezen. Kopieer uw tekst en sluit en open daarna het opstelvenster opnieuw.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Bijvoegen} one {1 bestand bijvoegen} other {# bestanden bijvoegen}}",
+      "empty_folder": "Deze map is leeg",
+      "load_failed": "Je bestanden konden niet worden geladen"
+    },
     "from_options": "Afzenderopties",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identiteit niet beschikbaar",
@@ -455,6 +460,14 @@
     "remove_color": "Label verwijderen",
     "replied": "Beantwoord",
     "reschedule_recipients_refused": "Er is niets gewijzigd: de server heeft {recipients} geweigerd.",
+    "save_to_files": {
+      "title": "Opslaan in Bestanden",
+      "save_here": "Hier opslaan",
+      "saved": "Opgeslagen in Bestanden",
+      "saved_to": "In {folder}",
+      "failed": "Kon niet opslaan in Bestanden",
+      "load_failed": "Kon je mappen niet laden. Probeer het opnieuw."
+    },
     "sender_actions": "Afzender…",
     "set_color": "Label instellen",
     "show_all_count": "Alles tonen ({count})",

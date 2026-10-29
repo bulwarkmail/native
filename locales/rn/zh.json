@@ -284,6 +284,11 @@
     "attachment_reminder_title": "忘记添加附件了吗？",
     "attachments_too_large_total": "附件将超过此服务器每封邮件 {max} 的上限。",
     "editor_unavailable": "无法读取邮件内容。请复制您的文本，然后关闭并重新打开撰写窗口。",
+    "files_picker": {
+      "attach": "{count, plural, =0 {添加附件} other {添加 # 个文件}}",
+      "empty_folder": "此文件夹为空",
+      "load_failed": "无法加载你的文件"
+    },
     "from_options": "发件人选项",
     "group_chip": "{name}（{count}）",
     "identity_unavailable": "身份不可用",
@@ -454,6 +459,14 @@
     "remove_color": "删除标签",
     "replied": "已回复",
     "reschedule_recipients_refused": "未作任何更改：服务器拒绝了 {recipients}。",
+    "save_to_files": {
+      "title": "保存到文件",
+      "save_here": "保存到此处",
+      "saved": "已保存到文件",
+      "saved_to": "在 {folder} 中",
+      "failed": "无法保存到文件",
+      "load_failed": "无法加载文件夹。请重试。"
+    },
     "sender_actions": "发件人…",
     "set_color": "设置颜色标签",
     "show_all_count": "显示全部（{count}）",

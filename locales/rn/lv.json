@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Aizmirsāt pielikumu?",
     "attachments_too_large_total": "Pielikumi pārsniegtu {max}, ko šis serveris atļauj vienam ziņojumam.",
     "editor_unavailable": "Neizdevās nolasīt ziņojuma saturu. Nokopējiet savu tekstu, pēc tam aizveriet un atkal atveriet redaktoru.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Pievienot} one {Pievienot # failu} other {Pievienot # failus}}",
+      "empty_folder": "Šī mape ir tukša",
+      "load_failed": "Jūsu failus neizdevās ielādēt"
+    },
     "from_options": "Sūtītāja opcijas",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitāte nav pieejama",
@@ -454,6 +459,14 @@
     "remove_color": "Noņemt tagu",
     "replied": "Atbildēts",
     "reschedule_recipients_refused": "Nekas netika mainīts: serveris noraidīja {recipients}.",
+    "save_to_files": {
+      "title": "Saglabāt failos",
+      "save_here": "Saglabāt šeit",
+      "saved": "Saglabāts failos",
+      "saved_to": "Mapē {folder}",
+      "failed": "Neizdevās saglabāt failos",
+      "load_failed": "Neizdevās ielādēt mapes. Mēģiniet vēlreiz."
+    },
     "sender_actions": "Sūtītājs…",
     "set_color": "Iestatīt tagu",
     "show_all_count": "Rādīt visus ({count})",

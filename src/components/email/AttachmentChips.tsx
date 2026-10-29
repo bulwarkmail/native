@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { Paperclip, Download, Eye, ExternalLink, Save, Share2, FolderArchive } from '../icons';
+import { Paperclip, Download, Eye, ExternalLink, Save, Share2, FolderArchive, FolderOpen } from '../icons';
 import type { Attachment, Email } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -17,6 +17,10 @@ import { ActionSheet, type ActionSheetItem } from './ActionSheet';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
 import type { ExtractedAttachment } from './use-body-override';
 import { previewKindOf, useFilePreview, type PreviewSource } from './use-file-preview';
+import { supportsFiles } from '../../api/files';
+import { saveAttachmentToFiles } from '../../lib/compose-files';
+import { toast } from '../../stores/toast-store';
+import { FilesPickerSheet } from '../compose/FilesPickerSheet';
 
 interface Props {
   email: Email;
@@ -64,6 +68,8 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
   const [expanded, setExpanded] = React.useState(false);
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [sheetItem, setSheetItem] = React.useState<Item | null>(null);
+  // The attachment Save to Files picks a folder for.
+  const [filesTarget, setFilesTarget] = React.useState<Extract<Item, { kind: 'blob' }> | null>(null);
   const preview = useFilePreview();
 
   const items = React.useMemo<Item[]>(() => {
@@ -115,6 +121,25 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
     if (item.kind === 'blob') await shareAttachmentViaSheet(item.att.blobId, item.att.name, item.att.type, email, jmapAccountId);
     else await shareBytes(item.part.bytes, item.name, item.type, { forceSheet: true });
   }, t('email_viewer.attachment_failed', 'Could not share attachment'));
+
+  // File the attachment in the user's Files by its blob: nothing is
+  // downloaded. A shared or group mailbox's blob is copied over first
+  // (webmail save-to-files-dialog).
+  const saveToFiles = (item: Extract<Item, { kind: 'blob' }>, parentId: string | null, folderName: string) => run(item.key, async () => {
+    try {
+      await saveAttachmentToFiles({ blobId: item.att.blobId, name: item.name, type: item.type }, parentId, jmapAccountId);
+    } catch (e) {
+      toast.error(
+        t('email_viewer.save_to_files.failed', "Couldn't save to Files"),
+        e instanceof Error ? e.message : undefined,
+      );
+      return;
+    }
+    toast.success(
+      t('email_viewer.save_to_files.saved', 'Saved to Files'),
+      { message: t('email_viewer.save_to_files.saved_to', 'In {folder}', { folder: folderName }) },
+    );
+  }, t('email_viewer.save_to_files.failed', "Couldn't save to Files"));
 
   const sourceOf = (item: Item): PreviewSource => (item.kind === 'blob'
     ? {
@@ -190,6 +215,16 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
       icon: <Share2 size={18} color={c.textSecondary} />,
       onPress: () => { const it = sheetItem; setSheetItem(null); void share(it); },
     },
+    ...(sheetItem.kind === 'blob' && supportsFiles() ? [{
+      key: 'save_to_files',
+      label: t('email_viewer.save_to_files.title', 'Save to Files'),
+      icon: <FolderOpen size={18} color={c.textSecondary} />,
+      onPress: () => {
+        const it = sheetItem;
+        setSheetItem(null);
+        if (it.kind === 'blob') setFilesTarget(it);
+      },
+    }] : []),
   ] : [];
 
   return (
@@ -241,6 +276,17 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
       />
 
       <AttachmentPreviewModal {...preview.modalProps} />
+
+      <FilesPickerSheet
+        visible={!!filesTarget}
+        mode="folder"
+        onClose={() => setFilesTarget(null)}
+        onPickFolder={(parentId, folderName) => {
+          const target = filesTarget;
+          setFilesTarget(null);
+          if (target) void saveToFiles(target, parentId, folderName);
+        }}
+      />
     </View>
   );
 }
