@@ -1203,8 +1203,9 @@ export async function createCalendar(
   name: string,
   color?: string,
   description?: string,
+  targetAccountId?: string,
 ): Promise<Calendar> {
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   const props: Record<string, unknown> = { name, color, isVisible: true, isSubscribed: true };
   if (description?.trim()) props.description = description.trim();
   const res = await jmapClient.request(
@@ -1247,8 +1248,8 @@ export async function setDefaultCalendar(
  * The name of the user's calendar `id`, or null when the account has no
  * calendar by that id.
  */
-export async function getCalendarName(id: string): Promise<string | null> {
-  const accountId = jmapClient.accountId;
+export async function getCalendarName(id: string, targetAccountId?: string): Promise<string | null> {
+  const accountId = targetAccountId || jmapClient.accountId;
   const res = await jmapClient.request(
     [['Calendar/get', { accountId, ids: [id], properties: ['id', 'name'] }, '0']],
     USING,

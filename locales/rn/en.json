@@ -123,6 +123,7 @@
       "shared_with": "Shared with"
     },
     "subscription": {
+      "account_changed": "The account changed while the subscription was syncing. It syncs again in its own account.",
       "add_feed": "Add a feed",
       "feed_too_large": "Feed is too large",
       "fetch_failed": "Could not fetch feed (HTTP {status})",

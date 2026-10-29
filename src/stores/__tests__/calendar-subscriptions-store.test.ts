@@ -7,21 +7,25 @@ vi.mock('../../api/calendar', () => ({
   parseCalendarBlob: vi.fn(),
   queryEvents: vi.fn(),
   getEventIdentities: vi.fn(),
+  getEvents: vi.fn(async () => []),
   deleteEvents: vi.fn(),
   updateEvent: vi.fn(),
   updateCalendar: vi.fn(),
 }));
 vi.mock('../../api/blob', () => ({ uploadBytes: vi.fn(async () => ({ blobId: 'feed-blob' })) }));
-vi.mock('../../api/jmap-client', () => ({
-  jmapClient: { accountId: 'acc-1', isConnected: true, username: 'user', serverUrl: 'https://mail.example.org' },
+const client = vi.hoisted(() => ({
+  accountId: 'acc-1', isConnected: true, username: 'user', serverUrl: 'https://mail.example.org',
 }));
+vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
 const calendarStore = vi.hoisted(() => ({
+  generation: 0,
   importEvents: vi.fn(async (_events: unknown[], _calendarId: string) => ({ created: 1, updated: 0 })),
   fetchCalendars: vi.fn(async () => undefined),
   refresh: vi.fn(async () => undefined),
 }));
 vi.mock('../calendar-store', () => ({
   useCalendarStore: { getState: () => calendarStore },
+  calendarStoreGeneration: () => calendarStore.generation,
 }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -87,7 +91,7 @@ describe('updateSubscription', () => {
 
     await useCalendarSubscriptionsStore.getState().updateSubscription('s', { name: 'Holidays', color: '#FF2968FF' });
 
-    expect(update).toHaveBeenCalledWith('c9', { name: 'Holidays' });
+    expect(update).toHaveBeenCalledWith('c9', { name: 'Holidays' }, 'acc-1');
     expect(useCalendarSubscriptionsStore.getState().subscriptions[0].name).toBe('Holidays');
   });
 });
@@ -145,7 +149,7 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
 
     await useCalendarSubscriptionsStore.getState().syncSubscription('mine');
 
-    expect(calendarApi.createCalendar).toHaveBeenCalledWith('Holidays', '#ff0000');
+    expect(calendarApi.createCalendar).toHaveBeenCalledWith('Holidays', '#ff0000', undefined, 'acc-1');
     expect(calendarStore.importEvents).toHaveBeenCalledWith([expect.objectContaining({ uid: 'e1' })], 'n1');
     expect(only()).toMatchObject({ calendarId: 'n1', accountId: 'acc-1', localAccountId: ME, lastError: null });
     expect(only().lastSyncAt).not.toBeNull();
@@ -196,12 +200,12 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
 
     await useCalendarSubscriptionsStore.getState().syncSubscription('mine');
 
-    expect(calendarApi.getCalendarName).toHaveBeenCalledWith('c');
+    expect(calendarApi.getCalendarName).toHaveBeenCalledWith('c', 'acc-1');
     expect(calendarApi.queryEvents).not.toHaveBeenCalled();
     expect(calendarApi.deleteEvents).not.toHaveBeenCalled();
     expect(calendarApi.updateEvent).not.toHaveBeenCalled();
     // The feed goes into a new mirror, as for an unlinked subscription.
-    expect(calendarApi.createCalendar).toHaveBeenCalledWith('Holidays', '#ff0000');
+    expect(calendarApi.createCalendar).toHaveBeenCalledWith('Holidays', '#ff0000', undefined, 'acc-1');
     expect(calendarStore.importEvents.mock.calls.map(([, calendarId]) => calendarId)).toEqual(['n1']);
     expect(only()).toMatchObject({ calendarId: 'n1', accountId: 'acc-1', localAccountId: ME, lastError: null });
   });
@@ -228,7 +232,7 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
 
     await useCalendarSubscriptionsStore.getState().syncSubscription('mine');
 
-    expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['x1']);
+    expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['x1'], undefined, 'acc-1');
   });
 
   it('destroys only a calendar that carries the subscription name on remove', async () => {
@@ -238,7 +242,7 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
     await useCalendarSubscriptionsStore.getState().removeSubscription('mine');
     expect(calendarApi.deleteCalendar).not.toHaveBeenCalled();
     await useCalendarSubscriptionsStore.getState().removeSubscription('mine-2');
-    expect(calendarApi.deleteCalendar).toHaveBeenCalledWith('c');
+    expect(calendarApi.deleteCalendar).toHaveBeenCalledWith('c', 'acc-1');
   });
 
   it('renames only a calendar that carries the subscription name', async () => {
@@ -264,10 +268,10 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
     vi.mocked(calendarApi.queryEvents).mockResolvedValue(['x1']);
     vi.mocked(calendarApi.getEventIdentities).mockResolvedValue([{ id: 'x1', uid: 'gone', calendarIds: { c: true } }] as never);
     await useCalendarSubscriptionsStore.getState().syncSubscription('mine');
-    expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['x1']);
+    expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['x1'], undefined, 'acc-1');
     expect(calendarApi.createCalendar).not.toHaveBeenCalled();
     await useCalendarSubscriptionsStore.getState().removeSubscription('mine');
-    expect(calendarApi.deleteCalendar).toHaveBeenCalledWith('c');
+    expect(calendarApi.deleteCalendar).toHaveBeenCalledWith('c', 'acc-1');
   });
 
   it('keeps its name when the mirror\'s name cannot be read', async () => {
@@ -358,5 +362,89 @@ describe('subscriptions made before they recorded their account', () => {
     expect(calendarApi.createCalendar).not.toHaveBeenCalled();
     expect(calendarStore.importEvents).not.toHaveBeenCalled();
     expect(only()).toEqual({ ...legacy, accountId: 'acc-1' });
+  });
+});
+
+describe('refreshing a subscription', () => {
+  const ME = 'user@mail.example.org';
+  const sub = (): CalendarSubscription => ({
+    id: 'feed', name: 'Holidays', url: 'https://feeds.example/holidays.ics', calendarId: 'b',
+    accountId: 'acc-1', localAccountId: ME, lastSyncAt: 5, lastError: null,
+  });
+  const only = () => useCalendarSubscriptionsStore.getState().subscriptions[0];
+  const feed = [
+    { uid: 'kept', title: 'Moved upstream', start: '2027-01-02T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin' },
+    { uid: 'same', title: 'Unchanged', start: '2027-01-03T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin' },
+    { uid: 'mine', title: 'Feed copy', start: '2027-01-04T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin' },
+    { uid: 'new', title: 'New upstream', start: '2027-01-05T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin' },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    client.accountId = 'acc-1';
+    calendarStore.generation = 0;
+    useCalendarSubscriptionsStore.setState({ syncing: {}, subscriptions: [sub()] });
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true, status: 200, headers: { get: () => null }, text: async () => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+    })) as unknown as typeof fetch;
+    vi.mocked(calendarApi.getCalendarName).mockResolvedValue('Holidays');
+    vi.mocked(calendarApi.parseCalendarBlob).mockResolvedValue(feed as never);
+    vi.mocked(calendarApi.queryEvents).mockResolvedValue(['c', 'd', 'e', 'f']);
+    vi.mocked(calendarApi.getEventIdentities).mockResolvedValue([
+      { id: 'c', uid: 'kept', calendarIds: { b: true } },
+      { id: 'd', uid: 'same', calendarIds: { b: true } },
+      // The user's own event with the feed's UID, also in their calendar.
+      { id: 'e', uid: 'mine', calendarIds: { b: true, personal: true } },
+      { id: 'f', uid: 'gone', calendarIds: { b: true } },
+    ] as never);
+    vi.mocked(calendarApi.getEvents).mockResolvedValue([
+      { id: 'c', uid: 'kept', title: 'Before', start: '2027-01-02T09:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin', calendarIds: { b: true } },
+      { id: 'd', uid: 'same', title: 'Unchanged', start: '2027-01-03T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin', status: 'confirmed', calendarIds: { b: true } },
+    ] as never);
+  });
+
+  it('gives the events still in the feed what it changed and imports only the new ones', async () => {
+    await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+    expect(calendarApi.getEvents).toHaveBeenCalledWith(['c', 'd'], 'acc-1');
+    expect(calendarApi.updateEvent).toHaveBeenCalledTimes(1);
+    expect(calendarApi.updateEvent).toHaveBeenCalledWith('c', expect.objectContaining({
+      title: 'Moved upstream', start: '2027-01-02T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin',
+    }), false, 'acc-1');
+    expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['f'], undefined, 'acc-1');
+    expect(calendarStore.importEvents).toHaveBeenCalledWith([expect.objectContaining({ uid: 'new' })], 'b');
+    expect(only().lastError).toBeNull();
+  });
+
+  it('stops when the client serves another account, whose calendar and events have the same ids', async () => {
+    // Both accounts have calendar "b" with events "c" to "f".
+    vi.mocked(calendarApi.queryEvents).mockImplementationOnce(async () => {
+      client.accountId = 'acc-2';
+      calendarStore.generation += 1;
+      return ['c', 'd', 'e', 'f'];
+    });
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+    expect(calendarApi.queryEvents).toHaveBeenCalledWith(['b'], '', '', 'acc-1');
+    expect(calendarApi.getEventIdentities).not.toHaveBeenCalled();
+    expect(calendarApi.deleteEvents).not.toHaveBeenCalled();
+    expect(calendarApi.updateEvent).not.toHaveBeenCalled();
+    expect(calendarStore.importEvents).not.toHaveBeenCalled();
+    // Not the subscription's failure: it syncs again in its own account.
+    expect(only()).toMatchObject({ lastSyncAt: 5, lastError: null });
+  });
+
+  it('stops between its writes when the account changes', async () => {
+    vi.mocked(calendarApi.deleteEvents).mockImplementationOnce(async () => {
+      calendarStore.generation += 1;
+    });
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+    expect(calendarApi.deleteEvents).toHaveBeenCalledTimes(1);
+    expect(calendarApi.getEvents).not.toHaveBeenCalled();
+    expect(calendarApi.updateEvent).not.toHaveBeenCalled();
+    expect(calendarStore.importEvents).not.toHaveBeenCalled();
   });
 });

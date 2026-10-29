@@ -310,6 +310,11 @@ let tasksInFlight: Promise<void> | null = null;
 // one still in flight.
 let storeGeneration = 0;
 
+/** The store's reset count: work started under an earlier one is the previous account's. */
+export function calendarStoreGeneration(): number {
+  return storeGeneration;
+}
+
 /** A range load the store's reset overtook: what it read belongs to the account before. */
 export class CalendarAccountChangedError extends Error {
   constructor() {
