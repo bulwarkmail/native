@@ -2,12 +2,13 @@ import React from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDensity, useTypography } from '../theme/dynamic';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ArrowLeft, Star, Paperclip, AlertTriangle, Search, X, Square, SquareCheck,
   Mail as MailIcon, MailOpen, Archive, Trash2, ShieldAlert, ShieldCheck, Folder,
-} from 'lucide-react-native';
+} from '../components/icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import SenderAvatar from '../components/SenderAvatar';
@@ -49,6 +50,10 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const insets = useSafeAreaInsets();
+  const dyn = useTypography();
+  const density = useDensity();
+  const showPreview = useSettingsStore((s) => s.showPreview);
   const role: UnifiedRole = route.params?.role ?? 'inbox';
   const view: CrossView | undefined = route.params?.view;
   const accounts = useAccountStore((s) => s.accounts);
@@ -320,7 +325,12 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           onPress={() => (selectionMode ? toggleSelect(item) : onOpen(item))}
           onLongPress={() => toggleSelect(item)}
           delayLongPress={300}
-          style={({ pressed }) => [styles.row, pressed && styles.rowPressed, isSelected && styles.rowSelected]}
+          style={({ pressed }) => [
+            styles.row,
+            { paddingVertical: density.rowPaddingVertical },
+            pressed && styles.rowPressed,
+            isSelected && styles.rowSelected,
+          ]}
         >
           {unread && <View style={styles.unreadDot} />}
           {selectionMode && (
@@ -328,7 +338,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               {isSelected ? <SquareCheck size={16} color={c.primary} /> : <Square size={16} color={c.textMuted} />}
             </View>
           )}
-          <View style={styles.avatarWrap}>
+          {density.showAvatar && <View style={styles.avatarWrap}>
             <SenderAvatar
               name={senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'))}
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
@@ -338,17 +348,17 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
             )}
-          </View>
+          </View>}
           <View style={styles.content}>
             <View style={styles.line}>
-              <Text style={[styles.sender, unread && styles.bold]} numberOfLines={1}>
+              <Text style={[styles.sender, dyn.bodyMedium, unread && styles.bold]} numberOfLines={1}>
                 {senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'))}
               </Text>
               {starred && <Star size={12} color={c.starred} fill={c.starred} />}
               {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
-              <Text style={styles.time}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
+              <Text style={[styles.time, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
             </View>
-            <Text style={[styles.subject, unread && styles.bold]} numberOfLines={1}>
+            <Text style={[styles.subject, dyn.body, unread && styles.bold]} numberOfLines={1}>
               {singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}
             </Text>
             <View style={styles.line}>
@@ -371,8 +381,9 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
                 </View>
               )}
             </View>
-            {item.preview ? (
-              <Text style={styles.preview} numberOfLines={1}>{singleLine(item.preview)}</Text>
+            {/* Same settings as the folder list: preview on/off, density, text size. */}
+            {item.preview && showPreview && density.showPreview ? (
+              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>{singleLine(item.preview)}</Text>
             ) : null}
           </View>
         </Pressable>
@@ -381,7 +392,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {selectionMode ? (
         <View style={styles.header}>
           <Pressable
@@ -469,6 +480,9 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
       <View style={styles.searchBar}>
         <Search size={16} color={c.textMuted} />
         <TextInput
+          // No full-screen keyboard in landscape: it would hide the suggestions
+          // and the text around the field.
+          disableFullscreenUI
           style={styles.searchInput}
           placeholder={t('email_list.search_placeholder', 'Search mail...')}
           placeholderTextColor={c.textMuted}
@@ -524,7 +538,8 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           onEndReached={() => { void loadMore(); }}
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: spacing.md }} color={c.primary} /> : null}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          // A stack screen has no tab bar: the list ends clear of the gesture bar.
+          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         />
       )}
     </SafeAreaView>
@@ -622,7 +637,7 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.muted,
       maxWidth: 140,
     },
-    sharedBadgeText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
+    sharedBadgeText: { fontSize: 12, color: c.mutedForeground },
     preview: { ...typography.caption, color: c.textMuted },
   });
 }

@@ -10,6 +10,5 @@ module.exports = function babelConfig(api) {
   api.cache(true);
   return {
     presets: [presetExpo],
-    plugins: [require.resolve('./scripts/babel-plugin-lucide-imports')],
   };
 };

@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, Modal, Animated, Dimensions, Easing, TextInput, Alert,
+  View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Easing, TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   X, Users, Tag, BookUser, Inbox, ChevronDown, ChevronRight, Plus, Share2, Check,
-} from 'lucide-react-native';
+} from '../icons';
 import type { RootStackParamList } from '../../navigation/types';
 import type { AddressBook } from '../../api/types';
 import type { ContactCategory } from '../../stores/contacts-store';
@@ -18,6 +18,8 @@ import { getContactDisplayName, getContactKeywords, isGroup } from '../../lib/co
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -161,7 +163,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   );
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose} onShow={runOpen}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose} onShow={runOpen}>
       <Animated.View style={[styles.overlay, { opacity: overlay }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
@@ -309,7 +311,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
           </ScrollView>
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

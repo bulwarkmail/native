@@ -1,0 +1,87 @@
+# Settings list: find the row ROW (regex on "Title, summary"), open it,
+# check PROOF shows, screenshot, and go back on a phone.
+#
+# Rows count as visible while the phone's tab bar or header covers them or
+# while they hang half off the iPad's screen, and a tap then misses; the
+# iPad's list is a left column Maestro's scroll (in the middle of the screen)
+# doesn't reach. So search for the page (Q, a word of its title): the row
+# then sits right under the search box. The account card (no Q) is always
+# at the top.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      true: ${!!Q}
+    commands:
+      - tapOn: "Search settings"
+      - eraseText: 40
+      - inputText: ${Q}
+      - waitForAnimationToEnd:
+          timeout: 3000
+      # Now and then a typed character goes missing: type it again.
+      - runFlow:
+          when:
+            notVisible: ${ROW}
+          commands:
+            - tapOn: "Search settings"
+            - eraseText: 40
+            - inputText: ${Q}
+            - waitForAnimationToEnd:
+                timeout: 3000
+# A tap while the list still coasts from the swipe only stops it.
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn: ${ROW}
+- waitForAnimationToEnd:
+    timeout: 5000
+# On the phone the page replaces the list: make sure it opened before
+# scrolling (else the swipes below scroll the list away).
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - runFlow:
+          when:
+            notVisible: "Back"
+          commands:
+            - tapOn: ${ROW}
+      - extendedWaitUntil:
+          visible: "Back"
+          timeout: 10000
+# PROOF can be further down the page: scroll the page (the right-hand pane
+# on the iPad) until it shows.
+- runFlow:
+    when:
+      true: ${DEVICE == 'tablet'}
+    commands:
+      - repeat:
+          while:
+            notVisible: ${PROOF}
+          times: 6
+          commands:
+            - swipe:
+                start: 75%,80%
+                end: 75%,40%
+                duration: 600
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - repeat:
+          while:
+            notVisible: ${PROOF}
+          times: 6
+          commands:
+            - swipe:
+                start: 50%,80%
+                end: 50%,40%
+                duration: 600
+- extendedWaitUntil:
+    visible: ${PROOF}
+    timeout: 20000
+- takeScreenshot: settings-${NAME}
+- runFlow:
+    when:
+      visible: "Back"
+    commands:
+      - tapOn: "Back"

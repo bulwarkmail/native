@@ -1,18 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFloatingCardFrame } from '../lib/use-layout';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { undoSnackbarColors } from './undo-snackbar-colors';
 import { useEmailStore } from '../stores/email-store';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import type { RootStackParamList } from '../navigation/types';
 
 const VISIBLE_MS = 5000;
-// Clears the tab bar and the viewer's action bar, like the toasts (ToastHost).
-const BOTTOM_CLEARANCE = 64;
 
 interface Shown {
   label: string;
@@ -32,6 +32,8 @@ export function UndoSnackbar() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
+  // Full width above the tab bar on a phone; bottom right on a tablet.
+  const frame = useFloatingCardFrame();
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const entry = useEmailStore((s) => s.pendingUndo);
@@ -128,7 +130,7 @@ export function UndoSnackbar() {
       pointerEvents="box-none"
       style={[
         styles.wrap,
-        { bottom: insets.bottom + BOTTOM_CLEARANCE, opacity, transform: [{ translateY: slideY }] },
+        { left: frame.left, right: frame.right, bottom: insets.bottom + frame.bottom, opacity, transform: [{ translateY: slideY }] },
       ]}
     >
       <View style={styles.bar}>
@@ -157,11 +159,10 @@ export function UndoSnackbar() {
 }
 
 function makeStyles(c: ThemePalette) {
+  const colors = undoSnackbarColors(c);
   return StyleSheet.create({
     wrap: {
       position: 'absolute',
-      left: spacing.md,
-      right: spacing.md,
       zIndex: 50,
     },
     bar: {
@@ -171,7 +172,7 @@ function makeStyles(c: ThemePalette) {
       paddingLeft: spacing.lg,
       paddingRight: spacing.sm,
       borderRadius: radius.md,
-      backgroundColor: c.text,
+      backgroundColor: colors.bar,
       shadowColor: '#000',
       shadowOpacity: 0.3,
       shadowRadius: 12,
@@ -180,7 +181,7 @@ function makeStyles(c: ThemePalette) {
     },
     label: {
       ...typography.body,
-      color: c.background,
+      color: colors.label,
       flex: 1,
     },
     undoBtn: {
@@ -193,7 +194,7 @@ function makeStyles(c: ThemePalette) {
     },
     undoText: {
       ...typography.bodySemibold,
-      color: c.primary,
+      color: colors.action,
       letterSpacing: 0.5,
     },
     sendNowText: {

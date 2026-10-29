@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { AlertTriangle, FolderSync, X } from 'lucide-react-native';
+import { AlertTriangle, FolderSync, X } from '../icons';
 import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';

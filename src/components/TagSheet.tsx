@@ -3,14 +3,16 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Check, Tag } from 'lucide-react-native';
-import { spacing, radius, typography, colors as tokenColors, type ThemePalette } from '../theme/tokens';
+import { X, Check, Tag } from './icons';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { getEmailTagIds } from '../lib/thread-utils';
 import type { Email } from '../api/types';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetInsets } from '../lib/use-layout';
 
 interface TagSheetProps {
   visible: boolean;
@@ -28,6 +30,8 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
@@ -65,14 +69,14 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
   }, [keywords, selectedEmails]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -83,7 +87,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
             <Text style={styles.title}>
               {t('context_menu.items_selected', `${selectedEmails.length} emails selected`, { count: selectedEmails.length })}
             </Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}
+            <Pressable onPress={onClose} hitSlop={10} style={styles.close}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
             >
@@ -98,7 +102,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
             keywords.map((kw) => {
               const token = keywordToken(kw.id);
               const applied = allHaveToken(token);
-              const dot = tokenColors.tags[kw.color]?.dot ?? c.primary;
+              const dot = c.tags[kw.color]?.dot ?? c.primary;
               return (
                 <Pressable
                   key={kw.id}
@@ -121,7 +125,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
                 onPress={() => onToggle(token, !applied)}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
-                <Tag size={16} color={tokenColors.tags.gray.dot} fill={tokenColors.tags.gray.dot} />
+                <Tag size={16} color={c.tags.gray.dot} fill={c.tags.gray.dot} />
                 <Text style={styles.rowLabel} numberOfLines={1}>{id}</Text>
                 <Text style={styles.rowHint}>{t('email_list.unknown_tag', 'not defined here')}</Text>
                 {applied && <Check size={16} color={c.primary} />}

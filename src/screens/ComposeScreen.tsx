@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch,
+  Keyboard, Platform, ActivityIndicator, Alert, Modal, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -12,12 +12,11 @@ import {
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
   Users, Tag, Type, Highlighter,
-} from 'lucide-react-native';
+} from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -29,16 +28,22 @@ import RichTextEditor, {
 } from '../components/RichTextEditor';
 import { useEmailStore } from '../stores/email-store';
 import { ownMailboxes } from '../lib/mailbox-tree';
+import { getEmailInitials } from '../lib/avatar-utils';
 import { useContactsStore, type RecipientSuggestion } from '../stores/contacts-store';
+import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
+import { useLayout } from '../lib/use-layout';
+import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useHasContacts } from '../lib/capabilities';
+import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import {
-  sendEmail, createDraft, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
+  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
@@ -62,9 +67,12 @@ import {
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import {
+  initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs, withSnapshotBody,
+} from '../lib/draft-part-blobs';
+import {
   signatureIdentityFor, buildEmbeddedSignatureHtml, containsEmbeddedSignature, spliceSignature,
   insertSignatureAboveQuote, getPlainTextSignature, appendPlainTextSignature,
-  plainTextBodyHasSignature, plainTextBodyWithoutSignature, SIGNATURE_RANGE_MARKER,
+  plainTextBodyHasSignature, plainTextBodyWithoutSignature, SIGNATURE_RANGE_MARKER, wantsSignatureSeparator,
 } from '../lib/signature-utils';
 import {
   getAutoFilledPlaceholders, getPlaceholdersFromTemplate, substitutePlaceholders, templateBodyToHtml,
@@ -75,6 +83,10 @@ import {
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import type { EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import ToggleSwitch from '../components/ToggleSwitch';
+import { AttachmentPreviewModal } from '../components/email/AttachmentPreviewModal';
+import { useFilePreview } from '../components/email/use-file-preview';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Compose'>;
 
@@ -209,7 +221,8 @@ function RecipientChip({
       </Text>
       <Pressable
         onPress={onRemove}
-        hitSlop={8}
+        // A 12 px icon: the touch area reaches about 40 dp around it.
+        hitSlop={14}
         accessibilityRole="button"
         accessibilityLabel={t('email_composer.recipient_remove', 'Remove')}
       >
@@ -220,11 +233,7 @@ function RecipientChip({
 }
 
 function initialsOf(name: string, email: string): string {
-  const source = name.trim() || email;
-  const parts = source.split(/[\s@._-]+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '?';
-  const second = parts.length > 1 ? parts[1][0] : '';
-  return `${first}${second}`.toUpperCase();
+  return getEmailInitials(name.trim(), email);
 }
 
 function SuggestionList({
@@ -341,7 +350,9 @@ function ToolbarButton({
       onPress={onPress}
       hitSlop={4}
       disabled={disabled}
+      accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ selected: !!active, disabled: !!disabled }}
       style={[styles.formatBtn, active && styles.formatBtnActive, disabled && styles.formatBtnDisabled]}
     >
       {icon}
@@ -367,16 +378,26 @@ function OptionsSheet({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // An option may open a system picker, which iOS only shows once this
+  // modal is gone.
+  const afterDismiss = React.useRef(createAfterDismissQueue(Platform.OS)).current;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.scheduleCard} onPress={() => {}}>
+    <Modal
+      supportedOrientations={MODAL_ORIENTATIONS}
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={afterDismiss.flush}
+    >
+      <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
           {!!title && <Text style={styles.modalTitle} numberOfLines={2}>{title}</Text>}
           {options.map((opt) => (
             <Pressable
               key={opt.label}
               style={styles.scheduleRow}
-              onPress={() => { onClose(); opt.onPress(); }}
+              onPress={() => { onClose(); afterDismiss.run(opt.onPress); }}
             >
               <Text style={[styles.scheduleRowLabel, opt.destructive && { color: c.error }]}>{opt.label}</Text>
             </Pressable>
@@ -391,6 +412,7 @@ function OptionsSheet({
 }
 
 export default function ComposeScreen({ route, navigation }: Props) {
+  const filePreview = useFilePreview();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -398,37 +420,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const insets = useSafeAreaInsets();
   // Track the visible keyboard obstruction so the format bar stays above it.
-  // On Android edge-to-edge, the IME-inset reported by `keyboardDidShow` is
-  // measured from the top of the gesture-nav bar rather than from the true
-  // screen bottom, so we derive obstruction height from `Dimensions.screen`
-  // instead of trusting `endCoordinates.height` directly. The same trick
-  // works on iOS for the QuickType / autofill / dictation strip.
-  const [kbObstruction, setKbObstruction] = React.useState(0);
-  React.useEffect(() => {
-    const recompute = (endY: number) => {
-      const screenH = Dimensions.get('screen').height;
-      setKbObstruction(Math.max(0, screenH - endY));
-    };
-    const subs =
-      Platform.OS === 'ios'
-        ? [
-            Keyboard.addListener('keyboardWillChangeFrame', (e) => {
-              recompute(e.endCoordinates?.screenY ?? Number.MAX_SAFE_INTEGER);
-            }),
-          ]
-        : [
-            Keyboard.addListener('keyboardDidShow', (e) => {
-              recompute(e.endCoordinates?.screenY ?? Number.MAX_SAFE_INTEGER);
-            }),
-            Keyboard.addListener('keyboardDidHide', () => setKbObstruction(0)),
-          ];
-    return () => {
-      for (const s of subs) s.remove();
-    };
-  }, []);
+  const kbObstruction = useKeyboardObstruction(insets.bottom, () => editorRef.current?.blur());
+  const { shortHeight, isSplit } = useLayout();
+  const typingInShortWindow = shortHeight && kbObstruction > 0;
   // When the keyboard is up it covers the bottom safe area, so we don't
   // need to add it on top — pad by whichever is larger.
-  const bottomPad = Math.max(kbObstruction, insets.bottom);
+  // On a tablet the composer is a centred panel that stops PANEL_MARGIN
+  // short of the screen bottom; the keyboard covers that much less of it.
+  const bottomPad = isSplit
+    ? Math.max(0, kbObstruction - PANEL_MARGIN)
+    : Math.max(kbObstruction, insets.bottom);
   const replyTo = route.params?.replyTo;
   const draft = route.params?.draft;
   const mode = route.params?.mode ?? 'compose';
@@ -482,6 +483,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
   const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
+  const hasContacts = useHasContacts();
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   const quoteLabels = React.useMemo<QuoteHeaderLabels>(() => quoteHeaderLabels(t), [t]);
@@ -682,10 +684,36 @@ export default function ComposeScreen({ route, navigation }: Props) {
   });
 
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  // The label column grows with the system font size: at 1.3 "Betreff"
+  // wrapped into "Betref" / "f" in a fixed 56 dp column.
+  const { fontScale } = useWindowDimensions();
+  const fieldLabelWidth = React.useMemo(() => ({ width: Math.round(56 * Math.max(1, fontScale)) }), [fontScale]);
+  const subjectRef = React.useRef<TextInput>(null);
+  const plainBodyRef = React.useRef<TextInput>(null);
+  const [subjectFocused, setSubjectFocused] = React.useState(false);
+
+  // The composer's ScrollView and its live offset. On Android the editor page
+  // hands back the caret-reveal pans it undoes (see `pinVisualViewport` in
+  // editor-html); scrolling the composer by the same amount keeps the caret
+  // where the pan had put it, without leaving the body drawn shifted up.
+  const bodyScrollRef = React.useRef<ScrollView>(null);
+  const bodyScrollY = React.useRef(0);
+  const onEditorViewportShift = React.useCallback((dy: number) => {
+    const y = Math.max(0, bodyScrollY.current + dy);
+    bodyScrollY.current = y;
+    bodyScrollRef.current?.scrollTo({ y, animated: false });
+  }, []);
   const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
   const inlineRegistryRef = React.useRef<Map<string, AttachmentEntry>>(new Map());
+  // A re-opened draft's attachments and inline images are parts of that
+  // draft: their blobIds die with each version a save replaces (#849), and an
+  // upload expires once nothing references it. This maps the blobId each
+  // entry holds to the matching part of the latest saved version, which
+  // `buildOutgoing` sends. Kept out of the attachment state so the dirty
+  // snapshot does not change on every save.
+  const draftPartBlobsRef = React.useRef(initialDraftPartBlobState());
 
   const getAutocomplete = useContactsStore((s) => s.getAutocomplete);
   const getGroupRecipients = useContactsStore((s) => s.getGroupRecipients);
@@ -845,6 +873,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
         }
       }
       if (cancelled || map.size === 0) return;
+      // No change message since the editor loaded = the user has not typed
+      // yet, so the editor still holds the seeded body (normalised by the
+      // WebView DOM, which is why it can differ from the raw server HTML).
+      const untouched = !plainTextMode && latestRef.current.bodyHtml === initialBodyHtml;
       let live = latestRef.current.bodyHtml;
       try {
         live = (await editorRef.current?.getHtml()) ?? live;
@@ -855,8 +887,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         editorRef.current?.setHtml(next);
       }
       // The hydrated images are part of the untouched baseline, not an edit.
-      baselineRef.current = replaceInlineImagePlaceholders(baselineRef.current, map);
-      if (lastSavedRef.current) lastSavedRef.current = replaceInlineImagePlaceholders(lastSavedRef.current, map);
+      if (untouched) {
+        // Rebase on the body the composer now holds: comparing it with the
+        // raw server HTML made every re-opened draft with inline images look
+        // edited, and the autosave replaced (and destroyed) it unasked.
+        baselineRef.current = withSnapshotBody(baselineRef.current, next);
+        if (lastSavedRef.current) lastSavedRef.current = withSnapshotBody(lastSavedRef.current, next);
+      } else {
+        baselineRef.current = replaceInlineImagePlaceholders(baselineRef.current, map);
+        if (lastSavedRef.current) lastSavedRef.current = replaceInlineImagePlaceholders(lastSavedRef.current, map);
+      }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1085,6 +1125,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [draftStatus, setDraftStatus] = React.useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [savingDraft, setSavingDraft] = React.useState(false);
 
+  const [, bumpBaseline] = React.useReducer((n: number) => n + 1, 0);
   const isDirty = currentSnapshot !== baselineRef.current;
   const needsSave = currentSnapshot !== (lastSavedRef.current ?? baselineRef.current);
 
@@ -1106,7 +1147,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const placeSignaturePlain = React.useCallback((body: string, identity: Identity): string => {
     const sig = getPlainTextSignature(identity);
     if (!sig) return body;
-    const sep = signatureSeparatorEnabled ? '\n\n-- \n' : '\n\n';
+    const sep = wantsSignatureSeparator(signatureSeparatorEnabled, identity) ? '\n\n-- \n' : '\n\n';
     if (isReplyLike && signaturePosition === 'above_quote') {
       const idx = body.indexOf('\n\n');
       const head = idx === -1 ? body : body.slice(0, idx);
@@ -1143,10 +1184,21 @@ export default function ComposeScreen({ route, navigation }: Props) {
           const next = placeSignatureHtml(live, sigHtml);
           setBodyHtml(next);
           editorRef.current?.setHtml(next);
+          // The untouched baseline is the editor's own read-back: the page
+          // normalises the markup, so the string built here never equalled
+          // what it reports, and an untouched reply counted as edited (it
+          // autosaved a draft and asked "Save or discard?" on close).
+          let settled = placeSignatureHtml(initialBodyHtml, sigHtml);
+          try {
+            settled = (await editorRef.current?.getHtml()) ?? settled;
+          } catch { /* keep the built string */ }
+          if (latestRef.current.bodyHtml === next) setBodyHtml(settled);
           baselineRef.current = snapshotOf({
             to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
-            body: placeSignatureHtml(initialBodyHtml, sigHtml), attachments: initialAttachments,
+            body: settled, attachments: initialAttachments,
           });
+          // The baseline is a ref: re-render so "edited" is worked out again.
+          bumpBaseline();
         })();
       }
       return;
@@ -1162,7 +1214,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           stripped = plainTextBodyWithoutSignature(body, prev);
         } else if (prev) {
           const old = getPlainTextSignature(prev);
-          const marker = `${signatureSeparatorEnabled ? '\n\n-- \n' : '\n\n'}${old}`;
+          const marker = `${wantsSignatureSeparator(signatureSeparatorEnabled, prev) ? '\n\n-- \n' : '\n\n'}${old}`;
           if (old && body.includes(marker)) stripped = body.replace(marker, '');
         }
         return signatureIdentity ? placeSignaturePlain(stripped, signatureIdentity) : stripped;
@@ -1229,7 +1281,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       .map((cid) => inlineRegistryRef.current.get(cid))
       .filter((e): e is AttachmentEntry => !!e && !!e.blobId && !e.error)
       .map<OutgoingAttachment>((e) => ({
-        blobId: e.blobId!,
+        blobId: liveBlobId(draftPartBlobsRef.current, e.blobId!),
         type: e.type,
         name: e.name,
         size: e.size,
@@ -1240,7 +1292,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const fileAttachments = attachments
       .filter((a) => !a.inline && a.blobId && !a.error)
       .map<OutgoingAttachment>((a) => ({
-        blobId: a.blobId!,
+        blobId: liveBlobId(draftPartBlobsRef.current, a.blobId!),
         type: a.type,
         name: a.name,
         size: a.size,
@@ -1300,8 +1352,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setDraftStatus('saving');
     try {
       const outgoing = buildOutgoing(identity, html, { forDraft: true });
-      const id = await createDraft(outgoing, draftsMailbox.id, draftIdRef.current ?? undefined);
+      const saved = await saveDraftVersion(outgoing, draftsMailbox.id, draftIdRef.current ?? undefined);
+      const id = saved.id;
       draftIdRef.current = id;
+      // The previous version and its part blobs are gone: point every
+      // attachment at the parts of the version just created.
+      draftPartBlobsRef.current = rebaseDraftPartBlobs(
+        draftPartBlobsRef.current, outgoing.attachments ?? [], saved.attachments,
+      );
       lastSavedRef.current = snapshot;
       lastSaveAtRef.current = Date.now();
       setDraftStatus('saved');
@@ -1583,14 +1641,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   const pickPhotoAttachments = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        t('email_composer.attach', 'Attach'),
-        t('email_composer.permission_photos', 'Photo library permission is required to attach images.'),
-      );
-      return;
-    }
+    // The system photo picker needs no media permission (and Play rejects
+    // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
@@ -1687,14 +1739,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const insertInlineImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        t('email_composer.attach', 'Attach'),
-        t('email_composer.permission_photos', 'Photo library permission is required to attach images.'),
-      );
-      return;
-    }
+    // The system photo picker needs no media permission (and Play rejects
+    // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
@@ -1705,22 +1751,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     await insertInlineImages(result.assets);
   };
 
-  // Open a chip: local files straight from their URI, server blobs after a
-  // download into the cache.
+  // Open a chip in the file preview: local files from their URI, server
+  // blobs (forwarded, from a draft) after a download.
   const previewAttachment = async (entry: AttachmentEntry) => {
     try {
-      let uri = entry.uri;
-      if (!uri && entry.blobId) {
-        const buf = await jmapClient.fetchBlobArrayBuffer(entry.blobId, entry.name, entry.type);
-        const dir = FileSystem.cacheDirectory ?? '';
-        uri = `${dir}${entry.localId}-${entry.name.replace(/[^\w.-]+/g, '_')}`;
-        await FileSystem.writeAsStringAsync(uri, bytesToBase64(new Uint8Array(buf)), {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      }
-      if (!uri) return;
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: entry.type, dialogTitle: entry.name });
+      if (entry.uri) {
+        await filePreview.open({ from: 'local', uri: entry.uri, name: entry.name, type: entry.type, size: entry.size });
+      } else if (entry.blobId) {
+        await filePreview.open({ from: 'blob', blobId: entry.blobId, name: entry.name, type: entry.type, size: entry.size });
       }
     } catch (err) {
       Alert.alert(t('email_composer.attach', 'Attach'), err instanceof Error ? err.message : String(err));
@@ -2147,7 +2185,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const contacts = useContactsStore.getState();
         for (const r of [...outgoing.to, ...(outgoing.cc ?? [])]) {
           settings.addTrustedSender(r.email);
-          if (trustedSendersAddressBook) {
+          if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
           }
         }
@@ -2226,7 +2264,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const invalidInput = typedRecipients[field].invalid.length > 0 && !typedRecipients[field].valid.length && input.trim().length > 0 && activeField !== field;
     return (
       <View style={[styles.fieldRow, { zIndex }]}>
-        <Text style={styles.fieldLabel}>{label}</Text>
+        <Text style={[styles.fieldLabel, fieldLabelWidth]} numberOfLines={1}>{label}</Text>
         <View style={styles.recipientField}>
           {list.map((r, i) => (
             <RecipientChip
@@ -2238,6 +2276,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
             />
           ))}
           <TextInput
+            // No full-screen keyboard in landscape: it would hide the suggestions
+            // and the text around the field.
+            disableFullscreenUI
             style={[styles.recipientInput, invalidInput && styles.recipientInputInvalid]}
             placeholder={placeholder}
             placeholderTextColor={c.textMuted}
@@ -2264,7 +2305,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 isPickingSuggestion.current = false;
               }, 200);
             }}
-            onSubmitEditing={() => addTyped(field)}
+            // Return turns typed text into a chip; on an empty field it
+            // moves on to the subject.
+            returnKeyType="next"
+            onSubmitEditing={() => {
+              if (inputFor(field).trim()) addTyped(field);
+              else subjectRef.current?.focus();
+            }}
             blurOnSubmit={false}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -2281,12 +2328,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
           />
         )}
         {field === 'to' && !ccVisible && (
-          <Pressable onPress={() => setCcVisible(true)} style={styles.ccToggle}>
+          <Pressable onPress={() => setCcVisible(true)} style={styles.ccToggle} hitSlop={10} accessibilityRole="button">
             <Text style={styles.ccToggleText}>{t('email_composer.cc', 'Cc')}</Text>
           </Pressable>
         )}
         {field === 'cc' && !bccVisible && (
-          <Pressable onPress={() => setBccVisible(true)} style={styles.ccToggle}>
+          <Pressable onPress={() => setBccVisible(true)} style={styles.ccToggle} hitSlop={10} accessibilityRole="button">
             <Text style={styles.ccToggleText}>{t('email_composer.bcc', 'Bcc')}</Text>
           </Pressable>
         )}
@@ -2294,9 +2341,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+  const composer = (
+    <SafeAreaView style={styles.container} edges={isSplit ? [] : ['top', 'left', 'right']}>
+      <View style={[styles.header, typingInShortWindow && styles.headerCompact]}>
         <Pressable
           onPress={onClose}
           style={styles.headerBtn}
@@ -2310,7 +2357,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {t(titleKey, mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : replyTo ? 'Reply' : 'New Message')}
           </Text>
-          {!!draftStatusText && (
+          {!!draftStatusText && !typingInShortWindow && (
             <Text style={styles.headerSubtitle} numberOfLines={1}>{draftStatusText}</Text>
           )}
         </View>
@@ -2361,12 +2408,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
       <View style={[styles.flex, { paddingBottom: bottomPad }]}>
         <ScrollView
+          ref={bodyScrollRef}
           style={styles.flex}
           keyboardShouldPersistTaps="always"
           contentContainerStyle={styles.scrollContent}
+          onScroll={(e) => { bodyScrollY.current = e.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={16}
         >
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>{t('email_composer.from', 'From')}</Text>
+            <Text style={[styles.fieldLabel, fieldLabelWidth]} numberOfLines={1}>{t('email_composer.from', 'From')}</Text>
             <Pressable
               onPress={openIdentityPicker}
               onLongPress={openFromOptions}
@@ -2396,13 +2446,26 @@ export default function ComposeScreen({ route, navigation }: Props) {
           {bccVisible && renderRecipientField('bcc', t('email_composer.bcc', 'Bcc'), t('email_composer.bcc_placeholder', 'Bcc recipients'), 4)}
 
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>{t('email_composer.subject', 'Subject')}</Text>
+            <Text style={[styles.fieldLabel, fieldLabelWidth]} numberOfLines={1}>{t('email_composer.subject', 'Subject')}</Text>
             <TextInput
+              ref={subjectRef}
+              disableFullscreenUI
               style={styles.subjectInput}
               placeholder={t('email_composer.subject_placeholder', 'Subject')}
               placeholderTextColor={c.textMuted}
               value={subject}
               onChangeText={setSubject}
+              // Unfocused, a long subject shows from its start ("Re: …"), not
+              // scrolled to its end.
+              selection={subjectFocused ? undefined : SELECTION_START}
+              onFocus={() => setSubjectFocused(true)}
+              onBlur={() => setSubjectFocused(false)}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => {
+                if (plainTextMode) plainBodyRef.current?.focus();
+                else editorRef.current?.focus();
+              }}
             />
           </View>
 
@@ -2421,6 +2484,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
           {plainTextMode ? (
             <TextInput
+              ref={plainBodyRef}
+              disableFullscreenUI
               style={styles.plainEditor}
               multiline
               value={plainBody}
@@ -2439,96 +2504,131 @@ export default function ComposeScreen({ route, navigation }: Props) {
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
+              onViewportShift={onEditorViewportShift}
             />
           )}
+          {/* The empty space under the body looks like part of it (on a
+              tablet, most of the panel): a tap there starts typing in it. */}
+          <Pressable
+            style={styles.bodyFiller}
+            accessible={false}
+            onPress={() => {
+              if (plainTextMode) plainBodyRef.current?.focus();
+              else editorRef.current?.focusEnd();
+            }}
+          />
         </ScrollView>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.formatBar}
-          contentContainerStyle={styles.formatActions}
-          keyboardShouldPersistTaps="always"
-        >
-          <ToolbarButton onPress={() => setTemplateSheetOpen(true)}
-            icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
-          <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
-            icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
-          <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
-            label={plainTextMode
-              ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
-              : t('email_composer.format_plain_text', 'Switch to plain text')}
-            icon={<Type size={18} color={plainTextMode ? c.primary : c.textSecondary} />} />
+        {/* A phone in landscape with the keyboard up has room for a few lines
+            of text only; the format bar comes back with the keyboard down. */}
+        {!typingInShortWindow && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.formatBar}
+            contentContainerStyle={styles.formatActions}
+            keyboardShouldPersistTaps="always"
+          >
+            <ToolbarButton onPress={() => setTemplateSheetOpen(true)}
+              label={t('email_composer.use_template', 'Template')}
+              icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
+            <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
+              label={t('email_composer.read_receipt_off', 'Request a read receipt')}
+              icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
+            <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
+              label={plainTextMode
+                ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
+                : t('email_composer.format_plain_text', 'Switch to plain text')}
+              icon={<Type size={18} color={plainTextMode ? c.primary : c.textSecondary} />} />
 
-          {!plainTextMode && (
-            <>
-              <View style={styles.formatSep} />
+            {!plainTextMode && (
+              <>
+                <View style={styles.formatSep} />
 
-              <ToolbarButton active={selState.bold} onPress={() => editorRef.current?.exec('bold')}
-                icon={<Bold size={18} color={selState.bold ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.italic} onPress={() => editorRef.current?.exec('italic')}
-                icon={<Italic size={18} color={selState.italic ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.underline} onPress={() => editorRef.current?.exec('underline')}
-                icon={<Underline size={18} color={selState.underline ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.strikeThrough} onPress={() => editorRef.current?.exec('strikeThrough')}
-                icon={<Strikethrough size={18} color={selState.strikeThrough ? c.primary : c.textSecondary} />} />
-              <ToolbarButton onPress={() => setColorTarget('text')}
-                label={t('email_composer.toolbar.text_color', 'Text color')}
-                icon={<Palette size={18} color={c.textSecondary} />} />
-              <ToolbarButton onPress={() => setColorTarget('background')}
-                label={t('email_composer.toolbar.background_color', 'Background color')}
-                icon={<Highlighter size={18} color={c.textSecondary} />} />
+                <ToolbarButton active={selState.bold} onPress={() => editorRef.current?.exec('bold')}
+                  label={t('email_composer.toolbar.bold', 'Bold')}
+                  icon={<Bold size={18} color={selState.bold ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.italic} onPress={() => editorRef.current?.exec('italic')}
+                  label={t('email_composer.toolbar.italic', 'Italic')}
+                  icon={<Italic size={18} color={selState.italic ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.underline} onPress={() => editorRef.current?.exec('underline')}
+                  label={t('email_composer.toolbar.underline', 'Underline')}
+                  icon={<Underline size={18} color={selState.underline ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.strikeThrough} onPress={() => editorRef.current?.exec('strikeThrough')}
+                  label={t('email_composer.toolbar.strikethrough', 'Strikethrough')}
+                  icon={<Strikethrough size={18} color={selState.strikeThrough ? c.primary : c.textSecondary} />} />
+                <ToolbarButton onPress={() => setColorTarget('text')}
+                  label={t('email_composer.toolbar.text_color', 'Text color')}
+                  icon={<Palette size={18} color={c.textSecondary} />} />
+                <ToolbarButton onPress={() => setColorTarget('background')}
+                  label={t('email_composer.toolbar.background_color', 'Background color')}
+                  icon={<Highlighter size={18} color={c.textSecondary} />} />
 
-              <View style={styles.formatSep} />
+                <View style={styles.formatSep} />
 
-              <ToolbarButton active={selState.h1} onPress={() => editorRef.current?.exec('formatBlock:H1')}
-                icon={<Heading1 size={18} color={selState.h1 ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.h2} onPress={() => editorRef.current?.exec('formatBlock:H2')}
-                icon={<Heading2 size={18} color={selState.h2 ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.h1} onPress={() => editorRef.current?.exec('formatBlock:H1')}
+                  label={t('email_composer.toolbar.heading_1', 'Heading 1')}
+                  icon={<Heading1 size={18} color={selState.h1 ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.h2} onPress={() => editorRef.current?.exec('formatBlock:H2')}
+                  label={t('email_composer.toolbar.heading_2', 'Heading 2')}
+                  icon={<Heading2 size={18} color={selState.h2 ? c.primary : c.textSecondary} />} />
 
-              <View style={styles.formatSep} />
+                <View style={styles.formatSep} />
 
-              <ToolbarButton active={selState.ul} onPress={() => editorRef.current?.exec('insertUnorderedList')}
-                icon={<List size={18} color={selState.ul ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.ol} onPress={() => editorRef.current?.exec('insertOrderedList')}
-                icon={<ListOrdered size={18} color={selState.ol ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.blockquote} onPress={() => editorRef.current?.exec('formatBlock:BLOCKQUOTE')}
-                icon={<Quote size={18} color={selState.blockquote ? c.primary : c.textSecondary} />} />
-              <ToolbarButton onPress={() => setTableMenuOpen(true)}
-                icon={<Table size={18} color={c.textSecondary} />} />
+                <ToolbarButton active={selState.ul} onPress={() => editorRef.current?.exec('insertUnorderedList')}
+                  label={t('email_composer.toolbar.bullet_list', 'Bullet list')}
+                  icon={<List size={18} color={selState.ul ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.ol} onPress={() => editorRef.current?.exec('insertOrderedList')}
+                  label={t('email_composer.toolbar.ordered_list', 'Ordered list')}
+                  icon={<ListOrdered size={18} color={selState.ol ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.blockquote} onPress={() => editorRef.current?.exec('formatBlock:BLOCKQUOTE')}
+                  label={t('email_composer.toolbar.quote', 'Quote')}
+                  icon={<Quote size={18} color={selState.blockquote ? c.primary : c.textSecondary} />} />
+                <ToolbarButton onPress={() => setTableMenuOpen(true)}
+                  label={t('email_composer.toolbar.table', 'Table')}
+                  icon={<Table size={18} color={c.textSecondary} />} />
 
-              <View style={styles.formatSep} />
+                <View style={styles.formatSep} />
 
-              <ToolbarButton active={selState.alignLeft} onPress={() => editorRef.current?.exec('justifyLeft')}
-                icon={<AlignLeft size={18} color={selState.alignLeft ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.alignCenter} onPress={() => editorRef.current?.exec('justifyCenter')}
-                icon={<AlignCenter size={18} color={selState.alignCenter ? c.primary : c.textSecondary} />} />
-              <ToolbarButton active={selState.alignRight} onPress={() => editorRef.current?.exec('justifyRight')}
-                icon={<AlignRight size={18} color={selState.alignRight ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.alignLeft} onPress={() => editorRef.current?.exec('justifyLeft')}
+                  label={t('email_composer.toolbar.align_left', 'Align left')}
+                  icon={<AlignLeft size={18} color={selState.alignLeft ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.alignCenter} onPress={() => editorRef.current?.exec('justifyCenter')}
+                  label={t('email_composer.toolbar.align_center', 'Align center')}
+                  icon={<AlignCenter size={18} color={selState.alignCenter ? c.primary : c.textSecondary} />} />
+                <ToolbarButton active={selState.alignRight} onPress={() => editorRef.current?.exec('justifyRight')}
+                  label={t('email_composer.toolbar.align_right', 'Align right')}
+                  icon={<AlignRight size={18} color={selState.alignRight ? c.primary : c.textSecondary} />} />
 
-              <View style={styles.formatSep} />
+                <View style={styles.formatSep} />
 
-              <ToolbarButton active={selState.link} onPress={onLinkPress}
-                icon={selState.link
-                  ? <Link2Off size={18} color={c.primary} />
-                  : <Link2 size={18} color={c.textSecondary} />} />
-              <ToolbarButton onPress={() => { void insertInlineImage(); }}
-                icon={<ImageIcon size={18} color={c.textSecondary} />} />
-              <ToolbarButton onPress={() => editorRef.current?.exec('removeFormat')}
-                icon={<RemoveFormatting size={18} color={c.textSecondary} />} />
+                <ToolbarButton active={selState.link} onPress={onLinkPress}
+                  label={selState.link ? t('email_composer.toolbar.remove_link', 'Remove link') : t('email_composer.toolbar.link', 'Link')}
+                  icon={selState.link
+                    ? <Link2Off size={18} color={c.primary} />
+                    : <Link2 size={18} color={c.textSecondary} />} />
+                <ToolbarButton onPress={() => { void insertInlineImage(); }}
+                  label={t('email_composer.toolbar.insert_image', 'Insert image')}
+                  icon={<ImageIcon size={18} color={c.textSecondary} />} />
+                <ToolbarButton onPress={() => editorRef.current?.exec('removeFormat')}
+                  label={t('email_composer.toolbar.clear_formatting', 'Clear formatting')}
+                  icon={<RemoveFormatting size={18} color={c.textSecondary} />} />
 
-              <View style={styles.formatSep} />
+                <View style={styles.formatSep} />
 
-              <ToolbarButton onPress={() => editorRef.current?.exec('undo')}
-                icon={<Undo2 size={18} color={c.textSecondary} />} />
-              <ToolbarButton onPress={() => editorRef.current?.exec('redo')}
-                icon={<Redo2 size={18} color={c.textSecondary} />} />
-            </>
-          )}
-        </ScrollView>
+                <ToolbarButton onPress={() => editorRef.current?.exec('undo')}
+                  label={t('email_composer.toolbar.undo', 'Undo')}
+                  icon={<Undo2 size={18} color={c.textSecondary} />} />
+                <ToolbarButton onPress={() => editorRef.current?.exec('redo')}
+                  label={t('email_composer.toolbar.redo', 'Redo')}
+                  icon={<Redo2 size={18} color={c.textSecondary} />} />
+              </>
+            )}
+          </ScrollView>
+        )}
       </View>
 
-      <Modal
+      <Modal supportedOrientations={MODAL_ORIENTATIONS}
         visible={linkPromptVisible}
         transparent
         animationType="fade"
@@ -2579,9 +2679,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       </Modal>
 
       {/* Text / background colour palette */}
-      <Modal visible={!!colorTarget} transparent animationType="fade" onRequestClose={() => setColorTarget(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setColorTarget(null)}>
-          <Pressable style={styles.scheduleCard} onPress={() => {}}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!colorTarget} transparent animationType="fade" onRequestClose={() => setColorTarget(null)}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setColorTarget(null)}>
+          <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>
               {colorTarget === 'background'
                 ? t('email_composer.toolbar.background_color', 'Background color')
@@ -2643,14 +2743,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
       />
 
       {/* Schedule send sheet */}
-      <Modal
+      <Modal supportedOrientations={MODAL_ORIENTATIONS}
         visible={scheduleSheetOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setScheduleSheetOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setScheduleSheetOpen(false)}>
-          <Pressable style={styles.scheduleCard} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setScheduleSheetOpen(false)}>
+          <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>
               {t('email_composer.schedule_send', 'Schedule send')}
             </Text>
@@ -2682,9 +2782,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       </Modal>
 
       {customStage !== null && Platform.OS === 'ios' && (
-        <Modal transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
-            <Pressable style={styles.scheduleCard} onPress={() => {}}>
+        <Modal supportedOrientations={MODAL_ORIENTATIONS} transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
+          <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
+            <Pressable accessible={false} style={styles.scheduleCard} onPress={() => {}}>
               <DateTimePicker
                 value={customDraftRef.current}
                 mode="datetime"
@@ -2723,7 +2823,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       )}
 
       {/* Template placeholders */}
-      <Modal
+      <Modal supportedOrientations={MODAL_ORIENTATIONS}
         visible={!!placeholderPrompt}
         transparent
         animationType="fade"
@@ -2778,7 +2878,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       </Modal>
 
       {/* From options: sub-address tag / From override */}
-      <Modal visible={fromOptionsOpen} transparent animationType="fade" onRequestClose={() => setFromOptionsOpen(false)}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={fromOptionsOpen} transparent animationType="fade" onRequestClose={() => setFromOptionsOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('email_composer.from', 'From')}</Text>
@@ -2821,7 +2921,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             )}
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t('email_composer.from_override.toggle_off', 'Override')}</Text>
-              <Switch
+              <ToggleSwitch
                 value={overrideEnabled}
                 onValueChange={setOverrideEnabled}
                 accessibilityLabel={t('email_composer.from_override.toggle_off', 'Override')}
@@ -2874,15 +2974,46 @@ export default function ComposeScreen({ route, navigation }: Props) {
         selectedIdentityId={selectedIdentityId}
         onPick={(identity) => { setSelectedIdentityId(identity.id); setFromOverride(null); }}
       />
+
+      <AttachmentPreviewModal {...filePreview.modalProps} />
     </SafeAreaView>
   );
+  if (!isSplit) return composer;
+  // Tablet: a centred panel over the dimmed screen it was opened from.
+  return (
+    <View style={[styles.panelBackdrop, { paddingTop: insets.top + PANEL_MARGIN, paddingBottom: insets.bottom + PANEL_MARGIN }]}>
+      <View style={styles.panel}>{composer}</View>
+    </View>
+  );
 }
+
+const SELECTION_START = { start: 0, end: 0 };
+
+/** Gap between the tablet composer panel and the screen edges. */
+const PANEL_MARGIN = 24;
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   flex: { flex: 1 },
+  panelBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    paddingHorizontal: PANEL_MARGIN,
+  },
+  panel: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 760,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    overflow: 'hidden',
+    backgroundColor: c.background,
+  },
   scrollContent: { flexGrow: 1 },
+  bodyFiller: { flexGrow: 1, minHeight: 48 },
 
   header: {
     flexDirection: 'row',
@@ -2894,6 +3025,7 @@ function makeStyles(c: ThemePalette) {
     borderBottomColor: c.border,
     gap: spacing.sm,
   },
+  headerCompact: { paddingVertical: 0 },
   headerBtn: {
     width: componentSizes.buttonLg,
     height: componentSizes.buttonLg,
@@ -2920,7 +3052,6 @@ function makeStyles(c: ThemePalette) {
   fieldLabel: {
     ...typography.body,
     color: c.textMuted,
-    width: 56,
     paddingTop: 10,
   },
   fieldContent: {

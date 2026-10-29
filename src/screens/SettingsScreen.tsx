@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLayout } from '../lib/use-layout';
+import { confirmSignOut } from '../lib/sign-out-confirm';
 import {
-  ArrowLeft, LogOut, Settings, ChevronRight, Search, X,
+  ArrowLeft, LogOut, Search, X, ChevronRight,
   Palette, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive,
-  BookUser, KeyRound, PanelLeftClose, Bell, Puzzle, RefreshCw,
+  BookUser, PanelLeftClose, Bell, RefreshCw,
   LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Download,
-  type LucideIcon,
-} from 'lucide-react-native';
+  Database, Bug, Scale,
+  type AppIcon,
+} from '../components/icons';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { ReadingSettings } from '../components/settings/ReadingSettings';
@@ -17,7 +20,14 @@ import { AccountSettings } from '../components/settings/AccountSettings';
 import { IdentitySettings } from '../components/settings/IdentitySettings';
 import { VacationSettings } from '../components/settings/VacationSettings';
 import { FolderSettings } from '../components/settings/FolderSettings';
-import { AboutDataSettings } from '../components/settings/AboutDataSettings';
+import { StorageSettings } from '../components/settings/StorageSettings';
+import { AboutSettings, APP_VERSION } from '../components/settings/AboutSettings';
+import { TroubleshootingSettings } from '../components/settings/TroubleshootingSettings';
+import { LicencesSettings } from '../components/settings/LicencesSettings';
+import { PrivacySettings } from '../components/settings/PrivacySettings';
+import { SettingsRow, SettingsGroupLabel } from '../components/settings/settings-section';
+import Badge from '../components/Badge';
+import SenderAvatar from '../components/SenderAvatar';
 import { UpdatesSettings } from '../components/settings/UpdatesSettings';
 import { AppearanceSettings } from '../components/settings/AppearanceSettings';
 import { CalendarSettings } from '../components/settings/CalendarSettings';
@@ -27,10 +37,8 @@ import { FilterSettings } from '../components/settings/FilterSettings';
 import { TemplateSettings } from '../components/settings/TemplateSettings';
 import { KeywordSettings } from '../components/settings/KeywordSettings';
 import { AccountSecuritySettings } from '../components/settings/AccountSecuritySettings';
-import { SmimeSettings } from '../components/settings/SmimeSettings';
 import { SidebarAppsSettings } from '../components/settings/SidebarAppsSettings';
 import { ThemesSettings } from '../components/settings/ThemesSettings';
-import { PluginsSettings } from '../components/settings/PluginsSettings';
 import { ContentSendersSettings } from '../components/settings/ContentSendersSettings';
 import { LanguageSettings } from '../components/settings/LanguageSettings';
 import { ComposingSettings } from '../components/settings/ComposingSettings';
@@ -39,6 +47,11 @@ import { DownloadsSettings } from '../components/settings/DownloadsSettings';
 import { useLocaleStore } from '../stores/locale-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useManagedAccountStore } from '../stores/managed-account-store';
+import { useAccountStore } from '../stores/account-store';
+import { useSettingsStore } from '../stores/settings-store';
+import { useUpdatesStore } from '../stores/updates-store';
+import { SUPPORTED_LOCALES } from '../i18n';
+import { settingsSummary, type SummaryState } from '../lib/settings-summary';
 import {
   sharedAccountSettingsTabs, useHasCalendar, useHasContacts, useHasFiles, useHasSieve, useHasVacation,
 } from '../lib/capabilities';
@@ -60,12 +73,14 @@ type TabGroup = 'general' | 'appearance' | 'mail' | 'privacy' | 'apps' | 'advanc
 interface TabDef {
   id: Tab;
   label: string;
-  icon: LucideIcon;
+  icon: AppIcon;
   group: TabGroup;
   experimental?: boolean;
   implemented: boolean;
   // Never listed (still reachable by deep link).
   hidden?: boolean;
+  /** A page opened from inside another one; back returns there. */
+  parent?: Tab;
 }
 
 const GROUP_LABELS: Record<TabGroup, string> = {
@@ -102,7 +117,6 @@ const TABS: TabDef[] = [
 
   // Privacy & Security
   { id: 'security',        label: 'Security',           icon: Shield,         group: 'privacy',    implemented: true  },
-  { id: 'encryption',      label: 'S/MIME Encryption',  icon: KeyRound,       group: 'privacy',    implemented: false },
   { id: 'content_senders', label: 'Content & Senders',  icon: EyeOff,         group: 'privacy',    implemented: true  },
 
   // Apps
@@ -111,14 +125,26 @@ const TABS: TabDef[] = [
   { id: 'files',           label: 'Files',              icon: HardDrive,      group: 'apps',       implemented: true  },
   { id: 'sidebar_apps',    label: 'Sidebar Apps',       icon: PanelLeftClose, group: 'apps',       implemented: true  },
 
-  // Advanced
-  { id: 'about_data',      label: 'About & Data',       icon: Info,           group: 'advanced',   implemented: true  },
+  // Advanced. S/MIME and plugins come from webmail plugins, so the app has
+  // no page for them.
   { id: 'themes',          label: 'Themes',             icon: Palette,        group: 'advanced',   implemented: true  },
-  // Plugins run in the webmail only; the pane is an explainer reachable by
-  // deep link, not from the list. Debug logging lives under About & Data.
-  { id: 'plugins',         label: 'Plugins',            icon: Puzzle,         group: 'advanced',   experimental: true, implemented: true, hidden: true },
+  { id: 'about_data',      label: 'Storage & backup',   icon: Database,       group: 'advanced',   implemented: true  },
   { id: 'updates',         label: 'Updates',            icon: RefreshCw,      group: 'advanced',   implemented: true  },
+  { id: 'about',           label: 'About',              icon: Info,           group: 'advanced',   implemented: true  },
+  { id: 'debug',           label: 'Troubleshooting',    icon: Bug,            group: 'advanced',   implemented: true, hidden: true, parent: 'about_data' },
+  { id: 'licences',        label: 'Open-source licences', icon: Scale,        group: 'advanced',   implemented: true, hidden: true, parent: 'about' },
+  { id: 'privacy',         label: 'Privacy',            icon: Shield,         group: 'advanced',   implemented: true, hidden: true, parent: 'about' },
 ];
+
+// Labels of the pages that aren't in the webmail catalog under settings.tabs.
+const TAB_LABEL_KEYS: Partial<Record<Tab, string>> = {
+  about_data: 'settings.tabs.storage',
+  about: 'settings.tabs.about',
+  debug: 'settings.tabs.troubleshooting',
+  licences: 'settings.about.licences',
+  privacy: 'settings.about.privacy',
+};
+const tabLabelKey = (id: Tab) => TAB_LABEL_KEYS[id] ?? `settings.tabs.${id}`;
 
 const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   account: AccountSettings,
@@ -136,23 +162,24 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   keywords: KeywordSettings,
   downloads: DownloadsSettings,
   security: AccountSecuritySettings,
-  encryption: SmimeSettings,
   content_senders: ContentSendersSettings,
   calendar: CalendarSettings,
   contacts: ContactsSettings,
   files: FilesSettings,
   sidebar_apps: SidebarAppsSettings,
-  about_data: AboutDataSettings,
   themes: ThemesSettings,
-  plugins: PluginsSettings,
   updates: UpdatesSettings,
+  debug: TroubleshootingSettings,
+  licences: LicencesSettings,
+  privacy: PrivacySettings,
 };
 
 // Tabs whose feature does not exist on this platform never appear in the list.
 // The "Updates" pane drives the sideload installer, which is Android-only - the
-// current version and build are still shown under "About & Data".
+// current version and build are still shown under "About". Account opens
+// from the card above the list.
 const AVAILABLE_TABS: TabDef[] = TABS.filter(
-  (t) => !t.hidden && (t.id !== 'updates' || supportsSideloadUpdates),
+  (t) => !t.hidden && t.id !== 'account' && (t.id !== 'updates' || supportsSideloadUpdates),
 );
 
 function groupTabs(only: ReadonlySet<Tab> | null) {
@@ -173,6 +200,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
+  const { isSplit } = useLayout();
   const [searchQuery, setSearchQuery] = useState('');
   // A tapped search result: its pane scrolls to the setting and flashes it.
   const [pendingHighlight, setPendingHighlight] = useState<{ tab: Tab; label: string } | null>(null);
@@ -233,10 +261,43 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
       label: t(`settings.tab_groups.${g.group}`, g.label),
       items: g.items.map((tab) => ({
         ...tab,
-        label: t(`settings.tabs.${tab.id}`, tab.label),
+        label: t(tabLabelKey(tab.id), tab.label),
       })),
     }));
   }, [locale, t, scopedTabs]);
+
+  // The second line of each row: the pane's current value.
+  const settings = useSettingsStore();
+  const updateAvailable = useUpdatesStore((s) => s.hasUpdate());
+  const updateSeverity = useUpdatesStore((s) => s.cachedLatest?.severity ?? 'normal');
+  const updateChecked = useUpdatesStore((s) => s.lastCheckedAt > 0);
+  const themeName = BUILTIN_THEMES.find((theme) => theme.id === settings.activeThemeId)?.name ?? null;
+  const summaryState: SummaryState = {
+    languageLabel: SUPPORTED_LOCALES.find((l) => l.code === locale)?.label ?? locale,
+    timeFormat: settings.timeFormat,
+    theme: settings.theme,
+    themeName,
+    emailNotificationsEnabled: settings.emailNotificationsEnabled,
+    calendarNotificationsEnabled: settings.calendarNotificationsEnabled,
+    calendarDefaultView: settings.calendarDefaultView,
+    calendarFirstDayOfWeek: settings.calendarFirstDayOfWeek,
+    offlineCacheEnabled: settings.offlineCacheEnabled,
+    offlineCacheDays: settings.offlineCacheDays,
+    offlineCacheMaxMB: settings.offlineCacheMaxMB,
+    appVersion: APP_VERSION,
+    update: updateAvailable
+      ? (updateSeverity === 'normal' ? 'available' : 'security')
+      : updateChecked ? 'current' : 'none',
+  };
+
+  // The signed-in account, shown as the card at the top of the list.
+  const accounts = useAccountStore((s) => s.accounts);
+  const authUsername = useAuthStore((s) => s.username);
+  const authServerUrl = useAuthStore((s) => s.serverUrl);
+  const account = accounts.find((a) => a.id === activeAccountId);
+  const accountName = account?.displayName || authUsername || '';
+  const accountEmail = account?.email || authUsername || '';
+  const accountHost = hostOf(account?.serverUrl || authServerUrl || '');
 
   // Settings search (webmail: lib/settings-search). The index is built on the
   // first keystroke and again when the language changes.
@@ -261,19 +322,25 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         .filter((g) => g.items.length > 0)
     : groupedTabs;
 
+  // Back from a page opened inside another one returns to that page.
   const closePane = React.useCallback(() => {
-    setSelectedTab(null);
+    setSelectedTab((tab) => TABS.find((def) => def.id === tab)?.parent ?? null);
+    setPendingHighlight(null);
+  }, []);
+  const openPage = React.useCallback((tab: Tab) => {
+    setSelectedTab(tab);
     setPendingHighlight(null);
   }, []);
 
   // Settings is a tab and stays mounted behind the other tabs, so hardware
   // back is only claimed while it is the focused one.
+  const selectedParent = TABS.find((def) => def.id === selectedTab)?.parent;
   const handleBack = React.useCallback(() => {
-    if (selectedTab) closePane();
+    if (selectedTab && (!isSplit || selectedParent)) closePane();
     else if (searchQuery) setSearchQuery('');
     else leaveScope();
-  }, [selectedTab, searchQuery, closePane, leaveScope]);
-  useBackWhileFocused(!!selectedTab || !!searchQuery || !!managedAccount, handleBack);
+  }, [selectedTab, selectedParent, isSplit, searchQuery, closePane, leaveScope]);
+  useBackWhileFocused((!!selectedTab && (!isSplit || !!selectedParent)) || !!searchQuery || !!managedAccount, handleBack);
 
   // The first row of the open pane whose label matches the tapped result
   // calls this once it is laid out.
@@ -321,28 +388,37 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
     setPendingHighlight({ tab: tab.id, label: sub.label });
   };
 
-  if (selectedTab) {
+  // On a wide window the section list and the open page sit side by side;
+  // the first page is open from the start, so the right side is never empty.
+  const firstTab: Tab | null = scopedTabs
+    ? groupedTabs.flatMap((g) => g.items).find((tab) => tab.implemented && !unavailableTabs.has(tab.id))?.id ?? null
+    : 'account';
+  const shownTab = selectedTab ?? (isSplit ? firstTab : null);
+
+  const renderPage = (selectedTab: Tab) => {
     const tabDef = TABS.find((tab) => tab.id === selectedTab)!;
     const Component = TAB_COMPONENTS[selectedTab];
-    const TabIcon = tabDef.icon;
-    const tabLabel = t(`settings.tabs.${tabDef.id}`, tabDef.label);
+    const tabLabel = t(tabLabelKey(tabDef.id), tabDef.label);
 
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={closePane}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', 'Back')}
-            style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
-          >
-            <ArrowLeft size={20} color={c.text} />
-          </Pressable>
-          <TabIcon size={20} color={c.mutedForeground} />
-          <Text style={styles.headerTitle}>{tabLabel}</Text>
+      <SafeAreaView style={styles.container} edges={isSplit ? ['top', 'right'] : ['top', 'left', 'right']}>
+        <View style={[styles.header, (!isSplit || tabDef.parent) && styles.headerWithBack]}>
+          {(!isSplit || tabDef.parent) && (
+            <Pressable
+              onPress={closePane}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back', 'Back')}
+              style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
+            >
+              <ArrowLeft size={22} color={c.text} />
+            </Pressable>
+          )}
+          <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{tabLabel}</Text>
         </View>
 
-        <ScrollView ref={paneScrollRef} style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
+        {/* Keyed per page: React would otherwise reuse the list's ScrollView
+            and open the page at the list's scroll offset. */}
+        <ScrollView key={`page-${selectedTab}`} ref={paneScrollRef} style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
           <View ref={paneContentRef}>
             <SearchHighlightContext.Provider value={searchHighlight}>
               {scopeBanner}
@@ -350,43 +426,67 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                 <FilterSettings
                   onOpenVacation={hasVacation ? () => setSelectedTab('vacation') : undefined}
                 />
+              ) : selectedTab === 'about' ? (
+                <AboutSettings onOpen={openPage} />
+              ) : selectedTab === 'about_data' ? (
+                <StorageSettings onOpenTroubleshooting={() => openPage('debug')} />
               ) : Component ? <Component /> : null}
             </SearchHighlightContext.Provider>
           </View>
         </ScrollView>
       </SafeAreaView>
     );
-  }
+  };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header - matches webmail mobile: h-14, border-b, back button + icon + title.
-          Settings is a tab root, so the back button is only rendered when a
+  // On a wide window the list marks the open page, or the page it was opened from.
+  const listSelected = shownTab ? (TABS.find((def) => def.id === shownTab)?.parent ?? shownTab) : null;
+
+  const list = (
+    <SafeAreaView style={styles.container} edges={isSplit ? ['top', 'left'] : ['top', 'left', 'right']}>
+      {/* Settings is a tab root, so the back button is only rendered when a
           parent passes onBack (it'd otherwise lead nowhere). */}
-      <View style={styles.header}>
-        {onBack ? (
+      <View style={[styles.header, onBack && styles.headerWithBack]}>
+        {onBack && (
           <Pressable
             onPress={onBack}
             accessibilityRole="button"
             accessibilityLabel={t('common.back', 'Back')}
             style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
           >
-            <ArrowLeft size={20} color={c.text} />
+            <ArrowLeft size={22} color={c.text} />
           </Pressable>
-        ) : (
-          <View style={styles.headerLeftSpacer} />
         )}
-        <Settings size={20} color={c.mutedForeground} />
-        <Text style={styles.headerTitle}>{t('settings.title', 'Settings')}</Text>
+        <Text style={styles.headerTitle} accessibilityRole="header">{t('settings.title', 'Settings')}</Text>
       </View>
 
-      {/* Tab list - matches webmail mobile: flat grouped list, no cards */}
       <ScrollView
+        key="list"
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         {scopeBanner && <View style={styles.scopeBannerList}>{scopeBanner}</View>}
+        {!scopedTabs && (
+          <Pressable
+            onPress={() => handleTabPress(TABS.find((tab) => tab.id === 'account')!)}
+            accessibilityRole="button"
+            accessibilityLabel={[accountName, accountEmail, accountHost].filter(Boolean).join(', ')}
+            accessibilityState={{ selected: isSplit && listSelected === 'account' }}
+            style={({ pressed }) => [
+              styles.accountCard,
+              (pressed || (isSplit && listSelected === 'account')) && styles.accountCardActive,
+            ]}
+          >
+            <SenderAvatar name={accountName} email={accountEmail} size={40} disableImages />
+            <View style={styles.accountText}>
+              <Text style={styles.accountName} numberOfLines={1}>{accountName}</Text>
+              <Text style={styles.accountMeta} numberOfLines={1}>
+                {[accountEmail !== accountName ? accountEmail : null, accountHost].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+            <ChevronRight size={16} color={c.mutedForeground} />
+          </Pressable>
+        )}
         <View style={styles.searchBar}>
           <Search size={16} color={c.mutedForeground} />
           <TextInput
@@ -403,7 +503,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
           {searchQuery.length > 0 && (
             <Pressable
               onPress={() => setSearchQuery('')}
-              hitSlop={8}
+              hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel={t('settings.search_clear', 'Clear search')}
             >
@@ -415,58 +515,28 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
           {visibleGroups.length === 0 && (
             <Text style={styles.searchEmpty}>{t('settings.search_no_results', 'No matching settings')}</Text>
           )}
-          {visibleGroups.map((group, groupIndex) => (
+          {visibleGroups.map((group) => (
             <View key={group.group}>
-              {groupIndex > 0 && <View style={styles.groupDivider} />}
-
-              <View style={styles.groupHeader}>
-                <Text style={styles.groupLabel}>{group.label}</Text>
-              </View>
-
+              <SettingsGroupLabel>{group.label}</SettingsGroupLabel>
               {group.items.map((tab) => {
-                const Icon = tab.icon;
                 const unavailable = unavailableTabs.has(tab.id);
                 const disabled = !tab.implemented || unavailable;
-                const badgeLabel = !tab.implemented
-                  ? t('settings.badges.not_implemented', 'Not implemented')
-                  : unavailable
-                    ? t('settings.badges.unavailable', 'Unavailable')
+                const badge = unavailable
+                  ? <Badge>{t('settings.badges.not_on_server', 'Not on this server')}</Badge>
+                  : tab.experimental
+                    ? <Badge>{t('settings.badges.experimental', 'Experimental')}</Badge>
                     : null;
                 const row = (
-                  <Pressable
+                  <SettingsRow
                     key={tab.id}
+                    icon={tab.icon}
+                    title={tab.label}
+                    value={disabled ? null : settingsSummary(tab.id, summaryState, t)}
                     onPress={() => handleTabPress(tab)}
                     disabled={disabled}
-                    style={({ pressed }) => [
-                      styles.tabItem,
-                      disabled && styles.tabItemDisabled,
-                      !disabled && pressed && styles.tabItemPressed,
-                    ]}
-                  >
-                    <View style={styles.tabItemLeft}>
-                      <Icon size={16} color={c.mutedForeground} />
-                      <Text
-                        style={[
-                          styles.tabItemLabel,
-                          disabled && styles.tabItemLabelDisabled,
-                        ]}
-                      >
-                        {tab.label}
-                      </Text>
-                      {tab.experimental && !disabled && (
-                        <View style={styles.experimentalBadge}>
-                          <Text style={styles.experimentalText}>{t('settings.badges.experimental', 'Experimental')}</Text>
-                        </View>
-                      )}
-                    </View>
-                    {badgeLabel ? (
-                      <View style={styles.notWorkingBadge}>
-                        <Text style={styles.notWorkingText}>{badgeLabel}</Text>
-                      </View>
-                    ) : (
-                      <ChevronRight size={16} color={c.mutedForeground} />
-                    )}
-                  </Pressable>
+                    selected={isSplit && tab.id === listSelected}
+                    badge={badge}
+                  />
                 );
                 // The pane's matching settings, one tap from opening it there.
                 const subs = searchIndex && !disabled ? subResultsForQuery(searchIndex, tab.id, query) : [];
@@ -479,7 +549,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                         key={sub.label}
                         onPress={() => handleSubResultPress(tab, sub)}
                         accessibilityRole="button"
-                        style={({ pressed }) => [styles.subResult, pressed && styles.tabItemPressed]}
+                        style={({ pressed }) => [styles.subResult, pressed && styles.subResultPressed]}
                       >
                         <Text style={styles.subResultText} numberOfLines={1}>{sub.label}</Text>
                       </Pressable>
@@ -491,24 +561,47 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
           ))}
         </View>
 
-        {/* Logout - matches webmail: border-t, destructive text, icon + label */}
         <View style={styles.logoutSection}>
           <Pressable
-            onPress={onLogout}
+            onPress={() => { if (onLogout) confirmSignOut(t, {}, onLogout); }}
+            accessibilityRole="button"
             style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutBtnPressed]}
           >
-            <LogOut size={16} color={c.error} />
+            <LogOut size={20} color={c.error} />
             <Text style={styles.logoutText}>{t('sidebar.sign_out', 'Sign Out')}</Text>
           </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
+
+  if (!isSplit) return shownTab ? renderPage(shownTab) : list;
+  return (
+    <View style={styles.splitRow}>
+      <View style={[styles.splitList, { width: SETTINGS_LIST_WIDTH }]}>{list}</View>
+      <View style={styles.splitPage}>{shownTab ? renderPage(shownTab) : null}</View>
+    </View>
+  );
+}
+
+/** The section list beside an open page on a wide window. */
+const SETTINGS_LIST_WIDTH = 320;
+
+function hostOf(url: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    splitRow: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
+    splitList: { borderRightWidth: 1, borderRightColor: c.border },
+    splitPage: { flex: 1 },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -516,22 +609,41 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
-      gap: spacing.sm,
+      gap: spacing.xs,
     },
+    headerWithBack: { paddingHorizontal: spacing.xs },
     headerBackBtn: {
-      width: 40, height: 40,
+      width: 48, height: 48,
       alignItems: 'center', justifyContent: 'center',
       borderRadius: radius.md,
     },
-    headerBackBtnPressed: { backgroundColor: c.accent },
-    headerLeftSpacer: { width: spacing.sm },
-    headerTitle: { ...typography.h3, color: c.text },
+    headerBackBtnPressed: { backgroundColor: c.muted },
+    headerTitle: { fontSize: 18, fontWeight: '600', lineHeight: 24, color: c.text, flexShrink: 1 },
 
     scrollArea: { flex: 1 },
-    scrollContent: { paddingBottom: 40 },
-    detailContent: { padding: spacing.lg, paddingBottom: 40 },
+    scrollContent: { paddingTop: spacing.md, paddingBottom: 40 },
+    // A page keeps form width on a wide pane: labels and their controls
+    // 700 dp apart are hard to read across.
+    detailContent: { padding: spacing.lg, paddingBottom: 40, width: '100%', maxWidth: 720, alignSelf: 'center' },
 
-    tabList: { paddingVertical: spacing.sm },
+    accountCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.md,
+      backgroundColor: c.card,
+    },
+    accountCardActive: { backgroundColor: c.muted },
+    accountText: { flex: 1, minWidth: 0, gap: 2 },
+    accountName: { fontSize: 15, fontWeight: '500', lineHeight: 20, color: c.text },
+    accountMeta: { fontSize: 13, lineHeight: 18, color: c.mutedForeground },
+
+    tabList: { paddingBottom: spacing.sm },
 
     // Search - matches webmail mobile: full-width input above the list,
     // matching settings as indented rows under their pane.
@@ -540,13 +652,12 @@ function makeStyles(c: ThemePalette) {
       alignItems: 'center',
       gap: spacing.sm,
       marginHorizontal: spacing.lg,
-      marginTop: spacing.md,
+      marginBottom: spacing.xs,
       paddingHorizontal: spacing.md,
-      height: componentSizes.inputHeight,
+      minHeight: componentSizes.inputHeight,
       borderRadius: radius.md,
       borderWidth: 1,
       borderColor: c.border,
-      backgroundColor: c.background,
     },
     searchInput: { flex: 1, ...typography.body, color: c.text, paddingVertical: 0 },
     searchEmpty: {
@@ -556,8 +667,9 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: 20,
       paddingVertical: spacing.xxl,
     },
-    subResult: { paddingLeft: 48, paddingRight: 20, paddingVertical: spacing.sm },
-    subResultText: { ...typography.caption, color: c.mutedForeground },
+    subResult: { minHeight: 40, justifyContent: 'center', paddingLeft: 50, paddingRight: spacing.lg },
+    subResultPressed: { backgroundColor: c.surfaceHover },
+    subResultText: { fontSize: 13, color: c.mutedForeground },
 
     scopeBanner: {
       flexDirection: 'row',
@@ -572,60 +684,23 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.muted,
     },
     scopeBannerPressed: { opacity: 0.8 },
-    scopeBannerList: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+    scopeBannerList: { paddingHorizontal: spacing.lg },
     scopeBack: { ...typography.body, color: c.mutedForeground },
     scopeName: { ...typography.bodyMedium, color: c.text, flex: 1, textAlign: 'right' },
 
-    groupDivider: {
-      height: 1, backgroundColor: c.border,
-      marginHorizontal: 20, marginVertical: spacing.sm,
-    },
-    groupHeader: { paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: 6 },
-    groupLabel: {
-      fontSize: 11, fontWeight: '600',
-      textTransform: 'uppercase', letterSpacing: 0.8,
-      color: c.mutedForeground,
-    },
-
-    tabItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20, paddingVertical: 14,
-    },
-    tabItemPressed: { backgroundColor: c.muted },
-    tabItemLeft: {
-      flexDirection: 'row', alignItems: 'center',
-      gap: spacing.md, flex: 1,
-    },
-    tabItemLabel: { ...typography.body, color: c.text },
-
-    experimentalBadge: {
-      backgroundColor: c.warningBg,
-      borderRadius: radius.full,
-      paddingHorizontal: 6, paddingVertical: 2,
-    },
-    experimentalText: { fontSize: 10, fontWeight: '500', color: c.warning },
-
-    tabItemDisabled: { opacity: 0.55 },
-    tabItemLabelDisabled: { color: c.mutedForeground },
-    notWorkingBadge: {
-      backgroundColor: c.muted,
-      borderRadius: radius.full,
-      paddingHorizontal: 8, paddingVertical: 2,
-    },
-    notWorkingText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
-
     logoutSection: {
-      borderTopWidth: 1, borderTopColor: c.border,
-      paddingHorizontal: 20, paddingVertical: spacing.md,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      paddingTop: spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
     },
     logoutBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-      paddingVertical: 10, paddingHorizontal: spacing.sm,
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      minHeight: 48,
       borderRadius: radius.sm,
     },
-    logoutBtnPressed: { backgroundColor: c.muted },
-    logoutText: { ...typography.body, color: c.error },
+    logoutBtnPressed: { backgroundColor: c.surfaceHover },
+    logoutText: { fontSize: 15, lineHeight: 20, color: c.error },
   });
 }

@@ -2,10 +2,22 @@
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+  <!-- REQUEST_INSTALL_PACKAGES (in-app updater) is declared by the github flavor only. -->
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+  <!-- Photos are picked with the system photo picker, which needs no media
+       permission; Play's photo and video policy rejects READ_MEDIA_IMAGES for that. -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+  <!-- expo-camera declares the microphone for video; QR scanning never records audio. -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
+  <!-- Device sync (#34): contacts and calendars in Android's providers, driven by the sync framework. -->
+  <uses-permission android:name="android.permission.READ_CONTACTS"/>
+  <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
+  <uses-permission android:name="android.permission.READ_CALENDAR"/>
+  <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
+  <uses-permission android:name="android.permission.READ_SYNC_SETTINGS"/>
+  <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS"/>
+  <uses-permission android:name="android.permission.READ_SYNC_STATS"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
@@ -13,11 +25,11 @@
       <data android:scheme="https"/>
     </intent>
   </queries>
-  <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:theme="@style/AppTheme" android:supportsRtl="true" android:enableOnBackInvokedCallback="false" android:fullBackupContent="@xml/secure_store_backup_rules" android:dataExtractionRules="@xml/secure_store_data_extraction_rules">
+  <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:theme="@style/AppTheme" android:supportsRtl="true" android:enableOnBackInvokedCallback="false" android:fullBackupContent="@xml/secure_store_backup_rules" android:dataExtractionRules="@xml/secure_store_data_extraction_rules" android:networkSecurityConfig="@xml/network_security_config">
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
-    <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
+    <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
@@ -27,6 +39,13 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="bulwarkmobile"/>
+      </intent-filter>
+      <!-- Sign-in links from the webmail (bulwarkmail://pair?..., bulwarkmail://connect?...). -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="bulwarkmail"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.VIEW"/>
@@ -59,12 +78,263 @@
       </intent-filter>
     </service>
     <service android:name=".BulwarkPushTaskService" android:exported="false"/>
+    <service android:name=".BulwarkWidgetRefreshService" android:exported="false"/>
     <service android:name=".BulwarkPushJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+    <receiver android:name=".BulwarkNotificationActionReceiver" android:exported="false"/>
     <service android:name=".BulwarkUnifiedPushService" android:exported="false">
       <intent-filter>
         <action android:name="org.unifiedpush.android.connector.PUSH_EVENT"/>
       </intent-filter>
     </service>
     <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="bulwark_mail"/>
+    <!-- Device sync (#34), see docs/device-sync.md. The system binds these, so they are exported.
+         They run in the app's main process on purpose: the adapters start the sync engine as a
+         headless JS task in the same React Native runtime as the UI. -->
+    <service android:name=".sync.BulwarkAuthenticatorService" android:exported="true">
+      <intent-filter>
+        <action android:name="android.accounts.AccountAuthenticator"/>
+      </intent-filter>
+      <meta-data android:name="android.accounts.AccountAuthenticator" android:resource="@xml/authenticator"/>
+    </service>
+    <service android:name=".sync.ContactsSyncService" android:exported="true">
+      <intent-filter>
+        <action android:name="android.content.SyncAdapter"/>
+      </intent-filter>
+      <meta-data android:name="android.content.SyncAdapter" android:resource="@xml/sync_contacts"/>
+      <meta-data android:name="android.provider.CONTACTS_STRUCTURE" android:resource="@xml/contacts"/>
+    </service>
+    <service android:name=".sync.CalendarSyncService" android:exported="true">
+      <intent-filter>
+        <action android:name="android.content.SyncAdapter"/>
+      </intent-filter>
+      <meta-data android:name="android.content.SyncAdapter" android:resource="@xml/sync_calendar"/>
+    </service>
+    <!-- BEGIN WIDGETS: generated by scripts/sync-android-widgets.mjs, do not edit by hand -->
+    <service android:name="com.reactnativeandroidwidget.RNWidgetCollectionService" android:permission="android.permission.BIND_REMOTEVIEWS"/>
+    <receiver android:name=".widget.InboxWidget" android:exported="false" android:label="@string/widgetprovider_inboxwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_inboxwidget"/>
+    </receiver>
+    <receiver android:name=".widget.TriageWidget" android:exported="false" android:label="@string/widgetprovider_triagewidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_triagewidget"/>
+    </receiver>
+    <receiver android:name=".widget.UnreadCountWidget" android:exported="false" android:label="@string/widgetprovider_unreadcountwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_unreadcountwidget"/>
+    </receiver>
+    <receiver android:name=".widget.LatestMessageWidget" android:exported="false" android:label="@string/widgetprovider_latestmessagewidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_latestmessagewidget"/>
+    </receiver>
+    <receiver android:name=".widget.FolderCountsWidget" android:exported="false" android:label="@string/widgetprovider_foldercountswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_foldercountswidget"/>
+    </receiver>
+    <receiver android:name=".widget.MailShortcutsWidget" android:exported="false" android:label="@string/widgetprovider_mailshortcutswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_mailshortcutswidget"/>
+    </receiver>
+    <receiver android:name=".widget.AllAccountsWidget" android:exported="false" android:label="@string/widgetprovider_allaccountswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_allaccountswidget"/>
+    </receiver>
+    <receiver android:name=".widget.StarredWidget" android:exported="false" android:label="@string/widgetprovider_starredwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_starredwidget"/>
+    </receiver>
+    <receiver android:name=".widget.FavouritePeopleWidget" android:exported="false" android:label="@string/widgetprovider_favouritepeoplewidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_favouritepeoplewidget"/>
+    </receiver>
+    <receiver android:name=".widget.MailSearchWidget" android:exported="false" android:label="@string/widgetprovider_mailsearchwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_mailsearchwidget"/>
+    </receiver>
+    <receiver android:name=".widget.OutboxWidget" android:exported="false" android:label="@string/widgetprovider_outboxwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_outboxwidget"/>
+    </receiver>
+    <receiver android:name=".widget.TagWidget" android:exported="false" android:label="@string/widgetprovider_tagwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_tagwidget"/>
+    </receiver>
+    <receiver android:name=".widget.LastDraftWidget" android:exported="false" android:label="@string/widgetprovider_lastdraftwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_lastdraftwidget"/>
+    </receiver>
+    <receiver android:name=".widget.AgendaWidget" android:exported="false" android:label="@string/widgetprovider_agendawidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_agendawidget"/>
+    </receiver>
+    <receiver android:name=".widget.WeekWidget" android:exported="false" android:label="@string/widgetprovider_weekwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_weekwidget"/>
+    </receiver>
+    <receiver android:name=".widget.MonthWidget" android:exported="false" android:label="@string/widgetprovider_monthwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_monthwidget"/>
+    </receiver>
+    <receiver android:name=".widget.TodayEventsWidget" android:exported="false" android:label="@string/widgetprovider_todayeventswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_todayeventswidget"/>
+    </receiver>
+    <receiver android:name=".widget.NextEventWidget" android:exported="false" android:label="@string/widgetprovider_nexteventwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_nexteventwidget"/>
+    </receiver>
+    <receiver android:name=".widget.DateNextWidget" android:exported="false" android:label="@string/widgetprovider_datenextwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_datenextwidget"/>
+    </receiver>
+    <receiver android:name=".widget.UpNextWidget" android:exported="false" android:label="@string/widgetprovider_upnextwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_upnextwidget"/>
+    </receiver>
+    <receiver android:name=".widget.InvitationsWidget" android:exported="false" android:label="@string/widgetprovider_invitationswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_invitationswidget"/>
+    </receiver>
+    <receiver android:name=".widget.FreeTimeWidget" android:exported="false" android:label="@string/widgetprovider_freetimewidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_freetimewidget"/>
+    </receiver>
+    <receiver android:name=".widget.TasksWidget" android:exported="false" android:label="@string/widgetprovider_taskswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_taskswidget"/>
+    </receiver>
+    <receiver android:name=".widget.TaskProgressWidget" android:exported="false" android:label="@string/widgetprovider_taskprogresswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_taskprogresswidget"/>
+    </receiver>
+    <receiver android:name=".widget.CountdownWidget" android:exported="false" android:label="@string/widgetprovider_countdownwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_countdownwidget"/>
+    </receiver>
+    <receiver android:name=".widget.BirthdaysWidget" android:exported="false" android:label="@string/widgetprovider_birthdayswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_birthdayswidget"/>
+    </receiver>
+    <receiver android:name=".widget.TodayHubWidget" android:exported="false" android:label="@string/widgetprovider_todayhubwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_todayhubwidget"/>
+    </receiver>
+    <receiver android:name=".widget.MailAndNextWidget" android:exported="false" android:label="@string/widgetprovider_mailandnextwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_mailandnextwidget"/>
+    </receiver>
+    <receiver android:name=".widget.RecentFilesWidget" android:exported="false" android:label="@string/widgetprovider_recentfileswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_recentfileswidget"/>
+    </receiver>
+    <receiver android:name=".widget.AttachmentsWidget" android:exported="false" android:label="@string/widgetprovider_attachmentswidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_attachmentswidget"/>
+    </receiver>
+    <receiver android:name=".widget.VacationWidget" android:exported="false" android:label="@string/widgetprovider_vacationwidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_vacationwidget"/>
+    </receiver>
+    <receiver android:name=".widget.StorageWidget" android:exported="false" android:label="@string/widgetprovider_storagewidget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="${applicationId}.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_storagewidget"/>
+    </receiver>
+    <!-- END WIDGETS -->
   </application>
 </manifest>

@@ -1867,31 +1867,64 @@ export async function sendEmail(
   };
 }
 
+/** A saved draft version and the attachment parts the server built for it. */
+export interface SavedDraftVersion {
+  id: string;
+  /**
+   * Attachment and inline parts of the new version, with their blobIds. A
+   * part's blobId only lives as long as this version: re-opened drafts must
+   * send these (not the previous version's) on their next save or send.
+   * Empty when the server did not answer the read-back.
+   */
+  attachments: Attachment[];
+}
+
+const DRAFT_PART_BODY_PROPERTIES = ['partId', 'blobId', 'size', 'name', 'type', 'cid', 'disposition'];
+
 /**
  * Save a draft into the Drafts folder (`$draft` + `$seen`). When `previousDraftId`
  * is given it is destroyed only AFTER the replacement was created (#849): a
  * combined create+destroy would delete the last good copy when the create
- * fails (e.g. blobNotFound on a re-opened draft's attachments). Returns the
- * new draft id.
+ * fails (e.g. blobNotFound on a re-opened draft's attachments). The new
+ * version's attachment parts are read back in the same request, so the
+ * composer can re-point its draft-part blobIds before the old version (and
+ * its part blobs) is destroyed.
  */
-export async function createDraft(
+export async function saveDraftVersion(
   email: OutgoingEmail,
   draftsMailboxId: string,
   previousDraftId?: string,
   accountIdOverride?: string,
-): Promise<string> {
+): Promise<SavedDraftVersion> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const emailCreate = buildEmailCreate(email);
   emailCreate.mailboxIds = { [draftsMailboxId]: true };
   emailCreate.keywords = { $seen: true, $draft: true };
   const res = await jmapClient.request([
     ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
+    // `#draft` is the creation id (RFC 8620 §5.3). Stalwart 0.16 does not
+    // resolve a result reference into an Email/set `created` map
+    // (invalidResultReference), but it does resolve the creation id.
+    ['Email/get', {
+      accountId,
+      ids: ['#draft'],
+      properties: ['id', 'attachments'],
+      bodyProperties: DRAFT_PART_BODY_PROPERTIES,
+    }, '1'],
   ]);
   const body = requireMethodResult(res, '0', 'Email/set');
   const notCreated = body.notCreated?.draft as { description?: string; type?: string } | undefined;
   if (notCreated) throw new Error(notCreated.description || notCreated.type || 'Failed to save draft');
   const id = body.created?.draft?.id as string | undefined;
   if (!id) throw new Error('Draft save returned no id');
+  let attachments: Attachment[] = [];
+  try {
+    const got = requireMethodResult(res, '1', 'Email/get');
+    const saved = (got.list as Array<{ id: string; attachments?: Attachment[] }> | undefined)?.find((e) => e.id === id);
+    attachments = (saved?.attachments ?? []).filter((a) => !!a.blobId);
+  } catch (err) {
+    console.warn('[email] could not read back the saved draft parts:', err);
+  }
   if (previousDraftId && previousDraftId !== id) {
     try {
       await destroyEmails([previousDraftId], accountId);
@@ -1899,7 +1932,17 @@ export async function createDraft(
       console.warn('[email] failed to destroy previous draft version:', err);
     }
   }
-  return id;
+  return { id, attachments };
+}
+
+/** {@link saveDraftVersion} for callers that only need the new draft id. */
+export async function createDraft(
+  email: OutgoingEmail,
+  draftsMailboxId: string,
+  previousDraftId?: string,
+  accountIdOverride?: string,
+): Promise<string> {
+  return (await saveDraftVersion(email, draftsMailboxId, previousDraftId, accountIdOverride)).id;
 }
 
 export interface ScheduledEmail {

@@ -12,11 +12,9 @@ interface ToggleSwitchProps {
 }
 
 /**
- * Matches webmail ToggleSwitch:
- * - h-6 w-11 rounded-full
- * - checked: bg-primary, unchecked: bg-muted
- * - thumb: h-4 w-4 rounded-full bg-background
- * - translate-x-6 (checked) / translate-x-1 (unchecked)
+ * The webmail switch in the standard theme: a 44 x 24 track, bg-primary when
+ * on (knob in primary-foreground), bg-muted when off (knob in background).
+ * The knob is 20 dp with 2 dp of track around it.
  */
 export default function ToggleSwitch({ value, onValueChange, disabled = false, accessibilityLabel }: ToggleSwitchProps) {
   const c = useColors();
@@ -29,6 +27,8 @@ export default function ToggleSwitch({ value, onValueChange, disabled = false, a
         disabled && styles.disabled,
       ]}
       onPress={() => !disabled && onValueChange(!value)}
+      // The track is 44 x 24; the touch area reaches 48 dp high.
+      hitSlop={{ top: 12, bottom: 12, left: 4, right: 4 }}
       accessibilityRole="switch"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: value, disabled }}
@@ -36,7 +36,8 @@ export default function ToggleSwitch({ value, onValueChange, disabled = false, a
       <View
         style={[
           styles.thumb,
-          { transform: [{ translateX: value ? 24 : 4 }] },
+          value ? styles.thumbOn : styles.thumbOff,
+          { transform: [{ translateX: value ? 22 : 2 }] },
         ]}
       />
     </Pressable>
@@ -58,9 +59,14 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.muted,
   },
   thumb: {
-    width: componentSizes.toggleThumb,    // h-4 w-4 = 16
+    width: componentSizes.toggleThumb,
     height: componentSizes.toggleThumb,
     borderRadius: radius.full,
+  },
+  thumbOn: {
+    backgroundColor: c.primaryForeground,
+  },
+  thumbOff: {
     backgroundColor: c.background,
   },
   disabled: {

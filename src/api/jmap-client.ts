@@ -15,6 +15,7 @@ import {
   type OAuthTokenSource,
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
+import { writeSharedSecret, moveToSharedGroup } from '../lib/ios-push-shared';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 
 // Refresh OAuth access tokens this many ms before they actually expire so
@@ -40,7 +41,7 @@ const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
 const CREDENTIALS_PREFIX = 'jmap_credentials__';
 
 // SecureStore keys: letters, digits, ".", "-", "_" only - no "@" or "/".
-function credentialsKey(accountId: string): string {
+export function credentialsKey(accountId: string): string {
   return CREDENTIALS_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
@@ -194,6 +195,12 @@ export class JMAPClient {
     return !!this.credentials?.accessToken;
   }
 
+  // A pasted access token, as opposed to an OAuth bundle (which always names
+  // the token endpoint it renews at).
+  get usesPastedToken(): boolean {
+    return !!this.credentials?.accessToken && !this.credentials.tokenEndpoint;
+  }
+
   get isConnected(): boolean {
     return this.session !== null && this._accountId !== null;
   }
@@ -283,10 +290,7 @@ export class JMAPClient {
     this.firstTouchGate.reset();
 
     const accountId = generateAccountId(username, baseUrl);
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(credentials));
 
     return session;
   }
@@ -323,19 +327,50 @@ export class JMAPClient {
     return session;
   }
 
-  async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
+  /**
+   * Access-token login (an API token the user pasted, e.g. from Fastmail).
+   * The token is the whole credential: it names the account, so the username
+   * comes from the session, and with no refresh token it lasts until the
+   * provider expires or revokes it.
+   */
+  async connectWithToken(
+    serverUrl: string,
+    accessToken: string,
+  ): Promise<{ session: JMAPSession; username: string; accountId: string }> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
     const epoch = this.detachSession();
     this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
 
-    const fetched = await this.fetchSession(baseUrl);
+    let fetched: JMAPSession;
+    try {
+      fetched = await this.fetchSession(baseUrl);
+    } catch (err) {
+      // A newer account change owns the credentials now.
+      this.assertCurrentSession(epoch);
+      this.credentials = null;
+      if (err instanceof AuthenticationError || (err instanceof Error && /^Session discovery failed: 403\b/.test(err.message))) {
+        throw new InvalidTokenError();
+      }
+      throw err;
+    }
     this.assertCurrentSession(epoch);
     const session = this.rewriteSessionUrls(fetched, baseUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
 
-    return session;
+    const username = session.username;
+    if (!username) {
+      this.reset();
+      throw new Error('The server did not name the account');
+    }
+    const credentials: StoredCredentials = { ...this.credentials!, username };
+    this.credentials = credentials;
+
+    const accountId = generateAccountId(username, baseUrl);
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(credentials));
+
+    return { session, username, accountId };
   }
 
   // OAuth login via webmail handoff. The webmail did the OAuth dance against
@@ -379,10 +414,7 @@ export class JMAPClient {
     this.credentials = credentials;
 
     const accountId = generateAccountId(username, baseUrl);
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(credentials));
 
     return { session, username, accountId };
   }
@@ -421,14 +453,37 @@ export class JMAPClient {
       clientId: next.clientId,
     };
     if (inUse) this.credentials = updated;
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(updated),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(updated));
     if (!inUse) return;
     for (const l of this.tokenRefreshListeners) {
       try { l(); } catch { /* ignore */ }
     }
+  }
+
+  /**
+   * Take the stored OAuth tokens when they are newer than the ones in memory:
+   * on iOS the notification extension refreshes them too and writes the new
+   * bundle back. True when the in-memory tokens changed.
+   */
+  private async adoptStoredTokens(): Promise<boolean> {
+    const current = this.credentials;
+    if (!current?.accessToken || !current.refreshToken) return false;
+    const accountId = generateAccountId(current.username, current.serverUrl);
+    const stored = await this.getStoredCredentials(accountId).catch(() => null);
+    // Another account may have been opened meanwhile.
+    if (this.credentials !== current) return false;
+    if (!stored?.accessToken || stored.accessToken === current.accessToken) return false;
+    if ((stored.expiresAt ?? 0) <= (current.expiresAt ?? 0)) return false;
+    this.credentials = {
+      ...current,
+      accessToken: stored.accessToken,
+      refreshToken: stored.refreshToken ?? current.refreshToken,
+      expiresAt: stored.expiresAt,
+    };
+    for (const l of this.tokenRefreshListeners) {
+      try { l(); } catch { /* ignore */ }
+    }
+    return true;
   }
 
   private currentOAuthTokens(): { credentials: StoredCredentials; tokens: OAuthTokens } | null {
@@ -473,14 +528,21 @@ export class JMAPClient {
   // consumers of `authHeader` (SSE stream, file downloads) can make sure the
   // header they capture is not about to expire.
   async ensureFreshToken(): Promise<void> {
-    const current = this.currentOAuthTokens();
+    let current = this.currentOAuthTokens();
     if (!current) return;
-    const { credentials, tokens } = current;
-    if (tokens.expiresAt == null) return;
-    if (tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
+    const { expiresAt } = current.tokens;
+    if (expiresAt == null) return;
+    if (expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
+    // Another process may have refreshed already (the iOS notification
+    // extension); use its tokens rather than spend a refresh token the
+    // server has replaced.
+    if (await this.adoptStoredTokens()) {
+      current = this.currentOAuthTokens();
+      if (!current || (current.tokens.expiresAt != null && current.tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return;
+    }
     try {
-      const next = await refreshOAuthAccessToken(tokens);
-      await this.persistRefreshedTokens(credentials, next);
+      const next = await refreshOAuthAccessToken(current.tokens);
+      await this.persistRefreshedTokens(current.credentials, next);
     } catch {
       // Surface as AuthenticationError on the next 401; refresh may be
       // temporarily failing (network) and the reactive retry path catches it.
@@ -493,6 +555,10 @@ export class JMAPClient {
   // the account instead of evicting it (webmail 1.7.6 "keep the session when
   // the auth server is briefly unreachable").
   async forceRefreshToken(): Promise<boolean> {
+    if (!this.currentOAuthTokens()) return false;
+    // A newer token in storage (refreshed by the iOS notification extension)
+    // is worth a retry before refreshing again.
+    if (await this.adoptStoredTokens()) return true;
     const current = this.currentOAuthTokens();
     if (!current) return false;
     try {
@@ -519,10 +585,7 @@ export class JMAPClient {
       this.credentials.username,
       this.credentials.serverUrl,
     );
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
-    );
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(this.credentials));
   }
 
   // Legacy single-slot restore - kept for backward-compat tests. New code
@@ -553,6 +616,9 @@ export class JMAPClient {
     // A newer load may have put its credentials in by now.
     this.assertCurrentSession(epoch);
     if (!stored) return false;
+    // iOS: credentials saved before the notification extension existed move
+    // to the keychain group it can read (a no-op elsewhere and afterwards).
+    void moveToSharedGroup(credentialsKey(accountId)).catch(() => undefined);
 
     let creds: StoredCredentials;
     try {
@@ -658,7 +724,7 @@ export class JMAPClient {
       const creds: StoredCredentials = JSON.parse(stored);
       // Re-save under the per-account key before dropping the legacy entry
       const accountId = generateAccountId(creds.username, creds.serverUrl);
-      await SecureStore.setItemAsync(credentialsKey(accountId), stored);
+      await writeSharedSecret(credentialsKey(accountId), stored);
       await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
       return creds;
     } catch {
@@ -677,16 +743,26 @@ export class JMAPClient {
   // URL polyfill mutates inputs (appends trailing slashes, normalises
   // characters) and would corrupt the RFC 6570 templates {accountId}/{blobId}
   // before the caller has a chance to substitute values into them.
+  //
+  // A URL on another HTTPS origin than the server's own apiUrl is one it
+  // deliberately hosts elsewhere (Fastmail serves downloads from a separate
+  // domain) and is kept; everything else moves onto the origin we connected to.
   private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
     const serverOrigin = extractOrigin(serverUrl);
+    const reportedOrigin = session.apiUrl ? extractOrigin(session.apiUrl) : null;
     const rewrite = (url: string | undefined): string | undefined =>
       rewriteSessionUrl(url, serverOrigin);
+    const rewriteHosted = (url: string | undefined): string | undefined => {
+      const origin = url ? extractOrigin(url) : null;
+      const hostedElsewhere = !!origin && !!reportedOrigin && origin !== reportedOrigin && /^https:/i.test(origin);
+      return hostedElsewhere ? url : rewrite(url);
+    };
     return {
       ...session,
       apiUrl: rewrite(session.apiUrl) ?? session.apiUrl,
-      downloadUrl: rewrite(session.downloadUrl) ?? session.downloadUrl,
-      uploadUrl: rewrite(session.uploadUrl) ?? session.uploadUrl,
-      eventSourceUrl: rewrite(session.eventSourceUrl) ?? session.eventSourceUrl,
+      downloadUrl: rewriteHosted(session.downloadUrl) ?? session.downloadUrl,
+      uploadUrl: rewriteHosted(session.uploadUrl) ?? session.uploadUrl,
+      eventSourceUrl: rewriteHosted(session.eventSourceUrl) ?? session.eventSourceUrl,
     };
   }
 
@@ -1256,7 +1332,7 @@ export class JMAPClient {
   }
 
   async setStoredCredentials(accountId: string, creds: StoredCredentials): Promise<void> {
-    await SecureStore.setItemAsync(credentialsKey(accountId), JSON.stringify(creds));
+    await writeSharedSecret(credentialsKey(accountId), JSON.stringify(creds));
   }
 
   // ── Blob Download ─────────────────────────────────────
@@ -1350,6 +1426,14 @@ export class AuthenticationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AuthenticationError';
+  }
+}
+
+// The server refused a pasted access token (wrong, expired or revoked).
+export class InvalidTokenError extends Error {
+  constructor() {
+    super('Invalid access token');
+    this.name = 'InvalidTokenError';
   }
 }
 

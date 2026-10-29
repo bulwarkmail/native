@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, type TextInputProps } from 'react-native';
-import { AlertTriangle } from 'lucide-react-native';
+import { AlertTriangle } from './icons';
 import Button from './Button';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore } from '../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 interface DialogInput {
   value: string;
@@ -55,7 +56,7 @@ export default function Dialog({
   const confirmLabel = confirmText ?? t('common.confirm', 'Confirm');
   const cancelLabel = cancelText ?? t('common.cancel', 'Cancel');
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop}>
         <View style={styles.dialog}>
           <View style={styles.content}>
@@ -71,7 +72,7 @@ export default function Dialog({
                 value={input.value}
                 onChangeText={input.onChangeText}
                 placeholder={input.placeholder}
-                placeholderTextColor={c.textMuted}
+                placeholderTextColor={c.mutedForeground}
                 autoFocus
                 onSubmitEditing={confirmDisabled ? undefined : onConfirm}
                 accessibilityLabel={input.placeholder ?? title}
@@ -142,15 +143,17 @@ function makeStyles(c: ThemePalette) {
     color: c.mutedForeground,  // text-muted-foreground
     marginTop: spacing.sm,
   },
+  // The shared Input look: 40 dp, transparent, radius 6.
   input: {
     ...typography.body,
     color: c.text,
-    backgroundColor: c.surface,
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: c.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 0,
+    minHeight: 40,
     marginTop: spacing.md,
   },
   footer: {

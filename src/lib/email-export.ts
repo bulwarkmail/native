@@ -14,6 +14,7 @@ import {
 } from './download-filename';
 import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
+import { handoffMimeType } from './file-preview';
 
 const RFC822 = 'message/rfc822';
 const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
@@ -45,6 +46,11 @@ function attachmentFileOptions(): EmailFilenameOptions {
     lowercase: s.exportLowercase,
     stripDiacritics: s.exportStripDiacritics,
   };
+}
+
+/** The name "Save" gives an attachment of `email`: the user's attachment filename template. */
+export function attachmentSaveName(email: Email, name: string | undefined, type: string | undefined): string {
+  return attachmentDownloadFilename(email, { name, type }, attachmentFileOptions());
 }
 
 function safeAttachmentName(name: string | undefined, type: string | undefined): string {
@@ -151,7 +157,7 @@ async function openWithViewer(file: File, mimeType: string): Promise<boolean> {
       // intent. Deliberately no FLAG_ACTIVITY_NEW_TASK: expo-intent-launcher
       // uses startActivityForResult, and a new task cancels that result.
       data: file.contentUri,
-      type: mimeType,
+      type: handoffMimeType(file.name, mimeType),
       flags: FLAG_GRANT_READ_URI_PERMISSION,
     });
     return true;
@@ -254,7 +260,7 @@ export async function shareAttachment(
   }
   try {
     await Sharing.shareAsync(downloaded.uri, {
-      mimeType,
+      mimeType: handoffMimeType(filename, mimeType),
       dialogTitle: filename,
     });
   } finally {
@@ -291,7 +297,7 @@ async function offerSavedFile(file: File, filename: string, mimeType: string): P
     throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   await Sharing.shareAsync(file.uri, {
-    mimeType,
+    mimeType: handoffMimeType(filename, mimeType),
     dialogTitle: filename,
   });
 }
@@ -345,6 +351,20 @@ export async function cachePreviewFile(
     } catch { /* the sweep gets it */ }
     throw err;
   }
+}
+
+/**
+ * {@link cachePreviewFile} for a file already on the device (a compose
+ * attachment): copied, so the preview owns its copy and the original is never
+ * deleted with it.
+ */
+export function copyPreviewFile(uri: string, name: string | undefined, type: string | undefined): File {
+  void sweepStaleExportFiles();
+  const dir = newPreviewDir();
+  ensureDir(dir);
+  const file = new File(dir, safeAttachmentName(name, type));
+  new File(uri).copy(file);
+  return file;
 }
 
 /**
@@ -403,7 +423,7 @@ export async function shareLocalFile(
     throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   try {
-    await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: dialogTitle ?? file.name });
+    await Sharing.shareAsync(file.uri, { mimeType: handoffMimeType(file.name, mimeType), dialogTitle: dialogTitle ?? file.name });
   } finally {
     if (!opts.keep) scheduleTempCleanup(file);
   }

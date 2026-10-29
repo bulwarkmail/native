@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getContactPhotoForEmail, getContactPhotoIndex } from '../avatar-utils';
+import { getAccountInitials, getContactPhotoForEmail, getContactPhotoIndex, getEmailInitials } from '../avatar-utils';
 import type { ContactCard, ContactMedia } from '../../api/types';
 
 function card(id: string, emails: string[], photo?: string, mediaType?: string): ContactCard {
@@ -88,5 +88,27 @@ describe('contact photo avatars (#54)', () => {
       }),
     ];
     expect(getContactPhotoForEmail(contacts, 'erin@example.org')).toBeUndefined();
+  });
+});
+
+describe('initials, as the webmail Avatar works them out', () => {
+  it('skips punctuation and symbols in front of a name part', () => {
+    expect(getEmailInitials('"Sofia" Russo')).toBe('SR');
+    expect(getEmailInitials('(Dr.) Smith')).toBe('DS');
+    expect(getEmailInitials('Sofia - Russo')).toBe('SR');
+    expect(getEmailInitials('@team updates')).toBe('TU');
+  });
+
+  it('takes two letters of a single name and falls back to the address', () => {
+    expect(getEmailInitials('Madonna')).toBe('MA');
+    expect(getEmailInitials('', 'bob@example.org')).toBe('B');
+    expect(getEmailInitials('')).toBe('?');
+    expect(getEmailInitials('!!!')).toBe('!!');
+  });
+
+  it('works the same for account avatars, which the webmail draws with the same Avatar', () => {
+    expect(getAccountInitials('Ada Lovelace', 'ada@example.org')).toBe('AL');
+    expect(getAccountInitials('Ada', 'ada@example.org')).toBe('AD');
+    expect(getAccountInitials('', 'ada@example.org')).toBe('A');
   });
 });

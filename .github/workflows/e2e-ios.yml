@@ -1,0 +1,349 @@
+name: iOS simulator tests
+
+# Builds the app for the iOS Simulator (no signing needed) and runs the
+# Maestro flows in .maestro/ on iPhone and iPad simulators:
+#
+# - signin: every sign-in method (.maestro/signin), on an iPhone and an iPad
+# - features: the app feature by feature (.maestro/features), on iPhone and
+#   iPad in light and dark, plus the iPad in landscape (split layout)
+#
+# Each leg signs in with its own account on the test server (e2e-* accounts
+# on VM 106, password E2E_PASSWORD), so parallel legs never share a mailbox.
+# scripts/e2e/helper.mjs runs next to the simulator for what a flow can't do
+# itself: TOTP codes, fresh webmail pairing links, mail sent by userb.
+#
+# Artifacts per leg: screenshots, a screen recording, the app log and a JUnit
+# report. They are public; see scripts/e2e/run-flows.sh for how secrets are
+# kept out of them.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_run_id:
+        description: "Reuse the simulator app from this earlier run instead of building (run id)"
+        type: string
+        required: false
+      legs:
+        description: "Legs to run: all, signin, features, perf, or a comma list (signin-phone, features-tablet-dark, ...)"
+        type: string
+        default: all
+      flows:
+        description: "Only these flows (comma list of file names without .yaml); empty runs all"
+        type: string
+        required: false
+      perf_base_run_id:
+        description: "perf leg: compare against the simulator app of this run (run id)"
+        type: string
+        required: false
+      perf_rounds:
+        description: "perf leg: rounds (each: 3 cold starts and the interaction flow per app)"
+        type: string
+        default: "5"
+        required: false
+  release:
+    types: [published]
+
+concurrency:
+  # Per branch and set of legs: a perf run doesn't cancel a feature run.
+  group: e2e-ios-${{ github.ref }}-${{ inputs.legs || 'all' }}
+  cancel-in-progress: true
+
+env:
+  EXPO_NO_TELEMETRY: "1"
+  MAESTRO_CLI_NO_ANALYTICS: "1"
+  # The XCTest driver takes minutes to come up on a cold runner.
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: "600000"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      signin: ${{ steps.plan.outputs.signin }}
+      features: ${{ steps.plan.outputs.features }}
+    steps:
+      - id: plan
+        env:
+          LEGS: ${{ inputs.legs || 'all' }}
+        run: |
+          node -e '
+            const legs = (process.env.LEGS || "all").split(",").map((s) => s.trim()).filter(Boolean);
+            const want = (name, group) => legs.includes("all") || legs.includes(group) || legs.includes(name);
+            const signin = ["phone", "tablet"]
+              .map((device) => ({ name: `signin-${device}`, device }))
+              .filter((l) => want(l.name, "signin"));
+            const features = [
+              { name: "features-phone-light", device: "phone", appearance: "light", orientation: "portrait", account: "e2e-phone-light" },
+              { name: "features-phone-dark", device: "phone", appearance: "dark", orientation: "portrait", account: "e2e-phone-dark" },
+              { name: "features-tablet-light", device: "tablet", appearance: "light", orientation: "portrait", account: "e2e-tablet-light" },
+              { name: "features-tablet-dark", device: "tablet", appearance: "dark", orientation: "portrait", account: "e2e-tablet-dark" },
+              { name: "features-tablet-landscape", device: "tablet", appearance: "light", orientation: "landscape", account: "e2e-tablet-land" },
+            ].filter((l) => want(l.name, "features"));
+            // Push on iOS (.maestro/push): only on request, the app needs the
+            // notification extension (plugins/ios-push).
+            if (legs.includes("push")) {
+              features.push({ name: "push-phone", device: "phone", appearance: "light", orientation: "portrait", account: "e2e-perf", suite: "push" });
+            }
+            const fs = require("fs");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT,
+              `signin=${JSON.stringify({ include: signin })}\nfeatures=${JSON.stringify({ include: features })}\n`);
+            console.log({ signin: signin.map((l) => l.name), features: features.map((l) => l.name) });
+          '
+
+  build:
+    if: inputs.app_run_id == ''
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods/repos
+          key: pods-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: pods-${{ runner.os }}-
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Generate the iOS project
+        env:
+          # Simulator device tokens belong to the APNs sandbox.
+          APS_ENVIRONMENT: development
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Build for the simulator
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # The bundle times each module's evaluation for the perf leg, and
+          # Metro writes which id is which module (metro.config.js; a branch
+          # without that support ignores both).
+          BULWARK_MODULE_TIMINGS: '1'
+          BULWARK_MODULE_MAP: ${{ runner.temp }}/module-map.json
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          mkdir -p e2e-build
+          # Release bundles the JS into the app, so no Metro server is needed.
+          # arm64 only: the runner is Apple silicon, and a second simulator
+          # architecture would double the build time.
+          if ! xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            ARCHS=arm64 \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            > e2e-build/xcodebuild.log 2>&1; then
+            grep -E "error:|fatal error" e2e-build/xcodebuild.log | head -n 50 || true
+            tail -n 80 e2e-build/xcodebuild.log
+            exit 1
+          fi
+          # Signed ad hoc ("Sign to Run Locally"): no certificate needed, and
+          # Xcode embeds the simulator entitlements the keychain needs. An
+          # unsigned build has none, and every expo-secure-store call fails
+          # with "A required entitlement isn't present".
+          APP_PATH=build/Build/Products/Release-iphonesimulator/BulwarkMobile.app
+          echo "Simulated entitlements:"
+          xcrun otool -X -s __TEXT __entitlements "$APP_PATH/BulwarkMobile" | head -20 || true
+          codesign -d --entitlements - "$APP_PATH" 2>&1 | head -20 || true
+          # Packed as a tar: artifacts drop the executable bit, which would
+          # leave a reused app unable to launch.
+          tar -C build/Build/Products/Release-iphonesimulator -cf "$RUNNER_TEMP/simulator-app.tar" BulwarkMobile.app
+          if [ -f "$RUNNER_TEMP/module-map.json" ]; then
+            tar -C "$RUNNER_TEMP" -rf "$RUNNER_TEMP/simulator-app.tar" module-map.json
+          else
+            echo "no module map (branch without module timings)"
+          fi
+          gzip -f "$RUNNER_TEMP/simulator-app.tar"
+          ls -la "$RUNNER_TEMP/simulator-app.tar.gz"
+
+      - name: Upload the simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-app
+          path: ${{ runner.temp }}/simulator-app.tar.gz
+          if-no-files-found: error
+
+      - name: Upload the build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: e2e-build/
+
+  signin:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      fromJson(needs.plan.outputs.signin).include[0] != null
+    runs-on: macos-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.signin) }}
+    env:
+      OUT: ${{ github.workspace }}/e2e-output
+      DEVICE: ${{ matrix.device }}
+      APPEARANCE: light
+      ORIENTATION: portrait
+      E2E_SERVER: ${{ vars.E2E_SERVER }}
+      E2E_WEBMAIL: https://bulwark.internal.bulwarkmail.org
+      E2E_ACCOUNT: e2e-login-${{ matrix.device }}
+      E2E_ACCOUNT2: e2e-second-${{ matrix.device }}
+      E2E_TOTP_ACCOUNT: e2e-totp-${{ matrix.device }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_USERB_PASSWORD: ${{ secrets.E2E_USERB_PASSWORD }}
+      E2E_TOTP_SECRET: ${{ secrets.E2E_TOTP_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-ios-leg
+        with:
+          suite: signin
+          app_run_id: ${{ inputs.app_run_id }}
+          flows: ${{ inputs.flows }}
+          playwright: "true"
+          name: ${{ matrix.name }}
+
+  features:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      fromJson(needs.plan.outputs.features).include[0] != null
+    runs-on: macos-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.features) }}
+    env:
+      OUT: ${{ github.workspace }}/e2e-output
+      DEVICE: ${{ matrix.device }}
+      APPEARANCE: ${{ matrix.appearance }}
+      ORIENTATION: ${{ matrix.orientation }}
+      E2E_SERVER: ${{ vars.E2E_SERVER }}
+      E2E_WEBMAIL: https://bulwark.internal.bulwarkmail.org
+      E2E_ACCOUNT: ${{ matrix.account }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_USERB_PASSWORD: ${{ secrets.E2E_USERB_PASSWORD }}
+      E2E_TOTP_SECRET: ${{ secrets.E2E_TOTP_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-ios-leg
+        with:
+          suite: ${{ matrix.suite || 'features' }}
+          app_run_id: ${{ inputs.app_run_id }}
+          flows: ${{ inputs.flows }}
+          playwright: "false"
+          name: ${{ matrix.name }}
+
+  # Part 2 of docs/ios-test-2026-10.md: timing marks from the app
+  # (src/lib/perf-marks.ts), read by scripts/e2e/perf.mjs. Compares the app
+  # of this run (or app_run_id) with the app of perf_base_run_id, alternating
+  # them on one simulator so both sides share the runner.
+  perf:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      contains(inputs.legs, 'perf')
+    runs-on: macos-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    env:
+      OUT: ${{ github.workspace }}/e2e-output
+      DEVICE: phone
+      APPEARANCE: light
+      ORIENTATION: portrait
+      E2E_SERVER: ${{ vars.E2E_SERVER }}
+      E2E_ACCOUNT: e2e-bulk
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the app under test (this run)
+        if: inputs.app_run_id == ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          path: ${{ runner.temp }}/cand
+      - name: Download the app under test (earlier run)
+        if: inputs.app_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          run-id: ${{ inputs.app_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/cand
+      - name: Download the baseline app
+        if: inputs.perf_base_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+          run-id: ${{ inputs.perf_base_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/base
+
+      - name: Unpack
+        run: |
+          for side in cand base; do
+            [ -f "$RUNNER_TEMP/$side/simulator-app.tar.gz" ] || continue
+            mkdir -p "$RUNNER_TEMP/$side/app"
+            tar -C "$RUNNER_TEMP/$side/app" -xzf "$RUNNER_TEMP/$side/simulator-app.tar.gz"
+          done
+          echo "APP=$RUNNER_TEMP/cand/app/BulwarkMobile.app" >> "$GITHUB_ENV"
+
+      - name: Boot a simulator
+        run: bash scripts/e2e/boot-sim.sh "$DEVICE" "$APPEARANCE" "$APP"
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Sign in once
+        run: |
+          mkdir -p "$OUT/screenshots"
+          cd "$OUT/screenshots"
+          # Warm-up for the driver, then the sign-in (keychain survives reinstalls).
+          maestro --device "$UDID" test "$GITHUB_WORKSPACE/.maestro/launch.yaml"
+          maestro --device "$UDID" test -e "SERVER=$E2E_SERVER" -e "PASSWORD=$E2E_PASSWORD" \
+            -e "ACCOUNT=$E2E_ACCOUNT" -e "ORIENTATION=portrait" "$GITHUB_WORKSPACE/.maestro/perf/sign-in.yaml"
+
+      - name: Measure
+        run: |
+          APPS=(--app "cand=$RUNNER_TEMP/cand/app/BulwarkMobile.app")
+          if [ -d "$RUNNER_TEMP/base/app/BulwarkMobile.app" ]; then
+            APPS=(--app "base=$RUNNER_TEMP/base/app/BulwarkMobile.app" "${APPS[@]}")
+          fi
+          node scripts/e2e/perf.mjs "${APPS[@]}" --rounds "${{ inputs.perf_rounds || 5 }}" --cold 5 \
+            --flows "$(ls "$GITHUB_WORKSPACE"/.maestro/perf/[0-9]-*.yaml | paste -sd, -)" --out "$OUT"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-perf
+          path: e2e-output/
+          if-no-files-found: ignore

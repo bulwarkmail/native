@@ -10,15 +10,19 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Download, FileText, Plus, Star, Trash2, Upload, X } from 'lucide-react-native';
+import { Download, FileText, Plus, Star, Trash2, Upload, X } from '../icons';
 import { SettingsSection, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useTemplatesStore, type EmailTemplate } from '../../stores/templates-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
 
 export function TemplateSettings() {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const tr = useLocaleStore((s) => s.t);
@@ -196,8 +200,8 @@ export function TemplateSettings() {
       </SettingsSection>
 
       {/* Edit/Create modal */}
-      <Modal visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
-        <View style={styles.modalOverlay}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
+        <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -270,8 +274,8 @@ export function TemplateSettings() {
       </Modal>
 
       {/* Import modal */}
-      <Modal visible={importVisible} animationType="slide" transparent onRequestClose={() => setImportVisible(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={importVisible} animationType="slide" transparent onRequestClose={() => setImportVisible(false)}>
+        <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{tr('settings.templates.import', 'Import')}</Text>

@@ -1,0 +1,23 @@
+# Push a message with SUBJECT to ACCOUNT (helper /simpush) and tap its banner
+# where it appears, at once (it shows for a few seconds, about as long as
+# Maestro takes to find it). If the tap came too early or too late, push
+# again: up to three tries until the message is open.
+appId: org.bulwarkmail.mobile
+---
+- repeat:
+    while:
+      notVisible: "Reply All"
+    times: 3
+    commands:
+      - runScript:
+          file: ../scripts/helper.js
+          env:
+            CALL: /simpush?to=${ACCOUNT}&subject=${encodeURIComponent(SUBJECT)}
+      - tapOn:
+          point: "50%,9%"
+          waitToSettleTimeoutMs: 500
+          retryTapIfNoChange: false
+      - extendedWaitUntil:
+          visible: "Reply All"
+          timeout: 30000
+          optional: true

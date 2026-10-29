@@ -1,0 +1,126 @@
+# Calendar: the views, create an event with a reminder, edit it, delete it.
+appId: org.bulwarkmail.mobile
+name: Calendar
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.event = 'E2E event ' + DEVICE + ' ' + Date.now() % 100000}
+- tapOn:
+    id: tab-calendar
+# The first visit asks for notification permission (event reminders).
+- extendedWaitUntil:
+    visible: ".*Would Like to Send You Notifications.*|Go to today"
+    timeout: 30000
+- runFlow: ../subflows/allow-notifications.yaml
+- extendedWaitUntil:
+    visible: "Go to today"
+    timeout: 30000
+- takeScreenshot: calendar-01-month
+
+- tapOn: "Open menu"
+- tapOn: "Schedule"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: calendar-02-schedule
+- tapOn: "Open menu"
+- tapOn: "Day"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: calendar-03-day
+- tapOn: "Open menu"
+- tapOn: "Week"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: calendar-04-week
+
+# Create
+- tapOn: "New event"
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 10000
+- tapOn: "Title"
+- inputText: ${output.event}
+# Close the keyboard first: a tap while it slides away lands on a form that
+# is still moving.
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element: "Add reminder"
+    direction: DOWN
+    timeout: 10000
+- repeat:
+    while:
+      notVisible: "15 minutes before"
+    times: 2
+    commands:
+      - tapOn: "Add reminder"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- scrollUntilVisible:
+    element: "15 minutes before"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "15 minutes before"
+- takeScreenshot: calendar-05-editor
+- tapOn: "Save"
+# The editor closes (its Save goes; the FAB is labelled "New event" too).
+- extendedWaitUntil:
+    notVisible: "Save"
+    timeout: 20000
+
+# Find it in the schedule and open it
+- tapOn: "Open menu"
+- tapOn: "Schedule"
+- tapOn: "Go to today"
+- scrollUntilVisible:
+    element: ".*${output.event}.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: ".*${output.event}.*"
+- extendedWaitUntil:
+    visible: "Edit"
+    timeout: 10000
+- takeScreenshot: calendar-06-detail
+- assertVisible: ".*15 minutes before.*"
+
+# Edit: add a location (an empty field, so no cursor games in the title)
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Edit event"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Place or address"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Place or address"
+- inputText: "Room 42"
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: ".*Room 42.*"
+    timeout: 20000
+- takeScreenshot: calendar-07-edited
+
+# Delete (the detail sheet is still open after saving)
+- runFlow:
+    when:
+      notVisible: "Delete"
+    commands:
+      - tapOn: ".*${output.event}.*"
+- extendedWaitUntil:
+    visible: "Delete"
+    timeout: 10000
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "Delete this event.*"
+    timeout: 10000
+- tapOn:
+    text: "Delete"
+    below: "Delete this event.*"
+- extendedWaitUntil:
+    notVisible: ".*${output.event}.*"
+    timeout: 20000
+- takeScreenshot: calendar-08-deleted
+- tapOn:
+    id: tab-mail

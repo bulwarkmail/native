@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  How Contacts apps show and edit contacts of the Bulwark account (#34). The
+  EditSchema lists exactly the data kinds device sync maps to JSContact
+  (docs/device-sync.md, "Contacts mapping"); apps offer nothing else.
+
+  AOSP Contacts drops the whole account type when this schema breaks its rules
+  (BaseAccountType): every kind with a type column needs <Type> children and
+  the others must have none, name needs maxOccurs="1" and every supports*
+  attribute true (supportsDisplayName for older releases), and photo,
+  nickname, organization, note and group_membership need maxOccurs="1".
+  A Type's maxOccurs limits that type only; birthday gets none unless given.
+-->
+<ContactsAccountType xmlns:android="http://schemas.android.com/apk/res/android">
+    <EditSchema>
+        <DataKind kind="name" maxOccurs="1"
+            supportsDisplayName="true"
+            supportsPrefix="true"
+            supportsMiddleName="true"
+            supportsSuffix="true"
+            supportsPhoneticFamilyName="true"
+            supportsPhoneticMiddleName="true"
+            supportsPhoneticGivenName="true" />
+        <DataKind kind="photo" maxOccurs="1" />
+        <DataKind kind="phone">
+            <Type type="mobile" />
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="main" />
+            <Type type="fax_work" />
+            <Type type="fax_home" />
+            <Type type="other_fax" />
+            <Type type="pager" />
+            <Type type="work_mobile" />
+            <Type type="work_pager" />
+            <Type type="tty_tdd" />
+            <Type type="other" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="email">
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+            <Type type="mobile" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="nickname" maxOccurs="1" />
+        <DataKind kind="postal" needsStructured="true">
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="organization" maxOccurs="1" />
+        <!-- No <Type> allowed: websites are always OTHER in the editor. -->
+        <DataKind kind="website" />
+        <DataKind kind="event" dateWithTime="false">
+            <Type type="birthday" maxOccurs="1" yearOptional="true" />
+            <Type type="anniversary" yearOptional="true" />
+            <Type type="other" yearOptional="true" />
+            <Type type="custom" yearOptional="true" />
+        </DataKind>
+        <DataKind kind="relationship">
+            <Type type="assistant" />
+            <Type type="brother" />
+            <Type type="child" />
+            <Type type="domestic_partner" />
+            <Type type="father" />
+            <Type type="friend" />
+            <Type type="manager" />
+            <Type type="mother" />
+            <Type type="parent" />
+            <Type type="partner" />
+            <Type type="referred_by" />
+            <Type type="relative" />
+            <Type type="sister" />
+            <Type type="spouse" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="note" maxOccurs="1" />
+        <DataKind kind="group_membership" maxOccurs="1" />
+    </EditSchema>
+</ContactsAccountType>

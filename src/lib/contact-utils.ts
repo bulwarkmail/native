@@ -6,6 +6,7 @@ import type {
   PartialDate,
   Timestamp,
 } from '../api/types';
+import { getEmailInitials } from './avatar-utils';
 
 export function getContactDisplayName(contact: ContactCard): string {
   if (contact.name) {
@@ -123,15 +124,10 @@ export function getCustomFullName(contact: ContactCard, orgName?: string): strin
   return full;
 }
 
+/** The webmail's avatar initials for the contact's name, else its first address. */
 export function getContactInitials(contact: ContactCard): string {
-  const name = getContactDisplayName(contact).trim();
-  if (!name) return '?';
-  const parts = name.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  const email = Object.values(contact.emails ?? {})[0]?.address;
+  return getEmailInitials(getContactDisplayName(contact).trim(), email);
 }
 
 // Some JMAP servers (notably Stalwart, see webmail #307) emit photo data URIs

@@ -7,6 +7,7 @@
 import { I18nManager } from 'react-native';
 import { getLocales } from 'expo-localization';
 import { formatMessage, type MessageParams } from './format';
+import { setDeviceLocales } from '../lib/intl-locale';
 
 // English is the fallback for every lookup, so it is loaded eagerly. The other
 // catalogs are loaded on first use; see CATALOG_LOADERS below.
@@ -211,6 +212,20 @@ export function detectDeviceLocale(): LocaleCode {
   }
   return 'en';
 }
+
+/**
+ * Hand the device locales to the date formatters (lib/intl-locale), so an
+ * en-AU phone formats dates as en-AU while reading the English catalog.
+ */
+export function registerDeviceLocales(): void {
+  try {
+    setDeviceLocales(getLocales().map((l) => ({ appLocale: resolveLocaleTag(l), languageTag: l.languageTag })));
+  } catch {
+    setDeviceLocales([]);
+  }
+}
+
+registerDeviceLocales();
 
 function lookup(dict: Dictionary, key: string): string | undefined {
   let current: unknown = dict;

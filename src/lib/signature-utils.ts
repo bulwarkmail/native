@@ -90,6 +90,27 @@ export function signatureIdentityFor<T extends { textSignature?: string; htmlSig
   return primary && hasSignature(primary) ? primary : null;
 }
 
+/**
+ * Whether the signature starts with its own "-- " delimiter line. Many do
+ * (imported from other clients, or set on the server), and the composer's
+ * own separator on top of it showed two delimiter lines (webmail
+ * lib/signature-delimiter.ts).
+ */
+export function signatureHasOwnDelimiter(signature?: SignatureSource | null): boolean {
+  const text = signature?.textSignature?.trim()
+    ? signature.textSignature
+    : signature?.htmlSignature?.trim()
+      ? htmlToPlainText(sanitizeSignatureHtml(signature.htmlSignature))
+      : '';
+  const firstLine = text.replace(/\r\n?/g, '\n').replace(/^\s*\n/, '').split('\n')[0];
+  return /^--[ \t ]*$/.test(firstLine);
+}
+
+/** Whether to add the "-- " separator line in front of this signature. */
+export function wantsSignatureSeparator(enabled: boolean | undefined, signature?: SignatureSource | null): boolean {
+  return enabled !== false && !signatureHasOwnDelimiter(signature);
+}
+
 export function getPlainTextSignature(signature?: SignatureSource): string {
   if (signature?.textSignature?.trim()) {
     return normalizeSignatureLineBreaks(signature.textSignature);
@@ -112,7 +133,7 @@ export function appendPlainTextSignature(
     return body;
   }
 
-  const sep = options.separator === false ? '\n\n' : '\n\n-- \n';
+  const sep = wantsSignatureSeparator(options.separator, signature) ? '\n\n-- \n' : '\n\n';
   return `${body}${sep}${plainTextSignature}`;
 }
 
@@ -186,7 +207,7 @@ export function appendHtmlSignature(
   signature?: SignatureSource,
   options: { separator?: boolean } = {},
 ): string {
-  const sep = options.separator === false ? '<br><br>' : '<br><br>-- <br>';
+  const sep = wantsSignatureSeparator(options.separator, signature) ? '<br><br>-- <br>' : '<br><br>';
 
   if (signature?.htmlSignature?.trim()) {
     return `${htmlBody}${sep}${sanitizeSignatureHtml(signature.htmlSignature)}`;
@@ -208,7 +229,7 @@ export function buildEmbeddedSignatureHtml(
   identity: SignatureSource,
   options: { separator: boolean },
 ): string {
-  const startMarker = options.separator
+  const startMarker = wantsSignatureSeparator(options.separator, identity)
     ? `<p ${SIGNATURE_RANGE_MARKER}="separator">-- </p>`
     : `<p ${SIGNATURE_RANGE_MARKER}="start"></p>`;
   const endMarker = `<p ${SIGNATURE_RANGE_MARKER}="end"><br></p>`;

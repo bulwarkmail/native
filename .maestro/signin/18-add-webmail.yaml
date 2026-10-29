@@ -1,0 +1,43 @@
+# Second account via the webmail hand-off, on top of a password account.
+appId: org.bulwarkmail.mobile
+name: Add account, webmail
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/password-sign-in.yaml
+    env:
+      LOGIN: ${ACCOUNT}@example.org
+- runFlow: ../subflows/open-add-account.yaml
+- tapOn: "An account somewhere else.*"
+- extendedWaitUntil:
+    visible: "What's the other address."
+    timeout: 10000
+- tapOn: "I know my server address"
+- runFlow:
+    file: ../subflows/type.yaml
+    env:
+      FIELD: login-server-input
+      TAP: "no"
+      TEXT: ${WEBMAIL}
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000
+- tapOn: "Continue"
+- runFlow:
+    when:
+      visible: ".*Wants to Use.*to Sign In.*"
+    commands:
+      - runFlow: ../subflows/allow-auth-session.yaml
+- runFlow:
+    file: ../subflows/webmail-login-page.yaml
+    env:
+      LOGIN: ${ACCOUNT2}@example.org
+- runFlow: ../subflows/inbox.yaml
+- runFlow:
+    file: ../subflows/check-active-account.yaml
+    env:
+      ACTIVE: ${ACCOUNT2}@example.org
+- takeScreenshot: add-webmail-01-two-accounts

@@ -1,0 +1,101 @@
+# Compose a new message and send it to userb; userb's mailbox (checked over
+# JMAP) must get it.
+appId: org.bulwarkmail.mobile
+name: Compose and send
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.subject = 'E2E compose ' + DEVICE + '-' + APPEARANCE + '-' + ORIENTATION + ' ' + Date.now()}
+- tapOn: "Compose"
+- extendedWaitUntil:
+    visible: "New Message"
+    timeout: 15000
+- tapOn: "Recipient email addresses"
+- inputText: "userb@example.org"
+- pressKey: Enter
+- tapOn:
+    text: "Subject"
+    index: 1
+- inputText: ${output.subject}
+- runFlow:
+    file: ../subflows/compose-body.yaml
+    env:
+      FROM_SUBJECT: "yes"
+      BODY: "Hello from the iOS simulator test."
+- takeScreenshot: compose-01-filled
+
+# The attach sheet offers its options one by one (it used to be a single
+# accessibility element, and picking one opened no picker on iOS).
+- tapOn: "Attach"
+- extendedWaitUntil:
+    visible: "Photos & Videos"
+    timeout: 10000
+- assertVisible: "Camera"
+- assertVisible: "Files"
+- takeScreenshot: compose-02-attach-sheet
+- evalScript: ${output.pickPhoto = ORIENTATION != 'landscape'}
+# The system photo picker runs in another process: XCTest sees none of its
+# elements, but taps by position reach it. Pick the first photo (the app
+# icon, added by boot-sim.sh) and confirm with the check mark. The iPad in
+# landscape lays the picker out differently, so it only closes the sheet.
+- runFlow:
+    when:
+      true: ${!output.pickPhoto}
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      true: ${output.pickPhoto}
+    commands:
+      - tapOn: "Photos & Videos"
+      - extendedWaitUntil:
+          notVisible: "Draft saved|New Message"
+          timeout: 10000
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - takeScreenshot: compose-03-photo-picker
+      - runFlow:
+          when:
+            true: ${DEVICE == 'tablet'}
+          commands:
+            - tapOn:
+                point: "44%,33%"
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn:
+                point: "90%,26%"
+      - runFlow:
+          when:
+            true: ${DEVICE != 'tablet'}
+          commands:
+            - tapOn:
+                point: "16%,25%"
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn:
+                point: "90%,13%"
+- extendedWaitUntil:
+    visible: "New Message"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: compose-04-with-photo
+
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Email sent successfully"
+    timeout: 20000
+    optional: true
+- runFlow:
+    file: ../subflows/assert-delivered.yaml
+    env:
+      SUBJECT: ${output.subject}
+- runFlow:
+    when:
+      true: ${output.pickPhoto}
+    commands:
+      - assertTrue:
+          condition: ${output.helper.attachments.length >= 1}
+          label: "${output.subject} carries the picked photo"

@@ -48,6 +48,13 @@ function applyLayoutDirection(locale: LocaleCode): boolean {
   return manager.isRTL !== rtl;
 }
 
+// A new `t` per locale: most components select only `t`, and a function
+// that never changed identity left them in the device language after the
+// saved one loaded on a cold start (tab labels, the folder title).
+function translatorFor(locale: LocaleCode): TranslateFn {
+  return (key, fallback, params) => translate(locale, key, fallback, params);
+}
+
 export const useLocaleStore = create<LocaleState>((set, get) => ({
   locale: detectDeviceLocale(),
   override: null,
@@ -62,7 +69,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       const override = stored && isSupportedLocale(stored) ? stored : null;
       const locale = override ?? detectDeviceLocale();
       const directionChangePending = applyLayoutDirection(locale);
-      set({ override, locale, hydrated: true, directionChangePending });
+      set({ override, locale, hydrated: true, directionChangePending, t: translatorFor(locale) });
     } catch {
       set({ hydrated: true });
     }
@@ -71,11 +78,11 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
   setOverride: (override) => {
     const locale = override ?? detectDeviceLocale();
     const directionChangePending = applyLayoutDirection(locale);
-    set({ override, locale, directionChangePending });
+    set({ override, locale, directionChangePending, t: translatorFor(locale) });
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ override })).catch(() => {});
   },
 
-  t: (key, fallback, params) => translate(get().locale, key, fallback, params),
+  t: translatorFor(detectDeviceLocale()),
 }));
 
 // Non-hook accessor for code outside React (background tasks, stores).

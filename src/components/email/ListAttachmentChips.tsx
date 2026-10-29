@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText } from 'lucide-react-native';
+import { File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText } from '../icons';
 import type { Attachment, Email, Mailbox } from '../../api/types';
 import { getEmailAttachments } from '../../api/email';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -15,9 +15,10 @@ import {
   attachmentKind, realAttachments, requestListAttachments, shortAttachmentName,
   type AttachmentKind, type LoadListAttachments,
 } from '../../lib/list-attachments';
-import { getAttachmentDisplayName, previewKindFor } from '../../lib/attachment-display';
-import { cacheBlobFile, downloadAttachment, fetchBlobBytes, shareAttachment, shareLocalFile } from '../../lib/email-export';
-import { AttachmentPreviewModal, type PreviewItem } from './AttachmentPreviewModal';
+import { getAttachmentDisplayName } from '../../lib/attachment-display';
+import { attachmentSaveName, downloadAttachment } from '../../lib/email-export';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal';
+import { useFilePreview } from './use-file-preview';
 
 /** How many chips a row shows before collapsing the rest into a count. */
 const MAX_CHIPS = 2;
@@ -124,26 +125,16 @@ export interface ListAttachmentOpenerHandle {
   open: (email: Email, attachment: Attachment, accountId?: string) => void;
 }
 
-interface OpenTarget {
-  email: Email;
-  attachment: Attachment;
-  accountId?: string;
-  name: string;
-  type: string;
-}
-
 /**
  * Opens a list-row attachment the way the reader's chips do: the "attachment
- * click action" setting either saves it or previews it in-app (images, PDFs,
- * text), and anything that can't be previewed goes to the platform viewer.
- * Holds the preview modal, so the list itself never re-renders for it.
+ * click action" setting either saves it or previews it in-app, and anything
+ * that can't be previewed goes to another app. Holds the preview modal, so
+ * the list itself never re-renders for it.
  */
 export const ListAttachmentOpener = React.forwardRef<ListAttachmentOpenerHandle>(
   function ListAttachmentOpener(_props, ref) {
     const t = useLocaleStore((s) => s.t);
-    const [preview, setPreview] = React.useState<PreviewItem | null>(null);
-    const [loading, setLoading] = React.useState(false);
-    const target = React.useRef<OpenTarget | null>(null);
+    const preview = useFilePreview();
     const busy = React.useRef(false);
 
     const run = React.useCallback(async (fn: () => Promise<void>) => {
@@ -161,59 +152,27 @@ export const ListAttachmentOpener = React.forwardRef<ListAttachmentOpenerHandle>
       }
     }, [t]);
 
-    const openExternal = React.useCallback((it: OpenTarget) => run(
-      () => shareAttachment(it.attachment.blobId, it.attachment.name, it.attachment.type, it.email, it.accountId),
-    ), [run]);
-
+    const { open: openPreview } = preview;
     React.useImperativeHandle(ref, () => ({
       open: (email, attachment, accountId) => {
-        if (busy.current) return;
-        const name = getAttachmentDisplayName(attachment.name, attachment.type);
-        const type = attachment.type || 'application/octet-stream';
-        const it: OpenTarget = { email, attachment, accountId, name, type };
-        target.current = it;
-
         if (useSettingsStore.getState().mailAttachmentAction === 'download') {
           void run(() => downloadAttachment(attachment.blobId, attachment.name, attachment.type, email, accountId));
           return;
         }
-        const kind = previewKindFor({ name, type });
-        if (kind !== 'image' && kind !== 'pdf' && kind !== 'text') {
-          void openExternal(it);
-          return;
-        }
-        setPreview(null);
-        setLoading(true);
-        void run(async () => {
-          try {
-            if (kind === 'text') {
-              const bytes = await fetchBlobBytes(attachment.blobId, attachment.name, attachment.type, accountId);
-              setPreview({ kind, name, mimeType: type, text: new TextDecoder('utf-8').decode(bytes) });
-            } else {
-              const file = await cacheBlobFile(attachment.blobId, name, type, accountId);
-              setPreview({ kind, name, mimeType: type, fileUri: file.uri });
-            }
-          } finally {
-            setLoading(false);
-          }
-        });
+        void run(() => openPreview({
+          from: 'blob',
+          blobId: attachment.blobId,
+          accountId,
+          email,
+          name: getAttachmentDisplayName(attachment.name, attachment.type),
+          type: attachment.type || 'application/octet-stream',
+          size: attachment.size,
+          saveName: attachmentSaveName(email, attachment.name, attachment.type),
+        }));
       },
-    }), [run, openExternal]);
+    }), [run, openPreview]);
 
-    return (
-      <AttachmentPreviewModal
-        item={preview}
-        loading={loading}
-        onClose={() => { setPreview(null); setLoading(false); }}
-        onOpenExternal={() => { if (target.current) void openExternal(target.current); }}
-        onShare={() => {
-          const it = target.current;
-          if (!it || !preview?.fileUri) return;
-          const { File } = require('expo-file-system') as typeof import('expo-file-system');
-          void shareLocalFile(new File(preview.fileUri), it.type, it.name, { forceSheet: true }).catch(() => undefined);
-        }}
-      />
-    );
+    return <AttachmentPreviewModal {...preview.modalProps} />;
   },
 );
 

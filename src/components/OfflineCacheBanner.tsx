@@ -4,7 +4,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CloudDownload, X } from 'lucide-react-native';
+import { CloudDownload, X } from './icons';
 import { useOfflineCacheStore } from '../stores/offline-cache-store';
 import { useUpdatesStore } from '../stores/updates-store';
 import { formatBytes } from '../lib/offline-sync';

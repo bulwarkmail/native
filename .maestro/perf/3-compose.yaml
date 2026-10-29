@@ -1,0 +1,23 @@
+# Perf: open the composer and close it untouched, five times.
+appId: org.bulwarkmail.mobile
+name: Perf compose open
+---
+- tapOn:
+    id: tab-mail
+- repeat:
+    times: 5
+    commands:
+      - tapOn: "Compose"
+      - extendedWaitUntil:
+          visible: "New Message"
+          timeout: 20000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn: "Close"
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          when:
+            visible: "Discard"
+          commands:
+            - tapOn: "Discard"

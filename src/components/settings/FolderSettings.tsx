@@ -13,7 +13,7 @@ import {
 import {
   Folder, Inbox, Send, FileText, Trash, ShieldAlert, Archive, Flag, Star, Mails,
   StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X,
-} from 'lucide-react-native';
+} from '../icons';
 import { SettingsSection, Select } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -25,6 +25,9 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { createMailbox, updateMailbox, deleteMailbox } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import Badge from '../Badge';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -63,6 +66,8 @@ function pathOf(all: Mailbox[], mb: Mailbox, t: (k: string, f?: string) => strin
 }
 
 export function FolderSettings() {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -271,11 +276,7 @@ export function FolderSettings() {
                   <View style={styles.folderLeft}>
                     <Icon size={16} color={mb.role ? c.primary : c.mutedForeground} />
                     <Text style={styles.folderName} numberOfLines={1}>{localizeMailboxName(mb.role, mb.name, t)}</Text>
-                    {mb.role && (
-                      <View style={styles.rolePill}>
-                        <Text style={styles.rolePillText}>{mb.role}</Text>
-                      </View>
-                    )}
+                    {mb.role && <Badge>{mb.role}</Badge>}
                   </View>
                   <View style={styles.folderRight}>
                     {mb.unreadEmails > 0 && (
@@ -297,8 +298,8 @@ export function FolderSettings() {
         )}
       </SettingsSection>
 
-      <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
-        <View style={styles.modalOverlay}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
+        <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -412,11 +413,6 @@ function makeStyles(c: ThemePalette) {
     folderRowPressed: { backgroundColor: c.muted },
     folderLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
     folderName: { ...typography.body, color: c.text, flexShrink: 1 },
-    rolePill: {
-      paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
-      backgroundColor: c.primaryBg,
-    },
-    rolePillText: { fontSize: 10, fontWeight: '500', color: c.primary },
     folderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     unreadBadge: {
       paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,

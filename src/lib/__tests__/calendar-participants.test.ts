@@ -8,6 +8,8 @@ import {
   getStatusCounts,
   getUserParticipantId,
   hasAnsweredAttendees,
+  isDeclinedByUser,
+  isInactiveEvent,
   isOrganizer,
   participantFieldsToSave,
   participantLimitMessage,
@@ -545,5 +547,33 @@ describe('participantLimitOf (Stalwart 1.0 maxParticipantsPerEvent)', () => {
     expect(participantLimitMessage(new Error('An event cannot have more than 20 participants.'), t))
       .toBe('The server allows at most 20 participants per event, including the organizer, so it refused this change. An administrator can raise the limit.');
     expect(participantLimitMessage(new Error('nope'), t)).toBeNull();
+  });
+});
+
+describe('isDeclinedByUser / isInactiveEvent', () => {
+  const declined: Partial<CalendarEvent> = {
+    participants: {
+      org: { email: 'alice@example.com', roles: { owner: true } },
+      dave: { calendarAddress: 'mailto:dave@example.com', roles: { attendee: true }, participationStatus: 'declined' },
+      bob: { email: 'bob@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+    },
+  };
+
+  it('matches any of the user addresses, case-insensitively', () => {
+    expect(isDeclinedByUser(declined, ['Dave@Example.com'])).toBe(true);
+    expect(isDeclinedByUser(declined, ['alias@example.com', 'dave@example.com'])).toBe(true);
+    expect(isDeclinedByUser(declined, ['bob@example.com'])).toBe(false);
+  });
+
+  it('is false without addresses or participants', () => {
+    expect(isDeclinedByUser(declined, [])).toBe(false);
+    expect(isDeclinedByUser(declined, undefined)).toBe(false);
+    expect(isDeclinedByUser({}, ['dave@example.com'])).toBe(false);
+  });
+
+  it('counts cancelled events as inactive too', () => {
+    expect(isInactiveEvent({ status: 'cancelled' }, undefined)).toBe(true);
+    expect(isInactiveEvent(declined, ['dave@example.com'])).toBe(true);
+    expect(isInactiveEvent({ ...declined, status: 'confirmed' }, ['bob@example.com'])).toBe(false);
   });
 });

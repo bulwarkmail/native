@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BellRing, X } from 'lucide-react-native';
+import { useFloatingCardFrame } from '../lib/use-layout';
+import { BellRing, X } from './icons';
 import Button from './Button';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -24,8 +25,6 @@ import {
 // Mirrors the webmail's push-notification-prompt: a short delay after login
 // so the inbox renders first, and never again for an account once dismissed.
 const PROMPT_DELAY_MS = 1500;
-// Clears the tab bar, like the toasts (ToastHost).
-const TAB_BAR_CLEARANCE = 64;
 
 /**
  * Once-per-account invitation to turn on background notifications. Shown
@@ -51,6 +50,8 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const insets = useSafeAreaInsets();
+  // Full width above the tab bar on a phone; bottom right on a tablet.
+  const frame = useFloatingCardFrame();
   const duration = useAnimDuration(200);
   const appear = React.useRef(new Animated.Value(0)).current;
 
@@ -117,7 +118,7 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
       style={[
         styles.wrap,
         {
-          bottom: insets.bottom + TAB_BAR_CLEARANCE,
+          left: frame.left, right: frame.right, bottom: insets.bottom + frame.bottom,
           opacity: appear,
           transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
         },
@@ -149,7 +150,7 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
         </View>
         <Pressable
           onPress={handleDismiss}
-          hitSlop={8}
+          hitSlop={14}
           accessibilityRole="button"
           accessibilityLabel={t('settings.notifications.push.dismiss_aria', 'Dismiss notification prompt')}
           style={styles.close}
@@ -165,8 +166,6 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     wrap: {
       position: 'absolute',
-      left: spacing.md,
-      right: spacing.md,
       zIndex: 50,
     },
     card: {

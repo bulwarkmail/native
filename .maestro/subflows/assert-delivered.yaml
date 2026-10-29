@@ -1,0 +1,18 @@
+# The helper checks over JMAP that AS (default userb) received SUBJECT; with
+# ATTACHMENT set, that the message carries that file.
+appId: org.bulwarkmail.mobile
+---
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /find?as=${AS || 'userb'}&subject=${encodeURIComponent(SUBJECT)}&timeout=60
+- assertTrue:
+    condition: ${output.helper.found}
+    label: "${SUBJECT} delivered to ${AS || 'userb'}"
+- runFlow:
+    when:
+      true: ${!!ATTACHMENT}
+    commands:
+      - assertTrue:
+          condition: ${output.helper.attachments.indexOf(ATTACHMENT) >= 0}
+          label: "${SUBJECT} carries ${ATTACHMENT}"

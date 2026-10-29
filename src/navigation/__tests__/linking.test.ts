@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { handleDeepLink, parseDeepLink, shareToDeepLink } from '../linking';
+import { acceptSignInLink, handleDeepLink, parseDeepLink, parseSignInLink, shareToDeepLink } from '../linking';
+import { usePendingSignInLinkStore } from '../pending-sign-in-link';
 import { usePendingSettingsTab } from '../pending-settings-tab';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
+import { usePendingMailSearch } from '../pending-mail-search';
+import { links } from '../../widgets/clicks';
 
 describe('parseDeepLink', () => {
   it('parses app-scheme mail links', () => {
@@ -75,6 +78,26 @@ describe('parseDeepLink', () => {
     });
   });
 
+  it('parses the widget links: reply, draft, unified views, scheduled and search', () => {
+    expect(parseDeepLink('bulwarkmobile://mail/message/M1?account=a%40b&jmapAccount=team&action=reply')).toEqual({
+      kind: 'message', emailId: 'M1', accountId: 'a@b', jmapAccountId: 'team', action: 'reply',
+    });
+    // What the widgets build is what the app reads, thread included.
+    const m = { id: 'M/1', threadId: 'T1', accountId: 'a@b', jmapAccountId: 'team' };
+    expect(parseDeepLink(links.reply(m))).toEqual({
+      kind: 'message', emailId: 'M/1', accountId: 'a@b', jmapAccountId: 'team', threadId: 'T1', action: 'reply',
+    });
+    expect(parseDeepLink(links.message({ id: 'M2', accountId: 'a@b' }))).toEqual({
+      kind: 'message', emailId: 'M2', accountId: 'a@b',
+    });
+    expect(parseDeepLink('bulwarkmobile://mail/draft/D1')).toEqual({ kind: 'draft', emailId: 'D1', accountId: undefined });
+    expect(parseDeepLink('bulwarkmobile://mail/unified?view=starred')).toEqual({ kind: 'unified', view: 'starred' });
+    expect(parseDeepLink('bulwarkmobile://mail/unified?role=drafts&view=bogus')).toEqual({ kind: 'unified', role: 'drafts' });
+    expect(parseDeepLink('bulwarkmobile://mail/scheduled')).toEqual({ kind: 'scheduled' });
+    expect(parseDeepLink('bulwarkmobile://mail/search?q=from%3Aada')).toEqual({ kind: 'search', query: 'from:ada' });
+    expect(parseDeepLink('bulwarkmobile://mail/search')).toEqual({ kind: 'search', query: '' });
+  });
+
   it('rejects unknown links', () => {
     expect(parseDeepLink('bulwarkmobile://whatever')).toBeNull();
     expect(parseDeepLink('garbage')).toBeNull();
@@ -130,6 +153,21 @@ describe('handleDeepLink', () => {
     expect(usePendingCalendarOpen.getState().consume()).toBeNull();
   });
 
+  it('switches to the signed-in account a widget event link names first', async () => {
+    const navigation = nav();
+    const url = links.event({ serverId: 'j', accountId: 'usera@example.org@mail', jmapAccountId: 'd' });
+    const link = parseDeepLink(url);
+    expect(link).toEqual({ kind: 'calendar', eventId: 'j', jmapAccountId: 'd', accountId: 'usera@example.org@mail' });
+    const switchAccount = vi.fn(async () => true);
+    await handleDeepLink(link!, { navigation: navigation as never, resolveThreadId: async () => null, switchAccount });
+    expect(switchAccount).toHaveBeenCalledWith('usera@example.org@mail');
+    expect(usePendingCalendarOpen.getState().consume()).toMatchObject({ serverId: 'j', accountId: 'd' });
+    // An account that is no longer signed in opens nothing.
+    expect(await handleDeepLink(link!, {
+      navigation: navigation as never, resolveThreadId: async () => null, switchAccount: async () => false,
+    })).toBe(false);
+  });
+
   it('parks the settings tab and opens the Settings tab', async () => {
     const navigation = nav();
     await handleDeepLink(
@@ -166,6 +204,51 @@ describe('handleDeepLink', () => {
     }));
   });
 
+  it('opens a group-mailbox message in its JMAP account', async () => {
+    const navigation = nav();
+    const resolveThreadId = vi.fn(async () => 'T1');
+    await handleDeepLink(
+      { kind: 'message', emailId: 'M1', jmapAccountId: 'team' },
+      { navigation: navigation as never, resolveThreadId },
+    );
+    expect(resolveThreadId).toHaveBeenCalledWith('M1', 'team');
+    expect(navigation.navigate).toHaveBeenCalledWith('EmailThread', { emailId: 'M1', threadId: 'T1', jmapAccountId: 'team' });
+  });
+
+  it('opens a reply over its message, without a lookup when the link names the thread', async () => {
+    // Offline, or before the session is back: the lookup would fail.
+    const resolveThreadId = vi.fn(async () => null);
+    const navigation = nav();
+    const ok = await handleDeepLink(
+      { kind: 'message', emailId: 'M2', threadId: 'T2', action: 'reply' },
+      { navigation: navigation as never, resolveThreadId },
+    );
+    expect(ok).toBe(true);
+    expect(resolveThreadId).not.toHaveBeenCalled();
+    expect(navigation.navigate).toHaveBeenCalledWith('EmailThread', { emailId: 'M2', threadId: 'T2', action: 'reply' });
+
+    // Without the thread and without a server, nothing opens (the app says so).
+    expect(await handleDeepLink(
+      { kind: 'message', emailId: 'M3', action: 'reply' },
+      { navigation: nav() as never, resolveThreadId },
+    )).toBe(false);
+  });
+
+  it('opens drafts, unified views, scheduled mail and searches', async () => {
+    const openDraft = vi.fn(async () => true);
+    const navigation = nav();
+    const deps = { navigation: navigation as never, resolveThreadId: async () => 'T', openDraft };
+    expect(await handleDeepLink({ kind: 'draft', emailId: 'D1' }, deps)).toBe(true);
+    expect(openDraft).toHaveBeenCalledWith('D1', undefined);
+    await handleDeepLink({ kind: 'unified', view: 'starred' }, deps);
+    expect(navigation.navigate).toHaveBeenCalledWith('UnifiedInbox', { view: 'starred' });
+    await handleDeepLink({ kind: 'scheduled' }, deps);
+    expect(navigation.navigate).toHaveBeenCalledWith('Scheduled');
+    await handleDeepLink({ kind: 'search', query: 'from:ada' }, deps);
+    expect(usePendingMailSearch.getState().consume()).toBe('from:ada');
+    expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Mail' });
+  });
+
   it('refuses when the linked account is not signed in', async () => {
     const navigation = nav();
     const ok = await handleDeepLink(
@@ -188,5 +271,63 @@ describe('shareToDeepLink', () => {
     expect(shareToDeepLink({ text: 'alice+news@partner.example' })).toEqual({
       kind: 'compose', to: [{ email: 'alice+news@partner.example' }], cc: [], subject: undefined,
     });
+  });
+});
+
+describe('sign-in links', () => {
+  const code = 'c0ffee'.repeat(10) + 'beef';
+  const pair = `bulwarkmail://pair?server=${encodeURIComponent('https://mail.example.com/webmail')}&code=${code}`;
+
+  it('are never navigation links', () => {
+    expect(parseDeepLink(pair)).toBeNull();
+    expect(parseDeepLink('bulwarkmail://connect?server=https%3A%2F%2Fmail.example.com')).toBeNull();
+    // The scheme is not an alias of the app scheme.
+    expect(parseDeepLink('bulwarkmail://mail/message/M1')).toBeNull();
+  });
+
+  it('parses pair and connect links, and nothing else', () => {
+    expect(parseSignInLink(pair)).toEqual({ kind: 'pair', webmailUrl: 'https://mail.example.com/webmail', code });
+    expect(parseSignInLink(pair.replace('://pair?', '://pair/?'))).toEqual({
+      kind: 'pair', webmailUrl: 'https://mail.example.com/webmail', code,
+    });
+    expect(parseSignInLink('bulwarkmail://connect?server=https%3A%2F%2Fmail.example.com'))
+      .toEqual({ kind: 'connect', webmailUrl: 'https://mail.example.com' });
+    // A plain webmail address is a QR convenience, not a link that signs in.
+    expect(parseSignInLink('https://mail.example.com')).toBeNull();
+    expect(parseSignInLink('bulwarkmobile://mail/message/M1')).toBeNull();
+    expect(parseSignInLink(`bulwarkmail://pair?server=http%3A%2F%2Fmail.example.com&code=${code}`)).toBeNull();
+    expect(parseSignInLink(null)).toBeNull();
+  });
+
+  it('parks a sign-in link from the OS as external, for the login screen to take once', () => {
+    usePendingSignInLinkStore.getState().clear();
+    expect(acceptSignInLink('bulwarkmobile://mail')).toBe(false);
+    expect(acceptSignInLink('mailto:a@b.co')).toBe(false);
+    expect(usePendingSignInLinkStore.getState().pending).toBeNull();
+
+    expect(acceptSignInLink(pair)).toBe(true);
+    expect(usePendingSignInLinkStore.getState().pending).toMatchObject({
+      source: 'external',
+      payload: { kind: 'pair', webmailUrl: 'https://mail.example.com/webmail', code },
+    });
+    // Anyone can fire the link, so it is not run until the user confirms.
+    expect(usePendingSignInLinkStore.getState().take()).toMatchObject({
+      needsConfirmation: true,
+      payload: { kind: 'pair', webmailUrl: 'https://mail.example.com/webmail', code },
+    });
+    // Taken means cleared: a second delivery of the same state signs in nothing.
+    expect(usePendingSignInLinkStore.getState().pending).toBeNull();
+    expect(usePendingSignInLinkStore.getState().take()).toBeNull();
+    usePendingSignInLinkStore.getState().clear();
+  });
+
+  it('parks connect links as external too', () => {
+    usePendingSignInLinkStore.getState().clear();
+    expect(acceptSignInLink('bulwarkmail://connect?server=https%3A%2F%2Fmail.example.com')).toBe(true);
+    expect(usePendingSignInLinkStore.getState().take()).toMatchObject({
+      needsConfirmation: true,
+      payload: { kind: 'connect', webmailUrl: 'https://mail.example.com' },
+    });
+    usePendingSignInLinkStore.getState().clear();
   });
 });

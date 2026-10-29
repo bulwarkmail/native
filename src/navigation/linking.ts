@@ -8,16 +8,37 @@ import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
 import { setPendingCalendarOpen } from './pending-calendar-open';
+import { setPendingMailSearch } from './pending-mail-search';
+import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
+import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
+import { MAX_ACCOUNTS } from '../lib/account-utils';
 
 export const APP_SCHEME = 'bulwarkmobile';
+// The webmail's "Link Mobile App" links (`bulwarkmail://pair?server=…&code=…`)
+// and server-bootstrap links (`bulwarkmail://connect?server=…`). They sign in
+// rather than navigate, so they never become a DeepLink.
+export const SIGN_IN_SCHEME = 'bulwarkmail';
+
+const UNIFIED_ROLES = ['inbox', 'sent', 'drafts', 'junk', 'archive', 'trash'] as const;
+const UNIFIED_VIEWS = ['all', 'unread', 'starred'] as const;
+type UnifiedRole = typeof UNIFIED_ROLES[number];
+type UnifiedView = typeof UNIFIED_VIEWS[number];
 
 export type DeepLink =
-  | { kind: 'message'; emailId: string; accountId?: string }
+  // `jmapAccountId`: the JMAP account owning a message in a group/shared
+  // mailbox (`?jmapAccount=`); `threadId` (`?thread=`) saves looking it up;
+  // `action: 'reply'` opens a reply to it.
+  | { kind: 'message'; emailId: string; accountId?: string; jmapAccountId?: string; threadId?: string; action?: 'reply' }
+  | { kind: 'draft'; emailId: string; accountId?: string; jmapAccountId?: string }
   | { kind: 'thread'; threadId: string; accountId?: string }
   | { kind: 'folder'; ref: string; accountId?: string }
+  | { kind: 'unified'; role?: UnifiedRole; view?: UnifiedView }
+  | { kind: 'scheduled' }
+  | { kind: 'search'; query: string }
   // `jmapAccountId`: the JMAP account owning the event (`?account=`), for
-  // one on a calendar shared with the user.
-  | { kind: 'calendar'; eventId?: string; date?: string; jmapAccountId?: string }
+  // one on a calendar shared with the user; `accountId`: the signed-in
+  // account it belongs to (`?appAccount=`, from widgets).
+  | { kind: 'calendar'; eventId?: string; date?: string; jmapAccountId?: string; accountId?: string }
   | { kind: 'contact'; contactId: string }
   | { kind: 'contacts' }
   | { kind: 'files' }
@@ -61,6 +82,7 @@ function splitUrl(url: string): { segments: string[]; search: URLSearchParams } 
 
 export function parseDeepLink(url: string): DeepLink | null {
   if (!url) return null;
+  if (isSignInSchemeUrl(url)) return null;
   if (/^mailto:/i.test(url)) {
     const parsed = parseMailtoUrl(url);
     if (!parsed) return null;
@@ -82,7 +104,32 @@ export function parseDeepLink(url: string): DeepLink | null {
 
   switch (area) {
     case 'mail': {
-      if (kind === 'message' && value) return { kind: 'message', emailId: decodeSegment(value), accountId };
+      const jmapAccountId = search.get('jmapAccount') ?? undefined;
+      if (kind === 'message' && value) {
+        const threadId = search.get('thread');
+        return {
+          kind: 'message',
+          emailId: decodeSegment(value),
+          accountId,
+          ...(jmapAccountId ? { jmapAccountId } : {}),
+          ...(threadId ? { threadId } : {}),
+          ...(search.get('action') === 'reply' ? { action: 'reply' as const } : {}),
+        };
+      }
+      if (kind === 'draft' && value) {
+        return { kind: 'draft', emailId: decodeSegment(value), accountId, ...(jmapAccountId ? { jmapAccountId } : {}) };
+      }
+      if (kind === 'unified') {
+        const role = search.get('role');
+        const view = search.get('view');
+        return {
+          kind: 'unified',
+          ...(role && (UNIFIED_ROLES as readonly string[]).includes(role) ? { role: role as UnifiedRole } : {}),
+          ...(view && (UNIFIED_VIEWS as readonly string[]).includes(view) ? { view: view as UnifiedView } : {}),
+        };
+      }
+      if (kind === 'scheduled') return { kind: 'scheduled' };
+      if (kind === 'search') return { kind: 'search', query: search.get('q') ?? '' };
       if (kind === 'thread' && value) return { kind: 'thread', threadId: decodeSegment(value), accountId };
       if (kind === 'folder' && value) return { kind: 'folder', ref: decodeSegment(value), accountId };
       // Legacy `?email=<id>` from the webmail's older service worker.
@@ -93,9 +140,13 @@ export function parseDeepLink(url: string): DeepLink | null {
     case 'calendar': {
       if (kind === 'event' && value) {
         const jmapAccountId = search.get('account') ?? undefined;
-        return jmapAccountId
-          ? { kind: 'calendar', eventId: decodeSegment(value), jmapAccountId }
-          : { kind: 'calendar', eventId: decodeSegment(value) };
+        const appAccountId = search.get('appAccount') ?? undefined;
+        return {
+          kind: 'calendar',
+          eventId: decodeSegment(value),
+          ...(jmapAccountId ? { jmapAccountId } : {}),
+          ...(appAccountId ? { accountId: appAccountId } : {}),
+        };
       }
       const date = [kind, value].find((s) => s && /^\d{4}-\d{2}-\d{2}$/.test(s));
       return { kind: 'calendar', date };
@@ -128,11 +179,61 @@ export function parseDeepLink(url: string): DeepLink | null {
   }
 }
 
+function isSignInSchemeUrl(url: string): boolean {
+  return url.trim().toLowerCase().startsWith(`${SIGN_IN_SCHEME}:`);
+}
+
+/** A `bulwarkmail://pair|connect?…` link, parsed; null for any other URL. */
+export function parseSignInLink(url: string | null | undefined): QrLoginPayload | null {
+  if (!url || !isSignInSchemeUrl(url)) return null;
+  return parseQrLoginPayload(url);
+}
+
+/**
+ * Park a sign-in link the OS delivered (a tapped link, or another app firing
+ * the intent) for the login screen, which takes it (the signed-out one, or
+ * Add account when someone is signed in) and asks the user before running
+ * it: whoever sent it chose the webmail and the code. A pairing link for a
+ * plain-http webmail is parked as a refusal instead, for the login screen to
+ * say why nothing happens. Returns whether `url` was a sign-in link.
+ */
+export function acceptSignInLink(url: string | null | undefined): boolean {
+  const payload = parseSignInLink(url);
+  if (payload) {
+    setPendingSignInLink(payload, 'external');
+    return true;
+  }
+  const refusal = url && isSignInSchemeUrl(url) ? insecurePairingLinkError(url) : null;
+  if (!refusal) return false;
+  usePendingSignInLinkStore.getState().refuse(refusal);
+  return true;
+}
+
+/**
+ * Signed in, where a parked sign-in link goes: Add account, whose login
+ * screen takes it, or, with no room for another account, nowhere: the link
+ * is dropped before a code is spent and the caller shows the limit. 'none'
+ * when nothing is parked (taken meanwhile by an Add account already open).
+ */
+export function routeParkedSignInLink(accountCount: number): 'add-account' | 'account-limit' | 'none' {
+  const links = usePendingSignInLinkStore.getState();
+  if (!links.pending && !links.refusal) return 'none';
+  if (accountCount >= MAX_ACCOUNTS) {
+    links.dropParked();
+    return 'account-limit';
+  }
+  return 'add-account';
+}
+
 export interface DeepLinkNavigator {
   navigation: NavigationContainerRefWithCurrent<RootStackParamList>;
   // Resolve a message id to its thread (EmailThread needs both). Returns
-  // null when the message cannot be loaded.
-  resolveThreadId: (emailId: string) => Promise<string | null>;
+  // null when the message cannot be loaded. `jmapAccountId` names the
+  // group/shared account holding it, when it is not the user's own.
+  resolveThreadId: (emailId: string, jmapAccountId?: string) => Promise<string | null>;
+  // Open the composer on a server draft. Resolve false when the draft cannot
+  // be loaded.
+  openDraft?: (emailId: string, jmapAccountId?: string) => Promise<boolean>;
   // Switch to the account a permalink names (`?account=`); resolves false
   // when that account is not signed in on this device.
   switchAccount?: (accountId: string) => Promise<boolean>;
@@ -149,11 +250,34 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
 
   switch (link.kind) {
     case 'message': {
-      const threadId = await nav.resolveThreadId(link.emailId);
+      const threadId = link.threadId ?? await nav.resolveThreadId(link.emailId, link.jmapAccountId);
       if (!threadId) return false;
-      navigation.navigate('EmailThread', { emailId: link.emailId, threadId });
+      // A reply opens over the message, like the reader's own Reply: the
+      // reader loads it (from its cache when offline) and then opens the
+      // composer, or shows why it could not.
+      navigation.navigate('EmailThread', {
+        emailId: link.emailId,
+        threadId,
+        ...(link.jmapAccountId ? { jmapAccountId: link.jmapAccountId } : {}),
+        ...(link.action === 'reply' ? { action: 'reply' as const } : {}),
+      });
       return true;
     }
+    case 'draft':
+      return nav.openDraft ? nav.openDraft(link.emailId, link.jmapAccountId) : false;
+    case 'unified':
+      navigation.navigate('UnifiedInbox', {
+        ...(link.role ? { role: link.role } : {}),
+        ...(link.view ? { view: link.view } : {}),
+      });
+      return true;
+    case 'scheduled':
+      navigation.navigate('Scheduled');
+      return true;
+    case 'search':
+      setPendingMailSearch(link.query);
+      navigation.navigate('MainTabs', { screen: 'Mail' } as never);
+      return true;
     case 'thread':
       // The reader keys on the message; without one, open the list.
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);

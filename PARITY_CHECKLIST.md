@@ -153,7 +153,7 @@ Open split them by tick; the P columns count the priority tags on those items
 | #47 Account security not accessible | [01](docs/parity/01-auth-accounts.md) capability map bug (P1) |
 | #46 email preview shows css | [03](docs/parity/03-email-viewer.md) HTML-only body detection (P1) |
 | #45 error when re-registering to relay | [08](docs/parity/08-settings-push-i18n-ui.md) push section |
-| #34 Native contacts/calendar sync adapters | feature request, out of parity scope; noted in [06](docs/parity/06-contacts.md) |
+| #34 Native contacts/calendar sync adapters | done on Android: Settings → Contacts / Calendar → "Sync to this device" syncs both ways with the device's Contacts and Calendar apps ([design](docs/device-sync.md)); iOS has no API for it |
 | #5 Sort ascending/descending | in progress in the working tree; ordering presets in [02](docs/parity/02-mail-list-folders.md) |
 | #3 TLS client auth | Android-only today; gaps in [01](docs/parity/01-auth-accounts.md) and [09](docs/parity/09-jmap-core-sync-security.md) |
 | #1 Shared settings between webmail and native | [08](docs/parity/08-settings-push-i18n-ui.md) — webmail sync is server-side/cookie-bound; a JMAP-blob design is sketched there |

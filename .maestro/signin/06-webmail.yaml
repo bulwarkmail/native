@@ -1,0 +1,20 @@
+# Sign in via webmail: the confirm step on a Bulwark webmail address hands
+# off to the webmail's sign-in page in an auth session.
+appId: org.bulwarkmail.mobile
+name: Webmail hand-off
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${WEBMAIL}
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- runFlow:
+    file: ../subflows/webmail-login-page.yaml
+    env:
+      LOGIN: ${ACCOUNT}@example.org
+- runFlow: ../subflows/inbox.yaml
+- takeScreenshot: webmail-01-inbox

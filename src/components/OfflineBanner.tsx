@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { CloudOff } from 'lucide-react-native';
+import { CloudOff } from './icons';
 import { useNetworkStore } from '../stores/network-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { useLocaleStore } from '../stores/locale-store';

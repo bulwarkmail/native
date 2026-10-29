@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   jmapClient,
   AuthenticationError,
+  InvalidTokenError,
   NetworkError,
   SessionSupersededError,
   type ClientSnapshot,
@@ -19,14 +20,23 @@ import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
 import { clearBodyHeights } from '../lib/body-heights';
-import { generateAccountId } from '../lib/account-utils';
-import { runWebmailHandoff, redeemPairingCode, HandoffCancelledError, HandoffError, type HandoffResult } from '../lib/oauth';
+import { AccountLimitError, generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
+import {
+  runWebmailHandoff,
+  redeemPairingCode,
+  HandoffCancelledError,
+  HandoffError,
+  PairingError,
+  type HandoffResult,
+} from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
 import { reconcileServerFingerprint } from '../lib/server-change';
+import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
+import { perfMark } from '../lib/perf-marks';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -85,6 +95,8 @@ export interface AuthState {
     password: string,
     opts?: { addAccount?: boolean; totp?: string },
   ) => Promise<void>;
+  /** Access-token (Bearer) sign-in with a token the user pasted, e.g. a Fastmail API token. */
+  loginWithToken: (serverUrl: string, token: string, opts?: { addAccount?: boolean }) => Promise<void>;
   loginViaWebmail: (webmailUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
   /** OAuth/OIDC (PKCE) straight against the mail server's authorization server. */
   loginViaOAuth: (serverUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
@@ -240,18 +252,25 @@ async function signIn(
     const previous = opts?.addAccount && get().isAuthenticated ? jmapClient.snapshot() : null;
     const resumable = previous ? useOutboxStore.getState().suspend() : null;
     if (previous) signInSaved = saved = { client: previous, isCurrent };
-    const putBack = () => {
+    const putBack = (connected: boolean) => {
       // Not over a newer account change, which has the client now.
-      if (!previous || !isCurrent()) return;
-      jmapClient.restoreSnapshot(previous);
-      if (resumable) resumeOutbox(resumable);
+      if (!isCurrent()) return;
+      if (previous) {
+        jmapClient.restoreSnapshot(previous);
+        if (resumable) resumeOutbox(resumable);
+      } else if (connected) {
+        // The client must not serve an account the registry never took.
+        jmapClient.reset();
+      }
     };
 
-    let signedIn: SignedIn;
+    let signedIn: SignedIn | null = null;
+    let wasRegistered = true;
     const accountStore = useAccountStore.getState();
     try {
       signedIn = await connect();
       if (!isCurrent()) throw new SessionSupersededError();
+      wasRegistered = !!accountStore.getAccountById(signedIn.accountId);
       // Contacts/calendar are still single-bucket, so wipe those now that
       // the new account is the one the client serves.
       if (previous) {
@@ -270,7 +289,12 @@ async function signIn(
         hasError: false,
       });
     } catch (err) {
-      putBack();
+      putBack(!!signedIn);
+      // connect() stored credentials for an account the registry never took
+      // (the account limit, or a newer account change): none stay behind.
+      if (signedIn && !wasRegistered && !useAccountStore.getState().getAccountById(signedIn.accountId)) {
+        await jmapClient.clearAccountCredentials(signedIn.accountId).catch(() => undefined);
+      }
       throw err;
     }
     const { session, serverUrl, username, accountId } = signedIn;
@@ -285,6 +309,8 @@ async function signIn(
     // mounted; the screen joins this load.
     void useEmailStore.getState().fetchMailboxes();
     void syncAccountDisplayName(accountId);
+    // Device sync (#34): drop a "sign in again" notice, resume a suspended account.
+    void deviceSyncSignedIn(accountId);
     return signedIn;
   } finally {
     signInsUnderWay -= 1;
@@ -313,8 +339,39 @@ function refetchFeatureStores(accountId: string): void {
   }
 }
 
+// Pairing codes this app process has redeemed or is redeeming. Codes are
+// single-use, so a second attempt with the same one can only fail.
+const pairingCodesSeen = new Set<string>();
+
+function hostOfUrl(url: string): string {
+  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split(/[/?#]/)[0];
+}
+
+// Room in the registry for the account a sign-in is about to add. One it
+// already holds is an update and always fits; without an id (a code not yet
+// redeemed, a browser sign-in not yet back) a full registry means no.
+function assertRoomForAccount(accountId?: string): void {
+  const { accounts } = useAccountStore.getState();
+  if (accountId && accounts.some((a) => a.id === accountId)) return;
+  if (accounts.length >= MAX_ACCOUNTS) throw new AccountLimitError();
+}
+
+// Adding an account to a full registry: refuse before a sign-in code is
+// spent or a browser sign-in started, since what they buy can't be kept.
+function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { addAccount?: boolean }): void {
+  if (!opts?.addAccount) return;
+  try {
+    assertRoomForAccount();
+  } catch (err) {
+    set({ isLoading: false, error: err instanceof Error ? err.message : String(err) });
+    throw err;
+  }
+}
+
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
-// A QR-paired phone shares the desktop's token, so those are left alone.
+// QR-paired bundles are left alone: webmail up to 1.11 handed the phone the
+// desktop's own refresh token, and newer ones hand out a separate grant whose
+// refresh token only the webmail's token proxy understands.
 async function revokeStoredRefreshToken(accountId: string): Promise<void> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
@@ -412,6 +469,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (serverUrl, username, password, opts) => {
     set({ isLoading: true, error: null });
     try {
+      // A new account with no room left fails here, before connect swaps
+      // the live client over or stores credentials for it.
+      assertRoomForAccount(generateAccountId(username, serverUrl.replace(/\/+$/, '')));
       // Adding an additional account keeps the live connection until the
       // new sign-in succeeded, so a typo doesn't kill the current session.
       await signIn(set, get, opts, async () => {
@@ -438,8 +498,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  loginWithToken: async (serverUrl, typedToken, opts) => {
+    set({ isLoading: true, error: null });
+    // Pasted tokens often come with the scheme or surrounding whitespace.
+    const token = typedToken.trim().replace(/^Bearer\s+/i, '');
+    const base = serverUrl.replace(/\/+$/, '');
+    try {
+      if (!token || /\s/.test(token)) throw new InvalidTokenError();
+      await signIn(set, get, opts, async () => {
+        const { session, username, accountId } = await jmapClient.connectWithToken(base, token);
+        return { session, serverUrl: base, username, accountId };
+      });
+      set({ pendingTotpLogin: null });
+    } catch (err) {
+      set({ isLoading: false, error: err instanceof Error ? err.message : 'Connection failed' });
+      throw err;
+    }
+  },
+
   loginViaWebmail: async (webmailUrl, opts) => {
     set({ isLoading: true, error: null });
+    refuseAddWhenFull(set, opts);
     // Discovery finds the *JMAP* host; a Bulwark webmail is not necessarily
     // served there. Opening `/login?mobile_redirect_uri=…` on a bare Stalwart
     // lands on a 404 or the admin page, so check first and fall back to the
@@ -495,6 +574,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loginViaOAuth: async (serverUrl, opts) => {
     set({ isLoading: true, error: null });
+    refuseAddWhenFull(set, opts);
     const base = serverUrl.replace(/\/+$/, '');
     let tokens;
     try {
@@ -525,34 +605,73 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loginViaPairing: async (webmailUrl, code, opts) => {
+    // A code is good for one redemption. The same link can reach us twice
+    // (a deep link re-read on launch, a double tap, a scan racing a paste);
+    // the second attempt must not spend a request only to be told "used".
+    if (pairingCodesSeen.has(code)) {
+      throw new PairingError('used', 'This pairing code was already used on this device', {
+        host: hostOfUrl(webmailUrl),
+      });
+    }
+    // With no room for another account the code stays unspent: redeeming it
+    // would only buy a sign-in the registry can't keep.
+    refuseAddWhenFull(set, opts);
+    pairingCodesSeen.add(code);
+
     set({ isLoading: true, error: null });
-    let result;
+    let result: HandoffResult;
     try {
       result = await redeemPairingCode(webmailUrl, code);
     } catch (err) {
+      // Not redeemed here: the server is the judge of a retry (it answers
+      // "used" if the request did get through).
+      pairingCodesSeen.delete(code);
       const message = err instanceof Error ? err.message : 'Pairing failed';
       set({ isLoading: false, error: message });
       throw err;
     }
 
-    // redeemPairingCode only ever yields the OAuth flow, but guard anyway so a
-    // future server change can't silently mis-route credentials here.
-    if (result.flow !== 'oauth') {
-      set({ isLoading: false, error: 'Unexpected pairing response' });
-      throw new Error('Unexpected pairing response');
+    // The code is spent from here on. A failure to sign in with what it
+    // bought needs a new code, which the error says. Two failures keep their
+    // own error: a second factor the login screen can still ask for (servers
+    // without app passwords hand over the account password, which `login`
+    // keeps for that step), and the account limit, which a new code won't fix.
+    const serverHost = hostOfUrl(result.serverUrl);
+    const connectFailed = (err: unknown): unknown => {
+      if (err instanceof Error && (err.name === 'TotpRequiredError' || err instanceof AccountLimitError)) {
+        // `login` has settled the store already; the OAuth path has not.
+        if (get().isLoading) set({ isLoading: false, error: err.message });
+        return err;
+      }
+      const message = err instanceof AuthenticationError
+        ? 'Authentication rejected by server'
+        : err instanceof Error
+          ? err.message
+          : 'Pairing sign-in failed';
+      const wrapped = new PairingError('connect_failed', `Signed in, but connecting failed: ${message}`, {
+        host: serverHost,
+        cause: err,
+      });
+      set({ isLoading: false, error: wrapped.message });
+      return wrapped;
+    };
+
+    if (result.flow === 'password') {
+      // An app password (or, for servers without them, the account
+      // password): the normal password sign-in, which also keeps the live
+      // account when adding another one fails.
+      try {
+        await get().login(result.serverUrl, result.username, result.password, { addAccount: opts?.addAccount });
+      } catch (err) {
+        throw connectFailed(err);
+      }
+      return;
     }
 
     try {
       await completeOAuthHandoff(set, get, result, opts);
     } catch (err) {
-      const message =
-        err instanceof AuthenticationError
-          ? 'Authentication rejected by server'
-          : err instanceof Error
-            ? err.message
-            : 'Pairing sign-in failed';
-      set({ isLoading: false, error: message });
-      throw err;
+      throw connectFailed(err);
     }
   },
 
@@ -563,6 +682,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     pendingSwitch = null;
     const accountStore = useAccountStore.getState();
     const currentId = get().activeAccountId;
+
+    // Device sync (#34): upload what this device changed and remove the
+    // Android account while the credentials are still here. When changes
+    // could not be uploaded the user is asked, and may stay signed in.
+    if (currentId && !(await releaseDeviceSyncBeforeSignOut([currentId]))) return;
 
     // Best-effort: revoke this account's JMAP PushSubscription and drop its
     // relay mapping before we lose credentials. Other logged-in accounts'
@@ -637,6 +761,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     pendingSwitch = null;
     const accountStore = useAccountStore.getState();
     const ids = accountStore.accounts.map((a) => a.id);
+    // Device sync (#34): as in logout, for every account.
+    if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
     await teardownPushNotifications().catch(() => undefined);
     for (const id of ids) await revokeStoredRefreshToken(id);
     await jmapClient.clearAllCredentials(ids);
@@ -790,6 +916,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     const accountStore = useAccountStore.getState();
     if (!accountStore.getAccountById(accountId)) return;
+    // Device sync (#34): as in logout.
+    if (!(await releaseDeviceSyncBeforeSignOut([accountId]))) return;
     await teardownPushNotificationsForAccount(accountId).catch(() => undefined);
     await revokeStoredRefreshToken(accountId);
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
@@ -800,6 +928,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   restoreSession: async () => {
     set({ isLoading: true });
+    perfMark('restore-start');
     let restored!: () => void;
     const restoring = new Promise<void>((resolve) => { restored = resolve; });
     restoreUnderWay = restoring;
@@ -815,6 +944,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         waitForHydration(useCalendarStore),
         waitForHydration(useContactsStore),
       ]);
+      perfMark('restore-hydrated');
       const accountStore = useAccountStore.getState();
 
       // Legacy migration: if there are no registered accounts but the old
@@ -850,6 +980,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       try {
         const ok = await jmapClient.loadAccount(target.id);
+        perfMark('restore-session');
         if (!ok) {
           // No stored credentials (or corrupt) — genuine logout.
           accountStore.removeAccount(target.id);
@@ -904,6 +1035,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const session = jmapClient.currentSession!;
       await checkServerChange(target.id, session);
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
+      perfMark('restore-done');
       // Refresh the cached mailbox list + current folder now that the session
       // is live. Feature stores show persisted data immediately; this swaps
       // in fresh data once the network round-trip completes.

@@ -1,13 +1,14 @@
 import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'react-native';
 import {
   DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef, useIsFocused,
 } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Mail, Calendar, BookUser, HardDrive, Settings } from 'lucide-react-native';
+import { Mail, Calendar, BookUser, HardDrive, Settings } from './src/components/icons';
 
 import { startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream';
 import { jmapClient } from './src/api/jmap-client';
@@ -19,6 +20,7 @@ import {
   startCalendarReminderTapHandling,
 } from './src/lib/calendar-notifications';
 import { startLivenessMonitor } from './src/lib/connection-liveness';
+import { startDeviceSyncTriggers } from './src/device-sync/app/triggers';
 import {
   setPendingCalendarOpen,
   type CalendarReminderTarget,
@@ -38,15 +40,18 @@ import {
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
 import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
+
+// Pause between a mute change and the push-filter update it sends (#78).
+const MUTES_RESYNC_DELAY_MS = 1_000;
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
 import EmailThreadScreen from './src/screens/EmailThreadScreen';
 import EmailSourceScreen from './src/screens/EmailSourceScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import EmailListScreen from './src/screens/EmailListScreen';
+import MailTab from './src/screens/MailTab';
 import FilesScreen from './src/screens/FilesScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
-import ContactsScreen from './src/screens/ContactsScreen';
+import ContactsTab from './src/screens/ContactsTab';
 import ContactDetailScreen from './src/screens/ContactDetailScreen';
 import ContactFormScreen from './src/screens/ContactFormScreen';
 import GroupDetailScreen from './src/screens/GroupDetailScreen';
@@ -57,12 +62,13 @@ import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
-import { useEmailStore, viewerParamsForRow } from './src/stores/email-store';
-import { mailboxAccountId } from './src/lib/mailbox-tree';
-import { prefetchMessage } from './src/lib/email-detail-cache';
+import { useEmailStore } from './src/stores/email-store';
+import { loadDetail, prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
+import { useLayout } from './src/lib/use-layout';
+import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
 import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
@@ -71,18 +77,34 @@ import { ToastHost } from './src/components/ToastHost';
 import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { AppIconBadge } from './src/components/AppIconBadge';
 import { getEmails } from './src/api/email';
-import { handleDeepLink, parseDeepLink, shareToDeepLink, type DeepLink } from './src/navigation/linking';
+import { signOutWidgets, startWidgetSync } from './src/widgets/sync';
+import { draftContextFromEmail } from './src/lib/draft-context';
+import {
+  acceptSignInLink,
+  handleDeepLink,
+  parseDeepLink,
+  routeParkedSignInLink,
+  shareToDeepLink,
+  type DeepLink,
+} from './src/navigation/linking';
+import { usePendingSignInLinkStore } from './src/navigation/pending-sign-in-link';
+import { MAX_ACCOUNTS } from './src/lib/account-utils';
 import { addShareListener, getInitialShare, shareAttachments } from './src/lib/share-intent';
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
+import { perfEndAfterPaint, perfMarksEnabled, perfStart } from './src/lib/perf-marks';
 import { useColors } from './src/theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+// The launch URL is read once per process: Android hands the same intent back
+// on every getInitialURL(), and a sign-in link must not run twice.
+let initialSignInLinkRead = false;
 
 async function navigateToNotificationTap(payload: NotificationTapPayload): Promise<void> {
   if (!navigationRef.isReady()) return;
@@ -103,9 +125,11 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
   navigationRef.navigate('EmailThread', {
     emailId: payload.emailId,
     threadId: payload.threadId,
+    emailIds: [payload.emailId],
     subject: payload.subject,
     // A group mailbox's message lives under another JMAP account (#839).
     jmapAccountId: notificationTapJmapAccountId(payload),
+    ...(payload.action === 'reply' ? { action: 'reply' as const } : {}),
   });
 }
 
@@ -132,14 +156,25 @@ async function openCalendarReminder(target: CalendarReminderTarget): Promise<voi
 // Deep links (bulwarkmobile://, webmail https permalinks, mailto:) and
 // Android share-sheet payloads all end up here once the navigator is ready.
 async function openDeepLink(link: DeepLink): Promise<void> {
-  await handleDeepLink(link, {
+  const opened = await handleDeepLink(link, {
     navigation: navigationRef,
-    resolveThreadId: async (emailId) => {
+    resolveThreadId: async (emailId, jmapAccountId) => {
       try {
-        const [email] = await getEmails([emailId]);
+        const [email] = await getEmails([emailId], jmapAccountId);
         return email?.threadId ?? null;
       } catch {
         return null;
+      }
+    },
+    openDraft: async (emailId, jmapAccountId) => {
+      try {
+        // Cache first, so a draft read before still opens offline.
+        const draft = draftContextFromEmail(await loadDetail(emailId, jmapAccountId), jmapAccountId);
+        if (!navigationRef.isReady()) return false;
+        navigationRef.navigate('Compose', { draft });
+        return true;
+      } catch {
+        return false;
       }
     },
     switchAccount: async (accountId) => {
@@ -150,6 +185,9 @@ async function openDeepLink(link: DeepLink): Promise<void> {
       return useAuthStore.getState().activeAccountId === accountId;
     },
   });
+  // A widget or a link elsewhere brought the app up for this; say it failed
+  // rather than leave the user wondering why the app just opened.
+  if (!opened) toast.error(useLocaleStore.getState().t('deep_link.open_failed', "Couldn't open this"));
 }
 
 // Toasts and the undo bar show on whichever stack screen is up, so a failure
@@ -211,21 +249,43 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
     settings: t('sidebar.settings', 'Settings'),
   };
   const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
+  // Side by side layouts move the tabs into a rail on the left, like the
+  // webmail's navigation rail.
+  const { isSplit } = useLayout();
+  // A bottom tab bar keeps the screens clear of the gesture bar or taskbar;
+  // with the tabs in a side rail the whole tab area has to.
+  const bottomInset = useSafeAreaInsets().bottom;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.background }}>
+    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: isSplit ? bottomInset : 0 }}>
       <UpdateBanner />
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
       <AppIconBadge />
     <Tab.Navigator
+      screenListeners={perfMarksEnabled() ? ({ route }) => ({
+        tabPress: () => perfStart('tab-switch'),
+        focus: () => perfEndAfterPaint('tab-switch', { to: route.name }),
+      }) : undefined}
       screenOptions={{
         headerShown: false,
         // Tabs out of view stop re-rendering until they are shown again.
         freezeOnBlur: true,
+        tabBarPosition: isSplit ? 'left' : 'bottom',
+        tabBarVariant: isSplit ? 'material' : 'uikit',
+        // A narrow rail (icon over label), not a wide sidebar with labels
+        // beside the icons.
+        ...(isSplit ? { tabBarLabelPosition: 'below-icon' as const } : null),
         tabBarActiveTintColor: c.text,
         tabBarInactiveTintColor: c.textSecondary,
-        tabBarStyle: {
+        tabBarStyle: isSplit ? {
+          backgroundColor: c.secondary,
+          borderRightColor: c.border,
+          borderRightWidth: 1,
+          elevation: 0,
+          shadowOpacity: 0,
+          shadowColor: 'transparent',
+        } : {
           backgroundColor: c.background,
           borderTopColor: c.border,
           borderTopWidth: 1,
@@ -243,6 +303,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Mail"
         options={{
           title: tabLabels.mail,
+          tabBarButtonTestID: 'tab-mail',
           tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
           tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
           tabBarBadgeStyle: {
@@ -259,36 +320,14 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           },
         }}
       >
-        {() => (
-          <EmailListScreen
-            onComposePress={() => navigation.navigate('Compose')}
-            onEmailPress={(email) => {
-              // The list holds the open folder's mail: name its account so the
-              // viewer never has to guess it from whatever folder is open.
-              const { mailboxes: all, currentMailboxId } = useEmailStore.getState();
-              const target = {
-                jmapAccountId: mailboxAccountId(all, currentMailboxId),
-                // A row of an "All folders" list or a tag view names its own
-                // account instead, and pages over that account's rows.
-                ...viewerParamsForRow(email),
-              };
-              // Start on the body now: mounting the viewer takes a while.
-              prefetchMessage(email, target.jmapAccountId);
-              navigation.navigate('EmailThread', {
-                emailId: email.id,
-                threadId: email.threadId,
-                subject: email.subject,
-                ...target,
-              });
-            }}
-          />
-        )}
+        {() => <MailTab navigation={navigation} />}
       </Tab.Screen>
       <Tab.Screen
         name="Calendar"
         component={CalendarScreen}
         options={{
           title: tabLabels.calendar,
+          tabBarButtonTestID: 'tab-calendar',
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
           tabBarItemStyle: hasCalendar ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasCalendar ? tabLabels.calendar : unavailable(tabLabels.calendar),
@@ -301,9 +340,10 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       />
       <Tab.Screen
         name="Contacts"
-        component={ContactsScreen}
+        component={ContactsTab}
         options={{
           title: tabLabels.contacts,
+          tabBarButtonTestID: 'tab-contacts',
           tabBarIcon: ({ color, size }) => <BookUser size={size} color={color} />,
           tabBarItemStyle: hasContacts ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasContacts ? tabLabels.contacts : unavailable(tabLabels.contacts),
@@ -319,6 +359,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={FilesScreen}
         options={{
           title: tabLabels.files,
+          tabBarButtonTestID: 'tab-files',
           tabBarIcon: ({ color, size }) => <HardDrive size={size} color={color} />,
           tabBarItemStyle: hasFiles ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasFiles ? tabLabels.files : unavailable(tabLabels.files),
@@ -333,6 +374,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Settings"
         options={{
           title: tabLabels.settings,
+          tabBarButtonTestID: 'tab-settings',
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       >
@@ -370,6 +412,7 @@ export default function App() {
   // cached mail list instead of the "Restoring session" spinner; the real
   // JMAP session comes up in the background.
   const hasPersistedAccount = useAccountStore((state) => state.activeAccountId != null);
+  const { isSplit } = useLayout();
 
   React.useEffect(() => {
     if (!hasRestoredSession) {
@@ -383,8 +426,19 @@ export default function App() {
     // Calendar reminders are kept scheduled from launch, not only once the
     // Calendar tab has been opened.
     startCalendarNotificationSync();
+    // Device sync (Android, #34): live changes, the app's own edits and the
+    // foreground ask Android to sync; accounts are checked against Android's.
+    startDeviceSyncTriggers();
     return useNetworkStore.getState().init();
   }, []);
+
+  // Home-screen widgets follow the signed-in data; once the last account is
+  // gone they are wiped so no mail stays visible on the launcher.
+  React.useEffect(() => {
+    if (isAuthenticated) return startWidgetSync();
+    if (hasRestoredSession) void signOutWidgets();
+    return undefined;
+  }, [isAuthenticated, hasRestoredSession]);
 
   // When the network flips back on while we're authenticated-but-offline
   // (no live JMAP session), retry the session so the user lands back on
@@ -542,6 +596,52 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
+  // Sign-in links (`bulwarkmail://pair?…` from the webmail's Link Mobile App,
+  // `bulwarkmail://connect?…`) work signed out too, so unlike the links above
+  // they are listened for from launch. They are parked for the login screen
+  // (the signed-out one takes them as it mounts), marked as coming from
+  // outside the app: any page or app can fire one, so the login screen asks
+  // before it redeems or opens anything.
+  React.useEffect(() => {
+    if (!initialSignInLinkRead) {
+      initialSignInLinkRead = true;
+      void Linking.getInitialURL().then((url) => { acceptSignInLink(url); }).catch(() => undefined);
+    }
+    const subscription = Linking.addEventListener('url', ({ url }) => { acceptSignInLink(url); });
+    return () => subscription.remove();
+  }, []);
+
+  // Signed in, a sign-in link adds an account: open Add account, whose login
+  // screen takes the parked link (or says why a refused one won't be used).
+  // On a cold start the navigator mounts right after the auth gate flips, so
+  // wait for it like a reminder tap does.
+  const signInLinkPending = usePendingSignInLinkStore((s) => s.pending !== null || s.refusal !== null);
+  const addAccountForLink = isAuthenticated && signInLinkPending;
+  React.useEffect(() => {
+    if (!addAccountForLink) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 50 && !navigationRef.isReady(); attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (cancelled) return;
+      }
+      if (cancelled || !navigationRef.isReady()) return;
+      const route = routeParkedSignInLink(useAccountStore.getState().accounts.length);
+      if (route === 'account-limit') {
+        // Said like the Add account buttons say it, instead of opening a
+        // screen whose sign-in can only fail.
+        const t = useLocaleStore.getState().t;
+        toast.error(
+          t('settings.account.accounts.limit', 'Maximum of {count} accounts reached.', { count: MAX_ACCOUNTS }),
+          t('login.mobile.err_account_limit_detail', 'Remove an account in Settings to add another one.'),
+        );
+        return;
+      }
+      if (route === 'add-account') navigationRef.navigate('AddAccount');
+    })();
+    return () => { cancelled = true; };
+  }, [addAccountForLink]);
+
   // Re-register the device with the configured relay once authenticated,
   // and whenever the FCM token rotates. Honours the user's notification
   // preference - flipping it off tears down THIS account's subscription so
@@ -597,6 +697,41 @@ export default function App() {
       unsubscribeUp();
     };
   }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId]);
+
+  // Muting a folder or account changes the server-side push filter (#78),
+  // which the setup above would only send at the next launch. Send it now,
+  // after a short pause so a few taps in a row make one update. Compared by
+  // content, since hydration hands back an equal but new object; the value
+  // seen first after hydration is the baseline, not a change.
+  const notificationMutes = useSettingsStore((s) => s.notificationMutes);
+  const settingsHydrated = useSettingsStore((s) => s.hydrated);
+  const mutesKey = JSON.stringify(notificationMutes);
+  const lastMutesKey = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!settingsHydrated) return;
+    if (lastMutesKey.current === null || lastMutesKey.current === mutesKey) {
+      lastMutesKey.current = mutesKey;
+      return;
+    }
+    lastMutesKey.current = mutesKey;
+    if (!isAuthenticated || !client || !emailNotificationsEnabled) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const relayBaseUrl = await getStoredRelayBaseUrl();
+      if (!relayBaseUrl || cancelled) return;
+      try {
+        await resyncPushNotifications({ relayBaseUrl, accountLabel: client.username ?? undefined });
+      } catch (error) {
+        console.warn('[push] mute update failed:', error instanceof Error ? error.message : error);
+      }
+    }, MUTES_RESYNC_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // Only a change of the mutes should send an update; the rest is read live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mutesKey, settingsHydrated]);
 
   // Live updates (SSE with polling fallback), re-armed on every account
   // switch and every re-established session — the singleton `client` object
@@ -749,10 +884,11 @@ export default function App() {
         <Stack.Screen
           name="Compose"
           component={ComposeScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
+          // A tablet shows the composer as a panel over the screen it came
+          // from, so that screen stays drawn behind the dimmed backdrop.
+          options={isSplit
+            ? { presentation: 'transparentModal', animation: 'fade' }
+            : { presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
         <Stack.Screen

@@ -1,0 +1,36 @@
+# From a message list: open the message whose row mentions SUBJECT.
+# A row near the bottom can count as visible while the phone's tab bar
+# covers it (the tap then opens another tab): on the phone, scroll it to the
+# middle. The iPad's list is a column Maestro's scroll (in the middle of the
+# screen) doesn't reach; its rows fit on screen.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - scrollUntilVisible:
+          element: ".*${SUBJECT}.*"
+          direction: DOWN
+          centerElement: true
+          visibilityPercentage: 100
+          timeout: 30000
+- runFlow:
+    when:
+      true: ${DEVICE == 'tablet'}
+    commands:
+      - scrollUntilVisible:
+          element: ".*${SUBJECT}.*"
+          direction: DOWN
+          timeout: 30000
+# A tap while the list still moves lands on another row.
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn: ".*${SUBJECT}.*"
+# The message toolbar's "more" button: "Reply All" shows on the phone, but
+# the iPad pane has a quick reply box instead for mail to one recipient.
+- extendedWaitUntil:
+    visible: "more"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000

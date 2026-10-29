@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { RotateCcw } from 'lucide-react-native';
+import { RotateCcw } from '../icons';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import Input from '../Input';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -179,7 +179,7 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.muted,
       gap: 2,
     },
-    previewLabel: { fontSize: 11, fontWeight: '600', color: c.mutedForeground, textTransform: 'uppercase' },
+    previewLabel: { fontSize: 12, fontWeight: '500', color: c.mutedForeground },
     previewValue: { ...typography.captionMedium, color: c.text },
     tokenWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.md },
     tokenPill: {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Paperclip, Reply, ReplyAll, Forward, Star } from 'lucide-react-native';
+import { Paperclip, Reply, ReplyAll, Forward, Star } from '../icons';
 import type { Email } from '../../api/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -74,16 +74,16 @@ export function ThreadMessageCard({
       <MessageContent {...content} compact={false} onToggleStar={bare ? undefined : onToggleStar} />
       {!bare && (
         <View style={[styles.actions, !replyable && styles.actionsDisabled]}>
-          <Pressable style={styles.actionBtn} onPress={reply('reply')} hitSlop={4}>
-            <Reply size={16} color={c.textSecondary} />
+          <Pressable style={styles.actionBtn} onPress={reply('reply')} hitSlop={6}>
+            <Reply size={16} color={c.text} />
             <Text style={styles.actionLabel}>{t('email_viewer.reply', 'Reply')}</Text>
           </Pressable>
-          <Pressable style={styles.actionBtn} onPress={reply('replyAll')} hitSlop={4}>
-            <ReplyAll size={16} color={c.textSecondary} />
+          <Pressable style={styles.actionBtn} onPress={reply('replyAll')} hitSlop={6}>
+            <ReplyAll size={16} color={c.text} />
             <Text style={styles.actionLabel}>{t('email_viewer.reply_all', 'Reply All')}</Text>
           </Pressable>
-          <Pressable style={styles.actionBtn} onPress={reply('forward')} hitSlop={4}>
-            <Forward size={16} color={c.textSecondary} />
+          <Pressable style={styles.actionBtn} onPress={reply('forward')} hitSlop={6}>
+            <Forward size={16} color={c.text} />
             <Text style={styles.actionLabel}>{t('email_viewer.forward', 'Forward')}</Text>
           </Pressable>
         </View>
@@ -159,13 +159,14 @@ function makeStyles(c: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
+      // Webmail thread card: outline buttons, h-9, rounded-md.
       paddingHorizontal: spacing.md,
-      paddingVertical: 6,
-      borderRadius: radius.full,
+      minHeight: 36,
+      borderRadius: radius.sm,
       borderWidth: 1,
       borderColor: c.border,
-      backgroundColor: c.surface,
+      backgroundColor: 'transparent',
     },
-    actionLabel: { ...typography.caption, color: c.textSecondary },
+    actionLabel: { ...typography.bodyMedium, color: c.text },
   });
 }

@@ -12,6 +12,7 @@ import {
   insertSignatureAboveQuote,
   signatureIdentityFor,
   signPlainTextReply,
+  signatureHasOwnDelimiter,
 } from '../signature-utils';
 
 describe('sanitizeSignatureHtml', () => {
@@ -113,5 +114,25 @@ describe('signPlainTextReply', () => {
 
   it('leaves the reply alone without a signature', () => {
     expect(signPlainTextReply('Thanks', 'q', null, { position: 'above_quote', separator: true })).toBe('Thanks\n\nq');
+  });
+});
+
+describe('a signature with its own "-- " line', () => {
+  const own = { textSignature: '-- \nUser A\nstw-test' };
+  const plain = { textSignature: 'User A\nstw-test' };
+
+  it('is detected, also with a bare "--" or a leading blank line', () => {
+    expect(signatureHasOwnDelimiter(own)).toBe(true);
+    expect(signatureHasOwnDelimiter({ textSignature: '\n--\nUser A' })).toBe(true);
+    expect(signatureHasOwnDelimiter(plain)).toBe(false);
+    expect(signatureHasOwnDelimiter({ htmlSignature: '<p>-- </p><p>User A</p>' })).toBe(true);
+  });
+
+  it('gets no second separator in plain text or HTML', () => {
+    const delimiters = (text: string) => text.split('\n').filter((line) => /^--\s*$/.test(line)).length;
+    expect(delimiters(appendPlainTextSignature('Hi', own, { separator: true }))).toBe(1);
+    expect(appendPlainTextSignature('Hi', plain, { separator: true })).toBe('Hi\n\n-- \nUser A\nstw-test');
+    expect(buildEmbeddedSignatureHtml(own, { separator: true })).not.toContain('="separator"');
+    expect(buildEmbeddedSignatureHtml(plain, { separator: true })).toContain('="separator"');
   });
 });

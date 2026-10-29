@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Mail as MailIcon, CalendarDays } from 'lucide-react-native';
+import { Mail as MailIcon, CalendarDays } from '../icons';
 import { format, isAfter, parseISO, type Locale } from 'date-fns';
 import type { ContactCard, Email, CalendarEvent } from '../../api/types';
 import type { RootStackParamList } from '../../navigation/types';
@@ -281,6 +281,9 @@ function makeStyles(c: ThemePalette) {
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sectionIcon: { width: 16 },
   sectionLabel: {
+    // Fill the row: shrink-wrapped, Android measured the letter-spaced
+    // label a few px short and wrapped its last word out of sight ("WOR").
+    flex: 1,
     ...typography.bodyMedium,
     color: c.textSecondary,
     textTransform: 'uppercase',

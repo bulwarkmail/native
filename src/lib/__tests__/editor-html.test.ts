@@ -196,3 +196,87 @@ describe('editor page messages', () => {
     expect((page.selections()[1].payload as { bold: boolean }).bold).toBe(true);
   });
 });
+
+// Android pans the editor page's visual viewport to reveal the caret and the
+// pan outlived the moment: back at the top of the composer the body's first
+// lines stayed hidden under To/Cc/Subject. The page undoes each pan and hands
+// the offset to RN instead.
+describe('editor visual viewport pinning', () => {
+  function boot(pinVisualViewport: boolean | undefined, withVisualViewport = true) {
+    const posted: Array<{ type: string; payload: unknown }> = [];
+    const scrolledIntoView: unknown[] = [];
+    const vvListeners: Record<string, Array<() => void>> = {};
+    const visualViewport = {
+      offsetTop: 0,
+      addEventListener: (name: string, fn: () => void) => { (vvListeners[name] ??= []).push(fn); },
+    };
+    const editor = {
+      innerHTML: '',
+      get textContent() { return this.innerHTML.replace(/<[^>]*>/g, ''); },
+      scrollHeight: 100,
+      querySelector: () => null,
+      setAttribute: () => undefined,
+      focus: () => undefined,
+      addEventListener: () => undefined,
+      // Resetting the pan is what scrolling the page top into view does.
+      scrollIntoView: (opts: unknown) => { scrolledIntoView.push(opts); visualViewport.offsetTop = 0; },
+    };
+    const document = {
+      activeElement: editor as unknown,
+      getElementById: () => editor,
+      addEventListener: () => undefined,
+      queryCommandState: () => false,
+    };
+    const window = {
+      ReactNativeWebView: { postMessage: (msg: string) => posted.push(JSON.parse(msg)) },
+      addEventListener: () => undefined,
+      getSelection: () => null,
+      visualViewport: withVisualViewport ? visualViewport : undefined,
+    };
+    const script = extractScript(buildEditorHtml({
+      initialHtml: '<p><br></p>', placeholder: '', c: LIGHT_COLORS, pinVisualViewport,
+    }));
+    new Function('window', 'document', script)(window, document);
+    const pan = (offsetTop: number) => {
+      visualViewport.offsetTop = offsetTop;
+      (vvListeners.scroll ?? []).forEach((fn) => fn());
+    };
+    const shifts = () => posted.filter((m) => m.type === 'viewportShift').map((m) => m.payload);
+    return { pan, shifts, scrolledIntoView, visualViewport, vvListeners };
+  }
+
+  it('undoes a caret-reveal pan and reports its offset to RN', () => {
+    const page = boot(true);
+    page.pan(18.5);
+    expect(page.visualViewport.offsetTop).toBe(0);
+    expect(page.scrolledIntoView).toEqual([{ block: 'start', inline: 'nearest' }]);
+    expect(page.shifts()).toEqual([18.5]);
+  });
+
+  it('ignores the scroll event its own reset fires', () => {
+    const page = boot(true);
+    page.pan(40);
+    page.pan(0);
+    page.pan(0.2);
+    expect(page.shifts()).toEqual([40]);
+    expect(page.scrolledIntoView).toHaveLength(1);
+  });
+
+  it('reports each later pan separately', () => {
+    const page = boot(true);
+    page.pan(12);
+    page.pan(30);
+    expect(page.shifts()).toEqual([12, 30]);
+  });
+
+  it('leaves the viewport alone unless asked (iOS, settings editors)', () => {
+    const off = boot(false);
+    expect(off.vvListeners.scroll).toBeUndefined();
+    const unset = boot(undefined);
+    expect(unset.vvListeners.scroll).toBeUndefined();
+  });
+
+  it('survives a WebView without visualViewport', () => {
+    expect(() => boot(true, false)).not.toThrow();
+  });
+});

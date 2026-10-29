@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { Check } from '../icons';
 import { SettingsSection } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { resolvePalette, useColors, useResolvedTheme } from '../../theme/colors';

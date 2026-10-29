@@ -1,0 +1,31 @@
+# From the sign-in choices: enter a server address by hand and continue to the
+# confirm step. env HOST: the address as a user types it.
+appId: org.bulwarkmail.mobile
+---
+- tapOn: "Enter server details manually"
+- extendedWaitUntil:
+    visible:
+      id: login-server-input
+    timeout: 10000
+- runFlow:
+    file: type.yaml
+    env:
+      FIELD: login-server-input
+      TAP: "no"
+      TEXT: ${HOST}
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000
+    optional: true
+# Once in a while the tap doesn't reach the button (it moves as the keyboard
+# goes away): tap again if the form is still there.
+- runFlow:
+    when:
+      visible:
+        id: login-server-input
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000

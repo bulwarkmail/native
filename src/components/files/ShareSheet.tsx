@@ -11,7 +11,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Folder, FileText, Trash2, UserPlus, Users } from 'lucide-react-native';
+import { Folder, FileText, Trash2, UserPlus, Users } from '../icons';
 
 import { isFolder, listPrincipals, ownPrincipalId, setFileNodeShare, type PrincipalListing } from '../../api/files';
 import type { FileNode, FileNodeRights, Principal } from '../../api/types';
@@ -20,6 +20,8 @@ import { fileErrorMessage } from '../../lib/file-errors';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
 
 type RolePreset = 'read' | 'readWrite' | 'manager';
 
@@ -67,6 +69,8 @@ interface ShareSheetProps {
 }
 
 export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -107,6 +111,9 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
   );
 
   const candidates = useMemo(() => {
+    // The sheet is mounted with the Files tab, before a session may exist
+    // (an offline cold start): nobody to list yet, and no own id to read.
+    if (principals.length === 0) return [];
     const self = ownPrincipalId();
     const q = search.trim().toLowerCase();
     return principals
@@ -178,10 +185,10 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
   };
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <View style={styles.titleRow}>
                 <Icon size={18} color={c.textMuted} />
@@ -233,8 +240,21 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
                             <ActivityIndicator size="small" color={c.textMuted} />
                           ) : (
                             <Pressable
-                              onPress={() => void applyShare(principalId, null)}
+                              // Revoking access is immediate on the server: ask first.
+                              onPress={() => Alert.alert(
+                                t('files.share_remove_confirm', 'Remove access?'),
+                                undefined,
+                                [
+                                  { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+                                  {
+                                    text: t('files.share_remove', 'Remove access'),
+                                    style: 'destructive',
+                                    onPress: () => { void applyShare(principalId, null); },
+                                  },
+                                ],
+                              )}
                               hitSlop={8}
+                              accessibilityRole="button"
                               accessibilityLabel={t('files.share_remove', 'Remove access')}
                             >
                               <Trash2 size={18} color={c.error} />

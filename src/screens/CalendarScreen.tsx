@@ -8,25 +8,25 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  ScrollView,
-  RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { multiDayCount } from '../lib/calendar-time-grid';
 import {
+  Calendar as CalendarIcon,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Plus,
-  Calendar1,
-  CalendarDays,
-  LayoutGrid,
-  List as ListIcon,
+  Columns3,
+  Columns4,
+  Grid3x3,
   ListChecks,
   Menu,
-} from 'lucide-react-native';
+  Rows2,
+  Square,
+} from '../components/icons';
 import {
   format,
-  startOfWeek,
-  endOfWeek,
   addDays,
   subDays,
   addMonths,
@@ -36,10 +36,9 @@ import {
   type Locale,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
-import { displayNow, isDisplayToday } from '../lib/calendar-timezone';
+import { displayNow } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { Button } from '../components';
 import { useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { MonthView } from '../components/calendar/MonthView';
@@ -47,14 +46,15 @@ import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
 import { TimeGridScrollView } from '../components/calendar/TimeGridScrollView';
 import { AgendaView } from '../components/calendar/AgendaView';
-import { EventCard } from '../components/calendar/EventCard';
 import { EventDetailSheet } from '../components/calendar/EventDetailSheet';
 import { EventModal } from '../components/calendar/EventModal';
 import {
   RecurrenceScopeDialog,
   type RecurrenceEditScope,
 } from '../components/calendar/RecurrenceScopeDialog';
-import { CalendarSidebarDrawer } from '../components/calendar/CalendarSidebarDrawer';
+import { CalendarSidebarDrawer, type DrawerViewOption } from '../components/calendar/CalendarSidebarDrawer';
+import { CalendarFab } from '../components/calendar/CalendarFab';
+import { MonthDropdown } from '../components/calendar/MonthDropdown';
 import { TasksSheet } from '../components/calendar/TasksSheet';
 import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
 import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
@@ -71,6 +71,7 @@ import {
   scrollWindowLoadRange,
   windowStateForJump,
   type CalendarFocus,
+  type ScrollViewMode,
   type ScrollWindowOptions,
   type ScrollWindowState,
 } from '../lib/calendar-scroll-window';
@@ -81,14 +82,12 @@ import {
   buildEventDayIndex,
   changedCalendarFields,
   dayKey,
-  eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
   getTaskDueDate,
   pickUnusedCalendarColor,
   sharedCalendarColorKey,
-  type EventDayIndex,
-  type TimeFormat,
+  reopenedEdit,
 } from '../lib/calendar-utils';
 import { buildReplyTo } from '../lib/calendar-invitation';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
@@ -97,6 +96,7 @@ import { participantLimitMessage } from '../lib/calendar-participants';
 import { maxParticipantsPerEvent } from '../api/calendar';
 import { useContactNameResolver } from '../lib/contact-name-resolver';
 import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from '../lib/birthday-calendar';
+import { moveCalendar } from '../lib/calendar-sort';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
@@ -107,7 +107,18 @@ import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent } from '../api/types';
 
-type ViewMode = 'month' | 'week' | 'day' | 'agenda';
+type ViewMode = 'month' | 'week' | '3day' | 'day' | 'agenda';
+
+// The three-day grid scrolls through the same window of days as the day view.
+function windowMode(mode: ViewMode): ScrollViewMode {
+  return mode === '3day' ? 'day' : mode;
+}
+
+// A window without free scrolling: one period, the multi-day grid's days.
+function fixedWindowFor(mode: ViewMode, anchor: Date, multiDays: number): ScrollWindowState {
+  const state = fixedScrollWindowState(windowMode(mode), anchor);
+  return mode === '3day' ? { ...state, after: multiDays - 1 } : state;
+}
 type PendingAction =
   | {
       kind: 'edit';
@@ -131,28 +142,10 @@ type PendingAction =
 // the next arrow press or edge usually finds them there already.
 const RANGE_MARGIN_DAYS = 14;
 
-type WeekStart = 0 | 1 | 6;
-
-// `firstDay`: the scrolled week grid reports the first column in view; the
-// title then spans the seven days from there instead of the focused week.
-function headerTitle(
-  viewMode: ViewMode,
-  currentDate: Date,
-  weekStartsOn: WeekStart,
-  locale: Locale,
-  firstDay?: Date | null,
-): string {
-  if (viewMode === 'month') return format(currentDate, 'MMMM yyyy', { locale });
-  if (viewMode === 'day') return format(currentDate, 'EEE, MMM d, yyyy', { locale });
-  if (viewMode === 'week') {
-    const start = firstDay ?? startOfWeek(currentDate, { weekStartsOn });
-    const end = firstDay ? addDays(firstDay, 6) : endOfWeek(currentDate, { weekStartsOn });
-    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-      return `${format(start, 'MMM d', { locale })} – ${format(end, 'd, yyyy', { locale })}`;
-    }
-    return `${format(start, 'MMM d', { locale })} – ${format(end, 'MMM d, yyyy', { locale })}`;
-  }
-  return format(currentDate, 'MMMM yyyy', { locale });
+// The month on screen; the year only when it isn't this year.
+function headerTitle(date: Date, locale: Locale): string {
+  const sameYear = date.getFullYear() === displayNow().getFullYear();
+  return format(date, sameYear ? 'LLLL' : 'LLLL yyyy', { locale });
 }
 
 export default function CalendarScreen() {
@@ -203,15 +196,19 @@ export default function CalendarScreen() {
   );
   // The sideways-scrolling week and day grids assume a left-to-right strip;
   // right-to-left layouts keep them paged.
+  // Wider windows show more days in the multi-day view.
+  const { width: windowWidth } = useWindowDimensions();
+  const multiDays = multiDayCount(windowWidth);
   const freeScroll =
-    calendarFreeScroll && ((viewMode !== 'week' && viewMode !== 'day') || !I18nManager.isRTL);
+    calendarFreeScroll
+    && ((viewMode !== 'week' && viewMode !== '3day' && viewMode !== 'day') || !I18nManager.isRTL);
   const focusKey = dayKey(focus.date);
   const activeWindowState = React.useMemo(
     () =>
       freeScroll
-        ? normalizeScrollWindowState(windowState, viewMode, parseDayKey(focusKey))
-        : fixedScrollWindowState(viewMode, parseDayKey(focusKey)),
-    [freeScroll, windowState, viewMode, focusKey],
+        ? normalizeScrollWindowState(windowState, windowMode(viewMode), parseDayKey(focusKey))
+        : fixedWindowFor(viewMode, parseDayKey(focusKey), multiDays),
+    [freeScroll, windowState, viewMode, focusKey, multiDays],
   );
   React.useEffect(() => {
     if (freeScroll && activeWindowState !== windowState) setWindowState(activeWindowState);
@@ -221,7 +218,7 @@ export default function CalendarScreen() {
     [activeWindowState, windowOptions],
   );
   // Changes whenever a fresh window starts; the views remount on it.
-  const windowKey = `${activeWindowState.mode}:${activeWindowState.anchorKey}`;
+  const windowKey = `${viewMode}:${activeWindowState.anchorKey}`;
   const loadRange = React.useMemo(() => {
     const { after, before } = scrollWindowLoadRange(scrollWindow, RANGE_MARGIN_DAYS);
     return { after: after.toISOString(), before: before.toISOString() };
@@ -236,7 +233,6 @@ export default function CalendarScreen() {
   const [tasksVisible, setTasksVisible] = React.useState(false);
   const [importVisible, setImportVisible] = React.useState(false);
   const [subscriptionsVisible, setSubscriptionsVisible] = React.useState(false);
-  const [refreshing, setRefreshing] = React.useState(false);
 
   const hydrate = useCalendarStore((s) => s.hydrate);
   const fetchCalendarsAction = useCalendarStore((s) => s.fetchCalendars);
@@ -270,6 +266,7 @@ export default function CalendarScreen() {
   const setDefaultCalendar = useCalendarStore((s) => s.setDefaultCalendar);
   const createCalendar = useCalendarStore((s) => s.createCalendar);
   const updateCalendar = useCalendarStore((s) => s.updateCalendar);
+  const reorderCalendars = useCalendarStore((s) => s.reorderCalendars);
   const removeCalendar = useCalendarStore((s) => s.removeCalendar);
   const clearCalendarEvents = useCalendarStore((s) => s.clearCalendarEvents);
   const shareCalendar = useCalendarStore((s) => s.shareCalendar);
@@ -470,7 +467,7 @@ export default function CalendarScreen() {
       setSelectedDate(date);
       setVisibleDate(null);
       setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
-      setWindowState((prev) => windowStateForJump(prev, viewMode, date, windowOptions));
+      setWindowState((prev) => windowStateForJump(prev, windowMode(viewMode), date, windowOptions));
     },
     [viewMode, windowOptions],
   );
@@ -482,7 +479,7 @@ export default function CalendarScreen() {
     (side: 'before' | 'after') => {
       setLoadingEdge(side === 'before' ? 'start' : 'end');
       setWindowState((prev) =>
-        growScrollWindow(normalizeScrollWindowState(prev, viewMode, focus.date), side),
+        growScrollWindow(normalizeScrollWindowState(prev, windowMode(viewMode), focus.date), side),
       );
     },
     [viewMode, focus.date],
@@ -496,19 +493,21 @@ export default function CalendarScreen() {
     const base = visibleDate ?? focus.date;
     jumpTo(
       viewMode === 'week' ? subWeeks(base, 1)
+      : viewMode === '3day' ? subDays(base, multiDays)
       : viewMode === 'day' ? subDays(base, 1)
       : subMonths(base, 1),
     );
-  }, [viewMode, visibleDate, focus.date, jumpTo]);
+  }, [viewMode, visibleDate, focus.date, jumpTo, multiDays]);
 
   const goNext = React.useCallback(() => {
     const base = visibleDate ?? focus.date;
     jumpTo(
       viewMode === 'week' ? addWeeks(base, 1)
+      : viewMode === '3day' ? addDays(base, multiDays)
       : viewMode === 'day' ? addDays(base, 1)
       : addMonths(base, 1),
     );
-  }, [viewMode, visibleDate, focus.date, jumpTo]);
+  }, [viewMode, visibleDate, focus.date, jumpTo, multiDays]);
 
   const goToday = React.useCallback(() => {
     jumpTo(displayNow());
@@ -522,14 +521,67 @@ export default function CalendarScreen() {
       setViewMode(mode);
       setVisibleDate(null);
       setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
-      setWindowState(freshScrollWindowState(mode, date));
+      setWindowState(freshScrollWindowState(windowMode(mode), date));
     },
     [viewMode, visibleDate, focus.date],
   );
 
+  // The views, listed at the top of the drawer.
+  const viewOptions = React.useMemo<DrawerViewOption[]>(
+    () => [
+      { key: 'agenda', label: t('calendar.views.schedule', 'Schedule'), Icon: Rows2 },
+      { key: 'day', label: t('calendar.views.day', 'Day'), Icon: Square },
+      {
+        key: '3day',
+        label: multiDays === 3
+          ? t('calendar.views.three_days', '3 days')
+          : t('calendar.views.n_days', '{count} days', { count: multiDays }),
+        Icon: Columns3,
+      },
+      { key: 'week', label: t('calendar.views.week', 'Week'), Icon: Columns4 },
+      { key: 'month', label: t('calendar.views.month', 'Month'), Icon: Grid3x3 },
+    ],
+    [t, multiDays],
+  );
+
+  // The month that drops down under the title; the title follows the month
+  // swiped to while it is open.
+  const [monthPanelOpen, setMonthPanelOpen] = React.useState(false);
+  const [panelMonth, setPanelMonth] = React.useState<Date | null>(null);
+  const toggleMonthPanel = React.useCallback(() => {
+    setPanelMonth(null);
+    setMonthPanelOpen((open) => !open);
+  }, []);
+  const handlePanelSelect = React.useCallback(
+    (date: Date) => {
+      setMonthPanelOpen(false);
+      setPanelMonth(null);
+      jumpTo(date);
+    },
+    [jumpTo],
+  );
+
+  // New tasks open the tasks sheet on an empty editor.
+  const [newTask, setNewTask] = React.useState(false);
+  const openNewTask = React.useCallback(() => {
+    setTasksInitialId(null);
+    setNewTask(true);
+    setTasksVisible(true);
+  }, []);
+
   // Picking a day only moves the selection; the view stays where it is.
   const handleSelectDate = React.useCallback((date: Date) => {
     setSelectedDate(date);
+  }, []);
+
+  // A day in the month grid or a day header in the week grids opens that
+  // day, as in Google Calendar.
+  const openDay = React.useCallback((date: Date) => {
+    setSelectedDate(date);
+    setViewMode('day');
+    setVisibleDate(null);
+    setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+    setWindowState(freshScrollWindowState('day', date));
   }, []);
 
   const openCreate = React.useCallback((date?: Date) => {
@@ -588,15 +640,32 @@ export default function CalendarScreen() {
     [t],
   );
 
+  // A single event is gone for good once deleted; ask first, as the
+  // recurrence-scope dialog already does for a series.
+  const confirmDeleteEvent = React.useCallback((event: CalendarEvent) => {
+    Alert.alert(
+      t('calendar.detail.delete_confirm', 'Delete this event?'),
+      event.title || undefined,
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('calendar.recurrence_scope.delete', 'Delete'),
+          style: 'destructive',
+          onPress: () => { deleteEvent(event.id).catch(reportError); },
+        },
+      ],
+    );
+  }, [deleteEvent, reportError, t]);
+
   const handleDeleteFromDetail = React.useCallback((event: CalendarEvent) => {
     if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
     setDetailEvent(null);
     if (isRecurringSeriesMember(event)) {
       setPendingAction({ kind: 'delete', event });
     } else {
-      deleteEvent(event.id).catch(reportError);
+      confirmDeleteEvent(event);
     }
-  }, [deleteEvent, isReadOnlyEvent, reportError]);
+  }, [confirmDeleteEvent, isReadOnlyEvent]);
 
   // Send an answer and show it in the open detail sheet. 'occurrence'
   // answers just that occurrence of a series.
@@ -703,6 +772,16 @@ export default function CalendarScreen() {
     [modalEvent, createEvent, updateEvent],
   );
 
+  // Cancelling "which occurrences?" after editing a recurring event goes back
+  // to the editor with the edits still in it; they used to be thrown away.
+  const cancelScope = React.useCallback(() => {
+    const pending = pendingAction;
+    setPendingAction(null);
+    if (pending?.kind !== 'edit') return;
+    setModalEvent(reopenedEdit(pending.event, pending.updates));
+    setModalVisible(true);
+  }, [pendingAction]);
+
   const handleDeleteFromModal = React.useCallback(
     async (event: CalendarEvent) => {
       setModalVisible(false);
@@ -710,19 +789,12 @@ export default function CalendarScreen() {
         setPendingAction({ kind: 'delete', event });
         return;
       }
-      await deleteEvent(event.id).catch(reportError);
+      confirmDeleteEvent(event);
     },
-    [deleteEvent, reportError],
+    [confirmDeleteEvent],
   );
 
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refresh]);
+  const onRefresh = React.useCallback(() => refresh(), [refresh]);
 
   // The store flips the checkbox optimistically and reverts it when the
   // server refuses; say so instead of leaving the user guessing.
@@ -740,12 +812,16 @@ export default function CalendarScreen() {
 
   const handleDeleteTask = React.useCallback(
     (id: string) => {
-      deleteTask(id).catch((err: unknown) => {
+      const run = () => deleteTask(id).catch((err: unknown) => {
         Alert.alert(
           t('calendar.tasks.delete_error', 'Failed to delete task'),
           err instanceof Error ? err.message : undefined,
         );
       });
+      Alert.alert(t('calendar.tasks.delete_confirm', 'Delete this task?'), undefined, [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('calendar.tasks.delete', 'Delete'), style: 'destructive', onPress: () => { void run(); } },
+      ]);
     },
     [deleteTask, t],
   );
@@ -823,6 +899,14 @@ export default function CalendarScreen() {
     [setSharedCalendarColor, updateCalendar, reportError],
   );
 
+  const handleMoveCalendar = React.useCallback(
+    (cal: Calendar, targetId: string) => {
+      const orderedIds = moveCalendar(storeCalendars, cal.id, targetId);
+      if (orderedIds) reorderCalendars(orderedIds).catch(reportError);
+    },
+    [storeCalendars, reorderCalendars, reportError],
+  );
+
   const handleClearCalendar = React.useCallback(
     (cal: Calendar) => {
       Alert.alert(
@@ -865,10 +949,10 @@ export default function CalendarScreen() {
     [t, removeCalendar, reportError],
   );
 
-  const isSelectedToday = isDisplayToday(selectedDate);
+  const titleDate = (monthPanelOpen && panelMonth) || visibleDate || focus.date;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => setSidebarVisible(true)}
@@ -879,96 +963,83 @@ export default function CalendarScreen() {
         >
           <Menu size={20} color={c.text} />
         </Pressable>
-        <View style={styles.headerLeft}>
-          {/* Four view buttons leave less room: shrink a long title instead of wrapping it. */}
-          <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {headerTitle(
-              viewMode,
-              visibleDate ?? focus.date,
-              calendarFirstDayOfWeek,
-              locale,
-              viewMode === 'week' && freeScroll ? visibleDate : null,
-            )}
+        <Pressable
+          onPress={toggleMonthPanel}
+          style={styles.titleBtn}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar.mini_calendar_change', 'Change month')}
+          accessibilityState={{ expanded: monthPanelOpen }}
+        >
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {headerTitle(titleDate, locale)}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            {isSelectedToday
-              ? t('calendar.views.today', 'Today')
-              : format(selectedDate, 'EEE, MMM d', { locale })}
-          </Text>
-        </View>
+          <View style={monthPanelOpen && styles.chevronOpen}>
+            <ChevronDown size={18} color={c.textSecondary} />
+          </View>
+        </Pressable>
         <View style={styles.headerActions}>
+          {/* Without free scrolling the views don't swipe: keep arrows. */}
+          {!freeScroll && (
+            <>
+              <Pressable
+                onPress={goPrev}
+                style={styles.headerBtn}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={t('calendar.nav_prev', 'Previous')}
+              >
+                <ChevronLeft size={22} color={c.text} />
+              </Pressable>
+              <Pressable
+                onPress={goNext}
+                style={styles.headerBtn}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={t('calendar.nav_next', 'Next')}
+              >
+                <ChevronRight size={22} color={c.text} />
+              </Pressable>
+            </>
+          )}
+          <Pressable
+            style={styles.headerBtn}
+            onPress={() => {
+              setMonthPanelOpen(false);
+              goToday();
+            }}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.events.go_to_today', 'Go to today')}
+          >
+            <CalendarIcon size={26} color={c.text} strokeWidth={1.75} />
+            <Text style={styles.todayIconText}>{format(displayNow(), 'd')}</Text>
+          </Pressable>
           {enableCalendarTasks && (
             <Pressable
               style={styles.headerBtn}
               onPress={() => setTasksVisible(true)}
-              hitSlop={6}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel={t('calendar.views.tasks', 'Tasks')}
             >
-              <ListChecks size={20} color={c.text} />
+              <ListChecks size={22} color={c.text} />
             </Pressable>
           )}
-          <View style={styles.viewToggle}>
-            {(['month', 'week', 'day', 'agenda'] as ViewMode[]).map((mode) => {
-              const Icon =
-                mode === 'month' ? LayoutGrid
-                : mode === 'week' ? CalendarDays
-                : mode === 'day' ? Calendar1
-                : ListIcon;
-              const active = viewMode === mode;
-              const label =
-                mode === 'month' ? t('calendar.views.month', 'Month')
-                : mode === 'week' ? t('calendar.views.week', 'Week')
-                : mode === 'day' ? t('calendar.views.day', 'Day')
-                : t('calendar.views.agenda', 'Agenda');
-              return (
-                <Pressable
-                  key={mode}
-                  style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
-                  onPress={() => changeViewMode(mode)}
-                  accessibilityRole="button"
-                  accessibilityLabel={label}
-                  accessibilityState={{ selected: active }}
-                >
-                  <Icon size={16} color={active ? c.primary : c.textMuted} />
-                </Pressable>
-              );
-            })}
-          </View>
-          <Pressable
-            style={styles.fab}
-            onPress={() => openCreate(selectedDate)}
-            accessibilityRole="button"
-            accessibilityLabel={t('calendar.events.new_event', 'New event')}
-          >
-            <Plus size={18} color={c.primaryForeground} />
-          </Pressable>
         </View>
       </View>
 
-      <View style={styles.nav}>
-        <Pressable
-          onPress={goPrev}
-          style={styles.navBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('calendar.nav_prev', 'Previous')}
-        >
-          <ChevronLeft size={20} color={c.text} />
-        </Pressable>
-        <Button variant="outline" size="sm" onPress={goToday}>
-          {t('calendar.views.today', 'Today')}
-        </Button>
-        <Pressable
-          onPress={goNext}
-          style={styles.navBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('calendar.nav_next', 'Next')}
-        >
-          <ChevronRight size={20} color={c.text} />
-        </Pressable>
-      </View>
+      {monthPanelOpen && (
+        <MonthDropdown
+          month={titleDate}
+          selectedDate={selectedDate}
+          eventsByDay={eventsByDay}
+          calendars={calendars}
+          weekStartsOn={calendarFirstDayOfWeek}
+          onMonthChange={setPanelMonth}
+          onSelectDate={handlePanelSelect}
+        />
+      )}
 
       {error && (
         <View style={styles.errorBanner}>
@@ -993,7 +1064,8 @@ export default function CalendarScreen() {
             showWeekNumbers={calendarShowWeekNumbers}
             showTimeInMonthView={calendarShowTimeInMonth}
             timeFormat={calendarTimeFormat}
-            onSelectDate={handleSelectDate}
+            currentUserEmails={currentUserEmails}
+            onSelectDate={openDay}
             onLongPressDate={openCreate}
           />
         )}
@@ -1007,15 +1079,18 @@ export default function CalendarScreen() {
             weekStartsOn={calendarFirstDayOfWeek}
             showWeekNumbers={calendarShowWeekNumbers}
             showTimeInMonthView={calendarShowTimeInMonth}
+            fill
             timeFormat={calendarTimeFormat}
-            onSelectDate={handleSelectDate}
+            currentUserEmails={currentUserEmails}
+            onSelectDate={openDay}
             onLongPressDate={openCreate}
           />
         )}
-        {(viewMode === 'day' || (viewMode === 'week' && freeScroll)) && (
+        {(viewMode === 'day' || viewMode === '3day' || (viewMode === 'week' && freeScroll)) && (
           <TimeGridScrollView
             key={windowKey}
-            mode={viewMode === 'day' ? 'day' : 'week'}
+            mode={viewMode}
+            multiDays={multiDays}
             focus={focus}
             window={scrollWindow}
             onExtendStart={freeScroll && scrollWindow.canExtendStart ? extendWindowStart : undefined}
@@ -1027,7 +1102,8 @@ export default function CalendarScreen() {
             calendars={calendars}
             weekStartsOn={calendarFirstDayOfWeek}
             timeFormat={calendarTimeFormat}
-            onSelectDate={handleSelectDate}
+            currentUserEmails={currentUserEmails}
+            onSelectDate={viewMode === 'day' ? handleSelectDate : openDay}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
           />
@@ -1041,7 +1117,8 @@ export default function CalendarScreen() {
             calendars={calendars}
             weekStartsOn={calendarFirstDayOfWeek}
             timeFormat={calendarTimeFormat}
-            onSelectDate={handleSelectDate}
+            currentUserEmails={currentUserEmails}
+            onSelectDate={openDay}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
           />
@@ -1061,32 +1138,24 @@ export default function CalendarScreen() {
             eventsByDay={eventsByDay}
             calendars={calendars}
             timeFormat={calendarTimeFormat}
+            weekStartsOn={calendarFirstDayOfWeek}
+            currentUserEmails={currentUserEmails}
             onSelectEvent={handleSelectEvent}
+            onCreateAt={openCreate}
           />
         )}
 
-        {viewMode === 'month' && (
-          <View style={styles.dayDetail}>
-            <View style={styles.dayDetailHeader}>
-              <Text style={styles.dayDetailTitle}>
-                {isSelectedToday
-                  ? t('calendar.events.today_header', 'Today')
-                  : format(selectedDate, 'EEEE, MMMM d', { locale })}
-              </Text>
-              {loading && <ActivityIndicator size="small" color={c.textMuted} />}
-            </View>
-            <DayEventList
-              date={selectedDate}
-              eventsByDay={eventsByDay}
-              calendars={calendars}
-              timeFormat={calendarTimeFormat}
-              onSelectEvent={handleSelectEvent}
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-            />
+        {loading && (
+          <View style={styles.loadingBadge} pointerEvents="none">
+            <ActivityIndicator size="small" color={c.textMuted} />
           </View>
         )}
       </View>
+
+      <CalendarFab
+        onNewEvent={() => openCreate(selectedDate)}
+        onNewTask={enableCalendarTasks ? openNewTask : undefined}
+      />
 
       <EventDetailSheet
         event={detailEvent}
@@ -1135,11 +1204,22 @@ export default function CalendarScreen() {
         visible={!!pendingAction}
         actionType={pendingAction?.kind ?? 'edit'}
         onSelect={handleScopeSelect}
-        onClose={() => setPendingAction(null)}
+        onClose={cancelScope}
       />
 
       <CalendarSidebarDrawer
         visible={sidebarVisible}
+        views={viewOptions}
+        activeView={viewMode}
+        onSelectView={(key) => {
+          setSidebarVisible(false);
+          setMonthPanelOpen(false);
+          changeViewMode(key as ViewMode);
+        }}
+        onRefresh={() => {
+          setSidebarVisible(false);
+          void onRefresh();
+        }}
         calendars={eventCalendars}
         hiddenCalendarIds={hiddenCalendarIds}
         onToggle={toggleCalendarVisibility}
@@ -1158,6 +1238,7 @@ export default function CalendarScreen() {
         onShare={(cal) => { setSidebarVisible(false); setShareTarget(cal); }}
         onClear={handleClearCalendar}
         onDelete={handleDeleteCalendar}
+        onMove={handleMoveCalendar}
         isSubscriptionCalendar={isSubscriptionCalendar}
       />
 
@@ -1167,7 +1248,8 @@ export default function CalendarScreen() {
         calendars={taskSheetCalendars}
         timeFormat={calendarTimeFormat}
         initialTaskId={tasksInitialId}
-        onClose={() => { setTasksVisible(false); setTasksInitialId(null); }}
+        startNew={newTask}
+        onClose={() => { setTasksVisible(false); setTasksInitialId(null); setNewTask(false); }}
         onCreate={createTask}
         onUpdate={updateTask}
         onToggle={handleToggleTask}
@@ -1207,64 +1289,6 @@ export default function CalendarScreen() {
   );
 }
 
-function DayEventList({
-  date,
-  eventsByDay,
-  calendars,
-  timeFormat,
-  onSelectEvent,
-  refreshing,
-  onRefresh,
-}: {
-  date: Date;
-  eventsByDay: EventDayIndex;
-  calendars: Calendar[];
-  timeFormat?: TimeFormat;
-  onSelectEvent?: (event: CalendarEvent) => void;
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const t = useLocaleStore((s) => s.t);
-  const dayEvents = React.useMemo(
-    () => eventsOnDayFromIndex(eventsByDay, date),
-    [eventsByDay, date],
-  );
-  if (dayEvents.length === 0) {
-    return (
-      <ScrollView
-        contentContainerStyle={styles.emptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.textMuted} />
-        }
-      >
-        <CalendarDays size={32} color={c.surfaceActive} />
-        <Text style={styles.emptyTitle}>{t('calendar.events.no_events', 'No events')}</Text>
-        <Text style={styles.emptySubtitle}>{t('calendar.events.tap_to_create', 'Tap + to create one')}</Text>
-      </ScrollView>
-    );
-  }
-  return (
-    <ScrollView
-      contentContainerStyle={styles.dayList}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.textMuted} />
-      }
-    >
-      {dayEvents.map((event) => (
-        <EventCard
-          key={event.id}
-          event={event}
-          calendars={calendars}
-          timeFormat={timeFormat}
-          onPress={onSelectEvent}
-        />
-      ))}
-    </ScrollView>
-  );
-}
-
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
@@ -1272,57 +1296,38 @@ function makeStyles(c: ThemePalette) {
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
   },
   headerBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerLeft: { flex: 1 },
-  headerTitle: { ...typography.h3, color: c.text },
-  headerSubtitle: { ...typography.caption, color: c.textMuted, marginTop: 2 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: c.surface,
-    borderRadius: radius.md,
-    padding: 2,
-  },
-  viewToggleBtn: {
-    width: 30,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.sm,
-  },
-  viewToggleBtnActive: { backgroundColor: c.background },
-  fab: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    backgroundColor: c.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  nav: {
+  titleBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xs,
-    gap: spacing.lg,
+    gap: 2,
+    minHeight: 40,
   },
-  navBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.full,
+  headerTitle: { ...typography.h3, color: c.text, flexShrink: 1 },
+  chevronOpen: { transform: [{ rotate: '180deg' }] },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  // Today's date inside the calendar icon, below its rings.
+  todayIconText: {
+    position: 'absolute',
+    top: 15,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: '700',
+    color: c.text,
   },
 
   errorBanner: {
@@ -1334,28 +1339,7 @@ function makeStyles(c: ThemePalette) {
 
   content: { flex: 1 },
 
-  dayDetail: {
-    flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
-  },
-  dayDetailHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  dayDetailTitle: { ...typography.bodyMedium, color: c.text },
-  dayList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
-
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    gap: spacing.xs,
-    flexGrow: 1,
-  },
-  emptyTitle: { ...typography.bodyMedium, color: c.textSecondary },
-  emptySubtitle: { ...typography.caption, color: c.textMuted },
+  // Loading shows as a small spinner over the view's top corner.
+  loadingBadge: { position: 'absolute', top: spacing.xs, right: spacing.md },
   });
 }

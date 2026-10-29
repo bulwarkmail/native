@@ -128,6 +128,30 @@ export function getUserStatus(
   return null;
 }
 
+/**
+ * True when the user declined this event. An occurrence carries its override's
+ * participants, so one declined instance of an accepted series counts
+ * (webmail #1110).
+ */
+export function isDeclinedByUser(
+  event: Partial<CalendarEvent>,
+  userEmails: string[] | undefined,
+): boolean {
+  if (!userEmails || userEmails.length === 0) return false;
+  return getUserStatus(event, userEmails) === 'declined';
+}
+
+/**
+ * Declined by the user or cancelled by the organizer: the calendar draws both
+ * the same way, as an outlined, struck-through event (repos/branding/APP.md).
+ */
+export function isInactiveEvent(
+  event: Partial<CalendarEvent>,
+  userEmails: string[] | undefined,
+): boolean {
+  return event.status === 'cancelled' || isDeclinedByUser(event, userEmails);
+}
+
 /** When the same address appears in two participant entries, a real RSVP on
  *  either one beats a missing/"needs-action" one — the duplicate is always the
  *  entry that never replied. Between two real replies the first-seen entry

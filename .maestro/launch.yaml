@@ -1,0 +1,30 @@
+# Fresh install: the app starts and shows the sign-in choices, and typing
+# into a field works. Needs no server, so it runs before every suite as the
+# warm-up for the XCTest driver. It types only a made-up address, so its
+# debug log is safe to print.
+appId: org.bulwarkmail.mobile
+name: Launch to sign-in
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# A cold start of a release build on a CI simulator can be slow.
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 120000
+- takeScreenshot: warmup-01-sign-in-choices
+- tapOn: "Enter server details manually"
+- extendedWaitUntil:
+    visible:
+      id: login-server-input
+    timeout: 10000
+- runFlow: subflows/dismiss-keyboard-tip.yaml
+- runFlow:
+    file: subflows/type.yaml
+    env:
+      FIELD: login-server-input
+      TAP: "no"
+      TEXT: typing-probe.example.net
+- takeScreenshot: warmup-02-typed

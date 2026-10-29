@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { CheckCircle2, RefreshCw, XCircle } from 'lucide-react-native';
+import { CheckCircle2, RefreshCw, XCircle } from '../icons';
 import Button from '../Button';
 import Dialog from '../Dialog';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
@@ -29,6 +29,7 @@ import {
   PushSetupError,
   readPushAccountIds,
   revokePushDevice,
+  serverSupportsEmailPush,
   setStoredRelayBaseUrl,
   setupPushNotifications,
   getStoredPushTransport,
@@ -44,6 +45,8 @@ import {
   saveUnifiedPushDistributor,
 } from '../../lib/unified-push';
 import { canBadgeAppIcon } from '../../lib/app-badge';
+import { isAccountMuted, setAccountMuted } from '../../lib/notification-mutes';
+import { jmapClient } from '../../api/jmap-client';
 
 type PushStatus =
   | { kind: 'idle' }
@@ -80,6 +83,14 @@ export function NotificationSettings() {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const update = useSettingsStore((s) => s.updateSetting);
   const emailEnabled = useSettingsStore((s) => s.emailNotificationsEnabled);
+  const notificationMutes = useSettingsStore((s) => s.notificationMutes);
+  // Muting works through the server's emailPush filter (#78): offered only
+  // where it exists, for the account this screen shows. Single folders are
+  // muted from the sidebar.
+  let ownJmapAccountId: string | null = null;
+  try { ownJmapAccountId = jmapClient.accountId; } catch { ownJmapAccountId = null; }
+  const canMuteAccount = ownJmapAccountId !== null && serverSupportsEmailPush();
+  const accountMuted = ownJmapAccountId !== null && isAccountMuted(notificationMutes, ownJmapAccountId);
   const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const appIconBadge = useSettingsStore((s) => s.appIconUnreadBadge);
@@ -498,6 +509,22 @@ export function NotificationSettings() {
         >
           <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
         </SettingItem>
+        {canMuteAccount && (
+          <SettingItem
+            label={t('settings.notifications.email.mute_account', 'Mute this account')}
+            description={t(
+              'settings.notifications.email.mute_account_desc',
+              'No alerts for new mail in this account. Long-press a folder in the sidebar to mute or unmute it on its own.',
+            )}
+          >
+            <ToggleSwitch
+              checked={accountMuted}
+              onChange={(v) => {
+                if (ownJmapAccountId) update('notificationMutes', setAccountMuted(notificationMutes, ownJmapAccountId, v));
+              }}
+            />
+          </SettingItem>
+        )}
         {canBadgeAppIcon() && (
           <SettingItem
             label={t('settings.notifications.email.app_icon_badge', 'Unread count on app icon')}

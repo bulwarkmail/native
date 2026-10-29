@@ -263,6 +263,15 @@ export interface TimedDayBounds {
   continuesAfter: boolean;
 }
 
+function wallClockMinutes(date: Date): number {
+  return (
+    date.getHours() * 60 +
+    date.getMinutes() +
+    date.getSeconds() / 60 +
+    date.getMilliseconds() / 60000
+  );
+}
+
 export function getTimedEventBoundsForDay(
   event: CalendarEvent,
   day: Date,
@@ -276,16 +285,15 @@ export function getTimedEventBoundsForDay(
 
   if (eventEnd <= dayStart || eventStart >= nextDayStart) return null;
 
-  const clippedStart = eventStart > dayStart ? eventStart : dayStart;
-  const clippedEnd = eventEnd < nextDayStart ? eventEnd : nextDayStart;
-  const startMinutes = Math.max(
-    0,
-    Math.floor((clippedStart.getTime() - dayStart.getTime()) / 60000),
-  );
-  const endMinutes = Math.min(
-    1440,
-    Math.ceil((clippedEnd.getTime() - dayStart.getTime()) / 60000),
-  );
+  // Wall-clock minutes, not elapsed time since midnight: on a DST change day
+  // the day has 23 or 25 hours, and elapsed time would shift every event
+  // after the change by an hour.
+  const startMinutes =
+    eventStart > dayStart ? Math.floor(wallClockMinutes(eventStart)) : 0;
+  const endMinutes =
+    eventEnd < nextDayStart
+      ? Math.max(startMinutes, Math.ceil(wallClockMinutes(eventEnd)))
+      : 1440;
 
   return {
     startMinutes,
@@ -621,4 +629,18 @@ export function getPrimaryCalendarId(
   event: Pick<CalendarEvent, 'calendarIds'>,
 ): string | undefined {
   return Object.keys(event.calendarIds || {})[0];
+}
+
+/**
+ * The event as the editor last had it: the stored event with the unsaved
+ * edits on top, a field cleared in the editor (sent as `null`) removed. Used
+ * to reopen the editor when the recurrence-scope question is cancelled.
+ */
+export function reopenedEdit(event: CalendarEvent, updates: Partial<CalendarEvent>): CalendarEvent {
+  const merged: Record<string, unknown> = { ...event };
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === null) delete merged[key];
+    else if (value !== undefined) merged[key] = value;
+  }
+  return merged as unknown as CalendarEvent;
 }

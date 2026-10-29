@@ -10,6 +10,7 @@ import { hasCalendarCapability } from './capabilities';
 import { onStateChangeType } from './state-change-bus';
 import { getUpcomingAlerts, type ScheduledAlert } from './calendar-alert-scheduler';
 import type { CalendarReminderTarget } from '../navigation/pending-calendar-open';
+import { onDeviceRemindersChange, remindedOnDevice } from '../device-sync/app/reminders';
 
 // Local reminders for calendar events and tasks. The webmail polls
 // `getPendingAlerts` every minute while a tab is open; a phone is mostly
@@ -147,6 +148,16 @@ function isSignedOut(): boolean {
   return hasRestoredSession && !isAuthenticated;
 }
 
+// The JMAP account the upcoming events are loaded from when they carry no
+// account of their own.
+function primaryJmapAccountId(): string | null {
+  try {
+    return jmapClient.accountId;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The events whose alerts can fire within the horizon, straight from the
  * server. `null` when that can't be known (offline, no session yet, the
@@ -219,10 +230,15 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
       if (!events) return;
       await ensureTasksLoaded();
       const { tasks, calendars } = useCalendarStore.getState();
+      // Events of calendars synced to this device get their reminders from
+      // the device's calendar app when the user chose it to remind them
+      // (#34); tasks are not synced and keep theirs.
+      const onDevice = remindedOnDevice(useAuthStore.getState().activeAccountId, primaryJmapAccountId());
+      const ownEvents = onDevice ? events.filter((event) => !onDevice(event)) : events;
       // Reminders fire while the app is closed, so they are worded now, in
       // the app language.
       const { locale, t } = useLocaleStore.getState();
-      const wanted = getUpcomingAlerts(events, tasks, calendars, {
+      const wanted = getUpcomingAlerts(ownEvents, tasks, calendars, {
         now,
         horizonMs: HORIZON_MS,
         limit: MAX_SCHEDULED,
@@ -382,6 +398,8 @@ export function startCalendarNotificationSync(options?: { askPermission?: boolea
   });
   onStateChangeType('CalendarEvent', scheduleSoon);
   onStateChangeType('Calendar', scheduleSoon);
+  // Who reminds of synced events changed, or which calendars sync (#34).
+  onDeviceRemindersChange(scheduleSoon);
   AppState.addEventListener('change', (state) => {
     if (state === 'active') scheduleSoon();
   });

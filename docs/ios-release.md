@@ -142,6 +142,20 @@ Internal testers (up to 100, must be on your App Store Connect team) get it
 immediately. External testers (up to 10,000) need a Beta App Review, which takes
 about a day the first time and is usually waved through afterwards.
 
+The workflow's `public-testflight` job does the external part on its own. It
+waits for processing, adds the build to the `external` group (the one behind
+the public link in the README), sets "What to Test" to the GitHub release and
+submits it for Beta App Review (`scripts/testflight-public.mjs`). To do this by
+hand for a build, for example after a failed run:
+
+```bash
+ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=path/to/AuthKey_….p8 node scripts/testflight-public.mjs 0.1.72 18   # marketing version, build number
+```
+
+If App Store Connect answers `REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED` (altool
+reports it as "Cannot determine the Apple ID from Bundle ID"), the Account
+Holder has to accept an updated agreement under Business in App Store Connect.
+
 ## What does not work on iOS yet
 
 - **Push notifications.** The push path is a hand-written Android module talking

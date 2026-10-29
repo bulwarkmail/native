@@ -1,8 +1,7 @@
-// Minimal SHA-256 implementation. Used to verify APK update downloads against
-// the checksum published in the GitHub release body — the JS runtime has no
-// built-in `crypto.subtle.digest` and we don't currently depend on
-// `expo-crypto`. Public-domain algorithm (FIPS 180-4); typical sub-second per
-// MB on a modern phone, which is fine for the rare update flow.
+// Minimal SHA-256 implementation. The fallback for verifying APK update
+// downloads when expo-crypto's native digest is unavailable (see
+// `hashFile` in install-update.ts); far too slow to be the main path.
+// Public-domain algorithm (FIPS 180-4).
 
 const K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,

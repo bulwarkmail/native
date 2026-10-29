@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
 import com.facebook.react.bridge.Arguments
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -26,12 +27,16 @@ class BulwarkMessagingService : FirebaseMessagingService() {
 
         val data = message.data
 
+        // Contact and calendar changes become syncs of the Android accounts
+        // they feed (device sync, #34); only mail needs the push task.
+        val mail = DeviceSyncPushRouter.route(applicationContext, data)
+
         // Hand off to JS via a headless task only when the app isn't already
         // running in the foreground - HeadlessJsTaskContext throws if started
         // while foreground. When the app is open, the main JS instance already
         // receives JMAP push directly, so the fcm:message event below is
         // sufficient for it to refresh state.
-        if (!isAppInForeground()) {
+        if (mail && !isAppInForeground()) {
             startHeadlessTask(applicationContext, data)
         }
 

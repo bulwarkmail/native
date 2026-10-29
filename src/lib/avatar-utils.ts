@@ -28,16 +28,12 @@ export function generateAvatarColor(email: string): string {
   return ACCOUNT_AVATAR_PALETTE[Math.abs(hash) % ACCOUNT_AVATAR_PALETTE.length];
 }
 
+/**
+ * Account avatars. The webmail draws them with the same `Avatar` as senders,
+ * so they get the same initials.
+ */
 export function getAccountInitials(name: string, email?: string): string {
-  if (name) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return parts[0][0]?.toUpperCase() ?? '?';
-  }
-  if (email) return email[0]?.toUpperCase() ?? '?';
-  return '?';
+  return getEmailInitials(name, email);
 }
 
 // --- Email-row avatar -----------------------------------------------------
@@ -52,12 +48,23 @@ export function generateEmailAvatarColor(name: string, email?: string): string {
   return `hsl(${hue}, 70%, 50%)`;
 }
 
+/**
+ * Initials as the webmail's `Avatar` (components/ui/avatar.tsx) works them
+ * out: the first letters of the first and last name part, ignoring
+ * punctuation and symbols in front of a part (`"Sofia" Russo` is SR), two
+ * letters of a single part, else the first letter of the address.
+ */
 export function getEmailInitials(name: string, email?: string): string {
   if (name) {
-    const parts = name.trim().split(/\s+/);
+    const parts = name
+      .trim()
+      .split(/\s+/)
+      .map((p) => p.replace(/^[^\p{L}\p{N}]+/u, ''))
+      .filter((p) => p.length > 0);
     if (parts.length >= 2) {
       return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
     }
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return name.slice(0, 2).toUpperCase();
   }
   if (email) return email[0]?.toUpperCase() ?? '?';

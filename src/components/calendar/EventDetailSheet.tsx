@@ -3,15 +3,19 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { openExternalUrl } from '../../lib/open-url';
+import { toast } from '../../stores/toast-store';
+import { ToastHost } from '../ToastHost';
 import { splitTextLinks } from '../../lib/linkify-text';
+import { findMeetingLink, locationAction, mapsUrl, primaryLocationName } from '../../lib/event-links';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   AlignLeft,
@@ -30,7 +34,7 @@ import {
   Users,
   Video,
   X,
-} from 'lucide-react-native';
+} from '../icons';
 import { format, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -52,9 +56,13 @@ import {
 import { getEventEditability } from '../../lib/calendar-editability';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { formatCalendarDate } from '../../lib/date-format';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { recurrenceEndLabel, recurrenceIntervalLabel } from '../../lib/recurrence';
 import type { TranslateFn } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 
@@ -88,9 +96,9 @@ function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, l
       start.getMonth() === end.getMonth() &&
       start.getDate() === end.getDate()
     ) {
-      return format(start, 'EEEE, MMM d, yyyy', opts);
+      return formatCalendarDate(start, locale.code, 'longWeekdayMonthDayYear');
     }
-    return `${format(start, 'MMM d', opts)} – ${format(end, 'MMM d, yyyy', opts)}`;
+    return `${formatCalendarDate(start, locale.code, 'monthDay')} – ${formatCalendarDate(end, locale.code, 'monthDayYear')}`;
   }
   const tp = timePattern(timeFormat);
   const sameDay =
@@ -98,9 +106,9 @@ function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, l
     start.getMonth() === end.getMonth() &&
     start.getDate() === end.getDate();
   if (sameDay) {
-    return `${format(start, 'EEE, MMM d', opts)} · ${format(start, tp, opts)} – ${format(end, tp, opts)}`;
+    return `${formatCalendarDate(start, locale.code, 'weekdayMonthDay')} · ${format(start, tp, opts)} – ${format(end, tp, opts)}`;
   }
-  return `${format(start, `MMM d, ${tp}`, opts)} – ${format(end, `MMM d, ${tp}`, opts)}`;
+  return `${formatCalendarDate(start, locale.code, 'monthDay')}, ${format(start, tp, opts)} – ${formatCalendarDate(end, locale.code, 'monthDay')}, ${format(end, tp, opts)}`;
 }
 
 function recurrenceLabel(event: CalendarEvent, t: TranslateFn, locale: Locale): string | null {
@@ -135,6 +143,8 @@ export function EventDetailSheet({
   // name) render with the contact card's name instead of the raw email.
   const resolveContactName = useContactNameResolver();
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const visible = !!event;
   const dragHandlers = useSheetDrag({
@@ -184,8 +194,11 @@ export function EventDetailSheet({
   const recurrence = recurrenceLabel(event, t, locale);
   const reminders = alertsToReminders(event.alerts);
   const participants = getParticipantList(event, { resolveName: resolveContactName });
-  const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
-  const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
+  const location = primaryLocationName(event);
+  // Invitations (Teams above all) leave virtualLocations empty and bury the
+  // join URL in the description; surface it as the meeting link anyway.
+  const meeting = findMeetingLink(event);
+  const videoUri = meeting?.uri;
   const isCancelled = event.status === 'cancelled';
 
   // Can the signed-in user RSVP? Only when they appear as a non-organizer
@@ -207,6 +220,23 @@ export function EventDetailSheet({
   );
   const myStatus = myParticipantId ? event.participants?.[myParticipantId]?.participationStatus : undefined;
 
+  const openLocation = () => {
+    if (!location) return;
+    const action = locationAction(location, meeting);
+    if (action.kind === 'url') {
+      void openExternalUrl(action.uri, { confirm: true });
+    } else {
+      void openExternalUrl(mapsUrl(action.query, Platform.OS));
+    }
+  };
+
+  const copyLocation = () => {
+    if (!location) return;
+    void Clipboard.setStringAsync(location).then(() => {
+      toast.success(t('notifications.copied_to_clipboard', 'Copied to clipboard'));
+    }).catch(() => {});
+  };
+
   const doRsvp = async (status: RsvpStatus) => {
     if (!onRsvp || !myParticipantId || rsvpBusy) return;
     setRsvpBusy(true);
@@ -218,7 +248,7 @@ export function EventDetailSheet({
   };
 
   return (
-    <Modal
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}
       transparent
       animationType="none"
@@ -229,7 +259,7 @@ export function EventDetailSheet({
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
 
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
           <View {...dragHandlers}>
             <View style={styles.handleHit}>
@@ -247,7 +277,7 @@ export function EventDetailSheet({
               <Pressable
                 onPress={onClose}
                 style={styles.closeBtn}
-                hitSlop={8}
+                hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.close', 'Close')}
               >
@@ -263,7 +293,21 @@ export function EventDetailSheet({
           >
             <DetailRow icon={<Clock size={16} color={c.textMuted} />} text={range} />
             {location ? (
-              <DetailRow icon={<MapPin size={16} color={c.textMuted} />} text={location} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <MapPin size={16} color={c.textMuted} />
+                </View>
+                <Text
+                  style={[styles.detailText, styles.detailLink]}
+                  numberOfLines={3}
+                  onPress={openLocation}
+                  onLongPress={copyLocation}
+                  accessibilityRole="link"
+                  accessibilityHint={t('calendar.detail.location_hint', 'Opens the location; long-press to copy it')}
+                >
+                  {location}
+                </Text>
+              </View>
             ) : null}
             {videoUri ? (
               <View style={styles.detailRow}>
@@ -274,7 +318,10 @@ export function EventDetailSheet({
                   style={styles.joinBtn}
                   onPress={() => { void openExternalUrl(videoUri, { confirm: true }); }}
                 >
-                  <Text style={styles.joinBtnText}>{t('calendar.detail.open_link', 'Open link')}</Text>
+                  <Text style={styles.joinBtnText}>
+                    {t('calendar.detail.open_link', 'Open link')}
+                    {meeting?.provider ? ` · ${meeting.provider}` : ''}
+                  </Text>
                 </Pressable>
               </View>
             ) : null}
@@ -414,7 +461,10 @@ export function EventDetailSheet({
           )}
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+      {/* The screen's own toast host sits under this Modal; this one shows
+          the copy confirmation above the sheet. */}
+      <ToastHost />
+    </SafeAreaModal>
   );
 }
 
@@ -568,7 +618,9 @@ function makeStyles(c: ThemePalette) {
     borderTopWidth: 1,
     borderTopColor: c.border,
   },
-  sheetSafe: { paddingTop: spacing.sm },
+  // The body shrinks to what is left under the sheet's max height, so the
+  // action row stays on screen in a short (landscape) window.
+  sheetSafe: { paddingTop: spacing.sm, flexShrink: 1 },
   handleHit: {
     alignItems: 'center',
     paddingTop: spacing.xs,
@@ -595,7 +647,7 @@ function makeStyles(c: ThemePalette) {
   subtitle: { ...typography.caption, color: c.textMuted, marginTop: 2 },
   closeBtn: { padding: 4 },
 
-  body: { maxHeight: 400 },
+  body: { flexShrink: 1 },
   bodyContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,

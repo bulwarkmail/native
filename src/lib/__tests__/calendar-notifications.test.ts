@@ -21,6 +21,9 @@ const h = vi.hoisted(() => ({
   client: { isConnected: true, accountId: 'acc-1' },
   loadEventsInRange: vi.fn(),
   calendarListener: null as Listener | null,
+  // Device sync (#34): which events the device's calendar app reminds of.
+  onDevice: null as ((event: { id: string }) => boolean) | null,
+  reminderListener: null as (() => void) | null,
 }));
 
 vi.mock('react-native', () => ({
@@ -63,6 +66,13 @@ vi.mock('../../stores/calendar-store', () => ({
   loadEventsInRange: h.loadEventsInRange,
 }));
 vi.mock('../capabilities', () => ({ hasCalendarCapability: () => true }));
+vi.mock('../../device-sync/app/reminders', () => ({
+  remindedOnDevice: vi.fn(() => h.onDevice),
+  onDeviceRemindersChange: vi.fn((listener: () => void) => {
+    h.reminderListener = listener;
+    return () => undefined;
+  }),
+}));
 
 const NOW = new Date('2026-09-24T08:00:00Z').getTime();
 const TAG = 'bulwark-calendar-alert';
@@ -103,6 +113,8 @@ beforeEach(async () => {
   h.calendar.loadedRange = null;
   h.client.isConnected = true;
   h.calendarListener = null;
+  h.onDevice = null;
+  h.reminderListener = null;
   h.loadEventsInRange.mockResolvedValue([upcoming]);
   mod = await import('../calendar-notifications');
   N = await import('expo-notifications');
@@ -246,6 +258,49 @@ describe('calendar reminders (B17)', () => {
     h.calendarListener!({ ...prev, events: [{}], loadedRange: { after: 'a', before: 'b' } }, prev);
     await vi.advanceTimersByTimeAsync(1500);
     expect(h.loadEventsInRange).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('reminders of events synced to the device (#34)', () => {
+  const task = {
+    id: 'task-1',
+    '@type': 'Task',
+    title: 'Pay rent',
+    calendarIds: { 'cal-1': true },
+    alerts: { a1: { trigger: { '@type': 'AbsoluteTrigger', when: '2026-09-24T09:30:00Z' }, action: 'display' } },
+  };
+
+  it("leaves synced events to the device's calendar app; tasks keep their reminders", async () => {
+    const reminders = await import('../../device-sync/app/reminders');
+    h.calendar.tasks = [task];
+    h.onDevice = (event) => event.id === 'ev1';
+
+    await mod.rescheduleCalendarNotifications();
+
+    expect(reminders.remindedOnDevice).toHaveBeenCalledWith('app-1', 'acc-1');
+    expect(N.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    const request = vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0];
+    expect(request.content.data).toMatchObject({ kind: 'task', eventId: 'task-1' });
+  });
+
+  it('cancels the reminders the calendar app took over', async () => {
+    h.pending = [reminder('ours', upcomingKey)];
+    h.onDevice = () => true;
+
+    await mod.rescheduleCalendarNotifications();
+
+    expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledWith('ours');
+    expect(N.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('reschedules when who reminds, or what syncs, changes', async () => {
+    mod.startCalendarNotificationSync();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(h.loadEventsInRange).toHaveBeenCalledTimes(1);
+
+    h.reminderListener!();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(h.loadEventsInRange).toHaveBeenCalledTimes(2);
   });
 });
 

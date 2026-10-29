@@ -1,0 +1,39 @@
+# Backing out of OAuth: Cancel on the system alert, and closing the sheet
+# halfway. Both leave the user on the confirm step without an error.
+appId: org.bulwarkmail.mobile
+name: OAuth cancelled
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${SERVER}
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: ".*Wants to Use.*to Sign In.*"
+    timeout: 30000
+- tapOn:
+    text: "Cancel"
+    below: ".*Wants to Use.*to Sign In.*"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000
+- assertNotVisible: "Sign-in failed"
+- assertNotVisible: "Sign-in was interrupted"
+- takeScreenshot: oauth-cancel-01-alert-cancelled
+
+# Accept the alert, then close the sheet on Stalwart's page.
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- extendedWaitUntil:
+    visible: "you@example.com"
+    timeout: 60000
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000
+- assertNotVisible: "Sign-in failed"
+- assertNotVisible: "Sign-in was interrupted"
+- takeScreenshot: oauth-cancel-02-sheet-closed

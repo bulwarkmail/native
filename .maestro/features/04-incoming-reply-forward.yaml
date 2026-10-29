@@ -1,0 +1,72 @@
+# Incoming mail while the app is open (sent by userb over JMAP), then reply
+# and forward it; userb receives both, the forward with the attachment.
+appId: org.bulwarkmail.mobile
+name: Incoming, reply, forward
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.incoming = 'E2E incoming ' + DEVICE + '-' + APPEARANCE + '-' + ORIENTATION + ' ' + Date.now()}
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /send?to=${ACCOUNT}&subject=${encodeURIComponent(output.incoming)}&attach=1&html=1
+# Arrives without a pull to refresh (push over EventSource).
+- extendedWaitUntil:
+    visible: ".*${output.incoming}.*"
+    timeout: 90000
+- takeScreenshot: incoming-01-arrived
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: ${output.incoming}
+- takeScreenshot: incoming-02-open
+
+# Reply
+- tapOn:
+    text: "Reply"
+    index: 0
+- extendedWaitUntil:
+    visible: "Re: ${output.incoming}"
+    timeout: 15000
+- runFlow:
+    file: ../subflows/compose-body.yaml
+    env:
+      BODY: "Reply from the iOS simulator test."
+- takeScreenshot: incoming-03-reply
+- tapOn: "Send"
+# The toast is gone after a few seconds; delivery is checked below.
+- extendedWaitUntil:
+    visible: "Email sent successfully"
+    timeout: 20000
+    optional: true
+- runFlow:
+    file: ../subflows/assert-delivered.yaml
+    env:
+      SUBJECT: "Re: ${output.incoming}"
+
+# Forward with the attachment
+- extendedWaitUntil:
+    visible: "Forward"
+    timeout: 15000
+- tapOn:
+    text: "Forward"
+    index: 0
+- extendedWaitUntil:
+    visible: "Fwd: ${output.incoming}"
+    timeout: 15000
+- tapOn: "Recipient email addresses"
+- inputText: "userb@example.org"
+- pressKey: Enter
+- takeScreenshot: incoming-04-forward
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Email sent successfully"
+    timeout: 20000
+    optional: true
+- runFlow:
+    file: ../subflows/assert-delivered.yaml
+    env:
+      SUBJECT: "Fwd: ${output.incoming}"
+      ATTACHMENT: e2e-attachment.pdf
+- runFlow: ../subflows/close-message.yaml

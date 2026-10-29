@@ -13,7 +13,7 @@ import { htmlToPlainText } from './compose-html';
 import {
   buildEmbeddedSignatureHtml, containsEmbeddedSignature, getPlainTextSignature,
   plainTextBodyHasSignature, plainTextBodyWithoutSignature, spliceSignature,
-  type SignatureSource,
+  wantsSignatureSeparator, type SignatureSource,
 } from './signature-utils';
 
 /**
@@ -67,7 +67,9 @@ export function htmlComposeBodyToPlainText(
   const head = text.slice(0, at).replace(/\s+$/, '');
   const tail = text.slice(at + SIGNATURE_TOKEN.length).replace(/^\s+/, '');
   const signature = getPlainTextSignature(identity);
-  const withSignature = signature ? `${head}${separatorText(options.separator)}${signature}` : head;
+  const withSignature = signature
+    ? `${head}${separatorText(wantsSignatureSeparator(options.separator, identity))}${signature}`
+    : head;
   return tail ? `${withSignature}\n\n${tail}` : withSignature;
 }
 
@@ -86,7 +88,7 @@ export function plainComposeBodyToHtml(
   const signature = getPlainTextSignature(identity);
   const embedded = signature ? buildEmbeddedSignatureHtml(identity, options) : '';
   if (embedded) {
-    const marker = `${separatorText(options.separator)}${signature}`;
+    const marker = `${separatorText(wantsSignatureSeparator(options.separator, identity))}${signature}`;
     const at = text.indexOf(marker);
     if (at !== -1) {
       const before = plainTextToComposerHtml(text.slice(0, at).replace(/^\n+/, ''));

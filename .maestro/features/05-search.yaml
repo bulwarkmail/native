@@ -1,0 +1,27 @@
+# Search: a hit, a miss, clearing.
+appId: org.bulwarkmail.mobile
+name: Search
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- tapOn: "Search mail..."
+- inputText: "verification"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: ".*Your verification code.*"
+    timeout: 30000
+- assertNotVisible: ".*Weekly digest.*"
+- takeScreenshot: search-01-hit
+- tapOn: "Clear search"
+- tapOn: "Search mail..."
+- inputText: "zzqx-no-such-mail"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "No results found"
+    timeout: 30000
+- takeScreenshot: search-02-miss
+- tapOn: "Clear"
+- extendedWaitUntil:
+    visible: ".*Weekly digest.*"
+    timeout: 30000

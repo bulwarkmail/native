@@ -175,7 +175,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
   - What RN does: single tap follows the global `mailAttachmentAction`; `jszip` is already a dependency (`package.json:36`) but unused for mail.
   - Fix hint: long-press sheet with "Open / Save / Share"; a "Download all" entry building the zip with `jszip` into `Paths.cache` then sharing.
 
-- [x] **In-app attachment preview (images, PDF, text, audio/video) is absent; iOS "Preview" is just the share sheet — fixed in d2ed27f** — `P3` — `partial`
+- [x] **In-app attachment preview (images, PDF, text, audio/video) is absent; iOS "Preview" is just the share sheet — fixed in d2ed27f; audio/video, HTML, Markdown, SVG, Android PDFs and ZIPs since 0.1.80-0.1.82** — `P3` — `partial`
   - What WEB does: `FilePreviewModal` for images/PDF (bytes handed to pdf.js, #871)/text/markdown/audio/video/eml, script-bearing types forced to download (`components/mail/mail-app.tsx:2887-2935`, `lib/file-preview.ts:29-92`).
   - What RN does: Android hands the file to an external viewer via `ACTION_VIEW`, iOS opens the share sheet (`src/lib/email-export.ts:64-79`, `115-141`); nothing is previewed inside the app.
   - Fix hint: for images/PDF/text open a modal `WebView` on the cached `file://` (or use `expo-file-system`'s `File.uri` with a QuickLook bridge on iOS); keep the external-viewer path as fallback.

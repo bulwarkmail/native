@@ -15,6 +15,7 @@
  */
 
 import type { TimeFormat } from '../stores/settings-store';
+import { intlLocale } from './intl-locale';
 
 /** How far ahead of `receivedAt` a `Date` header may be before it is ignored. */
 export const MAX_FUTURE_SENT_AT_MS = 24 * 60 * 60 * 1000;
@@ -37,10 +38,6 @@ export function emailDisplayDate<T extends DatedEmail>(email: T): DisplayDate<T>
     if (!Number.isNaN(received) && sent - received > MAX_FUTURE_SENT_AT_MS) return fallback;
   }
   return sentAt as DisplayDate<T>;
-}
-
-function intlLocale(locale?: string): string {
-  return !locale || locale === 'en' ? 'en-US' : locale;
 }
 
 /** "Mon, 3 Jun 2026" in the app locale. */

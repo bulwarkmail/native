@@ -16,10 +16,12 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import { listBackStep } from '../lib/list-back';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2,
-} from 'lucide-react-native';
+} from '../components/icons';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
 import {
@@ -102,7 +104,14 @@ function categoryTitle(
   }
 }
 
-export default function ContactsScreen() {
+interface ContactsScreenProps {
+  /** Split view: open the contact in the detail pane instead of the stack. */
+  onOpenContact?: (contact: ContactCard) => void;
+  /** The contact open in the detail pane. */
+  activeContactId?: string | null;
+}
+
+export default function ContactsScreen({ onOpenContact, activeContactId = null }: ContactsScreenProps = {}) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
@@ -211,7 +220,9 @@ export default function ContactsScreen() {
       toggleSelect(c.id);
       return;
     }
-    if (isGroup(c)) {
+    if (onOpenContact) {
+      onOpenContact(c);
+    } else if (isGroup(c)) {
       navigation.navigate('GroupDetail', { groupId: c.id });
     } else {
       navigation.navigate('ContactDetail', { contactId: c.id });
@@ -223,6 +234,17 @@ export default function ContactsScreen() {
   };
 
   const clearSelection = () => setSelection(new Set());
+
+  // Back leaves selection mode, then the search, before it leaves the tab.
+  const backStep = listBackStep({ selecting: selectionMode, searching: searchActive || searchQuery.length > 0 });
+  useBackWhileFocused(backStep !== 'leave', () => {
+    if (backStep === 'clear-selection') {
+      clearSelection();
+    } else {
+      setSearchQuery('');
+      setSearchActive(false);
+    }
+  });
 
   const doBulkDelete = async () => {
     const ids = Array.from(selection);
@@ -371,7 +393,7 @@ export default function ContactsScreen() {
   }, [addressBooks, groups, selectedCategory, t]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ContactsSidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <View style={styles.header}>
@@ -526,6 +548,7 @@ export default function ContactsScreen() {
                 key={chip.key}
                 onPress={() => setSelectedCategory(chip.category)}
                 style={[styles.chip, chip.active && styles.chipActive]}
+                hitSlop={{ top: 6, bottom: 6 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: chip.active }}
               >
@@ -553,6 +576,7 @@ export default function ContactsScreen() {
             onPress={() => handleRowPress(item)}
             onLongPress={() => handleLongPress(item)}
             selected={selection.has(item.id)}
+            active={item.id === activeContactId}
             selectionMode={selectionMode}
           />
         )}
@@ -705,15 +729,22 @@ function makeStyles(c: ThemePalette) {
   },
   searchInput: { flex: 1, ...typography.body, color: c.text, paddingVertical: 0 },
 
-  chipBar: { flexGrow: 0, marginBottom: spacing.sm },
+  // flexShrink 0: in a short (landscape) window the column squeezed the
+  // horizontal scroller and cut the chips off at the bottom.
+  chipBar: { flexGrow: 0, flexShrink: 0, marginBottom: 2 },
+  // The vertical padding leaves room for the chips' slop, which makes them
+  // 48 dp targets (they were about 28 dp).
   chipBarContent: {
     paddingHorizontal: spacing.lg,
+    paddingVertical: 6,
     gap: spacing.sm,
     alignItems: 'center',
   },
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
+    minHeight: 36,
+    justifyContent: 'center',
     borderRadius: radius.full,
     backgroundColor: c.surface,
     borderWidth: 1,
@@ -739,7 +770,7 @@ function makeStyles(c: ThemePalette) {
     borderBottomWidth: 1,
     borderBottomColor: c.borderLight,
   },
-  sectionHeaderText: { ...typography.small, color: c.primary },
+  sectionHeaderText: { ...typography.captionMedium, color: c.mutedForeground },
 
   separator: { height: 1, backgroundColor: c.borderLight, marginLeft: 68 },
 

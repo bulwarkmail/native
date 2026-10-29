@@ -60,16 +60,18 @@ export interface EmlPreview {
   date?: string;
   html: string | null;
   text: string | null;
+  /** The message's own attachments (not the images its body embeds). */
+  attachments: ExtractedAttachment[];
 }
 
 /** Parse a message once for the preview: its unwrapped body plus the header lines shown above it. */
 export async function emlPreviewFromBytes(bytes: Uint8Array): Promise<EmlPreview> {
   const parsed = await parseMessage(bytes);
-  const { html, text } = unwrapParsed(parsed);
+  const { html, text, attachments } = unwrapParsed(parsed);
   const from = parsed.from && 'address' in parsed.from
     ? `${parsed.from.name ? `${parsed.from.name} ` : ''}<${parsed.from.address}>`
     : parsed.from?.name;
-  return { subject: parsed.subject, from, date: parsed.date, html, text };
+  return { subject: parsed.subject, from, date: parsed.date, html, text, attachments };
 }
 
 function unwrapParsed(parsed: ParsedEmail): UnwrappedMessage {

@@ -14,13 +14,14 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {
   ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
   ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink,
-} from 'lucide-react-native';
+} from '../components/icons';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
@@ -54,11 +55,15 @@ import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
 import { fileNameProblem, type FileNameProblem } from '../lib/file-name-rules';
 import { fileErrorMessage } from '../lib/file-errors';
+import { filesGridLayout } from '../lib/files-grid';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatListDate } from '../lib/date-format';
+import { useLayout, useSheetInsets } from '../lib/use-layout';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import { driveChange, type DriveScope } from '../lib/files-drive';
 import type { FileNode } from '../api/types';
-import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import {
   useSettingsStore, type FilesViewMode, type FilesSortKey, type FilesSortDir,
@@ -68,6 +73,7 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
@@ -117,22 +123,20 @@ export function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function formatModified(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  }
-  if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  }
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+/**
+ * Formats a file's modified time like the mail list does: in the app's
+ * language and with the 12/24 h and date settings, instead of the device
+ * defaults ("10:47 PM" next to 24 h times everywhere else).
+ */
+function useFormatModified(): (iso?: string) => string {
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const locale = useLocaleStore((s) => s.locale);
+  const t = useLocaleStore((s) => s.t);
+  return React.useCallback(
+    (iso?: string) => (iso ? formatListDate(iso, { dateFormat, timeFormat, locale, t }) : ''),
+    [dateFormat, timeFormat, locale, t],
+  );
 }
 
 // Last-modified with the creation time as fallback (webmail file-store
@@ -188,6 +192,11 @@ export default function FilesScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const formatModified = useFormatModified();
+  // Clear of the status bar (the header used a fixed 60 px top padding); the
+  // whole screen keeps clear of the side insets in landscape.
+  const insets = useSafeAreaInsets();
+  const headerInsets = { paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.md };
 
   // Folder navigation stack. Hierarchy is real parentId nesting (#379) — each
   // entry is the folder's node id (namespaced "accountId:nodeId" inside a
@@ -230,6 +239,11 @@ export default function FilesScreen() {
 
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
+  const { isSplit } = useLayout();
+  // The grid's columns follow its measured width (rotation, tablet panes).
+  const { width: windowWidth } = useWindowDimensions();
+  const [gridWidth, setGridWidth] = React.useState(0);
+  const grid = filesGridLayout(gridWidth || windowWidth);
 
   const uploading = uploadProgress != null;
   const selectionMode = selection.size > 0;
@@ -369,8 +383,8 @@ export default function FilesScreen() {
     }
   }, [t]);
 
-  // Tap on a file: the in-app preview for the types it shows (images, text
-  // and code, .eml, PDFs on iOS), the other app for the rest.
+  // Tap on a file: the in-app preview for the types it shows (lib/file-preview),
+  // the other app for the rest.
   const openFile = useCallback((row: FileRow) => {
     if (canPreviewInApp(row)) setPreviewTarget(row);
     else void openFileWith(row);
@@ -679,7 +693,7 @@ export default function FilesScreen() {
     if (selectionMode) {
       const selectedRows = visibleFiles.filter((r) => selection.has(r.id));
       return (
-        <View style={styles.header}>
+        <View style={[styles.header, headerInsets]}>
           <View style={styles.headerRow}>
             <Pressable
               onPress={clearSelection}
@@ -721,7 +735,7 @@ export default function FilesScreen() {
       );
     }
     return (
-      <View style={styles.header}>
+      <View style={[styles.header, headerInsets]}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             {canBack ? (
@@ -1007,12 +1021,14 @@ export default function FilesScreen() {
     body = (
       <FlatList
         data={visibleFiles}
-        key="grid"
-        numColumns={3}
+        // A new column count needs a fresh list.
+        key={`grid-${grid.columns}`}
+        numColumns={grid.columns}
         keyExtractor={(item) => item.id}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.gridContent}
-        renderItem={({ item }) => renderGridCell(item)}
+        onLayout={(e) => setGridWidth(Math.round(e.nativeEvent.layout.width))}
+        renderItem={({ item }) => <View style={{ width: grid.cellWidth }}>{renderGridCell(item)}</View>}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
@@ -1034,10 +1050,19 @@ export default function FilesScreen() {
     );
   }
 
+  // On a wide window an open file shows beside the list instead of covering it.
+  const previewDocked = isSplit && previewTarget != null;
   return (
-    <View style={styles.container}>
-      {renderHeader()}
-      {body}
+    <View style={[styles.container, previewDocked && styles.splitRow, { paddingLeft: insets.left, paddingRight: insets.right }]}>
+      <View style={styles.listColumn}>
+        {renderHeader()}
+        {body}
+      </View>
+      {previewDocked && (
+        <View style={styles.previewPane}>
+          <FilePreviewModal docked file={previewTarget} onClose={() => setPreviewTarget(null)} />
+        </View>
+      )}
 
       <PromptModal
         visible={newFolderOpen}
@@ -1128,7 +1153,7 @@ export default function FilesScreen() {
         onChangeDir={(d) => setSetting('filesDefaultSortDir', d)}
       />
 
-      <FilePreviewModal file={previewTarget} onClose={() => setPreviewTarget(null)} />
+      {!isSplit && <FilePreviewModal file={previewTarget} onClose={() => setPreviewTarget(null)} />}
 
       <ShareSheet
         node={shareTarget}
@@ -1170,15 +1195,15 @@ function PromptModal(props: PromptModalProps) {
   const c = useColors();
   const styles = React.useMemo(() => makePromptStyles(c), [c]);
   return (
-    <Modal
+    <Modal supportedOrientations={MODAL_ORIENTATIONS}
       visible={props.visible}
       transparent
       animationType="fade"
       onRequestClose={props.onCancel}
     >
-      <TouchableWithoutFeedback onPress={props.onCancel}>
+      <TouchableWithoutFeedback accessible={false} onPress={props.onCancel}>
         <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.dialog}>
               <Text style={styles.title}>{props.title}</Text>
               <TextInput
@@ -1229,6 +1254,9 @@ interface ActionsSheetProps {
 function ActionsSheet({
   target, sharingEnabled, t, onClose, onPreview, onOpenWith, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
 }: ActionsSheetProps) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
+  const formatModified = useFormatModified();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!target) return null;
@@ -1243,10 +1271,10 @@ function ActionsSheet({
   const canShare = sharingEnabled && !link && !target.isShared && (target.myRights?.mayShare ?? true);
   const modified = modifiedOf(target);
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {target.displayName}
@@ -1329,6 +1357,8 @@ interface FolderPickerSheetProps {
 // its descendants (a folder can't be moved into itself), flattened with
 // indentation, plus the drive root.
 function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: FolderPickerSheetProps) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   const options = useMemo(() => {
@@ -1367,10 +1397,10 @@ function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: 
   if (!target) return null;
   const currentParent = target.parentId ?? null;
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {t('files.move_to', 'Move to…')} · {target.displayName}
@@ -1417,15 +1447,17 @@ interface SortSheetProps {
 }
 
 function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChangeDir }: SortSheetProps) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!visible) return null;
   const keys: FilesSortKey[] = ['name', 'size', 'modified'];
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Sort')}</Text>
               {keys.map((k) => (
@@ -1462,9 +1494,10 @@ function makeStyles(c: ThemePalette) {
       flex: 1,
       backgroundColor: c.background,
     },
+    splitRow: { flexDirection: 'row' },
+    listColumn: { flex: 1 },
+    previewPane: { width: '45%', borderLeftWidth: 1, borderLeftColor: c.border },
     header: {
-      paddingTop: 60,
-      paddingHorizontal: spacing.md,
       paddingBottom: spacing.sm,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
@@ -1487,15 +1520,18 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.xs,
     },
     headerBtn: {
-      padding: spacing.xs,
+      minWidth: componentSizes.buttonLg,
+      minHeight: componentSizes.buttonLg,
+      alignItems: 'center',
+      justifyContent: 'center',
       borderRadius: radius.sm,
     },
     headerBtnActive: {
       backgroundColor: c.primaryBg,
     },
+    // Same header title as Mail and Contacts (text-lg font-semibold).
     title: {
-      fontSize: typography.h2.fontSize,
-      fontWeight: '700' as const,
+      ...typography.h3,
       color: c.text,
       flexShrink: 1,
     },
@@ -1622,7 +1658,10 @@ function makeStyles(c: ThemePalette) {
       color: c.textMuted,
     },
     rowMore: {
-      padding: spacing.xs,
+      width: componentSizes.buttonLg,
+      height: componentSizes.buttonLg,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     gridContent: {
       padding: spacing.sm,
@@ -1631,7 +1670,6 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.sm,
     },
     gridItem: {
-      flex: 1,
       alignItems: 'center',
       gap: spacing.xs,
       paddingVertical: spacing.md,

@@ -1,0 +1,23 @@
+# "Use my email address": example.org has no autodiscovery, so the app moves
+# on to the server step and names the domain.
+appId: org.bulwarkmail.mobile
+name: Email address discovery
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- tapOn: "Use my email address.*"
+- extendedWaitUntil:
+    visible: "What's your email address."
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- inputText: ${ACCOUNT}@example.org
+- assertVisible: ${ACCOUNT}@example.org
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "We couldn't find a server for example.org.*"
+    timeout: 60000
+- takeScreenshot: discovery-01-not-found
+- assertVisible:
+    id: login-server-input

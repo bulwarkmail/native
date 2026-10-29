@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import {
   Plus, Pencil, Trash2, Globe, ExternalLink, PanelRight, GripVertical,
-} from 'lucide-react-native';
+} from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type SidebarApp } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import Badge from '../Badge';
 
 export function SidebarAppsSettings() {
   const c = useColors();
@@ -79,17 +80,9 @@ export function SidebarAppsSettings() {
                   <Text style={styles.appName} numberOfLines={1}>{app.name}</Text>
                   <Text style={styles.appUrl} numberOfLines={1}>{app.url}</Text>
                 </View>
-                <View style={[
-                  styles.modeBadge,
-                  app.openMode === 'inline' ? styles.modeBadgeInline : styles.modeBadgeTab,
-                ]}>
-                  <Text style={[
-                    styles.modeBadgeText,
-                    { color: app.openMode === 'inline' ? c.primary : c.mutedForeground },
-                  ]}>
-                    {app.openMode === 'inline' ? t('settings.sidebar_apps.open_mode.inline', "Inline") : t('settings.sidebar_apps.open_mode.tab', "Tab")}
-                  </Text>
-                </View>
+                <Badge variant={app.openMode === 'inline' ? 'primary' : 'default'}>
+                  {app.openMode === 'inline' ? t('settings.sidebar_apps.open_mode.inline', "Inline") : t('settings.sidebar_apps.open_mode.tab', "Tab")}
+                </Badge>
                 <Pressable style={styles.iconBtn} onPress={() => setEditingId(app.id)} accessibilityRole="button" accessibilityLabel={t('common.edit', "Edit")}>
                   <Pencil size={14} color={c.mutedForeground} />
                 </Pressable>
@@ -237,14 +230,6 @@ function makeStyles(c: ThemePalette) {
   },
   appName: { ...typography.bodyMedium, color: c.text },
   appUrl: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
-  modeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radius.full,
-  },
-  modeBadgeInline: { backgroundColor: 'rgba(59, 130, 246, 0.1)' },
-  modeBadgeTab: { backgroundColor: c.muted },
-  modeBadgeText: { fontSize: 10, fontWeight: '500' },
   iconBtn: {
     width: 28,
     height: 28,

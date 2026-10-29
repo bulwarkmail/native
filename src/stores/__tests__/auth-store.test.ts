@@ -129,6 +129,31 @@ describe('auth-store', () => {
       expect(state.serverUrl).toBeNull();
       expect(state.username).toBeNull();
     });
+
+    // logout used to read the account list from a snapshot taken before it
+    // removed the account: the removed account still looked like one to
+    // switch to, the "switch" to the active account returned at once, and
+    // signing out of the only account left the app signed in.
+    it('signs out of the only account', async () => {
+      const id = 'me@mail.example.com';
+      useAccountStore.setState({
+        accounts: [{
+          id, serverUrl: 'https://mail.example.com', username: 'me',
+          displayName: 'me', email: 'me', avatarColor: '#000', lastLoginAt: 0,
+          isConnected: true, hasError: false, isDefault: true,
+        }],
+        activeAccountId: id,
+        defaultAccountId: id,
+      });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: id, serverUrl: 'x', username: 'y' });
+
+      await useAuthStore.getState().logout();
+
+      expect(useAccountStore.getState().accounts).toEqual([]);
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.activeAccountId).toBeNull();
+    });
   });
 
   describe('mail the viewer held in memory', () => {

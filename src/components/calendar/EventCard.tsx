@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Clock, MapPin, Users } from 'lucide-react-native';
+import { Clock, MapPin, Users } from '../icons';
 import { format } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -8,50 +8,63 @@ import { useColors } from '../../theme/colors';
 import {
   eventTimeRange,
   getEventColor,
+  isTimedEventFullDayOnDate,
   timePattern,
   type TimeFormat,
 } from '../../lib/calendar-utils';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { isInactiveEvent } from '../../lib/calendar-participants';
 
 interface EventCardProps {
   event: CalendarEvent;
   calendars: Calendar[];
   timeFormat?: TimeFormat;
+  /** The user's addresses, to draw events they declined as inactive. */
+  currentUserEmails?: string[];
   onPress?: (event: CalendarEvent) => void;
   onLongPress?: (event: CalendarEvent) => void;
+  /** The day the row is listed under: a timed event filling it reads as all day. */
+  day?: Date;
 }
 
 function participantCount(event: CalendarEvent): number {
   return event.participants ? Object.keys(event.participants).length : 0;
 }
 
-export function EventCard({ event, calendars, timeFormat, onPress, onLongPress }: EventCardProps) {
+/**
+ * An event as an agenda row (repos/branding/APP.md): a dot in the calendar
+ * colour before the title, no card and no bar. Declined and cancelled events
+ * get a hollow dot and a struck-through, muted title.
+ */
+export function EventCard({ event, calendars, timeFormat, currentUserEmails, onPress, onLongPress, day }: EventCardProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const color = getEventColor(event, calendars);
-  const { start, end, allDay } = eventTimeRange(event);
+  const range = eventTimeRange(event);
+  const { start, end } = range;
+  const allDay = range.allDay || (!!day && isTimedEventFullDayOnDate(event, day));
   const fmt = timePattern(timeFormat);
   const time = allDay
     ? t('calendar.events.all_day', 'All day')
     : `${format(start, fmt, { locale })} – ${format(end, fmt, { locale })}`;
   const count = participantCount(event);
   const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
-  const cancelled = event.status === 'cancelled';
+  const inactive = isInactiveEvent(event, currentUserEmails);
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={() => onPress?.(event)}
       onLongPress={() => onLongPress?.(event)}
     >
-      <View style={[styles.colorBar, { backgroundColor: color }]} />
+      <View style={[styles.dot, inactive ? [styles.dotHollow, { borderColor: color }] : { backgroundColor: color }]} />
       <View style={styles.body}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, cancelled && styles.titleCancelled]} numberOfLines={1}>
+          <Text style={[styles.title, inactive && styles.titleInactive]} numberOfLines={1}>
             {event.title || t('calendar.events.no_title', '(No title)')}
           </Text>
-          {event.showWithoutTime && (
+          {allDay && (
             <View style={styles.allDayBadge}>
               <Text style={styles.allDayText}>{t('calendar.events.all_day', 'All day')}</Text>
             </View>
@@ -62,7 +75,7 @@ export function EventCard({ event, calendars, timeFormat, onPress, onLongPress }
             </View>
           )}
         </View>
-        {!event.showWithoutTime && (
+        {!allDay && (
           <View style={styles.detailRow}>
             <Clock size={12} color={c.textMuted} />
             <Text style={styles.detailText}>{time}</Text>
@@ -89,21 +102,31 @@ export function EventCard({ event, calendars, timeFormat, onPress, onLongPress }
   );
 }
 
+const EVENT_DOT = 9;
+
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
-  card: {
+  // Bleeds into the list's side padding so the dot lines up with the day
+  // headers while the pressed highlight keeps some room around the text.
+  row: {
     flexDirection: 'row',
-    backgroundColor: c.card,
-    borderTopRightRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: c.border,
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    marginHorizontal: -spacing.sm,
+    borderRadius: radius.sm,
   },
-  cardPressed: { backgroundColor: c.surfaceHover },
-  colorBar: { width: 3 },
-  body: { flex: 1, padding: spacing.md, gap: 4 },
+  rowPressed: { backgroundColor: c.surfaceHover },
+  // Centred on the title's line (bodyMedium, 20px).
+  dot: {
+    width: EVENT_DOT,
+    height: EVENT_DOT,
+    borderRadius: EVENT_DOT / 2,
+    marginTop: (typography.bodyMedium.lineHeight - EVENT_DOT) / 2,
+  },
+  dotHollow: { borderWidth: 1.5 },
+  body: { flex: 1, gap: 4 },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -111,7 +134,7 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
   },
   title: { ...typography.bodyMedium, color: c.text, flex: 1 },
-  titleCancelled: { textDecorationLine: 'line-through', color: c.textMuted },
+  titleInactive: { textDecorationLine: 'line-through', color: c.mutedForeground },
   allDayBadge: {
     backgroundColor: c.primaryBg,
     paddingHorizontal: 8,

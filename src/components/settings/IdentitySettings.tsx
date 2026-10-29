@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Plus, Star, Trash2, X } from 'lucide-react-native';
+import { Plus, Star, Trash2, X } from '../icons';
 import { SettingsSection } from './settings-section';
 import Button from '../Button';
 import { typography, spacing, radius, type ThemePalette } from '../../theme/tokens';
@@ -27,6 +27,9 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { isValidEmail, parseRecipientList, formatRecipient } from '../../lib/recipients';
 import { sanitizeDisplayName } from '../../lib/rfc5322-mailbox';
 import { sanitizeSignatureHtml } from '../../lib/signature-utils';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import Badge from '../Badge';
 
 type DraftIdentity = {
   id: string;
@@ -92,6 +95,8 @@ function parseAddressList(value: string): { list: EmailAddress[]; invalid: strin
 }
 
 export function IdentitySettings() {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const identities = useSettingsStore((s) => s.identities);
@@ -276,9 +281,7 @@ export function IdentitySettings() {
             </Pressable>
           )}
           {!identity.mayDelete ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{t('settings.identities.primary', "primary")}</Text>
-            </View>
+            <Badge>{t('settings.identities.primary', "primary")}</Badge>
           ) : (
             <Pressable
               onPress={() => confirmDelete(identity)}
@@ -298,8 +301,8 @@ export function IdentitySettings() {
         </Pressable>
       ))}
 
-      <Modal visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
-        <View style={styles.modalOverlay}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
+        <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -419,11 +422,6 @@ function makeStyles(c: ThemePalette) {
     identityName: { ...typography.bodyMedium, color: c.text },
     identityEmail: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
     identityDelete: { padding: 6 },
-    badge: {
-      paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full,
-      backgroundColor: c.primaryBg,
-    },
-    badgeText: { fontSize: 10, fontWeight: '500', color: c.primary },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalSheet: {

@@ -1,12 +1,14 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Platform, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
-import { X } from 'lucide-react-native';
+import { X } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import Button from './Button';
 import { useLocaleStore } from '../stores/locale-store';
+import { SafeAreaModal } from './SafeAreaModal';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 interface QrScanModalProps {
   visible: boolean;
@@ -42,7 +44,7 @@ export function QrScanModal({ visible, onClose, onScanned }: QrScanModalProps) {
   );
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.container}>
         {permission?.granted ? (
           <CameraView
@@ -104,7 +106,7 @@ export function QrScanModal({ visible, onClose, onScanned }: QrScanModalProps) {
           ) : null}
         </SafeAreaView>
       </View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

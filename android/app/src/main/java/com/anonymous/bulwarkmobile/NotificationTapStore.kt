@@ -43,7 +43,8 @@ object NotificationTapStore {
         // The JMAP account a group/shared mailbox's message lives in - a JMAP
         // id like the email id. Optional: older notifications don't carry it.
         val jmapAccountId = extras.getString(EXTRA_JMAP_ACCOUNT_ID)?.takeIf { ID_PATTERN.matches(it) }
-        val payload = TapPayload(emailId, threadId, subject, accountId, jmapAccountId)
+        val action = extras.getString(EXTRA_ACTION)?.takeIf { it == "reply" }
+        val payload = TapPayload(emailId, threadId, subject, accountId, jmapAccountId, action)
         pending = payload
         // Clear so a subsequent activity lifecycle event doesn't replay this.
         extras.remove(EXTRA_EMAIL_ID)
@@ -51,6 +52,7 @@ object NotificationTapStore {
         extras.remove(EXTRA_SUBJECT)
         extras.remove(EXTRA_ACCOUNT_ID)
         extras.remove(EXTRA_JMAP_ACCOUNT_ID)
+        extras.remove(EXTRA_ACTION)
         return payload
     }
 
@@ -60,6 +62,7 @@ object NotificationTapStore {
         val subject: String?,
         val accountId: String?,
         val jmapAccountId: String?,
+        val action: String? = null,
     ) {
         fun toMap(): WritableMap = Arguments.createMap().apply {
             putString("emailId", emailId)
@@ -67,6 +70,7 @@ object NotificationTapStore {
             if (subject != null) putString("subject", subject)
             if (accountId != null) putString("accountId", accountId)
             if (jmapAccountId != null) putString("jmapAccountId", jmapAccountId)
+            if (action != null) putString("action", action)
         }
     }
 
@@ -75,4 +79,5 @@ object NotificationTapStore {
     const val EXTRA_SUBJECT = "bulwark.notification.subject"
     const val EXTRA_ACCOUNT_ID = "bulwark.notification.accountId"
     const val EXTRA_JMAP_ACCOUNT_ID = "bulwark.notification.jmapAccountId"
+    const val EXTRA_ACTION = "bulwark.notification.action"
 }

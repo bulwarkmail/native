@@ -1,0 +1,33 @@
+# Perf: switch through the tabs, three times.
+appId: org.bulwarkmail.mobile
+name: Perf tab switches
+---
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: tab-calendar
+      - runFlow:
+          when:
+            visible: ".*Would Like to Send You Notifications.*"
+          commands:
+            - tapOn: "Allow"
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: tab-contacts
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - takeScreenshot: perf-contacts
+      - tapOn:
+          id: tab-files
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: tab-settings
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: tab-mail
+      - waitForAnimationToEnd:
+          timeout: 3000

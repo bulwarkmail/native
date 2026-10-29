@@ -14,6 +14,8 @@ import {
   timePattern,
   layoutOverlappingEvents,
   CALENDAR_COLOR_PALETTE,
+  reopenedEdit,
+  getTimedEventBoundsForDay,
 } from '../calendar-utils';
 import type { CalendarEvent } from '../../api/types';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -301,5 +303,54 @@ describe('changedCalendarFields', () => {
   it('compares with the colour the editor showed for a calendar without one', () => {
     const plain = { id: 'c2', name: 'Work' };
     expect(changedCalendarFields(plain, { name: 'Work', color: getCalendarColor(plain).toUpperCase(), description: '' })).toEqual({});
+  });
+});
+
+describe('reopenedEdit', () => {
+  it('puts the unsaved edits over the event and drops cleared fields', () => {
+    const event = {
+      id: 'e1', title: 'Team sync', start: '2026-10-19T10:00:00', duration: 'PT30M',
+      locations: { l: { '@type': 'Location', name: 'Room 2' } },
+    } as unknown as CalendarEvent;
+    const reopened = reopenedEdit(event, { title: 'Team sync (moved)', start: '2026-10-19T11:00:00', locations: null });
+    expect(reopened.id).toBe('e1');
+    expect(reopened.title).toBe('Team sync (moved)');
+    expect(reopened.start).toBe('2026-10-19T11:00:00');
+    expect(reopened.duration).toBe('PT30M');
+    expect('locations' in reopened).toBe(false);
+  });
+});
+
+describe('getTimedEventBoundsForDay on DST change days', () => {
+  it('places events by wall-clock time, not elapsed time since midnight', () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'Europe/Berlin';
+    try {
+      // 2026-10-25 has 25 hours in Berlin; 12:51 CET is 13h51m after midnight.
+      const fallBack = ev({
+        start: '2026-10-25T12:51:00',
+        timeZone: 'Europe/Berlin',
+        utcStart: '2026-10-25T11:51:00Z',
+        utcEnd: '2026-10-25T12:16:00Z',
+      });
+      expect(getTimedEventBoundsForDay(fallBack, new Date(2026, 9, 25))).toMatchObject({
+        startMinutes: 12 * 60 + 51,
+        endMinutes: 13 * 60 + 16,
+      });
+
+      // 2026-03-29 has 23 hours; 09:00 CEST is 8h after midnight.
+      const springForward = ev({
+        start: '2026-03-29T09:00:00',
+        timeZone: 'Europe/Berlin',
+        utcStart: '2026-03-29T07:00:00Z',
+        utcEnd: '2026-03-29T08:00:00Z',
+      });
+      expect(getTimedEventBoundsForDay(springForward, new Date(2026, 2, 29))).toMatchObject({
+        startMinutes: 9 * 60,
+        endMinutes: 10 * 60,
+      });
+    } finally {
+      process.env.TZ = tz;
+    }
   });
 });

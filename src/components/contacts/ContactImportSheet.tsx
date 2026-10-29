@@ -1,10 +1,10 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, Pressable, Animated, Easing, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Upload, X, Check, FileText, AlertTriangle, BookUser } from 'lucide-react-native';
+import { Upload, X, Check, FileText, AlertTriangle, BookUser } from '../icons';
 import type { ContactCard } from '../../api/types';
 import { parseVCard, detectDuplicates } from '../../lib/vcard';
 import { getContactDisplayName, getContactPrimaryEmail } from '../../lib/contact-utils';
@@ -13,6 +13,9 @@ import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen upload flow).
@@ -56,6 +59,8 @@ export default function ContactImportSheet({
   const [result, setResult] = React.useState<{ imported: number; failed: number } | null>(null);
 
   const slideY = React.useRef(new Animated.Value(900)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
 
   const resetState = React.useCallback(() => {
@@ -160,11 +165,11 @@ export default function ContactImportSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Text style={styles.title}>{t('contacts.import.title', 'Import Contacts')}</Text>
@@ -300,7 +305,7 @@ export default function ContactImportSheet({
           )}
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

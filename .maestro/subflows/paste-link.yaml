@@ -1,0 +1,22 @@
+# The helper has put a sign-in link on the simulator's clipboard: open
+# "Paste sign-in link", paste it and sign in.
+appId: org.bulwarkmail.mobile
+---
+- tapOn: "Paste sign-in link.*"
+- extendedWaitUntil:
+    visible: "Paste"
+    timeout: 10000
+- tapOn: "Paste"
+# iOS asks before an app reads the clipboard.
+- runFlow:
+    when:
+      visible: "Allow Paste"
+    commands:
+      - tapOn: "Allow Paste"
+- extendedWaitUntil:
+    visible: "bulwarkmail://pair.*"
+    timeout: 10000
+- takeScreenshot: paste-link-filled
+- tapOn:
+    text: "Sign in"
+    below: "bulwarkmail://pair.*"

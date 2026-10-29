@@ -1,0 +1,26 @@
+# Signed in: the tab bar is there and the inbox shows messages. Dismisses the
+# one-time prompts on the way.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    visible:
+      id: tab-mail
+    timeout: 90000
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
+# Adding an account from Settings returns to Settings.
+- tapOn:
+    id: tab-mail
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 60000
+# Rows are one element: sender, subject and preview together. Mail the
+# tests sent earlier can push the seeded row below the fold.
+- scrollUntilVisible:
+    element: ${INBOX_TEXT || '.*Your verification code.*'}
+    direction: DOWN
+    timeout: 30000

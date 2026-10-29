@@ -1,0 +1,21 @@
+# The app asks for notification permission now and then (calendar
+# reminders, push). The system alert covers the whole app, so XCTest sees
+# nothing else until it is answered: allow it when it is up. Taps on system
+# alerts miss in landscape, so answer it in portrait.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      visible: ".*Would Like to Send You Notifications.*"
+    commands:
+      - setOrientation: PORTRAIT
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          text: "Allow"
+          optional: true
+      - runFlow:
+          when:
+            true: ${ORIENTATION == 'landscape'}
+          commands:
+            - setOrientation: LANDSCAPE_LEFT

@@ -90,8 +90,8 @@ react {
     /* Variants */
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
-    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // debuggableVariants = ["liteDebug", "prodDebug"]
+    //   The distribution flavors (github, play) need their debug variants listed.
+    debuggableVariants = ["githubDebug", "playDebug"]
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -155,6 +155,37 @@ android {
         versionName appVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+    }
+
+    /**
+     * Where the build is distributed. The two are separate apps on a phone:
+     *
+     * - github: the APK on GitHub Releases, sideloaded, updated by the in-app
+     *   updater. Keeps the original package name so existing installs update.
+     * - play: the Google Play bundle. Play forbids an app updating itself
+     *   outside Play, so this flavor has no installer permission and the JS
+     *   hides the updater (BuildConfig.DISTRIBUTION, lib/platform-capabilities).
+     *
+     * See docs/android-release.md.
+     */
+    flavorDimensions = ["distribution"]
+    productFlavors {
+        github {
+            dimension "distribution"
+            applicationId 'com.anonymous.bulwarkmobile'
+            buildConfigField "String", "DISTRIBUTION", '"github"'
+        }
+        play {
+            dimension "distribution"
+            applicationId 'org.bulwarkmail.mobile'
+            buildConfigField "String", "DISTRIBUTION", '"play"'
+        }
+    }
+    applicationVariants.all { variant ->
+        // Android account type of device sync (#34), derived from the package
+        // name of each flavor. The XML in res/xml and the Kotlin in sync/ read
+        // it as @string/device_sync_account_type.
+        variant.resValue "string", "device_sync_account_type", "${variant.applicationId}.account"
     }
     signingConfigs {
         debug {
@@ -240,7 +271,7 @@ def checkReleaseSigning = tasks.register('checkReleaseSigning') {
     }
 }
 tasks.configureEach { task ->
-    if (task.name == 'preReleaseBuild') {
+    if (task.name ==~ /pre\w*ReleaseBuild/) {
         task.dependsOn(checkReleaseSigning)
     }
 }
@@ -279,6 +310,11 @@ dependencies {
     // NOTE: 3.3.2-3.3.4 are built with Kotlin 2.3 and break this project's
     // Kotlin 2.1 toolchain; 3.3.5 went back to 2.2 which it can read.
     implementation("org.unifiedpush.android:connector:3.3.5")
+
+    // JVM unit tests for the logic in the Kotlin shell of device sync (src/test).
+    // android.jar only stubs org.json, so the tests use the real one.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

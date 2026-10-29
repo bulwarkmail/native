@@ -1,0 +1,54 @@
+diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
+index 1c12d1f..60f01e7 100644
+--- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
++++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
+@@ -207,7 +207,7 @@ public class RNWidget {
+         intent.putExtra("clickActionData", Arguments.toBundle(clickableView.getClickActionData()));
+         PendingIntent pendingIntent = PendingIntent.getBroadcast(
+             appContext,
+-            (int) System.currentTimeMillis(),
++            RNWidgetUtil.nextClickRequestCode(),
+             intent,
+             PendingIntent.FLAG_CANCEL_CURRENT
+                 | PendingIntent.FLAG_MUTABLE
+diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java
+index ed1af56..12c3630 100644
+--- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java
++++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java
+@@ -162,7 +162,7 @@ class ListRemoteViewsFactory implements RemoteViewsService.RemoteViewsFactory {
+         intent.putExtra("clickActionData", clickableArea.getBundle("clickActionData"));
+         return PendingIntent.getBroadcast(
+             mContext,
+-            (int) System.currentTimeMillis(),
++            RNWidgetUtil.nextClickRequestCode(),
+             intent,
+             PendingIntent.FLAG_CANCEL_CURRENT
+                 | PendingIntent.FLAG_MUTABLE
+diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java
+index 2a34305..711503b 100644
+--- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java
++++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java
+@@ -15,8 +15,23 @@ import com.facebook.react.bridge.WritableArray;
+ import com.facebook.react.bridge.WritableMap;
+ 
+ import java.util.List;
++import java.util.concurrent.atomic.AtomicInteger;
+ 
+ public class RNWidgetUtil {
++    private static final AtomicInteger lastRequestCode = new AtomicInteger((int) System.currentTimeMillis() - 1);
++
++    /**
++     * A request code no other click PendingIntent of this app holds. Every click intent has the same
++     * action and component, so the request code alone tells them apart: a code shared by two buttons
++     * (two registrations within one millisecond with the time as the code) made the second one cancel
++     * the first, leaving a button that does nothing. Counting up from the time keeps the codes unique
++     * in this process and clear of the ones an earlier process left on the launcher.
++     */
++    public static int nextClickRequestCode() {
++        int now = (int) System.currentTimeMillis();
++        return lastRequestCode.updateAndGet(last -> now - last > 0 ? now : last + 1);
++    }
++
+     public static int getWidgetWidth(Context context, int widgetId) {
+         boolean isPortrait = context.getResources().getConfiguration().orientation == ORIENTATION_PORTRAIT;
+         if (isPortrait) {

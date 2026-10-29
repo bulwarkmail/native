@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage } from './persist-storage';
-import { generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
+import { AccountLimitError, generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
 import { generateAvatarColor } from '../lib/avatar-utils';
 
 export interface AccountEntry {
@@ -72,7 +72,7 @@ export const useAccountStore = create<AccountState>()(
         }
 
         if (state.accounts.length >= MAX_ACCOUNTS) {
-          throw new Error(`Maximum of ${MAX_ACCOUNTS} accounts reached`);
+          throw new AccountLimitError();
         }
 
         const isDefault = state.accounts.length === 0;

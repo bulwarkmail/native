@@ -1,14 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, AlertTriangle, CheckCircle } from 'lucide-react-native';
+import { X, AlertTriangle, CheckCircle } from '../icons';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
+import { SafeAreaModal } from '../SafeAreaModal';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 interface SieveEditorSheetProps {
   visible: boolean;
@@ -62,7 +64,7 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
   }, [script, showSaveWarning, onSave]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable
@@ -173,7 +175,7 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
           </View>
         </View>
       </SafeAreaView>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 
@@ -205,11 +207,13 @@ function makeStyles(c: ThemePalette) {
       padding: spacing.md,
       borderRadius: radius.sm,
       borderWidth: 1,
-      borderColor: 'rgba(252, 211, 77, 0.4)',
-      backgroundColor: 'rgba(120, 53, 15, 0.25)',
+      // Theme warning tokens: the fixed dark-amber values left light-yellow
+      // text on a near-white fill in the light theme.
+      borderColor: c.warning,
+      backgroundColor: c.warningBg,
       alignItems: 'flex-start',
     },
-    warningText: { ...typography.caption, color: '#fde68a', flex: 1 },
+    warningText: { ...typography.caption, color: c.text, flex: 1 },
 
     editorWrap: {
       flex: 1,

@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { differenceInCalendarDays, format, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
@@ -33,14 +33,18 @@ import {
 } from '../../lib/calendar-utils';
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
 import { displayNow, displayNowMinutes } from '../../lib/calendar-timezone';
+import { isInactiveEvent } from '../../lib/calendar-participants';
+import { eventBlockColors } from '../../lib/event-colors';
 import {
   buildAllDaySegments,
+  columnsPerScreen,
   headerColumnRange,
   hourAtOffset,
   timeGridFocusColumn,
   windowDays,
   type TimeGridMode,
 } from '../../lib/calendar-time-grid';
+import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
 
 const HOUR_HEIGHT = 48;
 const GRID_HEIGHT = 24 * HOUR_HEIGHT;
@@ -57,6 +61,8 @@ type TimeFormat = '12h' | '24h';
 
 interface TimeGridScrollViewProps {
   mode: TimeGridMode;
+  /** Days of the multi-day mode (`multiDayCount`). */
+  multiDays?: number;
   /** The day the user navigated to; its week (week view) or itself (day view) is scrolled into view. */
   focus: CalendarFocus;
   /** The loaded window: one column per day. */
@@ -67,6 +73,8 @@ interface TimeGridScrollViewProps {
   eventsByDay?: EventDayIndex;
   weekStartsOn?: WeekStart;
   timeFormat?: TimeFormat;
+  /** The user's addresses, to draw events they declined as inactive. */
+  currentUserEmails?: string[];
   /** Widen the window at the start; omitted once the limit is reached. */
   onExtendStart?: () => void;
   /** Widen the window at the end; omitted once the limit is reached. */
@@ -90,6 +98,7 @@ interface TimeGridScrollViewProps {
  */
 function TimeGridScrollViewInner({
   mode,
+  multiDays = 3,
   focus,
   window,
   selectedDate,
@@ -98,6 +107,7 @@ function TimeGridScrollViewInner({
   eventsByDay,
   weekStartsOn = 0,
   timeFormat = '24h',
+  currentUserEmails,
   onExtendStart,
   onExtendEnd,
   onVisibleDateChange,
@@ -113,7 +123,7 @@ function TimeGridScrollViewInner({
     [eventsByDay, events],
   );
 
-  const perScreen = mode === 'week' ? 7 : 1;
+  const perScreen = columnsPerScreen(mode, multiDays);
   const { width: screenWidth } = useWindowDimensions();
   const [rootWidth, setRootWidth] = React.useState(screenWidth);
   const listWidth = Math.max(perScreen, rootWidth - GUTTER_WIDTH);
@@ -210,6 +220,7 @@ function TimeGridScrollViewInner({
         listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
           const list = daysRef.current;
           offsetXRef.current = e.nativeEvent.contentOffset.x;
+          if (e.nativeEvent.contentOffset.x > 0) scrolledSinceMountRef.current = true;
           const col = Math.max(
             0,
             Math.min(list.length - 1, Math.round(e.nativeEvent.contentOffset.x / colWidthRef.current)),
@@ -232,7 +243,12 @@ function TimeGridScrollViewInner({
   const visibleHandlerRef = React.useRef(onVisibleDateChange);
   visibleHandlerRef.current = onVisibleDateChange;
   const lastVisibleKeyRef = React.useRef<string | null>(null);
+  // Right after a (re)mount the list reports its first days as visible
+  // before the initial scroll lands; that would set the title to the window's
+  // first month. Reports wait until the list has scrolled at all.
+  const scrolledSinceMountRef = React.useRef(false);
   const onViewableItemsChanged = React.useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (!scrolledSinceMountRef.current) return;
     let first: Date | null = null;
     for (const token of viewableItems) {
       const day = token.item as Date;
@@ -282,6 +298,7 @@ function TimeGridScrollViewInner({
   const handleLongPressAt = React.useCallback(
     (day: Date, hour: number) => {
       if (!onCreateAtTime) return;
+      setDraft(null);
       // A display date (that hour in the calendar's zone); the editor turns
       // it into the real instant when it saves (eventTimeFieldsToSave).
       const date = new Date(day);
@@ -290,6 +307,14 @@ function TimeGridScrollViewInner({
     },
     [onCreateAtTime],
   );
+
+  // A tap on an empty slot marks it with a "New event" block; tapping that
+  // block creates the event. Two taps, so a stray tap never opens the editor.
+  const [draft, setDraft] = React.useState<{ key: string; hour: number } | null>(null);
+  const handleTapAt = React.useCallback((day: Date, hour: number) => {
+    const key = dayKey(day);
+    setDraft((cur) => (cur && cur.key === key && cur.hour === hour ? null : { key, hour }));
+  }, []);
 
   const todayKey = dayKey(displayNow());
   const renderItem = React.useCallback(
@@ -301,12 +326,19 @@ function TimeGridScrollViewInner({
         nowMinutes={dayKey(day) === todayKey ? nowMinutes : -1}
         calendars={calendars}
         timeFormat={timeFormat}
+        currentUserEmails={currentUserEmails}
+        colors={c}
         styles={styles}
         onSelectEvent={onSelectEvent}
         onLongPressAt={onCreateAtTime ? handleLongPressAt : undefined}
+        onTapAt={onCreateAtTime ? handleTapAt : undefined}
+        draftHour={draft && draft.key === dayKey(day) ? draft.hour : -1}
       />
     ),
-    [layoutsFor, colWidth, todayKey, nowMinutes, calendars, timeFormat, styles, onSelectEvent, onCreateAtTime, handleLongPressAt],
+    [
+      layoutsFor, colWidth, todayKey, nowMinutes, calendars, timeFormat, currentUserEmails, c, styles,
+      onSelectEvent, onCreateAtTime, handleLongPressAt, handleTapAt, draft,
+    ],
   );
 
   const getItemLayout = React.useCallback(
@@ -356,6 +388,21 @@ function TimeGridScrollViewInner({
       ),
     };
   }
+  // The remounted list starts at that day, but the header strip still holds
+  // the old pixel offset until the list scrolls: move it now, or the header
+  // shows other days (or none) after a rotation.
+  React.useLayoutEffect(() => {
+    const index = initialIndexRef.current?.index ?? 0;
+    scrolledSinceMountRef.current = false;
+    offsetXRef.current = index * colWidth;
+    scrollX.setValue(offsetXRef.current);
+    const day = days[index];
+    if (day) {
+      headerAnchorRef.current = day;
+      setHeaderAnchor(day);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listKey]);
   const listStyle = React.useMemo(() => ({ width: listWidth, height: GRID_HEIGHT }), [listWidth]);
 
   return (
@@ -365,7 +412,9 @@ function TimeGridScrollViewInner({
           <View style={{ height: HEADER_HEIGHT }} />
           {allDayHeight > 0 && (
             <View style={[styles.allDayLabelWrap, { height: allDayHeight }]}>
-              <Text style={styles.allDayLabel} numberOfLines={2}>
+              {/* One line that shrinks to the gutter: a second line was cut
+                  off by a one-row strip, leaving "All". */}
+              <Text style={styles.allDayLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {t('calendar.events.all_day', 'All day')}
               </Text>
             </View>
@@ -379,34 +428,26 @@ function TimeGridScrollViewInner({
             ]}
           >
             {headerCells}
-            {visibleSegments.map((segment) => {
-              const color = getEventColor(segment.event, calendars);
-              return (
-                <Pressable
-                  key={`${segment.event.id}:${segment.startIndex}:${segment.row}`}
-                  onPress={() => onSelectEvent?.(segment.event)}
-                  style={[
-                    styles.allDayChip,
-                    {
-                      left: segment.startIndex * colWidth + 1,
-                      width: segment.span * colWidth - 2,
-                      top: HEADER_HEIGHT + 2 + segment.row * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP),
-                      backgroundColor: color + '33',
-                      borderLeftColor: color,
-                      borderTopLeftRadius: segment.continuesBefore ? 0 : radius.xs,
-                      borderBottomLeftRadius: segment.continuesBefore ? 0 : radius.xs,
-                      borderTopRightRadius: segment.continuesAfter ? 0 : radius.xs,
-                      borderBottomRightRadius: segment.continuesAfter ? 0 : radius.xs,
-                    },
-                  ]}
-                >
-                  <Text style={styles.allDayChipText} numberOfLines={1}>
-                    {segment.continuesBefore ? '… ' : ''}
-                    {segment.event.title || t('calendar.events.no_title', '(No title)')}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {visibleSegments.map((segment) => (
+              <AllDayEventBar
+                key={`${segment.event.id}:${segment.startIndex}:${segment.row}`}
+                title={segment.event.title || t('calendar.events.no_title', '(No title)')}
+                colors={eventBlockColors(
+                  getEventColor(segment.event, calendars),
+                  isInactiveEvent(segment.event, currentUserEmails),
+                  c,
+                )}
+                continuesBefore={segment.continuesBefore}
+                continuesAfter={segment.continuesAfter}
+                onPress={() => onSelectEvent?.(segment.event)}
+                style={{
+                  left: segment.startIndex * colWidth + 1,
+                  width: segment.span * colWidth - 2,
+                  top: HEADER_HEIGHT + 2 + segment.row * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP),
+                  height: ALL_DAY_CHIP_HEIGHT,
+                }}
+              />
+            ))}
           </Animated.View>
         </View>
       </View>
@@ -439,6 +480,7 @@ function TimeGridScrollViewInner({
               data={days}
               keyExtractor={dayKey}
               renderItem={renderItem}
+              extraData={draft}
               getItemLayout={getItemLayout}
               initialScrollIndex={initialIndexRef.current.index}
               // Days added at the start keep the columns on screen in place.
@@ -526,9 +568,13 @@ const DayColumn = React.memo(function DayColumn({
   nowMinutes,
   calendars,
   timeFormat,
+  currentUserEmails,
+  colors,
   styles,
   onSelectEvent,
   onLongPressAt,
+  onTapAt,
+  draftHour,
 }: {
   day: Date;
   layouts: TimedEventLayout[];
@@ -537,9 +583,14 @@ const DayColumn = React.memo(function DayColumn({
   nowMinutes: number;
   calendars: Calendar[];
   timeFormat: TimeFormat;
+  currentUserEmails?: string[];
+  colors: ThemePalette;
   styles: GridStyles;
   onSelectEvent?: (event: CalendarEvent) => void;
   onLongPressAt?: (day: Date, hour: number) => void;
+  onTapAt?: (day: Date, hour: number) => void;
+  /** Hour of the "New event" block in this column, or -1. */
+  draftHour: number;
 }) {
   const { t } = useCalendarLocale();
   const handleLongPress = React.useCallback(
@@ -548,43 +599,54 @@ const DayColumn = React.memo(function DayColumn({
     },
     [onLongPressAt, day],
   );
+  const handlePress = React.useCallback(
+    (e: GestureResponderEvent) => {
+      onTapAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
+    },
+    [onTapAt, day],
+  );
   return (
     <Pressable
       style={[styles.dayCol, { width }]}
+      onPress={onTapAt ? handlePress : undefined}
       onLongPress={onLongPressAt ? handleLongPress : undefined}
     >
-      {layouts.map(({ event, column, totalColumns, startMinutes, endMinutes }) => {
+      {layouts.map(({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
         const top = (startMinutes / 60) * HOUR_HEIGHT;
         const height = Math.max(20, ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT - 1);
         const widthPct = 100 / totalColumns;
-        const color = getEventColor(event, calendars);
         return (
-          <Pressable
+          <TimedEventBlock
             key={event.id}
-            onPress={() => onSelectEvent?.(event)}
-            style={[
-              styles.eventBlock,
-              {
-                top,
-                height,
-                left: `${column * widthPct}%`,
-                width: `${widthPct}%`,
-                backgroundColor: color + '33',
-                borderLeftColor: color,
-              },
-            ]}
-          >
-            <Text style={styles.eventBlockTitle} numberOfLines={1}>
-              {event.title || t('calendar.events.no_title', '(No title)')}
-            </Text>
-            {height > 32 && (
-              <Text style={styles.eventBlockTime} numberOfLines={1}>
-                {minutesToTimeLabel(startMinutes, timeFormat)}
-              </Text>
+            title={event.title || t('calendar.events.no_title', '(No title)')}
+            timeLabel={endMinutes - startMinutes >= TIME_LINE_MIN_MINUTES
+              ? minutesToTimeLabel(startMinutes, timeFormat)
+              : null}
+            colors={eventBlockColors(
+              getEventColor(event, calendars),
+              isInactiveEvent(event, currentUserEmails),
+              colors,
             )}
-          </Pressable>
+            ringColor={colors.background}
+            continuesBefore={continuesBefore}
+            continuesAfter={continuesAfter}
+            onPress={() => onSelectEvent?.(event)}
+            style={{ top, height, left: `${column * widthPct}%`, width: `${widthPct}%` }}
+          />
         );
       })}
+      {draftHour >= 0 && (
+        <Pressable
+          style={[styles.draft, { top: draftHour * HOUR_HEIGHT, height: HOUR_HEIGHT - 1 }]}
+          onPress={() => onLongPressAt?.(day, draftHour)}
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar.events.new_event', 'New event')}
+        >
+          <Text style={styles.draftText} numberOfLines={1}>
+            {t('calendar.events.new_event', 'New event')}
+          </Text>
+        </Pressable>
+      )}
       {nowMinutes >= 0 && (
         <View pointerEvents="none" style={[styles.nowLine, { top: (nowMinutes / 60) * HOUR_HEIGHT }]}>
           <View style={styles.nowDot} />
@@ -649,14 +711,6 @@ function makeStyles(c: ThemePalette) {
 
   allDayLabelWrap: { alignItems: 'flex-end', justifyContent: 'flex-start', paddingRight: 4, paddingTop: 2 },
   allDayLabel: { ...typography.small, color: c.textMuted, textAlign: 'right' },
-  allDayChip: {
-    position: 'absolute',
-    height: ALL_DAY_CHIP_HEIGHT,
-    borderLeftWidth: 2,
-    paddingHorizontal: 4,
-    justifyContent: 'center',
-  },
-  allDayChipText: { fontSize: 10, color: c.text, fontWeight: '500' },
 
   vScroll: { flex: 1 },
   gridRow: { flexDirection: 'row', height: GRID_HEIGHT },
@@ -678,16 +732,6 @@ function makeStyles(c: ThemePalette) {
     borderLeftWidth: 1,
     borderLeftColor: c.border,
   },
-  eventBlock: {
-    position: 'absolute',
-    borderRadius: radius.xs,
-    borderLeftWidth: 2,
-    paddingHorizontal: 3,
-    paddingVertical: 2,
-    overflow: 'hidden',
-  },
-  eventBlockTitle: { fontSize: 10, color: c.text, fontWeight: '600' },
-  eventBlockTime: { fontSize: 9, color: c.textMuted, marginTop: 1 },
   nowLine: {
     position: 'absolute',
     left: -3,
@@ -702,5 +746,18 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.error,
   },
   nowBar: { flex: 1, height: 1, backgroundColor: c.error },
+  draft: {
+    position: 'absolute',
+    left: 1,
+    right: 2,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: c.primary,
+    backgroundColor: c.primaryBg,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    zIndex: 2,
+  },
+  draftText: { fontSize: 12, lineHeight: 16, fontWeight: '500', color: c.text },
   });
 }

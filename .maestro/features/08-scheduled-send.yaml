@@ -1,0 +1,58 @@
+# Scheduled send: schedule a message for later, find it under Scheduled,
+# cancel it.
+appId: org.bulwarkmail.mobile
+name: Scheduled send
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- evalScript: ${output.subject = 'E2E scheduled ' + DEVICE + '-' + APPEARANCE + '-' + ORIENTATION + ' ' + Date.now()}
+- tapOn: "Compose"
+- extendedWaitUntil:
+    visible: "New Message"
+    timeout: 15000
+- tapOn: "Recipient email addresses"
+- inputText: "userb@example.org"
+- pressKey: Enter
+- tapOn:
+    text: "Subject"
+    index: 1
+- inputText: ${output.subject}
+- runFlow:
+    file: ../subflows/compose-body.yaml
+    env:
+      FROM_SUBJECT: "yes"
+      BODY: "Scheduled from the iOS simulator test."
+- tapOn: "Schedule send"
+- extendedWaitUntil:
+    visible: "Tomorrow morning.*"
+    timeout: 10000
+- takeScreenshot: scheduled-01-options
+- tapOn: "Tomorrow morning.*"
+- extendedWaitUntil:
+    visible: "Scheduled"
+    timeout: 30000
+- takeScreenshot: scheduled-02-confirmed
+- tapOn: "OK"
+
+- runFlow:
+    file: ../subflows/go-to-folder.yaml
+    env:
+      FOLDER: Scheduled
+- extendedWaitUntil:
+    visible: ".*${output.subject}.*"
+    timeout: 30000
+- takeScreenshot: scheduled-03-list
+- tapOn: ".*${output.subject}.*"
+- tapOn: "Cancel send"
+- extendedWaitUntil:
+    visible: "Keep scheduled"
+    timeout: 10000
+- tapOn:
+    text: "Cancel send"
+    below: "Keep scheduled|.*will not be delivered.*"
+- extendedWaitUntil:
+    notVisible: ".*${output.subject}.*"
+    timeout: 30000
+- takeScreenshot: scheduled-04-cancelled
+- runFlow: ../subflows/go-to-inbox.yaml

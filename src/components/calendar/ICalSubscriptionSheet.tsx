@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, Pressable, Animated, Easing, TextInput, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Plus, RefreshCw, Trash2, Rss, AlertTriangle } from 'lucide-react-native';
+import { X, Plus, RefreshCw, Trash2, Rss, AlertTriangle } from '../icons';
 import { formatDistanceToNow } from 'date-fns';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -18,6 +18,9 @@ import {
   type CalendarSubscription,
 } from '../../stores/calendar-subscriptions-store';
 import { jmapClient } from '../../api/jmap-client';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 // The webmail's refresh intervals and their labels.
 const INTERVAL_OPTIONS: { minutes: number; key: string; fallback: string }[] = [
@@ -80,6 +83,8 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   };
 
   const slideY = React.useRef(new Animated.Value(900)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -136,11 +141,11 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Rss size={20} color={c.text} />
@@ -280,7 +285,24 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                         )}
                       </Pressable>
                       <Pressable
-                        onPress={() => { void removeSubscription(sub.id); }}
+                        // Unsubscribing also deletes the calendar and its events.
+                        onPress={() => Alert.alert(
+                          t('calendar.subscription.unsubscribe', 'Unsubscribe'),
+                          t('calendar.subscription.confirm_delete', 'Unsubscribe from "{name}"? The calendar and all its events will be removed.', { name: sub.name }),
+                          [
+                            { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+                            {
+                              text: t('calendar.subscription.unsubscribe', 'Unsubscribe'),
+                              style: 'destructive',
+                              onPress: () => {
+                                removeSubscription(sub.id).catch((err: unknown) => Alert.alert(
+                                  t('calendar.subscription.delete_error', 'Failed to remove subscription'),
+                                  err instanceof Error ? err.message : undefined,
+                                ));
+                              },
+                            },
+                          ],
+                        )}
                         hitSlop={6}
                         style={styles.subBtn}
                         accessibilityRole="button"
@@ -297,7 +319,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
           <View style={{ height: insets.bottom }} />
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

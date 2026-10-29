@@ -93,6 +93,8 @@ export function AppearanceSettings() {
   const setShowToolbarLabels = useSettingsStore((s) => s.setShowToolbarLabels);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
+  const senderFavicons = useSettingsStore((s) => s.senderFavicons);
+  const setSenderFavicons = useSettingsStore((s) => s.setSenderFavicons);
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
 
@@ -103,7 +105,7 @@ export function AppearanceSettings() {
   return (
     <SettingsSection
       title={t('settings.appearance.title', "Appearance")}
-      description={t('settings.appearance.description', "Customize the look and feel of your webmail")}
+      description={t('settings.appearance.description_mobile', 'Customize how the app looks')}
     >
       <SettingItem label={t('settings.appearance.theme.label', "Theme")} description={t('settings.appearance.theme.description', "Choose your preferred color scheme")}>
         <RadioGroup
@@ -151,6 +153,14 @@ export function AppearanceSettings() {
 
       <SettingItem label={t('settings.appearance.animations.label', "Enable Animations")} description={t('settings.appearance.animations.description', "Show smooth transitions and effects")}>
         <ToggleSwitch checked={animationsEnabled} onChange={setAnimationsEnabled} />
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.advanced.sender_favicons.label', 'Sender Favicons')}
+        description={t('settings.advanced.sender_favicons.description', 'Show website icons as profile pictures for business senders')}
+        noBorder
+      >
+        <ToggleSwitch checked={senderFavicons} onChange={setSenderFavicons} />
       </SettingItem>
     </SettingsSection>
   );

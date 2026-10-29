@@ -1,0 +1,28 @@
+# Perf: fling through the long inbox (thousands of messages), then back up.
+appId: org.bulwarkmail.mobile
+name: Perf list scroll
+---
+- tapOn:
+    id: tab-mail
+- extendedWaitUntil:
+    visible:
+      id: email-row
+    timeout: 30000
+- repeat:
+    times: 8
+    commands:
+      - swipe:
+          start: 50%,80%
+          end: 50%,20%
+          duration: 250
+      - waitForAnimationToEnd:
+          timeout: 4000
+- repeat:
+    times: 8
+    commands:
+      - swipe:
+          start: 50%,20%
+          end: 50%,80%
+          duration: 250
+      - waitForAnimationToEnd:
+          timeout: 4000

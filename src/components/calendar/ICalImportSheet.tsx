@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, Pressable, Animated, Easing, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Upload, X, Check, CalendarPlus, AlertTriangle, Clock } from 'lucide-react-native';
+import { Upload, X, Check, CalendarPlus, AlertTriangle, Clock } from '../icons';
 import { format, parseISO } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { uploadBlob } from '../../api/blob';
@@ -17,6 +17,9 @@ import { ImportRefusedError, type ImportResult } from '../../stores/calendar-sto
 import { useLocaleStore } from '../../stores/locale-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import type { Locale } from 'date-fns';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen / ContactImportSheet flow).
@@ -74,6 +77,8 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
   const [result, setResult] = React.useState<ImportResult | null>(null);
 
   const slideY = React.useRef(new Animated.Value(900)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
 
   const resetState = React.useCallback(() => {
@@ -184,11 +189,11 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Text style={styles.title}>{t('calendar.import.title', 'Import Calendar')}</Text>
@@ -374,7 +379,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
           )}
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

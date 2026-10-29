@@ -140,24 +140,6 @@ export function calendarBannerShownFor(email: Pick<Email, 'attachments'>, parsin
   return parsingEnabled && !!findCalendarAttachment(email);
 }
 
-export type PreviewKind = 'image' | 'pdf' | 'text' | 'eml' | 'none';
-
-const TEXT_EXT = /\.(txt|md|markdown|csv|log|json|xml|ics|vcf|yml|yaml|ini|conf|diff|patch)$/i;
-// Script-bearing types are never previewed inline (html/svg/js) - webmail lib/file-preview.ts.
-const SCRIPT_TYPES = /^(text\/html|image\/svg\+xml|application\/(x-)?javascript|text\/javascript|application\/xhtml\+xml)$/i;
-
-/** How the in-app preview should render a part, if at all. */
-export function previewKindFor(att: Pick<Attachment, 'name' | 'type'>): PreviewKind {
-  const base = (att.type || '').split(';')[0].trim().toLowerCase();
-  const name = att.name || '';
-  if (SCRIPT_TYPES.test(base) || /\.(html?|svg|js)$/i.test(name)) return 'none';
-  if (isRfc822Attachment(att)) return 'eml';
-  if (base.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|heic|avif)$/i.test(name)) return 'image';
-  if (base === 'application/pdf' || /\.pdf$/i.test(name)) return 'pdf';
-  if (base.startsWith('text/') || base === 'application/json' || base === 'application/xml' || TEXT_EXT.test(name)) return 'text';
-  return 'none';
-}
-
 export function formatSize(bytes?: number): string {
   if (!bytes) return '';
   if (bytes < 1024) return `${bytes} B`;

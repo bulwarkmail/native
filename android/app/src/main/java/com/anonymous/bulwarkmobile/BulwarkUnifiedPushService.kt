@@ -1,6 +1,7 @@
 package com.anonymous.bulwarkmobile
 
 import android.content.Context
+import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
 import com.facebook.react.bridge.Arguments
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,7 +32,10 @@ class BulwarkUnifiedPushService : PushService() {
         BulwarkMessagingService.ensureChannel(this)
         val data = parsePayload(message.content) ?: return
 
-        if (!BulwarkMessagingService.isAppInForeground()) {
+        // Same routing as FCM: contact and calendar changes request device
+        // syncs, and only mail starts the push task.
+        val mail = DeviceSyncPushRouter.route(applicationContext, data)
+        if (mail && !BulwarkMessagingService.isAppInForeground()) {
             BulwarkMessagingService.startHeadlessTask(applicationContext, data)
         }
 

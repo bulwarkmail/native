@@ -35,6 +35,8 @@ import {
   matchesContactSearch,
 } from '../lib/contact-utils';
 import { sanitizeDisplayName, splitMailbox } from '../lib/rfc5322-mailbox';
+import { requestDeviceSync } from '../device-sync/app/request';
+import { CONTACTS_AUTHORITY } from '../device-sync/types';
 
 const SELECTED_CATEGORY_STORAGE_KEY = 'webmail:contacts:category:v1';
 
@@ -416,6 +418,7 @@ export const useContactsStore = create<ContactsState>()(
             : await write(contact);
           const created = tagCreated(saved, book);
           set({ contacts: [...get().contacts, created] });
+          requestDeviceSync(CONTACTS_AUTHORITY);
           return created;
         },
 
@@ -441,6 +444,7 @@ export const useContactsStore = create<ContactsState>()(
               return merged;
             }),
           });
+          requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         fetchContactMedia: async (id) => {
@@ -458,6 +462,7 @@ export const useContactsStore = create<ContactsState>()(
           const { originalId, accountId } = contactTarget(id);
           await apiDeleteContacts([originalId], accountId);
           set({ contacts: cleanGroupMembers(get().contacts, new Set([id])).filter((c) => c.id !== id) });
+          requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         bulkDelete: async (ids) => {
@@ -490,6 +495,7 @@ export const useContactsStore = create<ContactsState>()(
             contacts: cleanGroupMembers(get().contacts, removed).filter((c) => !removed.has(c.id)),
             ...(failed > 0 ? { error: `Failed to delete ${failed} contact${failed === 1 ? '' : 's'}` } : {}),
           });
+          if (removed.size > 0) requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         importContacts: async (incoming, addressBookId) => {
@@ -508,6 +514,7 @@ export const useContactsStore = create<ContactsState>()(
               console.warn('[contacts-store] import failed for one contact', err);
             }
           }
+          if (imported > 0) requestDeviceSync(CONTACTS_AUTHORITY);
           return { imported, failed };
         },
 
@@ -581,6 +588,7 @@ export const useContactsStore = create<ContactsState>()(
               set({ contacts: get().contacts.map((c) => (c.id === id ? created : c)) });
             }
           }
+          requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         addContactsToGroup: async (groupId, contactIds) => {
@@ -639,6 +647,7 @@ export const useContactsStore = create<ContactsState>()(
           if (!trimmed) throw new Error('Address book name is required');
           const book = await apiCreateAddressBook(trimmed);
           set({ addressBooks: [...get().addressBooks, book] });
+          requestDeviceSync(CONTACTS_AUTHORITY);
           return book;
         },
 
@@ -650,6 +659,7 @@ export const useContactsStore = create<ContactsState>()(
           set({
             addressBooks: get().addressBooks.map((b) => (b.id === id ? { ...b, name: trimmed } : b)),
           });
+          requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         deleteAddressBook: async (id) => {
@@ -661,6 +671,7 @@ export const useContactsStore = create<ContactsState>()(
             addressBooks: get().addressBooks.filter((b) => b.id !== id),
             contacts: get().contacts.filter((c) => !c.addressBookIds?.[id]),
           });
+          requestDeviceSync(CONTACTS_AUTHORITY);
           const category = get().selectedCategory;
           if (category.type === 'addressBook' && category.addressBookId === id) {
             get().setSelectedCategory({ type: 'all' });
@@ -836,6 +847,7 @@ export const useContactsStore = create<ContactsState>()(
             bookId,
           );
           set({ trustedSenderEmails: [...get().trustedSenderEmails, email] });
+          requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         removeFromTrustedSendersBook: async (input) => {
@@ -847,6 +859,7 @@ export const useContactsStore = create<ContactsState>()(
             c.emails && Object.values(c.emails).some((e) => e.address?.toLowerCase().trim() === email));
           if (matches.length > 0) await apiDeleteContacts(matches.map((m) => m.id));
           set({ trustedSenderEmails: get().trustedSenderEmails.filter((e) => e !== email) });
+          if (matches.length > 0) requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
         isTrustedAddressBookSender: (email) =>

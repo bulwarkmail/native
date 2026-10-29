@@ -1,0 +1,15 @@
+# Sign-in link from another app for a TOTP account.
+appId: org.bulwarkmail.mobile
+name: Sign-in link, TOTP account
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /pair?user=${TOTP_ACCOUNT}&deliver=openurl
+- runFlow: ../subflows/confirm-link.yaml
+- runFlow: ../subflows/finish-two-factor-if-asked.yaml
+- runFlow: ../subflows/inbox.yaml
+- takeScreenshot: link-totp-01-inbox

@@ -25,7 +25,12 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nichts geplant. Zum Erstellen tippen.",
       "tap_to_create": "Tippen Sie auf +, um einen zu erstellen"
+    },
+    "fab": {
+      "event": "Termin",
+      "task": "Aufgabe"
     },
     "form": {
       "description_placeholder": "Notizen, Tagesordnung…",
@@ -98,6 +103,8 @@
       "until_date": "Bis {date}"
     },
     "settings": {
+      "device_sync_desc": "Zeigt Ihre Kalender in der Kalender-App und in anderen Apps auf diesem Gerät an. Änderungen werden in beide Richtungen synchronisiert.",
+      "device_sync_title": "Mit diesem Gerät synchronisieren",
       "show_week_numbers_mobile_desc": "Kalenderwochen in der Monatsansicht anzeigen.",
       "time_zone": "Zeitzone",
       "time_zone_auto": "Gerätezeitzone",
@@ -126,10 +133,16 @@
       "add_placeholder": "Aufgabe hinzufügen…",
       "add_time": "Uhrzeit hinzufügen",
       "clear_due_date": "Fälligkeitsdatum entfernen",
+      "delete_confirm": "Diese Aufgabe löschen?",
       "delete_error": "Aufgabe konnte nicht gelöscht werden",
       "not_found": "Diese Aufgabe ist nicht mehr verfügbar.",
       "save_error": "Aufgabe konnte nicht gespeichert werden",
       "update_error": "Aufgabe konnte nicht aktualisiert werden"
+    },
+    "views": {
+      "n_days": "{count} Tage",
+      "schedule": "Terminübersicht",
+      "three_days": "3 Tage"
     }
   },
   "common": {
@@ -255,6 +268,18 @@
     "color_tag": "Label",
     "remove_color": "Label entfernen"
   },
+  "device_sync": {
+    "auth_problem_text": "Der Server akzeptiert die Anmeldung von {account} nicht mehr, daher werden die Kontakte und Kalender dieses Kontos auf diesem Gerät nicht mehr synchronisiert. Melden Sie sich erneut an, um fortzufahren. Auf diesem Gerät vorgenommene Änderungen bleiben erhalten.",
+    "auth_problem_title": "Erneut anmelden, um weiter zu synchronisieren",
+    "problem_channel": "Synchronisierungsprobleme",
+    "sign_out_anyway": "Abmelden",
+    "sign_out_pending_message": "{count, plural, one {# auf diesem Gerät vorgenommene Änderung hat den Server nicht erreicht. Sie geht verloren, wenn Sie sich jetzt abmelden.} other {# auf diesem Gerät vorgenommene Änderungen haben den Server nicht erreicht. Sie gehen verloren, wenn Sie sich jetzt abmelden.}}",
+    "sign_out_pending_title": "Trotzdem abmelden?",
+    "sign_out_unknown_message": "Auf diesem Gerät vorgenommene Änderungen haben den Server möglicherweise nicht erreicht. Sie gehen verloren, wenn Sie sich jetzt abmelden.",
+    "signed_out_text": "{account} wurde abgemeldet, daher werden die Kontakte und Kalender dieses Kontos auf diesem Gerät nicht mehr synchronisiert. Melden Sie sich erneut an, um fortzufahren. Auf diesem Gerät vorgenommene Änderungen bleiben erhalten.",
+    "signed_out_title": "Anmelden, um weiter zu synchronisieren",
+    "signing_out": "Synchronisierte Kontakte und Kalender werden von diesem Gerät entfernt…"
+  },
   "email_composer": {
     "attach_camera": "Kamera",
     "attachment_reminder_body": "Ihre Nachricht erwähnt \"{keyword}\", aber es ist keine Datei angehängt. Trotzdem senden?",
@@ -298,6 +323,10 @@
     "send_timeout_title": "Keine Antwort vom Server",
     "submission_limit": "Der Server hat das Senden abgelehnt, weil ein Limit erreicht ist: {reason}",
     "submission_quota": "Der Server hat für dieses Konto zu viele Einträge zu gesendeten Nachrichten. Bulwark hat entfernt, was möglich war; wenn das weiterhin vorkommt, bitten Sie Ihren Administrator, das Limit für E-Mail-Übermittlungen zu erhöhen.",
+    "toolbar": {
+      "insert_image": "Bild einfügen",
+      "remove_link": "Link entfernen"
+    },
     "undo_send_label": "Senden in {seconds} s…",
     "upload_failed_short": "Upload fehlgeschlagen",
     "uploading": "Wird hochgeladen...",
@@ -395,7 +424,14 @@
     "preview": {
       "open_external": "In App öffnen",
       "pdf_external": "PDFs werden in Ihrem PDF-Viewer auf diesem Gerät geöffnet.",
-      "unsupported": "Keine Vorschau für diesen Dateityp."
+      "unsupported": "Keine Vorschau für diesen Dateityp.",
+      "media_unsupported": "Diese Datei kann hier nicht abgespielt werden.",
+      "pdf_protected": "Diese PDF ist passwortgeschützt. Öffne sie in einer anderen App, um das Passwort einzugeben.",
+      "pdf_unreadable": "Diese PDF kann hier nicht angezeigt werden.",
+      "archive_files": "{count, plural, one {# Datei} other {# Dateien}}",
+      "archive_first_files": "Die ersten {count} Dateien",
+      "archive_protected": "Dieses Archiv ist passwortgeschützt. Öffne es in einer anderen App, um das Passwort einzugeben.",
+      "archive_unreadable": "Dieses Archiv kann hier nicht geöffnet werden."
     },
     "received_via": "an {name}",
     "remove_color": "Label entfernen",
@@ -437,7 +473,6 @@
     "open_error": "Die Datei konnte nicht geöffnet werden",
     "open_with": "Öffnen mit…",
     "preview_too_large": "Diese Datei ist zu groß für eine Vorschau.",
-    "selected_count": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
     "share_add_people": "Personen hinzufügen",
     "share_empty": "Noch mit niemandem geteilt",
     "share_error": "Freigabe konnte nicht aktualisiert werden",
@@ -446,6 +481,7 @@
     "share_no_matches": "Keine Treffer",
     "share_no_users": "Keine anderen Benutzer gefunden",
     "share_remove": "Zugriff entfernen",
+    "share_remove_confirm": "Zugriff entfernen?",
     "share_role_custom": "Benutzerdefiniert",
     "share_search_placeholder": "Nach Name oder E-Mail suchen",
     "share_unavailable": "Teilen ist auf diesem Gerät nicht verfügbar",
@@ -484,12 +520,19 @@
       "email_step_title": "Wie lautet Ihre E-Mail-Adresse?",
       "email_step_title_add": "Wie lautet die andere Adresse?",
       "email_title": "Meine E-Mail-Adresse verwenden",
+      "err_account_limit_detail": "Entfernen Sie in den Einstellungen ein Konto, um ein weiteres hinzuzufügen.",
       "err_bad_detail": "Prüfen Sie E-Mail-Adresse und Passwort. Wenn Ihr Konto die Zwei-Faktor-Anmeldung nutzt, erstellen Sie im Webmail ein App-Passwort und verwenden Sie es hier.",
       "err_bad_title": "Das hat nicht funktioniert",
       "err_cert_detail": "Das Sicherheitszertifikat des Servers wurde abgelehnt. Wenn dies Ihr eigener Server ist, prüfen Sie, ob das Zertifikat gültig und nicht abgelaufen ist.",
       "err_cert_title": "Überprüfung von {host} fehlgeschlagen",
-      "err_code_expired_detail": "Anmeldecodes sind nur wenige Minuten gültig. Erzeugen Sie im Webmail einen neuen und scannen Sie erneut.",
+      "err_code_expired_detail": "Anmeldecodes sind zwei Minuten gültig. Zeigen Sie im Webmail einen neuen an und scannen Sie erneut.",
+      "err_code_expired_or_used_detail": "Zeigen Sie im Webmail einen neuen an und scannen Sie erneut.",
+      "err_code_expired_or_used_title": "Dieser Code ist abgelaufen oder wurde bereits verwendet",
       "err_code_expired_title": "Dieser Code ist abgelaufen",
+      "err_code_invalid_detail": "Zeigen Sie im Webmail einen neuen Code an (Einstellungen → Sicherheit → Mobile App verknüpfen) und scannen Sie ihn.",
+      "err_code_invalid_title": "Dieser Code ist ungültig",
+      "err_code_used_detail": "Jeder Code funktioniert nur einmal. Zeigen Sie im Webmail einen neuen an und scannen Sie erneut.",
+      "err_code_used_title": "Dieser Code wurde bereits verwendet",
       "err_generic_detail": "Etwas ist schiefgelaufen. Versuchen Sie es erneut.",
       "err_generic_title": "Anmeldung fehlgeschlagen",
       "err_interrupted_detail": "Die Antwort passte nicht zur gestarteten Anfrage. Melden Sie sich erneut an.",
@@ -498,6 +541,17 @@
       "err_no_server_title": "Kein Mailserver bei {host}",
       "err_no_webmail_detail": "Dieser Server hat weder ein Bulwark-Webmail noch eine OAuth-Anmeldung. Verwenden Sie stattdessen ein Passwort (oder ein App-Passwort).",
       "err_no_webmail_title": "Keine Anmeldeseite bei {host}",
+      "err_pair_connect_detail": "Zeigen Sie auf Ihrem Computer einen neuen Code an und scannen Sie erneut.",
+      "err_pair_connect_title": "Angemeldet, aber keine Verbindung zu {host}",
+      "err_pair_insecure_detail": "{host} möchte eine unverschlüsselte Verbindung verwenden.",
+      "err_pair_network_detail": "Prüfen Sie Ihre Verbindung und ob Ihr Telefon das Webmail erreichen kann, und versuchen Sie es dann erneut.",
+      "err_pair_rate_detail": "Warten Sie eine Minute und versuchen Sie es dann erneut.",
+      "err_pair_server_detail": "Versuchen Sie es mit einem neuen Code erneut. Wenn es weiterhin fehlschlägt, wenden Sie sich an Ihren Administrator.",
+      "err_pair_server_title": "Das Webmail konnte die Anmeldung nicht abschließen",
+      "err_pair_unsupported_detail": "{host} unterstützt keine Anmeldecodes. Eventuell ist ein Update nötig, oder der Link verweist auf die falsche Adresse.",
+      "err_pair_unsupported_title": "Dieses Webmail kann keine Geräte verknüpfen",
+      "err_pair_untrusted_detail": "{host} hat Anmeldedaten für einen Server gesendet, den die App nicht überprüfen kann.",
+      "err_pair_untrusted_title": "Dieser Anmeldung kann nicht vertraut werden",
       "err_rate_detail": "Der Server hat uns gebeten, kurz zu warten. Versuchen Sie es gleich noch einmal.",
       "err_rate_detail_seconds": "Der Server hat uns gebeten zu warten. Versuchen Sie es in etwa {seconds} Sekunden erneut.",
       "err_rate_title": "Zu viele Versuche",
@@ -511,6 +565,12 @@
       "know_server": "Ich kenne meine Serveradresse",
       "known_server_desc": "Diesen Server kennen wir bereits, daher ist keine Einrichtung nötig",
       "known_server_title": "Weiteres Konto auf {host}",
+      "link_confirm_connect": "Ein Link möchte Sie auf dieser Seite anmelden. Fahren Sie nur fort, wenn Sie {host} für Ihre E-Mails verwenden.",
+      "link_confirm_connect_add": "Ein Link möchte über die Anmeldung auf dieser Seite ein Konto hinzufügen. Fahren Sie nur fort, wenn Sie {host} für Ihre E-Mails verwenden.",
+      "link_confirm_connect_title": "Anmeldeseite von {host} öffnen?",
+      "link_confirm_pair": "Dieser Link meldet Sie bei einem Konto von {host} an. Fahren Sie nur fort, wenn Sie gerade auf Ihrem Computer einen Anmeldecode angezeigt haben.",
+      "link_confirm_pair_add": "Dieser Link fügt ein Konto von {host} hinzu und wechselt die App zu diesem Konto. Fahren Sie nur fort, wenn Sie gerade auf Ihrem Computer einen Anmeldecode angezeigt haben.",
+      "link_confirm_title": "Mit einem Link anmelden?",
       "looking_up": "Ihr Server wird gesucht…",
       "manual": "Serverdaten manuell eingeben",
       "notice_bad_qr": "Das ist kein Bulwark-Anmeldecode",
@@ -529,6 +589,12 @@
       "pairing_detail": "Dieses Gerät wird mit {host} gekoppelt…",
       "password_subtitle": "Ihr Passwort wird nur an diesen Server gesendet und im Schlüsselbund des Geräts gespeichert.",
       "password_title": "Bei {host} anmelden",
+      "paste_button": "Einfügen",
+      "paste_clipboard_empty": "Nichts zum Einfügen. Kopieren Sie zuerst den Link im Webmail.",
+      "paste_hint": "Öffnen Sie im Webmail Einstellungen → Sicherheit → Mobile App verknüpfen, kopieren Sie den Anmeldelink und fügen Sie ihn hier ein.",
+      "paste_invalid": "Das ist kein Bulwark-Anmeldelink",
+      "paste_label": "Anmeldelink",
+      "paste_title": "Anmeldelink einfügen",
       "provider_detail": "Sie geben es auf dessen Seite ein. Bulwark speichert nur ein Anmeldetoken, das Sie jederzeit widerrufen können.",
       "provider_title": "Ihr Passwort bleibt bei Ihrem Anbieter",
       "qr_hint": "Einstellungen → Sicherheit → Mobile App verknüpfen zeigt einen Code an. Richten Sie die Kamera darauf.",
@@ -539,6 +605,7 @@
       "server_hint": "Dieselbe Adresse, die Sie im Browser eingeben. https:// ergänzen wir für Sie.",
       "server_label": "Serveradresse",
       "server_not_found": "Für {domain} wurde kein Server gefunden. Wenn Sie selbst hosten, ist es die Adresse, die Sie für das Webmail verwenden.",
+      "server_paste_hint": "Haben Sie stattdessen einen Anmeldelink? Fügen Sie ihn hier ein.",
       "server_scan_hint": "Wenn Sie unsicher sind, scannen Sie stattdessen einen Anmeldecode. Er enthält die Serveradresse.",
       "server_subtitle": "Geben Sie die Adresse ein, unter der Sie Ihr Webmail erreichen.",
       "server_title": "Wie lautet Ihre Serveradresse?",
@@ -614,21 +681,122 @@
       },
       "toolbar_labels": {
         "description_mobile": "Textbeschriftungen neben den Symbolleistensymbolen anzeigen."
-      }
+      },
+      "description_mobile": "Passe an, wie die App aussieht"
     },
     "badges": {
       "experimental": "Experimentell",
       "not_implemented": "Nicht implementiert",
-      "unavailable": "Nicht verfügbar"
+      "unavailable": "Nicht verfügbar",
+      "not_on_server": "Nicht auf diesem Server"
     },
     "contacts": {
       "book_count": "{count, plural, one {# Kontakt} other {# Kontakte}}",
       "default_book": "Standardadressbuch",
       "description_mobile": "Anzeigeeinstellungen und Adressbuch-Werkzeuge.",
+      "device_sync_desc": "Zeigt Ihre Adressbücher in der Kontakte-App und in anderen Apps auf diesem Gerät an. Änderungen werden in beide Richtungen synchronisiert.",
+      "device_sync_title": "Mit diesem Gerät synchronisieren",
       "export_description_count": "{count, plural, one {# Kontakt als eine vCard-Datei exportieren.} other {# Kontakte als eine vCard-Datei exportieren.}}",
       "export_empty": "Keine Kontakte zum Exportieren",
       "import_description_mobile": "Kontakte aus einer vCard-Datei (.vcf) importieren, mit Duplikaterkennung.",
       "manage_description_mobile": "Die Adressbücher erstellen, umbenennen und entfernen, in denen Ihre Kontakte organisiert sind."
+    },
+    "device_sync": {
+      "also_synced_by": "Wird auch für {accounts} synchronisiert und erscheint daher doppelt auf diesem Gerät.",
+      "android_settings": "Android-Kontoeinstellungen",
+      "blocked_calendar": "Android fragt nicht mehr nach dem Zugriff auf Kalender. Erlauben Sie ihn in den App-Einstellungen und schalten Sie die Synchronisierung dann wieder ein.",
+      "blocked_contacts": "Android fragt nicht mehr nach dem Zugriff auf Kontakte. Erlauben Sie ihn in den App-Einstellungen und schalten Sie die Synchronisierung dann wieder ein.",
+      "blocked_title": "Zugriff ist ausgeschaltet",
+      "books_default": "Ihre eigenen Adressbücher werden synchronisiert, geteilte nur, wenn Sie sie auswählen.",
+      "books_hint": "Ihre eigenen Adressbücher werden synchronisiert, außer Sie schalten sie aus; geteilte nur, wenn Sie sie einschalten.",
+      "books_label": "Adressbücher",
+      "calendars_default": "Ihre eigenen Kalender werden synchronisiert, geteilte nur, wenn Sie sie auswählen.",
+      "calendars_hint": "Ihre eigenen Kalender werden synchronisiert, außer Sie schalten sie aus; geteilte nur, wenn Sie sie einschalten. Aufgabenlisten bleiben in Bulwark.",
+      "calendars_label": "Kalender",
+      "choose": "Auswählen",
+      "choose_books_title": "Zu synchronisierende Adressbücher",
+      "choose_calendars_title": "Zu synchronisierende Kalender",
+      "collections_count": "{selected} von {total} synchronisiert",
+      "continue": "Weiter",
+      "deletions_delete": "Auf dem Server löschen",
+      "deletions_message": "Auf diesem Gerät wurden viele Elemente auf einmal gelöscht, daher wurden sie auf dem Server nicht gelöscht. Löschen Sie sie auch dort oder stellen Sie sie auf diesem Gerät wieder her.",
+      "deletions_restore": "Wiederherstellen",
+      "deletions_title": "Auch auf dem Server löschen?",
+      "denied_calendar": "Ohne Zugriff auf Kalender kann Bulwark Ihre Kalender nicht auf dieses Gerät bringen.",
+      "denied_contacts": "Ohne Zugriff auf Kontakte kann Bulwark Ihre Adressbücher nicht auf dieses Gerät bringen.",
+      "denied_title": "Synchronisierung bleibt aus",
+      "failed_title": "Synchronisierung konnte nicht eingeschaltet werden",
+      "grant_access": "Zugriff erlauben",
+      "interval_15m": "Alle 15 Minuten",
+      "interval_1h": "Jede Stunde",
+      "interval_30m": "Alle 30 Minuten",
+      "interval_6h": "Alle 6 Stunden",
+      "interval_desc": "Wie oft Android von selbst synchronisiert. Änderungen in Bulwark und per Push gemeldete Änderungen werden früher synchronisiert.",
+      "interval_label": "Synchronisierungsintervall",
+      "interval_manual": "Keine regelmäßige Synchronisierung",
+      "keep_syncing": "Weiter synchronisieren",
+      "list_error_auth": "Der Server hat die Anmeldung nicht akzeptiert.",
+      "list_error_network": "Der Server war nicht erreichbar.",
+      "list_error_server": "Der Server konnte sie nicht auflisten.",
+      "list_error_signed_out": "Dieses Konto ist auf diesem Gerät nicht angemeldet.",
+      "master_off": "Die automatische Synchronisierung ist auf diesem Gerät ausgeschaltet, daher wird nur synchronisiert, wenn Sie auf \"Jetzt synchronisieren\" tippen.",
+      "new_contacts_default": "Standardadressbuch",
+      "new_contacts_desc": "Das Adressbuch für Kontakte, die in anderen Apps auf diesem Gerät erstellt werden.",
+      "new_contacts_label": "Neue Kontakte speichern in",
+      "no_books": "Dieses Konto hat keine Adressbücher.",
+      "no_calendars": "Dieses Konto hat keine Kalender zum Synchronisieren.",
+      "ok": "OK",
+      "open_app_settings": "App-Einstellungen öffnen",
+      "own_collections": "Ihre eigenen",
+      "rationale_calendar": "Um Ihre Kalender in der Kalender-App anzuzeigen, benötigt Bulwark Zugriff auf die Kalender auf diesem Gerät. Bulwark ändert nur die Kalender seines eigenen Kontos.",
+      "rationale_contacts": "Um Ihre Adressbücher in der Kontakte-App anzuzeigen, benötigt Bulwark Zugriff auf die Kontakte auf diesem Gerät. Bulwark ändert nur die Kontakte seines eigenen Kontos.",
+      "rationale_title_calendar": "Zugriff auf Kalender erlauben",
+      "rationale_title_contacts": "Zugriff auf Kontakte erlauben",
+      "read_only": "Schreibgeschützt",
+      "reminder_owner_bulwark": "Bulwark",
+      "reminder_owner_device": "Kalender-App",
+      "reminder_question_message": "Synchronisierte Termine können Sie über die Kalender-App auf diesem Gerät oder über Bulwark erinnern. Wählen Sie eines davon, damit Sie nicht doppelt erinnert werden. Sie können dies später ändern.",
+      "reminder_question_title": "Wer soll Sie erinnern?",
+      "reminders_desc": "Wer Sie an synchronisierte Termine erinnert. Die jeweils andere App bleibt still, damit Sie nicht doppelt erinnert werden.",
+      "reminders_label": "Erinnerungen",
+      "reminders_nobody": "Die Terminbenachrichtigungen von Bulwark sind ausgeschaltet, daher erinnert Sie nichts an synchronisierte Termine.",
+      "remove": "Entfernen",
+      "remove_from_device": "Von diesem Gerät entfernen",
+      "remove_message": "Die Kontakte und Kalender des Kontos werden von diesem Gerät entfernt. Hier vorgenommene Änderungen, die den Server noch nicht erreicht haben, gehen verloren.",
+      "remove_title": "Von diesem Gerät entfernen?",
+      "review_deletions": "Löschungen prüfen",
+      "shared_by": "Von {name} geteilt",
+      "sign_in_again": "Erneut anmelden",
+      "status_auth": "Der Server akzeptiert die Anmeldung nicht mehr. Melden Sie sich erneut an, um weiter zu synchronisieren.",
+      "status_cancelled": "Die letzte Synchronisierung wurde vorzeitig beendet. Sie wird beim nächsten Mal fortgesetzt.",
+      "status_failed": "Die letzte Synchronisierung ist fehlgeschlagen: {message}",
+      "status_failed_plain": "Die letzte Synchronisierung ist fehlgeschlagen.",
+      "status_io": "Der Server war {when} nicht erreichbar. Android versucht es erneut.",
+      "status_item_errors": "{count, plural, one {# Element konnte nicht synchronisiert werden.} other {# Elemente konnten nicht synchronisiert werden.}}",
+      "status_off": "Aus",
+      "status_paused": "In den Android-Einstellungen pausiert",
+      "status_permission_calendar": "Der Zugriff auf Kalender wurde ausgeschaltet, daher wird nichts synchronisiert.",
+      "status_permission_contacts": "Der Zugriff auf Kontakte wurde ausgeschaltet, daher wird nichts synchronisiert.",
+      "status_removed": "In den Android-Einstellungen entfernt. Schalten Sie die Synchronisierung ein, um das Konto wieder hinzuzufügen.",
+      "status_safety_abort": "Angehalten: Der Server hat nichts zurückgegeben, obwohl dieses Gerät noch Elemente enthält. Prüfen Sie den Server und synchronisieren Sie dann erneut.",
+      "status_synced": "Zuletzt synchronisiert: {when}",
+      "status_syncing": "Wird synchronisiert…",
+      "status_too_many_deletions": "Auf diesem Gerät wurden viele Elemente gelöscht. Auf dem Server werden sie erst gelöscht, wenn Sie dies bestätigen.",
+      "status_unsupported_calendar": "Der Server bietet für dieses Konto keine Kalender an.",
+      "status_unsupported_contacts": "Der Server bietet für dieses Konto keine Adressbücher an.",
+      "status_waiting": "Warten auf die erste Synchronisierung",
+      "status_waiting_next": "Warten auf die nächste Synchronisierung",
+      "suspended_desc": "Abgemeldet. Die Kontakte und Kalender des Kontos bleiben mit den hier vorgenommenen Änderungen auf diesem Gerät und werden wieder synchronisiert, sobald Sie sich anmelden.",
+      "switch_label": "{account} mit diesem Gerät synchronisieren",
+      "sync_now": "Jetzt synchronisieren",
+      "turn_off_anyway": "Ausschalten",
+      "turn_off_failed": "Die synchronisierten Daten konnten nicht von diesem Gerät entfernt werden. Die Synchronisierung ist pausiert; versuchen Sie es später erneut.",
+      "turn_off_failed_title": "Synchronisierung konnte nicht ausgeschaltet werden",
+      "turn_off_pending": "{count, plural, one {# auf diesem Gerät vorgenommene Änderung hat den Server noch nicht erreicht. Sie geht verloren, wenn Sie die Synchronisierung jetzt ausschalten.} other {# auf diesem Gerät vorgenommene Änderungen haben den Server noch nicht erreicht. Sie gehen verloren, wenn Sie die Synchronisierung jetzt ausschalten.}}",
+      "turn_off_title": "Trotzdem ausschalten?",
+      "turn_off_unknown": "Bulwark konnte nicht prüfen, ob auf diesem Gerät vorgenommene Änderungen den Server erreicht haben. Sie gehen verloren, wenn Sie die Synchronisierung jetzt ausschalten.",
+      "turning_off": "Änderungen werden hochgeladen, dann werden die Daten von diesem Gerät entfernt…",
+      "turning_on": "Wird eingerichtet…"
     },
     "downloads": {
       "attachment_template": {
@@ -741,6 +909,7 @@
       "text_signature": "Klartext-Signatur"
     },
     "keywords": {
+      "delete_confirm_title": "Tag „{label}“ löschen?",
       "description_mobile": "Farbige Labels zum Organisieren Ihrer E-Mails.",
       "discover": {
         "add_all": "Alle hinzufügen",
@@ -867,7 +1036,15 @@
       "window": "Zeitraum",
       "window_24h": "Letzte 24 Stunden",
       "window_days": "Letzte {count} Tage",
-      "window_desc": "Wie weit zurück zwischengespeichert wird, gemessen am Empfangsdatum der Nachricht."
+      "window_desc": "Wie weit zurück zwischengespeichert wird, gemessen am Empfangsdatum der Nachricht.",
+      "description_short": "Neue Nachrichten auf dem Telefon behalten, damit sie auch ohne Verbindung aufgehen.",
+      "keep_24h": "24 Stunden",
+      "keep_days": "{count} Tage",
+      "keep_from": "Mails der letzten",
+      "messages_offline": "{count, plural, one {# Nachricht offline} other {# Nachrichten offline}}",
+      "synced": "Synchronisiert {when}",
+      "use_at_most": "Höchstens belegen",
+      "used_of": "{used} von {limit} MB"
     },
     "plugins": {
       "mobile_description": "Plugins laufen im Webmail und erweitern es im Browser.",
@@ -974,8 +1151,10 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Designs",
-      "updates": "Updates"
+      "updates": "Updates",
+      "storage": "Speicher & Sicherung",
+      "about": "Über",
+      "troubleshooting": "Fehlerbehebung"
     },
     "templates": {
       "delete_confirm": "\"{name}\" endgültig löschen?",
@@ -991,14 +1170,92 @@
     },
     "themes": {
       "default_description": "Die Standardpaletten für Hell und Dunkel.",
-      "default_name": "Bulwark",
-      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet.",
-      "title": "Designs"
+      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet."
     },
     "vacation": {
       "warnings": {
         "date_format": "Datumsangaben müssen das Format \"YYYY-MM-DD\" oder \"YYYY-MM-DD HH:MM\" haben"
       }
+    },
+    "about": {
+      "check_now": "Jetzt prüfen",
+      "checked_at": "Geprüft {when}",
+      "licences": "Open-Source-Lizenzen",
+      "licences_desc": "AGPL-3.0 für die App und die Bibliotheken, die sie nutzt",
+      "never_checked": "Noch nicht geprüft",
+      "privacy": "Datenschutz",
+      "privacy_desc": "Was auf diesem Telefon bleibt und was an deinen Server geht",
+      "report_problem": "Problem melden",
+      "report_problem_desc": "Öffnet ein Issue auf GitHub mit eingetragener Version",
+      "server": "Server",
+      "server_value": "{host} · angemeldet als {user}",
+      "source_code": "Quellcode",
+      "this_device": "Dieses Gerät",
+      "this_device_desc": "Womit die App verbunden ist und wo du Hilfe bekommst.",
+      "up_to_date": "Aktuell",
+      "updates": "Updates"
+    },
+    "backup": {
+      "description": "Übertrage deine Einstellungen auf ein anderes Telefon oder ins Webmail.",
+      "export_import": "Exportieren oder importieren",
+      "export_import_desc": "Eine JSON-Datei im selben Format wie im Webmail",
+      "reset": "Zurücksetzen",
+      "reset_desc": "Zurück auf die Standardwerte; Mails bleiben",
+      "title": "Einstellungen sichern"
+    },
+    "licences": {
+      "app_desc": "Die App ist freie Software unter der {licence}. Du darfst sie nutzen, untersuchen, weitergeben und ändern.",
+      "libraries": "Bibliotheken",
+      "libraries_desc": "Open-Source-Code, mit dem die App gebaut ist.",
+      "read_licence": "Den vollständigen Lizenztext lesen"
+    },
+    "privacy": {
+      "favicons": "Absendersymbole für geschäftliche Mails kommen vom Symboldienst von DuckDuckGo, der dabei die Domain des Absenders sieht. Ausschalten kannst du sie unter Darstellung → Absender-Favicons.",
+      "no_tracking": "Die App hat keine Analyse und keine Werbung.",
+      "other_title": "Weitere Verbindungen",
+      "phone_backup": "Nichts davon landet in der Cloud-Sicherung von Android.",
+      "phone_secure": "Deine Anmeldedaten liegen im sicheren Speicher des Systems. Einstellungen, der Offline-Cache und noch nicht synchronisierte Änderungen liegen im Speicher der App.",
+      "phone_title": "Auf diesem Telefon",
+      "push": "Wenn Benachrichtigungen an sind, meldet dein Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über {service}. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie deine Mails. Unter Benachrichtigungen kannst du ein eigenes Relay eintragen.",
+      "push_title": "Push-Benachrichtigungen",
+      "server": "Mails, Kalender, Kontakte und Dateien werden von deinem Server geladen und dort gespeichert. Außer den Verbindungen unten spricht die App nur mit deinem Server.",
+      "server_title": "Dein Mailserver",
+      "service_apple": "den Push-Dienst von Apple",
+      "service_google": "den Push-Dienst von Google",
+      "updates": "Die App fragt bei GitHub nach der neuesten Version, um dir Updates anzuzeigen.",
+      "updates_android": "Die App fragt bei GitHub nach der neuesten Version, um dir Updates anzuzeigen. Ausschalten kannst du das unter Updates."
+    },
+    "summary": {
+      "events_off": "Termine aus",
+      "events_on": "Termine an",
+      "mail_off": "Mail aus",
+      "mail_on": "Mail an",
+      "offline_off": "Offline-Mails aus",
+      "offline_on": "Offline-Mails an · {days, plural, one {# Tag} other {# Tage}}, {mb} MB",
+      "version": "Version {version}",
+      "week_starts": "Woche beginnt {day}",
+      "layout": "Schnellaktionen, Wischen, Reihenfolge",
+      "reading": "Gelesen-Status, Löschen, Anhänge",
+      "composing": "Signatur, Sendeverzögerung, Entwürfe",
+      "identities": "Adressen, von denen du sendest",
+      "vacation": "Automatische Antwort bei Abwesenheit",
+      "filters": "Regeln für eingehende Mails",
+      "templates": "Wiederverwendbare Nachrichten",
+      "folders": "Anlegen, umbenennen, Rollen",
+      "keywords": "Namen und Farben der Tags",
+      "downloads": "Dateinamen für gespeicherte Mails",
+      "security": "Passwort, Zwei-Faktor, App-Passwörter",
+      "content_senders": "Externe Bilder, vertrauenswürdige Absender",
+      "contacts": "Adressbücher, Sortierung",
+      "files": "Ansicht, Sortierung, Vorschaubilder",
+      "sidebar_apps": "Web-Apps im Seitenmenü",
+      "updates": "Neue Versionen installieren"
+    },
+    "troubleshooting": {
+      "cache_desc": "Wenn eine Liste veraltet oder falsch aussieht.",
+      "cache_title": "Zwischengespeicherte Daten",
+      "row_desc": "Daten neu laden, Debug-Protokoll",
+      "title": "Fehlerbehebung"
     }
   },
   "sharing": {
@@ -1013,6 +1270,11 @@
     "remove_account_message": "Von {account} auf diesem Gerät abmelden. Ihre E-Mails bleiben auf dem Server.",
     "remove_account_title": "Konto entfernen?",
     "show_unread": "Ungelesene anzeigen",
+    "sign_out_all_confirm_message": "Alle Konten werden von diesem Gerät entfernt. Sie können sich jederzeit wieder anmelden.",
+    "sign_out_all_confirm_title": "Von allen Konten abmelden?",
+    "sign_out_confirm_message": "Das Konto wird von diesem Gerät entfernt. Sie können sich jederzeit wieder anmelden.",
+    "sign_out_confirm_title": "Abmelden?",
+    "sign_out_confirm_title_account": "Von {account} abmelden?",
     "tab_unavailable": "{name} (nicht verfügbar)"
   },
   "unified_mailbox": {
@@ -1062,6 +1324,198 @@
     "release_page_pending_desc": "Den Build-Fortschritt verfolgen oder die APK manuell herunterladen.",
     "severity_deprecated": "Erforderlich",
     "severity_security": "Sicherheit",
-    "title": "App-Updates"
+    "title": "App-Updates",
+    "verifying": "Wird überprüft…"
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "Keine neuen Anhänge",
+      "from_mail": "aus E-Mail",
+      "title": "Anhänge",
+      "unknown_sender": "Unbekannter Absender"
+    },
+    "birthdays": {
+      "empty": "Keine Geburtstage in Sicht",
+      "empty_body": "Geburtstage kommen aus Ihren Kontakten.",
+      "in_days": "{count, plural, one {in # Tag} other {in # Tagen}}",
+      "send_wishes": "Gratulieren",
+      "title": "Geburtstage",
+      "wishes_subject": "Alles Gute zum Geburtstag!"
+    },
+    "calendar": {
+      "agenda": "Agenda",
+      "agenda_more": "{day}: {events}",
+      "all_day": "Ganztägig",
+      "join": "Teilnehmen",
+      "join_named": "{name} beitreten",
+      "more_this_week": "{count, plural, one {# weiterer diese Woche} other {# weitere diese Woche}}",
+      "no_more_today": "Heute keine Termine mehr",
+      "nothing_planned": "Nichts im Kalender",
+      "now": "Jetzt",
+      "open": "Öffnen",
+      "running_late": "Verspäte mich",
+      "running_late_body": "Ich komme ein paar Minuten später zu {title}.",
+      "running_late_subject": "Verspäte mich: {title}",
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "unit_days": "{count, plural, one {Tag} other {Tage}}",
+      "unit_hours": "{count, plural, one {Std.} other {Std.}}",
+      "unit_minutes": "{count, plural, one {Min.} other {Min.}}",
+      "unsupported": "Kalender ist auf diesem Server nicht verfügbar",
+      "untitled": "(ohne Titel)",
+      "video_call": "Videoanruf"
+    },
+    "countdown": {
+      "days": "{count, plural, one {Tag} other {Tage}}",
+      "empty": "Keine anstehenden Termine"
+    },
+    "draft": {
+      "edited_at": "Bearbeitet {when}",
+      "edited_minutes": "{count, plural, one {Vor # Min. bearbeitet} other {Vor # Min. bearbeitet}}",
+      "edited_now": "Gerade bearbeitet",
+      "empty": "Keine Entwürfe",
+      "empty_body": "Nachrichten, die Sie beginnen und nicht senden, warten hier.",
+      "keep_writing": "Weiterschreiben",
+      "title": "Entwürfe"
+    },
+    "files": {
+      "empty": "Noch keine Dateien",
+      "recent": "Zuletzt geändert",
+      "unsupported": "Dateien sind auf diesem Server nicht verfügbar"
+    },
+    "free": {
+      "busy_until": "Belegt bis {time}",
+      "free_rest": "Den Rest des Tages frei",
+      "free_until": "Frei bis {time}",
+      "mail": "Freie Zeiten mailen",
+      "mail_subject": "Meine freien Zeiten diese Woche",
+      "no_calendar": "Kein Kalender in diesem Konto",
+      "then": "danach {title}",
+      "then_free": "danach frei"
+    },
+    "hub": {
+      "all_clear": "Alles erledigt",
+      "mail_unread": "E-Mail · {count} ungelesen",
+      "next": "Als Nächstes",
+      "next_on": "Als Nächstes · {day}",
+      "no_events": "Keine anstehenden Termine",
+      "now": "Jetzt",
+      "tasks_due": "Aufgaben · {count} fällig"
+    },
+    "invites": {
+      "accept": "Zusagen",
+      "decline": "Absagen",
+      "empty": "Keine offenen Einladungen",
+      "label": "Einladung · {name}",
+      "label_plain": "Einladung",
+      "maybe": "Vielleicht",
+      "position": "{index} von {count}"
+    },
+    "mail": {
+      "all_accounts": "Alle Konten",
+      "all_caught_up": "Alles gelesen",
+      "archive": "Archivieren",
+      "delete": "Löschen",
+      "empty_all_accounts": "Ihre Posteingänge sind leer",
+      "empty_inbox": "Ihr Posteingang ist leer",
+      "folders": "Ordner",
+      "in_outbox": "{count, plural, one {# Änderung wartet} other {# Änderungen warten}}",
+      "in_outbox_short": "{count} warten",
+      "inbox": "Posteingang",
+      "more_unread": "+{count} weitere ungelesen",
+      "no_folders": "Keine Ordner",
+      "no_starred": "Keine markierten E-Mails",
+      "no_starred_body": "Markieren Sie eine Nachricht mit einem Stern, um sie hier zu behalten.",
+      "no_subject": "(kein Betreff)",
+      "no_unread": "Keine ungelesenen Nachrichten im Posteingang.",
+      "position": "{index} von {count}",
+      "reply": "Antworten",
+      "scheduled": "Geplant",
+      "starred": "Markiert",
+      "unread": "ungelesen"
+    },
+    "notice": {
+      "archive": "Archivieren fehlgeschlagen. Tippen zum Wiederholen.",
+      "mark_read": "Als gelesen markieren fehlgeschlagen. Tippen zum Wiederholen.",
+      "rsvp": "Antwort nicht gesendet. Tippen zum Wiederholen.",
+      "task": "„{title}“ nicht aktualisiert. Tippen zum Wiederholen.",
+      "trash": "Löschen fehlgeschlagen. Tippen zum Wiederholen."
+    },
+    "people": {
+      "empty": "Noch keine Favoriten",
+      "empty_body": "Die Personen, von denen Sie am meisten hören, erscheinen hier.",
+      "favourites": "Favoriten"
+    },
+    "relative": {
+      "days": "{count, plural, one {in # Tag} other {in # Tagen}}",
+      "hours": "in {count} Std.",
+      "minutes": "in {count} Min.",
+      "now": "jetzt"
+    },
+    "scheduled": {
+      "day_at": "{day}, {time}",
+      "empty": "Nichts geplant",
+      "empty_body": "Nachrichten, die Sie später senden lassen, erscheinen hier.",
+      "no_recipient": "(kein Empfänger)",
+      "sending": "Wird gesendet",
+      "to": "An: {name}",
+      "today_at": "Heute, {time}",
+      "tomorrow_at": "Morgen, {time}",
+      "waiting": "Wartet auf Netz",
+      "waiting_body": "Offline vorgenommene Änderungen werden gesendet, sobald Sie wieder online sind."
+    },
+    "search": {
+      "no_recent": "Ihre letzten Suchen erscheinen hier.",
+      "placeholder": "E-Mails durchsuchen…",
+      "recent": "Letzte Suchen"
+    },
+    "shortcuts": {
+      "calendar": "Kalender",
+      "compose": "Verfassen",
+      "contacts": "Kontakte",
+      "files": "Dateien"
+    },
+    "state": {
+      "error": "Widget kann nicht angezeigt werden",
+      "loading": "Wird geladen…",
+      "open_app": "Öffnen Sie die App einmal, falls dies leer bleibt.",
+      "open_to_load": "Öffnen Sie Bulwark, um dies zu laden",
+      "signed_out": "Bei Bulwark anmelden"
+    },
+    "storage": {
+      "no_limit": "Kein Speicherlimit",
+      "title": "Speicher",
+      "unavailable": "Keine Angaben zum Speicher",
+      "used_of": "{used} von {total}"
+    },
+    "tag": {
+      "empty": "Noch keine Tags",
+      "empty_body": "Tags, die Sie in der App vergeben, erscheinen hier.",
+      "messages": "{count, plural, one {Nachricht} other {Nachrichten}}",
+      "total": "{count, plural, one {# Nachricht} other {# Nachrichten}}"
+    },
+    "tasks": {
+      "all_done": "Alles erledigt",
+      "empty": "Keine offenen Aufgaben",
+      "mark_complete": "Als erledigt markieren",
+      "mark_incomplete": "Als nicht erledigt markieren",
+      "no_title": "(ohne Titel)",
+      "off": "Aufgaben sind aus",
+      "off_body": "Schalten Sie Aufgaben in den Kalendereinstellungen der App ein",
+      "open_count": "{count} offen",
+      "overdue": "Überfällig",
+      "still_open": "{count} noch offen",
+      "title": "Aufgaben",
+      "today": "Heute",
+      "tomorrow": "Morgen"
+    },
+    "vacation": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "subject": "Betreff: {subject}",
+      "title": "Abwesenheitsnotiz",
+      "unsupported": "Abwesenheitsnotizen sind nicht verfügbar",
+      "until": "Bis {date}"
+    }
   }
 }

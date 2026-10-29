@@ -1,0 +1,21 @@
+# An expired code (codes live 2 minutes): the helper creates one now and
+# opens it after 130 s. The app says so and stays on the sign-in screen.
+appId: org.bulwarkmail.mobile
+name: Expired sign-in code
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /pair-later?user=${ACCOUNT}&deliver=openurl&delay=130
+- runFlow:
+    file: ../subflows/confirm-link.yaml
+    env:
+      LINK_WAIT: 200000
+- extendedWaitUntil:
+    visible: "That code has expired.*"
+    timeout: 30000
+- takeScreenshot: link-expired-01-notice
+- assertVisible: "Enter server details manually"

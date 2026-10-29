@@ -1,0 +1,3 @@
+# patch-package patches must keep the patched files' line endings byte for byte
+# (react-native-android-widget ships CRLF sources).
+patches/*.patch -text

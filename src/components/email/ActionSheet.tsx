@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { X } from '../icons';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
 
 export interface ActionSheetItem {
   key: string;
@@ -37,6 +39,8 @@ export function ActionSheet({ visible, title, subtitle, items, onClose, children
   const insets = useSafeAreaInsets();
   const t = useLocaleStore((s) => s.t);
   const slideY = React.useRef(new Animated.Value(500)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
@@ -55,14 +59,14 @@ export function ActionSheet({ visible, title, subtitle, items, onClose, children
   }, [visible, slideY, overlayOpacity]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -74,7 +78,7 @@ export function ActionSheet({ visible, title, subtitle, items, onClose, children
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
               {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
             </View>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}
+            <Pressable onPress={onClose} hitSlop={10} style={styles.close}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
             >

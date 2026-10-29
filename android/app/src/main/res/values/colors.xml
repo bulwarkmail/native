@@ -1,9 +1,13 @@
 <resources>
   <!-- Splash background, as `splash.backgroundColor` in app.config.js; the dark one is in values-night. -->
   <color name="splashscreen_background">#ffffff</color>
-  <color name="iconBackground">#09090b</color>
+  <color name="iconBackground">#db2d54</color>
   <color name="colorPrimary">#023c69</color>
   <color name="colorPrimaryDark">#09090b</color>
   <!-- Behind the React root until the first frame; matches the light palette background (src/theme/tokens.ts). -->
   <color name="window_background">#ffffff</color>
+  <!-- Home-screen widget surface (LIGHT.bg in src/widgets/theme.ts); it only shows where the drawn widget falls short of the launcher's frame. -->
+  <color name="widget_surface">#ffffff</color>
+  <!-- Home-screen widget edge, one colour for both schemes: the app can force a theme the launcher's night mode doesn't know about. -->
+  <color name="widget_frame">#4d808080</color>
 </resources>

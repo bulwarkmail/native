@@ -449,6 +449,11 @@ body {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
+/* A wide reading pane (tablet): keep lines readable instead of running
+   150+ characters across. Phones never reach the breakpoint. */
+@media (min-width: 840px) {
+  body { max-width: 720px; margin-left: auto; margin-right: auto; }
+}
 /* Only force the cap on images and tables that set no max-width of their own:
    an !important 100% also overrides a sender's inline max-width, so an image
    sized by max-width + max-height + width:100% grows to the pane width while
@@ -676,7 +681,7 @@ export function wrapPlainTextEmail(
   const { isDark = true, font = 'sans' } = options;
   const cleaned = stripDangerousTags(innerHtml);
 
-  const bg = isDark ? '#09090b' : '#ffffff';
+  const bg = isDark ? '#0a0a0a' : '#ffffff';
   const fg = isDark ? '#fafafa' : '#1a1a1a';
   const link = isDark ? '#60a5fa' : '#1a73e8';
   const fontFamily = font === 'mono'
@@ -701,6 +706,8 @@ body {
 }
 a { color: ${link}; text-decoration: underline; }
 details > summary::-webkit-details-marker { display: none; }
+/* A wide reading pane (tablet): about 80 characters a line. */
+@media (min-width: 840px) { body { max-width: 80ch; } }
 `;
 
   return `<!doctype html>

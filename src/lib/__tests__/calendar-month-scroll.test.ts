@@ -8,6 +8,7 @@ import {
 import {
   dayIndexIn,
   monthFocusRow,
+  monthRowGeometry,
   monthKeyOf,
   monthMask,
   sampledRow,
@@ -113,5 +114,23 @@ describe('dayIndexIn', () => {
     expect(dayIndexIn(days, new Date(2026, 9, 5))).toBe(-1);
     expect(dayIndexIn(days, new Date(2026, 8, 27))).toBe(-1);
     expect(dayIndexIn([], new Date())).toBe(-1);
+  });
+});
+
+describe('monthRowGeometry', () => {
+  it('fits six weeks when they are at least the minimum height', () => {
+    expect(monthRowGeometry(600, 72)).toEqual({ rowHeight: 100, visibleRows: 6 });
+  });
+
+  it('shows fewer whole rows in a short window instead of running past it', () => {
+    // A phone in landscape: about 220 dp under the weekday header.
+    const { rowHeight, visibleRows } = monthRowGeometry(220, 72);
+    expect(visibleRows).toBe(3);
+    expect(rowHeight * visibleRows).toBeLessThanOrEqual(220);
+    expect(rowHeight).toBeGreaterThanOrEqual(72);
+  });
+
+  it('keeps one row when even that is taller than the window', () => {
+    expect(monthRowGeometry(50, 72)).toEqual({ rowHeight: 50, visibleRows: 1 });
   });
 });

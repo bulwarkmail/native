@@ -3,12 +3,14 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Check, Mail } from 'lucide-react-native';
+import { X, Check, Mail } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import type { Identity } from '../api/types';
 import { useLocaleStore } from '../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetInsets } from '../lib/use-layout';
 
 interface IdentitySheetProps {
   visible: boolean;
@@ -25,6 +27,8 @@ export function IdentitySheet({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
   const { t } = useLocaleStore();
@@ -44,14 +48,14 @@ export function IdentitySheet({
   }, [visible, slideY, overlayOpacity]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -60,7 +64,7 @@ export function IdentitySheet({
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('email_composer.from', 'From')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}
+            <Pressable onPress={onClose} hitSlop={10} style={styles.sheetClose}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
             >

@@ -1,11 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { isSenderContentTrusted } from '../trusted-senders';
+import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../trusted-senders';
 
 const local = (list: string[]) => (email: string) => list.includes(email.toLowerCase());
 
+describe('isTrustedSendersSyncOn', () => {
+  it('is on unless the user opted out', () => {
+    expect(isTrustedSendersSyncOn(null, true)).toBe(true);
+    expect(isTrustedSendersSyncOn(undefined, true)).toBe(true);
+    expect(isTrustedSendersSyncOn(true, true)).toBe(true);
+    expect(isTrustedSendersSyncOn(false, true)).toBe(false);
+  });
+
+  it('is off on a server without contacts', () => {
+    for (const setting of [null, true, false]) {
+      expect(isTrustedSendersSyncOn(setting, false)).toBe(false);
+    }
+  });
+});
+
 describe('isSenderContentTrusted', () => {
   it('trusts senders on the local allow-list whatever the sync setting', () => {
-    for (const syncEnabled of [null, false, true]) {
+    for (const syncEnabled of [false, true]) {
       expect(isSenderContentTrusted('Alice@Example.com', {
         isLocallyTrusted: local(['alice@example.com']),
         syncEnabled,
@@ -18,8 +33,6 @@ describe('isSenderContentTrusted', () => {
     const opts = { isLocallyTrusted: local([]), trustedBookEmails: ['bob@example.com'] };
     expect(isSenderContentTrusted('Bob@Example.com', { ...opts, syncEnabled: true })).toBe(true);
     expect(isSenderContentTrusted('bob@example.com', { ...opts, syncEnabled: false })).toBe(false);
-    // Never chosen counts as off: the default must not widen trust.
-    expect(isSenderContentTrusted('bob@example.com', { ...opts, syncEnabled: null })).toBe(false);
   });
 
   it('does not trust a sender just because some other list knows them', () => {

@@ -1,0 +1,218 @@
+{
+  "app": {
+    "name": "bulwark-mobile",
+    "license": "AGPL-3.0-only"
+  },
+  "libraries": [
+    {
+      "name": "@react-native-async-storage/async-storage",
+      "version": "2.2.0",
+      "license": "MIT",
+      "url": "https://github.com/react-native-async-storage/async-storage"
+    },
+    {
+      "name": "@react-native-community/datetimepicker",
+      "version": "8.4.4",
+      "license": "MIT",
+      "url": "https://github.com/react-native-community/datetimepicker"
+    },
+    {
+      "name": "@react-native-community/netinfo",
+      "version": "11.4.1",
+      "license": "MIT",
+      "url": "https://github.com/react-native-netinfo/react-native-netinfo"
+    },
+    {
+      "name": "@react-navigation/bottom-tabs",
+      "version": "7.15.9",
+      "license": "MIT",
+      "url": "https://github.com/react-navigation/react-navigation"
+    },
+    {
+      "name": "@react-navigation/native",
+      "version": "7.2.2",
+      "license": "MIT",
+      "url": "https://reactnavigation.org"
+    },
+    {
+      "name": "@react-navigation/native-stack",
+      "version": "7.14.10",
+      "license": "MIT",
+      "url": "https://github.com/software-mansion/react-native-screens"
+    },
+    {
+      "name": "date-fns",
+      "version": "4.1.0",
+      "license": "MIT",
+      "url": "https://github.com/date-fns/date-fns"
+    },
+    {
+      "name": "expo",
+      "version": "54.0.33",
+      "license": "MIT",
+      "url": "https://github.com/expo/expo/tree/main/packages/expo"
+    },
+    {
+      "name": "expo-camera",
+      "version": "17.0.10",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/camera/"
+    },
+    {
+      "name": "expo-clipboard",
+      "version": "8.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/clipboard"
+    },
+    {
+      "name": "expo-crypto",
+      "version": "15.0.9",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/crypto/"
+    },
+    {
+      "name": "expo-document-picker",
+      "version": "14.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/document-picker/"
+    },
+    {
+      "name": "expo-file-system",
+      "version": "19.0.21",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/filesystem/"
+    },
+    {
+      "name": "expo-haptics",
+      "version": "15.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/haptics/"
+    },
+    {
+      "name": "expo-image-manipulator",
+      "version": "14.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/imagemanipulator/"
+    },
+    {
+      "name": "expo-image-picker",
+      "version": "17.0.10",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/imagepicker/"
+    },
+    {
+      "name": "expo-intent-launcher",
+      "version": "13.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/intent-launcher/"
+    },
+    {
+      "name": "expo-localization",
+      "version": "17.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/localization/"
+    },
+    {
+      "name": "expo-notifications",
+      "version": "0.32.17",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/notifications/"
+    },
+    {
+      "name": "expo-secure-store",
+      "version": "15.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/securestore/"
+    },
+    {
+      "name": "expo-sharing",
+      "version": "14.0.8",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/sharing/"
+    },
+    {
+      "name": "expo-status-bar",
+      "version": "3.0.9",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/status-bar/"
+    },
+    {
+      "name": "expo-web-browser",
+      "version": "15.0.11",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/webbrowser/"
+    },
+    {
+      "name": "jszip",
+      "version": "3.10.1",
+      "license": "(MIT OR GPL-3.0-or-later)",
+      "url": "https://github.com/Stuk/jszip"
+    },
+    {
+      "name": "postal-mime",
+      "version": "3.0.0",
+      "license": "MIT-0",
+      "url": "https://postal-mime.postalsys.com"
+    },
+    {
+      "name": "react",
+      "version": "19.1.0",
+      "license": "MIT",
+      "url": "https://react.dev/"
+    },
+    {
+      "name": "react-native",
+      "version": "0.81.5",
+      "license": "MIT",
+      "url": "https://reactnative.dev/"
+    },
+    {
+      "name": "react-native-android-widget",
+      "version": "0.22.1",
+      "license": "MIT",
+      "url": "https://github.com/sAleksovski/react-native-android-widget"
+    },
+    {
+      "name": "react-native-safe-area-context",
+      "version": "5.6.2",
+      "license": "MIT",
+      "url": "https://github.com/AppAndFlow/react-native-safe-area-context"
+    },
+    {
+      "name": "react-native-screens",
+      "version": "4.16.0",
+      "license": "MIT",
+      "url": "https://github.com/software-mansion/react-native-screens"
+    },
+    {
+      "name": "react-native-sse",
+      "version": "1.2.1",
+      "license": "MIT",
+      "url": "https://github.com/binaryminds/react-native-sse"
+    },
+    {
+      "name": "react-native-svg",
+      "version": "15.12.1",
+      "license": "MIT",
+      "url": "https://github.com/react-native-community/react-native-svg"
+    },
+    {
+      "name": "react-native-webview",
+      "version": "13.15.0",
+      "license": "MIT",
+      "url": "https://github.com/react-native-webview/react-native-webview"
+    },
+    {
+      "name": "zustand",
+      "version": "5.0.12",
+      "license": "MIT",
+      "url": "https://github.com/pmndrs/zustand"
+    },
+    {
+      "name": "Tabler Icons",
+      "version": "",
+      "license": "MIT",
+      "url": "https://tabler.io/icons"
+    }
+  ]
+}

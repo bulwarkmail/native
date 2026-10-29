@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert 
 import { WebView } from 'react-native-webview';
 import {
   AlertTriangle, Eye, EyeOff, Bold, Italic, Underline, List as ListIcon,
-} from 'lucide-react-native';
+} from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import RichTextEditor, { type RichTextEditorHandle } from '../RichTextEditor';
@@ -242,18 +242,20 @@ export function VacationSettings() {
         title={t('settings.vacation.message.title', 'Auto-Reply Message')}
         description={t('settings.vacation.message.description', 'The message that will be sent as a reply')}
       >
-        <SettingItem
-          label={t('settings.vacation.message.subject_label', 'Subject')}
-          description={t('settings.vacation.message.subject_description', 'Subject line of the auto-reply')}
-        >
+        {/* Stacked like the body below: beside its label, a fixed-width field
+            squeezed the label into five lines on a phone. */}
+        <View style={styles.bodyBlock}>
+          <Text style={styles.bodyLabel}>{t('settings.vacation.message.subject_label', 'Subject')}</Text>
+          <Text style={styles.bodyDesc}>{t('settings.vacation.message.subject_description', 'Subject line of the auto-reply')}</Text>
           <TextInput
             value={subject}
             onChangeText={setSubject}
             placeholder={t('settings.vacation.message.subject_placeholder', 'Out of Office')}
             placeholderTextColor={c.mutedForeground}
+            accessibilityLabel={t('settings.vacation.message.subject_label', 'Subject')}
             style={styles.subjectInput}
           />
-        </SettingItem>
+        </View>
         <View style={styles.bodyBlock}>
           <Text style={styles.bodyLabel}>{t('settings.vacation.message.body_label', 'Message Body')}</Text>
           <Text style={styles.bodyDesc}>{t('settings.vacation.message.body_description', 'Plain text message content')}</Text>
@@ -415,7 +417,7 @@ function makeStyles(c: ThemePalette) {
   },
   pillActive: { backgroundColor: c.successBg },
   pillInactive: { backgroundColor: c.muted },
-  pillText: { fontSize: 11, fontWeight: '500' },
+  pillText: { fontSize: 12 },
   pillTextActive: { color: c.success },
   pillTextInactive: { color: c.mutedForeground },
   dateInput: {
@@ -431,7 +433,6 @@ function makeStyles(c: ThemePalette) {
   },
   inputInvalid: { borderColor: c.error },
   subjectInput: {
-    width: 240,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,

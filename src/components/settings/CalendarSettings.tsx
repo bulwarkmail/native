@@ -8,6 +8,9 @@ import {
 } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
+import { deviceSyncAvailable } from '../../device-sync/app/available';
+import { CALENDAR_AUTHORITY } from '../../device-sync/types';
+import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 
 // A compact list of IANA zones for the picker (#755). The device zone and
 // any previously stored value are always offered too.
@@ -46,6 +49,9 @@ export function CalendarSettings() {
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
 
+  // Android with the native module only (#34).
+  const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
+
   useEffect(() => {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
@@ -64,130 +70,143 @@ export function CalendarSettings() {
   }, [deviceZone, timeZone, t]);
 
   return (
-    <SettingsSection title={t('calendar.settings.title', 'Calendar')}>
-      <SettingItem label={t('calendar.settings.default_view', 'Default view')}>
-        <Select
-          value={viewMode}
-          onChange={(v) => update('calendarDefaultView', v as CalendarView)}
-          options={[
-            { value: 'month', label: t('calendar.views.month', 'Month') },
-            { value: 'week', label: t('calendar.views.week', 'Week') },
-            { value: 'day', label: t('calendar.views.day', 'Day') },
-            { value: 'agenda', label: t('calendar.views.agenda', 'Agenda') },
-          ]}
-        />
-      </SettingItem>
+    <>
+      <SettingsSection title={t('calendar.settings.title', 'Calendar')}>
+        <SettingItem label={t('calendar.settings.default_view', 'Default view')}>
+          <Select
+            value={viewMode}
+            onChange={(v) => update('calendarDefaultView', v as CalendarView)}
+            options={[
+              { value: 'month', label: t('calendar.views.month', 'Month') },
+              { value: 'week', label: t('calendar.views.week', 'Week') },
+              { value: 'day', label: t('calendar.views.day', 'Day') },
+              { value: 'agenda', label: t('calendar.views.agenda', 'Agenda') },
+            ]}
+          />
+        </SettingItem>
 
-      <SettingItem label={t('calendar.settings.week_starts_on', 'Week starts on')}>
-        <Select
-          value={String(firstDay)}
-          onChange={(v) => update('calendarFirstDayOfWeek', Number(v) as FirstDayOfWeek)}
-          options={[
-            { value: '1', label: t('calendar.days.monday', 'Monday') },
-            { value: '6', label: t('calendar.days.saturday', 'Saturday') },
-            { value: '0', label: t('calendar.days.sunday', 'Sunday') },
-          ]}
-        />
-      </SettingItem>
+        <SettingItem label={t('calendar.settings.week_starts_on', 'Week starts on')}>
+          <Select
+            value={String(firstDay)}
+            onChange={(v) => update('calendarFirstDayOfWeek', Number(v) as FirstDayOfWeek)}
+            options={[
+              { value: '1', label: t('calendar.days.monday', 'Monday') },
+              { value: '6', label: t('calendar.days.saturday', 'Saturday') },
+              { value: '0', label: t('calendar.days.sunday', 'Sunday') },
+            ]}
+          />
+        </SettingItem>
 
-      <SettingItem label={t('calendar.settings.time_format', 'Time format')}>
-        <RadioGroup
-          value={timeFormat}
-          onChange={(v) => update('calendarTimeFormat', v as TimeFormat)}
-          options={[
-            { value: '12h', label: t('calendar.settings.time_format_12h', '12-hour') },
-            { value: '24h', label: t('calendar.settings.time_format_24h', '24-hour') },
-          ]}
-        />
-      </SettingItem>
+        <SettingItem label={t('calendar.settings.time_format', 'Time format')}>
+          <RadioGroup
+            value={timeFormat}
+            onChange={(v) => update('calendarTimeFormat', v as TimeFormat)}
+            options={[
+              { value: '12h', label: t('calendar.settings.time_format_12h', '12-hour') },
+              { value: '24h', label: t('calendar.settings.time_format_24h', '24-hour') },
+            ]}
+          />
+        </SettingItem>
 
-      <SettingItem
-        label={t('calendar.settings.time_zone', 'Time zone')}
-        description={t(
-          'calendar.settings.time_zone_desc',
-          'Zone used for new events and for interpreting the calendar. "Device" follows the phone.',
-        )}
-      >
-        <Select
-          value={timeZone || AUTO_TIME_ZONE}
-          onChange={(v) => update('calendarTimeZone', v)}
-          options={timeZoneOptions}
-        />
-      </SettingItem>
-
-      <SettingItem
-        label={t('calendar.settings.show_time_in_month_view', 'Show time in month view')}
-        description={t(
-          'calendar.settings.show_time_in_month_view_desc',
-          'Display event times in the month calendar view. On small screens this shows full event entries instead of dots.',
-        )}
-      >
-        <ToggleSwitch
-          checked={showTimeInMonth}
-          onChange={(v) => update('calendarShowTimeInMonth', v)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        label={t('calendar.settings.show_week_numbers', 'Show week numbers')}
-        description={t('calendar.settings.show_week_numbers_mobile_desc', 'Display week numbers in the month view.')}
-      >
-        <ToggleSwitch
-          checked={showWeekNumbers}
-          onChange={(v) => update('calendarShowWeekNumbers', v)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        label={t('calendar.settings.calendar_free_scroll', 'Free scrolling')}
-        description={t(
-          'calendar.settings.calendar_free_scroll_desc',
-          'Scroll continuously through months, weeks and days instead of one period at a time',
-        )}
-      >
-        <ToggleSwitch
-          checked={freeScroll}
-          onChange={(v) => update('calendarFreeScroll', v)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        label={t('calendar.settings.show_birthday_calendar', 'Contact birthday calendar')}
-        description={t(
-          'calendar.settings.show_birthday_calendar_desc',
-          'Show a virtual calendar with birthdays from your contacts',
-        )}
-      >
-        <ToggleSwitch
-          checked={birthdayCal}
-          onChange={(v) => update('showBirthdayCalendar', v)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        label={t('calendar.settings.enable_tasks', 'Enable tasks')}
-        description={t('calendar.settings.enable_tasks_desc', 'Show a tasks view in the calendar for managing to-dos')}
-      >
-        <ToggleSwitch
-          checked={tasksEnabled}
-          onChange={(v) => update('enableCalendarTasks', v)}
-        />
-      </SettingItem>
-
-      {tasksEnabled && (
         <SettingItem
-          label={t('calendar.settings.show_tasks_on_calendar', 'Show tasks on calendar')}
+          label={t('calendar.settings.time_zone', 'Time zone')}
           description={t(
-            'calendar.settings.show_tasks_on_calendar_desc',
-            'Display task chips on the day and week calendar views',
+            'calendar.settings.time_zone_desc',
+            'Zone used for new events and for interpreting the calendar. "Device" follows the phone.',
+          )}
+        >
+          <Select
+            value={timeZone || AUTO_TIME_ZONE}
+            onChange={(v) => update('calendarTimeZone', v)}
+            options={timeZoneOptions}
+          />
+        </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.show_time_in_month_view', 'Show time in month view')}
+          description={t(
+            'calendar.settings.show_time_in_month_view_desc',
+            'Display event times in the month calendar view. On small screens this shows full event entries instead of dots.',
           )}
         >
           <ToggleSwitch
-            checked={showTasksOnCal}
-            onChange={(v) => update('showTasksOnCalendar', v)}
+            checked={showTimeInMonth}
+            onChange={(v) => update('calendarShowTimeInMonth', v)}
           />
         </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.show_week_numbers', 'Show week numbers')}
+          description={t('calendar.settings.show_week_numbers_mobile_desc', 'Display week numbers in the month view.')}
+        >
+          <ToggleSwitch
+            checked={showWeekNumbers}
+            onChange={(v) => update('calendarShowWeekNumbers', v)}
+          />
+        </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.calendar_free_scroll', 'Free scrolling')}
+          description={t(
+            'calendar.settings.calendar_free_scroll_desc',
+            'Scroll continuously through months, weeks and days instead of one period at a time',
+          )}
+        >
+          <ToggleSwitch
+            checked={freeScroll}
+            onChange={(v) => update('calendarFreeScroll', v)}
+          />
+        </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.show_birthday_calendar', 'Contact birthday calendar')}
+          description={t(
+            'calendar.settings.show_birthday_calendar_desc',
+            'Show a virtual calendar with birthdays from your contacts',
+          )}
+        >
+          <ToggleSwitch
+            checked={birthdayCal}
+            onChange={(v) => update('showBirthdayCalendar', v)}
+          />
+        </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.enable_tasks', 'Enable tasks')}
+          description={t('calendar.settings.enable_tasks_desc', 'Show a tasks view in the calendar for managing to-dos')}
+        >
+          <ToggleSwitch
+            checked={tasksEnabled}
+            onChange={(v) => update('enableCalendarTasks', v)}
+          />
+        </SettingItem>
+
+        {tasksEnabled && (
+          <SettingItem
+            label={t('calendar.settings.show_tasks_on_calendar', 'Show tasks on calendar')}
+            description={t(
+              'calendar.settings.show_tasks_on_calendar_desc',
+              'Display task chips on the day and week calendar views',
+            )}
+          >
+            <ToggleSwitch
+              checked={showTasksOnCal}
+              onChange={(v) => update('showTasksOnCalendar', v)}
+            />
+          </SettingItem>
+        )}
+      </SettingsSection>
+
+      {deviceSync && (
+        <DeviceSyncSection
+          authority={CALENDAR_AUTHORITY}
+          title={t('calendar.settings.device_sync_title', 'Sync to this device')}
+          description={t(
+            'calendar.settings.device_sync_desc',
+            'Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.',
+          )}
+        />
       )}
-    </SettingsSection>
+    </>
   );
 }

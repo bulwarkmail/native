@@ -57,6 +57,9 @@ import {
 } from '../lib/recurrence-instances';
 import { findTasksOnlyCalendarIds, isTaskLikeObject } from '../lib/calendar-component-detection';
 import { mergeRangeEvents, mergedSpanLimit, planRangeLoad, sameRange } from '../lib/calendar-range-cache';
+import { requestDeviceSync } from '../device-sync/app/request';
+import { sortCalendars, sortOrderUpdates } from '../lib/calendar-sort';
+import { CALENDAR_AUTHORITY } from '../device-sync/types';
 
 // extendRange merges up to twice the requested range (at least half a year,
 // at most about three years); past that it starts over with the request.
@@ -274,6 +277,8 @@ export interface CalendarState {
   importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<ImportResult>;
   createCalendar: (name: string, color?: string, description?: string) => Promise<Calendar>;
   updateCalendar: (id: string, updates: CalendarUpdates) => Promise<void>;
+  // Store `orderedIds` in that order by renumbering their sortOrder.
+  reorderCalendars: (orderedIds: string[]) => Promise<void>;
   removeCalendar: (id: string) => Promise<void>;
   clearCalendarEvents: (id: string) => Promise<number>;
   shareCalendar: (id: string, principalId: string, rights: CalendarRights | null) => Promise<void>;
@@ -718,7 +723,7 @@ export const useCalendarStore = create<CalendarState>()(
     if (calendarsInFlight) return calendarsInFlight;
     calendarsInFlight = (async () => {
       try {
-        const calendars = (await fetchCalendars()) ?? [];
+        const calendars = sortCalendars((await fetchCalendars()) ?? []);
         set({ calendars });
       } catch (err) {
         set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
@@ -925,6 +930,7 @@ export const useCalendarStore = create<CalendarState>()(
         ? expandRecurringEvents([mapped], loadedRange.after, loadedRange.before)
         : [mapped];
     set({ events: [...get().events, ...inserted] });
+    requestDeviceSync(CALENDAR_AUTHORITY);
     return full;
   },
 
@@ -1003,6 +1009,7 @@ export const useCalendarStore = create<CalendarState>()(
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
     });
+    requestDeviceSync(CALENDAR_AUTHORITY);
     // A series mutation (an occurrence override, a truncated/changed rule, a
     // master edit) touches every expanded sibling, and the optimistic merge
     // above only updated the tapped one; server-expanded occurrences also
@@ -1038,6 +1045,7 @@ export const useCalendarStore = create<CalendarState>()(
           && !(seriesIdOf(e) === realId && (e.accountId ?? undefined) === (accountId ?? undefined))),
       });
     }
+    requestDeviceSync(CALENDAR_AUTHORITY);
     if (touchesSeries) {
       await get().refresh();
     }
@@ -1103,6 +1111,7 @@ export const useCalendarStore = create<CalendarState>()(
           : undefined;
       await apiRsvpEvent(realId, participantId, status, repair, accountId);
     }
+    requestDeviceSync(CALENDAR_AUTHORITY);
     set({
       events: get().events.map((e) => {
         if (e.id !== eventId || !e.participants?.[participantId]) return e;
@@ -1184,7 +1193,10 @@ export const useCalendarStore = create<CalendarState>()(
       }
     } finally {
       // Also when a chunk was refused: show what did get in.
-      if (count > 0 || linked > 0) await get().refresh();
+      if (count > 0 || linked > 0) {
+        requestDeviceSync(CALENDAR_AUTHORITY);
+        await get().refresh();
+      }
     }
     if (count + linked === 0 && refused.length > 0) throw new ImportRefusedError(refused);
     return { imported: count + linked, refused };
@@ -1192,7 +1204,8 @@ export const useCalendarStore = create<CalendarState>()(
 
   createCalendar: async (name, color, description) => {
     const created = await apiCreateCalendar(name, color, description);
-    set({ calendars: [...get().calendars, created] });
+    set({ calendars: sortCalendars([...get().calendars, created]) });
+    requestDeviceSync(CALENDAR_AUTHORITY);
     return created;
   },
 
@@ -1200,8 +1213,34 @@ export const useCalendarStore = create<CalendarState>()(
     const cal = get().calendars.find((c) => c.id === id);
     await apiUpdateCalendar(cal?.originalId || id, updates, cal?.accountId);
     set({
-      calendars: get().calendars.map((c) => (c.id === id ? { ...c, ...updates } as Calendar : c)),
+      calendars: sortCalendars(get().calendars.map((c) => (c.id === id ? { ...c, ...updates } as Calendar : c))),
     });
+    requestDeviceSync(CALENDAR_AUTHORITY);
+  },
+
+  reorderCalendars: async (orderedIds) => {
+    const updates = sortOrderUpdates(get().calendars, orderedIds);
+    if (updates.length === 0) return;
+    const before = get().calendars;
+    const withSortOrders = (sortOrders: Map<string, number>) => sortCalendars(before.map((c) =>
+      sortOrders.has(c.id) ? { ...c, sortOrder: sortOrders.get(c.id)! } : c));
+    // Optimistic, so the list moves at once.
+    set({ calendars: withSortOrders(new Map(updates.map((u) => [u.id, u.sortOrder]))) });
+    const saved = new Map<string, number>();
+    try {
+      for (const { id, sortOrder } of updates) {
+        const cal = before.find((c) => c.id === id);
+        await apiUpdateCalendar(cal?.originalId || id, { sortOrder }, cal?.accountId);
+        saved.set(id, sortOrder);
+      }
+    } catch (err) {
+      // Show the order the server now holds: the moves saved before the
+      // failure stay, the rest are undone.
+      set({ calendars: withSortOrders(saved) });
+      throw err;
+    } finally {
+      if (saved.size > 0) requestDeviceSync(CALENDAR_AUTHORITY);
+    }
   },
 
   removeCalendar: async (id) => {
@@ -1213,12 +1252,15 @@ export const useCalendarStore = create<CalendarState>()(
       tasks: get().tasks.filter((t) => !t.calendarIds?.[id]),
       hiddenCalendarIds: get().hiddenCalendarIds.filter((x) => x !== id),
     });
+    requestDeviceSync(CALENDAR_AUTHORITY);
   },
 
   clearCalendarEvents: async (id) => {
     const cal = get().calendars.find((c) => c.id === id);
     try {
-      return await apiClearCalendarEvents(cal?.originalId || id, cal?.accountId);
+      const cleared = await apiClearCalendarEvents(cal?.originalId || id, cal?.accountId);
+      requestDeviceSync(CALENDAR_AUTHORITY);
+      return cleared;
     } finally {
       // Also after a refused batch: earlier batches may have gone through.
       await get().refresh();

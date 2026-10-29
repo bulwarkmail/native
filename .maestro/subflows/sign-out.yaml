@@ -1,0 +1,37 @@
+# Signed in: sign out of the active account from the end of Settings.
+# On the iPad the Settings list is the left column; scroll that one.
+appId: org.bulwarkmail.mobile
+---
+- tapOn:
+    id: tab-settings
+- runFlow:
+    when:
+      true: ${DEVICE == 'tablet'}
+    commands:
+      - repeat:
+          while:
+            notVisible: "Sign out"
+          times: 12
+          commands:
+            - swipe:
+                start: 30%,85%
+                end: 30%,30%
+                duration: 500
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - scrollUntilVisible:
+          element: "Sign out"
+          direction: DOWN
+          timeout: 30000
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "The account is removed from this device.*"
+    timeout: 10000
+# The dialog's button, not the Settings row of the same name behind it.
+- tapOn:
+    text: "Sign out"
+    rightOf: "Cancel"
+    below: "The account is removed from this device.*"
+- takeScreenshot: sign-out-tapped

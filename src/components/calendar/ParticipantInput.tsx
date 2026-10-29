@@ -7,7 +7,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { X } from '../icons';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useContactsStore } from '../../stores/contacts-store';
@@ -107,6 +107,9 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
       )}
 
       <TextInput
+        // No full-screen keyboard in landscape: it would hide the suggestions
+        // and the text around the field.
+        disableFullscreenUI
         value={draft}
         onChangeText={setDraft}
         placeholder={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}

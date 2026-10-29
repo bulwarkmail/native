@@ -5,6 +5,7 @@
 //
 // Errors are matched by `name` and message text rather than `instanceof` so
 // this module stays free of the api/ and expo dependency graph.
+import { MAX_ACCOUNTS } from './account-utils';
 
 export interface LoginErrorCopy {
   title: string;
@@ -34,6 +35,70 @@ function hostLabel(serverUrl: string | null | undefined, fallback: string): stri
   return host || fallback;
 }
 
+// A QR / link sign-in failure (`PairingError` in lib/oauth), by reason.
+function describePairingError(reason: string | undefined, host: string, t: Translate): LoginErrorCopy | null {
+  switch (reason) {
+    case 'expired':
+      return {
+        title: t('login.mobile.err_code_expired_title', 'That code has expired'),
+        detail: t('login.mobile.err_code_expired_detail', 'Sign-in codes are good for two minutes. Show a new one in the webmail and scan again.'),
+      };
+    case 'used':
+      return {
+        title: t('login.mobile.err_code_used_title', 'That code was already used'),
+        detail: t('login.mobile.err_code_used_detail', 'Each code works once. Show a new one in the webmail and scan again.'),
+      };
+    case 'expired_or_used':
+      return {
+        title: t('login.mobile.err_code_expired_or_used_title', 'That code has expired or was already used'),
+        detail: t('login.mobile.err_code_expired_or_used_detail', 'Show a new one in the webmail and scan again.'),
+      };
+    case 'invalid':
+      return {
+        title: t('login.mobile.err_code_invalid_title', "That code isn't valid"),
+        detail: t('login.mobile.err_code_invalid_detail', 'Show a new code in the webmail (Settings → Security → Link Mobile App) and scan it.'),
+      };
+    case 'unsupported':
+      return {
+        title: t('login.mobile.err_pair_unsupported_title', "This webmail can't link devices"),
+        detail: t('login.mobile.err_pair_unsupported_detail', "{host} doesn't support sign-in codes. It may need an update, or the link points to the wrong address.", { host }),
+      };
+    case 'untrusted':
+      return {
+        title: t('login.mobile.err_pair_untrusted_title', "This sign-in can't be trusted"),
+        detail: t('login.mobile.err_pair_untrusted_detail', "{host} sent sign-in details for a server the app can't verify.", { host }),
+      };
+    case 'insecure':
+      return {
+        title: t('login.mobile.err_pair_untrusted_title', "This sign-in can't be trusted"),
+        detail: t('login.mobile.err_pair_insecure_detail', '{host} wants to use an unencrypted connection.', { host }),
+      };
+    case 'network':
+      return {
+        title: t('login.mobile.err_unreachable_title', "Can't reach {host}", { host }),
+        detail: t('login.mobile.err_pair_network_detail', 'Check your connection and that your phone can reach the webmail, then try again.'),
+      };
+    case 'rate_limited':
+      return {
+        title: t('login.mobile.err_rate_title', 'Too many attempts'),
+        detail: t('login.mobile.err_pair_rate_detail', 'Wait a minute, then try again.'),
+      };
+    case 'server':
+    case 'bad_response':
+      return {
+        title: t('login.mobile.err_pair_server_title', "The webmail couldn't complete the sign-in"),
+        detail: t('login.mobile.err_pair_server_detail', 'Try again with a new code. If it keeps failing, ask your administrator.'),
+      };
+    case 'connect_failed':
+      return {
+        title: t('login.mobile.err_pair_connect_title', "Signed in, but couldn't connect to {host}", { host }),
+        detail: t('login.mobile.err_pair_connect_detail', 'Show a new code on your computer and scan again.'),
+      };
+    default:
+      return null;
+  }
+}
+
 export function describeLoginError(err: unknown, context: LoginErrorContext = {}): LoginErrorCopy {
   const name = nameOf(err);
   const message = messageOf(err);
@@ -44,6 +109,15 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     return out;
   });
   const host = hostLabel(context.serverUrl, t('login.mobile.the_server', 'the server'));
+
+  if (name === 'PairingError') {
+    const pairing = err as { reason?: string; host?: string };
+    // The error names the host it is about: the webmail for a failed redeem,
+    // the mail server once the code was redeemed (`connect_failed`).
+    const pairingHost = pairing.host || host;
+    const copy = describePairingError(pairing.reason, pairingHost, t);
+    if (copy) return copy;
+  }
 
   if (name === 'TotpRequiredError' || message === 'TOTP_REQUIRED' || lower.includes('two-factor code required')) {
     return {
@@ -74,6 +148,13 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     return {
       title: t('login.mobile.err_totp_title', 'Enter your two-factor code'),
       detail: t('login.mobile.err_totp_detail', 'This account is protected with two-factor sign-in. Type the 6-digit code from your authenticator app.'),
+    };
+  }
+
+  if (name === 'InvalidTokenError' || lower.includes('invalid access token')) {
+    return {
+      title: t('login.mobile.err_bad_title', "That didn't work"),
+      detail: t('login.error.invalid_token', 'The server did not accept this access token. Check that it is complete and has not expired or been revoked.'),
     };
   }
 
@@ -135,11 +216,10 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // The store keeps a failed pairing as a plain message; without the reason,
+  // say both.
   if (lower.includes('pairing code')) {
-    return {
-      title: t('login.mobile.err_code_expired_title', 'That code has expired'),
-      detail: t('login.mobile.err_code_expired_detail', 'Sign-in codes are good for a few minutes. Generate a fresh one in the webmail and scan again.'),
-    };
+    return describePairingError('expired_or_used', host, t)!;
   }
 
   if (lower.includes('state mismatch')) {
@@ -149,8 +229,14 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
-  if (lower.includes('maximum of') && lower.includes('accounts')) {
-    return { title: message };
+  // No room for another account (AccountLimitError, or its message as the
+  // store keeps it).
+  if (name === 'AccountLimitError' || /maximum of \d+ accounts/i.test(message)) {
+    const count = Number(/maximum of (\d+)/i.exec(message)?.[1]) || MAX_ACCOUNTS;
+    return {
+      title: t('settings.account.accounts.limit', 'Maximum of {count} accounts reached.', { count }),
+      detail: t('login.mobile.err_account_limit_detail', 'Remove an account in Settings to add another one.'),
+    };
   }
 
   // Unrecognised: show what we were told rather than inventing a cause.

@@ -8,8 +8,10 @@ import {
 } from '../calendar-scroll-window';
 import {
   buildAllDaySegments,
+  columnsPerScreen,
   headerColumnRange,
   hourAtOffset,
+  multiDayCount,
   timeGridFocusColumn,
   windowDays,
 } from '../calendar-time-grid';
@@ -116,5 +118,20 @@ describe('hourAtOffset', () => {
     expect(hourAtOffset(48 * 13 + 5, 48)).toBe(13);
     expect(hourAtOffset(48 * 30, 48)).toBe(23);
     expect(hourAtOffset(-4, 48)).toBe(0);
+  });
+});
+
+describe('multiDayCount', () => {
+  it('shows three days on a phone, five on a medium window and seven on a wide one', () => {
+    expect(multiDayCount(411)).toBe(3);
+    expect(multiDayCount(800)).toBe(5);
+    expect(multiDayCount(1280)).toBe(7);
+  });
+
+  it('only changes the multi-day view', () => {
+    expect(columnsPerScreen('3day', 7)).toBe(7);
+    expect(columnsPerScreen('week', 5)).toBe(7);
+    expect(columnsPerScreen('day', 7)).toBe(1);
+    expect(columnsPerScreen('3day')).toBe(3);
   });
 });

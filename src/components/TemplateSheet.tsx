@@ -3,13 +3,15 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Star, FileText } from 'lucide-react-native';
+import { X, Star, FileText } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
 import { useTemplatesStore, type EmailTemplate } from '../stores/templates-store';
 import { filterTemplates } from '../lib/template-utils';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetInsets } from '../lib/use-layout';
 
 interface TemplateSheetProps {
   visible: boolean;
@@ -32,6 +34,8 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   const hydrate = useTemplatesStore((s) => s.hydrate);
   const [query, setQuery] = React.useState('');
   const slideY = React.useRef(new Animated.Value(500)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
@@ -63,14 +67,14 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   }, [templates, query]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -79,7 +83,7 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('templates.picker_title', 'Choose a Template')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}
+            <Pressable onPress={onClose} hitSlop={10} style={styles.sheetClose}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
             >

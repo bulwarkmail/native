@@ -1,0 +1,44 @@
+# A code that was already used: sign in with it, sign out, open the same link
+# again (same app process, then after a restart, which asks the server).
+appId: org.bulwarkmail.mobile
+name: Used sign-in code
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /pair?user=${ACCOUNT}&deliver=openurl
+- runFlow: ../subflows/confirm-link.yaml
+- runFlow: ../subflows/inbox.yaml
+- runFlow: ../subflows/sign-out.yaml
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 30000
+
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /redeliver?user=${ACCOUNT}&deliver=openurl
+- runFlow: ../subflows/confirm-link.yaml
+- extendedWaitUntil:
+    visible: "That code was already used|That code has expired or was already used"
+    timeout: 30000
+- takeScreenshot: link-used-01-same-process
+
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 60000
+- runScript:
+    file: ../scripts/helper.js
+    env:
+      CALL: /redeliver?user=${ACCOUNT}&deliver=openurl
+- runFlow: ../subflows/confirm-link.yaml
+- extendedWaitUntil:
+    visible: "That code was already used|That code has expired or was already used"
+    timeout: 30000
+- takeScreenshot: link-used-02-after-restart
+- assertVisible: "Enter server details manually"

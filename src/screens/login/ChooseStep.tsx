@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
-import { QrCode, Mail, Plus, Server } from 'lucide-react-native';
+import { ClipboardPaste, QrCode, Mail, Plus, Server } from '../../components/icons';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors, useResolvedTheme } from '../../theme/colors';
 import type { AccountEntry } from '../../stores/account-store';
+import { getAccountInitials } from '../../lib/avatar-utils';
 import OptionTile from './OptionTile';
 import LoginNotice from './LoginNotice';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -19,6 +20,8 @@ interface ChooseStepProps {
   /** Host of the signed-in account, offered as a shortcut in add mode. */
   knownServerUrl: string | null;
   onScan: () => void;
+  /** Paste the sign-in link instead of scanning its code. */
+  onPaste: () => void;
   onUseEmail: () => void;
   onUseKnownServer: () => void;
   onManualSetup: () => void;
@@ -31,10 +34,7 @@ function hostOf(url: string): string {
 }
 
 function initialsOf(account: AccountEntry): string {
-  const source = account.displayName || account.email || account.username;
-  const parts = source.replace(/@.*$/, '').split(/[.\s_-]+/).filter(Boolean);
-  const letters = parts.slice(0, 2).map((part) => part[0]);
-  return (letters.join('') || source[0] || '?').toUpperCase();
+  return getAccountInitials(account.displayName ?? '', account.email || account.username);
 }
 
 /**
@@ -46,6 +46,7 @@ export default function ChooseStep({
   accounts,
   knownServerUrl,
   onScan,
+  onPaste,
   onUseEmail,
   onUseKnownServer,
   onManualSetup,
@@ -56,6 +57,16 @@ export default function ChooseStep({
   const theme = useResolvedTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+
+  // Sits right under the scan tile, wherever that is.
+  const pasteTile = (
+    <OptionTile
+      title={t('login.mobile.paste_title', 'Paste sign-in link')}
+      renderIcon={(color, size) => <ClipboardPaste size={size} color={color} />}
+      onPress={onPaste}
+      disabled={disabled}
+    />
+  );
 
   return (
     <View style={styles.root}>
@@ -115,14 +126,17 @@ export default function ChooseStep({
             disabled={disabled}
           />
         ) : (
-          <OptionTile
-            emphasis="primary"
-            title={t('login.mobile.scan_title', 'Scan a sign-in code')}
-            description={t('login.mobile.scan_desc', "The fastest way in if you're signed in on the web")}
-            renderIcon={(color, size) => <QrCode size={size} color={color} />}
-            onPress={onScan}
-            disabled={disabled}
-          />
+          <>
+            <OptionTile
+              emphasis="primary"
+              title={t('login.mobile.scan_title', 'Scan a sign-in code')}
+              description={t('login.mobile.scan_desc', "The fastest way in if you're signed in on the web")}
+              renderIcon={(color, size) => <QrCode size={size} color={color} />}
+              onPress={onScan}
+              disabled={disabled}
+            />
+            {pasteTile}
+          </>
         )}
 
         <OptionTile
@@ -134,12 +148,15 @@ export default function ChooseStep({
         />
 
         {isAddMode && knownServerUrl ? (
-          <OptionTile
-            title={t('login.mobile.scan_title', 'Scan a sign-in code')}
-            renderIcon={(color, size) => <QrCode size={size} color={color} />}
-            onPress={onScan}
-            disabled={disabled}
-          />
+          <>
+            <OptionTile
+              title={t('login.mobile.scan_title', 'Scan a sign-in code')}
+              renderIcon={(color, size) => <QrCode size={size} color={color} />}
+              onPress={onScan}
+              disabled={disabled}
+            />
+            {pasteTile}
+          </>
         ) : null}
       </View>
 

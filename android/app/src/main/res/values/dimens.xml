@@ -1,0 +1,4 @@
+<resources>
+  <!-- Home-screen widget corners; WIDGET_RADIUS in src/widgets/primitives.tsx. -->
+  <dimen name="widget_radius">16dp</dimen>
+</resources>

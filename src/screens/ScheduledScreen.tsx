@@ -2,8 +2,8 @@ import React from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, Alert, Modal, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Clock, MoreHorizontal } from 'lucide-react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Clock, MoreHorizontal } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -28,6 +28,7 @@ import { draftContextFromEmail } from '../lib/draft-context';
 import { formatQuoteDate } from '../lib/quote-header';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Scheduled'>;
 
@@ -35,6 +36,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const insets = useSafeAreaInsets();
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const mailboxes = useEmailStore((s) => s.mailboxes);
@@ -308,7 +310,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   ] : [];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -348,16 +350,17 @@ export default function ScheduledScreen({ navigation }: Props) {
           keyExtractor={(i) => i.emailSubmissionId}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          contentContainerStyle={styles.listContent}
+          // A stack screen has no tab bar: the list ends clear of the gesture bar.
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + spacing.sm }]}
           refreshing={loading}
           onRefresh={() => { void load(); }}
         />
       )}
 
       {/* Per-message actions */}
-      <Modal visible={!!actionsFor} transparent animationType="fade" onRequestClose={() => setActionsFor(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setActionsFor(null)}>
-          <Pressable style={styles.card} onPress={() => {}}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!actionsFor} transparent animationType="fade" onRequestClose={() => setActionsFor(null)}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setActionsFor(null)}>
+          <Pressable accessible={false} style={styles.card} onPress={() => {}}>
             <Text style={styles.cardTitle} numberOfLines={2}>
               {actionsFor?.subject || t('email_composer.no_subject', '(No Subject)')}
             </Text>
@@ -378,9 +381,9 @@ export default function ScheduledScreen({ navigation }: Props) {
       </Modal>
 
       {/* Reschedule presets */}
-      <Modal visible={!!rescheduleFor && customStage === null} transparent animationType="fade" onRequestClose={() => setRescheduleFor(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setRescheduleFor(null)}>
-          <Pressable style={styles.card} onPress={() => {}}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!rescheduleFor && customStage === null} transparent animationType="fade" onRequestClose={() => setRescheduleFor(null)}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setRescheduleFor(null)}>
+          <Pressable accessible={false} style={styles.card} onPress={() => {}}>
             <Text style={styles.cardTitle}>{t('email_list.reschedule_send', 'Reschedule')}</Text>
             {reschedulePresets.map((preset) => (
               <Pressable
@@ -408,9 +411,9 @@ export default function ScheduledScreen({ navigation }: Props) {
       </Modal>
 
       {customStage !== null && Platform.OS === 'ios' && (
-        <Modal transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
-            <Pressable style={styles.card} onPress={() => {}}>
+        <Modal supportedOrientations={MODAL_ORIENTATIONS} transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
+          <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
+            <Pressable accessible={false} style={styles.card} onPress={() => {}}>
               <DateTimePicker
                 value={customDraftRef.current}
                 mode="datetime"

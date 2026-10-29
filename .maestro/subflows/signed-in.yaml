@@ -1,0 +1,36 @@
+# Feature flows start here: the app signed in to ACCOUNT, on the inbox.
+# Keeps the app's data between flows; signs in only when needed.
+appId: org.bulwarkmail.mobile
+---
+- launchApp:
+    permissions:
+      notifications: allow
+      photos: allow
+      camera: allow
+# Answer the notification prompt (if the app asks) before turning to
+# landscape: rotated, taps on system alerts miss.
+- setOrientation: PORTRAIT
+- extendedWaitUntil:
+    visible: "Enter server details manually|Inbox|.*Would Like to Send You Notifications.*"
+    timeout: 120000
+- runFlow: allow-notifications.yaml
+- runFlow:
+    when:
+      true: ${ORIENTATION == 'landscape'}
+    commands:
+      - setOrientation: LANDSCAPE_LEFT
+- extendedWaitUntil:
+    visible: "Enter server details manually|Inbox"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Enter server details manually"
+    commands:
+      - runFlow:
+          file: password-sign-in.yaml
+          env:
+            LOGIN: ${ACCOUNT}@example.org
+- runFlow: allow-notifications.yaml
+- tapOn:
+    id: tab-mail
+- runFlow: go-to-inbox.yaml

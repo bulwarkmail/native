@@ -1,0 +1,40 @@
+{
+  "$comment": "Home-screen widgets. scripts/sync-android-widgets.mjs turns this into the Android provider classes, provider XML, labels and manifest receivers; run it after editing. cols/rows are launcher cells (Android 2x2 is roughly the iOS small widget, 4x2 medium, 4x4 large).",
+  "widgets": [
+    { "name": "InboxWidget", "label": "Inbox", "description": "Newest messages with sender, time and subject. Taller sizes add avatars and a line of preview.", "cols": 4, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail" },
+    { "name": "TriageWidget", "label": "Triage", "description": "One unread message at a time with archive, delete and reply buttons.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "mail" },
+    { "name": "UnreadCountWidget", "label": "Unread count", "description": "Unread count for the inbox, with the latest senders.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail" },
+    { "name": "LatestMessageWidget", "label": "Latest message", "description": "Only the newest unread message.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail" },
+    { "name": "FolderCountsWidget", "label": "Folder counts", "description": "Unread counts for up to four folders.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail" },
+    { "name": "MailShortcutsWidget", "label": "Shortcuts", "description": "Compose, calendar, contacts and files.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail", "static": true },
+    { "name": "AllAccountsWidget", "label": "All accounts", "description": "The unified inbox across every signed-in account.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "mail" },
+    { "name": "StarredWidget", "label": "Starred", "description": "Starred messages, newest first.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "mail" },
+    { "name": "FavouritePeopleWidget", "label": "Favourite people", "description": "The people you hear from most, with their unread count.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "mail" },
+    { "name": "MailSearchWidget", "label": "Search mail", "description": "Search bar with your recent searches.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 1, "board": "mail" },
+    { "name": "OutboxWidget", "label": "Scheduled and outbox", "description": "Scheduled messages and anything waiting in the outbox.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "mail" },
+    { "name": "TagWidget", "label": "Tag", "description": "Unread count for your busiest tag.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail" },
+    { "name": "LastDraftWidget", "label": "Last draft", "description": "Back into the draft you left.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "mail" },
+
+    { "name": "AgendaWidget", "label": "Agenda", "description": "Upcoming events by day with time, colour and place.", "cols": 4, "rows": 4, "minCols": 3, "minRows": 2, "board": "calendar" },
+    { "name": "WeekWidget", "label": "This week", "description": "The week at a glance from 8:00 to 18:00.", "cols": 4, "rows": 2, "minCols": 4, "minRows": 2, "board": "calendar" },
+    { "name": "MonthWidget", "label": "Month", "description": "Month grid with a dot per calendar and the next two events.", "cols": 4, "rows": 4, "minCols": 3, "minRows": 3, "board": "calendar" },
+    { "name": "TodayEventsWidget", "label": "Today", "description": "Today's date with the rest of today and tomorrow.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "calendar" },
+    { "name": "NextEventWidget", "label": "Next event", "description": "What's next, when and where.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "calendar" },
+    { "name": "DateNextWidget", "label": "Date and next two", "description": "Today's date with the next two events.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "calendar" },
+    { "name": "UpNextWidget", "label": "Up next", "description": "Countdown to the next event with join and running-late buttons.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "calendar" },
+
+    { "name": "InvitationsWidget", "label": "Invitations", "description": "Pending invitations with accept, maybe and decline.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "plans" },
+    { "name": "FreeTimeWidget", "label": "Free time", "description": "When you're free this week.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "plans" },
+    { "name": "TasksWidget", "label": "Tasks", "description": "Open tasks with tick boxes that work from the home screen.", "cols": 4, "rows": 4, "minCols": 3, "minRows": 2, "board": "plans" },
+    { "name": "TaskProgressWidget", "label": "Task progress", "description": "How many tasks are done.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "plans" },
+    { "name": "CountdownWidget", "label": "Countdown", "description": "Days until your next all-day event.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "plans" },
+    { "name": "BirthdaysWidget", "label": "Birthdays", "description": "Upcoming birthdays from your contacts.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "plans" },
+
+    { "name": "TodayHubWidget", "label": "Today overview", "description": "Next event, newest unread mail and tasks due, in one widget.", "cols": 4, "rows": 4, "minCols": 3, "minRows": 3, "board": "hubs" },
+    { "name": "MailAndNextWidget", "label": "Mail and next event", "description": "Unread mail on one side, the next event on the other.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "hubs" },
+    { "name": "RecentFilesWidget", "label": "Recent files", "description": "Recently changed items in Files.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "hubs" },
+    { "name": "AttachmentsWidget", "label": "Recent attachments", "description": "The newest attachments from your mail.", "cols": 4, "rows": 2, "minCols": 3, "minRows": 2, "board": "hubs" },
+    { "name": "VacationWidget", "label": "Vacation responder", "description": "Vacation responder status with an on/off switch.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "hubs" },
+    { "name": "StorageWidget", "label": "Storage", "description": "How much of your mailbox quota is used.", "cols": 2, "rows": 2, "minCols": 2, "minRows": 2, "board": "hubs" }
+  ]
+}

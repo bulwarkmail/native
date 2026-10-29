@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, Keyboard } from 'react-native';
-import { Send, Maximize2 } from 'lucide-react-native';
+import { Send, Maximize2 } from '../icons';
 import type { Email } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -31,6 +31,8 @@ interface Props {
   onMoreOptions: (draft: string) => void;
   /** Reflect `$answered` in the caller's cache. */
   onSent?: (email: Email) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 /**
@@ -38,7 +40,7 @@ interface Props {
  * to the sender with the original quoted, sent through the identity that
  * received the message. "More options" hands the text to the full composer.
  */
-export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: Props) {
+export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onFocus, onBlur }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -154,16 +156,21 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   return (
     <View style={styles.box}>
       <TextInput
+        // No full-screen keyboard in landscape: it would hide the suggestions
+        // and the text around the field.
+        disableFullscreenUI
         value={text}
         onChangeText={setText}
+        onFocus={onFocus}
+        onBlur={onBlur}
         placeholder={t('email_viewer.quick_reply_placeholder', 'Write a quick reply...')}
-        placeholderTextColor={c.textMuted}
+        placeholderTextColor={c.mutedForeground}
         style={styles.input}
         multiline
         editable={!sending}
       />
       <View style={styles.actions}>
-        <Pressable style={styles.more} onPress={() => onMoreOptions(text)} hitSlop={6}>
+        <Pressable style={styles.more} onPress={() => onMoreOptions(text)} hitSlop={10} accessibilityRole="button">
           <Maximize2 size={14} color={c.textSecondary} />
           <Text style={styles.moreText}>{t('email_viewer.more_options', 'More options')}</Text>
         </Pressable>
@@ -171,6 +178,9 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           style={[styles.send, (!text.trim() || sending) && styles.sendDisabled]}
           onPress={send}
           disabled={!text.trim() || sending}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !text.trim() || sending, busy: sending }}
         >
           {sending ? <ActivityIndicator size="small" color={c.primaryForeground} /> : <Send size={14} color={c.primaryForeground} />}
           <Text style={styles.sendText}>{sending ? t('email_viewer.sending', 'Sending...') : t('email_viewer.send', 'Send')}</Text>
@@ -188,7 +198,7 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: radius.md,
-      backgroundColor: c.surface,
+      backgroundColor: c.background,
       padding: spacing.sm,
       gap: spacing.sm,
     },
@@ -210,10 +220,10 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.xs,
       backgroundColor: c.primary,
       paddingHorizontal: spacing.md,
-      paddingVertical: 6,
-      borderRadius: radius.full,
+      minHeight: 36,
+      borderRadius: radius.sm,
     },
     sendDisabled: { opacity: 0.5 },
-    sendText: { ...typography.caption, color: c.primaryForeground, fontWeight: '600' },
+    sendText: { ...typography.bodyMedium, color: c.primaryForeground },
   });
 }

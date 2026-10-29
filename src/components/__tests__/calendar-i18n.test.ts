@@ -11,6 +11,7 @@ const SRC = join(__dirname, '..', '..');
 const TRANSLATED_FILES: Record<string, string[]> = {
   'screens/CalendarScreen.tsx': [],
   'components/calendar/AgendaView.tsx': [],
+  'components/calendar/EventBlock.tsx': [],
   'components/calendar/EventCard.tsx': [],
   'components/calendar/MonthScrollView.tsx': [],
   'components/calendar/MonthView.tsx': [],

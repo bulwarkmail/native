@@ -19,9 +19,12 @@ export interface OAuthTokens {
   expiresAt?: number; // epoch ms
   tokenEndpoint: string;
   clientId: string;
-  // Where the bundle came from. A paired phone shares the desktop's refresh
-  // token, so revoking it on sign-out would also sign the desktop out;
-  // every other source is safe to revoke.
+  // Where the bundle came from. A paired phone gets its own grant: the
+  // webmail mints a separate one for the device rather than handing over
+  // the desktop's session. Its refresh token may be an opaque string only
+  // the webmail's token proxy understands, and webmail up to 1.11 did share
+  // the desktop's token, so sign-out leaves `pairing` bundles alone instead
+  // of revoking them at the mail server; every other source is revoked.
   source?: OAuthTokenSource;
 }
 
@@ -56,6 +59,44 @@ export class TransientRefreshError extends Error {
   }
 }
 
+// Why a QR / link sign-in failed, so the login screen can say what to do next
+// instead of one catch-all "expired" message.
+//   expired / used / expired_or_used / invalid: the code itself (webmail up to
+//     1.11 does not say which, hence `expired_or_used`)
+//   unsupported: no redeem route at that address (old webmail, wrong link)
+//   untrusted / insecure: the answer names a token endpoint or server the app
+//     will not send credentials to
+//   network / server / rate_limited / bad_response: the redeem request itself
+//   connect_failed: the code was redeemed, but signing in to the mail server
+//     with what it returned failed; the code is gone, a new one is needed
+export type PairingErrorReason =
+  | 'expired'
+  | 'used'
+  | 'expired_or_used'
+  | 'invalid'
+  | 'unsupported'
+  | 'untrusted'
+  | 'insecure'
+  | 'network'
+  | 'server'
+  | 'rate_limited'
+  | 'bad_response'
+  | 'connect_failed';
+
+export class PairingError extends Error {
+  readonly reason: PairingErrorReason;
+  /** Host the message is about: the webmail, or the mail server for `connect_failed`. */
+  readonly host?: string;
+
+  constructor(reason: PairingErrorReason, message?: string, opts?: { host?: string; cause?: unknown }) {
+    super(message ?? `Pairing failed: ${reason}`);
+    this.name = 'PairingError';
+    this.reason = reason;
+    this.host = opts?.host;
+    if (opts?.cause !== undefined) this.cause = opts.cause;
+  }
+}
+
 // The state is the only guard against a forged `bulwarkmobile://` redirect
 // delivering foreign credentials, so it comes from the platform CSPRNG.
 function randomState(): string {
@@ -63,8 +104,8 @@ function randomState(): string {
 }
 
 // Anything from the redirect fragment is attacker-influenced: another app can
-// register the same custom scheme. Only accept https endpoints, and only a
-// token endpoint that lives on the mail server's own host (or the webmail's).
+// register the same custom scheme. External token endpoints need verification
+// through the selected webmail, rather than trusting the redirect alone.
 function isHttpsUrl(value: string | null): value is string {
   return !!value && /^https:\/\/[^/?#\s]+/i.test(value);
 }
@@ -90,6 +131,60 @@ export function isAcceptableTokenEndpoint(
   if (!host) return false;
   const allowed = [hostOf(serverUrl), webmailUrl ? hostOf(webmailUrl) : ''].filter(Boolean);
   return allowed.some((h) => host === h || host.endsWith(`.${h}`) || h.endsWith(`.${host}`));
+}
+
+// External IdPs must be authorized by the selected webmail over TLS, never
+// by callback fields or a shared DNS suffix. Bind all returned identifiers.
+async function isTrustedHandoffEndpoint(
+  tokenEndpoint: string,
+  serverUrl: string,
+  webmailUrl: string,
+  clientId: string,
+): Promise<boolean> {
+  if (isAcceptableTokenEndpoint(tokenEndpoint, serverUrl, webmailUrl)) return true;
+  function httpsUrl(value: unknown): value is string {
+    if (typeof value !== 'string') return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password && !url.hash;
+    } catch {
+      return false;
+    }
+  }
+  if (!httpsUrl(webmailUrl) || !httpsUrl(tokenEndpoint) || !httpsUrl(serverUrl)) return false;
+  const base = webmailUrl.replace(/\/+$/, '');
+  try {
+    const load = async (path: string) => {
+      const url = `${base}${path}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await secureFetch(url, {
+          headers: { Accept: 'application/json' },
+          redirect: 'error',
+          signal: controller.signal,
+          timeoutMs: 8000,
+        });
+        // The native client-certificate bridge omits the final URL. Without
+        // transport evidence of its destination, external-IdP trust must fail.
+        if (!response.ok || response.url !== url || response.redirected) {
+          throw new Error('Untrusted metadata response');
+        }
+        return await response.json();
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    const config = await load('/api/config');
+    if (
+      config.oauthEnabled !== true || config.oauthClientId !== clientId ||
+      config.jmapServerUrl !== serverUrl || !httpsUrl(config.oauthIssuerUrl)
+    ) return false;
+    const metadata = await load('/api/auth/oauth/metadata');
+    return metadata.issuer === config.oauthIssuerUrl && metadata.token_endpoint === tokenEndpoint;
+  } catch {
+    return false;
+  }
 }
 
 function buildHandoffUrl(webmailUrl: string, state: string): string {
@@ -165,7 +260,7 @@ export async function runWebmailHandoff(
     if (!accessToken || !tokenEndpoint || !clientId) {
       throw new HandoffError('Sign-in response missing OAuth tokens');
     }
-    if (!isAcceptableTokenEndpoint(tokenEndpoint, serverUrl, webmailUrl)) {
+    if (!(await isTrustedHandoffEndpoint(tokenEndpoint, serverUrl, webmailUrl, clientId))) {
       throw new HandoffError('Sign-in response token endpoint is not trusted');
     }
     const refreshToken = params.get('refresh_token') ?? undefined;
@@ -191,24 +286,35 @@ export async function runWebmailHandoff(
 // server URL for the normal webmail handoff (`connect`), or carries a one-time
 // cross-device pairing code minted by an already-signed-in webmail (`pair`).
 // The payload never contains credentials — the `pair` code is redeemed for
-// tokens over the network, once.
+// tokens over the network, once. The same `bulwarkmail://` links also arrive
+// as deep links (a tapped link) and as pasted text.
 export type QrLoginPayload =
   | { kind: 'connect'; webmailUrl: string }
   | { kind: 'pair'; webmailUrl: string; code: string };
+
+// `bulwarkmail://pair?…` and `bulwarkmail://pair/?…` (Android and some QR
+// readers add the slash after the host).
+const SIGN_IN_LINK_RE = /^bulwarkmail:\/\/(connect|pair)\/?\?([^#]*)(?:#.*)?$/i;
+// The webmail mints 64 hex characters; accept any URL-safe token of sane
+// length so a future format does not break older apps.
+const PAIRING_CODE_RE = /^[A-Za-z0-9_-]{8,512}$/;
 
 export function parseQrLoginPayload(raw: string): QrLoginPayload | null {
   const trimmed = raw.trim();
 
   // Custom scheme: bulwarkmail://connect?server=... | bulwarkmail://pair?server=...&code=...
-  const match = /^bulwarkmail:\/\/(connect|pair)\?(.*)$/i.exec(trimmed);
+  const match = SIGN_IN_LINK_RE.exec(trimmed);
   if (match) {
     const kind = match[1].toLowerCase();
     const params = new URLSearchParams(match[2]);
-    const server = params.get('server');
-    if (!server || !/^https?:\/\//i.test(server)) return null;
+    const server = params.get('server')?.trim();
+    if (!server || !/^https?:\/\/[^/?#\s]+/i.test(server)) return null;
     if (kind === 'pair') {
-      const code = params.get('code');
-      if (!code) return null;
+      // The code is redeemed at this address, and the answer carries
+      // credentials: only over TLS, or plain http on loopback for development.
+      if (!isHttpsUrl(server) && !isLoopbackHttp(server)) return null;
+      const code = params.get('code')?.trim();
+      if (!code || !PAIRING_CODE_RE.test(code)) return null;
       return { kind: 'pair', webmailUrl: server, code };
     }
     return { kind: 'connect', webmailUrl: server };
@@ -223,59 +329,208 @@ export function parseQrLoginPayload(raw: string): QrLoginPayload | null {
   return null;
 }
 
+/**
+ * The code is redeemed at the webmail, and the answer carries credentials:
+ * only over TLS, or plain http on loopback for development.
+ */
+export function isInsecurePairingUrl(webmailUrl: string): boolean {
+  return !isHttpsUrl(webmailUrl) && !isLoopbackHttp(webmailUrl);
+}
+
+/**
+ * The host a sign-in link talks to, for the user to check. Read the way the
+ * network stack reads the address: `https://mail.example.com@evil.example`
+ * and `https://evil.example\@mail.example.com` both go to evil.example, so
+ * that is the host named.
+ */
+export function signInLinkHost(url: string): string {
+  const authority = url.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split(/[/\\?#]/)[0];
+  return authority.slice(authority.lastIndexOf('@') + 1).toLowerCase();
+}
+
+/**
+ * Why parseQrLoginPayload refused a pairing link, when the reason is its
+ * plain-http webmail (the code, and the credentials it buys, would cross the
+ * network in clear), so a scanned, pasted or tapped link can say so instead
+ * of "not a Bulwark sign-in code". Only ever an error to show: the parser
+ * stays the one gate and never yields such a link. Takes the link alone or
+ * pasted text around it; null for anything else.
+ */
+export function insecurePairingLinkError(text: string): PairingError | null {
+  const link = (/bulwarkmail:\/\/\S+/i.exec(text)?.[0] ?? '').replace(/[)\]>.,;'"]+$/, '');
+  const match = SIGN_IN_LINK_RE.exec(link);
+  if (!match || match[1].toLowerCase() !== 'pair') return null;
+  const params = new URLSearchParams(match[2]);
+  const server = params.get('server')?.trim();
+  const code = params.get('code')?.trim();
+  if (!server || !/^http:\/\/[^/?#\s]+/i.test(server) || !isInsecurePairingUrl(server)) return null;
+  if (!code || !PAIRING_CODE_RE.test(code)) return null;
+  return new PairingError('insecure', 'Pairing needs an https webmail address', {
+    host: signInLinkHost(server),
+  });
+}
+
+/**
+ * Pasted text: the link on its own, or a message that contains it ("Open
+ * bulwarkmail://pair?… on your phone"). Falls back to the whole text so a
+ * pasted webmail address still works like a scanned one.
+ */
+export function parsePastedSignInLink(text: string): QrLoginPayload | null {
+  const embedded = /bulwarkmail:\/\/\S+/i.exec(text)?.[0];
+  if (embedded) {
+    const payload = parseQrLoginPayload(embedded.replace(/[)\]>.,;'"]+$/, ''));
+    if (payload) return payload;
+  }
+  return parseQrLoginPayload(text);
+}
+
+export const PAIRING_REDEEM_TIMEOUT_MS = 15_000;
+
+// Host (and port) for messages: "Can't reach mail.example.com".
+function displayHost(url: string): string {
+  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split(/[/?#]/)[0];
+}
+
+// A JSON body, or null for an empty, HTML or otherwise unparseable one. A
+// proxy error page or a webmail too old to have the route answers with HTML.
+async function readJsonBody(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    const data: unknown = await response.json();
+    return data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function stringField(data: Record<string, unknown>, key: string): string | undefined {
+  const value = data[key];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+// Map a failed redeem onto what the user should do about it.
+function redeemFailure(status: number, body: Record<string, unknown> | null, host: string): PairingError {
+  const error = body ? stringField(body, 'error') : undefined;
+  if (status === 410) {
+    if (error === 'expired_code') return new PairingError('expired', 'The pairing code has expired', { host });
+    if (error === 'used_code') return new PairingError('used', 'The pairing code was already used', { host });
+    return new PairingError('expired_or_used', 'The pairing code has expired or was already used', { host });
+  }
+  if (status === 400) {
+    if (error === 'invalid_code') return new PairingError('invalid', 'The pairing code is not valid', { host });
+    // Webmail up to 1.11 answers every failure with a 400 and
+    // "Invalid or expired pairing code" / "Missing pairing code".
+    return new PairingError('expired_or_used', 'The pairing code has expired or was already used', { host });
+  }
+  if (status === 404 || status === 405 || (status >= 300 && status < 400)) {
+    return new PairingError('unsupported', `No pairing endpoint at ${host} (${status})`, { host });
+  }
+  if (status === 429) return new PairingError('rate_limited', 'Too many pairing attempts (429)', { host });
+  return new PairingError('server', `Pairing failed with status ${status}`, { host });
+}
+
 // Cross-device pairing redemption. Posts the scanned code to the webmail that
-// minted it and maps the token bundle into the same shape the in-browser OAuth
-// handoff produces, so the caller can reuse the existing connectWithOAuth path.
+// minted it and maps the answer into the same shape the in-browser handoff
+// produces: an OAuth token bundle for connectWithOAuth, or an app password
+// (the account password on servers without app passwords) for login().
 export async function redeemPairingCode(webmailUrl: string, code: string): Promise<HandoffResult> {
   const base = webmailUrl.replace(/\/+$/, '');
-  let response: Response;
+  const host = displayHost(base);
+  // The login screen refuses these links already; never send a code in clear.
+  if (isInsecurePairingUrl(base)) {
+    throw new PairingError('insecure', 'Pairing needs an https webmail address', { host });
+  }
+
+  // secureFetch's native (client-certificate) path ignores `signal`, so the
+  // deadline is also passed as `timeoutMs` and enforced here with a race; the
+  // body read counts against it too.
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new PairingError('network', `Timed out reaching ${host}`, { host }));
+    }, PAIRING_REDEEM_TIMEOUT_MS);
+  });
+
+  let status: number;
+  let ok: boolean;
+  let data: Record<string, unknown> | null;
   try {
-    response = await secureFetch(`${base}/api/auth/pair/redeem`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ pairing_code: code }),
-    });
-  } catch {
-    throw new HandoffError('Could not reach the server to complete pairing');
+    const exchange = (async () => {
+      let response: Response;
+      try {
+        response = await secureFetch(`${base}/api/auth/pair/redeem`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ pairing_code: code }),
+          signal: controller.signal,
+          timeoutMs: PAIRING_REDEEM_TIMEOUT_MS,
+        });
+      } catch (err) {
+        throw new PairingError(
+          'network',
+          `Could not reach ${host}: ${err instanceof Error ? err.message : String(err)}`,
+          { host, cause: err },
+        );
+      }
+      return { status: response.status, ok: response.ok, data: await readJsonBody(response) };
+    })();
+    ({ status, ok, data } = await Promise.race([exchange, deadline]));
+  } finally {
+    clearTimeout(timer);
   }
 
-  if (!response.ok) {
-    // The code was unknown, already used, or expired (server returns 400) —
-    // or something else went wrong. Either way the user needs a fresh QR.
-    throw new HandoffError('Pairing code is invalid or has expired');
+  if (!ok) throw redeemFailure(status, data, host);
+  if (!data) throw new PairingError('bad_response', 'The pairing response was not JSON', { host });
+
+  const serverUrl = stringField(data, 'server_url');
+  if (!serverUrl) throw new PairingError('bad_response', 'Pairing response missing server URL', { host });
+  if (!isHttpsUrl(serverUrl) && !isLoopbackHttp(serverUrl)) {
+    throw new PairingError('insecure', 'Pairing response server URL must use https', { host });
   }
 
-  const data = (await response.json()) as {
-    server_url?: string;
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    token_endpoint?: string;
-    client_id?: string;
-  };
+  // Webmail up to 1.11 always sends `flow: 'oauth'`; a bundle without the
+  // field but with a token is the same thing.
+  const flow = stringField(data, 'flow') ?? (stringField(data, 'access_token') ? 'oauth' : undefined);
 
-  if (!data.server_url || !data.access_token || !data.token_endpoint || !data.client_id) {
-    throw new HandoffError('Pairing response missing token material');
-  }
-  if (!isHttpsUrl(data.server_url) && !isLoopbackHttp(data.server_url)) {
-    throw new HandoffError('Pairing response server URL must use https');
-  }
-  if (!isAcceptableTokenEndpoint(data.token_endpoint, data.server_url, base)) {
-    throw new HandoffError('Pairing response token endpoint is not trusted');
+  if (flow === 'password') {
+    const username = stringField(data, 'username');
+    const password = stringField(data, 'password');
+    if (!username || !password) {
+      throw new PairingError('bad_response', 'Pairing response missing credentials', { host });
+    }
+    return { flow: 'password', serverUrl, username, password };
   }
 
-  return {
-    flow: 'oauth',
-    serverUrl: data.server_url,
-    tokens: {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? undefined,
-      expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
-      tokenEndpoint: data.token_endpoint,
-      clientId: data.client_id,
-      source: 'pairing',
-    },
-  };
+  if (flow === 'oauth') {
+    const accessToken = stringField(data, 'access_token');
+    const tokenEndpoint = stringField(data, 'token_endpoint');
+    const clientId = stringField(data, 'client_id');
+    if (!accessToken || !tokenEndpoint || !clientId) {
+      throw new PairingError('bad_response', 'Pairing response missing token material', { host });
+    }
+    // The mail server's own host, the webmail's token proxy
+    // (`<webmail>/api/auth/pair/token`), or an external identity provider the
+    // webmail itself names; nothing else gets the refresh token.
+    if (!(await isTrustedHandoffEndpoint(tokenEndpoint, serverUrl, base, clientId))) {
+      throw new PairingError('untrusted', 'Pairing response token endpoint is not trusted', { host });
+    }
+    const expiresIn = typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) ? data.expires_in : undefined;
+    return {
+      flow: 'oauth',
+      serverUrl,
+      tokens: {
+        accessToken,
+        refreshToken: stringField(data, 'refresh_token'),
+        expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : undefined,
+        tokenEndpoint,
+        clientId,
+        source: 'pairing',
+      },
+    };
+  }
+
+  throw new PairingError('bad_response', `Unknown pairing flow: ${flow ?? 'missing'}`, { host });
 }
 
 const activeRefreshes = new Map<string, Promise<OAuthTokens>>();
@@ -323,11 +578,24 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           }
           throw new TransientRefreshError(`Token refresh failed: ${response.status}`);
         }
-        const data = (await response.json()) as {
+        // A 200 that is not JSON is a captive portal or a proxy page, not an
+        // answer from the token endpoint; the refresh token may still be
+        // good, so keep the account (a SyntaxError here used to evict it).
+        let data: {
           access_token?: string;
           refresh_token?: string;
           expires_in?: number;
         };
+        try {
+          data = (await response.json()) as typeof data;
+        } catch (err) {
+          throw new TransientRefreshError(
+            `Token refresh response was not JSON: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+        if (!data || typeof data !== 'object') {
+          throw new TransientRefreshError('Token refresh response was not a JSON object');
+        }
         if (!data.access_token) {
           throw new HandoffError('Token refresh response missing access_token');
         }

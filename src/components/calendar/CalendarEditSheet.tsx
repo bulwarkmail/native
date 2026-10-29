@@ -10,13 +10,15 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { Check } from '../icons';
 import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
 import Button from '../Button';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
 
 export interface CalendarEditValues {
   name: string;
@@ -35,6 +37,8 @@ interface CalendarEditSheetProps {
 // Create / rename / recolour / describe a calendar. The same fields the
 // webmail's calendar-management settings offer, as a bottom sheet.
 export function CalendarEditSheet({ visible, calendar, onSave, onClose }: CalendarEditSheetProps) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -69,10 +73,10 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <Text style={styles.title}>
                 {calendar

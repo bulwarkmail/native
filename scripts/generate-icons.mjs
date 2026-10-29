@@ -1,0 +1,243 @@
+// Writes src/components/icons/index.ts from Tabler's outline path data.
+//
+// The app draws the same icon set as the webmail (Tabler Icons, MIT) under the
+// names it used when it was on Lucide, so screens import `{ Mail, Trash2 }`
+// from components/icons. Only the glyphs listed in MAP ship in the bundle.
+//
+//   node scripts/generate-icons.mjs [path/to/tabler-nodes-outline.json]
+//
+// The default path is the webmail checkout this repo usually sits in
+// (repos/react-native inside jmap-webmail), whose node_modules has
+// @tabler/icons. Add a line to MAP to make a new icon importable.
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SOURCE = process.argv[2]
+  ?? join(ROOT, '..', '..', 'node_modules', '@tabler', 'icons', 'tabler-nodes-outline.json');
+
+// App name -> Tabler outline name. Where the webmail (components/icons) maps
+// the same name, this uses its choice.
+const MAP = {
+  AlarmClock: 'alarm',
+  AlertCircle: 'alert-circle',
+  AlertTriangle: 'alert-triangle',
+  AlignCenter: 'align-center',
+  AlignLeft: 'align-left',
+  AlignRight: 'align-right',
+  Archive: 'archive',
+  ArrowDown: 'arrow-down',
+  ArrowDownWideNarrow: 'sort-descending',
+  ArrowLeft: 'arrow-left',
+  ArrowRight: 'arrow-right',
+  ArrowUp: 'arrow-up',
+  ArrowUpDown: 'arrows-sort',
+  ArrowUpNarrowWide: 'sort-ascending',
+  Ban: 'ban',
+  Bell: 'bell',
+  BellOff: 'bell-off',
+  BellRing: 'bell-ringing',
+  Bold: 'bold',
+  Book: 'book-2',
+  BookOpen: 'book',
+  BookUser: 'address-book',
+  Bug: 'bug',
+  Building: 'building',
+  Cake: 'cake',
+  Calendar: 'calendar',
+  CalendarDays: 'calendar-month',
+  CalendarPlus: 'calendar-plus',
+  Camera: 'camera',
+  Check: 'check',
+  CheckCheck: 'checks',
+  CheckCircle: 'circle-check',
+  CheckCircle2: 'circle-check',
+  CheckSquare: 'square-check',
+  ChevronDown: 'chevron-down',
+  ChevronLeft: 'chevron-left',
+  ChevronRight: 'chevron-right',
+  ChevronUp: 'chevron-up',
+  CircleCheck: 'circle-check',
+  ClipboardPaste: 'clipboard-text',
+  Clock: 'clock',
+  CloudDownload: 'cloud-download',
+  CloudOff: 'cloud-off',
+  Code: 'code',
+  Columns3: 'columns-3',
+  Columns4: 'layout-columns',
+  Copy: 'copy',
+  Database: 'database',
+  Download: 'download',
+  Edit2: 'pencil',
+  Eraser: 'eraser',
+  ExternalLink: 'external-link',
+  Eye: 'eye',
+  EyeOff: 'eye-off',
+  File: 'file',
+  FileArchive: 'file-zip',
+  FileAudio: 'file-music',
+  FileCode: 'file-code',
+  FileCode2: 'file-code-2',
+  FileImage: 'photo',
+  FileInput: 'file-import',
+  FileSpreadsheet: 'file-spreadsheet',
+  FileSymlink: 'file-symlink',
+  FileText: 'file-text',
+  FileVideo: 'video',
+  Filter: 'filter',
+  Flag: 'flag',
+  FlaskConical: 'flask',
+  Folder: 'folder',
+  FolderArchive: 'archive',
+  FolderInput: 'folder-down',
+  FolderOpen: 'folder-open',
+  FolderPlus: 'folder-plus',
+  FolderSync: 'folders',
+  Forward: 'arrow-forward-up',
+  Globe: 'world',
+  Grid3x3: 'grid-dots',
+  GripVertical: 'grip-vertical',
+  HardDrive: 'server-2',
+  Heading1: 'h-1',
+  Heading2: 'h-2',
+  Heart: 'heart',
+  HelpCircle: 'help-circle',
+  Highlighter: 'highlight',
+  Image: 'photo',
+  Import: 'file-import',
+  Inbox: 'inbox',
+  Info: 'info-circle',
+  Italic: 'italic',
+  Key: 'key',
+  KeyRound: 'key',
+  Languages: 'language',
+  Layers: 'stack',
+  LayoutGrid: 'layout-grid',
+  LayoutTemplate: 'template',
+  Link2: 'link',
+  Link2Off: 'unlink',
+  List: 'list',
+  ListChecks: 'list-check',
+  ListOrdered: 'list-numbers',
+  Lock: 'lock',
+  LogOut: 'logout',
+  Mail: 'mail',
+  MailCheck: 'mail-check',
+  MailMinus: 'mail-minus',
+  MailOpen: 'mail-opened',
+  Mails: 'inbox',
+  MapPin: 'map-pin',
+  Maximize2: 'maximize',
+  Menu: 'menu-2',
+  MessageSquare: 'message',
+  Minus: 'minus',
+  Monitor: 'device-desktop',
+  Moon: 'moon',
+  MoreHorizontal: 'dots',
+  MoreVertical: 'dots-vertical',
+  MoveVertical: 'arrows-vertical',
+  Palette: 'palette',
+  Palmtree: 'beach',
+  PanelLeftClose: 'layout-sidebar-left-collapse',
+  PanelRight: 'layout-sidebar-right',
+  Paperclip: 'paperclip',
+  PenLine: 'pencil',
+  PenSquare: 'edit',
+  Pencil: 'pencil',
+  Phone: 'phone',
+  Pin: 'pinned',
+  PinOff: 'pinned-off',
+  Plus: 'plus',
+  Puzzle: 'puzzle',
+  QrCode: 'qrcode',
+  Quote: 'quote',
+  Redo2: 'arrow-forward',
+  RefreshCw: 'refresh',
+  RemoveFormatting: 'clear-formatting',
+  Repeat: 'repeat',
+  Reply: 'arrow-back-up',
+  ReplyAll: 'arrow-back-up-double',
+  RotateCcw: 'rotate',
+  Rows2: 'layout-rows',
+  Rss: 'rss',
+  Save: 'device-floppy',
+  ScanSearch: 'zoom-scan',
+  Scale: 'scale',
+  Search: 'search',
+  Send: 'send',
+  Server: 'server',
+  Settings: 'settings',
+  Share2: 'share-2',
+  Shield: 'shield',
+  ShieldAlert: 'shield-exclamation',
+  ShieldCheck: 'shield-check',
+  ShieldQuestion: 'shield-question',
+  Shuffle: 'arrows-shuffle',
+  Smartphone: 'device-mobile',
+  Square: 'square',
+  SquareCheck: 'square-check',
+  SquarePen: 'edit',
+  Star: 'star',
+  StickyNote: 'note',
+  Strikethrough: 'strikethrough',
+  Sun: 'sun',
+  Table: 'table',
+  Tag: 'tag',
+  Tags: 'tags',
+  Terminal: 'terminal',
+  Trash: 'trash',
+  Trash2: 'trash',
+  Type: 'typography',
+  Underline: 'underline',
+  Undo2: 'arrow-back',
+  Upload: 'upload',
+  User: 'user',
+  UserCircle: 'user-circle',
+  UserMinus: 'user-minus',
+  UserPen: 'user-edit',
+  UserPlus: 'user-plus',
+  UserRound: 'user',
+  UserRoundPlus: 'user-plus',
+  Users: 'users',
+  Video: 'video',
+  X: 'x',
+  XCircle: 'circle-x',
+};
+
+function main() {
+  const nodes = JSON.parse(readFileSync(SOURCE, 'utf8'));
+  const glyphs = new Map();
+  const missing = [];
+  for (const [appName, tabler] of Object.entries(MAP)) {
+    const icon = nodes[tabler];
+    if (!icon) { missing.push(`${appName} -> ${tabler}`); continue; }
+    const paths = icon.map(([tag, attrs]) => {
+      if (tag !== 'path') throw new Error(`${tabler}: unexpected <${tag}>`);
+      return attrs.d;
+    });
+    glyphs.set(tabler, paths);
+  }
+  if (missing.length) throw new Error(`Not in Tabler: ${missing.join(', ')}`);
+
+  const lines = [
+    '// Generated by scripts/generate-icons.mjs from @tabler/icons (MIT).',
+    '// Do not edit by hand: add the icon to MAP in the script and run it.',
+    '',
+    "import { makeIcon } from './icon';",
+    '',
+    "export type { AppIcon, IconProps } from './icon';",
+    '',
+    'const G = {',
+    ...[...glyphs.keys()].sort().map((k) => `  '${k}': ${JSON.stringify(glyphs.get(k))},`),
+    '} as const;',
+    '',
+    ...Object.entries(MAP).map(([a, t]) => `export const ${a} = makeIcon('${a}', G['${t}']);`),
+    '',
+  ];
+  writeFileSync(join(ROOT, 'src', 'components', 'icons', 'index.ts'), lines.join('\n'));
+  console.log(`${Object.keys(MAP).length} names, ${glyphs.size} glyphs`);
+}
+
+main();

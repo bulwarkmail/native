@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ChevronDown } from 'lucide-react-native';
+import { ChevronDown } from '../icons';
 import { format, parseISO } from 'date-fns';
 import type { RecurrenceRule } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';

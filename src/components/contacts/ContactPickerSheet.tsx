@@ -1,10 +1,10 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Modal, TextInput, FlatList,
+  View, Text, StyleSheet, Pressable, TextInput, FlatList,
   Animated, Dimensions, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, X, Check } from 'lucide-react-native';
+import { Search, X, Check } from '../icons';
 import type { ContactCard } from '../../api/types';
 import {
   useContactsStore,
@@ -16,6 +16,9 @@ import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 interface Props {
   visible: boolean;
@@ -41,6 +44,8 @@ export default function ContactPickerSheet({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlay = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({
     slideY,
@@ -94,12 +99,12 @@ export default function ContactPickerSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: overlay }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
 
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
           <View {...dragHandlers}>
             <View style={styles.handleHit}>
@@ -175,7 +180,7 @@ export default function ContactPickerSheet({
           />
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

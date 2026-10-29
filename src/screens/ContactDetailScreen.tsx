@@ -1,11 +1,12 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Linking, Alert, Share,
-  Animated, Dimensions, Easing, Modal,
+  Animated, Dimensions, Easing,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useInPane } from '../navigation/pane';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -13,7 +14,7 @@ import {
   Building, Cake, Heart, Globe, Tag, Users, FileText, BookUser,
   Copy, MoreHorizontal, Calendar as CalendarIcon, UserCircle, Languages,
   Clock, KeyRound, FolderInput, Plus,
-} from 'lucide-react-native';
+} from '../components/icons';
 import type { RootStackParamList } from '../navigation/types';
 import { openExternalUrl } from '../lib/open-url';
 import type { ContactCard } from '../api/types';
@@ -34,6 +35,9 @@ import AddressBookPickerSheet from '../components/contacts/AddressBookPickerShee
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetInsets } from '../lib/use-layout';
+import { SafeAreaModal } from '../components/SafeAreaModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactDetail'>;
 type Route = RouteProp<RootStackParamList, 'ContactDetail'>;
@@ -132,6 +136,7 @@ export default function ContactDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const t = useLocaleStore((s) => s.t);
+  const inPane = useInPane();
   const { contactId } = route.params;
 
   const contact = useContactsStore((s) => s.contacts.find((c) => c.id === contactId));
@@ -147,6 +152,17 @@ export default function ContactDetailScreen() {
   const [moreOpen, setMoreOpen] = React.useState(false);
   const [moveOpen, setMoveOpen] = React.useState(false);
   const [groupPickerOpen, setGroupPickerOpen] = React.useState(false);
+  // Every hook runs before the not-found return: deleting the contact (or a
+  // sync removing it) re-renders this screen without it, and a hook that only
+  // ran with a contact crashed React with "fewer hooks than expected".
+  const members = contact?.members;
+  const memberContacts = React.useMemo(() => {
+    if (!members) return [];
+    const memberIds = Object.keys(members).filter((k) => members[k]);
+    return memberIds
+      .map((mid) => allContacts.find((c) => c.id === mid || c.uid === mid))
+      .filter(Boolean) as ContactCard[];
+  }, [members, allContacts]);
 
   if (!contact) {
     return (
@@ -214,14 +230,6 @@ export default function ContactDetailScreen() {
     }
     return 0;
   })();
-
-  const memberContacts = React.useMemo(() => {
-    if (!contact.members) return [];
-    const memberIds = Object.keys(contact.members).filter((k) => contact.members![k]);
-    return memberIds
-      .map((mid) => allContacts.find((c) => c.id === mid || c.uid === mid))
-      .filter(Boolean) as ContactCard[];
-  }, [contact.members, allContacts]);
 
   const openMail = (addr: string) => {
     navigation.navigate('Compose', {
@@ -362,17 +370,20 @@ export default function ContactDetailScreen() {
   ].filter(Boolean) as MoreItem[];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.headerBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', 'Back')}
-        >
-          <ArrowLeft size={22} color={c.text} />
-        </Pressable>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={[styles.header, inPane && styles.headerInPane]}>
+        {/* In a split view's pane the list is right next to it: no back. */}
+        {!inPane && (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
+            <ArrowLeft size={22} color={c.text} />
+          </Pressable>
+        )}
         <Text style={styles.headerTitle} numberOfLines={1}>
           {isGroup(contact) ? t('contacts.group', 'Group') : t('contacts.contact', 'Contact')}
         </Text>
@@ -797,6 +808,8 @@ function MoreActionsSheet({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -814,11 +827,11 @@ function MoreActionsSheet({
   }, [visible, slideY, overlayOpacity]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView edges={['bottom']}>
           <View style={styles.handleHit}>
             <View style={styles.handle} />
@@ -846,7 +859,7 @@ function MoreActionsSheet({
           })}
         </SafeAreaView>
       </Animated.View>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 
@@ -916,7 +929,8 @@ function makeStyles(c: ThemePalette) {
     container: { flex: 1, backgroundColor: c.background },
     scrollContent: { paddingBottom: spacing.xxxl * 2 },
 
-    header: {
+    headerInPane: { paddingLeft: spacing.lg },
+  header: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: spacing.sm,
@@ -986,6 +1000,9 @@ function makeStyles(c: ThemePalette) {
     },
     sectionIcon: { width: 16 },
     sectionLabel: {
+      // Fill the row: shrink-wrapped, Android measured the letter-spaced
+      // label a few px short and wrapped its last word out of sight ("WOR").
+      flex: 1,
       ...typography.bodyMedium,
       color: c.textSecondary,
       textTransform: 'uppercase',

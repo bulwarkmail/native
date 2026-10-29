@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors, useResolvedTheme } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { getAccountInitials } from '../../lib/avatar-utils';
 
 // The white mark disappears on the light palette, so pick per theme.
 const LOGO_LIGHT = require('../../../assets/logos/Bulwark Logo Dark.png');
@@ -23,10 +24,7 @@ function hostOf(url: string | null): string {
 }
 
 function initialsOf(email: string): string {
-  const local = email.replace(/@.*$/, '');
-  const parts = local.split(/[.\s_-]+/).filter(Boolean);
-  const letters = parts.slice(0, 2).map((part) => part[0]);
-  return (letters.join('') || local[0] || '?').toUpperCase();
+  return getAccountInitials('', email);
 }
 
 /**

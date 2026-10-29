@@ -8,6 +8,7 @@ import {
   hasRemoteContent,
   prepareEmailHtml,
   wrapPlainTextEmail,
+  wrapEmailHtml,
   hasNativeDarkMode,
   sniffImageMime,
   TRANSPARENT_BLOCKED_PIXEL,
@@ -251,5 +252,14 @@ describe('sniffImageMime', () => {
   it('falls back to a declared image type, else octet-stream', () => {
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/tiff')).toBe('image/tiff');
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'application/octet-stream')).toBe('application/octet-stream');
+  });
+});
+
+describe('reading width on a wide pane', () => {
+  it('caps HTML and plain-text bodies only above the tablet breakpoint', () => {
+    const html = wrapEmailHtml('<p>Hello</p>');
+    expect(html).toMatch(/@media \(min-width: 840px\) \{\s*body \{ max-width: 720px;/);
+    const plain = wrapPlainTextEmail('Hello');
+    expect(plain).toContain('@media (min-width: 840px) { body { max-width: 80ch; } }');
   });
 });

@@ -8,11 +8,11 @@ import {
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
   Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder,
-} from 'lucide-react-native';
+} from '../components/icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
-import { useColors } from '../theme/colors';
+import { spacing, radius, typography, componentSizes, mix, type ThemePalette } from '../theme/tokens';
+import { useColors, useResolvedTheme } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
@@ -31,6 +31,11 @@ import {
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import { listBackStep } from '../lib/list-back';
+import { reportFailure } from '../lib/report-failure';
+import { useLayout } from '../lib/use-layout';
+import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -50,7 +55,10 @@ import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
+import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
+import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/perf-marks';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 // The server refuses keywords per message (a read-only shared folder;
 // Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
@@ -106,6 +114,7 @@ const EmailRow = React.memo(function EmailRow({
   onPress,
   onLongPress,
   selected,
+  active = false,
   selectionMode,
   loadAttachments,
   onOpenAttachment,
@@ -123,6 +132,8 @@ const EmailRow = React.memo(function EmailRow({
   onPress: (id: string) => void;
   onLongPress: (id: string) => void;
   selected: boolean;
+  /** The row open in the detail pane of a split view. */
+  active?: boolean;
   selectionMode: boolean;
   loadAttachments?: LoadListAttachments;
   onOpenAttachment?: (email: Email, attachment: Attachment) => void;
@@ -167,12 +178,15 @@ const EmailRow = React.memo(function EmailRow({
       style={({ pressed }) => [
         styles.emailRow,
         { paddingVertical: density.rowPaddingVertical },
+        unread && styles.emailRowUnread,
         pressed && styles.emailRowPressed,
+        active && styles.emailRowActive,
         selected && styles.emailRowSelected,
       ]}
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={300}
+      testID="email-row"
     >
       {unread && (
         <View
@@ -314,6 +328,38 @@ const EmailListItem = React.memo(function EmailListItem({
   );
 });
 
+/**
+ * A text filter that applies once typing pauses (or on Return), like the main
+ * search: applying every keystroke ran a server query per character.
+ */
+function DebouncedFilterInput({
+  value,
+  onCommit,
+  ...props
+}: Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText'> & {
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  const [text, setText] = React.useState(value);
+  React.useEffect(() => { setText(value); }, [value]);
+  const commitRef = React.useRef(onCommit);
+  commitRef.current = onCommit;
+  React.useEffect(() => {
+    if (text === value) return undefined;
+    const id = setTimeout(() => commitRef.current(text), 600);
+    return () => clearTimeout(id);
+  }, [text, value]);
+  return (
+    <TextInput
+      {...props}
+      value={text}
+      onChangeText={setText}
+      returnKeyType="search"
+      onSubmitEditing={() => { if (text !== value) onCommit(text); }}
+    />
+  );
+}
+
 function EmailRowSeparator() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -323,12 +369,27 @@ function EmailRowSeparator() {
 // Rows of a list spanning accounts can share an id (#1082).
 const emailKeyExtractor = rowKeyOf;
 
+/** Height of the undo bar plus a gap, for lifting the compose button. */
+const UNDO_BAR_CLEARANCE = 60;
+
+const LOGO_ON_LIGHT = require('../../assets/logos/Bulwark Logo Dark.png');
+const LOGO_ON_DARK = require('../../assets/logos/Bulwark Logo White.png');
+
 interface EmailListScreenProps {
   onEmailPress?: (email: Email) => void;
   onComposePress?: () => void;
+  /** Row key (`rowKeyOf`) of the message open in a split view's detail pane. */
+  activeRowKey?: string | null;
+  /** The folder list is a permanent sidebar: no menu button, no drawer. */
+  sidebarDocked?: boolean;
 }
 
-export default function EmailListScreen({ onEmailPress, onComposePress }: EmailListScreenProps) {
+export default function EmailListScreen({
+  onEmailPress,
+  onComposePress,
+  activeRowKey = null,
+  sidebarDocked = false,
+}: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   // The navigator's safe-area provider knows the insets on the first render;
@@ -336,6 +397,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // so the header first drew under the status bar and then jumped down.
   const insets = useSafeAreaInsets();
   const { t } = useLocaleStore();
+  const resolvedTheme = useResolvedTheme();
+  // The undo bar floats over the list's bottom right on a phone (on a split
+  // layout it sits over the reading pane instead).
+  const { isSplit, shortHeight, widthClass } = useLayout();
+  const selectionCountOnly = isSplit || widthClass === 'compact';
+  const listUndo = useEmailStore((s) => s.pendingUndo != null);
+  const sendUndo = useSendUndoStore((s) => s.pending != null);
+  const undoBarUp = !isSplit && (listUndo || sendUndo);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const emails = useEmailStore((s) => s.emails);
@@ -414,6 +483,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     () => collapseThreads(emails, disableThreading),
     [emails, disableThreading],
   );
+  // Performance harness (off unless launched with -perfMarks YES).
+  const scrollMonitor = React.useMemo(() => createFrameMonitor('list-scroll'), []);
+  React.useEffect(() => { perfOnce('list-mounted'); }, []);
+  React.useEffect(() => {
+    if (visibleEmails.length > 0) {
+      requestAnimationFrame(() => {
+        perfOnce('inbox-rendered', { rows: visibleEmails.length });
+        logModuleTimes();
+      });
+    }
+  }, [visibleEmails.length]);
   const threadGroups = React.useMemo(
     () => groupByThread(emails, disableThreading),
     [emails, disableThreading],
@@ -512,6 +592,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             ? t('email_list.import.none', 'No messages were imported.')
             : t('email_list.import.success', '{count, plural, one {# message imported.} other {# messages imported.}}', { count: imported }),
       );
+    } catch (err) {
+      // A failed import used to end without a word.
+      Alert.alert(
+        t('email_list.import.title', 'Import'),
+        err instanceof Error ? err.message : t('email_list.import.none', 'No messages were imported.'),
+      );
     } finally {
       setImporting(false);
     }
@@ -526,6 +612,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const selectionMode = selectedIds.size > 0;
+  const selectedLabel = t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selectedIds.size });
   const allSelected =
     visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(rowKeyOf(e)));
 
@@ -579,7 +666,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       const email = emailsRef.current.find((e) => rowKeyOf(e) === id);
       if (!email) return;
       if (isDraftEmail(email, currentRoleRef.current)) void openDraftRef.current(email);
-      else onEmailPressRef.current?.(email);
+      else {
+        perfStart('open-message');
+        onEmailPressRef.current?.(email);
+      }
     }
   }, [toggleSelect]);
 
@@ -621,8 +711,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       case 'archive':
         if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
-          if (ids.length > 1) void archiveEmailsBatch(ids);
-          else void archiveEmailAction(id);
+          if (ids.length > 1) reportFailure(archiveEmailsBatch(ids));
+          else reportFailure(archiveEmailAction(id));
         } else if (!archiveMailboxId) {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -631,16 +721,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         }
         break;
       case 'delete':
-        void deleteIds(idsForRow(id));
+        reportFailure(deleteIds(idsForRow(id)));
         break;
       case 'spam':
         // Your own outgoing mail is never spam (webmail hides the action in
         // Sent/Drafts); inside Junk the same swipe means "not spam".
         if (currentRole === 'sent' || currentRole === 'drafts') break;
         if (inJunk) {
-          void unmarkSpam(idsForRow(id));
+          reportFailure(unmarkSpam(idsForRow(id)));
         } else if (junkMailboxId) {
-          void markSpam(idsForRow(id));
+          reportFailure(markSpam(idsForRow(id)));
         } else {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -649,16 +739,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         }
         break;
       case 'read':
-        (isUnread(email) ? markRead(id) : markUnread(id))
-          .catch((err) => reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err));
+        if (isUnread(email)) reportFailure(markRead(id));
+        else reportFailure(markUnread(id));
         break;
       case 'star':
-        toggleStar(id, !isStarred(email))
-          .catch((err) => reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err));
+        reportFailure(toggleStar(id, !isStarred(email)));
         break;
       case 'pin':
-        togglePin(id, !isPinned(email))
-          .catch((err) => reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err));
+        reportFailure(togglePin(id, !isPinned(email)));
         break;
       case 'move':
         setPendingMoveId(id);
@@ -701,6 +789,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           answered={flags?.answered ?? false}
           forwarded={flags?.forwarded ?? false}
           selected={selectedIds.has(rowKeyOf(item))}
+          active={activeRowKey === rowKeyOf(item)}
           selectionMode={selectionMode}
           onPress={handleRowPress}
           onLongPress={toggleSelect}
@@ -710,7 +799,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       );
     },
     [
-      selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
+      selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
@@ -774,7 +863,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const handleBulkDelete = async () => {
     const trash = findTrashMailbox(scopedMailboxes);
     if (!trash || !currentMailboxId) {
-      clearSelection();
+      // Said, as the swipe says it, instead of dropping the selection.
+      Alert.alert(
+        t('email_list.error', 'Error'),
+        t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.'),
+      );
       return;
     }
     const ids = selectedMessageIds;
@@ -810,7 +903,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     const ids = selectedMessageIds;
     setBatchMoveOpen(false);
     clearSelection();
-    void moveEmailsToMailbox(ids, toId);
+    reportFailure(moveEmailsToMailbox(ids, toId));
   };
 
   const handleBatchTagToggle = (token: string, on: boolean) => {
@@ -846,6 +939,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     if (value.trim()) addRecentSearch(value);
     setSearchFocused(false);
   }, [setSearchQuery, addRecentSearch]);
+  // A search handed over by a deep link (the search widget): run it, or with
+  // no query just put the cursor in the search field.
+  const searchInputRef = React.useRef<TextInput>(null);
+  const pendingSearch = usePendingMailSearch((s) => s.query);
+  React.useEffect(() => {
+    if (pendingSearch === null) return;
+    const query = usePendingMailSearch.getState().consume();
+    if (query === null) return;
+    if (query.trim()) submitSearch(query);
+    else setTimeout(() => searchInputRef.current?.focus(), 300);
+  }, [pendingSearch, submitSearch]);
   // People whose name/address matches what is being typed (#845); picking
   // one turns the search into a `from:` filter like the webmail.
   const contactSuggestions = React.useMemo(() => {
@@ -880,6 +984,22 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (filters.keyword ? 1 : 0) +
     (filters.folder && filters.folder !== 'current' ? 1 : 0);
   const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
+
+  // Back first leaves the selection, then the search and filters; only then
+  // does it leave the app (it used to exit with a search still open).
+  const backStep = listBackStep({
+    selecting: selectionMode,
+    searching: hasActiveSearchOrFilter || searchInput.length > 0,
+  });
+  const handleBack = React.useCallback(() => {
+    if (backStep === 'clear-selection') {
+      clearSelection();
+    } else if (backStep === 'clear-search') {
+      setSearchInput('');
+      clearSearchAndFilters();
+    }
+  }, [backStep, clearSelection, clearSearchAndFilters]);
+  useBackWhileFocused(backStep !== 'leave', handleBack);
   const folderScope = effectiveFolderScope(storeSearchQuery, filters);
   // Accounts an "All folders" list could not reach (#1082).
   const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters })
@@ -985,11 +1105,97 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     }
   }, [mailboxes, currentMailboxId, selectMailbox]);
 
+  const renderSearchBar = (inHeader: boolean) => (
+    <View style={[styles.searchBar, inHeader && styles.searchBarInHeader]}>
+      <Pressable
+        style={styles.checkboxButton}
+        onPress={toggleSelectAllVisible}
+        hitSlop={6}
+        accessibilityRole="checkbox"
+        accessibilityLabel={t('email_list.batch_actions.select_all', 'Select all')}
+        accessibilityState={{ checked: allSelected ? true : selectionMode ? 'mixed' : false }}
+      >
+        {allSelected ? (
+          <SquareCheck size={18} color={c.primary} />
+        ) : selectionMode ? (
+          <View style={styles.checkboxIndeterminate}>
+            <Minus size={14} color={c.background} />
+          </View>
+        ) : (
+          <Square size={18} color={c.textMuted} />
+        )}
+      </Pressable>
+      <View style={styles.searchInputArea}>
+        <Search size={16} color={c.textMuted} />
+        <TextInput
+          // No full-screen keyboard in landscape: it would hide the suggestions
+          // and the text around the field.
+          disableFullscreenUI
+          ref={searchInputRef}
+          style={styles.searchInput}
+          placeholder={t('email_list.search_placeholder', 'Search mail...')}
+          placeholderTextColor={c.textMuted}
+          value={searchInput}
+          onChangeText={setSearchInput}
+          onFocus={() => setSearchFocused(true)}
+          // Delay so a tap on a recent-search row lands before the list hides.
+          onBlur={() => { setTimeout(() => setSearchFocused(false), 150); }}
+          onSubmitEditing={() => submitSearch(searchInput)}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {searchInput.length > 0 && (
+          <Pressable
+            onPress={() => { setSearchInput(''); setSearchQuery(''); }}
+            hitSlop={8}
+            style={styles.searchClearButton}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.clear_search', 'Clear search')}
+          >
+            <X size={14} color={c.textMuted} />
+          </Pressable>
+        )}
+      </View>
+      <Pressable
+        style={styles.filterButton}
+        onPress={() => setSortAscending(!sortAscending)}
+        accessibilityRole="button"
+        accessibilityLabel={sortAscending
+          ? t('settings.appearance.message_list_order.direction.oldest_first', 'Oldest first')
+          : t('settings.appearance.message_list_order.direction.newest_first', 'Newest first')}
+        accessibilityHint={t('email_list.sort_toggle_hint', 'Reverses the mail sort order')}
+      >
+        {sortAscending ? (
+          <ArrowUpNarrowWide size={18} color={c.primary} />
+        ) : (
+          <ArrowDownWideNarrow size={18} color={c.textMuted} />
+        )}
+      </Pressable>
+      <Pressable
+        style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+        onPress={() => setFilterMenuOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t('advanced_search.advanced_filters_tooltip', 'Advanced search filters')}
+        accessibilityValue={activeFilterCount > 0 ? { text: String(activeFilterCount) } : undefined}
+      >
+        <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
+        {activeFilterCount > 0 && (
+          <View style={styles.filterBadge}>
+            <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}>
       {/* Header */}
       {selectionMode ? (
-        <View style={styles.header}>
+        // Keyed apart from the normal header: reused in place, its title
+        // kept the "1 email selected" label for screen readers.
+        <View key="selection-header" style={[styles.header, styles.selectionHeader]}>
           <Pressable
             onPress={clearSelection}
             style={styles.headerButton}
@@ -998,11 +1204,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           >
             <X size={20} color={c.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>
-            {t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selectedIds.size })}
+          {/* Beside seven buttons a phone or the list pane has room for the
+              number only; the full label wrapped to three lines there. */}
+          <Text
+            style={[styles.headerTitle, styles.selectionCount]}
+            numberOfLines={1}
+            accessibilityLabel={selectedLabel}
+          >
+            {selectionCountOnly ? String(selectedIds.size) : selectedLabel}
           </Text>
           <Pressable
-            onPress={() => { void handleBulkStar(); }}
+            onPress={() => reportFailure(handleBulkStar())}
             style={styles.headerButton}
             hitSlop={6}
             accessibilityRole="button"
@@ -1015,7 +1227,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             />
           </Pressable>
           <Pressable
-            onPress={() => { void handleBulkMarkReadToggle(); }}
+            onPress={() => reportFailure(handleBulkMarkReadToggle())}
             style={styles.headerButton}
             hitSlop={6}
             accessibilityRole="button"
@@ -1049,7 +1261,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           </Pressable>
           {canSpamSelection && (
             <Pressable
-              onPress={() => { void handleBulkSpam(); }}
+              onPress={() => reportFailure(handleBulkSpam())}
               style={styles.headerButton}
               hitSlop={6}
               accessibilityRole="button"
@@ -1064,7 +1276,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           )}
           {canArchiveSelection && (
             <Pressable
-              onPress={() => { void handleBulkArchive(); }}
+              onPress={() => reportFailure(handleBulkArchive())}
               style={styles.headerButton}
               hitSlop={6}
               accessibilityRole="button"
@@ -1074,7 +1286,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             </Pressable>
           )}
           <Pressable
-            onPress={() => { void handleBulkDelete(); }}
+            onPress={() => reportFailure(handleBulkDelete())}
             style={styles.headerButton}
             hitSlop={6}
             accessibilityRole="button"
@@ -1084,19 +1296,23 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           </Pressable>
         </View>
       ) : (
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => setDrawerOpen(true)}
-            style={styles.headerButton}
-            accessibilityRole="button"
-            accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
-          >
-            <Menu size={20} color={c.textMuted} />
-          </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+        <View key="header" style={styles.header}>
+          {!sidebarDocked && (
+            <Pressable
+              onPress={() => setDrawerOpen(true)}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
+            >
+              <Menu size={20} color={c.textMuted} />
+            </Pressable>
+          )}
+          <Text style={[styles.headerTitle, shortHeight && styles.headerTitleShort]} numberOfLines={1}>
             {headerTitle}
           </Text>
-          <View style={{ flex: 1 }} />
+          {/* A phone in landscape has room for a few rows only: the search
+              shares the header row instead of taking its own. */}
+          {shortHeight ? renderSearchBar(true) : <View style={{ flex: 1 }} />}
           <Pressable
             onPress={() => { void handleImport(); }}
             style={styles.headerButton}
@@ -1112,91 +1328,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             )}
           </Pressable>
           <Image
-            source={require('../../assets/logos/Bulwark Logo White.png')}
+            // The white logo vanished on the light header.
+            source={resolvedTheme === 'light' ? LOGO_ON_LIGHT : LOGO_ON_DARK}
             style={styles.headerLogo}
             resizeMode="contain"
           />
         </View>
       )}
 
-      {/* Search bar (always visible) */}
-      <View style={styles.searchBar}>
-        <Pressable
-          style={styles.checkboxButton}
-          onPress={toggleSelectAllVisible}
-          hitSlop={6}
-          accessibilityRole="checkbox"
-          accessibilityLabel={t('email_list.batch_actions.select_all', 'Select all')}
-          accessibilityState={{ checked: allSelected ? true : selectionMode ? 'mixed' : false }}
-        >
-          {allSelected ? (
-            <SquareCheck size={18} color={c.primary} />
-          ) : selectionMode ? (
-            <View style={styles.checkboxIndeterminate}>
-              <Minus size={14} color={c.background} />
-            </View>
-          ) : (
-            <Square size={18} color={c.textMuted} />
-          )}
-        </Pressable>
-        <View style={styles.searchInputArea}>
-          <Search size={16} color={c.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('email_list.search_placeholder', 'Search mail...')}
-            placeholderTextColor={c.textMuted}
-            value={searchInput}
-            onChangeText={setSearchInput}
-            onFocus={() => setSearchFocused(true)}
-            // Delay so a tap on a recent-search row lands before the list hides.
-            onBlur={() => { setTimeout(() => setSearchFocused(false), 150); }}
-            onSubmitEditing={() => submitSearch(searchInput)}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-          />
-          {searchInput.length > 0 && (
-            <Pressable
-              onPress={() => { setSearchInput(''); setSearchQuery(''); }}
-              hitSlop={8}
-              style={styles.searchClearButton}
-              accessibilityRole="button"
-              accessibilityLabel={t('contacts.clear_search', 'Clear search')}
-            >
-              <X size={14} color={c.textMuted} />
-            </Pressable>
-          )}
-        </View>
-        <Pressable
-          style={styles.filterButton}
-          onPress={() => setSortAscending(!sortAscending)}
-          accessibilityRole="button"
-          accessibilityLabel={sortAscending
-            ? t('settings.appearance.message_list_order.direction.oldest_first', 'Oldest first')
-            : t('settings.appearance.message_list_order.direction.newest_first', 'Newest first')}
-          accessibilityHint={t('email_list.sort_toggle_hint', 'Reverses the mail sort order')}
-        >
-          {sortAscending ? (
-            <ArrowUpNarrowWide size={18} color={c.primary} />
-          ) : (
-            <ArrowDownWideNarrow size={18} color={c.textMuted} />
-          )}
-        </Pressable>
-        <Pressable
-          style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
-          onPress={() => setFilterMenuOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel={t('advanced_search.advanced_filters_tooltip', 'Advanced search filters')}
-          accessibilityValue={activeFilterCount > 0 ? { text: String(activeFilterCount) } : undefined}
-        >
-          <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
-          {activeFilterCount > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
+      {/* Search bar (always visible; inside the header in a short window) */}
+      {!shortHeight && renderSearchBar(false)}
 
       {searchFocused && ((!searchInput.trim() && recentSearches.length > 0) || contactSuggestions.length > 0) && (
         <View style={styles.recentSearches}>
@@ -1211,7 +1352,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                   </Pressable>
                   <Pressable
                     onPress={() => removeRecentSearch(q)}
-                    hitSlop={8}
+                    hitSlop={18}
                     accessibilityRole="button"
                     accessibilityLabel={t('advanced_search.suggestions_remove_recent', 'Remove from recent searches')}
                   >
@@ -1457,6 +1598,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           contentContainerStyle={styles.listContent}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.3}
+          onScrollBeginDrag={scrollMonitor.start}
+          onMomentumScrollEnd={scrollMonitor.stop}
           refreshing={loading}
           onRefresh={handleRefresh}
         />
@@ -1464,26 +1607,35 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
       {/* Compose FAB - matches webmail mobile: PenSquare, h-14 w-14, rounded-full, shadow-lg */}
       <Pressable
-        onPress={onComposePress}
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+        onPress={() => {
+          perfStart('compose-open');
+          onComposePress?.();
+        }}
+        style={({ pressed }) => [
+          styles.fab,
+          // Lifted over the phone's undo bar, which used to cover it.
+          undoBarUp && { bottom: spacing.lg + UNDO_BAR_CLEARANCE },
+          { right: spacing.lg + insets.right },
+          pressed && styles.fabPressed,
+        ]}
         accessibilityRole="button"
         accessibilityLabel={t('sidebar.mobile.compose', 'Compose')}
       >
         <SquarePen size={24} color={c.background} />
       </Pressable>
 
-      <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      {!sidebarDocked && <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
       <ListAttachmentOpener ref={attachmentOpenerRef} />
 
-      <Modal
+      <Modal supportedOrientations={MODAL_ORIENTATIONS}
         visible={filterMenuOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setFilterMenuOpen(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setFilterMenuOpen(false)}>
+        <TouchableWithoutFeedback accessible={false} onPress={() => setFilterMenuOpen(false)}>
           <View style={styles.filterBackdrop}>
-            <TouchableWithoutFeedback>
+            <TouchableWithoutFeedback accessible={false}>
               <View style={styles.filterMenu}>
                 <View style={styles.filterMenuHeader}>
                   <Text style={styles.filterMenuTitle}>{t('email_list.filter_title', 'Filter emails')}</Text>
@@ -1500,7 +1652,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                     <Pressable
                       onPress={() => setFilterMenuOpen(false)}
                       style={styles.filterMenuClose}
-                      hitSlop={6}
+                      hitSlop={10}
                       accessibilityRole="button"
                       accessibilityLabel={t('common.close', 'Close')}
                     >
@@ -1513,9 +1665,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                   <View style={styles.filterFieldRow}>
                     <View style={styles.filterFieldHalf}>
                       <Text style={styles.filterFieldLabel}>{t('advanced_search.from', 'From')}</Text>
-                      <TextInput
+                      <DebouncedFilterInput
                         value={filters.from ?? ''}
-                        onChangeText={(v) => setFilterField('from', v)}
+                        onCommit={(v) => setFilterField('from', v)}
                         placeholder={t('advanced_search.from_placeholder', 'Sender email or name')}
                         placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
@@ -1525,9 +1677,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                     </View>
                     <View style={styles.filterFieldHalf}>
                       <Text style={styles.filterFieldLabel}>{t('advanced_search.to', 'To')}</Text>
-                      <TextInput
+                      <DebouncedFilterInput
                         value={filters.to ?? ''}
-                        onChangeText={(v) => setFilterField('to', v)}
+                        onCommit={(v) => setFilterField('to', v)}
                         placeholder={t('advanced_search.to_placeholder', 'Recipient email or name')}
                         placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
@@ -1539,9 +1691,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
                   <View>
                     <Text style={styles.filterFieldLabel}>{t('advanced_search.subject', 'Subject')}</Text>
-                    <TextInput
+                    <DebouncedFilterInput
                       value={filters.subject ?? ''}
-                      onChangeText={(v) => setFilterField('subject', v)}
+                      onCommit={(v) => setFilterField('subject', v)}
                       placeholder={t('advanced_search.subject_placeholder', 'Subject contains...')}
                       placeholderTextColor={c.textMuted}
                       style={styles.filterFieldInput}
@@ -1550,9 +1702,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
                   <View>
                     <Text style={styles.filterFieldLabel}>{t('advanced_search.body', 'Body')}</Text>
-                    <TextInput
+                    <DebouncedFilterInput
                       value={filters.body ?? ''}
-                      onChangeText={(v) => setFilterField('body', v)}
+                      onCommit={(v) => setFilterField('body', v)}
                       placeholder={t('advanced_search.body_placeholder', 'Body contains...')}
                       placeholderTextColor={c.textMuted}
                       style={styles.filterFieldInput}
@@ -1602,7 +1754,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         {filters.dateAfter ? (
                           <Pressable
                             onPress={() => setFilterField('dateAfter', undefined)}
-                            hitSlop={6}
+                            hitSlop={12}
                             accessibilityRole="button"
                             accessibilityLabel={t('advanced_search.clear', 'Clear')}
                           >
@@ -1624,7 +1776,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         {filters.dateBefore ? (
                           <Pressable
                             onPress={() => setFilterField('dateBefore', undefined)}
-                            hitSlop={6}
+                            hitSlop={12}
                             accessibilityRole="button"
                             accessibilityLabel={t('advanced_search.clear', 'Clear')}
                           >
@@ -1681,7 +1833,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         };
         if (Platform.OS === 'ios') {
           return (
-            <Modal transparent animationType="fade" onRequestClose={() => setDatePickerField(null)}>
+            <Modal supportedOrientations={MODAL_ORIENTATIONS} transparent animationType="fade" onRequestClose={() => setDatePickerField(null)}>
               <Pressable style={styles.pickerOverlay} onPress={() => setDatePickerField(null)} />
               <View style={styles.pickerSheet}>
                 <View style={styles.pickerHeader}>
@@ -1721,8 +1873,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           setPendingMoveId(null);
           if (id && currentMailboxId && toId !== currentMailboxId) {
             const ids = idsForRow(id);
-            if (ids.length > 1) void moveEmailsToMailbox(ids, toId);
-            else void moveToMailboxAction(id, currentMailboxId, toId);
+            if (ids.length > 1) reportFailure(moveEmailsToMailbox(ids, toId));
+            else reportFailure(moveToMailboxAction(id, currentMailboxId, toId));
           }
         }}
       />
@@ -1854,6 +2006,10 @@ function makeStyles(c: ThemePalette) {
     borderBottomColor: c.border,
     gap: spacing.md,
   },
+  // Eight 44 dp buttons fit a 412 dp phone only without the header's gaps;
+  // Delete was pushed off the screen.
+  selectionHeader: { gap: 0, paddingHorizontal: spacing.sm },
+  selectionCount: { flex: 1, minWidth: 24, marginHorizontal: spacing.xs },
   headerButton: {
     width: componentSizes.buttonLg, height: componentSizes.buttonLg, // h-11 w-11 = 44px
     alignItems: 'center', justifyContent: 'center',
@@ -1873,6 +2029,8 @@ function makeStyles(c: ThemePalette) {
     marginVertical: spacing.sm,
     gap: spacing.sm,
   },
+  searchBarInHeader: { flex: 1, marginHorizontal: 0, marginVertical: 0 },
+  headerTitleShort: { flexShrink: 1, maxWidth: 180 },
   checkboxButton: {
     width: componentSizes.buttonMd, height: componentSizes.buttonMd,
     alignItems: 'center', justifyContent: 'center',
@@ -1883,14 +2041,17 @@ function makeStyles(c: ThemePalette) {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    height: componentSizes.inputHeight, // h-10 = 40px
-    backgroundColor: c.surface,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: c.border,
+    // A minimum, not a fixed height: at a larger system font the text used
+    // to be cut off at the top.
+    minHeight: componentSizes.inputHeight, // h-10 = 40px
+    // Webmail mobile header: a filled pill, no border.
+    backgroundColor: c.muted,
+    borderRadius: radius.full,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, ...typography.body, color: c.text },
+  // No lineHeight and no Android default padding on a TextInput: both clip
+  // the text when the system font is scaled up.
+  searchInput: { flex: 1, fontSize: typography.body.fontSize, color: c.text, paddingVertical: 4 },
   filterButton: {
     width: componentSizes.buttonMd, height: componentSizes.buttonMd,
     alignItems: 'center', justifyContent: 'center',
@@ -1919,8 +2080,8 @@ function makeStyles(c: ThemePalette) {
     lineHeight: 14,
   },
   searchClearButton: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.full,
@@ -2178,8 +2339,19 @@ function makeStyles(c: ThemePalette) {
     borderBottomWidth: 1,
     borderBottomColor: c.border,   // border-b border-border
   },
+  // Webmail: unread rows get bg-accent/30. Opaque, since the row covers
+  // its swipe actions.
+  emailRowUnread: { backgroundColor: mix(c.accent, c.background, 0.3) },
   emailRowPressed: { backgroundColor: c.surface },
   emailRowSelected: { backgroundColor: c.selection },
+  // The message open next to the list (webmail: bg-selection with a primary
+  // bar on the start edge).
+  emailRowActive: {
+    backgroundColor: c.selection,
+    borderLeftWidth: 2,
+    borderLeftColor: c.primary,
+    paddingLeft: spacing.lg - 2,
+  },
   // Mirrors the webmail's unread indicator: an 8px filled circle at the row's
   // start edge, vertically centered (email-list-item.tsx, fill-unread). The
   // weight/color change alone is too subtle on some device fonts (#27).

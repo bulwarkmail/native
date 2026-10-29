@@ -5,8 +5,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Folder,
-  X, Check, type LucideIcon,
-} from 'lucide-react-native';
+  X, Check, type AppIcon,
+} from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
@@ -14,8 +14,10 @@ import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import type { Mailbox } from '../api/types';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetInsets } from '../lib/use-layout';
 
-function moveTargetIcon(role: string | null | undefined, name: string): LucideIcon {
+function moveTargetIcon(role: string | null | undefined, name: string): AppIcon {
   const lower = name.toLowerCase();
   if (role === 'inbox' || lower.includes('inbox')) return Inbox;
   if (role === 'sent' || lower.includes('sent')) return Send;
@@ -43,6 +45,8 @@ export function MoveSheet({
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
@@ -76,14 +80,14 @@ export function MoveSheet({
   }, [mailboxes]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -92,7 +96,7 @@ export function MoveSheet({
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('context_menu.move_to', 'Move to folder')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}
+            <Pressable onPress={onClose} hitSlop={10} style={styles.sheetClose}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
             >

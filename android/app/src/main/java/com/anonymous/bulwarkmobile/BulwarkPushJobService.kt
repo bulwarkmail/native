@@ -11,16 +11,11 @@ import android.os.Bundle
 import android.os.PersistableBundle
 import android.os.SystemClock
 import android.util.Log
-import com.facebook.react.ReactApplication
-import com.facebook.react.ReactInstanceEventListener
 import com.facebook.react.bridge.ReactContext
-import com.facebook.react.bridge.UiThreadUtil
-import com.facebook.react.internal.featureflags.ReactNativeNewArchitectureFeatureFlags
 import com.facebook.react.jstasks.HeadlessJsTaskConfig
 import com.facebook.react.jstasks.HeadlessJsTaskContext
 import com.facebook.react.jstasks.HeadlessJsTaskEventListener
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Runs the BulwarkPushTask headless JS task from a JobScheduler job.
@@ -44,7 +39,8 @@ class BulwarkPushJobService : JobService(), HeadlessJsTaskEventListener {
 
     override fun onStartJob(params: JobParameters): Boolean {
         val config = BulwarkPushTaskService.taskConfig(Bundle(params.extras))
-        withReadyReactContext { startTask(it, config, params) }
+        // JobService callbacks run on the main thread, where HeadlessJs wants to be called.
+        HeadlessJs.withReadyReactContext(application) { startTask(it, config, params) }
         return true
     }
 
@@ -76,68 +72,17 @@ class BulwarkPushJobService : JobService(), HeadlessJsTaskEventListener {
             tasks.addTaskEventListener(this)
             taskContext = tasks
         }
-        UiThreadUtil.runOnUiThread {
-            try {
-                val taskId = tasks.startTask(config)
-                running[taskId] = RunningTask(params, SystemClock.elapsedRealtime())
-            } catch (e: IllegalStateException) {
+        HeadlessJs.startTask(
+            tasks,
+            config,
+            onStarted = { taskId -> running[taskId] = RunningTask(params, SystemClock.elapsedRealtime()) },
+            onRefused = { e ->
                 // The app came to the foreground since the push arrived and
                 // syncs on its own there.
                 Log.i(TAG, "Push job ${params.jobId} skipped: ${e.message}")
                 jobFinished(params, false)
-            }
-        }
-    }
-
-    /**
-     * Calls [onReady] once with a React context whose JS instance is up,
-     * starting React Native if the process was woken for this job.
-     *
-     * A context exists before its instance is ready, and a task started on
-     * it then never reaches JS (HeadlessJsTaskContext only logs "CatalystInstance
-     * not available" and waits for the timeout), which happened when several
-     * pushes arrived while the app was starting. So the listener goes in
-     * first and the ready check after it; whichever sees the ready instance
-     * first runs the task.
-     */
-    private fun withReadyReactContext(onReady: (ReactContext) -> Unit) {
-        val done = AtomicBoolean(false)
-        val runOnce = { context: ReactContext -> if (done.compareAndSet(false, true)) onReady(context) }
-        val app = application as ReactApplication
-        if (ReactNativeNewArchitectureFeatureFlags.enableBridgelessArchitecture()) {
-            val host = checkNotNull(app.reactHost) { "ReactHost is not initialized in New Architecture" }
-            val listener = object : ReactInstanceEventListener {
-                override fun onReactContextInitialized(context: ReactContext) {
-                    host.removeReactInstanceEventListener(this)
-                    runOnce(context)
-                }
-            }
-            host.addReactInstanceEventListener(listener)
-            val current = host.currentReactContext
-            if (current != null && current.hasActiveReactInstance()) {
-                host.removeReactInstanceEventListener(listener)
-                runOnce(current)
-            } else {
-                host.start()
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            val manager = app.reactNativeHost.reactInstanceManager
-            val listener = object : ReactInstanceEventListener {
-                override fun onReactContextInitialized(context: ReactContext) {
-                    manager.removeReactInstanceEventListener(this)
-                    runOnce(context)
-                }
-            }
-            manager.addReactInstanceEventListener(listener)
-            val current = manager.currentReactContext
-            if (current != null && current.hasActiveReactInstance()) {
-                manager.removeReactInstanceEventListener(listener)
-                runOnce(current)
-            } else if (!manager.hasStartedCreatingInitialContext()) {
-                manager.createReactContextInBackground()
-            }
-        }
+            },
+        )
     }
 
     companion object {

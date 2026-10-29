@@ -9,7 +9,7 @@ import {
 import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
 import { displayNow, displayNowMinutes, isDisplayToday } from '../../lib/calendar-timezone';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
@@ -24,6 +24,9 @@ import {
   type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
+import { isInactiveEvent } from '../../lib/calendar-participants';
+import { eventBlockColors } from '../../lib/event-colors';
+import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
 
 const HOUR_HEIGHT = 48;
 const GUTTER_WIDTH = 44;
@@ -43,6 +46,8 @@ interface WeekViewProps {
   onCreateAtTime?: (date: Date) => void;
   weekStartsOn?: 0 | 1 | 6;
   timeFormat?: '12h' | '24h';
+  /** The user's addresses, to draw events they declined as inactive. */
+  currentUserEmails?: string[];
 }
 
 function WeekViewInner({
@@ -56,6 +61,7 @@ function WeekViewInner({
   onCreateAtTime,
   weekStartsOn = 0,
   timeFormat = '24h',
+  currentUserEmails,
 }: WeekViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -173,7 +179,7 @@ function WeekViewInner({
       {allDayRowCount > 0 && (
         <View style={[styles.allDayStrip, { height: allDayStripHeight }]}>
           <View style={[styles.gutter, styles.allDayLabelWrap]}>
-            <Text style={styles.allDayLabel} numberOfLines={2}>{t('calendar.events.all_day', 'All day')}</Text>
+            <Text style={styles.allDayLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t('calendar.events.all_day', 'All day')}</Text>
           </View>
           <View style={styles.allDayGrid}>
             {/* Empty per-day columns to draw vertical separators */}
@@ -183,35 +189,28 @@ function WeekViewInner({
             {/* Segments overlay - multi-day events span their date range */}
             <View style={styles.allDayOverlay} pointerEvents="box-none">
               {allDaySegments.map((segment) => {
-                const color = getEventColor(segment.event, calendars);
                 const leftPct = (segment.startIndex / weekDays.length) * 100;
                 const widthPct = (segment.span / weekDays.length) * 100;
                 return (
-                  <Pressable
+                  <AllDayEventBar
                     key={`${segment.event.id}:${segment.startIndex}:${segment.row}`}
+                    title={segment.event.title || t('calendar.events.no_title', '(No title)')}
+                    colors={eventBlockColors(
+                      getEventColor(segment.event, calendars),
+                      isInactiveEvent(segment.event, currentUserEmails),
+                      c,
+                    )}
+                    continuesBefore={segment.continuesBefore}
+                    continuesAfter={segment.continuesAfter}
                     onPress={() => onSelectEvent?.(segment.event)}
-                    style={[
-                      styles.allDayChip,
-                      {
-                        position: 'absolute',
-                        left: `${leftPct}%`,
-                        width: `${widthPct}%`,
-                        top: segment.row * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP),
-                        backgroundColor: color + '33',
-                        borderLeftColor: color,
-                        borderTopLeftRadius: segment.continuesBefore ? 0 : radius.xs,
-                        borderBottomLeftRadius: segment.continuesBefore ? 0 : radius.xs,
-                        borderTopRightRadius: segment.continuesAfter ? 0 : radius.xs,
-                        borderBottomRightRadius: segment.continuesAfter ? 0 : radius.xs,
-                        marginHorizontal: 1,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.allDayChipText} numberOfLines={1}>
-                      {segment.continuesBefore ? '… ' : ''}
-                      {segment.event.title || t('calendar.events.no_title', '(No title)')}
-                    </Text>
-                  </Pressable>
+                    style={{
+                      left: `${leftPct}%`,
+                      width: `${widthPct}%`,
+                      top: segment.row * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP),
+                      height: ALL_DAY_CHIP_HEIGHT,
+                      marginHorizontal: 1,
+                    }}
+                  />
                 );
               })}
             </View>
@@ -255,7 +254,7 @@ function WeekViewInner({
                   ))}
 
                   {layouted.map(
-                    ({ event, column, totalColumns, startMinutes, endMinutes }) => {
+                    ({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
                       const top = (startMinutes / 60) * HOUR_HEIGHT;
                       const height = Math.max(
                         20,
@@ -263,32 +262,24 @@ function WeekViewInner({
                       );
                       const widthPct = 100 / totalColumns;
                       const leftPct = column * widthPct;
-                      const color = getEventColor(event, calendars);
                       return (
-                        <Pressable
+                        <TimedEventBlock
                           key={event.id}
-                          onPress={() => onSelectEvent?.(event)}
-                          style={[
-                            styles.eventBlock,
-                            {
-                              top,
-                              height,
-                              left: `${leftPct}%`,
-                              width: `${widthPct}%`,
-                              backgroundColor: color + '33',
-                              borderLeftColor: color,
-                            },
-                          ]}
-                        >
-                          <Text style={styles.eventBlockTitle} numberOfLines={1}>
-                            {event.title || t('calendar.events.no_title', '(No title)')}
-                          </Text>
-                          {height > 32 && (
-                            <Text style={styles.eventBlockTime} numberOfLines={1}>
-                              {minutesToTimeLabel(startMinutes, timeFormat)}
-                            </Text>
+                          title={event.title || t('calendar.events.no_title', '(No title)')}
+                          timeLabel={endMinutes - startMinutes >= TIME_LINE_MIN_MINUTES
+                            ? minutesToTimeLabel(startMinutes, timeFormat)
+                            : null}
+                          colors={eventBlockColors(
+                            getEventColor(event, calendars),
+                            isInactiveEvent(event, currentUserEmails),
+                            c,
                           )}
-                        </Pressable>
+                          ringColor={c.background}
+                          continuesBefore={continuesBefore}
+                          continuesAfter={continuesAfter}
+                          onPress={() => onSelectEvent?.(event)}
+                          style={{ top, height, left: `${leftPct}%`, width: `${widthPct}%` }}
+                        />
                       );
                     },
                   )}
@@ -389,14 +380,6 @@ function makeStyles(c: ThemePalette) {
     top: 0,
     bottom: 0,
   },
-  allDayChip: {
-    height: ALL_DAY_CHIP_HEIGHT,
-    borderRadius: radius.xs,
-    borderLeftWidth: 2,
-    paddingHorizontal: 4,
-    justifyContent: 'center',
-  },
-  allDayChipText: { fontSize: 10, color: c.text, fontWeight: '500' },
 
   scroll: { flex: 1 },
   scrollContent: {},
@@ -419,16 +402,6 @@ function makeStyles(c: ThemePalette) {
     borderBottomWidth: 1,
     borderBottomColor: c.borderLight,
   },
-  eventBlock: {
-    position: 'absolute',
-    borderRadius: radius.xs,
-    borderLeftWidth: 2,
-    paddingHorizontal: 3,
-    paddingVertical: 2,
-    overflow: 'hidden',
-  },
-  eventBlockTitle: { fontSize: 10, color: c.text, fontWeight: '600' },
-  eventBlockTime: { fontSize: 9, color: c.textMuted, marginTop: 1 },
 
   nowLine: {
     position: 'absolute',

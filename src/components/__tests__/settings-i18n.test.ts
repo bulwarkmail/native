@@ -8,7 +8,7 @@ import { findUntranslatedLiterals } from './untranslated-literals';
 // Pane file (relative to src/components/) → texts that stay as they are on
 // purpose: product names, units, format patterns and sample data.
 const TRANSLATED_PANES: Record<string, string[]> = {
-  'settings/AboutDataSettings.tsx': ['MB', 'GitHub'],
+  'settings/AboutSettings.tsx': [],
   'settings/AccountSecuritySettings.tsx': ['AES-128', 'AES-256'],
   'settings/AccountSettings.tsx': [],
   'settings/AppearanceSettings.tsx': [],
@@ -31,15 +31,22 @@ const TRANSLATED_PANES: Record<string, string[]> = {
   'settings/LanguageSettings.tsx': [],
   'settings/LayoutSettings.tsx': [],
   'settings/NotificationSettings.tsx': [],
-  'settings/PluginsSettings.tsx': [],
+  'settings/LicencesSettings.tsx': ['GNU Affero General Public License v3.0'],
+  'settings/PrivacySettings.tsx': [],
   'settings/ReadingSettings.tsx': [],
   'settings/SidebarAppsSettings.tsx': ['https://example.com'],
-  'settings/SmimeSettings.tsx': [],
+  'settings/StorageSettings.tsx': ['MB'],
   'settings/TemplateSettings.tsx': ['JSON', '{"templates": [...]}'],
   'settings/ThemesSettings.tsx': [],
+  'settings/TroubleshootingSettings.tsx': [],
   'settings/UpdatesSettings.tsx': [],
   'settings/VacationSettings.tsx': ['YYYY-MM-DD HH:MM'],
   'settings/settings-section.tsx': [],
+  // Device sync (Android, #34).
+  'settings/device-sync/DeviceSyncSection.tsx': [],
+  'settings/device-sync/DeviceSyncAccountRow.tsx': [],
+  'settings/device-sync/DeviceSyncCollectionsSheet.tsx': [],
+  'settings/device-sync/status.ts': [],
   'filters/FilterRuleModal.tsx': [],
   'filters/SieveEditorSheet.tsx': [],
 };

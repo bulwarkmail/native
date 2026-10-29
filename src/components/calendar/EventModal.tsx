@@ -1,15 +1,13 @@
 import React from 'react';
 import {
-  Alert as AlertDialog,
-  Modal,
   View,
   Text,
   ScrollView,
   TextInput,
   Pressable,
   StyleSheet,
-  Switch,
   Platform,
+  Alert as NativeAlert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -26,7 +24,7 @@ import {
   Trash2,
   AlignLeft,
   AlertTriangle,
-} from 'lucide-react-native';
+} from '../icons';
 import { addHours, addMinutes, format } from 'date-fns';
 import type {
   Alert,
@@ -48,6 +46,7 @@ import { editorTimesChanged, editorTimesFromEvent, eventTimeFieldsToSave } from 
 import { useSettingsStore } from '../../stores/settings-store';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { formatCalendarDate } from '../../lib/date-format';
 import {
   alertsToReminders,
   reminderFieldsToSave,
@@ -71,6 +70,9 @@ import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { SafeAreaModal } from '../SafeAreaModal';
+import ToggleSwitch from '../ToggleSwitch';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -107,9 +109,11 @@ interface EventModalProps {
   onClose: () => void;
 }
 
+// A time already on the hour or half hour (a tapped slot) stays as it is.
 function nextHalfHour(d: Date): Date {
   const date = new Date(d);
   const min = date.getMinutes();
+  if (min % 30 === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0) return date;
   const add = min < 30 ? 30 - min : 60 - min;
   date.setMinutes(date.getMinutes() + add, 0, 0);
   return date;
@@ -379,8 +383,9 @@ export function EventModal({
       });
       onClose();
     } catch (err) {
-      AlertDialog.alert(
-        t('calendar.notifications.event_error', 'Something went wrong'),
+      // The editor stays open with everything typed, and says why.
+      NativeAlert.alert(
+        t('calendar.notifications.event_error', 'Failed to save event'),
         participantLimitMessage(err, t) ?? (err instanceof Error ? err.message : undefined),
       );
     } finally {
@@ -430,7 +435,7 @@ export function EventModal({
   );
 
   return (
-    <Modal
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
@@ -470,7 +475,7 @@ export function EventModal({
             value={title}
             onChangeText={setTitle}
             placeholder={t('calendar.form.title', 'Title')}
-            placeholderTextColor={c.textMuted}
+            placeholderTextColor={c.mutedForeground}
             style={styles.titleInput}
           />
 
@@ -526,12 +531,10 @@ export function EventModal({
           <Section icon={<Clock size={16} color={c.textMuted} />} label={t('calendar.form.time', 'Time')}>
             <View style={styles.allDayRow}>
               <Text style={styles.fieldText}>{t('calendar.form.all_day_event', 'All-day event')}</Text>
-              <Switch
+              <ToggleSwitch
                 value={allDay}
                 onValueChange={setAllDay}
                 accessibilityLabel={t('calendar.form.all_day_event', 'All-day event')}
-                thumbColor={allDay ? c.primary : c.textMuted}
-                trackColor={{ false: c.surface, true: c.primaryBg }}
               />
             </View>
 
@@ -542,7 +545,7 @@ export function EventModal({
                   style={styles.dateBtn}
                   onPress={() => setShowStartDate(true)}
                 >
-                  <Text style={styles.dateText}>{format(start, 'EEE, MMM d', { locale })}</Text>
+                  <Text style={styles.dateText}>{formatCalendarDate(start, locale.code, 'weekdayMonthDay')}</Text>
                 </Pressable>
                 {!allDay && (
                   <Pressable
@@ -562,7 +565,7 @@ export function EventModal({
                   style={styles.dateBtn}
                   onPress={() => setShowEndDate(true)}
                 >
-                  <Text style={styles.dateText}>{format(end, 'EEE, MMM d', { locale })}</Text>
+                  <Text style={styles.dateText}>{formatCalendarDate(end, locale.code, 'weekdayMonthDay')}</Text>
                 </Pressable>
                 {!allDay && (
                   <Pressable
@@ -684,7 +687,7 @@ export function EventModal({
                   keyboardType="number-pad"
                   style={styles.customAmountInput}
                   placeholder="30"
-                  placeholderTextColor={c.textMuted}
+                  placeholderTextColor={c.mutedForeground}
                 />
                 <View style={styles.customUnits}>
                   {(['minutes', 'hours', 'days', 'weeks'] as ReminderUnit[]).map((unit) => (
@@ -719,7 +722,7 @@ export function EventModal({
               value={location}
               onChangeText={setLocation}
               placeholder={t('calendar.form.location_placeholder', 'Place or address')}
-              placeholderTextColor={c.textMuted}
+              placeholderTextColor={c.mutedForeground}
               style={styles.fieldButton}
             />
           </Section>
@@ -729,7 +732,7 @@ export function EventModal({
               value={videoUrl}
               onChangeText={setVideoUrl}
               placeholder="https://meet.example.com/…"
-              placeholderTextColor={c.textMuted}
+              placeholderTextColor={c.mutedForeground}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
@@ -745,7 +748,7 @@ export function EventModal({
               value={description}
               onChangeText={setDescription}
               placeholder={t('calendar.form.description_placeholder', 'Notes, agenda…')}
-              placeholderTextColor={c.textMuted}
+              placeholderTextColor={c.mutedForeground}
               multiline
               style={styles.descriptionInput}
             />
@@ -782,12 +785,10 @@ export function EventModal({
                 <Text style={[styles.fieldText, { flex: 1 }]}>
                   {t('calendar.participants.send_invitations', 'Send invitations to participants')}
                 </Text>
-                <Switch
+                <ToggleSwitch
                   value={sendInvitations}
                   onValueChange={setSendInvitations}
                   accessibilityLabel={t('calendar.participants.send_invitations', 'Send invitations to participants')}
-                  thumbColor={sendInvitations ? c.primary : c.textMuted}
-                  trackColor={{ false: c.surface, true: c.primaryBg }}
                 />
               </View>
             )}
@@ -868,7 +869,7 @@ export function EventModal({
           />
         )}
       </SafeAreaView>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 
@@ -939,7 +940,7 @@ function makeStyles(c: ThemePalette) {
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: c.border,
-    backgroundColor: c.surface,
+    backgroundColor: c.background,
     justifyContent: 'center',
   },
   fieldText: { ...typography.body, color: c.text },
@@ -958,7 +959,7 @@ function makeStyles(c: ThemePalette) {
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: c.border,
-    backgroundColor: c.surface,
+    backgroundColor: c.background,
   },
   reminderRemove: { padding: 2 },
   customReminderRow: {
@@ -967,7 +968,7 @@ function makeStyles(c: ThemePalette) {
     borderWidth: 1,
     borderColor: c.border,
     borderRadius: radius.sm,
-    backgroundColor: c.surface,
+    backgroundColor: c.background,
   },
   customAmountInput: {
     ...typography.body,
@@ -1003,7 +1004,7 @@ function makeStyles(c: ThemePalette) {
     borderWidth: 1,
     borderColor: c.border,
     borderRadius: radius.sm,
-    backgroundColor: c.surface,
+    backgroundColor: c.popover,
     overflow: 'hidden',
   },
   popoverRow: {
@@ -1025,7 +1026,7 @@ function makeStyles(c: ThemePalette) {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
-    backgroundColor: c.surface,
+    backgroundColor: c.background,
     borderWidth: 1,
     borderColor: c.border,
   },
@@ -1037,7 +1038,7 @@ function makeStyles(c: ThemePalette) {
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: c.border,
-    backgroundColor: c.surface,
+    backgroundColor: c.background,
   },
   dateLabel: { ...typography.body, color: c.textSecondary, flex: 1 },
   datePickers: { flexDirection: 'row', gap: spacing.sm },
@@ -1058,7 +1059,7 @@ function makeStyles(c: ThemePalette) {
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: c.border,
-    backgroundColor: c.surface,
+    backgroundColor: c.background,
     color: c.text,
     ...typography.body,
     textAlignVertical: 'top',

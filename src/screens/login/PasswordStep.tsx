@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { View, Text, Pressable, StyleSheet, type TextInput } from 'react-native';
+import { Eye, EyeOff, KeyRound } from '../../components/icons';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { Button, Input } from '../../components';
@@ -19,6 +19,11 @@ interface PasswordStepProps {
   onChangeTotp?: (value: string) => void;
   onSubmit: () => void;
   notice?: { title: string; detail?: string } | null;
+  /** Access-token sign-in in place of username and password. */
+  tokenMode?: boolean;
+  token?: string;
+  onChangeToken?: (value: string) => void;
+  onToggleTokenMode?: () => void;
 }
 
 function hostOf(url: string): string {
@@ -38,77 +43,125 @@ export default function PasswordStep({
   onChangeTotp,
   onSubmit,
   notice,
+  tokenMode = false,
+  token = '',
+  onChangeToken,
+  onToggleTokenMode,
 }: PasswordStepProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const [showPassword, setShowPassword] = React.useState(false);
+  // Return moves username → password → code, then signs in.
+  const passwordRef = React.useRef<TextInput>(null);
+  const totpRef = React.useRef<TextInput>(null);
 
   return (
     <View style={styles.root}>
       <View style={styles.heading}>
         <Text style={styles.title}>{t('login.mobile.password_title', 'Sign in to {host}', { host: hostOf(serverUrl) })}</Text>
         <Text style={styles.subtitle}>
-          {t('login.mobile.password_subtitle', 'Your password is sent to this server only, and stored in the device keychain.')}
+          {tokenMode
+            ? t('login.token_hint', "Create an API token in your mail provider's settings and paste it here.")
+            : t('login.mobile.password_subtitle', 'Your password is sent to this server only, and stored in the device keychain.')}
         </Text>
       </View>
 
-      <Input
-        label={t('login.mobile.username_label', 'Email or username')}
-        placeholder={t('login.username_placeholder', 'user@example.com')}
-        value={email}
-        onChangeText={onChangeEmail}
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoComplete="email"
-        textContentType="username"
-        keyboardType="email-address"
-      />
-
-      <Input
-        label={t('login.password_label', 'Password')}
-        placeholder={t('login.password_placeholder', 'Enter your password')}
-        value={password}
-        onChangeText={onChangePassword}
-        autoFocus={Boolean(email)}
-        secureTextEntry={!showPassword}
-        autoComplete="current-password"
-        textContentType="password"
-        returnKeyType={totpRequired ? 'next' : 'go'}
-        onSubmitEditing={totpRequired ? undefined : onSubmit}
-        rightIcon={
-          <Pressable
-            onPress={() => setShowPassword((v) => !v)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={showPassword ? t('login.hide_password', 'Hide password') : t('login.show_password', 'Show password')}
-          >
-            {showPassword ? <EyeOff size={20} color={c.textMuted} /> : <Eye size={20} color={c.textMuted} />}
-          </Pressable>
-        }
-      />
-
-      {totpRequired ? (
+      {tokenMode ? (
         <Input
-          label={t('login.totp_label', 'Two-factor code')}
-          placeholder="123456"
-          value={totp}
-          onChangeText={(value) => onChangeTotp?.(value)}
+          label={t('login.token_label', 'Access token')}
+          placeholder={t('login.token_placeholder', 'Paste your API token')}
+          value={token}
+          onChangeText={(value) => onChangeToken?.(value)}
+          testID="login-token-input"
           autoFocus
-          keyboardType="number-pad"
-          autoComplete="one-time-code"
-          textContentType="oneTimeCode"
-          maxLength={8}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          spellCheck={false}
           returnKeyType="go"
           onSubmitEditing={onSubmit}
         />
       ) : null}
+
+      {tokenMode ? null : (
+        <>
+          <Input
+            label={t('login.mobile.username_label', 'Email or username')}
+            placeholder={t('login.username_placeholder', 'user@example.com')}
+            value={email}
+            onChangeText={onChangeEmail}
+            testID="login-username-input"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="username"
+            keyboardType="email-address"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+
+          <Input
+            label={t('login.password_label', 'Password')}
+            placeholder={t('login.password_placeholder', 'Enter your password')}
+            value={password}
+            onChangeText={onChangePassword}
+            testID="login-password-input"
+            autoFocus={Boolean(email)}
+            secureTextEntry={!showPassword}
+            autoComplete="current-password"
+            textContentType="password"
+            ref={passwordRef}
+            returnKeyType={totpRequired ? 'next' : 'go'}
+            blurOnSubmit={!totpRequired}
+            onSubmitEditing={totpRequired ? () => totpRef.current?.focus() : onSubmit}
+            rightIcon={
+              <Pressable
+                onPress={() => setShowPassword((v) => !v)}
+                hitSlop={14}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? t('login.hide_password', 'Hide password') : t('login.show_password', 'Show password')}
+              >
+                {showPassword ? <EyeOff size={20} color={c.textMuted} /> : <Eye size={20} color={c.textMuted} />}
+              </Pressable>
+            }
+          />
+
+          {totpRequired ? (
+            <Input
+              label={t('login.totp_label', 'Two-factor code')}
+              placeholder="123456"
+              value={totp}
+              ref={totpRef}
+              onChangeText={(value) => onChangeTotp?.(value)}
+              autoFocus
+              keyboardType="number-pad"
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              maxLength={8}
+              returnKeyType="go"
+              onSubmitEditing={onSubmit}
+            />
+          ) : null}
+        </>
+      )}
 
       {notice ? <LoginNotice title={notice.title} detail={notice.detail} /> : null}
 
       <Button variant="default" size="md" onPress={onSubmit}>
         {t('login.sign_in', 'Sign in')}
       </Button>
+
+      {onToggleTokenMode ? (
+        <Pressable onPress={onToggleTokenMode} hitSlop={8} style={styles.toggle} accessibilityRole="button" testID="login-token-toggle">
+          <KeyRound size={16} color={c.textLink} />
+          <Text style={styles.link}>
+            {tokenMode ? t('login.password_toggle', 'Sign in with a password') : t('login.token_toggle', 'Sign in with an access token')}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -119,5 +172,7 @@ function makeStyles(c: ThemePalette) {
     heading: { gap: spacing.sm },
     title: { ...typography.h1, color: c.text },
     subtitle: { ...typography.body, color: c.textSecondary },
+    toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.xs },
+    link: { ...typography.body, color: c.textLink },
   });
 }

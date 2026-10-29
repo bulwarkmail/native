@@ -1,5 +1,6 @@
 package com.anonymous.bulwarkmobile
 
+import com.anonymous.bulwarkmobile.sync.BulwarkDeviceSyncModule
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
@@ -12,6 +13,10 @@ class BulwarkFcmPackage : ReactPackage {
             add(BulwarkFcmModule(reactContext))
             add(BulwarkUnifiedPushModule(reactContext))
             add(BulwarkClientCertModule(reactContext))
+            add(BulwarkDeviceSyncModule(reactContext))
+            add(BulwarkWidgetsModule(reactContext))
+            add(BulwarkPdfModule(reactContext))
+            add(BulwarkBuildModule(reactContext))
             // The bridge registers React Native's own module under this name.
             if (ReactNativeNewArchitectureFeatureFlags.enableBridgelessArchitecture()) {
                 add(BulwarkHeadlessJsTaskSupportModule(reactContext))

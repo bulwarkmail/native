@@ -12,6 +12,7 @@ import {
   getFaviconDomain,
   getFaviconUrl,
 } from './avatar-utils';
+import { singleLine } from './single-line';
 import {
   lastNotifiedKey,
   migrateLegacyPushKeys,
@@ -87,6 +88,7 @@ interface ShowNotificationOptions {
   notificationId: string;
   title: string;
   body: string;
+  preview?: string;
   initials: string;
   bgColorHex: string;
   iconUrl?: string;
@@ -101,6 +103,9 @@ interface ShowNotificationOptions {
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
   groupTitle: string;
+  markReadLabel?: string;
+  deleteLabel?: string;
+  replyLabel?: string;
 }
 
 interface BulwarkFcmNative {
@@ -154,7 +159,7 @@ export function parseRelayPushData(data: unknown): RelayPushData {
     } catch {
       // ignore
     }
-  } else if (d.changed && typeof d.changed === 'object') {
+  } else if (d.changed && typeof d.changed === 'object' && !Array.isArray(d.changed)) {
     out.changed = d.changed as Record<string, Record<string, string>>;
   }
   // Older relays only sent `changed`; the account id is its first key.
@@ -378,12 +383,39 @@ async function detachedNewestUnreadInboxIds(
   return (qBody.ids as string[]) ?? [];
 }
 
+// Types that may mean new mail: `EmailDelivery`, and `Email`/`Mailbox`, which
+// new mail changes too. A subscription made by an older build listens to them
+// until the launch-time resync replaces its types, and a server without
+// `EmailDelivery` has only them. Keep in sync with MAIL_TYPES in PushRouting.kt.
+const MAIL_TYPES = ['EmailDelivery', 'Email', 'Mailbox'];
+
+/**
+ * A StateChange push in which no account got new mail: only contact or
+ * calendar changes, which the native push router already turned into device
+ * syncs (#34, docs/device-sync.md "Triggers"). Without a mail type there is
+ * nothing to notify, and the legacy path (the newest unread mail) must not
+ * run for it. A missing map, or one that names no type, keeps the old
+ * behaviour, and an account entry it can't read may be mail. The same rules
+ * as PushRouting.decide, so the two never disagree about a push.
+ */
+export function carriesNoMail(payload: RelayPushData): boolean {
+  if (payload.kind !== 'jmap-state-change' || !payload.changed) return false;
+  const entries: unknown[] = Object.values(payload.changed);
+  if (entries.some((types) => !types || typeof types !== 'object' || Array.isArray(types))) return false;
+  const types = entries.flatMap((entry) => Object.keys(entry as Record<string, unknown>));
+  if (types.length === 0) return false;
+  return !types.some((type) => MAIL_TYPES.includes(type));
+}
+
 // Fired by BulwarkPushTaskService when a data FCM message arrives. Runs in a
 // short-lived headless JS runtime - keep it fast, catch all errors, and always
 // resolve so the native service can release its wake lock. Never touches the
 // singleton jmapClient's session (see "Detached JMAP access" above).
 export async function pushBackgroundTask(data: unknown): Promise<void> {
   try {
+    const payload = parseRelayPushData(data);
+    if (carriesNoMail(payload)) return;
+
     if (!(await emailNotificationsAllowed())) return;
 
     await migrateLegacyPushKeys();
@@ -392,7 +424,6 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
     if (accountIds.length === 0) return;
 
     const registry = await readAccountRegistry();
-    const payload = parseRelayPushData(data);
     const jmapAccountIds = await readPushJmapAccountIds();
     const accountsToCheck = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
 
@@ -479,10 +510,16 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const faviconDomain = favicons ? getFaviconDomain(address) : null;
     const iconUrl = faviconDomain ? getFaviconUrl(faviconDomain) : undefined;
 
+    const preview = email.preview ? singleLine(email.preview) : undefined;
+    const markReadLabel = translate(locale, 'email_viewer.mark_read', 'Mark as read');
+    const deleteLabel = translate(locale, 'email_viewer.delete', 'Delete');
+    const replyLabel = translate(locale, 'email_viewer.reply', 'Reply');
+
     await native.showNotification({
       notificationId: `mail:${email.id}`,
       title,
       body,
+      preview,
       initials,
       bgColorHex,
       iconUrl,
@@ -493,6 +530,9 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
       jmapAccountId: emailAccountId,
       groupKey,
       groupTitle,
+      markReadLabel,
+      deleteLabel,
+      replyLabel,
     });
   }
 
@@ -512,4 +552,95 @@ function hslToHex(hsl: string): string {
     return Math.round(255 * c).toString(16).padStart(2, '0');
   };
   return `#${component(0)}${component(8)}${component(4)}`;
+}
+
+export interface NotificationActionPayload {
+  action: 'markRead' | 'delete';
+  emailId: string;
+  accountId: string;
+  jmapAccountId?: string;
+}
+
+export function parseNotificationActionPayload(data: unknown): NotificationActionPayload | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  const action = (d.action ?? d['bulwark.notification.action']) as 'markRead' | 'delete' | undefined;
+  const emailId = (d.emailId ?? d['bulwark.notification.emailId']) as string | undefined;
+  const accountId = (d.accountId ?? d['bulwark.notification.accountId']) as string | undefined;
+  const jmapAccountId = (d.jmapAccountId ?? d['bulwark.notification.jmapAccountId']) as string | undefined;
+
+  if ((action === 'markRead' || action === 'delete') && emailId && accountId) {
+    return { action, emailId, accountId, jmapAccountId };
+  }
+  return null;
+}
+
+export async function handleNotificationAction(data: unknown): Promise<void> {
+  const payload = parseNotificationActionPayload(data);
+  if (!payload) {
+    console.warn('[push] invalid notification action payload', data);
+    return;
+  }
+  const { action, emailId, accountId, jmapAccountId } = payload;
+  console.log(`[push] executing notification action "${action}" for email ${emailId}`);
+
+  try {
+    const session = await openDetachedSession(accountId);
+    if (!session) {
+      console.warn('[push] failed to open detached session for account', accountId);
+      return;
+    }
+    const emailAccountId = jmapAccountId ?? session.jmapAccountId;
+
+    if (action === 'markRead') {
+      const res = await jmapPost(session, [
+        [
+          'Email/set',
+          {
+            accountId: emailAccountId,
+            update: {
+              [emailId]: { 'keywords/$seen': true },
+            },
+          },
+          '0',
+        ],
+      ]);
+      assertEmailUpdated(res, emailId);
+    } else if (action === 'delete') {
+      const mbRes = await jmapPost(session, [
+        ['Mailbox/get', { accountId: emailAccountId, properties: ['id', 'role'] }, '0'],
+      ]);
+      const [mbName, mbBody] = mbRes[0] ?? [];
+      const mailboxes = mbName === 'Mailbox/get' ? ((mbBody?.list as Mailbox[]) ?? []) : [];
+      const trash = mailboxes.find((m) => m.role === 'trash');
+      // Never destroy from a notification: without a Trash (a shared
+      // account, or a Mailbox/get that failed) the message stays put.
+      if (!trash) {
+        console.warn('[push] no trash mailbox for notification delete', emailAccountId);
+        return;
+      }
+      const res = await jmapPost(session, [
+        [
+          'Email/set',
+          {
+            accountId: emailAccountId,
+            update: {
+              [emailId]: { mailboxIds: { [trash.id]: true } },
+            },
+          },
+          '0',
+        ],
+      ]);
+      assertEmailUpdated(res, emailId);
+    }
+  } catch (err) {
+    console.warn('[push] notification action failed', action, emailId, err);
+  }
+}
+
+function assertEmailUpdated(responses: Array<[string, Record<string, any>, string]>, emailId: string): void {
+  const [name, body] = responses[0] ?? [];
+  if (name !== 'Email/set' || !body?.updated || !(emailId in body.updated)) {
+    throw new Error(`Email/set did not update ${emailId}: ${JSON.stringify(body?.notUpdated?.[emailId] ?? body ?? null)}`);
+  }
 }

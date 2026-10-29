@@ -4,8 +4,8 @@ import {
 } from 'react-native';
 import {
   Archive, Trash2, ShieldAlert, ShieldCheck, MailOpen, Mail, Star, Pin, PinOff, FolderInput,
-  type LucideIcon,
-} from 'lucide-react-native';
+  type AppIcon,
+} from './icons';
 import { typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore } from '../stores/locale-store';
@@ -43,7 +43,7 @@ export interface SwipeContext {
 // Distance the row flies off-screen by before the action callback fires.
 const EXIT_DISTANCE = 600;
 
-const ACTION_META: Record<Exclude<SwipeAction, 'none'>, { icon: LucideIcon; bg: string; defaultLabel: string }> = {
+const ACTION_META: Record<Exclude<SwipeAction, 'none'>, { icon: AppIcon; bg: string; defaultLabel: string }> = {
   archive: { icon: Archive,      bg: '#1d4ed8', defaultLabel: 'Archive' },
   delete:  { icon: Trash2,       bg: '#b91c1c', defaultLabel: 'Delete' },
   spam:    { icon: ShieldAlert,  bg: '#a16207', defaultLabel: 'Spam' },
@@ -68,7 +68,7 @@ function actionLabel(action: SwipeAction, context: SwipeContext, t: Translate): 
   }
 }
 
-function actionIcon(action: Exclude<SwipeAction, 'none'>, context: SwipeContext): LucideIcon {
+function actionIcon(action: Exclude<SwipeAction, 'none'>, context: SwipeContext): AppIcon {
   if (action === 'spam' && context.inJunk) return ShieldCheck;
   if (action === 'read' && !context.unread) return Mail;
   if (action === 'pin' && context.pinned) return PinOff;

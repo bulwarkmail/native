@@ -1,0 +1,41 @@
+# Swipe actions with undo: swipe left archives (undo brings it back), swipe
+# right toggles read.
+appId: org.bulwarkmail.mobile
+name: Swipe actions and undo
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+- scrollUntilVisible:
+    element: ".*Grüße aus München.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- swipe:
+    from: ".*Grüße aus München.*"
+    direction: LEFT
+    duration: 400
+# The undo bar shows for 5 s; when it goes, the Compose button slides into
+# its place, and a late tap on UNDO opens the composer. So tap at once and
+# check the rest afterwards.
+- tapOn:
+    text: "UNDO"
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ".*Grüße aus München.*"
+    timeout: 15000
+- takeScreenshot: swipe-02-undone
+
+- swipe:
+    from: ".*Grüße aus München.*"
+    direction: RIGHT
+    duration: 400
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: swipe-03-read-toggled
+- swipe:
+    from: ".*Grüße aus München.*"
+    direction: RIGHT
+    duration: 400
+- waitForAnimationToEnd:
+    timeout: 3000

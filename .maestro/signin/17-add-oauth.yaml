@@ -1,0 +1,41 @@
+# Second account by OAuth. Adding uses an ephemeral auth session, so the
+# first account's Stalwart sign-in must not be reused.
+appId: org.bulwarkmail.mobile
+name: Add account, OAuth
+tags:
+  - signin
+---
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${SERVER}
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- runFlow:
+    file: ../subflows/stalwart-login-page.yaml
+    env:
+      LOGIN: ${ACCOUNT}@example.org
+- runFlow: ../subflows/inbox.yaml
+
+- runFlow: ../subflows/open-add-account.yaml
+- tapOn: "Another account on .*"
+- extendedWaitUntil:
+    visible: "Sign in with a password instead"
+    timeout: 20000
+- tapOn: "Continue"
+- runFlow:
+    when:
+      visible: ".*Wants to Use.*to Sign In.*"
+    commands:
+      - runFlow: ../subflows/allow-auth-session.yaml
+- runFlow:
+    file: ../subflows/stalwart-login-page.yaml
+    env:
+      LOGIN: ${ACCOUNT2}@example.org
+- runFlow: ../subflows/inbox.yaml
+- runFlow:
+    file: ../subflows/check-active-account.yaml
+    env:
+      ACTIVE: ${ACCOUNT2}@example.org
+- takeScreenshot: add-oauth-01-two-accounts

@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { Copy, PenSquare, UserRound, UserRoundPlus } from 'lucide-react-native';
+import { Copy, PenSquare, UserRound, UserRoundPlus } from '../icons';
 import type { EmailAddress } from '../../api/types';
 import type { RootStackParamList } from '../../navigation/types';
 import { useContactsStore } from '../../stores/contacts-store';

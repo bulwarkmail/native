@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
-import { Plus, Pencil, Trash2, Check, X, RotateCcw, ScanSearch } from 'lucide-react-native';
+import { Plus, Pencil, Trash2, Check, X, RotateCcw, ScanSearch } from '../icons';
 import { SettingsSection } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -45,8 +45,17 @@ export function KeywordSettings() {
     }
   };
 
-  const deleteKeyword = (id: string) => {
-    removeKeyword(id);
+  // Deleting a tag takes it off every message's tag list on this device; ask
+  // first, as the reset next to it does.
+  const deleteKeyword = (id: string, label: string) => {
+    Alert.alert(
+      t('settings.keywords.delete_confirm_title', 'Delete tag "{label}"?', { label }),
+      undefined,
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('settings.keywords.delete', 'Delete tag'), style: 'destructive', onPress: () => removeKeyword(id) },
+      ],
+    );
   };
 
   // One stray tap used to wipe a carefully built tag list (webmail removed
@@ -119,7 +128,7 @@ export function KeywordSettings() {
                 <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.edit', "Edit tag")}>
                   <Pencil size={14} color={c.mutedForeground} />
                 </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete', "Delete tag")}>
+                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id, kw.label)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete', "Delete tag")}>
                   <Trash2 size={14} color={c.mutedForeground} />
                 </Pressable>
               </View>
@@ -308,6 +317,7 @@ function makeStyles(c: ThemePalette) {
   },
   bottomActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     paddingTop: spacing.sm,
   },

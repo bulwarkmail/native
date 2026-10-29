@@ -13,6 +13,9 @@
       "indigo": "Indigo",
       "teal": "Teal"
     },
+    "detail": {
+      "location_hint": "Opens the location; long-press to copy it"
+    },
     "drawer": {
       "my_calendars": "My calendars",
       "no_calendars": "No calendars yet.",
@@ -25,7 +28,12 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "nothing_planned": "Nothing planned. Tap to create.",
       "tap_to_create": "Tap + to create one"
+    },
+    "fab": {
+      "event": "Event",
+      "task": "Task"
     },
     "form": {
       "description_placeholder": "Notes, agenda…",
@@ -98,6 +106,8 @@
       "until_date": "Until {date}"
     },
     "settings": {
+      "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
+      "device_sync_title": "Sync to this device",
       "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
       "time_zone": "Time zone",
       "time_zone_auto": "Device time zone",
@@ -126,10 +136,16 @@
       "add_placeholder": "Add a task…",
       "add_time": "Add time",
       "clear_due_date": "Clear due date",
+      "delete_confirm": "Delete this task?",
       "delete_error": "Failed to delete task",
       "not_found": "This task is no longer available.",
       "save_error": "Failed to save task",
       "update_error": "Failed to update task"
+    },
+    "views": {
+      "n_days": "{count} days",
+      "schedule": "Schedule",
+      "three_days": "3 days"
     }
   },
   "common": {
@@ -255,11 +271,25 @@
     "color_tag": "Tag",
     "remove_color": "Remove tag"
   },
+  "deep_link": {
+    "open_failed": "Couldn't open this"
+  },
+  "device_sync": {
+    "auth_problem_text": "The server no longer accepts the sign-in of {account}, so its contacts and calendars on this device stopped syncing. Sign in again to resume. Changes made on this device are kept.",
+    "auth_problem_title": "Sign in again to keep syncing",
+    "problem_channel": "Sync problems",
+    "sign_out_anyway": "Sign out",
+    "sign_out_pending_message": "{count, plural, one {# change made on this device hasn't reached the server. It is lost if you sign out now.} other {# changes made on this device haven't reached the server. They are lost if you sign out now.}}",
+    "sign_out_pending_title": "Sign out anyway?",
+    "sign_out_unknown_message": "Changes made on this device may not have reached the server. They are lost if you sign out now.",
+    "signed_out_text": "{account} was signed out, so its contacts and calendars on this device no longer sync. Sign in again to resume. Changes made on this device are kept.",
+    "signed_out_title": "Sign in to keep syncing",
+    "signing_out": "Removing synced contacts and calendars from this device…"
+  },
   "email_composer": {
     "attach_camera": "Camera",
     "attachment_reminder_body": "Your message mentions \"{keyword}\" but no file is attached. Send anyway?",
     "attachment_reminder_title": "Forgot an attachment?",
-    "attachment_too_large": "This file is larger than the server allows ({size} > {max}).",
     "attachments_too_large_total": "The attachments would exceed the {max} this server allows per message.",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
     "format_plain_text": "Switch to plain text",
@@ -272,6 +302,7 @@
     "no_sent_folder": "No Sent folder found",
     "permission_camera": "Camera permission is required to take a photo.",
     "permission_photos": "Photo library permission is required to attach images.",
+    "read_receipt_off": "Request a read receipt",
     "recipient_add_contact": "Add to contacts",
     "recipient_copy": "Copy address",
     "recipient_move_to": "Move to {field}",
@@ -302,13 +333,14 @@
     "submission_limit": "The server refused to send the message because a limit was reached: {reason}",
     "submission_quota": "The server has too many sent-message records for this account. Bulwark removed the ones it could; if this keeps happening, ask your administrator to raise the email submission limit.",
     "toolbar": {
-      "background_color": "Background color",
-      "remove_background_color": "Remove background color"
+      "insert_image": "Insert image",
+      "remove_link": "Remove link"
     },
     "undo_send_label": "Sending in {seconds}s…",
     "upload_failed_short": "Upload failed",
     "uploading": "Uploading...",
     "uploading_pct": "Uploading {pct}%",
+    "use_template": "Template",
     "validation": {
       "subject_required": "Add a subject"
     }
@@ -400,8 +432,15 @@
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",
     "preview": {
+      "archive_files": "{count, plural, one {# file} other {# files}}",
+      "archive_first_files": "The first {count} files",
+      "archive_protected": "This archive is password-protected. Open it in another app to enter the password.",
+      "archive_unreadable": "This archive can't be opened here.",
+      "media_unsupported": "This file can't be played here.",
       "open_external": "Open in app",
       "pdf_external": "PDFs open in your PDF viewer on this device.",
+      "pdf_protected": "This PDF is password-protected. Open it in another app to enter the password.",
+      "pdf_unreadable": "This PDF can't be shown here.",
       "unsupported": "No preview for this file type."
     },
     "received_via": "to {name}",
@@ -444,7 +483,23 @@
     "open_error": "Could not open the file",
     "open_with": "Open with…",
     "preview_too_large": "This file is too large to preview.",
-    "selected_count": "{count, plural, one {# selected} other {# selected}}",
+    "settings_behavior": "Behavior",
+    "settings_colored_icons": "Colored Icons",
+    "settings_colored_icons_desc": "Use colorful icons instead of monochrome",
+    "settings_default_sort": "Default Sort",
+    "settings_default_sort_desc": "Choose the default sorting for files",
+    "settings_default_view": "Default View",
+    "settings_default_view_desc": "Choose between grid and list layout",
+    "settings_display": "Display",
+    "settings_icons": "Icons",
+    "settings_show_hidden": "Show Hidden Files",
+    "settings_show_hidden_desc": "Display files and folders that start with a dot",
+    "settings_show_icons": "Show File Icons",
+    "settings_show_icons_desc": "Display icons next to files and folders",
+    "settings_show_thumbnails": "Show Thumbnails",
+    "settings_show_thumbnails_desc": "Display image previews instead of icons for image files",
+    "settings_sort_direction": "Sort Direction",
+    "settings_sort_direction_desc": "Choose ascending or descending order",
     "share_add_people": "Add people",
     "share_empty": "Not shared with anyone yet",
     "share_error": "Failed to update sharing",
@@ -453,12 +508,14 @@
     "share_no_matches": "No matches",
     "share_no_users": "No other users found",
     "share_remove": "Remove access",
+    "share_remove_confirm": "Remove access?",
     "share_role_custom": "Custom",
     "share_search_placeholder": "Search by name or email",
     "share_unavailable": "Sharing is not available on this device",
     "shared_with": "Shared with",
     "sharing_access": "Sharing & access",
     "symlink": "Symbolic link",
+    "upload": "Upload",
     "upload_failed": "{count, plural, one {1 file could not be uploaded} other {# files could not be uploaded}}",
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
     "uploading_progress": "Uploading {current}/{total} · {name}"
@@ -491,12 +548,19 @@
       "email_step_title": "What's your email address?",
       "email_step_title_add": "What's the other address?",
       "email_title": "Use my email address",
+      "err_account_limit_detail": "Remove an account in Settings to add another one.",
       "err_bad_detail": "Check your email and password. If your account uses two-factor sign-in, create an app password in the webmail and use that here.",
       "err_bad_title": "That didn't work",
       "err_cert_detail": "The server's security certificate was rejected. If this is your own server, check the certificate is valid and not expired.",
       "err_cert_title": "Couldn't verify {host}",
-      "err_code_expired_detail": "Sign-in codes are good for a few minutes. Generate a fresh one in the webmail and scan again.",
+      "err_code_expired_detail": "Sign-in codes are good for two minutes. Show a new one in the webmail and scan again.",
+      "err_code_expired_or_used_detail": "Show a new one in the webmail and scan again.",
+      "err_code_expired_or_used_title": "That code has expired or was already used",
       "err_code_expired_title": "That code has expired",
+      "err_code_invalid_detail": "Show a new code in the webmail (Settings → Security → Link Mobile App) and scan it.",
+      "err_code_invalid_title": "That code isn't valid",
+      "err_code_used_detail": "Each code works once. Show a new one in the webmail and scan again.",
+      "err_code_used_title": "That code was already used",
       "err_generic_detail": "Something went wrong. Try again.",
       "err_generic_title": "Sign-in failed",
       "err_interrupted_detail": "The response didn't match the request we started. Try signing in again.",
@@ -505,6 +569,17 @@
       "err_no_server_title": "No mail server at {host}",
       "err_no_webmail_detail": "This server has no Bulwark webmail and no OAuth sign-in. Use a password (or an app password) instead.",
       "err_no_webmail_title": "No sign-in page at {host}",
+      "err_pair_connect_detail": "Show a new code on your computer and scan again.",
+      "err_pair_connect_title": "Signed in, but couldn't connect to {host}",
+      "err_pair_insecure_detail": "{host} wants to use an unencrypted connection.",
+      "err_pair_network_detail": "Check your connection and that your phone can reach the webmail, then try again.",
+      "err_pair_rate_detail": "Wait a minute, then try again.",
+      "err_pair_server_detail": "Try again with a new code. If it keeps failing, ask your administrator.",
+      "err_pair_server_title": "The webmail couldn't complete the sign-in",
+      "err_pair_unsupported_detail": "{host} doesn't support sign-in codes. It may need an update, or the link points to the wrong address.",
+      "err_pair_unsupported_title": "This webmail can't link devices",
+      "err_pair_untrusted_detail": "{host} sent sign-in details for a server the app can't verify.",
+      "err_pair_untrusted_title": "This sign-in can't be trusted",
       "err_rate_detail": "The server asked us to wait a moment. Try again shortly.",
       "err_rate_detail_seconds": "The server asked us to wait. Try again in about {seconds} seconds.",
       "err_rate_title": "Too many attempts",
@@ -518,6 +593,12 @@
       "know_server": "I know my server address",
       "known_server_desc": "We already know this server, so there's no setup",
       "known_server_title": "Another account on {host}",
+      "link_confirm_connect": "A link asks to sign in on this page. Only continue if you use {host} for your mail.",
+      "link_confirm_connect_add": "A link asks to add an account by signing in on this page. Only continue if you use {host} for your mail.",
+      "link_confirm_connect_title": "Open the sign-in page of {host}?",
+      "link_confirm_pair": "This link signs in to an account from {host}. Only continue if you just showed a sign-in code on your computer.",
+      "link_confirm_pair_add": "This link adds an account from {host} and switches the app to it. Only continue if you just showed a sign-in code on your computer.",
+      "link_confirm_title": "Sign in with a link?",
       "looking_up": "Looking up your server…",
       "manual": "Enter server details manually",
       "notice_bad_qr": "That code isn't a Bulwark sign-in code",
@@ -536,6 +617,12 @@
       "pairing_detail": "Pairing this device with {host}…",
       "password_subtitle": "Your password is sent to this server only, and stored in the device keychain.",
       "password_title": "Sign in to {host}",
+      "paste_button": "Paste",
+      "paste_clipboard_empty": "Nothing to paste. Copy the link in the webmail first.",
+      "paste_hint": "In the webmail, open Settings → Security → Link Mobile App, copy the sign-in link and paste it here.",
+      "paste_invalid": "That isn't a Bulwark sign-in link",
+      "paste_label": "Sign-in link",
+      "paste_title": "Paste sign-in link",
       "provider_detail": "You'll type it on their page. Bulwark only stores a sign-in token, which you can revoke at any time.",
       "provider_title": "Your password stays with your provider",
       "qr_hint": "Settings → Security → Link Mobile App shows a code. Point the camera at it.",
@@ -543,9 +630,14 @@
       "qr_title": "Sign-in code",
       "scan_desc": "The fastest way in if you're signed in on the web",
       "scan_title": "Scan a sign-in code",
+      "server_cert_active": "Signing in with the client certificate \"{alias}\". Tap to choose another.",
+      "server_cert_clear": "Sign in without the certificate",
+      "server_cert_failed": "Could not pick a certificate",
+      "server_cert_hint": "Does your server ask for a client certificate? Pick one installed on this phone.",
       "server_hint": "Same address you type in the browser. We'll add https:// for you.",
       "server_label": "Server address",
       "server_not_found": "We couldn't find a server for {domain}. If you self-host, the address is the one you use for webmail.",
+      "server_paste_hint": "Have a sign-in link instead? Paste it here.",
       "server_scan_hint": "If you're not sure, scan a sign-in code instead. It carries the server address.",
       "server_subtitle": "Enter the address you use to reach your webmail.",
       "server_title": "What's your server address?",
@@ -572,6 +664,12 @@
       "up_to_date": "Already up to date"
     }
   },
+  "push": {
+    "ios": {
+      "more_messages": "and {count} more",
+      "no_subject": "(no subject)"
+    }
+  },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",
     "dismiss": "Not now",
@@ -589,6 +687,24 @@
     "send_now_failed": "Could not send now"
   },
   "settings": {
+    "about": {
+      "check_now": "Check now",
+      "checked_at": "Checked {when}",
+      "licences": "Open-source licences",
+      "licences_desc": "AGPL-3.0 for the app, and the libraries it uses",
+      "never_checked": "Not checked yet",
+      "privacy": "Privacy",
+      "privacy_desc": "What stays on this phone and what goes to your server",
+      "report_problem": "Report a problem",
+      "report_problem_desc": "Opens an issue on GitHub with the version filled in",
+      "server": "Server",
+      "server_value": "{host} · signed in as {user}",
+      "source_code": "Source code",
+      "this_device": "This device",
+      "this_device_desc": "What the app is connected to and how to get help.",
+      "up_to_date": "Up to date",
+      "updates": "Updates"
+    },
     "account": {
       "accounts": {
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
@@ -615,6 +731,7 @@
       }
     },
     "appearance": {
+      "description_mobile": "Customize how the app looks",
       "language": {
         "restart_for_direction": "Restart the app to apply the new text direction.",
         "system_default": "System default"
@@ -623,19 +740,127 @@
         "description_mobile": "Display text labels next to toolbar icons."
       }
     },
+    "backup": {
+      "description": "Move your settings to another phone or the webmail.",
+      "export_import": "Export or import",
+      "export_import_desc": "A JSON file, same format as the webmail",
+      "reset": "Reset",
+      "reset_desc": "Back to the defaults; mail stays",
+      "title": "Settings backup"
+    },
     "badges": {
       "experimental": "Experimental",
       "not_implemented": "Not implemented",
+      "not_on_server": "Not on this server",
       "unavailable": "Unavailable"
     },
     "contacts": {
       "book_count": "{count, plural, one {# contact} other {# contacts}}",
       "default_book": "Default address book",
       "description_mobile": "Display preferences and address-book tools.",
+      "device_sync_desc": "Show your address books in the Contacts app and other apps on this device. Changes sync both ways.",
+      "device_sync_title": "Sync to this device",
       "export_description_count": "{count, plural, one {Export # contact as a single vCard file.} other {Export # contacts as a single vCard file.}}",
       "export_empty": "No contacts to export",
       "import_description_mobile": "Import contacts from a vCard (.vcf) file with duplicate detection.",
       "manage_description_mobile": "Create, rename, and remove the address books that organize your contacts."
+    },
+    "device_sync": {
+      "also_synced_by": "Also synced for {accounts}, so it shows twice on this device.",
+      "android_settings": "Android account settings",
+      "blocked_calendar": "Android no longer asks for access to calendars. Allow it in the app's settings, then turn sync on again.",
+      "blocked_contacts": "Android no longer asks for access to contacts. Allow it in the app's settings, then turn sync on again.",
+      "blocked_title": "Access is turned off",
+      "books_default": "Your own address books sync; shared ones only when you pick them.",
+      "books_hint": "Your own address books sync unless you turn them off; shared ones only when you turn them on.",
+      "books_label": "Address books",
+      "calendars_default": "Your own calendars sync; shared ones only when you pick them.",
+      "calendars_hint": "Your own calendars sync unless you turn them off; shared ones only when you turn them on. Task lists stay in Bulwark.",
+      "calendars_label": "Calendars",
+      "choose": "Choose",
+      "choose_books_title": "Address books to sync",
+      "choose_calendars_title": "Calendars to sync",
+      "collections_count": "{selected, plural, one {# of {total} syncs} other {# of {total} sync}}",
+      "continue": "Continue",
+      "deletions_delete": "Delete on server",
+      "deletions_message": "Many items were deleted on this device at once, so they were not deleted on the server. Delete them there as well, or bring them back on this device.",
+      "deletions_restore": "Bring them back",
+      "deletions_title": "Delete them on the server too?",
+      "denied_calendar": "Without access to calendars, Bulwark cannot put your calendars on this device.",
+      "denied_contacts": "Without access to contacts, Bulwark cannot put your address books on this device.",
+      "denied_title": "Sync stays off",
+      "failed_title": "Sync could not be turned on",
+      "grant_access": "Grant access",
+      "interval_15m": "Every 15 minutes",
+      "interval_1h": "Every hour",
+      "interval_30m": "Every 30 minutes",
+      "interval_6h": "Every 6 hours",
+      "interval_desc": "How often Android syncs on its own. Edits in Bulwark and pushed changes sync sooner.",
+      "interval_label": "Sync interval",
+      "interval_manual": "No regular sync",
+      "keep_syncing": "Keep syncing",
+      "list_error_auth": "The server did not accept the sign-in.",
+      "list_error_network": "Could not reach the server.",
+      "list_error_server": "The server could not list them.",
+      "list_error_signed_out": "This account is not signed in on this device.",
+      "master_off": "Auto-sync is off on this device, so syncs only run when you tap Sync now.",
+      "new_contacts_default": "Default address book",
+      "new_contacts_desc": "The address book for contacts created in other apps on this device.",
+      "new_contacts_label": "New contacts go to",
+      "no_books": "This account has no address books.",
+      "no_calendars": "This account has no calendars to sync.",
+      "ok": "OK",
+      "open_app_settings": "Open app settings",
+      "own_collections": "Your own",
+      "rationale_calendar": "To show your calendars in the Calendar app, Bulwark needs access to the calendars on this device. It only changes the calendars of its own account.",
+      "rationale_contacts": "To show your address books in the Contacts app, Bulwark needs access to the contacts on this device. It only changes the contacts of its own account.",
+      "rationale_title_calendar": "Allow access to calendars",
+      "rationale_title_contacts": "Allow access to contacts",
+      "read_only": "Read-only",
+      "reminder_owner_bulwark": "Bulwark",
+      "reminder_owner_device": "Calendar app",
+      "reminder_question_message": "Synced events can remind you from the calendar app on this device or from Bulwark. Pick one so you are not reminded twice. You can change it later.",
+      "reminder_question_title": "Who should remind you?",
+      "reminders_desc": "Who reminds you of synced events. The other stays quiet, so you are not reminded twice.",
+      "reminders_label": "Reminders",
+      "reminders_nobody": "Bulwark's event notifications are off, so nothing reminds you of synced events.",
+      "remove": "Remove",
+      "remove_from_device": "Remove from this device",
+      "remove_message": "The account's contacts and calendars are removed from this device. Changes made here that haven't reached the server are lost.",
+      "remove_title": "Remove from this device?",
+      "review_deletions": "Review deletions",
+      "shared_by": "Shared by {name}",
+      "sign_in_again": "Sign in again",
+      "status_auth": "The server no longer accepts the sign-in. Sign in again to keep syncing.",
+      "status_cancelled": "The last sync stopped early. It continues next time.",
+      "status_failed": "The last sync failed: {message}",
+      "status_failed_plain": "The last sync failed.",
+      "status_io": "Could not reach the server {when}. Android tries again.",
+      "status_item_errors": "{count, plural, one {# item could not be synced.} other {# items could not be synced.}}",
+      "status_off": "Off",
+      "status_paused": "Paused in Android settings",
+      "status_permission_calendar": "Access to calendars was turned off, so nothing syncs.",
+      "status_permission_contacts": "Access to contacts was turned off, so nothing syncs.",
+      "status_removed": "Removed in Android settings. Turn on to add the account again.",
+      "status_safety_abort": "Stopped: the server returned nothing while this device still holds items. Check the server, then sync again.",
+      "status_synced": "Synced {when}",
+      "status_syncing": "Syncing…",
+      "status_too_many_deletions": "Many items were deleted on this device. They are not deleted on the server until you confirm.",
+      "status_unsupported_calendar": "The server offers no calendars for this account.",
+      "status_unsupported_contacts": "The server offers no address books for this account.",
+      "status_waiting": "Waiting for the first sync",
+      "status_waiting_next": "Waiting for the next sync",
+      "suspended_desc": "Signed out. Its contacts and calendars stay on this device, with the changes made here, and sync again once you sign in.",
+      "switch_label": "Sync {account} to this device",
+      "sync_now": "Sync now",
+      "turn_off_anyway": "Turn off",
+      "turn_off_failed": "The synced data could not be removed from this device. Sync is paused; try again later.",
+      "turn_off_failed_title": "Sync could not be turned off",
+      "turn_off_pending": "{count, plural, one {# change made on this device hasn't reached the server yet. It is lost if you turn sync off now.} other {# changes made on this device haven't reached the server yet. They are lost if you turn sync off now.}}",
+      "turn_off_title": "Turn off anyway?",
+      "turn_off_unknown": "Bulwark could not check whether changes made on this device reached the server. They are lost if you turn sync off now.",
+      "turning_off": "Uploading changes, then removing the data from this device…",
+      "turning_on": "Setting up…"
     },
     "downloads": {
       "attachment_template": {
@@ -670,12 +895,6 @@
       },
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
-      },
-      "reply_identity_match": {
-        "description": "Which received addresses count as yours. Exact address only picks one of your configured identities. Same domain also treats any other address on one of your identity domains as a catch-all alias and rewrites the From header to it. Choose exact address if those addresses are distribution lists rather than aliases.",
-        "domain": "Any address on my domains",
-        "exact": "Exact address only",
-        "label": "Received Address Matching"
       },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
@@ -754,6 +973,7 @@
       "text_signature": "Plain-text signature"
     },
     "keywords": {
+      "delete_confirm_title": "Delete tag \"{label}\"?",
       "description_mobile": "Colored tags to organize your mail.",
       "discover": {
         "add_all": "Add all",
@@ -791,6 +1011,12 @@
       "unified_cross_account": "Unified views across accounts",
       "unified_cross_account_description": "Combine every signed-in account in \"All inboxes\". Off keeps the unified views inside the active account and its shared folders."
     },
+    "licences": {
+      "app_desc": "The app is free software under the {licence}. You can use, study, share and change it.",
+      "libraries": "Libraries",
+      "libraries_desc": "Open-source code the app is built with.",
+      "read_licence": "Read the full licence text"
+    },
     "message_list_order": {
       "description": "Which messages come first in the list. Newest first is the tie-breaker within each group; the header toggle still flips oldest/newest.",
       "preset_chronological": "Newest first",
@@ -808,12 +1034,16 @@
       "email": {
         "app_icon_badge": "Unread count on app icon",
         "app_icon_badge_desc": "Show the inbox unread count as a badge on the app icon.",
+        "mute_account": "Mute this account",
+        "mute_account_desc": "No alerts for new mail in this account. Long-press a folder in the sidebar to mute or unmute it on its own.",
         "sound_channel_hint": "Sound and vibration for mail alerts are controlled by the Android notification channel: long-press a notification or open the system app settings."
       },
       "push": {
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
         "err_android_only": "Push notifications are only available on Android.",
+        "err_apns_empty": "iOS returned an empty push token.",
+        "err_apns_token": "iOS could not issue a push token ({detail}).",
         "err_fcm_empty": "Firebase returned an empty device token.",
         "err_fcm_token": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device.",
         "err_fcm_token_up": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.",
@@ -824,6 +1054,7 @@
         "err_over_quota": "This account has too many push registrations on the mail server (the limit is usually 15). Revoke devices you no longer use in the notification settings, then try again.",
         "err_permission": "Notification permission was not granted.",
         "err_relay_https": "The relay URL must use https://.",
+        "err_relay_no_apns": "The push relay at {url} does not deliver to iPhones and iPads yet.",
         "err_relay_rejected": "The push relay rejected the registration: {detail}",
         "err_relay_unreachable": "Could not reach the push relay at {url} ({detail}).",
         "err_up_android_only": "UnifiedPush is only available on Android.",
@@ -860,23 +1091,31 @@
       "clear_title": "Clear offline mail",
       "days_ago": "{count} d ago",
       "description": "Download recent messages so they open instantly and remain readable without a connection. Bodies only — attachments are still fetched on demand.",
+      "description_short": "Keep recent messages on this phone so they open without a connection.",
       "downloading": "Downloading {completed}/{total}…",
       "enabled": "Cache recent mail",
       "enabled_desc": "When on, the app keeps message bodies for the selected window on this device.",
       "hours_ago": "{count} h ago",
       "just_now": "just now",
+      "keep_24h": "24 hours",
+      "keep_days": "{count} days",
+      "keep_from": "Keep mail from the last",
       "last_sync": "Last sync {when}",
       "last_sync_failed": "Last sync failed: {message}",
       "max_size": "Maximum size",
       "max_size_desc": "Oldest messages are removed when the cache grows past this.",
+      "messages_offline": "{count, plural, one {# message offline} other {# messages offline}}",
       "minutes_ago": "{count} min ago",
       "never": "never",
       "nothing_cached": "Nothing cached yet",
       "queued_changes": "{count, plural, one {# change} other {# changes}} waiting to sync",
       "scanning": "Scanning recent mail…",
       "sync_now": "Sync now",
+      "synced": "Synced {when}",
       "syncing": "Syncing…",
       "title": "Offline mail",
+      "use_at_most": "Use at most",
+      "used_of": "{used} of {limit} MB",
       "window": "Window",
       "window_24h": "Last 24 hours",
       "window_days": "Last {count} days",
@@ -885,6 +1124,22 @@
     "plugins": {
       "mobile_description": "Plugins run inside the webmail and extend it in the browser.",
       "mobile_explainer": "The mobile app has no plugin runtime. Install and manage plugins from the webmail under Settings → Plugins; themes and filters they provide are not applied here."
+    },
+    "privacy": {
+      "favicons": "Sender icons for business mail come from DuckDuckGo's icon service, which sees the sender's domain. Turn them off under Appearance → Sender favicons.",
+      "no_tracking": "The app has no analytics and no ads.",
+      "other_title": "Other connections",
+      "phone_backup": "None of it goes into Android's cloud backup.",
+      "phone_secure": "Your sign-in details are kept in the system's secure storage. Settings, the offline mail cache and changes waiting to sync are kept in the app's own storage.",
+      "phone_title": "On this phone",
+      "push": "When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through {service}. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.",
+      "push_title": "Push notifications",
+      "server": "Mail, calendars, contacts and files are loaded from your server and saved back to it. Apart from the connections below, the app talks only to your server.",
+      "server_title": "Your mail server",
+      "service_apple": "Apple's push service",
+      "service_google": "Google's push service",
+      "updates": "The app asks GitHub for the latest release to tell you about updates.",
+      "updates_android": "The app asks GitHub for the latest release to tell you about updates. Turn that off under Updates."
     },
     "security": {
       "client_cert": {
@@ -985,9 +1240,37 @@
       "mobile_description": "Sign and encrypt mail with S/MIME certificates.",
       "mobile_explainer": "S/MIME is not available in the mobile app yet. Manage keys and certificates in the webmail; signed messages are shown without verification here."
     },
+    "summary": {
+      "composing": "Signature, send delay, drafts",
+      "contacts": "Address books, sorting",
+      "content_senders": "Remote images, trusted senders",
+      "downloads": "File names for saved mail",
+      "events_off": "events off",
+      "events_on": "events on",
+      "files": "View, sorting, thumbnails",
+      "filters": "Rules for incoming mail",
+      "folders": "Create, rename, roles",
+      "identities": "Addresses you send from",
+      "keywords": "Tag names and colours",
+      "layout": "Quick actions, swipes, list order",
+      "mail_off": "Mail off",
+      "mail_on": "Mail on",
+      "offline_off": "Offline mail off",
+      "offline_on": "Offline mail on · {days, plural, one {# day} other {# days}}, {mb} MB",
+      "reading": "Read status, delete, attachments",
+      "security": "Password, two-factor, app passwords",
+      "sidebar_apps": "Web apps in the side menu",
+      "templates": "Reusable messages",
+      "updates": "Install new versions",
+      "vacation": "Automatic reply while away",
+      "version": "Version {version}",
+      "week_starts": "week starts {day}"
+    },
     "tabs": {
+      "about": "About",
       "plugins": "Plugins",
-      "themes": "Themes",
+      "storage": "Storage & backup",
+      "troubleshooting": "Troubleshooting",
       "updates": "Updates"
     },
     "templates": {
@@ -1004,11 +1287,23 @@
     },
     "themes": {
       "default_description": "The default light and dark palettes.",
-      "default_name": "Bulwark",
-      "mobile_description": "Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail.",
-      "title": "Themes"
+      "mobile_description": "Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail."
+    },
+    "troubleshooting": {
+      "cache_desc": "When a list looks stale or wrong.",
+      "cache_title": "Cached data",
+      "row_desc": "Refresh cached data, debug logging",
+      "title": "Troubleshooting"
     },
     "vacation": {
+      "date_range": {
+        "description": "Optionally limit the auto-reply to a specific period",
+        "title": "Date Range"
+      },
+      "message": {
+        "description": "The message that will be sent as a reply",
+        "title": "Auto-Reply Message"
+      },
       "warnings": {
         "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\""
       }
@@ -1026,6 +1321,11 @@
     "remove_account_message": "Sign out of {account} on this device. Your mail stays on the server.",
     "remove_account_title": "Remove account?",
     "show_unread": "Show unread",
+    "sign_out_all_confirm_message": "Every account is removed from this device. You can sign in again at any time.",
+    "sign_out_all_confirm_title": "Sign out of all accounts?",
+    "sign_out_confirm_message": "The account is removed from this device. You can sign in again at any time.",
+    "sign_out_confirm_title": "Sign out?",
+    "sign_out_confirm_title_account": "Sign out of {account}?",
     "tab_unavailable": "{name} (unavailable)"
   },
   "unified_mailbox": {
@@ -1075,6 +1375,198 @@
     "release_page_pending_desc": "Watch the build progress or download the APK manually.",
     "severity_deprecated": "Required",
     "severity_security": "Security",
-    "title": "App updates"
+    "title": "App updates",
+    "verifying": "Verifying…"
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "No recent attachments",
+      "from_mail": "from mail",
+      "title": "Attachments",
+      "unknown_sender": "Unknown sender"
+    },
+    "birthdays": {
+      "empty": "No birthdays coming up",
+      "empty_body": "Birthdays come from your contacts.",
+      "in_days": "{count, plural, one {in # day} other {in # days}}",
+      "send_wishes": "Send wishes",
+      "title": "Birthdays",
+      "wishes_subject": "Happy birthday!"
+    },
+    "calendar": {
+      "agenda": "Agenda",
+      "agenda_more": "{day}: {events}",
+      "all_day": "All day",
+      "join": "Join",
+      "join_named": "Join {name}",
+      "more_this_week": "{count, plural, one {# more this week} other {# more this week}}",
+      "no_more_today": "No more events today",
+      "nothing_planned": "Nothing on the calendar",
+      "now": "Now",
+      "open": "Open",
+      "running_late": "Running late",
+      "running_late_body": "I'm running a few minutes late for {title}.",
+      "running_late_subject": "Running late: {title}",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "unit_days": "{count, plural, one {day} other {days}}",
+      "unit_hours": "{count, plural, one {hour} other {hours}}",
+      "unit_minutes": "{count, plural, one {min} other {min}}",
+      "unsupported": "Calendar isn't available on this server",
+      "untitled": "(no title)",
+      "video_call": "Video call"
+    },
+    "countdown": {
+      "days": "{count, plural, one {day} other {days}}",
+      "empty": "No upcoming events"
+    },
+    "draft": {
+      "edited_at": "Edited {when}",
+      "edited_minutes": "{count, plural, one {Edited # min ago} other {Edited # min ago}}",
+      "edited_now": "Edited just now",
+      "empty": "No drafts",
+      "empty_body": "Messages you start and do not send wait here.",
+      "keep_writing": "Keep writing",
+      "title": "Drafts"
+    },
+    "files": {
+      "empty": "No files yet",
+      "recent": "Recently changed",
+      "unsupported": "Files aren't available on this server"
+    },
+    "free": {
+      "busy_until": "Busy until {time}",
+      "free_rest": "Free for the rest of the day",
+      "free_until": "Free until {time}",
+      "mail": "Mail my free times",
+      "mail_subject": "My free times this week",
+      "no_calendar": "No calendar on this account",
+      "then": "then {title}",
+      "then_free": "then free"
+    },
+    "hub": {
+      "all_clear": "You're all caught up",
+      "mail_unread": "Mail · {count} unread",
+      "next": "Next",
+      "next_on": "Next · {day}",
+      "no_events": "No upcoming events",
+      "now": "Now",
+      "tasks_due": "Tasks · {count} due"
+    },
+    "invites": {
+      "accept": "Accept",
+      "decline": "Decline",
+      "empty": "No invitations waiting",
+      "label": "Invitation · {name}",
+      "label_plain": "Invitation",
+      "maybe": "Maybe",
+      "position": "{index} of {count}"
+    },
+    "mail": {
+      "all_accounts": "All accounts",
+      "all_caught_up": "All caught up",
+      "archive": "Archive",
+      "delete": "Delete",
+      "empty_all_accounts": "Your inboxes are empty",
+      "empty_inbox": "Your inbox is empty",
+      "folders": "Folders",
+      "in_outbox": "{count, plural, one {# change waiting} other {# changes waiting}}",
+      "in_outbox_short": "{count} waiting",
+      "inbox": "Inbox",
+      "more_unread": "+{count} more unread",
+      "no_folders": "No folders to show",
+      "no_starred": "No starred mail",
+      "no_starred_body": "Star a message to keep it here.",
+      "no_subject": "(no subject)",
+      "no_unread": "No unread messages in your inbox.",
+      "position": "{index} of {count}",
+      "reply": "Reply",
+      "scheduled": "Scheduled",
+      "starred": "Starred",
+      "unread": "unread"
+    },
+    "notice": {
+      "archive": "Couldn't archive. Tap to try again.",
+      "mark_read": "Couldn't mark as read. Tap to try again.",
+      "rsvp": "Couldn't send your answer. Tap to try again.",
+      "task": "Couldn't update “{title}”. Tap to try again.",
+      "trash": "Couldn't delete. Tap to try again."
+    },
+    "people": {
+      "empty": "No favourites yet",
+      "empty_body": "The people you hear from most show up here.",
+      "favourites": "Favourites"
+    },
+    "relative": {
+      "days": "{count, plural, one {in # day} other {in # days}}",
+      "hours": "in {count} h",
+      "minutes": "in {count} min",
+      "now": "now"
+    },
+    "scheduled": {
+      "day_at": "{day}, {time}",
+      "empty": "Nothing scheduled",
+      "empty_body": "Messages you schedule to send later show up here.",
+      "no_recipient": "(no recipient)",
+      "sending": "Sending now",
+      "to": "To: {name}",
+      "today_at": "Today, {time}",
+      "tomorrow_at": "Tomorrow, {time}",
+      "waiting": "Waiting for network",
+      "waiting_body": "Changes you made offline go out when you are back online."
+    },
+    "search": {
+      "no_recent": "Your recent searches show up here.",
+      "placeholder": "Search mail…",
+      "recent": "Recent searches"
+    },
+    "shortcuts": {
+      "calendar": "Calendar",
+      "compose": "Compose",
+      "contacts": "Contacts",
+      "files": "Files"
+    },
+    "state": {
+      "error": "Couldn't show this widget",
+      "loading": "Loading…",
+      "open_app": "Open the app once if this stays empty.",
+      "open_to_load": "Open Bulwark to load this",
+      "signed_out": "Sign in to Bulwark"
+    },
+    "storage": {
+      "no_limit": "No storage limit",
+      "title": "Storage",
+      "unavailable": "No quota information",
+      "used_of": "{used} of {total}"
+    },
+    "tag": {
+      "empty": "No tags yet",
+      "empty_body": "Tags you add in the app show up here.",
+      "messages": "{count, plural, one {message} other {messages}}",
+      "total": "{count, plural, one {# message} other {# messages}}"
+    },
+    "tasks": {
+      "all_done": "All done",
+      "empty": "No open tasks",
+      "mark_complete": "Mark as done",
+      "mark_incomplete": "Mark as not done",
+      "no_title": "(no title)",
+      "off": "Tasks are off",
+      "off_body": "Turn on tasks in the app's calendar settings",
+      "open_count": "{count} open",
+      "overdue": "Overdue",
+      "still_open": "{count} still open",
+      "title": "Tasks",
+      "today": "Today",
+      "tomorrow": "Tomorrow"
+    },
+    "vacation": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "subject": "Subject: {subject}",
+      "title": "Vacation Responder",
+      "unsupported": "Vacation replies aren't available",
+      "until": "Until {date}"
+    }
   }
 }

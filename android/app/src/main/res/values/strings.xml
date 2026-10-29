@@ -2,4 +2,6 @@
   <string name="app_name">Bulwark Mobile</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <!-- Account type label of device sync (#34), shown in Settings → Accounts. -->
+  <string name="device_sync_account_label" translatable="false">Bulwark</string>
 </resources>

@@ -2,8 +2,9 @@ import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
   Modal, useWindowDimensions, Animated, Easing, Alert, FlatList,
+  Keyboard, Dimensions, Platform,
 } from 'react-native';
-import type { NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import type { LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -11,7 +12,7 @@ import {
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
   Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus,
-} from 'lucide-react-native';
+} from '../components/icons';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
@@ -34,19 +35,34 @@ import {
 import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
+import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
+import { useLayout } from '../lib/use-layout';
 import { useLocaleStore } from '../stores/locale-store';
 import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
 } from '../lib/mailbox-tree';
-import { pickEmailBody, plainTextBody } from '../lib/email-body';
+import { replyComposeParams } from '../lib/reply-compose';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
 import { accountScopedId } from '../lib/thread-utils';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetInsets } from '../lib/use-layout';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
+  /** Shown in a split view's detail pane: no back button. */
+  embedded?: boolean;
+  /** The pager moved to another message (the list highlights it). */
+  onActiveChange?: (emailId: string) => void;
+};
+
+// How much of the card above the opened one stays in view when a long
+// conversation opens scrolled to it.
+const OPENED_CARD_PEEK = 56;
+/** How long after opening the viewer may still scroll to the open card. */
+const REVEAL_WINDOW_MS = 2000;
 
 // How long the pages beside the one on screen wait for its body at most.
 const NEIGHBOUR_FALLBACK_MS = 1500;
@@ -71,7 +87,7 @@ export default function EmailThreadScreen(props: Props) {
   return <EmailViewer key={instance.current.key} {...props} />;
 }
 
-function EmailViewer({ route, navigation }: Props) {
+function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { t } = useLocaleStore();
@@ -84,8 +100,15 @@ function EmailViewer({ route, navigation }: Props) {
   // swiping / Prev-Next can switch messages in place without remounting the
   // screen — which is what produced the loading flash on every change.
   const [activeEmailId, setActiveEmailId] = React.useState(route.params.emailId);
+  const onActiveChangeRef = React.useRef(onActiveChange);
+  onActiveChangeRef.current = onActiveChange;
+  React.useEffect(() => { onActiveChangeRef.current?.(activeEmailId); }, [activeEmailId]);
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
+  // Pages are as wide as the pager itself, which is the window on a phone
+  // but only the detail pane in a split view. Measured, so a rotation or a
+  // pane resize re-sizes them.
+  const [pageWidth, setPageWidth] = React.useState(windowWidth);
   const markRead = useEmailStore((s) => s.markRead);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
@@ -261,22 +284,34 @@ function EmailViewer({ route, navigation }: Props) {
   const goToIndex = React.useCallback((index: number) => {
     if (index < 0 || index >= emails.length) return;
     releaseNeighbours();
-    listRef.current?.scrollToOffset({ offset: index * windowWidth, animated: true });
+    listRef.current?.scrollToOffset({ offset: index * pageWidth, animated: true });
     const target = emails[index];
     if (target) setActiveEmailId(target.id);
-  }, [emails, windowWidth, releaseNeighbours]);
+  }, [emails, pageWidth, releaseNeighbours]);
 
   const onMomentumEnd = React.useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
+    const index = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
     const target = emails[index];
     if (target && target.id !== activeEmailId) setActiveEmailId(target.id);
-  }, [emails, windowWidth, activeEmailId]);
+  }, [emails, pageWidth, activeEmailId]);
 
-  React.useLayoutEffect(() => {
+  // A width change (rotation, split-screen, pane resize) leaves the native
+  // scroll offset where it was in pixels, so the pager would show half of a
+  // neighbour. Snap back to the open message once the pages have their new
+  // width, which is when the content size changes; the layout effect covers
+  // a width change that doesn't change the content size.
+  const snapToActive = React.useCallback(() => {
     const index = emails.findIndex((e) => e.id === activeEmailId);
-    if (index >= 0) listRef.current?.scrollToOffset({ offset: index * windowWidth, animated: false });
+    if (index >= 0) listRef.current?.scrollToOffset({ offset: index * pageWidth, animated: false });
+  }, [emails, activeEmailId, pageWidth]);
+  React.useLayoutEffect(() => {
+    snapToActive();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowWidth]);
+  }, [pageWidth]);
+  const onPagerLayout = React.useCallback((e: LayoutChangeEvent) => {
+    const width = Math.round(e.nativeEvent.layout.width);
+    if (width > 0) setPageWidth((prev) => (prev === width ? prev : width));
+  }, []);
 
   const pagerExtraData = React.useMemo(
     () => [cacheVersion, neighboursReady],
@@ -535,45 +570,21 @@ function EmailViewer({ route, navigation }: Props) {
   };
 
   // Reply / forward the given message (a thread card's own, or the active one).
-  const navigateCompose = React.useCallback((mode: 'reply' | 'replyAll' | 'forward', target?: Email) => {
+  const navigateCompose = React.useCallback((mode: 'reply' | 'replyAll' | 'forward', target?: Email, typed?: string) => {
     const source = target ?? email;
     if (!source) return;
-    const from = source.from?.[0];
-    if (!from && mode !== 'forward') return;
-    // Quote the HTML part when there is one so layout and inline images
-    // survive (#163). RFC 8621 §4.1.4: an HTML-only message exposes the same
-    // part in `textBody` and `htmlBody`, so the text part is only a real
-    // alternative when its partId differs - otherwise the composer would be
-    // handed raw HTML source (#649, native #46).
-    const picked = pickEmailBody(source);
-    const quoteHtml = picked.html ?? undefined;
-    const body = !quoteHtml || picked.text ? plainTextBody(source) : undefined;
-    navigation.navigate('Compose', {
-      mode,
-      replyTo: {
-        from: from ?? { email: '' },
-        to: source.to,
-        cc: source.cc,
-        // RFC 5322: a reply goes to Reply-To when the sender set one.
-        replyToAddresses: source.replyTo,
-        subject: source.subject ?? '',
-        body,
-        htmlBody: quoteHtml,
-        receivedAt: source.receivedAt,
-        sentAt: source.sentAt,
-        // Threading needs the RFC Message-ID, never the JMAP object id (#234).
-        messageId: source.messageId ?? undefined,
-        references: source.references ?? undefined,
-        // Forward carries the original attachments as blob refs; cid-embedded
-        // inline images are already part of the quoted HTML.
-        attachments: mode === 'forward'
-          ? (source.attachments ?? []).filter((a) => !(a.disposition === 'inline' && a.cid))
-          : undefined,
-        originalEmailId: source.id,
-        jmapAccountId: ownerAccountId,
-      },
-    });
+    const params = replyComposeParams(mode, source, ownerAccountId, typed);
+    if (params) navigation.navigate('Compose', params);
   }, [email, navigation, ownerAccountId]);
+
+  // Opened to reply (a widget's Reply): the composer follows as soon as the
+  // message is here, once. If it never loads, the reader's error says why.
+  const replyPending = React.useRef(route.params.action === 'reply');
+  React.useEffect(() => {
+    if (!replyPending.current || email?.id !== route.params.emailId) return;
+    replyPending.current = false;
+    navigateCompose('reply', email);
+  }, [email, route.params.emailId, navigateCompose]);
 
   // Forward the raw message as a message/rfc822 attachment (webmail 1.8.1).
   const onForwardAsAttachment = () => {
@@ -669,6 +680,11 @@ function EmailViewer({ route, navigation }: Props) {
   };
 
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
+
+  // Track the visible keyboard obstruction so quick reply stays visible and
+  // the bottom bar hides while typing.
+  const kbObstruction = useKeyboardObstruction(insets.bottom);
+
   // Drop optional toolbar buttons on narrow screens.
   const showMarkUnread = windowWidth >= 340;
   const showArchive = windowWidth >= 400 && canArchive;
@@ -679,18 +695,20 @@ function EmailViewer({ route, navigation }: Props) {
     : false;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Toolbar */}
-      <View style={styles.toolbar}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.toolbarBack}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', 'Back')}
-        >
-          <ArrowLeft size={22} color={c.text} />
-        </Pressable>
+      <View style={[styles.toolbar, embedded && styles.toolbarEmbedded]}>
+        {!embedded && (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.toolbarBack}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
+            <ArrowLeft size={22} color={c.text} />
+          </Pressable>
+        )}
         <View style={styles.toolbarActions}>
           {relocatedActions.map((id) => {
             const def = quickActionRegistry[id];
@@ -736,7 +754,7 @@ function EmailViewer({ route, navigation }: Props) {
                 fill={starred ? c.starred : 'transparent'}
               />
             }
-            label={t('email_viewer.star', 'Star')}
+            label={starred ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star')}
             onPress={onToggleStar}
           />
           <ToolbarButton
@@ -756,6 +774,8 @@ function EmailViewer({ route, navigation }: Props) {
           <FlatList
             ref={listRef}
             style={styles.pagerViewport}
+            onLayout={onPagerLayout}
+            onContentSizeChange={snapToActive}
             data={emails}
             extraData={pagerExtraData}
             keyExtractor={(item) => item.id}
@@ -763,16 +783,16 @@ function EmailViewer({ route, navigation }: Props) {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             initialScrollIndex={initialIndexRef.current}
-            getItemLayout={(_, index) => ({ length: windowWidth, offset: windowWidth * index, index })}
+            getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
             windowSize={3}
             initialNumToRender={1}
             maxToRenderPerBatch={2}
             removeClippedSubviews
-            scrollEnabled={!pagerLocked}
+            scrollEnabled={!pagerLocked && kbObstruction === 0}
             onScrollBeginDrag={releaseNeighbours}
             onMomentumScrollEnd={onMomentumEnd}
             renderItem={({ item, index }) => (
-              <View style={{ width: windowWidth }}>
+              <View style={{ width: pageWidth }}>
                 <EmailPane
                   id={item.id}
                   active={item.id === activeEmailId}
@@ -799,6 +819,7 @@ function EmailViewer({ route, navigation }: Props) {
                   scheduleMarkRead={scheduleMarkRead}
                   styles={styles}
                   bottomBarHeight={bottomBarHeight}
+                  kbObstruction={item.id === activeEmailId ? kbObstruction : 0}
                   onToggleStar={toggleStarFor}
                   onAddressPress={setAddressSheet}
                   onEmailPatched={onEmailPatched}
@@ -810,33 +831,35 @@ function EmailViewer({ route, navigation }: Props) {
             )}
           />
 
-          {/* Bottom action bar */}
-          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
-            <BottomBarButton
-              icon={<ChevronLeft size={20} color={c.textMuted} />}
-              label={t('email_viewer.previous', 'Prev')}
-              onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
-              disabled={!prevEmail}
-            />
-            {bottomActions.map((id) => {
-              const def = quickActionRegistry[id];
-              return (
-                <BottomBarButton
-                  key={id}
-                  icon={def.icon(20, c.textSecondary)}
-                  label={def.label}
-                  onPress={def.available ? def.onPress : undefined}
-                  disabled={!def.available}
-                />
-              );
-            })}
-            <BottomBarButton
-              icon={<ChevronRight size={20} color={c.textMuted} />}
-              label={t('email_viewer.next', 'Next')}
-              onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
-              disabled={!nextEmail}
-            />
-          </View>
+          {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
+          {kbObstruction === 0 && (
+            <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4), paddingLeft: insets.left, paddingRight: insets.right }]}>
+              <BottomBarButton
+                icon={<ChevronLeft size={20} color={c.textMuted} />}
+                label={t('email_viewer.previous', 'Prev')}
+                onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
+                disabled={!prevEmail}
+              />
+              {bottomActions.map((id) => {
+                const def = quickActionRegistry[id];
+                return (
+                  <BottomBarButton
+                    key={id}
+                    icon={def.icon(20, c.textSecondary)}
+                    label={def.label}
+                    onPress={def.available ? def.onPress : undefined}
+                    disabled={!def.available}
+                  />
+                );
+              })}
+              <BottomBarButton
+                icon={<ChevronRight size={20} color={c.textMuted} />}
+                label={t('email_viewer.next', 'Next')}
+                onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
+                disabled={!nextEmail}
+              />
+            </View>
+          )}
         </>
       )}
 
@@ -947,10 +970,11 @@ interface EmailPaneProps {
   scheduleMarkRead: (email: Email) => () => void;
   styles: ReturnType<typeof makeStyles>;
   bottomBarHeight: number;
+  kbObstruction: number;
   onToggleStar: (email: Email) => void;
   onAddressPress: (address: EmailAddress) => void;
   onEmailPatched: (email: Email) => void;
-  onReply: (mode: 'reply' | 'replyAll' | 'forward', email: Email) => void;
+  onReply: (mode: 'reply' | 'replyAll' | 'forward', email: Email, typed?: string) => void;
   onSwipe: (direction: 'prev' | 'next') => void;
   onZoomChange: (zoom: { pinching: boolean; zoomed: boolean }) => void;
 }
@@ -963,7 +987,7 @@ interface EmailPaneProps {
 function EmailPane({
   id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
   threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
-  ensureThread, scheduleMarkRead, styles, bottomBarHeight, onToggleStar, onAddressPress,
+  ensureThread, scheduleMarkRead, styles, bottomBarHeight, kbObstruction, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
   const c = useColors();
@@ -1011,6 +1035,45 @@ function EmailPane({
 
   React.useEffect(() => () => { readTimers.forEach((cancel) => cancel()); readTimers.clear(); }, [readTimers]);
 
+  // Keeps the quick reply in view while the keyboard opens. Above the
+  // skeleton's early return: a page opened by id alone (a notification)
+  // renders the skeleton first, and a hook after it crashed the app.
+  const scrollRef = React.useRef<ScrollView>(null);
+  const isInputFocused = React.useRef(false);
+  const cardsTopRef = React.useRef(0);
+  // The cards above the open one settle over a few frames (their rows fill
+  // in), so the reveal waits until the open card stops moving, gives up
+  // after a moment, and never fights a scroll the user started.
+  const revealDoneRef = React.useRef(false);
+  const revealTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedAtRef = React.useRef(Date.now());
+  const viewportHeightRef = React.useRef(0);
+  const revealOpenedCard = React.useCallback((cardY: number) => {
+    if (revealDoneRef.current || Date.now() - mountedAtRef.current > REVEAL_WINDOW_MS) return;
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    revealTimerRef.current = setTimeout(() => {
+      if (revealDoneRef.current) return;
+      // Only when the card starts low on the screen (a short conversation
+      // is fine as it is); keep the bottom of the previous card in sight so
+      // it reads as a thread.
+      const top = cardsTopRef.current + cardY;
+      if (top < viewportHeightRef.current * 0.6) return;
+      scrollRef.current?.scrollTo({ y: top - OPENED_CARD_PEEK, animated: false });
+    }, 250);
+  }, []);
+  const stopReveal = React.useCallback(() => {
+    revealDoneRef.current = true;
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+  }, []);
+  React.useEffect(() => stopReveal, [stopReveal]);
+  React.useEffect(() => {
+    if (kbObstruction > 0 && isInputFocused.current) {
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+    }
+  }, [kbObstruction]);
+
   const toggleCard = (mid: string) => {
     setExpanded((prev) => {
       const next = new Set(prev ?? []);
@@ -1050,6 +1113,7 @@ function EmailPane({
   // A single message goes through the same card list (bare), so its content
   // and WebView stay mounted when a conversation arrives around it.
   const members = conversation ?? [shown];
+  const firstOpenId = conversation?.find((m) => expanded?.has(m.id) ?? m.id === id)?.id;
   const newest = conversation ? conversation[conversation.length - 1] : email;
   // The quick reply quotes the message, so it waits for the newest one's body.
   const newestLoaded = !!newest && !!peekDetail(newest.id, jmapAccountId);
@@ -1058,13 +1122,33 @@ function EmailPane({
     onZoomChange(z);
   };
 
+  const bottomPadding = kbObstruction > 0
+    ? kbObstruction + spacing.md
+    : bottomBarHeight + spacing.lg;
+
+  const handleQuickReplyFocus = () => {
+    isInputFocused.current = true;
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const handleQuickReplyBlur = () => {
+    isInputFocused.current = false;
+  };
+
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.scroll}
       // At least a page tall: a single message's body takes the space below
       // its header, and the quick reply stays at the bottom however the body
       // grows or shrinks once it has measured itself.
-      contentContainerStyle={[styles.paneContent, { paddingBottom: bottomBarHeight + spacing.lg }]}
+      contentContainerStyle={[styles.paneContent, { paddingBottom: bottomPadding }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      onScrollBeginDrag={stopReveal}
+      onLayout={(e) => { viewportHeightRef.current = e.nativeEvent.layout.height; }}
       scrollEnabled={!pinching}
     >
       {/* Subject block */}
@@ -1102,13 +1186,16 @@ function EmailPane({
         </View>
       </View>
 
-      <View style={asConversation ? undefined : styles.paneFill}>
+      <View
+        style={asConversation ? undefined : styles.paneFill}
+        onLayout={(e) => { cardsTopRef.current = e.nativeEvent.layout.y; }}
+      >
         {Array.from({ length: pendingCards }, (_, i) => <ThreadCardPlaceholder key={`pending-${i}`} />)}
         {members.map((m) => {
           const open = !asConversation || (expanded?.has(m.id) ?? m.id === id);
           // An open card without its body yet shows its header over placeholder lines.
           const full = peekDetail(m.id, jmapAccountId);
-          return (
+          const card = (
             <ThreadMessageCard
               key={m.id}
               bare={!asConversation}
@@ -1132,6 +1219,14 @@ function EmailPane({
               onEmailPatched={onEmailPatched}
             />
           );
+          // In a long conversation the open messages (the opened one, and
+          // unread ones) sit below the older, collapsed cards. Bring the first
+          // open card into view once, like Gmail, instead of opening on the
+          // oldest message. Only collapsed rows sit above it, so its place
+          // doesn't move as message bodies load.
+          return conversation && m.id === firstOpenId ? (
+            <View key={m.id} onLayout={(e) => revealOpenedCard(e.nativeEvent.layout.y)}>{card}</View>
+          ) : card;
         })}
       </View>
 
@@ -1140,8 +1235,11 @@ function EmailPane({
           <QuickReplyBox
             email={newest}
             jmapAccountId={jmapAccountId}
-            onMoreOptions={() => onReply('reply', newest)}
+            // The text typed so far moves into the full composer.
+            onMoreOptions={(draft) => onReply('reply', newest, draft)}
             onSent={onEmailPatched}
+            onFocus={handleQuickReplyFocus}
+            onBlur={handleQuickReplyBlur}
           />
         )}
       </View>
@@ -1226,6 +1324,8 @@ function MoreMenuSheet({
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(600)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 600, onClose });
 
@@ -1244,14 +1344,14 @@ function MoreMenuSheet({
   }, [visible, slideY, overlayOpacity]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -1262,7 +1362,7 @@ function MoreMenuSheet({
             <Text style={styles.sheetTitle}>{t('email_viewer.more_actions', 'More actions')}</Text>
             <Pressable
               onPress={onClose}
-              hitSlop={8}
+              hitSlop={10}
               style={styles.sheetClose}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
@@ -1375,6 +1475,8 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
@@ -1393,14 +1495,14 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
   }, [visible, slideY, overlayOpacity]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
       </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -1411,7 +1513,7 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
             <Text style={styles.sheetTitle}>{t('email_viewer.tag', 'Tag')}</Text>
             <Pressable
               onPress={onClose}
-              hitSlop={8}
+              hitSlop={10}
               style={styles.sheetClose}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}
@@ -1425,7 +1527,10 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
             {t('email_viewer.tag_no_matches', 'No matching tags')}
           </Text>
         ) : (
-          keywords.map((kw) => {
+          // Scrolls like the More sheet: a long tag list (or a landscape
+          // window) ran past the screen with no way to reach the last tags.
+          <ScrollView style={styles.sheetScroll} bounces={false}>
+          {keywords.map((kw) => {
             const token = keywordToken(kw.id);
             const active = !!activeKeywords[token];
             const palette = c.tags[kw.color];
@@ -1438,7 +1543,8 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
                 trailing={active ? <Check size={16} color={c.primary} /> : null}
               />
             );
-          })
+          })}
+          </ScrollView>
         )}
       </Animated.View>
     </Modal>
@@ -1467,7 +1573,10 @@ function ToolbarButton({
 }: { icon: React.ReactNode; label: string; onPress?: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const showLabels = useSettingsStore((s) => s.showToolbarLabels);
+  // Icons only in a short (landscape) window, which leaves room for the message.
+  const labelsSetting = useSettingsStore((s) => s.showToolbarLabels);
+  const { shortHeight } = useLayout();
+  const showLabels = labelsSetting && !shortHeight;
   return (
     <Pressable
       onPress={onPress}
@@ -1476,7 +1585,7 @@ function ToolbarButton({
       accessibilityLabel={label}
     >
       {icon}
-      {showLabels && <Text style={styles.toolbarActionLabel}>{label}</Text>}
+      {showLabels && <Text style={styles.toolbarActionLabel} numberOfLines={1}>{label}</Text>}
     </Pressable>
   );
 }
@@ -1486,7 +1595,10 @@ function BottomBarButton({
 }: { icon: React.ReactNode; label: string; onPress?: () => void; disabled?: boolean }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const showLabels = useSettingsStore((s) => s.showToolbarLabels);
+  // Icons only in a short (landscape) window, which leaves room for the message.
+  const labelsSetting = useSettingsStore((s) => s.showToolbarLabels);
+  const { shortHeight } = useLayout();
+  const showLabels = labelsSetting && !shortHeight;
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
@@ -1521,17 +1633,23 @@ function makeStyles(c: ThemePalette) {
     borderBottomColor: c.border,
   },
   toolbarBack: {
-    width: componentSizes.avatarSm,
-    height: componentSizes.avatarSm,
+    width: componentSizes.buttonLg,
+    height: componentSizes.buttonLg,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.full,
   },
+  toolbarEmbedded: { justifyContent: 'flex-end' },
+  // The actions shrink (labels truncate) rather than push "More" off a
+  // narrow screen, as long German labels at a large font did.
   toolbarActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
   },
   toolbarAction: {
+    flexShrink: 1,
+    minWidth: 48,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
@@ -1571,11 +1689,12 @@ function makeStyles(c: ThemePalette) {
   subjectStar: {
     paddingTop: 4,
   },
+  // Webmail viewer on a phone: text-lg font-bold tracking-tight.
   subjectText: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    lineHeight: 28,
+    lineHeight: 26,
     color: c.text,
     letterSpacing: -0.2,
   },

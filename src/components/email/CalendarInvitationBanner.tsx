@@ -4,7 +4,7 @@ import { openExternalUrl } from '../../lib/open-url';
 import {
   CalendarPlus, Check, HelpCircle, X, MapPin, Video, Clock, CalendarDays, AlertTriangle,
   ShieldCheck, ShieldAlert, ChevronDown,
-} from 'lucide-react-native';
+} from '../icons';
 import { format, parseISO } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';

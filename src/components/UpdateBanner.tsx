@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Download, ShieldAlert, X } from 'lucide-react-native';
+import { Download, ShieldAlert, X } from './icons';
 import { useUpdatesStore } from '../stores/updates-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';

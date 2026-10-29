@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { usePreventRemove, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,7 +12,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import {
   ArrowLeft, Mail, Phone, Building, MapPin, Cake, Tag, FileText, User, Check, Calendar,
   Camera, X as XIcon, Globe, Heart, UserCircle, Plus, ChevronDown, ChevronRight, Book, Users,
-} from 'lucide-react-native';
+} from '../components/icons';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
 import { useContactsStore, selectGroupMembers } from '../stores/contacts-store';
@@ -29,6 +29,7 @@ import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactForm'>;
 type Route = RouteProp<RootStackParamList, 'ContactForm'>;
@@ -297,6 +298,15 @@ export default function ContactFormScreen() {
   const [saving, setSaving] = React.useState(false);
   const [dirty, setDirty] = React.useState(!!prefill || !!initialMemberIds?.length);
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
+  // Return walks the name fields in reading order, then on to the email.
+  const prefixRef = React.useRef<TextInput>(null);
+  const suffixRef = React.useRef<TextInput>(null);
+  const givenRef = React.useRef<TextInput>(null);
+  const middleRef = React.useRef<TextInput>(null);
+  const surnameRef = React.useRef<TextInput>(null);
+  const orgRef = React.useRef<TextInput>(null);
+  const fullRef = React.useRef<TextInput>(null);
+  const firstEmailRef = React.useRef<TextInput>(null);
   const [datePickerIndex, setDatePickerIndex] = React.useState<number | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = React.useState(false);
 
@@ -312,9 +322,25 @@ export default function ContactFormScreen() {
     setForm((f) => ({ ...f, [key]: value }));
   };
 
+  // Every way out asks about unsaved changes: the header back, Android's
+  // back and the modal's swipe-down. Only the header back did before.
+  const allowLeaveRef = React.useRef(false);
+  const pendingLeaveRef = React.useRef<(() => void) | null>(null);
+  usePreventRemove(dirty, ({ data }) => {
+    if (allowLeaveRef.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    pendingLeaveRef.current = () => navigation.dispatch(data.action);
+    setConfirmDiscard(true);
+  });
+  const leave = (go: () => void) => {
+    allowLeaveRef.current = true;
+    go();
+  };
+
   const handleBack = () => {
-    if (dirty) setConfirmDiscard(true);
-    else navigation.goBack();
+    navigation.goBack();
   };
 
   const handleSave = async () => {
@@ -399,11 +425,11 @@ export default function ContactFormScreen() {
       const options = photoKey ? { photoKey } : undefined;
       if (isEdit && existing) {
         await updateContact(existing.id, patch, options);
-        navigation.goBack();
+        leave(() => navigation.goBack());
       } else {
         const created = await createContact(patch, form.addressBookId, options);
-        if (asGroup) navigation.replace('GroupDetail', { groupId: created.id });
-        else navigation.replace('ContactDetail', { contactId: created.id });
+        if (asGroup) leave(() => navigation.replace('GroupDetail', { groupId: created.id }));
+        else leave(() => navigation.replace('ContactDetail', { contactId: created.id }));
       }
     } catch (err) {
       Alert.alert(
@@ -431,14 +457,8 @@ export default function ContactFormScreen() {
     : [form.given, form.surname].filter(Boolean).join(' ').trim() || form.full.trim();
 
   const pickPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        t('contacts.form.photo_permission_title', 'Photo access needed'),
-        t('contacts.form.photo_permission_message', 'Grant photo library permission to pick a contact photo.'),
-      );
-      return;
-    }
+    // The system photo picker needs no media permission (and Play rejects
+    // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -616,16 +636,21 @@ export default function ContactFormScreen() {
       confirmText={t('settings.discard', 'Discard')}
       onConfirm={() => {
         setConfirmDiscard(false);
-        navigation.goBack();
+        const go = pendingLeaveRef.current ?? (() => navigation.goBack());
+        pendingLeaveRef.current = null;
+        leave(go);
       }}
-      onCancel={() => setConfirmDiscard(false)}
+      onCancel={() => {
+        pendingLeaveRef.current = null;
+        setConfirmDiscard(false);
+      }}
     />
   );
 
   if (asGroup) {
     // Groups are a name plus a member list - none of the person fields apply.
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         {header}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -686,7 +711,7 @@ export default function ContactFormScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {header}
 
       <KeyboardAvoidingView
@@ -751,6 +776,10 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={t('contacts.form.organization_placeholder', 'Company name')}
+                  ref={orgRef}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => fullRef.current?.focus()}
                   placeholderTextColor={c.textMuted}
                   value={form.orgs[0]?.name || ''}
                   onChangeText={(v) => {
@@ -767,6 +796,10 @@ export default function ContactFormScreen() {
                     <TextInput
                       style={styles.input}
                       placeholder={t('contacts.form.prefix_placeholder', 'Dr., Mr., Mrs.')}
+                      ref={prefixRef}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => suffixRef.current?.focus()}
                       placeholderTextColor={c.textMuted}
                       value={form.prefix}
                       onChangeText={(v) => updateForm('prefix', v)}
@@ -776,6 +809,10 @@ export default function ContactFormScreen() {
                     <TextInput
                       style={styles.input}
                       placeholder={t('contacts.form.suffix_placeholder', 'Jr., Sr., III')}
+                      ref={suffixRef}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => givenRef.current?.focus()}
                       placeholderTextColor={c.textMuted}
                       value={form.suffix}
                       onChangeText={(v) => updateForm('suffix', v)}
@@ -786,6 +823,11 @@ export default function ContactFormScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder={t('contacts.form.given_name', 'First name')}
+                    ref={givenRef}
+                    testID="contact-first-name"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => middleRef.current?.focus()}
                     placeholderTextColor={c.textMuted}
                     value={form.given}
                     onChangeText={(v) => updateForm('given', v)}
@@ -795,6 +837,10 @@ export default function ContactFormScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder={t('contacts.form.middle_name', 'Middle name')}
+                    ref={middleRef}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => surnameRef.current?.focus()}
                     placeholderTextColor={c.textMuted}
                     value={form.middle}
                     onChangeText={(v) => updateForm('middle', v)}
@@ -804,6 +850,11 @@ export default function ContactFormScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder={t('contacts.form.surname', 'Last name')}
+                    ref={surnameRef}
+                    testID="contact-last-name"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => fullRef.current?.focus()}
                     placeholderTextColor={c.textMuted}
                     value={form.surname}
                     onChangeText={(v) => updateForm('surname', v)}
@@ -846,6 +897,10 @@ export default function ContactFormScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t('contacts.form.display_name_placeholder', 'Custom display name')}
+                ref={fullRef}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => firstEmailRef.current?.focus()}
                 placeholderTextColor={c.textMuted}
                 value={form.full}
                 onChangeText={(v) => updateForm('full', v)}
@@ -863,6 +918,8 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={t('contacts.form.email_placeholder', 'email@example.com')}
+                  ref={i === 0 ? firstEmailRef : undefined}
+                  testID={`contact-email-${i}`}
                   placeholderTextColor={c.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -1372,7 +1429,7 @@ export default function ContactFormScreen() {
         };
         if (Platform.OS === 'ios') {
           return (
-            <Modal transparent animationType="fade" onRequestClose={() => setDatePickerIndex(null)}>
+            <Modal supportedOrientations={MODAL_ORIENTATIONS} transparent animationType="fade" onRequestClose={() => setDatePickerIndex(null)}>
               <Pressable style={styles.pickerOverlay} onPress={() => setDatePickerIndex(null)} />
               <View style={styles.pickerSheet}>
                 <View style={styles.pickerHeader}>
@@ -1492,7 +1549,7 @@ function makeStyles(c: ThemePalette) {
     sectionBody: { gap: spacing.sm, paddingLeft: spacing.lg + spacing.xs },
 
     field: { gap: 4 },
-    fieldLabel: { ...typography.caption, color: c.textMuted },
+    fieldLabel: { ...typography.caption, color: c.mutedForeground },
     row2: { flexDirection: 'row', gap: spacing.sm },
 
     input: {
@@ -1500,7 +1557,8 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: radius.sm,
-      backgroundColor: c.surface,
+      // The shared Input: transparent, bordered (webmail contact form).
+      backgroundColor: 'transparent',
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       ...typography.body,

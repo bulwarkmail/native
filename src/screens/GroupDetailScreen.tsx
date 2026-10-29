@@ -3,11 +3,12 @@ import {
   View, Text, StyleSheet, Pressable, FlatList, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useInPane } from '../navigation/pane';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   ArrowLeft, Edit2, Trash2, Plus, Users, Mail, UserMinus,
-} from 'lucide-react-native';
+} from '../components/icons';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
 import {
@@ -35,6 +36,7 @@ export default function GroupDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const t = useLocaleStore((s) => s.t);
+  const inPane = useInPane();
   const { groupId } = route.params;
 
   const allContacts = useContactsStore((s) => s.contacts);
@@ -54,10 +56,13 @@ export default function GroupDetailScreen() {
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [removingMember, setRemovingMember] = React.useState<ContactCard | null>(null);
+  // Before the not-found return, so deleting the group doesn't change the
+  // number of hooks (React throws on that).
+  const excludedIds = React.useMemo(() => new Set(members.map((m) => m.id)), [members]);
 
   if (!group) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <Pressable
             onPress={() => navigation.goBack()}
@@ -127,20 +132,21 @@ export default function GroupDetailScreen() {
     }
   };
 
-  const excludedIds = React.useMemo(() => new Set(members.map((m) => m.id)), [members]);
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.headerBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', 'Back')}
-        >
-          <ArrowLeft size={22} color={c.text} />
-        </Pressable>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={[styles.header, inPane && styles.headerInPane]}>
+        {/* In a split view's pane the list is right next to it: no back. */}
+        {!inPane && (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
+            <ArrowLeft size={22} color={c.text} />
+          </Pressable>
+        )}
         <Text style={styles.headerTitle} numberOfLines={1}>{name}</Text>
         <View style={styles.headerActions}>
           <Pressable
@@ -262,6 +268,7 @@ export default function GroupDetailScreen() {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
+  headerInPane: { paddingLeft: spacing.lg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

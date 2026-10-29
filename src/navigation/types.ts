@@ -67,6 +67,8 @@ export type RootStackParamList = {
      * viewer pages over the store's current folder.
      */
     emailIds?: string[];
+    /** Open the composer on a reply once the message has loaded (widget Reply). */
+    action?: 'reply';
   };
   EmailSource: { emailId: string; blobId: string; subject?: string; jmapAccountId?: string };
   Compose:

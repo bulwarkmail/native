@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Mail } from 'lucide-react-native';
+import { Mail } from '../../components/icons';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { Button, Input } from '../../components';
@@ -73,6 +73,7 @@ export default function EmailStep({
               key={address}
               onPress={() => onChange(address)}
               style={styles.suggestion}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel={address}
             >
@@ -108,7 +109,9 @@ function makeStyles(c: ThemePalette) {
       borderColor: c.border,
       borderRadius: 999,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
+      // 40 dp plus the slop: the chips were about 26 dp tall.
+      minHeight: 40,
+      justifyContent: 'center',
       maxWidth: '100%',
     },
     suggestionText: { ...typography.caption, color: c.textSecondary },

@@ -8,6 +8,7 @@
 
 import { escapeHtml } from './email-html';
 import type { TimeFormat } from '../stores/settings-store';
+import { intlLocale } from './intl-locale';
 
 /** Localized label set the caller passes in (from the locale catalog). */
 export interface QuoteHeaderLabels {
@@ -65,9 +66,8 @@ export function formatQuoteDate(iso: string | undefined, timeFormat: TimeFormat,
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  const intlLocale = !locale || locale === 'en' ? 'en-US' : locale;
   try {
-    return d.toLocaleString(intlLocale, {
+    return d.toLocaleString(intlLocale(locale), {
       weekday: 'short',
       year: 'numeric',
       month: 'short',

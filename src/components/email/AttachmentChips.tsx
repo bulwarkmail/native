@@ -1,23 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { Paperclip, Download, Eye, ExternalLink, Save, Share2, FolderArchive } from 'lucide-react-native';
-import type { File } from 'expo-file-system';
+import { Paperclip, Download, Eye, ExternalLink, Save, Share2, FolderArchive } from '../icons';
 import type { Attachment, Email } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import {
-  shareAttachment, downloadAttachment, shareAttachmentViaSheet, fetchBlobBytes,
-  shareBytes, shareLocalFile, cachePreviewFile, writePreviewFile, discardPreviewFile,
+  shareAttachment, downloadAttachment, shareAttachmentViaSheet, fetchBlobBytes, shareBytes, attachmentSaveName,
 } from '../../lib/email-export';
 import {
-  getAttachmentDisplayName, visibleAttachments, previewKindFor, formatSize,
+  getAttachmentDisplayName, visibleAttachments, formatSize,
 } from '../../lib/attachment-display';
 import { emailExportFilename } from '../../lib/download-filename';
 import { ActionSheet, type ActionSheetItem } from './ActionSheet';
-import { AttachmentPreviewModal, type PreviewItem } from './AttachmentPreviewModal';
-import { emlPreviewFromBytes, type ExtractedAttachment } from './use-body-override';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal';
+import type { ExtractedAttachment } from './use-body-override';
+import { previewKindOf, useFilePreview, type PreviewSource } from './use-file-preview';
 
 interface Props {
   email: Email;
@@ -65,24 +64,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
   const [expanded, setExpanded] = React.useState(false);
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [sheetItem, setSheetItem] = React.useState<Item | null>(null);
-  const [preview, setPreview] = React.useState<PreviewItem | null>(null);
-  const [previewLoading, setPreviewLoading] = React.useState(false);
-  const previewSource = React.useRef<Item | null>(null);
-  // The file the open preview shows, in a temp folder of its own: images are
-  // cached by path, so two attachments both called "image001.png" must not
-  // share one. Deleted when the preview closes, unless it went to another
-  // app, which may still be reading it; the stale-export sweep gets that one.
-  const previewFile = React.useRef<{ file: File; handedOff: boolean } | null>(null);
-  // Bumped whenever a preview ends, so a download that finishes after its
-  // preview was closed is dropped instead of reopening it.
-  const previewSeq = React.useRef(0);
-  const endPreview = React.useCallback(() => {
-    previewSeq.current += 1;
-    const open = previewFile.current;
-    previewFile.current = null;
-    if (open && !open.handedOff) discardPreviewFile(open.file);
-  }, []);
-  React.useEffect(() => endPreview, [endPreview]);
+  const preview = useFilePreview();
 
   const items = React.useMemo<Item[]>(() => {
     const blobs = visibleAttachments(email, { hideInlineImageAttachments, calendarBannerShown, tnefUnpacked })
@@ -134,49 +116,29 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
     else await shareBytes(item.part.bytes, item.name, item.type, { forceSheet: true });
   }, t('email_viewer.attachment_failed', 'Could not share attachment'));
 
-  const showPreview = (item: Item) => {
-    const kind = previewKindFor({ name: item.name, type: item.type });
-    if (kind === 'none') { void open(item); return; }
-    previewSource.current = item;
-    endPreview();
-    const seq = previewSeq.current;
-    const stillOpen = () => seq === previewSeq.current;
-    setPreviewLoading(true);
-    setPreview(null);
-    void (async () => {
-      try {
-        if (kind === 'text' || kind === 'eml') {
-          const bytes = item.kind === 'blob'
-            ? await fetchBlobBytes(item.att.blobId, item.att.name, item.att.type, jmapAccountId)
-            : item.part.bytes;
-          const next: PreviewItem = kind === 'eml'
-            ? { kind, name: item.name, mimeType: item.type, eml: await emlPreviewFromBytes(bytes) }
-            : { kind, name: item.name, mimeType: item.type, text: new TextDecoder('utf-8').decode(bytes) };
-          if (stillOpen()) setPreview(next);
-          return;
-        }
-        const file = item.kind === 'blob'
-          ? await cachePreviewFile(item.att.blobId, item.name, item.type, jmapAccountId)
-          : writePreviewFile(item.part.bytes, item.name, item.type);
-        if (!stillOpen()) {
-          discardPreviewFile(file);
-          return;
-        }
-        previewFile.current = { file, handedOff: false };
-        setPreview({ kind, name: item.name, mimeType: item.type, fileUri: file.uri });
-      } catch (e) {
-        if (!stillOpen()) return;
-        setPreview(null);
-        Alert.alert(t('email_viewer.attachment_failed', 'Could not open attachment'), e instanceof Error ? e.message : String(e));
-      } finally {
-        if (stillOpen()) setPreviewLoading(false);
-      }
-    })();
-  };
+  const sourceOf = (item: Item): PreviewSource => (item.kind === 'blob'
+    ? {
+      from: 'blob',
+      blobId: item.att.blobId,
+      accountId: jmapAccountId,
+      email,
+      name: item.name,
+      type: item.type,
+      size: item.size,
+      saveName: attachmentSaveName(email, item.att.name, item.att.type),
+    }
+    : { from: 'bytes', bytes: item.part.bytes, name: item.name, type: item.type, size: item.size });
+
+  // The in-app preview where the type has one, else straight to another app.
+  const showPreview = (item: Item) => run(
+    item.key,
+    () => preview.open(sourceOf(item)),
+    t('email_viewer.attachment_failed', 'Could not open attachment'),
+  );
 
   const onTap = (item: Item) => {
     if (mailAttachmentAction === 'download') void save(item);
-    else showPreview(item);
+    else void showPreview(item);
   };
 
   const downloadAll = () => run('__all__', async () => {
@@ -204,11 +166,11 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
 
   const visible = expanded ? items : items.slice(0, 3);
   const sheetActions: ActionSheetItem[] = sheetItem ? [
-    ...(previewKindFor({ name: sheetItem.name, type: sheetItem.type }) !== 'none' ? [{
+    ...(previewKindOf(sheetItem) !== 'none' ? [{
       key: 'preview',
       label: t('email_viewer.attachment_actions.preview', 'Preview'),
       icon: <Eye size={18} color={c.textSecondary} />,
-      onPress: () => { const it = sheetItem; setSheetItem(null); showPreview(it); },
+      onPress: () => { const it = sheetItem; setSheetItem(null); void showPreview(it); },
     }] : []),
     {
       key: 'open',
@@ -278,36 +240,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
         onClose={() => setSheetItem(null)}
       />
 
-      <AttachmentPreviewModal
-        item={preview}
-        loading={previewLoading}
-        onClose={() => {
-          endPreview();
-          setPreview(null);
-          setPreviewLoading(false);
-        }}
-        onOpenExternal={() => {
-          const it = previewSource.current;
-          if (!it) return;
-          if (preview?.fileUri && it.kind === 'blob') {
-            void run(it.key, () => shareAttachment(it.att.blobId, it.att.name, it.att.type, email, jmapAccountId), t('email_viewer.attachment_failed', 'Could not open attachment'));
-          } else {
-            void open(it);
-          }
-        }}
-        onShare={() => {
-          const it = previewSource.current;
-          if (!it) return;
-          const open = previewFile.current;
-          if (open) {
-            // The receiving app may keep reading it after the sheet closes.
-            open.handedOff = true;
-            void shareLocalFile(open.file, it.type, it.name, { forceSheet: true, keep: true }).catch(() => undefined);
-          } else {
-            void share(it);
-          }
-        }}
-      />
+      <AttachmentPreviewModal {...preview.modalProps} />
     </View>
   );
 }

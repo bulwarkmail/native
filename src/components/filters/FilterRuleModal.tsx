@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, Alert,
+  View, Text, StyleSheet, ScrollView, Pressable, Alert,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Plus, Trash2 } from 'lucide-react-native';
+import { X, Plus, Trash2 } from '../icons';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { Select, ToggleSwitch } from '../settings/settings-section';
@@ -38,6 +38,8 @@ import type {
   FilterComparator,
   FilterActionType,
 } from '../../lib/sieve/types';
+import { SafeAreaModal } from '../SafeAreaModal';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment'];
 const TEXT_COMPARATORS: FilterComparator[] = ['contains', 'not_contains', 'is', 'not_is', 'starts_with', 'ends_with', 'matches'];
@@ -238,7 +240,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
   }, [name, conditions, actions, matchType, stopProcessing, includeSpam, rule, onSave, t, mailboxTargets]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable
@@ -503,7 +505,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
           </Button>
         </View>
       </SafeAreaView>
-    </Modal>
+    </SafeAreaModal>
   );
 }
 

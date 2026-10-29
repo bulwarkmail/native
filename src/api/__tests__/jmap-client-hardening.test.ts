@@ -450,6 +450,40 @@ describe('JMAPClient hardening', () => {
     expect(client.authHeader).toBe(`Basic ${btoa('c@example.com:pw')}`);
   });
 
+  // On iOS the notification extension refreshes OAuth tokens too and writes
+  // the new bundle back. Refreshing again with the refresh token in memory
+  // would spend a token the server has already replaced.
+  it('retries a 401 with a newer stored token instead of refreshing again', async () => {
+    const SecureStore = await import('expo-secure-store');
+    const client = new JMAPClient();
+    mockFetch([{ status: 200, json: SESSION }]);
+    await client.connectWithOAuth('https://mail.example.com', {
+      accessToken: 'old',
+      refreshToken: 'r1',
+      expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    });
+    (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify({
+      serverUrl: 'https://mail.example.com',
+      username: 'user@example.com',
+      password: '',
+      accessToken: 'from-extension',
+      refreshToken: 'r2',
+      expiresAt: Date.now() + 7_200_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    }));
+    const fetch = mockFetch([
+      { status: 401 },
+      { status: 200, json: { methodResponses: [['Mailbox/get', {}, '0']] } },
+    ]);
+    await client.request([['Mailbox/get', {}, '0']]);
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect((fetch.mock.calls[1][1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer from-extension' });
+    (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockReset();
+  });
+
   it('updatePassword rewrites the stored credential', async () => {
     const SecureStore = await import('expo-secure-store');
     const client = await connected();

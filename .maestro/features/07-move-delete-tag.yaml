@@ -1,0 +1,85 @@
+# Message actions with undo: move to a folder, delete to Trash, select and
+# star from the list.
+appId: org.bulwarkmail.mobile
+name: Move, delete, select
+tags:
+  - features
+---
+- runFlow: ../subflows/signed-in.yaml
+
+# Move via More → Move to...
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Weekly digest
+- tapOn: "more"
+- extendedWaitUntil:
+    visible: "More actions"
+    timeout: 10000
+- takeScreenshot: actions-01-more
+- tapOn: "Move to..."
+- extendedWaitUntil:
+    visible: "Move to..."
+    timeout: 10000
+- tapOn:
+    text: "Projects"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
+- takeScreenshot: actions-02-moved
+# Tap UNDO at once (see 06-swipe-undo: a late tap opens the composer).
+- tapOn:
+    text: "UNDO"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
+- runFlow: ../subflows/close-message.yaml
+- extendedWaitUntil:
+    visible: ".*Weekly digest.*"
+    timeout: 15000
+
+# Delete (to Trash) and undo
+- runFlow:
+    file: ../subflows/open-message.yaml
+    env:
+      SUBJECT: Weekly digest
+- takeScreenshot: actions-03a-before-delete
+- tapOn:
+    text: "Delete"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
+- takeScreenshot: actions-03-deleted
+- tapOn:
+    text: "UNDO"
+    # The undo bar shows for 5 s: don't spend them waiting for the screen to settle.
+    waitToSettleTimeoutMs: 500
+- runFlow: ../subflows/close-message.yaml
+- extendedWaitUntil:
+    visible: ".*Weekly digest.*"
+    timeout: 15000
+
+# Select from the list and star, then unstar. On a phone the row can be
+# below the fold (earlier runs left mail on top).
+- scrollUntilVisible:
+    element: ".*Grüße aus München.*"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- longPressOn: ".*Grüße aus München.*"
+- extendedWaitUntil:
+    visible: "Clear selection"
+    timeout: 10000
+- takeScreenshot: actions-04-selected
+# Star (or Unstar, when an earlier run left it starred), then toggle back.
+- tapOn: "Star|Unstar"
+# A bulk action ends selection mode by itself.
+- runFlow:
+    when:
+      visible: "Clear selection"
+    commands:
+      - tapOn: "Clear selection"
+- longPressOn: ".*Grüße aus München.*"
+- tapOn: "Unstar|Star"
+- runFlow:
+    when:
+      visible: "Clear selection"
+    commands:
+      - tapOn: "Clear selection"

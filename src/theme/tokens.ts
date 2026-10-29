@@ -117,30 +117,35 @@ const TAGS: TagColors = {
 };
 
 export const DARK_COLORS: ThemePalette = {
-  primary: '#3b82f6',
-  primaryDark: '#2563eb',
-  primaryLight: '#60a5fa',
-  primaryBg: '#172554',
+  // The webmail's standard dark theme (app/globals.css .dark): a white
+  // primary with near-black text on neutral greys. The app used to keep a
+  // blue primary and zinc greys here.
+  primary: '#fafafa',
+  primaryDark: '#e5e5e5',
+  primaryLight: '#d4d4d4',
+  primaryBg: '#1e3a8a',
   primaryBgHover: '#1e40af',
-  primaryForeground: '#ffffff',
-  primaryBorder: 'rgba(59, 130, 246, 0.19)',
+  primaryForeground: '#171717',
+  primaryBorder: 'rgba(250, 250, 250, 0.19)',
 
-  background: '#09090b',
-  surface: '#18181b',
-  surfaceHover: '#1f1f23',
-  surfaceActive: '#27272a',
+  background: '#0a0a0a',
+  surface: '#262626',
+  surfaceHover: '#1a1a1a',
+  surfaceActive: '#262626',
   card: '#141414',
   cardForeground: '#fafafa',
 
   text: '#fafafa',
-  textSecondary: '#a1a1aa',
-  textMuted: '#71717a',
-  textInverse: '#0f172a',
+  textSecondary: '#a3a3a3',
+  textMuted: '#737373',
+  textInverse: '#0a0a0a',
+  // Links stay blue (webmail: info) so they read as links on a white-primary
+  // theme.
   textLink: '#60a5fa',
 
-  border: '#27272a',
-  borderLight: '#18181b',
-  borderFocus: '#3b82f6',
+  border: 'rgba(128, 128, 128, 0.3)',
+  borderLight: '#262626',
+  borderFocus: '#d4d4d4',
 
   success: '#16a34a',
   successBg: '#052e16',
@@ -156,7 +161,7 @@ export const DARK_COLORS: ThemePalette = {
   infoForeground: '#ffffff',
 
   unread: '#60a5fa',
-  read: '#a1a1aa',
+  read: '#a3a3a3',
   starred: '#fbbf24',
   flagged: '#ef4444',
   draft: '#a78bfa',
@@ -173,21 +178,21 @@ export const DARK_COLORS: ThemePalette = {
 
   tags: TAGS,
 
-  navActive: '#3b82f6',
-  navInactive: '#71717a',
+  navActive: '#fafafa',
+  navInactive: '#a3a3a3',
   navBadge: '#ef4444',
 
-  secondary: '#18181b',
+  secondary: '#262626',
   secondaryForeground: '#fafafa',
-  muted: '#18181b',
-  mutedForeground: '#a1a1aa',
-  accent: '#172554',
-  accentForeground: '#93c5fd',
+  muted: '#262626',
+  mutedForeground: '#a3a3a3',
+  accent: '#1e3a8a',
+  accentForeground: '#dbeafe',
 
   selection: 'rgba(59, 130, 246, 0.25)',
   selectionForeground: '#93c5fd',
 
-  popover: '#18181b',
+  popover: '#1c1c1c',
   popoverForeground: '#fafafa',
 
   chart1: '#60a5fa', chart2: '#4ade80', chart3: '#fbbf24', chart4: '#f87171', chart5: '#a78bfa',
@@ -321,6 +326,25 @@ export const componentSizes = {
   headerHeight: 56, inputHeight: 40,
   buttonSm: 36, buttonMd: 40, buttonLg: 44,
   tagDot: 6, eventDot: 6,
-  toggleHeight: 24, toggleWidth: 44, toggleThumb: 16,
+  toggleHeight: 24, toggleWidth: 44, toggleThumb: 20,
   fab: 56, badgeSize: 16,
 } as const;
+
+/**
+ * `top` over `bottom` at `amount` opacity, as an opaque #rrggbb: the
+ * webmail's `bg-accent/30` for a surface that must hide what is behind it
+ * (a list row over its swipe actions). Takes #rrggbb; anything else
+ * returns `bottom` unchanged.
+ */
+export function mix(top: string, bottom: string, amount: number): string {
+  const parse = (hex: string) => {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const a = parse(top);
+  const b = parse(bottom);
+  if (!a || !b) return bottom;
+  return `#${a.map((v, i) => Math.round(v * amount + b[i] * (1 - amount)).toString(16).padStart(2, '0')).join('')}`;
+}

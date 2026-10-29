@@ -4,7 +4,7 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import {
   Key, Smartphone, Lock, Eye, EyeOff, ShieldCheck, Monitor, Trash2,
   Plus, Shield, Terminal, Check, ExternalLink, Calendar, X,
-} from 'lucide-react-native';
+} from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Input from '../Input';
 import Button from '../Button';

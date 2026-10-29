@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput, FlatList, Modal, Alert,
 } from 'react-native';
-import { ChevronRight, X, Plus, Trash2, BookUser } from 'lucide-react-native';
+import { ChevronRight, X, Plus, Trash2, BookUser } from '../icons';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -10,7 +10,9 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ExternalContentPolicy } from '../../stores/settings-store';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useHasContacts } from '../../lib/capabilities';
+import { isTrustedSendersSyncOn } from '../../lib/trusted-senders';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 interface TrustedRow {
   email: string;
@@ -49,9 +51,8 @@ export function ContentSendersSettings() {
 
   useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
 
-  // Sync stays off until the user turns it on below (null = never chosen):
-  // opening this pane must not change which senders the viewer trusts.
-  const syncEnabled = !!trustedSendersAddressBook && hasContacts;
+  // On unless the user turned it off below (null = never chosen).
+  const syncEnabled = isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts);
 
   useEffect(() => {
     if (modalOpen && syncEnabled) void loadTrustedSendersBook();
@@ -179,7 +180,7 @@ export function ContentSendersSettings() {
             description={t('settings.email_behavior.trusted_senders.use_address_book_description', 'Store trusted senders in a dedicated "Trusted Senders" address book so they sync across all your devices')}
           >
             <ToggleSwitch
-              checked={!!trustedSendersAddressBook}
+              checked={syncEnabled}
               onChange={(enabled) => {
                 updateSetting('trustedSendersAddressBook', enabled);
                 if (enabled) void loadTrustedSendersBook();
@@ -189,14 +190,14 @@ export function ContentSendersSettings() {
         )}
       </SettingsSection>
 
-      <Modal
+      <Modal supportedOrientations={MODAL_ORIENTATIONS}
         visible={modalOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setModalOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setModalOpen(false)}>
-          <Pressable style={styles.modalCard} onPress={() => {}}>
+        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setModalOpen(false)}>
+          <Pressable accessible={false} style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('settings.email_behavior.trusted_senders.modal_title', 'Trusted Senders')}</Text>
               <Pressable

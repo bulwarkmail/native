@@ -4,17 +4,20 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
   Download, Upload, Plus, Pencil, Trash2, Check, X, BookUser, Star,
-} from 'lucide-react-native';
+} from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import Dialog from '../Dialog';
 import { ContactImportSheet, AddressBookPickerSheet } from '../contacts';
+import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useContactsStore, selectAddressBooksWithCount } from '../../stores/contacts-store';
 import { contactsToVCard } from '../../lib/vcard';
 import { isGroup } from '../../lib/contact-utils';
 import { inlineContactMediaForExport } from '../../lib/contact-media';
+import { deviceSyncAvailable } from '../../device-sync/app/available';
+import { CONTACTS_AUTHORITY } from '../../device-sync/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 
@@ -54,6 +57,8 @@ export function ContactsSettings() {
   const [newName, setNewName] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string; count: number } | null>(null);
+  // Android with the native module only (#34).
+  const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
 
   const exportable = React.useMemo(() => contacts.filter((cc) => !isGroup(cc)), [contacts]);
   const exportLabel =
@@ -357,6 +362,17 @@ export function ContactsSettings() {
           </Button>
         </View>
       </SettingsSection>
+
+      {deviceSync && (
+        <DeviceSyncSection
+          authority={CONTACTS_AUTHORITY}
+          title={t('settings.contacts.device_sync_title', 'Sync to this device')}
+          description={t(
+            'settings.contacts.device_sync_desc',
+            'Show your address books in the Contacts app and other apps on this device. Changes sync both ways.',
+          )}
+        />
+      )}
 
       <ContactImportSheet
         visible={importOpen}

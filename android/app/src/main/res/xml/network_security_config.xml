@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Trust anchors for every connection the app makes (fetch, the client
+  certificate module, the sync adapters). Android 7+ trusts only the system
+  CAs unless the app opts in; a self-hosted server behind a private CA
+  installed under Settings > Security > Encryption & credentials would fail
+  with "Network request failed" otherwise (#3). Cleartext stays off, as it is
+  for an app targeting API 28+ without this file; the debug source set
+  overrides this for Metro.
+-->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false">
+    <trust-anchors>
+      <certificates src="system" />
+      <certificates src="user" />
+    </trust-anchors>
+  </base-config>
+</network-security-config>

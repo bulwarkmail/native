@@ -32,6 +32,7 @@ function installButtonLabel(
 ): string {
   if (!installing) return t('updates.install', 'Install');
   if (progress?.phase === 'installing') return t('updates.installing', 'Installing…');
+  if (progress?.phase === 'verifying') return t('updates.verifying', 'Verifying…');
   if (progress?.progress != null) {
     return t('updates.downloading_pct', 'Downloading {pct}%', { pct: Math.round(progress.progress * 100) });
   }
@@ -213,10 +214,12 @@ export function UpdatesSettings() {
                 style={[
                   styles.progressFill,
                   {
+                    // The download is complete once it is verifying, so the
+                    // bar stays full instead of restarting at 0.
                     width:
-                      installProgress.phase === 'installing'
-                        ? '100%'
-                        : `${Math.round((installProgress.progress ?? 0) * 100)}%`,
+                      installProgress.phase === 'downloading'
+                        ? `${Math.round((installProgress.progress ?? 0) * 100)}%`
+                        : '100%',
                   },
                 ]}
               />
@@ -224,7 +227,9 @@ export function UpdatesSettings() {
             <Text style={styles.progressLabel}>
               {installProgress.phase === 'installing'
                 ? t('updates.opening_installer', 'Opening installer…')
-                : formatProgressLabel(installProgress, t)}
+                : installProgress.phase === 'verifying'
+                  ? t('updates.verifying', 'Verifying…')
+                  : formatProgressLabel(installProgress, t)}
             </Text>
           </View>
         ) : null}
@@ -262,7 +267,7 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.muted,
     gap: spacing.sm,
   },
-  notesTitle: { ...typography.caption, color: c.mutedForeground, textTransform: 'uppercase' },
+  notesTitle: { ...typography.captionMedium, color: c.mutedForeground },
   notesBody: { ...typography.body, color: c.text, lineHeight: 20 },
   progressBox: {
     paddingHorizontal: spacing.md,

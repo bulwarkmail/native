@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- The in-app updater hands the downloaded release APK to the system
+       installer (src/lib/install-update.ts). Only the sideloaded GitHub build
+       updates itself; the Play build is updated by Play. -->
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+</manifest>

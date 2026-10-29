@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { ArrowRight, ArrowLeft, MoveVertical, ArrowDownWideNarrow } from 'lucide-react-native';
+import { ArrowRight, ArrowLeft, MoveVertical, ArrowDownWideNarrow } from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch, RadioGroup, Select } from './settings-section';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';

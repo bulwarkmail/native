@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'rea
 import {
   Plus, X, Code, AlertTriangle, Filter, RotateCcw, Lock,
   ChevronUp, ChevronDown, Palmtree, ChevronRight,
-} from 'lucide-react-native';
+} from '../icons';
 import { SettingsSection, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -21,6 +21,7 @@ import { FilterRuleModal } from '../filters/FilterRuleModal';
 import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
+import Badge from '../Badge';
 
 type Translate = (key: string, fallback?: string) => string;
 
@@ -366,7 +367,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <View style={styles.ruleNameRow}>
                         <Text style={styles.ruleName} numberOfLines={1}>{rule.name}</Text>
-                        <View style={styles.originBadge}><Text style={styles.originBadgeText}>{label}</Text></View>
+                        <Badge>{label}</Badge>
                       </View>
                       {hasStructured ? (
                         expandedView ? (
@@ -512,11 +513,13 @@ function makeStyles(c: ThemePalette) {
       padding: spacing.md,
       borderRadius: radius.sm,
       borderWidth: 1,
-      borderColor: 'rgba(252, 211, 77, 0.4)',
-      backgroundColor: 'rgba(120, 53, 15, 0.25)',
+      // Theme warning tokens: the fixed dark-amber values left light-yellow
+      // text on a near-white fill in the light theme.
+      borderColor: c.warning,
+      backgroundColor: c.warningBg,
       alignItems: 'flex-start',
     },
-    opaqueText: { ...typography.caption, color: '#fde68a' },
+    opaqueText: { ...typography.caption, color: c.text },
     opaqueActions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm, flexWrap: 'wrap', alignItems: 'center' },
     resetConfirmRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
     resetLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -569,8 +572,6 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.muted,
       borderRadius: radius.xs,
     },
-    originBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full, backgroundColor: c.muted },
-    originBadgeText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
 
     reorderCol: { alignItems: 'center' },
     reorderBtn: { padding: 2 },

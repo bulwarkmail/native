@@ -11,13 +11,15 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Trash2, UserPlus, Users } from 'lucide-react-native';
+import { Trash2, UserPlus, Users } from '../icons';
 import { listPrincipals, ownPrincipalId, type PrincipalListing } from '../../api/files';
 import type { Calendar, CalendarRights, Principal } from '../../api/types';
 import { directoryNotice } from '../../lib/principal-directory';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
 
 type RolePreset = 'freeBusy' | 'read' | 'readWrite' | 'manager';
 
@@ -70,6 +72,8 @@ interface CalendarShareSheetProps {
 // principal list comes from the same Principal/query the Files share sheet
 // uses.
 export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShareSheetProps) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -110,6 +114,9 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
   );
 
   const candidates = React.useMemo(() => {
+    // The sheet is mounted with the Calendar tab, before a session may exist
+    // (an offline cold start): nobody to list yet, and no own id to read.
+    if (principals.length === 0) return [];
     const self = ownPrincipalId();
     const q = search.trim().toLowerCase();
     return principals
@@ -177,10 +184,10 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
   };
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
             <View style={styles.sheet}>
               <View style={styles.titleRow}>
                 <Users size={18} color={c.textMuted} />

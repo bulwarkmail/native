@@ -3,6 +3,16 @@
 // (MAX_SSE_STREAMS), so nothing scales with this number at runtime.
 export const MAX_ACCOUNTS = 10;
 
+/** A new account would take the registry past MAX_ACCOUNTS. */
+export class AccountLimitError extends Error {
+  readonly limit = MAX_ACCOUNTS;
+
+  constructor() {
+    super(`Maximum of ${MAX_ACCOUNTS} accounts reached`);
+    this.name = 'AccountLimitError';
+  }
+}
+
 export function generateAccountId(username: string, serverUrl: string): string {
   let host = serverUrl;
   try {

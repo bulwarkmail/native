@@ -4,7 +4,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -24,7 +23,7 @@ import {
   Plus,
   Trash2,
   X,
-} from 'lucide-react-native';
+} from '../icons';
 import { format, isBefore, startOfDay } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -41,7 +40,11 @@ import {
 } from '../../lib/task-editor';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { formatCalendarDate } from '../../lib/date-format';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetInsets } from '../../lib/use-layout';
+import { SafeAreaModal } from '../SafeAreaModal';
 
 type TaskFilter = 'all' | 'pending' | 'completed' | 'overdue';
 
@@ -52,6 +55,8 @@ interface TasksSheetProps {
   timeFormat?: TimeFormat;
   // Task to open in the editor when the sheet appears (from a calendar chip).
   initialTaskId?: string | null;
+  // Open straight on an empty editor (the calendar's "new task" button).
+  startNew?: boolean;
   onClose: () => void;
   onCreate: (task: Partial<CalendarEvent>, calendarId: string) => Promise<void> | void;
   onUpdate?: (id: string, changes: Partial<CalendarEvent>) => Promise<void> | void;
@@ -94,6 +99,7 @@ export function TasksSheet({
   calendars,
   timeFormat,
   initialTaskId,
+  startNew = false,
   onClose,
   onCreate,
   onUpdate,
@@ -104,6 +110,8 @@ export function TasksSheet({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({
     slideY,
@@ -132,10 +140,10 @@ export function TasksSheet({
       setExpanded(true);
     } else {
       setEditor(emptyTaskEditor(defaultCalendarId));
-      setExpanded(false);
+      setExpanded(startNew);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, initialTaskId]);
+  }, [visible, initialTaskId, startNew]);
 
   React.useEffect(() => {
     if (visible && !editor.calendarId && defaultCalendarId) {
@@ -206,8 +214,8 @@ export function TasksSheet({
     if (!d || !task.due) return null;
     const hasTime = !task.showWithoutTime && !/^\d{4}-\d{2}-\d{2}$/.test(task.due);
     return hasTime
-      ? format(d, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale })
-      : format(d, 'EEE, MMM d', { locale });
+      ? `${formatCalendarDate(d, locale.code, 'weekdayMonthDay')} · ${format(d, timePattern(timeFormat), { locale })}`
+      : formatCalendarDate(d, locale.code, 'weekdayMonthDay');
   };
 
   const priorityColor = (level: PriorityLevel): string =>
@@ -227,12 +235,12 @@ export function TasksSheet({
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
 
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
         <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
           <View {...dragHandlers}>
             <View style={styles.handleHit}>
@@ -244,7 +252,7 @@ export function TasksSheet({
               <Pressable
                 onPress={onClose}
                 style={styles.closeBtn}
-                hitSlop={8}
+                hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.close', 'Close')}
               >
@@ -292,7 +300,7 @@ export function TasksSheet({
                 >
                   <CalendarIcon size={14} color={editor.due ? c.primary : c.textMuted} />
                   <Text style={[styles.chipText, editor.due && styles.chipTextActive]}>
-                    {editor.due ? format(editor.due, 'MMM d', { locale }) : t('calendar.tasks.due_date', 'Due date')}
+                    {editor.due ? formatCalendarDate(editor.due, locale.code, 'monthDay') : t('calendar.tasks.due_date', 'Due date')}
                   </Text>
                   {editor.due && (
                     <Pressable
@@ -472,7 +480,7 @@ export function TasksSheet({
           }}
         />
       )}
-    </Modal>
+    </SafeAreaModal>
   );
 }
 
@@ -522,7 +530,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.sm,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      backgroundColor: c.surface,
+      backgroundColor: c.background,
     },
     addBtn: {
       width: 38,
@@ -544,7 +552,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.sm,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      backgroundColor: c.surface,
+      backgroundColor: c.background,
       textAlignVertical: 'top',
     },
     editorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },

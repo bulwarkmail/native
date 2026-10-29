@@ -1,10 +1,11 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
-import { Repeat, Trash2 } from 'lucide-react-native';
+import { Repeat, Trash2 } from '../icons';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { Button } from '..';
+import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 export type RecurrenceEditScope = 'this' | 'this_and_future' | 'all';
 
@@ -42,7 +43,7 @@ export function RecurrenceScopeDialog({
   }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.dialog}>
           <View style={styles.header}>

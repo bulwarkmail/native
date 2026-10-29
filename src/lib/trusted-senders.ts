@@ -1,4 +1,14 @@
 /**
+ * Whether "Sync trusted senders to address book" is in effect. Never chosen
+ * (null) counts as on, so trusted senders land in the dedicated "Trusted
+ * Senders" address book out of the box; only the user's opt-out (false), or
+ * a server without contacts, turns it off.
+ */
+export function isTrustedSendersSyncOn(setting: boolean | null | undefined, hasContacts: boolean): boolean {
+  return hasContacts && setting !== false;
+}
+
+/**
  * Whether the viewer may load a sender's remote content (images, tracking
  * pixels) without asking.
  *
@@ -13,8 +23,8 @@ export function isSenderContentTrusted(
   opts: {
     /** The settings store's local allow-list check. */
     isLocallyTrusted: (email: string) => boolean;
-    /** The "Sync trusted senders to address book" setting (null = never chosen, off). */
-    syncEnabled: boolean | null;
+    /** Whether address book sync is in effect (`isTrustedSendersSyncOn`). */
+    syncEnabled: boolean;
     /** Lowercased addresses filed in the "Trusted Senders" book. */
     trustedBookEmails: readonly string[];
   },
@@ -22,5 +32,5 @@ export function isSenderContentTrusted(
   const email = senderEmail?.trim();
   if (!email) return false;
   if (opts.isLocallyTrusted(email)) return true;
-  return !!opts.syncEnabled && opts.trustedBookEmails.includes(email.toLowerCase());
+  return opts.syncEnabled && opts.trustedBookEmails.includes(email.toLowerCase());
 }

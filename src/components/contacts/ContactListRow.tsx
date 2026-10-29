@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Check, Users } from 'lucide-react-native';
+import { Check, Users } from '../icons';
 import type { ContactCard } from '../../api/types';
 import {
   getContactDisplayName,
@@ -20,6 +20,8 @@ interface ContactListRowProps {
   onPress?: () => void;
   onLongPress?: () => void;
   selected?: boolean;
+  /** The contact open in the detail pane of a split view. */
+  active?: boolean;
   selectionMode?: boolean;
   secondaryText?: string;
 }
@@ -29,6 +31,7 @@ export default function ContactListRow({
   onPress,
   onLongPress,
   selected,
+  active = false,
   selectionMode,
   secondaryText,
 }: ContactListRowProps) {
@@ -62,6 +65,7 @@ export default function ContactListRow({
       style={({ pressed }) => [
         styles.row,
         pressed && styles.rowPressed,
+        active && styles.rowActive,
         selected && styles.rowSelected,
       ]}
     >
@@ -99,6 +103,13 @@ function makeStyles(c: ThemePalette) {
   },
   rowPressed: { backgroundColor: c.surfaceHover },
   rowSelected: { backgroundColor: c.primaryBg },
+  // Same as the open message in the mail list (webmail bg-selection + bar).
+  rowActive: {
+    backgroundColor: c.selection,
+    borderLeftWidth: 2,
+    borderLeftColor: c.primary,
+    paddingLeft: spacing.lg - 2,
+  },
   checkbox: {
     width: 22,
     height: 22,
@@ -129,6 +140,6 @@ function makeStyles(c: ThemePalette) {
   info: { flex: 1, minWidth: 0 },
   name: { ...typography.bodyMedium, color: c.text },
   subtitle: { ...typography.caption, color: c.textMuted, marginTop: 1 },
-  tertiary: { ...typography.small, color: c.textSecondary, marginTop: 1 },
+  tertiary: { ...typography.caption, color: c.mutedForeground, marginTop: 1 },
   });
 }

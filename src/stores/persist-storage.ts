@@ -16,6 +16,7 @@
 
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { perfMark } from '../lib/perf-marks';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 
 /** How long a store's write waits to take in further changes. */
@@ -93,9 +94,12 @@ export function createPersistStorage<S>(
   return {
     getItem: async (name) => {
       try {
+        const t0 = Date.now();
         const raw = await AsyncStorage.getItem(name);
         if (raw === null) return null;
+        const t1 = Date.now();
         const value = JSON.parse(raw) as StorageValue<S>;
+        perfMark('hydrate', { store: name, readMs: t1 - t0, parseMs: Date.now() - t1, kb: Math.round(raw.length / 1024) });
         slotFor(name).stored = raw;
         return value;
       } catch (err) {

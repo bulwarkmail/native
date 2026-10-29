@@ -1,0 +1,52 @@
+# Sign in via webmail while the browser still has a webmail session (from
+# 06-webmail, or from using the webmail in Safari): the hand-off must still
+# reach the app. Before the fix, the webmail's login page redirected an
+# existing session to its own inbox inside the sign-in sheet, and the app
+# never got the sign-in.
+appId: org.bulwarkmail.mobile
+name: Webmail hand-off with an existing webmail session
+tags:
+  - signin
+---
+# Leaves a webmail session in the shared browser cookies.
+- runFlow: ../subflows/start.yaml
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${WEBMAIL}
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- extendedWaitUntil:
+    visible: "user@example.com|Hand over to the app|.*Inbox.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "user@example.com"
+    commands:
+      - runFlow:
+          file: ../subflows/webmail-login-page.yaml
+          env:
+            LOGIN: ${ACCOUNT}@example.org
+- runFlow:
+    when:
+      visible: "Hand over to the app"
+    commands:
+      - tapOn: "Hand over to the app"
+- runFlow: ../subflows/inbox.yaml
+- runFlow: ../subflows/sign-out.yaml
+
+# Again: the webmail now knows the user.
+- extendedWaitUntil:
+    visible: "Enter server details manually"
+    timeout: 30000
+- runFlow:
+    file: ../subflows/manual-server.yaml
+    env:
+      HOST: ${WEBMAIL}
+- tapOn: "Continue"
+- runFlow: ../subflows/allow-auth-session.yaml
+- extendedWaitUntil:
+    visible: "user@example.com|Hand over to the app|Search mail.*"
+    timeout: 60000
+- takeScreenshot: webmail-session-01-second-visit
+- assertNotVisible: "Search mail.*"

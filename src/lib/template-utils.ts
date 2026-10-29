@@ -4,6 +4,7 @@
 
 import type { EmailTemplate } from '../stores/templates-store';
 import { generateUUID } from './uuid';
+import { intlLocale } from './intl-locale';
 
 export const BUILT_IN_PLACEHOLDERS = [
   'recipient_name',
@@ -63,13 +64,12 @@ export function getAutoFilledPlaceholders(
   context: AutoFillContext,
 ): Record<string, string> {
   const now = new Date();
-  const locale = context.locale || 'en';
-  const intlLocale = locale === 'en' ? 'en-US' : locale;
+  const intlTag = intlLocale(context.locale);
 
   const values: Record<string, string> = {};
   try {
-    values.date = now.toLocaleDateString(intlLocale, { year: 'numeric', month: 'long', day: 'numeric' });
-    values.day_of_week = now.toLocaleDateString(intlLocale, { weekday: 'long' });
+    values.date = now.toLocaleDateString(intlTag, { year: 'numeric', month: 'long', day: 'numeric' });
+    values.day_of_week = now.toLocaleDateString(intlTag, { weekday: 'long' });
   } catch {
     values.date = now.toDateString();
     values.day_of_week = now.toLocaleDateString(undefined, { weekday: 'long' });

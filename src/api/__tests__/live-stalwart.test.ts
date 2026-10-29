@@ -22,6 +22,8 @@ import {
   getFullEmails,
   getThreadsHeaders,
   createDraft,
+  saveDraftVersion,
+  destroyEmails,
   sendEmail,
   markAsSpam,
   undoSpam,
@@ -33,6 +35,9 @@ import {
   EMAIL_FULL_PROPERTIES,
 } from '../email';
 import { getIdentities } from '../identity';
+import { uploadBytes } from '../blob';
+import { initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs } from '../../lib/draft-part-blobs';
+import type { OutgoingAttachment } from '../email';
 import { getCalendars, queryEvents, createEvent, deleteEvents } from '../calendar';
 import { getAddressBooks, createContact, deleteContacts } from '../contacts';
 
@@ -191,6 +196,44 @@ live('live Stalwart', () => {
       const { destroyEmails } = await import('../email');
       await destroyEmails([id]);
     }, 60_000);
+
+    it('keeps a re-opened draft with an inline image saveable across saves (#849 part blobs)', async () => {
+      // A 1x1 PNG uploaded once; D0 stands for the draft as it sits on the server.
+      const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+      const up = await uploadBytes(png, 'image/png');
+      const base = {
+        from: [{ email: USER }],
+        to: [{ email: 'test@example.invalid' }],
+        subject: '[TEST bulwark-blob — supprimable]',
+        htmlBody: '<p>live <img src="cid:img1@live.test"></p>',
+        textBody: 'live',
+      };
+      const img = (blobId: string): OutgoingAttachment => ({
+        blobId, type: 'image/png', name: 'img1.png', size: png.byteLength, disposition: 'inline', cid: 'img1@live.test',
+      });
+      const d0 = await saveDraftVersion({ ...base, attachments: [img(up.blobId)] }, drafts);
+      const created = [d0.id];
+      try {
+        // Re-open D0: the composer holds D0's part blobId.
+        const seeded = d0.attachments[0].blobId;
+        let state = initialDraftPartBlobState();
+        let draftId = d0.id;
+        for (let i = 0; i < 2; i++) {
+          const sent = [img(liveBlobId(state, seeded))];
+          const saved = await saveDraftVersion({ ...base, attachments: sent }, drafts, draftId);
+          created.push(saved.id);
+          draftId = saved.id;
+          state = rebaseDraftPartBlobs(state, sent, saved.attachments);
+        }
+        // Without the rebase the seeded part blob is gone with D0.
+        await expect(saveDraftVersion({ ...base, attachments: [img(seeded)] }, drafts))
+          .rejects.toThrow(/does not exist|blobNotFound/);
+        const [last] = await getFullEmails([draftId]);
+        expect(last.attachments?.[0]?.cid).toContain('img1@live.test');
+      } finally {
+        await destroyEmails(created).catch(() => undefined);
+      }
+    }, 90_000);
 
     it('sends through Drafts and files into Sent only after submission (#188)', async () => {
       const identities = await getIdentities();

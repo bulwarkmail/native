@@ -315,4 +315,4 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
 - Print contact (`components/contacts/contact-print.ts`).
 - Plugin contact APIs and the `contact-cryptokeys` plugin slot.
 - `mailto:`/`tel:` handoff differences (RN uses `Linking`).
-- Native issue #34 (device contacts / calendar sync adapters) is a feature request, not a parity item; note that a device sync would want the UID (#644) and PartialDate (#224) fixes above first.
+- Native issue #34 (device contacts / calendar sync adapters) is not a parity item; it is done on Android (Settings → Contacts → "Sync to this device", [design](../device-sync.md)) and builds on the UID (#644) and PartialDate (#224) fixes above.

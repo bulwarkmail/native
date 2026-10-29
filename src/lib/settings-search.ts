@@ -11,14 +11,18 @@
 //     through t() for the current locale, with the English fallback.
 // Kept free of React so it can be unit-tested.
 
+import { supportsDeviceSync } from './platform-capabilities';
+
 export type SettingsTabId =
   | 'account' | 'language' | 'notifications'
   | 'appearance' | 'layout'
   | 'reading' | 'composing' | 'identities' | 'vacation'
   | 'filters' | 'templates' | 'folders' | 'keywords' | 'downloads'
-  | 'security' | 'encryption' | 'content_senders'
+  | 'security' | 'content_senders'
   | 'calendar' | 'contacts' | 'files' | 'sidebar_apps'
-  | 'about_data' | 'themes' | 'plugins' | 'updates' | 'debug';
+  // about_data is Storage & backup (the id predates the split from About);
+  // debug, licences and privacy are pages opened from inside another one.
+  | 'about_data' | 'about' | 'licences' | 'privacy' | 'themes' | 'updates' | 'debug';
 
 // Translation paths per pane. A path may point at a whole namespace, at one
 // setting's object ({ label, description, ...options }) or at a single label
@@ -59,6 +63,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.appearance.list_density',
     'settings.appearance.toolbar_labels',
     'settings.appearance.animations',
+    'settings.advanced.sender_favicons',
   ],
   layout: [
     'settings.layout.quick_actions',
@@ -150,7 +155,6 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.security.encryption.encrypt_on_append',
     'settings.security.encryption.allow_spam_training',
   ],
-  encryption: ['settings.smime'],
   content_senders: [
     'settings.email_behavior.external_content',
     'settings.email_behavior.always_light_mode',
@@ -166,6 +170,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'calendar.settings.show_birthday_calendar',
     'calendar.settings.enable_tasks',
     'calendar.settings.show_tasks_on_calendar',
+    // Android only: calendars in the phone's Calendar app (#34).
+    ...(supportsDeviceSync ? ['calendar.settings.device_sync_title'] : []),
   ],
   contacts: [
     'settings.contacts.group_by_letter_label',
@@ -173,6 +179,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.contacts.import_label',
     'settings.contacts.export_label',
     'settings.contacts.manage_title',
+    // Android only: address books in the phone's Contacts app (#34).
+    ...(supportsDeviceSync ? ['settings.contacts.device_sync_title'] : []),
   ],
   files: [
     'files.settings_display',
@@ -192,20 +200,25 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.sidebar_apps.add',
   ],
   about_data: [
-    'settings.advanced.debug_mode',
-    'settings.advanced.sender_favicons',
-    'settings.advanced.refresh_cache',
-    'settings.advanced.export_settings',
-    'settings.advanced.import_settings',
-    'settings.advanced.reset_settings',
     'settings.offline.title',
     'settings.offline.enabled',
-    'settings.offline.window',
-    'settings.offline.max_size',
+    'settings.offline.keep_from',
+    'settings.offline.use_at_most',
+    'settings.backup.title',
+    'settings.backup.export_import',
+    'settings.advanced.reset_settings',
+    'settings.troubleshooting.title',
   ],
+  about: [
+    'settings.about.server',
+    'settings.about.licences',
+    'settings.about.privacy',
+    'settings.about.report_problem',
+  ],
+  licences: [],
+  privacy: [],
   // The theme cards are added by the caller (built-in theme names).
   themes: [],
-  plugins: [],
   updates: [
     'updates.current_version',
     'updates.latest_version',
@@ -215,7 +228,10 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'updates.advisory',
     'updates.release_page',
   ],
-  debug: [],
+  debug: [
+    'settings.advanced.refresh_cache',
+    'settings.advanced.debug_mode',
+  ],
 };
 
 // Extra English keywords per pane so common search terms hit even when the
@@ -236,17 +252,18 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   keywords: 'tags labels colors',
   downloads: 'download filename template eml attachment save export',
   security: 'password 2fa two-factor totp app password mfa api key certificate encryption',
-  encryption: 's/mime smime certificate sign encrypt',
   content_senders: 'block sender remote images privacy tracking',
-  calendar: 'event schedule appointment meeting timezone',
-  contacts: 'address book contact',
+  calendar: `event schedule appointment meeting timezone${supportsDeviceSync ? ' android phone device sync' : ''}`,
+  contacts: `address book contact${supportsDeviceSync ? ' android phone device sync' : ''}`,
   files: 'attachments cloud drive storage upload',
   sidebar_apps: 'apps webview iframe',
-  about_data: 'export import backup offline cache debug logs reset version',
+  about_data: 'export import backup offline cache storage reset',
+  about: 'version licence license privacy bug issue report source github',
+  licences: 'licence license open source',
+  privacy: 'privacy data relay push',
   themes: 'theme color colour palette skin appearance',
-  plugins: 'extensions addons',
   updates: 'update upgrade version apk install release',
-  debug: 'logs developer console diagnostic',
+  debug: 'troubleshooting refresh logs developer console diagnostic',
 };
 
 export interface SubResult {

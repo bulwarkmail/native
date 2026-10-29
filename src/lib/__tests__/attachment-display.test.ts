@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  getAttachmentDisplayName, visibleAttachments, previewKindFor, isReportPart, isRfc822Attachment,
+  getAttachmentDisplayName, visibleAttachments, isReportPart, isRfc822Attachment,
   isEmbeddedInBody,
 } from '../attachment-display';
 import { buildForwardAsAttachmentPayload } from '../forward-as-attachment';
@@ -93,16 +93,8 @@ describe('isEmbeddedInBody', () => {
   });
 });
 
-describe('previewKindFor / classification', () => {
-  it('classifies previewable types and refuses script-bearing ones', () => {
-    expect(previewKindFor({ type: 'image/jpeg', name: 'a.jpg' })).toBe('image');
-    expect(previewKindFor({ type: 'application/pdf', name: 'a.pdf' })).toBe('pdf');
-    expect(previewKindFor({ type: 'text/plain', name: 'a.txt' })).toBe('text');
-    expect(previewKindFor({ type: 'application/octet-stream', name: 'notes.md' })).toBe('text');
-    expect(previewKindFor({ type: 'message/rfc822', name: 'fwd.eml' })).toBe('eml');
-    expect(previewKindFor({ type: 'text/html', name: 'a.html' })).toBe('none');
-    expect(previewKindFor({ type: 'image/svg+xml', name: 'a.svg' })).toBe('none');
-    expect(previewKindFor({ type: 'application/zip', name: 'a.zip' })).toBe('none');
+describe('report and embedded-message parts', () => {
+  it('recognises DSN reports and .eml parts', () => {
     expect(isReportPart('message/delivery-status')).toBe(true);
     expect(isRfc822Attachment({ type: 'application/octet-stream', name: 'x.eml' })).toBe(true);
   });

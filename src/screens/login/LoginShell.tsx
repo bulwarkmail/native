@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { ArrowLeft, X } from 'lucide-react-native';
+import { ArrowLeft, X } from '../../components/icons';
 import { spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -109,8 +109,12 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: spacing.lg,
       height: componentSizes.headerHeight,
     },
-    headerButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    headerButton: { width: componentSizes.buttonLg, height: componentSizes.buttonLg, alignItems: 'center', justifyContent: 'center' },
+    // One readable column, centred on a tablet or a phone in landscape.
     content: {
+      width: '100%',
+      maxWidth: 480 + spacing.lg * 2,
+      alignSelf: 'center',
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.xxxl,
     },

@@ -9,12 +9,29 @@ import {
 } from '../api/push';
 import { getMailboxes, getSharedMailboxes } from '../api/email';
 import { loadedMailboxes } from './mailbox-source';
-import { jmapClient } from '../api/jmap-client';
-import { isJMAPSetError, JMAPMethodError } from '../api/jmap-result';
+import { jmapClient, JMAPClient } from '../api/jmap-client';
+import { isJMAPSetError, JMAPMethodError, requireMethodResult } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
-import type { EmailPushConfig, JMAPAccountInfo, Mailbox, PushSubscription } from '../api/types';
+import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox, PushSubscription } from '../api/types';
 import { generateAccountId } from './account-utils';
+import {
+  EMPTY_NOTIFICATION_MUTES,
+  isAccountMuted,
+  mailboxOverridesForAccount,
+  type NotificationMutes,
+} from './notification-mutes';
+import { useSettingsStore } from '../stores/settings-store';
 import { t } from '../stores/locale-store';
+import {
+  authorityOfType,
+  DEVICE_SYNC_STORAGE_KEY,
+  deviceSyncPushTypes,
+  persistedAccounts,
+} from '../device-sync/app/prefs';
+import { CALENDAR_AUTHORITY, CONTACTS_AUTHORITY, type Authority } from '../device-sync/types';
+import * as Notifications from 'expo-notifications';
+import { credentialsKey } from '../api/jmap-client';
+import { apnsEnvironment, removeIosPushAccount, writeIosPushAccount } from './ios-push-shared';
 import {
   getUnifiedPushDistributors,
   isUnifiedPushSupported,
@@ -207,6 +224,38 @@ export function isValidRelayUrl(value: string): boolean {
 // In-app sync uses the separate SSE channel and is unaffected.
 export const PUSH_TYPES = ['EmailDelivery'] as const;
 
+// The capability a server advertises for the data types of an authority.
+const DEVICE_SYNC_CAPABILITIES: Record<Authority, string> = {
+  [CONTACTS_AUTHORITY]: CAPABILITIES.CONTACTS,
+  [CALENDAR_AUTHORITY]: CAPABILITIES.CALENDARS,
+};
+
+/**
+ * The push types of one account's subscription: `EmailDelivery`, plus the
+ * contact and calendar types while the account syncs them to the device
+ * (#34, docs/device-sync.md "Triggers"): the native push router turns those
+ * into device syncs, and a push carrying only them never notifies. Only the
+ * types of a capability the account's session advertises: a server without
+ * contacts or calendars may refuse the whole subscription over them.
+ *
+ * Read from the device sync store's persisted JSON rather than the store, so
+ * code that runs without it (the push task) never creates it.
+ */
+export async function pushTypesFor(accountId: string, session: JMAPSession | null): Promise<string[]> {
+  let extra: string[] = [];
+  try {
+    const capabilities = session?.capabilities ?? {};
+    extra = deviceSyncPushTypes(persistedAccounts(await AsyncStorage.getItem(DEVICE_SYNC_STORAGE_KEY))[accountId])
+      .filter((type) => {
+        const authority = authorityOfType(type);
+        return !!authority && DEVICE_SYNC_CAPABILITIES[authority] in capabilities;
+      });
+  } catch {
+    extra = [];
+  }
+  return [...PUSH_TYPES, ...extra];
+}
+
 // draft-ietf-jmap-emailpush (Stalwart >= 0.16.16). `EmailDelivery` alone
 // still fires for every ingested message - including spam the server files
 // straight into Junk - because the server can't know which folders a client
@@ -294,33 +343,63 @@ function emailPushCapabilityIsExact(): boolean {
  * `forbidden` when it names a mailbox shared by ACL. 1.0 lists emailpush on
  * exactly those accounts; 0.16.16 to 0.16.23 list it on every account, and
  * the setup narrows the map when the server refuses it.
+ *
+ * Muted accounts and folders (#78) are cut out of the same filter: a muted
+ * folder joins Junk in the "not only in" list; a muted account only lets
+ * through mail in the folders the user unmuted again, or nothing at all.
  */
-export async function buildEmailPushConfig(): Promise<Record<string, EmailPushConfig>> {
+export async function buildEmailPushConfig(
+  mutes: NotificationMutes = EMPTY_NOTIFICATION_MUTES,
+): Promise<Record<string, EmailPushConfig>> {
   const primary = jmapClient.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
+  const mailboxIdsByAccount = new Map<string, Set<string>>();
   // The mail store loads the same folders at the same moment (sign-in,
   // start): reuse its list rather than a second Mailbox/get of our own.
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
   const loaded = username && serverUrl ? await loadedMailboxes(generateAccountId(username, serverUrl)) : null;
-  const all = loaded ?? [
-    ...(await getMailboxes().catch(() => [] as Mailbox[])),
-    ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
-  ];
+  // With mutes a swallowed fetch failure would look like "no such folder"
+  // and unmute everything, so let the real error surface; otherwise the
+  // filter can still degrade to keyword-only on a transient miss.
+  const hasMutes = mutes.accounts.length > 0 || Object.keys(mutes.mailboxes).length > 0;
+  const all = loaded ?? (hasMutes
+    ? [...(await getMailboxes()), ...(await getSharedMailboxes())]
+    : [
+      ...(await getMailboxes().catch(() => [] as Mailbox[])),
+      ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
+    ]);
   for (const m of all) {
     const accountId = m.accountId || primary;
     if (accountId !== primary && !accountListsEmailPush(accountId)) continue;
-    const junk = junkByAccount.get(accountId) ?? [];
     // Shared-account mailboxes carry a client-side "<account>:<id>" id;
     // the server only knows the original.
-    if (m.role === 'junk') junk.push(m.originalId ?? m.id);
+    const serverId = m.originalId ?? m.id;
+    const ids = mailboxIdsByAccount.get(accountId) ?? new Set<string>();
+    ids.add(serverId);
+    mailboxIdsByAccount.set(accountId, ids);
+    const junk = junkByAccount.get(accountId) ?? [];
+    if (m.role === 'junk') junk.push(serverId);
     junkByAccount.set(accountId, junk);
   }
 
   const config: Record<string, EmailPushConfig> = {};
   for (const [accountId, junkIds] of junkByAccount) {
+    // Settings for folders that no longer exist are left out.
+    const existing = mailboxIdsByAccount.get(accountId) ?? new Set<string>();
+    const overrides = mailboxOverridesForAccount(mutes, accountId);
     const conditions: Record<string, unknown>[] = [{ notKeyword: '$junk' }];
-    if (junkIds.length > 0) conditions.push({ inMailboxOtherThan: [...junkIds].sort() });
+    if (isAccountMuted(mutes, accountId)) {
+      const allowed = overrides.unmuted
+        .filter((id) => existing.has(id) && !junkIds.includes(id))
+        .sort();
+      if (allowed.length === 0) conditions.push(NEVER_MATCH);
+      else if (allowed.length === 1) conditions.push({ inMailbox: allowed[0] });
+      else conditions.push({ operator: 'OR', conditions: allowed.map((id) => ({ inMailbox: id })) });
+    } else {
+      const excluded = new Set([...junkIds, ...overrides.muted.filter((id) => existing.has(id))]);
+      if (excluded.size > 0) conditions.push({ inMailboxOtherThan: [...excluded].sort() });
+    }
     config[accountId] = {
       // Always the operator form: that's how the server echoes it back, so a
       // stored config compares equal to a freshly built one.
@@ -331,6 +410,10 @@ export async function buildEmailPushConfig(): Promise<Record<string, EmailPushCo
   }
   return config;
 }
+
+// Contradicts the `notKeyword: '$junk'` every filter starts with, so the AND
+// never matches: the account stays in the map but never pushes.
+const NEVER_MATCH = { hasKeyword: '$junk' } as const;
 
 function normalizeEmailPush(value: unknown): string {
   const sortKeys = (v: unknown): unknown => {
@@ -425,6 +508,24 @@ async function writeWithEmailPush<T>(
   }
 }
 
+/**
+ * Run a subscription write with the account's push types and, when the server
+ * refuses it while they include device sync's, once more with the mail types
+ * alone: mail push never depends on device sync (#34).
+ */
+async function writeWithPushTypes<T>(
+  types: readonly string[],
+  write: (types: readonly string[]) => Promise<T>,
+): Promise<T> {
+  try {
+    return await write(types);
+  } catch (err) {
+    if (sameTypes(types, PUSH_TYPES)) throw err;
+    logPhase('jmap', 'push types refused, retrying with the mail types alone');
+    return write(PUSH_TYPES);
+  }
+}
+
 async function readRefusedEmailPushAccounts(accountId: string): Promise<string[]> {
   try {
     const parsed = JSON.parse((await AsyncStorage.getItem(emailPushRefusedKey(accountId))) ?? '[]');
@@ -503,12 +604,12 @@ function getNative(): BulwarkFcmNative | null {
   return (NativeModules as Record<string, unknown>).BulwarkFcm as BulwarkFcmNative | undefined ?? null;
 }
 
-/** True on platforms that have a push transport wired up (Android only). */
+/** True on platforms that have a push transport wired up: FCM or UnifiedPush on Android, APNs on iOS. */
 export function isPushSupported(): boolean {
-  return getNative() !== null || isUnifiedPushSupported();
+  return Platform.OS === 'ios' || getNative() !== null || isUnifiedPushSupported();
 }
 
-export type PushTransport = 'fcm' | 'unifiedpush';
+export type PushTransport = 'fcm' | 'unifiedpush' | 'apns';
 
 export async function getStoredPushTransport(): Promise<PushTransport | null> {
   const raw = await AsyncStorage.getItem(PUSH_TRANSPORT_KEY);
@@ -524,6 +625,8 @@ export async function setStoredPushTransport(transport: PushTransport | null): P
 }
 
 export async function getEffectivePushTransport(): Promise<PushTransport> {
+  // iOS has one way in: APNs, through the relay.
+  if (Platform.OS === 'ios') return 'apns';
   return (await getStoredPushTransport()) ?? 'fcm';
 }
 
@@ -645,6 +748,14 @@ export async function dismissPushPrompt(accountId: string): Promise<void> {
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return true;
+    const asked = await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
+    return asked.granted;
+  }
   if (Platform.OS !== 'android') return true;
   if (Platform.Version < 33) return true;
   const status = await PermissionsAndroid.request(
@@ -692,6 +803,26 @@ async function getFcmTokenOrThrow(native: BulwarkFcmNative): Promise<string> {
   }
   if (!token) {
     throw new PushSetupError('token', t('settings.notifications.push.err_fcm_empty', 'Firebase returned an empty device token.'));
+  }
+  return token;
+}
+
+// The APNs device token (hex). iOS hands it out once notifications are
+// allowed; expo-notifications asks the OS for it.
+async function getApnsTokenOrThrow(): Promise<string> {
+  let token: string | null = null;
+  try {
+    const result = await Notifications.getDevicePushTokenAsync();
+    token = typeof result.data === 'string' ? result.data : null;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new PushSetupError(
+      'token',
+      t('settings.notifications.push.err_apns_token', 'iOS could not issue a push token ({detail}).', { detail }),
+    );
+  }
+  if (!token) {
+    throw new PushSetupError('token', t('settings.notifications.push.err_apns_empty', 'iOS returned an empty push token.'));
   }
   return token;
 }
@@ -784,6 +915,64 @@ async function registerWithRelay(params: {
       }),
     );
   }
+}
+
+async function registerWithRelayApns(params: {
+  relayBaseUrl: string;
+  subscriptionId: string;
+  deviceToken: string;
+  accountLabel?: string;
+}): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(buildRelayUrl(params.relayBaseUrl, '/api/push/register/apns'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        subscriptionId: params.subscriptionId,
+        deviceToken: params.deviceToken,
+        environment: apnsEnvironment(),
+        accountLabel: params.accountLabel,
+      }),
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_unreachable', 'Could not reach the push relay at {url} ({detail}).', {
+        url: params.relayBaseUrl,
+        detail,
+      }),
+    );
+  }
+  if (res.status === 503) {
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_no_apns', 'The push relay at {url} does not deliver to iPhones and iPads yet.', {
+        url: params.relayBaseUrl,
+      }),
+    );
+  }
+  if (!res.ok) {
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_rejected', 'The push relay rejected the registration: {detail}', {
+        detail: await readRelayError(res),
+      }),
+    );
+  }
+}
+
+/**
+ * Tell the iOS notification extension how to reach an account: which stored
+ * credentials to use and the JMAP API URL. Without it the extension shows the
+ * relay's placeholder text.
+ */
+export async function shareAccountWithExtension(accountId: string, jmapAccountId: string | null): Promise<void> {
+  if (Platform.OS !== 'ios' || !jmapAccountId) return;
+  const apiUrl = jmapClient.currentSession?.apiUrl;
+  if (!apiUrl) return;
+  await writeIosPushAccount(jmapAccountId, { credentialsKey: credentialsKey(accountId), apiUrl }).catch(() => undefined);
 }
 
 async function registerWithRelayUnifiedPush(params: {
@@ -956,6 +1145,9 @@ async function setupPushNotificationsInner(
   if (transport === 'fcm' && !native) {
     throw new PushSetupError('platform', t('settings.notifications.push.err_android_only', 'Push notifications are only available on Android.'));
   }
+  if (transport === 'apns' && Platform.OS !== 'ios') {
+    throw new PushSetupError('platform', 'APNs is only available on iOS.');
+  }
   if (transport === 'unifiedpush' && !isUnifiedPushSupported()) {
     throw new PushSetupError('platform', t('settings.notifications.push.err_up_android_only', 'UnifiedPush is only available on Android.'));
   }
@@ -975,8 +1167,11 @@ async function setupPushNotificationsInner(
   logPhase('token', transport);
   let fcmToken: string | null = null;
   let upEndpoint: UnifiedPushEndpoint | null = null;
+  let apnsToken: string | null = null;
   if (transport === 'unifiedpush') {
     upEndpoint = await getUnifiedPushEndpointOrThrow(relayBaseUrl);
+  } else if (transport === 'apns') {
+    apnsToken = await getApnsTokenOrThrow();
   } else {
     fcmToken = await getFcmTokenOrThrow(native!);
   }
@@ -1001,7 +1196,14 @@ async function setupPushNotificationsInner(
   // individually and tags it with the JMAP account id so the headless task
   // can route it.
   logPhase('relay', relayBaseUrl);
-  if (upEndpoint) {
+  if (apnsToken) {
+    await registerWithRelayApns({
+      relayBaseUrl,
+      subscriptionId: deviceClientId,
+      deviceToken: apnsToken,
+      accountLabel: params.accountLabel,
+    });
+  } else if (upEndpoint) {
     await registerWithRelayUnifiedPush({
       relayBaseUrl,
       subscriptionId: deviceClientId,
@@ -1044,10 +1246,11 @@ async function setupPushNotificationsInner(
   // a group out.
   const refusedBefore = emailPushCapabilityIsExact() ? [] : await readRefusedEmailPushAccounts(accountId);
   const emailPush = serverSupportsEmailPush()
-    ? withoutAccounts(await buildEmailPushConfig(), refusedBefore)
+    ? withoutAccounts(await buildEmailPushConfig(useSettingsStore.getState().notificationMutes), refusedBefore)
     : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);
+  const types = await pushTypesFor(accountId, jmapClient.currentSession);
   let jmapAccountId: string | null = null;
   try {
     jmapAccountId = jmapClient.accountId;
@@ -1067,7 +1270,7 @@ async function setupPushNotificationsInner(
       if (!params.forceRecreate) {
         let refreshed: Awaited<ReturnType<typeof refreshSubscriptionExpires>>;
         try {
-          refreshed = await refreshSubscriptionExpires(match, emailPush);
+          refreshed = await refreshSubscriptionExpires(match, emailPush, types);
         } catch (err) {
           // Nothing the server said about the subscription (a failed request,
           // rate limiting, a refused method call): it keeps delivering, and
@@ -1078,6 +1281,7 @@ async function setupPushNotificationsInner(
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
           await writePushJmapAccountId(accountId, jmapAccountId);
+          await shareAccountWithExtension(accountId, jmapAccountId);
           await AsyncStorage.removeItem(optedOutKey(accountId));
           logPhase('done', 'reused existing subscription');
           return { subscriptionId: storedServerId, verified: true };
@@ -1123,14 +1327,16 @@ async function setupPushNotificationsInner(
 
   let serverAssignedId: string;
   let serverExpires: string | null;
-  const create = () => writeWithEmailPush(emailPush, (filter) =>
-    createPushSubscription({
-      deviceClientId,
-      url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
-      types: [...PUSH_TYPES],
-      expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
-      ...(filter ? { emailPush: filter } : {}),
-    }),
+  const create = () => writeWithPushTypes(types, (wanted) =>
+    writeWithEmailPush(emailPush, (filter) =>
+      createPushSubscription({
+        deviceClientId,
+        url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
+        types: [...wanted],
+        expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
+        ...(filter ? { emailPush: filter } : {}),
+      }),
+    ),
   );
   try {
     let created: Awaited<ReturnType<typeof create>>;
@@ -1175,6 +1381,7 @@ async function setupPushNotificationsInner(
   }
   await addPushAccountId(accountId);
   await writePushJmapAccountId(accountId, jmapAccountId);
+  await shareAccountWithExtension(accountId, jmapAccountId);
   await AsyncStorage.removeItem(optedOutKey(accountId));
   logPhase('done', 'subscription verified');
 
@@ -1191,13 +1398,14 @@ async function addPushAccountId(accountId: string): Promise<void> {
 // Push the subscription's expires forward when it's getting close to the
 // server's ceiling, and re-sync `types` / the delivery filter when they drift
 // from what this client wants (a subscription created by an older build still
-// listens to `Email`/`Mailbox`; a Junk mailbox id can change under us).
-// Returns false when the server refuses the update with a SetError (the
-// subscription is gone, or no narrower map is accepted), which the caller
-// answers with a replacement; otherwise the emailPush map the update
-// installed (null when it left the filter alone). Every other failure - the
-// network, a timeout, rate limiting, a refused method call - says nothing
-// about the subscription and is thrown.
+// listens to `Email`/`Mailbox`; device sync was turned on or off; a Junk
+// mailbox id can change under us). Returns false when the server refuses the
+// update with a SetError, also with the mail types alone (the subscription is
+// gone, or no narrower map is accepted), which the caller answers with a
+// replacement; otherwise the emailPush map the update installed (null when it
+// left the filter alone). Every other failure - the network, a timeout, rate
+// limiting, a refused method call - says nothing about the subscription and
+// is thrown.
 async function refreshSubscriptionExpires(
   sub: {
     id: string;
@@ -1207,8 +1415,9 @@ async function refreshSubscriptionExpires(
   },
   // null when the server has no emailPush support - leave the property alone.
   desiredEmailPush: Record<string, EmailPushConfig> | null,
+  types: readonly string[],
 ): Promise<false | { emailPush: Record<string, EmailPushConfig> | null }> {
-  const typesNeedUpdate = !sameTypes(sub.types, PUSH_TYPES);
+  const typesNeedUpdate = !sameTypes(sub.types, types);
   const emailPushNeedsUpdate =
     desiredEmailPush !== null && !sameEmailPush(sub.emailPush, desiredEmailPush);
   if (!typesNeedUpdate && !emailPushNeedsUpdate && sub.expires) {
@@ -1220,15 +1429,17 @@ async function refreshSubscriptionExpires(
     }
   }
   try {
-    const patch: { expires?: string; types?: string[] } = {
-      expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
-    };
-    if (typesNeedUpdate) patch.types = [...PUSH_TYPES];
-    const { emailPush } = await writeWithEmailPush(
-      emailPushNeedsUpdate ? desiredEmailPush : null,
-      (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
-    );
-    return { emailPush };
+    return await writeWithPushTypes(types, async (wanted) => {
+      const patch: { expires?: string; types?: string[] } = {
+        expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
+      };
+      if (!sameTypes(sub.types, wanted)) patch.types = [...wanted];
+      const { emailPush } = await writeWithEmailPush(
+        emailPushNeedsUpdate ? desiredEmailPush : null,
+        (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
+      );
+      return { emailPush };
+    });
   } catch (err) {
     if (isJMAPSetError(err)) return false;
     throw err;
@@ -1246,6 +1457,10 @@ async function deregisterFromRelay(
 }
 
 async function clearAccountPushKeys(accountId: string): Promise<void> {
+  if (Platform.OS === 'ios') {
+    const jmapAccountId = (await readPushJmapAccountIds())[accountId];
+    if (jmapAccountId) await removeIosPushAccount(jmapAccountId);
+  }
   await AsyncStorage.multiRemove([
     subscriptionIdKey(accountId),
     deviceClientIdKey(accountId),
@@ -1388,6 +1603,48 @@ export async function resyncPushNotifications(
 }
 
 /**
+ * Re-apply an account's push types to its subscription after device sync was
+ * turned on or off for it (#34). The account the client serves goes through
+ * the api/push helpers; another signed-in account through a client of its
+ * own, never the singleton. Best effort: the next resync of the account
+ * applies them anyway.
+ */
+export async function refreshPushSubscriptionTypes(accountId: string): Promise<void> {
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return;
+  const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+  if (!subscriptionId) return;
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  const served = !!username && !!serverUrl && generateAccountId(username, serverUrl) === accountId;
+  try {
+    if (served) {
+      const types = await pushTypesFor(accountId, jmapClient.currentSession);
+      const current = (await listPushSubscriptions()).find((s) => s.id === subscriptionId);
+      if (!current || sameTypes(current.types, types)) return;
+      await updatePushSubscription(subscriptionId, { types: [...types] });
+      return;
+    }
+    const client = new JMAPClient();
+    if (!(await client.loadAccount(accountId))) return;
+    const types = await pushTypesFor(accountId, client.currentSession);
+    const using = [CAPABILITIES.CORE];
+    const res = await client.request(
+      [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'types'] }, '0']],
+      using,
+    );
+    const current = (requireMethodResult(res, '0', 'PushSubscription/get').list as Array<{ id: string; types?: string[] | null }> | undefined)
+      ?.find((s) => s.id === subscriptionId);
+    if (!current || sameTypes(current.types, types)) return;
+    await client.request(
+      [['PushSubscription/set', { update: { [subscriptionId]: { types: [...types] } } }, '0']],
+      using,
+    );
+  } catch {
+    // The next resync re-applies them.
+  }
+}
+
+/**
  * Tear down push for ALL accounts on this device. Used by the logout-all
  * flow; best-effort because we typically aren't authenticated to every
  * account's JMAP server at the moment we need to call destroy on it. The
@@ -1526,6 +1783,8 @@ export interface NotificationTapPayload {
   // The JMAP account the message lives in: a group or shared mailbox's account
   // when it isn't the user's own. Absent on older notifications.
   jmapAccountId?: string;
+  // Notification action tapped (e.g. 'reply' to jump straight to Compose)
+  action?: 'reply';
 }
 
 /**
@@ -1549,6 +1808,17 @@ export function notificationTapJmapAccountId(payload: NotificationTapPayload): s
 // before JS was ready to handle it. Subsequent taps while running are delivered
 // via addNotificationTapListener.
 export async function getInitialNotificationTap(): Promise<NotificationTapPayload | null> {
+  if (Platform.OS === 'ios') {
+    const response = await Notifications.getLastNotificationResponseAsync().catch(() => null);
+    if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return null;
+    const handledKey = 'push:lastHandledResponse:v1';
+    const id = response.notification.request.identifier;
+    // The last response survives app restarts; open it once.
+    if ((await AsyncStorage.getItem(handledKey)) === id) return null;
+    const payload = await iosTapPayload(response.notification.request.content.data);
+    if (payload) await AsyncStorage.setItem(handledKey, id);
+    return payload;
+  }
   if (Platform.OS !== 'android') return null;
   const native = (NativeModules as Record<string, unknown>).BulwarkFcm as
     | { getInitialNotification?: () => Promise<NotificationTapPayload | null> }
@@ -1564,8 +1834,47 @@ export async function getInitialNotificationTap(): Promise<NotificationTapPayloa
 export function addNotificationTapListener(
   listener: (payload: NotificationTapPayload) => void,
 ): () => void {
+  if (Platform.OS === 'ios') {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+      const id = response.notification.request.identifier;
+      void iosTapPayload(response.notification.request.content.data).then((payload) => {
+        if (!payload) return;
+        void AsyncStorage.setItem('push:lastHandledResponse:v1', id);
+        listener(payload);
+      });
+    });
+    return () => sub.remove();
+  }
   if (Platform.OS !== 'android') return () => undefined;
   const emitter = new NativeEventEmitter(NativeModules.BulwarkFcm);
   const sub = emitter.addListener('fcm:notificationTap', listener);
   return () => sub.remove();
+}
+
+/**
+ * A tapped iOS mail notification as the app opens it. The relay puts the
+ * JMAP account and message ids into the payload's `body`, which
+ * expo-notifications hands over as `data`; the notification extension adds
+ * the message (and thread) it showed. Calendar reminders and other local
+ * notifications carry no `kind` and are left to their own handlers.
+ */
+export async function iosTapPayload(data: unknown): Promise<NotificationTapPayload | null> {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  if (d.kind !== 'jmap-email-push' && d.kind !== 'jmap-state-change') return null;
+  const jmapAccountId = typeof d.accountId === 'string' ? d.accountId : '';
+  const ids = Array.isArray(d.emailIds) ? d.emailIds.filter((v): v is string => typeof v === 'string') : [];
+  const emailId = typeof d.emailId === 'string' && d.emailId ? d.emailId : ids[0];
+  if (!emailId) return null;
+  // The local account the subscription belongs to: the one whose push
+  // setup recorded this JMAP account id.
+  const byLocal = await readPushJmapAccountIds();
+  const accountId = Object.keys(byLocal).find((local) => byLocal[local] === jmapAccountId);
+  return {
+    emailId,
+    threadId: typeof d.threadId === 'string' ? d.threadId : '',
+    accountId,
+    jmapAccountId: jmapAccountId || undefined,
+  };
 }
