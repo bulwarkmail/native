@@ -253,6 +253,76 @@ live('live Stalwart push subscriptions', () => {
     }
   }, 30_000);
 
+  it('answers an update without the expiry it settled on, which a read gives back', async () => {
+    const { id } = await create('readback');
+    const res = await client.request(
+      [['PushSubscription/set', { update: { [id]: { expires: new Date(Date.now() + 90 * DAY).toISOString() } } }, '0']],
+      ['urn:ietf:params:jmap:core'],
+    );
+    const updated = (res.methodResponses[0][1] as { updated?: Record<string, unknown> }).updated ?? {};
+    expect(id in updated).toBe(true);
+    // null or an object without `expires`: the setup has to read it back.
+    expect((updated[id] as { expires?: unknown } | null)?.expires).toBeUndefined();
+    const left = Date.parse((await listPushSubscriptions()).find((s) => s.id === id)?.expires ?? '') - Date.now();
+    expect(left).toBeGreaterThan(7 * DAY - 5 * 60_000);
+    expect(left).toBeLessThanOrEqual(7 * DAY + 60_000);
+  }, 30_000);
+
+  it("gives a destroyed subscription's id to the next one, whoever creates it", async () => {
+    // Why the app compares the device client id and not the id alone.
+    const first = await create('reused-a');
+    await destroyPushSubscription(first.id);
+    const second = await create('reused-b');
+    expect(second.id).toBe(first.id);
+    const listed = (await listPushSubscriptions()).find((s) => s.id === first.id);
+    expect(listed?.deviceClientId).toBe(deviceClientId('reused-b'));
+  }, 30_000);
+
+  it('takes a notification Delete that moves to Trash and marks read in one update (#86)', async () => {
+    const boxes = await getMailboxes();
+    const trash = boxes.find((b) => b.role === 'trash')?.id;
+    expect(trash).toBeTruthy();
+    const using = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'];
+    const made = await client.request([[
+      'Email/set',
+      {
+        accountId: client.accountId,
+        create: {
+          probe: {
+            mailboxIds: { [inbox]: true },
+            keywords: {},
+            from: [{ email: 'probe@example.org' }],
+            subject: `live push probe ${run}`,
+            bodyValues: { b: { value: 'probe' } },
+            textBody: [{ partId: 'b', type: 'text/plain' }],
+          },
+        },
+      },
+      '0',
+    ]], using);
+    const emailId = (made.methodResponses[0][1] as { created?: Record<string, { id: string }> }).created?.probe?.id;
+    expect(emailId, JSON.stringify(made.methodResponses[0][1])).toBeTruthy();
+    try {
+      // What handleNotificationAction sends with "Move to Trash and mark as read".
+      const res = await client.request([[
+        'Email/set',
+        { accountId: client.accountId, update: { [emailId!]: { mailboxIds: { [trash!]: true }, 'keywords/$seen': true } } },
+        '0',
+      ]], using);
+      expect(Object.keys((res.methodResponses[0][1] as { updated?: object }).updated ?? {})).toEqual([emailId]);
+      const got = await client.request([[
+        'Email/get',
+        { accountId: client.accountId, ids: [emailId], properties: ['mailboxIds', 'keywords'] },
+        '0',
+      ]], using);
+      const email = (got.methodResponses[0][1] as { list: Array<{ mailboxIds: object; keywords: object }> }).list[0];
+      expect(email.mailboxIds).toEqual({ [trash!]: true });
+      expect(email.keywords).toMatchObject({ $seen: true });
+    } finally {
+      await client.request([['Email/set', { accountId: client.accountId, destroy: [emailId] }, '0']], using);
+    }
+  }, 30_000);
+
   it('refuses a type it does not know over the types property', async () => {
     const err = await refusal(create('bogus-type', { types: ['EmailDelivery', 'NoSuchType'] }));
     expect(err.type).toBe('invalidProperties');
@@ -266,5 +336,11 @@ live('live Stalwart push subscriptions', () => {
     }
     expect(err?.type).toBe('overQuota');
     expect((await listPushSubscriptions()).length).toBe(15);
+
+    // At the cap the count is checked before the address: a forced
+    // re-register to a relay the server refuses sees overQuota first, which
+    // is why the setup doesn't free a place for a new relay.
+    const refused = await refusal(create('cap-refused-url', { url: 'https://10.0.0.5:8443/api/push/jmap/x' }));
+    expect(refused.type).toBe('overQuota');
   }, 60_000);
 });
