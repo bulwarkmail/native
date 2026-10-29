@@ -4,7 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
 import { perfEndAfterPaint } from '../lib/perf-marks';
-import { buildEditorHtml, MIN_EDITOR_HEIGHT } from '../lib/editor-html';
+import { buildEditorHtml, isEditorNavigationAllowed, MIN_EDITOR_HEIGHT } from '../lib/editor-html';
 
 export type RichTextCommand =
   | 'bold'
@@ -276,13 +276,7 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         androidLayerType={Platform.OS === 'android' ? 'hardware' : undefined}
         style={styles.webview}
         containerStyle={styles.webviewContainer}
-        onShouldStartLoadWithRequest={(request) => {
-          // Allow only the initial about:blank doc + data URIs we emit
-          // ourselves. Reject `about:*` (e.g. about:srcdoc) and every other
-          // scheme so a paste-injected anchor can't navigate the editor.
-          const url = request.url;
-          return !url || url === 'about:blank' || url.startsWith('data:');
-        }}
+        onShouldStartLoadWithRequest={(request) => isEditorNavigationAllowed(request.url)}
       />
     </View>
   );

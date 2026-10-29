@@ -77,6 +77,17 @@ describe('stripDangerousTags', () => {
     expect(out).not.toMatch(/onerror/i);
   });
 
+  // The composer embeds the sanitised quote in its inline script, where any
+  // `</script` ends the script whatever the CSS around it.
+  it('leaves no end tag inside a kept stylesheet or title', () => {
+    const out = stripDangerousTags(
+      '<p>hello</p><style>p{}</script/><img src=x onerror=alert(1)><meta http-equiv=refresh content=0;url=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg== x=',
+    );
+    expect(out).not.toMatch(/<\/script/i);
+    expect(out).toContain('<style>p{}<\\/script/>');
+    expect(stripDangerousTags('<title>a</SCRIPT/>b</title>')).toBe('<title>a&lt;/SCRIPT/>b</title>');
+  });
+
   it('ends comments where the browser does', () => {
     expect(stripDangerousTags('a<!-- x --!><img src=x onerror=alert(1)>')).not.toMatch(/onerror/i);
     expect(stripDangerousTags('<p>a</p><!--> <img src=x onerror=alert(1)>')).not.toMatch(/onerror/i);

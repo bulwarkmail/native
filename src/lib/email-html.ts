@@ -167,6 +167,19 @@ const RAW_TEXT_TAGS = new Set([
   'style', 'title', 'script', 'textarea', 'xmp', 'iframe', 'noembed', 'noframes', 'noscript',
 ]);
 
+/**
+ * Kept raw text with every `</` written so that no parser reads an end tag
+ * in it. Here only `</style` ends a sheet, but the sanitised markup is also
+ * embedded elsewhere: the composer seeds its editor with it inside an
+ * inline script, where a `</script` in a quoted sheet ended the script. In
+ * CSS `\/` is the same `/`; a title's text is RCDATA, where `&lt;` is `<`.
+ */
+function closeProofRawText(tag: string, text: string): string {
+  if (tag === 'style') return text.replace(/<\//g, '<\\/');
+  if (tag === 'title') return text.replace(/<\//g, '&lt;/');
+  return text;
+}
+
 // Attribute names written in a form that every later pass reads the same way.
 const SAFE_ATTR_NAME = /^[a-zA-Z_:][-a-zA-Z0-9_:.]*$/;
 
@@ -225,7 +238,7 @@ function rewriteTags(
         close.lastIndex = i;
         const m = close.exec(html);
         const textEnd = m ? m.index : n;
-        if (result !== false) out += html.slice(i, textEnd);
+        if (result !== false) out += closeProofRawText(lower, html.slice(i, textEnd));
         i = textEnd;
       }
       continue;
