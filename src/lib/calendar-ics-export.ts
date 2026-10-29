@@ -4,17 +4,36 @@ import { t } from '../stores/locale-store';
 // Port of the webmail's lib/calendar-ics-export.ts: serialise one event as
 // an RFC 5545 VCALENDAR so it can be shared as a .ics file.
 
-const MAX_LINE_OCTETS = 74;
+const MAX_LINE_OCTETS = 75;
+const utf8 = new TextEncoder();
 
-function foldLine(line: string): string {
-  if (line.length <= MAX_LINE_OCTETS) return line;
-  const chunks: string[] = [line.slice(0, MAX_LINE_OCTETS)];
-  let pos = MAX_LINE_OCTETS;
-  while (pos < line.length) {
-    chunks.push(' ' + line.slice(pos, pos + MAX_LINE_OCTETS - 1));
-    pos += MAX_LINE_OCTETS - 1;
+// RFC 5545 §3.1: lines of at most 75 octets, folded between characters. Cut
+// by UTF-16 units, a line with umlauts ran past 75 octets and a fold could
+// split an emoji, which the file then held as two U+FFFD.
+export function foldLine(line: string): string {
+  const chunks: string[] = [];
+  let chunk = '';
+  let octets = 0;
+  for (const char of line) {
+    const size = utf8.encode(char).length;
+    if (octets + size > MAX_LINE_OCTETS) {
+      chunks.push(chunk);
+      chunk = ' ';
+      octets = 1;
+    }
+    chunk += char;
+    octets += size;
   }
+  chunks.push(chunk);
   return chunks.join('\r\n');
+}
+
+// RFC 5545 §3.2: a parameter value holding ":", ";" or "," is quoted, and
+// can't hold a DQUOTE or a line break. Escaped like TEXT, "CN=Ops: Alice"
+// ended the parameters at the colon and the backslashes stayed in the name.
+export function paramValue(value: string): string {
+  const clean = value.replace(/"/g, "'").replace(/[\r\n]+/g, ' ');
+  return /[:;,]/.test(clean) ? `"${clean}"` : clean;
 }
 
 // RFC 5545 §3.3.11 - escape backslash, semicolon, comma, and newline in TEXT values.
@@ -157,14 +176,14 @@ export function eventToICS(event: CalendarEvent): string {
     );
     const orgEmail = organizer ? participantEmail(organizer) : organizerEmail;
     if (orgEmail) {
-      const cn = organizer?.name ? `;CN=${escapeText(organizer.name)}` : '';
+      const cn = organizer?.name?.trim() ? `;CN=${paramValue(organizer.name.trim())}` : '';
       lines.push(`ORGANIZER${cn}:mailto:${orgEmail}`);
     }
     for (const p of Object.values(event.participants)) {
       if (p === organizer) continue;
       const email = participantEmail(p);
       if (!email) continue;
-      const cn = p.name ? `;CN=${escapeText(p.name)}` : '';
+      const cn = p.name?.trim() ? `;CN=${paramValue(p.name.trim())}` : '';
       const partstat = p.participationStatus
         ? `;PARTSTAT=${p.participationStatus.toUpperCase()}`
         : ';PARTSTAT=NEEDS-ACTION';
