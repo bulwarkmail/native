@@ -3,6 +3,7 @@ import { JMAPSetError } from './jmap-result';
 import { CAPABILITIES } from './types';
 import type { ContactCard, ContactMedia, AddressBook } from './types';
 import { generateUUID } from '../lib/uuid';
+import { contactFromWire, contactToWire } from '../lib/contact-wire';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -41,14 +42,6 @@ function setErrorMessage(err: SetError | undefined, fallback: string): string {
 function setError(err: SetError | undefined, fallback: string): JMAPSetError {
   return new JMAPSetError(err?.type ?? 'setError', setErrorMessage(err, fallback), err?.properties);
 }
-
-/**
- * Properties an update never clears (webmail contactToWire). A null `id` fails
- * the whole update ("The id property is immutable.") and so does a null
- * `addressBookIds`; a null `uid` is refused by Stalwart 1.0 and on 0.16
- * silently deletes the card's UID.
- */
-const NEVER_CLEARED_KEYS = ['id', 'uid', 'addressBookIds'] as const;
 
 /**
  * Primary account for the contacts capability (RFC 8620 `primaryAccounts`),
@@ -180,7 +173,7 @@ export async function getContacts(ids: string[], accountId?: string): Promise<Co
       USING,
     );
     const list = methodResult<{ list: ContactCard[] }>(res).list ?? [];
-    all.push(...list);
+    all.push(...list.map(contactFromWire));
   }
   return all;
 }
@@ -238,12 +231,15 @@ export async function createContact(
 ): Promise<ContactCard> {
   const account = accountId || getContactsAccountId();
   const data = stripClientFields(contact);
+  // The calendar, scheduling and SOURCE links and a vCard's flat address
+  // fields as RFC 9553 has them: Stalwart refuses the whole card otherwise.
+  const wire = contactToWire(data, 'create');
   const res = await jmapClient.request(
     [['ContactCard/set', {
       accountId: account,
       create: {
         'new-contact': {
-          ...data,
+          ...wire,
           // Stalwart stores the card without one if omitted (#644), which
           // breaks group membership and CardDAV round-trips.
           uid: data.uid || `urn:uuid:${generateUUID()}`,
@@ -285,10 +281,7 @@ export async function updateContact(
   accountId?: string,
 ): Promise<void> {
   const account = accountId || getContactsAccountId();
-  const patch = { ...stripClientFields(changes) } as Record<string, unknown>;
-  for (const key of NEVER_CLEARED_KEYS) {
-    if (patch[key] == null) delete patch[key];
-  }
+  const patch = contactToWire(stripClientFields(changes), 'update');
   const res = await jmapClient.request(
     [['ContactCard/set', { accountId: account, update: { [id]: patch } }, '0']],
     USING,
@@ -398,10 +391,20 @@ export async function setDefaultAddressBook(id: string, accountId?: string): Pro
   methodResult(res);
 }
 
-export async function deleteAddressBook(id: string, accountId?: string): Promise<void> {
+export async function deleteAddressBook(
+  id: string,
+  accountId?: string,
+  options?: { removeContents?: boolean },
+): Promise<void> {
   const account = accountId || getContactsAccountId();
+  // Without onDestroyRemoveContents a book that still holds cards is
+  // refused with `addressBookHasContents` (RFC 9610 §2.3; Stalwart 1.0).
   const res = await jmapClient.request(
-    [['AddressBook/set', { accountId: account, destroy: [id] }, '0']],
+    [['AddressBook/set', {
+      accountId: account,
+      destroy: [id],
+      ...(options?.removeContents ? { onDestroyRemoveContents: true } : {}),
+    }, '0']],
     USING,
   );
   const result = methodResult<{ notDestroyed?: Record<string, SetError> }>(res);

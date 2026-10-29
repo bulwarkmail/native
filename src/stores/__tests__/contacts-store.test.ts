@@ -407,8 +407,41 @@ describe('contacts-store', () => {
         [{ id: 'import-1', name: { full: 'A' } }, { id: 'import-2', name: { full: 'B' } }],
         'ab-1',
       );
-      expect(result).toEqual({ imported: 1, failed: 1 });
+      expect(result).toEqual({
+        imported: 1, updated: 0, failed: 1, failures: [{ name: 'B', reason: 'invalid' }],
+      });
       expect(useContactsStore.getState().contacts).toHaveLength(1);
+    });
+
+    // Re-importing the app's own export: Stalwart refuses a second card with
+    // a UID the account has ("Contact with UID ... already exists").
+    it('updates a card whose UID the account already has instead of creating it', async () => {
+      useContactsStore.setState({
+        addressBooks: [{ id: 'ab-1', name: 'P' }],
+        contacts: [card('c1', { uid: 'urn:uuid:aaa', name: { full: 'Old' } })],
+      });
+      const result = await useContactsStore.getState().importContacts(
+        [{ id: 'import-1', uid: 'urn:uuid:aaa', addressBookIds: { x: true }, name: { full: 'New' } }],
+        'ab-1',
+      );
+      expect(mockCreateContact).not.toHaveBeenCalled();
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', { name: { full: 'New' } }, undefined);
+      expect(result).toMatchObject({ imported: 0, updated: 1, failed: 0 });
+      expect(useContactsStore.getState().contacts[0].name?.full).toBe('New');
+    });
+
+    it('updates the card the server names when the list does not hold it', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockCreateContact.mockRejectedValueOnce(
+        new Error('Contact with UID urn:uuid:bbb already exists with id m. (uid)'),
+      );
+      mockGetAllContacts.mockResolvedValue([]);
+      const result = await useContactsStore.getState().importContacts(
+        [{ id: 'import-1', uid: 'urn:uuid:bbb', name: { full: 'B' } }],
+        'ab-1',
+      );
+      expect(mockUpdateContact).toHaveBeenCalledWith('m', { name: { full: 'B' } }, undefined);
+      expect(result).toMatchObject({ imported: 0, updated: 1, failed: 0, failures: [] });
     });
   });
 
@@ -420,6 +453,8 @@ describe('contacts-store', () => {
       });
       mockDeleteAddressBook.mockResolvedValue(undefined);
       await useContactsStore.getState().deleteAddressBook('ab-2');
+      // A book that still holds cards is refused without it (Stalwart 1.0).
+      expect(mockDeleteAddressBook).toHaveBeenCalledWith('ab-2', undefined, { removeContents: true });
       expect(useContactsStore.getState().addressBooks.map((b) => b.id)).toEqual(['ab-1']);
       expect(useContactsStore.getState().contacts.map((c) => c.id)).toEqual(['c1']);
     });

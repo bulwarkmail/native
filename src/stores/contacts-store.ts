@@ -100,10 +100,14 @@ export interface ContactsState {
   fetchContactMedia: (id: string) => Promise<Pick<ContactCard, 'media'> | null>;
   deleteContact: (id: string) => Promise<void>;
   bulkDelete: (ids: string[]) => Promise<void>;
+  /**
+   * Creates the cards in the book; one whose UID the account already has is
+   * updated in place instead (a re-import of an export).
+   */
   importContacts: (
     contacts: Partial<ContactCard>[],
     addressBookId: string,
-  ) => Promise<{ imported: number; failed: number }>;
+  ) => Promise<ContactImportResult>;
 
   addContactKeyword: (id: string, keyword: string) => Promise<void>;
   removeContactKeyword: (id: string, keyword: string) => Promise<void>;
@@ -140,6 +144,31 @@ export interface ContactsState {
 
   setSelectedCategory: (category: ContactCategory) => void;
   reset: () => void;
+}
+
+/** A card an import could not save, and the server's reason. */
+export interface ContactImportFailure {
+  name: string;
+  reason: string;
+}
+
+export interface ContactImportResult {
+  imported: number;
+  /** Cards whose UID the account already had, updated in place. */
+  updated: number;
+  failed: number;
+  failures: ContactImportFailure[];
+}
+
+/**
+ * The card a create was refused for because its UID is taken, as Stalwart
+ * names it (0.16 and 1.0): "Contact with UID urn:uuid:... already exists
+ * with id b."
+ */
+export function existingUidCardId(err: unknown): string | null {
+  if (!(err instanceof Error)) return null;
+  const m = /already exists with id ([^\s.]+)/i.exec(err.message);
+  return m ? m[1] : null;
 }
 
 function persistCategory(category: ContactCategory): void {
@@ -548,27 +577,69 @@ export const useContactsStore = create<ContactsState>()(
 
         importContacts: async (incoming, addressBookId) => {
           let imported = 0;
-          let failed = 0;
+          let updated = 0;
+          let refetch = false;
+          const failures: ContactImportFailure[] = [];
           const { originalId, accountId, book } = bookTarget(addressBookId);
           const { check } = generationGuard();
+          // Stalwart keeps one card per UID in an account and refuses a second
+          // ("Contact with UID ... already exists"), so re-importing an export
+          // failed card by card. A card the account already has is updated.
+          const byUid = new Map<string, ContactCard>();
+          for (const c of get().contacts) {
+            // As the server compares them: "x" and "urn:uuid:x" are two UIDs.
+            if (c.uid && (c.isShared ? c.accountId : undefined) === accountId) byUid.set(c.uid, c);
+          }
+          const updateExisting = async (serverId: string, data: Partial<ContactCard>) => {
+            // The card stays in its own book and keeps its UID.
+            const { uid: _uid, ...patch } = data;
+            await apiUpdateContact(serverId, patch, accountId);
+            check();
+            const storeId = accountId ? namespaceId(accountId, serverId) : serverId;
+            if (!get().contacts.some((c) => c.id === storeId)) {
+              refetch = true;
+              return;
+            }
+            set({ contacts: get().contacts.map((c) => (c.id === storeId ? { ...c, ...patch } : c)) });
+          };
           for (const contact of incoming) {
             check();
-            let created: ContactCard;
+            // Strip the temporary client-side id; the server assigns a real one.
+            const { id: _id, addressBookIds: _abIds, ...data } = contact;
+            const known = data.uid ? byUid.get(data.uid) : undefined;
             try {
-              // Strip the temporary client-side id; the server assigns a real one.
-              const { id: _id, addressBookIds: _abIds, ...data } = contact;
-              created = tagCreated(await apiCreateContact(data, originalId, accountId), book);
+              if (known) {
+                await updateExisting(known.originalId || known.id, data);
+                updated++;
+                continue;
+              }
+              let created: ContactCard;
+              try {
+                created = tagCreated(await apiCreateContact(data, originalId, accountId), book);
+              } catch (err) {
+                // A card with this UID the list does not hold (not loaded yet,
+                // or in another book): the server names it.
+                const existingId = existingUidCardId(err);
+                if (!existingId) throw err;
+                await updateExisting(existingId, data);
+                updated++;
+                continue;
+              }
+              check();
+              set({ contacts: [...get().contacts, created] });
+              imported++;
             } catch (err) {
-              failed++;
+              if (err instanceof ContactsAccountChangedError) throw err;
               console.warn('[contacts-store] import failed for one contact', err);
-              continue;
+              failures.push({
+                name: getContactDisplayName(contact as ContactCard) || getContactPrimaryEmail(contact as ContactCard),
+                reason: err instanceof Error ? err.message : String(err),
+              });
             }
-            check();
-            set({ contacts: [...get().contacts, created] });
-            imported++;
           }
-          if (imported > 0) requestDeviceSync(CONTACTS_AUTHORITY);
-          return { imported, failed };
+          if (imported > 0 || updated > 0) requestDeviceSync(CONTACTS_AUTHORITY);
+          if (refetch) void get().fetchContacts();
+          return { imported, updated, failed: failures.length, failures };
         },
 
         addContactKeyword: async (id, keyword) => {
@@ -727,9 +798,10 @@ export const useContactsStore = create<ContactsState>()(
         deleteAddressBook: async (id) => {
           const { check } = generationGuard();
           const { originalId, accountId } = bookTarget(id);
-          await apiDeleteAddressBook(originalId, accountId);
+          // The confirmation names the cards that go with it.
+          await apiDeleteAddressBook(originalId, accountId, { removeContents: true });
           check();
-          // Stalwart destroys the cards filed in the book along with it, so
+          // The server destroys the cards filed in the book along with it, so
           // drop them from the cache instead of leaving orphans under "All".
           set({
             addressBooks: get().addressBooks.filter((b) => b.id !== id),

@@ -8,7 +8,7 @@ import { Upload, X, Check, FileText, AlertTriangle, BookUser } from '../icons';
 import type { ContactCard } from '../../api/types';
 import { parseVCard, detectDuplicates } from '../../lib/vcard';
 import { getContactDisplayName, getContactPrimaryEmail } from '../../lib/contact-utils';
-import { useContactsStore } from '../../stores/contacts-store';
+import { useContactsStore, type ContactImportResult } from '../../stores/contacts-store';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -56,7 +56,7 @@ export default function ContactImportSheet({
   const [duplicates, setDuplicates] = React.useState<Map<number, string>>(new Map());
   const [error, setError] = React.useState<string | null>(null);
   const [importing, setImporting] = React.useState(false);
-  const [result, setResult] = React.useState<{ imported: number; failed: number } | null>(null);
+  const [result, setResult] = React.useState<ContactImportResult | null>(null);
 
   const slideY = React.useRef(new Animated.Value(900)).current;
   // Centred on a wide window, clear of side insets in landscape.
@@ -156,7 +156,7 @@ export default function ContactImportSheet({
     try {
       const outcome = await importContacts(toImport, targetBookId);
       setResult(outcome);
-      onImported?.(outcome.imported);
+      onImported?.(outcome.imported + outcome.updated);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('contacts.import.failed', 'Import failed'));
     } finally {
@@ -192,6 +192,15 @@ export default function ContactImportSheet({
               <Text style={styles.successText}>
                 {t('contacts.import.success', '{count, plural, one {1 contact imported} other {# contacts imported}}', { count: result.imported })}
               </Text>
+              {result.updated > 0 && (
+                <Text style={styles.successText}>
+                  {t(
+                    'contacts.import.updated_count',
+                    '{count, plural, one {1 contact was already there and has been updated.} other {# contacts were already there and have been updated.}}',
+                    { count: result.updated },
+                  )}
+                </Text>
+              )}
               {result.failed > 0 && (
                 <Text style={[styles.successText, { color: c.error }]}>
                   {t(
@@ -200,6 +209,18 @@ export default function ContactImportSheet({
                     { count: result.failed },
                   )}
                 </Text>
+              )}
+              {result.failures.length > 0 && (
+                <ScrollView style={styles.failureList} contentContainerStyle={{ gap: spacing.xs }}>
+                  {result.failures.map((f, i) => (
+                    <Text key={i} style={styles.failureText}>
+                      <Text style={styles.failureName}>
+                        {f.name || t('contacts.import.unnamed', 'Unnamed contact')}
+                      </Text>
+                      {': '}{f.reason}
+                    </Text>
+                  ))}
+                </ScrollView>
               )}
               <Button variant="outline" size="sm" onPress={onClose}>{t('common.done', 'Done')}</Button>
             </View>
@@ -352,7 +373,10 @@ function makeStyles(c: ThemePalette) {
       width: 56, height: 56, borderRadius: radius.full,
       backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
     },
-    successText: { ...typography.bodyMedium, color: c.text },
+    successText: { ...typography.bodyMedium, color: c.text, textAlign: 'center' },
+    failureList: { maxHeight: 200, alignSelf: 'stretch' },
+    failureText: { ...typography.caption, color: c.mutedForeground },
+    failureName: { ...typography.caption, color: c.text, fontWeight: '600' },
     targetRow: {
       flexDirection: 'row',
       alignItems: 'center',
