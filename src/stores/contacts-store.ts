@@ -117,12 +117,15 @@ export interface ContactsState {
   deleteContact: (id: string) => Promise<void>;
   bulkDelete: (ids: string[]) => Promise<void>;
   /**
-   * Creates the cards in the book; one whose UID the account already has is
-   * updated in place instead (a re-import of an export).
+   * Creates the cards in the book. One whose UID the account already has is
+   * updated in place instead (a re-import of an export), but only when its
+   * UID is in `updateUids`: the user chose to replace that card. Any other
+   * card whose UID is taken is not written and counts as failed.
    */
   importContacts: (
     contacts: Partial<ContactCard>[],
     addressBookId: string,
+    updateUids?: ReadonlySet<string>,
   ) => Promise<ContactImportResult>;
 
   addContactKeyword: (id: string, keyword: string) => Promise<void>;
@@ -192,6 +195,37 @@ export function existingUidCardId(err: unknown): string | null {
   if (!(err instanceof Error)) return null;
   const m = /already exists with id ([^\s.]+)/i.exec(err.message);
   return m ? m[1] : null;
+}
+
+/** The account's cards by UID; `accountId` undefined is the own account. */
+function cardsByUid(contacts: ContactCard[], accountId: string | undefined): Map<string, ContactCard> {
+  const byUid = new Map<string, ContactCard>();
+  for (const c of contacts) {
+    // As the server compares them: "x" and "urn:uuid:x" are two UIDs.
+    if (c.uid && (c.isShared ? c.accountId : undefined) === accountId) byUid.set(c.uid, c);
+  }
+  return byUid;
+}
+
+/**
+ * The cards an import into `addressBookId` would replace: its account holds
+ * one with the incoming card's UID, in whatever book. That may be another
+ * contact altogether (an older export, another app's "1", "2" UIDs), so the
+ * import sheet asks first. Keyed by the incoming card's index.
+ */
+export function selectImportUidMatches(
+  state: Pick<ContactsState, 'contacts' | 'addressBooks'>,
+  incoming: Partial<ContactCard>[],
+  addressBookId: string | null,
+): Map<number, ContactCard> {
+  const book = state.addressBooks.find((b) => b.id === addressBookId);
+  const byUid = cardsByUid(state.contacts, book?.isShared ? book.accountId : undefined);
+  const matches = new Map<number, ContactCard>();
+  incoming.forEach((card, idx) => {
+    const known = card.uid ? byUid.get(card.uid) : undefined;
+    if (known) matches.set(idx, known);
+  });
+  return matches;
 }
 
 function persistCategory(category: ContactCategory): void {
@@ -603,7 +637,7 @@ export const useContactsStore = create<ContactsState>()(
           if (removed.size > 0) requestDeviceSync(CONTACTS_AUTHORITY);
         },
 
-        importContacts: async (incoming, addressBookId) => {
+        importContacts: async (incoming, addressBookId, updateUids) => {
           let imported = 0;
           let updated = 0;
           let refetch = false;
@@ -612,12 +646,10 @@ export const useContactsStore = create<ContactsState>()(
           const { check } = generationGuard();
           // Stalwart keeps one card per UID in an account and refuses a second
           // ("Contact with UID ... already exists"), so re-importing an export
-          // failed card by card. A card the account already has is updated.
-          const byUid = new Map<string, ContactCard>();
-          for (const c of get().contacts) {
-            // As the server compares them: "x" and "urn:uuid:x" are two UIDs.
-            if (c.uid && (c.isShared ? c.accountId : undefined) === accountId) byUid.set(c.uid, c);
-          }
+          // failed card by card. A card the account already has is updated,
+          // when the user chose to: the same UID may be another contact.
+          const byUid = cardsByUid(get().contacts, accountId);
+          const mayUpdate = (uid: string | undefined) => !!uid && !!updateUids?.has(uid);
           const updateExisting = async (serverId: string, data: Partial<ContactCard>) => {
             // The card stays in its own book and keeps its UID.
             const { uid: _uid, ...patch } = data;
@@ -637,6 +669,7 @@ export const useContactsStore = create<ContactsState>()(
             const known = data.uid ? byUid.get(data.uid) : undefined;
             try {
               if (known) {
+                if (!mayUpdate(data.uid)) throw new Error(`A contact with UID ${data.uid} already exists`);
                 await updateExisting(known.originalId || known.id, data);
                 updated++;
                 continue;
@@ -648,7 +681,7 @@ export const useContactsStore = create<ContactsState>()(
                 // A card with this UID the list does not hold (not loaded yet,
                 // or in another book): the server names it.
                 const existingId = existingUidCardId(err);
-                if (!existingId) throw err;
+                if (!existingId || !mayUpdate(data.uid)) throw err;
                 await updateExisting(existingId, data);
                 updated++;
                 continue;
