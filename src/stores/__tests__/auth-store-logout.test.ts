@@ -261,7 +261,7 @@ describe('what a sign-out leaves behind', () => {
     feeds: useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id),
   });
 
-  it('keeps the recent searches and calendar feeds while an account is still signed in', async () => {
+  it("keeps the recent searches and the other accounts' calendar feeds while an account is still signed in", async () => {
     await signedIn(A, B);
     useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
     useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A), feed(B)] });
@@ -269,7 +269,69 @@ describe('what a sign-out leaves behind', () => {
     await useAuthStore.getState().logout();
     await settle();
 
-    expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${A}`, `sub-${B}`] });
+    expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${B}`] });
+  });
+
+  it("drops a removed account's calendar feeds right away", async () => {
+    await signedIn(A, B, C);
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A), feed(B), feed(C)] });
+
+    await useAuthStore.getState().removeAccount(C);
+
+    expect(leftovers().feeds).toEqual([`sub-${A}`, `sub-${B}`]);
+  });
+
+  it('drops the feeds of an account whose sign-in is refused on the switch to it', async () => {
+    await signedIn(A, B);
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A), feed(B)] });
+    client.loadErrors = { [B]: new AuthenticationError('Invalid credentials') };
+
+    await useAuthStore.getState().switchAccount(B);
+
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A]);
+    expect(leftovers().feeds).toEqual([`sub-${A}`]);
+  });
+
+  it('clears them when a switch evicts the last account', async () => {
+    // Signed out of the active account while the last one's server was
+    // away; it is refused when the user picks it.
+    await signedIn(A);
+    useAuthStore.setState({ isAuthenticated: false, session: null, activeAccountId: null, accountId: null });
+    client.served = null;
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A)] });
+    client.loadErrors = { [A]: new AuthenticationError('Invalid credentials') };
+
+    await useAuthStore.getState().switchAccount(A);
+
+    expect(useAccountStore.getState().accounts).toEqual([]);
+    expect(leftovers()).toEqual({ searches: [], feeds: [] });
+  });
+
+  it('clears them when the restore on launch evicts the last account', async () => {
+    await signedIn(A);
+    useAuthStore.setState({ isAuthenticated: false, session: null, activeAccountId: null, accountId: null });
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A)] });
+    client.loadErrors = { [A]: new AuthenticationError('Invalid credentials') };
+
+    expect(await useAuthStore.getState().restoreSession()).toBe(false);
+
+    expect(useAccountStore.getState().accounts).toEqual([]);
+    expect(leftovers()).toEqual({ searches: [], feeds: [] });
+  });
+
+  it('clears them when a session retry evicts the last account', async () => {
+    await signedIn(A);
+    useAuthStore.setState({ session: null });
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A)] });
+    client.loadErrors = { [A]: new AuthenticationError('Invalid credentials') };
+
+    expect(await useAuthStore.getState().retrySession()).toBe(false);
+
+    expect(useAccountStore.getState().accounts).toEqual([]);
+    expect(leftovers()).toEqual({ searches: [], feeds: [] });
   });
 
   it('clears them when the last account signs out', async () => {
