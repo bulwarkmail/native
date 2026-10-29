@@ -12,6 +12,7 @@ vi.mock('../../api/sieve', () => ({
 }));
 
 import * as sieve from '../../api/sieve';
+import { FiltersLoginChangedError } from '../../api/sieve-rules';
 import { generateScript } from '../../lib/sieve/generator';
 import type { FilterRule } from '../../lib/sieve/types';
 import {
@@ -190,6 +191,18 @@ describe('filter-store and the server vacation script', () => {
       expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
       expect(api.updateSieveScript.mock.calls[0][1]).not.toContain('include');
       expect(api.updateSieveScript.mock.calls[0][3]).toBe('team');
+    });
+
+    // The client here serves no login (it never connected), as after a
+    // switch to a login that is still connecting.
+    it('writes nothing once the client serves another login than the vacation was saved in', async () => {
+      serve(true, false);
+      await expect(syncVacationWithFilters(true, undefined, undefined, undefined, undefined, 'me@example.org@mail.example.org'))
+        .rejects.toThrow(FiltersLoginChangedError);
+      expect(api.updateSieveScript).not.toHaveBeenCalled();
+
+      await syncVacationWithFilters(true, undefined, undefined, undefined, undefined, null);
+      expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
     });
 
     it('leaves the scripts alone when the filters are still active', async () => {

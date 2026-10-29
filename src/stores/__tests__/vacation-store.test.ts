@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const client = vi.hoisted(() => ({
+  isConnected: true,
+  username: 'me@example.org',
+  serverUrl: 'https://mail.example.org',
+}));
+vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
+const LOGIN = 'me@example.org@mail.example.org';
+
 vi.mock('../../api/vacation', () => ({
   getVacationResponse: vi.fn(),
   setVacationResponse: vi.fn(async () => undefined),
@@ -42,6 +50,7 @@ function responder(overrides: Partial<vacation.VacationResponse> = {}): vacation
 
 beforeEach(() => {
   vi.clearAllMocks();
+  client.username = 'me@example.org';
   api.isVacationSupported.mockReturnValue(true);
   sieveApi.isSieveSupported.mockReturnValue(false);
   filterStore.readVacationFilters.mockResolvedValue(NO_FILTERS);
@@ -117,7 +126,7 @@ describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
 
     await useVacationStore.getState().save({ isEnabled: true });
     expect(filterStore.syncVacationWithFilters).toHaveBeenCalledWith(
-      true, undefined, undefined, undefined, { from: null, until: null },
+      true, undefined, undefined, undefined, { from: null, until: null }, LOGIN,
     );
 
     await useVacationStore.getState().save({ subject: 'Only the subject' });
@@ -160,7 +169,7 @@ describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
     await useVacationStore.getState().save({ toDate: '2026-11-14T00:00:00Z', forward, audience });
     expect(api.setVacationResponse).toHaveBeenCalledWith({ toDate: '2026-11-14T00:00:00Z' }, undefined);
     expect(filterStore.syncVacationWithFilters).toHaveBeenCalledWith(
-      false, undefined, forward, audience, { from: '2026-11-02T08:00:00Z', until: '2026-11-14T00:00:00Z' },
+      false, undefined, forward, audience, { from: '2026-11-02T08:00:00Z', until: '2026-11-14T00:00:00Z' }, LOGIN,
     );
   });
 
@@ -177,6 +186,24 @@ describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
     expect(api.setVacationResponse).toHaveBeenCalledWith({ isEnabled: true }, undefined);
     expect(useVacationStore.getState()).toMatchObject({ isEnabled: true, isSaving: false });
     warn.mockRestore();
+  });
+
+  it('leaves the filters alone once another login took over during the save', async () => {
+    sieveApi.isSieveSupported.mockReturnValue(true);
+    api.getVacationResponse.mockResolvedValue(responder());
+    await useVacationStore.getState().fetch();
+    filterStore.readVacationFilters.mockClear();
+    api.setVacationResponse.mockImplementationOnce(async () => {
+      client.username = 'other@example.org';
+    });
+
+    await expect(useVacationStore.getState().save({
+      isEnabled: true, forward: { enabled: true, to: 'backup@example.org', keepCopy: false },
+    })).rejects.toBeInstanceOf(VacationFiltersError);
+    expect(filterStore.syncVacationWithFilters).not.toHaveBeenCalled();
+    expect(filterStore.readVacationFilters).not.toHaveBeenCalled();
+    // Nothing of this save shows under the other login.
+    expect(useVacationStore.getState()).toMatchObject({ isEnabled: false, forward: null, isSaving: false });
   });
 
   it('reports a forwarding that could not be saved', async () => {

@@ -15,6 +15,7 @@ import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
+import { useVacationStore } from './vacation-store';
 import { useOutboxStore } from './outbox-store';
 import { useSearchHistoryStore } from './search-history-store';
 import { useCalendarSubscriptionsStore } from './calendar-subscriptions-store';
@@ -871,6 +872,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // need a reset to avoid showing the previous account's data.
       useContactsStore.getState().reset();
       useCalendarStore.getState().reset();
+      // Nor are the filters and the vacation card: a save there would write
+      // the previous login's rules, auto-reply and forwarding into this one.
+      useFilterStore.getState().clearState();
+      useVacationStore.getState().reset();
 
       if (accountId === origin.accountId) {
         // Back to the account the switches under way left: its session is

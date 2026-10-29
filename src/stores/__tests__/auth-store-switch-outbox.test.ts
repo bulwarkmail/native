@@ -141,6 +141,8 @@ import { useAccountStore } from '../account-store';
 import { useAuthStore } from '../auth-store';
 import { useEmailStore } from '../email-store';
 import { applyOrQueue, useOutboxStore } from '../outbox-store';
+import { useFilterStore } from '../filter-store';
+import { useVacationStore } from '../vacation-store';
 
 const { A, B, C } = client;
 const fingerprint = (version: string, account: string) =>
@@ -426,5 +428,28 @@ describe('switches that overlap (Stalwart 1.0)', () => {
     expect(where()).toEqual(on(A));
     expect((await editOnScreen()).queued).toBe(false);
     expect(sent()).toEqual([[A, 'd', ['x1']]]);
+  });
+});
+
+// The vacation and filter stores are not per login: shown after a switch,
+// the previous login's auto-reply, forwarding and rules could be saved into
+// the new one.
+describe('switching accounts clears the vacation and filters', () => {
+  it('shows nothing of the previous login once the switch starts', async () => {
+    useVacationStore.setState({ hasLoaded: true, isEnabled: true, subject: 'A is away', forward: { enabled: true, to: 'a@example.org', keepCopy: true } });
+    useFilterStore.setState({ isSupported: true, activeScriptId: 's1', rawScript: 'keep;', rules: [{
+      id: 'r1', name: 'A rule', enabled: true, matchType: 'all', stopProcessing: false,
+      conditions: [{ field: 'from', comparator: 'contains', value: 'x' }], actions: [{ type: 'mark_read' }],
+    }] });
+    const load = deferred();
+    client.loadGate = load.promise;
+
+    const switching = useAuthStore.getState().switchAccount(B);
+    await settle();
+    expect(useVacationStore.getState()).toMatchObject({ hasLoaded: false, isEnabled: false, subject: '', forward: null });
+    expect(useFilterStore.getState()).toMatchObject({ rules: [], activeScriptId: null, rawScript: '' });
+
+    load.open();
+    await switching;
   });
 });
