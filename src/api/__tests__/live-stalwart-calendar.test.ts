@@ -650,9 +650,11 @@ live('live Stalwart calendar', () => {
         expect(useCalendarStore.getState().error).toBeNull();
         const toSharer = spy.mock.calls.filter(([calls]) =>
           (calls as unknown as [string, Record<string, unknown>][]).some(([, args]) => args.accountId === sharer));
-        // At most the one probe: no retry on every load.
-        expect(toSharer.length).toBeLessThanOrEqual(1);
-        if (toSharer.length === 1) expect(isCalendarAccessDenied(sharer)).toBe(true);
+        // Both servers list the account for calendars: the one probe, then
+        // no retry on every load.
+        expect(client.currentSession?.accounts?.[sharer]?.accountCapabilities?.[CAPABILITIES.CALENDARS], 'the session lists the sharer for calendars').toBeTruthy();
+        expect(toSharer).toHaveLength(1);
+        expect(isCalendarAccessDenied(sharer)).toBe(true);
       } finally {
         spy.mockRestore();
       }
@@ -696,6 +698,100 @@ live('live Stalwart calendar', () => {
     }, 60_000);
   });
 
+  describe('a subscribed feed', () => {
+    const FEED_URL = 'https://feeds.invalid/live.ics';
+    let feed = '';
+    const realFetch = globalThis.fetch;
+
+    const vevent = (uid: string, title: string, start: string, extra = '') =>
+      `BEGIN:VEVENT\r\nUID:${RUN}-${uid}\r\nDTSTAMP:20271101T000000Z\r\nDTSTART:${start}\r\nDURATION:PT1H\r\nSUMMARY:${RUN} ${title}\r\n${extra}END:VEVENT\r\n`;
+    const calendar = (...events: string[]) =>
+      `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//live//EN\r\n${events.join('')}END:VCALENDAR\r\n`;
+
+    async function mirrorEvents(calendarId: string): Promise<Record<string, any>[]> {
+      const res = await raw(client, [
+        ['CalendarEvent/query', { accountId: client.accountId, filter: { inCalendar: calendarId } }, 'q'],
+        ['CalendarEvent/get', {
+          accountId: client.accountId,
+          '#ids': { resultOf: 'q', name: 'CalendarEvent/query', path: '/ids' },
+          properties: ['id', 'uid', 'title', 'start', 'locations', 'recurrenceRule'],
+        }, 'g'],
+      ]);
+      return (res.find((r) => r[2] === 'g')?.[1].list ?? []) as Record<string, any>[];
+    }
+
+    beforeAll(() => {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== FEED_URL) return realFetch(input, init);
+        return new Response(feed, { status: 200, headers: { 'Content-Type': 'text/calendar' } });
+      }) as typeof fetch;
+    });
+
+    afterAll(async () => {
+      globalThis.fetch = realFetch;
+      const { useCalendarSubscriptionsStore } = await import('../../stores/calendar-subscriptions-store');
+      for (const sub of useCalendarSubscriptionsStore.getState().subscriptions) {
+        if (sub.calendarId && sub.name.includes(RUN)) {
+          await raw(client, [['Calendar/set', { accountId: client.accountId, destroy: [sub.calendarId], onDestroyRemoveEvents: true }, '0']]).catch(() => undefined);
+        }
+      }
+      useCalendarSubscriptionsStore.setState({ subscriptions: [] });
+    }, 60_000);
+
+    it('gives the events it still carries what it changed, drops what it left out and writes nothing when unchanged', async () => {
+      await connectSingleton();
+      const { useCalendarSubscriptionsStore } = await import('../../stores/calendar-subscriptions-store');
+      const subs = useCalendarSubscriptionsStore.getState();
+      feed = calendar(
+        vevent('a', 'talk', '20271206T090000Z', 'LOCATION:Room 1\r\n'),
+        vevent('b', 'workshop', '20271207T090000Z'),
+        vevent('w', 'weekly', '20271208T090000Z', 'RRULE:FREQ=WEEKLY;COUNT=3\r\n'),
+      );
+      const sub = await subs.addSubscription({ name: `${RUN} feed`, url: FEED_URL });
+      expect(sub.calendarId).toBeTruthy();
+      const first = await mirrorEvents(sub.calendarId!);
+      expect(first.map((e) => e.title).sort()).toEqual([`${RUN} talk`, `${RUN} weekly`, `${RUN} workshop`]);
+      const talkId = first.find((e) => e.uid === `${RUN}-a`)!.id;
+
+      // Unchanged: no write at all.
+      const jmap = await singleton();
+      const spy = vi.spyOn(jmap, 'request');
+      try {
+        await useCalendarSubscriptionsStore.getState().syncSubscription(sub.id);
+        const writes = spy.mock.calls.filter(([calls]) =>
+          (calls as unknown as [string, Record<string, unknown>][]).some(([name, args]) =>
+            name === 'CalendarEvent/set' && (args.update || args.destroy || args.create)));
+        expect(writes).toEqual([]);
+      } finally {
+        spy.mockRestore();
+      }
+      expect(useCalendarSubscriptionsStore.getState().subscriptions.find((s) => s.id === sub.id)?.lastError).toBeNull();
+
+      // Moved, renamed and in another room; one gone, one new, the series longer.
+      feed = calendar(
+        vevent('a', 'talk moved', '20271206T110000Z', 'LOCATION:Room 2\r\n'),
+        vevent('c', 'new talk', '20271209T090000Z'),
+        vevent('w', 'weekly', '20271208T090000Z', 'RRULE:FREQ=WEEKLY;COUNT=5\r\n'),
+      );
+      await useCalendarSubscriptionsStore.getState().syncSubscription(sub.id);
+      expect(useCalendarSubscriptionsStore.getState().subscriptions.find((s) => s.id === sub.id)?.lastError).toBeNull();
+      const second = await mirrorEvents(sub.calendarId!);
+      expect(second.map((e) => e.title).sort()).toEqual([`${RUN} new talk`, `${RUN} talk moved`, `${RUN} weekly`]);
+      const talk = second.find((e) => e.uid === `${RUN}-a`)!;
+      // The same event, changed in place.
+      expect(talk.id).toBe(talkId);
+      expect((await getEvents([talk.id]))[0].utcStart).toBe('2027-12-06T11:00:00Z');
+      expect(Object.values(talk.locations ?? {}).map((l: any) => l.name)).toEqual(['Room 2']);
+      const weekly = second.find((e) => e.uid === `${RUN}-w`)!;
+      const rule = Array.isArray(weekly.recurrenceRule) ? weekly.recurrenceRule[0] : weekly.recurrenceRule;
+      expect(rule?.count).toBe(5);
+
+      await useCalendarSubscriptionsStore.getState().removeSubscription(sub.id);
+      const [[, gone]] = await raw(client, [['Calendar/get', { accountId: client.accountId, ids: [sub.calendarId] }, '0']]);
+      expect(gone.notFound).toEqual([sub.calendarId]);
+    }, 90_000);
+  });
+
   describe('tasks', () => {
     it('lists the account\'s own tasks and none of another account\'s', async () => {
       const [[, created]] = await raw(client, [['CalendarEvent/set', {
@@ -708,17 +804,58 @@ live('live Stalwart calendar', () => {
       await useCalendarStore.getState().fetchTasks();
       expect(useCalendarStore.getState().tasks.map((t) => t.title)).toContain(`${RUN} task`);
 
-      if (!USER2) return;
+      if (!USER2 || !other) return;
+      const theirCalendar = (await raw(other, [['Calendar/get', { accountId: other.accountId, properties: ['id', 'isDefault'] }, '0']]))[0][1]
+        .list.find((c: { isDefault?: boolean }) => c.isDefault)?.id;
+      const [[, theirs]] = await raw(other, [['CalendarEvent/set', {
+        accountId: other.accountId,
+        create: { t: { '@type': 'Task', title: `${RUN} their task`, calendarIds: { [theirCalendar]: true }, due: '2027-11-02T10:00:00', timeZone: 'Europe/Berlin' } },
+      }, '0']]);
+      expect(theirs.created?.t?.id, JSON.stringify(theirs.notCreated)).toBeTruthy();
+
+      // The first account's task load is still waiting for its tasks when
+      // the client switches to the second account and loads that one's.
       const second = new JMAPClient();
       await second.connect(SERVER!, USER2, PASS);
       const jmap = await singleton();
-      jmap.restoreSnapshot(second.snapshot());
+      const request = jmap.request.bind(jmap);
+      let switched = false;
+      let waiting = false;
+      let release!: () => void;
+      const answers = new Promise<void>((resolve) => { release = resolve; });
+      const spy = vi.spyOn(jmap, 'request').mockImplementation(async (calls, using) => {
+        const readsTasks = (calls as unknown as [string, Record<string, unknown>][]).some(([name, args]) =>
+          name === 'CalendarEvent/get' && Array.isArray(args.properties) && args.properties.includes('alerts'));
+        if (switched || !readsTasks) return request(calls, using);
+        // Sent by the first account before the switch, answered after it.
+        waiting = true;
+        await answers;
+        return client.request(calls, using);
+      });
       try {
+        useCalendarStore.getState().reset();
+        const outgoing = useCalendarStore.getState().fetchTasks();
+        await waitFor(async () => waiting, (w) => w, 10_000);
+        expect(waiting, 'the first account\'s tasks are being read').toBe(true);
+
+        switched = true;
+        jmap.restoreSnapshot(second.snapshot());
         useCalendarStore.getState().reset();
         await useCalendarStore.getState().fetchCalendars();
         await useCalendarStore.getState().fetchTasks();
-        expect(useCalendarStore.getState().tasks.map((t) => t.title)).not.toContain(`${RUN} task`);
+        const loaded = useCalendarStore.getState().tasks;
+        expect(loaded.map((t) => t.title)).toContain(`${RUN} their task`);
+        release();
+        await outgoing;
+
+        // Untouched by the first account's load, which reads its task ids in
+        // the second account by then: the e2e accounts repeat each other's
+        // ids, so what that finds can even look right.
+        expect(useCalendarStore.getState().tasks).toBe(loaded);
+        expect(loaded.map((t) => t.title)).not.toContain(`${RUN} task`);
       } finally {
+        release();
+        spy.mockRestore();
         await connectSingleton();
       }
     }, 60_000);
