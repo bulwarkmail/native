@@ -288,42 +288,150 @@ export interface AuthenticationResults {
   dmarc?: { result: string; domain?: string; policy?: string };
 }
 
-/** Parse an Authentication-Results header into SPF / DKIM / DMARC results. */
-export function parseAuthenticationResults(header: string): AuthenticationResults {
-  const results: AuthenticationResults = {};
-  // A header can carry several SPF results (HELO and MAIL FROM); the MAIL FROM
-  // identity is primary, another identity may only escalate to a failure.
-  const spfRegex = /spf=(\w+)(?:\s+\([^)]*\))?(?:\s+smtp\.(mailfrom|helo)=([^\s;]+))?/g;
-  const severity: Record<string, number> = {
-    fail: 6, softfail: 5, permerror: 4, temperror: 3, neutral: 2, none: 1, pass: 0,
-  };
-  const spf: SpfCheck[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = spfRegex.exec(header)) !== null) {
-    spf.push({ result: m[1].toLowerCase(), identity: m[2], domain: m[3] });
+interface ResInfo {
+  method: string;
+  result: string;
+  props: Record<string, string>;
+}
+
+// The parser below is a port of parseAuthenticationResults in
+// lib/email-headers.ts on the reading branch (fx/read), which this branch
+// can't import yet: switch to that export (and its
+// hasAlignedAuthenticationPass) once both are merged.
+
+/**
+ * Split one Authentication-Results header into its `;`-separated parts
+ * (RFC 8601), dropping comments. A `;` inside a quoted string or a comment
+ * does not split: both can carry sender-chosen text such as the envelope
+ * address.
+ */
+function splitResinfo(header: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < header.length; i++) {
+    const c = header[i];
+    if (c === '\\' && (quoted || depth > 0)) {
+      if (depth === 0) current += c + (header[i + 1] ?? '');
+      i++;
+      continue;
+    }
+    if (quoted) {
+      current += c;
+      if (c === '"') quoted = false;
+      continue;
+    }
+    if (c === '(') {
+      depth++;
+      continue;
+    }
+    if (depth > 0) {
+      if (c === ')' && --depth === 0) current += ' ';
+      continue;
+    }
+    if (c === '"') quoted = true;
+    if (c === ';') {
+      parts.push(current);
+      current = '';
+      continue;
+    }
+    current += c;
   }
+  parts.push(current);
+  return parts.map((part) => part.trim()).filter(Boolean);
+}
+
+const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;
+const PROP_RE = /\s*([^\s=]+)\s*=\s*("(?:[^"\\]|\\.)*"|\S*)/y;
+
+/**
+ * Read one resinfo: the method must open the part, so a `dmarc=pass` that
+ * appears inside a property value (say an envelope local part in
+ * `smtp.mailfrom=`) is never taken for a result.
+ */
+function parseResinfo(part: string): ResInfo | null {
+  const match = METHOD_RE.exec(part);
+  if (!match) return null;
+  const props: Record<string, string> = {};
+  const rest = part.slice(match[0].length);
+  PROP_RE.lastIndex = 0;
+  let prop: RegExpExecArray | null;
+  while ((prop = PROP_RE.exec(rest)) !== null && prop[0].length > 0) {
+    const key = prop[1].toLowerCase();
+    let value = prop[2];
+    if (value.startsWith('"')) value = value.slice(1, -1).replace(/\\(.)/g, '$1');
+    if (!(key in props)) props[key] = value;
+  }
+  return { method: match[1].toLowerCase(), result: match[2].toLowerCase(), props };
+}
+
+const SPF_SEVERITY: Record<string, number> = {
+  fail: 6, softfail: 5, permerror: 4, temperror: 3, neutral: 2, none: 1, pass: 0,
+};
+
+const DMARC_SEVERITY: Record<string, number> = { fail: 3, permerror: 2, temperror: 2, none: 1, pass: 0 };
+
+/**
+ * Parse Authentication-Results headers, in message order, into SPF, DKIM
+ * and DMARC results. The topmost header is the receiving server's own;
+ * anything below it may have been written by the sender, so DKIM and DMARC
+ * come from the topmost header only, and the others can only escalate SPF
+ * to a failure, never supply a pass. A method counts only where it opens a
+ * `;`-separated part: matched anywhere in the header, a `dkim=pass` written
+ * into a comment or an envelope address passed for a result.
+ */
+export function parseAuthenticationResults(headers: string | readonly string[]): AuthenticationResults {
+  const results: AuthenticationResults = {};
+  const list = typeof headers === 'string' ? [headers] : headers;
+  const perHeader = list.map((header) => splitResinfo(header)
+    .map(parseResinfo)
+    .filter((info): info is ResInfo => info !== null));
+  const own = perHeader[0] ?? [];
+  const foreign = perHeader.slice(1).flat();
+
+  const severity = (r: string) => SPF_SEVERITY[r] ?? -1;
+  const isFailure = (r: string) => severity(r) >= SPF_SEVERITY.temperror;
+  const toSpfCheck = (info: ResInfo): SpfCheck => {
+    const identity = info.props['smtp.mailfrom'] !== undefined
+      ? 'mailfrom'
+      : info.props['smtp.helo'] !== undefined ? 'helo' : undefined;
+    return { result: info.result, identity, domain: identity ? info.props[`smtp.${identity}`] || undefined : undefined };
+  };
+  const spf: SpfCheck[] = [
+    ...own.filter((info) => info.method === 'spf').map(toSpfCheck),
+    ...foreign.filter((info) => info.method === 'spf').map(toSpfCheck).filter((e) => isFailure(e.result)),
+  ];
   if (spf.length > 0) {
+    // The MAIL FROM identity is primary; another one (HELO) may only
+    // escalate the headline to a failure.
     let primary = spf.find((e) => e.identity === 'mailfrom') ?? spf[0];
     for (const cur of spf) {
-      const s = severity[cur.result] ?? -1;
-      if (s >= severity.temperror && s > (severity[primary.result] ?? -1)) primary = cur;
+      if (isFailure(cur.result) && severity(cur.result) > severity(primary.result)) primary = cur;
     }
-    results.spf = { result: primary.result, identity: primary.identity, domain: primary.domain, all: spf };
+    results.spf = { ...primary, all: spf };
   }
+
   // A message can carry several signatures (the sender's and a mailing
   // list's or a sending service's): alignment looks at each.
-  const dkimRegex = /dkim=(\w+)(?:\s+\([^)]*\))?(?:\s+header\.d=([^\s;]+))?(?:\s+header\.s=([^\s;]+))?/g;
-  const dkim: DkimCheck[] = [];
-  while ((m = dkimRegex.exec(header)) !== null) {
-    dkim.push({ result: m[1].toLowerCase(), domain: m[2], selector: m[3] });
-  }
+  const dkim: DkimCheck[] = own
+    .filter((info) => info.method === 'dkim')
+    .map((info) => ({ result: info.result, domain: info.props['header.d'], selector: info.props['header.s'] }));
   if (dkim.length > 0) results.dkim = { ...dkim[0], all: dkim };
-  const dmarc = header.match(/dmarc=(\w+)(?:\s+header\.from=([^\s;]+))?(?:\s+policy\.dmarc=(\w+))?/);
-  if (dmarc) results.dmarc = { result: dmarc[1].toLowerCase(), domain: dmarc[2], policy: dmarc[3] };
+
+  // One DMARC verdict per message; should the header carry several, the
+  // most severe stands.
+  const dmarc = own
+    .filter((info) => info.method === 'dmarc')
+    .reduce<ResInfo | undefined>(
+      (worst, info) => (!worst || (DMARC_SEVERITY[info.result] ?? -1) > (DMARC_SEVERITY[worst.result] ?? -1) ? info : worst),
+      undefined,
+    );
+  if (dmarc) results.dmarc = { result: dmarc.result, domain: dmarc.props['header.from'], policy: dmarc.props['policy.dmarc'] };
   return results;
 }
 
-/** Authentication results of an email, derived from its raw headers. */
+/** Authentication results of an email, from its Authentication-Results headers in message order. */
 export function getEmailAuthenticationResults(
   email?: Pick<Email, 'headers'> | null,
 ): AuthenticationResults | null {
@@ -332,16 +440,7 @@ export function getEmailAuthenticationResults(
     .filter((h) => h.name.toLowerCase() === 'authentication-results')
     .map((h) => h.value);
   if (values.length === 0) return null;
-  // Merge: the first (outermost, added by our own server) header wins per
-  // mechanism; later ones only fill gaps.
-  const merged: AuthenticationResults = {};
-  for (const value of values) {
-    const parsed = parseAuthenticationResults(value);
-    if (!merged.spf && parsed.spf) merged.spf = parsed.spf;
-    if (!merged.dkim && parsed.dkim) merged.dkim = parsed.dkim;
-    if (!merged.dmarc && parsed.dmarc) merged.dmarc = parsed.dmarc;
-  }
-  return merged;
+  return parseAuthenticationResults(values);
 }
 
 function domainOf(address: string | undefined): string | undefined {

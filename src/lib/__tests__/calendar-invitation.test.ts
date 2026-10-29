@@ -118,6 +118,26 @@ describe('authentication results', () => {
     expect(getEmailAuthenticationResults(e)?.dmarc?.result).toBe('fail');
     expect(getEmailAuthenticationResults(email({}))).toBeNull();
   });
+
+  // A sender controls the envelope address, comments and every header below
+  // the receiving server's own.
+  it('takes no result a sender wrote into a property, a comment or a lower header', () => {
+    const inEnvelope = parseAuthenticationResults(
+      'mx.example.org; spf=none smtp.mailfrom="dkim=pass;dmarc=pass"@forger.example (dkim=pass header.d=example.com)',
+    );
+    expect(inEnvelope.dkim).toBeUndefined();
+    expect(inEnvelope.dmarc).toBeUndefined();
+    const lower = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [
+        { name: 'Authentication-Results', value: 'mx.example.org; spf=none smtp.mailfrom=forger.example; dmarc=none' },
+        { name: 'Authentication-Results', value: 'forged; dkim=pass header.d=example.com; dmarc=pass header.from=example.com' },
+      ],
+    });
+    expect(getEmailAuthenticationResults(lower)).toMatchObject({ dmarc: { result: 'none' } });
+    expect(getEmailAuthenticationResults(lower)?.dkim).toBeUndefined();
+    expect(getInvitationTrustAssessment(request, lower, 'request').level).toBe('caution');
+  });
 });
 
 describe('getInvitationTrustAssessment', () => {
