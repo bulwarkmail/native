@@ -19,6 +19,8 @@ import {
 } from '../../lib/client-cert';
 import { useLocaleStore } from '../../stores/locale-store';
 import {
+  AccountSecurityForbiddenError,
+  isLimitedStalwartSignIn,
   isStalwartSupported,
   fetchAuthInfo,
   fetchCryptoInfo,
@@ -845,6 +847,9 @@ export function AccountSecuritySettings() {
 
   // null = still probing; false = server lacks the Stalwart extension.
   const [supported, setSupported] = useState<boolean | null>(null);
+  // The server has the extension but refuses it to this sign-in (Stalwart
+  // 1.0 with a client that isn't first-party).
+  const [restricted, setRestricted] = useState(false);
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const t = useLocaleStore((s) => s.t);
   const [displayName, setDisplayName] = useState('');
@@ -872,8 +877,18 @@ export function AccountSecuritySettings() {
     const session = jmapClient.currentSession;
     if (!session) { setOffline(true); setSupported(false); return; }
     setOffline(false);
-    if (!isStalwartSupported()) { setSupported(false); return; }
+    if (!isStalwartSupported()) {
+      // Stalwart 1.0 hides its extension from the client the app registered.
+      if (isLimitedStalwartSignIn()) {
+        setSupported(true);
+        setRestricted(true);
+        return;
+      }
+      setSupported(false);
+      return;
+    }
     setSupported(true);
+    setRestricted(false);
 
     (async () => {
       try {
@@ -888,7 +903,12 @@ export function AccountSecuritySettings() {
           if (principal.status === 'fulfilled') setDisplayName(principal.value.displayName);
         }
       } catch (err) {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : t('settings.security.load_error', 'Failed to load security settings.'));
+        if (cancelled) return;
+        if (err instanceof AccountSecurityForbiddenError) {
+          setRestricted(true);
+          return;
+        }
+        setLoadError(err instanceof Error ? err.message : t('settings.security.load_error', 'Failed to load security settings.'));
       }
     })();
 
@@ -919,7 +939,18 @@ export function AccountSecuritySettings() {
         </SettingsSection>
       )}
 
-      {supported && (
+      {supported && restricted && (
+        <SettingsSection
+          title={t('settings.security.title', 'Account Security')}
+          description={t('settings.security.description', 'Manage your password, two-factor authentication, and security settings')}
+        >
+          <Text style={styles.emptyText}>
+            {t('settings.security.restricted', "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.")}
+          </Text>
+        </SettingsSection>
+      )}
+
+      {supported && !restricted && (
         <SettingsSection
           title={t('settings.security.title', 'Account Security')}
           description={t('settings.security.description', 'Manage your password, two-factor authentication, and security settings')}

@@ -201,6 +201,11 @@ export class JMAPClient {
     return !!this.credentials?.accessToken && !this.credentials.tokenEndpoint;
   }
 
+  /** The OAuth client the session's tokens were issued to (null without a bundle). */
+  get oauthClientId(): string | null {
+    return (this.credentials?.accessToken && this.credentials.clientId) || null;
+  }
+
   get isConnected(): boolean {
     return this.session !== null && this._accountId !== null;
   }

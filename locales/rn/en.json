@@ -1199,6 +1199,7 @@
         "remove_title": "Remove public key?",
         "title": "Public Keys"
       },
+      "restricted": "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.",
       "two_factor": {
         "active": "Active",
         "code": "Verification code",
