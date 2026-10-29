@@ -1682,10 +1682,13 @@ export async function recordPushSubscriptionExpires(accountId: string, expires: 
 
 /**
  * Tear down push for a single account. Destroys every JMAP subscription the
- * server holds for this device (assumes the jmapClient is currently
- * authenticated to that account; the active-account logout flow guarantees
- * this) and tells the relay to drop its mapping. Other accounts' push setups
- * are untouched.
+ * server holds for this device and tells the relay to drop its mapping.
+ * Other accounts' push setups are untouched. The account the jmapClient
+ * serves goes through it; another signed-in account (removed from the
+ * account list while a different one is open) through a client of its own,
+ * never the singleton: subscription ids repeat across accounts ("b" in every
+ * Stalwart account), so a destroy by id there could end the open account's
+ * own push.
  *
  * The FCM token is deliberately left alive: the relay mapping is gone so
  * nothing gets forwarded, and deleting the token makes the next getToken()
@@ -1706,8 +1709,9 @@ export async function teardownPushNotificationsForAccount(
   // failed enable can leave a registration this client no longer tracks (#841).
   // The recorded id alone is trusted only when the server can't be asked: on
   // a server reinstalled at the same address it can name another device's.
+  const server = await pushSubscriptionsOf(accountId);
   const idsToDestroy = new Set<string>();
-  const existing = storedDcid ? await listPushSubscriptions().catch(() => null) : null;
+  const existing = server && storedDcid ? await server.list().catch(() => null) : null;
   if (existing) {
     for (const s of existing) {
       const recordedWithoutDevice = s.id === storedSubId && !s.deviceClientId;
@@ -1717,7 +1721,7 @@ export async function teardownPushNotificationsForAccount(
     idsToDestroy.add(storedSubId);
   }
   for (const id of idsToDestroy) {
-    await destroyPushSubscription(id).catch(() => undefined);
+    await server?.destroy(id).catch(() => undefined);
   }
   if (relayBaseUrl && storedDcid) {
     await deregisterFromRelay(relayBaseUrl, storedDcid);
@@ -1727,6 +1731,38 @@ export async function teardownPushNotificationsForAccount(
 
   const remaining = (await readPushAccountIds()).filter((id) => id !== accountId);
   await writePushAccountIds(remaining);
+}
+
+/**
+ * Listing and destroying the account's push subscriptions, through the
+ * jmapClient when it serves the account, else through a client of its own.
+ * Null when the account can't be loaded: its server is left alone then.
+ */
+async function pushSubscriptionsOf(accountId: string): Promise<{
+  list: () => Promise<ListedSubscription[]>;
+  destroy: (id: string) => Promise<void>;
+} | null> {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  if (username && serverUrl && generateAccountId(username, serverUrl) === accountId) {
+    return { list: listPushSubscriptions, destroy: destroyPushSubscription };
+  }
+  const client = new JMAPClient();
+  if (!(await client.loadAccount(accountId).catch(() => false))) return null;
+  const using = [CAPABILITIES.CORE];
+  return {
+    list: async () => {
+      const res = await client.request(
+        [['PushSubscription/get', { ids: null, properties: ['id', 'deviceClientId'] }, '0']],
+        using,
+      );
+      return (requireMethodResult(res, '0', 'PushSubscription/get').list as ListedSubscription[] | undefined) ?? [];
+    },
+    destroy: async (id) => {
+      const res = await client.request([['PushSubscription/set', { destroy: [id] }, '0']], using);
+      requireMethodResult(res, '0', 'PushSubscription/set');
+    },
+  };
 }
 
 /**
