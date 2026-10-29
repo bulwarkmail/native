@@ -20,7 +20,7 @@ import { generateAccountId } from '../lib/account-utils';
 import { feedChanged, feedFields } from '../lib/calendar-feed-diff';
 import { readServerPrimaryAccountId } from '../lib/server-fingerprint';
 import { useAccountStore } from './account-store';
-import { calendarStoreGeneration, useCalendarStore } from './calendar-store';
+import { CalendarAccountChangedError, calendarStoreGeneration, useCalendarStore } from './calendar-store';
 import { t } from './locale-store';
 
 export interface CalendarSubscription {
@@ -52,6 +52,9 @@ export const DEFAULT_REFRESH_INTERVAL_MINUTES = 60;
 
 // 10 MB is far beyond any real feed; a bigger response is not a calendar.
 const MAX_FEED_BYTES = 10 * 1024 * 1024;
+
+// A sync removes at most half of a mirror this size or larger at once.
+const MASS_REMOVAL_MIN_EVENTS = 10;
 
 interface SubscriptionsState {
   subscriptions: CalendarSubscription[];
@@ -205,6 +208,14 @@ class SubscriptionAccountChangedError extends Error {
   }
 }
 
+/**
+ * Whether `err` says the account changed under the sync: its own check, or
+ * the calendar store's (importEvents stops so after an account switch).
+ */
+function accountChanged(err: unknown): boolean {
+  return err instanceof SubscriptionAccountChangedError || err instanceof CalendarAccountChangedError;
+}
+
 function assertScope(scope: SyncScope): void {
   if (currentAccountId() !== scope.accountId || calendarStoreGeneration() !== scope.generation) {
     throw new SubscriptionAccountChangedError();
@@ -224,6 +235,11 @@ async function fetchAndParseFeed(url: string, scope: SyncScope): Promise<Partial
   if (text.length > MAX_FEED_BYTES) throw tooLarge();
   if (!/BEGIN:VCALENDAR/i.test(text)) {
     throw new Error(t('calendar.subscription.not_a_feed', 'That URL did not return an iCalendar feed'));
+  }
+  // A body cut off on the way (a dropped connection, a proxy's limit) parses
+  // up to the cut, and every mirror event after it looked gone upstream.
+  if (!/END:VCALENDAR\s*$/i.test(text)) {
+    throw new Error(t('calendar.subscription.feed_truncated', 'The feed was cut off before its end. Nothing was changed.'));
   }
   assertScope(scope);
   const bytes = new TextEncoder().encode(text);
@@ -247,17 +263,20 @@ async function fetchAndParseFeed(url: string, scope: SyncScope): Promise<Partial
  * another calendar. One made for this sync has nothing to drop or update.
  * Every request names the account the sync started in, and the sync stops
  * once the client serves another (SubscriptionAccountChangedError).
+ * Resolves to what the sync has to say for lastError (events it kept that
+ * the feed left out), else null.
  */
 async function syncFeedIntoCalendar(
   calendarId: string,
   url: string,
   linkedBefore: boolean,
   scope: SyncScope,
-): Promise<void> {
+): Promise<string | null> {
   const { accountId } = scope;
   const parsed = await fetchAndParseFeed(url, scope);
   let toImport = parsed;
   let wrote = false;
+  let warning: string | null = null;
 
   if (linkedBefore) {
     const parsedUids = new Set(parsed.map((e) => e.uid).filter(Boolean) as string[]);
@@ -269,7 +288,18 @@ async function syncFeedIntoCalendar(
       const inMirror = new Set(existing.map((e) => e.uid).filter(Boolean) as string[]);
       toImport = parsed.filter((e) => !e.uid || !inMirror.has(e.uid));
 
-      const stale = existing.filter((e) => e.uid && !parsedUids.has(e.uid));
+      let stale = existing.filter((e) => e.uid && !parsedUids.has(e.uid));
+      // A feed that drops most of a sizeable mirror at once is more likely
+      // broken (an error page that still parses, a server's partial answer)
+      // than emptied: the events stay, and the sync says so.
+      if (existing.length >= MASS_REMOVAL_MIN_EVENTS && stale.length > existing.length / 2) {
+        warning = t(
+          'calendar.subscription.mass_removal',
+          'The feed left out {count} of the {total} events at once. They were kept in case the feed is broken.',
+          { count: stale.length, total: existing.length },
+        );
+        stale = [];
+      }
       const toDelete: string[] = [];
       for (const e of stale) {
         const others = { ...(e.calendarIds || {}) };
@@ -308,7 +338,7 @@ async function syncFeedIntoCalendar(
         }
       }
     } catch (err) {
-      if (err instanceof SubscriptionAccountChangedError) throw err;
+      if (accountChanged(err)) throw err;
       // Non-fatal: if we can't enumerate existing events, still import new ones.
     }
   }
@@ -317,6 +347,7 @@ async function syncFeedIntoCalendar(
   // importEvents shows what it brought in; deletions and changes alone need a reload.
   if (toImport.length > 0) await useCalendarStore.getState().importEvents(toImport, calendarId);
   else if (wrote) await useCalendarStore.getState().refresh();
+  return warning;
 }
 
 export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
@@ -353,7 +384,7 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
           await useCalendarStore.getState().refresh();
           return { ...sub, lastSyncAt: Date.now() };
         } catch (err) {
-          if (err instanceof SubscriptionAccountChangedError) {
+          if (accountChanged(err)) {
             // The mirror is in the account the sync started in, which the
             // client no longer serves: a request to remove it would reach
             // the next account. Kept as that account's subscription, it
@@ -473,17 +504,17 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
             await useCalendarStore.getState().fetchCalendars();
           }
           const linkedBefore = calendarId === sub.calendarId;
-          await syncFeedIntoCalendar(calendarId, sub.url, linkedBefore, scope);
+          const warning = await syncFeedIntoCalendar(calendarId, sub.url, linkedBefore, scope);
           set({
             subscriptions: get().subscriptions.map((s) =>
-              s.id === id ? { ...s, lastSyncAt: Date.now(), lastError: null } : s,
+              s.id === id ? { ...s, lastSyncAt: Date.now(), lastError: warning } : s,
             ),
           });
           if (!linkedBefore) await useCalendarStore.getState().refresh();
         } catch (err) {
           // Not this subscription's failure: the client serves another
           // account now, and the sync runs again in its own.
-          if (err instanceof SubscriptionAccountChangedError) return;
+          if (accountChanged(err)) return;
           const message = err instanceof Error ? err.message : t('calendar.subscription.refresh_error', 'Failed to refresh subscription');
           set({
             subscriptions: get().subscriptions.map((s) =>
