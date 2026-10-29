@@ -147,6 +147,27 @@ function clearDeviceWideAccountData(): void {
   useCalendarSubscriptionsStore.getState().clearAll();
 }
 
+// An account left the registry: signed out, or evicted because its
+// credentials are gone or refused. Its own calendar feeds go now, since feed
+// URLs are often secret; feeds made before they recorded their account stay
+// until nobody is signed in. When it was the last account, the device-wide
+// data goes too.
+async function forgetRemovedAccount(accountId: string): Promise<void> {
+  try {
+    const feeds = useCalendarSubscriptionsStore;
+    // On a cold start the stored list may not have been read yet; written
+    // before that, the filtered empty default would replace it.
+    if (!feeds.persist.hasHydrated()) await feeds.persist.rehydrate();
+    const { subscriptions } = feeds.getState();
+    if (subscriptions.some((s) => s.localAccountId === accountId)) {
+      feeds.setState({ subscriptions: subscriptions.filter((s) => s.localAccountId !== accountId) });
+    }
+  } catch (err) {
+    console.warn('[auth-store] could not drop the calendar feeds of a removed account:', err);
+  }
+  if (useAccountStore.getState().accounts.length === 0) clearDeviceWideAccountData();
+}
+
 // Drop the named account from the email cache, then reset the (per-session,
 // not yet per-account) contacts and calendar stores. Used by logout when
 // signing one account out while others remain.
@@ -719,6 +740,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await revokeStoredRefreshToken(currentId);
       await jmapClient.clearAccountCredentials(currentId);
       accountStore.removeAccount(currentId);
+      await forgetRemovedAccount(currentId);
     } else {
       await jmapClient.logout();
     }
@@ -877,6 +899,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           useEmailStore.getState().removeAccount(accountId);
           restorePrevious();
           set({ isLoading: false, error: 'Session expired for this account' });
+          await forgetRemovedAccount(accountId);
           return;
         }
       } catch (err) {
@@ -888,6 +911,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           useEmailStore.getState().removeAccount(accountId);
           restorePrevious();
           set({ isLoading: false, error: 'Session expired for this account' });
+          await forgetRemovedAccount(accountId);
           return;
         }
         // NetworkError or anything else - keep the previous active account
@@ -943,6 +967,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
     accountStore.removeAccount(accountId);
+    await forgetRemovedAccount(accountId);
   },
 
   restoreSession: async () => {
@@ -1004,6 +1029,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // No stored credentials (or corrupt) — genuine logout.
           accountStore.removeAccount(target.id);
           useEmailStore.getState().removeAccount(target.id);
+          await forgetRemovedAccount(target.id);
           set({ isLoading: false, hasRestoredSession: true });
           return false;
         }
@@ -1038,6 +1064,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           await jmapClient.clearAccountCredentials(target.id).catch(() => undefined);
           accountStore.removeAccount(target.id);
           useEmailStore.getState().removeAccount(target.id);
+          await forgetRemovedAccount(target.id);
           set({ isLoading: false, hasRestoredSession: true, error: 'Session expired' });
           return false;
         }
@@ -1107,6 +1134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // Now we know the credentials are bad — fall back to logout flow.
         await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
         accountStore.removeAccount(activeAccountId);
+        await forgetRemovedAccount(activeAccountId);
         set({
           isAuthenticated: false,
           isLoading: false,

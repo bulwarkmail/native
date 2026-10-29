@@ -11,7 +11,7 @@
 // the hand-off produces, so `connectWithOAuth` and the refresh path apply.
 
 import * as WebBrowser from 'expo-web-browser';
-import { secureFetch } from './client-cert';
+import { fetchWithoutForeignRedirect, followedOnlyAllowedRedirects, mayFollowRedirect, secureFetch } from './client-cert';
 import { HANDOFF_REDIRECT_URI, HandoffError, HandoffCancelledError, type OAuthTokens } from './oauth';
 import {
   generateCodeChallenge,
@@ -51,7 +51,9 @@ function sameHost(a: string, b: string): boolean {
 /**
  * RFC 8414 / OIDC discovery on the mail server origin. Returns null when the
  * server advertises no authorization server (plain Stalwart without OAuth,
- * or a non-Stalwart JMAP server).
+ * or a non-Stalwart JMAP server). The document decides where registration,
+ * the sign-in page and the code exchange go, so one reached through a
+ * redirect to another host doesn't count.
  */
 export async function discoverOAuthMetadata(serverUrl: string): Promise<OAuthMetadata | null> {
   const base = serverUrl.replace(/\/+$/, '');
@@ -62,8 +64,11 @@ export async function discoverOAuthMetadata(serverUrl: string): Promise<OAuthMet
   for (const url of urls) {
     const t = withTimeout(DISCOVERY_TIMEOUT_MS);
     try {
-      const res = await secureFetch(url, { headers: { Accept: 'application/json' }, signal: t.signal });
+      const res = await fetchWithoutForeignRedirect(url, { headers: { Accept: 'application/json' }, signal: t.signal });
       if (!res.ok) continue;
+      // Where no fetch could be told not to follow (see client-cert), the
+      // answer's url says whether it came from elsewhere.
+      if (res.url && !followedOnlyAllowedRedirects(res) && !mayFollowRedirect(url, res.url)) continue;
       const data = (await res.json()) as Partial<OAuthMetadata>;
       if (
         typeof data.authorization_endpoint === 'string' &&
@@ -239,9 +244,11 @@ export async function loginWithPkce(
     redirect_uri: redirectUri,
     code_verifier: verifier,
   });
+  // The code and verifier follow a redirect only within the token endpoint's
+  // own host, which may be an identity provider's rather than the server's.
   let response: Response;
   try {
-    response = await secureFetch(metadata.token_endpoint, {
+    response = await fetchWithoutForeignRedirect(metadata.token_endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: body.toString(),
@@ -284,7 +291,7 @@ export async function revokeRefreshToken(serverUrl: string, tokens: OAuthTokens)
       token_type_hint: 'refresh_token',
       client_id: tokens.clientId,
     });
-    await secureFetch(endpoint, {
+    await fetchWithoutForeignRedirect(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),

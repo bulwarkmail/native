@@ -5,7 +5,7 @@ const { mockSecureFetch, store } = vi.hoisted(() => ({
   store: new Map<string, unknown>(),
 }));
 
-vi.mock('../client-cert', () => ({ secureFetch: mockSecureFetch }));
+vi.mock('../client-cert', () => ({ secureFetch: mockSecureFetch, fetchWithoutForeignRedirect: mockSecureFetch }));
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     getStoredCredentials: vi.fn(async (id: string) => (store.has(id) ? structuredClone(store.get(id)) : null)),
@@ -14,7 +14,7 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import { jmapClient, type StoredCredentials } from '../../api/jmap-client';
-import { resetRefreshRotations } from '../oauth';
+import { forgetRefreshRotations, refreshOAuthAccessToken, resetRefreshRotations } from '../oauth';
 import { freshStoredCredentials } from '../stored-token-refresh';
 
 const ID = 'u@example.org@https://mail.example.com';
@@ -97,6 +97,25 @@ describe('freshStoredCredentials', () => {
 
     expect(store.has(ID)).toBe(false);
     expect(jmapClient.setStoredCredentials).not.toHaveBeenCalled();
+  });
+
+  it('hands out nothing when the account signs out while the refresh runs', async () => {
+    store.set(ID, bundle(1));
+    const rotate = mockSecureFetch.getMockImplementation()!;
+    mockSecureFetch.mockImplementationOnce(async (url: string, init: RequestInit) => {
+      // The sign-out, as the auth store does it, before the endpoint answers.
+      forgetRefreshRotations('r1');
+      store.delete(ID);
+      return rotate(url, init);
+    });
+
+    await expect(freshStoredCredentials(ID, bundle(1))).rejects.toThrow();
+
+    expect(store.has(ID)).toBe(false);
+    // Nor does a stale copy of the bundle get the successor out of memory.
+    await expect(
+      refreshOAuthAccessToken({ accessToken: 'a1', refreshToken: 'r1', tokenEndpoint: 'https://mail.example.com/auth/token', clientId: 'swc1.x' }),
+    ).rejects.toThrow('400');
   });
 
   it('does not overwrite a newer bundle stored while the refresh ran', async () => {

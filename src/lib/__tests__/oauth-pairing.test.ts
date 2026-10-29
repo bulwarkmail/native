@@ -6,6 +6,7 @@ const { mockSecureFetch } = vi.hoisted(() => ({
 
 vi.mock('../client-cert', () => ({
   secureFetch: mockSecureFetch,
+  fetchWithoutForeignRedirect: mockSecureFetch,
 }));
 
 import {
