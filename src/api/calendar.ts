@@ -2,7 +2,7 @@ import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
 import { JMAPSetError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
-import { getEffectiveTimeZone } from '../lib/calendar-timezone';
+import { formatWallClock, getEffectiveTimeZone, getTimeZoneOffsetMs } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 import {
   RECURRENCE_BASE_PROPERTIES,
@@ -160,9 +160,11 @@ export function resetCalendarAccessDenied(): void {
   calendarAccessDenied.clear();
 }
 
+// Stalwart 1.0 answers `accountNotSupportedByMethod` for an account that
+// shares only a mail folder with the user, where 0.16 says `forbidden`.
 function isAccessDeniedError(err: unknown): boolean {
   const type = jmapErrorType(err);
-  return type === 'forbidden' || type === 'accountNotFound';
+  return type === 'forbidden' || type === 'accountNotFound' || type === 'accountNotSupportedByMethod';
 }
 
 /** Remember an access rejection for a shared account; returns true when it was one. */
@@ -418,10 +420,11 @@ export function resetSyntheticIdSupport(): void {
 }
 
 // The Calendar properties the app reads, which the default list on 0.16 and
-// 1.0 covers. Stalwart 1.0 advertises JMAP Metadata but its handlers are
-// still `todo!()`: a get that selects `metadata` or `privateMetadata` panics
-// on the server. An explicit list keeps them out even if a later release
-// adds them to the default. 0.16.6 knows every one of these.
+// 1.0 covers. The pre-releases of Stalwart 1.0 advertised JMAP Metadata with
+// handlers that were still `todo!()`: a get that selected `metadata` or
+// `privateMetadata` panicked on the server (1.0.0 answers it). An explicit
+// list keeps them, and whatever else a release adds to the default, out of
+// every calendar load. 0.16.6 knows every one of these.
 const CALENDAR_PROPERTIES = [
   'id', 'name', 'description', 'color', 'sortOrder', 'isSubscribed', 'isVisible', 'isDefault',
   'myRights', 'shareWith', 'defaultAlertsWithTime', 'defaultAlertsWithoutTime',
@@ -507,8 +510,8 @@ export async function queryEvents(
     const conditions: Record<string, unknown>[] = [];
     if (calendarIds.length > 0) conditions.push(buildInCalendarFilter(calendarIds));
     const range: Record<string, string> = {};
-    if (after) range.after = toLocalDateTime(after, timeZone);
-    if (before) range.before = toLocalDateTime(before, timeZone);
+    if (after) range.after = placeableLocalBound(toLocalDateTime(after, timeZone), timeZone, -1);
+    if (before) range.before = placeableLocalBound(toLocalDateTime(before, timeZone), timeZone, 1);
     if (Object.keys(range).length > 0) conditions.push(range);
     const filter = conditions.length === 1
       ? conditions[0]
@@ -585,6 +588,52 @@ function localDateTimeOf(seconds: number): string {
   const pad = (n: number, length = 2) => String(n).padStart(length, '0');
   return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
     + `T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+// Stalwart 0.16 cannot place a range bound whose wall clock names no instant
+// in the request's time zone (in the hour the clocks skip) or two (in the
+// hour they repeat): an expanded query fails with "Both 'after' and 'before'
+// filters are required when expanding recurrences", and a plain one leaves
+// the bound out (live on 0.16.27; 1.0 places both). Where the clocks change
+// at midnight - Havana, the Azores, Santiago - the start of a day is such a
+// time, and a chunk border can be one anywhere. Such a bound moves out of
+// the range until it names one instant: `after` earlier, `before` later.
+const BOUND_STEP = 15 * 60;
+const MAX_BOUND_SHIFT = 3 * 3600;
+
+/** How many instants the wall clock `seconds` (wallClockSeconds) names in `timeZone`. */
+function instantsAt(seconds: number, timeZone: string): number {
+  const wall = localDateTimeOf(seconds);
+  // The offsets a day either side: a change of the clocks in between is
+  // the only one near.
+  const offsets = new Set([seconds - DAY_SECONDS, seconds + DAY_SECONDS].map(
+    (at) => getTimeZoneOffsetMs(new Date(at * 1000), timeZone) / 1000,
+  ));
+  let count = 0;
+  for (const offset of offsets) {
+    if (formatWallClock(new Date((seconds - offset) * 1000), timeZone) === wall) count++;
+  }
+  return count;
+}
+
+/** The wall clock `seconds`, or the nearest one in `direction` that names one instant in `timeZone`. */
+function placeableBound(seconds: number, timeZone: string | undefined, direction: -1 | 1): number {
+  if (!timeZone || timeZone === 'UTC') return seconds;
+  try {
+    for (let shift = 0; shift <= MAX_BOUND_SHIFT; shift += BOUND_STEP) {
+      const candidate = seconds + direction * shift;
+      if (instantsAt(candidate, timeZone) === 1) return candidate;
+    }
+  } catch {
+    // A zone Intl does not know either: the server has the last word.
+  }
+  return seconds;
+}
+
+/** placeableBound of a LocalDateTime; anything else as it is. */
+function placeableLocalBound(value: string, timeZone: string | undefined, direction: -1 | 1): string {
+  const seconds = wallClockSeconds(value);
+  return seconds === null ? value : localDateTimeOf(placeableBound(seconds, timeZone, direction));
 }
 
 /**
@@ -733,7 +782,10 @@ async function queryExpandedEventsIn(
       'CalendarEvent/query',
       {
         ...baseArgs,
-        filter: { after: localDateTimeOf(chunk.start), before: localDateTimeOf(chunk.end) },
+        filter: {
+          after: localDateTimeOf(placeableBound(chunk.start, timeZone, -1)),
+          before: localDateTimeOf(placeableBound(chunk.end, timeZone, 1)),
+        },
         position: chunk.position,
         limit: QUERY_PAGE_SIZE,
       },

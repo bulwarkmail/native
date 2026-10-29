@@ -28,6 +28,8 @@ import {
   hydrateExpandedOccurrences,
   maxParticipantsPerEvent,
   rsvpEvent,
+  isCalendarAccessDenied,
+  resetCalendarAccessDenied,
 } from '../calendar';
 import { JMAPSetError, jmapErrorType } from '../jmap-result';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -68,6 +70,40 @@ beforeEach(() => {
 
 describe('calendar operations', () => {
   describe('getCalendars', () => {
+    // Stalwart 1.0 lists an account that shares only a mail folder with the
+    // calendars capability and answers its Calendar/get with
+    // accountNotSupportedByMethod (0.16: forbidden).
+    it.each(['forbidden', 'accountNotSupportedByMethod'])(
+      'asks an account that answers %s for its calendars once per session',
+      async (type) => {
+        const client = jmapClient as unknown as { currentSession?: unknown };
+        client.currentSession = {
+          accounts: {
+            'acc-1': { accountCapabilities: { 'urn:ietf:params:jmap:calendars': {} } },
+            'acc-mail': { accountCapabilities: { 'urn:ietf:params:jmap:calendars': {} } },
+          },
+        };
+        try {
+          resetCalendarAccessDenied();
+          mockRequest.mockImplementation(async (calls: [string, { accountId: string }, string][]) => ({
+            methodResponses: calls.map(([name, args, id]) => (args.accountId === 'acc-mail'
+              ? ['error', { type }, id]
+              : [name, name === 'Calendar/get' ? { list: [] } : {}, id])),
+          }));
+          await getCalendars();
+          await getCalendars();
+          const asked = mockRequest.mock.calls.filter(([calls]) =>
+            (calls as [string, { accountId: string }][]).some(([, args]) => args.accountId === 'acc-mail'));
+          expect(asked).toHaveLength(1);
+          expect(isCalendarAccessDenied('acc-mail')).toBe(true);
+        } finally {
+          client.currentSession = undefined;
+          mockRequest.mockReset();
+          resetCalendarAccessDenied();
+        }
+      },
+    );
+
     it('should fetch calendars', async () => {
       const calendars = [{ id: 'cal-1', name: 'Personal', color: '#3b82f6' }];
       mockRequest.mockResolvedValue({

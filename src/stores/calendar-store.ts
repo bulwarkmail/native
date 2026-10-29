@@ -303,6 +303,21 @@ export interface CalendarState {
 let calendarsInFlight: Promise<void> | null = null;
 let tasksInFlight: Promise<void> | null = null;
 
+// One up with every reset (an account switch, a sign-out). A load still under
+// way from before keeps its answer to itself: landing after the reset, it put
+// the previous account's calendars, events or tasks under the next account
+// until the next refresh, and that account's own task load was handed the old
+// one still in flight.
+let storeGeneration = 0;
+
+/** A range load the store's reset overtook: what it read belongs to the account before. */
+export class CalendarAccountChangedError extends Error {
+  constructor() {
+    super('The calendar was reset while its events were loading');
+    this.name = 'CalendarAccountChangedError';
+  }
+}
+
 function persistHidden(ids: string[]): void {
   void AsyncStorage.setItem(HIDDEN_CALENDARS_STORAGE_KEY, JSON.stringify(ids)).catch(
     (err) => console.warn('[calendar-store] persist hidden failed', err),
@@ -328,7 +343,8 @@ function unionRange(loaded: LoadedRange, after: string, before: string): LoadedR
  * (Stalwart >= 0.16.20, see lib/recurrence-instances), else on the device.
  * Doesn't touch the store: fetchEvents keeps the result as the visible
  * window, the reminders load their own upcoming window with it. Throws when
- * the primary account fails; a failing shared account is skipped.
+ * the primary account fails, or when the store was reset meanwhile
+ * (CalendarAccountChangedError); a failing shared account is skipped.
  */
 export async function loadEventsInRange(
   calendars: Calendar[],
@@ -354,10 +370,13 @@ export async function loadEventsInRange(
   }
   if (groups.size === 0) groups.set(undefined, []);
 
+  const generation = storeGeneration;
   const expand = !!after && !!before
     && await supportsSyntheticCalendarIds().catch(() => false);
   const raw: CalendarEvent[] = [];
   for (const [accountId, ids] of groups) {
+    // The client serves another account now: the rest would be read there.
+    if (generation !== storeGeneration) throw new CalendarAccountChangedError();
     if (accountId && isCalendarAccessDenied(accountId)) continue;
     try {
       let fetched: CalendarEvent[] | null = null;
@@ -391,9 +410,11 @@ export async function loadEventsInRange(
       // A failing shared account must not hide the user's own events;
       // remember an access rejection so it isn't re-probed every fetch.
       if (!accountId) throw err;
-      noteCalendarAccessError(accountId, err);
+      // Not for the account the client serves since a reset.
+      if (generation === storeGeneration) noteCalendarAccessError(accountId, err);
     }
   }
+  if (generation !== storeGeneration) throw new CalendarAccountChangedError();
   // Stalwart returns both Events and Tasks from CalendarEvent/query. Tasks
   // (also CalDAV ones without an `@type`) are surfaced by fetchTasks so
   // they don't pollute the grid.
@@ -721,14 +742,16 @@ export const useCalendarStore = create<CalendarState>()(
     // concurrent first Calendar/* requests can each lazily create a default
     // calendar. Share one in-flight request instead.
     if (calendarsInFlight) return calendarsInFlight;
+    const generation = storeGeneration;
     calendarsInFlight = (async () => {
       try {
         const calendars = sortCalendars((await fetchCalendars()) ?? []);
-        set({ calendars });
+        if (generation === storeGeneration) set({ calendars });
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
+        if (generation === storeGeneration) set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
       } finally {
-        calendarsInFlight = null;
+        // After a reset the slot belongs to the next account's load.
+        if (generation === storeGeneration) calendarsInFlight = null;
       }
     })();
     return calendarsInFlight;
@@ -736,11 +759,14 @@ export const useCalendarStore = create<CalendarState>()(
 
   fetchEvents: async (calendarIds, after, before) => {
     if (!jmapClient.isConnected) return;
+    const generation = storeGeneration;
     set({ loading: true, error: null });
     try {
       const events = await loadEventsInRange(get().calendars, calendarIds, after, before);
+      if (generation !== storeGeneration) return;
       set({ events, loadedRange: { after, before }, loading: false });
     } catch (err) {
+      if (generation !== storeGeneration) return;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
     }
   },
@@ -748,6 +774,7 @@ export const useCalendarStore = create<CalendarState>()(
   fetchTasks: async () => {
     if (!jmapClient.isConnected) return;
     if (tasksInFlight) return tasksInFlight;
+    const generation = storeGeneration;
     tasksInFlight = (async () => {
       try {
         const calendars = get().calendars;
@@ -756,6 +783,8 @@ export const useCalendarStore = create<CalendarState>()(
         const tasks: CalendarEvent[] = [];
         const taskOnly: string[] = [];
         for (const accountId of accountIds) {
+          // The client serves another account now: the rest would be read there.
+          if (generation !== storeGeneration) return;
           if (accountId && isCalendarAccessDenied(accountId)) continue;
           try {
             const scanned = await scanCalendarObjects(accountId);
@@ -780,14 +809,15 @@ export const useCalendarStore = create<CalendarState>()(
             tasks.push(...fetched.map((e) => mapServerEventToStoreEvent(e, calendars, accountId)));
           } catch (err) {
             if (!accountId) throw err;
-            noteCalendarAccessError(accountId, err);
+            if (generation === storeGeneration) noteCalendarAccessError(accountId, err);
           }
         }
+        if (generation !== storeGeneration) return;
         set({ tasks, taskOnlyCalendarIds: taskOnly });
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : 'Failed to load tasks' });
+        if (generation === storeGeneration) set({ error: err instanceof Error ? err.message : 'Failed to load tasks' });
       } finally {
-        tasksInFlight = null;
+        if (generation === storeGeneration) tasksInFlight = null;
       }
     })();
     return tasksInFlight;
@@ -836,12 +866,14 @@ export const useCalendarStore = create<CalendarState>()(
       set({ loadedRange: plan.union });
       return;
     }
+    const generation = storeGeneration;
     set({ loading: true, error: null });
     try {
       const incoming: CalendarEvent[] = [];
       for (const piece of plan.pieces) {
         incoming.push(...(await loadEventsInRange(calendars, calendarIds, piece.after, piece.before)));
       }
+      if (generation !== storeGeneration) return;
       // A jump elsewhere replaced the window meanwhile: these pieces no
       // longer border it. (A refresh of the same window is fine.)
       if (!sameRange(get().loadedRange, loaded)) {
@@ -854,6 +886,7 @@ export const useCalendarStore = create<CalendarState>()(
         loading: false,
       });
     } catch (err) {
+      if (generation !== storeGeneration) return;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
     }
   },
@@ -1375,6 +1408,9 @@ export const useCalendarStore = create<CalendarState>()(
   reset: () => {
     // A new session may grant access the old one lacked, or reach an
     // upgraded server.
+    storeGeneration += 1;
+    calendarsInFlight = null;
+    tasksInFlight = null;
     resetCalendarAccessDenied();
     resetSyntheticIdSupport();
     resetTimeZoneChecks();
