@@ -11,7 +11,7 @@ let pushLog = Logger(subsystem: "org.bulwarkmail.mobile.NotificationService", ca
 /// passes through the relay or Apple.
 ///
 /// What the app shares through the keychain group (src/lib/ios-push-shared.ts):
-///   bulwark_push_account__<JMAP account id>  {credentialsKey, apiUrl}
+///   bulwark_push_account__<JMAP account id>  {credentialsKey, apiUrl, label}
 ///   bulwark_push_settings                    {badge, activeAccountId, strings{...}}
 ///   <credentialsKey>                         the account's stored credentials
 /// If anything is missing or the server can't be reached, the relay's
@@ -64,6 +64,13 @@ final class NotificationService: UNNotificationServiceExtension {
           let apiString = account["apiUrl"] as? String,
           let apiUrl = URL(string: apiString) else {
       pushLog.error("no shared account entry for \(accountId, privacy: .public)")
+      return content
+    }
+    // Found by the account id alone, which a group account of another login
+    // can share: the relay's label (the username) has to be this entry's.
+    if let label = push["accountLabel"] as? String, !label.isEmpty,
+       let owner = account["label"] as? String, owner.lowercased() != label.lowercased() {
+      pushLog.error("push label does not fit the shared account for \(accountId, privacy: .public)")
       return content
     }
     let emailIds = push["emailIds"] as? [String] ?? []

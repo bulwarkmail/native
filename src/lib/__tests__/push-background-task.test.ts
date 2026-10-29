@@ -68,9 +68,20 @@ describe('matchAccountsForPush', () => {
   ];
 
   it('matches on the recorded JMAP account id first', () => {
-    const payload = parseRelayPushData({ accountId: 'jb', accountLabel: 'alice' });
+    const payload = parseRelayPushData({ accountId: 'jb', accountLabel: 'bob', emailIds: '["m1"]' });
     expect(matchAccountsForPush(payload, accounts, { 'bob@mail.example.com': 'jb' }, registry))
       .toEqual({ accountIds: ['bob@mail.example.com'], ambiguous: false });
+    // A payload without a label (an older relay) goes by the id alone.
+    const unlabelled = parseRelayPushData({ accountId: 'jb', emailIds: '["m1"]' });
+    expect(matchAccountsForPush(unlabelled, accounts, { 'bob@mail.example.com': 'jb' }, registry))
+      .toEqual({ accountIds: ['bob@mail.example.com'], ambiguous: false });
+  });
+
+  it("does not take another login's group push for the one whose own id it carries", () => {
+    // Bob's group account "c" on his server; Alice's own account is "c" on hers.
+    const payload = parseRelayPushData({ accountId: 'c', accountLabel: 'bob', emailIds: '["m1"]' });
+    expect(matchAccountsForPush(payload, accounts, { 'alice@mail.example.com': 'c', 'bob@mail.example.com': 'b' }, registry))
+      .toMatchObject({ ambiguous: true });
   });
 
   it('falls back to the relay accountLabel (username)', () => {

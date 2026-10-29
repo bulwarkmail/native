@@ -1010,12 +1010,15 @@ async function registerWithRelayApns(params: {
  * another login with push has the same id, neither gets an entry: the
  * placeholder says there is new mail, where one login's credentials would
  * fetch and show a message of the other's server. Run again for the login
- * that is left once the other is gone (the next resync does).
+ * that is left once the other is gone (the next resync does). The entry also
+ * names the username, which the extension compares with the push's label: a
+ * group account of another login can have this login's id.
  */
 export async function shareAccountWithExtension(
   accountId: string,
   jmapAccountId: string | null,
   apiUrl: string | undefined = jmapClient.currentSession?.apiUrl,
+  username: string | null | undefined = jmapClient.username,
 ): Promise<void> {
   if (Platform.OS !== 'ios' || !jmapAccountId) return;
   const byLocal = await readPushJmapAccountIds();
@@ -1024,7 +1027,11 @@ export async function shareAccountWithExtension(
     return;
   }
   if (!apiUrl) return;
-  await writeIosPushAccount(jmapAccountId, { credentialsKey: credentialsKey(accountId), apiUrl }).catch(() => undefined);
+  await writeIosPushAccount(jmapAccountId, {
+    credentialsKey: credentialsKey(accountId),
+    apiUrl,
+    ...(username ? { label: username } : {}),
+  }).catch(() => undefined);
 }
 
 /**
@@ -1187,9 +1194,15 @@ export function setupPushNotifications(
   const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
   const existing = inFlightSetups.get(key);
   if (existing) return existing;
-  const run = setupPushNotificationsInner(params).finally(() => {
-    inFlightSetups.delete(key);
-  });
+  const rollback: SetupRollback = {};
+  const run = setupPushNotificationsInner(params, rollback)
+    .catch(async (err: unknown) => {
+      await rollback.relayMove?.().catch(() => undefined);
+      throw err;
+    })
+    .finally(() => {
+      inFlightSetups.delete(key);
+    });
   inFlightSetups.set(key, run);
   return run;
 }
@@ -1198,8 +1211,14 @@ function logPhase(phase: string, detail?: string): void {
   console.log(`[push] ${phase}${detail ? `: ${detail}` : ''}`);
 }
 
+// What a failed setup run has to undo, set by the run as it goes.
+interface SetupRollback {
+  relayMove?: () => Promise<void>;
+}
+
 async function setupPushNotificationsInner(
   params: PushSetupParams,
+  rollback: SetupRollback,
 ): Promise<PushSetupResult> {
   const transport = await getEffectivePushTransport();
   const native = getNative();
@@ -1249,8 +1268,8 @@ async function setupPushNotificationsInner(
   await migrateLegacyPushKeys();
 
   const deviceClientId = await getOrCreateDeviceClientId(accountId);
-  // The relay a working registration goes through, put back should the mail
-  // server refuse the new one's address.
+  // The relay a working registration goes through, put back should a move
+  // to another relay fail.
   const previousRelayBaseUrl = await getStoredRelayBaseUrl();
   await setStoredRelayBaseUrl(relayBaseUrl);
 
@@ -1284,18 +1303,32 @@ async function setupPushNotificationsInner(
       });
     }
   };
-  await registerWith(relayBaseUrl, upEndpoint);
-  // Undo this run's relay steps once the mail server refuses the new relay's
-  // address. The refused URL may be another name of the relay in use, so the
-  // record dropped from it can be the working one; and a UnifiedPush
-  // distributor now holds the refused relay's VAPID key, which may make it
-  // turn away the previous relay's pushes. Registering with the previous relay
-  // again puts both back; the record itself only for an account that had a
-  // working subscription through it.
+  // Undo this run's relay steps once a move to another relay fails. The new
+  // URL may be another name of the relay in use, so the record dropped from
+  // it can be the working one; and a UnifiedPush distributor now holds the
+  // new relay's VAPID key, which may make it turn away the previous relay's
+  // pushes. Registering with the previous relay again puts both back; the
+  // record itself only for an account that had a working subscription
+  // through it.
   const restoreRelay = async (relay: string, hadSubscription: boolean) => {
     const endpoint = upEndpoint ? await getUnifiedPushEndpointOrThrow(relay) : null;
     if (hadSubscription) await registerWith(relay, endpoint);
   };
+  // Until a subscription through the new relay is verified, whatever still
+  // works goes through the relay used before, whichever step failed (the
+  // server refused the address, the subscription limit, a verification that
+  // never came): keep that one stored, since token refreshes, the settings,
+  // the device list and the next launch all follow it, and drop the record
+  // this run left on the new relay.
+  let match: PushSubscription | undefined;
+  if (previousRelayBaseUrl !== relayBaseUrl) {
+    rollback.relayMove = async () => {
+      await setStoredRelayBaseUrl(previousRelayBaseUrl);
+      await deregisterFromRelay(relayBaseUrl, deviceClientId);
+      if (previousRelayBaseUrl) await restoreRelay(previousRelayBaseUrl, !!match).catch(() => undefined);
+    };
+  }
+  await registerWith(relayBaseUrl, upEndpoint);
 
   // Reuse the previous JMAP subscription when the server still has it, but
   // push the expiry forward so it doesn't time out before the next app start.
@@ -1339,7 +1372,7 @@ async function setupPushNotificationsInner(
   // Ours only if it was made for this device: Stalwart's ids are short and
   // sequential, so once the server is reinstalled at the same address the
   // recorded id can name another device's subscription.
-  const match = storedServerId
+  match = storedServerId
     ? existingSubs.find((s) => s.id === storedServerId && (!s.deviceClientId || s.deviceClientId === deviceClientId))
     : undefined;
   if (storedServerId) {
@@ -1447,15 +1480,6 @@ async function setupPushNotificationsInner(
     serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
-    // The server will never take this relay's address. Whatever registration
-    // still works goes through the relay used before: keep that one stored
-    // (token refreshes and the next launch register with it) and drop the
-    // record this run left on the refused relay.
-    if (isRefusedPushUrl(err) && previousRelayBaseUrl !== relayBaseUrl) {
-      await setStoredRelayBaseUrl(previousRelayBaseUrl);
-      await deregisterFromRelay(relayBaseUrl, deviceClientId);
-      if (previousRelayBaseUrl) await restoreRelay(previousRelayBaseUrl, !!match).catch(() => undefined);
-    }
     throw subscriptionError(err, relayBaseUrl);
   }
 
@@ -1470,6 +1494,7 @@ async function setupPushNotificationsInner(
       t('settings.notifications.push.err_verify_rejected', 'The mail server rejected the verification code: {detail}', { detail }),
     );
   }
+  rollback.relayMove = undefined;
 
   await AsyncStorage.setItem(subKey, serverAssignedId);
   if (serverExpires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), serverExpires);
@@ -1657,10 +1682,13 @@ export async function recordPushSubscriptionExpires(accountId: string, expires: 
 
 /**
  * Tear down push for a single account. Destroys every JMAP subscription the
- * server holds for this device (assumes the jmapClient is currently
- * authenticated to that account; the active-account logout flow guarantees
- * this) and tells the relay to drop its mapping. Other accounts' push setups
- * are untouched.
+ * server holds for this device and tells the relay to drop its mapping.
+ * Other accounts' push setups are untouched. The account the jmapClient
+ * serves goes through it; another signed-in account (removed from the
+ * account list while a different one is open) through a client of its own,
+ * never the singleton: subscription ids repeat across accounts ("b" in every
+ * Stalwart account), so a destroy by id there could end the open account's
+ * own push.
  *
  * The FCM token is deliberately left alive: the relay mapping is gone so
  * nothing gets forwarded, and deleting the token makes the next getToken()
@@ -1681,8 +1709,9 @@ export async function teardownPushNotificationsForAccount(
   // failed enable can leave a registration this client no longer tracks (#841).
   // The recorded id alone is trusted only when the server can't be asked: on
   // a server reinstalled at the same address it can name another device's.
+  const server = await pushSubscriptionsOf(accountId);
   const idsToDestroy = new Set<string>();
-  const existing = storedDcid ? await listPushSubscriptions().catch(() => null) : null;
+  const existing = server && storedDcid ? await server.list().catch(() => null) : null;
   if (existing) {
     for (const s of existing) {
       const recordedWithoutDevice = s.id === storedSubId && !s.deviceClientId;
@@ -1692,7 +1721,7 @@ export async function teardownPushNotificationsForAccount(
     idsToDestroy.add(storedSubId);
   }
   for (const id of idsToDestroy) {
-    await destroyPushSubscription(id).catch(() => undefined);
+    await server?.destroy(id).catch(() => undefined);
   }
   if (relayBaseUrl && storedDcid) {
     await deregisterFromRelay(relayBaseUrl, storedDcid);
@@ -1702,6 +1731,38 @@ export async function teardownPushNotificationsForAccount(
 
   const remaining = (await readPushAccountIds()).filter((id) => id !== accountId);
   await writePushAccountIds(remaining);
+}
+
+/**
+ * Listing and destroying the account's push subscriptions, through the
+ * jmapClient when it serves the account, else through a client of its own.
+ * Null when the account can't be loaded: its server is left alone then.
+ */
+async function pushSubscriptionsOf(accountId: string): Promise<{
+  list: () => Promise<ListedSubscription[]>;
+  destroy: (id: string) => Promise<void>;
+} | null> {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  if (username && serverUrl && generateAccountId(username, serverUrl) === accountId) {
+    return { list: listPushSubscriptions, destroy: destroyPushSubscription };
+  }
+  const client = new JMAPClient();
+  if (!(await client.loadAccount(accountId).catch(() => false))) return null;
+  const using = [CAPABILITIES.CORE];
+  return {
+    list: async () => {
+      const res = await client.request(
+        [['PushSubscription/get', { ids: null, properties: ['id', 'deviceClientId'] }, '0']],
+        using,
+      );
+      return (requireMethodResult(res, '0', 'PushSubscription/get').list as ListedSubscription[] | undefined) ?? [];
+    },
+    destroy: async (id) => {
+      const res = await client.request([['PushSubscription/set', { destroy: [id] }, '0']], using);
+      requireMethodResult(res, '0', 'PushSubscription/set');
+    },
+  };
 }
 
 /**
@@ -1786,8 +1847,9 @@ export interface PushEnableOutcome {
 /**
  * The enable and re-register buttons of the notification settings: run the
  * setup and say what it left behind. When the mail server refuses a new
- * relay, the setup goes back to the one in use; the relay field must show
- * that one again rather than the refused address, since the device list asks
+ * relay, or the move to it fails otherwise, the setup goes back to the one in
+ * use; the relay field must show that one again rather than the new address,
+ * since the device list asks
  * the relay in the field about each device and a revoke goes to it. With no
  * relay in use the typed one stays, so the user can correct it.
  */
@@ -1924,7 +1986,7 @@ async function renewPushAccount(accountId: string, relayBaseUrl: string | null):
   } catch {
     jmapAccountId = null;
   }
-  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl);
+  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username);
 }
 
 /**
@@ -2197,11 +2259,13 @@ export async function iosTapPayload(data: unknown): Promise<NotificationTapPaylo
   // setup recorded this JMAP account id. Ids repeat across servers: with
   // more than one such login the relay's label (the username) picks one, and
   // when it can't, the app just opens rather than show another login's
-  // message on a guess.
+  // message on a guess. A single login has to fit the label too: the push
+  // may be for another login's group account, whose id comes from the same
+  // short pool.
   const byLocal = await readPushJmapAccountIds();
   let candidates = Object.keys(byLocal).filter((local) => byLocal[local] === jmapAccountId);
-  if (candidates.length > 1) {
-    const label = typeof d.accountLabel === 'string' ? d.accountLabel : '';
+  const label = typeof d.accountLabel === 'string' ? d.accountLabel : '';
+  if (candidates.length > 1 || (label && candidates.length === 1)) {
     candidates = label ? candidates.filter((local) => accountMatchesPushLabel(local, label)) : [];
     if (candidates.length !== 1) return null;
   }

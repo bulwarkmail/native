@@ -66,6 +66,10 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
       // The subscription's expiry, and what an update of it settles on.
       expires: null as string | null,
       settles: null as string | null,
+      // Every subscription of the account, for a listing with ids: null, and
+      // whether that listing fails.
+      all: [] as Array<{ id: string; deviceClientId?: string }>,
+      listFails: false,
       log: [] as unknown[],
       session: SYNC_SESSION,
     },
@@ -96,6 +100,11 @@ vi.mock('../../api/jmap-client', () => ({
     async request(calls: Array<[string, Record<string, any>, string]>) {
       const methodResponses = calls.map(([name, args, id]) => {
         DETACHED.log.push([name, args]);
+        if (name === 'PushSubscription/get' && args.ids === null) {
+          if (DETACHED.listFails) throw new Error('network down');
+          return [name, { list: DETACHED.all }, id];
+        }
+        if (args.destroy) return [name, { destroyed: args.destroy }, id];
         if (name === 'PushSubscription/get') {
           const listed = {
             id: args.ids[0],
@@ -1244,6 +1253,36 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    // The working record still delivers through the old relay, so that one
+    // stays the relay in use, and this device is registered with it again.
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+    const relayCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c) => String(c[0]).includes('/api/push/register'))
+      .map((c) => `${(c[1] as RequestInit | undefined)?.method ?? 'GET'} ${String(c[0])}`);
+    expect(relayCalls).toEqual([
+      'POST https://relay.home.lan/api/push/register',
+      `DELETE https://relay.home.lan/api/push/register/${OUR_DCID}`,
+      `POST ${RELAY}/api/push/register`,
+    ]);
+  });
+
+  it('keeps the old relay when the new one never verifies the replacement', async () => {
+    verifyMock.mockRejectedValueOnce(new Error('invalid verification code'));
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.other.example', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.phase).toBe('verify');
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some((c) => String(c[0]) === `https://relay.other.example/api/push/register/${OUR_DCID}`
+      && (c[1] as RequestInit | undefined)?.method === 'DELETE')).toBe(true);
+
+    // A move that works keeps the new relay.
+    expect((await setupPushNotifications({ relayBaseUrl: 'https://relay.other.example', forceRecreate: true })).verified).toBe(true);
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe('https://relay.other.example');
   });
 
   it('a forced re-register frees the old record\'s place and tries once more', async () => {
@@ -1823,6 +1862,63 @@ describe('teardownPushNotificationsForAccount', () => {
 
     expect(destroyMock.mock.calls.map((c) => c[0])).toEqual(['recorded']);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+  });
+
+  describe('for a signed-in account the client does not serve', () => {
+    const OTHER = 'bob@other.example.net';
+    const OTHER_DCID = 'bobsphonebobsphonebobsphonebobsp';
+    const destroyedThroughOwnClient = () => DETACHED.log
+      .filter((entry) => (entry as unknown[])[0] === 'PushSubscription/set')
+      .map((entry) => ((entry as [string, { destroy: string[] }])[1]).destroy);
+
+    beforeEach(async () => {
+      await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+      await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
+      await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
+      // The open account's own push, with the same short id.
+      listMock.mockResolvedValue([{ id: 'b', types: ['EmailDelivery'] }]);
+      Object.assign(DETACHED, {
+        loaded: true,
+        all: [{ id: 'b', deviceClientId: OTHER_DCID }, { id: 'c', deviceClientId: 'ffffffffffffffffffffffffffffffff' }],
+        listFails: false,
+        log: [],
+      });
+    });
+
+    afterEach(() => {
+      listMock.mockImplementation(async () => []);
+      Object.assign(DETACHED, { loaded: true, all: [], listFails: false });
+    });
+
+    it('destroys its subscriptions through a client of its own', async () => {
+      await teardownPushNotificationsForAccount(OTHER);
+
+      expect(DETACHED.log[0]).toEqual(['load', OTHER]);
+      expect(destroyedThroughOwnClient()).toEqual([['b']]);
+      expect(listMock).not.toHaveBeenCalled();
+      expect(destroyMock).not.toHaveBeenCalled();
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
+    });
+
+    it("never destroys the recorded id on the open account when its own server can't list", async () => {
+      listMock.mockRejectedValue(new Error('network down'));
+      DETACHED.listFails = true;
+
+      await teardownPushNotificationsForAccount(OTHER);
+
+      expect(destroyMock).not.toHaveBeenCalled();
+      expect(destroyedThroughOwnClient()).toEqual([['b']]);
+
+      // An account that can't be loaded leaves every server alone.
+      DETACHED.log = [];
+      DETACHED.loaded = false;
+      await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
+      await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
+      await teardownPushNotificationsForAccount(OTHER);
+      expect(destroyMock).not.toHaveBeenCalled();
+      expect(destroyedThroughOwnClient()).toEqual([]);
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
+    });
   });
 });
 
