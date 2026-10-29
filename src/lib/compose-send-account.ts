@@ -39,7 +39,12 @@ export async function sendTargetFor(identity: Identity, fromEmail: string, mailb
   if (accountId === jmapClient.accountId) return ownTarget;
   // Submitting needs the account's own identity for the address; without
   // one, the message goes out of the login's account as before.
-  const accountIdentity = await sendIdentityIn(accountId, fromEmail);
+  let accountIdentity: Identity | undefined;
+  try {
+    accountIdentity = await sendIdentityIn(accountId, fromEmail);
+  } catch (err) {
+    console.warn('[compose] could not read the identities of the sending account', err);
+  }
   if (!accountIdentity) return ownTarget;
   let scope = mailboxesOfAccount(mailboxes, accountId);
   if (!scope.some((m) => m.role === 'sent')) {

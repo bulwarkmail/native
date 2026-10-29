@@ -1383,7 +1383,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       // A draft From a group identity is saved in the group's Drafts, like
       // its Sent copy (#1090); one without a Drafts folder there in the own.
       const target = await sendTargetFor(identity, outgoing.from[0]?.email ?? identity.email, mailboxes);
-      if (loginMoved()) return draftIdRef.current;
+      if (loginMoved()) {
+        setDraftStatus('idle');
+        return draftIdRef.current;
+      }
       const saveIn = target.accountId && target.draftsMailboxId
         ? { accountId: target.accountId, draftsMailboxId: target.draftsMailboxId }
         : { accountId: undefined, draftsMailboxId: draftsMailbox.id };

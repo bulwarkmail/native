@@ -99,6 +99,20 @@ describe('sendTargetFor', () => {
     });
   });
 
+  it("sends from the own account when the group's identities can't be read", async () => {
+    const accounts = client.currentSession.accounts as Record<string, { name: string }>;
+    accounts.team.name = 'team@example.com';
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    client.request.mockRejectedValue(new Error('Network request failed'));
+    try {
+      await expect(sendTargetFor(MIRRORED, 'team@example.com', MAILBOXES)).resolves.toEqual({
+        identityId: 'i-me-team', draftsMailboxId: 'own-drafts', sentMailboxId: 'own-sent',
+      });
+    } finally {
+      accounts.team.name = 'Team';
+    }
+  });
+
   it('keeps an own message in the own folders', async () => {
     await expect(sendTargetFor(ME, 'me@example.com', MAILBOXES)).resolves.toEqual({
       identityId: 'i-me', draftsMailboxId: 'own-drafts', sentMailboxId: 'own-sent',
