@@ -8,8 +8,9 @@ import {
   StyleSheet,
   Platform,
   Alert as NativeAlert,
+  type LayoutChangeEvent,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   X,
@@ -72,6 +73,8 @@ import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useKeyboardObstruction } from '../../lib/use-keyboard-obstruction';
+import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -184,6 +187,25 @@ export function EventModal({
   const timeLabelPattern = timePattern(timeFormat);
   const isEdit = !!event;
   const resolveContactName = useContactNameResolver();
+
+  // The keyboard covered the bottom fields (location, description; #81).
+  // iOS: the scroll view insets itself and scrolls the focused field into
+  // view (automaticallyAdjustKeyboardInsets). Android: the edge-to-edge
+  // dialog does not resize for the keyboard, so the scroll view ends above
+  // it, and Android's ScrollView brings the focused field back into view
+  // when it shrinks.
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardObstruction(insets.bottom);
+  const fullHeight = React.useRef(0);
+  const [containerHeight, setContainerHeight] = React.useState(0);
+  const onContainerLayout = (e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    if (keyboard === 0) fullHeight.current = height;
+    setContainerHeight(height);
+  };
+  const keyboardInset = Platform.OS === 'android'
+    ? editorKeyboardInset(keyboard, insets.bottom, fullHeight.current - containerHeight)
+    : 0;
 
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -441,7 +463,7 @@ export function EventModal({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']} onLayout={onContainerLayout}>
         <View style={styles.header}>
           <Pressable
             onPress={onClose}
@@ -467,9 +489,10 @@ export function EventModal({
         </View>
 
         <ScrollView
-          style={styles.body}
+          style={[styles.body, keyboardInset > 0 && { marginBottom: keyboardInset }]}
           contentContainerStyle={styles.bodyContent}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
           <TextInput
             value={title}
