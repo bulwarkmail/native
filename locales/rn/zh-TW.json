@@ -292,6 +292,29 @@
     "no_sent_folder": "找不到寄件備份信件匣",
     "permission_camera": "需要相機權限才能拍照。",
     "permission_photos": "需要相片圖庫權限才能附加圖片。",
+    "placeholder_warning": {
+      "title": "檢查預留位置？",
+      "message": "你的郵件中有收件者會看到的預留位置文字。要在傳送前編輯嗎？",
+      "found": "找到的預留位置",
+      "more": "以及另外 {count} 個",
+      "dont_ask_again": "不再提示",
+      "send_anyway": "仍然傳送",
+      "back": "繼續編輯"
+    },
+    "placeholder_words": {
+      "before": [
+        "您的-",
+        "你的-",
+        "貴公司-",
+        "插入-",
+        "輸入-",
+        "填寫-",
+        "新增-",
+        "在此-"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "新增至聯絡人",
     "recipient_copy": "複製地址",
     "recipient_move_to": "移至{field}",
@@ -819,6 +842,10 @@
         "allow_mobile": "允許",
         "ask_mobile": "詢問",
         "block_mobile": "封鎖"
+      },
+      "placeholder_warning": {
+        "label": "預留位置提醒",
+        "description": "傳送仍含有預留位置（如 [TIME] 或 [您的姓名]）、空白範本欄位或未完成文字（如 TODO 或 TBD）的郵件前請求確認。"
       },
       "plain_text_mode": {
         "description_mobile": "僅以純文字撰寫與閱讀。"

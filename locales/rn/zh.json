@@ -292,6 +292,29 @@
     "no_sent_folder": "未找到“已发送”文件夹",
     "permission_camera": "需要相机权限才能拍照。",
     "permission_photos": "需要相册权限才能附加图片。",
+    "placeholder_warning": {
+      "title": "检查占位符？",
+      "message": "你的邮件中有收件人会看到的占位符文本。要在发送前编辑吗？",
+      "found": "找到的占位符",
+      "more": "以及另外 {count} 个",
+      "dont_ask_again": "不再提示",
+      "send_anyway": "仍然发送",
+      "back": "返回编辑"
+    },
+    "placeholder_words": {
+      "before": [
+        "您的-",
+        "你的-",
+        "贵公司-",
+        "插入-",
+        "输入-",
+        "填写-",
+        "添加-",
+        "在此-"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "添加到联系人",
     "recipient_copy": "复制地址",
     "recipient_move_to": "移至{field}",
@@ -819,6 +842,10 @@
         "allow_mobile": "允许",
         "ask_mobile": "询问",
         "block_mobile": "阻止"
+      },
+      "placeholder_warning": {
+        "label": "占位符提醒",
+        "description": "发送仍含有占位符（如 [TIME] 或 [您的姓名]）、空白模板字段或未完成文本（如 TODO 或 TBD）的邮件前请求确认。"
       },
       "plain_text_mode": {
         "description_mobile": "仅以纯文本撰写和阅读。"

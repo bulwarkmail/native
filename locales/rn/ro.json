@@ -292,6 +292,30 @@
     "no_sent_folder": "Nu s-a găsit folderul Trimise",
     "permission_camera": "Este necesară permisiunea pentru cameră pentru a face o fotografie.",
     "permission_photos": "Este necesară permisiunea pentru galeria foto pentru a atașa imagini.",
+    "placeholder_warning": {
+      "title": "Verificați substituenții?",
+      "message": "Mesajul conține text substituent pe care destinatarii îl vor vedea. Doriți să-l editați înainte de trimitere?",
+      "found": "Substituenți găsiți",
+      "more": "și încă {count}",
+      "dont_ask_again": "Nu mai întreba",
+      "send_anyway": "Trimite oricum",
+      "back": "Înapoi la editare"
+    },
+    "placeholder_words": {
+      "before": [
+        "introduceți",
+        "inserați",
+        "adăugați",
+        "completați"
+      ],
+      "after": [
+        "tău",
+        "ta",
+        "dvs.",
+        "dumneavoastră"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Adaugă la contacte",
     "recipient_copy": "Copiați adresa",
     "recipient_move_to": "Mutați la {field}",
@@ -819,6 +843,10 @@
         "allow_mobile": "Permiteți",
         "ask_mobile": "Întrebați",
         "block_mobile": "Blocați"
+      },
+      "placeholder_warning": {
+        "label": "Avertisment pentru substituenți",
+        "description": "Cere confirmare înainte de a trimite un mesaj care încă are substituenți precum [TIME] sau [Numele tău], câmpuri de șablon goale sau text neterminat precum TODO sau TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Scrieți și citiți numai în text simplu."

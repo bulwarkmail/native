@@ -292,6 +292,30 @@
     "no_sent_folder": "Geen map Verzonden gevonden",
     "permission_camera": "Toestemming voor de camera is nodig om een foto te maken.",
     "permission_photos": "Toestemming voor de fotobibliotheek is nodig om afbeeldingen bij te voegen.",
+    "placeholder_warning": {
+      "title": "Tijdelijke aanduidingen controleren?",
+      "message": "Je bericht bevat tijdelijke tekst die ontvangers zullen zien. Wil je het bewerken voordat je het verzendt?",
+      "found": "Gevonden tijdelijke aanduidingen",
+      "more": "en nog {count}",
+      "dont_ask_again": "Niet meer vragen",
+      "send_anyway": "Toch verzenden",
+      "back": "Terug naar bewerken"
+    },
+    "placeholder_words": {
+      "before": [
+        "je",
+        "jouw",
+        "uw",
+        "voeg",
+        "vul"
+      ],
+      "after": [
+        "invoegen",
+        "invullen",
+        "toevoegen"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Aan contacten toevoegen",
     "recipient_copy": "Adres kopiëren",
     "recipient_move_to": "Verplaatsen naar {field}",
@@ -819,6 +843,10 @@
         "allow_mobile": "Toestaan",
         "ask_mobile": "Vragen",
         "block_mobile": "Blokkeren"
+      },
+      "placeholder_warning": {
+        "label": "Waarschuwing bij tijdelijke aanduidingen",
+        "description": "Vraag om bevestiging voordat een bericht wordt verzonden dat nog tijdelijke aanduidingen bevat zoals [TIME] of [Uw naam], lege sjabloonvelden of onafgemaakte tekst zoals TODO of TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Alleen in platte tekst opstellen en lezen."

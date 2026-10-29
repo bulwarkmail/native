@@ -292,6 +292,27 @@
     "no_sent_folder": "Fant ingen Sendt-mappe",
     "permission_camera": "Du må gi tilgang til kameraet for å ta et bilde.",
     "permission_photos": "Du må gi tilgang til bildebiblioteket for å legge ved bilder.",
+    "placeholder_warning": {
+      "title": "Sjekke plassholdere?",
+      "message": "Meldingen har plassholdertekst som mottakerne vil se. Vil du redigere den før du sender?",
+      "found": "Plassholdere som ble funnet",
+      "more": "og {count} til",
+      "dont_ask_again": "Ikke spør igjen",
+      "send_anyway": "Send likevel",
+      "back": "Tilbake til redigering"
+    },
+    "placeholder_words": {
+      "before": [
+        "din",
+        "ditt",
+        "dine",
+        "sett inn",
+        "legg til",
+        "skriv"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Legg til som kontakt",
     "recipient_copy": "Kopier adressen",
     "recipient_move_to": "Flytt til {field}",
@@ -819,6 +840,10 @@
         "allow_mobile": "Tillat",
         "ask_mobile": "Spør",
         "block_mobile": "Blokker"
+      },
+      "placeholder_warning": {
+        "label": "Advarsel om plassholdere",
+        "description": "Be om bekreftelse før du sender en melding som fortsatt har plassholdere som [TIME] eller [Ditt navn], tomme malfelt eller uferdig tekst som TODO eller TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Skriv og les bare ren tekst."

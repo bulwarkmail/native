@@ -292,6 +292,25 @@
     "no_sent_folder": "لم يتم العثور على مجلد المرسل",
     "permission_camera": "يلزم إذن الكاميرا لالتقاط صورة.",
     "permission_photos": "يلزم إذن مكتبة الصور لإرفاق الصور.",
+    "placeholder_warning": {
+      "title": "التحقق من العناصر النائبة؟",
+      "message": "تحتوي رسالتك على نص نائب سيراه المستلمون. هل تريد تعديله قبل الإرسال؟",
+      "found": "العناصر النائبة التي عُثر عليها",
+      "more": "و{count} أخرى",
+      "dont_ask_again": "عدم السؤال مرة أخرى",
+      "send_anyway": "الإرسال على أي حال",
+      "back": "العودة إلى التعديل"
+    },
+    "placeholder_words": {
+      "before": [
+        "أدخل",
+        "ادخل",
+        "أضف",
+        "اكتب"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "إضافة إلى جهات الاتصال",
     "recipient_copy": "نسخ العنوان",
     "recipient_move_to": "نقل إلى {field}",
@@ -819,6 +838,10 @@
         "allow_mobile": "السماح",
         "ask_mobile": "السؤال",
         "block_mobile": "الحظر"
+      },
+      "placeholder_warning": {
+        "label": "تحذير العناصر النائبة",
+        "description": "طلب تأكيد قبل إرسال رسالة لا تزال تحتوي على عناصر نائبة مثل [TIME] أو [أدخل الاسم]، أو حقول قالب فارغة، أو نص غير مكتمل مثل TODO أو TBD."
       },
       "plain_text_mode": {
         "description_mobile": "الكتابة والقراءة بنص عادي فقط."

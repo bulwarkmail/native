@@ -26,6 +26,7 @@ export function ComposingSettings() {
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
+  const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
@@ -139,6 +140,13 @@ export function ComposingSettings() {
         description={t('settings.email_behavior.empty_subject_warning.description', "Ask for confirmation before sending a message with no subject.")}
       >
         <ToggleSwitch checked={emptySubjectWarningEnabled} onChange={(v) => updateSetting('emptySubjectWarningEnabled', v)} />
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.email_behavior.placeholder_warning.label', 'Placeholder warning')}
+        description={t('settings.email_behavior.placeholder_warning.description', 'Ask for confirmation before sending a message that still has placeholders like [TIME] or [Your Name], template fields left empty, or unfinished text like TODO or TBD.')}
+      >
+        <ToggleSwitch checked={placeholderWarningEnabled} onChange={(v) => updateSetting('placeholderWarningEnabled', v)} />
       </SettingItem>
 
       <View style={styles.subBlock}>

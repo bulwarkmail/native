@@ -292,6 +292,30 @@
     "no_sent_folder": "Nie znaleziono folderu Wysłane",
     "permission_camera": "Aby zrobić zdjęcie, potrzebny jest dostęp do aparatu.",
     "permission_photos": "Aby załączać obrazy, potrzebny jest dostęp do galerii zdjęć.",
+    "placeholder_warning": {
+      "title": "Sprawdzić symbole zastępcze?",
+      "message": "Wiadomość zawiera tekst zastępczy, który zobaczą odbiorcy. Czy chcesz go poprawić przed wysłaniem?",
+      "found": "Znalezione symbole zastępcze",
+      "more": "i jeszcze {count}",
+      "dont_ask_again": "Nie pytaj ponownie",
+      "send_anyway": "Wyślij mimo to",
+      "back": "Wróć do edycji"
+    },
+    "placeholder_words": {
+      "before": [
+        "twoje",
+        "twój",
+        "twoja",
+        "pana",
+        "pani",
+        "wstaw",
+        "wpisz",
+        "dodaj",
+        "podaj"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Dodaj do kontaktów",
     "recipient_copy": "Kopiuj adres",
     "recipient_move_to": "Przenieś do pola {field}",
@@ -819,6 +843,10 @@
         "allow_mobile": "Zezwalaj",
         "ask_mobile": "Pytaj",
         "block_mobile": "Blokuj"
+      },
+      "placeholder_warning": {
+        "label": "Ostrzeżenie o symbolach zastępczych",
+        "description": "Poproś o potwierdzenie przed wysłaniem wiadomości, która wciąż zawiera symbole zastępcze, takie jak [TIME] lub [Twoje imię], puste pola szablonu albo niedokończony tekst, taki jak TODO lub TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Twórz i czytaj wiadomości tylko jako zwykły tekst."

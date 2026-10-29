@@ -292,6 +292,31 @@
     "no_sent_folder": "Gönderilenler klasörü bulunamadı",
     "permission_camera": "Fotoğraf çekmek için kamera izni gerekiyor.",
     "permission_photos": "Görsel eklemek için fotoğraf arşivi izni gerekiyor.",
+    "placeholder_warning": {
+      "title": "Yer tutucular kontrol edilsin mi?",
+      "message": "İletinizde alıcıların göreceği yer tutucu metin var. Göndermeden önce düzenlemek ister misiniz?",
+      "found": "Bulunan yer tutucular",
+      "more": "ve {count} tane daha",
+      "dont_ask_again": "Bir daha sorma",
+      "send_anyway": "Yine de gönder",
+      "back": "Düzenlemeye dön"
+    },
+    "placeholder_words": {
+      "before": [
+        "şirketinizin",
+        "buraya"
+      ],
+      "after": [
+        "ekleyin",
+        "girin",
+        "yazın",
+        "-ınız",
+        "-iniz",
+        "-unuz",
+        "-ünüz"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Kişilere ekle",
     "recipient_copy": "Adresi kopyala",
     "recipient_move_to": "{field} alanına taşı",
@@ -819,6 +844,10 @@
         "allow_mobile": "İzin ver",
         "ask_mobile": "Sor",
         "block_mobile": "Engelle"
+      },
+      "placeholder_warning": {
+        "label": "Yer tutucu uyarısı",
+        "description": "Hâlâ [TIME] veya [Adınız] gibi yer tutucular, boş şablon alanları ya da TODO veya TBD gibi bitmemiş metin içeren bir ileti gönderilmeden önce onay iste."
       },
       "plain_text_mode": {
         "description_mobile": "Yalnızca düz metin olarak yazın ve okuyun."

@@ -306,6 +306,32 @@
     "no_sent_folder": "No Sent folder found",
     "permission_camera": "Camera permission is required to take a photo.",
     "permission_photos": "Photo library permission is required to attach images.",
+    "placeholder_warning": {
+      "back": "Back to editing",
+      "dont_ask_again": "Don't ask again",
+      "found": "Placeholders found",
+      "message": "Your message has placeholder text that recipients will see. Do you want to edit it before sending?",
+      "more": "and {count} more",
+      "send_anyway": "Send anyway",
+      "title": "Check placeholders?"
+    },
+    "placeholder_words": {
+      "after": [],
+      "before": [
+        "your",
+        "insert",
+        "enter",
+        "add"
+      ],
+      "unfinished": [
+        "TODO",
+        "TBD",
+        "TBA",
+        "TBC",
+        "FIXME",
+        "XXX"
+      ]
+    },
     "read_receipt_off": "Request a read receipt",
     "recipient_add_contact": "Add to contacts",
     "recipient_copy": "Copy address",
@@ -910,6 +936,10 @@
         "allow_mobile": "Allow",
         "ask_mobile": "Ask",
         "block_mobile": "Block"
+      },
+      "placeholder_warning": {
+        "description": "Ask for confirmation before sending a message that still has placeholders like [TIME] or [Your Name], template fields left empty, or unfinished text like TODO or TBD.",
+        "label": "Placeholder warning"
       },
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."

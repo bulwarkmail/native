@@ -292,6 +292,27 @@
     "no_sent_folder": "Ingen Sendt-mappe fundet",
     "permission_camera": "Der kræves kameratilladelse for at tage et foto.",
     "permission_photos": "Der kræves tilladelse til fotobiblioteket for at vedhæfte billeder.",
+    "placeholder_warning": {
+      "title": "Tjek pladsholdere?",
+      "message": "Din besked indeholder pladsholdertekst, som modtagerne vil se. Vil du redigere den, før du sender?",
+      "found": "Fundne pladsholdere",
+      "more": "og {count} mere",
+      "dont_ask_again": "Spørg ikke igen",
+      "send_anyway": "Send alligevel",
+      "back": "Tilbage til redigering"
+    },
+    "placeholder_words": {
+      "before": [
+        "din",
+        "dit",
+        "dine",
+        "indsæt",
+        "tilføj",
+        "skriv"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Tilføj til kontakter",
     "recipient_copy": "Kopiér adresse",
     "recipient_move_to": "Flyt til {field}",
@@ -819,6 +840,10 @@
         "allow_mobile": "Tillad",
         "ask_mobile": "Spørg",
         "block_mobile": "Blokér"
+      },
+      "placeholder_warning": {
+        "label": "Advarsel om pladsholdere",
+        "description": "Bed om bekræftelse, før en besked sendes, der stadig har pladsholdere som [TIME] eller [Dit navn], tomme skabelonfelter eller ufærdig tekst som TODO eller TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Skriv og læs kun i ren tekst."

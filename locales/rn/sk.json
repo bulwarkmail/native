@@ -292,6 +292,29 @@
     "no_sent_folder": "Priečinok Odoslané sa nenašiel",
     "permission_camera": "Na odfotenie je potrebné povolenie pre fotoaparát.",
     "permission_photos": "Na priloženie obrázkov je potrebné povolenie pre knižnicu fotiek.",
+    "placeholder_warning": {
+      "title": "Skontrolovať zástupné texty?",
+      "message": "Vaša správa obsahuje zástupný text, ktorý uvidia príjemcovia. Chcete ju pred odoslaním upraviť?",
+      "found": "Nájdené zástupné texty",
+      "more": "a ďalšie ({count})",
+      "dont_ask_again": "Znova sa nepýtať",
+      "send_anyway": "Odoslať aj tak",
+      "back": "Späť na úpravu"
+    },
+    "placeholder_words": {
+      "before": [
+        "vaše",
+        "váš",
+        "vaša",
+        "tvoje",
+        "vložte",
+        "doplňte",
+        "zadajte",
+        "uveďte"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Pridať do kontaktov",
     "recipient_copy": "Kopírovať adresu",
     "recipient_move_to": "Presunúť do poľa {field}",
@@ -819,6 +842,10 @@
         "allow_mobile": "Povoliť",
         "ask_mobile": "Pýtať sa",
         "block_mobile": "Blokovať"
+      },
+      "placeholder_warning": {
+        "label": "Upozornenie na zástupné texty",
+        "description": "Pred odoslaním správy, ktorá ešte obsahuje zástupné texty ako [TIME] alebo [Vaše meno], prázdne polia šablóny alebo nedokončený text ako TODO či TBD, požiadať o potvrdenie."
       },
       "plain_text_mode": {
         "description_mobile": "Písať a čítať iba v obyčajnom texte."

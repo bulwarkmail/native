@@ -292,6 +292,26 @@
     "no_sent_folder": "Nem található Elküldött mappa",
     "permission_camera": "Fénykép készítéséhez kameraengedély szükséges.",
     "permission_photos": "Képek csatolásához hozzáférés szükséges a fotókhoz.",
+    "placeholder_warning": {
+      "title": "Ellenőrzi a helykitöltőket?",
+      "message": "Az üzenet olyan helykitöltő szöveget tartalmaz, amelyet a címzettek is látni fognak. Szerkeszti küldés előtt?",
+      "found": "Talált helykitöltők",
+      "more": "és még {count}",
+      "dont_ask_again": "Ne kérdezze többé",
+      "send_anyway": "Küldés így is",
+      "back": "Vissza a szerkesztéshez"
+    },
+    "placeholder_words": {
+      "before": [
+        "az ön",
+        "a te",
+        "írja be",
+        "illessze be",
+        "adja meg"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Hozzáadás a névjegyekhez",
     "recipient_copy": "Cím másolása",
     "recipient_move_to": "Áthelyezés ide: {field}",
@@ -819,6 +839,10 @@
         "allow_mobile": "Engedélyezés",
         "ask_mobile": "Rákérdezés",
         "block_mobile": "Blokkolás"
+      },
+      "placeholder_warning": {
+        "label": "Figyelmeztetés helykitöltők esetén",
+        "description": "Megerősítés kérése olyan üzenet küldése előtt, amelyben még helykitöltők vannak, például [TIME] vagy [Az Ön neve], üres sablonmezők vagy befejezetlen szöveg, például TODO vagy TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Írás és olvasás csak egyszerű szövegként."

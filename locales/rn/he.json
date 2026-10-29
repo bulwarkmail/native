@@ -292,6 +292,28 @@
     "no_sent_folder": "לא נמצאה תיקיית \"נשלח\"",
     "permission_camera": "נדרשת הרשאת מצלמה כדי לצלם תמונה.",
     "permission_photos": "נדרשת הרשאה לספריית התמונות כדי לצרף תמונות.",
+    "placeholder_warning": {
+      "title": "לבדוק מצייני מיקום?",
+      "message": "ההודעה מכילה טקסט מציין מיקום שהנמענים יראו. לערוך אותה לפני השליחה?",
+      "found": "מצייני מיקום שנמצאו",
+      "more": "ועוד {count}",
+      "dont_ask_again": "אל תשאל שוב",
+      "send_anyway": "שלח בכל זאת",
+      "back": "חזור לעריכה"
+    },
+    "placeholder_words": {
+      "before": [
+        "הכנס",
+        "הכניסו",
+        "הזן",
+        "הוסף"
+      ],
+      "after": [
+        "שלך",
+        "שלכם"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "הוסף לאנשי הקשר",
     "recipient_copy": "העתק כתובת",
     "recipient_move_to": "העבר אל {field}",
@@ -819,6 +841,10 @@
         "allow_mobile": "אפשר",
         "ask_mobile": "שאל",
         "block_mobile": "חסום"
+      },
+      "placeholder_warning": {
+        "label": "אזהרה על מצייני מיקום",
+        "description": "בקש אישור לפני שליחת הודעה שעדיין יש בה מצייני מיקום כמו [TIME] או [השם שלך], שדות תבנית ריקים או טקסט לא גמור כמו TODO או TBD."
       },
       "plain_text_mode": {
         "description_mobile": "כתיבה וקריאה בטקסט רגיל בלבד."

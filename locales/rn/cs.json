@@ -292,6 +292,30 @@
     "no_sent_folder": "Složka Odeslané nebyla nalezena",
     "permission_camera": "K pořízení fotky je potřeba oprávnění k fotoaparátu.",
     "permission_photos": "K připojení obrázků je potřeba oprávnění ke knihovně fotek.",
+    "placeholder_warning": {
+      "title": "Zkontrolovat zástupné texty?",
+      "message": "Vaše zpráva obsahuje zástupný text, který příjemci uvidí. Chcete ji před odesláním upravit?",
+      "found": "Nalezené zástupné texty",
+      "more": "a další ({count})",
+      "dont_ask_again": "Znovu se neptat",
+      "send_anyway": "Přesto odeslat",
+      "back": "Zpět k úpravám"
+    },
+    "placeholder_words": {
+      "before": [
+        "vaše",
+        "váš",
+        "vaši",
+        "tvoje",
+        "tvůj",
+        "vložte",
+        "doplňte",
+        "zadejte",
+        "uveďte"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Přidat do kontaktů",
     "recipient_copy": "Kopírovat adresu",
     "recipient_move_to": "Přesunout do pole {field}",
@@ -819,6 +843,10 @@
         "allow_mobile": "Povolit",
         "ask_mobile": "Ptát se",
         "block_mobile": "Blokovat"
+      },
+      "placeholder_warning": {
+        "label": "Upozornění na zástupné texty",
+        "description": "Před odesláním zprávy, která stále obsahuje zástupné texty jako [TIME] nebo [Vaše jméno], nevyplněná pole šablony nebo nedokončený text jako TODO či TBD, požádat o potvrzení."
       },
       "plain_text_mode": {
         "description_mobile": "Psát a číst pouze v prostém textu."

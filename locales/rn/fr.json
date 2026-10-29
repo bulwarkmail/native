@@ -292,6 +292,34 @@
     "no_sent_folder": "Aucun dossier Envoyés trouvé",
     "permission_camera": "L'autorisation d'accès à l'appareil photo est nécessaire pour prendre une photo.",
     "permission_photos": "L'autorisation d'accès à la photothèque est nécessaire pour joindre des images.",
+    "placeholder_warning": {
+      "title": "Vérifier les espaces réservés ?",
+      "message": "Votre message contient du texte d'espace réservé que les destinataires verront. Voulez-vous le modifier avant l'envoi ?",
+      "found": "Espaces réservés trouvés",
+      "more": "et {count} de plus",
+      "dont_ask_again": "Ne plus me demander",
+      "send_anyway": "Envoyer quand même",
+      "back": "Retour à l'édition"
+    },
+    "placeholder_words": {
+      "before": [
+        "votre",
+        "vos",
+        "ton",
+        "ta",
+        "tes",
+        "insérer",
+        "insérez",
+        "ajouter",
+        "ajoutez",
+        "saisir",
+        "saisissez",
+        "indiquer",
+        "indiquez"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Ajouter aux contacts",
     "recipient_copy": "Copier l'adresse",
     "recipient_move_to": "Déplacer vers {field}",
@@ -819,6 +847,10 @@
         "allow_mobile": "Autoriser",
         "ask_mobile": "Demander",
         "block_mobile": "Bloquer"
+      },
+      "placeholder_warning": {
+        "label": "Avertissement d'espaces réservés",
+        "description": "Demander confirmation avant d'envoyer un message qui contient encore des espaces réservés comme [TIME] ou [Votre nom], des champs de modèle vides ou du texte inachevé comme TODO ou TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Rédiger et lire uniquement en texte brut."

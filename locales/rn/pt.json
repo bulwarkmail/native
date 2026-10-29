@@ -292,6 +292,33 @@
     "no_sent_folder": "Nenhuma pasta Enviados encontrada",
     "permission_camera": "É necessária permissão da câmera para tirar uma foto.",
     "permission_photos": "É necessária permissão da galeria de fotos para anexar imagens.",
+    "placeholder_warning": {
+      "title": "Verificar marcadores?",
+      "message": "A mensagem tem texto de marcador que os destinatários vão ver. Quer editá-la antes de enviar?",
+      "found": "Marcadores encontrados",
+      "more": "e mais {count}",
+      "dont_ask_again": "Não perguntar novamente",
+      "send_anyway": "Enviar mesmo assim",
+      "back": "Voltar à edição"
+    },
+    "placeholder_words": {
+      "before": [
+        "seu",
+        "sua",
+        "seus",
+        "suas",
+        "teu",
+        "tua",
+        "inserir",
+        "insira",
+        "adicionar",
+        "adicione",
+        "digite",
+        "informe"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Adicionar aos contatos",
     "recipient_copy": "Copiar endereço",
     "recipient_move_to": "Mover para {field}",
@@ -819,6 +846,10 @@
         "allow_mobile": "Permitir",
         "ask_mobile": "Perguntar",
         "block_mobile": "Bloquear"
+      },
+      "placeholder_warning": {
+        "label": "Aviso de marcadores",
+        "description": "Pedir confirmação antes de enviar uma mensagem que ainda tem marcadores como [TIME] ou [Seu nome], campos de modelo vazios ou texto inacabado como TODO ou TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Escrever e ler apenas em texto simples."

@@ -292,6 +292,30 @@
     "no_sent_folder": "No s'ha trobat la carpeta Enviats",
     "permission_camera": "Cal permís per a la càmera per fer una foto.",
     "permission_photos": "Cal permís per a la galeria de fotos per adjuntar imatges.",
+    "placeholder_warning": {
+      "title": "Voleu revisar els marcadors?",
+      "message": "El missatge té text de marcador que veuran els destinataris. Voleu editar-lo abans d'enviar-lo?",
+      "found": "Marcadors trobats",
+      "more": "i {count} més",
+      "dont_ask_again": "No ho tornis a preguntar",
+      "send_anyway": "Envia igualment",
+      "back": "Torna a l'edició"
+    },
+    "placeholder_words": {
+      "before": [
+        "el teu",
+        "la teva",
+        "el vostre",
+        "la vostra",
+        "insereix",
+        "inseriu",
+        "afegeix",
+        "afegiu",
+        "escriviu"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Afegeix als contactes",
     "recipient_copy": "Copia l'adreça",
     "recipient_move_to": "Mou a {field}",
@@ -819,6 +843,10 @@
         "allow_mobile": "Permet",
         "ask_mobile": "Pregunta",
         "block_mobile": "Bloqueja"
+      },
+      "placeholder_warning": {
+        "label": "Avís de marcadors",
+        "description": "Demana confirmació abans d'enviar un missatge que encara té marcadors com [TIME] o [El teu nom], camps de plantilla buits o text inacabat com TODO o TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Redacta i llegeix només en text sense format."

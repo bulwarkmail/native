@@ -292,6 +292,36 @@
     "no_sent_folder": "No se encontró la carpeta Enviados",
     "permission_camera": "Se necesita permiso de cámara para tomar una foto.",
     "permission_photos": "Se necesita acceso a la galería de fotos para adjuntar imágenes.",
+    "placeholder_warning": {
+      "title": "¿Revisar los marcadores?",
+      "message": "El mensaje tiene texto de marcador que verán los destinatarios. ¿Editarlo antes de enviar?",
+      "found": "Marcadores encontrados",
+      "more": "y {count} más",
+      "dont_ask_again": "No volver a preguntar",
+      "send_anyway": "Enviar de todos modos",
+      "back": "Volver a editar"
+    },
+    "placeholder_words": {
+      "before": [
+        "tu",
+        "tus",
+        "su",
+        "sus",
+        "insertar",
+        "inserte",
+        "inserta",
+        "añadir",
+        "añade",
+        "agregar",
+        "agrega",
+        "escribe",
+        "escriba",
+        "indica",
+        "indique"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Añadir a contactos",
     "recipient_copy": "Copiar dirección",
     "recipient_move_to": "Mover a {field}",
@@ -819,6 +849,10 @@
         "allow_mobile": "Permitir",
         "ask_mobile": "Preguntar",
         "block_mobile": "Bloquear"
+      },
+      "placeholder_warning": {
+        "label": "Aviso de marcadores",
+        "description": "Pedir confirmación antes de enviar un mensaje que todavía tiene marcadores como [TIME] o [Tu nombre], campos de plantilla vacíos o texto sin terminar como TODO o TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Redactar y leer solo en texto sin formato."

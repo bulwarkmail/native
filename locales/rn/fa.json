@@ -292,6 +292,24 @@
     "no_sent_folder": "پوشه ارسال شده پیدا نشد",
     "permission_camera": "برای گرفتن عکس، دسترسی به دوربین لازم است.",
     "permission_photos": "برای پیوست کردن تصاویر، دسترسی به گالری عکس لازم است.",
+    "placeholder_warning": {
+      "title": "متن‌های جایگزین بررسی شود؟",
+      "message": "پیام شما متن جایگزینی دارد که گیرندگان آن را می‌بینند. می‌خواهید پیش از ارسال آن را ویرایش کنید؟",
+      "found": "متن‌های جایگزین یافت‌شده",
+      "more": "و {count} مورد دیگر",
+      "dont_ask_again": "دیگر نپرس",
+      "send_anyway": "ارسال به هر حال",
+      "back": "بازگشت به ویرایش"
+    },
+    "placeholder_words": {
+      "before": [],
+      "after": [
+        "شما",
+        "وارد کنید",
+        "اضافه کنید"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "افزودن به مخاطبین",
     "recipient_copy": "کپی نشانی",
     "recipient_move_to": "انتقال به {field}",
@@ -819,6 +837,10 @@
         "allow_mobile": "مجاز",
         "ask_mobile": "بپرس",
         "block_mobile": "مسدود"
+      },
+      "placeholder_warning": {
+        "label": "هشدار متن جایگزین",
+        "description": "پیش از ارسال پیامی که هنوز متن جایگزین مانند [TIME] یا [نام شما]، فیلدهای خالی الگو یا متن ناتمام مانند TODO یا TBD دارد، تأیید بگیرید."
       },
       "plain_text_mode": {
         "description_mobile": "نوشتن و خواندن فقط به‌صورت متن ساده."

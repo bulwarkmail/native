@@ -292,6 +292,32 @@
     "no_sent_folder": "Nessuna cartella Inviati trovata",
     "permission_camera": "Serve l'autorizzazione alla fotocamera per scattare una foto.",
     "permission_photos": "Serve l'autorizzazione alla galleria foto per allegare immagini.",
+    "placeholder_warning": {
+      "title": "Controllare i segnaposto?",
+      "message": "Il messaggio contiene testo segnaposto che i destinatari vedranno. Vuoi modificarlo prima di inviarlo?",
+      "found": "Segnaposto trovati",
+      "more": "e altri {count}",
+      "dont_ask_again": "Non chiedere più",
+      "send_anyway": "Invia comunque",
+      "back": "Torna alla modifica"
+    },
+    "placeholder_words": {
+      "before": [
+        "il tuo",
+        "la tua",
+        "i tuoi",
+        "le tue",
+        "il suo",
+        "la sua",
+        "inserisci",
+        "inserire",
+        "aggiungi",
+        "aggiungere",
+        "indica"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Aggiungi ai contatti",
     "recipient_copy": "Copia indirizzo",
     "recipient_move_to": "Sposta in {field}",
@@ -819,6 +845,10 @@
         "allow_mobile": "Consenti",
         "ask_mobile": "Chiedi",
         "block_mobile": "Blocca"
+      },
+      "placeholder_warning": {
+        "label": "Avviso segnaposto",
+        "description": "Chiedi conferma prima di inviare un messaggio che contiene ancora segnaposto come [TIME] o [Il tuo nome], campi del modello vuoti o testo incompleto come TODO o TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Scrivi e leggi solo in testo normale."

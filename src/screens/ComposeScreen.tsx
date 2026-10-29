@@ -66,6 +66,7 @@ import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
+import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
 import {
   ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../lib/compose-login';
@@ -482,6 +483,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
+  const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
@@ -2049,6 +2051,54 @@ export default function ComposeScreen({ route, navigation }: Props) {
     });
   };
 
+  // Unfilled placeholders: template fields left as {{name}}, fill-ins like
+  // [TIME] from AI drafts, and markers like TODO (webmail
+  // lib/placeholder-check). The signature is left out, or a placeholder in
+  // it would stop every message. Asked once per placeholder: after "Send
+  // anyway" and a trip back to add an attachment, the same ones pass.
+  const confirmedPlaceholdersRef = React.useRef(new Set<string>());
+  const passesPlaceholderCheck = (body: string): Promise<boolean> => {
+    if (!placeholderWarningEnabled) return Promise.resolve(true);
+    const found = unfilledPlaceholdersInMessage({
+      subject,
+      body,
+      plainTextMode,
+      signature: signatureIdentity,
+      forwardedSeparator: quoteLabels.forwardedSeparator,
+      words: placeholderWordsFor(locale),
+    });
+    if (!found.some((p) => !confirmedPlaceholdersRef.current.has(p))) return Promise.resolve(true);
+    const SHOWN = 5;
+    const more = found.length > SHOWN
+      ? ` ${t('email_composer.placeholder_warning.more', 'and {count} more', { count: found.length - SHOWN })}`
+      : '';
+    const message = t(
+      'email_composer.placeholder_warning.message',
+      'Your message has placeholder text that recipients will see. Do you want to edit it before sending?',
+    );
+    const label = t('email_composer.placeholder_warning.found', 'Placeholders found');
+    return new Promise<boolean>((resolve) => {
+      Alert.alert(
+        t('email_composer.placeholder_warning.title', 'Check placeholders?'),
+        `${message}\n\n${label}: ${found.slice(0, SHOWN).join(', ')}${more}`,
+        [
+          { text: t('email_composer.placeholder_warning.back', 'Back to editing'), style: 'cancel', onPress: () => resolve(false) },
+          {
+            text: t('email_composer.placeholder_warning.dont_ask_again', "Don't ask again"),
+            onPress: () => { updateSetting('placeholderWarningEnabled', false); resolve(true); },
+          },
+          {
+            text: t('email_composer.placeholder_warning.send_anyway', 'Send anyway'),
+            onPress: () => {
+              for (const p of found) confirmedPlaceholdersRef.current.add(p);
+              resolve(true);
+            },
+          },
+        ],
+      );
+    });
+  };
+
   // Translate an absolute "send at" time into the HOLDFOR seconds the server
   // expects, clamping to what it actually supports. Returns null (and alerts)
   // when scheduling isn't possible so the caller can abort.
@@ -2198,6 +2248,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
 
     if (!(await passesEmptySubjectCheck())) return;
+    if (!(await passesPlaceholderCheck(plainTextMode ? plainBody : liveBodyHtml))) return;
     if (!(await passesAttachmentReminder(plainTextMode ? plainBody : liveBodyHtml))) return;
 
     // Autosave must not race the send: cancel a scheduled save and let an

@@ -292,6 +292,29 @@
     "no_sent_folder": "Mape Nosūtītie nav atrasta",
     "permission_camera": "Lai uzņemtu fotoattēlu, nepieciešama kameras atļauja.",
     "permission_photos": "Lai pievienotu attēlus, nepieciešama fotoattēlu bibliotēkas atļauja.",
+    "placeholder_warning": {
+      "title": "Pārbaudīt vietturus?",
+      "message": "Ziņā ir viettura teksts, ko redzēs adresāti. Vai rediģēt to pirms sūtīšanas?",
+      "found": "Atrastie vietturi",
+      "more": "un vēl {count}",
+      "dont_ask_again": "Vairs nejautāt",
+      "send_anyway": "Sūtīt tik un tā",
+      "back": "Atpakaļ pie rediģēšanas"
+    },
+    "placeholder_words": {
+      "before": [
+        "jūsu",
+        "tavs",
+        "tava",
+        "ievadiet",
+        "ierakstiet",
+        "ievietojiet",
+        "pievienojiet",
+        "norādiet"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Pievienot kontaktpersonām",
     "recipient_copy": "Kopēt adresi",
     "recipient_move_to": "Pārvietot uz lauku {field}",
@@ -819,6 +842,10 @@
         "allow_mobile": "Atļaut",
         "ask_mobile": "Jautāt",
         "block_mobile": "Bloķēt"
+      },
+      "placeholder_warning": {
+        "label": "Brīdinājums par vietturiem",
+        "description": "Pieprasīt apstiprinājumu pirms tādas ziņas sūtīšanas, kurā vēl ir vietturi, piemēram, [TIME] vai [Jūsu vārds], tukši veidnes lauki vai nepabeigts teksts, piemēram, TODO vai TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Rakstīt un lasīt tikai vienkāršā tekstā."
