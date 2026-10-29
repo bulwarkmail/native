@@ -34,6 +34,7 @@ import { credentialsKey } from '../api/jmap-client';
 import { apnsEnvironment, removeIosPushAccount, writeIosPushAccount } from './ios-push-shared';
 import {
   getUnifiedPushDistributors,
+  getUnifiedPushEndpoint,
   isUnifiedPushSupported,
   registerUnifiedPush,
   unregisterUnifiedPush,
@@ -1851,6 +1852,121 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
   } catch {
     // The next resync re-applies them.
   }
+}
+
+/**
+ * Keep push alive for the signed-in accounts the app is not showing (webmail #1054).
+ * The launch-time resync works on the loaded account only, and Stalwart keeps
+ * a subscription for seven days from its last refresh, so another account's
+ * push stopped about a week after the user last switched to it. Each account
+ * goes through a client of its own, never the singleton: its registration
+ * with the relay is renewed (the device token may have rotated since), its
+ * subscription's expiry pushed forward and the expiry the server settled on
+ * recorded. A subscription the server no longer has - lapsed, or revoked
+ * elsewhere - is left to the account's own resync, which can tell the two
+ * apart and verify a new one; so are its delivery filter and push types.
+ * Best effort: whatever fails is tried again on the next launch.
+ */
+export async function renewOtherPushAccounts(): Promise<void> {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  const served = username && serverUrl ? generateAccountId(username, serverUrl) : null;
+  const relayBaseUrl = await getStoredRelayBaseUrl();
+  for (const accountId of await readPushAccountIds()) {
+    if (accountId === served) continue;
+    try {
+      await renewPushAccount(accountId, relayBaseUrl);
+    } catch (err) {
+      logPhase('renew', `${accountId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
+type ListedSubscription = { id: string; deviceClientId?: string | null; expires?: string | null };
+
+async function renewPushAccount(accountId: string, relayBaseUrl: string | null): Promise<void> {
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return;
+  const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+  if (!subscriptionId) return;
+  const deviceClientId = await AsyncStorage.getItem(deviceClientIdKey(accountId));
+  const client = new JMAPClient();
+  if (!(await client.loadAccount(accountId))) return;
+  if (relayBaseUrl && deviceClientId) {
+    await registerDeviceWithRelay(relayBaseUrl, deviceClientId, client.username ?? undefined).catch(() => undefined);
+  }
+  const using = [CAPABILITIES.CORE];
+  const properties = ['id', 'deviceClientId', 'expires'];
+  const ownIn = (res: Awaited<ReturnType<JMAPClient['request']>>, callId: string) =>
+    (requireMethodResult(res, callId, 'PushSubscription/get').list as ListedSubscription[] | undefined)
+      ?.find((s) => isOwnSubscription(s, subscriptionId, deviceClientId));
+  const current = ownIn(
+    await client.request([['PushSubscription/get', { ids: [subscriptionId], properties }, '0']], using),
+    '0',
+  );
+  if (!current) return;
+  let expires = current.expires ?? null;
+  const remainingMs = Date.parse(expires ?? '') - Date.now();
+  if (!(remainingMs > SUBSCRIPTION_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)) {
+    const res = await client.request(
+      [
+        ['PushSubscription/set', { update: { [subscriptionId]: { expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS) } } }, '0'],
+        // The update's answer doesn't say what the server settled on.
+        ['PushSubscription/get', { ids: [subscriptionId], properties }, '1'],
+      ],
+      using,
+    );
+    expires = ownIn(res, '1')?.expires ?? expires;
+  }
+  if (expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), expires);
+  let jmapAccountId: string | null = null;
+  try {
+    jmapAccountId = client.accountId;
+  } catch {
+    jmapAccountId = null;
+  }
+  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl);
+}
+
+/**
+ * Register an account's device client id with the relay again, with the
+ * device token or endpoint this device has now. Never asks for anything: no
+ * permission prompt, no new UnifiedPush registration.
+ */
+async function registerDeviceWithRelay(relayBaseUrl: string, deviceClientId: string, accountLabel?: string): Promise<void> {
+  const transport = await getEffectivePushTransport();
+  if (transport === 'apns') {
+    const token = (await Notifications.getDevicePushTokenAsync()).data;
+    if (typeof token !== 'string' || !token) return;
+    await registerWithRelayApns({ relayBaseUrl, subscriptionId: deviceClientId, deviceToken: token, accountLabel });
+  } else if (transport === 'unifiedpush') {
+    const endpoint = await getUnifiedPushEndpoint();
+    if (!endpoint) return;
+    await registerWithRelayUnifiedPush({ relayBaseUrl, subscriptionId: deviceClientId, endpoint, accountLabel });
+  } else {
+    const token = await getFcmToken();
+    if (!token) return;
+    await registerWithRelay({ relayBaseUrl, subscriptionId: deviceClientId, fcmToken: token, accountLabel });
+  }
+}
+
+export interface PushAccountState {
+  // A subscription is recorded for the account on this device.
+  enabled: boolean;
+  // The user turned push off for it here (see disablePushForAccount).
+  optedOut: boolean;
+}
+
+/** What this device knows about each account's push, for the settings. */
+export async function readPushAccountStates(accountIds: string[]): Promise<Record<string, PushAccountState>> {
+  await migrateLegacyPushKeys();
+  const out: Record<string, PushAccountState> = {};
+  for (const accountId of accountIds) {
+    out[accountId] = {
+      enabled: (await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null,
+      optedOut: (await AsyncStorage.getItem(optedOutKey(accountId))) !== null,
+    };
+  }
+  return out;
 }
 
 /**

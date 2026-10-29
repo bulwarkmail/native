@@ -35,6 +35,7 @@ import {
   getInitialNotificationTap,
   getStoredRelayBaseUrl,
   notificationTapJmapAccountId,
+  renewOtherPushAccounts,
   resyncPushNotifications,
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
@@ -672,13 +673,16 @@ export default function App() {
           relayBaseUrl,
           accountLabel: client.username ?? undefined,
         });
-        if (cancelled) return;
       } catch (error) {
         console.warn(
           '[push] relay setup failed:',
           error instanceof Error ? error.message : error,
         );
       }
+      if (cancelled) return;
+      // The other signed-in accounts' subscriptions expire too (webmail #1054); each
+      // is renewed through a client of its own.
+      await renewOtherPushAccounts().catch(() => undefined);
     };
 
     void doSetup();

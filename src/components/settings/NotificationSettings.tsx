@@ -13,6 +13,7 @@ import Dialog from '../Dialog';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useAccountStore } from '../../stores/account-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useEmailStore } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -28,12 +29,14 @@ import {
   mailAccountsWithoutPush,
   PushSetupError,
   readPushAccountIds,
+  readPushAccountStates,
   revokePushDevice,
   serverSupportsEmailPush,
   setStoredRelayBaseUrl,
   enablePushFromSettings,
   getStoredPushTransport,
   setStoredPushTransport,
+  type PushAccountState,
   type PushDevice,
   type PushSetupPhase,
   type PushTransport,
@@ -177,6 +180,22 @@ export function NotificationSettings() {
     );
     return () => { cancelled = true; };
   }, [supported, client, mailboxes, pushStatus.kind]);
+
+  // Push is set up per account, and the switch above is the shown account's.
+  // List every signed-in account's state so the others aren't a guess (webmail #1054).
+  const accounts = useAccountStore((s) => s.accounts);
+  const accountIdsKey = accounts.map((a) => a.id).join('\n');
+  const [accountStates, setAccountStates] = useState<Record<string, PushAccountState>>({});
+  useEffect(() => {
+    if (!supported || accounts.length < 2) return;
+    let cancelled = false;
+    void readPushAccountStates(accounts.map((a) => a.id)).then(
+      (states) => { if (!cancelled) setAccountStates(states); },
+      () => undefined,
+    );
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supported, accountIdsKey, pushEnabled, pushStatus.kind]);
 
   const describeError = (error: unknown): string => {
     if (error instanceof PushSetupError) {
@@ -497,6 +516,34 @@ export function NotificationSettings() {
               ))}
             </View>
           )}
+        </SettingsSection>
+      )}
+
+      {supported && accounts.length > 1 && (
+        <SettingsSection
+          title={t('settings.notifications.push_all.title', 'All accounts')}
+          description={t(
+            'settings.notifications.push.accounts_desc_mobile',
+            'Background notifications of each signed-in account on this device. Switch to an account to turn them on or off for it.',
+          )}
+        >
+          {accounts.map((account, index) => {
+            const on = accountStates[account.id]?.enabled === true;
+            const address = account.email || account.username;
+            const state = on
+              ? t('settings.notifications.push_all.state_on', 'notifications on')
+              : t('settings.notifications.push_all.state_off', 'notifications off');
+            return (
+              <SettingItem
+                key={account.id}
+                label={account.displayName || address}
+                description={`${address} · ${state}`}
+                noBorder={index === accounts.length - 1}
+              >
+                {on ? <CheckCircle2 size={16} color={c.success} /> : <View />}
+              </SettingItem>
+            );
+          })}
         </SettingsSection>
       )}
 
