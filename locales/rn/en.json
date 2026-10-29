@@ -6,6 +6,7 @@
     "not_starred": "Not starred"
   },
   "calendar": {
+    "account_changed": "The account changed while the calendar was loading or saving.",
     "alerts": {
       "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}"
     },
@@ -105,6 +106,16 @@
       "occurrence_count": "{count, plural, one {# occurrence} other {# occurrences}}",
       "until_date": "Until {date}"
     },
+    "search": {
+      "clear": "Clear search",
+      "close": "Close search",
+      "no_results": "No events match “{query}”",
+      "no_results_hint": "Search looks at titles, places, descriptions and guests.",
+      "past": "Past",
+      "repeats": "Repeats",
+      "title": "Search events",
+      "upcoming": "Upcoming"
+    },
     "settings": {
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
@@ -123,6 +134,7 @@
       "shared_with": "Shared with"
     },
     "subscription": {
+      "account_changed": "The account changed while the subscription was syncing. It syncs again in its own account.",
       "add_feed": "Add a feed",
       "feed_too_large": "Feed is too large",
       "fetch_failed": "Could not fetch feed (HTTP {status})",

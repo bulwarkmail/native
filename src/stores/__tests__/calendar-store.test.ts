@@ -38,12 +38,16 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import * as calendarApi from '../../api/calendar';
+import { jmapClient } from '../../api/jmap-client';
 import { JMAPMethodError } from '../../api/jmap-result';
 import {
   useCalendarStore,
   selectVisibleCalendars,
   selectVisibleEvents,
   ImportRefusedError,
+  CalendarAccountChangedError,
+  loadEventsInRange,
+  prepareImportedEvent,
 } from '../calendar-store';
 
 const mockGetCalendars = calendarApi.getCalendars as ReturnType<typeof vi.fn>;
@@ -212,6 +216,39 @@ describe('calendar-store', () => {
       expect(state.events).toEqual([]);
       expect(state.loadedRange).toBeNull();
       expect(state.error).toBeNull();
+    });
+
+    // The reminders and the widget read ranges with loadEventsInRange
+    // directly, without a store generation of their own.
+    it('hands no events read before the reset to a range read outside the store', async () => {
+      // The reset comes while the account's events are being read. (The
+      // test above leaves its answer unread: its load stops before asking.)
+      mockQueryEvents.mockReset();
+      mockQueryEvents.mockImplementationOnce(async () => {
+        useCalendarStore.getState().reset();
+        return ['e-old'];
+      });
+      mockGetEvents.mockResolvedValue([{ id: 'e-old', title: 'Old account event', start: '2026-03-20T15:00:00', calendarIds: { 'cal-1': true } }]);
+
+      await expect(loadEventsInRange([{ id: 'cal-1' }] as never, ['cal-1'], '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z'))
+        .rejects.toBeInstanceOf(CalendarAccountChangedError);
+    });
+
+    it('reads no further account after the reset', async () => {
+      mockQueryEvents.mockReset();
+      mockQueryEvents.mockImplementationOnce(async () => {
+        useCalendarStore.getState().reset();
+        return [];
+      });
+      const calendars = [
+        { id: 'cal-1' },
+        { id: 'acc-2:cal-9', originalId: 'cal-9', accountId: 'acc-2' },
+      ];
+      const read = loadEventsInRange(calendars as never, ['cal-1', 'acc-2:cal-9'], '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z');
+
+      await expect(read).rejects.toBeInstanceOf(CalendarAccountChangedError);
+      // The shared account would be read under the next login.
+      expect(mockQueryEvents).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -382,6 +419,58 @@ describe('calendar-store', () => {
       expect(mockGetCalendars).toHaveBeenCalled();
       expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
     });
+
+    it('marks an account without calendars as loaded', async () => {
+      mockGetCalendars.mockResolvedValue([]);
+
+      await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+
+      expect(useCalendarStore.getState().loadedRange).toEqual({ after: '2026-03-01', before: '2026-03-31' });
+    });
+
+    it('leaves the range unloaded when the calendars fail to load, so the next call tries again', async () => {
+      mockGetCalendars.mockRejectedValueOnce(new Error('Network request failed'));
+
+      await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+      expect(useCalendarStore.getState().loadedRange).toBeNull();
+
+      mockGetCalendars.mockResolvedValueOnce([{ id: 'cal-1', name: 'Personal' }]);
+      mockQueryEvents.mockResolvedValue([]);
+      await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
+    });
+
+    it('leaves the range unloaded without a session (an account loading)', async () => {
+      const client = jmapClient as { isConnected: boolean };
+      client.isConnected = false;
+      try {
+        await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+        await useCalendarStore.getState().extendRange('2026-03-01', '2026-03-31');
+      } finally {
+        client.isConnected = true;
+      }
+      expect(useCalendarStore.getState().loadedRange).toBeNull();
+      expect(mockGetCalendars).not.toHaveBeenCalled();
+    });
+
+    it.each(['ensureRange', 'extendRange'] as const)('marks nothing loaded for the next account when a reset overtakes the calendar load (%s)', async (action) => {
+      let resolveCalendars: (v: unknown) => void = () => {};
+      mockGetCalendars.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveCalendars = resolve; }),
+      );
+      if (action === 'extendRange') {
+        // A cold start: the window was cached, the calendars not yet loaded.
+        useCalendarStore.setState({ loadedRange: { after: '2026-02-01', before: '2026-03-01' } });
+      }
+      const load = useCalendarStore.getState()[action]('2026-03-01', '2026-03-31');
+
+      useCalendarStore.getState().reset();
+      resolveCalendars([]);
+      await load;
+
+      expect(useCalendarStore.getState().loadedRange).toBeNull();
+      expect(useCalendarStore.getState().calendars).toEqual([]);
+    });
   });
 
   describe('handleStateChange', () => {
@@ -507,7 +596,7 @@ describe('calendar-store', () => {
         'cal-1',
       );
 
-      expect(mockGetEvents).toHaveBeenCalledWith(['ev-new'], undefined);
+      expect(mockGetEvents).toHaveBeenCalledWith(['ev-new'], 'acc-1');
       expect(result.utcStart).toBe('2026-03-02T08:00:00Z');
       const events = useCalendarStore.getState().events;
       expect(events).toHaveLength(3);
@@ -541,7 +630,7 @@ describe('calendar-store', () => {
       // The third arg is the iMIP scheduling flag — undefined here since the
       // event has no participants to notify. The fourth is the owning
       // account — undefined for primary-account events.
-      expect(mockUpdateEvent).toHaveBeenCalledWith('master', { title: 'New' }, undefined, undefined);
+      expect(mockUpdateEvent).toHaveBeenCalledWith('master', { title: 'New' }, undefined, 'acc-1');
     });
   });
 
@@ -558,7 +647,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().setDefaultCalendar('cal-2');
 
-      expect(mockSetDefaultCalendar).toHaveBeenCalledWith('cal-2', undefined);
+      expect(mockSetDefaultCalendar).toHaveBeenCalledWith('cal-2', 'acc-1');
       const calendars = useCalendarStore.getState().calendars;
       expect(calendars.find((c) => c.id === 'cal-1')?.isDefault).toBe(false);
       expect(calendars.find((c) => c.id === 'cal-2')?.isDefault).toBe(true);
@@ -602,7 +691,7 @@ describe('calendar-store', () => {
       );
       await useCalendarStore.getState().deleteEvent(master!.id);
 
-      expect(mockDeleteEvents).toHaveBeenCalledWith(['ev1'], undefined, undefined);
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['ev1'], undefined, 'acc-1');
       // The visible range was reloaded (empty here).
       expect(mockQueryEvents).toHaveBeenCalled();
     });
@@ -632,10 +721,10 @@ describe('calendar-store', () => {
       // No overrides yet: a pointer into the missing map would fail, so the
       // whole map is sent.
       expect(mockUpdateEvent).toHaveBeenNthCalledWith(
-        1, 'ev1', { recurrenceOverrides: { '2026-03-02T09:00:00': { excluded: true } } }, undefined, undefined,
+        1, 'ev1', { recurrenceOverrides: { '2026-03-02T09:00:00': { excluded: true } } }, undefined, 'acc-1',
       );
       expect(mockUpdateEvent).toHaveBeenNthCalledWith(
-        2, 'ev1', { 'recurrenceOverrides/2026-03-03T09:00:00': { excluded: true } }, undefined, undefined,
+        2, 'ev1', { 'recurrenceOverrides/2026-03-03T09:00:00': { excluded: true } }, undefined, 'acc-1',
       );
     });
   });
@@ -669,7 +758,7 @@ describe('calendar-store', () => {
       );
 
       // The UID in cal-1 is linked into cal-2; the one already in cal-2 is skipped.
-      expect(mockUpdateEvent).toHaveBeenCalledWith('e1', { calendarIds: { 'cal-1': true, 'cal-2': true } }, undefined, undefined);
+      expect(mockUpdateEvent).toHaveBeenCalledWith('e1', { calendarIds: { 'cal-1': true, 'cal-2': true } }, undefined, 'acc-1');
       expect(count).toBe(2);
       expect(refused).toEqual([]);
       const created = batch.mock.calls[0][0][0];
@@ -854,7 +943,7 @@ describe('calendar-store', () => {
         start: '2026-03-02T10:00:00',
         locations: { l: { name: 'Room 1' } },
         sequence: 2,
-      }, undefined, undefined);
+      }, undefined, 'acc-1');
       expect(mockQueryExpanded).toHaveBeenCalled();
     });
 
@@ -879,14 +968,14 @@ describe('calendar-store', () => {
               sequence: 2,
             },
           },
-        }, undefined, undefined);
+        }, undefined, 'acc-1');
 
         // Remembered: a delete goes straight to the exclusion.
         await useCalendarStore.getState().deleteEvent('s2');
         expect(mockDeleteEvents).not.toHaveBeenCalled();
         expect(mockUpdateEvent).toHaveBeenLastCalledWith('base', {
           recurrenceOverrides: { '2026-03-09T09:00:00': { excluded: true } },
-        }, undefined, undefined);
+        }, undefined, 'acc-1');
       } finally {
         useCalendarStore.getState().reset();
       }
@@ -901,7 +990,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().deleteEvent('s1');
 
-      expect(mockDeleteEvents).toHaveBeenCalledWith(['s1'], undefined, undefined);
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['s1'], undefined, 'acc-1');
       expect(useCalendarStore.getState().events.map((e) => e.id)).toEqual(['s2']);
     });
 
@@ -914,7 +1003,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().deleteEvent('s5');
 
-      expect(mockDeleteEvents).toHaveBeenCalledWith(['plain'], undefined, undefined);
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['plain'], undefined, 'acc-1');
       expect(useCalendarStore.getState().events).toEqual([]);
     });
 
@@ -957,7 +1046,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().rsvpEvent('s1', 'me', 'accepted');
 
-      expect(mockRsvpEvent).toHaveBeenCalledWith('base', 'me', 'accepted', undefined, undefined);
+      expect(mockRsvpEvent).toHaveBeenCalledWith('base', 'me', 'accepted', undefined, 'acc-1');
     });
 
     it('answers just one server occurrence through its synthetic id', async () => {
@@ -983,7 +1072,7 @@ describe('calendar-store', () => {
       expect(mockUpdateEvent).toHaveBeenCalledWith('s1', {
         sequence: 4,
         participants: { ...participants, me: { ...participants.me, participationStatus: 'declined' } },
-      }, true, undefined);
+      }, true, 'acc-1');
       expect(useCalendarStore.getState().events[0].participants?.me.participationStatus).toBe('declined');
     });
   });
@@ -1014,7 +1103,7 @@ describe('calendar-store', () => {
             participants: { me: { calendarAddress: 'mailto:me@x', participationStatus: 'tentative' } },
           },
         },
-      }, true, undefined);
+      }, true, 'acc-1');
     });
   });
 
@@ -1046,7 +1135,7 @@ describe('calendar-store', () => {
       // Never the series itself: the change becomes this occurrence's override.
       expect(mockUpdateEvent).toHaveBeenCalledWith('ev1', {
         'recurrenceOverrides/a': { start: '2026-03-02T09:00:00', duration: 'PT30M', title: 'New' },
-      }, undefined, undefined);
+      }, undefined, 'acc-1');
       // Refetched: siblings now carry the server's state.
       const events = useCalendarStore.getState().events;
       expect(events.length).toBeGreaterThan(0);
@@ -1065,7 +1154,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().updateEvent('ev1', { calendarIds: { 'acc-2:cal-9': true } });
 
-      expect(mockUpdateEvent).toHaveBeenCalledWith('ev1', { calendarIds: { 'cal-9': true } }, undefined, undefined);
+      expect(mockUpdateEvent).toHaveBeenCalledWith('ev1', { calendarIds: { 'cal-9': true } }, undefined, 'acc-1');
     });
 
     it('getMasterEvent fetches the master an occurrence points at', async () => {
@@ -1108,7 +1197,7 @@ describe('calendar-store', () => {
 
       // No organizer on the event: repaired from the invitation's replyTo.
       expect(mockRsvpEvent).toHaveBeenCalledWith(
-        'ev9', 'p1', 'accepted', 'mailto:boss@example.com', undefined,
+        'ev9', 'p1', 'accepted', 'mailto:boss@example.com', 'acc-1',
       );
     });
 
@@ -1142,7 +1231,7 @@ describe('calendar-store', () => {
         't1',
         { progress: 'completed', percentComplete: 100 },
         undefined,
-        undefined,
+        'acc-1',
       );
       expect(useCalendarStore.getState().tasks[0].progress).toBe('completed');
     });
@@ -1176,7 +1265,7 @@ describe('calendar-store', () => {
         't1',
         { progress: 'needs-action', percentComplete: 0 },
         undefined,
-        undefined,
+        'acc-1',
       );
     });
 
@@ -1328,7 +1417,7 @@ describe('editing one occurrence of a series', () => {
           participants: { ...participants, me: { ...participants.me, participationStatus: 'tentative' } },
         },
       },
-    }, true, undefined);
+    }, true, 'acc-1');
   });
 
   it('keeps the 0.16.19 fallback payload for a server that rejects synthetic ids', async () => {
@@ -1355,5 +1444,15 @@ describe('editing one occurrence of a series', () => {
     await expect(useCalendarStore.getState().updateEvent('base:2026-03-02T09:00:00', { title: 'Moved' }))
       .rejects.toThrow('You do not have access to this calendar.');
     expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('prepareImportedEvent', () => {
+  // #837: CalendarEvent/parse drops a DTEND equal to DTSTART, and stored
+  // without a duration Stalwart ends the event at 23:59:59.
+  it('imports a timed event without a duration as lasting zero seconds', () => {
+    expect(prepareImportedEvent({ uid: 'z', start: '2026-03-02T09:00:00', timeZone: 'Europe/Berlin' }).duration).toBe('PT0S');
+    expect(prepareImportedEvent({ uid: 'h', start: '2026-03-02T09:00:00', duration: 'PT1H' }).duration).toBe('PT1H');
+    expect(prepareImportedEvent({ uid: 't', '@type': 'Task', start: '2026-03-02T09:00:00' })).not.toHaveProperty('duration');
   });
 });

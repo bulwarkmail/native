@@ -355,9 +355,12 @@ export function buildParticipantMap(
   // stored as an inert JSPROP, so it is intentionally not sent.
   const organizerKey = organizer.email.trim().toLowerCase();
   const organizerStatus = known.get(organizerKey)?.status;
+  // A blank name is left out: written, it reaches the attendees' copies as
+  // an empty CN.
+  const organizerName = organizer.name?.trim();
   participants[idFor(organizerKey)] = {
     '@type': 'Participant',
-    name: organizer.name,
+    ...(organizerName ? { name: organizerName } : {}),
     email: organizer.email,
     calendarAddress: `mailto:${organizer.email}`,
     // owner only, NOT attendee: with roles.attendee set, Stalwart's server-side
@@ -380,9 +383,10 @@ export function buildParticipantMap(
     if (!key || seen.has(key)) return;
     seen.add(key);
 
+    const name = a.name?.trim();
     participants[idFor(key)] = {
       '@type': 'Participant',
-      name: a.name,
+      ...(name ? { name } : {}),
       email,
       calendarAddress: `mailto:${email}`,
       roles: { attendee: true },

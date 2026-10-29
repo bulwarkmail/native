@@ -83,6 +83,16 @@ export function computeTaskFireTime(task: CalendarEvent, trigger: Alert['trigger
   if (trigger.offset === undefined) return null;
   const offsetMs = parseAlertOffset(trigger.offset);
   if (offsetMs === null) return null;
+  // RFC 8984 §4.5.2: relativeTo defaults to "start", which for a Task is its
+  // start; "end" is its due. A task without a start counts from its due
+  // (#83, webmail #1328).
+  if (trigger.relativeTo !== 'end' && task.start) {
+    const start = task.utcStart
+      ? new Date(task.utcStart)
+      // The start read like a due: in the task's zone, or a calendar date.
+      : getTaskDueDate({ due: task.start, timeZone: task.timeZone, showWithoutTime: task.showWithoutTime });
+    if (start && !Number.isNaN(start.getTime())) return start.getTime() + offsetMs;
+  }
   const due = getTaskDueDate(task);
   if (!due) return null;
   return due.getTime() + offsetMs;

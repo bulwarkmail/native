@@ -8,8 +8,9 @@ import {
   StyleSheet,
   Platform,
   Alert as NativeAlert,
+  type LayoutChangeEvent,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   X,
@@ -49,8 +50,10 @@ import { useCalendarLocale } from '../../lib/calendar-locale';
 import { formatCalendarDate } from '../../lib/date-format';
 import {
   alertsToReminders,
+  calendarDefaultAlerts,
   reminderFieldsToSave,
   preservedAlerts,
+  withOwnAlertIds,
   formatReminder,
   REMINDER_PRESETS,
   REMINDER_UNIT_MINUTES,
@@ -72,6 +75,8 @@ import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useKeyboardObstruction } from '../../lib/use-keyboard-obstruction';
+import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -185,6 +190,25 @@ export function EventModal({
   const isEdit = !!event;
   const resolveContactName = useContactNameResolver();
 
+  // The keyboard covered the bottom fields (location, description; #81).
+  // iOS: the scroll view insets itself and scrolls the focused field into
+  // view (automaticallyAdjustKeyboardInsets). Android: the edge-to-edge
+  // dialog does not resize for the keyboard, so the scroll view ends above
+  // it, and Android's ScrollView brings the focused field back into view
+  // when it shrinks.
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardObstruction(insets.bottom);
+  const fullHeight = React.useRef(0);
+  const [containerHeight, setContainerHeight] = React.useState(0);
+  const onContainerLayout = (e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    if (keyboard === 0) fullHeight.current = height;
+    setContainerHeight(height);
+  };
+  const keyboardInset = Platform.OS === 'android'
+    ? editorKeyboardInset(keyboard, insets.bottom, fullHeight.current - containerHeight)
+    : 0;
+
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [allDay, setAllDay] = React.useState(false);
@@ -206,6 +230,10 @@ export function EventModal({
   const [customRule, setCustomRule] = React.useState<RecurrenceRule | null>(null);
   const [recurrenceEditorOpen, setRecurrenceEditorOpen] = React.useState(false);
   const [reminders, setReminders] = React.useState<Reminder[]>([]);
+  // A new event starts on its calendar's default reminders (#1209) until
+  // the user customizes them.
+  const [useDefaults, setUseDefaults] = React.useState(false);
+  const onDefaults = !event && useDefaults;
   // Alerts the picker can't show (absolute / end-relative / non-display)
   // ride along untouched so a save never drops them.
   const [preserved, setPreserved] = React.useState<Record<string, Alert>>({});
@@ -246,6 +274,7 @@ export function EventModal({
       setCustomRule(detected === 'custom' ? event.recurrenceRules?.[0] ?? null : null);
       setRecurrenceEditorOpen(false);
       setReminders(alertsToReminders(event.alerts));
+      setUseDefaults(false);
       setPreserved(preservedAlerts(event.alerts));
       setSendInvitations(true);
       setCustomReminderOpen(false);
@@ -264,6 +293,7 @@ export function EventModal({
       setCustomRule(null);
       setRecurrenceEditorOpen(false);
       setReminders([]);
+      setUseDefaults(true);
       setPreserved({});
       setSendInvitations(true);
       setCustomReminderOpen(false);
@@ -347,7 +377,11 @@ export function EventModal({
         recurrenceRules: clearedOr(recurrenceRules, 'recurrenceRules'),
         // Untouched reminders are not sent: an event on its calendar's
         // default alerts keeps them.
-        ...reminderFieldsToSave(event, reminders, preserved, defaultAlertIds),
+        // A new event on its calendar's defaults: the server copies them
+        // into it (sending them as alerts too would double them).
+        ...(onDefaults
+          ? { useDefaultAlerts: true }
+          : reminderFieldsToSave(event, reminders, preserved, defaultAlertIds)),
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };
@@ -433,6 +467,18 @@ export function EventModal({
   const availablePresets = REMINDER_PRESETS.filter(
     (p) => !reminders.some((r) => r.minutesBefore === p),
   );
+  // The selected calendar's defaults, for an event with a time or all day.
+  const calendarDefaults = calendarDefaultAlerts(selectedCalendar, allDay);
+  const defaultReminders = alertsToReminders(calendarDefaults);
+  // Start the event's own reminders from the defaults, to change them.
+  const customizeReminders = () => {
+    setReminders(defaultReminders);
+    // Under ids of their own: Stalwart 1.0 drops an event's alert under a
+    // default alert's id.
+    const kept = preservedAlerts(calendarDefaults);
+    setPreserved(withOwnAlertIds(Object.values(kept), Object.keys(calendarDefaults)));
+    setUseDefaults(false);
+  };
 
   return (
     <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
@@ -441,7 +487,7 @@ export function EventModal({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']} onLayout={onContainerLayout}>
         <View style={styles.header}>
           <Pressable
             onPress={onClose}
@@ -467,9 +513,10 @@ export function EventModal({
         </View>
 
         <ScrollView
-          style={styles.body}
+          style={[styles.body, keyboardInset > 0 && { marginBottom: keyboardInset }]}
           contentContainerStyle={styles.bodyContent}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
           <TextInput
             value={title}
@@ -631,7 +678,36 @@ export function EventModal({
           </Section>
 
           <Section icon={<Bell size={16} color={c.textMuted} />} label={t('calendar.alerts.title', 'Reminders')}>
-            {reminders.length > 0 && (
+            {onDefaults && (
+              <View style={{ gap: spacing.xs }}>
+                <Text style={styles.defaultsCaption}>{t('calendar.alerts.calendar_defaults', 'Calendar defaults')}</Text>
+                {defaultReminders.length === 0 && (
+                  <Text style={styles.defaultsCaption}>{t('calendar.alerts.none', 'No reminders')}</Text>
+                )}
+                {defaultReminders.map((r) => (
+                  <View key={r.minutesBefore} style={styles.reminderRow}>
+                    <Text style={styles.fieldText}>{formatReminder(r.minutesBefore, t)}</Text>
+                  </View>
+                ))}
+                <Pressable style={styles.addRow} onPress={customizeReminders} accessibilityRole="button">
+                  <Text style={styles.addRowText}>{t('calendar.alerts.customize', 'Customize')}</Text>
+                </Pressable>
+              </View>
+            )}
+            {!onDefaults && !event && (
+              <Pressable
+                style={styles.addRow}
+                onPress={() => {
+                  setUseDefaults(true);
+                  setReminderPickerOpen(false);
+                  setCustomReminderOpen(false);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.addRowText}>{t('calendar.alerts.use_defaults', 'Use calendar defaults')}</Text>
+              </Pressable>
+            )}
+            {!onDefaults && reminders.length > 0 && (
               <View style={{ gap: spacing.xs }}>
                 {reminders.map((r) => (
                   <View key={r.minutesBefore} style={styles.reminderRow}>
@@ -649,7 +725,7 @@ export function EventModal({
                 ))}
               </View>
             )}
-            {availablePresets.length > 0 && (
+            {!onDefaults && availablePresets.length > 0 && (
               <Pressable
                 style={styles.addRow}
                 onPress={() => setReminderPickerOpen((v) => !v)}
@@ -723,7 +799,7 @@ export function EventModal({
               onChangeText={setLocation}
               placeholder={t('calendar.form.location_placeholder', 'Place or address')}
               placeholderTextColor={c.mutedForeground}
-              style={styles.fieldButton}
+              style={styles.fieldInput}
             />
           </Section>
 
@@ -736,7 +812,7 @@ export function EventModal({
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
-              style={styles.fieldButton}
+              style={styles.fieldInput}
             />
           </Section>
 
@@ -944,6 +1020,19 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
   },
   fieldText: { ...typography.body, color: c.text },
+  // A text field in the field frame. Without a colour of its own a
+  // TextInput draws black, invisible on the dark background (#82).
+  fieldInput: {
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.background,
+    ...typography.body,
+    color: c.text,
+  },
   limitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   limitText: { ...typography.caption, color: c.warning, flex: 1 },
 
@@ -999,6 +1088,7 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: spacing.sm,
   },
   addRowText: { ...typography.body, color: c.primary },
+  defaultsCaption: { ...typography.caption, color: c.textMuted },
 
   popover: {
     borderWidth: 1,

@@ -9,6 +9,7 @@ import {
   parseCalendarBlob,
   queryEvents,
   getEventIdentities,
+  getEvents,
   deleteEvents,
   updateEvent,
   updateCalendar,
@@ -16,9 +17,10 @@ import {
 import { jmapClient } from '../api/jmap-client';
 import { uploadBytes } from '../api/blob';
 import { generateAccountId } from '../lib/account-utils';
+import { feedChanged, feedFields } from '../lib/calendar-feed-diff';
 import { readServerPrimaryAccountId } from '../lib/server-fingerprint';
 import { useAccountStore } from './account-store';
-import { useCalendarStore } from './calendar-store';
+import { calendarStoreGeneration, useCalendarStore } from './calendar-store';
 import { t } from './locale-store';
 
 export interface CalendarSubscription {
@@ -118,9 +120,9 @@ export function currentLocalAccountId(): string | null {
 // A calendar under the recorded id with another name is not the mirror: the
 // id may be reused by a replaced server, or the user renamed the calendar.
 // False when the server can't be asked.
-async function isMirrorCalendar(calendarId: string, name: string): Promise<boolean> {
+async function isMirrorCalendar(calendarId: string, name: string, accountId: string): Promise<boolean> {
   try {
-    return (await getCalendarName(calendarId)) === name;
+    return (await getCalendarName(calendarId, accountId)) === name;
   } catch {
     return false;
   }
@@ -177,7 +179,39 @@ function base64(input: string): string {
   return input;
 }
 
-async function fetchAndParseFeed(url: string): Promise<Partial<CalendarEvent>[]> {
+/**
+ * The account a sync runs for, taken when it starts: the JMAP account the
+ * client serves and the calendar store's reset count. Calendar and event ids
+ * repeat across accounts (two accounts can both have calendar "b" with events
+ * "c" and "d"), so a sync still under way after an account switch must stop
+ * before its next request: it would drop the next account's events and
+ * import the feed into it.
+ */
+interface SyncScope {
+  accountId: string;
+  generation: number;
+}
+
+function syncScope(): SyncScope | null {
+  const accountId = currentAccountId();
+  return accountId ? { accountId, generation: calendarStoreGeneration() } : null;
+}
+
+/** The account changed since the sync started. */
+class SubscriptionAccountChangedError extends Error {
+  constructor() {
+    super(t('calendar.subscription.account_changed', 'The account changed while the subscription was syncing. It syncs again in its own account.'));
+    this.name = 'SubscriptionAccountChangedError';
+  }
+}
+
+function assertScope(scope: SyncScope): void {
+  if (currentAccountId() !== scope.accountId || calendarStoreGeneration() !== scope.generation) {
+    throw new SubscriptionAccountChangedError();
+  }
+}
+
+async function fetchAndParseFeed(url: string, scope: SyncScope): Promise<Partial<CalendarEvent>[]> {
   const { url: feedUrl, headers } = normalizeFeedUrl(url);
   const res = await fetch(feedUrl, { headers });
   if (!res.ok) {
@@ -191,41 +225,98 @@ async function fetchAndParseFeed(url: string): Promise<Partial<CalendarEvent>[]>
   if (!/BEGIN:VCALENDAR/i.test(text)) {
     throw new Error(t('calendar.subscription.not_a_feed', 'That URL did not return an iCalendar feed'));
   }
+  assertScope(scope);
   const bytes = new TextEncoder().encode(text);
-  const { blobId } = await uploadBytes(bytes, 'text/calendar');
-  const events = await parseCalendarBlob(blobId);
+  const { blobId } = await uploadBytes(bytes, 'text/calendar', scope.accountId);
+  assertScope(scope);
+  const events = await parseCalendarBlob(blobId, scope.accountId);
+  assertScope(scope);
   return events.filter((e) => !!e.start);
 }
 
-// Reconcile the mirror calendar with the remote feed: drop events whose UID
-// disappeared upstream (unlinking rather than deleting when the event also
-// lives in another calendar), then import the current set (importEvents
-// dedupes by UID, so unchanged events are left in place). Callers make sure
-// `calendarId` is the mirror: nothing goes into, nor is dropped from, another
-// calendar. One made for this sync has nothing to drop.
-async function syncFeedIntoCalendar(calendarId: string, url: string, dropStale: boolean): Promise<void> {
-  const parsed = await fetchAndParseFeed(url);
+/**
+ * Reconcile the mirror calendar with the remote feed. With `linkedBefore`
+ * (the mirror existed before this sync): drop events whose UID disappeared
+ * upstream (unlinking rather than deleting when the event also lives in
+ * another calendar), and give the events still in the feed what it changed
+ * (time, title, place, recurrence; see lib/calendar-feed-diff). Only those in
+ * the mirror alone: one also linked to another calendar is the user's own
+ * event with the same UID and stays. Then import the events the mirror lacks
+ * (importEvents links a UID another calendar holds). Callers make sure
+ * `calendarId` is the mirror: nothing goes into, nor is dropped from,
+ * another calendar. One made for this sync has nothing to drop or update.
+ * Every request names the account the sync started in, and the sync stops
+ * once the client serves another (SubscriptionAccountChangedError).
+ */
+async function syncFeedIntoCalendar(
+  calendarId: string,
+  url: string,
+  linkedBefore: boolean,
+  scope: SyncScope,
+): Promise<void> {
+  const { accountId } = scope;
+  const parsed = await fetchAndParseFeed(url, scope);
+  let toImport = parsed;
+  let wrote = false;
 
-  if (dropStale) {
+  if (linkedBefore) {
     const parsedUids = new Set(parsed.map((e) => e.uid).filter(Boolean) as string[]);
     try {
-      const ids = await queryEvents([calendarId], '', '');
-      const existing = await getEventIdentities(ids);
+      const ids = await queryEvents([calendarId], '', '', accountId);
+      assertScope(scope);
+      const existing = await getEventIdentities(ids, accountId);
+      assertScope(scope);
+      const inMirror = new Set(existing.map((e) => e.uid).filter(Boolean) as string[]);
+      toImport = parsed.filter((e) => !e.uid || !inMirror.has(e.uid));
+
       const stale = existing.filter((e) => e.uid && !parsedUids.has(e.uid));
       const toDelete: string[] = [];
       for (const e of stale) {
         const others = { ...(e.calendarIds || {}) };
         delete others[calendarId];
-        if (Object.keys(others).length === 0) toDelete.push(e.id);
-        else await updateEvent(e.id, { calendarIds: others });
+        if (Object.keys(others).length === 0) {
+          toDelete.push(e.id);
+        } else {
+          await updateEvent(e.id, { calendarIds: others }, undefined, accountId);
+          wrote = true;
+          assertScope(scope);
+        }
       }
-      if (toDelete.length > 0) await deleteEvents(toDelete);
-    } catch {
+      if (toDelete.length > 0) {
+        await deleteEvents(toDelete, undefined, accountId);
+        wrote = true;
+        assertScope(scope);
+      }
+
+      const kept = existing.filter((e) =>
+        e.uid && parsedUids.has(e.uid) && Object.keys(e.calendarIds || {}).length === 1);
+      if (kept.length > 0) {
+        const stored = await getEvents(kept.map((e) => e.id), accountId);
+        assertScope(scope);
+        const byUid = new Map(stored.filter((e) => e.uid).map((e) => [e.uid!, e]));
+        for (const incoming of parsed) {
+          const current = incoming.uid ? byUid.get(incoming.uid) : undefined;
+          if (!current || !feedChanged(incoming, current)) continue;
+          byUid.delete(incoming.uid!);
+          try {
+            await updateEvent(current.id, feedFields(incoming), false, accountId);
+            wrote = true;
+          } catch {
+            // The next refresh tries again; the rest of the feed goes on.
+          }
+          assertScope(scope);
+        }
+      }
+    } catch (err) {
+      if (err instanceof SubscriptionAccountChangedError) throw err;
       // Non-fatal: if we can't enumerate existing events, still import new ones.
     }
   }
 
-  await useCalendarStore.getState().importEvents(parsed, calendarId);
+  assertScope(scope);
+  // importEvents shows what it brought in; deletions and changes alone need a reload.
+  if (toImport.length > 0) await useCalendarStore.getState().importEvents(toImport, calendarId);
+  else if (wrote) await useCalendarStore.getState().refresh();
 }
 
 export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
@@ -235,32 +326,44 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
       syncing: {},
 
       addSubscription: async ({ name, url, color, refreshIntervalMinutes }) => {
+        const scope = syncScope();
+        const localAccountId = currentLocalAccountId();
         // Create a dedicated local calendar to hold the feed's events.
-        const calendar = await createCalendar(name, color);
+        const calendar = await createCalendar(name, color, undefined, scope?.accountId);
         const sub: CalendarSubscription = {
           id: `sub-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
           name,
           url: url.trim(),
           color,
           calendarId: calendar.id,
-          accountId: currentAccountId() ?? undefined,
-          localAccountId: currentLocalAccountId() ?? undefined,
+          accountId: scope?.accountId,
+          localAccountId: localAccountId ?? undefined,
           refreshIntervalMinutes: refreshIntervalMinutes ?? DEFAULT_REFRESH_INTERVAL_MINUTES,
           lastSyncAt: null,
           lastError: null,
         };
-        // Make the new calendar visible immediately.
-        await useCalendarStore.getState().fetchCalendars();
         try {
+          if (!scope) throw new SubscriptionAccountChangedError();
+          assertScope(scope);
+          // Make the new calendar visible immediately.
+          await useCalendarStore.getState().fetchCalendars();
           set({ syncing: { ...get().syncing, [sub.id]: true } });
-          await syncFeedIntoCalendar(calendar.id, sub.url, false);
+          await syncFeedIntoCalendar(calendar.id, sub.url, false, scope);
           set({ subscriptions: [...get().subscriptions, { ...sub, lastSyncAt: Date.now() }] });
           await useCalendarStore.getState().refresh();
           return { ...sub, lastSyncAt: Date.now() };
         } catch (err) {
+          if (err instanceof SubscriptionAccountChangedError) {
+            // The mirror is in the account the sync started in, which the
+            // client no longer serves: a request to remove it would reach
+            // the next account. Kept as that account's subscription, it
+            // fills its mirror on that account's next sync.
+            set({ subscriptions: [...get().subscriptions, sub] });
+            throw err;
+          }
           // Roll back: a bad URL / 404 must not leave a phantom calendar behind.
           try {
-            await deleteCalendar(calendar.id);
+            await deleteCalendar(calendar.id, scope?.accountId);
           } catch {
             // best-effort
           }
@@ -289,13 +392,16 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
         // changes: a sync recognises the mirror by the subscription's name,
         // and would take the old-named calendar for another one.
         if (sub.calendarId && (next.name !== sub.name || next.color !== sub.color)) {
-          if ((await getCalendarName(sub.calendarId)) === sub.name) {
+          // Without a session this throws, as the name can't be read.
+          const scope = syncScope();
+          if ((await getCalendarName(sub.calendarId, scope?.accountId)) === sub.name && scope) {
+            assertScope(scope);
             // Only what changed: Stalwart 1.0 refuses a colour that is not
             // #rgb, #rrggbb or a CSS name, which another client may have set.
             await updateCalendar(sub.calendarId, {
               ...(next.name !== sub.name ? { name: next.name } : {}),
               ...(next.color !== sub.color ? { color: next.color } : {}),
-            });
+            }, scope.accountId);
             void useCalendarStore.getState().fetchCalendars().catch(() => undefined);
           }
         }
@@ -308,9 +414,11 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
         set({ subscriptions: get().subscriptions.filter((s) => s.id !== id) });
         // Only a calendar recognisably the mirror is destroyed, with its
         // events: under a replaced server the recorded id can name another.
-        if (sub?.calendarId && (await isMirrorCalendar(sub.calendarId, sub.name))) {
+        const scope = syncScope();
+        if (scope && sub?.calendarId && (await isMirrorCalendar(sub.calendarId, sub.name, scope.accountId))) {
           try {
-            await deleteCalendar(sub.calendarId);
+            assertScope(scope);
+            await deleteCalendar(sub.calendarId, scope.accountId);
           } catch {
             // best-effort
           }
@@ -328,12 +436,16 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
         const localAccountId = currentLocalAccountId();
         if (sub.localAccountId && sub.localAccountId !== localAccountId) return;
         if (!sub.calendarId && !localAccountId) return;
+        const scope = syncScope();
+        if (!scope) return;
         set({ syncing: { ...get().syncing, [id]: true } });
         try {
-          const jmapAccountId = currentAccountId();
+          const jmapAccountId = scope.accountId;
           let calendarId = sub.calendarId;
           // Throws when the server can't be asked; the next sync tries again.
-          if (calendarId && (await getCalendarName(calendarId)) !== sub.name) {
+          const mirrorName = calendarId ? await getCalendarName(calendarId, jmapAccountId) : null;
+          assertScope(scope);
+          if (calendarId && mirrorName !== sub.name) {
             // The recorded id names another calendar, or none: the server was
             // replaced unseen, or the mirror was renamed or removed elsewhere.
             // The feed goes into its own mirror only: a new one, made as for
@@ -343,23 +455,25 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
               && !(localAccountId && (await ownsLegacySubscription(sub, localAccountId, [jmapAccountId])))) {
               return;
             }
+            assertScope(scope);
             calendarId = null;
           } else if (calendarId && !sub.localAccountId && localAccountId) {
             // Its mirror is in this account, so it is this account's alone
             // from now on, not every account's with the same JMAP id.
-            const owner = { localAccountId, accountId: sub.accountId ?? jmapAccountId ?? undefined };
+            const owner = { localAccountId, accountId: sub.accountId ?? jmapAccountId };
             set({ subscriptions: get().subscriptions.map((s) => (s.id === id ? { ...s, ...owner } : s)) });
           }
           if (!calendarId) {
             // As addSubscription does. Linked right away, so a feed that
             // fails below doesn't get another calendar on the next sync.
-            calendarId = (await createCalendar(sub.name, sub.color)).id;
-            const linked = { calendarId, accountId: jmapAccountId ?? undefined, localAccountId: localAccountId ?? undefined };
+            calendarId = (await createCalendar(sub.name, sub.color, undefined, jmapAccountId)).id;
+            const linked = { calendarId, accountId: jmapAccountId, localAccountId: localAccountId ?? undefined };
             set({ subscriptions: get().subscriptions.map((s) => (s.id === id ? { ...s, ...linked } : s)) });
+            assertScope(scope);
             await useCalendarStore.getState().fetchCalendars();
           }
           const linkedBefore = calendarId === sub.calendarId;
-          await syncFeedIntoCalendar(calendarId, sub.url, linkedBefore);
+          await syncFeedIntoCalendar(calendarId, sub.url, linkedBefore, scope);
           set({
             subscriptions: get().subscriptions.map((s) =>
               s.id === id ? { ...s, lastSyncAt: Date.now(), lastError: null } : s,
@@ -367,6 +481,9 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
           });
           if (!linkedBefore) await useCalendarStore.getState().refresh();
         } catch (err) {
+          // Not this subscription's failure: the client serves another
+          // account now, and the sync runs again in its own.
+          if (err instanceof SubscriptionAccountChangedError) return;
           const message = err instanceof Error ? err.message : t('calendar.subscription.refresh_error', 'Failed to refresh subscription');
           set({
             subscriptions: get().subscriptions.map((s) =>

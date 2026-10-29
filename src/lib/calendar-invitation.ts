@@ -1,4 +1,6 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
+import { parseDuration, parseLocalDateTime } from './calendar-utils';
+import { getEffectiveTimeZone, isValidTimeZone, localDateTimeToInstant, toDisplayDate } from './calendar-timezone';
 
 // ─── Address helpers ─────────────────────────────────────
 
@@ -266,42 +268,170 @@ export function calendarInvitationKey(
 
 // ─── Authentication-Results / trust ──────────────────────
 
+interface SpfCheck {
+  result: string;
+  identity?: string;
+  domain?: string;
+}
+
+interface DkimCheck {
+  result: string;
+  domain?: string;
+  selector?: string;
+}
+
 export interface AuthenticationResults {
-  spf?: { result: string; domain?: string };
-  dkim?: { result: string; domain?: string; selector?: string };
+  /** The headline result; `all` every identity checked (MAIL FROM, HELO). */
+  spf?: SpfCheck & { all?: SpfCheck[] };
+  /** The first signature; `all` every one the header lists. */
+  dkim?: DkimCheck & { all?: DkimCheck[] };
   dmarc?: { result: string; domain?: string; policy?: string };
 }
 
-/** Parse an Authentication-Results header into SPF / DKIM / DMARC results. */
-export function parseAuthenticationResults(header: string): AuthenticationResults {
-  const results: AuthenticationResults = {};
-  // A header can carry several SPF results (HELO and MAIL FROM); the MAIL FROM
-  // identity is primary, another identity may only escalate to a failure.
-  const spfRegex = /spf=(\w+)(?:\s+\([^)]*\))?(?:\s+smtp\.(mailfrom|helo)=([^\s;]+))?/g;
-  const severity: Record<string, number> = {
-    fail: 6, softfail: 5, permerror: 4, temperror: 3, neutral: 2, none: 1, pass: 0,
-  };
-  const spf: Array<{ result: string; identity?: string; domain?: string }> = [];
-  let m: RegExpExecArray | null;
-  while ((m = spfRegex.exec(header)) !== null) {
-    spf.push({ result: m[1].toLowerCase(), identity: m[2], domain: m[3] });
+interface ResInfo {
+  method: string;
+  result: string;
+  props: Record<string, string>;
+}
+
+// The parser below is a port of parseAuthenticationResults in
+// lib/email-headers.ts on the reading branch (fx/read), which this branch
+// can't import yet: switch to that export (and its
+// hasAlignedAuthenticationPass) once both are merged.
+
+/**
+ * Split one Authentication-Results header into its `;`-separated parts
+ * (RFC 8601), dropping comments. A `;` inside a quoted string or a comment
+ * does not split: both can carry sender-chosen text such as the envelope
+ * address.
+ */
+function splitResinfo(header: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < header.length; i++) {
+    const c = header[i];
+    if (c === '\\' && (quoted || depth > 0)) {
+      if (depth === 0) current += c + (header[i + 1] ?? '');
+      i++;
+      continue;
+    }
+    if (quoted) {
+      current += c;
+      if (c === '"') quoted = false;
+      continue;
+    }
+    if (c === '(') {
+      depth++;
+      continue;
+    }
+    if (depth > 0) {
+      if (c === ')' && --depth === 0) current += ' ';
+      continue;
+    }
+    if (c === '"') quoted = true;
+    if (c === ';') {
+      parts.push(current);
+      current = '';
+      continue;
+    }
+    current += c;
   }
+  parts.push(current);
+  return parts.map((part) => part.trim()).filter(Boolean);
+}
+
+const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;
+const PROP_RE = /\s*([^\s=]+)\s*=\s*("(?:[^"\\]|\\.)*"|\S*)/y;
+
+/**
+ * Read one resinfo: the method must open the part, so a `dmarc=pass` that
+ * appears inside a property value (say an envelope local part in
+ * `smtp.mailfrom=`) is never taken for a result.
+ */
+function parseResinfo(part: string): ResInfo | null {
+  const match = METHOD_RE.exec(part);
+  if (!match) return null;
+  const props: Record<string, string> = {};
+  const rest = part.slice(match[0].length);
+  PROP_RE.lastIndex = 0;
+  let prop: RegExpExecArray | null;
+  while ((prop = PROP_RE.exec(rest)) !== null && prop[0].length > 0) {
+    const key = prop[1].toLowerCase();
+    let value = prop[2];
+    if (value.startsWith('"')) value = value.slice(1, -1).replace(/\\(.)/g, '$1');
+    if (!(key in props)) props[key] = value;
+  }
+  return { method: match[1].toLowerCase(), result: match[2].toLowerCase(), props };
+}
+
+const SPF_SEVERITY: Record<string, number> = {
+  fail: 6, softfail: 5, permerror: 4, temperror: 3, neutral: 2, none: 1, pass: 0,
+};
+
+const DMARC_SEVERITY: Record<string, number> = { fail: 3, permerror: 2, temperror: 2, none: 1, pass: 0 };
+
+/**
+ * Parse Authentication-Results headers, in message order, into SPF, DKIM
+ * and DMARC results. The topmost header is the receiving server's own;
+ * anything below it may have been written by the sender, so DKIM and DMARC
+ * come from the topmost header only, and the others can only escalate SPF
+ * to a failure, never supply a pass. A method counts only where it opens a
+ * `;`-separated part: matched anywhere in the header, a `dkim=pass` written
+ * into a comment or an envelope address passed for a result.
+ */
+export function parseAuthenticationResults(headers: string | readonly string[]): AuthenticationResults {
+  const results: AuthenticationResults = {};
+  const list = typeof headers === 'string' ? [headers] : headers;
+  const perHeader = list.map((header) => splitResinfo(header)
+    .map(parseResinfo)
+    .filter((info): info is ResInfo => info !== null));
+  const own = perHeader[0] ?? [];
+  const foreign = perHeader.slice(1).flat();
+
+  const severity = (r: string) => SPF_SEVERITY[r] ?? -1;
+  const isFailure = (r: string) => severity(r) >= SPF_SEVERITY.temperror;
+  const toSpfCheck = (info: ResInfo): SpfCheck => {
+    const identity = info.props['smtp.mailfrom'] !== undefined
+      ? 'mailfrom'
+      : info.props['smtp.helo'] !== undefined ? 'helo' : undefined;
+    return { result: info.result, identity, domain: identity ? info.props[`smtp.${identity}`] || undefined : undefined };
+  };
+  const spf: SpfCheck[] = [
+    ...own.filter((info) => info.method === 'spf').map(toSpfCheck),
+    ...foreign.filter((info) => info.method === 'spf').map(toSpfCheck).filter((e) => isFailure(e.result)),
+  ];
   if (spf.length > 0) {
+    // The MAIL FROM identity is primary; another one (HELO) may only
+    // escalate the headline to a failure.
     let primary = spf.find((e) => e.identity === 'mailfrom') ?? spf[0];
     for (const cur of spf) {
-      const s = severity[cur.result] ?? -1;
-      if (s >= severity.temperror && s > (severity[primary.result] ?? -1)) primary = cur;
+      if (isFailure(cur.result) && severity(cur.result) > severity(primary.result)) primary = cur;
     }
-    results.spf = { result: primary.result, domain: primary.domain };
+    results.spf = { ...primary, all: spf };
   }
-  const dkim = header.match(/dkim=(\w+)(?:\s+header\.d=([^\s;]+))?(?:\s+header\.s=([^\s;]+))?/);
-  if (dkim) results.dkim = { result: dkim[1].toLowerCase(), domain: dkim[2], selector: dkim[3] };
-  const dmarc = header.match(/dmarc=(\w+)(?:\s+header\.from=([^\s;]+))?(?:\s+policy\.dmarc=(\w+))?/);
-  if (dmarc) results.dmarc = { result: dmarc[1].toLowerCase(), domain: dmarc[2], policy: dmarc[3] };
+
+  // A message can carry several signatures (the sender's and a mailing
+  // list's or a sending service's): alignment looks at each.
+  const dkim: DkimCheck[] = own
+    .filter((info) => info.method === 'dkim')
+    .map((info) => ({ result: info.result, domain: info.props['header.d'], selector: info.props['header.s'] }));
+  if (dkim.length > 0) results.dkim = { ...dkim[0], all: dkim };
+
+  // One DMARC verdict per message; should the header carry several, the
+  // most severe stands.
+  const dmarc = own
+    .filter((info) => info.method === 'dmarc')
+    .reduce<ResInfo | undefined>(
+      (worst, info) => (!worst || (DMARC_SEVERITY[info.result] ?? -1) > (DMARC_SEVERITY[worst.result] ?? -1) ? info : worst),
+      undefined,
+    );
+  if (dmarc) results.dmarc = { result: dmarc.result, domain: dmarc.props['header.from'], policy: dmarc.props['policy.dmarc'] };
   return results;
 }
 
-/** Authentication results of an email, derived from its raw headers. */
+/** Authentication results of an email, from its Authentication-Results headers in message order. */
 export function getEmailAuthenticationResults(
   email?: Pick<Email, 'headers'> | null,
 ): AuthenticationResults | null {
@@ -310,22 +440,46 @@ export function getEmailAuthenticationResults(
     .filter((h) => h.name.toLowerCase() === 'authentication-results')
     .map((h) => h.value);
   if (values.length === 0) return null;
-  // Merge: the first (outermost, added by our own server) header wins per
-  // mechanism; later ones only fill gaps.
-  const merged: AuthenticationResults = {};
-  for (const value of values) {
-    const parsed = parseAuthenticationResults(value);
-    if (!merged.spf && parsed.spf) merged.spf = parsed.spf;
-    if (!merged.dkim && parsed.dkim) merged.dkim = parsed.dkim;
-    if (!merged.dmarc && parsed.dmarc) merged.dmarc = parsed.dmarc;
-  }
-  return merged;
+  return parseAuthenticationResults(values);
 }
 
-function hasVerifiedAuthentication(auth?: AuthenticationResults | null): boolean {
-  return Boolean(
-    auth?.dmarc?.result === 'pass' || auth?.dkim?.result === 'pass' || auth?.spf?.result === 'pass',
-  );
+function domainOf(address: string | undefined): string | undefined {
+  if (!address) return undefined;
+  const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
+  return /^[^\s<>@]+\.[^\s<>@]+$/.test(domain) ? domain : undefined;
+}
+
+/**
+ * Whether `candidate` is the From domain or a parent or child of it: the
+ * relaxed alignment DMARC applies, without a public-suffix list.
+ */
+function alignedWith(fromDomain: string, candidate: string | undefined): boolean {
+  const other = domainOf(candidate);
+  if (!other) return false;
+  return other === fromDomain || other.endsWith(`.${fromDomain}`) || fromDomain.endsWith(`.${other}`);
+}
+
+/**
+ * Whether the receiving server's checks tie the message to the domain of its
+ * From address: a DMARC pass, or an SPF (MAIL FROM, never HELO) or DKIM pass
+ * for a domain aligned with it. A bare pass says nothing about the visible
+ * sender: anyone passes SPF for an envelope domain of their own, or signs
+ * with their own key, and still writes the organizer's address in From; with
+ * no DMARC policy on that domain the verdict is `dmarc=none` (#1374). Mirrors
+ * the webmail's hasAlignedAuthenticationPass.
+ */
+export function hasAlignedAuthenticationPass(
+  auth: AuthenticationResults | null | undefined,
+  fromEmail: string | null | undefined,
+): boolean {
+  if (!auth || !fromEmail) return false;
+  const fromDomain = domainOf(fromEmail);
+  if (!fromDomain) return false;
+  if (auth.dmarc?.result === 'pass') return true;
+  const spf = auth.spf?.all ?? (auth.spf ? [auth.spf] : []);
+  if (spf.some((e) => e.identity !== 'helo' && e.result === 'pass' && alignedWith(fromDomain, e.domain))) return true;
+  const dkim = auth.dkim?.all ?? (auth.dkim ? [auth.dkim] : []);
+  return dkim.some((e) => e.result === 'pass' && alignedWith(fromDomain, e.domain));
 }
 
 function hasAuthenticationFailure(auth?: AuthenticationResults | null): boolean {
@@ -361,19 +515,28 @@ export interface InvitationTrustAssessment {
  * email plus whether the sender matches the event's organizer. A spoofed
  * invitation from an unauthenticated sender must not look like a real one.
  * Port of the webmail's getInvitationTrustAssessment.
+ *
+ * `ownAddresses` are the reader's own addresses. Mail from another user on
+ * the reader's domains that carries no Authentication-Results header at all
+ * was handed in by a signed-in user rather than received from outside:
+ * Stalwart adds the header to everything that arrives on port 25 (#1374).
  */
 export function getInvitationTrustAssessment(
   event: Partial<CalendarEvent>,
   email?: Pick<Email, 'from' | 'replyTo' | 'headers'> | null,
   method: InvitationMethod = inferInvitationMethod(event),
+  ownAddresses: readonly string[] = [],
 ): InvitationTrustAssessment {
   const organizerEmail = getOrganizerEmail(event);
   const senderEmail = getPrimaryAddressEmail(email?.from) || getPrimaryAddressEmail(email?.replyTo);
   const auth = getEmailAuthenticationResults(email);
-  const verified = hasVerifiedAuthentication(auth);
+  const verified = hasAlignedAuthenticationPass(auth, getPrimaryAddressEmail(email?.from));
   const failed = hasAuthenticationFailure(auth);
   const senderMismatch = Boolean(senderEmail && organizerEmail && senderEmail !== organizerEmail);
-  const expectsAuthenticatedTransport = method !== 'unknown';
+  const senderDomain = domainOf(senderEmail ?? undefined);
+  const internal = Boolean(email && !auth && senderDomain
+    && ownAddresses.some((address) => domainOf(address) === senderDomain));
+  const expectsAuthenticatedTransport = method !== 'unknown' && !internal;
 
   if (senderMismatch && (failed || !verified)) {
     return { level: 'warning', reason: 'sender_mismatch_unverified', senderEmail, organizerEmail };
@@ -388,4 +551,76 @@ export function getInvitationTrustAssessment(
     return { level: 'caution', reason: 'authentication_missing', senderEmail, organizerEmail };
   }
   return { level: 'trusted', reason: null, senderEmail, organizerEmail };
+}
+
+// ─── When ────────────────────────────────────────────────
+
+/** What the invitation banner shows as an event's time. */
+export interface InvitationDisplayRange {
+  /** Display dates (see toDisplayDate): their local fields are what to show. */
+  start: Date;
+  end: Date | null;
+  /**
+   * The real start instant, for an event at a fixed moment (a UTC time or a
+   * zoned wall clock) shown in the user's zone: worth a zone label. Unset
+   * for all-day and floating events, which read the same everywhere.
+   */
+  instant?: Date;
+}
+
+const HAS_UTC_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * The banner's start and end of an invitation. CalendarEvent/parse gives
+ * `start` as a wall clock in `timeZone` and no `utcStart`, so the start has
+ * to be resolved in that zone and shown in the user's: read as a device
+ * time, it showed the organizer's clock without saying so (webmail #1252).
+ * An all-day event gets its last day (the end is exclusive) or none for a
+ * single day; a floating time stays as written.
+ */
+export function getInvitationDisplayRange(
+  event: Partial<Pick<CalendarEvent, 'start' | 'duration' | 'timeZone' | 'showWithoutTime' | 'utcStart' | 'utcEnd'>>,
+): InvitationDisplayRange | null {
+  if (!event.start) return null;
+  const durationMs = parseDuration(event.duration);
+  if (event.showWithoutTime) {
+    const start = parseLocalDateTime(event.start.slice(0, 10));
+    if (isNaN(start.getTime())) return null;
+    const days = Math.round(durationMs / 86_400_000);
+    if (days <= 1) return { start, end: null };
+    const last = new Date(start);
+    last.setDate(last.getDate() + days - 1);
+    return { start, end: last };
+  }
+
+  let instant: Date | null = null;
+  if (event.utcStart) instant = new Date(event.utcStart);
+  else if (HAS_UTC_OFFSET.test(event.start)) instant = new Date(event.start);
+  else if (event.timeZone && isValidTimeZone(event.timeZone)) instant = localDateTimeToInstant(event.start, event.timeZone);
+  if (instant && !isNaN(instant.getTime())) {
+    let end: Date | null = event.utcEnd ? new Date(event.utcEnd) : null;
+    if ((!end || isNaN(end.getTime())) && durationMs > 0) end = new Date(instant.getTime() + durationMs);
+    return {
+      start: toDisplayDate(instant),
+      end: end && !isNaN(end.getTime()) && end.getTime() > instant.getTime() ? toDisplayDate(end) : null,
+      instant,
+    };
+  }
+
+  // Floating: the same wall clock everywhere.
+  const start = parseLocalDateTime(event.start);
+  if (isNaN(start.getTime())) return null;
+  return { start, end: durationMs > 0 ? new Date(start.getTime() + durationMs) : null };
+}
+
+/** The short name of the user's calendar zone at `instant` ("CET", "GMT+1"), or null. */
+export function invitationZoneLabel(instant: Date, locale?: string): string | null {
+  try {
+    const part = new Intl.DateTimeFormat(locale, { timeZone: getEffectiveTimeZone(), timeZoneName: 'short' })
+      .formatToParts(instant)
+      .find((p) => p.type === 'timeZoneName');
+    return part?.value ?? null;
+  } catch {
+    return null;
+  }
 }

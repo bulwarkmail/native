@@ -1,15 +1,56 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { format } from 'date-fns';
 import type { Email } from '../../api/types';
+import { useSettingsStore } from '../../stores/settings-store';
 import {
   calendarInvitationKey,
   extractMethodFromContentType,
   extractMethodFromRawIcs,
   findCalendarAttachment,
   getEmailAuthenticationResults,
+  getInvitationDisplayRange,
   getInvitationMethod,
   getInvitationTrustAssessment,
+  invitationZoneLabel,
   parseAuthenticationResults,
 } from '../calendar-invitation';
+
+describe('getInvitationDisplayRange (webmail #1252)', () => {
+  afterEach(() => {
+    useSettingsStore.setState({ calendarTimeZone: 'auto' });
+  });
+  const shown = (d: Date | null | undefined) => (d ? format(d, 'yyyy-MM-dd HH:mm') : null);
+
+  it('shows an organizer\'s wall clock in the user\'s zone', () => {
+    useSettingsStore.setState({ calendarTimeZone: 'Europe/Warsaw' });
+    // As CalendarEvent/parse gives an Exchange invitation from London: no utcStart.
+    const range = getInvitationDisplayRange({ start: '2026-10-20T15:00:00', timeZone: 'Europe/London', duration: 'PT25M' });
+    expect(shown(range?.start)).toBe('2026-10-20 16:00');
+    expect(shown(range?.end)).toBe('2026-10-20 16:25');
+    expect(range?.instant?.toISOString()).toBe('2026-10-20T14:00:00.000Z');
+    expect(invitationZoneLabel(range!.instant!, 'en')).toBeTruthy();
+  });
+
+  it('takes the server\'s UTC start when it has one', () => {
+    useSettingsStore.setState({ calendarTimeZone: 'America/New_York' });
+    const range = getInvitationDisplayRange({ start: '2026-10-20T15:00:00', timeZone: 'Europe/London', utcStart: '2026-10-20T14:00:00Z', utcEnd: '2026-10-20T15:00:00Z' });
+    expect(shown(range?.start)).toBe('2026-10-20 10:00');
+    expect(shown(range?.end)).toBe('2026-10-20 11:00');
+  });
+
+  it('leaves floating times and all-day dates as written', () => {
+    useSettingsStore.setState({ calendarTimeZone: 'America/New_York' });
+    const floating = getInvitationDisplayRange({ start: '2026-10-20T15:00:00', duration: 'PT1H' });
+    expect(shown(floating?.start)).toBe('2026-10-20 15:00');
+    expect(floating?.instant).toBeUndefined();
+    const oneDay = getInvitationDisplayRange({ start: '2026-10-20T00:00:00', duration: 'P1D', showWithoutTime: true });
+    expect(shown(oneDay?.start)).toBe('2026-10-20 00:00');
+    expect(oneDay?.end).toBeNull();
+    // The stored end is exclusive: three days end on the third.
+    const threeDays = getInvitationDisplayRange({ start: '2026-10-20T00:00:00', duration: 'P3D', showWithoutTime: true });
+    expect(shown(threeDays?.end)).toBe('2026-10-22 00:00');
+  });
+});
 
 const request = {
   organizerCalendarAddress: 'mailto:alice@example.com',
@@ -63,7 +104,7 @@ describe('authentication results', () => {
       'mx.example.com; dkim=pass header.d=example.com header.s=sel; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com',
     );
     expect(parsed.spf?.result).toBe('pass');
-    expect(parsed.dkim).toEqual({ result: 'pass', domain: 'example.com', selector: 'sel' });
+    expect(parsed.dkim).toMatchObject({ result: 'pass', domain: 'example.com', selector: 'sel' });
     expect(parsed.dmarc?.result).toBe('pass');
   });
 
@@ -76,6 +117,26 @@ describe('authentication results', () => {
     const e = email({ headers: [{ name: 'Authentication-Results', value: 'x; dmarc=fail header.from=evil.com' }] });
     expect(getEmailAuthenticationResults(e)?.dmarc?.result).toBe('fail');
     expect(getEmailAuthenticationResults(email({}))).toBeNull();
+  });
+
+  // A sender controls the envelope address, comments and every header below
+  // the receiving server's own.
+  it('takes no result a sender wrote into a property, a comment or a lower header', () => {
+    const inEnvelope = parseAuthenticationResults(
+      'mx.example.org; spf=none smtp.mailfrom="dkim=pass;dmarc=pass"@forger.example (dkim=pass header.d=example.com)',
+    );
+    expect(inEnvelope.dkim).toBeUndefined();
+    expect(inEnvelope.dmarc).toBeUndefined();
+    const lower = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [
+        { name: 'Authentication-Results', value: 'mx.example.org; spf=none smtp.mailfrom=forger.example; dmarc=none' },
+        { name: 'Authentication-Results', value: 'forged; dkim=pass header.d=example.com; dmarc=pass header.from=example.com' },
+      ],
+    });
+    expect(getEmailAuthenticationResults(lower)).toMatchObject({ dmarc: { result: 'none' } });
+    expect(getEmailAuthenticationResults(lower)?.dkim).toBeUndefined();
+    expect(getInvitationTrustAssessment(request, lower, 'request').level).toBe('caution');
   });
 });
 
@@ -112,6 +173,51 @@ describe('getInvitationTrustAssessment', () => {
     const e = email({ from: [{ email: 'alice@example.com' }] });
     expect(getInvitationTrustAssessment(request, e, 'request').reason).toBe('authentication_missing');
     expect(getInvitationTrustAssessment(request, e, 'unknown').level).toBe('trusted');
+  });
+
+  // #1374: a forger passes SPF for an envelope domain of their own, or signs
+  // with their own key, and writes the organizer's address in From.
+  const forged = (results: string) => email({
+    from: [{ email: 'alice@example.com' }],
+    headers: [{ name: 'Authentication-Results', value: `mx.example.org; ${results}` }],
+  });
+
+  it('trusts only a pass aligned with the From domain', () => {
+    expect(getInvitationTrustAssessment(request, forged('spf=pass smtp.mailfrom=bounce@forger.example; dmarc=none header.from=example.com'), 'request'))
+      .toMatchObject({ level: 'caution', reason: 'authentication_missing' });
+    expect(getInvitationTrustAssessment(request, forged('dkim=pass header.d=forger.example header.s=k1; dmarc=none'), 'request').level)
+      .toBe('caution');
+    // A HELO pass never vouches for the sender.
+    expect(getInvitationTrustAssessment(request, forged('spf=pass smtp.helo=example.com'), 'request').level).toBe('caution');
+
+    // Aligned: the same domain, or a parent or child of it.
+    expect(getInvitationTrustAssessment(request, forged('spf=pass smtp.mailfrom=bounce@mail.example.com; dmarc=none'), 'request').level)
+      .toBe('trusted');
+    expect(getInvitationTrustAssessment(request, forged('dkim=pass header.d=forger.example; dkim=pass header.d=example.com'), 'request').level)
+      .toBe('trusted');
+  });
+
+  it('warns about a forged organizer whose mail passes only for the forger\'s domain', () => {
+    const e = email({
+      from: [{ email: 'mallory@forger.example' }],
+      headers: [{ name: 'Authentication-Results', value: 'mx.example.org; spf=pass smtp.mailfrom=forger.example; dmarc=none' }],
+    });
+    // Aligned with its own From, so only a caution about the mismatch.
+    expect(getInvitationTrustAssessment(request, e, 'request')).toMatchObject({ level: 'caution', reason: 'sender_mismatch' });
+    const unaligned = email({
+      from: [{ email: 'mallory@forger.example' }],
+      headers: [{ name: 'Authentication-Results', value: 'mx.example.org; spf=pass smtp.mailfrom=other.example; dmarc=none' }],
+    });
+    expect(getInvitationTrustAssessment(request, unaligned, 'request')).toMatchObject({ level: 'warning', reason: 'sender_mismatch_unverified' });
+  });
+
+  it('does not flag a colleague\'s invitation that never left the server', () => {
+    const colleague = email({ from: [{ email: 'alice@example.com' }] });
+    expect(getInvitationTrustAssessment(request, colleague, 'request', ['bob@example.com']).level).toBe('trusted');
+    // From outside, or with a header saying it came in from outside: as before.
+    expect(getInvitationTrustAssessment(request, colleague, 'request', ['bob@elsewhere.example']).reason).toBe('authentication_missing');
+    expect(getInvitationTrustAssessment(request, forged('spf=none smtp.mailfrom=example.com'), 'request', ['bob@example.com']).reason)
+      .toBe('authentication_missing');
   });
 });
 

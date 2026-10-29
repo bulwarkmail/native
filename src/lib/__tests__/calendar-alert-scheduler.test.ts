@@ -49,8 +49,8 @@ describe('parseAlertOffset / computeFireTime', () => {
     );
   });
 
-  it('fires task alerts relative to due', () => {
-    const task = { ...event, due: '2026-03-02T09:00:00', alerts: undefined };
+  it('fires the alerts of a task without a start relative to its due', () => {
+    const task = { ...event, start: undefined as unknown as string, utcStart: undefined, due: '2026-03-02T09:00:00', alerts: undefined };
     expect(computeTaskFireTime(task, { '@type': 'OffsetTrigger', offset: '-PT1H' })).toBe(
       new Date('2026-03-02T09:00:00').getTime() - HOUR,
     );
@@ -58,9 +58,30 @@ describe('parseAlertOffset / computeFireTime', () => {
   });
 
   it('reads a zoned task due in its own time zone', () => {
-    const task = { ...event, due: '2026-07-01T17:00:00', timeZone: 'Europe/Berlin', alerts: undefined };
+    const task = { ...event, start: undefined as unknown as string, utcStart: undefined, due: '2026-07-01T17:00:00', timeZone: 'Europe/Berlin', alerts: undefined };
     expect(computeTaskFireTime(task, { '@type': 'OffsetTrigger', offset: '-PT1H' })).toBe(
       new Date('2026-07-01T14:00:00Z').getTime(),
+    );
+  });
+
+  // #83 (webmail #1328): start 20:00, due 20:15, five minutes before the start.
+  it('fires a task alert relative to its start from the start, and one relative to its end from the due', () => {
+    const task = {
+      ...event, start: '2026-07-01T20:00:00', utcStart: undefined, due: '2026-07-01T20:15:00', timeZone: 'Europe/Berlin', alerts: undefined,
+    };
+    expect(computeTaskFireTime(task, { '@type': 'OffsetTrigger', offset: '-PT5M', relativeTo: 'start' })).toBe(
+      new Date('2026-07-01T17:55:00Z').getTime(),
+    );
+    // relativeTo left out means the start.
+    expect(computeTaskFireTime(task, { '@type': 'OffsetTrigger', offset: '-PT5M' })).toBe(
+      new Date('2026-07-01T17:55:00Z').getTime(),
+    );
+    expect(computeTaskFireTime(task, { '@type': 'OffsetTrigger', offset: '-PT5M', relativeTo: 'end' })).toBe(
+      new Date('2026-07-01T18:10:00Z').getTime(),
+    );
+    // The server's UTC start, when it gave one.
+    expect(computeTaskFireTime({ ...task, utcStart: '2026-07-01T18:00:00Z' }, { '@type': 'OffsetTrigger', offset: '-PT5M' })).toBe(
+      new Date('2026-07-01T17:55:00Z').getTime(),
     );
   });
 });
@@ -91,6 +112,8 @@ describe('getUpcomingAlerts', () => {
     const task = {
       ...event,
       id: 't1',
+      start: undefined as unknown as string,
+      utcStart: undefined,
       due: '2026-03-01T12:00:00Z',
       alerts: { x: { trigger: { '@type': 'OffsetTrigger', offset: 'PT0S' }, action: 'display' } },
     };
@@ -109,6 +132,8 @@ describe('getUpcomingAlerts', () => {
     const task = {
       ...untitled,
       id: 't1',
+      start: undefined as unknown as string,
+      utcStart: undefined,
       due: '2026-03-01T12:00:00Z',
       alerts: { x: { trigger: { '@type': 'OffsetTrigger' as const, offset: 'PT0S' }, action: 'display' as const } },
     };

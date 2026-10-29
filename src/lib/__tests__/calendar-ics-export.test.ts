@@ -48,10 +48,37 @@ describe('eventToICS', () => {
     expect(ics).not.toContain('DTEND');
   });
 
-  it('folds long lines at 74 octets', () => {
+  it('folds long lines at 75 octets', () => {
     const ics = eventToICS({ ...event, description: 'x'.repeat(200) });
     const long = ics.split('\r\n').filter((l) => l.length > 75);
     expect(long).toHaveLength(0);
+  });
+
+  it('folds by octets between characters, so umlauts and emoji survive', () => {
+    const utf8 = new TextEncoder();
+    const text = 'Grüße 🎉 '.repeat(30);
+    const ics = eventToICS({ ...event, description: text });
+    const lines = ics.split('\r\n');
+    expect(lines.every((l) => utf8.encode(l).length <= 75)).toBe(true);
+    // Unfolded, the description reads back whole: no emoji cut in half.
+    const unfolded = ics.replace(/\r\n /g, '');
+    expect(unfolded).toContain(`DESCRIPTION:${text}`);
+    expect(unfolded).not.toContain('�');
+    expect(lines.some((l) => /[\uD800-\uDBFF]$/.test(l))).toBe(false);
+  });
+
+  it('quotes a name holding a colon, semicolon or comma, and writes no blank one', () => {
+    const ics = eventToICS({
+      ...event,
+      participants: {
+        a: { calendarAddress: 'mailto:alice@example.com', name: 'Ops: Alice' },
+        b: { calendarAddress: 'mailto:bob@example.com', name: 'Smith, Bob "BB"', roles: { attendee: true } },
+        c: { calendarAddress: 'mailto:carol@example.com', name: ' ', roles: { attendee: true } },
+      },
+    });
+    expect(ics).toContain('ORGANIZER;CN="Ops: Alice":mailto:alice@example.com');
+    expect(ics).toContain('ATTENDEE;CN="Smith, Bob \'BB\'";PARTSTAT=NEEDS-ACTION:mailto:bob@example.com');
+    expect(ics).toContain('ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:carol@example.com');
   });
 });
 

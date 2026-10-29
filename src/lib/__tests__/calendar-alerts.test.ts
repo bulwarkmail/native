@@ -8,6 +8,10 @@ import {
   preservedAlerts,
   reminderFieldsToSave,
   withOwnAlertIds,
+  calendarDefaultAlerts,
+  defaultAlertIdPrefix,
+  remindersToDefaultAlerts,
+  sameReminders,
 } from '../calendar-alerts';
 import { translate, type MessageParams } from '../../i18n';
 import type { Alert } from '../../api/types';
@@ -162,5 +166,43 @@ describe('withOwnAlertIds', () => {
   it('numbers the alerts past every id taken', () => {
     const alert = { '@type': 'Alert', trigger: { '@type': 'OffsetTrigger', offset: '-PT5M' } } as Alert;
     expect(Object.keys(withOwnAlertIds([alert, alert], ['reminder-1', 'reminder-3']))).toEqual(['reminder-2', 'reminder-4']);
+  });
+});
+
+describe('a calendar\'s default reminders (#1209)', () => {
+  const email = { '@type': 'Alert', action: 'email', trigger: { '@type': 'OffsetTrigger', offset: '-PT1H' } } as Alert;
+
+  it('picks the defaults for timed or all-day events', () => {
+    const cal = {
+      defaultAlertsWithTime: { a: { '@type': 'Alert', trigger: { '@type': 'OffsetTrigger', offset: '-PT15M' } } as Alert },
+      defaultAlertsWithoutTime: null,
+    };
+    expect(alertsToReminders(calendarDefaultAlerts(cal, false))).toEqual([{ minutesBefore: 15 }]);
+    expect(calendarDefaultAlerts(cal, true)).toEqual({});
+    expect(calendarDefaultAlerts(undefined, false)).toEqual({});
+  });
+
+  it('writes the defaults under ids of their own and keeps what the list cannot show', () => {
+    const alerts = remindersToDefaultAlerts([{ minutesBefore: 10 }, { minutesBefore: 60 * 24 }], { 'default-1': email });
+    expect(alerts['default-1']).toBe(email);
+    expect(Object.keys(alerts).sort()).toEqual(['default-1', 'default-2', 'default-3']);
+    expect(alertsToReminders(alerts)).toEqual([{ minutesBefore: 60 * 24 }, { minutesBefore: 60 }, { minutesBefore: 10 }]);
+    // Emptied: a map Stalwart takes, not null.
+    expect(remindersToDefaultAlerts([])).toEqual({});
+  });
+
+  it('gives each calendar and list ids no other calendar of the account uses (Stalwart 1.0)', () => {
+    const b = remindersToDefaultAlerts([{ minutesBefore: 15 }], {}, defaultAlertIdPrefix({ id: 'b' }, false));
+    const c = remindersToDefaultAlerts([{ minutesBefore: 15 }], {}, defaultAlertIdPrefix({ id: 'acc-2:c', originalId: 'c' }, false));
+    const bAllDay = remindersToDefaultAlerts([{ minutesBefore: 15 }], {}, defaultAlertIdPrefix({ id: 'b' }, true));
+    const ids = [...Object.keys(b), ...Object.keys(c), ...Object.keys(bAllDay)];
+    expect(new Set(ids).size).toBe(3);
+    expect(Object.keys(b)).toEqual(['cal-b-timed-1']);
+  });
+
+  it('tells a changed list from the same times in another order', () => {
+    expect(sameReminders([{ minutesBefore: 5 }, { minutesBefore: 15 }], [{ minutesBefore: 15 }, { minutesBefore: 5 }])).toBe(true);
+    expect(sameReminders([{ minutesBefore: 5 }], [{ minutesBefore: 10 }])).toBe(false);
+    expect(sameReminders([], [{ minutesBefore: 10 }])).toBe(false);
   });
 });

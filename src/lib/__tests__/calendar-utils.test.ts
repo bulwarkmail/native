@@ -332,6 +332,7 @@ describe('getTimedEventBoundsForDay on DST change days', () => {
         timeZone: 'Europe/Berlin',
         utcStart: '2026-10-25T11:51:00Z',
         utcEnd: '2026-10-25T12:16:00Z',
+        duration: 'PT25M',
       });
       expect(getTimedEventBoundsForDay(fallBack, new Date(2026, 9, 25))).toMatchObject({
         startMinutes: 12 * 60 + 51,
@@ -344,6 +345,7 @@ describe('getTimedEventBoundsForDay on DST change days', () => {
         timeZone: 'Europe/Berlin',
         utcStart: '2026-03-29T07:00:00Z',
         utcEnd: '2026-03-29T08:00:00Z',
+        duration: 'PT1H',
       });
       expect(getTimedEventBoundsForDay(springForward, new Date(2026, 2, 29))).toMatchObject({
         startMinutes: 9 * 60,
@@ -352,5 +354,15 @@ describe('getTimedEventBoundsForDay on DST change days', () => {
     } finally {
       process.env.TZ = tz;
     }
+  });
+});
+
+describe('getEventEndDate', () => {
+  // #837: Stalwart stores a DTEND equal to DTSTART as no duration and ends
+  // the event at 23:59:59 of its day.
+  it('ends a timed event without a duration at its start, whatever utcEnd says', () => {
+    const zero = ev({ start: '2026-03-02T09:00:00', utcStart: '2026-03-02T09:00:00Z', utcEnd: '2026-03-02T23:59:59Z' });
+    delete (zero as Partial<CalendarEvent>).duration;
+    expect(getEventEndDate(zero).getTime()).toBe(getEventStartDate(zero).getTime());
   });
 });

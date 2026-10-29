@@ -10,11 +10,22 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Check } from '../icons';
-import type { Calendar } from '../../api/types';
+import { Check, Plus, X } from '../icons';
+import type { Alert, Calendar } from '../../api/types';
+import {
+  REMINDER_PRESETS,
+  alertsToReminders,
+  calendarDefaultAlerts,
+  defaultAlertIdPrefix,
+  formatReminder,
+  preservedAlerts,
+  remindersToDefaultAlerts,
+  sameReminders,
+  type Reminder,
+} from '../../lib/calendar-alerts';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useLocaleStore } from '../../stores/locale-store';
+import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
 import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
 import Button from '../Button';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
@@ -24,6 +35,79 @@ export interface CalendarEditValues {
   name: string;
   color: string;
   description: string;
+  /** Set only when the user changed them. */
+  defaultAlertsWithTime?: Record<string, Alert>;
+  defaultAlertsWithoutTime?: Record<string, Alert>;
+}
+
+/** One list of a calendar's default reminders: the times, a remove button each, presets to add. */
+function DefaultRemindersEditor({
+  label,
+  reminders,
+  keptCount,
+  onChange,
+  styles,
+  c,
+  t,
+}: {
+  label: string;
+  reminders: Reminder[];
+  keptCount: number;
+  onChange: (next: Reminder[]) => void;
+  styles: ReturnType<typeof makeStyles>;
+  c: ThemePalette;
+  t: TranslateFn;
+}) {
+  const [picking, setPicking] = React.useState(false);
+  const available = REMINDER_PRESETS.filter((p) => !reminders.some((r) => r.minutesBefore === p));
+  return (
+    <View style={styles.reminders}>
+      <Text style={styles.label}>{label}</Text>
+      {reminders.length === 0 && keptCount === 0 && (
+        <Text style={styles.muted}>{t('calendar.alerts.none', 'No reminders')}</Text>
+      )}
+      {reminders.map((r) => (
+        <View key={r.minutesBefore} style={styles.reminderRow}>
+          <Text style={styles.reminderText}>{formatReminder(r.minutesBefore, t)}</Text>
+          <Pressable
+            onPress={() => onChange(reminders.filter((x) => x.minutesBefore !== r.minutesBefore))}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.alerts.remove', 'Remove reminder')}
+          >
+            <X size={16} color={c.textMuted} />
+          </Pressable>
+        </View>
+      ))}
+      {keptCount > 0 && (
+        <Text style={styles.muted}>
+          {t('calendar.alerts.kept', "{count, plural, one {# more reminder that can't be edited here is kept} other {# more reminders that can't be edited here are kept}}", { count: keptCount })}
+        </Text>
+      )}
+      {available.length > 0 && (
+        <Pressable style={styles.addRow} onPress={() => setPicking((v) => !v)} accessibilityRole="button">
+          <Plus size={16} color={c.primary} />
+          <Text style={styles.addRowText}>{t('calendar.alerts.add', 'Add reminder')}</Text>
+        </Pressable>
+      )}
+      {picking && (
+        <View style={styles.presets}>
+          {available.map((preset) => (
+            <Pressable
+              key={preset}
+              style={styles.preset}
+              onPress={() => {
+                onChange([...reminders, { minutesBefore: preset }]);
+                setPicking(false);
+              }}
+            >
+              <Text style={styles.presetText}>{formatReminder(preset, t)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 }
 
 interface CalendarEditSheetProps {
@@ -47,15 +131,26 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
   const [description, setDescription] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // The calendar's default reminders (#1209): the owner's to set, for an
+  // existing calendar. What the lists can't show is written back unchanged.
+  const editsDefaults = !!calendar && !calendar.isShared;
+  const initialTimed = React.useMemo(() => alertsToReminders(calendarDefaultAlerts(calendar, false)), [calendar]);
+  const initialAllDay = React.useMemo(() => alertsToReminders(calendarDefaultAlerts(calendar, true)), [calendar]);
+  const keptTimed = React.useMemo(() => preservedAlerts(calendarDefaultAlerts(calendar, false)), [calendar]);
+  const keptAllDay = React.useMemo(() => preservedAlerts(calendarDefaultAlerts(calendar, true)), [calendar]);
+  const [timedReminders, setTimedReminders] = React.useState<Reminder[]>([]);
+  const [allDayReminders, setAllDayReminders] = React.useState<Reminder[]>([]);
 
   React.useEffect(() => {
     if (!visible) return;
     setName(calendar?.name ?? '');
     setColor(calendar ? getCalendarColor(calendar) : CALENDAR_COLOR_PALETTE[0]);
     setDescription(calendar?.description ?? '');
+    setTimedReminders(initialTimed);
+    setAllDayReminders(initialAllDay);
     setError(null);
     setSaving(false);
-  }, [visible, calendar]);
+  }, [visible, calendar, initialTimed, initialAllDay]);
 
   const handleSave = async () => {
     const trimmed = name.trim();
@@ -63,7 +158,15 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
     setSaving(true);
     setError(null);
     try {
-      await onSave({ name: trimmed, color, description: description.trim() });
+      const values: CalendarEditValues = { name: trimmed, color, description: description.trim() };
+      // Ids unique in the account: Stalwart 1.0 refuses one another calendar uses.
+      if (calendar && editsDefaults && !sameReminders(timedReminders, initialTimed)) {
+        values.defaultAlertsWithTime = remindersToDefaultAlerts(timedReminders, keptTimed, defaultAlertIdPrefix(calendar, false));
+      }
+      if (calendar && editsDefaults && !sameReminders(allDayReminders, initialAllDay)) {
+        values.defaultAlertsWithoutTime = remindersToDefaultAlerts(allDayReminders, keptAllDay, defaultAlertIdPrefix(calendar, true));
+      }
+      await onSave(values);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('calendar.notifications.event_error', 'Something went wrong'));
@@ -120,6 +223,35 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                   style={[styles.input, styles.multiline]}
                   multiline
                 />
+                {editsDefaults && (
+                  <>
+                    <Text style={styles.sectionTitle}>{t('calendar.management.default_alerts', 'Default reminders')}</Text>
+                    <Text style={styles.muted}>
+                      {t(
+                        'calendar.management.default_alerts_hint',
+                        "New events in this calendar get these reminders unless you change them in the event. Changing them here doesn't change existing events. Email reminders are sent by the mail server.",
+                      )}
+                    </Text>
+                    <DefaultRemindersEditor
+                      label={t('calendar.management.default_alerts_timed', 'Events with a time')}
+                      reminders={timedReminders}
+                      keptCount={Object.keys(keptTimed).length}
+                      onChange={setTimedReminders}
+                      styles={styles}
+                      c={c}
+                      t={t}
+                    />
+                    <DefaultRemindersEditor
+                      label={t('calendar.management.default_alerts_all_day', 'All-day events')}
+                      reminders={allDayReminders}
+                      keptCount={Object.keys(keptAllDay).length}
+                      onChange={setAllDayReminders}
+                      styles={styles}
+                      c={c}
+                      t={t}
+                    />
+                  </>
+                )}
                 {error ? <Text style={styles.error}>{error}</Text> : null}
               </ScrollView>
               <View style={styles.footer}>
@@ -185,5 +317,32 @@ function makeStyles(c: ThemePalette) {
     swatchActive: { borderWidth: 2, borderColor: c.text },
     error: { ...typography.caption, color: c.error },
     footer: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md },
+    sectionTitle: { ...typography.bodyMedium, color: c.text, marginTop: spacing.md },
+    muted: { ...typography.caption, color: c.textMuted },
+    reminders: { gap: spacing.xs },
+    reminderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: 36,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    reminderText: { ...typography.body, color: c.text },
+    addRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xs },
+    addRowText: { ...typography.bodyMedium, color: c.primary },
+    presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    preset: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.full,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    presetText: { ...typography.caption, color: c.text },
   });
 }

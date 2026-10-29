@@ -1,9 +1,9 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { Calendar, CalendarEvent, CalendarRights } from './types';
+import type { Alert, Calendar, CalendarEvent, CalendarRights } from './types';
 import { JMAPSetError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
 import { formatWallClock, getEffectiveTimeZone, getTimeZoneOffsetMs } from '../lib/calendar-timezone';
-import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
+import { SCAN_PROPERTIES, isTaskLikeObject, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 import {
   RECURRENCE_BASE_PROPERTIES,
   SYNTHETIC_ID_PROBE,
@@ -151,6 +151,9 @@ export function toLocalDateTime(value: string | Date, timeZone?: string): string
 // skipped for the rest of the session (the session lists every account with
 // the calendars capability, including ones that only share mail with us).
 const calendarAccessDenied = new Set<string>();
+// One up with every reset (a new login): a refusal answered after one was
+// given to the login before, whose shared accounts the next one may read.
+let calendarAccessGeneration = 0;
 
 export function isCalendarAccessDenied(accountId: string): boolean {
   return calendarAccessDenied.has(accountId);
@@ -158,6 +161,7 @@ export function isCalendarAccessDenied(accountId: string): boolean {
 
 export function resetCalendarAccessDenied(): void {
   calendarAccessDenied.clear();
+  calendarAccessGeneration += 1;
 }
 
 // Stalwart 1.0 answers `accountNotSupportedByMethod` for an account that
@@ -299,6 +303,18 @@ export function normalizeTaskProgress<T extends Partial<CalendarEvent>>(event: T
 }
 
 /**
+ * A timed event without a duration lasts zero seconds (RFC 8984's default
+ * PT0S). Stalwart drops a DTEND equal to DTSTART and then ends such an event
+ * at 23:59:59 of its start day, so its utcEnd is wrong (#837). Tasks carry
+ * no duration and are left alone. Mirrors the webmail's withZeroDurationEnd.
+ */
+export function withZeroDurationEnd<T extends Partial<CalendarEvent>>(event: T): T {
+  if (event.showWithoutTime || event.duration || !event.start || !event.utcStart) return event;
+  if (isTaskLikeObject(event as ScannedCalendarObject)) return event;
+  return { ...event, duration: 'PT0S', utcEnd: event.utcStart };
+}
+
+/**
  * Convert the client's plural recurrence arrays to the singular JSCalendar 2.0
  * properties Stalwart expects on write, dropping null rule fields. An empty
  * array (or null) becomes an explicit null so "remove recurrence" round-trips.
@@ -432,6 +448,7 @@ const CALENDAR_PROPERTIES = [
 
 export async function getCalendars(): Promise<Calendar[]> {
   const accountId = jmapClient.accountId;
+  const accessGeneration = calendarAccessGeneration;
   const probeKey = syntheticIdProbeKey();
   const carriesProbe = !!probeKey && !syntheticIdSupport.has(probeKey);
   const methodCalls: [string, Record<string, unknown>, string][] = [
@@ -475,7 +492,7 @@ export async function getCalendars(): Promise<Calendar[]> {
           isShared: true,
         }));
       } catch (err) {
-        noteCalendarAccessError(sharedAccountId, err);
+        if (accessGeneration === calendarAccessGeneration) noteCalendarAccessError(sharedAccountId, err);
         return [];
       }
     }),
@@ -965,7 +982,8 @@ export async function getEvents(
     options?.expanded ? EXPANDED_EVENT_PROPERTIES : CALENDAR_EVENT_PROPERTIES,
     { withOverrides: !options?.expanded, timeZone },
   ));
-  return (list as unknown as CalendarEvent[]).map((e) => normalizeTaskProgress(normalizeRecurrenceProperties(e)));
+  return (list as unknown as CalendarEvent[]).map((e) =>
+    withZeroDurationEnd(normalizeTaskProgress(normalizeRecurrenceProperties(e))));
 }
 
 export type EventIdentityFields = Pick<CalendarEvent, 'id' | 'uid' | 'calendarIds'>;
@@ -990,6 +1008,30 @@ export async function findEventsByUid(uid: string, accountId?: string): Promise<
   );
   const ids = methodResult<{ ids: string[] }>(res).ids ?? [];
   return getEvents(ids, accountId);
+}
+
+/**
+ * The ids of the events a CalendarEvent/query `filter` finds (the event
+ * search's `text` conditions), latest start first, at most `limit`. Not
+ * limited to a date window: a series is found by its stored event.
+ */
+export async function searchEventIds(
+  filter: Record<string, unknown>,
+  accountId?: string,
+  limit = 100,
+): Promise<string[]> {
+  const account = accountId || jmapClient.accountId;
+  return withCalendarTimeZone(async (timeZone) => {
+    const args: Record<string, unknown> = {
+      accountId: account,
+      filter,
+      sort: [{ property: 'start', isAscending: false }],
+      limit,
+    };
+    if (timeZone) args.timeZone = timeZone;
+    const res = await jmapClient.request([['CalendarEvent/query', args, '0']], USING);
+    return methodResult<{ ids: string[] }>(res).ids ?? [];
+  });
 }
 
 // `sendSchedulingMessages` asks Stalwart to deliver iMIP (RFC 6047) invitation
@@ -1203,8 +1245,9 @@ export async function createCalendar(
   name: string,
   color?: string,
   description?: string,
+  targetAccountId?: string,
 ): Promise<Calendar> {
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   const props: Record<string, unknown> = { name, color, isVisible: true, isSubscribed: true };
   if (description?.trim()) props.description = description.trim();
   const res = await jmapClient.request(
@@ -1247,8 +1290,8 @@ export async function setDefaultCalendar(
  * The name of the user's calendar `id`, or null when the account has no
  * calendar by that id.
  */
-export async function getCalendarName(id: string): Promise<string | null> {
-  const accountId = jmapClient.accountId;
+export async function getCalendarName(id: string, targetAccountId?: string): Promise<string | null> {
+  const accountId = targetAccountId || jmapClient.accountId;
   const res = await jmapClient.request(
     [['Calendar/get', { accountId, ids: [id], properties: ['id', 'name'] }, '0']],
     USING,
@@ -1276,6 +1319,9 @@ export interface CalendarUpdates {
   description?: string | null;
   sortOrder?: number;
   isSubscribed?: boolean;
+  // `{}` clears them: Stalwart refuses null for these maps.
+  defaultAlertsWithTime?: Record<string, Alert>;
+  defaultAlertsWithoutTime?: Record<string, Alert>;
 }
 
 // Rename / recolour / describe a calendar (Calendar/set update).
