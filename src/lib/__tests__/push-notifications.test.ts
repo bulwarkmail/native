@@ -110,6 +110,7 @@ import {
   setupPushNotifications,
   deviceClientIdKey,
   disablePushForAccount,
+  enablePushFromSettings,
   forgetPushServerState,
   isValidRelayUrl,
   mailAccountsWithoutPush,
@@ -418,6 +419,31 @@ describe('setupPushNotifications subscription shape', () => {
     await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true }).catch(() => undefined);
     expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
     expect(fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+  });
+
+  it('hands the settings the relay in use back after the server refused a new one', async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ id: 'existing', deviceClientId: OUR_DCID, expires: new Date(Date.now() + 5 * 86400000).toISOString(), types: ['EmailDelivery'] }]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+
+    const outcome = await enablePushFromSettings({ relayBaseUrl: 'https://relay.home.lan/', forceRecreate: true });
+
+    expect(outcome.error).toBeInstanceOf(PushSetupError);
+    expect(outcome.relayBaseUrl).toBe(RELAY);
+    expect(outcome.enabled).toBe(true);
+
+    // Nothing in use yet: the typed relay stays, so it can be corrected.
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    listMock.mockResolvedValue([]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+    expect(await enablePushFromSettings({ relayBaseUrl: 'https://relay.home.lan/' }))
+      .toMatchObject({ relayBaseUrl: 'https://relay.home.lan', enabled: false });
+
+    // A run that works shows the relay it registered with.
+    expect(await enablePushFromSettings({ relayBaseUrl: 'https://relay.example.com/' }))
+      .toEqual({ error: null, relayBaseUrl: RELAY, enabled: true });
   });
 
   it('rejects plain-http relay URLs', async () => {

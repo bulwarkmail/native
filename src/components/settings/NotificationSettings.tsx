@@ -31,7 +31,7 @@ import {
   revokePushDevice,
   serverSupportsEmailPush,
   setStoredRelayBaseUrl,
-  setupPushNotifications,
+  enablePushFromSettings,
   getStoredPushTransport,
   setStoredPushTransport,
   type PushDevice,
@@ -137,11 +137,13 @@ export function NotificationSettings() {
   const relayValid = isValidRelayUrl(trimmed);
   const busy = pushStatus.kind === 'busy';
 
-  const refreshDevices = useCallback(async () => {
+  // `relay` is the relay an enable run just settled on: the field's state
+  // has not caught up with it yet.
+  const refreshDevices = useCallback(async (relay?: string) => {
     if (!activeAccountId || !client) return;
     setDevices({ kind: 'loading' });
     try {
-      const list = await listPushDevices({ accountId: activeAccountId, relayBaseUrl: trimmed });
+      const list = await listPushDevices({ accountId: activeAccountId, relayBaseUrl: relay ?? trimmed });
       setDevices({ kind: 'loaded', devices: list });
     } catch {
       setDevices({ kind: 'error' });
@@ -196,21 +198,19 @@ export function NotificationSettings() {
       kind: 'busy',
       message: t('settings.notifications.push.status_busy', 'Working…'),
     });
-    try {
-      // The setup stores the relay itself, and keeps the one in use when the
-      // mail server refuses the new one's address.
-      await setupPushNotifications({
-        relayBaseUrl: trimmed,
-        accountLabel: username ?? undefined,
-        forceRecreate,
-      });
-      setPushEnabled(true);
-      setPushStatus({ kind: 'enabled' });
-    } catch (error) {
-      setPushStatus({ kind: 'error', message: describeError(error) });
-    } finally {
-      void refreshDevices();
-    }
+    // The setup stores the relay itself, and keeps the one in use when the
+    // mail server refuses the new one's address: the field follows it.
+    const outcome = await enablePushFromSettings({
+      relayBaseUrl: trimmed,
+      accountLabel: username ?? undefined,
+      forceRecreate,
+    });
+    setRelayUrl(outcome.relayBaseUrl);
+    setPushEnabled(outcome.enabled);
+    setPushStatus(outcome.error
+      ? { kind: 'error', message: describeError(outcome.error) }
+      : { kind: 'enabled' });
+    void refreshDevices(outcome.relayBaseUrl);
   };
 
   // Switching the transport while push is on re-registers immediately so the

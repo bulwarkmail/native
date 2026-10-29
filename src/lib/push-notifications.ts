@@ -1706,6 +1706,40 @@ export async function resyncPushNotifications(
   return setupPushNotifications(params);
 }
 
+export interface PushEnableOutcome {
+  error: unknown;
+  // The relay the settings should show afterwards.
+  relayBaseUrl: string;
+  // Whether the account has a subscription recorded once the run is over.
+  enabled: boolean;
+}
+
+/**
+ * The enable and re-register buttons of the notification settings: run the
+ * setup and say what it left behind. When the mail server refuses a new
+ * relay, the setup goes back to the one in use; the relay field must show
+ * that one again rather than the refused address, since the device list asks
+ * the relay in the field about each device and a revoke goes to it. With no
+ * relay in use the typed one stays, so the user can correct it.
+ */
+export async function enablePushFromSettings(params: PushSetupParams): Promise<PushEnableOutcome> {
+  const accountId = jmapClient.username && jmapClient.serverUrl
+    ? generateAccountId(jmapClient.username, jmapClient.serverUrl)
+    : null;
+  let error: unknown = null;
+  try {
+    await setupPushNotifications(params);
+  } catch (err) {
+    error = err;
+  }
+  const typed = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
+  return {
+    error,
+    relayBaseUrl: (await getStoredRelayBaseUrl()) ?? typed,
+    enabled: accountId ? await isPushEnabledForAccount(accountId) : false,
+  };
+}
+
 /**
  * Re-apply an account's push types to its subscription after device sync was
  * turned on or off for it (#34). The account the client serves goes through
