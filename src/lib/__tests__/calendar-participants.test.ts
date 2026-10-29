@@ -349,6 +349,17 @@ describe('answers on save (Stalwart 0.16 and 1.0)', () => {
     ]);
   });
 
+  it('writes no blank names', () => {
+    const map = buildParticipantMap({ name: '', email: 'me@example.com' }, [
+      { name: '  ', email: 'bob@example.com' },
+      { name: ' Carol ', email: 'carol@example.com' },
+    ]);
+    const byEmail = Object.fromEntries(Object.values(map).map((p) => [p.email, p]));
+    expect(byEmail['me@example.com']).not.toHaveProperty('name');
+    expect(byEmail['bob@example.com']).not.toHaveProperty('name');
+    expect(byEmail['carol@example.com'].name).toBe('Carol');
+  });
+
   it('tells whether anyone but the organizer answered', () => {
     expect(hasAnsweredAttendees(meeting.participants)).toBe(true);
     expect(hasAnsweredAttendees(participantsAskedAgain(meeting))).toBe(false);
