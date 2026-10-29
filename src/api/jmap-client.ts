@@ -98,15 +98,15 @@ export function parseRetryAfter(header: string | null): number {
   return 60_000;
 }
 
-// Methods whose bodies must never be replayed automatically: a retried
-// EmailSubmission/set would send the mail twice.
+const READ_ONLY_METHOD = /\/(?:get|query|changes|queryChanges|parse)$|^Core\/echo$/;
+
+// Whether a batch must not be sent again after the connection failed without
+// an answer. The server may already have acted on it, so only batches made of
+// read methods are replayed (webmail isReplaySafeRequest): a retried /set,
+// /copy, /import or submission would be done twice - one Send delivering two
+// messages, one move or delete applied on top of its own result.
 function hasNonIdempotentMethod(methodCalls: ReadonlyArray<JMAPMethodCall>): boolean {
-  return methodCalls.some(
-    ([name]) =>
-      name === 'EmailSubmission/set' ||
-      name === 'Email/import' ||
-      name === 'Blob/upload',
-  );
+  return methodCalls.length === 0 || methodCalls.some(([name]) => !READ_ONLY_METHOD.test(name));
 }
 
 function fetchSessionDescribes(session: unknown): session is JMAPSession {
