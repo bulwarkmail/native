@@ -106,6 +106,16 @@
       "occurrence_count": "{count, plural, one {# occurrence} other {# occurrences}}",
       "until_date": "Until {date}"
     },
+    "search": {
+      "clear": "Clear search",
+      "close": "Close search",
+      "no_results": "No events match “{query}”",
+      "no_results_hint": "Search looks at titles, places, descriptions and guests.",
+      "past": "Past",
+      "repeats": "Repeats",
+      "title": "Search events",
+      "upcoming": "Upcoming"
+    },
     "settings": {
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
