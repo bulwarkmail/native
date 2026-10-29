@@ -299,6 +299,7 @@
     "identity_unavailable": "Identity unavailable",
     "image_load_failed": "Could not load image",
     "login_switched_body": "You started this message in {account}. Switch back to that account to send it.",
+    "login_switched_save_body": "You started this message in {account}. Switch back to that account to save it.",
     "login_switched_title": "Account switched",
     "no_recipient": "(no recipient)",
     "no_sent_folder": "No Sent folder found",

@@ -66,7 +66,7 @@ import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
-import { composerLoginMoved } from '../lib/draft-login';
+import { composerLoginMoved, servedLoginOf } from '../lib/draft-login';
 import {
   initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs, withSnapshotBody,
 } from '../lib/draft-part-blobs';
@@ -1127,7 +1127,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const ownerLoginRef = React.useRef(useAccountStore.getState().activeAccountId);
   const loginMoved = () => composerLoginMoved(ownerLoginRef.current, {
     activeAccountId: useAccountStore.getState().activeAccountId,
-    connectedAccountId: jmapClient.connectedAccountId,
+    servedLogin: servedLoginOf(jmapClient),
   });
   const [draftStatus, setDraftStatus] = React.useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [savingDraft, setSavingDraft] = React.useState(false);
@@ -1441,6 +1441,20 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // had been saved: stay open and say why.
     if (draftUnsavableReason) {
       Alert.alert(t('email_composer.save_failed', 'Failed to save'), draftUnsavableReason);
+      return;
+    }
+    // Another login is active: saving writes nothing (saveDraftOnce), so
+    // closing now would drop the text as if it had been saved.
+    if (loginMoved()) {
+      const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
+      Alert.alert(
+        t('email_composer.login_switched_title', 'Account switched'),
+        t(
+          'email_composer.login_switched_save_body',
+          'You started this message in {account}. Switch back to that account to save it.',
+          { account: owner?.email || owner?.displayName || '' },
+        ),
+      );
       return;
     }
     setSavingDraft(true);
