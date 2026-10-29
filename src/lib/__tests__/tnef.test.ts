@@ -65,6 +65,33 @@ describe('parseTnef', () => {
     expect(res.htmlBody).toBe('<p>hi</p>');
     expect(res.attachments[0]).toMatchObject({ name: 'report.pdf', mimeType: 'application/pdf' });
   });
+  // A sender-chosen value count of 2^32 - 1 over a block with no room for a
+  // single value used to spin the JS thread on reads that never advance.
+  it('does not spin on a value count the block cannot hold', () => {
+    const mapiVar = [
+      ...u32(1),
+      0x02, 0x01, 0x01, 0x00, // PT_BINARY, id 0x0001
+      ...u32(0xffffffff),
+      0x00, 0x00,
+    ];
+    const mapiFixed = [
+      ...u32(1),
+      0x99, 0x10, 0x01, 0x00, // multi-value of an unknown fixed type
+      ...u32(0xffffffff),
+      0x00, 0x00,
+    ];
+    for (const mapi of [mapiVar, mapiFixed]) {
+      const data = new Uint8Array([
+        ...u32(0x223e9f78), 0x00, 0x00,
+        ...attr(0x01, 0x0002800c, bytes('Hello body')),
+        ...attr(0x01, 0x00069003, mapi),
+      ]);
+      const started = Date.now();
+      const res = parseTnef(data);
+      expect(Date.now() - started).toBeLessThan(1000);
+      expect(res.body).toBe('Hello body');
+    }
+  });
 });
 
 describe('isTnefAttachment', () => {
