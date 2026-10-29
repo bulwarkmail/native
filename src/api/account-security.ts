@@ -8,6 +8,7 @@
 
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
+import { generateAccountId } from '../lib/account-utils';
 
 const STALWART_CAPABILITY = 'urn:stalwart:jmap';
 const STALWART_USING = [CAPABILITIES.CORE, STALWART_CAPABILITY];
@@ -104,6 +105,22 @@ export class AccountSecurityForbiddenError extends Error {
 export function isLimitedStalwartSignIn(): boolean {
   const clientId = jmapClient.oauthClientId;
   return !!clientId && clientId.startsWith('swc1.') && !isStalwartSupported() && !!jmapClient.currentSession;
+}
+
+/**
+ * Did the user sign in with the account's Stalwart password? Basic auth, or
+ * the password + TOTP sign-in, which ends in tokens (Stalwart takes no TOTP
+ * over Basic auth). Only then are a password change and turning TOTP off
+ * the user's to make here; a browser or webmail sign-in may have gone
+ * through another identity provider.
+ */
+export async function signedInWithPassword(): Promise<boolean> {
+  if (!jmapClient.usesBearerAuth) return true;
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  if (!username || !serverUrl) return false;
+  const tokens = await jmapClient.getStoredOAuthTokens(generateAccountId(username, serverUrl)).catch(() => null);
+  return tokens?.source === 'totp';
 }
 
 // Pull a single method response out by its call id and throw on a JMAP method
@@ -377,12 +394,29 @@ export async function fetchPrincipal(): Promise<PrincipalInfo> {
 
 // ── Mutations ─────────────────────────────────────────────
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+/**
+ * With TOTP on, Stalwart wants the current code for any password or OTP
+ * change ("Current OTP code is required to change the password or OTP
+ * auth."; a wrong code reads "Current secret is incorrect."). Patch only
+ * `otpAuth/otpCode`: a whole `otpAuth` object would reset `otpUrl` and turn
+ * TOTP off. The property is `otpAuth` on 0.16 and 1.0 alike (checked on
+ * 0.16.27 and 1.0.0).
+ */
+function otpCodePatch(otpCode: string | undefined): Record<string, string> {
+  const code = otpCode?.trim();
+  return code ? { 'otpAuth/otpCode': code } : {};
+}
+
+/** `otpCode` is required once TOTP is on. */
+export async function changePassword(currentPassword: string, newPassword: string, otpCode?: string): Promise<void> {
   const accountId = jmapClient.accountId;
   const responses = await send([
     [
       'x:AccountPassword/set',
-      { accountId, update: { singleton: { currentSecret: currentPassword, secret: newPassword } } },
+      {
+        accountId,
+        update: { singleton: { currentSecret: currentPassword, secret: newPassword, ...otpCodePatch(otpCode) } },
+      },
       '0',
     ],
   ]);
@@ -418,12 +452,17 @@ export async function enableTotp(currentPassword: string, otpUrl: string, otpCod
   if (failure) throw new Error(failure.description || failure.type || 'Failed to enable two-factor authentication');
 }
 
-export async function disableTotp(currentPassword: string): Promise<void> {
+/** Stalwart asks for a current code to turn TOTP off, like any OTP change. */
+export async function disableTotp(currentPassword: string, otpCode?: string): Promise<void> {
   const accountId = jmapClient.accountId;
+  const code = otpCode?.trim();
   const responses = await send([
     [
       'x:AccountPassword/set',
-      { accountId, update: { singleton: { currentSecret: currentPassword, otpAuth: { otpUrl: null } } } },
+      {
+        accountId,
+        update: { singleton: { currentSecret: currentPassword, otpAuth: { otpUrl: null, ...(code ? { otpCode: code } : {}) } } },
+      },
       '0',
     ],
   ]);

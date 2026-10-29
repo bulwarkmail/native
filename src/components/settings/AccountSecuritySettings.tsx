@@ -22,6 +22,7 @@ import {
   AccountSecurityForbiddenError,
   isLimitedStalwartSignIn,
   isStalwartSupported,
+  signedInWithPassword,
   fetchAuthInfo,
   fetchCryptoInfo,
   fetchPrincipal,
@@ -132,11 +133,15 @@ function ClientCertSection() {
 }
 
 // ── Password change ───────────────────────────────────────
-function PasswordChangeSection() {
+// With TOTP on, Stalwart wants the current code for the change too. A change
+// also ends the sign-in's tokens (checked on 0.16.27), so a token sign-in has
+// to sign in again with the new password.
+function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const [currentPwd, setCurrentPwd] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
@@ -146,13 +151,20 @@ function PasswordChangeSection() {
 
   const submit = async () => {
     setError(null);
+    if (otpEnabled && !otpCode.trim()) { setError(t('settings.security.two_factor.code_required', "Enter the 6-digit code from your app.")); return; }
     if (newPwd.length < 8) { setError(t('settings.security.password.too_short', "New password must be at least 8 characters.")); return; }
     if (newPwd !== confirmPwd) { setError(t('settings.security.password.mismatch', "Passwords do not match.")); return; }
     setSaving(true);
     try {
-      await changePassword(currentPwd, newPwd);
-      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
-      Alert.alert(t('settings.security.password.changed_title', "Password changed"), t('settings.security.password.changed', "Your account password was updated."));
+      const tokenSignIn = jmapClient.usesBearerAuth;
+      await changePassword(currentPwd, newPwd, otpEnabled ? otpCode : undefined);
+      setCurrentPwd(''); setOtpCode(''); setNewPwd(''); setConfirmPwd('');
+      Alert.alert(
+        t('settings.security.password.changed_title', "Password changed"),
+        tokenSignIn
+          ? t('settings.security.password.changed_sign_in_again', "Your account password was updated. Sign in again with the new password.")
+          : t('settings.security.password.changed', "Your account password was updated."),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.security.password.error', "Failed to change password."));
     } finally {
@@ -172,6 +184,13 @@ function PasswordChangeSection() {
             </Pressable>
           </View>
         </View>
+
+        {otpEnabled && (
+          <View style={styles.pwField}>
+            <Text style={styles.pwLabel}>{t('settings.security.two_factor.code', "Verification code")}</Text>
+            <Input value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" />
+          </View>
+        )}
 
         <View style={styles.pwField}>
           <Text style={styles.pwLabel}>{t('settings.security.password.new', "New password")}</Text>
@@ -194,7 +213,7 @@ function PasswordChangeSection() {
           <Button
             size="sm"
             loading={saving}
-            disabled={saving || !currentPwd || !newPwd || !confirmPwd}
+            disabled={saving || !currentPwd || !newPwd || !confirmPwd || (otpEnabled && !otpCode.trim())}
             onPress={() => { void submit(); }}
             icon={<Key size={14} color={c.primaryForeground} />}
           >
@@ -289,9 +308,10 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
 
   const confirmDisable = async () => {
     if (!password) { setError(t('settings.security.two_factor.password_required', "Enter your current password.")); return; }
+    if (!otpCode.trim()) { setError(t('settings.security.two_factor.code_required', "Enter the 6-digit code from your app.")); return; }
     setSaving(true);
     try {
-      await disableTotp(password);
+      await disableTotp(password, otpCode.trim());
       reset();
       onChanged();
     } catch (err) {
@@ -354,11 +374,12 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
 
       {disableOpen && (
         <View style={styles.panel}>
-          <Text style={styles.panelHint}>{t('settings.security.two_factor.disable_hint', "Enter your password to turn off two-factor authentication.")}</Text>
+          <Text style={styles.panelHint}>{t('settings.security.two_factor.disable_hint_code', "Enter your password and a code from your authenticator app to turn off two-factor authentication.")}</Text>
           <Input value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" placeholder={t('settings.security.password.current', "Current password")} />
+          <Input value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" placeholder={t('settings.security.two_factor.code', "Verification code")} />
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <View style={styles.rowGap}>
-            <Button variant="destructive" size="sm" loading={saving} disabled={saving || !password} onPress={() => { void confirmDisable(); }}>
+            <Button variant="destructive" size="sm" loading={saving} disabled={saving || !password || !otpCode.trim()} onPress={() => { void confirmDisable(); }}>
               {t('settings.security.two_factor.disable', "Disable")}
             </Button>
             <Button variant="ghost" size="sm" onPress={reset}>{t('common.cancel', "Cancel")}</Button>
@@ -857,6 +878,15 @@ export function AccountSecuritySettings() {
   const [publicKeys, setPublicKeys] = useState<PublicKeyInfo[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  // The password + TOTP sign-in holds tokens, yet the password is the user's
+  // to change and TOTP theirs to turn off; that is the only way in with TOTP on.
+  const [passwordSignIn, setPasswordSignIn] = useState(!isOAuth);
+
+  useEffect(() => {
+    let cancelled = false;
+    void signedInWithPassword().then((yes) => { if (!cancelled) setPasswordSignIn(yes); });
+    return () => { cancelled = true; };
+  }, [isOAuth]);
 
   const reloadCrypto = useCallback(async () => {
     const [info, keys] = await Promise.allSettled([fetchCryptoInfo(), fetchPublicKeys()]);
@@ -958,13 +988,9 @@ export function AccountSecuritySettings() {
           <View style={{ gap: spacing.xxxl }}>
             {loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
 
-            {!isOAuth && (
-              <>
-                <PasswordChangeSection />
-                <DisplayNameSection initial={displayName} onSaved={setDisplayName} />
-                <TotpSection enabled={!!auth?.otpEnabled} onChanged={() => { void reloadAuth(); }} />
-              </>
-            )}
+            {passwordSignIn && <PasswordChangeSection otpEnabled={!!auth?.otpEnabled} />}
+            {!isOAuth && <DisplayNameSection initial={displayName} onSaved={setDisplayName} />}
+            {passwordSignIn && <TotpSection enabled={!!auth?.otpEnabled} onChanged={() => { void reloadAuth(); }} />}
 
             <CredentialSection
               icon={Smartphone}

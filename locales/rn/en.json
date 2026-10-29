@@ -1183,6 +1183,7 @@
       "password": {
         "change": "Change Password",
         "changed": "Your account password was updated.",
+        "changed_sign_in_again": "Your account password was updated. Sign in again with the new password.",
         "changed_title": "Password changed",
         "description": "Change the password for this account.",
         "error": "Failed to change password.",
@@ -1208,6 +1209,7 @@
         "disable": "Disable",
         "disable_error": "Failed to disable two-factor authentication.",
         "disable_hint": "Enter your password to turn off two-factor authentication.",
+        "disable_hint_code": "Enter your password and a code from your authenticator app to turn off two-factor authentication.",
         "enable_error": "Failed to enable two-factor authentication.",
         "enabled_message": "You will be asked for a code at next sign-in.",
         "enabled_title": "Two-factor enabled",
