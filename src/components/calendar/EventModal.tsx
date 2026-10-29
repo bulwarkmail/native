@@ -45,6 +45,7 @@ import {
 import { displayNow } from '../../lib/calendar-timezone';
 import { editorTimesChanged, editorTimesFromEvent, eventTimeFieldsToSave } from '../../lib/event-editor-times';
 import { useSettingsStore } from '../../stores/settings-store';
+import { CalendarAccountChangedError } from '../../stores/calendar-store';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { formatCalendarDate } from '../../lib/date-format';
@@ -417,6 +418,12 @@ export function EventModal({
       });
       onClose();
     } catch (err) {
+      // The account changed under the save: the event is the previous
+      // account's, and the calendar shows another one now.
+      if (err instanceof CalendarAccountChangedError) {
+        onClose();
+        return;
+      }
       // The editor stays open with everything typed, and says why.
       NativeAlert.alert(
         t('calendar.notifications.event_error', 'Failed to save event'),

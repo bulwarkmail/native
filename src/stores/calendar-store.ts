@@ -362,6 +362,19 @@ function assertInScope(scope: WriteScope): void {
 }
 
 /**
+ * The account an operation of several store writes runs in (the scope edits
+ * in lib/recurrence-scope-edit), taken once when it starts. Each write takes
+ * the account the client serves when it begins, so a step after an account
+ * switch went to the next account with the ids of this one. `assert` throws
+ * CalendarAccountChangedError once the store was reset or the client serves
+ * another account.
+ */
+export function calendarOperationScope(): { assert: () => void } {
+  const scope = writeScope();
+  return { assert: () => assertInScope(scope) };
+}
+
+/**
  * The JMAP account a write goes to, named on every request: a shared
  * calendar's owner, else the primary account the write started in.
  */
@@ -1072,8 +1085,9 @@ export const useCalendarStore = create<CalendarState>()(
       schedule,
       writeAccount(scope, accountId),
     );
-    // Made; the store shows another account by now.
-    if (!inScope(scope)) return created;
+    // Made; the store shows another account by now. Throws so that a caller
+    // with more to do stops here, and opens nothing of the previous account.
+    assertInScope(scope);
     // The /set echo lacks server-computed properties (utcStart/utcEnd, the
     // normalised recurrence rule); re-read the event so it renders at the
     // right instant, then expand a recurring series across the loaded range
@@ -1085,7 +1099,7 @@ export const useCalendarStore = create<CalendarState>()(
     } catch {
       // Keep the echo; the next refresh reconciles.
     }
-    if (!inScope(scope)) return full;
+    assertInScope(scope);
     // Map the same way fetchEvents does so the optimistic insert doesn't
     // collide with the user's own events and stays visible under the right
     // calendar filter.
@@ -1179,8 +1193,9 @@ export const useCalendarStore = create<CalendarState>()(
     } else {
       await updateBaseEvent(realId, patch, schedule, account, scope);
     }
-    // Saved; the store shows another account by now, whose events can carry the same ids.
-    if (!inScope(scope)) return;
+    // Saved; the store shows another account by now, whose events can carry
+    // the same ids. Throws so that a caller with more steps sends no next one.
+    assertInScope(scope);
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
     });
@@ -1206,16 +1221,17 @@ export const useCalendarStore = create<CalendarState>()(
     const schedule = hasSchedulingParticipants(storeEvent) ? true : undefined;
     if (target.isOccurrence && storeEvent) {
       await destroyOccurrence(storeEvent, realId, schedule, writeAccount(scope, accountId), scope);
-      if (!inScope(scope)) return;
+      assertInScope(scope);
       set({ events: get().events.filter((e) => e.id !== id) });
     } else if (target.isBrowserOccurrence) {
       await destroyBrowserOccurrence(target, schedule, scope);
-      if (!inScope(scope)) return;
+      assertInScope(scope);
       set({ events: get().events.filter((e) => e.id !== id) });
     } else {
       await apiDeleteEvents([realId], schedule, writeAccount(scope, accountId));
-      // Deleted; the store shows another account by now, whose events can carry the same ids.
-      if (!inScope(scope)) return;
+      // Deleted; the store shows another account by now, whose events can
+      // carry the same ids. Throws as updateEvent does.
+      assertInScope(scope);
       knownMasters.delete(id);
       // Destroying a master removes every expanded occurrence of it, not
       // just the tapped one.

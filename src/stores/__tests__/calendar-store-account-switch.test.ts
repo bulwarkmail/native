@@ -99,7 +99,10 @@ describe('a write the account switch overtook', () => {
   it('names the account it started in and leaves the next account\'s event alone (updateEvent)', async () => {
     mockUpdate.mockImplementationOnce(async () => switchAccount());
 
-    await useCalendarStore.getState().updateEvent('c', { title: 'Renamed' });
+    // Fails, so that a caller with more steps (lib/recurrence-scope-edit)
+    // sends no next one to the next account.
+    await expect(useCalendarStore.getState().updateEvent('c', { title: 'Renamed' }))
+      .rejects.toBeInstanceOf(CalendarAccountChangedError);
 
     expect(mockUpdate).toHaveBeenCalledWith('c', { title: 'Renamed' }, undefined, 'acc-1');
     expect(useCalendarStore.getState().events).toEqual([THEIRS]);
@@ -108,7 +111,7 @@ describe('a write the account switch overtook', () => {
   it('leaves the next account\'s event of the same id in the store (deleteEvent)', async () => {
     mockDelete.mockImplementationOnce(async () => switchAccount());
 
-    await useCalendarStore.getState().deleteEvent('c');
+    await expect(useCalendarStore.getState().deleteEvent('c')).rejects.toBeInstanceOf(CalendarAccountChangedError);
 
     expect(mockDelete).toHaveBeenCalledWith(['c'], undefined, 'acc-1');
     expect(useCalendarStore.getState().events).toEqual([THEIRS]);
@@ -120,7 +123,7 @@ describe('a write the account switch overtook', () => {
       return event('n', 'New');
     });
 
-    await useCalendarStore.getState().createEvent({ title: 'New' }, 'b');
+    await expect(useCalendarStore.getState().createEvent({ title: 'New' }, 'b')).rejects.toBeInstanceOf(CalendarAccountChangedError);
 
     expect(mockCreate).toHaveBeenCalledWith({ title: 'New' }, 'b', undefined, 'acc-1');
     expect(mockGetEvents).not.toHaveBeenCalled();
