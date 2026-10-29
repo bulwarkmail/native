@@ -8,11 +8,12 @@ vi.mock('../client-cert', () => ({
   secureFetch: mockSecureFetch,
 }));
 
-import { refreshOAuthAccessToken, type OAuthTokens } from '../oauth';
+import { refreshOAuthAccessToken, resetRefreshRotations, type OAuthTokens } from '../oauth';
 
 describe('oauth token refresh deduplication', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetRefreshRotations();
   });
 
   it('should only send a single HTTP request when refreshOAuthAccessToken is called concurrently with the same refresh token', async () => {
@@ -53,11 +54,58 @@ describe('oauth token refresh deduplication', () => {
     expect(res2.accessToken).toBe('new-access-token');
     expect(res2.refreshToken).toBe('rotated-refresh-token');
 
-    // Fire another refresh after the first completes (now the map should be empty for this token)
+    // A holder that still has the rotated-away token later gets its
+    // successor: presenting it again would revoke the grant on Stalwart 1.0.
     mockSecureFetch.mockClear();
     const res3 = await refreshOAuthAccessToken(tokens);
-    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+    expect(mockSecureFetch).not.toHaveBeenCalled();
     expect(res3.accessToken).toBe('new-access-token');
+    expect(res3.refreshToken).toBe('rotated-refresh-token');
+  });
+
+  it('refreshes again with the successor once its access token runs out, never with the old token', async () => {
+    const tokens: OAuthTokens = {
+      accessToken: 'a1',
+      refreshToken: 'r1',
+      tokenEndpoint: 'https://auth.example.com/token',
+      clientId: 'swc1.x',
+    };
+    let generation = 1;
+    mockSecureFetch.mockImplementation(async () => {
+      generation += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: `a${generation}`, refresh_token: `r${generation}`, expires_in: 30 }),
+      } as Response;
+    });
+
+    await refreshOAuthAccessToken(tokens);
+    // 30 s left on the successor: not enough to hand out, so it is renewed.
+    const res = await refreshOAuthAccessToken(tokens);
+
+    const presented = mockSecureFetch.mock.calls.map(([, init]) => new URLSearchParams(String(init.body)).get('refresh_token'));
+    expect(presented).toEqual(['r1', 'r2']);
+    expect(res.refreshToken).toBe('r3');
+  });
+
+  it('keeps refreshing with the same token on a server that does not rotate', async () => {
+    const tokens: OAuthTokens = {
+      accessToken: 'a1',
+      refreshToken: 'stable',
+      tokenEndpoint: 'https://auth.example.com/token',
+      clientId: 'bulwark-webmail',
+    };
+    mockSecureFetch.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: 'a2', expires_in: 3600 }),
+    }) as Response);
+
+    await refreshOAuthAccessToken(tokens);
+    await refreshOAuthAccessToken(tokens);
+
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
   });
 
   it('should propagate errors to all waiters if the HTTP request fails', async () => {

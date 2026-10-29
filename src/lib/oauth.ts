@@ -535,12 +535,59 @@ export async function redeemPairingCode(webmailUrl: string, code: string): Promi
 
 const activeRefreshes = new Map<string, Promise<OAuthTokens>>();
 
+// Stalwart 1.0 rotates refresh tokens, and a superseded one presented after
+// its successor was used revokes the whole grant (access token 401, current
+// refresh token invalid_grant; checked on 1.0.0). Several holders refresh the
+// same account from their own copy of the bundle: the live client, the
+// unified inbox, the background push task. One that still holds the old
+// token after another rotated it gets the successor here instead of spending
+// the dead token and signing the account out.
+const rotatedTo = new Map<string, OAuthTokens>();
+const ROTATED_MAX = 64;
+// A successor whose access token has less left than this is refreshed in
+// turn rather than handed out.
+const SUCCESSOR_MIN_LIFETIME_MS = 60_000;
+
+function rememberRotation(previous: string, next: OAuthTokens): void {
+  if (!next.refreshToken || next.refreshToken === previous) return;
+  if (!rotatedTo.has(previous) && rotatedTo.size >= ROTATED_MAX) {
+    const oldest = rotatedTo.keys().next().value;
+    if (oldest !== undefined) rotatedTo.delete(oldest);
+  }
+  rotatedTo.set(previous, next);
+}
+
+function latestRotation(refreshToken: string): OAuthTokens | null {
+  let latest: OAuthTokens | null = null;
+  let key = refreshToken;
+  for (let hop = 0; hop < ROTATED_MAX; hop++) {
+    const next = rotatedTo.get(key);
+    if (!next?.refreshToken) break;
+    latest = next;
+    key = next.refreshToken;
+  }
+  return latest;
+}
+
+/** Test hook. */
+export function resetRefreshRotations(): void {
+  rotatedTo.clear();
+}
+
 // OAuth refresh — exchanges the refresh token at the original token endpoint
 // for a new access token. Returns the updated bundle so the caller can
 // persist it.
 export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAuthTokens> {
   if (!tokens.refreshToken) {
     throw new HandoffError('No refresh token available');
+  }
+
+  const successor = latestRotation(tokens.refreshToken);
+  if (successor) {
+    if (successor.expiresAt == null || successor.expiresAt - Date.now() > SUCCESSOR_MIN_LIFETIME_MS) {
+      return { ...successor, source: tokens.source };
+    }
+    return refreshOAuthAccessToken({ ...successor, source: tokens.source });
   }
 
   const cacheKey = tokens.refreshToken;
@@ -599,7 +646,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
         if (!data.access_token) {
           throw new HandoffError('Token refresh response missing access_token');
         }
-        return {
+        const next: OAuthTokens = {
           accessToken: data.access_token,
           refreshToken: data.refresh_token ?? tokens.refreshToken!,
           expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
@@ -607,6 +654,8 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           clientId: tokens.clientId,
           source: tokens.source,
         };
+        rememberRotation(cacheKey, next);
+        return next;
       } finally {
         activeRefreshes.delete(cacheKey);
       }
