@@ -148,9 +148,13 @@ function assertSameServer(requested: string, response: Response): void {
   }
 }
 
-/** RFC 7591 registration as a public client, which 1.0 allows without credentials. */
-async function registerPublicClient(base: string): Promise<LoginClient> {
-  const url = `${base}/auth/register`;
+/**
+ * RFC 7591 registration as a public client, which 1.0 allows without
+ * credentials. `url` is the registration endpoint the server's OAuth metadata
+ * names, which may be on the public address it advertises rather than the one
+ * the user typed; the id is sealed with the server's key, so it serves both.
+ */
+async function registerPublicClient(base: string, url = `${base}/auth/register`): Promise<LoginClient> {
   const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
@@ -188,11 +192,16 @@ async function registerPublicClient(base: string): Promise<LoginClient> {
  * The OAuth client to sign in to `serverUrl` as. Stalwart 1.0's client check
  * (GET /api/auth/client, which 0.16 doesn't have) says whether it knows the
  * webmail's client id with the app's redirect URI; when it doesn't, the app
- * registers its own public client. Any other server, and 0.16, gets
- * `bulwark-webmail` as before. Unreachable: the default, uncached, and the
- * request that needs it fails on its own.
+ * registers its own public client, at `registrationEndpoint` when the OAuth
+ * metadata names one. Any other server, and 0.16, gets `bulwark-webmail` as
+ * before. A server having a bad moment (5xx, 429) gets the default without
+ * it being remembered; an unreachable one throws `NetworkError`, as the
+ * default would only end in the server refusing a client it doesn't know.
  */
-export async function resolveLoginClient(serverUrl: string): Promise<LoginClient> {
+export async function resolveLoginClient(
+  serverUrl: string,
+  opts?: { registrationEndpoint?: string },
+): Promise<LoginClient> {
   const base = trimBase(serverUrl);
   const cached = loginClients.get(base);
   if (cached) return cached;
@@ -214,13 +223,14 @@ export async function resolveLoginClient(serverUrl: string): Promise<LoginClient
       signal: t.signal,
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
     });
-  } catch {
-    return fallback;
+  } catch (err) {
+    throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   } finally {
     t.done();
   }
   if (!response || typeof response.status !== 'number') return fallback;
   assertSameServer(url, response);
+  if (response.status >= 500 || response.status === 429 || response.status === 408) return fallback;
   // 0.16 and servers that aren't Stalwart: no such endpoint.
   if (!response.ok) {
     rememberClient(base, fallback);
@@ -233,7 +243,10 @@ export async function resolveLoginClient(serverUrl: string): Promise<LoginClient
   }
   // `invalid_client` (unknown id) or a redirect URI the admin's client
   // doesn't list: either way the webmail's client isn't the app's to use.
-  if (typeof body.error === 'string' && body.error) return registerPublicClient(base);
+  if (typeof body.error === 'string' && body.error) {
+    const endpoint = opts?.registrationEndpoint;
+    return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined);
+  }
   rememberClient(base, fallback);
   return fallback;
 }
@@ -404,9 +417,10 @@ export async function exchangePasswordForTokens(
     : await resolveLoginClient(base);
   let outcome = await requestLoginCode(base, username, password, totp, client, challenge);
   // A remembered client the server no longer knows (another server now
-  // answers at the address, or its key changed): ask again, once. 1.0 checks
-  // the client before the credentials, so this costs no failed sign-in.
-  if (outcome.kind === 'rejected' && outcome.error === 'invalid_client' && !opts?.clientId && loginClients.has(base)) {
+  // answers at the address, or its key changed), or the default taken while
+  // the client check failed: ask again, once. 1.0 checks the client before
+  // the credentials, so this costs no failed sign-in.
+  if (outcome.kind === 'rejected' && outcome.error === 'invalid_client' && !opts?.clientId) {
     loginClients.delete(base);
     const fresh = await resolveLoginClient(base);
     if (fresh.clientId !== client.clientId) {

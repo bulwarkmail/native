@@ -20,12 +20,14 @@ import {
   DEFAULT_CLIENT_ID,
 } from './totp-login';
 import { randomHex } from './random';
+import { NetworkError } from '../api/jmap-client';
 
 export interface OAuthMetadata {
   issuer?: string;
   authorization_endpoint: string;
   token_endpoint: string;
   revocation_endpoint?: string;
+  registration_endpoint?: string;
   scopes_supported?: string[];
   prompt_values_supported?: string[];
 }
@@ -148,19 +150,35 @@ export function pkceScopes(metadata: OAuthMetadata): string {
  * The client the browser sign-in uses. When the server is its own
  * authorization server (Stalwart), the same check as the password sign-in
  * decides: 0.16 takes `bulwark-webmail` on `bulwarkmobile://`, 1.0 knows no
- * such client and gets one the app registers. An external identity provider
- * keeps the webmail's client id.
+ * such client and gets one the app registers. Stalwart may name its
+ * endpoints on the public address it is configured with rather than the one
+ * the user typed; it still lists its data scopes, and the client is
+ * registered where its metadata says. An external identity provider keeps
+ * the webmail's client id.
  */
 async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<{ clientId: string; redirectUri: string }> {
-  if (sameHost(metadata.authorization_endpoint, serverUrl) && sameHost(metadata.token_endpoint, serverUrl)) {
+  const onServer = sameHost(metadata.authorization_endpoint, serverUrl) && sameHost(metadata.token_endpoint, serverUrl);
+  const stalwart = !!metadata.scopes_supported?.some((s) => typeof s === 'string' && s.startsWith(DATA_SCOPE_PREFIX));
+  if (onServer || stalwart) {
     try {
-      return await resolveLoginClient(serverUrl);
-    } catch {
+      return await resolveLoginClient(serverUrl, { registrationEndpoint: registrationEndpoint(metadata) });
+    } catch (err) {
+      // Unreachable: say so, rather than let the browser show the server
+      // refusing a client it doesn't know.
+      if (err instanceof NetworkError) throw err;
       // A refused registration or a redirect away: the browser shows what
       // the server says about the default client.
     }
   }
   return { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+}
+
+function registrationEndpoint(metadata: OAuthMetadata): string | undefined {
+  if (metadata.registration_endpoint && /^https?:\/\//i.test(metadata.registration_endpoint)) {
+    return metadata.registration_endpoint;
+  }
+  const issuer = metadata.issuer ? /^(https?:\/\/[^/?#]+)/i.exec(metadata.issuer)?.[1] : undefined;
+  return issuer ? `${issuer}/auth/register` : undefined;
 }
 
 /**

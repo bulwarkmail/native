@@ -219,10 +219,43 @@ describe('resolveLoginClient', () => {
     resetLoginClients();
   });
 
-  it('keeps the webmail client when the server is unreachable, without remembering it', async () => {
+  it('says the server is unreachable, not that it refused the app, and remembers nothing', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e);
+
+    expect(err.name).toBe('NetworkError');
+    expect(describeLoginError(err, { serverUrl: BASE }).title).toBe("Can't reach mail.example.com");
+    expect(fetchMock.mock.calls.some(([url]) => url === `${BASE}/api/auth`)).toBe(false);
+    fakeServer('1.0');
+    expect((await resolveLoginClient(BASE)).clientId).toBe('swc1.1');
+  });
+
+  it.each([503, 429])('does not remember the webmail client after a %i from the client check', async (status) => {
+    fetchMock.mockResolvedValueOnce(json({ error: 'busy' }, status));
     expect((await resolveLoginClient(BASE)).clientId).toBe('bulwark-webmail');
     fakeServer('1.0');
     expect((await resolveLoginClient(BASE)).clientId).toBe('swc1.1');
+  });
+
+  it('remembers the webmail client on a server without the client check', async () => {
+    fakeServer('0.16');
+    await resolveLoginClient(BASE);
+    const calls = fakeServer('0.16');
+    expect((await resolveLoginClient(BASE)).clientId).toBe('bulwark-webmail');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('registers at the endpoint the OAuth metadata names', async () => {
+    const urls: string[] = [];
+    fetchMock.mockImplementation(async (url: string) => {
+      urls.push(url.split('?')[0]);
+      if (url.startsWith(`${BASE}/api/auth/client`)) return json({ error: 'invalid_client' });
+      if (url === 'https://public.example.com/auth/register') return json({ client_id: 'swc1.pub' }, 201);
+      return json({}, 404);
+    });
+    const client = await resolveLoginClient(BASE, { registrationEndpoint: 'https://public.example.com/auth/register' });
+
+    expect(client.clientId).toBe('swc1.pub');
+    expect(urls).toEqual([`${BASE}/api/auth/client`, 'https://public.example.com/auth/register']);
   });
 });
