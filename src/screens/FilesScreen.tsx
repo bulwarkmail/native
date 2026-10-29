@@ -52,7 +52,8 @@ import {
   isSymlink, listFolder, moveFileNode, renameFileNode, supportsSharing, uploadFileBatch,
 } from '../api/files';
 import {
-  emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash, type TrashMoveResult,
+  TrashUnavailableError, emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash,
+  type TrashMoveResult,
 } from '../api/files-trash';
 import { trashOriginPath, trashedItems, withoutTrash, type TrashedItem } from '../lib/files-trash';
 import { toast } from '../stores/toast-store';
@@ -232,7 +233,8 @@ export default function FilesScreen() {
 
   // The trash (lib/files-trash) is a place of its own, entered from the root.
   const [inTrash, setInTrash] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<{ rows: FileRow[] } | null>(null);
+  // `noTrash`: the rows were meant for the trash, which could not be made.
+  const [confirmDelete, setConfirmDelete] = useState<{ rows: FileRow[]; noTrash?: boolean } | null>(null);
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -783,7 +785,10 @@ export default function FilesScreen() {
         { action: { label: t('files.undo', 'Undo'), onPress: () => void undoTrash(moved) } },
       );
     } catch (e) {
-      Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
+      // No trash to be had here (a file named .Trash at the root, no right
+      // to create folders there, a full quota): offer to delete for good.
+      if (e instanceof TrashUnavailableError) setConfirmDelete({ rows, noTrash: true });
+      else Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
       await loadFiles('refresh');
     }
   }, [allNodes, clearSelection, loadFiles, undoTrash, t]);
@@ -1393,7 +1398,11 @@ export default function FilesScreen() {
           count: confirmDelete?.rows.length ?? 1,
         })}
         message={
-          confirmDelete && confirmDelete.rows.length > 1
+          confirmDelete?.noTrash
+            ? t('files.trash_unavailable_message', "{count, plural, one {This item} other {These # items}} can't be moved to the trash. Delete permanently instead? You can't undo this.", {
+              count: confirmDelete.rows.length,
+            })
+            : confirmDelete && confirmDelete.rows.length > 1
             ? t('files.delete_forever_message_count', "{count, plural, one {1 item} other {# items}} will be deleted. You can't undo this.", {
               count: confirmDelete.rows.length,
             })

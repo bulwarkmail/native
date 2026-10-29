@@ -21,7 +21,9 @@ vi.mock('../jmap-client', () => ({
 
 import { jmapClient } from '../jmap-client';
 import type { FileNode } from '../types';
-import { emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash } from '../files-trash';
+import {
+  TrashUnavailableError, emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash,
+} from '../files-trash';
 import { trashedItems } from '../../lib/files-trash';
 
 // A Stalwart-like FileNode store for the user's own account: destroy without
@@ -169,6 +171,29 @@ describe('moveToTrash', () => {
     expect(byId('a')!.parentId).toBe('docs');
     const destroy = calls.find((c) => c.destroy);
     expect(destroy?.onDestroyRemoveChildren).toBeUndefined();
+  });
+
+  it('says the trash cannot be had when a file at the root is named .Trash', async () => {
+    store.push({ id: 'f', parentId: null, name: '.Trash', blobId: 'bf' });
+    const nodes = listed();
+    const err = await moveToTrash(nodes, nodes.filter((n) => n.id === 'a'), 1730112000005).catch((e) => e);
+    expect(err).toBeInstanceOf(TrashUnavailableError);
+    expect(calls.some((c) => c.update)).toBe(false);
+    expect(byId('a')!.parentId).toBe('docs');
+  });
+
+  it('says the trash cannot be had when no folder can be made in it (quota)', async () => {
+    store.push({ id: 'T', parentId: null, name: '.Trash', blobId: null });
+    const real = (jmapClient.request as ReturnType<typeof vi.fn>).getMockImplementation() as (c: any[]) => Promise<unknown>;
+    (jmapClient.request as ReturnType<typeof vi.fn>).mockImplementation(async (methodCalls: any[]) => {
+      if (methodCalls[0][1].create) {
+        return { methodResponses: [['FileNode/set', { notCreated: { 'new-dir': { type: 'overQuota' } } }, '0']] };
+      }
+      return real(methodCalls);
+    });
+    const nodes = listed();
+    await expect(moveToTrash(nodes, nodes.filter((n) => n.id === 'a'), 1730112000005)).rejects.toBeInstanceOf(TrashUnavailableError);
+    expect(byId('a')!.parentId).toBe('docs');
   });
 
   it('reports a partial refusal and keeps what went', async () => {

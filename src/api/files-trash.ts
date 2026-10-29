@@ -62,6 +62,18 @@ export interface TrashMoveResult extends TrashWriteResult {
   drive: TrashDrive;
 }
 
+/**
+ * The trash, or a delete's folder in it, can't be made: a file is named
+ * `.Trash` at the root, the user may not create folders there, or the quota
+ * is used up. Nothing was moved; the items can only be deleted for good.
+ */
+export class TrashUnavailableError extends Error {
+  constructor(readonly reason: unknown) {
+    super(reason instanceof Error ? reason.message : 'The trash cannot be used');
+    this.name = 'TrashUnavailableError';
+  }
+}
+
 /** The trash folder, created on the first delete. */
 async function ensureTrashFolder(nodes: FileNode[]): Promise<FileNode> {
   const known = findTrashFolder(nodes);
@@ -72,7 +84,7 @@ async function ensureTrashFolder(nodes: FileNode[]): Promise<FileNode> {
     // Another client may have made it since the drive was listed.
     const fresh = findTrashFolder(await getAllFileNodes());
     if (fresh) return fresh;
-    throw err;
+    throw new TrashUnavailableError(err);
   }
 }
 
@@ -116,13 +128,25 @@ export async function moveToTrash(
       // the drive again and try once more.
       trash = await ensureTrashFolder(await getAllFileNodes());
       assertDrive(drive);
-      return createFolder(name, trash.id);
+      try {
+        return await createFolder(name, trash.id);
+      } catch (err) {
+        throw new TrashUnavailableError(err);
+      }
     }
   };
 
   for (const [parentId, group] of groups) {
     if (!isCurrentDrive(drive)) break;
-    const batch = await createBatch(parentId);
+    let batch: FileNode;
+    try {
+      batch = await createBatch(parentId);
+    } catch (err) {
+      // What went already stays in the trash; the rest is reported.
+      if (!(err instanceof TrashUnavailableError) || result.done.length === 0) throw err;
+      result.refused.push(new JMAPSetError('setError', err.message));
+      break;
+    }
     if (!isCurrentDrive(drive)) break;
     const update = await updateFileNodes(Object.fromEntries(group.map((n) => [n.id, { parentId: batch.id }])));
     const moved = new Set(update.updated);

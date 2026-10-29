@@ -515,6 +515,7 @@
     "shared_with": "Shared with",
     "sharing_access": "Sharing & access",
     "symlink": "Symbolic link",
+    "trash_unavailable_message": "{count, plural, one {This item} other {These # items}} can't be moved to the trash. Delete permanently instead? You can't undo this.",
     "upload": "Upload",
     "upload_failed": "{count, plural, one {1 file could not be uploaded} other {# files could not be uploaded}}",
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
