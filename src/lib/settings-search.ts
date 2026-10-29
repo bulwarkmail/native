@@ -63,7 +63,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.appearance.list_density',
     'settings.appearance.toolbar_labels',
     'settings.appearance.animations',
-    'settings.advanced.sender_favicons',
+    // The leaf: the catalog's subtree also has the webmail's refresh button.
+    'settings.advanced.sender_favicons.label',
   ],
   layout: [
     'settings.layout.quick_actions',
@@ -114,7 +115,13 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'identities.form.text_signature_label',
     'identities.form.html_signature_label',
   ],
-  vacation: ['settings.vacation'],
+  // Not the whole subtree: it also holds the webmail's forwarding and
+  // audience settings, which this app does not have.
+  vacation: [
+    'settings.vacation.status',
+    'settings.vacation.date_range',
+    'settings.vacation.message',
+  ],
   filters: [
     'settings.filters.title',
     'settings.filters.add_rule',
