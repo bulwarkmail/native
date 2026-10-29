@@ -264,11 +264,55 @@ export interface EmailFilters {
   keyword?: string;
 }
 
-/** The folder scope a query runs in, resolving the unset default. */
-export function effectiveFolderScope(searchQuery: string, filters: EmailFilters): SearchFolderScope {
+/**
+ * The `folder` value of the "All folders except Spam and Trash" scope when
+ * it is picked explicitly (from inside Spam or Trash, where it is not the
+ * default). It spans the folders like "All folders".
+ */
+export const SCOPE_EXCEPT_TRASH_JUNK = 'all-except-trash-junk';
+
+/**
+ * The folder scope a query runs in, resolving the unset default. A search
+ * from inside Spam or Trash looks there; anywhere else it spans every
+ * folder (and leaves Spam and Trash out, see `searchSkipsTrashAndJunk`).
+ * Webmail 763732fdc, 3904af2cb.
+ */
+export function effectiveFolderScope(
+  searchQuery: string,
+  filters: EmailFilters,
+  openRole?: string | null,
+): SearchFolderScope {
   if (filters.keyword) return 'all';
+  if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return 'all';
   if (filters.folder) return filters.folder;
-  return searchQuery.trim() ? 'all' : 'current';
+  if (!searchQuery.trim()) return 'current';
+  return isTrashOrJunkRole(openRole) ? 'current' : 'all';
+}
+
+/** Trash, or Junk under either role name servers use. */
+export function isTrashOrJunkRole(role: string | null | undefined): boolean {
+  return role === 'trash' || role === 'junk' || role === 'spam';
+}
+
+/**
+ * Whether a search across folders leaves every account's Trash and Junk
+ * out: the default scope does, "All folders" picked explicitly doesn't.
+ */
+export function searchSkipsTrashAndJunk(
+  searchQuery: string,
+  filters: EmailFilters,
+  openRole?: string | null,
+): boolean {
+  if (filters.keyword) return false;
+  if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return true;
+  if (filters.folder) return false;
+  return effectiveFolderScope(searchQuery, filters, openRole) === 'all';
+}
+
+// The role of the folder on screen.
+function openRoleOf(state: Partial<Pick<EmailState, 'mailboxes' | 'currentMailboxId'>>): string | undefined {
+  if (!state.currentMailboxId || !state.mailboxes) return undefined;
+  return state.mailboxes.find((m) => m.id === state.currentMailboxId)?.role ?? undefined;
 }
 
 // Snapshot of an action that can still be reversed via the undo snackbar.
@@ -487,7 +531,7 @@ function buildJmapFilter(
 // The raw mailbox id an Email/query is scoped to: the open folder, an
 // explicitly picked folder, or undefined for "all folders" (#788).
 function queryScope(state: EmailState, current: MailboxRef): { mailboxId: string | undefined; accountId?: string } {
-  const scope = effectiveFolderScope(state.searchQuery, state.filters);
+  const scope = effectiveFolderScope(state.searchQuery, state.filters, openRoleOf(state));
   if (scope === 'current') return { mailboxId: current.id, accountId: current.accountId };
   if (scope === 'all') return { mailboxId: undefined, accountId: current.accountId };
   const ref = refFor(state.mailboxes, scope);
@@ -552,8 +596,29 @@ function isUnsupportedSort(err: unknown): boolean {
 // to one folder stays in its account.
 
 /** Whether the list on screen spans the own and the shared accounts. */
-export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>): boolean {
-  return effectiveFolderScope(state.searchQuery, state.filters) === 'all';
+export function spansAccounts(
+  state: Pick<EmailState, 'searchQuery' | 'filters'> & Partial<Pick<EmailState, 'mailboxes' | 'currentMailboxId'>>,
+): boolean {
+  return effectiveFolderScope(state.searchQuery, state.filters, openRoleOf(state)) === 'all';
+}
+
+// The raw JMAP ids of one account's Trash and Junk (undefined = the user's own).
+function trashAndJunkIds(mailboxes: Mailbox[], accountId: string | undefined): string[] {
+  return accountMailboxes(mailboxes, accountId)
+    .filter((m) => isTrashOrJunkRole(m.role))
+    .map((m) => m.originalId ?? m.id);
+}
+
+// `filter` AND `extra`, flattened into an existing top-level AND.
+function andFilter(
+  filter: Record<string, unknown> | undefined,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!filter || Object.keys(filter).length === 0) return extra;
+  if (filter.operator === 'AND' && Array.isArray(filter.conditions)) {
+    return { operator: 'AND', conditions: [...(filter.conditions as unknown[]), extra] };
+  }
+  return { operator: 'AND', conditions: [filter, extra] };
 }
 
 /**
@@ -675,14 +740,23 @@ async function fetchSpanningPage(
 ): Promise<SpanningPage> {
   const primary = jmapClient.accountId;
   const threads = !useSettingsStore.getState().disableThreading;
-  const run = async (accounts: Array<string | undefined>) => queryEmailPagesAcrossAccounts(
-    await Promise.all(accounts.map(async (accountId) => ({
+  const skipTrashAndJunk = searchSkipsTrashAndJunk(state.searchQuery, state.filters, openRoleOf(state));
+  const run = async (accounts: Array<string | undefined>) => {
+    const targets = await Promise.all(accounts.map(async (accountId) => ({
       accountId,
       position: loaded[accountId ?? primary] ?? 0,
       sort: await resolveSort(state, accountId),
-    }))),
-    { limit, filter, threads },
-  );
+    })));
+    if (!skipTrashAndJunk) return queryEmailPagesAcrossAccounts(targets, { limit, filter, threads });
+    // Each account leaves its own Trash and Junk out, so each gets its own
+    // filter (and request).
+    const pages = await Promise.all(targets.map((target) => {
+      const ids = trashAndJunkIds(state.mailboxes, target.accountId);
+      const scoped = ids.length > 0 ? andFilter(filter, { inMailboxOtherThan: ids }) : filter;
+      return queryEmailPagesAcrossAccounts([target], { limit, filter: scoped, threads });
+    }));
+    return pages.map((p) => p[0]);
+  };
   let pages = await run(spannedAccounts(state.mailboxes));
   const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
   if (refused.length > 0) {

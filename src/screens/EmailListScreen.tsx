@@ -28,6 +28,7 @@ import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
   useEmailStore, effectiveFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  searchSkipsTrashAndJunk, isTrashOrJunkRole, SCOPE_EXCEPT_TRASH_JUNK,
   type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
@@ -1003,9 +1004,12 @@ export default function EmailListScreen({
     }
   }, [backStep, clearSelection, clearSearchAndFilters]);
   useBackWhileFocused(backStep !== 'leave', handleBack);
-  const folderScope = effectiveFolderScope(storeSearchQuery, filters);
+  const openRole = currentMailbox?.role;
+  const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole);
+  // The default search scope leaves Spam and Trash out; "All folders" doesn't.
+  const skipsTrashAndJunk = searchSkipsTrashAndJunk(storeSearchQuery, filters, openRole);
   // Accounts an "All folders" list could not reach (#1082).
-  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters })
+  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters, mailboxes, currentMailboxId })
     ? Object.values(accountErrors)
     : [];
   const scopeFolderName = React.useMemo(() => {
@@ -1020,7 +1024,12 @@ export default function EmailListScreen({
   }, [filters.keyword, keywordDefs]);
   const setFolderScope = (scope: string) => {
     const updated: EmailFilters = { ...filters };
-    if (scope === 'current') delete updated.folder;
+    // The scope a search gets by default stays unset, so it keeps following
+    // the open folder; any other pick is kept as it is.
+    const isDefault = scope === SCOPE_EXCEPT_TRASH_JUNK
+      ? !isTrashOrJunkRole(openRole)
+      : scope === 'current' && isTrashOrJunkRole(openRole);
+    if (isDefault) delete updated.folder;
     else updated.folder = scope;
     setFilters(updated);
   };
@@ -1402,7 +1411,9 @@ export default function EmailListScreen({
             <FilterChip
               icon={<Folder size={12} color={c.textSecondary} />}
               label={
-                folderScope === 'all'
+                skipsTrashAndJunk
+                  ? t('advanced_search.all_folders_except_spam_trash', 'All folders except Spam and Trash')
+                  : folderScope === 'all'
                   ? t('email_list.scope_all_folders', 'All folders')
                   : folderScope === 'current'
                     ? t('email_list.scope_this_folder', 'This folder')
@@ -1720,8 +1731,13 @@ export default function EmailListScreen({
                     <Text style={styles.filterFieldLabel}>{t('advanced_search.folder', 'Folder')}</Text>
                     <View style={styles.filterToggleGroup}>
                       <ScopeChip
+                        label={t('advanced_search.all_folders_except_spam_trash', 'All folders except Spam and Trash')}
+                        active={skipsTrashAndJunk}
+                        onPress={() => setFolderScope(SCOPE_EXCEPT_TRASH_JUNK)}
+                      />
+                      <ScopeChip
                         label={t('email_list.scope_all_folders', 'All folders')}
-                        active={folderScope === 'all'}
+                        active={folderScope === 'all' && !skipsTrashAndJunk}
                         onPress={() => setFolderScope('all')}
                       />
                       <ScopeChip

@@ -155,7 +155,15 @@ function seed() {
 
 const ids = () => useEmailStore.getState().emails.map((e) => e.id);
 
+// "All folders" picked explicitly, unless a test picked a folder: the default
+// scope also leaves Trash and Junk out (see "the default search scope").
 async function search(query: string) {
+  const { filters } = useEmailStore.getState();
+  if (!filters.folder) useEmailStore.setState({ filters: { ...filters, folder: 'all' } });
+  await searchDefault(query);
+}
+
+async function searchDefault(query: string) {
   useEmailStore.getState().setSearchQuery(query);
   await vi.waitFor(() => expect(useEmailStore.getState().loading).toBe(false));
 }
@@ -179,6 +187,36 @@ beforeEach(() => {
     mailboxes: MAILBOXES,
     currentMailboxId: 'inbox',
     pendingUndo: null,
+  });
+});
+
+// Webmail 763732fdc / 3904af2cb: a search leaves Spam and Trash out unless
+// "All folders" is picked, and one started inside them searches them.
+describe('the default search scope', () => {
+  it("leaves every account's Trash and Junk out", async () => {
+    await searchDefault('zephyr');
+
+    expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, args]) => [args.accountId, args.filter])).toEqual([
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr' }, { inMailboxOtherThan: ['trash', 'junk'] }] }],
+      ['team', { operator: 'AND', conditions: [{ text: 'zephyr' }, { inMailboxOtherThan: ['t-trash', 't-junk'] }] }],
+    ]);
+  });
+
+  it('searches Trash itself when the search starts there', async () => {
+    useEmailStore.setState({ currentMailboxId: 'team:t-trash' });
+    await searchDefault('zephyr');
+
+    expect(ids()).toEqual(['m5']);
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, args]) => args.accountId)).toEqual(['team']);
+  });
+
+  it('keeps Trash and Junk in when "All folders" is picked', async () => {
+    useEmailStore.setState({ filters: { folder: 'all' } });
+    await searchDefault('zephyr');
+    expect(ids()).toContain('m5');
   });
 });
 
