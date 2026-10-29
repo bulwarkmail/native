@@ -15,10 +15,10 @@ import { SubmissionQuotaError } from '../../api/jmap-result';
 import { sendFailureMessage } from '../../lib/send-failure-message';
 import {
   isValidUnsubscribeUrl, parseUnsubscribeMailto, isOneClickUnsubscribe, unsubscribeConfirmMessage,
+  unsubscribeSendFolders,
 } from '../../lib/unsubscribe';
 import type { ListHeaders } from '../../lib/email-headers';
 import { findReceivingIdentity } from '../../lib/email-headers';
-import { mailboxesOfAccount } from '../../lib/mailbox-tree';
 
 const DISMISSED_KEY = 'webmail:unsubscribe-dismissed:v1';
 const dismissed = new Set<string>();
@@ -47,16 +47,18 @@ interface Props {
   list: ListHeaders;
   /** Dedupe key for dismissals (bare Message-ID, else the JMAP id). */
   messageKey: string;
+  /** The message's JMAP account. A mailto unsubscribe still goes out from the user's own. */
   jmapAccountId?: string;
 }
 
 /**
  * List-Unsubscribe (RFC 2369 / RFC 8058) banner. An https one-click URL is
  * POSTed directly; a plain http(s) URL opens in the in-app browser; a
- * mailto: URL is sent through the account itself (handing it to the OS mail
- * app goes nowhere for most users). Dismissals are remembered per Message-ID.
+ * mailto: URL is sent through the user's own account (handing it to the OS
+ * mail app goes nowhere for most users). Dismissals are remembered per
+ * Message-ID.
  */
-export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Props) {
+export function UnsubscribeBanner({ email, list, messageKey }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -110,13 +112,12 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
       } else {
         const fields = mailtoFields;
         if (!fields) throw new Error('invalid mailto');
+        // Sent from the user's own account with one of its identities, also
+        // for a message in a shared account (see unsubscribeSendFolders).
         const identity = findReceivingIdentity(identities, email) ?? identities[0];
         if (!identity) throw new Error(t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
-        // Sent/Drafts of the account the mail is submitted from: the message's.
-        const scoped = mailboxesOfAccount(mailboxes, jmapAccountId);
-        const sent = scoped.find((m) => m.role === 'sent');
-        const drafts = scoped.find((m) => m.role === 'drafts');
-        if (!sent) throw new Error(t('email_composer.no_sent_folder', 'No Sent folder found'));
+        const { sentId, draftsId } = unsubscribeSendFolders(mailboxes);
+        if (!sentId) throw new Error(t('email_composer.no_sent_folder', 'No Sent folder found'));
         await sendEmail(
           {
             from: [{ name: identity.name, email: identity.email }],
@@ -125,9 +126,9 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
             textBody: fields.body ?? '',
           },
           identity.id,
-          sent.originalId ?? sent.id,
+          sentId,
           undefined,
-          { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
+          { draftsMailboxId: draftsId },
         );
         void pruneEmailSubmissions();
       }
