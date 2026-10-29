@@ -45,6 +45,8 @@ import {
   selectVisibleCalendars,
   selectVisibleEvents,
   ImportRefusedError,
+  CalendarAccountChangedError,
+  loadEventsInRange,
 } from '../calendar-store';
 
 const mockGetCalendars = calendarApi.getCalendars as ReturnType<typeof vi.fn>;
@@ -213,6 +215,39 @@ describe('calendar-store', () => {
       expect(state.events).toEqual([]);
       expect(state.loadedRange).toBeNull();
       expect(state.error).toBeNull();
+    });
+
+    // The reminders and the widget read ranges with loadEventsInRange
+    // directly, without a store generation of their own.
+    it('hands no events read before the reset to a range read outside the store', async () => {
+      // The reset comes while the account's events are being read. (The
+      // test above leaves its answer unread: its load stops before asking.)
+      mockQueryEvents.mockReset();
+      mockQueryEvents.mockImplementationOnce(async () => {
+        useCalendarStore.getState().reset();
+        return ['e-old'];
+      });
+      mockGetEvents.mockResolvedValue([{ id: 'e-old', title: 'Old account event', start: '2026-03-20T15:00:00', calendarIds: { 'cal-1': true } }]);
+
+      await expect(loadEventsInRange([{ id: 'cal-1' }] as never, ['cal-1'], '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z'))
+        .rejects.toBeInstanceOf(CalendarAccountChangedError);
+    });
+
+    it('reads no further account after the reset', async () => {
+      mockQueryEvents.mockReset();
+      mockQueryEvents.mockImplementationOnce(async () => {
+        useCalendarStore.getState().reset();
+        return [];
+      });
+      const calendars = [
+        { id: 'cal-1' },
+        { id: 'acc-2:cal-9', originalId: 'cal-9', accountId: 'acc-2' },
+      ];
+      const read = loadEventsInRange(calendars as never, ['cal-1', 'acc-2:cal-9'], '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z');
+
+      await expect(read).rejects.toBeInstanceOf(CalendarAccountChangedError);
+      // The shared account would be read under the next login.
+      expect(mockQueryEvents).toHaveBeenCalledTimes(1);
     });
   });
 
