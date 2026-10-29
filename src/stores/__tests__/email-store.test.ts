@@ -1032,6 +1032,27 @@ describe('email-store', () => {
       expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
       useSettingsStore.getState().updateSetting('deleteAction', 'trash');
     });
+
+    it('drops the rows the server deleted when it refused others of the selection', async () => {
+      const { JMAPSetError } = await import('../../api/jmap-result');
+      const refusal = new JMAPSetError('forbidden', 'Failed to delete 1 email(s), first: e2 – forbidden');
+      refusal.failedIds = ['e2'];
+      (emailApi.deleteEmails as ReturnType<typeof vi.fn>).mockRejectedValueOnce(refusal);
+      useEmailStore.setState({
+        mailboxes: [
+          { id: 'mb-1', name: 'Inbox', role: 'inbox', isShared: false } as any,
+          { id: 'mb-trash', name: 'Trash', role: 'trash', isShared: false } as any,
+        ],
+        currentMailboxId: 'mb-trash',
+        emails: [
+          { id: 'e1', keywords: {}, mailboxIds: { 'mb-trash': true } } as any,
+          { id: 'e2', keywords: {}, mailboxIds: { 'mb-trash': true } } as any,
+        ],
+      });
+
+      await expect(useEmailStore.getState().deleteEmailsBatch(['e1', 'e2'], 'mb-trash', 'mb-trash')).rejects.toBe(refusal);
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e2']);
+    });
   });
 
   describe('bulk keyword actions', () => {

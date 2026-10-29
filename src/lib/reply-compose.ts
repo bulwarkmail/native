@@ -1,6 +1,23 @@
-import type { Email } from '../api/types';
+import type { Attachment, Email } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { pickEmailBody, plainTextBody } from './email-body';
+import { extractCidRefs } from './email-html';
+import { stripMessageIdBrackets } from './email-threading';
+
+/**
+ * The parts a reply or forward hands the composer. The inline images the
+ * quoted HTML embeds go along in both modes: the composer fetches them into
+ * the quote and attaches them again on send (it never shows them as chips).
+ * Without them a quoted `cid:` image went out pointing at a part the new
+ * message did not have. A forward also carries the real attachments.
+ */
+function carriedParts(mode: 'reply' | 'replyAll' | 'forward', source: Email, quoteHtml?: string): Attachment[] | undefined {
+  const quoted = new Set(quoteHtml ? extractCidRefs(quoteHtml) : []);
+  const isQuoted = (a: Attachment) => !!a.cid && quoted.has(stripMessageIdBrackets(a.cid));
+  const parts = (source.attachments ?? []).filter((a) =>
+    isQuoted(a) || (mode === 'forward' && !(a.disposition === 'inline' && a.cid)));
+  return parts.length > 0 || mode === 'forward' ? parts : undefined;
+}
 
 /**
  * Composer params for a reply / reply-all / forward of `source`. Shared by
@@ -42,11 +59,7 @@ export function replyComposeParams(
       // Threading needs the RFC Message-ID, never the JMAP object id (#234).
       messageId: source.messageId ?? undefined,
       references: source.references ?? undefined,
-      // Forward carries the original attachments as blob refs; cid-embedded
-      // inline images are already part of the quoted HTML.
-      attachments: mode === 'forward'
-        ? (source.attachments ?? []).filter((a) => !(a.disposition === 'inline' && a.cid))
-        : undefined,
+      attachments: carriedParts(mode, source, quoteHtml),
       originalEmailId: source.id,
       jmapAccountId: ownerAccountId,
     },

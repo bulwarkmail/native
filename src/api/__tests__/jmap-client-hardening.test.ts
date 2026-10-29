@@ -194,6 +194,8 @@ describe('JMAPClient hardening', () => {
     const session = await client.connect('https://mail.example.com', 'user', 'pass');
     expect(session.apiUrl).toBe('https://mail.example.com/jmap/');
     expect(client.getBlobDownloadUrl('b1', 'n')).toBe('https://mail.example.com/download/acc-1/b1/n?type=application%2Foctet-stream');
+    // A part name that is a path keeps its last component (webmail #1371).
+    expect(client.getBlobDownloadUrl('b1', '/images/n.jpg')).toBe('https://mail.example.com/download/acc-1/b1/n.jpg?type=application%2Foctet-stream');
   });
 
   it('refetches the final URL when a redirect dropped the Authorization header', async () => {

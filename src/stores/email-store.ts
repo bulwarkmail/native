@@ -1885,43 +1885,63 @@ export const useEmailStore = create<EmailState>()(
         patch: markReadPatch,
       })),
     ];
+    // The server refuses messages one by one and applies the rest. The
+    // refused ones keep their rows, the others are reconciled as done, and
+    // the refusal is still reported (webmail ac99c68ef): before, one refused
+    // message kept every row of the selection, the deleted ones included.
+    let refusal: unknown = null;
+    const kept = new Set<string>();
+    const step = async (run: () => Promise<void>, keepRefused: boolean) => {
+      try {
+        await run();
+      } catch (err) {
+        const failed = failedIdsOf(err);
+        if (!failed) throw err;
+        refusal ??= err;
+        if (keepRefused) for (const id of failed) kept.add(id);
+      }
+    };
     await applyOrQueueBatch(ops, async () => {
       if (toDestroy.length > 0) {
-        await apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId);
+        await step(() => apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId), true);
       }
       if (toTrash.length > 0) {
-        await apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId);
+        await step(() => apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId), true);
       }
       if (toMarkRead.length > 0) {
-        await patchKeywordsForEmails([...markReadIds], markReadPatch, source.accountId);
+        // Moved but left unread: the row has still left the folder.
+        await step(() => patchKeywordsForEmails([...markReadIds], markReadPatch, source.accountId), false);
       }
     });
+    const destroyed = toDestroy.filter((e) => !kept.has(e.id));
+    const trashed = toTrash.filter((e) => !kept.has(e.id));
 
-    if (toDestroy.length > 0) dropFromCache(toDestroy.map((e) => e.id), trash.accountId);
-    for (const e of toTrash) {
+    if (destroyed.length > 0) dropFromCache(destroyed.map((e) => e.id), trash.accountId);
+    for (const e of trashed) {
       patchCache(e.id, {
         mailboxIds: mailboxesAfterMove(e.mailboxIds, source.id, trash.id),
         ...(markReadIds.has(e.id) ? { keywords: markReadPatch } : {}),
       }, source.accountId);
     }
 
-    const removed = new Set(targets.map(rowKeyOf));
+    const removed = new Set([...destroyed, ...trashed].map(rowKeyOf));
     set({ emails: get().emails.filter((e) => !removed.has(rowKeyOf(e))) });
 
     // Only the moved-to-trash items are recoverable; destroyed ones are gone.
-    if (toTrash.length > 0) {
+    if (trashed.length > 0) {
       set({
         pendingUndo: {
           kind: 'delete',
-          label: toTrash.length === 1
+          label: trashed.length === 1
             ? t('email_list.moved_to_trash', 'Email moved to Trash')
-            : t('email_list.moved_to_trash_count', `${toTrash.length} emails moved to Trash`, { count: toTrash.length }),
+            : t('email_list.moved_to_trash_count', `${trashed.length} emails moved to Trash`, { count: trashed.length }),
           createdAt: Date.now(),
           accountId: source.accountId,
-          items: toTrash.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } })),
+          items: trashed.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } })),
         },
       });
     }
+    if (refusal) throw refusal;
   },
 
   setKeywordForEmails: async (emailIds, token, on, viewed) => {

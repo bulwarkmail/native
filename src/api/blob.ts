@@ -2,6 +2,7 @@ import { File } from 'expo-file-system';
 import type * as LegacyFileSystemTypes from 'expo-file-system/legacy';
 import { jmapClient } from './jmap-client';
 import { batched } from './jmap-result';
+import { downloadNameSegment } from './download-name';
 import { CAPABILITIES } from './types';
 import { getClientCertAlias, secureFetch } from '../lib/client-cert';
 
@@ -268,7 +269,7 @@ export function getDownloadUrl(
   return session.downloadUrl
     .replace('{accountId}', encodeURIComponent(accountId ?? jmapClient.accountId))
     .replace('{blobId}', encodeURIComponent(blobId))
-    .replace('{name}', encodeURIComponent(name ?? 'download'))
+    .replace('{name}', encodeURIComponent(downloadNameSegment(name)))
     .replace('{type}', encodeURIComponent(type ?? 'application/octet-stream'));
 }
 

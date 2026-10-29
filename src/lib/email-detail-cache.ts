@@ -18,6 +18,7 @@ import { getEmailFlags, getFullEmailsWithState, getThreadsHeaders } from '../api
 import { useOfflineCacheStore } from '../stores/offline-cache-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { onStateChangeType } from './state-change-bus';
+import { withInlineBodyParts } from './email-inline-parts';
 
 /** What the list row the viewer was opened from says about the message. */
 export type FlagsHint = Partial<Pick<Email, 'keywords' | 'mailboxIds'>>;
@@ -378,7 +379,10 @@ function startLoads(
       const copies = await Promise.all(fromOffline.map((id) => offline.get(id, accountId).catch(() => null)));
       let shown = false;
       fromOffline.forEach((id, i) => {
-        const email = gen === generation ? copies[i] : null;
+        // A copy saved from Stalwart 1.0 before the inline parts were taken
+        // into `attachments` gets them here.
+        const copy = gen === generation ? copies[i] : null;
+        const email = copy ? withInlineBodyParts(copy) : null;
         if (!email) {
           missing.push(id);
           return;

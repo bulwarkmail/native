@@ -16,6 +16,7 @@ import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
+import { withInlineBodyParts } from '../lib/email-inline-parts';
 import { stalwartStateWentBack } from './stalwart-state';
 import { isTransientNetworkError } from '../lib/network-error';
 
@@ -34,11 +35,10 @@ export const EMAIL_FULL_PROPERTIES = [
   'messageId', 'inReplyTo', 'references', 'headers',
 ];
 
-// The Mailbox properties the folder list reads (RFC 8621 §2), which is also
-// the default list on 0.16 and 1.0. Stalwart 1.0 advertises JMAP Metadata
-// but its handlers are still `todo!()`: a get that selects `metadata` or
-// `privateMetadata` panics on the server. An explicit list keeps them out
-// even if a later release adds them to the default.
+// The Mailbox properties the folder list reads (RFC 8621 §2), the default
+// list on 0.16. Stalwart 1.0.0 adds JMAP Metadata's `metadata` and
+// `privateMetadata` to the default (the pre-release's handlers panicked on
+// them); the app reads neither, so an explicit list keeps them out.
 export const MAILBOX_PROPERTIES = [
   'id', 'name', 'parentId', 'role', 'sortOrder', 'totalEmails', 'unreadEmails',
   'totalThreads', 'unreadThreads', 'myRights', 'isSubscribed',
@@ -936,8 +936,10 @@ export async function getFullEmail(id: string, accountIdOverride?: string): Prom
     ['Email/get', { accountId, ids: [id], ...FULL_BODY_ARGS }, '0'],
   ]);
   const body = requireMethodResult(res, '0', 'Email/get');
-  const email = (body.list as Email[] | undefined)?.[0];
-  if (!email) throw new Error(`Email ${id} not found`);
+  const fetched = (body.list as Email[] | undefined)?.[0];
+  if (!fetched) throw new Error(`Email ${id} not found`);
+  // Stalwart 1.0 lists an inline image in mixed only in the body lists.
+  const email = withInlineBodyParts(fetched);
   await refetchTruncatedBodyValues([email], accountId);
   return email;
 }
@@ -972,7 +974,7 @@ export async function getFullEmailsWithState(
       ['Email/get', { accountId, ids: slice, ...FULL_BODY_ARGS }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/get');
-    out.list.push(...((body.list as Email[]) ?? []));
+    out.list.push(...((body.list as Email[]) ?? []).map(withInlineBodyParts));
     out.notFound.push(...((body.notFound as string[] | undefined) ?? []));
     out.state = body.state as string | undefined;
   }
@@ -1267,9 +1269,25 @@ export async function setEmailMailboxes(
 export async function destroyEmails(ids: string[], accountIdOverride?: string): Promise<void> {
   if (ids.length === 0) return;
   const accountId = accountIdOverride ?? jmapClient.accountId;
+  // Every slice goes out before a refusal is thrown, and the error names the
+  // ids that are still there (failedIds): the server destroyed the rest, and
+  // the list must drop those rather than keep them until the next refresh
+  // (webmail ac99c68ef).
+  let refusal: JMAPSetError | null = null;
+  const failed: string[] = [];
   for (const slice of batched(ids, maxInSet())) {
     const res = await jmapClient.request([['Email/set', { accountId, destroy: slice }, '0']]);
-    assertEmailsDestroyed(requireMethodResult(res, '0', 'Email/set'));
+    try {
+      assertEmailsDestroyed(requireMethodResult(res, '0', 'Email/set'));
+    } catch (err) {
+      if (!(err instanceof JMAPSetError)) throw err;
+      refusal ??= err;
+      failed.push(...(err.failedIds ?? []));
+    }
+  }
+  if (refusal) {
+    refusal.failedIds = failed;
+    throw refusal;
   }
 }
 
@@ -1279,9 +1297,12 @@ function assertEmailsDestroyed(body: Record<string, any>): void {
   const real = Object.entries(notDestroyed).filter(([, err]) => err?.type !== 'notFound');
   if (real.length > 0) {
     const [id, err] = real[0];
-    throw new Error(
+    const error = new JMAPSetError(
+      err.type || 'setError',
       `Failed to delete ${real.length} email(s), first: ${id} – ${err.type || 'unknown'}${err.description ? ` (${err.description})` : ''}`,
     );
+    error.failedIds = real.map(([failedId]) => failedId);
+    throw error;
   }
 }
 
@@ -1908,7 +1929,8 @@ export async function saveDraftVersion(
     ['Email/get', {
       accountId,
       ids: ['#draft'],
-      properties: ['id', 'attachments'],
+      // The body lists too: Stalwart 1.0 lists the inline images there only.
+      properties: ['id', 'attachments', 'textBody', 'htmlBody'],
       bodyProperties: DRAFT_PART_BODY_PROPERTIES,
     }, '1'],
   ]);
@@ -1920,8 +1942,9 @@ export async function saveDraftVersion(
   let attachments: Attachment[] = [];
   try {
     const got = requireMethodResult(res, '1', 'Email/get');
-    const saved = (got.list as Array<{ id: string; attachments?: Attachment[] }> | undefined)?.find((e) => e.id === id);
-    attachments = (saved?.attachments ?? []).filter((a) => !!a.blobId);
+    const saved = (got.list as Array<Pick<Email, 'id' | 'attachments' | 'textBody' | 'htmlBody'>> | undefined)
+      ?.find((e) => e.id === id);
+    attachments = (saved ? withInlineBodyParts(saved).attachments ?? [] : []).filter((a) => !!a.blobId);
   } catch (err) {
     console.warn('[email] could not read back the saved draft parts:', err);
   }

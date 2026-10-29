@@ -69,6 +69,15 @@ describe('blob operations', () => {
 
       expect(url).toContain('my%20file%20(1).pdf');
     });
+
+    // A part named like a path: an encoded slash (%2F) in the URL path is
+    // refused or decoded by common reverse proxies, so inline images went
+    // blank (webmail #1371).
+    it('keeps only the last path component of a part name', () => {
+      expect(getDownloadUrl('b1', '/images/banner.jpg', 'image/jpeg')).toContain('/b1/banner.jpg?');
+      expect(getDownloadUrl('b1', 'C:\\pics\\logo.png', 'image/png')).toContain('/b1/logo.png?');
+      expect(getDownloadUrl('b1', 'dir/', 'image/png')).toContain('/b1/download?');
+    });
   });
 });
 
