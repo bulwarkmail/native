@@ -23,6 +23,7 @@ import { OfflineBanner } from '../components/OfflineBanner';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -172,6 +173,7 @@ const EmailRow = React.memo(function EmailRow({
   const key = rowKeyOf(item);
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
+  const verificationCode = useListVerificationCode(item);
 
   return (
     <Pressable
@@ -270,6 +272,7 @@ const EmailRow = React.memo(function EmailRow({
             {singleLine(item.preview)}
           </Text>
         )}
+        {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} inList />}
         {onOpenAttachment && (
           <ListAttachmentChips
             email={item}

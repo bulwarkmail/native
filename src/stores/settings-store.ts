@@ -185,6 +185,9 @@ interface PersistedSettings {
   deleteAction: DeleteAction;
   permanentlyDeleteJunk: boolean;
   showPreview: boolean;
+  // Offer the one-time code of a sign-in mail as a copy chip in the list
+  // (for a day) and in the reader.
+  showVerificationCodes: boolean;
   emailsPerPage: number;
   // Mail list sort order: oldest-first when true. Applies to every mailbox
   // (the JMAP Email/query sorts by receivedAt).
@@ -370,6 +373,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   deleteAction: 'trash',
   permanentlyDeleteJunk: false,
   showPreview: true,
+  showVerificationCodes: true,
   emailsPerPage: 25,
   mailSortAscending: false,
   disableThreading: false,

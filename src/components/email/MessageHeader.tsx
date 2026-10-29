@@ -19,6 +19,8 @@ import {
 import { formatSize } from '../../lib/attachment-display';
 import { isSmimeEmail } from '../../lib/smime';
 import { resolveEmailTags } from '../../lib/thread-utils';
+import { findVerificationCode, verificationCodeBodyText } from '../../lib/verification-code';
+import { VerificationCodeChip } from './VerificationCodeChip';
 
 interface Props {
   email: Email;
@@ -99,6 +101,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const keywordDefs = useKeywordsStore((s) => s.keywords);
+  const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);
 
@@ -114,6 +117,15 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
     [info.auth, from?.email],
   );
   const verificationText = verification ? describeSenderVerification(verification, t) : null;
+  // The sign-in code of the message, offered for copying. Looked up again
+  // only when the message or its loaded body changes, not on a keyword change.
+  const verificationCode = React.useMemo(
+    () => (showVerificationCodes && !compact
+      ? findVerificationCode(email.subject, verificationCodeBodyText(email))
+      : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showVerificationCodes, compact, email.id, email.subject, email.bodyValues],
+  );
   const verificationColor = verification?.status === 'failed' ? c.error : c.warning;
   const verificationBg = verification?.status === 'failed' ? c.errorBg : c.warningBg;
 
@@ -252,6 +264,8 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           )}
         </View>
       )}
+
+      {verificationCode && <VerificationCodeChip code={verificationCode} />}
 
       {!compact && verificationText && (
         <View style={[styles.verificationNotice, { borderColor: verificationColor }]} accessibilityRole="alert">
