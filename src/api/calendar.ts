@@ -151,6 +151,9 @@ export function toLocalDateTime(value: string | Date, timeZone?: string): string
 // skipped for the rest of the session (the session lists every account with
 // the calendars capability, including ones that only share mail with us).
 const calendarAccessDenied = new Set<string>();
+// One up with every reset (a new login): a refusal answered after one was
+// given to the login before, whose shared accounts the next one may read.
+let calendarAccessGeneration = 0;
 
 export function isCalendarAccessDenied(accountId: string): boolean {
   return calendarAccessDenied.has(accountId);
@@ -158,6 +161,7 @@ export function isCalendarAccessDenied(accountId: string): boolean {
 
 export function resetCalendarAccessDenied(): void {
   calendarAccessDenied.clear();
+  calendarAccessGeneration += 1;
 }
 
 // Stalwart 1.0 answers `accountNotSupportedByMethod` for an account that
@@ -432,6 +436,7 @@ const CALENDAR_PROPERTIES = [
 
 export async function getCalendars(): Promise<Calendar[]> {
   const accountId = jmapClient.accountId;
+  const accessGeneration = calendarAccessGeneration;
   const probeKey = syntheticIdProbeKey();
   const carriesProbe = !!probeKey && !syntheticIdSupport.has(probeKey);
   const methodCalls: [string, Record<string, unknown>, string][] = [
@@ -475,7 +480,7 @@ export async function getCalendars(): Promise<Calendar[]> {
           isShared: true,
         }));
       } catch (err) {
-        noteCalendarAccessError(sharedAccountId, err);
+        if (accessGeneration === calendarAccessGeneration) noteCalendarAccessError(sharedAccountId, err);
         return [];
       }
     }),

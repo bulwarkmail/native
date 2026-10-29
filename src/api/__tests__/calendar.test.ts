@@ -104,6 +104,33 @@ describe('calendar operations', () => {
       },
     );
 
+    it('keeps a refusal answered after a new login out of that login\'s memory', async () => {
+      const client = jmapClient as unknown as { currentSession?: unknown };
+      client.currentSession = {
+        accounts: {
+          'acc-1': { accountCapabilities: { 'urn:ietf:params:jmap:calendars': {} } },
+          'acc-team': { accountCapabilities: { 'urn:ietf:params:jmap:calendars': {} } },
+        },
+      };
+      try {
+        resetCalendarAccessDenied();
+        mockRequest.mockImplementation(async (calls: [string, { accountId: string }, string][]) => {
+          if (calls.some(([, args]) => args.accountId === 'acc-team')) {
+            // The previous login was refused; the next one signed in meanwhile.
+            resetCalendarAccessDenied();
+            return { methodResponses: [['error', { type: 'forbidden' }, '0']] };
+          }
+          return { methodResponses: calls.map(([name, , id]) => [name, name === 'Calendar/get' ? { list: [] } : {}, id]) };
+        });
+        await getCalendars();
+        expect(isCalendarAccessDenied('acc-team')).toBe(false);
+      } finally {
+        client.currentSession = undefined;
+        mockRequest.mockReset();
+        resetCalendarAccessDenied();
+      }
+    });
+
     it('should fetch calendars', async () => {
       const calendars = [{ id: 'cal-1', name: 'Personal', color: '#3b82f6' }];
       mockRequest.mockResolvedValue({
