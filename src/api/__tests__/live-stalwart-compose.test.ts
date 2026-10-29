@@ -22,7 +22,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import {
-  destroyEmails, getFullEmails, getMailboxes, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
 } from '../email';
 import { uploadBytes } from '../blob';
 import { deleteFileNodes } from '../files';
@@ -69,6 +69,11 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
   }, 60_000);
 
   afterAll(async () => {
+    // A failed test may leave a send scheduled; it must not outlive its message.
+    const held = await listScheduledEmails().catch(() => []);
+    for (const s of held.filter((h) => createdEmails.includes(h.emailId))) {
+      await cancelScheduledSend(s.emailSubmissionId).catch(() => undefined);
+    }
     const res = await singleton.request([['Email/query', { accountId: singleton.accountId, filter: { subject: tag } }, '0']]);
     const leftovers = [...new Set([...(res.methodResponses[0][1].ids as string[] ?? []), ...createdEmails])];
     if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
@@ -112,6 +117,62 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(restored.mailboxIds[drafts]).toBe(true);
       expect(restored.mailboxIds[sent]).toBeUndefined();
       expect(restored.keywords.$draft).toBe(true);
+    }, 90_000);
+  });
+
+  describe('scheduled sends whose answers get lost', () => {
+    /** Let the first call matching `pick` reach the server, then lose its answer. */
+    const loseAnswerOf = (pick: (method: string, args: Record<string, unknown>) => boolean) => {
+      const real = singleton.request.bind(singleton);
+      let lost = false;
+      return vi.spyOn(singleton, 'request').mockImplementation(async (calls, using) => {
+        const res = await real(calls, using);
+        const [method, args] = calls[0] as unknown as [string, Record<string, unknown>];
+        if (!lost && pick(method, args)) {
+          lost = true;
+          throw new Error('Request timed out');
+        }
+        return res;
+      });
+    };
+    const scheduleOne = async (label: string) => {
+      const [identity] = await getIdentities();
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `${label} ${tag}`, textBody: 'live' },
+        identity.id, sent, 3600, { draftsMailboxId: drafts },
+      );
+      createdEmails.push(result.emailId!);
+      return (await listScheduledEmails()).find((s) => s.emailSubmissionId === result.emailSubmissionId)!;
+    };
+    const pendingOf = async (emailId: string) => (await listScheduledEmails()).filter((s) => s.emailId === emailId);
+
+    it('makes the replacement when the cancel went through and its answer was lost', async () => {
+      const first = await scheduleOne('lost cancel');
+      const spy = loseAnswerOf((method, args) => method === 'EmailSubmission/set' && !!args.update);
+      let moved: Awaited<ReturnType<typeof rescheduleScheduledSend>>;
+      try {
+        moved = await rescheduleScheduledSend(first, 7200);
+      } finally {
+        spy.mockRestore();
+      }
+      const pending = await pendingOf(first.emailId);
+      expect(pending.map((s) => s.emailSubmissionId)).toEqual([moved.emailSubmissionId]);
+      await cancelScheduledToDrafts(pending[0], await getMailboxes(), singleton.accountId);
+    }, 90_000);
+
+    it('takes the replacement the server made when the answer to its create was lost, and schedules it once', async () => {
+      const first = await scheduleOne('lost create');
+      const spy = loseAnswerOf((method, args) => method === 'EmailSubmission/set' && !!args.create);
+      let moved: Awaited<ReturnType<typeof rescheduleScheduledSend>>;
+      try {
+        moved = await rescheduleScheduledSend(first, 7200);
+      } finally {
+        spy.mockRestore();
+      }
+      const pending = await pendingOf(first.emailId);
+      expect(pending.map((s) => s.emailSubmissionId)).toEqual([moved.emailSubmissionId]);
+      expect(new Date(pending[0].sendAt).getTime()).toBeGreaterThan(new Date(first.sendAt).getTime() + 3_000_000);
+      await cancelScheduledToDrafts(pending[0], await getMailboxes(), singleton.accountId);
     }, 90_000);
   });
 
