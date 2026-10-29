@@ -481,6 +481,25 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
     expect(useEmailStore.getState().pendingUndo?.items.map((it) => it.email.id).sort()).toEqual(['m1', 'o1']);
   });
 
+  // "Move to Trash and mark as read": a message the server refused to move
+  // stays in its folder, so it must not be marked read either.
+  it('marks only the moved rows read when the server refuses one of them', async () => {
+    settings.deleteAction = 'trash-and-read';
+    await search('zephyr');
+    server.current!.refusing.set('team', new Set(['m2']));
+
+    await useEmailStore.getState()
+      .deleteEmailsBatch(['team:m1', 'team:m2'], 'trash', 'inbox')
+      .catch(() => undefined);
+
+    const seenPatches = server.current!.callsOf('Email/set')
+      .flatMap(([, a]) => Object.entries((a.update ?? {}) as Record<string, Record<string, unknown>>))
+      .filter(([, patch]) => Object.keys(patch).some((k) => k.startsWith('keywords')))
+      .map(([id]) => id);
+    expect(seenPatches).toEqual(['m1']);
+    expect(server.current!.accounts.team.find((e) => e.id === 'm1')!.keywords).toEqual({ $seen: true });
+  });
+
   it('files the rest when one account refuses a whole move', async () => {
     await search('zephyr');
     server.current!.failing.set('team', 'forbidden');

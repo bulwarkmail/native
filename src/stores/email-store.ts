@@ -2400,6 +2400,8 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   const items: UndoEntry['items'] = [];
   const gone: Array<{ email: Email; key: string }> = [];
   const keyOf = (accountId: string | undefined, id: string) => `${accountId ?? ''}:${id}`;
+  // Rows a server refused to file (see the runs below), by `keyOf`.
+  const refused = new Set<string>();
   const copies: Array<{ accountId?: string; emails: Email[] }> = [];
   let missing: string | null = null;
   let refreshFolders = false;
@@ -2489,7 +2491,12 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         });
         if (unread.length > 0) {
           runs.push({
-            run: () => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId),
+            // Runs after the move: a row the server refused to move stays
+            // where it is, unread, as in the single-account delete.
+            run: async () => {
+              const moved = ids(unread).filter((id) => !refused.has(keyOf(accountId, id)));
+              if (moved.length > 0) await patchKeywordsForEmails(moved, { $seen: true }, accountId);
+            },
             accountId,
             ids: ids(unread),
             keeps: false,
@@ -2536,7 +2543,6 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   // account may refuse what another takes (a read-only share): the refused
   // rows stay, the others are filed, and the first refusal is reported once
   // the list shows the rest. Before, one refused message kept every row.
-  const refused = new Set<string>();
   const unpatched = new Set<string>();
   let refusal: unknown = null;
   if (ops.length > 0) {
