@@ -11,7 +11,7 @@ describe('parseAuthenticationResults', () => {
     const r = parseAuthenticationResults(
       'mx.example; spf=pass smtp.mailfrom=news.example; dkim=pass header.d=news.example header.s=s1; dmarc=pass header.from=news.example policy.dmarc=none; iprev=pass policy.iprev=1.2.3.4',
     );
-    expect(r.spf).toEqual({ result: 'pass', domain: 'news.example' });
+    expect(r.spf).toEqual({ result: 'pass', identity: 'mailfrom', domain: 'news.example' });
     expect(r.dkim).toEqual({ result: 'pass', domain: 'news.example', selector: 's1' });
     expect(r.dmarc).toEqual({ result: 'pass', domain: 'news.example', policy: 'none' });
     expect(r.iprev).toEqual({ result: 'pass', ip: '1.2.3.4' });
@@ -88,6 +88,10 @@ describe('getSenderVerification', () => {
   it('does not count a HELO pass', () => {
     const auth = parseAuthenticationResults('mx; spf=pass smtp.helo=bank.example; spf=none smtp.mailfrom=bank.example');
     expect(getSenderVerification(auth, 'a@bank.example')?.status).toBe('unverified');
+    // Nor a HELO pass that is the only SPF result.
+    const only = parseAuthenticationResults('mx; spf=pass smtp.helo=bank.example; dkim=none; dmarc=none');
+    expect(hasAlignedAuthenticationPass(only, 'a@bank.example')).toBe(false);
+    expect(getSenderVerification(only, 'a@bank.example')?.status).toBe('unverified');
   });
 });
 
