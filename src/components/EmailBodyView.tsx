@@ -13,6 +13,7 @@ import { estimateBodyHeight, lastBodyHeight, rememberBodyHeight } from '../lib/b
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { senderVerificationOf } from '../lib/email-headers';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -563,7 +564,15 @@ export default function EmailBodyView({
   }, [email, bodyOverride]);
   const rawHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
   const text = picked.text;
-  const trusted = isSenderContentTrusted(senderEmail, {
+  // A From address the server's checks don't back may be forged: neither
+  // honour an earlier "Always trust" for it nor offer one, or a forgery of a
+  // trusted sender would load remote content (and trusting it would let the
+  // next forgery do the same).
+  const unverifiedSender = React.useMemo(
+    () => senderVerificationOf(email) !== null,
+    [email.headers, email.from],
+  );
+  const trusted = !unverifiedSender && isSenderContentTrusted(senderEmail, {
     isLocallyTrusted: isSenderTrusted,
     syncEnabled: syncTrustedSenders,
     trustedBookEmails: trustedSenderEmails,
@@ -768,7 +777,7 @@ export default function EmailBodyView({
                 <Text style={styles.bannerButtonText}>{t('email_viewer.load_external_content', 'Load images')}</Text>
               </Pressable>
             )}
-            {senderEmail ? (
+            {senderEmail && !unverifiedSender ? (
               <Pressable style={styles.bannerButton} onPress={onTrustSender} hitSlop={8}>
                 <ShieldCheck size={14} color={c.textSecondary} />
                 <Text style={styles.bannerButtonText}>{t('email_viewer.trust_sender', 'Always trust this sender')}</Text>

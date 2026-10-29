@@ -3,6 +3,7 @@ import {
   parseAuthenticationResults, parseSpamScore, parseSpamLLM, extractListHeaders,
   isAuthenticationSpoofed, headersToRecord, deriveHeaderInfo, deliveryDeltaMs, formatDelta,
   findReceivingIdentity, getSenderVerification, hasAlignedAuthenticationPass,
+  describeSenderVerification, senderVerificationOf,
 } from '../email-headers';
 
 describe('parseAuthenticationResults', () => {
@@ -172,5 +173,34 @@ describe('findReceivingIdentity', () => {
     expect(findReceivingIdentity(ids, { cc: [{ email: 'b+news@x.example' }] })?.id).toBe('b');
     expect(findReceivingIdentity(ids, { to: [{ email: 'other@y.example' }] })?.id).toBe('a');
     expect(findReceivingIdentity([], { to: [] })).toBeUndefined();
+  });
+});
+
+describe('describeSenderVerification / senderVerificationOf', () => {
+  const t = (_key: string, fallback?: string, params?: Record<string, string | number>) =>
+    (fallback ?? '').replace(/\{(\w+)\}/g, (_m, k: string) => String(params?.[k] ?? ''));
+
+  it('names the claimed domain and the sending host', () => {
+    const unverified = describeSenderVerification({ status: 'unverified', domain: 'bank.example', sentFrom: 'evil.example' }, t);
+    expect(unverified.label).toBe('Unverified sender');
+    expect(unverified.message).toContain('bank.example');
+    expect(unverified.message).toContain('evil.example');
+    const failed = describeSenderVerification({ status: 'failed', domain: 'bank.example' }, t);
+    expect(failed.label).toBe('Sender check failed');
+    expect(failed.message).toContain('may be forged');
+  });
+
+  it('reads the check from the raw headers of a message', () => {
+    const forged = {
+      from: [{ email: 'ceo@bank.example' }],
+      headers: [{ name: 'Authentication-Results', value: 'mx; spf=pass smtp.mailfrom=evil.example; dkim=none; dmarc=none' }],
+    };
+    expect(senderVerificationOf(forged)?.status).toBe('unverified');
+    const genuine = {
+      from: [{ email: 'ceo@bank.example' }],
+      headers: [{ name: 'Authentication-Results', value: 'mx; spf=pass smtp.mailfrom=bank.example; dkim=pass header.d=bank.example; dmarc=pass' }],
+    };
+    expect(senderVerificationOf(genuine)).toBeNull();
+    expect(senderVerificationOf({ from: [{ email: 'a@b.example' }], headers: [] })).toBeNull();
   });
 });

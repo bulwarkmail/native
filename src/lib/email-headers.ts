@@ -210,6 +210,40 @@ export function getSenderVerification(
   return { status: 'unverified', domain, sentFrom };
 }
 
+type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+
+/** The badge label and the sentence the reader shows for a sender check (webmail email-viewer.tsx). */
+export function describeSenderVerification(
+  verification: SenderVerification,
+  t: Translate,
+): { label: string; message: string } {
+  const { status, domain, sentFrom } = verification;
+  if (status === 'failed') {
+    return {
+      label: t('email_viewer.sender_check.failed_label', 'Sender check failed'),
+      message: sentFrom
+        ? t('email_viewer.sender_check.failed_sent_from', "This message claims to be from {domain}, but it was sent from {host} and failed {domain}'s sender checks. It may be forged.", { domain, host: sentFrom })
+        : t('email_viewer.sender_check.failed', "This message claims to be from {domain}, but it failed that domain's sender checks. It may be forged.", { domain }),
+    };
+  }
+  return {
+    label: t('email_viewer.sender_check.unverified_label', 'Unverified sender'),
+    message: sentFrom
+      ? t('email_viewer.sender_check.unverified_sent_from', 'This message claims to be from {domain}, but it was sent from {host} and has no valid signature from {domain}.', { domain, host: sentFrom })
+      : t('email_viewer.sender_check.unverified', "This message claims to be from {domain}, but nothing confirms that. It has no valid signature from {domain} and didn't come from a server {domain} authorizes.", { domain }),
+  };
+}
+
+/**
+ * The sender check for a message straight from its raw headers, for views
+ * that don't hold the parsed header info (the body view's trust gate).
+ */
+export function senderVerificationOf(email: Pick<Email, 'headers' | 'from'>): SenderVerification | null {
+  const values = headerValues(email.headers, 'Authentication-Results');
+  if (values.length === 0) return null;
+  return getSenderVerification(parseAuthenticationResults(values), email.from?.[0]?.email);
+}
+
 interface ResInfo {
   method: string;
   result: string;
