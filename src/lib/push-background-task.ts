@@ -18,6 +18,8 @@ import {
   migrateLegacyPushKeys,
   notifiedIdsKey,
   pushSubscriptionDueForExtension,
+  pushSubscriptionNeedsExtension,
+  accountMatchesPushLabel,
   readPushAccountIds,
   readPushJmapAccountIds,
   recordPushSubscriptionExpires,
@@ -50,6 +52,7 @@ const EMAIL_PROPERTIES = [
 interface PushPersistedSettings {
   emailNotificationsEnabled?: boolean;
   senderFavicons?: boolean;
+  deleteAction?: string;
 }
 
 async function emailNotificationsAllowed(): Promise<boolean> {
@@ -77,6 +80,20 @@ export async function senderFaviconsAllowed(): Promise<boolean> {
   }
 }
 
+// The "Delete Action" setting, as far as a notification's Delete honours it:
+// "Move to Trash and mark as read" marks the message read on the way (#86).
+// "Delete Permanently" still only moves to Trash: a notification never
+// destroys mail (#68).
+async function notificationDeleteMarksRead(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return false;
+    return (JSON.parse(raw) as PushPersistedSettings).deleteAction === 'trash-and-read';
+  } catch {
+    return false;
+  }
+}
+
 /** The app's language: the in-app override, else the device's. */
 export async function notificationLocale(): Promise<LocaleCode> {
   try {
@@ -98,10 +115,11 @@ interface ShowNotificationOptions {
   emailId: string;
   threadId: string;
   subject?: string;
-  accountId: string;
+  // Left out for a notification that names no login (showPlainNotification).
+  accountId?: string;
   // The JMAP account the message lives in - a group or shared mailbox's
   // account rather than the user's own - so a tap opens it there.
-  jmapAccountId: string;
+  jmapAccountId?: string;
   // Android notification group: one per account so the tray bundles
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
@@ -188,32 +206,48 @@ async function readAccountRegistry(): Promise<RegistryAccount[]> {
   }
 }
 
+export interface PushAccountMatch {
+  accountIds: string[];
+  // The push names messages, and more than one login may be the one they
+  // were delivered to: see matchAccountsForPush.
+  ambiguous: boolean;
+}
+
 /**
  * Pick the local account(s) a relay payload belongs to. Primary key is the
  * JMAP account id recorded at setup; the relay's `accountLabel` (= username)
- * is a weaker fallback. When neither matches - a payload from a build that
- * predates the id map - every registered account is checked.
+ * is a weaker fallback, and also tells apart logins that share a JMAP account
+ * id. When neither matches - a payload from a build that predates the id map -
+ * every registered account is checked.
+ *
+ * JMAP account ids repeat across servers (Stalwart starts every server at the
+ * same few), and so do message ids. A push naming messages that still fits
+ * more than one login is `ambiguous`: each login would fetch those ids from
+ * its own server and could show another server's message, so the caller
+ * shows a plain notification instead. A push without ids makes each login
+ * look at its own newest mail, which is never another login's.
  */
 export function matchAccountsForPush(
   payload: RelayPushData,
   pushAccountIds: string[],
   jmapAccountIds: Record<string, string>,
   registry: RegistryAccount[],
-): string[] {
-  if (payload.jmapAccountId) {
-    const byJmapId = pushAccountIds.filter((id) => jmapAccountIds[id] === payload.jmapAccountId);
-    if (byJmapId.length > 0) return byJmapId;
+): PushAccountMatch {
+  const byLabel = (ids: string[]) => (payload.accountLabel
+    ? ids.filter((id) => accountMatchesPushLabel(id, payload.accountLabel!, registry.find((a) => a.id === id)?.username))
+    : []);
+  let accountIds = pushAccountIds;
+  const byJmapId = payload.jmapAccountId
+    ? pushAccountIds.filter((id) => jmapAccountIds[id] === payload.jmapAccountId)
+    : [];
+  if (byJmapId.length > 0) {
+    const narrowed = byJmapId.length > 1 ? byLabel(byJmapId) : [];
+    accountIds = narrowed.length > 0 ? narrowed : byJmapId;
+  } else {
+    const labelled = byLabel(pushAccountIds);
+    if (labelled.length > 0) accountIds = labelled;
   }
-  if (payload.accountLabel) {
-    const label = payload.accountLabel.toLowerCase();
-    const byLabel = pushAccountIds.filter((id) => {
-      const entry = registry.find((a) => a.id === id);
-      const username = entry?.username?.toLowerCase();
-      return username === label || id.toLowerCase().startsWith(`${label}@`);
-    });
-    if (byLabel.length > 0) return byLabel;
-  }
-  return pushAccountIds;
+  return { accountIds, ambiguous: accountIds.length > 1 && payload.emailIds.length > 0 };
 }
 
 async function readNotifiedIds(accountId: string): Promise<string[]> {
@@ -428,11 +462,12 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
 
     const registry = await readAccountRegistry();
     const jmapAccountIds = await readPushJmapAccountIds();
-    const accountsToCheck = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
+    const match = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
+    if (match.ambiguous) await showPlainNotification(payload);
 
-    for (const accountId of accountsToCheck) {
+    for (const accountId of match.accountIds) {
       try {
-        await processAccountForPush(accountId, payload);
+        await processAccountForPush(accountId, payload, !match.ambiguous);
       } catch (err) {
         console.warn(
           '[push] background check failed for account',
@@ -481,6 +516,11 @@ async function extendPushSubscription(accountId: string, session: DetachedSessio
     '0',
   );
   if (!current || (current.deviceClientId && due.deviceClientId && current.deviceClientId !== due.deviceClientId)) return;
+  // The recorded expiry was stale: the server's copy has time left.
+  if (current.expires && !pushSubscriptionNeedsExtension(current.expires)) {
+    await recordPushSubscriptionExpires(accountId, current.expires);
+    return;
+  }
   const responses = await jmapPost(session, [
     ['PushSubscription/set', { update: { [due.id]: { expires: wantedPushSubscriptionExpires() } } }, '0'],
     // The update's answer doesn't say what the server settled on.
@@ -490,11 +530,13 @@ async function extendPushSubscription(accountId: string, session: DetachedSessio
   if (extended?.expires) await recordPushSubscriptionExpires(accountId, extended.expires);
 }
 
-async function processAccountForPush(accountId: string, payload: RelayPushData): Promise<void> {
+// `notify` is false for an ambiguous push (see matchAccountsForPush): each
+// login it may belong to still keeps its subscription alive.
+async function processAccountForPush(accountId: string, payload: RelayPushData, notify: boolean): Promise<void> {
   const session = await openDetachedSession(accountId);
   if (!session) return;
   try {
-    await notifyForPush(accountId, session, payload);
+    if (notify) await notifyForPush(accountId, session, payload);
   } finally {
     await extendPushSubscription(accountId, session).catch(() => undefined);
   }
@@ -579,6 +621,30 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
   await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
 }
 
+/**
+ * New mail without saying which message: for a push more than one login may
+ * belong to. It carries no message and no login, so it has no actions and a
+ * tap opens the app as it is; empty ids, which the tap handler refuses, keep
+ * it from opening anything (NotificationTapStore).
+ */
+async function showPlainNotification(payload: RelayPushData): Promise<void> {
+  const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
+  if (!native?.showNotification) return;
+  const locale = await notificationLocale();
+  const label = payload.accountLabel ?? '';
+  await native.showNotification({
+    notificationId: `mail-plain:${payload.jmapAccountId ?? ''}:${payload.emailIds[0] ?? ''}`,
+    title: translate(locale, 'notifications.new_email', 'New email'),
+    body: label,
+    initials: getEmailInitials(label, ''),
+    bgColorHex: hslToHex(generateEmailAvatarColor(label, '')),
+    emailId: '',
+    threadId: '',
+    groupKey: 'bulwark-mail:plain',
+    groupTitle: label || 'Bulwark',
+  });
+}
+
 function hslToHex(hsl: string): string {
   const match = hsl.match(/hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)/);
   if (!match) return '#2563eb';
@@ -659,13 +725,15 @@ export async function handleNotificationAction(data: unknown): Promise<void> {
         console.warn('[push] no trash mailbox for notification delete', emailAccountId);
         return;
       }
+      const patch: Record<string, unknown> = { mailboxIds: { [trash.id]: true } };
+      if (await notificationDeleteMarksRead()) patch['keywords/$seen'] = true;
       const res = await jmapPost(session, [
         [
           'Email/set',
           {
             accountId: emailAccountId,
             update: {
-              [emailId]: { mailboxIds: { [trash.id]: true } },
+              [emailId]: patch,
             },
           },
           '0',

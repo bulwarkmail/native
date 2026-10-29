@@ -1044,6 +1044,7 @@
         "sound_channel_hint": "Sound and vibration for mail alerts are controlled by the Android notification channel: long-press a notification or open the system app settings."
       },
       "push": {
+        "accounts_desc_mobile": "Background notifications of each signed-in account on this device. Switch to an account to turn them on or off for it.",
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
         "err_android_only": "Push notifications are only available on Android.",

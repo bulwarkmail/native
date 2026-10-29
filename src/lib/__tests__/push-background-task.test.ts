@@ -70,17 +70,45 @@ describe('matchAccountsForPush', () => {
   it('matches on the recorded JMAP account id first', () => {
     const payload = parseRelayPushData({ accountId: 'jb', accountLabel: 'alice' });
     expect(matchAccountsForPush(payload, accounts, { 'bob@mail.example.com': 'jb' }, registry))
-      .toEqual(['bob@mail.example.com']);
+      .toEqual({ accountIds: ['bob@mail.example.com'], ambiguous: false });
   });
 
   it('falls back to the relay accountLabel (username)', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'alice' });
-    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(['alice@mail.example.com']);
+    expect(matchAccountsForPush(payload, accounts, {}, registry).accountIds).toEqual(['alice@mail.example.com']);
   });
 
   it('checks every account when nothing matches', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'carol' });
-    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(accounts);
+    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual({ accountIds: accounts, ambiguous: false });
+  });
+
+  describe('with two logins on different servers that share a JMAP account id', () => {
+    const logins = ['alice@one.example.com', 'bob@two.example.net'];
+    const ids = { 'alice@one.example.com': 'b', 'bob@two.example.net': 'b' };
+    const users = [
+      { id: 'alice@one.example.com', username: 'alice' },
+      { id: 'bob@two.example.net', username: 'bob' },
+    ];
+
+    it('picks the login the relay label names', () => {
+      const payload = parseRelayPushData({ accountId: 'b', accountLabel: 'bob', emailIds: '["m1"]' });
+      expect(matchAccountsForPush(payload, logins, ids, users)).toEqual({ accountIds: ['bob@two.example.net'], ambiguous: false });
+    });
+
+    it('calls a push naming messages ambiguous when the label does not tell them apart', () => {
+      const sameName = [
+        { id: 'alice@one.example.com', username: 'alice' },
+        { id: 'alice@two.example.net', username: 'alice' },
+      ];
+      const both = ['alice@one.example.com', 'alice@two.example.net'];
+      const map = { 'alice@one.example.com': 'b', 'alice@two.example.net': 'b' };
+      const payload = parseRelayPushData({ accountId: 'b', accountLabel: 'alice', emailIds: '["m1"]' });
+      expect(matchAccountsForPush(payload, both, map, sameName)).toEqual({ accountIds: both, ambiguous: true });
+      // Without ids each login only looks at its own newest mail.
+      const legacy = parseRelayPushData({ accountId: 'b', accountLabel: 'alice', changed: '{"b":{"Email":"s"}}' });
+      expect(matchAccountsForPush(legacy, both, map, sameName).ambiguous).toBe(false);
+    });
   });
 });
 
@@ -143,6 +171,27 @@ describe('pushBackgroundTask notifications', () => {
     expect(showNotification).toHaveBeenCalledWith(
       expect.objectContaining({ emailId: 'm1', accountId: LOCAL, jmapAccountId: 'team' }),
     );
+  });
+
+  it("shows a plain notification, not another server's message, when two logins fit the push", async () => {
+    // A second login named alice, on another server whose account id is the same.
+    const SECOND = 'alice@other.example.net';
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL, SECOND]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary', [SECOND]: 'jmap-primary' }));
+
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'jmap-primary',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(emailGetAccount).toBeNull();
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    const shown = (showNotification.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(shown).toMatchObject({ title: 'New email', emailId: '', threadId: '' });
+    expect(shown.accountId).toBeUndefined();
+    expect(shown.subject).toBeUndefined();
   });
 
   it('tags the user\'s own mail with the primary account', async () => {
@@ -285,6 +334,40 @@ describe('pushBackgroundTask notifications', () => {
     expect(postCalls.length).toBe(2);
     expect(postCalls[1].methodCalls).toEqual([
       ['Email/set', { accountId: 'jmap-primary', update: { m1: { mailboxIds: { 'trash-box': true } } } }, '0'],
+    ]);
+  });
+
+  it.each([
+    ['trash-and-read', { mailboxIds: { 'trash-box': true }, 'keywords/$seen': true }],
+    ['trash', { mailboxIds: { 'trash-box': true } }],
+    // Never destroyed from a notification (#68), but not marked read either.
+    ['permanent', { mailboxIds: { 'trash-box': true } }],
+  ])('follows the delete action setting "%s" (#86)', async (deleteAction, patch) => {
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ deleteAction }));
+    const postCalls: any[] = [];
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: any) => {
+      if (opts?.body) postCalls.push(JSON.parse(opts.body));
+      return {
+        ok: true,
+        json: async () => (url.endsWith('/.well-known/jmap')
+          ? {
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }
+          : {
+            methodResponses: [
+              ['Mailbox/get', { list: [{ id: 'trash-box', role: 'trash' }] }, '0'],
+              ['Email/set', { updated: { m1: {} } }, '0'],
+            ],
+          }),
+      };
+    });
+
+    await handleNotificationAction({ action: 'delete', emailId: 'm1', accountId: LOCAL });
+
+    expect(postCalls[1].methodCalls).toEqual([
+      ['Email/set', { accountId: 'jmap-primary', update: { m1: patch } }, '0'],
     ]);
   });
 
@@ -544,11 +627,33 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
     expect(server.calls).toContain('PushSubscription/set');
   });
 
-  it('leaves alone a subscription with time left, one that lapsed, one of unknown expiry and one push was turned off for', async () => {
+  it('asks the server when the recorded expiry has passed or is unknown, which may be stale', async () => {
     for (const setup of [
-      () => recorded(6.5 * DAY),
       () => recorded(-DAY),
       () => AsyncStorage.removeItem(`push:subscriptionExpires:v1:${LOCAL}`),
+    ]) {
+      // The server's copy runs out in two days: extended.
+      Object.assign(server, { expires: new Date(Date.now() + 2 * DAY).toISOString(), calls: [] });
+      await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
+      await setup();
+      await push();
+      expect(server.calls).toEqual(['Email/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
+      expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(server.expires);
+
+      // The server's copy has a week left: recorded, not written.
+      const serverExpires = new Date(Date.now() + 6.5 * DAY).toISOString();
+      Object.assign(server, { expires: serverExpires, calls: [] });
+      await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
+      await setup();
+      await push();
+      expect(server.calls).toEqual(['Email/get', 'PushSubscription/get']);
+      expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(serverExpires);
+    }
+  });
+
+  it('leaves alone a subscription with time left and one push was turned off for', async () => {
+    for (const setup of [
+      () => recorded(6.5 * DAY),
       async () => {
         await recorded(2 * DAY);
         await AsyncStorage.setItem(`push:optedOut:v1:${LOCAL}`, '1');

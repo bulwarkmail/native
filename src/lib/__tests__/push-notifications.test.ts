@@ -59,7 +59,16 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
   };
   return {
     SYNC_SESSION,
-    DETACHED: { loaded: true, types: ['EmailDelivery'] as string[], log: [] as unknown[], session: SYNC_SESSION },
+    DETACHED: {
+      loaded: true,
+      types: ['EmailDelivery'] as string[],
+      deviceClientId: null as string | null,
+      // The subscription's expiry, and what an update of it settles on.
+      expires: null as string | null,
+      settles: null as string | null,
+      log: [] as unknown[],
+      session: SYNC_SESSION,
+    },
   };
 });
 
@@ -78,13 +87,29 @@ vi.mock('../../api/jmap-client', () => ({
       DETACHED.log.push(['load', id]);
       return DETACHED.loaded;
     }
+    get username() {
+      return 'bob';
+    }
+    get accountId() {
+      return 'bob-jmap';
+    }
     async request(calls: Array<[string, Record<string, any>, string]>) {
-      const [name, args, id] = calls[0];
-      DETACHED.log.push([name, args]);
-      if (name === 'PushSubscription/get') {
-        return { methodResponses: [[name, { list: [{ id: args.ids[0], types: DETACHED.types }] }, id]] };
-      }
-      return { methodResponses: [[name, { updated: { [Object.keys(args.update)[0]]: null } }, id]] };
+      const methodResponses = calls.map(([name, args, id]) => {
+        DETACHED.log.push([name, args]);
+        if (name === 'PushSubscription/get') {
+          const listed = {
+            id: args.ids[0],
+            types: DETACHED.types,
+            ...(DETACHED.deviceClientId ? { deviceClientId: DETACHED.deviceClientId } : {}),
+            ...(DETACHED.expires ? { expires: DETACHED.expires } : {}),
+          };
+          return [name, { list: [listed] }, id];
+        }
+        const target = Object.keys(args.update)[0];
+        if (args.update[target].expires && DETACHED.settles) DETACHED.expires = DETACHED.settles;
+        return [name, { updated: { [target]: null } }, id];
+      });
+      return { methodResponses };
     }
   },
 }));
@@ -110,6 +135,7 @@ import {
   setupPushNotifications,
   deviceClientIdKey,
   disablePushForAccount,
+  enablePushFromSettings,
   forgetPushServerState,
   isValidRelayUrl,
   mailAccountsWithoutPush,
@@ -118,7 +144,9 @@ import {
   readPushJmapAccountIds,
   PushSetupError,
   pushTypesFor,
+  readPushAccountStates,
   refreshPushSubscriptionTypes,
+  renewOtherPushAccounts,
   resyncPushNotifications,
   revokePushDevice,
   teardownPushNotificationsForAccount,
@@ -399,8 +427,18 @@ describe('setupPushNotifications subscription shape', () => {
     expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
     expect(destroyMock).not.toHaveBeenCalledWith('existing');
-    const deleted = fetchMock.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE').map((c) => String(c[0]));
-    expect(deleted).toEqual([`https://relay.home.lan/api/push/register/${OUR_DCID}`]);
+    const relayCalls = fetchMock.mock.calls
+      .filter((c) => String(c[0]).includes('/api/push/register'))
+      .map((c) => `${(c[1] as RequestInit | undefined)?.method ?? 'GET'} ${String(c[0])}`);
+    // The refused URL may be another name of the relay in use: after dropping
+    // the record there, this device registers with the previous relay again.
+    expect(relayCalls).toEqual([
+      'POST https://relay.home.lan/api/push/register',
+      `DELETE https://relay.home.lan/api/push/register/${OUR_DCID}`,
+      `POST ${RELAY}/api/push/register`,
+    ]);
+    const restored = fetchMock.mock.calls.filter((c) => String(c[0]) === `${RELAY}/api/push/register`);
+    expect(JSON.parse(String((restored[0][1] as RequestInit).body))).toMatchObject({ subscriptionId: OUR_DCID, fcmToken: 'fcm-token-xyz' });
 
     // The same relay refused (a server that tightened its rules) stays as it is.
     fetchMock.mockClear();
@@ -408,6 +446,31 @@ describe('setupPushNotifications subscription shape', () => {
     await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true }).catch(() => undefined);
     expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
     expect(fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+  });
+
+  it('hands the settings the relay in use back after the server refused a new one', async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ id: 'existing', deviceClientId: OUR_DCID, expires: new Date(Date.now() + 5 * 86400000).toISOString(), types: ['EmailDelivery'] }]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+
+    const outcome = await enablePushFromSettings({ relayBaseUrl: 'https://relay.home.lan/', forceRecreate: true });
+
+    expect(outcome.error).toBeInstanceOf(PushSetupError);
+    expect(outcome.relayBaseUrl).toBe(RELAY);
+    expect(outcome.enabled).toBe(true);
+
+    // Nothing in use yet: the typed relay stays, so it can be corrected.
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    listMock.mockResolvedValue([]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+    expect(await enablePushFromSettings({ relayBaseUrl: 'https://relay.home.lan/' }))
+      .toMatchObject({ relayBaseUrl: 'https://relay.home.lan', enabled: false });
+
+    // A run that works shows the relay it registered with.
+    expect(await enablePushFromSettings({ relayBaseUrl: 'https://relay.example.com/' }))
+      .toEqual({ error: null, relayBaseUrl: RELAY, enabled: true });
   });
 
   it('rejects plain-http relay URLs', async () => {
@@ -630,7 +693,7 @@ describe('push types for device sync (#34)', () => {
     await refreshPushSubscriptionTypes(OTHER);
     expect(DETACHED.log).toEqual([
       ['load', OTHER],
-      ['PushSubscription/get', { ids: ['bob-sub'], properties: ['id', 'types'] }],
+      ['PushSubscription/get', { ids: ['bob-sub'], properties: ['id', 'deviceClientId', 'types'] }],
       ['PushSubscription/set', { update: { 'bob-sub': { types: ['EmailDelivery', 'CalendarEvent', 'Calendar'] } } }],
     ]);
     // The singleton's subscriptions were not touched.
@@ -641,6 +704,40 @@ describe('push types for device sync (#34)', () => {
     DETACHED.types = ['Calendar', 'CalendarEvent', 'EmailDelivery'];
     await refreshPushSubscriptionTypes(OTHER);
     expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+  });
+
+  it("leaves alone another client's subscription that reuses the recorded id", async () => {
+    // Stalwart gives a destroyed subscription's id to the next one, such as
+    // the webmail's on the same account.
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ ...healthy(['EmailDelivery']), deviceClientId: 'webmailwebmailwebmailwebmailwebm' }]);
+    await syncing({ [CONTACTS]: true });
+    await refreshPushSubscriptionTypes(ACCOUNT_ID);
+    expect(updateMock).not.toHaveBeenCalled();
+
+    // The same through another account's client.
+    const OTHER = 'bob@other.example.net';
+    await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
+    await AsyncStorage.setItem(deviceClientIdKey(OTHER), 'bobsphonebobsphonebobsphonebobsp');
+    await AsyncStorage.setItem(DEVICE_SYNC_KEY, JSON.stringify({
+      state: { accounts: { [OTHER]: { enabled: { [CALENDAR]: true } } } },
+      version: 0,
+    }));
+    DETACHED.log = [];
+    DETACHED.types = ['EmailDelivery'];
+    DETACHED.deviceClientId = 'webmailwebmailwebmailwebmailwebm';
+    try {
+      await refreshPushSubscriptionTypes(OTHER);
+      expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+
+      // Its own subscription still gets the types.
+      DETACHED.log = [];
+      DETACHED.deviceClientId = 'bobsphonebobsphonebobsphonebobsp';
+      await refreshPushSubscriptionTypes(OTHER);
+      expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get', 'PushSubscription/set']);
+    } finally {
+      DETACHED.deviceClientId = null;
+    }
   });
 
   it('leaves the subscription of an account that turned push off alone', async () => {
@@ -1118,6 +1215,7 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     await AsyncStorage.clear();
     await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
     listMock.mockResolvedValue([recorded(80)]);
     installFetch({});
   });
@@ -1126,6 +1224,26 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     listMock.mockImplementation(async () => []);
     createMock.mockImplementation(async () => CREATED);
     updateMock.mockImplementation(async () => undefined);
+  });
+
+  it('keeps the working record when a forced re-register moves to another relay', async () => {
+    // Stalwart answers overQuota before it looks at the URL; freeing a place
+    // would only lead to the new relay being refused with the old record gone.
+    let attempts = 0;
+    createMock.mockImplementation(async () => {
+      attempts += 1;
+      throw attempts === 1
+        ? overQuota()
+        : new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']);
+    });
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.home.lan', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.message).toContain('too many push registrations on the mail server');
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
   });
 
   it('a forced re-register frees the old record\'s place and tries once more', async () => {
@@ -1278,6 +1396,37 @@ describe('setupPushNotifications over UnifiedPush', () => {
     }
   });
 
+  it("puts the distributor back on the previous relay's VAPID key when the server refuses the new relay", async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ id: 'existing', deviceClientId: OUR_DCID, expires: new Date(Date.now() + 5 * 86400000).toISOString(), types: ['EmailDelivery'] }]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+    const registered: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/api/push/vapid-public-key')) {
+        const publicKey = url.startsWith(RELAY) ? 'VAPID-PUB' : 'VAPID-LAN';
+        return { ok: true, status: 200, json: async () => ({ publicKey }) } as Response;
+      }
+      if (url.includes('/api/push/register')) {
+        registered.push(`${init?.method ?? 'GET'} ${url}`);
+        return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.home.lan', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(upNative().register.mock.calls.map((c) => c[0])).toEqual(['VAPID-LAN', 'VAPID-PUB']);
+    expect(registered).toEqual([
+      'POST https://relay.home.lan/api/push/register/unifiedpush',
+      `DELETE https://relay.home.lan/api/push/register/${OUR_DCID}`,
+      `POST ${RELAY}/api/push/register/unifiedpush`,
+    ]);
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+  });
+
   it('sends keys: null for a legacy distributor without Web Push keys', async () => {
     upNative().getEndpoint.mockResolvedValue({
       url: 'https://legacy.example/up123456',
@@ -1351,6 +1500,19 @@ describe('resyncPushNotifications', () => {
     expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(expires);
   });
 
+  it('records the expiry the server settled on after a refresh, not the one before it', async () => {
+    const before = inDays(1);
+    const after = inDays(7);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValueOnce([{ id: 'existing', deviceClientId: OUR_DCID, expires: before, types: ['EmailDelivery'] }]);
+    listMock.mockResolvedValueOnce([{ id: 'existing', deviceClientId: OUR_DCID, expires: after, types: ['EmailDelivery'] }]);
+
+    await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(after);
+  });
+
   it('leaves an account alone after the user turned push off for it', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
     await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
@@ -1393,6 +1555,24 @@ describe('resyncPushNotifications', () => {
     expect(createMock).not.toHaveBeenCalled();
     expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
     expect(await readPushAccountIds()).toEqual([]);
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
+  });
+
+  it("takes a recorded subscription whose id now names another client's for revoked", async () => {
+    // Revoked here, then the webmail on the same account subscribed and got
+    // the freed id.
+    await AsyncStorage.setItem(SUB_KEY, 'b');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    listMock.mockResolvedValue([
+      { id: 'b', deviceClientId: 'webmailwebmailwebmailwebmailwebm', expires: inDays(7), types: ['EmailDelivery'] },
+    ]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toBeNull();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('b');
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
   });
 
@@ -1512,10 +1692,86 @@ describe('resyncPushNotifications', () => {
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
     expect(await AsyncStorage.getItem(EXPIRES_KEY)).not.toBeNull();
     vi.clearAllMocks();
+    // Turning push off forgot the device client id, so the new subscription
+    // carries a new one.
+    const deviceClientId = await AsyncStorage.getItem(deviceClientIdKey(ACCOUNT_ID));
+    expect(deviceClientId).not.toBe(OUR_DCID);
     listMock.mockResolvedValue([
-      { id: 'new-server-id', deviceClientId: OUR_DCID, expires: inDays(7), types: ['EmailDelivery'] },
+      { id: 'new-server-id', deviceClientId, expires: inDays(7), types: ['EmailDelivery'] },
     ]);
     expect((await resyncPushNotifications({ relayBaseUrl: RELAY }))?.subscriptionId).toBe('new-server-id');
+  });
+});
+
+describe('renewOtherPushAccounts (#1054)', () => {
+  const OTHER = 'bob@other.example.net';
+  const OTHER_DCID = 'bobsphonebobsphonebobsphonebobsp';
+  const inDays = (days: number) => new Date(Date.now() + days * 86400000).toISOString();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, OTHER]));
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
+    await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
+    Object.assign(DETACHED, { loaded: true, deviceClientId: OTHER_DCID, expires: inDays(2), settles: inDays(7), log: [] });
+    installFetch({});
+  });
+
+  afterEach(() => {
+    Object.assign(DETACHED, { deviceClientId: null, expires: null, settles: null });
+  });
+
+  it("extends another account's subscription through a client of its own and records the server's expiry", async () => {
+    const settles = DETACHED.settles;
+
+    await renewOtherPushAccounts();
+
+    const calls = DETACHED.log.map((entry) => (entry as unknown[])[0]);
+    // The loaded account is the launch-time resync's; only the other is touched here.
+    expect(calls).toEqual(['load', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
+    expect(DETACHED.log[0]).toEqual(['load', OTHER]);
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(listMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${OTHER}`)).toBe(settles);
+    // Its relay registration carries this device's current token.
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const registration = fetchMock.mock.calls.find((c) => String(c[0]) === `${RELAY}/api/push/register`);
+    expect(JSON.parse(String((registration![1] as RequestInit).body))).toEqual({
+      subscriptionId: OTHER_DCID,
+      fcmToken: 'fcm-token-xyz',
+      accountLabel: 'bob',
+    });
+  });
+
+  it('only records the expiry of a subscription with more than a week left', async () => {
+    DETACHED.expires = inDays(30);
+    await renewOtherPushAccounts();
+    expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+    expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${OTHER}`)).toBe(DETACHED.expires);
+  });
+
+  it("leaves alone another client's subscription that reuses the id, and an account push was turned off for", async () => {
+    DETACHED.deviceClientId = 'webmailwebmailwebmailwebmailwebm';
+    await renewOtherPushAccounts();
+    expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+
+    DETACHED.log = [];
+    await AsyncStorage.setItem(`push:optedOut:v1:${OTHER}`, '1');
+    await renewOtherPushAccounts();
+    expect(DETACHED.log).toEqual([]);
+  });
+
+  it('tells the settings which accounts have push on this device', async () => {
+    await AsyncStorage.setItem(`push:optedOut:v1:${OTHER}`, '1');
+    await AsyncStorage.removeItem(`push:subscriptionId:v2:${OTHER}`);
+    expect(await readPushAccountStates([ACCOUNT_ID, OTHER, 'carl@example.org'])).toEqual({
+      [ACCOUNT_ID]: { enabled: true, optedOut: false },
+      [OTHER]: { enabled: false, optedOut: true },
+      'carl@example.org': { enabled: false, optedOut: false },
+    });
   });
 });
 
