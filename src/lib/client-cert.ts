@@ -155,9 +155,14 @@ export interface SecureFetchInit extends RequestInit {
 
 const MAX_REDIRECTS = 5;
 
+// Android's fetch reports the URL as OkHttp normalised it, without a default
+// port: `https://h:443` and `https://h` are the same origin.
 function originOf(url: string): string {
   const m = /^(https?):\/\/([^/?#]+)/i.exec(url);
-  return m ? `${m[1].toLowerCase()}://${m[2].toLowerCase()}` : '';
+  if (!m) return '';
+  const scheme = m[1].toLowerCase();
+  const host = m[2].toLowerCase().replace(scheme === 'https' ? /:443$/ : /:80$/, '');
+  return `${scheme}://${host}`;
 }
 
 function hostOnly(origin: string): string {
@@ -276,13 +281,28 @@ export function setManualFetchForTests(impl: ManualFetch | null | undefined): vo
  * fetch can be told so (Node, or Expo's missing), it falls back to the
  * platform fetch, and the caller still checks `response.url` afterwards.
  */
+// Answers that came through a fetch told not to follow redirects: every hop
+// was ours to allow, so their `url` needs no second look. The platform's own
+// normalising of it (punycode hosts) would otherwise read as another host.
+const redirectChecked = new WeakSet<object>();
+
+/** Whether `response` came through a path that followed only allowed redirects. */
+export function followedOnlyAllowedRedirects(response: Response): boolean {
+  return redirectChecked.has(response);
+}
+
 export async function fetchWithoutForeignRedirect(
   url: string,
   init?: SecureFetchInit,
 ): Promise<Response> {
   const native = getNative();
-  if (native && (await getClientCertAlias())) return secureFetch(url, init);
-  const doFetch: ManualFetch = getManualFetch() ?? ((u, i) => fetch(u, i));
+  if (native && (await getClientCertAlias())) {
+    const response = await secureFetch(url, init);
+    redirectChecked.add(response);
+    return response;
+  }
+  const manual = getManualFetch();
+  const doFetch: ManualFetch = manual ?? ((u, i) => fetch(u, i));
   const { timeoutMs: _timeoutMs, ...rest } = init ?? {};
   let currentUrl = url;
   for (let hop = 0; ; hop++) {
@@ -300,6 +320,7 @@ export async function fetchWithoutForeignRedirect(
         continue;
       }
     }
+    if (manual) redirectChecked.add(response);
     return response;
   }
 }

@@ -189,6 +189,39 @@ describe('exchangePasswordForTokens', () => {
     expect(tokens.accessToken).toBe('at');
   });
 
+  // Android's fetch names the URL as OkHttp normalised it: no default port,
+  // a non-ASCII host in punycode. Those are the same server.
+  it('signs in when the answers name the server the way the platform normalised it', async () => {
+    const server = 'https://mail.m\u00fcller.de:443';
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const normalised = url.replace('m\u00fcller.de:443', 'xn--mller-kva.de');
+      let res: Response;
+      if (url.endsWith('/api/auth') && init?.method === 'POST') res = json({ type: 'authenticated', client_code: 'c' });
+      else if (url.endsWith('/auth/token')) res = json({ access_token: 'at', refresh_token: 'rt' });
+      else res = json({}, 404);
+      Object.defineProperty(res, 'url', { value: normalised });
+      return res;
+    });
+    const tokens = await exchangePasswordForTokens(server, 'u', 'pw', '1', { clientId: 'bulwark-webmail' });
+
+    expect(tokens.accessToken).toBe('at');
+  });
+
+  it('takes a URL without its default port for the same server on the platform fetch too', async () => {
+    setManualFetchForTests(null);
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      let res: Response;
+      if (url.endsWith('/api/auth') && init?.method === 'POST') res = json({ type: 'authenticated', client_code: 'c' });
+      else if (url.endsWith('/auth/token')) res = json({ access_token: 'at', refresh_token: 'rt' });
+      else res = json({}, 404);
+      Object.defineProperty(res, 'url', { value: url.replace(':443', '') });
+      return res;
+    });
+    const tokens = await exchangePasswordForTokens('https://mail.example.com:443', 'u', 'pw', '1', { clientId: 'bulwark-webmail' });
+
+    expect(tokens.accessToken).toBe('at');
+  });
+
   it('refuses the answer when the platform fetch followed a redirect to another host', async () => {
     // React Native's fetch follows redirects itself and never sets
     // `redirected`; only `url` tells where the answer came from.

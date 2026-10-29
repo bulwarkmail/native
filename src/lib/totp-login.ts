@@ -24,7 +24,7 @@
 // Token auth also survives TOTP rotation, unlike Basic auth, which would have
 // to embed the ~30 s code in every request.
 
-import { fetchWithoutForeignRedirect, mayFollowRedirect } from './client-cert';
+import { fetchWithoutForeignRedirect, followedOnlyAllowedRedirects, mayFollowRedirect } from './client-cert';
 import { sha256Hex } from './sha256';
 import { base64UrlEncode, randomBytes, randomHex } from './random';
 import { HANDOFF_REDIRECT_URI, type OAuthTokens } from './oauth';
@@ -143,7 +143,7 @@ function assertSameServer(requested: string, response: Response): void {
     const location = response.headers?.get?.('location');
     if (location) throw new TotpLoginError('login_failed', `${requested} redirects to another host`);
   }
-  if (response.url && !mayFollowRedirect(requested, response.url)) {
+  if (response.url && !followedOnlyAllowedRedirects(response) && !mayFollowRedirect(requested, response.url)) {
     throw new TotpLoginError('login_failed', `${requested} redirects to another host`);
   }
 }
