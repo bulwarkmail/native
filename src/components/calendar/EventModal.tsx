@@ -723,7 +723,7 @@ export function EventModal({
               onChangeText={setLocation}
               placeholder={t('calendar.form.location_placeholder', 'Place or address')}
               placeholderTextColor={c.mutedForeground}
-              style={styles.fieldButton}
+              style={styles.fieldInput}
             />
           </Section>
 
@@ -736,7 +736,7 @@ export function EventModal({
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
-              style={styles.fieldButton}
+              style={styles.fieldInput}
             />
           </Section>
 
@@ -944,6 +944,19 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
   },
   fieldText: { ...typography.body, color: c.text },
+  // A text field in the field frame. Without a colour of its own a
+  // TextInput draws black, invisible on the dark background (#82).
+  fieldInput: {
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.background,
+    ...typography.body,
+    color: c.text,
+  },
   limitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   limitText: { ...typography.caption, color: c.warning, flex: 1 },
 
