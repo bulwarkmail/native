@@ -181,4 +181,14 @@ describe('unfilledPlaceholdersInMessage', () => {
       subject: '{{subject}}', body, plainTextMode: true, signature, words: EN,
     })).toEqual(['{{subject}}', '[TIME]']);
   });
+
+  // The plain text of a link is "text <href>": a URL's {{id}} or [TODO]
+  // stopped the send though the sender never sees it.
+  it('leaves link targets out and keeps the link text', () => {
+    const body = '<p>See <a href="https://example.com/wiki/[TODO]?u={{id}}">the [DRAFT] page</a>'
+      + " and <a class=x href='https://example.com/TODO'>this</a>.</p>";
+    expect(unfilledPlaceholdersInMessage({
+      subject: 'Hello', body, plainTextMode: false, signature, words: EN,
+    })).toEqual(['[DRAFT]']);
+  });
 });

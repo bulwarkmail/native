@@ -143,6 +143,9 @@ export function placeholderWordsFor(locale: string): PlaceholderWords[] {
   return lists;
 }
 
+/** The href of an `<a>` tag, with the tag up to it in $1. */
+const LINK_HREF = /(<a\b[^>]*?)\shref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
+
 /**
  * The unfilled placeholders of a message as the composer holds it: the body
  * without its signature (a placeholder there would stop every message) and
@@ -161,7 +164,10 @@ export function unfilledPlaceholdersInMessage(message: {
     const signature = getPlainTextSignature(message.signature ?? undefined);
     authored = signature ? message.body.split(signature).join('') : message.body;
   } else {
-    authored = stripEmbeddedSignature(message.body);
+    // Without the link targets: the plain text writes a link as
+    // "text <href>", and a URL is no fill-in the sender left ("{{id}}" in a
+    // tracking link, "[TODO]" in a wiki path).
+    authored = stripEmbeddedSignature(message.body).replace(LINK_HREF, '$1');
   }
   const bodyText = extractUserAuthoredText(authored, {
     plainTextMode: message.plainTextMode,

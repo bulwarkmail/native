@@ -68,6 +68,7 @@ import {
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
 import { sendTargetFor } from '../lib/compose-send-account';
+import { inlineImageType } from '../lib/compose-inline-type';
 import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
@@ -862,7 +863,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
         try {
           const buf = await jmapClient.fetchBlobArrayBuffer(att.blobId, att.name, att.type, seedOwnerAccountId);
           const bytes = new Uint8Array(buf);
-          const mime = att.type?.toLowerCase().startsWith('image/') ? att.type : (sniffImageMime(bytes) ?? 'image/png');
+          // Never the part's type as it came: it goes into the data URI and
+          // into the part sent with the reply.
+          const mime = inlineImageType(att.type, sniffImageMime(bytes));
           map.set(cid, `data:${mime};base64,${bytesToBase64(bytes)}`);
           let blobId = att.blobId;
           if (seedOwnerAccountId) blobId = (await uploadBytesForLogin(ownerLoginRef.current, bytes, mime)).blobId;
@@ -2407,7 +2410,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       } else if (result.scheduled) {
         // Undo-send window: the undo bar offers Undo / Send now.
         useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
-          identityId: primaryIdentity.id,
+          // The identity the message went out through, as the submission
+          // account names it: "Send now" submits again with it.
+          identityId: target.identityId,
           accountId: submissionAccountId,
           login: ownerLoginRef.current,
           from: outgoing.from,

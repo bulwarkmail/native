@@ -1,14 +1,21 @@
 // Mail and Files meet here: a file from Files attached to a message (#1179)
-// and an attachment filed in Files (webmail save-to-files-dialog). Neither
-// downloads or uploads anything: both refer to a blob the server already
-// has. Stalwart 0.16.27 and 1.0.0 take a FileNode's blob as an attachment
-// and an attachment's blob for a FileNode within one account; across
-// accounts the blob is copied first (Blob/copy), as the webmail does.
+// and an attachment filed in Files (webmail save-to-files-dialog). Both
+// refer to a blob the server already has where they can. Stalwart 0.16.27
+// and 1.0.0 take a FileNode's blob as an attachment, and 1.0.0 an
+// attachment's blob for a FileNode; across accounts the blob is copied first
+// (Blob/copy), as the webmail does. On 0.16 a FileNode made from an
+// attachment's blob holds the whole message, so there the attachment is
+// downloaded and uploaded again.
 
+import { uploadBytes } from '../api/blob';
 import { copyBlobs } from '../api/email';
-import { copyFileNode, fileNodeKind, filesAccountId } from '../api/files';
+import {
+  copyFileNode, fileNodeKind, fileNodeTakesPartBlobs, filesAccountId, getAllFileNodes, getFileNameRules,
+} from '../api/files';
 import { jmapClient } from '../api/jmap-client';
 import type { FileNode } from '../api/types';
+import { acceptedFileName } from './file-name-rules';
+import { getUniqueName } from './filenode-name';
 
 /** The Files trash the webmail keeps (lib/files-trash): hidden like any dot folder. */
 const TRASH_FOLDER_NAME = '.Trash';
@@ -73,7 +80,9 @@ export async function attachmentFromFileNode(
  * File an attachment in the user's Files, in `parentId` (null: My files).
  * `blobAccountId` is the account the message is in when it is not the
  * login's own: a shared or group mailbox's blob is copied into the Files
- * account first.
+ * account first. On Stalwart 0.16 the attachment's bytes are uploaded into
+ * the Files account instead (see fileNodeTakesPartBlobs). A name the folder
+ * has already gets a number.
  */
 export async function saveAttachmentToFiles(
   attachment: { blobId: string; name?: string | null; type?: string | null },
@@ -81,8 +90,23 @@ export async function saveAttachmentToFiles(
   blobAccountId?: string,
 ): Promise<FileNode> {
   const from = blobAccountId ?? jmapClient.accountId;
-  const blobId = (await copyBlobs(from, [attachment.blobId], filesAccountId()))[attachment.blobId];
-  const name = attachment.name || 'attachment';
-  const node: FileNode = { id: '', name, type: attachment.type || 'application/octet-stream', blobId, nodeType: 'file' };
+  const to = filesAccountId();
+  const type = attachment.type || 'application/octet-stream';
+  // A name the folder holds already is refused (alreadyExists): the copy
+  // gets " (1)", " (2)", ... as an upload does.
+  const taken = new Set(
+    (await getAllFileNodes())
+      .filter((n) => !n.isShared && (n.parentId ?? null) === parentId)
+      .map((n) => n.name),
+  );
+  const name = getUniqueName(acceptedFileName(attachment.name || 'attachment', getFileNameRules()), taken);
+  let blobId: string;
+  if (fileNodeTakesPartBlobs(to)) {
+    blobId = (await copyBlobs(from, [attachment.blobId], to))[attachment.blobId];
+  } else {
+    const bytes = await jmapClient.fetchBlobArrayBuffer(attachment.blobId, name, type, from);
+    blobId = (await uploadBytes(new Uint8Array(bytes), type, to)).blobId;
+  }
+  const node: FileNode = { id: '', name, type, blobId, nodeType: 'file' };
   return copyFileNode(node, parentId, name);
 }

@@ -1,6 +1,6 @@
 import { jmapClient } from './jmap-client';
 import {
-  assertSetResult, batched, failedIdsOf, JMAPSetError, NoLongerScheduledError, parseHoldLimit, RecipientsRefusedError,
+  assertSetResult, batched, failedIdsOf, JMAPMethodError, JMAPSetError, NoLongerScheduledError, parseHoldLimit, RecipientsRefusedError,
   requireMethodResult, ScheduleTooLateError, type RefusedRecipient,
 } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
@@ -2151,7 +2151,8 @@ export async function cancelScheduledSend(emailSubmissionId: string, accountIdOv
     | { type?: string; description?: string }
     | undefined;
   if (failure) {
-    throw new Error(failure.description ?? failure.type ?? 'Failed to cancel scheduled send');
+    // A SetError: the server answered and kept the submission as it was.
+    throw new JMAPSetError(failure.type ?? 'setError', failure.description ?? failure.type ?? 'Failed to cancel scheduled send');
   }
   // The canceled record is dead weight against Stalwart 1.0's submission
   // limit. It goes in a request of its own, and only once the cancel is
@@ -2206,9 +2207,10 @@ export class RescheduleLostError extends Error {
  * out already (NoLongerScheduledError). A replacement the server refuses, or
  * takes for no recipient, puts the original back at its old time under a new
  * id (RescheduleRestoredError); when that fails too the message goes back to
- * Drafts (RescheduleLostError). Returns the new submission id and send time,
- * and the recipients the server refused for the replacement when it took
- * the others.
+ * Drafts (RescheduleLostError). A cancel or create whose answer was lost is
+ * checked against the server's records first. Returns the new submission id
+ * and send time, and the recipients the server refused for the replacement
+ * when it took the others.
  */
 export async function rescheduleScheduledSend(
   scheduled: {
@@ -2235,7 +2237,7 @@ export async function rescheduleScheduledSend(
   const lookup = await jmapClient.request(
     [
       ['EmailSubmission/get', {
-        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'sendAt'],
+        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'sendAt', 'identityId'],
       }, '0'],
       ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
       ['Mailbox/get', { accountId, ids: null, properties: ['id', 'role'] }, '2'],
@@ -2245,8 +2247,14 @@ export async function rescheduleScheduledSend(
   const original = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
     envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
     sendAt?: string;
+    identityId?: string;
   }> | undefined)?.[0];
   const envelope = original?.envelope;
+  // The original's identity is one of the submission account's. The caller's
+  // may be the composer's, from the login's own account: for a group
+  // identity's message that id names nothing in the group account, and the
+  // replacement and the put-back were both refused (webmail parity).
+  const identityId = original?.identityId || scheduled.identityId;
   const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
   const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
   const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
@@ -2262,6 +2270,9 @@ export async function rescheduleScheduledSend(
   const sentId = roles.find((m) => m.role === 'sent')?.id;
 
   type Created = { id: string; sendAt?: string; delivery: { recipients: RefusedRecipient[]; all: boolean } };
+  // Creates that got no answer (timeout, dropped connection): the server
+  // may have taken them all the same.
+  const unanswered = new Set<unknown>();
   // `until`: when the submission goes out (ms); undefined, at once.
   const createSubmission = async (until: number | undefined): Promise<Created> => {
     // HOLDFOR counts from when the server takes the request, so a retry
@@ -2276,7 +2287,7 @@ export async function rescheduleScheduledSend(
             create: {
               replacement: {
                 emailId: scheduled.emailId,
-                identityId: scheduled.identityId,
+                identityId,
                 envelope: {
                   mailFrom: seconds === undefined
                     ? { email: mailFrom }
@@ -2294,7 +2305,10 @@ export async function rescheduleScheduledSend(
           deliveryStatusCall(accountId, 'replacement', '1'),
         ],
         SUBMISSION_USING,
-      );
+      ).catch((err: unknown) => {
+        unanswered.add(err);
+        throw err;
+      });
     };
     let res = await send();
     // A full submission quota (Stalwart 1.0): make room and try once more.
@@ -2335,8 +2349,17 @@ export async function rescheduleScheduledSend(
     await cancelScheduledSend(scheduled.emailSubmissionId, accountId);
   } catch (err) {
     const status = await submissionUndoStatus(scheduled.emailSubmissionId, accountId);
-    if (status === 'final' || status === 'canceled') throw new NoLongerScheduledError(status === 'final');
-    throw err;
+    // A cancel the server answered and refused changed nothing, so a
+    // canceled original was cancelled elsewhere. One whose answer was lost
+    // (timeout, dropped connection) may have gone through: then the
+    // original is cancelled by this call and the replacement still has to
+    // be made, or the message sits in Sent unsent.
+    const refusedCancel = err instanceof JMAPMethodError;
+    if (status === 'final' || (status === 'canceled' && refusedCancel)) {
+      throw new NoLongerScheduledError(status === 'final');
+    }
+    if (status !== 'canceled') throw err;
+    await destroyEmailSubmissions([scheduled.emailSubmissionId], accountId);
   }
 
   let replacement: Created;
@@ -2349,6 +2372,13 @@ export async function rescheduleScheduledSend(
     const refused = await withdrawIfDead(replacement);
     if (refused) throw new RecipientsRefusedError(refused);
   } catch (err) {
+    // A replacement whose answer was lost may have been taken: putting the
+    // original back as well would send the message twice. The server's
+    // record of it stands in for the answer.
+    if (unanswered.has(err)) {
+      const taken = await liveSubmissionOf(scheduled.emailId, accountId);
+      if (taken) return { emailSubmissionId: taken.id, sendAt: taken.sendAt };
+    }
     // Put the original back at its old time: HOLDFOR with the seconds left,
     // at once when that time has passed meanwhile.
     const originalTime = original?.sendAt ? Date.parse(original.sendAt) : NaN;
@@ -2356,7 +2386,9 @@ export async function rescheduleScheduledSend(
     try {
       restored = await createSubmission(Number.isFinite(originalTime) && originalTime > Date.now() ? originalTime : undefined);
     } catch (restoreErr) {
-      console.warn('[email] could not put the original scheduled send back:', restoreErr);
+      const taken = unanswered.has(restoreErr) ? await liveSubmissionOf(scheduled.emailId, accountId) : undefined;
+      if (taken) restored = { id: taken.id, sendAt: taken.sendAt, delivery: { recipients: [], all: false } };
+      else console.warn('[email] could not put the original scheduled send back:', restoreErr);
     }
     if (restored && !(await withdrawIfDead(restored).catch(() => null))) {
       throw new RescheduleRestoredError(err, restored.id, restored.sendAt ?? original?.sendAt);
@@ -2393,6 +2425,33 @@ async function readSubmissionUndoStatus(emailSubmissionId: string, accountId: st
   const list = requireMethodResult(res, '0', 'EmailSubmission/get').list as
     Array<{ id?: string; undoStatus?: string }> | undefined;
   return list?.find((s) => s.id === emailSubmissionId)?.undoStatus;
+}
+
+/**
+ * A submission of `emailId` that is still held or went out, for a create
+ * whose answer was lost. Undefined when there is none or it can't be read.
+ */
+async function liveSubmissionOf(emailId: string, accountId: string): Promise<{ id: string; sendAt?: string } | undefined> {
+  try {
+    const res = await jmapClient.request(
+      [
+        ['EmailSubmission/query', { accountId, filter: { emailIds: [emailId] } }, '0'],
+        ['EmailSubmission/get', {
+          accountId,
+          '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' },
+          properties: ['id', 'emailId', 'undoStatus', 'sendAt'],
+        }, '1'],
+      ],
+      SUBMISSION_ONLY_USING,
+    );
+    const list = requireMethodResult(res, '1', 'EmailSubmission/get').list as
+      Array<{ id?: string; emailId?: string; undoStatus?: string; sendAt?: string }> | undefined;
+    // "Send now" goes out a second later: a final one is the replacement too.
+    const live = list?.find((s) => s.id && s.emailId === emailId && (s.undoStatus === 'pending' || s.undoStatus === 'final'));
+    return live?.id ? { id: live.id, sendAt: live.sendAt } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A submission's `undoStatus`, or undefined when it can't be read. */

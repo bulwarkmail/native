@@ -36,7 +36,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('Cancel send of a scheduled message', () => {
   it('cancels the submission and moves an own message back into the own Drafts', async () => {
     const item = { accountId: 'own', emailSubmissionId: 'sub-1', emailId: 'mail-1' };
-    await expect(cancelScheduledToDrafts(item, MAILBOXES, 'own')).resolves.toBe(true);
+    await expect(cancelScheduledToDrafts(item, MAILBOXES, 'own')).resolves.toEqual({ inDrafts: true });
     expect(api.cancelScheduledSend).toHaveBeenCalledWith('sub-1', 'own');
     expect(api.restoreEmailToDraft).toHaveBeenCalledWith('mail-1', 'own-drafts', 'own-sent', 'own');
   });
@@ -57,8 +57,17 @@ describe('Cancel send of a scheduled message', () => {
 
   it('says so when the account has no Drafts folder', async () => {
     const item = { accountId: 'own', emailSubmissionId: 'sub-1', emailId: 'mail-1' };
-    await expect(cancelScheduledToDrafts(item, [mailbox('sent', 'own-sent')], 'own')).resolves.toBe(false);
+    await expect(cancelScheduledToDrafts(item, [mailbox('sent', 'own-sent')], 'own')).resolves.toEqual({ inDrafts: false });
     expect(api.restoreEmailToDraft).not.toHaveBeenCalled();
+  });
+
+  // The cancel went through, so it must not read as "Cancel failed" with the
+  // row still listed as scheduled.
+  it('reports a cancelled send it could not move back to Drafts, without failing', async () => {
+    const moveError = new Error('Network request failed');
+    api.restoreEmailToDraft.mockRejectedValueOnce(moveError);
+    const item = { accountId: 'own', emailSubmissionId: 'sub-1', emailId: 'mail-1' };
+    await expect(cancelScheduledToDrafts(item, MAILBOXES, 'own')).resolves.toEqual({ inDrafts: false, moveError });
   });
 
   it('names the own account as no override', () => {

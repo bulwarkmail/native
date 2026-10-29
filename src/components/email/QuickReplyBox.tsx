@@ -22,7 +22,7 @@ import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-utils';
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
-import { mailboxesOfAccount } from '../../lib/mailbox-tree';
+import { sendTargetFor } from '../../lib/compose-send-account';
 import { emailDisplayDate } from '../../lib/email-date';
 import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
 
@@ -66,16 +66,19 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
   const from = email.from?.[0];
   if (!from?.email || email.keywords?.$draft) return null;
 
+  const refuseAfterSwitch = () => {
+    if (!loginMovedFrom(ownerLoginRef.current)) return false;
+    Alert.alert(
+      t('email_composer.login_switched_title', 'Account switched'),
+      t('email_viewer.quick_reply_login_switched', 'This message is in another account. Switch back to it to reply.'),
+    );
+    return true;
+  };
+
   const send = async () => {
     const body = text.trim();
     if (!body || sending) return;
-    if (loginMovedFrom(ownerLoginRef.current)) {
-      Alert.alert(
-        t('email_composer.login_switched_title', 'Account switched'),
-        t('email_viewer.quick_reply_login_switched', 'This message is in another account. Switch back to it to reply.'),
-      );
-      return;
-    }
+    if (refuseAfterSwitch()) return;
     const ownEmails = identities.map((i) => i.email).filter(Boolean);
     // The own identity the message was delivered to (or, for our own message,
     // the one that sent it). Never the catch-all From rewrite: this box has no
@@ -88,16 +91,20 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       Alert.alert(t('common.error', 'Error'), t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
       return;
     }
-    // Sent/Drafts of the account the reply is submitted from: the message's.
-    const scoped = mailboxesOfAccount(mailboxes, jmapAccountId);
-    const sent = scoped.find((m) => m.role === 'sent');
-    const drafts = scoped.find((m) => m.role === 'drafts');
-    if (!sent) {
-      Alert.alert(t('common.error', 'Error'), t('email_composer.no_sent_folder', 'No Sent folder found'));
-      return;
-    }
     setSending(true);
     try {
+      // The account, identity and folders the reply goes out through, as the
+      // composer picks them (#1090): a group address sends from the group's
+      // account with that account's identity id. The message's own account
+      // with the login's identity id named nothing there, or another
+      // identity.
+      const target = await sendTargetFor(identity, identity.email, mailboxes);
+      if (!target.sentMailboxId) {
+        Alert.alert(t('common.error', 'Error'), t('email_composer.no_sent_folder', 'No Sent folder found'));
+        return;
+      }
+      // The lookup may have outlasted a switch of logins.
+      if (refuseAfterSwitch()) return;
       const recipients = buildReplyRecipients(
         { from: email.from, replyToAddresses: email.replyTo, to: email.to, cc: email.cc },
         'reply',
@@ -116,10 +123,10 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
         labels: quoteHeaderLabels(t),
       });
       const threading = computeReplyThreadingHeaders(email);
-      const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
+      const holdFor = jmapClient.undoSendHold(sendDelaySeconds, target.accountId);
       // Where the reply goes, read before it goes: Undo must reach that login
       // and account whatever the app switches to meanwhile.
-      const sentThrough = { login: currentSendLogin(), accountId: jmapAccountId ?? jmapClient.connectedAccountId ?? undefined };
+      const sentThrough = { login: currentSendLogin(), accountId: target.accountId ?? jmapClient.connectedAccountId ?? undefined };
       const result = await sendEmail(
         {
           from: [{ name: identity.name, email: identity.email }],
@@ -135,15 +142,15 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
           inReplyTo: threading?.inReplyTo,
           references: threading?.references,
         },
-        identity.id,
-        sent.originalId ?? sent.id,
+        target.identityId,
+        target.sentMailboxId,
         holdFor,
-        { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
+        { draftsMailboxId: target.draftsMailboxId, accountId: target.accountId },
       );
       // Held for the undo-send delay: the undo bar offers Undo / Send now.
       // Recorded before the flag below so its round trip doesn't eat the window.
       useSendUndoStore.getState().recordHeldSend(result, holdFor, {
-        identityId: identity.id,
+        identityId: target.identityId,
         ...sentThrough,
         from: [{ name: identity.name, email: identity.email }],
       });
