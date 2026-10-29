@@ -253,6 +253,58 @@ describe('external rule preservation (issue #201)', () => {
     });
   });
 
+  // elsif and else were taken for statements of their own and cut at the
+  // first ";" in their body: a save wrote the chain back without its closing
+  // brace and without the comments after it, and the server refused it.
+  describe('if blocks with elsif and else', () => {
+    const read = (file: string) =>
+      readFileSync(join(__dirname, 'fixtures', file), 'utf-8').replace(/\r\n/g, '\n');
+    const resave = (script: string) => {
+      const parsed = parseScript(script);
+      return generateScript(parsed.rules, parsed.vacation, {
+        externalRequires: parsed.externalRequires,
+        extensions: ['fileinto', 'copy', 'imap4flags', 'mailbox', 'mailboxid'],
+      });
+    };
+
+    it('keeps a hand-written if/elsif/else chain whole', () => {
+      const fixture = read('hand-written-elsif.sieve');
+      const parsed = parseScript(fixture);
+      expect(parsed.isOpaque).toBe(false);
+      expect(parsed.rules).toHaveLength(1);
+      expect(parsed.rules[0].origin).toBe('opaque');
+      expect(parsed.rules[0].name).toBe('Sorted by hand');
+
+      const saved = resave(fixture);
+      expect(saved).toContain(fixture.slice(fixture.indexOf('# Sorted by hand')).trim());
+      expect(resave(saved)).toBe(saved);
+    });
+
+    it('keeps the category tabs section with its END marker', () => {
+      const fixture = read('category-tabs.sieve');
+      const parsed = parseScript(fixture);
+      expect(parsed.rules.filter((r) => !r.origin)).toHaveLength(4);
+      const external = parsed.rules.filter((r) => r.origin);
+      expect(external).toHaveLength(1);
+      expect(external[0].origin).toBe('opaque');
+
+      const section = fixture.slice(fixture.indexOf('# BEGIN category-tabs')).trim();
+      expect(external[0].rawBlock!.trim()).toBe(section);
+      const saved = resave(fixture);
+      expect(saved).toContain(section);
+      expect(saved.trimEnd().endsWith('# END category-tabs')).toBe(true);
+      expect(resave(saved)).toBe(saved);
+    });
+
+    it('still reads a lone if as a rule', () => {
+      const parsed = parseScript('require ["fileinto"];\nif header :contains "from" "a@example.org" {\n    fileinto "A";\n}\n# trailing note\n');
+      expect(parsed.rules).toHaveLength(1);
+      expect(parsed.rules[0].origin).toBe('external');
+      expect(parsed.rules[0].actions).toEqual([{ type: 'move', value: 'A' }]);
+      expect(parsed.rules[0].rawBlock).toContain('# trailing note');
+    });
+  });
+
   describe('round-trip', () => {
     it('preserves external rules through parse → generate → parse', () => {
       const initial = `require ["fileinto", "imap4flags"];\n\n# rule:[VIP]\nif header :contains "From" "boss@company.com" {\n    fileinto "VIP";\n    addflag "\\\\Flagged";\n}\n\n# Nextcloud Mail - begin\nif header :contains "Subject" "invoice" {\n    fileinto "Finance";\n}\n# Nextcloud Mail - end\n`;

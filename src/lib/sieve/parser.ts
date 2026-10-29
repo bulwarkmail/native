@@ -206,9 +206,21 @@ function skipIfStatement(s: string, i: number): number {
   return skipBalanced(s, i, '{', '}');
 }
 
+// Past whitespace and comments, to the next token.
+function skipSpaceAndComments(s: string, i: number): number {
+  while (i < s.length) {
+    if (/\s/.test(s[i])) { i++; continue; }
+    if (s[i] === '#') { i = skipHashComment(s, i); continue; }
+    if (s[i] === '/' && s[i + 1] === '*') { i = skipBlockComment(s, i); continue; }
+    break;
+  }
+  return i;
+}
+
 interface TopBlock {
   kind: 'require' | 'if' | 'vacation' | 'other';
   raw: string;          // from start-of-leading-text to end of statement
+  leading: string;      // the comments and whitespace in front of the statement
   statement: string;    // the statement itself (no leading comments/whitespace)
   startIdx: number;
   endIdx: number;
@@ -223,6 +235,7 @@ function scanTopLevel(content: string): TopBlock[] {
     blocks.push({
       kind,
       raw: content.slice(segmentStart, stmtEnd),
+      leading: content.slice(segmentStart, stmtStart),
       statement: content.slice(stmtStart, stmtEnd),
       startIdx: segmentStart,
       endIdx: stmtEnd,
@@ -254,6 +267,15 @@ function scanTopLevel(content: string): TopBlock[] {
       consume('require', stmtStart, i);
     } else if (ident === 'if') {
       i = skipIfStatement(content, i);
+      // elsif and else belong to the if in front of them. Taken as
+      // statements of their own they were cut at the first ";" in their
+      // body, and a save wrote back a block without its closing brace.
+      for (;;) {
+        const next = skipSpaceAndComments(content, i);
+        const branch = /^(elsif|else)(?![a-zA-Z0-9_])/.exec(content.slice(next, next + 6));
+        if (!branch) break;
+        i = skipIfStatement(content, next + branch[1].length);
+      }
       consume('if', stmtStart, i);
     } else if (ident === 'vacation') {
       i = skipStatement(content, i);
@@ -262,6 +284,15 @@ function scanTopLevel(content: string): TopBlock[] {
       i = skipStatement(content, i);
       consume('other', stmtStart, i);
     }
+  }
+
+  // Comments after the last statement, such as the "# END category-tabs"
+  // marker a plugin closes its section with, go with that statement, or a
+  // save would drop them.
+  const last = blocks[blocks.length - 1];
+  if (last && content.slice(segmentStart).trim() !== '') {
+    last.raw += content.slice(segmentStart);
+    last.endIdx = content.length;
   }
 
   return blocks;
@@ -632,6 +663,8 @@ function parseIfBlockToRule(block: TopBlock, idPrefix: string, index: number): F
   // statement always terminates at the matching `}`.
   const lastBraceIdx = afterIf.length - 1;
   if (braceIdx === -1 || afterIf[lastBraceIdx] !== '}' || lastBraceIdx < braceIdx) return null;
+  // An if with elsif or else branches stays as written.
+  if (skipBalanced(afterIf, braceIdx, '{', '}') !== afterIf.length) return null;
 
   const condStr = afterIf.slice(0, braceIdx).trim();
   const bodyStr = afterIf.slice(braceIdx + 1, lastBraceIdx).trim();
@@ -657,7 +690,7 @@ function parseIfBlockToRule(block: TopBlock, idPrefix: string, index: number): F
     }
   }
 
-  const leading = block.raw.slice(0, block.statement ? block.raw.length - block.statement.length : 0);
+  const leading = block.leading;
   const originLabel = detectOriginLabel(leading);
   const name = extractName(leading, `Rule ${index + 1}`);
 
@@ -676,7 +709,7 @@ function parseIfBlockToRule(block: TopBlock, idPrefix: string, index: number): F
 }
 
 function makeOpaqueRule(block: TopBlock, idPrefix: string, index: number): FilterRule {
-  const leading = block.raw.slice(0, block.raw.length - block.statement.length);
+  const leading = block.leading;
   const originLabel = detectOriginLabel(leading);
   const name = extractName(leading, `External rule ${index + 1}`);
   return {
