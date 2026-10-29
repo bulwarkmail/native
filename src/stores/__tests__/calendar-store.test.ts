@@ -168,6 +168,53 @@ describe('calendar-store', () => {
     });
   });
 
+  describe('loads a reset overtook (an account switch)', () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>((r) => { resolve = r; });
+      return { promise, resolve };
+    }
+
+    it('keeps the previous account\'s tasks out of the next account\'s list', async () => {
+      const scan = deferred<unknown[]>();
+      mockScan.mockReturnValueOnce(scan.promise);
+      mockGetEvents.mockImplementation(async (ids: string[]) => ids.map((id) => ({ id, title: 'Old account task' })));
+      const outgoing = useCalendarStore.getState().fetchTasks();
+
+      useCalendarStore.getState().reset();
+      // The next account's own load is not handed the one still under way.
+      mockScan.mockResolvedValueOnce([]);
+      await useCalendarStore.getState().fetchTasks();
+      expect(mockScan).toHaveBeenCalledTimes(2);
+
+      scan.resolve([{ id: 't-old', '@type': 'Task', calendarIds: { 'cal-1': true } }]);
+      await outgoing;
+      expect(useCalendarStore.getState().tasks).toEqual([]);
+    });
+
+    it('keeps the previous account\'s events and calendars out', async () => {
+      const calendars = deferred<unknown[]>();
+      mockGetCalendars.mockReturnValueOnce(calendars.promise);
+      const ids = deferred<string[]>();
+      mockQueryEvents.mockReturnValueOnce(ids.promise);
+      mockGetEvents.mockResolvedValue([{ id: 'e-old', title: 'Old account event', start: '2026-03-20T15:00:00', calendarIds: { 'cal-1': true } }]);
+      useCalendarStore.setState({ calendars: [{ id: 'cal-1' }] as never });
+      const calendarLoad = useCalendarStore.getState().fetchCalendars();
+      const eventLoad = useCalendarStore.getState().fetchEvents(['cal-1'], '2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z');
+
+      useCalendarStore.getState().reset();
+      calendars.resolve([{ id: 'cal-1', name: 'Old account calendar' }]);
+      ids.resolve(['e-old']);
+      await Promise.all([calendarLoad, eventLoad]);
+
+      const state = useCalendarStore.getState();
+      expect(state.calendars).toEqual([]);
+      expect(state.events).toEqual([]);
+      expect(state.loadedRange).toBeNull();
+      expect(state.error).toBeNull();
+    });
+  });
+
   describe('fetchTasks', () => {
     it('classifies calendars whose contents are all tasks as task lists (#28)', async () => {
       // VTODO-only CalDAV collections (Todoist imports, Thunderbird task
