@@ -125,6 +125,8 @@ import { useAccountStore } from '../account-store';
 import { useAuthStore } from '../auth-store';
 import { useEmailStore } from '../email-store';
 import { useOutboxStore } from '../outbox-store';
+import { useSearchHistoryStore } from '../search-history-store';
+import { useCalendarSubscriptionsStore, type CalendarSubscription } from '../calendar-subscriptions-store';
 
 const { A, B, C } = client;
 const settle = async () => {
@@ -243,5 +245,50 @@ describe('what a sign-out leaves behind', () => {
 
     await useAuthStore.getState().logoutAll();
     expect(vi.mocked(forgetRefreshRotations).mock.calls.at(-1)).toEqual([`rt-${B}`]);
+  });
+
+  const feed = (localAccountId: string): CalendarSubscription => ({
+    id: `sub-${localAccountId}`,
+    name: 'Team',
+    url: 'https://cal.example.org/feed?token=secret',
+    calendarId: 'c1',
+    localAccountId,
+    lastSyncAt: null,
+    lastError: null,
+  });
+  const leftovers = () => ({
+    searches: useSearchHistoryStore.getState().recentSearches,
+    feeds: useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id),
+  });
+
+  it('keeps the recent searches and calendar feeds while an account is still signed in', async () => {
+    await signedIn(A, B);
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A), feed(B)] });
+
+    await useAuthStore.getState().logout();
+    await settle();
+
+    expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${A}`, `sub-${B}`] });
+  });
+
+  it('clears them when the last account signs out', async () => {
+    await signedIn(A);
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A)] });
+
+    await useAuthStore.getState().logout();
+
+    expect(leftovers()).toEqual({ searches: [], feeds: [] });
+  });
+
+  it('clears them when everyone signs out at once', async () => {
+    await signedIn(A, B);
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A), feed(B)] });
+
+    await useAuthStore.getState().logoutAll();
+
+    expect(leftovers()).toEqual({ searches: [], feeds: [] });
   });
 });

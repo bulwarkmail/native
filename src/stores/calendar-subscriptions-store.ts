@@ -80,6 +80,11 @@ interface SubscriptionsState {
    * account has that id.
    */
   unlinkAccount: (localAccountId: string, jmapAccountIds: { previous: string | null; next: string | null }) => Promise<void>;
+  /**
+   * Everyone signed out: forget every subscription on this device (feed URLs
+   * are often secret). The mirror calendars stay on the server.
+   */
+  clearAll: () => void;
 }
 
 /**
@@ -417,6 +422,8 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
             : s)),
         });
       },
+
+      clearAll: () => set({ subscriptions: [], syncing: {} }),
     }),
     {
       name: 'calendar-subscriptions',

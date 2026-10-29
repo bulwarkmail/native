@@ -16,6 +16,8 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useOutboxStore } from './outbox-store';
+import { useSearchHistoryStore } from './search-history-store';
+import { useCalendarSubscriptionsStore } from './calendar-subscriptions-store';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -130,8 +132,19 @@ function clearAllFeatureStores(): void {
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
   useFilterStore.getState().clearState();
+  clearDeviceWideAccountData();
   // Cache writes are held back briefly; get the signed-out data off disk now.
   void flushPersistedWrites();
+}
+
+// Kept across accounts, not per account, so they go only once nobody is
+// signed in (webmail lib/sign-out-cleanup.ts): the recent searches name what
+// the accounts' mail is about, and calendar feed URLs are often secret.
+// Templates and tag names stay, as in the webmail: they are the user's own
+// work on this device, not a copy of an account's data.
+function clearDeviceWideAccountData(): void {
+  useSearchHistoryStore.getState().clearRecentSearches();
+  useCalendarSubscriptionsStore.getState().clearAll();
 }
 
 // Drop the named account from the email cache, then reset the (per-session,
@@ -746,6 +759,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // That was the last account.
+    if (useAccountStore.getState().accounts.length === 0) clearDeviceWideAccountData();
     set({
       isAuthenticated: false,
       isLoading: false,
