@@ -40,6 +40,37 @@ export function isSymlink(node: Pick<FileNode, 'nodeType' | 'blobId'>): boolean 
   return fileNodeKind(node) === 'symlink';
 }
 
+/**
+ * Stalwart 1.0.0 implements File Storage draft 18, which names the kind
+ * `@type` ("File", "Directory", "SymLink") and the media type `mediaType`.
+ * 0.16 calls them `nodeType` and `type`. Each server leaves the other's names
+ * out of FileNode/get and refuses them in a create ("@type is required on
+ * creation." on 1.0.0, "Invalid property." for `@type` on 0.16.27).
+ */
+const DRAFT_NODE_TYPES: Record<string, FileNodeType> = { File: 'file', Directory: 'directory', SymLink: 'symlink' };
+
+type DraftFileNode = { '@type'?: unknown; mediaType?: unknown };
+
+/** A node of either draft, with the kind in `nodeType` and the media type in `type`. */
+export function fromDraftFileNode<T extends Partial<FileNode>>(node: T & DraftFileNode): T {
+  const kind = typeof node['@type'] === 'string' ? DRAFT_NODE_TYPES[node['@type']] : undefined;
+  const mediaType = typeof node.mediaType === 'string' ? node.mediaType : undefined;
+  if (!kind && mediaType === undefined) return node;
+  return {
+    ...node,
+    ...(kind && !node.nodeType ? { nodeType: kind } : {}),
+    ...(mediaType !== undefined && node.type == null ? { type: mediaType } : {}),
+  };
+}
+
+/** The properties of a draft-18 FileNode/set create, from 0.16 ones (no blob: a folder). */
+function toDraftFileNodeCreate(props: Record<string, unknown>): Record<string, unknown> {
+  const { type, ...rest } = props;
+  return rest.blobId == null
+    ? { '@type': 'Directory', ...rest }
+    : { '@type': 'File', ...rest, mediaType: type };
+}
+
 // Stalwart omits shareWith/myRights from FileNode/get unless they are
 // requested explicitly, so the share sheet and indicators must name them here.
 // The modification timestamp is `modified` (RFC draft-ietf-jmap-filenode);
@@ -50,6 +81,8 @@ const FILE_NODE_PROPERTIES = [
   // Tells 1.0's symlinks from folders (see fileNodeKind); servers before
   // 0.16.6 skip it.
   'nodeType',
+  // `nodeType` and `type` as Stalwart 1.0.0 names them (see fromDraftFileNode).
+  '@type', 'mediaType',
   'shareWith', 'myRights',
 ];
 
@@ -162,7 +195,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
   if (!result || result[0] === 'error') {
     throw new Error(result?.[1]?.description || 'FileNode list failed');
   }
-  const firstPage = (result[1].list ?? []) as FileNode[];
+  const firstPage = ((result[1].list ?? []) as FileNode[]).map(fromDraftFileNode);
   const maxObjects = jmapClient.getMaxObjectsInGet();
   if (firstPage.length < maxObjects) return firstPage;
 
@@ -178,7 +211,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
         if (r[0] !== 'FileNode/get') {
           throw new Error(r[1]?.description || 'FileNode/get failed');
         }
-        for (const node of (r[1].list ?? []) as FileNode[]) known.set(node.id, node);
+        for (const node of (r[1].list ?? []) as FileNode[]) known.set(node.id, fromDraftFileNode(node));
       }
     }
   };
@@ -325,6 +358,44 @@ export function listFolder(nodes: FileNode[], parentId: string | null): FileNode
   return nodes.filter((n) => !n.discoverableOnly && (n.parentId ?? null) === parentId);
 }
 
+/**
+ * Stalwart 1.0.0 (File Storage draft 18) wants `@type` and `mediaType` in a
+ * create (see toDraftFileNodeCreate). Of the drafts Stalwart has shipped,
+ * only that one lists `supportedNodeTypes`. A shared account may come
+ * without the capability; the user's own files account stands in, as
+ * Stalwart publishes the same one for every account.
+ */
+function usesDraftFileNodeCreate(accountId: string): boolean {
+  // Read the accounts' own capabilities: the session-wide one is empty on
+  // both versions.
+  const accounts = jmapClient.currentSession?.accounts;
+  const cap = accounts?.[accountId]?.accountCapabilities?.[CAPABILITIES.FILES]
+    ?? accounts?.[filesAccountId()]?.accountCapabilities?.[CAPABILITIES.FILES];
+  return !!cap && typeof cap === 'object' && 'supportedNodeTypes' in cap;
+}
+
+/** One FileNode/set create in `accountId`, in the shape that server takes. */
+async function createFileNodeIn(
+  accountId: string,
+  props: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): Promise<FileNode> {
+  const wire = usesDraftFileNodeCreate(accountId) ? toDraftFileNodeCreate(props) : props;
+  const res = await jmapClient.request(
+    [['FileNode/set', { accountId, create: { [key]: wire } }, '0']],
+    fileUsing(),
+  );
+  const result = requireMethodResult(res, '0', 'FileNode/set');
+  const created = result.created?.[key];
+  if (!created) {
+    throw fileSetError(result.notCreated?.[key], fallback);
+  }
+  // The create response carries only server-set properties; keep the ones
+  // sent so callers can rely on name, parentId and type.
+  return fromDraftFileNode({ ...wire, ...created } as FileNode);
+}
+
 export async function createFolder(
   name: string,
   parentId: string | null,
@@ -332,17 +403,7 @@ export async function createFolder(
   const accountId = filesAccountId();
   const props: Record<string, unknown> = { name: acceptedFileName(name, getFileNameRules()) };
   if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-dir': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-dir'];
-  if (!created) {
-    throw fileSetError(result.notCreated?.['new-dir'], 'Create folder failed');
-  }
-  return { ...props, ...created } as FileNode;
+  return createFileNodeIn(accountId, props, 'new-dir', 'Create folder failed');
 }
 
 export async function updateFileNode(
@@ -421,17 +482,7 @@ async function createFileNodeFromBlob(
     blobId,
   };
   if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-file': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-file'];
-  if (!created) {
-    throw fileSetError(result.notCreated?.['new-file'], 'Upload failed');
-  }
-  return { ...props, ...created } as FileNode;
+  return createFileNodeIn(accountId, props, 'new-file', 'Upload failed');
 }
 
 export async function uploadFileNode(

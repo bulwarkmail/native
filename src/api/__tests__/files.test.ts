@@ -674,6 +674,87 @@ describe('fileNodeKind', () => {
   });
 });
 
+describe('Stalwart 1.0.0 (File Storage draft 18)', () => {
+  // The filenode account capability of 1.0.0 lists `supportedNodeTypes`; 0.16.27's doesn't.
+  const CAP_100 = { maxFileNodeDepth: 64, forbiddenNameChars: '/<>:"\\|?*', supportedNodeTypes: ['Directory', 'File', 'SymLink'] };
+  const CAP_016 = { maxFileNodeDepth: null, forbiddenNameChars: '/<>:"\\|?*' };
+
+  function session(own: object, shared?: object) {
+    setSession({
+      primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
+      accounts: {
+        'acc-1': { name: 'me@example.com', isPersonal: true, accountCapabilities: { [CAPABILITIES.FILES]: own } },
+        ...(shared ? { 'acc-2': { name: 'Team', isPersonal: false, accountCapabilities: shared } } : {}),
+      },
+    });
+  }
+
+  const creates = () => mockRequest.mock.calls.map(([calls]) => Object.values(calls[0][1].create ?? {})[0]);
+
+  // Seen live: 1.0.0 answers a create without `@type` with "@type is required
+  // on creation." and one with `type` with "Invalid property.".
+  it('creates folders and files with @type and mediaType', async () => {
+    session(CAP_100);
+    mockUploadBlobOnce('blob-up', 'text/plain');
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'd1' } } }, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'f1', size: 3 } } }, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'f2', size: 3 } } }, '0']] });
+
+    const dir = await createFolder('New', null);
+    const { uploaded } = await uploadFileBatch([{ uri: 'file:///b', name: 'b.txt', mimeType: 'text/plain' }], 'd1', []);
+    const copy = await copyFileNode(uploaded[0], null, 'b (1).txt');
+
+    expect(creates()).toEqual([
+      { '@type': 'Directory', name: 'New' },
+      { '@type': 'File', name: 'b.txt', mediaType: 'text/plain', blobId: 'blob-up', parentId: 'd1' },
+      { '@type': 'File', name: 'b (1).txt', mediaType: 'text/plain', blobId: 'blob-up' },
+    ]);
+    expect(dir).toMatchObject({ id: 'd1', name: 'New', nodeType: 'directory' });
+    expect(copy).toMatchObject({ id: 'f2', type: 'text/plain', nodeType: 'file' });
+  });
+
+  it('keeps the 0.16 shape on Stalwart 0.16, which refuses @type', async () => {
+    session(CAP_016);
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'd1' }, 'new-file': { id: 'f1' } } }, '0']] });
+
+    await createFolder('New', null);
+    await copyFileNode({ id: 'f0', name: 'a.txt', type: 'text/plain', blobId: 'b1' }, null);
+
+    expect(creates()).toEqual([
+      { name: 'New' },
+      { name: 'a.txt', type: 'text/plain', blobId: 'b1' },
+    ]);
+  });
+
+  it('reads the kind from @type and the media type from mediaType', async () => {
+    session(CAP_100);
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/get', {
+        list: [
+          { id: 'd1', name: 'Docs', parentId: null, '@type': 'Directory' },
+          { id: 'l1', name: 'latest', parentId: 'd1', '@type': 'SymLink' },
+          { id: 'f1', name: 'a.pdf', parentId: 'd1', '@type': 'File', mediaType: 'application/pdf', blobId: 'b1', size: 3 },
+        ],
+      }, '0']],
+    });
+
+    const nodes = await getAllFileNodes();
+
+    expect(mockRequest.mock.calls[0][0][0][1].properties).toEqual(expect.arrayContaining(['@type', 'mediaType']));
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    expect(fileNodeKind(byId.d1)).toBe('directory');
+    // Without @type the blob rule made this an empty folder.
+    expect(isSymlink(byId.l1)).toBe(true);
+    expect(isFolder(byId.l1)).toBe(false);
+    expect(byId.f1).toMatchObject({ type: 'application/pdf', nodeType: 'file' });
+  });
+});
+
+function mockUploadBlobOnce(blobId: string, type: string) {
+  (uploadBlob as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ blobId, type, size: 3 });
+}
+
 describe('"Shared with me" placeholders', () => {
   const RIGHTS_NONE = { mayRead: false, mayAddChildren: false, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false };
   const RIGHTS_READ = { ...RIGHTS_NONE, mayRead: true };
