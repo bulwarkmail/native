@@ -9,8 +9,8 @@ import type { SieveScript, SieveCapabilities } from '../lib/sieve/types';
 
 const SIEVE_USING = [CAPABILITIES.CORE, CAPABILITIES.SIEVE];
 
-// SieveScript properties (RFC 9661 §2), explicit so a default that grows to
-// include Stalwart 1.0's unfinished JMAP Metadata can't reach the get.
+// SieveScript properties (RFC 9661 §2), explicit so JMAP Metadata, which
+// Stalwart 1.0 serves, stays out of a get that does not read it.
 const SIEVE_SCRIPT_PROPERTIES = ['id', 'name', 'blobId', 'isActive'];
 
 function requireSession() {

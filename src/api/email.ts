@@ -35,11 +35,10 @@ export const EMAIL_FULL_PROPERTIES = [
   'messageId', 'inReplyTo', 'references', 'headers',
 ];
 
-// The Mailbox properties the folder list reads (RFC 8621 §2), which is also
-// the default list on 0.16 and 1.0. Stalwart 1.0 advertises JMAP Metadata
-// but its handlers are still `todo!()`: a get that selects `metadata` or
-// `privateMetadata` panics on the server. An explicit list keeps them out
-// even if a later release adds them to the default.
+// The Mailbox properties the folder list reads (RFC 8621 §2), the default
+// list on 0.16. Stalwart 1.0.0 adds JMAP Metadata's `metadata` and
+// `privateMetadata` to the default (the pre-release's handlers panicked on
+// them); the app reads neither, so an explicit list keeps them out.
 export const MAILBOX_PROPERTIES = [
   'id', 'name', 'parentId', 'role', 'sortOrder', 'totalEmails', 'unreadEmails',
   'totalThreads', 'unreadThreads', 'myRights', 'isSubscribed',
