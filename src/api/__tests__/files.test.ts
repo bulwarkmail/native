@@ -45,6 +45,7 @@ import {
   listPrincipals,
   moveFileNode,
   renameFileNode,
+  resolveFileNodeId,
   setFileNodeShare,
   supportsSharing,
   uploadFileBatch,
@@ -1011,6 +1012,86 @@ describe('moveFileNode', () => {
     await moveFileNode('f1', null);
     const [, args] = mockRequest.mock.calls[0][0][0];
     expect(args.update.f1).toEqual({ parentId: null });
+  });
+});
+
+describe('writes in a shared account', () => {
+  const CAP_100 = { forbiddenNameChars: '/<>:"\\|?*', supportedNodeTypes: ['Directory', 'File', 'SymLink'] };
+
+  beforeEach(() => {
+    // A Stalwart 1.0.0 session where the shared drive publishes no filenode
+    // capability of its own (non-personal accounts don't always).
+    setSession({
+      primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
+      accounts: {
+        'acc-1': { name: 'me@example.com', isPersonal: true, accountCapabilities: { [CAPABILITIES.FILES]: CAP_100 } },
+        'acc-2': { name: 'Team', isPersonal: false, accountCapabilities: {} },
+      },
+    });
+  });
+
+  const sent = () => mockRequest.mock.calls.map(([calls]) => calls[0][1] as Record<string, any>);
+
+  it('creates folders and uploads in the account that holds the folder, with the id it knows', async () => {
+    (uploadBlob as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ blobId: 'blob-up', type: 'text/plain', size: 3 });
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'n1' } } }, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'n2' } } }, '0']] });
+
+    const dir = await createFolder('New', 'acc-2:s1');
+    const { uploaded } = await uploadFileBatch([{ uri: 'file:///a', name: 'a.txt', mimeType: 'text/plain' }], 'acc-2:s1', []);
+
+    expect(sent().map((a) => [a.accountId, Object.values(a.create)[0]])).toEqual([
+      ['acc-2', { '@type': 'Directory', name: 'New', parentId: 's1' }],
+      ['acc-2', { '@type': 'File', name: 'a.txt', mediaType: 'text/plain', blobId: 'blob-up', parentId: 's1' }],
+    ]);
+    // Named like the listing names that account's nodes.
+    expect(dir).toMatchObject({ id: 'acc-2:n1', parentId: 'acc-2:s1', accountId: 'acc-2', isShared: true });
+    expect(uploaded[0].id).toBe('acc-2:n2');
+  });
+
+  it('renames, moves, duplicates and shares in the node\'s account', async () => {
+    mockRequest.mockImplementation(async (calls: MethodCall[]) => {
+      const args = calls[0][1] as Record<string, any>;
+      if (args.create) return { methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'c1' } } }, '0']] };
+      const id = Object.keys(args.update)[0];
+      return { methodResponses: [['FileNode/set', { updated: { [id]: null } }, '0']] };
+    });
+
+    await renameFileNode('acc-2:f1', 'b.txt');
+    await moveFileNode('acc-2:f1', 'acc-2:s1');
+    await copyFileNode({ id: 'acc-2:f1', name: 'b.txt', type: 'text/plain', blobId: 'b1', accountId: 'acc-2' }, 'acc-2:s1', 'b (1).txt');
+    await setFileNodeShare('acc-2:f1', 'p1', null);
+
+    expect(sent()).toEqual([
+      { accountId: 'acc-2', update: { f1: { name: 'b.txt' } } },
+      { accountId: 'acc-2', update: { f1: { parentId: 's1' } } },
+      { accountId: 'acc-2', create: { 'new-file': { '@type': 'File', name: 'b (1).txt', mediaType: 'text/plain', blobId: 'b1', parentId: 's1' } } },
+      { accountId: 'acc-2', update: { f1: { 'shareWith/p1': null } } },
+    ]);
+  });
+
+  it('refuses a move into another account before sending anything', async () => {
+    await expect(moveFileNode('acc-2:f1', 'own-dir')).rejects.toThrow('Files cannot be moved between accounts');
+    await expect(moveFileNode('own-file', 'acc-2:s1')).rejects.toThrow('Files cannot be moved between accounts');
+    expect(mockRequest).not.toHaveBeenCalled();
+  });
+
+  it('deletes each account\'s nodes in that account', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { destroyed: [] }, '0']] });
+
+    await deleteFileNodes(['own-1', 'acc-2:f1', 'acc-2:f2']);
+
+    expect(sent().map((a) => [a.accountId, a.destroy])).toEqual([
+      ['acc-1', ['own-1']],
+      ['acc-2', ['f1', 'f2']],
+    ]);
+  });
+
+  it('leaves an id alone whose prefix is no account of the session', () => {
+    expect(resolveFileNodeId('nope:f1')).toEqual({ accountId: 'acc-1', id: 'nope:f1' });
+    expect(resolveFileNodeId('acc-1:f1')).toEqual({ accountId: 'acc-1', id: 'acc-1:f1' });
+    expect(resolveFileNodeId(null)).toEqual({ accountId: 'acc-1', id: null });
   });
 });
 
