@@ -36,8 +36,10 @@ import {
   copyFileNode,
   createFolder,
   deleteFileNodes,
+  destroyEmptyFolders,
   fileNodeKind,
   filesAccountId,
+  getAllFileNodes,
   getAllFileNodesAcrossAccounts,
   getFileNodeDownloadUrl,
   listFolder,
@@ -45,6 +47,8 @@ import {
   renameFileNode,
   uploadFileBatch,
 } from '../files';
+import { emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash } from '../files-trash';
+import { findTrashFolder, parseTrashBatchName, trashedItems, withoutTrash } from '../../lib/files-trash';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -207,4 +211,176 @@ live('live Stalwart files', () => {
 
     await deleteFileNodes([bulk.id]);
   }, 180_000);
+});
+
+// Dumps the drive for a check with the webmail's own code (BULWARK_LIVE_PROBE_DIR).
+async function writeProbe(name: string, list: FileNode[]): Promise<void> {
+  const dir = process.env.BULWARK_LIVE_PROBE_DIR;
+  if (!dir) return;
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(`${dir}/${name}-${SERVER!.replace(/\D/g, '').slice(-4)}.json`, JSON.stringify(list));
+}
+
+// The trash is the webmail's convention (lib/files-trash): /.Trash/<ms>~<parentId>/<item>.
+live('live Stalwart files trash', () => {
+  let scratch = '';
+  // An account's own trash is left alone: only what these tests put there goes.
+  let trashBefore: string | undefined;
+  const batches = new Set<string>();
+
+  const own = () => getAllFileNodes();
+  const upload = async (name: string, parentId: string, text = name) =>
+    (await uploadFileBatch([pick(name, text)], parentId, [])).uploaded[0];
+  const trashed = async (id: string) => trashedItems(await own()).find((i) => i.node.id === id);
+
+  beforeAll(async () => {
+    await connectSingleton();
+    trashBefore = findTrashFolder(await own())?.id;
+    scratch = (await createFolder(`live-trash-${Date.now().toString(36)}`, null)).id;
+  }, 60_000);
+
+  afterAll(async () => {
+    const before = await own();
+    const trash = findTrashFolder(before);
+    const leftovers = [scratch, ...[...batches].filter((id) => before.some((n) => n.id === id))];
+    if (trash && !trashBefore) leftovers.push(trash.id);
+    await deleteFileNodes(leftovers.filter(Boolean)).catch(() => undefined);
+    const after = await own();
+    expect(after.filter((n) => leftovers.includes(n.id))).toEqual([]);
+    if (!trashBefore) expect(findTrashFolder(after)).toBeUndefined();
+  }, 120_000);
+
+  it('moves a file and a folder into one trash folder that names when and where from, and hides them', async () => {
+    const file = await upload('trash-me.txt', scratch);
+    const folder = await createFolder('Trash me', scratch);
+    const inner = await upload('inner.txt', folder.id);
+    let list = await own();
+    const before = Date.now();
+    const { done, refused } = await moveToTrash(list, [
+      list.find((n) => n.id === file.id)!,
+      list.find((n) => n.id === folder.id)!,
+    ]);
+    expect(refused).toEqual([]);
+    expect(done.map((i) => i.node.id).sort()).toEqual([file.id, folder.id].sort());
+
+    list = await own();
+    const trash = findTrashFolder(list)!;
+    expect(trash).toBeDefined();
+    expect(trash.parentId ?? null).toBeNull();
+    expect(trash.name).toBe('.Trash');
+    const batch = list.find((n) => n.id === done[0].batchId)!;
+    batches.add(batch.id);
+    expect(batch.parentId).toBe(trash.id);
+    expect(fileNodeKind(batch)).toBe('directory');
+    // What the webmail reads back to restore: the time and the folder.
+    expect(batch.name).toMatch(/^(\d{10,})~([A-Za-z0-9_-]*)$/);
+    expect(parseTrashBatchName(batch.name)?.parentId).toBe(scratch);
+    expect(parseTrashBatchName(batch.name)!.deletedAt).toBeGreaterThanOrEqual(before - 1000);
+    expect(list.find((n) => n.id === file.id)?.parentId).toBe(batch.id);
+    // The folder went whole.
+    expect(list.find((n) => n.id === inner.id)?.parentId).toBe(folder.id);
+
+    const items = trashedItems(list).filter((i) => i.batchId === batch.id);
+    expect(items.map((i) => i.node.name).sort()).toEqual(['Trash me', 'trash-me.txt']);
+    expect(items.every((i) => i.fromParentId === scratch)).toBe(true);
+
+    // Out of every normal listing, the root included.
+    const shown = withoutTrash(await nodes());
+    expect(shown.some((n) => [trash.id, batch.id, file.id, folder.id, inner.id].includes(n.id))).toBe(false);
+    expect(listFolder(shown, null).some((n) => n.id === trash.id)).toBe(false);
+    expect(listFolder(shown, scratch).map((n) => n.id)).toEqual([]);
+
+    await writeProbe('trash-after-delete', list);
+  }, 90_000);
+
+  it('restores items to the folder they came from and removes their empty trash folder', async () => {
+    const all = trashedItems(await own());
+    const item = all.find((i) => i.node.name === 'trash-me.txt' && i.fromParentId === scratch)!;
+    const sibling = all.find((i) => i.node.name === 'Trash me' && i.batchId === item.batchId)!;
+    let list = await own();
+    const { done } = await restoreFromTrash(list, [item]);
+    expect(done).toHaveLength(1);
+    list = await own();
+    expect(list.find((n) => n.id === item.node.id)).toMatchObject({ name: 'trash-me.txt', parentId: scratch });
+    // The other item still holds the trash folder.
+    expect(list.some((n) => n.id === item.batchId)).toBe(true);
+
+    await restoreFromTrash(list, [sibling]);
+    list = await own();
+    expect(list.find((n) => n.id === sibling.node.id)?.parentId).toBe(scratch);
+    expect(list.some((n) => n.id === item.batchId)).toBe(false);
+    expect(await trashed(item.node.id)).toBeUndefined();
+  }, 90_000);
+
+  it('restores under a free name when the old one is taken, and to the root when the folder is gone', async () => {
+    const sub = await createFolder('Gone soon', scratch);
+    const a = await upload('clash.txt', scratch, 'old');
+    const b = await upload('orphan.txt', sub.id);
+    let list = await own();
+    const first = await moveToTrash(list, [list.find((n) => n.id === a.id)!]);
+    const second = await moveToTrash(list, [list.find((n) => n.id === b.id)!]);
+    for (const i of [...first.done, ...second.done]) batches.add(i.batchId!);
+    await upload('clash.txt', scratch, 'new');
+    await deleteFileNodes([sub.id]);
+
+    list = await own();
+    await restoreFromTrash(list, [(await trashed(a.id))!, (await trashed(b.id))!]);
+    list = await own();
+    expect(list.find((n) => n.id === a.id)).toMatchObject({ name: 'clash (1).txt', parentId: scratch });
+    const orphan = list.find((n) => n.id === b.id)!;
+    try {
+      expect(orphan.name).toBe('orphan.txt');
+      expect(orphan.parentId ?? null).toBeNull();
+    } finally {
+      await deleteFileNodes([b.id]);
+    }
+  }, 120_000);
+
+  it('undoes a delete with the listing from before it', async () => {
+    const file = await upload('undo-me.txt', scratch);
+    const list = await own();
+    const { done } = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
+    batches.add(done[0].batchId!);
+    // The rows on screen still show it where it was.
+    await restoreFromTrash(list, done);
+    const after = await own();
+    expect(after.find((n) => n.id === file.id)).toMatchObject({ name: 'undo-me.txt', parentId: scratch });
+    expect(after.some((n) => n.id === done[0].batchId)).toBe(false);
+  }, 90_000);
+
+  it('deletes items of the trash for good, and leaves a trash folder that still holds anything', async () => {
+    const x = await upload('purge-x.txt', scratch);
+    const y = await upload('purge-y.txt', scratch);
+    let list = await own();
+    const picked = [x, y].map((u) => list.find((n) => n.id === u.id)!);
+    const { done } = await moveToTrash(list, picked);
+    const batchId = done[0].batchId!;
+    batches.add(batchId);
+
+    // Never with what is inside: a folder that holds anything stays.
+    expect(await destroyEmptyFolders([batchId])).toEqual([]);
+    list = await own();
+    expect(list.some((n) => n.id === batchId)).toBe(true);
+
+    await purgeFromTrash(list, trashedItems(list).filter((i) => i.node.id === x.id));
+    list = await own();
+    expect(list.some((n) => n.id === x.id)).toBe(false);
+    expect(list.some((n) => n.id === batchId)).toBe(true);
+
+    await purgeFromTrash(list, trashedItems(list).filter((i) => i.node.id === y.id));
+    list = await own();
+    expect(list.some((n) => [x.id, y.id, batchId].includes(n.id))).toBe(false);
+  }, 90_000);
+
+  it('empties the trash', async () => {
+    // Only on an account whose trash these tests made: a real one stays.
+    if (trashBefore) return;
+    const file = await upload('empty-me.txt', scratch);
+    const list = await own();
+    await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
+    await emptyTrash(await own());
+    const after = await own();
+    expect(findTrashFolder(after)).toBeUndefined();
+    expect(after.some((n) => n.id === file.id)).toBe(false);
+  }, 90_000);
 });

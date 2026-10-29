@@ -478,6 +478,80 @@ export async function updateFileNode(
   if (notUpdated) throw fileSetError(notUpdated, 'Update failed');
 }
 
+export interface FileNodeUpdateResult {
+  updated: string[];
+  notUpdated: Record<string, JMAPSetError>;
+}
+
+/**
+ * Several renames or moves in one account, in FileNode/set calls of at most
+ * `maxObjectsInSet` each. Every id must name a node of the same account (all
+ * the user's own, or all of one shared account), and so must new parents.
+ * Refusals come back per id instead of being thrown.
+ */
+export async function updateFileNodes(
+  updates: Record<string, Partial<Pick<FileNode, 'name' | 'parentId'>>>,
+): Promise<FileNodeUpdateResult> {
+  const result: FileNodeUpdateResult = { updated: [], notUpdated: {} };
+  const ids = Object.keys(updates);
+  if (ids.length === 0) return result;
+  const accountId = resolveFileNodeId(ids[0]).accountId;
+  const listedIds = new Map<string, string>();
+  const patches: Record<string, Record<string, unknown>> = {};
+  for (const id of ids) {
+    const node = resolveFileNodeId(id);
+    if (node.accountId !== accountId) {
+      throw new JMAPSetError('invalidProperties', 'Files of different accounts cannot be changed together');
+    }
+    const patch: Record<string, unknown> = { ...updates[id] };
+    if ('parentId' in updates[id]) patch.parentId = parentInAccount(updates[id].parentId ?? null, accountId);
+    listedIds.set(node.id as string, id);
+    patches[node.id as string] = patch;
+  }
+  for (const slice of batched(Object.keys(patches), jmapClient.getMaxObjectsInSet())) {
+    const res = await jmapClient.request(
+      [['FileNode/set', { accountId, update: Object.fromEntries(slice.map((id) => [id, patches[id]])) }, '0']],
+      fileUsing(),
+    );
+    const set = requireMethodResult(res, '0', 'FileNode/set');
+    const refused = (set.notUpdated ?? {}) as Record<string, SetError>;
+    for (const id of slice) {
+      const listed = listedIds.get(id)!;
+      if (refused[id]) result.notUpdated[listed] = fileSetError(refused[id], 'Update failed');
+      else if (set.updated && id in set.updated) result.updated.push(listed);
+    }
+  }
+  return result;
+}
+
+/**
+ * Remove folders that hold nothing, without onDestroyRemoveChildren: the
+ * server refuses one that still holds anything (`nodeHasChildren`), so what
+ * another client has just put there stays. Refusals are not errors here;
+ * returns the ids that went.
+ */
+export async function destroyEmptyFolders(ids: string[]): Promise<string[]> {
+  const gone: string[] = [];
+  const byAccount = new Map<string, Map<string, string>>();
+  for (const id of ids) {
+    const node = resolveFileNodeId(id);
+    const listed = byAccount.get(node.accountId) ?? new Map<string, string>();
+    listed.set(node.id as string, id);
+    byAccount.set(node.accountId, listed);
+  }
+  for (const [accountId, listed] of byAccount) {
+    for (const slice of batched([...listed.keys()], jmapClient.getMaxObjectsInSet())) {
+      const res = await jmapClient.request(
+        [['FileNode/set', { accountId, destroy: slice }, '0']],
+        fileUsing(),
+      );
+      const destroyed = (requireMethodResult(res, '0', 'FileNode/set').destroyed ?? []) as string[];
+      gone.push(...destroyed.map((id) => listed.get(id) ?? id));
+    }
+  }
+  return gone;
+}
+
 export async function renameFileNode(id: string, newName: string): Promise<void> {
   await updateFileNode(id, { name: newName });
 }
