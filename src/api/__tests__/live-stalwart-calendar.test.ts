@@ -698,6 +698,33 @@ live('live Stalwart calendar', () => {
     }, 60_000);
   });
 
+  describe('a zero-length event (#837)', () => {
+    it('ends at its start, stored without a duration or imported from an .ics', async () => {
+      await connectSingleton();
+      // As another client stores it: no duration at all.
+      const [[, made]] = await raw(client, [['CalendarEvent/set', {
+        accountId: client.accountId,
+        create: { z: { '@type': 'Event', title: `${RUN} zero`, start: '2027-12-01T09:00:00', timeZone: 'Europe/Berlin', calendarIds: { [calendarId]: true } } },
+      }, '0']]);
+      const id = made.created?.z?.id;
+      expect(id, JSON.stringify(made.notCreated)).toBeTruthy();
+      const [read] = await getEvents([id]);
+      expect(read.utcStart).toBe('2027-12-01T08:00:00Z');
+      expect(read.utcEnd).toBe(read.utcStart);
+
+      // An .ics whose DTEND equals its DTSTART, imported.
+      const uid = `${RUN}-zero-import`;
+      await useCalendarStore.getState().fetchCalendars();
+      const { imported } = await useCalendarStore.getState().importEvents([
+        { uid, title: `${RUN} zero imported`, start: '2027-12-02T09:00:00', timeZone: 'Europe/Berlin' },
+      ], calendarId);
+      expect(imported).toBe(1);
+      const [stored] = await seriesByUid(client, uid);
+      const [[, got]] = await raw(client, [['CalendarEvent/get', { accountId: client.accountId, ids: [stored.id], properties: ['duration', 'utcStart', 'utcEnd'] }, '0']]);
+      expect(got.list[0].utcEnd).toBe(got.list[0].utcStart);
+    }, 60_000);
+  });
+
   describe('a subscribed feed', () => {
     const FEED_URL = 'https://feeds.invalid/live.ics';
     let feed = '';

@@ -395,6 +395,22 @@ describe('calendar operations', () => {
   });
 
   describe('getEvents', () => {
+    // #837: Stalwart stores a DTEND equal to DTSTART as no duration and ends
+    // the event at 23:59:59 of its start day.
+    it('ends a timed event without a duration at its start, and leaves tasks alone', async () => {
+      mockRequest.mockResolvedValue(getAnswer([
+        { id: 'z', '@type': 'Event', start: '2026-03-02T09:00:00', utcStart: '2026-03-02T08:00:00Z', utcEnd: '2026-03-02T22:59:59Z' },
+        { id: 't', '@type': 'Task', start: '2026-03-02T09:00:00', utcStart: '2026-03-02T08:00:00Z', due: '2026-03-03T09:00:00' },
+        { id: 'a', '@type': 'Event', start: '2026-03-02T00:00:00', showWithoutTime: true },
+      ]));
+
+      const [zero, task, allDay] = await getEvents(['z', 't', 'a']);
+
+      expect(zero).toMatchObject({ duration: 'PT0S', utcEnd: '2026-03-02T08:00:00Z' });
+      expect(task).not.toHaveProperty('duration');
+      expect(allDay).not.toHaveProperty('duration');
+    });
+
     it('should fetch events by id with singular JSCalendar 2.0 recurrence properties', async () => {
       // Stalwart (calcard) names the property `recurrenceRule` (singular,
       // single object) — requesting the RFC 8984 plural form returns no

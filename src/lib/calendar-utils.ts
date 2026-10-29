@@ -113,7 +113,11 @@ export function addDaysToLocalDateTime(value: string, days: number): string {
 
 /** End of an event as a display date - see getEventStartDate. */
 export function getEventEndDate(event: CalendarEvent): Date {
-  if (!event.showWithoutTime && event.utcEnd) {
+  // A timed event without a duration lasts zero seconds (RFC 8984's default
+  // PT0S). Stalwart stores a DTEND equal to DTSTART as no duration and gives
+  // the event a utcEnd of 23:59:59 on its start day, so it filled the rest
+  // of the day in the grid (#837).
+  if (!event.showWithoutTime && event.utcEnd && event.duration) {
     const utc = parseISO(event.utcEnd);
     if (!isNaN(utc.getTime())) return toDisplayDate(utc);
   }

@@ -47,6 +47,7 @@ import {
   ImportRefusedError,
   CalendarAccountChangedError,
   loadEventsInRange,
+  prepareImportedEvent,
 } from '../calendar-store';
 
 const mockGetCalendars = calendarApi.getCalendars as ReturnType<typeof vi.fn>;
@@ -1443,5 +1444,15 @@ describe('editing one occurrence of a series', () => {
     await expect(useCalendarStore.getState().updateEvent('base:2026-03-02T09:00:00', { title: 'Moved' }))
       .rejects.toThrow('You do not have access to this calendar.');
     expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('prepareImportedEvent', () => {
+  // #837: CalendarEvent/parse drops a DTEND equal to DTSTART, and stored
+  // without a duration Stalwart ends the event at 23:59:59.
+  it('imports a timed event without a duration as lasting zero seconds', () => {
+    expect(prepareImportedEvent({ uid: 'z', start: '2026-03-02T09:00:00', timeZone: 'Europe/Berlin' }).duration).toBe('PT0S');
+    expect(prepareImportedEvent({ uid: 'h', start: '2026-03-02T09:00:00', duration: 'PT1H' }).duration).toBe('PT1H');
+    expect(prepareImportedEvent({ uid: 't', '@type': 'Task', start: '2026-03-02T09:00:00' })).not.toHaveProperty('duration');
   });
 });

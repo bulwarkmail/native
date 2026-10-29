@@ -3,7 +3,7 @@ import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
 import { JMAPSetError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
 import { formatWallClock, getEffectiveTimeZone, getTimeZoneOffsetMs } from '../lib/calendar-timezone';
-import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
+import { SCAN_PROPERTIES, isTaskLikeObject, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 import {
   RECURRENCE_BASE_PROPERTIES,
   SYNTHETIC_ID_PROBE,
@@ -300,6 +300,18 @@ export function normalizeTaskProgress<T extends Partial<CalendarEvent>>(event: T
   return normalized === undefined || normalized === progress
     ? event
     : { ...event, progress: normalized };
+}
+
+/**
+ * A timed event without a duration lasts zero seconds (RFC 8984's default
+ * PT0S). Stalwart drops a DTEND equal to DTSTART and then ends such an event
+ * at 23:59:59 of its start day, so its utcEnd is wrong (#837). Tasks carry
+ * no duration and are left alone. Mirrors the webmail's withZeroDurationEnd.
+ */
+export function withZeroDurationEnd<T extends Partial<CalendarEvent>>(event: T): T {
+  if (event.showWithoutTime || event.duration || !event.start || !event.utcStart) return event;
+  if (isTaskLikeObject(event as ScannedCalendarObject)) return event;
+  return { ...event, duration: 'PT0S', utcEnd: event.utcStart };
 }
 
 /**
@@ -970,7 +982,8 @@ export async function getEvents(
     options?.expanded ? EXPANDED_EVENT_PROPERTIES : CALENDAR_EVENT_PROPERTIES,
     { withOverrides: !options?.expanded, timeZone },
   ));
-  return (list as unknown as CalendarEvent[]).map((e) => normalizeTaskProgress(normalizeRecurrenceProperties(e)));
+  return (list as unknown as CalendarEvent[]).map((e) =>
+    withZeroDurationEnd(normalizeTaskProgress(normalizeRecurrenceProperties(e))));
 }
 
 export type EventIdentityFields = Pick<CalendarEvent, 'id' | 'uid' | 'calendarIds'>;

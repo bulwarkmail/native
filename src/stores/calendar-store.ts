@@ -141,7 +141,12 @@ export function prepareImportedEvent(event: Partial<CalendarEvent>): Partial<Cal
     title: src.title,
     description: src.description,
     start: src.start,
-    duration: src.showWithoutTime ? normalizeAllDayDuration(src.duration) : src.duration,
+    // A timed event without a duration lasts zero seconds. CalendarEvent/parse
+    // drops a DTEND equal to DTSTART, and stored without a duration Stalwart
+    // ends the event at 23:59:59 (#837). Tasks have no duration.
+    duration: src.showWithoutTime
+      ? normalizeAllDayDuration(src.duration)
+      : src.duration || (src['@type'] !== 'Task' && src.start ? 'PT0S' : undefined),
     timeZone: src.showWithoutTime ? null : src.timeZone,
     showWithoutTime: src.showWithoutTime,
     status: src.status,
