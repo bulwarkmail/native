@@ -27,24 +27,37 @@ function sharedParent(node: FileNode, nodes: FileNode[]): FileNode | undefined {
   return nodes.find((n) => n.id === node.parentId && !n.discoverableOnly);
 }
 
+// Stalwart 1.0 sends `myRights` on folders only; a file has the rights of
+// the folder it is in. Walk up to the nearest node that names its rights.
+function effectiveRights(node: FileNode, nodes: FileNode[]): FileNode['myRights'] {
+  const seen = new Set<string>();
+  let current: FileNode | undefined = node;
+  while (current && !seen.has(current.id)) {
+    if (current.myRights) return current.myRights;
+    seen.add(current.id);
+    const parentId: string | null | undefined = current.parentId;
+    current = parentId == null ? undefined : nodes.find((n) => n.id === parentId);
+  }
+  return undefined;
+}
+
 export function fileNodeAccess(node: FileNode, nodes: FileNode[]): FileNodeAccess {
   if (!node.isShared) return ALL;
   const parent = sharedParent(node, nodes);
   if (!parent) return { rename: false, delete: false, move: false, duplicate: false };
-  const rights = node.myRights;
+  const rights = effectiveRights(node, nodes);
   return {
     rename: !!rights?.mayRename,
     delete: !!rights?.mayDelete,
     move: false,
-    duplicate: !!parent.myRights?.mayAddChildren,
+    duplicate: !!effectiveRights(parent, nodes)?.mayAddChildren,
   };
 }
 
 /**
  * Whether new folders and uploads may go into the folder `folderId` (null:
  * the user's own drive root). Inside a shared folder only with its
- * `mayAddChildren`; Stalwart 0.16 reports a child of a shared folder with
- * every right false, so there it is offered in the shared folder itself.
+ * `mayAddChildren`.
  */
 export function mayCreateIn(folderId: string | null, nodes: FileNode[]): boolean {
   if (folderId === null) return true;

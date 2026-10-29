@@ -32,6 +32,15 @@ describe('fileNodeAccess', () => {
     expect(fileNodeAccess(nodes.at(-1)!, nodes)).toEqual({ rename: true, delete: true, move: false, duplicate: true });
   });
 
+  it('takes the folder\'s rights for a file that names none (Stalwart 1.0)', () => {
+    const writable = shared(WRITE, WRITE);
+    const nodes = [...writable.slice(0, 2), { ...writable[2], myRights: undefined }];
+    expect(fileNodeAccess(nodes.at(-1)!, nodes)).toEqual({ rename: true, delete: true, move: false, duplicate: true });
+    const readOnly = shared(NONE, NONE);
+    const ro = [...readOnly.slice(0, 2), { ...readOnly[2], myRights: undefined }];
+    expect(fileNodeAccess(ro.at(-1)!, ro)).toEqual({ rename: false, delete: false, move: false, duplicate: false });
+  });
+
   it('offers nothing inside a folder shared read-only', () => {
     const nodes = shared(NONE, NONE);
     expect(fileNodeAccess(nodes.at(-1)!, nodes)).toEqual({ rename: false, delete: false, move: false, duplicate: false });
