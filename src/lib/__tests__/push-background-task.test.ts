@@ -289,6 +289,40 @@ describe('pushBackgroundTask notifications', () => {
   });
 
   it.each([
+    ['trash-and-read', { mailboxIds: { 'trash-box': true }, 'keywords/$seen': true }],
+    ['trash', { mailboxIds: { 'trash-box': true } }],
+    // Never destroyed from a notification (#68), but not marked read either.
+    ['permanent', { mailboxIds: { 'trash-box': true } }],
+  ])('follows the delete action setting "%s" (#86)', async (deleteAction, patch) => {
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ deleteAction }));
+    const postCalls: any[] = [];
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: any) => {
+      if (opts?.body) postCalls.push(JSON.parse(opts.body));
+      return {
+        ok: true,
+        json: async () => (url.endsWith('/.well-known/jmap')
+          ? {
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }
+          : {
+            methodResponses: [
+              ['Mailbox/get', { list: [{ id: 'trash-box', role: 'trash' }] }, '0'],
+              ['Email/set', { updated: { m1: {} } }, '0'],
+            ],
+          }),
+      };
+    });
+
+    await handleNotificationAction({ action: 'delete', emailId: 'm1', accountId: LOCAL });
+
+    expect(postCalls[1].methodCalls).toEqual([
+      ['Email/set', { accountId: 'jmap-primary', update: { m1: patch } }, '0'],
+    ]);
+  });
+
+  it.each([
     ['has no trash mailbox', ['Mailbox/get', { list: [{ id: 'inbox', role: 'inbox' }] }, '0']],
     ['cannot list mailboxes', ['error', { type: 'accountNotFound' }, '0']],
   ])('never destroys from a notification when the account %s', async (_label, mailboxResponse) => {

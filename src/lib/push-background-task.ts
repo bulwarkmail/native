@@ -51,6 +51,7 @@ const EMAIL_PROPERTIES = [
 interface PushPersistedSettings {
   emailNotificationsEnabled?: boolean;
   senderFavicons?: boolean;
+  deleteAction?: string;
 }
 
 async function emailNotificationsAllowed(): Promise<boolean> {
@@ -73,6 +74,20 @@ export async function senderFaviconsAllowed(): Promise<boolean> {
     if (!raw) return true; // first launch: the store's default is on
     const parsed = JSON.parse(raw) as PushPersistedSettings;
     return parsed.senderFavicons !== false;
+  } catch {
+    return false;
+  }
+}
+
+// The "Delete Action" setting, as far as a notification's Delete honours it:
+// "Move to Trash and mark as read" marks the message read on the way (#86).
+// "Delete Permanently" still only moves to Trash: a notification never
+// destroys mail (#68).
+async function notificationDeleteMarksRead(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return false;
+    return (JSON.parse(raw) as PushPersistedSettings).deleteAction === 'trash-and-read';
   } catch {
     return false;
   }
@@ -665,13 +680,15 @@ export async function handleNotificationAction(data: unknown): Promise<void> {
         console.warn('[push] no trash mailbox for notification delete', emailAccountId);
         return;
       }
+      const patch: Record<string, unknown> = { mailboxIds: { [trash.id]: true } };
+      if (await notificationDeleteMarksRead()) patch['keywords/$seen'] = true;
       const res = await jmapPost(session, [
         [
           'Email/set',
           {
             accountId: emailAccountId,
             update: {
-              [emailId]: { mailboxIds: { [trash.id]: true } },
+              [emailId]: patch,
             },
           },
           '0',
