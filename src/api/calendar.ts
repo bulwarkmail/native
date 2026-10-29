@@ -160,9 +160,11 @@ export function resetCalendarAccessDenied(): void {
   calendarAccessDenied.clear();
 }
 
+// Stalwart 1.0 answers `accountNotSupportedByMethod` for an account that
+// shares only a mail folder with the user, where 0.16 says `forbidden`.
 function isAccessDeniedError(err: unknown): boolean {
   const type = jmapErrorType(err);
-  return type === 'forbidden' || type === 'accountNotFound';
+  return type === 'forbidden' || type === 'accountNotFound' || type === 'accountNotSupportedByMethod';
 }
 
 /** Remember an access rejection for a shared account; returns true when it was one. */
