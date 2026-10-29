@@ -17,6 +17,9 @@ import {
   updateSieveScript,
   validateSieveScript,
 } from '../api/sieve';
+import { OpaqueFiltersError } from '../api/sieve-rules';
+
+export { OpaqueFiltersError };
 
 // Ported from the webmail's stores/filter-store.ts. The mobile client is a
 // singleton (api/sieve drives `jmapClient` directly), so the actions drop the
@@ -339,14 +342,6 @@ export interface VacationFilters {
    * client), or no script runs at all. Saving the card sets it right.
    */
   notRunning: boolean;
-}
-
-/** The script was edited by hand and the builder cannot read it back. */
-export class OpaqueFiltersError extends Error {
-  constructor() {
-    super('The filters script was edited by hand');
-    this.name = 'OpaqueFiltersError';
-  }
 }
 
 /** See VacationFilters.notRunning. */

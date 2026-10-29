@@ -49,6 +49,7 @@ const TRANSLATED_PANES: Record<string, string[]> = {
   'settings/device-sync/status.ts': [],
   'filters/FilterRuleModal.tsx': ['YYYY-MM-DD HH:MM'],
   'filters/SieveEditorSheet.tsx': [],
+  'filters/QuickRuleSheet.tsx': [],
 };
 
 describe('translated settings panes', () => {

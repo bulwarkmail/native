@@ -11,8 +11,10 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus,
+  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter,
 } from '../components/icons';
+import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
+import { isSieveSupported } from '../api/sieve';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
@@ -171,6 +173,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
+  const [rulesOpen, setRulesOpen] = React.useState(false);
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
   const [themeOverrides, setThemeOverrides] = React.useState<Record<string, 'light' | 'dark'>>({});
@@ -893,6 +896,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
           if (from) setAddressSheet(from);
         }}
         onForwardAsAttachment={onForwardAsAttachment}
+        // Rules go into the own account's filters; a shared account's are not the user's to set.
+        onRules={!ownerAccountId && email && isSieveSupported() ? () => { setMoreMenuOpen(false); setRulesOpen(true); } : undefined}
         onViewSource={() => {
           setMoreMenuOpen(false);
           if (email?.blobId) {
@@ -937,6 +942,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       />
 
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
+      <QuickRuleSheet visible={rulesOpen} email={email ?? null} mailboxes={scopedMailboxes} onClose={() => setRulesOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -1309,6 +1315,8 @@ interface MoreMenuSheetProps {
   onToggleTheme: () => void;
   onSenderActions: () => void;
   onForwardAsAttachment: () => void;
+  /** Make a filter rule from the message; absent where none can be made. */
+  onRules?: () => void;
   onViewSource: () => void;
   onExport: () => void;
 }
@@ -1317,7 +1325,7 @@ function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
   showSpam, isInJunk, canViewSource, canExport, renderDark, hasSender,
   onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onToggleTheme, onSenderActions,
-  onForwardAsAttachment, onViewSource, onExport,
+  onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -1431,6 +1439,14 @@ function MoreMenuSheet({
               icon={<UserRoundPlus size={18} color={c.textSecondary} />}
               label={t('email_viewer.sender_actions', 'Sender…')}
               onPress={onSenderActions}
+              trailing={<ChevronRight size={16} color={c.textMuted} />}
+            />
+          )}
+          {onRules && (
+            <MoreMenuItem
+              icon={<Filter size={18} color={c.textSecondary} />}
+              label={t('context_menu.rules.title', 'Rules')}
+              onPress={onRules}
               trailing={<ChevronRight size={16} color={c.textMuted} />}
             />
           )}

@@ -65,7 +65,10 @@ function makeEmptyAction(): FilterAction {
 
 interface FilterRuleModalProps {
   visible: boolean;
+  /** The rule being edited. */
   rule?: FilterRule;
+  /** A new rule that starts from these values ("Create rule..." on a message). */
+  initialRule?: FilterRule;
   mailboxes: Mailbox[];
   /** The server can confine a rule to a period (Sieve "date" and "relational"). */
   periodsSupported?: boolean;
@@ -74,13 +77,14 @@ interface FilterRuleModalProps {
 }
 
 export function FilterRuleModal({
-  visible, rule, mailboxes, periodsSupported = false, onSave, onClose,
+  visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, onSave, onClose,
 }: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const keywords = useKeywordsStore((s) => s.keywords);
-  const isEdit = !!rule;
+  const isEdit = !!editedRule;
+  const rule = editedRule ?? initialRule;
 
   const [name, setName] = useState(rule?.name || '');
   const [matchType, setMatchType] = useState<'all' | 'any'>(rule?.matchType || 'all');
