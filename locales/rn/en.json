@@ -275,7 +275,10 @@
   },
   "context_menu": {
     "color_tag": "Tag",
-    "remove_color": "Remove tag"
+    "remove_color": "Remove tag",
+    "rules": {
+      "login_changed": "You switched accounts, so the rule was not saved"
+    }
   },
   "deep_link": {
     "open_failed": "Couldn't open this"

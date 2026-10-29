@@ -39,14 +39,19 @@ export class FiltersLoginChangedError extends Error {
  * include, its forwarding and audience and the external rules. `modify`
  * returns null when there is nothing to write. A hand-edited script is
  * refused: it is never rewritten from a rule. Resolves to whether it wrote.
+ *
+ * `expectedLogin` is the login the rule was built in (from its message and
+ * folders); nothing is written unless the client still serves it.
  */
 export async function updateAccountFilters(
   modify: (rules: FilterRule[]) => FilterRule[] | null,
   accountId: string = getSieveAccountId(),
+  expectedLogin?: string | null,
 ): Promise<boolean> {
   // The client serves one login at a time; a switch while the script is read
   // would write these rules into the other login's account.
   const login = servedLoginOf(jmapClient);
+  if (expectedLogin !== undefined && login !== expectedLogin) throw new FiltersLoginChangedError();
   const capabilities = getSieveCapabilities(accountId);
   const all = await getSieveScripts(accountId);
   const scripts = all.filter((s) => s.name !== VACATION_SCRIPT_NAME);

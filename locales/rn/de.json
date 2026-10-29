@@ -266,7 +266,10 @@
   },
   "context_menu": {
     "color_tag": "Label",
-    "remove_color": "Label entfernen"
+    "remove_color": "Label entfernen",
+    "rules": {
+      "login_changed": "Sie haben das Konto gewechselt, daher wurde die Regel nicht gespeichert"
+    }
   },
   "device_sync": {
     "auth_problem_text": "Der Server akzeptiert die Anmeldung von {account} nicht mehr, daher werden die Kontakte und Kalender dieses Kontos auf diesem Gerät nicht mehr synchronisiert. Melden Sie sich erneut an, um fortzufahren. Auf diesem Gerät vorgenommene Änderungen bleiben erhalten.",
