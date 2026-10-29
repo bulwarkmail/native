@@ -154,7 +154,7 @@ import { generateAccountId } from '../../lib/account-utils';
 const TEST_ACCOUNT_ID = generateAccountId('test@example.com', 'https://mail.example.com');
 
 import * as emailApi from '../../api/email';
-import { useEmailStore } from '../email-store';
+import { useEmailStore, pagingTotal } from '../email-store';
 import { useSettingsStore } from '../settings-store';
 
 const mockGetMailboxesWithState = emailApi.getMailboxesWithState as ReturnType<typeof vi.fn>;
@@ -400,6 +400,40 @@ describe('email-store', () => {
       await useEmailStore.getState().loadMoreEmails();
 
       expect(useEmailStore.getState().emails).toHaveLength(2);
+    });
+
+    // #1364: a server that sends no `total` must not stop the list after
+    // its first page; full pages keep it going, a short one ends it.
+    it('keeps paging while full pages come back without a total', async () => {
+      useSettingsStore.getState().updateSetting('emailsPerPage', 2);
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e1' } as any, { id: 'e2' } as any],
+        totalEmails: pagingTotal(0, 2, 2, 2),
+        loading: false,
+      });
+      expect(useEmailStore.getState().totalEmails).toBe(3);
+
+      try {
+        mockQueryEmailPage.mockResolvedValueOnce({
+          ids: ['e3', 'e4'], total: 0, list: [{ id: 'e3' }, { id: 'e4' }], threads: [],
+        });
+        await useEmailStore.getState().loadMoreEmails();
+        mockQueryEmailPage.mockResolvedValueOnce({
+          ids: ['e5'], total: 0, list: [{ id: 'e5' }], threads: [],
+        });
+        await useEmailStore.getState().loadMoreEmails();
+      } finally {
+        useSettingsStore.getState().updateSetting('emailsPerPage', 25);
+      }
+
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
+      expect(mockQueryEmailPage).toHaveBeenLastCalledWith('mb-1', expect.objectContaining({ position: 4 }));
+      // The short page was the last one.
+      expect(useEmailStore.getState().totalEmails).toBe(5);
+      mockQueryEmailPage.mockClear();
+      await useEmailStore.getState().loadMoreEmails();
+      expect(mockQueryEmailPage).not.toHaveBeenCalled();
     });
 
     it('should not load if already at total', async () => {
@@ -1587,5 +1621,19 @@ describe('email-store', () => {
       expect(state.error).toBeNull();
       expect(state.emails).toHaveLength(0);
     });
+  });
+});
+
+describe('pagingTotal', () => {
+  it('trusts a total the server gave', () => {
+    expect(pagingTotal(120, 25, 25, 25)).toBe(120);
+    expect(pagingTotal(25, 25, 25, 25)).toBe(25);
+    expect(pagingTotal(0, 0, 0, 25)).toBe(0);
+  });
+
+  it('reads a missing or too-small total from whether the page came back full', () => {
+    expect(pagingTotal(0, 25, 25, 25)).toBe(26);
+    expect(pagingTotal(0, 30, 5, 25)).toBe(30);
+    expect(pagingTotal(10, 50, 25, 25)).toBe(51);
   });
 });

@@ -635,6 +635,22 @@ function listComparator(state: EmailState): (a: Email, b: Email) => number {
   return compareEmails(levels, { pinnedFirst: true });
 }
 
+/**
+ * The total that drives load-more. RFC 8620 makes Email/query's `total`
+ * optional and some servers leave it out (#1364); the API layer reads a
+ * missing one as 0, which stopped the list after its first page. A total
+ * below the rows already loaded is one the server didn't give: then a full
+ * page says there may be more (one more than loaded keeps load-more asking)
+ * and a short page that the end is reached. `rowsLoaded` counts this page.
+ */
+export function pagingTotal(serverTotal: number, rowsLoaded: number, pageLength: number, limit: number): number {
+  if (serverTotal > 0 && serverTotal >= rowsLoaded) return serverTotal;
+  // One Email/get caps a page below `emailsPerPage` on some servers.
+  const maxGet = typeof jmapClient.getMaxObjectsInGet === 'function' ? jmapClient.getMaxObjectsInGet() : limit;
+  const fullPage = pageLength > 0 && pageLength >= Math.min(limit, maxGet);
+  return fullPage ? rowsLoaded + 1 : rowsLoaded;
+}
+
 interface SpanningPage {
   /** Stamped rows of every account that answered, merged under the list order. */
   list: Email[];
@@ -684,7 +700,7 @@ async function fetchSpanningPage(
       if (!firstError) firstError = p.error;
       continue;
     }
-    page.total += p.total;
+    page.total += pagingTotal(p.total, (loaded[stamp] ?? 0) + p.list.length, p.list.length, limit);
     for (const e of p.list) page.list.push({ ...e, jmapAccountId: stamp });
     for (const th of p.threads) page.threads.push({ ...th, id: `${stamp}:${th.id}` });
   }
@@ -1143,7 +1159,7 @@ export const useEmailStore = create<EmailState>()(
         });
         return;
       }
-      const { list, total, threads } = await queryEmailPage(scope.mailboxId, {
+      const { list, total: serverTotal, ids, threads } = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
         sort: await resolveSort(state, scope.accountId),
@@ -1152,6 +1168,7 @@ export const useEmailStore = create<EmailState>()(
         threads: !useSettingsStore.getState().disableThreading,
       });
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      const total = pagingTotal(serverTotal, position + ids.length, ids.length, limit);
       // A message that arrived between pages shifts positions and would come
       // back a second time — drop ids we already show (duplicate keys).
       const existingIds = new Set(get().emails.map((e) => e.id));
@@ -2832,7 +2849,9 @@ async function refreshEmailsImpl(): Promise<void> {
           const trimmed = out.slice(0, Math.max(limit, baseEmails.length));
 
           const nextQueryState = queryChanges.newQueryState;
-          const nextTotal = queryChanges.total;
+          // Without a total from the server, a window of at least a page
+          // may go on past it.
+          const nextTotal = pagingTotal(queryChanges.total, trimmed.length, trimmed.length, limit);
 
           if (viewChanged()) return;
 
@@ -2896,11 +2915,12 @@ async function refreshEmailsImpl(): Promise<void> {
 
       if (viewChanged()) return;
 
+      const total = pagingTotal(queryRes.total, queryRes.ids.length, queryRes.ids.length, limit);
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
         // until the view is re-opened, instead of vanishing under them.
         emails: baseView ? queryRes.list : mergeRetainedRows(get().emails, queryRes.list, get().retainedIds),
-        totalEmails: queryRes.total,
+        totalEmails: total,
         threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
         loading: false,
       };
@@ -2916,7 +2936,7 @@ async function refreshEmailsImpl(): Promise<void> {
           ...get().mailboxSnapshots,
           [currentMailboxId]: {
             emails: queryRes.list,
-            total: queryRes.total,
+            total,
             queryState: queryRes.queryState,
           },
         };
