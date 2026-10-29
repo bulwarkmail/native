@@ -34,7 +34,14 @@ function serve(method: string, args: Record<string, any>) {
   if (method === 'FileNode/get') return { list: store.map((n) => ({ ...n })) };
   calls.push(args);
   const out: Record<string, any> = {};
+  // Like Stalwart, two nodes of one folder can't share a name.
+  const clashes = (parentId: string | null, name: string, self?: string) =>
+    store.some((n) => n.parentId === parentId && n.name === name && n.id !== self);
   for (const [key, props] of Object.entries((args.create ?? {}) as Record<string, any>)) {
+    if (clashes(props.parentId ?? null, props.name)) {
+      (out.notCreated ??= {})[key] = { type: 'alreadyExists', description: 'taken' };
+      continue;
+    }
     const id = `n${nextId++}`;
     store.push({ id, parentId: props.parentId ?? null, name: props.name, blobId: props.blobId ?? null });
     (out.created ??= {})[key] = { id };
@@ -43,6 +50,11 @@ function serve(method: string, args: Record<string, any>) {
     const node = store.find((n) => n.id === id);
     if (!node || refuseUpdate.has(id)) {
       (out.notUpdated ??= {})[id] = { type: 'forbidden', description: 'no' };
+      continue;
+    }
+    const parentId = 'parentId' in patch ? patch.parentId : node.parentId;
+    if (clashes(parentId, patch.name ?? node.name, id)) {
+      (out.notUpdated ??= {})[id] = { type: 'alreadyExists', description: 'taken' };
       continue;
     }
     Object.assign(node, patch);
@@ -164,7 +176,7 @@ describe('restoreFromTrash', () => {
     await moveToTrash(nodes, nodes.filter((n) => n.parentId === 'docs'), 1730112000007);
     nodes = listed();
     const batch = store.find((n) => n.name === '1730112000007~docs')!;
-    await restoreFromTrash(nodes, trashedItems(nodes));
+    await restoreFromTrash(trashedItems(nodes));
     expect(byId('a')).toMatchObject({ parentId: 'docs', name: 'a.txt' });
     expect(byId('b')).toMatchObject({ parentId: 'docs', name: 'b.txt' });
     expect(byId(batch.id)).toBeUndefined();
@@ -178,7 +190,7 @@ describe('restoreFromTrash', () => {
     await moveToTrash(nodes, nodes.filter((n) => n.parentId === 'docs'), 1730112000007);
     nodes = listed();
     const batch = store.find((n) => n.name === '1730112000007~docs')!;
-    await restoreFromTrash(nodes, trashedItems(nodes).filter((i) => i.node.id === 'a'));
+    await restoreFromTrash(trashedItems(nodes).filter((i) => i.node.id === 'a'));
     expect(byId(batch.id)).toBeDefined();
     expect(byId('b')!.parentId).toBe(batch.id);
   });
@@ -191,25 +203,58 @@ describe('restoreFromTrash', () => {
     await moveToTrash(nodes, nodes.filter((n) => n.id === 'docs'), 1730112000008);
     nodes = listed();
     // Docs is in the trash itself now: a.txt goes to the root.
-    await restoreFromTrash(nodes, trashedItems(nodes).filter((i) => i.node.id === 'a'));
+    await restoreFromTrash(trashedItems(nodes).filter((i) => i.node.id === 'a'));
     expect(byId('a')).toMatchObject({ parentId: null, name: 'a.txt' });
 
     nodes = listed();
-    await restoreFromTrash(nodes, trashedItems(nodes).filter((i) => i.node.id === 'docs'));
+    await restoreFromTrash(trashedItems(nodes).filter((i) => i.node.id === 'docs'));
     await moveToTrash(listed(), listed().filter((n) => n.id === 'a2'), 1730112000009);
     store.push({ id: 'a3', parentId: 'docs', name: 'a.txt', blobId: 'ba3' });
     nodes = listed();
-    await restoreFromTrash(nodes, trashedItems(nodes).filter((i) => i.node.id === 'a2'));
+    await restoreFromTrash(trashedItems(nodes).filter((i) => i.node.id === 'a2'));
     expect(byId('a2')).toMatchObject({ parentId: 'docs', name: 'a (1).txt' });
   });
 
   it('undoes a delete with the listing from before it, without renaming', async () => {
     const before = listed();
     const { done } = await moveToTrash(before, before.filter((n) => n.parentId === 'docs'), 1730112000007);
-    await restoreFromTrash(before, done);
+    await restoreFromTrash(done);
     expect(byId('a')).toMatchObject({ parentId: 'docs', name: 'a.txt' });
     expect(byId('b')).toMatchObject({ parentId: 'docs', name: 'b.txt' });
     expect(store.some((n) => n.name === '1730112000007~docs')).toBe(false);
+  });
+
+  it('undoes into the root when the folder went to the trash after the delete', async () => {
+    const before = listed();
+    const { done } = await moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007);
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'docs'), 1730112000008);
+    const { done: back } = await restoreFromTrash(done);
+    expect(back).toHaveLength(1);
+    expect(byId('a')).toMatchObject({ parentId: null, name: 'a.txt' });
+  });
+
+  it('undoes under a free name when the old one was taken after the delete', async () => {
+    const before = listed();
+    const { done } = await moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007);
+    store.push({ id: 'a2', parentId: 'docs', name: 'a.txt', blobId: 'ba2' });
+    await restoreFromTrash(done);
+    expect(byId('a')).toMatchObject({ parentId: 'docs', name: 'a (1).txt' });
+    expect(byId('a2')).toMatchObject({ parentId: 'docs', name: 'a.txt' });
+  });
+
+  it('leaves an item alone that left the trash since the rows were listed', async () => {
+    let nodes = listed();
+    await moveToTrash(nodes, nodes.filter((n) => n.id === 'a'), 1730112000007);
+    nodes = listed();
+    const rows = trashedItems(nodes);
+    // Restored on another device and moved on from there.
+    byId('a')!.parentId = 'top-dir';
+    store.push({ id: 'top-dir', parentId: null, name: 'Elsewhere', blobId: null });
+    const sent = calls.length;
+    const { done } = await restoreFromTrash(rows);
+    expect(done).toEqual([]);
+    expect(calls.slice(sent).filter((c) => c.update)).toEqual([]);
+    expect(byId('a')!.parentId).toBe('top-dir');
   });
 });
 

@@ -298,14 +298,14 @@ live('live Stalwart files trash', () => {
     const item = all.find((i) => i.node.name === 'trash-me.txt' && i.fromParentId === scratch)!;
     const sibling = all.find((i) => i.node.name === 'Trash me' && i.batchId === item.batchId)!;
     let list = await own();
-    const { done } = await restoreFromTrash(list, [item]);
+    const { done } = await restoreFromTrash([item]);
     expect(done).toHaveLength(1);
     list = await own();
     expect(list.find((n) => n.id === item.node.id)).toMatchObject({ name: 'trash-me.txt', parentId: scratch });
     // The other item still holds the trash folder.
     expect(list.some((n) => n.id === item.batchId)).toBe(true);
 
-    await restoreFromTrash(list, [sibling]);
+    await restoreFromTrash([sibling]);
     list = await own();
     expect(list.find((n) => n.id === sibling.node.id)?.parentId).toBe(scratch);
     expect(list.some((n) => n.id === item.batchId)).toBe(false);
@@ -324,7 +324,7 @@ live('live Stalwart files trash', () => {
     await deleteFileNodes([sub.id]);
 
     list = await own();
-    await restoreFromTrash(list, [(await trashed(a.id))!, (await trashed(b.id))!]);
+    await restoreFromTrash([(await trashed(a.id))!, (await trashed(b.id))!]);
     list = await own();
     expect(list.find((n) => n.id === a.id)).toMatchObject({ name: 'clash (1).txt', parentId: scratch });
     const orphan = list.find((n) => n.id === b.id)!;
@@ -342,7 +342,7 @@ live('live Stalwart files trash', () => {
     const { done } = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
     batches.add(done[0].batchId!);
     // The rows on screen still show it where it was.
-    await restoreFromTrash(list, done);
+    await restoreFromTrash(done);
     const after = await own();
     expect(after.find((n) => n.id === file.id)).toMatchObject({ name: 'undo-me.txt', parentId: scratch });
     expect(after.some((n) => n.id === done[0].batchId)).toBe(false);

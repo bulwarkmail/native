@@ -100,23 +100,34 @@ export async function moveToTrash(
 /**
  * Put items of the trash back into the folder each came from, or the root
  * when that folder is gone or in the trash itself. A name taken there by now
- * gets " (1)" and so on. Their trash folders go once they are empty. Throws
- * when nothing went.
+ * gets " (1)" and so on. Their trash folders go once they are empty.
+ *
+ * The drive is read again first, and that is what counts: the listing on
+ * screen (for an undo, the one from before the delete) misses a folder
+ * trashed since and a name taken since. Items no longer in the trash are left
+ * where they are. Throws when nothing of what is still there went.
  */
-export async function restoreFromTrash(nodes: FileNode[], items: TrashedItem[]): Promise<TrashWriteResult> {
+export async function restoreFromTrash(items: TrashedItem[]): Promise<TrashWriteResult> {
   const result: TrashWriteResult = { done: [], refused: [] };
   if (items.length === 0) return result;
-  const hidden = trashSubtreeIds(nodes, findTrashFolder(nodes)?.id);
-  const restoring = new Set(items.map((item) => item.node.id));
-  // Names taken in each folder, so a restored item never clashes; the items
-  // themselves don't count (after an undo the listing may still show them
-  // where they were).
+  const nodes = await getAllFileNodes();
+  const trash = findTrashFolder(nodes);
+  const hidden = trashSubtreeIds(nodes, trash?.id);
+  // The items as the trash holds them now: their name and trash folder may
+  // have changed on another device.
+  const current = new Map(trashedItems(nodes, trash).map((item) => [item.node.id, item]));
+  const pending = [...new Set(items.map((item) => item.node.id))].flatMap((id) => {
+    const item = current.get(id);
+    return item ? [item] : [];
+  });
+  if (pending.length === 0) return result;
+  // Names taken in each folder, so a restored item never clashes.
   const taken = new Map<string | null, Set<string>>();
   const namesIn = (parentId: string | null): Set<string> => {
     let names = taken.get(parentId);
     if (!names) {
       names = new Set(nodes
-        .filter((n) => (n.parentId ?? null) === parentId && !n.isShared && !hidden.has(n.id) && !restoring.has(n.id))
+        .filter((n) => (n.parentId ?? null) === parentId && !n.isShared && !hidden.has(n.id))
         .map((n) => n.name));
       taken.set(parentId, names);
     }
@@ -125,7 +136,7 @@ export async function restoreFromTrash(nodes: FileNode[], items: TrashedItem[]):
 
   const updates: Record<string, Partial<Pick<FileNode, 'name' | 'parentId'>>> = {};
   const targets = new Map<string, string | null>();
-  for (const item of items) {
+  for (const item of pending) {
     const target = restoreTarget(item, nodes);
     const used = namesIn(target);
     const name = getUniqueName(item.node.name, used);
@@ -141,7 +152,7 @@ export async function restoreFromTrash(nodes: FileNode[], items: TrashedItem[]):
   if (restored.size === 0) {
     throw result.refused[0] ?? new JMAPSetError('setError', 'Failed to restore');
   }
-  for (const item of items.filter((i) => restored.has(i.node.id))) {
+  for (const item of pending.filter((i) => restored.has(i.node.id))) {
     const name = updates[item.node.id].name ?? item.node.name;
     result.done.push({ ...item, node: { ...item.node, name, parentId: targets.get(item.node.id) ?? null } });
   }

@@ -744,12 +744,12 @@ export default function FilesScreen() {
     }
   }, [uploading, currentParentId, allNodes, loadFiles, t]);
 
-  // Undo of a delete: the items go back from the trash, the way Restore puts
-  // them back, judged against the drive as it was before the delete.
-  const undoTrash = useCallback(async (listing: FileNode[], items: TrashedItem[]) => {
+  // Undo of a delete: the items go back from the trash the way Restore puts
+  // them back, judged against the drive as it is by then.
+  const undoTrash = useCallback(async (items: TrashedItem[]) => {
     try {
-      await restoreFromTrash(listing, items);
-      toast.success(t('files.undo_success', 'Action undone'));
+      const { done } = await restoreFromTrash(items);
+      if (done.length > 0) toast.success(t('files.undo_success', 'Action undone'));
     } catch (e) {
       toast.error(t('files.undo_error', 'Failed to undo'), fileErrorMessage(e, t));
     }
@@ -770,7 +770,7 @@ export default function FilesScreen() {
       }
       toast.success(
         t('files.moved_to_trash', '{count, plural, one {Moved to trash} other {# items moved to trash}}', { count: done.length }),
-        { action: { label: t('files.undo', 'Undo'), onPress: () => void undoTrash(listing, done) } },
+        { action: { label: t('files.undo', 'Undo'), onPress: () => void undoTrash(done) } },
       );
     } catch (e) {
       Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
@@ -812,16 +812,18 @@ export default function FilesScreen() {
     if (items.length === 0) return;
     clearSelection();
     try {
-      const { done, refused } = await restoreFromTrash(allNodes, items);
+      const { done, refused } = await restoreFromTrash(items);
       if (refused.length > 0) {
         Alert.alert(t('files.restore_error', "Couldn't restore"), fileErrorMessage(refused[0], t));
       }
-      toast.success(t('files.restored', '{count, plural, one {Item restored} other {# items restored}}', { count: done.length }));
+      if (done.length > 0) {
+        toast.success(t('files.restored', '{count, plural, one {Item restored} other {# items restored}}', { count: done.length }));
+      }
     } catch (e) {
       Alert.alert(t('files.restore_error', "Couldn't restore"), fileErrorMessage(e, t));
     }
     await loadFiles('refresh');
-  }, [allNodes, clearSelection, loadFiles, t]);
+  }, [clearSelection, loadFiles, t]);
 
   const performEmptyTrash = useCallback(async () => {
     setConfirmEmptyTrash(false);
