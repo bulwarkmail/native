@@ -184,6 +184,17 @@ describe('loading a message', () => {
     expect((await useOfflineCacheStore.getState().get('e1'))?.keywords).toEqual({ $flagged: true });
   });
 
+  it('takes the inline image of an offline copy saved from Stalwart 1.0 into its attachments', async () => {
+    const image = { partId: '4', blobId: 'b-img', type: 'image/png', disposition: 'inline', cid: 'logo@x' };
+    const offline = { ...full('e1'), attachments: [], htmlBody: [{ partId: '1', type: 'text/html' }, image] } as Email;
+    await useOfflineCacheStore.getState().put(offline, 100);
+    flagsGet.mockReturnValue(new Promise(() => undefined));
+
+    void loadDetail('e1');
+    await flush();
+    expect(peekDetail('e1')?.attachments).toEqual([image]);
+  });
+
   it('batches what it holds and what it lacks into one request each', async () => {
     fullGet.mockResolvedValueOnce(fullResponse([full('a'), full('b')], 's1'));
     await loadDetails(['a', 'b']);

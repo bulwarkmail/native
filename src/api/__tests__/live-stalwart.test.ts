@@ -267,9 +267,16 @@ live('live Stalwart', () => {
           draftId = saved.id;
           state = rebaseDraftPartBlobs(state, sent, saved.attachments);
         }
-        // Without the rebase the seeded part blob is gone with D0.
-        await expect(saveDraftVersion({ ...base, attachments: [img(seeded)] }, drafts))
-          .rejects.toThrow(/does not exist|blobNotFound/);
+        // Each save re-pointed the image at the new version's part (on 1.0
+        // the read-back finds it in the body lists only).
+        expect(liveBlobId(state, seeded)).not.toBe(seeded);
+        // Without the rebase the seeded part blob is gone with D0. 0.16 says
+        // "blobId … does not exist", 1.0 "One or more blobIds do not exist";
+        // 1.0 sometimes still resolves it for a moment after the destroy.
+        const stale = await saveDraftVersion({ ...base, attachments: [img(seeded)] }, drafts)
+          .then((v) => v, (e: Error) => e);
+        if (stale instanceof Error) expect(stale.message).toMatch(/does not exist|do not exist|blobNotFound/);
+        else created.push(stale.id);
         const [last] = await getFullEmails([draftId]);
         expect(last.attachments?.[0]?.cid).toContain('img1@live.test');
       } finally {
