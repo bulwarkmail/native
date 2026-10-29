@@ -189,11 +189,12 @@ beforeEach(() => {
     return { ...query, list: got.list, state: got.state, threads: [] };
   });
   mockQueryAcross.mockImplementation(async (
-    targets: Array<{ accountId?: string; position: number; sort: unknown }>,
+    targets: Array<{ accountId?: string; position: number; sort: unknown; filter?: Record<string, unknown> }>,
     opts: Record<string, unknown>,
   ) => Promise.all(targets.map(async (target) => {
     const page = await emailApi.queryEmailPage(undefined, {
       ...opts, position: target.position, sort: target.sort as never, accountId: target.accountId,
+      ...(target.filter ? { filter: target.filter } : {}),
     });
     return { accountId: target.accountId, ok: true, total: page.total, list: page.list, threads: page.threads };
   })));

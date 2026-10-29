@@ -543,6 +543,11 @@ export interface AccountPageTarget {
   accountId?: string;
   position: number;
   sort: Array<{ property: string; isAscending: boolean; keyword?: string }>;
+  /**
+   * This account's own filter, in place of the shared `options.filter`
+   * (the default search leaves each account's own Trash and Junk out).
+   */
+  filter?: Record<string, unknown>;
 }
 
 export type AccountPage =
@@ -573,7 +578,7 @@ export async function queryEmailPagesAcrossAccounts(
         position: target.position,
         limit,
         sort: target.sort,
-        filter: options.filter,
+        filter: target.filter ?? options.filter,
         accountId: target.accountId,
       });
       calls.push(['Email/query', args, `${index}:q`]);

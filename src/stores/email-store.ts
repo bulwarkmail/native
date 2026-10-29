@@ -742,20 +742,19 @@ async function fetchSpanningPage(
   const threads = !useSettingsStore.getState().disableThreading;
   const skipTrashAndJunk = searchSkipsTrashAndJunk(state.searchQuery, state.filters, openRoleOf(state));
   const run = async (accounts: Array<string | undefined>) => {
-    const targets = await Promise.all(accounts.map(async (accountId) => ({
-      accountId,
-      position: loaded[accountId ?? primary] ?? 0,
-      sort: await resolveSort(state, accountId),
-    })));
-    if (!skipTrashAndJunk) return queryEmailPagesAcrossAccounts(targets, { limit, filter, threads });
-    // Each account leaves its own Trash and Junk out, so each gets its own
-    // filter (and request).
-    const pages = await Promise.all(targets.map((target) => {
-      const ids = trashAndJunkIds(state.mailboxes, target.accountId);
-      const scoped = ids.length > 0 ? andFilter(filter, { inMailboxOtherThan: ids }) : filter;
-      return queryEmailPagesAcrossAccounts([target], { limit, filter: scoped, threads });
+    const targets = await Promise.all(accounts.map(async (accountId) => {
+      // Each account leaves its own Trash and Junk out, so each gets its own
+      // filter; they still share requests (one request per account went
+      // past the servers' maxConcurrentRequests with a few shared accounts).
+      const ids = skipTrashAndJunk ? trashAndJunkIds(state.mailboxes, accountId) : [];
+      return {
+        accountId,
+        position: loaded[accountId ?? primary] ?? 0,
+        sort: await resolveSort(state, accountId),
+        filter: ids.length > 0 ? andFilter(filter, { inMailboxOtherThan: ids }) : filter,
+      };
     }));
-    return pages.map((p) => p[0]);
+    return queryEmailPagesAcrossAccounts(targets, { limit, filter, threads });
   };
   let pages = await run(spannedAccounts(state.mailboxes));
   const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
