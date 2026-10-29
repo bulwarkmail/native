@@ -194,6 +194,10 @@
       "timezone_value": "Timezone: {zone}",
       "updated_on": "Updated {date}"
     },
+    "directory": {
+      "restricted_hint": "Your mail server lists only the accounts you already work with, such as your groups and the people who share with you.",
+      "restricted_queries_off": "Your mail server lists only the accounts you already work with, such as your groups and the people who share with you. An administrator can turn on directory queries to show everyone."
+    },
     "empty_state_hint_mobile": "Tap + to add one",
     "export": {
       "failed": "Export failed"

@@ -47,6 +47,11 @@ vi.mock('../../api/jmap-client', () => ({
   },
 }));
 
+vi.mock('../../api/files', () => ({
+  listPrincipals: vi.fn(),
+  supportsSharing: vi.fn(() => true),
+}));
+
 vi.mock('../../api/blob', () => ({
   uploadBytes: vi.fn(),
   getBlobsAsBase64: vi.fn(),
@@ -54,6 +59,7 @@ vi.mock('../../api/blob', () => ({
 
 import * as contactsApi from '../../api/contacts';
 import * as blobApi from '../../api/blob';
+import * as filesApi from '../../api/files';
 import { jmapClient } from '../../api/jmap-client';
 import { resetContactBlobMediaRefusals } from '../../lib/contact-media';
 import * as recentApi from '../../api/recent-recipients';
@@ -629,6 +635,56 @@ describe('contacts-store', () => {
       expect(mockDeleteContacts).toHaveBeenCalledWith(['t1']);
       expect(useContactsStore.getState().trustedSenderEmails).toEqual(['z@y.com']);
     });
+  });
+});
+
+describe('company directory (#1253)', () => {
+  const mockListPrincipals = filesApi.listPrincipals as ReturnType<typeof vi.fn>;
+  const principal = (id: string, name: string, email?: string) =>
+    ({ id, type: 'individual' as const, name, email });
+
+  it('lists the principals with an address', async () => {
+    mockListPrincipals.mockResolvedValue({
+      status: 'ok',
+      principals: [principal('a', 'anna', 'anna@example.org'), principal('g', 'admins'), principal('b', 'bob', 'bob@example.org')],
+    });
+    await useContactsStore.getState().fetchDirectory();
+    const s = useContactsStore.getState();
+    expect(s.directoryStatus).toBe('ready');
+    expect(s.directory.map((e) => e.email)).toEqual(['anna@example.org', 'bob@example.org']);
+  });
+
+  // Stalwart 1.0 answers forbidden while directory queries are off (its
+  // default) and hands back the principals the user knows.
+  it('keeps the known principals of a restricted listing and says why', async () => {
+    mockListPrincipals.mockResolvedValue({
+      status: 'restricted', directoryQueriesOff: true, principals: [principal('me', 'me', 'me@example.org')],
+    });
+    await useContactsStore.getState().fetchDirectory();
+    const s = useContactsStore.getState();
+    expect(s.directoryStatus).toBe('restricted');
+    expect(s.directoryQueriesOff).toBe(true);
+    expect(s.directory).toHaveLength(1);
+  });
+
+  it('looks up recipients in the loaded directory', async () => {
+    mockListPrincipals.mockResolvedValue({
+      status: 'ok', principals: [{ ...principal('a', 'anna', 'anna@example.org'), description: 'Anna Berg' }],
+    });
+    await useContactsStore.getState().fetchDirectory();
+    expect(useContactsStore.getState().lookupDirectory('berg')).toEqual([{ name: 'Anna Berg', email: 'anna@example.org' }]);
+    expect(useContactsStore.getState().lookupDirectory('zzz')).toEqual([]);
+  });
+
+  it('drops a listing that arrives after an account switch', async () => {
+    let resolve: (v: unknown) => void = () => {};
+    mockListPrincipals.mockReturnValue(new Promise((r) => { resolve = r; }));
+    const load = useContactsStore.getState().fetchDirectory();
+    useContactsStore.getState().reset();
+    resolve({ status: 'ok', principals: [principal('a', 'anna', 'anna@example.org')] });
+    await load;
+    expect(useContactsStore.getState().directory).toEqual([]);
+    expect(useContactsStore.getState().directoryStatus).toBe('idle');
   });
 });
 

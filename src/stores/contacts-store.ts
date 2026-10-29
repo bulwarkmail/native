@@ -35,6 +35,13 @@ import {
   matchesContactSearch,
 } from '../lib/contact-utils';
 import { sanitizeDisplayName, splitMailbox } from '../lib/rfc5322-mailbox';
+import { listPrincipals, supportsSharing } from '../api/files';
+import {
+  directorySuggestions,
+  principalsToDirectory,
+  type DirectoryEntry,
+  type DirectoryStatus,
+} from '../lib/contact-directory';
 import { requestDeviceSync } from '../device-sync/app/request';
 import { CONTACTS_AUTHORITY } from '../device-sync/types';
 
@@ -80,6 +87,15 @@ export interface ContactsState {
   recentRecipients: RecentRecipient[];
   recentRecipientsLoaded: boolean;
   sentMailboxId: string | null;
+
+  // The company directory (#1253): principals the server lists, read-only.
+  directory: DirectoryEntry[];
+  directoryStatus: DirectoryStatus;
+  /**
+   * The server refused the listing because its administrator keeps directory
+   * queries off (Stalwart 1.0's default), not over this account's rights.
+   */
+  directoryQueriesOff: boolean;
 
   hydrate: () => Promise<void>;
   fetchAddressBooks: () => Promise<void>;
@@ -134,6 +150,13 @@ export interface ContactsState {
   searchRecipients: (query: string) => Promise<RecipientSuggestion[]>;
   getAutocomplete: (query: string, limit?: number) => RecipientSuggestion[];
   findContactByEmail: (email: string) => ContactCard | undefined;
+  /** Load the company directory (the server's principals). */
+  fetchDirectory: () => Promise<void>;
+  /**
+   * Directory people matching what is typed, for recipient fields. Reads what
+   * fetchDirectory loaded; empty until then.
+   */
+  lookupDirectory: (query: string, limit?: number) => RecipientSuggestion[];
 
   // Trusted senders address book. Passive loads (createIfMissing=false) only
   // read an existing book; the book is created lazily on the first add.
@@ -268,6 +291,7 @@ export function normalizeSuggestions(results: RecipientSuggestion[]): RecipientS
 let addressBooksPromise: Promise<void> | null = null;
 let contactsPromise: Promise<void> | null = null;
 let trustedSendersPromise: Promise<void> | null = null;
+let directoryPromise: Promise<void> | null = null;
 
 // One up with every reset (an account switch, a sign-out), as in the calendar
 // store. The client is one singleton that serves whichever account is active,
@@ -383,6 +407,10 @@ export const useContactsStore = create<ContactsState>()(
         recentRecipients: [],
         recentRecipientsLoaded: false,
         sentMailboxId: null,
+
+        directory: [],
+        directoryStatus: 'idle',
+        directoryQueriesOff: false,
 
         hydrate: async () => {
           if (get().hydrated) return;
@@ -921,6 +949,38 @@ export const useContactsStore = create<ContactsState>()(
               && Object.values(c.emails).some((e) => e.address?.toLowerCase().trim() === needle));
         },
 
+        fetchDirectory: async () => {
+          if (!jmapClient.isConnected) return;
+          if (!supportsSharing()) {
+            set({ directoryStatus: 'unavailable' });
+            return;
+          }
+          if (directoryPromise) return directoryPromise;
+          const { stale } = generationGuard();
+          set({ directoryStatus: 'loading' });
+          const promise: Promise<void> = (async () => {
+            const listing = await listPrincipals();
+            if (stale()) return;
+            if (listing.status === 'error' && listing.principals.length === 0) {
+              // Keep what an earlier load returned.
+              set({ directoryStatus: 'error' });
+              return;
+            }
+            set({
+              directory: principalsToDirectory(listing.principals),
+              directoryStatus: listing.status === 'restricted' ? 'restricted' : listing.status === 'error' ? 'error' : 'ready',
+              directoryQueriesOff: !!listing.directoryQueriesOff,
+            });
+          })().finally(() => {
+            if (directoryPromise === promise) directoryPromise = null;
+          });
+          directoryPromise = promise;
+          return promise;
+        },
+
+        lookupDirectory: (query, limit = 10) =>
+          normalizeSuggestions(directorySuggestions(get().directory, query, limit)),
+
         loadTrustedSendersBook: async (createIfMissing = false) => {
           if (!jmapClient.isConnected) return;
           // Share the in-flight load so parallel callers (mail view, settings,
@@ -1027,6 +1087,7 @@ export const useContactsStore = create<ContactsState>()(
           addressBooksPromise = null;
           contactsPromise = null;
           trustedSendersPromise = null;
+          directoryPromise = null;
           set({
             addressBooks: [],
             contacts: [],
@@ -1041,6 +1102,9 @@ export const useContactsStore = create<ContactsState>()(
             recentRecipients: [],
             recentRecipientsLoaded: false,
             sentMailboxId: null,
+            directory: [],
+            directoryStatus: 'idle',
+            directoryQueriesOff: false,
           });
         },
       };

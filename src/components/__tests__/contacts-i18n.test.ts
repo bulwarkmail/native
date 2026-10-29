@@ -26,6 +26,7 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/contacts/TagAssignSheet.tsx': [],
   'components/contacts/ContactListRow.tsx': [],
   'components/contacts/FieldBlock.tsx': [],
+  'components/contacts/DirectoryBrowser.tsx': [],
 };
 
 describe('translated contacts screens', () => {
