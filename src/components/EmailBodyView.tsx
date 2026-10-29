@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image as ImageIcon, ShieldCheck } from './icons';
 import type { Email } from '../api/types';
-import { extractCidRefs } from '../lib/email-html';
+import { extractCidRefs, isUserLinkNavigation } from '../lib/email-html';
 import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
 import { buildQuoteCollapseScript } from '../lib/quote-collapse';
 import { bodyDocument } from '../lib/email-body-document';
@@ -834,6 +834,11 @@ export default function EmailBodyView({
             // any other) navigation would replace the email body with no way
             // back, so it is refused; images are reachable via the chips.
             if (!url || url === 'about:blank') return true;
+            // A message opens links only when the user taps one. The page
+            // runs no script of its own, so nothing else should navigate;
+            // iOS says how a navigation started, so anything but a tap is
+            // refused there as well. Android always reports 'other'.
+            if (!isUserLinkNavigation(request, Platform.OS)) return false;
             if (/^mailto:/i.test(url)) {
               openMailto(url);
               return false;

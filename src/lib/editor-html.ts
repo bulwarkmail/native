@@ -10,6 +10,7 @@
 // page verbatim; write escape-free code or double the backslash.
 
 import type { ThemePalette } from '../theme/tokens';
+import { randomHex } from './random';
 
 // Minimum visible editor height (px). The editor auto-grows beyond this as the
 // user types, and the parent ScrollView handles overflow.
@@ -27,14 +28,19 @@ export const CHANGE_THROTTLE_MS = 400;
  * what the composer produces itself - `data:` (inline and hydrated `cid:`
  * images) and `blob:` (pasted images) - so a quoted original's tracking
  * pixels and remote images don't fire just because it is replied to.
+ *
+ * Scripts need the page's `nonce`: the editor's own script carries it, and
+ * inline handlers in seeded or pasted HTML (a quoted `<img onerror=…>`)
+ * don't run. Commands from the app arrive through injectJavaScript, which
+ * page CSP doesn't govern.
  */
-export function buildEditorCsp(blockRemoteImages: boolean): string {
+export function buildEditorCsp(blockRemoteImages: boolean, nonce?: string): string {
   const resources = blockRemoteImages
     ? ['img-src data: blob:', 'font-src data:', "media-src 'none'"]
     : ['img-src data: blob: https: http:', 'font-src data: https: http:', 'media-src data: https: http:'];
   return [
     "default-src 'none'",
-    "script-src 'unsafe-inline'",
+    nonce ? `script-src 'nonce-${nonce}'` : "script-src 'none'",
     "style-src 'unsafe-inline'",
     ...resources,
     "base-uri 'none'",
@@ -108,13 +114,14 @@ export function buildEditorHtml(opts: {
   // Inject initial content as a JSON-encoded string so any HTML/quotes inside
   // are safely embedded (no template literal collision with the script body).
   const initialJson = JSON.stringify(initialHtml);
+  const nonce = randomHex(16);
   const placeholderJson = JSON.stringify(placeholder);
 
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="${buildEditorCsp(blockRemoteImages)}" />
+<meta http-equiv="Content-Security-Policy" content="${buildEditorCsp(blockRemoteImages, nonce)}" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>
@@ -167,7 +174,7 @@ export function buildEditorHtml(opts: {
 </head>
 <body>
 <div id="editor" contenteditable="true" dir="auto" data-placeholder=${placeholderJson}></div>
-<script>
+<script nonce="${nonce}">
 (function () {
   var editor = document.getElementById('editor');
   var lastHtml = null;

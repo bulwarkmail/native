@@ -9,12 +9,11 @@
 //      initial about:blank doc - links are opened in the OS browser / composer.
 //   3. This module pre-strips known-dangerous tags and on* attributes so the
 //      rendered DOM is also clean. Regex stripping is imperfect; it is here
-//      as belt-and-suspenders, not the primary defense. `script-src
-//      'unsafe-inline'` has to stay on for the injected measurement bridge,
-//      so a parser-differential bypass of the regex stripper would execute in
-//      the WebView. The blast radius is small: the page has no origin, no
-//      storage, no cookies, and the bridge only accepts height/swipe/zoom
-//      strings - but it is the residual risk of not using a real HTML parser.
+//      as belt-and-suspenders, not the primary defense. The attribute pass
+//      reads tags the way the browser's tokenizer does, and the page CSP is
+//      `script-src 'none'` (the bridge scripts are injected by the WebView,
+//      which CSP doesn't govern), so an inline handler that slipped through
+//      would still not run.
 //
 // Tag/attribute lists mirror `lib/email-sanitization.ts` from the webmail.
 // `<style>` is kept on purpose: the WebView is an isolated document, so the
@@ -67,35 +66,109 @@ export const TRANSPARENT_BLOCKED_PIXEL =
 const RASTER_IMAGE_DATA_URI =
   /^data:image\/(?:png|jpe?g|gif|webp|bmp|avif|x-icon|vnd\.microsoft\.icon)[;,]/i;
 
-// Matches one start tag, keeping quoted attribute values (which may contain
-// `>`) intact. Group 1 = tag name, group 2 = raw attribute text.
-const TAG_RE = /<([a-z][a-z0-9-]*)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
-// One attribute inside a tag's attribute text.
-const ATTR_RE = /([^\s=/]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s>]+))?/g;
+// ─── Tag tokenizer ───────────────────────────────────────────────────────
+//
+// The attribute passes read markup the way the browser's HTML tokenizer does
+// (WHATWG HTML §13.2.5), not with a tag regex. A regex that disagrees with
+// the browser about where a tag or an attribute starts is a bypass: the old
+// one wanted whitespace before `on*`, so `<img src="x"/onerror=…>` kept its
+// handler, and a stray quote could hide a whole tag from it. Every tag is
+// rebuilt in one canonical form (`name="value"`, no stray quotes), comments
+// and bogus comments are dropped, and a `<` that starts no tag is written as
+// `&lt;`, so later passes and the WebView see the same tags this one did.
 
 interface ParsedAttr {
   name: string;
-  /** Unquoted value, or null for a boolean attribute. */
+  /** Raw value (character references intact), or null for a boolean attribute. */
   value: string | null;
 }
 
-function parseAttrs(raw: string): ParsedAttr[] {
-  const out: ParsedAttr[] = [];
-  ATTR_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = ATTR_RE.exec(raw)) !== null) {
-    if (!m[1]) continue;
-    const rawValue = m[2];
-    if (rawValue === undefined) {
-      out.push({ name: m[1], value: null });
+interface ParsedTag {
+  /** Tag name as written. */
+  name: string;
+  attrs: ParsedAttr[];
+  selfClosing: boolean;
+  /** Index just past the closing `>`. */
+  end: number;
+}
+
+function isHtmlSpace(ch: string | undefined): boolean {
+  return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\f' || ch === '\r';
+}
+
+function isAsciiAlpha(ch: string | undefined): boolean {
+  if (!ch) return false;
+  const code = ch.charCodeAt(0) | 0x20;
+  return code >= 97 && code <= 122;
+}
+
+/** The browser lowercases tag and attribute names in ASCII only. */
+function asciiLower(s: string): string {
+  return s.replace(/[A-Z]+/g, (m) => m.toLowerCase());
+}
+
+/**
+ * Read a start or end tag whose name begins at `i`. Returns null when the
+ * input ends inside the tag: the browser drops such a tag and everything
+ * after it.
+ */
+function readTag(html: string, i: number): ParsedTag | null {
+  const n = html.length;
+  let j = i;
+  while (j < n && !isHtmlSpace(html[j]) && html[j] !== '/' && html[j] !== '>') j++;
+  const name = html.slice(i, j);
+  const attrs: ParsedAttr[] = [];
+  while (j < n) {
+    const ch = html[j];
+    if (isHtmlSpace(ch)) { j++; continue; }
+    if (ch === '>') return { name, attrs, selfClosing: false, end: j + 1 };
+    if (ch === '/') {
+      // A slash only self-closes right before `>`; anywhere else it just
+      // separates attributes, which is what `<img/onerror=…>` relies on.
+      j++;
+      if (html[j] === '>') return { name, attrs, selfClosing: true, end: j + 1 };
+      continue;
+    }
+    // Attribute name. Its first character may be `=`; after that it runs to
+    // whitespace, `/`, `>` or `=`. Quotes and `<` are part of the name.
+    const start = j;
+    j++;
+    while (j < n && !isHtmlSpace(html[j]) && html[j] !== '/' && html[j] !== '>' && html[j] !== '=') j++;
+    const attrName = html.slice(start, j);
+    while (j < n && isHtmlSpace(html[j])) j++;
+    if (html[j] !== '=') {
+      attrs.push({ name: attrName, value: null });
+      continue;
+    }
+    j++;
+    while (j < n && isHtmlSpace(html[j])) j++;
+    if (j >= n) return null;
+    const q = html[j];
+    if (q === '"' || q === "'") {
+      const close = html.indexOf(q, j + 1);
+      if (close < 0) return null;
+      attrs.push({ name: attrName, value: html.slice(j + 1, close) });
+      j = close + 1;
+    } else if (q === '>') {
+      attrs.push({ name: attrName, value: '' });
     } else {
-      const q = rawValue[0];
-      const unquoted = (q === '"' || q === "'") ? rawValue.slice(1, -1) : rawValue;
-      out.push({ name: m[1], value: unquoted });
+      const s = j;
+      while (j < n && !isHtmlSpace(html[j]) && html[j] !== '>') j++;
+      attrs.push({ name: attrName, value: html.slice(s, j) });
     }
   }
-  return out;
+  return null;
 }
+
+// Elements whose content the tokenizer reads as text up to their end tag.
+// Only `style` and `title` survive the sanitiser; the rest are listed so a
+// forbidden one is dropped together with its content.
+const RAW_TEXT_TAGS = new Set([
+  'style', 'title', 'script', 'textarea', 'xmp', 'iframe', 'noembed', 'noframes', 'noscript',
+]);
+
+// Attribute names written in a form that every later pass reads the same way.
+const SAFE_ATTR_NAME = /^[a-zA-Z_:][-a-zA-Z0-9_:.]*$/;
 
 function serializeAttrs(attrs: ParsedAttr[]): string {
   return attrs
@@ -103,18 +176,150 @@ function serializeAttrs(attrs: ParsedAttr[]): string {
     .join(' ');
 }
 
+function serializeTag(name: string, attrs: ParsedAttr[], selfClosing: boolean): string {
+  const body = serializeAttrs(attrs);
+  return `<${name}${body ? ' ' + body : ''}${selfClosing ? ' /' : ''}>`;
+}
+
+/**
+ * Tokenize `html` and rebuild every start tag through `fn`, which gets the
+ * ASCII-lowercased tag name and the attributes (first of each name only, as
+ * the browser keeps them) and returns the list to write, `null` to keep the
+ * attributes unchanged, or `false` to drop the tag. End tags are written
+ * without attributes; comments, doctypes and bogus comments are dropped.
+ */
+function rewriteTags(
+  html: string,
+  fn: (tag: string, attrs: ParsedAttr[]) => ParsedAttr[] | null | false,
+): string {
+  const n = html.length;
+  let out = '';
+  let i = 0;
+  while (i < n) {
+    const lt = html.indexOf('<', i);
+    if (lt < 0) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, lt);
+    const next = html[lt + 1];
+
+    if (isAsciiAlpha(next)) {
+      const tag = readTag(html, lt + 1);
+      if (!tag) break;
+      const lower = asciiLower(tag.name);
+      const seen = new Set<string>();
+      const attrs = tag.attrs.filter((a) => {
+        const key = asciiLower(a.name);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const result = fn(lower, attrs);
+      i = tag.end;
+      if (result !== false) out += serializeTag(tag.name, result ?? attrs, tag.selfClosing);
+      if (RAW_TEXT_TAGS.has(lower)) {
+        // Copy the element's text verbatim up to its end tag, which the loop
+        // then reads as a tag. A dropped element loses its text too.
+        const close = new RegExp(`</${lower}[\\t\\n\\f\\r />]`, 'gi');
+        close.lastIndex = i;
+        const m = close.exec(html);
+        const textEnd = m ? m.index : n;
+        if (result !== false) out += html.slice(i, textEnd);
+        i = textEnd;
+      }
+      continue;
+    }
+
+    if (next === '/') {
+      const after = html[lt + 2];
+      if (isAsciiAlpha(after)) {
+        const tag = readTag(html, lt + 2);
+        if (!tag) break;
+        if (fn(asciiLower(tag.name), []) !== false) out += `</${tag.name}>`;
+        i = tag.end;
+        continue;
+      }
+      if (after === '>') {
+        i = lt + 3;
+        continue;
+      }
+      if (after === undefined) {
+        out += '&lt;/';
+        break;
+      }
+      // Bogus comment up to the next `>`.
+      const gt = html.indexOf('>', lt + 2);
+      i = gt < 0 ? n : gt + 1;
+      continue;
+    }
+
+    if (next === '!') {
+      if (html.startsWith('<!--', lt)) {
+        // A comment ends at `-->` or `--!>`; `<!-->` and `<!--->` end at once.
+        const k = lt + 4;
+        if (html[k] === '>') { i = k + 1; continue; }
+        if (html.startsWith('->', k)) { i = k + 2; continue; }
+        const a = html.indexOf('-->', k);
+        const b = html.indexOf('--!>', k);
+        if (a < 0 && b < 0) { i = n; continue; }
+        i = a >= 0 && (b < 0 || a < b) ? a + 3 : b + 4;
+        continue;
+      }
+      // Doctype, CDATA outside foreign content and other bogus comments all
+      // end at the first `>`.
+      const gt = html.indexOf('>', lt + 2);
+      i = gt < 0 ? n : gt + 1;
+      continue;
+    }
+
+    if (next === '?') {
+      const gt = html.indexOf('>', lt + 2);
+      i = gt < 0 ? n : gt + 1;
+      continue;
+    }
+
+    // A `<` that starts no tag is text.
+    out += '&lt;';
+    i = lt + 1;
+  }
+  return out;
+}
+
 /** Rebuild every start tag through `fn`, which may edit its attribute list. */
 function mapTags(
   html: string,
   fn: (tag: string, attrs: ParsedAttr[]) => ParsedAttr[] | null,
 ): string {
-  return html.replace(TAG_RE, (full, tag: string, rawAttrs: string) => {
-    const attrs = parseAttrs(rawAttrs);
-    const next = fn(tag.toLowerCase(), attrs);
-    if (next === null) return full;
-    const selfClosing = /\/\s*$/.test(rawAttrs);
-    const body = serializeAttrs(next);
-    return `<${tag}${body ? ' ' + body : ''}${selfClosing ? ' /' : ''}>`;
+  return rewriteTags(html, fn);
+}
+
+const FORBIDDEN_TAG_SET = new Set(FORBIDDEN_TAGS);
+// `on*` handlers, and the rarer `formmethod`, `srcdoc`, `ping` families that
+// have a side-channel.
+const DANGEROUS_ATTR = /^(?:on|srcdoc$|ping$|formmethod$|formenctype$|formtarget$|form$)/;
+const URI_ATTRS = new Set(['href', 'src', 'action', 'xlink:href', 'formaction', 'poster', 'background']);
+
+/** Drop forbidden tags and dangerous attributes, neutralise unsafe URIs. */
+function sanitizeTags(html: string): string {
+  return rewriteTags(html, (tag, attrs) => {
+    if (FORBIDDEN_TAG_SET.has(tag)) return false;
+    const kept: ParsedAttr[] = [];
+    for (const attr of attrs) {
+      if (!SAFE_ATTR_NAME.test(attr.name)) continue;
+      const name = asciiLower(attr.name);
+      if (DANGEROUS_ATTR.test(name)) continue;
+      if (attr.value !== null && URI_ATTRS.has(name)) {
+        kept.push({ name: attr.name, value: safeUri(attr.value) });
+      } else if (attr.value !== null && name === 'srcset') {
+        // srcset is a list: check every candidate's scheme individually so
+        // an allowed first candidate can't wave a `data:image/svg+xml` through.
+        kept.push({ name: attr.name, value: safeSrcset(attr.value) });
+      } else {
+        kept.push(attr);
+      }
+    }
+    return kept;
   });
 }
 
@@ -137,31 +342,10 @@ export function stripDangerousTags(html: string): string {
     }
   } while (out !== prev);
 
-  // Strip inline event handlers - both `on*` and the rarer `formmethod`,
-  // `srcdoc`, `ping` attribute families that have a side-channel.
-  const dangerousAttrs = '(?:on[a-z]+|srcdoc|ping|formmethod|formenctype|formtarget|form)';
-  out = out.replace(new RegExp(`\\s+${dangerousAttrs}\\s*=\\s*"[^"]*"`, 'gi'), '');
-  out = out.replace(new RegExp(`\\s+${dangerousAttrs}\\s*=\\s*'[^']*'`, 'gi'), '');
-  out = out.replace(new RegExp(`\\s+${dangerousAttrs}\\s*=\\s*[^\\s>]+`, 'gi'), '');
-
-  // Neutralize dangerous URI schemes. Allow raster `data:image/*` and `cid:`.
-  out = out.replace(
-    /(\b(?:href|src|action|xlink:href|formaction|poster|background)\s*=\s*)(")([^"]*)(")/gi,
-    (_m, pre, q1, value, q2) => `${pre}${q1}${safeUri(value)}${q2}`,
-  );
-  out = out.replace(
-    /(\b(?:href|src|action|xlink:href|formaction|poster|background)\s*=\s*)(')([^']*)(')/gi,
-    (_m, pre, q1, value, q2) => `${pre}${q1}${safeUri(value)}${q2}`,
-  );
-
-  // srcset is a list: check every candidate's scheme individually so an
-  // allowed first candidate can't wave a `data:image/svg+xml` through.
-  out = out.replace(
-    /(\bsrcset\s*=\s*)(["'])([^"']*)\2/gi,
-    (_m, pre, q, value: string) => `${pre}${q}${safeSrcset(value)}${q}`,
-  );
-
-  return out;
+  // Then read what is left the way the browser will and rebuild every tag:
+  // dangerous attributes and unsafe URIs go whatever precedes them, and
+  // whatever the passes above left half-cut is settled one way.
+  return sanitizeTags(out);
 }
 
 function decodeUriEntities(raw: string): string {
@@ -409,8 +593,13 @@ export function blockExternalResources(html: string): BlockExternalResult {
 
   // <style> block CSS.
   out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (_m, open, css: string, close) => {
-    const cleaned = stripExternalStyleSheetCss(css);
-    if (cleaned !== css) blocked = true;
+    const stripped = stripExternalStyleSheetCss(css);
+    if (stripped === css) return `${open}${css}${close}`;
+    blocked = true;
+    // The cleaned sheet comes back with its CSS escapes decoded, so an
+    // escaped `\3c /style\3e <img onerror=…>` would turn into markup that
+    // leaves the sheet. Write every `<` as the CSS escape again.
+    const cleaned = stripped.replace(/</g, '\\3c ');
     return `${open}${cleaned}${close}`;
   });
 
@@ -595,10 +784,12 @@ export interface PreparedEmailHtml {
 }
 
 function buildCsp(strict: boolean): string {
-  // Strict CSP. Inline <script> and handlers from the email are stripped by
-  // `stripDangerousTags`, so script-src only needs to allow our own injected
-  // measurement bridge - 'unsafe-inline' is the minimum that lets RN WebView's
-  // injected script run on Android (where page CSP can apply to evaluateJs).
+  // Strict CSP. The document carries no script of its own: the measurement,
+  // swipe, zoom and quote bridges arrive as react-native-webview's injected
+  // JavaScript (evaluateJavascript on Android, WKUserScript/evaluateJavaScript
+  // on iOS), which page CSP doesn't govern, and they attach listeners with
+  // addEventListener. So script-src is 'none': if markup ever slips past
+  // `stripDangerousTags`, its inline handlers and scripts still don't run.
   //
   // In blocking mode img/media/font are restricted to data: only - the
   // network-level backstop for every tracking vector, including ones the
@@ -608,7 +799,7 @@ function buildCsp(strict: boolean): string {
     : ['img-src data: cid: https: http:', 'font-src data: https: http:', 'media-src data: https: http:'];
   return [
     "default-src 'none'",
-    "script-src 'unsafe-inline'",
+    "script-src 'none'",
     "style-src 'unsafe-inline'",
     ...resources,
     "base-uri 'none'",
@@ -753,4 +944,19 @@ export function sniffImageMime(bytes: Uint8Array, fallback?: string): string {
   const f = (fallback || '').toLowerCase().split(';')[0].trim();
   if (f.startsWith('image/')) return f;
   return 'application/octet-stream';
+}
+
+/**
+ * Whether a navigation request from the message WebView is the user tapping
+ * a link in the top document. iOS reports how a navigation started; Android
+ * leaves `navigationType` at 'other' for everything, so there only the frame
+ * check applies.
+ */
+export function isUserLinkNavigation(
+  request: { navigationType?: string; isTopFrame?: boolean },
+  platform: string,
+): boolean {
+  if (request.isTopFrame === false) return false;
+  if (platform === 'ios') return request.navigationType === 'click';
+  return true;
 }
