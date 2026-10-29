@@ -200,10 +200,15 @@ function serializeTag(name: string, attrs: ParsedAttr[], selfClosing: boolean): 
  * the browser keeps them) and returns the list to write, `null` to keep the
  * attributes unchanged, or `false` to drop the tag. End tags are written
  * without attributes; comments, doctypes and bogus comments are dropped.
+ * `rawText`, when given, rewrites the text of each kept raw-text element
+ * (a `<style>` sheet): the tokenizer knows where an element really starts,
+ * which a regex over the markup doesn't (it found `<style>` inside an
+ * attribute value).
  */
 function rewriteTags(
   html: string,
   fn: (tag: string, attrs: ParsedAttr[]) => ParsedAttr[] | null | false,
+  rawText?: (tag: string, text: string) => string,
 ): string {
   const n = html.length;
   let out = '';
@@ -238,7 +243,10 @@ function rewriteTags(
         close.lastIndex = i;
         const m = close.exec(html);
         const textEnd = m ? m.index : n;
-        if (result !== false) out += closeProofRawText(lower, html.slice(i, textEnd));
+        if (result !== false) {
+          const text = html.slice(i, textEnd);
+          out += closeProofRawText(lower, rawText ? rawText(lower, text) : text);
+        }
         i = textEnd;
       }
       continue;
@@ -303,8 +311,9 @@ function rewriteTags(
 function mapTags(
   html: string,
   fn: (tag: string, attrs: ParsedAttr[]) => ParsedAttr[] | null,
+  rawText?: (tag: string, text: string) => string,
 ): string {
-  return rewriteTags(html, fn);
+  return rewriteTags(html, fn, rawText);
 }
 
 const FORBIDDEN_TAG_SET = new Set(FORBIDDEN_TAGS);
@@ -449,67 +458,107 @@ export function isExternalResourceUrl(value: string | null | undefined): boolean
  */
 export function decodeCssEscapes(value: string): string {
   return value.replace(/\\([0-9a-fA-F]{1,6})\s?|\\(.)/g, (_full, hex, char) => {
-    if (hex) {
-      const code = parseInt(hex, 16);
-      return code ? String.fromCodePoint(code) : '';
-    }
+    if (hex) return cssEscapeChar(parseInt(hex, 16));
     return char ?? '';
   });
 }
 
+// The character a hex escape stands for. Past U+10FFFF and surrogates are
+// U+FFFD to CSS; String.fromCodePoint would throw on the former.
+function cssEscapeChar(code: number): string {
+  if (!code) return '';
+  if (code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '\ufffd';
+  return String.fromCodePoint(code);
+}
+
+/**
+ * `css` with its escapes decoded, plus for every decoded UTF-16 unit the
+ * index in `css` its source starts at (and `css.length` at the end), so a
+ * match in the decoded text can be cut out of the original.
+ */
+function decodeCssEscapesMapped(css: string): { text: string; from: number[] } {
+  const parts: string[] = [];
+  const from: number[] = [];
+  const escape = /\\([0-9a-fA-F]{1,6})\s?|\\(.)/y;
+  let i = 0;
+  while (i < css.length) {
+    const start = i;
+    let piece = css[i];
+    if (piece === '\\') {
+      escape.lastIndex = i;
+      const m = escape.exec(css);
+      if (m) {
+        piece = m[1] ? cssEscapeChar(parseInt(m[1], 16)) : m[2];
+        i += m[0].length;
+      } else {
+        i++;
+      }
+    } else {
+      i++;
+    }
+    parts.push(piece);
+    for (let k = 0; k < piece.length; k++) from.push(start);
+  }
+  from.push(css.length);
+  return { text: parts.join(''), from };
+}
+
 const CSS_URL_PATTERN = /url\(\s*(['"]?)([^)]*?)\1\s*\)/gi;
+const CSS_EXTERNAL_IMPORT = /@import\s+(['"])\s*(?:https?:)?\/\/[^'"]*\1[^;]*;?/gi;
+
+/**
+ * Neutralise external references in CSS: background `url()`, `@font-face`
+ * sources and `@import`. Matching runs on the text with its escapes decoded,
+ * because the "css escape" tracker escapes the `url` keyword itself
+ * (`\75\72\6C(` -> `url(`), but only the matches are cut from the original:
+ * the rest keeps its escapes. Writing the decoded text back turned
+ * `\5c 75rl(` into `\75rl(`, which the engine reads as `url(` again, and an
+ * escaped quote into one that ends the string. Returns the original string
+ * when nothing external is present, so callers can detect a change by
+ * identity. (#457)
+ */
+export function stripExternalStyleSheetCss(css: string): string {
+  if (!css || !/url|@import|\\/i.test(css)) return css;
+  const { text, from } = decodeCssEscapesMapped(css);
+  const cuts: Array<{ start: number; end: number; with: string }> = [];
+  for (const m of text.matchAll(CSS_URL_PATTERN)) {
+    if (isExternalResourceUrl(m[2])) cuts.push({ start: m.index, end: m.index + m[0].length, with: 'url()' });
+  }
+  for (const m of text.matchAll(CSS_EXTERNAL_IMPORT)) {
+    cuts.push({ start: m.index, end: m.index + m[0].length, with: '' });
+  }
+  if (cuts.length === 0) return css;
+  cuts.sort((a, b) => a.start - b.start);
+  let out = '';
+  let at = 0;
+  for (const cut of cuts) {
+    const start = from[cut.start];
+    if (start < at) continue;
+    out += css.slice(at, start) + cut.with;
+    at = from[cut.end];
+  }
+  return out + css.slice(at);
+}
 
 /** True if any `url(...)` in a CSS string resolves to an external resource. */
 export function styleHasExternalUrl(style: string): boolean {
-  let found = false;
-  style.replace(CSS_URL_PATTERN, (full, _q, inner) => {
-    if (isExternalResourceUrl(decodeCssEscapes(inner))) found = true;
-    return full;
-  });
-  return found;
+  return stripExternalStyleSheetCss(style) !== style;
 }
 
 /** Replace every external `url(...)` in a CSS string with an empty `url()`. */
 export function stripExternalCssUrls(style: string): string {
-  return style.replace(CSS_URL_PATTERN, (full, _q, inner) =>
-    isExternalResourceUrl(decodeCssEscapes(inner)) ? 'url()' : full,
-  );
+  return stripExternalStyleSheetCss(style);
 }
 
-/**
- * Neutralise external references in a full stylesheet (a kept `<style>`
- * block): background `url()`, `@font-face` sources and `@import`. Escapes are
- * decoded on the WHOLE block first because the "css escape" tracker escapes
- * the `url` keyword itself (`\75\72\6C(` -> `url(`). Returns the original
- * (escapes intact) when nothing external is present, so callers can detect a
- * change by identity. (#457)
- */
-export function stripExternalStyleSheetCss(css: string): string {
-  if (!css) return css;
-  const decoded = decodeCssEscapes(css);
-  if (!/url\(|@import/i.test(decoded)) return css;
-  let changed = false;
-  let result = decoded.replace(CSS_URL_PATTERN, (full, _q, inner: string) => {
-    if (isExternalResourceUrl(inner)) {
-      changed = true;
-      return 'url()';
-    }
-    return full;
-  });
-  result = result.replace(
-    /@import\s+(['"])\s*(?:https?:)?\/\/[^'"]*\1[^;]*;?/gi,
-    () => {
-      changed = true;
-      return '';
-    },
-  );
-  return changed ? result : css;
+/** An attribute's URL as the browser reads it: character references decoded. */
+function isExternalAttrUrl(value: string | null | undefined): boolean {
+  return !!value && isExternalResourceUrl(decodeUriEntities(value));
 }
 
 function srcsetHasExternalUrl(srcset: string): boolean {
   return srcset
     .split(',')
-    .some((candidate) => isExternalResourceUrl(candidate.trim().split(/\s+/)[0]));
+    .some((candidate) => isExternalAttrUrl(candidate.trim().split(/\s+/)[0]));
 }
 
 function appendStyle(attrs: ParsedAttr[], extra: string): void {
@@ -539,7 +588,7 @@ export interface BlockExternalResult {
 export function blockExternalResources(html: string): BlockExternalResult {
   let blocked = false;
 
-  let out = mapTags(html, (tag, attrs) => {
+  const out = mapTags(html, (tag, attrs) => {
     let changed = false;
     const get = (name: string) => attrs.find((a) => a.name.toLowerCase() === name);
     const remove = (name: string) => {
@@ -547,9 +596,12 @@ export function blockExternalResources(html: string): BlockExternalResult {
       if (i >= 0) attrs.splice(i, 1);
     };
 
-    if (tag === 'img') {
+    // The parser reads an `<image>` start tag as `<img>`.
+    const isImg = tag === 'img' || tag === 'image';
+
+    if (isImg) {
       const src = get('src');
-      if (src?.value && isExternalResourceUrl(src.value)) {
+      if (src?.value && isExternalAttrUrl(src.value)) {
         attrs.push({ name: 'data-blocked-src', value: src.value.trim() });
         src.value = TRANSPARENT_BLOCKED_PIXEL;
         const alt = get('alt');
@@ -559,7 +611,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
       }
     }
 
-    if (tag === 'img' || tag === 'source') {
+    if (isImg || tag === 'source') {
       const srcset = get('srcset');
       if (srcset?.value && srcsetHasExternalUrl(srcset.value)) {
         attrs.push({ name: 'data-blocked-srcset', value: srcset.value });
@@ -570,7 +622,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
 
     if (tag === 'source' || tag === 'video' || tag === 'audio') {
       const src = get('src');
-      if (src?.value && isExternalResourceUrl(src.value)) {
+      if (src?.value && isExternalAttrUrl(src.value)) {
         attrs.push({ name: 'data-blocked-src', value: src.value.trim() });
         remove('src');
         changed = true;
@@ -579,7 +631,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
 
     if (tag === 'video' || tag === 'audio') {
       const poster = get('poster');
-      if (poster?.value && isExternalResourceUrl(poster.value)) {
+      if (poster?.value && isExternalAttrUrl(poster.value)) {
         attrs.push({ name: 'data-blocked-poster', value: poster.value.trim() });
         remove('poster');
         changed = true;
@@ -587,7 +639,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
     }
 
     const bg = get('background');
-    if (bg?.value && isExternalResourceUrl(bg.value)) {
+    if (bg?.value && isExternalAttrUrl(bg.value)) {
       attrs.push({ name: 'data-blocked-background', value: bg.value.trim() });
       remove('background');
       changed = true;
@@ -602,18 +654,14 @@ export function blockExternalResources(html: string): BlockExternalResult {
 
     if (changed) blocked = true;
     return changed ? attrs : null;
-  });
-
-  // <style> block CSS.
-  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (_m, open, css: string, close) => {
+  }, (tag, css) => {
+    // <style> sheets, read where the tokenizer finds them: a regex over the
+    // markup also matched `<style>` inside an attribute value and rewrote
+    // the attributes after it.
+    if (tag !== 'style') return css;
     const stripped = stripExternalStyleSheetCss(css);
-    if (stripped === css) return `${open}${css}${close}`;
-    blocked = true;
-    // The cleaned sheet comes back with its CSS escapes decoded, so an
-    // escaped `\3c /style\3e <img onerror=…>` would turn into markup that
-    // leaves the sheet. Write every `<` as the CSS escape again.
-    const cleaned = stripped.replace(/</g, '\\3c ');
-    return `${open}${cleaned}${close}`;
+    if (stripped !== css) blocked = true;
+    return stripped;
   });
 
   return { html: out, blocked };

@@ -187,6 +187,39 @@ describe('blockExternalResources', () => {
     expect(html).not.toMatch(/<\/style>\s*<img/i);
   });
 
+  // The sheet pass was a regex over the serialised markup, so a `<style>` in
+  // one attribute and a `</style>` in a later one made it "scrub" the
+  // attributes between them, decoding the CSS escapes into real quotes.
+  it('scrubs only real stylesheets, not text inside attribute values', () => {
+    const input = String.raw`<a title="<style>x\22  href=\22 javascript:alert(1)\22  y=\22 url(https://e.example/)">click</a><p title="</style>">z</p>`;
+    const { html } = prepareEmailHtml(input, { blockRemoteImages: true, isDark: false });
+    expect(html).not.toMatch(/href="javascript:/i);
+    expect(html).toContain(String.raw`<a title="<style>x\22  href=\22 javascript:alert(1)\22  y=\22 url(https://e.example/)">click</a>`);
+  });
+
+  it('cuts external URLs out of a sheet and leaves its escapes as written', () => {
+    const css = String.raw`a{background:url(https://x/)} b{background:\5c 75rl(https://y/)} c{background:\75rl(https://z/)} d{content:"\"\3c /style\3e"}`;
+    const { html, blocked } = blockExternalResources(`<style>${css}</style>`);
+    expect(blocked).toBe(true);
+    // `\5c 75rl(` is the text `\75rl(`, not a url(): written decoded it
+    // became one. The escaped quote stays escaped.
+    expect(html).toBe(String.raw`<style>a{background:url()} b{background:\5c 75rl(https://y/)} c{background:url()} d{content:"\"\3c /style\3e"}</style>`);
+  });
+
+  it('reads an escape past the last code point as U+FFFD instead of throwing', () => {
+    expect(decodeCssEscapes('\\FFFFFF')).toBe('\ufffd');
+    expect(() => blockExternalResources('<style>a{b:\\FFFFFF url(https://t/)}</style>')).not.toThrow();
+  });
+
+  it('finds images the parser reads as <img>, and entity-encoded URLs', () => {
+    expect(hasRemoteContent('<image src="https://tracker.example/p.gif">')).toBe(true);
+    expect(hasRemoteContent('<img src="&#104;ttps://tracker.example/p.gif">')).toBe(true);
+    expect(hasRemoteContent('<img srcset="&#104;ttps://tracker.example/p.gif 1x">')).toBe(true);
+    expect(hasRemoteContent('<video poster="&#x68;ttps://t/p.jpg"></video>')).toBe(true);
+    const { html } = blockExternalResources('<image src="https://tracker.example/p.gif">');
+    expect(html).toContain('data-blocked-src="https://tracker.example/p.gif"');
+  });
+
   it('finds the image behind a stray quote, as the browser does', () => {
     const { html, blocked } = blockExternalResources('<img x"=y src=https://t/a.png>');
     expect(blocked).toBe(true);
