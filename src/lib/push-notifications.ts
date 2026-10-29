@@ -1010,12 +1010,15 @@ async function registerWithRelayApns(params: {
  * another login with push has the same id, neither gets an entry: the
  * placeholder says there is new mail, where one login's credentials would
  * fetch and show a message of the other's server. Run again for the login
- * that is left once the other is gone (the next resync does).
+ * that is left once the other is gone (the next resync does). The entry also
+ * names the username, which the extension compares with the push's label: a
+ * group account of another login can have this login's id.
  */
 export async function shareAccountWithExtension(
   accountId: string,
   jmapAccountId: string | null,
   apiUrl: string | undefined = jmapClient.currentSession?.apiUrl,
+  username: string | null | undefined = jmapClient.username,
 ): Promise<void> {
   if (Platform.OS !== 'ios' || !jmapAccountId) return;
   const byLocal = await readPushJmapAccountIds();
@@ -1024,7 +1027,11 @@ export async function shareAccountWithExtension(
     return;
   }
   if (!apiUrl) return;
-  await writeIosPushAccount(jmapAccountId, { credentialsKey: credentialsKey(accountId), apiUrl }).catch(() => undefined);
+  await writeIosPushAccount(jmapAccountId, {
+    credentialsKey: credentialsKey(accountId),
+    apiUrl,
+    ...(username ? { label: username } : {}),
+  }).catch(() => undefined);
 }
 
 /**
@@ -1943,7 +1950,7 @@ async function renewPushAccount(accountId: string, relayBaseUrl: string | null):
   } catch {
     jmapAccountId = null;
   }
-  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl);
+  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username);
 }
 
 /**
@@ -2216,11 +2223,13 @@ export async function iosTapPayload(data: unknown): Promise<NotificationTapPaylo
   // setup recorded this JMAP account id. Ids repeat across servers: with
   // more than one such login the relay's label (the username) picks one, and
   // when it can't, the app just opens rather than show another login's
-  // message on a guess.
+  // message on a guess. A single login has to fit the label too: the push
+  // may be for another login's group account, whose id comes from the same
+  // short pool.
   const byLocal = await readPushJmapAccountIds();
   let candidates = Object.keys(byLocal).filter((local) => byLocal[local] === jmapAccountId);
-  if (candidates.length > 1) {
-    const label = typeof d.accountLabel === 'string' ? d.accountLabel : '';
+  const label = typeof d.accountLabel === 'string' ? d.accountLabel : '';
+  if (candidates.length > 1 || (label && candidates.length === 1)) {
     candidates = label ? candidates.filter((local) => accountMatchesPushLabel(local, label)) : [];
     if (candidates.length !== 1) return null;
   }

@@ -32,6 +32,12 @@ describe('shareAccountWithExtension', () => {
     expect(writeIosPushAccount).toHaveBeenCalledWith('c', { credentialsKey: expect.any(String), apiUrl: API });
   });
 
+  it('names the username the relay labels the account\'s pushes with', async () => {
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ 'ada@mail.example.org': 'c' }));
+    await shareAccountWithExtension('ada@mail.example.org', 'c', API, 'ada');
+    expect(writeIosPushAccount).toHaveBeenCalledWith('c', { credentialsKey: expect.any(String), apiUrl: API, label: 'ada' });
+  });
+
   it('shares neither of two logins with the same JMAP account id, so the extension shows its placeholder', async () => {
     await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({
       'ada@mail.example.org': 'c',
@@ -86,6 +92,13 @@ describe('iosTapPayload', () => {
     // Opening e1 in either login is a guess: the app opens as it is.
     expect(await iosTapPayload({ ...push, accountLabel: 'carl' })).toBeNull();
     expect(await iosTapPayload(push)).toBeNull();
+  });
+
+  it("does not open another login's group push in the login whose own id it carries", async () => {
+    // Bea's group account "c" on her server; Ada's own account is "c" on hers.
+    const push = { kind: 'jmap-email-push', accountId: 'c', emailIds: ['e1'] };
+    expect(await iosTapPayload({ ...push, accountLabel: 'bea' })).toBeNull();
+    expect((await iosTapPayload({ ...push, accountLabel: 'ada' }))?.accountId).toBe('ada@mail.example.org');
   });
 
   it('does nothing for a push without a message id', async () => {

@@ -62,6 +62,13 @@ export interface IosPushAccount {
   credentialsKey: string;
   /** The JMAP API URL as the app uses it (rewritten to the server's host). */
   apiUrl: string;
+  /**
+   * The username the account registered with the relay, which the relay
+   * sends back as the push's accountLabel. The extension leaves a push whose
+   * label is another's as the placeholder: it may be for another login's
+   * group account that has this account's id.
+   */
+  label?: string;
 }
 
 export async function writeIosPushAccount(jmapAccountId: string, account: IosPushAccount): Promise<void> {

@@ -224,7 +224,8 @@ export interface PushAccountMatch {
  * same few), and so do message ids. A push naming messages that still fits
  * more than one login is `ambiguous`: each login would fetch those ids from
  * its own server and could show another server's message, so the caller
- * shows a plain notification instead. A push without ids makes each login
+ * shows a plain notification instead. So is one whose label fits none of the
+ * logins with its JMAP account id. A push without ids makes each login
  * look at its own newest mail, which is never another login's.
  */
 export function matchAccountsForPush(
@@ -237,17 +238,22 @@ export function matchAccountsForPush(
     ? ids.filter((id) => accountMatchesPushLabel(id, payload.accountLabel!, registry.find((a) => a.id === id)?.username))
     : []);
   let accountIds = pushAccountIds;
+  let unsure = false;
   const byJmapId = payload.jmapAccountId
     ? pushAccountIds.filter((id) => jmapAccountIds[id] === payload.jmapAccountId)
     : [];
   if (byJmapId.length > 0) {
-    const narrowed = byJmapId.length > 1 ? byLabel(byJmapId) : [];
+    // Also a single match has to fit the label: group accounts are subscribed
+    // too, and their ids come from the same short pool, so a push for another
+    // login's group can carry this login's own id.
+    const narrowed = byLabel(byJmapId);
     accountIds = narrowed.length > 0 ? narrowed : byJmapId;
+    unsure = !!payload.accountLabel && narrowed.length === 0;
   } else {
     const labelled = byLabel(pushAccountIds);
     if (labelled.length > 0) accountIds = labelled;
   }
-  return { accountIds, ambiguous: accountIds.length > 1 && payload.emailIds.length > 0 };
+  return { accountIds, ambiguous: (unsure || accountIds.length > 1) && payload.emailIds.length > 0 };
 }
 
 async function readNotifiedIds(accountId: string): Promise<string[]> {
