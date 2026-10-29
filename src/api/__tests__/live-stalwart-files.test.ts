@@ -47,7 +47,9 @@ import {
   renameFileNode,
   uploadFileBatch,
 } from '../files';
-import { emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash } from '../files-trash';
+import {
+  TrashUnavailableError, emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash,
+} from '../files-trash';
 import { findTrashFolder, parseTrashBatchName, trashedItems, withoutTrash } from '../../lib/files-trash';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -250,6 +252,23 @@ live('live Stalwart files trash', () => {
     if (!trashBefore) expect(findTrashFolder(after)).toBeUndefined();
   }, 120_000);
 
+  it('says the trash cannot be had while a file at the root is named .Trash', async () => {
+    // Only on an account without a trash: a real one stays.
+    if (trashBefore) return;
+    const blocker = (await uploadFileBatch([pick('.Trash', 'not a folder')], null, [])).uploaded[0];
+    expect(blocker?.name).toBe('.Trash');
+    const file = await upload('blocked.txt', scratch);
+    try {
+      const list = await own();
+      const err = await moveToTrash(list, [list.find((n) => n.id === file.id)!]).catch((e) => e);
+      expect(err).toBeInstanceOf(TrashUnavailableError);
+      expect((await own()).find((n) => n.id === file.id)?.parentId).toBe(scratch);
+    } finally {
+      await deleteFileNodes([blocker.id, file.id]);
+    }
+    expect(findTrashFolder(await own())).toBeUndefined();
+  }, 90_000);
+
   it('moves a file and a folder into one trash folder that names when and where from, and hides them', async () => {
     const file = await upload('trash-me.txt', scratch);
     const folder = await createFolder('Trash me', scratch);
@@ -336,16 +355,64 @@ live('live Stalwart files trash', () => {
     }
   }, 120_000);
 
-  it('undoes a delete with the listing from before it', async () => {
+  it('undoes a delete', async () => {
     const file = await upload('undo-me.txt', scratch);
     const list = await own();
-    const { done } = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
-    batches.add(done[0].batchId!);
-    // The rows on screen still show it where it was.
-    await restoreFromTrash(done);
+    const moved = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
+    batches.add(moved.done[0].batchId!);
+    expect((await undoMoveToTrash(moved))?.done).toHaveLength(1);
     const after = await own();
     expect(after.find((n) => n.id === file.id)).toMatchObject({ name: 'undo-me.txt', parentId: scratch });
-    expect(after.some((n) => n.id === done[0].batchId)).toBe(false);
+    expect(after.some((n) => n.id === moved.done[0].batchId)).toBe(false);
+  }, 90_000);
+
+  it('undoes a delete into the root when its folder went to the trash since', async () => {
+    const folder = await createFolder('Undo folder', scratch);
+    const file = await upload(`undo-root-${Date.now().toString(36)}.txt`, folder.id);
+    let list = await own();
+    const moved = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
+    list = await own();
+    const second = await moveToTrash(list, [list.find((n) => n.id === folder.id)!]);
+    for (const i of [...moved.done, ...second.done]) batches.add(i.batchId!);
+    try {
+      await undoMoveToTrash(moved);
+      const after = await own();
+      expect(after.find((n) => n.id === file.id)?.parentId ?? null).toBeNull();
+      expect(after.some((n) => n.id === moved.done[0].batchId)).toBe(false);
+    } finally {
+      await deleteFileNodes([file.id]).catch(() => undefined);
+    }
+  }, 90_000);
+
+  it('restores an item into its folder when the folder is restored with it', async () => {
+    const folder = await createFolder('Restore together', scratch);
+    const file = await upload('together.txt', folder.id);
+    let list = await own();
+    const first = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
+    list = await own();
+    const second = await moveToTrash(list, [list.find((n) => n.id === folder.id)!]);
+    for (const i of [...first.done, ...second.done]) batches.add(i.batchId!);
+    const items = trashedItems(await own()).filter((i) => [file.id, folder.id].includes(i.node.id));
+    expect(items).toHaveLength(2);
+    const { done, refused } = await restoreFromTrash(items);
+    expect(refused).toEqual([]);
+    expect(done).toHaveLength(2);
+    const after = await own();
+    expect(after.find((n) => n.id === folder.id)?.parentId).toBe(scratch);
+    expect(after.find((n) => n.id === file.id)).toMatchObject({ name: 'together.txt', parentId: folder.id });
+  }, 90_000);
+
+  it('leaves a row alone on Delete permanently that was restored since it was listed', async () => {
+    const file = await upload('stale-row.txt', scratch);
+    let list = await own();
+    const { done } = await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
+    batches.add(done[0].batchId!);
+    list = await own();
+    const rows = trashedItems(list).filter((i) => i.node.id === file.id);
+    // Restored on another device meanwhile.
+    await restoreFromTrash(rows);
+    expect(await purgeFromTrash(rows)).toBe(0);
+    expect((await own()).find((n) => n.id === file.id)?.parentId).toBe(scratch);
   }, 90_000);
 
   it('deletes items of the trash for good, and leaves a trash folder that still holds anything', async () => {
