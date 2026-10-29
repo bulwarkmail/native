@@ -40,6 +40,37 @@ export function isSymlink(node: Pick<FileNode, 'nodeType' | 'blobId'>): boolean 
   return fileNodeKind(node) === 'symlink';
 }
 
+/**
+ * Stalwart 1.0.0 implements File Storage draft 18, which names the kind
+ * `@type` ("File", "Directory", "SymLink") and the media type `mediaType`.
+ * 0.16 calls them `nodeType` and `type`. Each server leaves the other's names
+ * out of FileNode/get and refuses them in a create ("@type is required on
+ * creation." on 1.0.0, "Invalid property." for `@type` on 0.16.27).
+ */
+const DRAFT_NODE_TYPES: Record<string, FileNodeType> = { File: 'file', Directory: 'directory', SymLink: 'symlink' };
+
+type DraftFileNode = { '@type'?: unknown; mediaType?: unknown };
+
+/** A node of either draft, with the kind in `nodeType` and the media type in `type`. */
+export function fromDraftFileNode<T extends Partial<FileNode>>(node: T & DraftFileNode): T {
+  const kind = typeof node['@type'] === 'string' ? DRAFT_NODE_TYPES[node['@type']] : undefined;
+  const mediaType = typeof node.mediaType === 'string' ? node.mediaType : undefined;
+  if (!kind && mediaType === undefined) return node;
+  return {
+    ...node,
+    ...(kind && !node.nodeType ? { nodeType: kind } : {}),
+    ...(mediaType !== undefined && node.type == null ? { type: mediaType } : {}),
+  };
+}
+
+/** The properties of a draft-18 FileNode/set create, from 0.16 ones (no blob: a folder). */
+function toDraftFileNodeCreate(props: Record<string, unknown>): Record<string, unknown> {
+  const { type, ...rest } = props;
+  return rest.blobId == null
+    ? { '@type': 'Directory', ...rest }
+    : { '@type': 'File', ...rest, mediaType: type };
+}
+
 // Stalwart omits shareWith/myRights from FileNode/get unless they are
 // requested explicitly, so the share sheet and indicators must name them here.
 // The modification timestamp is `modified` (RFC draft-ietf-jmap-filenode);
@@ -50,6 +81,8 @@ const FILE_NODE_PROPERTIES = [
   // Tells 1.0's symlinks from folders (see fileNodeKind); servers before
   // 0.16.6 skip it.
   'nodeType',
+  // `nodeType` and `type` as Stalwart 1.0.0 names them (see fromDraftFileNode).
+  '@type', 'mediaType',
   'shareWith', 'myRights',
 ];
 
@@ -134,6 +167,50 @@ export function isCrossAccountId(id: string | null | undefined): boolean {
   return id != null && id.includes(':');
 }
 
+/**
+ * The account and bare id behind a FileNode id as the listings name it. A
+ * write must go to the account that holds the node, with the id that
+ * account knows: sent to the user's own account, "acc:node" is an unknown
+ * id at best and, stripped, could name an unrelated node of the user's own.
+ * `null` is the user's own drive root.
+ */
+export function resolveFileNodeId(id: string | null): { accountId: string; id: string | null } {
+  const primary = filesAccountId();
+  if (id === null) return { accountId: primary, id: null };
+  const sep = id.indexOf(':');
+  if (sep > 0) {
+    const accountId = id.slice(0, sep);
+    if (accountId !== primary && filesCapableAccountIds().includes(accountId)) {
+      return { accountId, id: id.slice(sep + 1) };
+    }
+  }
+  return { accountId: primary, id };
+}
+
+/** A node created or listed in `accountId`, with ids namespaced as the listings do. */
+function namespaceFileNode(node: FileNode, accountId: string): FileNode {
+  if (accountId === filesAccountId()) return node;
+  return {
+    ...node,
+    id: `${accountId}:${node.id}`,
+    parentId: node.parentId == null ? null : `${accountId}:${node.parentId}`,
+    accountId,
+    isShared: true,
+  };
+}
+
+/**
+ * The bare id of `parentId` in `accountId`. Folders hold nodes of their own
+ * account only, so a parent elsewhere is refused before anything is sent.
+ */
+function parentInAccount(parentId: string | null, accountId: string): string | null {
+  const parent = resolveFileNodeId(parentId);
+  if (parent.accountId !== accountId) {
+    throw new JMAPSetError('invalidProperties', 'Files cannot be moved between accounts', ['parentId']);
+  }
+  return parent.id;
+}
+
 /** Ids asked for per FileNode/query page; Stalwart clamps it to queryMaxResults (5000 by default). */
 const FILE_NODE_QUERY_PAGE = 5000;
 /** Safety bound on how many FileNode ids one listing pages through. */
@@ -159,12 +236,15 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
     using,
   );
   const result = res.methodResponses[0];
-  if (!result || result[0] === 'error') {
+  // Stalwart 1.0 refuses the return-all /get instead of cutting it short
+  // (#1385); then every node comes from the query below.
+  const tooMany = result?.[0] === 'error' && result[1]?.type === 'requestTooLarge';
+  if (!result || (result[0] === 'error' && !tooMany)) {
     throw new Error(result?.[1]?.description || 'FileNode list failed');
   }
-  const firstPage = (result[1].list ?? []) as FileNode[];
+  const firstPage = tooMany ? [] : ((result[1].list ?? []) as FileNode[]).map(fromDraftFileNode);
   const maxObjects = jmapClient.getMaxObjectsInGet();
-  if (firstPage.length < maxObjects) return firstPage;
+  if (!tooMany && firstPage.length < maxObjects) return firstPage;
 
   const known = new Map(firstPage.map((node) => [node.id, node]));
   // Several /get calls share one request, so a large account costs a few
@@ -178,7 +258,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
         if (r[0] !== 'FileNode/get') {
           throw new Error(r[1]?.description || 'FileNode/get failed');
         }
-        for (const node of (r[1].list ?? []) as FileNode[]) known.set(node.id, node);
+        for (const node of (r[1].list ?? []) as FileNode[]) known.set(node.id, fromDraftFileNode(node));
       }
     }
   };
@@ -223,6 +303,8 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
     }
   } catch (err) {
     // A partial tree beats none: keep what was read, as before #1069.
+    // With nothing read there is no tree to show, so say why.
+    if (known.size === 0) throw err;
     console.warn(`[files] listing for account ${accountId} is incomplete past ${maxObjects} nodes`, err);
   }
 
@@ -278,7 +360,10 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
           ...(!isPrimary && isDiscoverableOnly(node) ? { discoverableOnly: true } : {}),
         });
       }
-    } catch {
+    } catch (err) {
+      // A failed listing of the user's own drive is an error to show, not
+      // an empty drive (#1385 looked like "No files yet").
+      if (isPrimary) throw err;
       // A single unreachable shared account shouldn't hide the user's own
       // files; skip it and keep aggregating.
     }
@@ -325,38 +410,71 @@ export function listFolder(nodes: FileNode[], parentId: string | null): FileNode
   return nodes.filter((n) => !n.discoverableOnly && (n.parentId ?? null) === parentId);
 }
 
+/**
+ * Stalwart 1.0.0 (File Storage draft 18) wants `@type` and `mediaType` in a
+ * create (see toDraftFileNodeCreate). Of the drafts Stalwart has shipped,
+ * only that one lists `supportedNodeTypes`. A shared account may come
+ * without the capability; the user's own files account stands in, as
+ * Stalwart publishes the same one for every account.
+ */
+function usesDraftFileNodeCreate(accountId: string): boolean {
+  // Read the accounts' own capabilities: the session-wide one is empty on
+  // both versions.
+  const accounts = jmapClient.currentSession?.accounts;
+  const cap = accounts?.[accountId]?.accountCapabilities?.[CAPABILITIES.FILES]
+    ?? accounts?.[filesAccountId()]?.accountCapabilities?.[CAPABILITIES.FILES];
+  return !!cap && typeof cap === 'object' && 'supportedNodeTypes' in cap;
+}
+
+/** One FileNode/set create in `accountId`, in the shape that server takes. */
+async function createFileNodeIn(
+  accountId: string,
+  props: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): Promise<FileNode> {
+  const wire = usesDraftFileNodeCreate(accountId) ? toDraftFileNodeCreate(props) : props;
+  const res = await jmapClient.request(
+    [['FileNode/set', { accountId, create: { [key]: wire } }, '0']],
+    fileUsing(),
+  );
+  const result = requireMethodResult(res, '0', 'FileNode/set');
+  const created = result.created?.[key];
+  if (!created) {
+    throw fileSetError(result.notCreated?.[key], fallback);
+  }
+  // The create response carries only server-set properties; keep the ones
+  // sent so callers can rely on name, parentId and type.
+  return fromDraftFileNode({ ...wire, ...created } as FileNode);
+}
+
+/** A new folder in `parentId`, which may be a folder of a shared account. */
 export async function createFolder(
   name: string,
   parentId: string | null,
 ): Promise<FileNode> {
-  const accountId = filesAccountId();
+  const parent = resolveFileNodeId(parentId);
   const props: Record<string, unknown> = { name: acceptedFileName(name, getFileNameRules()) };
-  if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-dir': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-dir'];
-  if (!created) {
-    throw fileSetError(result.notCreated?.['new-dir'], 'Create folder failed');
-  }
-  return { ...props, ...created } as FileNode;
+  if (parent.id !== null) props.parentId = parent.id;
+  const created = await createFileNodeIn(parent.accountId, props, 'new-dir', 'Create folder failed');
+  return namespaceFileNode(created, parent.accountId);
 }
 
 export async function updateFileNode(
   id: string,
   updates: Partial<Pick<FileNode, 'name' | 'parentId'>>,
 ): Promise<void> {
-  const accountId = filesAccountId();
+  const node = resolveFileNodeId(id);
+  const nodeId = node.id as string;
+  const patch: Record<string, unknown> = { ...updates };
+  if ('parentId' in updates) patch.parentId = parentInAccount(updates.parentId ?? null, node.accountId);
   const res = await jmapClient.request(
-    [['FileNode/set', { accountId, update: { [id]: updates } }, '0']],
+    [['FileNode/set', { accountId: node.accountId, update: { [nodeId]: patch } }, '0']],
     fileUsing(),
   );
   // A method-level error (e.g. forbidden) has no notUpdated entry, so without
   // this check a refused rename or move reported success.
-  const notUpdated = requireMethodResult(res, '0', 'FileNode/set').notUpdated?.[id];
+  const notUpdated = requireMethodResult(res, '0', 'FileNode/set').notUpdated?.[nodeId];
   if (notUpdated) throw fileSetError(notUpdated, 'Update failed');
 }
 
@@ -366,32 +484,42 @@ export async function renameFileNode(id: string, newName: string): Promise<void>
 
 // Re-parent a node. `null` moves it to the drive root (the property must be
 // sent explicitly as null, omitting it would leave the node where it is).
+// The new parent must be in the node's own account.
 export async function moveFileNode(id: string, parentId: string | null): Promise<void> {
   await updateFileNode(id, { parentId });
 }
 
 export async function deleteFileNodes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = filesAccountId();
+  // Each account gets its own FileNode/set with the ids it knows.
+  const byAccount = new Map<string, string[]>();
+  for (const id of ids) {
+    const node = resolveFileNodeId(id);
+    const list = byAccount.get(node.accountId) ?? [];
+    list.push(node.id as string);
+    byAccount.set(node.accountId, list);
+  }
   // One FileNode/set per `maxObjectsInSet` ids: a request over the limit
   // fails whole (RFC 8620 §3.6.1), so a large selection deleted nothing.
   // Every batch runs; refusals are reported once all of them are done.
   const refused: SetError[] = [];
-  for (const slice of batched(ids, jmapClient.getMaxObjectsInSet())) {
-    const res = await jmapClient.request(
-      [['FileNode/set', {
-        accountId,
-        destroy: slice,
-        // The server removes descendant nodes of destroyed folders.
-        onDestroyRemoveChildren: true,
-      }, '0']],
-      fileUsing(),
-    );
-    const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
-      | Record<string, SetError>
-      | undefined;
-    // A node inside a folder an earlier batch removed is already gone.
-    refused.push(...Object.values(notDestroyed ?? {}).filter((err) => err?.type !== 'notFound'));
+  for (const [accountId, accountIds] of byAccount) {
+    for (const slice of batched(accountIds, jmapClient.getMaxObjectsInSet())) {
+      const res = await jmapClient.request(
+        [['FileNode/set', {
+          accountId,
+          destroy: slice,
+          // The server removes descendant nodes of destroyed folders.
+          onDestroyRemoveChildren: true,
+        }, '0']],
+        fileUsing(),
+      );
+      const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
+        | Record<string, SetError>
+        | undefined;
+      // A node inside a folder an earlier batch removed is already gone.
+      refused.push(...Object.values(notDestroyed ?? {}).filter((err) => err?.type !== 'notFound'));
+    }
   }
   if (refused.length > 0) {
     throw fileSetError(refused[0], `Failed to delete ${refused.length} item(s)`);
@@ -414,24 +542,17 @@ async function createFileNodeFromBlob(
   type: string | undefined,
   parentId: string | null,
 ): Promise<FileNode> {
-  const accountId = filesAccountId();
+  // The blob may come from the user's own account (an upload) or another
+  // one (a copy): Stalwart takes any blob the user may read.
+  const parent = resolveFileNodeId(parentId);
   const props: Record<string, unknown> = {
     name: acceptedFileName(name, getFileNameRules()),
     type: mediaTypeEssence(type),
     blobId,
   };
-  if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-file': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-file'];
-  if (!created) {
-    throw fileSetError(result.notCreated?.['new-file'], 'Upload failed');
-  }
-  return { ...props, ...created } as FileNode;
+  if (parent.id !== null) props.parentId = parent.id;
+  const created = await createFileNodeIn(parent.accountId, props, 'new-file', 'Upload failed');
+  return namespaceFileNode(created, parent.accountId);
 }
 
 export async function uploadFileNode(
@@ -529,19 +650,20 @@ export async function setFileNodeShare(
   principalId: string,
   rights: FileNodeRights | null,
 ): Promise<void> {
-  const accountId = filesAccountId();
+  const node = resolveFileNodeId(fileNodeId);
+  const nodeId = node.id as string;
   const res = await jmapClient.request(
     [['FileNode/set', {
-      accountId,
-      update: { [fileNodeId]: { [`shareWith/${principalId}`]: rights } },
+      accountId: node.accountId,
+      update: { [nodeId]: { [`shareWith/${principalId}`]: rights } },
     }, '0']],
     fileUsing(),
   );
   const result = requireMethodResult(res, '0', 'FileNode/set');
-  if (result.notUpdated?.[fileNodeId]) {
-    throw fileSetError(result.notUpdated[fileNodeId], 'Failed to update file share');
+  if (result.notUpdated?.[nodeId]) {
+    throw fileSetError(result.notUpdated[nodeId], 'Failed to update file share');
   }
-  if (!result.updated || !(fileNodeId in result.updated)) {
+  if (!result.updated || !(nodeId in result.updated)) {
     throw new Error('Server did not confirm the share update');
   }
 }

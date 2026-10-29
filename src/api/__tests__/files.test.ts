@@ -45,6 +45,7 @@ import {
   listPrincipals,
   moveFileNode,
   renameFileNode,
+  resolveFileNodeId,
   setFileNodeShare,
   supportsSharing,
   uploadFileBatch,
@@ -304,6 +305,8 @@ function fakeFilesServer(nodes: FakeNode[], opts: {
   // Stalwart before 0.16.6 returns leaf files only.
   queryOmitsFolders?: boolean;
   queryFails?: boolean;
+  // Stalwart 1.0 refuses a return-all /get past the limit (#1385).
+  refusesReturnAll?: boolean;
 }): MethodCall[][] {
   mockMaxObjectsInGet.mockReturnValue(opts.maxObjectsInGet);
   if (opts.maxCallsInRequest) mockMaxCallsInRequest.mockReturnValue(opts.maxCallsInRequest);
@@ -313,6 +316,9 @@ function fakeFilesServer(nodes: FakeNode[], opts: {
     const methodResponses = methodCalls.map(([method, args, callId]) => {
       if (method === 'FileNode/get') {
         const ids = args.ids as string[] | null;
+        if (ids === null && opts.refusesReturnAll && nodes.length > opts.maxObjectsInGet) {
+          return ['error', { type: 'requestTooLarge' }, callId];
+        }
         if (ids === null) return [method, { list: nodes.slice(0, opts.maxObjectsInGet) }, callId];
         if (ids.length > opts.maxObjectsInGet) return ['error', { type: 'requestTooLarge' }, callId];
         return [method, {
@@ -418,6 +424,27 @@ describe('listing past maxObjectsInGet (#1069)', () => {
       ([m, a]) => m === 'FileNode/get' && (a.ids as string[] | null)?.includes('hidden'),
     );
     expect(askedForHidden).toHaveLength(1);
+  });
+
+  // #1385: Stalwart 1.0 answers the return-all /get of a larger account with
+  // requestTooLarge instead of a first page.
+  it('lists every node when Stalwart 1.0 refuses the return-all /get', async () => {
+    const all = [
+      fakeFolder('d1'),
+      ...Array.from({ length: 6 }, (_, i) => fakeFile(`f${i}`, 'd1')),
+    ];
+    fakeFilesServer(all, { maxObjectsInGet: 3, refusesReturnAll: true });
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(sortedIds(all));
+  });
+
+  it('reports a failed listing of the own drive instead of an empty one', async () => {
+    fakeFilesServer([fakeFile('f0'), fakeFile('f1'), fakeFile('f2')], {
+      maxObjectsInGet: 2, refusesReturnAll: true, queryFails: true,
+    });
+
+    await expect(getAllFileNodesAcrossAccounts()).rejects.toThrow();
   });
 
   it('keeps the first page when the query is refused', async () => {
@@ -674,6 +701,87 @@ describe('fileNodeKind', () => {
   });
 });
 
+describe('Stalwart 1.0.0 (File Storage draft 18)', () => {
+  // The filenode account capability of 1.0.0 lists `supportedNodeTypes`; 0.16.27's doesn't.
+  const CAP_100 = { maxFileNodeDepth: 64, forbiddenNameChars: '/<>:"\\|?*', supportedNodeTypes: ['Directory', 'File', 'SymLink'] };
+  const CAP_016 = { maxFileNodeDepth: null, forbiddenNameChars: '/<>:"\\|?*' };
+
+  function session(own: object, shared?: object) {
+    setSession({
+      primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
+      accounts: {
+        'acc-1': { name: 'me@example.com', isPersonal: true, accountCapabilities: { [CAPABILITIES.FILES]: own } },
+        ...(shared ? { 'acc-2': { name: 'Team', isPersonal: false, accountCapabilities: shared } } : {}),
+      },
+    });
+  }
+
+  const creates = () => mockRequest.mock.calls.map(([calls]) => Object.values(calls[0][1].create ?? {})[0]);
+
+  // Seen live: 1.0.0 answers a create without `@type` with "@type is required
+  // on creation." and one with `type` with "Invalid property.".
+  it('creates folders and files with @type and mediaType', async () => {
+    session(CAP_100);
+    mockUploadBlobOnce('blob-up', 'text/plain');
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'd1' } } }, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'f1', size: 3 } } }, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'f2', size: 3 } } }, '0']] });
+
+    const dir = await createFolder('New', null);
+    const { uploaded } = await uploadFileBatch([{ uri: 'file:///b', name: 'b.txt', mimeType: 'text/plain' }], 'd1', []);
+    const copy = await copyFileNode(uploaded[0], null, 'b (1).txt');
+
+    expect(creates()).toEqual([
+      { '@type': 'Directory', name: 'New' },
+      { '@type': 'File', name: 'b.txt', mediaType: 'text/plain', blobId: 'blob-up', parentId: 'd1' },
+      { '@type': 'File', name: 'b (1).txt', mediaType: 'text/plain', blobId: 'blob-up' },
+    ]);
+    expect(dir).toMatchObject({ id: 'd1', name: 'New', nodeType: 'directory' });
+    expect(copy).toMatchObject({ id: 'f2', type: 'text/plain', nodeType: 'file' });
+  });
+
+  it('keeps the 0.16 shape on Stalwart 0.16, which refuses @type', async () => {
+    session(CAP_016);
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'd1' }, 'new-file': { id: 'f1' } } }, '0']] });
+
+    await createFolder('New', null);
+    await copyFileNode({ id: 'f0', name: 'a.txt', type: 'text/plain', blobId: 'b1' }, null);
+
+    expect(creates()).toEqual([
+      { name: 'New' },
+      { name: 'a.txt', type: 'text/plain', blobId: 'b1' },
+    ]);
+  });
+
+  it('reads the kind from @type and the media type from mediaType', async () => {
+    session(CAP_100);
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/get', {
+        list: [
+          { id: 'd1', name: 'Docs', parentId: null, '@type': 'Directory' },
+          { id: 'l1', name: 'latest', parentId: 'd1', '@type': 'SymLink' },
+          { id: 'f1', name: 'a.pdf', parentId: 'd1', '@type': 'File', mediaType: 'application/pdf', blobId: 'b1', size: 3 },
+        ],
+      }, '0']],
+    });
+
+    const nodes = await getAllFileNodes();
+
+    expect(mockRequest.mock.calls[0][0][0][1].properties).toEqual(expect.arrayContaining(['@type', 'mediaType']));
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    expect(fileNodeKind(byId.d1)).toBe('directory');
+    // Without @type the blob rule made this an empty folder.
+    expect(isSymlink(byId.l1)).toBe(true);
+    expect(isFolder(byId.l1)).toBe(false);
+    expect(byId.f1).toMatchObject({ type: 'application/pdf', nodeType: 'file' });
+  });
+});
+
+function mockUploadBlobOnce(blobId: string, type: string) {
+  (uploadBlob as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ blobId, type, size: 3 });
+}
+
 describe('"Shared with me" placeholders', () => {
   const RIGHTS_NONE = { mayRead: false, mayAddChildren: false, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false };
   const RIGHTS_READ = { ...RIGHTS_NONE, mayRead: true };
@@ -904,6 +1012,86 @@ describe('moveFileNode', () => {
     await moveFileNode('f1', null);
     const [, args] = mockRequest.mock.calls[0][0][0];
     expect(args.update.f1).toEqual({ parentId: null });
+  });
+});
+
+describe('writes in a shared account', () => {
+  const CAP_100 = { forbiddenNameChars: '/<>:"\\|?*', supportedNodeTypes: ['Directory', 'File', 'SymLink'] };
+
+  beforeEach(() => {
+    // A Stalwart 1.0.0 session where the shared drive publishes no filenode
+    // capability of its own (non-personal accounts don't always).
+    setSession({
+      primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
+      accounts: {
+        'acc-1': { name: 'me@example.com', isPersonal: true, accountCapabilities: { [CAPABILITIES.FILES]: CAP_100 } },
+        'acc-2': { name: 'Team', isPersonal: false, accountCapabilities: {} },
+      },
+    });
+  });
+
+  const sent = () => mockRequest.mock.calls.map(([calls]) => calls[0][1] as Record<string, any>);
+
+  it('creates folders and uploads in the account that holds the folder, with the id it knows', async () => {
+    (uploadBlob as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ blobId: 'blob-up', type: 'text/plain', size: 3 });
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'n1' } } }, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'n2' } } }, '0']] });
+
+    const dir = await createFolder('New', 'acc-2:s1');
+    const { uploaded } = await uploadFileBatch([{ uri: 'file:///a', name: 'a.txt', mimeType: 'text/plain' }], 'acc-2:s1', []);
+
+    expect(sent().map((a) => [a.accountId, Object.values(a.create)[0]])).toEqual([
+      ['acc-2', { '@type': 'Directory', name: 'New', parentId: 's1' }],
+      ['acc-2', { '@type': 'File', name: 'a.txt', mediaType: 'text/plain', blobId: 'blob-up', parentId: 's1' }],
+    ]);
+    // Named like the listing names that account's nodes.
+    expect(dir).toMatchObject({ id: 'acc-2:n1', parentId: 'acc-2:s1', accountId: 'acc-2', isShared: true });
+    expect(uploaded[0].id).toBe('acc-2:n2');
+  });
+
+  it('renames, moves, duplicates and shares in the node\'s account', async () => {
+    mockRequest.mockImplementation(async (calls: MethodCall[]) => {
+      const args = calls[0][1] as Record<string, any>;
+      if (args.create) return { methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'c1' } } }, '0']] };
+      const id = Object.keys(args.update)[0];
+      return { methodResponses: [['FileNode/set', { updated: { [id]: null } }, '0']] };
+    });
+
+    await renameFileNode('acc-2:f1', 'b.txt');
+    await moveFileNode('acc-2:f1', 'acc-2:s1');
+    await copyFileNode({ id: 'acc-2:f1', name: 'b.txt', type: 'text/plain', blobId: 'b1', accountId: 'acc-2' }, 'acc-2:s1', 'b (1).txt');
+    await setFileNodeShare('acc-2:f1', 'p1', null);
+
+    expect(sent()).toEqual([
+      { accountId: 'acc-2', update: { f1: { name: 'b.txt' } } },
+      { accountId: 'acc-2', update: { f1: { parentId: 's1' } } },
+      { accountId: 'acc-2', create: { 'new-file': { '@type': 'File', name: 'b (1).txt', mediaType: 'text/plain', blobId: 'b1', parentId: 's1' } } },
+      { accountId: 'acc-2', update: { f1: { 'shareWith/p1': null } } },
+    ]);
+  });
+
+  it('refuses a move into another account before sending anything', async () => {
+    await expect(moveFileNode('acc-2:f1', 'own-dir')).rejects.toThrow('Files cannot be moved between accounts');
+    await expect(moveFileNode('own-file', 'acc-2:s1')).rejects.toThrow('Files cannot be moved between accounts');
+    expect(mockRequest).not.toHaveBeenCalled();
+  });
+
+  it('deletes each account\'s nodes in that account', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { destroyed: [] }, '0']] });
+
+    await deleteFileNodes(['own-1', 'acc-2:f1', 'acc-2:f2']);
+
+    expect(sent().map((a) => [a.accountId, a.destroy])).toEqual([
+      ['acc-1', ['own-1']],
+      ['acc-2', ['f1', 'f2']],
+    ]);
+  });
+
+  it('leaves an id alone whose prefix is no account of the session', () => {
+    expect(resolveFileNodeId('nope:f1')).toEqual({ accountId: 'acc-1', id: 'nope:f1' });
+    expect(resolveFileNodeId('acc-1:f1')).toEqual({ accountId: 'acc-1', id: 'acc-1:f1' });
+    expect(resolveFileNodeId(null)).toEqual({ accountId: 'acc-1', id: null });
   });
 });
 

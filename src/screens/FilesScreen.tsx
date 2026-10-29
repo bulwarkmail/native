@@ -46,7 +46,7 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 
 import {
   copyFileNode, createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts,
-  getFileNameRules, getFileNodeDownloadUrl, getMaxSizeUpload, isCrossAccountId, isFolder,
+  getFileNameRules, getFileNodeDownloadUrl, getMaxSizeUpload, isFolder,
   isSymlink, listFolder, moveFileNode, renameFileNode, supportsSharing, uploadFileBatch,
 } from '../api/files';
 import { jmapClient } from '../api/jmap-client';
@@ -62,6 +62,7 @@ import { useLayout, useSheetInsets } from '../lib/use-layout';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import { driveChange, type DriveScope } from '../lib/files-drive';
+import { fileNodeAccess, mayCreateIn, type FileNodeAccess } from '../lib/files-access';
 import type { FileNode } from '../api/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -248,10 +249,9 @@ export default function FilesScreen() {
   const uploading = uploadProgress != null;
   const selectionMode = selection.size > 0;
   const currentParentId = path.length === 0 ? null : path[path.length - 1].id;
-  // True while browsing inside a folder another principal shared with us.
-  // Creates/uploads would have to route to the owner's account, which this
-  // screen doesn't do (matches the webmail's Files app); writes are hidden.
-  const inSharedSubtree = isCrossAccountId(currentParentId);
+  // Inside a folder another account shared with us, new folders and uploads
+  // go to that account, and only where its rights allow them.
+  const canCreateHere = mayCreateIn(currentParentId, allNodes);
   const rootLabel = t('files.title', 'Files');
   const headerName = path.length === 0 ? rootLabel : path[path.length - 1].name;
   const sharingEnabled = supportsSharing();
@@ -561,7 +561,7 @@ export default function FilesScreen() {
   }, [renameTarget, renameValue, loadFiles, checkName, t]);
 
   const duplicateFile = useCallback(async (row: FileRow) => {
-    if (isFolder(row) || isSymlink(row) || row.isShared) return;
+    if (isFolder(row) || isSymlink(row) || !fileNodeAccess(row, allNodes).duplicate) return;
     setBusyId(row.id);
     try {
       const siblings = new Set(
@@ -765,7 +765,7 @@ export default function FilesScreen() {
             >
               <Search size={20} color={c.text} />
             </Pressable>
-            {!inSharedSubtree ? (
+            {canCreateHere ? (
               <Pressable
                 onPress={() => setNewFolderOpen(true)}
                 hitSlop={8}
@@ -775,7 +775,7 @@ export default function FilesScreen() {
                 <FolderPlus size={20} color={c.text} />
               </Pressable>
             ) : null}
-            {!inSharedSubtree ? (
+            {canCreateHere ? (
               <Pressable
                 onPress={() => void startUpload()}
                 hitSlop={8}
@@ -1096,6 +1096,7 @@ export default function FilesScreen() {
 
       <ActionsSheet
         target={actionsTarget}
+        access={actionsTarget ? fileNodeAccess(actionsTarget, allNodes) : null}
         sharingEnabled={sharingEnabled}
         t={t}
         onClose={() => setActionsTarget(null)}
@@ -1238,6 +1239,8 @@ function PromptModal(props: PromptModalProps) {
 
 interface ActionsSheetProps {
   target: FileRow | null;
+  /** The writes the target allows (lib/files-access). */
+  access: FileNodeAccess | null;
   sharingEnabled: boolean;
   t: Translate;
   onClose: () => void;
@@ -1252,22 +1255,22 @@ interface ActionsSheetProps {
 }
 
 function ActionsSheet({
-  target, sharingEnabled, t, onClose, onPreview, onOpenWith, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
+  target, access, sharingEnabled, t, onClose, onPreview, onOpenWith, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
 }: ActionsSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
   const formatModified = useFormatModified();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
-  if (!target) return null;
+  if (!target || !access) return null;
   const isDir = isFolder(target);
   // A symlink (Stalwart 1.0) has no content: it can be renamed, moved and
   // deleted, but not previewed, opened, downloaded, duplicated or shared.
   const link = isSymlink(target);
   const isFile = !isDir && !link;
   // Owned nodes report full rights (or no myRights at all); shared-with-me
-  // nodes are managed by their owner, and write ops would have to route to
-  // the owner's account — so they only get preview/download here.
+  // nodes are shared on by their owner, and get the writes their rights
+  // allow (`access`).
   const canShare = sharingEnabled && !link && !target.isShared && (target.myRights?.mayShare ?? true);
   const modified = modifiedOf(target);
   return (
@@ -1312,25 +1315,25 @@ function ActionsSheet({
                   <Text style={styles.actionLabel}>{t('files.sharing_access', 'Sharing & access')}</Text>
                 </Pressable>
               ) : null}
-              {!target.isShared ? (
+              {access.move ? (
                 <Pressable style={styles.action} onPress={() => onMove(target)}>
                   <FolderInput size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.move_to', 'Move to…')}</Text>
                 </Pressable>
               ) : null}
-              {!target.isShared && isFile ? (
+              {access.duplicate && isFile ? (
                 <Pressable style={styles.action} onPress={() => onDuplicate(target)}>
                   <Copy size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.duplicate', 'Duplicate')}</Text>
                 </Pressable>
               ) : null}
-              {!target.isShared ? (
+              {access.rename ? (
                 <Pressable style={styles.action} onPress={() => onRename(target)}>
                   <Pencil size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.rename', 'Rename')}</Text>
                 </Pressable>
               ) : null}
-              {!target.isShared ? (
+              {access.delete ? (
                 <Pressable style={styles.action} onPress={() => onDelete(target)}>
                   <Trash2 size={18} color={c.error} />
                   <Text style={[styles.actionLabel, { color: c.error }]}>{t('files.delete', 'Delete')}</Text>
