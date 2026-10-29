@@ -10,6 +10,12 @@
  *   BULWARK_LIVE_TOTP_USER=e2e-totp-phone@example.org BULWARK_LIVE_TOTP_PASS=… \
  *   BULWARK_LIVE_TOTP_CODE=… npx vitest run src/api/__tests__/live-stalwart-auth.test.ts
  *
+ * With `BULWARK_LIVE_TOTP_SECRET` (the TOTP account's base32 secret) the run
+ * also checks what a password change and turning TOTP off ask for; it makes
+ * its own codes, each in a later 30 s window than the one before. It changes
+ * the password to itself and never turns TOTP off, so the account ends as it
+ * started.
+ *
  * What differs between the lines (checked on 0.16.27 and 1.0.0):
  * - 1.0 knows only registered clients, so the app registers its own public
  *   client (RFC 7591); 0.16 takes `bulwark-webmail`.
@@ -29,12 +35,17 @@ vi.mock('expo-secure-store', () => ({
   deleteItemAsync: vi.fn(async (key: string) => { secrets.delete(key); }),
 }));
 
-import { JMAPClient, TotpRequiredError, credentialsKey, jmapClient } from '../jmap-client';
+import { createHmac } from 'node:crypto';
+import * as WebBrowser from 'expo-web-browser';
+import { JMAPClient, TotpRequiredError, credentialsKey, jmapClient, type StoredCredentials } from '../jmap-client';
 import {
   AccountSecurityForbiddenError,
+  changePassword,
+  disableTotp,
   fetchAuthInfo,
   isLimitedStalwartSignIn,
   isStalwartSupported,
+  signedInWithPassword,
 } from '../account-security';
 import {
   DEFAULT_CLIENT_ID,
@@ -43,8 +54,16 @@ import {
   resolveLoginClient,
   resetLoginClients,
 } from '../../lib/totp-login';
-import { discoverOAuthMetadata, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
-import { HANDOFF_REDIRECT_URI, HandoffError, refreshOAuthAccessToken, type OAuthTokens } from '../../lib/oauth';
+import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
+import {
+  HANDOFF_REDIRECT_URI,
+  HandoffCancelledError,
+  HandoffError,
+  forgetRefreshRotations,
+  refreshOAuthAccessToken,
+  type OAuthTokens,
+} from '../../lib/oauth';
+import { freshStoredCredentials } from '../../lib/stored-token-refresh';
 import { generateAccountId } from '../../lib/account-utils';
 
 const SERVER = (process.env.BULWARK_LIVE_JMAP ?? '').replace(/\/+$/, '');
@@ -55,6 +74,45 @@ const TOTP_PASS = process.env.BULWARK_LIVE_TOTP_PASS ?? '';
 const TOTP_CODE = process.env.BULWARK_LIVE_TOTP_CODE ?? '';
 const live = SERVER && USER && PASS ? describe : describe.skip;
 const liveTotp = SERVER && TOTP_USER && TOTP_PASS && TOTP_CODE ? it : it.skip;
+const TOTP_SECRET = process.env.BULWARK_LIVE_TOTP_SECRET ?? '';
+const liveTotpSecret = SERVER && TOTP_USER && TOTP_PASS && TOTP_SECRET ? it : it.skip;
+
+// RFC 6238 with the usual parameters (SHA-1, 6 digits, 30 s).
+function totpAt(secret: string, at: number): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const ch of secret.replace(/[\s=]/g, '').toUpperCase()) {
+    value = (value << 5) | alphabet.indexOf(ch);
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
+  const h = createHmac('sha1', Buffer.from(bytes)).update(counter).digest();
+  const o = h[h.length - 1] & 0xf;
+  const n = ((h[o] & 0x7f) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3];
+  return String(n % 1_000_000).padStart(6, '0');
+}
+
+// Stalwart takes each code once: every one comes from a later window than
+// the last, the first from a later one than BULWARK_LIVE_TOTP_CODE's.
+let lastTotpWindow = Math.floor(Date.now() / 30_000);
+async function nextTotpCode(): Promise<string> {
+  for (;;) {
+    const now = Date.now();
+    const w = Math.floor(now / 30_000);
+    if (w > lastTotpWindow && 30_000 - (now % 30_000) > 3_000) {
+      lastTotpWindow = w;
+      return totpAt(TOTP_SECRET.startsWith('otpauth://') ? new URL(TOTP_SECRET).searchParams.get('secret')! : TOTP_SECRET, now);
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
 
 // Stalwart 1.0 is the line with RP-initiated logout; 0.16 has none.
 let isV1 = false;
@@ -250,6 +308,43 @@ live('live Stalwart sign-in', () => {
     }, 30_000);
   });
 
+  it('signs in through the browser with a client the server accepts, wherever its metadata points', async () => {
+    const metadata = (await discoverOAuthMetadata(SERVER))!;
+    const browser = vi.mocked(WebBrowser.openAuthSessionAsync);
+    browser.mockClear();
+    resetLoginClients();
+    await expect(loginWithPkce(SERVER, metadata)).rejects.toBeInstanceOf(HandoffCancelledError);
+    const authUrl = new URL(browser.mock.calls[0][0] as string);
+    expect(`${authUrl.origin}${authUrl.pathname}`).toBe(metadata.authorization_endpoint);
+    if (isV1) {
+      expect(authUrl.searchParams.get('client_id')).toMatch(/^swc1\./);
+      expect(metadata.registration_endpoint).toBeTruthy();
+    } else {
+      // 0.16 on :8016 names its public address, not the one typed here, and
+      // takes the webmail's client.
+      expect(authUrl.searchParams.get('client_id')).toBe(DEFAULT_CLIENT_ID);
+    }
+  });
+
+  it('a stale copy refreshed after sign-out writes nothing back', async () => {
+    const tokens = await exchangePasswordForTokens(SERVER, USER, PASS);
+    const client = new JMAPClient();
+    await client.connectWithOAuth(SERVER, tokens, USER);
+    const accountId = generateAccountId(USER, SERVER);
+    const stale = JSON.parse(secrets.get(credentialsKey(accountId))!) as StoredCredentials;
+    expect(await client.forceRefreshToken()).toBe(true);
+    const latest = (await client.getStoredOAuthTokens(accountId))!;
+    // Sign-out as the auth store does it.
+    forgetRefreshRotations(latest.refreshToken);
+    await revokeRefreshToken(SERVER, latest);
+    secrets.delete(credentialsKey(accountId));
+
+    const result = await freshStoredCredentials(accountId, { ...stale, expiresAt: Date.now() });
+
+    expect(secrets.has(credentialsKey(accountId))).toBe(false);
+    expect(result.accessToken).toBe(stale.accessToken);
+  }, 30_000);
+
   liveTotp('TOTP account: asks for the code, then signs in with tokens', async () => {
     const client = new JMAPClient();
     await expect(client.connect(SERVER, TOTP_USER, TOTP_PASS)).rejects.toBeInstanceOf(TotpRequiredError);
@@ -267,4 +362,33 @@ live('live Stalwart sign-in', () => {
     const tokens = await client.getStoredOAuthTokens(generateAccountId(TOTP_USER, SERVER));
     if (tokens) await revokeRefreshToken(SERVER, tokens);
   }, 30_000);
+
+  liveTotpSecret('TOTP account: a password change and turning TOTP off want the current code', async () => {
+    const tokens = await exchangePasswordForTokens(SERVER, TOTP_USER, TOTP_PASS, await nextTotpCode());
+    const client = new JMAPClient();
+    await client.connectWithOAuth(SERVER, tokens, TOTP_USER);
+    useSingleton(client);
+    expect(await signedInWithPassword()).toBe(true);
+    if (isV1) {
+      // The client the app registers reaches no x:* object on 1.0.
+      await expect(fetchAuthInfo()).rejects.toBeInstanceOf(AccountSecurityForbiddenError);
+      await revokeRefreshToken(SERVER, tokens);
+      return;
+    }
+    expect((await fetchAuthInfo()).otpEnabled).toBe(true);
+    await expect(changePassword(TOTP_PASS, TOTP_PASS)).rejects.toThrow('Current OTP code is required');
+    await expect(disableTotp(TOTP_PASS)).rejects.toThrow('Current OTP code is required');
+    await expect(disableTotp(TOTP_PASS, '000000')).rejects.toThrow('Current secret is incorrect');
+    expect((await fetchAuthInfo()).otpEnabled).toBe(true);
+
+    // To the same password, with the code: accepted, and TOTP stays on. The
+    // change ends the sign-in's tokens.
+    await changePassword(TOTP_PASS, TOTP_PASS, await nextTotpCode());
+    expect(await sessionStatus(tokens.accessToken)).toBe(401);
+    const again = await exchangePasswordForTokens(SERVER, TOTP_USER, TOTP_PASS, await nextTotpCode());
+    const after = new JMAPClient();
+    await after.connectWithOAuth(SERVER, again, TOTP_USER);
+    useSingleton(after);
+    expect((await fetchAuthInfo()).otpEnabled).toBe(true);
+  }, 150_000);
 });
