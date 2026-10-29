@@ -1548,6 +1548,43 @@ export async function forgetPushSubscriptionExpiry(accountId: string): Promise<v
   await AsyncStorage.removeItem(subscriptionExpiresKey(accountId));
 }
 
+// Stalwart (0.16 and 1.0) keeps a subscription for seven days from its last
+// refresh, and only the app's start refreshes it. Someone who reads new mail
+// from the notifications without opening the app would lose push after a
+// week, so a push handled in the background extends the subscription too,
+// at most about once a day: once less than this much of it is left.
+const BACKGROUND_EXTEND_BELOW_MS = 6 * 24 * 60 * 60 * 1000;
+
+/**
+ * The account's subscription when a background push should extend it: it is
+ * recorded with a known expiry that has not passed yet (a lapsed one is the
+ * launch-time resync's to re-create) and is less than six days away. Carries
+ * this device's client id, so the caller can make sure a server that reused
+ * the id hands back our own subscription.
+ */
+export async function pushSubscriptionDueForExtension(
+  accountId: string,
+): Promise<{ id: string; deviceClientId: string | null } | null> {
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return null;
+  const id = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+  if (!id) return null;
+  const expires = Date.parse((await AsyncStorage.getItem(subscriptionExpiresKey(accountId))) ?? '');
+  if (!Number.isFinite(expires)) return null;
+  const left = expires - Date.now();
+  if (left <= 0 || left >= BACKGROUND_EXTEND_BELOW_MS) return null;
+  return { id, deviceClientId: await AsyncStorage.getItem(deviceClientIdKey(accountId)) };
+}
+
+/** The expiry to ask for when extending a subscription; servers clamp it. */
+export function wantedPushSubscriptionExpires(): string {
+  return expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS);
+}
+
+/** Record the expiry the server reported for the account's subscription. */
+export async function recordPushSubscriptionExpires(accountId: string, expires: string): Promise<void> {
+  await AsyncStorage.setItem(subscriptionExpiresKey(accountId), expires);
+}
+
 /**
  * Tear down push for a single account. Destroys every JMAP subscription the
  * server holds for this device (assumes the jmapClient is currently

@@ -17,8 +17,11 @@ import {
   lastNotifiedKey,
   migrateLegacyPushKeys,
   notifiedIdsKey,
+  pushSubscriptionDueForExtension,
   readPushAccountIds,
   readPushJmapAccountIds,
+  recordPushSubscriptionExpires,
+  wantedPushSubscriptionExpires,
 } from './push-notifications';
 
 // Mirrors STORAGE_KEY in `stores/settings-store.ts`. The headless task can't
@@ -457,10 +460,47 @@ export function selectNotifiableEmails(emails: Email[], alreadyNotified: readonl
   });
 }
 
+/**
+ * Push the account's subscription expiry forward from the background (see
+ * pushSubscriptionDueForExtension). Best effort: anything unexpected leaves
+ * it to the next launch.
+ */
+async function extendPushSubscription(accountId: string, session: DetachedSession): Promise<void> {
+  const due = await pushSubscriptionDueForExtension(accountId);
+  if (!due) return;
+  const subscriptionOf = (responses: Array<[string, Record<string, any>, string]>, callId: string) => {
+    const response = responses.find((r) => r[2] === callId);
+    if (response?.[0] !== 'PushSubscription/get') return undefined;
+    return (response[1].list as Array<{ id: string; deviceClientId?: string; expires?: string | null }> | undefined)
+      ?.find((s) => s.id === due.id);
+  };
+  const properties = ['id', 'deviceClientId', 'expires'];
+  // Stalwart reuses the ids of destroyed subscriptions: extend only our own.
+  const current = subscriptionOf(
+    await jmapPost(session, [['PushSubscription/get', { ids: [due.id], properties }, '0']]),
+    '0',
+  );
+  if (!current || (current.deviceClientId && due.deviceClientId && current.deviceClientId !== due.deviceClientId)) return;
+  const responses = await jmapPost(session, [
+    ['PushSubscription/set', { update: { [due.id]: { expires: wantedPushSubscriptionExpires() } } }, '0'],
+    // The update's answer doesn't say what the server settled on.
+    ['PushSubscription/get', { ids: [due.id], properties }, '1'],
+  ]);
+  const extended = subscriptionOf(responses, '1');
+  if (extended?.expires) await recordPushSubscriptionExpires(accountId, extended.expires);
+}
+
 async function processAccountForPush(accountId: string, payload: RelayPushData): Promise<void> {
   const session = await openDetachedSession(accountId);
   if (!session) return;
+  try {
+    await notifyForPush(accountId, session, payload);
+  } finally {
+    await extendPushSubscription(accountId, session).catch(() => undefined);
+  }
+}
 
+async function notifyForPush(accountId: string, session: DetachedSession, payload: RelayPushData): Promise<void> {
   const alreadyNotified = await readNotifiedIds(accountId);
   let candidates: Email[];
   let emailAccountId = session.jmapAccountId;

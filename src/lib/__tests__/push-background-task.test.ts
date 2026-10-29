@@ -460,6 +460,124 @@ describe('pushes for device sync (#34)', () => {
   });
 });
 
+// Stalwart keeps a subscription for seven days from its last refresh.
+describe('pushBackgroundTask keeps the push subscription alive', () => {
+  const LOCAL = 'alice@mail.example.com';
+  const DAY = 86_400_000;
+  const showNotification = vi.fn(async () => undefined);
+  const server = { deviceClientId: 'dcid-ours', expires: '', calls: [] as string[], failPush: false };
+
+  const push = () => pushBackgroundTask({
+    kind: 'jmap-email-push',
+    accountLabel: 'alice',
+    accountId: 'jmap-primary',
+    emailIds: JSON.stringify(['m1']),
+  });
+  const recorded = (msFromNow: number) => AsyncStorage.setItem(`push:subscriptionExpires:v1:${LOCAL}`, new Date(Date.now() + msFromNow).toISOString());
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary' }));
+    await AsyncStorage.setItem(`push:subscriptionId:v2:${LOCAL}`, 'b');
+    await AsyncStorage.setItem(`push:deviceClientId:v2:${LOCAL}`, 'dcid-ours');
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockResolvedValue({
+      serverUrl: 'https://mail.example.com',
+      username: 'alice',
+      password: 'secret',
+    });
+    Object.assign(server, { deviceClientId: 'dcid-ours', expires: new Date(Date.now() + 2 * DAY).toISOString(), calls: [], failPush: false });
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return {
+          ok: true,
+          json: async () => ({
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }),
+        };
+      }
+      const calls = JSON.parse(init?.body ?? '{}').methodCalls as Array<[string, Record<string, any>, string]>;
+      if (server.failPush && calls[0][0].startsWith('PushSubscription/')) return { ok: false, status: 500 };
+      const methodResponses = calls.map(([name, args, id]) => {
+        server.calls.push(name);
+        if (name === 'PushSubscription/set') {
+          // Stalwart clamps the expiry and answers the update with null.
+          server.expires = new Date(Date.now() + 7 * DAY).toISOString().replace(/\.\d+Z$/, 'Z');
+          return [name, { updated: { [Object.keys(args.update)[0]]: null } }, id];
+        }
+        if (name === 'PushSubscription/get') {
+          return [name, { list: [{ id: 'b', deviceClientId: server.deviceClientId, expires: server.expires }] }, id];
+        }
+        return [name, { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Hi', from: [{ email: 'bob@example.com' }] }] }, id];
+      });
+      return { ok: true, json: async () => ({ methodResponses }) };
+    });
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  it('extends a subscription with less than six days left and records what the server settled on', async () => {
+    await recorded(2 * DAY);
+    await push();
+    expect(showNotification).toHaveBeenCalled();
+    expect(server.calls).toEqual(['Email/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
+    expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(server.expires);
+
+    // Recorded now: the next pushes leave it alone for a day.
+    server.calls = [];
+    await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
+    await push();
+    expect(server.calls).toEqual(['Email/get']);
+  });
+
+  it('extends it also when the push brings nothing new to show', async () => {
+    await recorded(2 * DAY);
+    await AsyncStorage.setItem(`push:notifiedIds:v1:${LOCAL}`, JSON.stringify(['m1']));
+    await push();
+    expect(showNotification).not.toHaveBeenCalled();
+    expect(server.calls).toContain('PushSubscription/set');
+  });
+
+  it('leaves alone a subscription with time left, one that lapsed, one of unknown expiry and one push was turned off for', async () => {
+    for (const setup of [
+      () => recorded(6.5 * DAY),
+      () => recorded(-DAY),
+      () => AsyncStorage.removeItem(`push:subscriptionExpires:v1:${LOCAL}`),
+      async () => {
+        await recorded(2 * DAY);
+        await AsyncStorage.setItem(`push:optedOut:v1:${LOCAL}`, '1');
+      },
+    ]) {
+      server.calls = [];
+      await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
+      await AsyncStorage.removeItem(`push:optedOut:v1:${LOCAL}`);
+      await setup();
+      await push();
+      expect(server.calls).toEqual(['Email/get']);
+    }
+  });
+
+  it("does not extend another device's subscription that reuses the recorded id", async () => {
+    await recorded(2 * DAY);
+    server.deviceClientId = 'dcid-someone-else';
+    await push();
+    expect(server.calls).toEqual(['Email/get', 'PushSubscription/get']);
+  });
+
+  it('still notifies when the server cannot be asked about the subscription', async () => {
+    await recorded(2 * DAY);
+    server.failPush = true;
+    await push();
+    expect(showNotification).toHaveBeenCalled();
+  });
+});
+
 describe('selectNotifiableEmails', () => {
   const email = (id: string, keywords: Record<string, boolean> = {}): Email =>
     ({ id, threadId: 't', keywords, mailboxIds: {}, size: 0, receivedAt: '', hasAttachment: false } as Email);
