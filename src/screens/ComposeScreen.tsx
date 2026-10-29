@@ -47,7 +47,6 @@ import {
 } from '../api/email';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
-import { uploadBlob, uploadBytes } from '../api/blob';
 import { partlyRefusedWarning, sendFailureMessage } from '../lib/send-failure-message';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
@@ -66,7 +65,9 @@ import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
-import { composerLoginMoved, servedLoginOf } from '../lib/draft-login';
+import {
+  ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
+} from '../lib/compose-login';
 import {
   initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs, withSnapshotBody,
 } from '../lib/draft-part-blobs';
@@ -824,7 +825,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const localId = `seed-${a.blobId}`;
         try {
           const buf = await jmapClient.fetchBlobArrayBuffer(a.blobId, a.name, a.type, seedOwnerAccountId);
-          const up = await uploadBytes(new Uint8Array(buf), a.type || 'application/octet-stream');
+          const up = await uploadBytesForLogin(ownerLoginRef.current, new Uint8Array(buf), a.type || 'application/octet-stream');
           if (!cancelled) updateAttachment(localId, { blobId: up.blobId, size: up.size, uploading: false });
         } catch (e) {
           if (!cancelled) {
@@ -857,7 +858,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           const mime = att.type?.toLowerCase().startsWith('image/') ? att.type : (sniffImageMime(bytes) ?? 'image/png');
           map.set(cid, `data:${mime};base64,${bytesToBase64(bytes)}`);
           let blobId = att.blobId;
-          if (seedOwnerAccountId) blobId = (await uploadBytes(bytes, mime)).blobId;
+          if (seedOwnerAccountId) blobId = (await uploadBytesForLogin(ownerLoginRef.current, bytes, mime)).blobId;
           inlineRegistryRef.current.set(cid, {
             localId: `cid-${cid}`,
             name: att.name || 'image',
@@ -1125,10 +1126,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const sendingRef = React.useRef(false);
   // The login this message was started in (see lib/draft-login).
   const ownerLoginRef = React.useRef(useAccountStore.getState().activeAccountId);
-  const loginMoved = () => composerLoginMoved(ownerLoginRef.current, {
-    activeAccountId: useAccountStore.getState().activeAccountId,
-    servedLogin: servedLoginOf(jmapClient),
-  });
+  const loginMoved = () => loginMovedFrom(ownerLoginRef.current);
+  /** The address of the login this message was started in, for the "switch back" alerts. */
+  const ownerAccountLabel = () => {
+    const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
+    return owner?.email || owner?.displayName || '';
+  };
   const [draftStatus, setDraftStatus] = React.useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [savingDraft, setSavingDraft] = React.useState(false);
 
@@ -1351,6 +1354,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
         html = (await editorRef.current?.getHtml()) ?? html;
       } catch { /* the last change message is the best we have */ }
       if (html !== latestRef.current.bodyHtml) setBodyHtml(html);
+      // Reading the editor gave a switch time to land.
+      if (loginMoved()) return draftIdRef.current;
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
@@ -1446,13 +1451,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // Another login is active: saving writes nothing (saveDraftOnce), so
     // closing now would drop the text as if it had been saved.
     if (loginMoved()) {
-      const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
       Alert.alert(
         t('email_composer.login_switched_title', 'Account switched'),
         t(
           'email_composer.login_switched_save_body',
           'You started this message in {account}. Switch back to that account to save it.',
-          { account: owner?.email || owner?.displayName || '' },
+          { account: ownerAccountLabel() },
         ),
       );
       return;
@@ -1622,9 +1626,24 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return entry;
   };
 
+  // Attachments go into the blob store of the login the message belongs to;
+  // once another login is active they would land in that one's.
+  const refuseAttachAfterSwitch = (): boolean => {
+    if (!loginMoved()) return false;
+    Alert.alert(
+      t('email_composer.login_switched_title', 'Account switched'),
+      t(
+        'email_composer.login_switched_attach_body',
+        'You started this message in {account}. Switch back to that account to attach files.',
+        { account: ownerAccountLabel() },
+      ),
+    );
+    return true;
+  };
+
   const startUpload = async (entry: AttachmentEntry) => {
     try {
-      const { blobId, size, type } = await uploadBlob(entry.uri, entry.type, {
+      const { blobId, size, type } = await uploadFileForLogin(ownerLoginRef.current, entry.uri, entry.type, {
         signal: entry.abort?.signal,
         onProgress: (sent, total) => {
           if (total > 0) updateAttachment(entry.localId, { progress: Math.min(1, sent / total) });
@@ -1640,7 +1659,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       });
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return; // removed by the user
-      const message = e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
+      const message = e instanceof ComposerLoginMovedError
+        ? t('email_composer.upload_login_switched', 'Not uploaded: the account was switched')
+        : e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
       updateAttachment(entry.localId, { uploading: false, progress: undefined, error: message });
       Alert.alert(
         t('email_composer.upload_failed', 'Failed to upload {filename}', { filename: entry.name }),
@@ -1650,6 +1671,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const addFileAsset = (asset: { name: string; type: string; size: number; uri: string }) => {
+    if (refuseAttachAfterSwitch()) return;
     if (!checkAttachmentSize(asset.size, false)) return;
     void startUpload(addUploadEntry({ ...asset, inline: false }));
   };
@@ -1665,6 +1687,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   const pickPhotoAttachments = async () => {
+    if (refuseAttachAfterSwitch()) return;
     // The system photo picker needs no media permission (and Play rejects
     // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -1687,6 +1710,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const takePhotoAttachment = async () => {
+    if (refuseAttachAfterSwitch()) return;
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -1708,6 +1732,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const pickFileAttachments = async () => {
+    if (refuseAttachAfterSwitch()) return;
     let result: DocumentPicker.DocumentPickerResult;
     try {
       result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
@@ -1736,6 +1761,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   ];
 
   const insertInlineImages = async (assets: Array<{ uri: string; mimeType?: string | null; fileName?: string | null; fileSize?: number | null }>) => {
+    if (refuseAttachAfterSwitch()) return;
     for (const asset of assets) {
       const mime = asset.mimeType ?? 'image/jpeg';
       const fallbackName = asset.fileName || `image-${Date.now()}.${mime.split('/')[1] ?? 'jpg'}`;
@@ -1763,6 +1789,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const insertInlineImage = async () => {
+    if (refuseAttachAfterSwitch()) return;
     // The system photo picker needs no media permission (and Play rejects
     // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -2133,18 +2160,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const performSendInner = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!primaryIdentity || !sentMailbox) return;
-    if (loginMoved()) {
-      const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
+    const refuseSendAfterSwitch = (): boolean => {
+      if (!loginMoved()) return false;
       Alert.alert(
         t('email_composer.login_switched_title', 'Account switched'),
         t(
           'email_composer.login_switched_body',
           'You started this message in {account}. Switch back to that account to send it.',
-          { account: owner?.email || owner?.displayName || '' },
+          { account: ownerAccountLabel() },
         ),
       );
-      return;
-    }
+      return true;
+    };
+    if (refuseSendAfterSwitch()) return;
 
     // Read the body straight from the editor DOM at send time. The `change`
     // messages that feed `bodyHtml` are async and best-effort — trusting them
@@ -2180,6 +2208,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (inflightSaveRef.current) {
       try { await inflightSaveRef.current; } catch { /* stale version stays; cleaned up below */ }
     }
+    // The confirmations above wait for the user, long enough for a
+    // notification tap to switch logins.
+    if (refuseSendAfterSwitch()) return;
 
     setSending(true);
     try {
@@ -2208,9 +2239,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const { title, message } = partlyRefusedWarning(refused, t);
         toast.warning(title, { message, duration: 10_000 });
       }
+      // A switch during the send: the original's id and the trusted senders
+      // book below are the other login's now.
+      const sameLogin = !loginMoved();
       // Flag the original so the list shows the reply/forward arrow; best
       // effort - the message already left.
-      if (replyTo?.originalEmailId) {
+      if (replyTo?.originalEmailId && sameLogin) {
         void patchKeywordsForEmails(
           [replyTo.originalEmailId],
           { [mode === 'forward' ? '$forwarded' : '$answered']: true },
@@ -2224,7 +2258,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const contacts = useContactsStore.getState();
         for (const r of [...outgoing.to, ...(outgoing.cc ?? [])]) {
           settings.addTrustedSender(r.email);
-          if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
+          if (sameLogin && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
           }
         }

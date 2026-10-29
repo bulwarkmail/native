@@ -9,6 +9,8 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
 import { currentSendLogin, useSendUndoStore } from '../../stores/send-undo-store';
+import { useAccountStore } from '../../stores/account-store';
+import { loginMovedFrom } from '../../lib/compose-login';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { pruneEmailSubmissions } from '../../api/submissions';
@@ -55,6 +57,11 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
   const [sending, setSending] = React.useState(false);
 
   React.useEffect(() => { setText(''); }, [email.id]);
+  // The login the message on screen belongs to: the one active when it was
+  // shown. A switch while it stays on screen must not send the reply, or
+  // flag the original, through the other login (lib/compose-login).
+  const ownerLoginRef = React.useRef(useAccountStore.getState().activeAccountId);
+  React.useEffect(() => { ownerLoginRef.current = useAccountStore.getState().activeAccountId; }, [email.id]);
 
   const from = email.from?.[0];
   if (!from?.email || email.keywords?.$draft) return null;
@@ -62,6 +69,13 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
   const send = async () => {
     const body = text.trim();
     if (!body || sending) return;
+    if (loginMovedFrom(ownerLoginRef.current)) {
+      Alert.alert(
+        t('email_composer.login_switched_title', 'Account switched'),
+        t('email_viewer.quick_reply_login_switched', 'This message is in another account. Switch back to it to reply.'),
+      );
+      return;
+    }
     const ownEmails = identities.map((i) => i.email).filter(Boolean);
     // The own identity the message was delivered to (or, for our own message,
     // the one that sent it). Never the catch-all From rewrite: this box has no
@@ -135,7 +149,10 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       });
       void pruneEmailSubmissions();
       try {
-        await patchKeywordsForEmails([email.id], { $answered: true }, jmapAccountId);
+        // After a switch during the send the id names another message.
+        if (!loginMovedFrom(ownerLoginRef.current)) {
+          await patchKeywordsForEmails([email.id], { $answered: true }, jmapAccountId);
+        }
       } catch { /* the reply is out; the flag is cosmetic */ }
       onSent?.({ ...email, keywords: { ...email.keywords, $answered: true } });
       setText('');

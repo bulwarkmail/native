@@ -298,6 +298,7 @@
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identity unavailable",
     "image_load_failed": "Could not load image",
+    "login_switched_attach_body": "You started this message in {account}. Switch back to that account to attach files.",
     "login_switched_body": "You started this message in {account}. Switch back to that account to send it.",
     "login_switched_save_body": "You started this message in {account}. Switch back to that account to save it.",
     "login_switched_title": "Account switched",
@@ -343,6 +344,7 @@
     "undo_send_other_login": "This message was sent from another account",
     "undo_send_other_login_body": "Switch back to {account} to undo it or send it now. It goes out when the delay ends.",
     "upload_failed_short": "Upload failed",
+    "upload_login_switched": "Not uploaded: the account was switched",
     "uploading": "Uploading...",
     "uploading_pct": "Uploading {pct}%",
     "use_template": "Template",
@@ -448,6 +450,7 @@
       "pdf_unreadable": "This PDF can't be shown here.",
       "unsupported": "No preview for this file type."
     },
+    "quick_reply_login_switched": "This message is in another account. Switch back to it to reply.",
     "received_via": "to {name}",
     "remove_color": "Remove tag",
     "replied": "Replied",
