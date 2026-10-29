@@ -98,9 +98,11 @@ the audit's "Fix pass, 2026-09-24" section.
 | 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 32 | 29 | 3 | 3 | 8 | 21 |
 | 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 46 | 38 | 8 | 0 | 14 | 32 |
 | 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 56 | 54 | 2 | 7 | 23 | 26 |
-| | **Total** | | **415** | **380** | **35** | **32** | **138** | **244** |
+| 10 | Webmail 1.10.0 to 1.18.0 and Unreleased (all areas) | [docs/parity/10-webmail-1.10-to-1.18.md](docs/parity/10-webmail-1.10-to-1.18.md) | 112 | 0 | 112 | 10 | 40 | 62 |
+| | **Total** | | **527** | **380** | **147** | **42** | **178** | **306** |
 
-Counts are of the `- [ ]` and `- [x]` items per file as of 2026-09-24. Done and
+Counts are of the `- [ ]` and `- [x]` items per file as of 2026-09-24 (row 10:
+2026-10-29). Done and
 Open split them by tick; the P columns count the priority tags on those items
 (one item carries none).
 
