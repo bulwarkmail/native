@@ -36,7 +36,8 @@ vi.mock('../../api/jmap-client', () => ({
 
 import * as calendarApi from '../../api/calendar';
 import type { CalendarEvent } from '../../api/types';
-import { useCalendarStore } from '../calendar-store';
+import { jmapClient } from '../../api/jmap-client';
+import { CalendarAccountChangedError, calendarOperationScope, useCalendarStore } from '../calendar-store';
 import { saveOccurrenceEdit } from '../../lib/recurrence-scope-edit';
 import { editorTimesFromEvent } from '../../lib/event-editor-times';
 
@@ -97,6 +98,39 @@ describe('this and the following occurrences on the calendar store (Stalwart 1.0
     const [created, calendarId, schedule] = mockCreate.mock.calls[0];
     expect([calendarId, schedule]).toEqual(['cal-1', true]);
     expect(created).toMatchObject({ start: '2026-10-19T10:00:00', recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', count: 3 }] });
+  });
+
+  // The account changes while the store reloads after ending the series:
+  // that write is done, and the next one took the account the client served
+  // by then - the rest of the series went to acc-2's calendar of the same id.
+  it('makes no rest of the series in the account the client serves after a switch', async () => {
+    const store = useCalendarStore.getState();
+    const refresh = store.refresh;
+    useCalendarStore.setState({
+      refresh: async () => {
+        useCalendarStore.getState().reset();
+        (jmapClient as { accountId: string }).accountId = 'acc-2';
+      },
+    });
+    try {
+      await expect(saveOccurrenceEdit('this_and_future', {
+        event: occurrence,
+        updates: { title: 'Planning, room 2', start: occurrence.start, duration: 'PT1H', timeZone: 'Europe/Berlin', participants },
+        editor: { attendees: [{ name: '', email: 'userb@example.org' }], when: editorTimesFromEvent(occurrence) },
+        calendarId: 'cal-1', sendScheduling: true, userEmails: [ORGANIZER],
+      }, {
+        updateEvent: store.updateEvent, createEvent: store.createEvent, getMasterEvent: store.getMasterEvent,
+        operationScope: calendarOperationScope,
+      })).rejects.toBeInstanceOf(CalendarAccountChangedError);
+    } finally {
+      (jmapClient as { accountId: string }).accountId = 'acc-1';
+      useCalendarStore.setState({ refresh });
+    }
+
+    // The truncation in acc-1, and nothing after it: no new series, no rollback.
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdate.mock.calls[0][3]).toBe('acc-1');
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });
 

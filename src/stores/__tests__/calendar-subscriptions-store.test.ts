@@ -23,9 +23,17 @@ const calendarStore = vi.hoisted(() => ({
   fetchCalendars: vi.fn(async () => undefined),
   refresh: vi.fn(async () => undefined),
 }));
+const { CalendarAccountChangedError } = vi.hoisted(() => ({
+  CalendarAccountChangedError: class CalendarAccountChangedError extends Error {
+    constructor() {
+      super('The account changed while the calendar was loading or saving.');
+    }
+  },
+}));
 vi.mock('../calendar-store', () => ({
   useCalendarStore: { getState: () => calendarStore },
   calendarStoreGeneration: () => calendarStore.generation,
+  CalendarAccountChangedError,
 }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -446,5 +454,87 @@ describe('refreshing a subscription', () => {
     expect(calendarApi.getEvents).not.toHaveBeenCalled();
     expect(calendarApi.updateEvent).not.toHaveBeenCalled();
     expect(calendarStore.importEvents).not.toHaveBeenCalled();
+  });
+
+  it('counts the calendar store stopping for an account switch as no failure of the subscription', async () => {
+    calendarStore.importEvents.mockRejectedValueOnce(new CalendarAccountChangedError());
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+    expect(calendarStore.importEvents).toHaveBeenCalledTimes(1);
+    expect(only()).toMatchObject({ lastSyncAt: 5, lastError: null });
+  });
+
+  // A body cut off mid-VEVENT parses up to the cut: every mirror event after
+  // it looked gone upstream and was deleted.
+  it('changes nothing when the feed was cut off before its end', async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+      ok: true, status: 200, headers: { get: () => null },
+      text: async () => 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:kept\r\nDTSTART:20270102T100000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:sa',
+    } as unknown as Response);
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+    expect(calendarApi.parseCalendarBlob).not.toHaveBeenCalled();
+    expect(calendarApi.deleteEvents).not.toHaveBeenCalled();
+    expect(calendarStore.importEvents).not.toHaveBeenCalled();
+    expect(only().lastError).toMatch(/cut off/);
+    expect(only().lastSyncAt).toBe(5);
+  });
+
+  describe('a feed that leaves out much of a large mirror at once', () => {
+    const mirror = Array.from({ length: 10 }, (_, i) => ({ id: `m${i}`, uid: `u${i}`, calendarIds: { b: true } }));
+    const feedOf = (count: number) => mirror.slice(0, count).map((e) => ({ uid: e.uid, title: e.uid, start: '2027-01-02T10:00:00' }));
+
+    beforeEach(() => {
+      vi.mocked(calendarApi.queryEvents).mockResolvedValue(mirror.map((e) => e.id));
+      vi.mocked(calendarApi.getEventIdentities).mockResolvedValue(mirror as never);
+    });
+
+    it('keeps the events and says so when more than half of them left the feed', async () => {
+      vi.mocked(calendarApi.parseCalendarBlob).mockResolvedValue(feedOf(4) as never);
+
+      await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+      expect(calendarApi.deleteEvents).not.toHaveBeenCalled();
+      expect(calendarApi.updateEvent).not.toHaveBeenCalled();
+      expect(only().lastError).toMatch(/6 of the 10/);
+    });
+
+    it('drops them when half of them left', async () => {
+      vi.mocked(calendarApi.parseCalendarBlob).mockResolvedValue(feedOf(5) as never);
+
+      await useCalendarSubscriptionsStore.getState().syncSubscription('feed');
+
+      expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['m5', 'm6', 'm7', 'm8', 'm9'], undefined, 'acc-1');
+      expect(only().lastError).toBeNull();
+    });
+  });
+});
+
+describe('adding a subscription', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    client.accountId = 'acc-1';
+    calendarStore.generation = 0;
+    useCalendarSubscriptionsStore.setState({ syncing: {}, subscriptions: [] });
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true, status: 200, headers: { get: () => null }, text: async () => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+    })) as unknown as typeof fetch;
+    vi.mocked(calendarApi.createCalendar).mockResolvedValue({ id: 'n1', name: 'Holidays' } as never);
+    vi.mocked(calendarApi.parseCalendarBlob).mockResolvedValue([{ uid: 'e1', title: 'New year', start: '2027-01-01T00:00:00' }] as never);
+  });
+
+  // The mirror is in the account the add started in: removing it then would
+  // reach the next account's calendar of the same id.
+  it('keeps the subscription and its mirror when the calendar store stopped for an account switch', async () => {
+    calendarStore.importEvents.mockRejectedValueOnce(new CalendarAccountChangedError());
+
+    await expect(useCalendarSubscriptionsStore.getState().addSubscription({
+      name: 'Holidays', url: 'https://feeds.example/holidays.ics',
+    })).rejects.toBeInstanceOf(CalendarAccountChangedError);
+
+    expect(calendarApi.deleteCalendar).not.toHaveBeenCalled();
+    expect(useCalendarSubscriptionsStore.getState().subscriptions).toMatchObject([{ calendarId: 'n1', accountId: 'acc-1', lastError: null }]);
   });
 });

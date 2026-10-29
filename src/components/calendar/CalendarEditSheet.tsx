@@ -110,6 +110,27 @@ function DefaultRemindersEditor({
   );
 }
 
+/**
+ * The default alerts saved for `calendar`'s timed or all-day events: the
+ * reminders, and the alerts the lists can't show (`kept`), every one under
+ * the calendar's own id prefix. Ids must be unique in the account, and a kept
+ * alert had the id another client gave it: when another calendar used that
+ * id too, Stalwart 1.0 refused the whole Calendar/set, its name and colour
+ * with it.
+ */
+export function defaultAlertsToSave(
+  calendar: Pick<Calendar, 'id' | 'originalId'>,
+  allDay: boolean,
+  reminders: Reminder[],
+  kept: Record<string, Alert>,
+): Record<string, Alert> {
+  const prefix = defaultAlertIdPrefix(calendar, allDay);
+  const rekeyed: Record<string, Alert> = {};
+  let n = 0;
+  for (const alert of Object.values(kept)) rekeyed[`${prefix}-${++n}`] = alert;
+  return remindersToDefaultAlerts(reminders, rekeyed, prefix);
+}
+
 interface CalendarEditSheetProps {
   visible: boolean;
   // Existing calendar to edit; null creates a new one.
@@ -161,10 +182,10 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
       const values: CalendarEditValues = { name: trimmed, color, description: description.trim() };
       // Ids unique in the account: Stalwart 1.0 refuses one another calendar uses.
       if (calendar && editsDefaults && !sameReminders(timedReminders, initialTimed)) {
-        values.defaultAlertsWithTime = remindersToDefaultAlerts(timedReminders, keptTimed, defaultAlertIdPrefix(calendar, false));
+        values.defaultAlertsWithTime = defaultAlertsToSave(calendar, false, timedReminders, keptTimed);
       }
       if (calendar && editsDefaults && !sameReminders(allDayReminders, initialAllDay)) {
-        values.defaultAlertsWithoutTime = remindersToDefaultAlerts(allDayReminders, keptAllDay, defaultAlertIdPrefix(calendar, true));
+        values.defaultAlertsWithoutTime = defaultAlertsToSave(calendar, true, allDayReminders, keptAllDay);
       }
       await onSave(values);
       onClose();

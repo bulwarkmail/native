@@ -40,7 +40,7 @@ import { useCalendarLocale } from '../lib/calendar-locale';
 import { displayNow } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { useCalendarStore } from '../stores/calendar-store';
+import { CalendarAccountChangedError, calendarOperationScope, useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { MonthView } from '../components/calendar/MonthView';
 import { MonthScrollView } from '../components/calendar/MonthScrollView';
@@ -635,6 +635,9 @@ export default function CalendarScreen() {
 
   const reportError = React.useCallback(
     (err: unknown) => {
+      // The account changed under the write: nothing failed in the account
+      // shown now, and the previous one shows what got in when it is back.
+      if (err instanceof CalendarAccountChangedError) return;
       Alert.alert(
         t('calendar.notifications.event_error', 'Something went wrong'),
         err instanceof Error ? err.message : undefined,
@@ -724,12 +727,14 @@ export default function CalendarScreen() {
             sendScheduling: action.sendScheduling,
             userEmails: currentUserEmails,
             resolveName: resolveContactName,
-          }, { updateEvent, createEvent, getMasterEvent })
+          }, { updateEvent, createEvent, getMasterEvent, operationScope: calendarOperationScope })
           : await deleteOccurrence(scope, { event, userEmails: currentUserEmails }, {
-            updateEvent, deleteEvent, getMasterEvent,
+            updateEvent, deleteEvent, getMasterEvent, operationScope: calendarOperationScope,
           });
         if (!done) throw new Error('Master event not found');
       } catch (err) {
+        // The account changed under the edit: it stopped there (see reportError).
+        if (err instanceof CalendarAccountChangedError) return;
         Alert.alert(
           t('calendar.notifications.event_error', 'Something went wrong'),
           participantLimitMessage(err, t) ?? (err instanceof Error ? err.message : undefined),

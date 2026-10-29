@@ -483,6 +483,10 @@ export function hasAlignedAuthenticationPass(
 }
 
 function hasAuthenticationFailure(auth?: AuthenticationResults | null): boolean {
+  // DMARC passed on the receiving server's own header: one aligned method
+  // passed, and that is the verdict. A mailing list's or a forwarder's
+  // signature that broke on the way, listed first, flagged such a message.
+  if (auth?.dmarc?.result === 'pass') return false;
   return Boolean(
     auth?.dmarc?.result === 'fail'
     || auth?.dkim?.result === 'fail'

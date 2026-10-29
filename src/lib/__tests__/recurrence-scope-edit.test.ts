@@ -125,6 +125,25 @@ function actions(master: CalendarEvent | null) {
   } satisfies OccurrenceEditActions & { deleteEvent: (id: string) => Promise<void> };
 }
 
+/**
+ * `deps` with the account the operation starts in, as the store's
+ * calendarOperationScope gives it: after `switchAccount` its check throws.
+ */
+function scoped<D extends object>(deps: D) {
+  let changed = false;
+  return {
+    deps: {
+      ...deps,
+      operationScope: () => ({
+        assert: () => {
+          if (changed) throw new Error('The account changed');
+        },
+      }),
+    },
+    switchAccount: () => { changed = true; },
+  };
+}
+
 beforeEach(() => useSettingsStore.setState({ calendarTimeZone: 'Europe/Berlin' }));
 afterEach(() => useSettingsStore.setState({ calendarTimeZone: 'auto' }));
 
@@ -864,6 +883,39 @@ describe.each(occurrences)('saving this and the following occurrences on Stalwar
     expect(statusOf(created.participants, ORGANIZER)).toBe('accepted');
     expect(statusOf(created.participants, ATTENDEE)).toBe('needs-action');
   });
+
+  // The store writes to the account the client serves when a write begins:
+  // the rest of the series went to the next account's calendar of the same
+  // id, and invited its attendees.
+  it('makes no rest of the series once the account changed after ending it', async () => {
+    const occurrence = make();
+    const { deps, switchAccount } = scoped(actions(series(version)));
+    deps.updateEvent.mockImplementationOnce(async () => { switchAccount(); return undefined; });
+
+    await expect(saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence), editor: editorOn(occurrence),
+      calendarId: 'cal', sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps)).rejects.toThrow('account changed');
+
+    expect(deps.updateEvent).toHaveBeenCalledTimes(1);
+    expect(deps.createEvent).not.toHaveBeenCalled();
+  });
+
+  it('puts nothing back in the next account when the account changed while making the rest', async () => {
+    const occurrence = make();
+    const { deps, switchAccount } = scoped(actions(series(version)));
+    deps.createEvent.mockImplementationOnce(async () => {
+      switchAccount();
+      throw new Error('The account changed while the calendar was saving.');
+    });
+
+    await expect(saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence), editor: editorOn(occurrence), sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps)).rejects.toThrow('account changed');
+
+    // The truncation alone, no rollback.
+    expect(deps.updateEvent).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('the new series from this and the following occurrences', () => {
@@ -1154,6 +1206,31 @@ describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('the series
     expect(Object.keys(change)).toEqual(['recurrenceOverrides/2026-10-05T10:00:00']);
     expect(change['recurrenceOverrides/2026-10-05T10:00:00']).toMatchObject({ start: '2026-10-05T10:00:00', title: 'Kick-off' });
     expect(statusOf(change['recurrenceOverrides/2026-10-05T10:00:00'].participants as CalendarEvent['participants'], ATTENDEE)).toBe('accepted');
+  });
+
+  it('sends no second step once the account changed after the first', async () => {
+    const master = base();
+    const { deps, switchAccount } = scoped(actions(master));
+    deps.updateEvent.mockImplementationOnce(async () => { switchAccount(); return undefined; });
+
+    await expect(saveOccurrenceEdit('this', {
+      event: master, updates: kickOff(master), sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps)).rejects.toThrow('account changed');
+
+    expect(deps.updateEvent).toHaveBeenCalledTimes(1);
+    expect(deps.updateEvent.mock.calls[0][2]).toEqual({ sendSchedulingMessages: false });
+  });
+
+  it('excludes nothing once the account changed while the series was read', async () => {
+    const master = base();
+    const { deps, switchAccount } = scoped(actions(master));
+    deps.getMasterEvent.mockImplementationOnce(async () => { switchAccount(); return master; });
+
+    await expect(deleteOccurrence('this', { event: master, userEmails: [ORGANIZER] }, deps)).rejects.toThrow('account changed');
+    await expect(deleteOccurrence('this_and_future', { event: master, userEmails: [ORGANIZER] }, deps)).rejects.toThrow('account changed');
+
+    expect(deps.updateEvent).not.toHaveBeenCalled();
+    expect(deps.deleteEvent).not.toHaveBeenCalled();
   });
 
   it('changes it in one write when nobody has answered, or nothing is sent', async () => {

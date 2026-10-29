@@ -581,6 +581,39 @@ export interface OccurrenceEditActions {
   ) => Promise<CalendarEvent | null | undefined>;
   /** The base event of a series, from one of its occurrences. */
   getMasterEvent: (occurrence: CalendarEvent) => Promise<CalendarEvent | null>;
+  /**
+   * The account the edit is made in, taken once when it starts (the store's
+   * calendarOperationScope); `assert` throws once the client serves another.
+   * Each step is a write of its own: after an account switch the next one
+   * went to the next account with this one's ids - the rest of a split
+   * series made in its calendar of the same id, mailed to its attendees.
+   */
+  operationScope?: () => { assert: () => void };
+}
+
+/**
+ * `actions` with the account checked before every step, against one scope
+ * for the whole operation: the store writes to the account the client serves
+ * when a write begins, and a rollback after the switch would undo nothing of
+ * this account. Steps handed on (a this-and-future edit from the first
+ * occurrence saves as 'all') keep that scope.
+ */
+function inOneScope<A extends Partial<OccurrenceEditActions & OccurrenceDeleteActions>>(actions: A): A {
+  const scope = actions.operationScope?.();
+  if (!scope) return actions;
+  const checked = <F extends (...args: never[]) => Promise<unknown>>(step: F | undefined) =>
+    step && (((...args: Parameters<F>) => {
+      scope.assert();
+      return step(...args);
+    }) as unknown as F);
+  return {
+    ...actions,
+    operationScope: () => scope,
+    updateEvent: checked(actions.updateEvent),
+    createEvent: checked(actions.createEvent),
+    deleteEvent: checked(actions.deleteEvent),
+    getMasterEvent: checked(actions.getMasterEvent),
+  };
 }
 
 export interface OccurrenceEdit {
@@ -923,8 +956,9 @@ export function followingSeriesData(
 export async function saveOccurrenceEdit(
   scope: RecurrenceEditScope,
   edit: OccurrenceEdit,
-  actions: OccurrenceEditActions,
+  unscoped: OccurrenceEditActions,
 ): Promise<boolean> {
+  const actions = inOneScope(unscoped);
   const { updateEvent, createEvent } = actions;
   const { event, updates, sendScheduling } = edit;
   const scheduling = { sendSchedulingMessages: sendScheduling };
@@ -1009,7 +1043,7 @@ export async function saveOccurrenceEdit(
 }
 
 /** What deleting part of a series works with: the calendar store's actions. */
-export interface OccurrenceDeleteActions extends Pick<OccurrenceEditActions, 'updateEvent' | 'getMasterEvent'> {
+export interface OccurrenceDeleteActions extends Pick<OccurrenceEditActions, 'updateEvent' | 'getMasterEvent' | 'operationScope'> {
   deleteEvent: (id: string) => Promise<void>;
 }
 
@@ -1022,8 +1056,9 @@ export interface OccurrenceDeleteActions extends Pick<OccurrenceEditActions, 'up
 export async function deleteOccurrence(
   scope: RecurrenceEditScope,
   deletion: { event: CalendarEvent; userEmails: string[] },
-  actions: OccurrenceDeleteActions,
+  unscoped: OccurrenceDeleteActions,
 ): Promise<boolean> {
+  const actions = inOneScope(unscoped);
   const { event } = deletion;
   if (scope === 'this') {
     if (isServerRecurrenceInstance(event) || isBrowserExpandedOccurrence(event)) {
