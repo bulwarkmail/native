@@ -14,7 +14,9 @@ import { NoLongerScheduledError } from '../api/jmap-result';
 import { pruneEmailSubmissions } from '../api/submissions';
 import type { EmailAddress, Mailbox } from '../api/types';
 import { draftContextFromEmail } from '../lib/draft-context';
+import { composerLoginMoved, servedLoginOf } from '../lib/draft-login';
 import { mailboxesOfAccount } from '../lib/mailbox-tree';
+import { useAccountStore } from './account-store';
 import { partlyRefusedWarning, rescheduleFailureNotice } from '../lib/send-failure-message';
 import type { ComposeDraftContext } from '../navigation/types';
 import { t } from './locale-store';
@@ -24,8 +26,19 @@ export interface PendingUndoSend {
   emailSubmissionId: string;
   emailId: string;
   identityId: string;
-  /** Account holding the submission: a shared account for a send from its identity. */
+  /**
+   * JMAP account holding the submission: a shared account for a send from
+   * its identity, else the login's own. Recorded either way: submission ids
+   * repeat across accounts and servers.
+   */
   accountId?: string;
+  /**
+   * The login (registry id, lib/draft-login) the message was sent through.
+   * Undo and Send now act through that login only: after a switch the same
+   * submission id names another message on the other server (webmail
+   * GHSA-8x23).
+   */
+  login?: string | null;
   from?: EmailAddress[];
   to?: EmailAddress[];
   /** ISO time the server will release the message. */
@@ -36,7 +49,32 @@ export interface PendingUndoSend {
 }
 
 /** What the sender knows about a held send beyond the server's answer. */
-export type HeldSendDetails = Pick<PendingUndoSend, 'identityId' | 'accountId' | 'from' | 'to'>;
+export type HeldSendDetails = Pick<PendingUndoSend, 'identityId' | 'accountId' | 'from' | 'to' | 'login'>;
+
+/** The login the JMAP client works for now, or the registry's active one while it connects. */
+export function currentSendLogin(): string | null {
+  return servedLoginOf(jmapClient) ?? useAccountStore.getState().activeAccountId;
+}
+
+/** Whether Undo or Send now of `entry` would now go through another login. */
+export function pendingSendLoginMoved(entry: Pick<PendingUndoSend, 'login'>): boolean {
+  return composerLoginMoved(entry.login, {
+    activeAccountId: useAccountStore.getState().activeAccountId,
+    servedLogin: servedLoginOf(jmapClient),
+  });
+}
+
+function refuseOtherLogin(entry: PendingUndoSend): void {
+  const owner = entry.login ? useAccountStore.getState().getAccountById(entry.login) : undefined;
+  toast.error(
+    t('email_composer.undo_send_other_login', 'This message was sent from another account'),
+    t(
+      'email_composer.undo_send_other_login_body',
+      'Switch back to {account} to undo it or send it now. It goes out when the delay ends.',
+      { account: owner?.email || owner?.displayName || '' },
+    ),
+  );
+}
 
 interface SendUndoState {
   pending: PendingUndoSend | null;
@@ -71,6 +109,10 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
     if (!holdForSeconds || !result.scheduled || !result.emailSubmissionId || !result.emailId) return false;
     get().setPending({
       ...details,
+      accountId: details.accountId ?? jmapClient.connectedAccountId ?? undefined,
+      // The sender reads the login before it sends; a switch may land while
+      // the request is out.
+      login: details.login !== undefined ? details.login : currentSendLogin(),
       emailSubmissionId: result.emailSubmissionId,
       emailId: result.emailId,
       sendAt: result.sendAt,
@@ -84,6 +126,10 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
   undo: async () => {
     const entry = get().pending;
     if (!entry || get().busy) return false;
+    if (pendingSendLoginMoved(entry)) {
+      refuseOtherLogin(entry);
+      return false;
+    }
     set({ busy: true });
     try {
       await cancelScheduledSend(entry.emailSubmissionId, entry.accountId);
@@ -105,6 +151,10 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
   sendNow: async () => {
     const entry = get().pending;
     if (!entry || get().busy) return false;
+    if (pendingSendLoginMoved(entry)) {
+      refuseOtherLogin(entry);
+      return false;
+    }
     set({ busy: true });
     try {
       const result = await rescheduleScheduledSend(
@@ -151,6 +201,8 @@ export async function restoreUndoneSend(
   entry: PendingUndoSend,
   mailboxes: Mailbox[],
 ): Promise<ComposeDraftContext> {
+  // The ids name other messages in another login (see pendingSendLoginMoved).
+  if (pendingSendLoginMoved(entry)) throw new Error('The account was switched');
   const shared = !!entry.accountId && entry.accountId !== jmapClient.accountId;
   const accountId = shared ? entry.accountId : undefined;
   const scope = mailboxesOfAccount(mailboxes, accountId);
@@ -166,3 +218,12 @@ export async function restoreUndoneSend(
   }
   return draftContextFromEmail(await getFullEmail(entry.emailId, accountId), accountId);
 }
+
+// A switch to another login takes the undo bar away, since its actions
+// would reach the other server. The held message still goes out when the
+// delay ends; back in its account, Scheduled lists it until then.
+useAccountStore.subscribe((state, prev) => {
+  if (state.activeAccountId === prev.activeAccountId) return;
+  const { pending } = useSendUndoStore.getState();
+  if (pending?.login && pending.login !== state.activeAccountId) useSendUndoStore.setState({ pending: null });
+});

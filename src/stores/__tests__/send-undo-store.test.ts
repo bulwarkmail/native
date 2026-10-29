@@ -7,10 +7,30 @@ vi.mock('../../api/email', () => ({
   getFullEmail: vi.fn(),
 }));
 
+// The login the client serves: me@example.com on mail.example.com, whose
+// own JMAP account is 'primary'. Tests switch it to another server.
+const { client } = vi.hoisted(() => ({
+  client: {
+    accountId: 'primary',
+    connectedAccountId: 'primary' as string | null,
+    isConnected: true,
+    username: 'me@example.com' as string | null,
+    serverUrl: 'https://mail.example.com' as string | null,
+  },
+}));
 vi.mock('../../api/jmap-client', () => ({
-  jmapClient: { accountId: 'primary' },
+  jmapClient: client,
   RequestTimeoutError: class RequestTimeoutError extends Error {},
 }));
+
+const LOGIN = 'me@example.com@mail.example.com';
+const OTHER_LOGIN = 'me@example.com@other.example.org';
+
+/** Switch the app to the same user on another server, whose own account is also 'primary'. */
+function switchToOtherServer() {
+  useAccountStore.setState({ activeAccountId: OTHER_LOGIN });
+  client.serverUrl = 'https://other.example.org';
+}
 
 // Background work nobody waits for: it never settles here.
 vi.mock('../../api/submissions', () => ({
@@ -23,6 +43,7 @@ import { NoLongerScheduledError, RecipientsRefusedError, SubmissionQuotaError } 
 import type { Email, Mailbox } from '../../api/types';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../send-undo-store';
 import { useToastStore } from '../toast-store';
+import { useAccountStore } from '../account-store';
 
 const api = vi.mocked(emailApi);
 const prune = vi.mocked(submissions.pruneEmailSubmissions);
@@ -70,6 +91,8 @@ beforeEach(() => {
   useSendUndoStore.setState({ pending: null, busy: false, restoredEmailId: null });
   useToastStore.getState().clearToasts();
   api.getFullEmail.mockResolvedValue({ id: 'mail-1', subject: 'Re: hi' } as Email);
+  client.serverUrl = 'https://mail.example.com';
+  useAccountStore.setState({ activeAccountId: LOGIN });
 });
 
 afterEach(() => {
@@ -93,7 +116,19 @@ describe('send-undo-store', () => {
         from: [SENDER],
         sendAt: HELD.sendAt,
         delaySeconds: 10,
+        login: LOGIN,
       });
+    });
+
+    it('names the own account and the login of an own-account send', () => {
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', from: [SENDER] });
+      expect(useSendUndoStore.getState().pending).toMatchObject({ accountId: 'primary', login: LOGIN });
+    });
+
+    it('keeps the login the sender sent through when a switch landed during the send', () => {
+      client.serverUrl = 'https://other.example.org';
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', login: LOGIN, accountId: 'primary' });
+      expect(useSendUndoStore.getState().pending?.login).toBe(LOGIN);
     });
 
     it('records nothing for a send that went out at once', () => {
@@ -121,9 +156,47 @@ describe('send-undo-store', () => {
     });
 
     it('cancels an own-account send in the primary account', async () => {
-      useSendUndoStore.getState().setPending(entry());
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', from: [SENDER] });
       await useSendUndoStore.getState().undo();
-      expect(api.cancelScheduledSend).toHaveBeenCalledWith('sub-1', undefined);
+      expect(api.cancelScheduledSend).toHaveBeenCalledWith('sub-1', 'primary');
+    });
+
+    // GHSA-8x23: the same user on another server has an account 'primary'
+    // too, with its own submission 'sub-1'.
+    it('cancels nothing in another login, and says where the message was sent from', async () => {
+      useAccountStore.setState({
+        accounts: [{ id: LOGIN, email: 'me@example.com', displayName: 'Me' } as never],
+      });
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', from: [SENDER] });
+      const pending = useSendUndoStore.getState().pending;
+      // The switch is still under way: the bar is up and the client serves the other server.
+      client.serverUrl = 'https://other.example.org';
+
+      await expect(useSendUndoStore.getState().undo()).resolves.toBe(false);
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
+
+      expect(api.cancelScheduledSend).not.toHaveBeenCalled();
+      expect(api.rescheduleScheduledSend).not.toHaveBeenCalled();
+      expect(useToastStore.getState().toasts[0]).toMatchObject({
+        type: 'error',
+        message: expect.stringContaining('me@example.com'),
+      });
+      expect(useSendUndoStore.getState().pending).toBe(pending);
+      await expect(restoreUndoneSend(pending!, MAILBOXES)).rejects.toThrow();
+      expect(api.restoreEmailToDraft).not.toHaveBeenCalled();
+      useAccountStore.setState({ accounts: [] });
+    });
+
+    it('takes the undo bar away once another login is active', () => {
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', from: [SENDER] });
+      switchToOtherServer();
+      expect(useSendUndoStore.getState().pending).toBeNull();
+    });
+
+    it('keeps the undo bar while the same login stays active', () => {
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', from: [SENDER] });
+      useAccountStore.setState({ defaultAccountId: LOGIN });
+      expect(useSendUndoStore.getState().pending).not.toBeNull();
     });
 
     it('keeps the entry when the cancel fails, and says so', async () => {

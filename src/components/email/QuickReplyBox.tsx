@@ -8,7 +8,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
-import { useSendUndoStore } from '../../stores/send-undo-store';
+import { currentSendLogin, useSendUndoStore } from '../../stores/send-undo-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { pruneEmailSubmissions } from '../../api/submissions';
@@ -103,6 +103,9 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       });
       const threading = computeReplyThreadingHeaders(email);
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
+      // Where the reply goes, read before it goes: Undo must reach that login
+      // and account whatever the app switches to meanwhile.
+      const sentThrough = { login: currentSendLogin(), accountId: jmapAccountId ?? jmapClient.connectedAccountId ?? undefined };
       const result = await sendEmail(
         {
           from: [{ name: identity.name, email: identity.email }],
@@ -127,7 +130,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       // Recorded before the flag below so its round trip doesn't eat the window.
       useSendUndoStore.getState().recordHeldSend(result, holdFor, {
         identityId: identity.id,
-        accountId: jmapAccountId,
+        ...sentThrough,
         from: [{ name: identity.name, email: identity.email }],
       });
       void pruneEmailSubmissions();

@@ -340,6 +340,8 @@
       "remove_link": "Remove link"
     },
     "undo_send_label": "Sending in {seconds}s…",
+    "undo_send_other_login": "This message was sent from another account",
+    "undo_send_other_login_body": "Switch back to {account} to undo it or send it now. It goes out when the delay ends.",
     "upload_failed_short": "Upload failed",
     "uploading": "Uploading...",
     "uploading_pct": "Uploading {pct}%",
