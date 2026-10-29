@@ -1703,8 +1703,25 @@ async function wasRevokedOnServer(accountId: string): Promise<boolean> {
   const expires = Date.parse((await AsyncStorage.getItem(subscriptionExpiresKey(accountId))) ?? '');
   if (!storedServerId || !Number.isFinite(expires)) return false;
   if (expires - Date.now() < REVOKED_EXPIRY_MARGIN_MS) return false;
+  const deviceClientId = await AsyncStorage.getItem(deviceClientIdKey(accountId));
   const subs = await listPushSubscriptions();
-  return !subs.some((s) => s.id === storedServerId);
+  return !subs.some((s) => isOwnSubscription(s, storedServerId, deviceClientId));
+}
+
+/**
+ * Whether a subscription the server lists is the one this device recorded.
+ * Stalwart hands out short ids and gives a destroyed subscription's id to the
+ * next one created ("b" in every account), so the id alone can name another
+ * client's subscription on the same account, such as the webmail's. A
+ * subscription listed without a device client id, or one recorded before the
+ * device kept its own, is taken on the id.
+ */
+function isOwnSubscription(
+  s: { id: string; deviceClientId?: string | null },
+  subscriptionId: string,
+  deviceClientId: string | null,
+): boolean {
+  return s.id === subscriptionId && (!s.deviceClientId || !deviceClientId || s.deviceClientId === deviceClientId);
 }
 
 /**
@@ -1781,10 +1798,11 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
   const served = !!username && !!serverUrl && generateAccountId(username, serverUrl) === accountId;
+  const deviceClientId = await AsyncStorage.getItem(deviceClientIdKey(accountId));
   try {
     if (served) {
       const types = await pushTypesFor(accountId, jmapClient.currentSession);
-      const current = (await listPushSubscriptions()).find((s) => s.id === subscriptionId);
+      const current = (await listPushSubscriptions()).find((s) => isOwnSubscription(s, subscriptionId, deviceClientId));
       if (!current || sameTypes(current.types, types)) return;
       await updatePushSubscription(subscriptionId, { types: [...types] });
       return;
@@ -1794,11 +1812,13 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
     const types = await pushTypesFor(accountId, client.currentSession);
     const using = [CAPABILITIES.CORE];
     const res = await client.request(
-      [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'types'] }, '0']],
+      [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'deviceClientId', 'types'] }, '0']],
       using,
     );
-    const current = (requireMethodResult(res, '0', 'PushSubscription/get').list as Array<{ id: string; types?: string[] | null }> | undefined)
-      ?.find((s) => s.id === subscriptionId);
+    const list = requireMethodResult(res, '0', 'PushSubscription/get').list as
+      | Array<{ id: string; deviceClientId?: string | null; types?: string[] | null }>
+      | undefined;
+    const current = list?.find((s) => isOwnSubscription(s, subscriptionId, deviceClientId));
     if (!current || sameTypes(current.types, types)) return;
     await client.request(
       [['PushSubscription/set', { update: { [subscriptionId]: { types: [...types] } } }, '0']],

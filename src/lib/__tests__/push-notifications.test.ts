@@ -59,7 +59,13 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
   };
   return {
     SYNC_SESSION,
-    DETACHED: { loaded: true, types: ['EmailDelivery'] as string[], log: [] as unknown[], session: SYNC_SESSION },
+    DETACHED: {
+      loaded: true,
+      types: ['EmailDelivery'] as string[],
+      deviceClientId: null as string | null,
+      log: [] as unknown[],
+      session: SYNC_SESSION,
+    },
   };
 });
 
@@ -82,7 +88,8 @@ vi.mock('../../api/jmap-client', () => ({
       const [name, args, id] = calls[0];
       DETACHED.log.push([name, args]);
       if (name === 'PushSubscription/get') {
-        return { methodResponses: [[name, { list: [{ id: args.ids[0], types: DETACHED.types }] }, id]] };
+        const listed = { id: args.ids[0], types: DETACHED.types, ...(DETACHED.deviceClientId ? { deviceClientId: DETACHED.deviceClientId } : {}) };
+        return { methodResponses: [[name, { list: [listed] }, id]] };
       }
       return { methodResponses: [[name, { updated: { [Object.keys(args.update)[0]]: null } }, id]] };
     }
@@ -666,7 +673,7 @@ describe('push types for device sync (#34)', () => {
     await refreshPushSubscriptionTypes(OTHER);
     expect(DETACHED.log).toEqual([
       ['load', OTHER],
-      ['PushSubscription/get', { ids: ['bob-sub'], properties: ['id', 'types'] }],
+      ['PushSubscription/get', { ids: ['bob-sub'], properties: ['id', 'deviceClientId', 'types'] }],
       ['PushSubscription/set', { update: { 'bob-sub': { types: ['EmailDelivery', 'CalendarEvent', 'Calendar'] } } }],
     ]);
     // The singleton's subscriptions were not touched.
@@ -677,6 +684,40 @@ describe('push types for device sync (#34)', () => {
     DETACHED.types = ['Calendar', 'CalendarEvent', 'EmailDelivery'];
     await refreshPushSubscriptionTypes(OTHER);
     expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+  });
+
+  it("leaves alone another client's subscription that reuses the recorded id", async () => {
+    // Stalwart gives a destroyed subscription's id to the next one, such as
+    // the webmail's on the same account.
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ ...healthy(['EmailDelivery']), deviceClientId: 'webmailwebmailwebmailwebmailwebm' }]);
+    await syncing({ [CONTACTS]: true });
+    await refreshPushSubscriptionTypes(ACCOUNT_ID);
+    expect(updateMock).not.toHaveBeenCalled();
+
+    // The same through another account's client.
+    const OTHER = 'bob@other.example.net';
+    await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
+    await AsyncStorage.setItem(deviceClientIdKey(OTHER), 'bobsphonebobsphonebobsphonebobsp');
+    await AsyncStorage.setItem(DEVICE_SYNC_KEY, JSON.stringify({
+      state: { accounts: { [OTHER]: { enabled: { [CALENDAR]: true } } } },
+      version: 0,
+    }));
+    DETACHED.log = [];
+    DETACHED.types = ['EmailDelivery'];
+    DETACHED.deviceClientId = 'webmailwebmailwebmailwebmailwebm';
+    try {
+      await refreshPushSubscriptionTypes(OTHER);
+      expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+
+      // Its own subscription still gets the types.
+      DETACHED.log = [];
+      DETACHED.deviceClientId = 'bobsphonebobsphonebobsphonebobsp';
+      await refreshPushSubscriptionTypes(OTHER);
+      expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get', 'PushSubscription/set']);
+    } finally {
+      DETACHED.deviceClientId = null;
+    }
   });
 
   it('leaves the subscription of an account that turned push off alone', async () => {
@@ -1497,6 +1538,24 @@ describe('resyncPushNotifications', () => {
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
   });
 
+  it("takes a recorded subscription whose id now names another client's for revoked", async () => {
+    // Revoked here, then the webmail on the same account subscribed and got
+    // the freed id.
+    await AsyncStorage.setItem(SUB_KEY, 'b');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    listMock.mockResolvedValue([
+      { id: 'b', deviceClientId: 'webmailwebmailwebmailwebmailwebm', expires: inDays(7), types: ['EmailDelivery'] },
+    ]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toBeNull();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('b');
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
+  });
+
   it('re-creates the subscription once the server behind the account was replaced (0.16.23 to 1.0)', async () => {
     // A server reinstalled for Stalwart 1.0 holds none of the subscriptions,
     // which looks exactly like a revocation from elsewhere; the fingerprint
@@ -1613,8 +1672,12 @@ describe('resyncPushNotifications', () => {
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
     expect(await AsyncStorage.getItem(EXPIRES_KEY)).not.toBeNull();
     vi.clearAllMocks();
+    // Turning push off forgot the device client id, so the new subscription
+    // carries a new one.
+    const deviceClientId = await AsyncStorage.getItem(deviceClientIdKey(ACCOUNT_ID));
+    expect(deviceClientId).not.toBe(OUR_DCID);
     listMock.mockResolvedValue([
-      { id: 'new-server-id', deviceClientId: OUR_DCID, expires: inDays(7), types: ['EmailDelivery'] },
+      { id: 'new-server-id', deviceClientId, expires: inDays(7), types: ['EmailDelivery'] },
     ]);
     expect((await resyncPushNotifications({ relayBaseUrl: RELAY }))?.subscriptionId).toBe('new-server-id');
   });
