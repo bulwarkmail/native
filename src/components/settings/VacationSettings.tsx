@@ -18,6 +18,7 @@ import { ownDomains } from '../../lib/sieve/vacation-audience';
 import type { VacationForward } from '../../lib/sieve/types';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { stripDangerousTags, escapeHtml } from '../../lib/email-html';
+import { isEditorNavigationAllowed } from '../../lib/editor-html';
 import {
   isValidLocalInput,
   localInputToUtcIso,
@@ -411,7 +412,7 @@ export function VacationSettings() {
                   scrollEnabled={false}
                   javaScriptEnabled={false}
                   // Links in the preview must not navigate the WebView away.
-                  onShouldStartLoadWithRequest={(req) => req.url === 'about:blank' || req.url.startsWith('data:')}
+                  onShouldStartLoadWithRequest={(req) => isEditorNavigationAllowed(req.url)}
                 />
               ) : (
                 <Text style={styles.previewBody}>{body}</Text>
