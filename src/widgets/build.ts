@@ -9,7 +9,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jmapClient } from '../api/jmap-client';
-import { CAPABILITIES, type CalendarEvent, type ContactCard } from '../api/types';
+import { CAPABILITIES, type CalendarEvent, type ContactCard, type FileNode } from '../api/types';
 import { generateAccountId } from '../lib/account-utils';
 import { generateEmailAvatarColor, getEmailInitials } from '../lib/avatar-utils';
 import { getEventEndDate, getEventStartDate } from '../lib/calendar-utils';
@@ -306,24 +306,37 @@ async function buildTasks(previous: WidgetSnapshot, accountId: string, reload: b
   }
 }
 
+/**
+ * The Recent files widget's rows: the newest nodes of the user's own drive.
+ * The Files trash (lib/files-trash) and what is in it stay out, as they do
+ * in the Files tab. The helpers come in as arguments because they are loaded
+ * only once the widget needs them.
+ */
+export function recentFileItems(
+  nodes: FileNode[],
+  files: Pick<typeof import('../api/files'), 'isFolder'>,
+  trash: Pick<typeof import('../lib/files-trash'), 'withoutTrash'>,
+): FileItem[] {
+  return trash.withoutTrash(nodes)
+    .filter((n) => !!n.name)
+    .map((n) => ({
+      id: n.id,
+      name: n.name,
+      isFolder: files.isFolder(n),
+      size: n.size ?? 0,
+      modified: Date.parse(n.modified || n.created || '') || 0,
+      type: n.type || '',
+    }))
+    .sort((a, b) => b.modified - a.modified)
+    .slice(0, 6);
+}
+
 async function buildFiles(previous: WidgetSnapshot): Promise<WidgetSnapshot['files']> {
   const files = require('../api/files') as typeof import('../api/files');
   if (!files.supportsFiles()) return { supported: false, items: [] };
   try {
-    const nodes = await files.getAllFileNodes();
-    const items: FileItem[] = nodes
-      .filter((n) => !!n.name)
-      .map((n) => ({
-        id: n.id,
-        name: n.name,
-        isFolder: files.isFolder(n),
-        size: n.size ?? 0,
-        modified: Date.parse(n.modified || n.created || '') || 0,
-        type: n.type || '',
-      }))
-      .sort((a, b) => b.modified - a.modified)
-      .slice(0, 6);
-    return { supported: true, items };
+    const trash = require('../lib/files-trash') as typeof import('../lib/files-trash');
+    return { supported: true, items: recentFileItems(await files.getAllFileNodes(), files, trash) };
   } catch {
     return previous.files;
   }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   Image,
   Modal,
@@ -20,8 +21,9 @@ import {
   ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink,
+  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink, RotateCcw,
 } from '../components/icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
@@ -49,6 +51,14 @@ import {
   getFileNameRules, getFileNodeDownloadUrl, getMaxSizeUpload, isFolder,
   isSymlink, listFolder, moveFileNode, renameFileNode, supportsSharing, uploadFileBatch,
 } from '../api/files';
+import {
+  TrashUnavailableError, emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash,
+  type TrashMoveResult,
+} from '../api/files-trash';
+import {
+  TRASH_FOLDER_NAME, takesTrashName, trashOriginPath, trashPlaces, trashedItems, withoutTrash, type TrashedItem,
+} from '../lib/files-trash';
+import { toast } from '../stores/toast-store';
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
@@ -79,6 +89,8 @@ import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
   displayName: string;
+  /** Set for a row of the trash: when it was deleted and where from. */
+  trash?: TrashedItem;
 }
 
 type Translate = TranslateFn;
@@ -146,6 +158,13 @@ function modifiedOf(node: FileNode): string | undefined {
   return node.modified || node.created;
 }
 
+// The date a row shows and sorts by: in the trash, when it was deleted
+// (like the webmail's trash).
+function rowDateOf(row: FileRow): string | undefined {
+  if (row.trash) return row.trash.deletedAt != null ? new Date(row.trash.deletedAt).toISOString() : undefined;
+  return modifiedOf(row);
+}
+
 function fileNameProblemText(problem: FileNameProblem, t: Translate): string {
   switch (problem.kind) {
     case 'chars':
@@ -159,6 +178,11 @@ function fileNameProblemText(problem: FileNameProblem, t: Translate): string {
     case 'reserved':
       return t('files.name_reserved', 'This name is reserved on the server.');
   }
+}
+
+// Why ".Trash" can't go to the root (see takesTrashName).
+function trashNameText(t: Translate): string {
+  return t('files.name_trash', '".Trash" is the name of the trash folder at the top of your files. Choose another name.');
 }
 
 // The files an upload could not store, the first three by name, and what the
@@ -214,7 +238,11 @@ export default function FilesScreen() {
   const uploadAbortRef = useRef<AbortController | null>(null);
   const [batchBusy, setBatchBusy] = useState<string | null>(null);
 
-  const [confirmDelete, setConfirmDelete] = useState<{ rows: FileRow[] } | null>(null);
+  // The trash (lib/files-trash) is a place of its own, entered from the root.
+  const [inTrash, setInTrash] = useState(false);
+  // `noTrash`: the rows were meant for the trash, which could not be made.
+  const [confirmDelete, setConfirmDelete] = useState<{ rows: FileRow[]; noTrash?: boolean } | null>(null);
+  const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<FileRow | null>(null);
@@ -249,32 +277,51 @@ export default function FilesScreen() {
   const uploading = uploadProgress != null;
   const selectionMode = selection.size > 0;
   const currentParentId = path.length === 0 ? null : path[path.length - 1].id;
+  // The webmail's `/.Trash` and everything in it stay out of every listing
+  // but the trash's own, hidden files shown or not.
+  const driveNodes = useMemo(() => withoutTrash(allNodes), [allNodes]);
+  const trashItems = useMemo(() => trashedItems(allNodes), [allNodes]);
+  // Looked up by every row of the trash; worked out once per listing.
+  const trashPlacesNow = useMemo(() => trashPlaces(allNodes), [allNodes]);
   // Inside a folder another account shared with us, new folders and uploads
-  // go to that account, and only where its rights allow them.
-  const canCreateHere = mayCreateIn(currentParentId, allNodes);
+  // go to that account, and only where its rights allow them. Nothing is
+  // added to the trash other than by deleting.
+  const canCreateHere = !inTrash && mayCreateIn(currentParentId, driveNodes);
   const rootLabel = t('files.title', 'Files');
-  const headerName = path.length === 0 ? rootLabel : path[path.length - 1].name;
+  const trashLabel = t('files.trash', 'Trash');
+  const headerName = inTrash ? trashLabel : path.length === 0 ? rootLabel : path[path.length - 1].name;
   const sharingEnabled = supportsSharing();
 
+  // Only the latest read is shown: one started before an account switch or a
+  // write may finish after the next one.
+  const loadSeqRef = useRef(0);
   const loadFiles = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial') => {
+    async (mode: 'initial' | 'refresh' | 'quiet' = 'initial') => {
+      const seq = ++loadSeqRef.current;
       if (mode === 'refresh') setRefreshing(true);
-      else setLoading(true);
-      setError(null);
+      else if (mode === 'initial') setLoading(true);
+      if (mode !== 'quiet') setError(null);
       try {
         // One fetch across all accessible accounts: own files plus nodes other
         // principals shared with us (tagged isShared, ids namespaced).
         const nodes = await getAllFileNodesAcrossAccounts();
-        setAllNodes(nodes);
+        if (seq === loadSeqRef.current) setAllNodes(nodes);
       } catch (e) {
-        setError(e instanceof Error ? e.message : t('files.download_error', 'Failed to load files'));
+        // A quiet read keeps what is on screen.
+        if (mode !== 'quiet' && seq === loadSeqRef.current) {
+          setError(e instanceof Error ? e.message : t('files.download_error', 'Failed to load files'));
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [t],
   );
+  const loadFilesRef = useRef(loadFiles);
+  loadFilesRef.current = loadFiles;
 
   // Load on mount and reset the whole drive whenever the active account, or
   // the server behind it, changes: the node cache, folder stack and
@@ -283,14 +330,19 @@ export default function FilesScreen() {
   // (another port, or Stalwart reinstalled there), which the account id does
   // not tell. Every new session reads the drive again.
   const driveRef = useRef<DriveScope | undefined>(undefined);
+  const undoToastRef = useRef<string | null>(null);
   useEffect(() => {
     const { action, scope } = driveChange(driveRef.current, activeAccountId, session);
     driveRef.current = scope;
     if (action === 'keep') return;
     if (action === 'reset') {
       uploadAbortRef.current?.abort();
+      // The last delete's Undo belongs to the previous drive.
+      if (undoToastRef.current) toast.dismiss(undoToastRef.current);
+      undoToastRef.current = null;
       setAllNodes([]);
       setPath([]);
+      setInTrash(false);
       setSelection(new Set());
       setActionsTarget(null);
       setShareTarget(null);
@@ -303,12 +355,39 @@ export default function FilesScreen() {
     void loadFiles(action === 'reload' ? 'refresh' : 'initial');
   }, [activeAccountId, session, loadFiles]);
 
-  // If we navigated into a folder that no longer exists (deleted, or its
-  // share was revoked), cut the stack back to the deepest ancestor that does.
+  // Read the drive again when the tab comes back into view or the app to the
+  // foreground: another device may have restored, moved or emptied what the
+  // rows on screen show. The first focus is the mount, which reads already.
+  const focusedRef = useRef(false);
+  const seenFocusRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      if (seenFocusRef.current && driveRef.current?.account) void loadFilesRef.current('quiet');
+      seenFocusRef.current = true;
+      return () => {
+        focusedRef.current = false;
+      };
+    }, []),
+  );
+  useEffect(() => {
+    let last = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && last !== 'active' && focusedRef.current && driveRef.current?.account) {
+        void loadFilesRef.current('quiet');
+      }
+      last = next;
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // If we navigated into a folder that no longer exists (deleted, moved to
+  // the trash on another device, or its share was revoked), cut the stack
+  // back to the deepest ancestor that does.
   useEffect(() => {
     if (allNodes.length === 0) return;
     setPath((prev) => {
-      const byId = new Map(allNodes.map((n) => [n.id, n]));
+      const byId = new Map(driveNodes.map((n) => [n.id, n]));
       let cut = prev.length;
       for (let i = 0; i < prev.length; i++) {
         const node = byId.get(prev[i].id);
@@ -319,16 +398,18 @@ export default function FilesScreen() {
       }
       return cut === prev.length ? prev : prev.slice(0, cut);
     });
-  }, [allNodes]);
+  }, [allNodes, driveNodes]);
 
   // Root: our own top-level nodes, plus the roots of every shared-with-me
   // subtree; Stalwart 1.0's placeholder folders above them are left out.
-  const folderNodes = useMemo(() => listFolder(allNodes, currentParentId), [allNodes, currentParentId]);
+  const folderNodes = useMemo(() => listFolder(driveNodes, currentParentId), [driveNodes, currentParentId]);
 
   const visibleFiles = useMemo<FileRow[]>(() => {
     const q = searchQuery.trim().toLowerCase();
-    const rows = folderNodes
-      .map<FileRow>((n) => ({ ...n, displayName: n.name }))
+    const source: FileRow[] = inTrash
+      ? trashItems.map((item) => ({ ...item.node, displayName: item.node.name, trash: item }))
+      : folderNodes.map((n) => ({ ...n, displayName: n.name }));
+    const rows = source
       .filter((r) => showHiddenFiles || !r.displayName.startsWith('.'))
       .filter((r) => !q || r.displayName.toLowerCase().includes(q));
     const dir = sortDir === 'desc' ? -1 : 1;
@@ -344,8 +425,8 @@ export default function FilesScreen() {
         case 'size':
           return ((a.size ?? 0) - (b.size ?? 0)) * dir;
         case 'modified': {
-          const am = modifiedOf(a) ? new Date(modifiedOf(a)!).getTime() : 0;
-          const bm = modifiedOf(b) ? new Date(modifiedOf(b)!).getTime() : 0;
+          const am = rowDateOf(a) ? new Date(rowDateOf(a)!).getTime() : 0;
+          const bm = rowDateOf(b) ? new Date(rowDateOf(b)!).getTime() : 0;
           return (am - bm) * dir;
         }
         case 'name':
@@ -353,7 +434,7 @@ export default function FilesScreen() {
           return a.displayName.localeCompare(b.displayName) * dir;
       }
     });
-  }, [folderNodes, searchQuery, showHiddenFiles, sortKey, sortDir]);
+  }, [inTrash, trashItems, folderNodes, searchQuery, showHiddenFiles, sortKey, sortDir]);
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
 
@@ -468,6 +549,13 @@ export default function FilesScreen() {
         toggleSelect(row);
         return;
       }
+      // In the trash a file can be looked at; a folder is restored before
+      // it is opened. Everything else is in the row's actions.
+      if (row.trash) {
+        if (!isFolder(row) && !isSymlink(row) && canPreviewInApp(row)) setPreviewTarget(row);
+        else setActionsTarget(row);
+        return;
+      }
       if (isFolder(row)) {
         setPath((p) => [...p, { id: row.id, name: row.displayName }]);
         setSearchQuery('');
@@ -486,17 +574,25 @@ export default function FilesScreen() {
   }, [toggleSelect]);
 
   const goBack = useCallback(() => {
-    setPath((p) => (p.length > 0 ? p.slice(0, -1) : p));
+    if (inTrash) setInTrash(false);
+    else setPath((p) => (p.length > 0 ? p.slice(0, -1) : p));
+    setSearchQuery('');
+    clearSelection();
+  }, [inTrash, clearSelection]);
+
+  const openTrash = useCallback(() => {
+    setInTrash(true);
     setSearchQuery('');
     clearSelection();
   }, [clearSelection]);
 
   // Android back closes the preview, then leaves selection mode, then goes
-  // up one folder; only at the root does it switch to the Mail tab.
+  // up one folder (out of the trash, which opens from the root); only at the
+  // root does it switch to the Mail tab.
   const backStep = filesBackStep({
     previewOpen: previewTarget != null,
     selecting: selectionMode,
-    folderDepth: path.length,
+    folderDepth: inTrash ? 1 : path.length,
   });
   const handleBack = useCallback(() => {
     if (backStep === 'close-preview') setPreviewTarget(null);
@@ -517,12 +613,16 @@ export default function FilesScreen() {
 
   // Explains a name the server would refuse before anything is sent: the
   // naming rules it publishes (Stalwart 0.16.6+) with 1.0's stricter ones on
-  // top, or at least the "/" every server refuses. True when the name can go.
-  const checkName = useCallback((name: string): boolean => {
+  // top, or at least the "/" every server refuses. `.Trash` is refused at the
+  // root, where it would become the trash (lib/files-trash). True when the
+  // name can go.
+  const checkName = useCallback((name: string, parentId: string | null, nodeId?: string): boolean => {
     const problem = fileNameProblem(name, getFileNameRules());
     const message = problem
       ? fileNameProblemText(problem, t)
-      : name.includes('/') ? t('files.invalid_name_slash', 'Names cannot contain "/".') : null;
+      : name.includes('/') ? t('files.invalid_name_slash', 'Names cannot contain "/".')
+      : takesTrashName(name, parentId, nodeId) ? trashNameText(t)
+      : null;
     if (message) Alert.alert(t('files.invalid_name', 'Invalid name'), message);
     return !message;
   }, [t]);
@@ -530,7 +630,7 @@ export default function FilesScreen() {
   const submitNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) return;
-    if (!checkName(name)) return;
+    if (!checkName(name, currentParentId)) return;
     setNewFolderOpen(false);
     setNewFolderName('');
     try {
@@ -548,7 +648,7 @@ export default function FilesScreen() {
       setRenameTarget(null);
       return;
     }
-    if (!checkName(name)) return;
+    if (!checkName(name, renameTarget.parentId ?? null, renameTarget.id)) return;
     const target = renameTarget;
     setRenameTarget(null);
     setRenameValue('');
@@ -579,6 +679,10 @@ export default function FilesScreen() {
   const performMove = useCallback(async (row: FileRow, destinationId: string | null) => {
     setMoveTarget(null);
     if ((row.parentId ?? null) === destinationId) return;
+    if (takesTrashName(row.name, destinationId, row.id)) {
+      Alert.alert(t('files.move_error', 'Failed to move'), trashNameText(t));
+      return;
+    }
     setBusyId(row.id);
     try {
       await moveFileNode(row.id, destinationId);
@@ -643,6 +747,8 @@ export default function FilesScreen() {
     uploadAbortRef.current = controller;
     const parentId = currentParentId;
     const siblings = allNodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.name);
+    // A file picked as ".Trash" gets a number at the root, where the name is the trash's.
+    if (takesTrashName(TRASH_FOLDER_NAME, parentId)) siblings.push(TRASH_FOLDER_NAME);
     // A refused file no longer stops the rest; the ones that failed are
     // reported once the batch is done.
     const { failed } = await uploadFileBatch(accepted, parentId, siblings, {
@@ -665,10 +771,52 @@ export default function FilesScreen() {
     }
   }, [uploading, currentParentId, allNodes, loadFiles, t]);
 
+  // Undo of a delete: the items go back from the trash the way Restore puts
+  // them back, judged against the drive as it is by then. Nothing happens
+  // once another account is signed in (see undoMoveToTrash).
+  const undoTrash = useCallback(async (moved: TrashMoveResult) => {
+    undoToastRef.current = null;
+    try {
+      const result = await undoMoveToTrash(moved);
+      if (!result) return;
+      if (result.done.length > 0) toast.success(t('files.undo_success', 'Action undone'));
+    } catch (e) {
+      toast.error(t('files.undo_error', 'Failed to undo'), fileErrorMessage(e, t));
+    }
+    await loadFiles('refresh');
+  }, [loadFiles, t]);
+
+  // Delete in the user's own drive moves into the trash, with Undo and no
+  // question, like the webmail. A drive someone shared has no trash of the
+  // user's, and in the trash a delete is for good: those ask first.
+  const trashRows = useCallback(async (rows: FileRow[]) => {
+    clearSelection();
+    const listing = allNodes;
+    try {
+      const moved = await moveToTrash(listing, rows);
+      const { done, refused } = moved;
+      await loadFiles('refresh');
+      if (refused.length > 0) {
+        Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(refused[0], t));
+      }
+      undoToastRef.current = toast.success(
+        t('files.moved_to_trash', '{count, plural, one {Moved to trash} other {# items moved to trash}}', { count: done.length }),
+        { action: { label: t('files.undo', 'Undo'), onPress: () => void undoTrash(moved) } },
+      );
+    } catch (e) {
+      // No trash to be had here (a file named .Trash at the root, no right
+      // to create folders there, a full quota): offer to delete for good.
+      if (e instanceof TrashUnavailableError) setConfirmDelete({ rows, noTrash: true });
+      else Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
+      await loadFiles('refresh');
+    }
+  }, [allNodes, clearSelection, loadFiles, undoTrash, t]);
+
   const requestDelete = useCallback((rows: FileRow[]) => {
     if (rows.length === 0) return;
-    setConfirmDelete({ rows });
-  }, []);
+    if (inTrash || rows.some((r) => r.isShared)) setConfirmDelete({ rows });
+    else void trashRows(rows);
+  }, [inTrash, trashRows]);
 
   const performDelete = useCallback(async () => {
     if (!confirmDelete) return;
@@ -676,19 +824,58 @@ export default function FilesScreen() {
     setConfirmDelete(null);
     clearSelection();
     try {
-      // The server removes folder descendants (onDestroyRemoveChildren).
-      await deleteFileNodes(targets.map((t) => t.id));
-      await loadFiles('refresh');
+      const fromTrash = targets.flatMap((r) => (r.trash ? [r.trash] : []));
+      // The server removes folder descendants (onDestroyRemoveChildren). In
+      // the trash only what is still there goes (see purgeFromTrash).
+      let count = targets.length;
+      if (fromTrash.length > 0) count = await purgeFromTrash(fromTrash);
+      else await deleteFileNodes(targets.map((r) => r.id));
+      if (count > 0) {
+        toast.success(t('files.deleted_forever', '{count, plural, one {Deleted permanently} other {# items deleted permanently}}', {
+          count,
+        }));
+      }
     } catch (e) {
       Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
     }
+    await loadFiles('refresh');
   }, [confirmDelete, clearSelection, loadFiles, t]);
+
+  const restoreRows = useCallback(async (rows: FileRow[]) => {
+    const items = rows.flatMap((r) => (r.trash ? [r.trash] : []));
+    if (items.length === 0) return;
+    clearSelection();
+    try {
+      const { done, refused } = await restoreFromTrash(items);
+      if (refused.length > 0) {
+        Alert.alert(t('files.restore_error', "Couldn't restore"), fileErrorMessage(refused[0], t));
+      }
+      if (done.length > 0) {
+        toast.success(t('files.restored', '{count, plural, one {Item restored} other {# items restored}}', { count: done.length }));
+      }
+    } catch (e) {
+      Alert.alert(t('files.restore_error', "Couldn't restore"), fileErrorMessage(e, t));
+    }
+    await loadFiles('refresh');
+  }, [clearSelection, loadFiles, t]);
+
+  const performEmptyTrash = useCallback(async () => {
+    setConfirmEmptyTrash(false);
+    clearSelection();
+    try {
+      await emptyTrash();
+      toast.success(t('files.trash_emptied', 'Trash emptied'));
+    } catch (e) {
+      Alert.alert(t('files.empty_trash_error', "Couldn't empty the trash"), fileErrorMessage(e, t));
+    }
+    await loadFiles('refresh');
+  }, [clearSelection, loadFiles, t]);
 
   const sortLabel = t(`files.${sortKey}`, sortKey);
   const SortDirIcon = sortDir === 'desc' ? ArrowDown : ArrowUp;
 
   const renderHeader = () => {
-    const canBack = path.length > 0;
+    const canBack = path.length > 0 || inTrash;
     const ToggleIcon = viewMode === 'list' ? LayoutGrid : ListIcon;
     if (selectionMode) {
       const selectedRows = visibleFiles.filter((r) => selection.has(r.id));
@@ -708,24 +895,35 @@ export default function FilesScreen() {
               {t('files.selected_count', '{count, plural, one {# selected} other {# selected}}', { count: selection.size })}
             </Text>
             <View style={styles.headerActions}>
-              <Pressable
-                onPress={() => void downloadSelection(selectedRows)}
-                hitSlop={8}
-                style={styles.headerBtn}
-                accessibilityLabel={t('files.download', 'Download')}
-                disabled={batchBusy != null}
-              >
-                {batchBusy != null ? (
-                  <ActivityIndicator size="small" color={c.text} />
-                ) : (
-                  <Download size={20} color={c.text} />
-                )}
-              </Pressable>
+              {inTrash ? (
+                <Pressable
+                  onPress={() => void restoreRows(selectedRows)}
+                  hitSlop={8}
+                  style={styles.headerBtn}
+                  accessibilityLabel={t('files.restore', 'Restore')}
+                >
+                  <RotateCcw size={20} color={c.text} />
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => void downloadSelection(selectedRows)}
+                  hitSlop={8}
+                  style={styles.headerBtn}
+                  accessibilityLabel={t('files.download', 'Download')}
+                  disabled={batchBusy != null}
+                >
+                  {batchBusy != null ? (
+                    <ActivityIndicator size="small" color={c.text} />
+                  ) : (
+                    <Download size={20} color={c.text} />
+                  )}
+                </Pressable>
+              )}
               <Pressable
                 onPress={() => requestDelete(selectedRows)}
                 hitSlop={8}
                 style={styles.headerBtn}
-                accessibilityLabel={t('files.delete', 'Delete')}
+                accessibilityLabel={inTrash ? t('files.delete_forever', 'Delete permanently') : t('files.delete', 'Delete')}
               >
                 <Trash2 size={20} color={c.error} />
               </Pressable>
@@ -798,11 +996,22 @@ export default function FilesScreen() {
             >
               <ToggleIcon size={20} color={c.text} />
             </Pressable>
+            {path.length === 0 && !inTrash ? (
+              <Pressable
+                onPress={openTrash}
+                hitSlop={8}
+                style={styles.headerBtn}
+                accessibilityRole="button"
+                accessibilityLabel={trashLabel}
+              >
+                <Trash2 size={20} color={c.text} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
         {canBack ? (
           <Text style={styles.breadcrumb} numberOfLines={1}>
-            {[rootLabel, ...path.map((p) => p.name)].join(' / ')}
+            {[rootLabel, ...(inTrash ? [trashLabel] : path.map((p) => p.name))].join(' / ')}
           </Text>
         ) : null}
         <View style={styles.toolbarRow}>
@@ -819,6 +1028,19 @@ export default function FilesScreen() {
               clearButtonMode="while-editing"
             />
           ) : <View style={{ flex: 1 }} />}
+          {inTrash ? (
+            <Pressable
+              onPress={() => setConfirmEmptyTrash(true)}
+              hitSlop={6}
+              style={[styles.sortChip, trashItems.length === 0 && { opacity: 0.5 }]}
+              disabled={trashItems.length === 0}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: trashItems.length === 0 }}
+            >
+              <Trash2 size={13} color={c.error} />
+              <Text style={[styles.sortChipText, { color: c.error }]}>{t('files.empty_trash', 'Empty trash')}</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={() => setSortSheetOpen(true)}
             hitSlop={6}
@@ -854,6 +1076,15 @@ export default function FilesScreen() {
     );
   };
 
+  // Where a deleted item came from, on its row in the trash.
+  const trashOrigin = (item: TrashedItem): string | null => {
+    const from = trashOriginPath(item, trashPlacesNow);
+    if (from === null) return null;
+    return t('files.deleted_from', 'Deleted from {folder}', {
+      folder: from === '/' ? t('files.my_files', 'My files') : from,
+    });
+  };
+
   const renderIcon = (item: FileRow, size: number) => {
     const isDir = isFolder(item);
     const thumb = !isDir && showThumbnails ? thumbnailSource(item) : null;
@@ -881,7 +1112,8 @@ export default function FilesScreen() {
     const selected = selection.has(item.id);
     const busy = busyId === item.id;
     const sharedOut = !!item.shareWith && Object.keys(item.shareWith).length > 0;
-    const modified = modifiedOf(item);
+    const modified = rowDateOf(item);
+    const origin = item.trash ? trashOrigin(item.trash) : null;
     return (
       <Pressable
         onPress={() => handleRowPress(item)}
@@ -906,6 +1138,9 @@ export default function FilesScreen() {
             ) : null}
           </View>
           <View style={styles.fileMetaRow}>
+            {origin ? (
+              <Text style={[styles.fileMeta, styles.fileMetaShrink]} numberOfLines={1}>{origin}</Text>
+            ) : null}
             {item.isShared && item.accountName ? (
               <Text style={styles.fileMeta} numberOfLines={1}>
                 {t('files.shared_by', 'Shared by {name}', { name: item.accountName })}
@@ -1002,6 +1237,16 @@ export default function FilesScreen() {
         >
           <Text style={styles.retryText}>{t('files.retry', 'Retry')}</Text>
         </TouchableOpacity>
+      </View>
+    );
+  } else if (visibleFiles.length === 0 && inTrash && !searchQuery.trim()) {
+    body = (
+      <View style={styles.center}>
+        <Trash2 size={48} color={c.textMuted} />
+        <Text style={styles.emptyText}>{t('files.trash_empty_title', 'Trash is empty')}</Text>
+        <Text style={styles.emptyHint}>
+          {t('files.trash_empty_hint', 'Deleted files stay here until you empty the trash.')}
+        </Text>
       </View>
     );
   } else if (visibleFiles.length === 0) {
@@ -1133,11 +1378,15 @@ export default function FilesScreen() {
           setActionsTarget(null);
           requestDelete([r]);
         }}
+        onRestore={(r) => {
+          setActionsTarget(null);
+          void restoreRows([r]);
+        }}
       />
 
       <FolderPickerSheet
         target={moveTarget}
-        allNodes={allNodes}
+        allNodes={driveNodes}
         rootLabel={rootLabel}
         t={t}
         onClose={() => setMoveTarget(null)}
@@ -1164,17 +1413,40 @@ export default function FilesScreen() {
 
       <Dialog
         visible={confirmDelete != null}
-        title={
-          confirmDelete && confirmDelete.rows.length > 1
-            ? t('files.delete_items_title', '{count, plural, one {Delete # item?} other {Delete # items?}}', { count: confirmDelete.rows.length })
-            : t('files.delete_item_title', 'Delete this item?')
+        title={t('files.delete_forever_title', '{count, plural, one {Delete permanently?} other {Delete # items permanently?}}', {
+          count: confirmDelete?.rows.length ?? 1,
+        })}
+        message={
+          confirmDelete?.noTrash
+            ? t('files.trash_unavailable_message', "{count, plural, one {This item} other {These # items}} can't be moved to the trash. Delete permanently instead? You can't undo this.", {
+              count: confirmDelete.rows.length,
+            })
+            : confirmDelete && confirmDelete.rows.length > 1
+            ? t('files.delete_forever_message_count', "{count, plural, one {1 item} other {# items}} will be deleted. You can't undo this.", {
+              count: confirmDelete.rows.length,
+            })
+            : t('files.delete_forever_message', "\"{name}\" will be deleted. You can't undo this.", {
+              name: confirmDelete?.rows[0]?.displayName ?? '',
+            })
         }
-        message={t('files.delete_cascade_hint', "Folders are deleted along with everything inside them. This can't be undone.")}
         variant="destructive"
-        confirmText={t('files.delete', 'Delete')}
+        confirmText={t('files.delete_forever', 'Delete permanently')}
         cancelText={t('files.cancel', 'Cancel')}
         onConfirm={() => void performDelete()}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <Dialog
+        visible={confirmEmptyTrash}
+        title={t('files.empty_trash_title', 'Empty trash?')}
+        message={t('files.empty_trash_message', "{count, plural, one {The item in the trash} other {All # items in the trash}} will be deleted permanently. You can't undo this.", {
+          count: trashItems.length,
+        })}
+        variant="destructive"
+        confirmText={t('files.empty_trash', 'Empty trash')}
+        cancelText={t('files.cancel', 'Cancel')}
+        onConfirm={() => void performEmptyTrash()}
+        onCancel={() => setConfirmEmptyTrash(false)}
       />
     </View>
   );
@@ -1252,10 +1524,13 @@ interface ActionsSheetProps {
   onDuplicate: (r: FileRow) => void;
   onRename: (r: FileRow) => void;
   onDelete: (r: FileRow) => void;
+  /** For a row of the trash: put it back where it came from. */
+  onRestore: (r: FileRow) => void;
 }
 
 function ActionsSheet({
   target, access, sharingEnabled, t, onClose, onPreview, onOpenWith, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
+  onRestore,
 }: ActionsSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -1272,7 +1547,52 @@ function ActionsSheet({
   // nodes are shared on by their owner, and get the writes their rights
   // allow (`access`).
   const canShare = sharingEnabled && !link && !target.isShared && (target.myRights?.mayShare ?? true);
-  const modified = modifiedOf(target);
+  const modified = rowDateOf(target);
+  // A deleted item can be restored, looked at or deleted for good, nothing else.
+  if (target.trash) {
+    return (
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+        <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+          <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+            <TouchableWithoutFeedback accessible={false}>
+              <View style={styles.sheet}>
+                <Text style={styles.sheetTitle} numberOfLines={1}>
+                  {target.displayName}
+                </Text>
+                <Text style={styles.sheetMeta} numberOfLines={1}>
+                  {[
+                    isDir ? t('files.folder', 'Folder') : link ? t('files.symlink', 'Symbolic link') : (target.type || t('files.file', 'File')),
+                    isFile && target.size != null ? formatFileSize(target.size) : null,
+                    modified ? `${t('files.deleted', 'Deleted')} ${formatModified(modified)}` : null,
+                  ].filter(Boolean).join(' · ')}
+                </Text>
+                <Pressable style={styles.action} onPress={() => onRestore(target)}>
+                  <RotateCcw size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>{t('files.restore', 'Restore')}</Text>
+                </Pressable>
+                {isFile && canPreviewInApp(target) ? (
+                  <Pressable style={styles.action} onPress={() => onPreview(target)}>
+                    <Eye size={18} color={c.text} />
+                    <Text style={styles.actionLabel}>{t('files.preview', 'Preview')}</Text>
+                  </Pressable>
+                ) : null}
+                {isFile ? (
+                  <Pressable style={styles.action} onPress={() => onDownload(target)}>
+                    <Download size={18} color={c.text} />
+                    <Text style={styles.actionLabel}>{t('files.download', 'Download')}</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable style={styles.action} onPress={() => onDelete(target)}>
+                  <Trash2 size={18} color={c.error} />
+                  <Text style={[styles.actionLabel, { color: c.error }]}>{t('files.delete_forever', 'Delete permanently')}</Text>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  }
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
@@ -1612,6 +1932,12 @@ function makeStyles(c: ThemePalette) {
       fontSize: typography.body.fontSize,
       marginTop: spacing.sm,
     },
+    emptyHint: {
+      color: c.textMuted,
+      fontSize: typography.caption.fontSize,
+      textAlign: 'center',
+      paddingHorizontal: spacing.lg,
+    },
     errorText: {
       color: c.error,
       fontSize: typography.body.fontSize,
@@ -1659,6 +1985,9 @@ function makeStyles(c: ThemePalette) {
     fileMeta: {
       fontSize: typography.caption.fontSize,
       color: c.textMuted,
+    },
+    fileMetaShrink: {
+      flexShrink: 1,
     },
     rowMore: {
       width: componentSizes.buttonLg,
