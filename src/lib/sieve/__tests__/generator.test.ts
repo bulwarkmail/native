@@ -241,23 +241,97 @@ describe('generateScript', () => {
       expect(matches).toHaveLength(1);
     });
 
-    it('does not append stop after discard', () => {
+    // discard and reject only cancel the implicit keep; the rules below
+    // would still file, flag or forward the message (#1153).
+    it('appends stop after discard', () => {
       const script = generateScript([makeRule({
         actions: [{ type: 'discard' }],
         stopProcessing: true,
       })]);
-      const matches = script.match(/stop;/g);
-      expect(matches).toBeNull();
+      expect(script).toContain('    discard;\n    stop;\n}');
     });
 
-    it('does not append stop after reject', () => {
+    it('appends stop after reject', () => {
       const script = generateScript([makeRule({
         actions: [{ type: 'reject', value: 'No' }],
         stopProcessing: true,
       })]);
-      const matches = script.match(/stop;/g);
-      expect(matches).toBeNull();
+      expect(script).toContain('    reject "No";\n    stop;\n}');
     });
+  });
+
+  describe('address comparators', () => {
+    it('writes "is the address" as an address test', () => {
+      const script = generateScript([makeRule({
+        conditions: [{ field: 'from', comparator: 'address_is', value: 'anna@acme.com' }],
+      })]);
+      expect(script).toContain('if address :is "From" "anna@acme.com" {');
+      expect(script).not.toContain('header :contains');
+    });
+
+    it('writes "has the domain" as an address :domain test', () => {
+      const script = generateScript([makeRule({
+        conditions: [{ field: 'cc', comparator: 'domain_is', value: ['acme.com', 'acme.org'] }],
+      })]);
+      expect(script).toContain('if address :domain :is "Cc" ["acme.com", "acme.org"] {');
+    });
+
+    it('reads both back as the same comparators', () => {
+      const rules = [
+        makeRule({ id: 'a', name: 'A', conditions: [{ field: 'to', comparator: 'address_is', value: 'a@b.c' }] }),
+        makeRule({ id: 'b', name: 'B', conditions: [{ field: 'from', comparator: 'domain_is', value: 'b.c' }] }),
+      ];
+      expect(parseScript(generateScript(rules)).rules).toEqual(rules);
+    });
+
+    it('refuses a comparator it does not know instead of broadening it', () => {
+      const rule = makeRule({
+        conditions: [{ field: 'from', comparator: 'sounds_like' as never, value: 'anna' }],
+      });
+      expect(() => generateScript([rule])).toThrow(/sounds_like/);
+    });
+
+    it('refuses an address comparator on the subject', () => {
+      const rule = makeRule({
+        conditions: [{ field: 'subject', comparator: 'address_is', value: 'x' }],
+      });
+      expect(() => generateScript([rule])).toThrow();
+    });
+  });
+
+  // #1154: a rule for every message is Sieve `true`.
+  it('writes the "all messages" condition as true', () => {
+    const script = generateScript([makeRule({
+      conditions: [{ field: 'all', comparator: 'any', value: '' }],
+      actions: [{ type: 'add_label', value: 'x' }],
+    })]);
+    expect(script).toContain('if true {');
+  });
+
+  it('confines a rule with a period to it', () => {
+    const script = generateScript([makeRule({ activeFrom: '2026-11-02T07:00:00.000Z' })]);
+    expect(script).toContain('{"version":2,');
+    expect(script).toMatch(/require \[[^\]]*"date"[^\]]*"relational"/);
+    expect(script).toContain('if allof(anyof(currentdate :zone "+0000" :value "gt" "date" "2026-11-02"');
+  });
+
+  it('runs the vacation forwarding ahead of the rules', () => {
+    const script = generateScript([makeRule()], undefined, {
+      includeVacation: true,
+      vacationForward: { enabled: true, to: 'backup@example.org', keepCopy: false },
+    });
+    const forward = script.indexOf('# Vacation forwarding\nif true {\n    redirect "backup@example.org";\n    stop;\n}');
+    expect(forward).toBeGreaterThan(0);
+    expect(forward).toBeLessThan(script.indexOf('# Rule: Test Rule'));
+  });
+
+  it('includes the auto-reply for colleagues only', () => {
+    const script = generateScript([], undefined, {
+      includeVacation: true,
+      vacationAudience: { only: 'internal', domains: ['example.org'] },
+    });
+    expect(script).toContain('if envelope :domain :is "from" ["example.org"] {\n    include :personal :optional "vacation";\n}');
+    expect(script).toMatch(/require \[[^\]]*"envelope"/);
   });
 
   describe('action order and targets', () => {

@@ -138,8 +138,10 @@ export function contactToForm(contact: ContactCard, memberIds: string[]): FormSt
   const phones = contact.phones ? Object.values(contact.phones).map((p) => ({
     number: p.number,
     context: p.contexts?.work ? 'work' : p.contexts?.private ? 'private' : '',
+    // RFC 9553 calls it "mobile"; cards saved by older versions of the app
+    // (and of the webmail) say "cell", which a save turns into "mobile".
     feature:
-      p.features?.cell ? 'cell'
+      p.features?.mobile || p.features?.cell ? 'mobile'
         : p.features?.fax ? 'fax'
           : p.features?.pager ? 'pager'
             : p.features?.video ? 'video'

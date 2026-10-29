@@ -318,6 +318,40 @@ describe('JMAPClient hardening', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  // A write the server may already have applied must not run twice.
+  it.each([
+    [[['Email/set', { accountId: 'acc-1', destroy: ['e1'] }, '0']]],
+    [[['ContactCard/set', { accountId: 'acc-1', create: { c: {} } }, '0']]],
+    [[['Mailbox/get', { accountId: 'acc-1' }, '0'], ['Email/copy', { accountId: 'acc-1' }, '1']]],
+    [[['SieveScript/set', { accountId: 'acc-1' }, '0']]],
+  ])('does not replay a batch with a write after a network error (%j)', async (calls) => {
+    const client = await connected();
+    const fetch = mockFetch([
+      { status: 200, throw: new TypeError('Network request failed') },
+      { status: 200, json: { methodResponses: [] } },
+    ]);
+    const err = await client.request(calls as never).catch((e) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('replays a batch made only of reads', async () => {
+    vi.useFakeTimers();
+    const client = await connected();
+    const fetch = mockFetch([
+      { status: 200, throw: new TypeError('Network request failed') },
+      { status: 200, json: { methodResponses: [['Email/query', { ids: [] }, '0'], ['Email/get', { list: [] }, '1']] } },
+    ]);
+    const p = client.request([
+      ['Email/query', { accountId: 'acc-1' }, '0'],
+      ['Email/get', { accountId: 'acc-1', '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' } }, '1'],
+      ['Email/changes', { accountId: 'acc-1', sinceState: 's' }, '2'],
+    ]);
+    await vi.advanceTimersByTimeAsync(1100);
+    await p;
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry a submission after a network error and wraps it as NetworkError', async () => {
     const client = await connected();
     const fetch = mockFetch([{ status: 200, throw: new TypeError('Network request failed') }]);

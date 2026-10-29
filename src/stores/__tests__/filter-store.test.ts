@@ -19,7 +19,9 @@ import {
   readWebmailResave as webmailResave,
   STALWART_EXTENSIONS,
 } from '../../lib/sieve/__tests__/fixtures/webmail';
-import { isVacationIncludedInFilters, syncVacationWithFilters, useFilterStore } from '../filter-store';
+import {
+  isVacationIncludedInFilters, readVacationFilters, syncVacationWithFilters, useFilterStore,
+} from '../filter-store';
 
 const api = vi.mocked(sieve);
 
@@ -257,5 +259,93 @@ describe('saving scripts the webmail wrote', () => {
     useFilterStore.getState().reorderRules(['invoices', 'vip', 'fwd', 'spam', 'big']);
     await useFilterStore.getState().saveFilters();
     expect(api.updateSieveScript.mock.calls[0][1]).toBe(webmailResave('stalwart-full.sieve'));
+  });
+
+  // #1152: webmail 1.13+ writes version 2 for rule periods and the vacation
+  // card's forwarding and audience. Read as raw Sieve, "Reset to visual
+  // builder" wiped them; a save must keep them byte for byte.
+  it('edits a version 2 script and keeps periods, forwarding and audience', async () => {
+    const script = webmailFixture('period-forward-audience.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: true },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: false },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    const s = useFilterStore.getState();
+    expect(s.isOpaque).toBe(false);
+    expect(s.rules.map((r) => r.activeFrom)).toEqual(['2026-11-02T07:00:00.000Z', '2026-12-01T00:00:00.000Z']);
+    expect(s.vacationForward?.to).toBe('backup@example.org');
+    expect(s.vacationAudience?.only).toBe('internal');
+
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+
+  it('keeps the forwarding and audience when the auto-reply is switched off on the phone', async () => {
+    const script = webmailFixture('period-forward-audience.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: true },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: false },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await syncVacationWithFilters(false);
+    const written = api.updateSieveScript.mock.calls[0][1] as string;
+    expect(written).not.toContain('include :personal');
+    expect(written).toContain('# Vacation forwarding');
+    expect(written).toContain('"vacationAudience":{"only":"internal","domains":["example.org","example.com"]}');
+    expect(written).toContain('"activeUntil":"2026-11-13T17:30:00.000Z"');
+  });
+
+  it('keeps the remembered forwarding of a version 1 script', async () => {
+    const script = webmailFixture('forward-off.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+});
+
+describe('readVacationFilters', () => {
+  it('reports the stored forwarding and audience and what the server can run', async () => {
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: true },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: false },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(webmailFixture('period-forward-audience.sieve'));
+
+    const filters = await readVacationFilters();
+    expect(filters).toMatchObject({
+      includesVacation: true,
+      forward: { enabled: true, to: 'backup@example.org', keepCopy: false },
+      forwardAvailable: true,
+      audience: { only: 'internal', domains: ['example.org', 'example.com'] },
+      audienceAvailable: true,
+      notRunning: false,
+    });
+  });
+
+  it('sets up forwarding in the vacation period, creating the script when there is none', async () => {
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([{ id: 'v1', name: 'vacation', blobId: 'bv', isActive: true }]);
+    api.createSieveScript.mockResolvedValue({ id: 'new', name: 'filters', blobId: 'b', isActive: true });
+
+    await syncVacationWithFilters(
+      true, undefined, { enabled: true, to: 'backup@example.org', keepCopy: true },
+      undefined, { from: '2026-11-02T00:00:00Z', until: null },
+    );
+    const [name, content, activate] = api.createSieveScript.mock.calls[0];
+    expect(name).toBe('filters');
+    expect(activate).toBe(true);
+    expect(content).toContain('"vacationForward":{"enabled":true,"to":"backup@example.org","keepCopy":true,"activeFrom":"2026-11-02T00:00:00Z"}');
+    expect(content).toContain('    redirect :copy "backup@example.org";');
   });
 });

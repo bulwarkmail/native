@@ -47,6 +47,11 @@ vi.mock('../../api/jmap-client', () => ({
   },
 }));
 
+vi.mock('../../api/files', () => ({
+  listPrincipals: vi.fn(),
+  supportsSharing: vi.fn(() => true),
+}));
+
 vi.mock('../../api/blob', () => ({
   uploadBytes: vi.fn(),
   getBlobsAsBase64: vi.fn(),
@@ -54,6 +59,7 @@ vi.mock('../../api/blob', () => ({
 
 import * as contactsApi from '../../api/contacts';
 import * as blobApi from '../../api/blob';
+import * as filesApi from '../../api/files';
 import { jmapClient } from '../../api/jmap-client';
 import { resetContactBlobMediaRefusals } from '../../lib/contact-media';
 import * as recentApi from '../../api/recent-recipients';
@@ -407,8 +413,41 @@ describe('contacts-store', () => {
         [{ id: 'import-1', name: { full: 'A' } }, { id: 'import-2', name: { full: 'B' } }],
         'ab-1',
       );
-      expect(result).toEqual({ imported: 1, failed: 1 });
+      expect(result).toEqual({
+        imported: 1, updated: 0, failed: 1, failures: [{ name: 'B', reason: 'invalid' }],
+      });
       expect(useContactsStore.getState().contacts).toHaveLength(1);
+    });
+
+    // Re-importing the app's own export: Stalwart refuses a second card with
+    // a UID the account has ("Contact with UID ... already exists").
+    it('updates a card whose UID the account already has instead of creating it', async () => {
+      useContactsStore.setState({
+        addressBooks: [{ id: 'ab-1', name: 'P' }],
+        contacts: [card('c1', { uid: 'urn:uuid:aaa', name: { full: 'Old' } })],
+      });
+      const result = await useContactsStore.getState().importContacts(
+        [{ id: 'import-1', uid: 'urn:uuid:aaa', addressBookIds: { x: true }, name: { full: 'New' } }],
+        'ab-1',
+      );
+      expect(mockCreateContact).not.toHaveBeenCalled();
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', { name: { full: 'New' } }, undefined);
+      expect(result).toMatchObject({ imported: 0, updated: 1, failed: 0 });
+      expect(useContactsStore.getState().contacts[0].name?.full).toBe('New');
+    });
+
+    it('updates the card the server names when the list does not hold it', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockCreateContact.mockRejectedValueOnce(
+        new Error('Contact with UID urn:uuid:bbb already exists with id m. (uid)'),
+      );
+      mockGetAllContacts.mockResolvedValue([]);
+      const result = await useContactsStore.getState().importContacts(
+        [{ id: 'import-1', uid: 'urn:uuid:bbb', name: { full: 'B' } }],
+        'ab-1',
+      );
+      expect(mockUpdateContact).toHaveBeenCalledWith('m', { name: { full: 'B' } }, undefined);
+      expect(result).toMatchObject({ imported: 0, updated: 1, failed: 0, failures: [] });
     });
   });
 
@@ -420,6 +459,8 @@ describe('contacts-store', () => {
       });
       mockDeleteAddressBook.mockResolvedValue(undefined);
       await useContactsStore.getState().deleteAddressBook('ab-2');
+      // A book that still holds cards is refused without it (Stalwart 1.0).
+      expect(mockDeleteAddressBook).toHaveBeenCalledWith('ab-2', undefined, { removeContents: true });
       expect(useContactsStore.getState().addressBooks.map((b) => b.id)).toEqual(['ab-1']);
       expect(useContactsStore.getState().contacts.map((c) => c.id)).toEqual(['c1']);
     });
@@ -594,6 +635,111 @@ describe('contacts-store', () => {
       expect(mockDeleteContacts).toHaveBeenCalledWith(['t1']);
       expect(useContactsStore.getState().trustedSenderEmails).toEqual(['z@y.com']);
     });
+  });
+});
+
+describe('company directory (#1253)', () => {
+  const mockListPrincipals = filesApi.listPrincipals as ReturnType<typeof vi.fn>;
+  const principal = (id: string, name: string, email?: string) =>
+    ({ id, type: 'individual' as const, name, email });
+
+  it('lists the principals with an address', async () => {
+    mockListPrincipals.mockResolvedValue({
+      status: 'ok',
+      principals: [principal('a', 'anna', 'anna@example.org'), principal('g', 'admins'), principal('b', 'bob', 'bob@example.org')],
+    });
+    await useContactsStore.getState().fetchDirectory();
+    const s = useContactsStore.getState();
+    expect(s.directoryStatus).toBe('ready');
+    expect(s.directory.map((e) => e.email)).toEqual(['anna@example.org', 'bob@example.org']);
+  });
+
+  // Stalwart 1.0 answers forbidden while directory queries are off (its
+  // default) and hands back the principals the user knows.
+  it('keeps the known principals of a restricted listing and says why', async () => {
+    mockListPrincipals.mockResolvedValue({
+      status: 'restricted', directoryQueriesOff: true, principals: [principal('me', 'me', 'me@example.org')],
+    });
+    await useContactsStore.getState().fetchDirectory();
+    const s = useContactsStore.getState();
+    expect(s.directoryStatus).toBe('restricted');
+    expect(s.directoryQueriesOff).toBe(true);
+    expect(s.directory).toHaveLength(1);
+  });
+
+  it('looks up recipients in the loaded directory', async () => {
+    mockListPrincipals.mockResolvedValue({
+      status: 'ok', principals: [{ ...principal('a', 'anna', 'anna@example.org'), description: 'Anna Berg' }],
+    });
+    await useContactsStore.getState().fetchDirectory();
+    expect(useContactsStore.getState().lookupDirectory('berg')).toEqual([{ name: 'Anna Berg', email: 'anna@example.org' }]);
+    expect(useContactsStore.getState().lookupDirectory('zzz')).toEqual([]);
+  });
+
+  it('drops a listing that arrives after an account switch', async () => {
+    let resolve: (v: unknown) => void = () => {};
+    mockListPrincipals.mockReturnValue(new Promise((r) => { resolve = r; }));
+    const load = useContactsStore.getState().fetchDirectory();
+    useContactsStore.getState().reset();
+    resolve({ status: 'ok', principals: [principal('a', 'anna', 'anna@example.org')] });
+    await load;
+    expect(useContactsStore.getState().directory).toEqual([]);
+    expect(useContactsStore.getState().directoryStatus).toBe('idle');
+  });
+});
+
+describe('an account switch while contacts load or save', () => {
+  function deferred<T>() {
+    let resolve: (v: T) => void = () => {};
+    const promise = new Promise<T>((r) => { resolve = r; });
+    return { promise, resolve };
+  }
+
+  it('drops the previous account\'s cards that arrive after the switch', async () => {
+    const old = deferred<ContactCard[]>();
+    mockGetAllContacts.mockReturnValueOnce(old.promise);
+    const oldLoad = useContactsStore.getState().fetchContacts();
+
+    useContactsStore.getState().reset();
+    mockGetAllContacts.mockResolvedValueOnce([card('new-1')]);
+    // Not handed the old account's load still in flight.
+    await useContactsStore.getState().fetchContacts();
+    expect(mockGetAllContacts).toHaveBeenCalledTimes(2);
+
+    old.resolve([card('old-1')]);
+    await oldLoad;
+    expect(useContactsStore.getState().contacts.map((c) => c.id)).toEqual(['new-1']);
+  });
+
+  it('drops the previous account\'s address books', async () => {
+    const old = deferred<AddressBook[]>();
+    mockGetAllAddressBooks.mockReturnValueOnce(old.promise);
+    const oldLoad = useContactsStore.getState().fetchAddressBooks();
+    useContactsStore.getState().reset();
+    old.resolve([{ id: 'ab-old', name: 'Old' } as AddressBook]);
+    await oldLoad;
+    expect(useContactsStore.getState().addressBooks).toEqual([]);
+  });
+
+  it('keeps a card created for the previous account out of the next one', async () => {
+    const write = deferred<ContactCard>();
+    mockCreateContact.mockReturnValueOnce(write.promise);
+    const create = useContactsStore.getState().createContact({}, 'ab-1');
+    useContactsStore.getState().reset();
+    write.resolve(card('created-before'));
+    await expect(create).rejects.toThrow(/account changed/);
+    expect(useContactsStore.getState().contacts).toEqual([]);
+  });
+
+  it('stops an import at the switch instead of writing into the next account', async () => {
+    const first = deferred<ContactCard>();
+    mockCreateContact.mockReturnValueOnce(first.promise);
+    const run = useContactsStore.getState().importContacts([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 'ab-1');
+    useContactsStore.getState().reset();
+    first.resolve(card('imported-a'));
+    await expect(run).rejects.toThrow(/account changed/);
+    expect(mockCreateContact).toHaveBeenCalledTimes(1);
+    expect(useContactsStore.getState().contacts).toEqual([]);
   });
 });
 

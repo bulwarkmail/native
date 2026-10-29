@@ -43,6 +43,8 @@ import {
 } from '../components/contacts';
 import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
+import { DirectoryBrowser } from '../components/contacts/DirectoryBrowser';
+import { supportsSharing } from '../api/files';
 import { useSettingsStore } from '../stores/settings-store';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -135,6 +137,10 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
   const sortByLastName = useSettingsStore((s) => s.sortContactsByLastName);
 
   const [searchQuery, setSearchQuery] = React.useState('');
+  // The company directory shows in place of the list (#1253). Not a stored
+  // category: it is the server's list, not the user's contacts.
+  const [showDirectory, setShowDirectory] = React.useState(false);
+  const directoryAvailable = supportsSharing();
   const [searchActive, setSearchActive] = React.useState(false);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [selection, setSelection] = React.useState<Set<string>>(new Set());
@@ -353,7 +359,9 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
     [addressBooks, importTargetBookId],
   );
 
-  const title = categoryTitle(selectedCategory, addressBooks, groups, t);
+  const title = showDirectory
+    ? t('contacts.directory.title', 'Directory')
+    : categoryTitle(selectedCategory, addressBooks, groups, t);
 
   // Top chip row: All / per-address-book / Groups
   const chips = React.useMemo(() => {
@@ -546,17 +554,33 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
             ) : (
               <Pressable
                 key={chip.key}
-                onPress={() => setSelectedCategory(chip.category)}
-                style={[styles.chip, chip.active && styles.chipActive]}
+                onPress={() => { setShowDirectory(false); setSelectedCategory(chip.category); }}
+                style={[styles.chip, chip.active && !showDirectory && styles.chipActive]}
                 hitSlop={{ top: 6, bottom: 6 }}
                 accessibilityRole="button"
-                accessibilityState={{ selected: chip.active }}
+                accessibilityState={{ selected: chip.active && !showDirectory }}
               >
-                <Text style={[styles.chipText, chip.active && styles.chipTextActive]} numberOfLines={1}>
+                <Text style={[styles.chipText, chip.active && !showDirectory && styles.chipTextActive]} numberOfLines={1}>
                   {chip.label}
                 </Text>
               </Pressable>
             ),
+          )}
+          {directoryAvailable && (
+            <>
+              <View style={styles.chipDivider} />
+              <Pressable
+                onPress={() => setShowDirectory(true)}
+                style={[styles.chip, showDirectory && styles.chipActive]}
+                hitSlop={{ top: 6, bottom: 6 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: showDirectory }}
+              >
+                <Text style={[styles.chipText, showDirectory && styles.chipTextActive]} numberOfLines={1}>
+                  {t('contacts.directory.title', 'Directory')}
+                </Text>
+              </Pressable>
+            </>
           )}
         </ScrollView>
       )}
@@ -567,7 +591,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
         </View>
       )}
 
-      <SectionList
+      {showDirectory && !selectionMode ? <DirectoryBrowser query={searchQuery} /> : <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
@@ -621,7 +645,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
             </View>
           )
         }
-      />
+      />}
 
       <Dialog
         visible={confirmBulkDelete}

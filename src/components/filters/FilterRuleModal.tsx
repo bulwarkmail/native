@@ -14,9 +14,10 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useKeywordsStore } from '../../stores/keywords-store';
 import { generateUUID } from '../../lib/uuid';
 import {
+  comparatorsFor,
   inputStringToValue,
   isConditionValueEmpty,
-  isHasAnyCondition,
+  takesNoValue,
   valueToInputString,
 } from '../../lib/sieve/condition-value';
 import {
@@ -29,6 +30,8 @@ import {
   withMailboxTarget,
 } from '../../lib/sieve/rule-actions';
 import { isValidSieveHeaderName } from '../../lib/sieve/generator';
+import { hasPeriod } from '../../lib/sieve/period';
+import { periodError, periodFromInput, periodToInput } from '../../lib/sieve/rule-period';
 import type { Mailbox } from '../../api/types';
 import type {
   FilterRule,
@@ -41,18 +44,9 @@ import type {
 import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
-const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment'];
-const TEXT_COMPARATORS: FilterComparator[] = ['contains', 'not_contains', 'is', 'not_is', 'starts_with', 'ends_with', 'matches'];
-const SIZE_COMPARATORS: FilterComparator[] = ['greater_than', 'less_than'];
-const ATTACHMENT_COMPARATORS: FilterComparator[] = ['has_any', 'has_type'];
+const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment', 'all'];
 
-function comparatorsFor(field: FilterConditionField): FilterComparator[] {
-  if (field === 'size') return SIZE_COMPARATORS;
-  if (field === 'attachment') return ATTACHMENT_COMPARATORS;
-  return TEXT_COMPARATORS;
-}
-
-const isHasAny = isHasAnyCondition;
+const isHasAny = takesNoValue;
 
 function seedConditions(rule?: FilterRule): FilterCondition[] {
   return rule?.conditions.length ? rule.conditions.map((cond) => ({ ...cond })) : [makeEmptyCondition()];
@@ -71,18 +65,26 @@ function makeEmptyAction(): FilterAction {
 
 interface FilterRuleModalProps {
   visible: boolean;
+  /** The rule being edited. */
   rule?: FilterRule;
+  /** A new rule that starts from these values ("Create rule..." on a message). */
+  initialRule?: FilterRule;
   mailboxes: Mailbox[];
+  /** The server can confine a rule to a period (Sieve "date" and "relational"). */
+  periodsSupported?: boolean;
   onSave: (rule: FilterRule) => void;
   onClose: () => void;
 }
 
-export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: FilterRuleModalProps) {
+export function FilterRuleModal({
+  visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, onSave, onClose,
+}: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const keywords = useKeywordsStore((s) => s.keywords);
-  const isEdit = !!rule;
+  const isEdit = !!editedRule;
+  const rule = editedRule ?? initialRule;
 
   const [name, setName] = useState(rule?.name || '');
   const [matchType, setMatchType] = useState<'all' | 'any'>(rule?.matchType || 'all');
@@ -90,6 +92,10 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
   const [actions, setActions] = useState<FilterAction[]>(() => seedActions(rule));
   const [stopProcessing, setStopProcessing] = useState(rule?.stopProcessing ?? false);
   const [includeSpam, setIncludeSpam] = useState(rule?.includeSpam ?? false);
+  const hadPeriod = !!rule && hasPeriod(rule);
+  const [periodOn, setPeriodOn] = useState(hadPeriod);
+  const [periodStart, setPeriodStart] = useState(periodToInput(rule?.activeFrom));
+  const [periodEnd, setPeriodEnd] = useState(periodToInput(rule?.activeUntil));
 
   // The Modal stays mounted between opens, so re-seed every field whenever it
   // is (re)opened for a different rule - otherwise "Add Rule" after editing
@@ -103,7 +109,14 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     setActions(seedActions(rule));
     setStopProcessing(rule?.stopProcessing ?? false);
     setIncludeSpam(rule?.includeSpam ?? false);
+    setPeriodOn(!!rule && hasPeriod(rule));
+    setPeriodStart(periodToInput(rule?.activeFrom));
+    setPeriodEnd(periodToInput(rule?.activeUntil));
   }, [visible, rule]);
+
+  const activeFrom = periodOn ? periodFromInput(periodStart, rule?.activeFrom) : undefined;
+  const activeUntil = periodOn ? periodFromInput(periodEnd, rule?.activeUntil) : undefined;
+  const periodProblem = periodOn ? periodError(activeFrom, activeUntil) : null;
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
 
@@ -225,6 +238,14 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       Alert.alert(t('settings.filters.validation_empty_actions', 'At least one action is required'));
       return;
     }
+    if (periodProblem) {
+      Alert.alert(periodProblem === 'invalid'
+        ? t('settings.filters.validation_period_invalid', 'Enter a valid date with a time for the period, or leave the field empty')
+        : periodProblem === 'empty'
+          ? t('settings.filters.validation_period_empty', 'Enter a start or end date for the period')
+          : t('settings.filters.validation_period_order', 'End date must be after start date'));
+      return;
+    }
     onSave({
       id: rule?.id || generateUUID(),
       name: trimmedName,
@@ -236,8 +257,15 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       // Only folder moves are kept out of Junk, so the opt-in only means
       // something (and is only stored) while the rule has one.
       ...(includeSpam && validActions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) ? { includeSpam: true } : {}),
+      // Set to undefined when off: the settings page merges the result into
+      // the stored rule, and a field left out would keep its old value there.
+      activeFrom: activeFrom ?? undefined,
+      activeUntil: activeUntil ?? undefined,
     });
-  }, [name, conditions, actions, matchType, stopProcessing, includeSpam, rule, onSave, t, mailboxTargets]);
+  }, [
+    name, conditions, actions, matchType, stopProcessing, includeSpam, rule, onSave, t, mailboxTargets,
+    periodProblem, activeFrom, activeUntil,
+  ]);
 
   return (
     <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -332,14 +360,16 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                       />
                     )}
 
-                    <Select
-                      value={condition.comparator}
-                      onChange={(v) => updateCondition(index, { comparator: v as FilterComparator })}
-                      options={comparatorOptions(condition.field)}
-                      style={{ alignSelf: 'flex-start' }}
-                    />
+                    {condition.field !== 'all' && (
+                      <Select
+                        value={condition.comparator}
+                        onChange={(v) => updateCondition(index, { comparator: v as FilterComparator })}
+                        options={comparatorOptions(condition.field)}
+                        style={{ alignSelf: 'flex-start' }}
+                      />
+                    )}
 
-                    {/* has_any takes no value ("an attachment is present"). */}
+                    {/* has_any and "all messages" take no value. */}
                     {!isHasAny(condition) && (
                       <Input
                         value={valueToInputString(condition.value)}
@@ -493,6 +523,48 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                 />
               </View>
             )}
+
+            {/* Offered where the server supports it; a rule that already has a
+                period always shows it, so it can be removed. */}
+            {(periodsSupported || hadPeriod) && (
+              <View style={{ gap: spacing.sm }}>
+                <View style={styles.stopRow}>
+                  <Text style={styles.stopLabel}>
+                    {t('settings.filters.period_toggle', 'Only active during a period')}
+                  </Text>
+                  <ToggleSwitch
+                    checked={periodOn}
+                    onChange={setPeriodOn}
+                    accessibilityLabel={t('settings.filters.period_toggle', 'Only active during a period')}
+                  />
+                </View>
+                {periodOn && (
+                  <>
+                    <Text style={styles.optionLabel}>{t('settings.filters.period_start', 'Start date')}</Text>
+                    <Input
+                      value={periodStart}
+                      onChangeText={setPeriodStart}
+                      placeholder="YYYY-MM-DD HH:MM"
+                      accessibilityLabel={t('settings.filters.period_start', 'Start date')}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <Text style={styles.optionLabel}>{t('settings.filters.period_end', 'End date')}</Text>
+                    <Input
+                      value={periodEnd}
+                      onChangeText={setPeriodEnd}
+                      placeholder="YYYY-MM-DD HH:MM"
+                      accessibilityLabel={t('settings.filters.period_end', 'End date')}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <Text style={styles.hint}>
+                      {t('settings.filters.period_hint', 'Applies to messages that arrive during this period. Leave a field empty to keep that end open.')}
+                    </Text>
+                  </>
+                )}
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -572,6 +644,7 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.md,
     },
     optionLabel: { ...typography.body, color: c.text, flex: 1 },
+    hint: { ...typography.caption, color: c.mutedForeground },
 
     footer: {
       flexDirection: 'row',

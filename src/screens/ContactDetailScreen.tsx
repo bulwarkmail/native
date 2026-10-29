@@ -62,6 +62,7 @@ function contextLabel(key: string, t: TranslateFn): string {
 function phoneFeatureLabel(key: string, t: TranslateFn): string {
   switch (key) {
     case 'voice': return t('contacts.form.phone_voice', 'Voice');
+    case 'mobile':
     case 'cell': return t('contacts.form.phone_cell', 'Mobile');
     case 'fax': return t('contacts.form.phone_fax', 'Fax');
     case 'pager': return t('contacts.form.phone_pager', 'Pager');

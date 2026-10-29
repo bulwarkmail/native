@@ -3,8 +3,13 @@ import type {
   FilterCondition,
   FilterAction,
   FilterMetadata,
+  VacationAudience,
+  VacationForward,
   VacationSieveConfig,
 } from './types';
+import { PERIOD_REQUIRES, hasPeriod, periodTests } from './period';
+import { VACATION_FORWARD_MARKER, isValidVacationForward, normalizeVacationForward } from './vacation-forward';
+import { isValidVacationAudience, normalizeVacationAudience } from './vacation-audience';
 
 // Ported from the webmail's lib/sieve/generator.ts. Emits an RFC 5228 Sieve
 // script with a leading `@metadata` JSON comment that lets the parser round-trip
@@ -17,6 +22,9 @@ const HEADER_MAP: Record<string, string> = {
   cc: 'Cc',
   subject: 'Subject',
 };
+
+/** Fields whose header holds addresses, so the `address` test applies. */
+const ADDRESS_FIELDS = new Set<FilterCondition['field']>(['from', 'to', 'cc']);
 
 function escapeString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -34,10 +42,11 @@ export function isValidSieveHeaderName(name: string): boolean {
 /**
  * A rule's name as it appears in its `# Rule:` comment, which ends at the
  * line break: a CR or LF in the name would have turned the rest of it into
- * script. The parser matches the comment back to the rule by this form.
+ * script. Every whitespace run becomes one space, as the webmail writes it;
+ * the parser matches the comment back to the rule by this form.
  */
 export function ruleCommentName(name: string): string {
-  return name.replace(/[\r\n]+/g, ' ').trim();
+  return name.replace(/\s+/g, ' ');
 }
 
 /** A `header` condition whose name the server would refuse. */
@@ -66,9 +75,15 @@ function formatStringArg(values: string[], transform: (s: string) => string = (s
 function generateCondition(condition: FilterCondition): string {
   const { field, comparator, value } = condition;
 
+  // Every message: there is nothing to compare.
+  if (field === 'all') return 'true';
+
   if (field === 'size') {
-    // Size is numeric, single value only.
-    const sizeValue = Array.isArray(value) ? value[0] : value;
+    // Size is numeric, single value only. It is written unquoted, so
+    // anything but a number (with an optional K/M/G quantifier) would be
+    // Sieve source; fall back to 0.
+    const raw = String((Array.isArray(value) ? value[0] : value) ?? '').trim();
+    const sizeValue = /^\d+[KMG]?$/i.test(raw) ? raw : '0';
     const op = comparator === 'greater_than' ? ':over' : ':under';
     return `size ${op} ${sizeValue}`;
   }
@@ -100,7 +115,7 @@ function generateCondition(condition: FilterCondition): string {
     return `header :mime :anychild :matches ["Content-Disposition", "Content-Type"] ${formatStringArg(normalised, (ext) => `*.${ext}*`)}`;
   }
 
-  const headerName = field === 'header'
+  const rawHeaderName = field === 'header'
     ? (condition.headerName?.trim() || 'X-Unknown')
     : HEADER_MAP[field];
 
@@ -108,8 +123,21 @@ function generateCondition(condition: FilterCondition): string {
   // must never be flattened into `header :contains "undefined"`: that would
   // silently rewrite the user's rule server-side on the next save. Fail the
   // save instead so the script stays untouched.
-  if (!headerName) {
+  if (!rawHeaderName) {
     throw new Error(`Unsupported filter condition field: ${String(field)}`);
+  }
+  const headerName = escapeString(rawHeaderName);
+
+  // RFC 5228 §5.1: `address` compares the parsed address, so the display
+  // name and the angle brackets play no part. `header :contains` would let
+  // "anna@acme.com" match joanna@acme.com, and `header :matches "*@acme.com"`
+  // never matches "Anna <anna@acme.com>" because of the closing ">".
+  if (comparator === 'address_is' || comparator === 'domain_is') {
+    if (!ADDRESS_FIELDS.has(field)) {
+      throw new Error(`Unsupported filter comparator for ${String(field)}: ${comparator}`);
+    }
+    const part = comparator === 'domain_is' ? ':domain ' : '';
+    return `address ${part}:is "${headerName}" ${formatStringArg(values)}`;
   }
 
   switch (comparator) {
@@ -128,7 +156,10 @@ function generateCondition(condition: FilterCondition): string {
     case 'matches':
       return `header :matches "${headerName}" ${formatStringArg(values)}`;
     default:
-      return `header :contains "${headerName}" ${formatStringArg(values)}`;
+      // As with an unknown field: a comparator from a newer client written
+      // as `header :contains` would quietly broaden the rule ("is the
+      // address" catching every address that merely contains it).
+      throw new Error(`Unsupported filter comparator: ${String(comparator)}`);
   }
 }
 
@@ -176,6 +207,8 @@ function generateActions(actions: FilterAction[], useMailboxId: boolean): string
         return 'fileinto "INBOX";';
       case 'stop':
         return 'stop;';
+      default:
+        throw new Error(`Unsupported filter action: ${String((action as FilterAction).type)}`);
     }
   });
 }
@@ -185,7 +218,7 @@ function generateActions(actions: FilterAction[], useMailboxId: boolean): string
 const SPAM_GUARD = 'not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50"';
 const SPAM_GUARD_REQUIRES = ['spamtestplus', 'relational', 'comparator-i;ascii-numeric'];
 
-function supportsSpamGuard(extensions: string[] | undefined): boolean {
+export function supportsSpamGuard(extensions: string[] | undefined): boolean {
   return ['spamtestplus', 'relational'].every(e => extensions?.includes(e));
 }
 
@@ -216,6 +249,9 @@ function computeRequires(
   for (const rule of enabledRules) {
     if (needsSpamGuard(rule, serverExtensions)) {
       for (const e of SPAM_GUARD_REQUIRES) extensions.add(e);
+    }
+    if (periodTests(rule)?.length) {
+      for (const e of PERIOD_REQUIRES) extensions.add(e);
     }
     for (const condition of rule.conditions) {
       if (condition.field === 'body') extensions.add('body');
@@ -264,6 +300,8 @@ function stripRuleForMetadata(r: FilterRule): Omit<FilterRule, 'origin' | 'origi
     actions: r.actions,
     stopProcessing: r.stopProcessing,
     ...(r.includeSpam ? { includeSpam: true } : {}),
+    ...(r.activeFrom !== undefined ? { activeFrom: r.activeFrom } : {}),
+    ...(r.activeUntil !== undefined ? { activeUntil: r.activeUntil } : {}),
   };
 }
 
@@ -280,6 +318,16 @@ export interface GenerateOptions {
    * while the filters stay active.
    */
   includeVacation?: boolean;
+  /**
+   * Forwarding from the vacation card. Always kept in the metadata; it runs
+   * while it is switched on, with or without the auto-reply.
+   */
+  vacationForward?: VacationForward | null;
+  /**
+   * Who gets the auto-reply when not everyone should. Always kept in the
+   * metadata; it narrows the vacation include (`includeVacation`).
+   */
+  vacationAudience?: VacationAudience | null;
   /**
    * The server's `sieveExtensions`. Folder moves use `:mailboxid` when it
    * lists "mailboxid"; without it they target the folder path only.
@@ -313,6 +361,28 @@ export function generateScript(
   if (options.includeVacation) {
     metadata.includeVacation = true;
   }
+  if (options.vacationForward) {
+    if (isValidVacationForward(options.vacationForward)) {
+      metadata.vacationForward = normalizeVacationForward(options.vacationForward);
+    } else {
+      console.warn('[filters] Dropping unusable vacation forwarding');
+    }
+  }
+  if (options.vacationAudience) {
+    if (isValidVacationAudience(options.vacationAudience)) {
+      metadata.vacationAudience = normalizeVacationAudience(options.vacationAudience);
+    } else {
+      console.warn('[filters] Dropping unusable vacation audience');
+    }
+  }
+  // A build that only knows version 1 would take such a script as its own and
+  // write it back without what it does not know: a rule without its period
+  // forwards for good, the auto-reply goes to everyone. It leaves version 2
+  // alone. A forward that is off only loses its remembered address that way,
+  // so it stays version 1, as the webmail writes it.
+  if (metadata.rules.some(hasPeriod) || metadata.vacationForward?.enabled || metadata.vacationAudience) {
+    metadata.version = 2;
+  }
   // The rules ride in a `/* */` comment, which the first `*/` ends: one in a
   // rule name or value cut the metadata short and turned the rest into
   // script. JSON reads `\/` back as `/`, so every client parses it as before.
@@ -327,6 +397,19 @@ export function generateScript(
   const useMailboxId = options.extensions?.includes('mailboxid') ?? false;
   const bulwarkRequires = computeRequires(bulwarkRules, vacation, useMailboxId, options.extensions);
   if (options.includeVacation) bulwarkRequires.push('include');
+  if (options.includeVacation && metadata.vacationAudience) bulwarkRequires.push('envelope');
+
+  // Forwarding from the vacation card runs whenever it is switched on, with
+  // or without the auto-reply, ahead of every rule. A period it cannot read
+  // would let it forward for good, so then it does not run.
+  const forward = metadata.vacationForward?.enabled ? metadata.vacationForward : null;
+  const forwardPeriod = forward ? periodTests(forward) : null;
+  const forwardSpamGuard = supportsSpamGuard(options.extensions);
+  if (forward && forwardPeriod) {
+    if (forward.keepCopy) bulwarkRequires.push('copy');
+    if (forwardPeriod.length > 0) bulwarkRequires.push(...PERIOD_REQUIRES);
+    if (forwardSpamGuard) bulwarkRequires.push(...SPAM_GUARD_REQUIRES);
+  }
   const externalRequires = options.externalRequires ?? [];
   const allRequires = [...new Set([...bulwarkRequires, ...externalRequires])].sort();
 
@@ -339,7 +422,20 @@ export function generateScript(
     // the parser does not re-import it as an external rule.
     lines.push('');
     lines.push('# Vacation auto-reply');
-    lines.push(`include :personal :optional "${VACATION_SCRIPT_NAME}";`);
+    const include = `include :personal :optional "${VACATION_SCRIPT_NAME}";`;
+    const audience = metadata.vacationAudience;
+    if (audience) {
+      // Only senders from (or not from) the account's own domains. The reply
+      // goes to the envelope sender, so that is the address to judge: a From
+      // header can name a colleague on mail from anywhere, and the reply
+      // meant for colleagues would go to whoever sent it.
+      const domains = audience.domains.map(d => `"${escapeString(d)}"`).join(', ');
+      lines.push(`if ${audience.only === 'external' ? 'not ' : ''}envelope :domain :is "from" [${domains}] {`);
+      lines.push(`    ${include}`);
+      lines.push('}');
+    } else {
+      lines.push(include);
+    }
   }
 
   if (vacation?.isEnabled) {
@@ -351,6 +447,19 @@ export function generateScript(
     }
     vacationParts.push(`"${escapeString(vacation.textBody || '')}"`);
     lines.push(`vacation ${vacationParts.join(' ')};`);
+  }
+
+  if (forward && forwardPeriod) {
+    // Spam is not passed on: it stays here for the server's own handling.
+    const tests = [...forwardPeriod, ...(forwardSpamGuard ? [SPAM_GUARD] : [])];
+    const condition = tests.length === 0 ? 'true' : tests.length === 1 ? tests[0] : `allof(${tests.join(', ')})`;
+    lines.push('');
+    lines.push(VACATION_FORWARD_MARKER);
+    lines.push(`if ${condition} {`);
+    lines.push(`    redirect ${forward.keepCopy ? ':copy ' : ''}"${escapeString(forward.to)}";`);
+    // Without a copy kept here, no rule below may file it either.
+    if (!forward.keepCopy) lines.push('    stop;');
+    lines.push('}');
   }
 
   const enabledBulwarkRules = bulwarkRules.filter(r => r.enabled);
@@ -365,6 +474,13 @@ export function generateScript(
     // of" rule, so the rule sits out; the metadata keeps it for editing.
     if (rule.conditions.some(hasInvalidHeaderName)) {
       console.warn(`[filters] Skipping rule "${rule.name}": a header name the server would refuse`);
+      continue;
+    }
+    // Without its period a rule would act all the time - a forwarding rule
+    // would forward for good - so one whose period is unusable is dropped.
+    const period = periodTests(rule);
+    if (period === null) {
+      console.warn(`[filters] Skipping rule "${rule.name}": unusable period`);
       continue;
     }
 
@@ -389,13 +505,20 @@ export function generateScript(
         : `allof(${conditionStr}, ${SPAM_GUARD})`;
     }
 
+    // The period comes first: outside it, nothing else is evaluated.
+    if (period.length > 0) {
+      conditionStr = `allof(${[...period, conditionStr].join(', ')})`;
+    }
+
     const actionLines = generateActions(rule.actions, useMailboxId);
 
-    if (rule.stopProcessing) {
-      const lastAction = rule.actions[rule.actions.length - 1];
-      if (!lastAction || !['stop', 'discard', 'reject'].includes(lastAction.type)) {
-        actionLines.push('stop;');
-      }
+    // discard and reject only cancel the implicit keep (RFC 5228 4.4,
+    // RFC 5429); the script goes on, and the rules below would still act on
+    // the message. So "stop processing" always writes a stop, unless the
+    // block has one already: it runs straight through, so any stop in it ends
+    // the script.
+    if (rule.stopProcessing && !actionLines.includes('stop;')) {
+      actionLines.push('stop;');
     }
 
     lines.push(`if ${conditionStr} {`);
@@ -405,15 +528,17 @@ export function generateScript(
     lines.push('}');
   }
 
-  // Append preserved external rules verbatim. Each rawBlock already carries its
-  // own leading comments and trailing whitespace from the source script.
-  if (externalRules.length > 0) {
+  // Append preserved external rules verbatim. Each rawBlock carries its own
+  // leading comments, but also the blank lines around it in the source
+  // script; trim those and put exactly one blank line between blocks, so a
+  // save writes the same script as the one before it.
+  const externalBlocks = externalRules
+    .map((ext) => (ext.rawBlock ?? '').trim())
+    .filter((block) => block.length > 0);
+  if (externalBlocks.length > 0) {
     lines.push('');
     lines.push('# --- External rules (managed outside Bulwark) ---');
-    for (const ext of externalRules) {
-      if (!ext.rawBlock) continue;
-      lines.push(ext.rawBlock.replace(/\s+$/, ''));
-    }
+    lines.push(externalBlocks.join('\n\n'));
   }
 
   lines.push('');

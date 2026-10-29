@@ -174,6 +174,41 @@ describe('contacts operations', () => {
       const result = await getContacts(['c1']);
       expect(result).toEqual(contacts);
     });
+
+    it('reads the calendar and scheduling links into the form fields', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['ContactCard/get', { list: [{
+          id: 'c1',
+          calendars: { cal: { kind: 'calendar', uri: 'https://cal' } },
+          schedulingAddresses: { s: { uri: 'mailto:s@x' } },
+        }] }, '0']],
+      });
+      const [card] = await getContacts(['c1']);
+      expect(card).toMatchObject({ calendarUri: 'https://cal', schedulingUri: 'mailto:s@x' });
+    });
+  });
+
+  // Stalwart refuses the whole card over calendarUri ("Invalid property.").
+  describe('calendar, scheduling and free/busy links', () => {
+    it('creates them as RFC 9553 calendars and scheduling addresses', async () => {
+      mockRequest
+        .mockResolvedValueOnce({ methodResponses: [['ContactCard/set', { created: { 'new-contact': { id: 'c-new' } } }, '0']] })
+        .mockResolvedValueOnce({ methodResponses: [['ContactCard/get', { list: [] }, '0']] });
+      await createContact({ name: { full: 'A' }, calendarUri: 'https://cal', freeBusyUri: 'https://fb', schedulingUri: 'mailto:a@x' }, 'ab-1');
+      const create = mockRequest.mock.calls[0][0][0][1].create['new-contact'];
+      expect(create).not.toHaveProperty('calendarUri');
+      expect(create).not.toHaveProperty('freeBusyUri');
+      expect(create).not.toHaveProperty('schedulingUri');
+      expect(Object.keys(create.calendars)).toEqual(['cal', 'fb']);
+      expect(create.schedulingAddresses.sched.uri).toBe('mailto:a@x');
+    });
+
+    it('clears them on an update', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['ContactCard/set', { updated: { c1: null } }, '0']] });
+      await updateContact('c1', { calendarUri: null, schedulingUri: null } as never);
+      const patch = mockRequest.mock.calls[0][0][0][1].update.c1;
+      expect(patch).toEqual({ calendars: null, schedulingAddresses: null });
+    });
   });
 
   describe('getAllContacts', () => {
@@ -445,6 +480,15 @@ describe('contacts operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].destroy).toEqual(['ab-1']);
+      expect(call[1]).not.toHaveProperty('onDestroyRemoveContents');
+    });
+
+    it('takes the cards along when asked (RFC 9610 addressBookHasContents)', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { destroyed: ['ab-1'] }, '0']],
+      });
+      await deleteAddressBook('ab-1', undefined, { removeContents: true });
+      expect(mockRequest.mock.calls[0][0][0][1].onDestroyRemoveContents).toBe(true);
     });
 
     it('throws when destroy fails', async () => {

@@ -372,8 +372,9 @@ describe('inlineContactMediaForExport', () => {
     expect(out[1].media).toEqual({ photo: { kind: 'photo', mediaType: 'image/png', uri: 'data:image/png;base64,iVBORw0KGgo=' } });
 
     const vcf = contactsToVCard(out);
-    expect(vcf).toContain(`PHOTO;ENCODING=b;TYPE=image/jpeg:${Buffer.from(JPEG_BYTES).toString('base64')}`);
-    expect(vcf).toContain('PHOTO;ENCODING=b;TYPE=image/png:iVBORw0KGgo=');
+    const unfolded = vcf.replace(/\r\n /g, '');
+    expect(unfolded).toContain(`PHOTO:data:image/jpeg;base64,${Buffer.from(JPEG_BYTES).toString('base64')}`);
+    expect(unfolded).toContain('PHOTO:data:image/png;base64,iVBORw0KGgo=');
     expect(mockFetchBlob).not.toHaveBeenCalled();
   });
 

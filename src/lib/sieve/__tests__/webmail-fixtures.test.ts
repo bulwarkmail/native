@@ -9,9 +9,13 @@ import { generateScript } from '../generator';
 import { parseScript } from '../parser';
 import { readWebmailFixture, readWebmailResave, WEBMAIL_FIXTURES } from './fixtures/webmail';
 
-function metadataRules(script: string): unknown[] {
+function metadata(script: string): Record<string, unknown> {
   const match = script.match(/@metadata:begin\n(.*)\n@metadata:end/);
-  return JSON.parse(match![1]).rules;
+  return JSON.parse(match![1]);
+}
+
+function metadataRules(script: string): unknown[] {
+  return metadata(script).rules as unknown[];
 }
 
 // Blank lines carry no meaning in Sieve.
@@ -27,6 +31,8 @@ describe('scripts written by the webmail', () => {
       const regenerated = generateScript(parsed.rules, parsed.vacation, {
         externalRequires: parsed.externalRequires,
         includeVacation: parsed.includeVacation,
+        vacationForward: parsed.vacationForward,
+        vacationAudience: parsed.vacationAudience,
         extensions,
       });
 
@@ -34,6 +40,13 @@ describe('scripts written by the webmail', () => {
         expect(parsed.isOpaque).toBe(false);
         const bulwark = parsed.rules.filter((r) => !r.origin || r.origin === 'bulwark');
         expect(bulwark).toEqual(metadataRules(script));
+      });
+
+      it('keeps the vacation forwarding and audience the webmail stored', () => {
+        const stored = metadata(script);
+        expect(parsed.vacationForward).toEqual(stored.vacationForward);
+        expect(parsed.vacationAudience).toEqual(stored.vacationAudience);
+        expect(metadata(regenerated)).toEqual(stored);
       });
 
       it('saves back what the webmail would save', () => {

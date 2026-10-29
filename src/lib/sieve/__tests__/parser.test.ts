@@ -42,11 +42,53 @@ describe('parseScript', () => {
     expect(result.rules).toEqual([]);
   });
 
-  it('returns isOpaque for version mismatch', () => {
-    const script = '/* @metadata:begin\n{"version":2,"rules":[]}\n@metadata:end */';
+  it('returns isOpaque for a metadata version it does not know', () => {
+    const script = '/* @metadata:begin\n{"version":3,"rules":[]}\n@metadata:end */';
     const result = parseScript(script);
     expect(result.isOpaque).toBe(true);
     expect(result.rules).toEqual([]);
+  });
+
+  // Webmail 1.13+ writes version 2 once a rule has a period or the vacation
+  // card forwards or narrows its recipients (#1152).
+  it('reads version 2 metadata as its own', () => {
+    const script = '/* @metadata:begin\n{"version":2,"rules":[]}\n@metadata:end */';
+    const result = parseScript(script);
+    expect(result.isOpaque).toBe(false);
+    expect(result.rules).toEqual([]);
+  });
+
+  it('keeps a rule period and the vacation forwarding and audience through a save', () => {
+    const rule = makeRule({ activeFrom: '2026-11-02T07:00:00.000Z', activeUntil: '2026-11-13T17:30:00.000Z' });
+    const vacationForward = { enabled: true, to: 'backup@example.org', keepCopy: true, activeUntil: '2026-11-14T00:00:00.000Z' };
+    const vacationAudience = { only: 'external' as const, domains: ['example.org'] };
+    const script = generateScript([rule], undefined, { includeVacation: true, vacationForward, vacationAudience });
+    expect(script).toContain('{"version":2,');
+    const parsed = parseScript(script);
+    expect(parsed.isOpaque).toBe(false);
+    expect(parsed.rules[0]).toMatchObject({ activeFrom: rule.activeFrom, activeUntil: rule.activeUntil });
+    expect(parsed.vacationForward).toEqual(vacationForward);
+    expect(parsed.vacationAudience).toEqual(vacationAudience);
+    expect(generateScript(parsed.rules, parsed.vacation, {
+      includeVacation: parsed.includeVacation,
+      vacationForward: parsed.vacationForward,
+      vacationAudience: parsed.vacationAudience,
+    })).toBe(script);
+  });
+
+  it('treats a script with an unreadable rule period as hand-edited', () => {
+    const script = '/* @metadata:begin\n' + JSON.stringify({ version: 2, rules: [makeRule({ activeFrom: 'next monday' })] }) + '\n@metadata:end */';
+    expect(parseScript(script).isOpaque).toBe(true);
+  });
+
+  // #1153: the comment collapses the run of spaces; compared as written the
+  // rule came back as someone else's, one more copy on every save.
+  it('matches a rule whose name has a run of spaces to its comment', () => {
+    const script = generateScript([makeRule({ name: 'Foo  Bar\tBaz' })]);
+    expect(script).toContain('# Rule: Foo Bar Baz');
+    const parsed = parseScript(script);
+    expect(parsed.rules).toHaveLength(1);
+    expect(parsed.rules[0].origin).toBeUndefined();
   });
 
   it('returns isOpaque for empty metadata block', () => {
