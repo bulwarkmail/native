@@ -1,6 +1,8 @@
 import type { FileNode } from './types';
+import { jmapClient } from './jmap-client';
 import {
-  createFolder, deleteFileNodes, destroyEmptyFolders, getAllFileNodes, isCrossAccountId, updateFileNodes,
+  createFolder, deleteFileNodes, destroyEmptyFolders, filesAccountId, getAllFileNodes, isCrossAccountId,
+  updateFileNodes,
 } from './files';
 import { JMAPSetError } from './jmap-result';
 import { getUniqueName } from '../lib/filenode-name';
@@ -20,6 +22,44 @@ export interface TrashWriteResult {
   done: TrashedItem[];
   /** The server's refusals of the rest. */
   refused: JMAPSetError[];
+}
+
+/**
+ * The drive a write went to: the login (server and user) and its files
+ * account. Every write resolves the account when it is sent, and node ids
+ * repeat across accounts and servers, so a write prepared for one drive
+ * must not go out once another is signed in.
+ */
+export interface TrashDrive {
+  server: string | null;
+  username: string | null;
+  accountId: string;
+}
+
+export function currentTrashDrive(): TrashDrive {
+  return { server: jmapClient.serverUrl, username: jmapClient.username, accountId: filesAccountId() };
+}
+
+function isCurrentDrive(drive: TrashDrive): boolean {
+  const now = currentTrashDrive();
+  return now.server === drive.server && now.username === drive.username && now.accountId === drive.accountId;
+}
+
+/** Thrown before a write would go to another drive than the one it was prepared for. */
+export class TrashDriveChangedError extends Error {
+  constructor() {
+    super('Another account is signed in');
+    this.name = 'TrashDriveChangedError';
+  }
+}
+
+function assertDrive(drive: TrashDrive | undefined): void {
+  if (drive && !isCurrentDrive(drive)) throw new TrashDriveChangedError();
+}
+
+/** A delete into the trash, with the drive it went to (for its undo). */
+export interface TrashMoveResult extends TrashWriteResult {
+  drive: TrashDrive;
 }
 
 /** The trash folder, created on the first delete. */
@@ -47,14 +87,15 @@ async function removeEmptyBatches(nodes: FileNode[], batchIds: Iterable<string>,
  * Move nodes of the user's own drive into the trash: one trash folder per
  * folder they came from, named after the time and that folder, like the
  * webmail does. A node of a shared drive can't go there; delete it instead.
- * Throws when nothing went.
+ * Stops once another account is signed in. Throws when nothing went.
  */
 export async function moveToTrash(
   nodes: FileNode[],
   targets: FileNode[],
   deletedAt: number = Date.now(),
-): Promise<TrashWriteResult> {
-  const result: TrashWriteResult = { done: [], refused: [] };
+): Promise<TrashMoveResult> {
+  const drive = currentTrashDrive();
+  const result: TrashMoveResult = { done: [], refused: [], drive };
   if (targets.length === 0) return result;
   if (targets.some((n) => n.isShared || isCrossAccountId(n.id))) {
     throw new JMAPSetError('forbidden', 'Files of a shared drive cannot be moved to the trash');
@@ -74,12 +115,15 @@ export async function moveToTrash(
       // The trash on screen may be gone (emptied on another device): read
       // the drive again and try once more.
       trash = await ensureTrashFolder(await getAllFileNodes());
+      assertDrive(drive);
       return createFolder(name, trash.id);
     }
   };
 
   for (const [parentId, group] of groups) {
+    if (!isCurrentDrive(drive)) break;
     const batch = await createBatch(parentId);
+    if (!isCurrentDrive(drive)) break;
     const update = await updateFileNodes(Object.fromEntries(group.map((n) => [n.id, { parentId: batch.id }])));
     const moved = new Set(update.updated);
     result.refused.push(...Object.values(update.notUpdated));
@@ -92,6 +136,7 @@ export async function moveToTrash(
     }
   }
   if (result.done.length === 0) {
+    assertDrive(drive);
     throw result.refused[0] ?? new JMAPSetError('setError', 'Failed to move to the trash');
   }
   return result;
@@ -105,12 +150,16 @@ export async function moveToTrash(
  * The drive is read again first, and that is what counts: the listing on
  * screen (for an undo, the one from before the delete) misses a folder
  * trashed since and a name taken since. Items no longer in the trash are left
- * where they are. Throws when nothing of what is still there went.
+ * where they are. Throws when nothing of what is still there went, and
+ * TrashDriveChangedError, with nothing sent, once `drive` is no longer the
+ * one signed in.
  */
-export async function restoreFromTrash(items: TrashedItem[]): Promise<TrashWriteResult> {
+export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive): Promise<TrashWriteResult> {
   const result: TrashWriteResult = { done: [], refused: [] };
   if (items.length === 0) return result;
+  assertDrive(drive);
   const nodes = await getAllFileNodes();
+  assertDrive(drive);
   const trash = findTrashFolder(nodes);
   const hidden = trashSubtreeIds(nodes, trash?.id);
   // The items as the trash holds them now: their name and trash folder may
@@ -146,6 +195,7 @@ export async function restoreFromTrash(items: TrashedItem[]): Promise<TrashWrite
     updates[item.node.id] = name === item.node.name ? { parentId: target } : { parentId: target, name };
     targets.set(item.node.id, target);
   }
+  assertDrive(drive);
   const update = await updateFileNodes(updates);
   result.refused.push(...Object.values(update.notUpdated));
   const restored = new Set(update.updated);
@@ -156,8 +206,24 @@ export async function restoreFromTrash(items: TrashedItem[]): Promise<TrashWrite
     const name = updates[item.node.id].name ?? item.node.name;
     result.done.push({ ...item, node: { ...item.node, name, parentId: targets.get(item.node.id) ?? null } });
   }
-  await removeEmptyBatches(nodes, result.done.flatMap((i) => (i.batchId ? [i.batchId] : [])), restored);
+  if (!drive || isCurrentDrive(drive)) {
+    await removeEmptyBatches(nodes, result.done.flatMap((i) => (i.batchId ? [i.batchId] : [])), restored);
+  }
   return result;
+}
+
+/**
+ * Undo of a delete into the trash (see restoreFromTrash). Null, and nothing
+ * sent, once another account or server is signed in than the one the delete
+ * went to: the same ids name other files there.
+ */
+export async function undoMoveToTrash(moved: Pick<TrashMoveResult, 'done' | 'drive'>): Promise<TrashWriteResult | null> {
+  try {
+    return await restoreFromTrash(moved.done, moved.drive);
+  } catch (err) {
+    if (err instanceof TrashDriveChangedError) return null;
+    throw err;
+  }
 }
 
 /**

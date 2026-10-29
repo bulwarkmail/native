@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
+    serverUrl: 'https://mail.example.org',
+    username: 'me@example.org',
     request: vi.fn(),
     hasCapability: vi.fn(() => true),
     hasAccountCapability: vi.fn(() => false),
@@ -19,7 +21,7 @@ vi.mock('../jmap-client', () => ({
 
 import { jmapClient } from '../jmap-client';
 import type { FileNode } from '../types';
-import { emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash } from '../files-trash';
+import { emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash } from '../files-trash';
 import { trashedItems } from '../../lib/files-trash';
 
 // A Stalwart-like FileNode store for the user's own account: destroy without
@@ -83,7 +85,15 @@ function serve(method: string, args: Record<string, any>) {
 const listed = (): FileNode[] => store.map((n) => ({ ...n, type: n.type ?? '' }) as FileNode);
 const byId = (id: string) => store.find((n) => n.id === id);
 
+// Who is signed in: another login, or another files account of it.
+const client = jmapClient as unknown as { username: string; currentSession: { primaryAccounts: Record<string, string> } };
+function signIn(username: string, filesAccount = 'acc-1') {
+  client.username = username;
+  client.currentSession.primaryAccounts['urn:ietf:params:jmap:filenode'] = filesAccount;
+}
+
 beforeEach(() => {
+  signIn('me@example.org');
   nextId = 1;
   calls = [];
   refuseUpdate = new Set();
@@ -255,6 +265,63 @@ describe('restoreFromTrash', () => {
     expect(done).toEqual([]);
     expect(calls.slice(sent).filter((c) => c.update)).toEqual([]);
     expect(byId('a')!.parentId).toBe('top-dir');
+  });
+});
+
+describe('undoMoveToTrash', () => {
+  it('puts the items back while the same drive is signed in', async () => {
+    const before = listed();
+    const moved = await moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007);
+    expect((await undoMoveToTrash(moved))?.done).toHaveLength(1);
+    expect(byId('a')).toMatchObject({ parentId: 'docs' });
+  });
+
+  it('sends nothing once another login is signed in, whose ids may be the same', async () => {
+    const before = listed();
+    const moved = await moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007);
+    signIn('other@example.org');
+    const sent = calls.length;
+    const requests = (jmapClient.request as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(await undoMoveToTrash(moved)).toBeNull();
+    expect(calls.length).toBe(sent);
+    expect((jmapClient.request as ReturnType<typeof vi.fn>).mock.calls.length).toBe(requests);
+    expect(byId(byId('a')!.parentId!)!.name).toBe('1730112000007~docs');
+  });
+
+  it('sends nothing once the login reads another files account', async () => {
+    const before = listed();
+    const moved = await moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007);
+    signIn('me@example.org', 'acc-3');
+    const sent = calls.length;
+    expect(await undoMoveToTrash(moved)).toBeNull();
+    expect(calls.length).toBe(sent);
+  });
+
+  it('stops before the restore when the account changes while the drive is read', async () => {
+    const before = listed();
+    const moved = await moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007);
+    const real = (jmapClient.request as ReturnType<typeof vi.fn>).getMockImplementation() as (c: any[]) => Promise<unknown>;
+    (jmapClient.request as ReturnType<typeof vi.fn>).mockImplementation(async (methodCalls: any[]) => {
+      const out = await real(methodCalls);
+      if (methodCalls[0][0] === 'FileNode/get') signIn('other@example.org');
+      return out;
+    });
+    const sent = calls.length;
+    expect(await undoMoveToTrash(moved)).toBeNull();
+    expect(calls.length).toBe(sent);
+  });
+
+  it('stops a delete whose account changes before its items are moved', async () => {
+    const before = listed();
+    const real = (jmapClient.request as ReturnType<typeof vi.fn>).getMockImplementation() as (c: any[]) => Promise<unknown>;
+    (jmapClient.request as ReturnType<typeof vi.fn>).mockImplementation(async (methodCalls: any[]) => {
+      const out = await real(methodCalls);
+      if (methodCalls[0][1].create) signIn('other@example.org');
+      return out;
+    });
+    await expect(moveToTrash(before, before.filter((n) => n.id === 'a'), 1730112000007)).rejects.toThrow('Another account');
+    expect(calls.some((c) => c.update)).toBe(false);
+    expect(byId('a')!.parentId).toBe('docs');
   });
 });
 

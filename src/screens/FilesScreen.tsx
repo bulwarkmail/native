@@ -51,7 +51,9 @@ import {
   getFileNameRules, getFileNodeDownloadUrl, getMaxSizeUpload, isFolder,
   isSymlink, listFolder, moveFileNode, renameFileNode, supportsSharing, uploadFileBatch,
 } from '../api/files';
-import { emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash } from '../api/files-trash';
+import {
+  emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash, type TrashMoveResult,
+} from '../api/files-trash';
 import { trashOriginPath, trashedItems, withoutTrash, type TrashedItem } from '../lib/files-trash';
 import { toast } from '../stores/toast-store';
 import { jmapClient } from '../api/jmap-client';
@@ -317,12 +319,16 @@ export default function FilesScreen() {
   // (another port, or Stalwart reinstalled there), which the account id does
   // not tell. Every new session reads the drive again.
   const driveRef = useRef<DriveScope | undefined>(undefined);
+  const undoToastRef = useRef<string | null>(null);
   useEffect(() => {
     const { action, scope } = driveChange(driveRef.current, activeAccountId, session);
     driveRef.current = scope;
     if (action === 'keep') return;
     if (action === 'reset') {
       uploadAbortRef.current?.abort();
+      // The last delete's Undo belongs to the previous drive.
+      if (undoToastRef.current) toast.dismiss(undoToastRef.current);
+      undoToastRef.current = null;
       setAllNodes([]);
       setPath([]);
       setInTrash(false);
@@ -745,11 +751,14 @@ export default function FilesScreen() {
   }, [uploading, currentParentId, allNodes, loadFiles, t]);
 
   // Undo of a delete: the items go back from the trash the way Restore puts
-  // them back, judged against the drive as it is by then.
-  const undoTrash = useCallback(async (items: TrashedItem[]) => {
+  // them back, judged against the drive as it is by then. Nothing happens
+  // once another account is signed in (see undoMoveToTrash).
+  const undoTrash = useCallback(async (moved: TrashMoveResult) => {
+    undoToastRef.current = null;
     try {
-      const { done } = await restoreFromTrash(items);
-      if (done.length > 0) toast.success(t('files.undo_success', 'Action undone'));
+      const result = await undoMoveToTrash(moved);
+      if (!result) return;
+      if (result.done.length > 0) toast.success(t('files.undo_success', 'Action undone'));
     } catch (e) {
       toast.error(t('files.undo_error', 'Failed to undo'), fileErrorMessage(e, t));
     }
@@ -763,14 +772,15 @@ export default function FilesScreen() {
     clearSelection();
     const listing = allNodes;
     try {
-      const { done, refused } = await moveToTrash(listing, rows);
+      const moved = await moveToTrash(listing, rows);
+      const { done, refused } = moved;
       await loadFiles('refresh');
       if (refused.length > 0) {
         Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(refused[0], t));
       }
-      toast.success(
+      undoToastRef.current = toast.success(
         t('files.moved_to_trash', '{count, plural, one {Moved to trash} other {# items moved to trash}}', { count: done.length }),
-        { action: { label: t('files.undo', 'Undo'), onPress: () => void undoTrash(done) } },
+        { action: { label: t('files.undo', 'Undo'), onPress: () => void undoTrash(moved) } },
       );
     } catch (e) {
       Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
