@@ -21,7 +21,7 @@ vi.mock('../filter-store', () => ({
 import * as vacation from '../../api/vacation';
 import * as sieve from '../../api/sieve';
 import * as filters from '../filter-store';
-import { useVacationStore } from '../vacation-store';
+import { useVacationStore, VacationFiltersError } from '../vacation-store';
 
 const api = vi.mocked(vacation);
 const sieveApi = vi.mocked(sieve);
@@ -162,6 +162,21 @@ describe('vacation-store and the filters script (webmail 198a3c0d)', () => {
     expect(filterStore.syncVacationWithFilters).toHaveBeenCalledWith(
       false, undefined, forward, audience, { from: '2026-11-02T08:00:00Z', until: '2026-11-14T00:00:00Z' },
     );
+  });
+
+  // Turning the auto-reply on activates Stalwart's vacation script, which
+  // switches the filters off until the filters script includes it.
+  it('reports filters left off when the auto-reply was turned on', async () => {
+    sieveApi.isSieveSupported.mockReturnValue(true);
+    filterStore.syncVacationWithFilters.mockRejectedValueOnce(new Error('boom'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const saved = useVacationStore.getState().save({ isEnabled: true });
+    await expect(saved).rejects.toBeInstanceOf(VacationFiltersError);
+    await expect(saved).rejects.toMatchObject({ filtersOff: true });
+    expect(api.setVacationResponse).toHaveBeenCalledWith({ isEnabled: true }, undefined);
+    expect(useVacationStore.getState()).toMatchObject({ isEnabled: true, isSaving: false });
+    warn.mockRestore();
   });
 
   it('reports a forwarding that could not be saved', async () => {

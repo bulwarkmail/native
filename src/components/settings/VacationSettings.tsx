@@ -192,7 +192,9 @@ export function VacationSettings() {
       Alert.alert(t('notifications.vacation_saved', 'Vacation responder settings saved'));
     } catch (err) {
       Alert.alert(
-        err instanceof VacationFiltersError
+        err instanceof VacationFiltersError && err.filtersOff
+          ? t('notifications.vacation_filters_off', 'Out of office settings saved, but your filters are switched off. Save again to turn them back on.')
+          : err instanceof VacationFiltersError
           ? t('notifications.vacation_filters_save_failed', 'Out of office settings saved, but the forwarding and reply recipients could not be saved')
           : t('notifications.vacation_save_failed', 'Failed to save vacation responder settings'),
         err instanceof Error ? err.message : undefined,

@@ -19,9 +19,17 @@ export type VacationForwardSettings = Pick<VacationForward, 'enabled' | 'to' | '
  * or still run, and the auto-reply may go to the wrong senders.
  */
 export class VacationFiltersError extends Error {
-  constructor(cause: unknown) {
+  /**
+   * The auto-reply was turned on and the filters script could not be made
+   * to run next to it: Stalwart's vacation script took over, and no filter
+   * runs until the card is saved again.
+   */
+  readonly filtersOff: boolean;
+
+  constructor(cause: unknown, filtersOff = false) {
     super(cause instanceof Error ? cause.message : 'Failed to save the forwarding');
     this.name = 'VacationFiltersError';
+    this.filtersOff = filtersOff;
   }
 }
 
@@ -169,6 +177,9 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     let filtersError: VacationFiltersError | null = null;
     let filtersState: Partial<VacationState> = {};
     const needsSync = vacationUpdates.isEnabled !== undefined || forwardSettings !== undefined || audience !== undefined;
+    // Turning the auto-reply on activates Stalwart's vacation script, which
+    // switches the filters off until the sync includes it in them again.
+    const turnedOn = vacationUpdates.isEnabled === true;
     if (needsSync && isSieveSupported(accountId)) {
       let synced = false;
       try {
@@ -180,9 +191,9 @@ export const useVacationStore = create<VacationState>((set, get) => ({
         console.warn('[vacation] Failed to keep filters active next to the vacation response:', err);
         // Forwarding that is or was on may now not run, or still run; an
         // auto-reply meant for some senders may go to everyone, or the other
-        // way round.
-        if (forwardSettings?.enabled || state.forward?.enabled || audience || state.audience) {
-          filtersError = new VacationFiltersError(err);
+        // way round; the filters may be off.
+        if (turnedOn || forwardSettings?.enabled || state.forward?.enabled || audience || state.audience) {
+          filtersError = new VacationFiltersError(err, turnedOn);
         }
       }
       // What the filters script holds now, and whether it runs. After a

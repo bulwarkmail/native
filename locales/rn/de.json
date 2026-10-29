@@ -616,6 +616,9 @@
       "your_server": "Ihrem Server"
     }
   },
+  "notifications": {
+    "vacation_filters_off": "Abwesenheits-Einstellungen gespeichert, aber Ihre Filter sind ausgeschaltet. Speichern Sie noch einmal, um sie wieder einzuschalten."
+  },
   "offline": {
     "banner": "Sie sind offline",
     "discarded_changes": "{count, plural, one {# Offline-Änderung wurde} other {# Offline-Änderungen wurden}} verworfen, weil sich der Mailserver geändert hat",

@@ -661,6 +661,9 @@
       "your_server": "your server"
     }
   },
+  "notifications": {
+    "vacation_filters_off": "Out of office settings saved, but your filters are switched off. Save again to turn them back on."
+  },
   "offline": {
     "banner": "You are offline",
     "discarded_changes": "{count, plural, one {# offline change was} other {# offline changes were}} discarded because the mail server changed",
