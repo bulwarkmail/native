@@ -38,6 +38,7 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import * as calendarApi from '../../api/calendar';
+import { jmapClient } from '../../api/jmap-client';
 import { JMAPMethodError } from '../../api/jmap-result';
 import {
   useCalendarStore,
@@ -381,6 +382,58 @@ describe('calendar-store', () => {
 
       expect(mockGetCalendars).toHaveBeenCalled();
       expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
+    });
+
+    it('marks an account without calendars as loaded', async () => {
+      mockGetCalendars.mockResolvedValue([]);
+
+      await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+
+      expect(useCalendarStore.getState().loadedRange).toEqual({ after: '2026-03-01', before: '2026-03-31' });
+    });
+
+    it('leaves the range unloaded when the calendars fail to load, so the next call tries again', async () => {
+      mockGetCalendars.mockRejectedValueOnce(new Error('Network request failed'));
+
+      await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+      expect(useCalendarStore.getState().loadedRange).toBeNull();
+
+      mockGetCalendars.mockResolvedValueOnce([{ id: 'cal-1', name: 'Personal' }]);
+      mockQueryEvents.mockResolvedValue([]);
+      await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
+    });
+
+    it('leaves the range unloaded without a session (an account loading)', async () => {
+      const client = jmapClient as { isConnected: boolean };
+      client.isConnected = false;
+      try {
+        await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
+        await useCalendarStore.getState().extendRange('2026-03-01', '2026-03-31');
+      } finally {
+        client.isConnected = true;
+      }
+      expect(useCalendarStore.getState().loadedRange).toBeNull();
+      expect(mockGetCalendars).not.toHaveBeenCalled();
+    });
+
+    it.each(['ensureRange', 'extendRange'] as const)('marks nothing loaded for the next account when a reset overtakes the calendar load (%s)', async (action) => {
+      let resolveCalendars: (v: unknown) => void = () => {};
+      mockGetCalendars.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveCalendars = resolve; }),
+      );
+      if (action === 'extendRange') {
+        // A cold start: the window was cached, the calendars not yet loaded.
+        useCalendarStore.setState({ loadedRange: { after: '2026-02-01', before: '2026-03-01' } });
+      }
+      const load = useCalendarStore.getState()[action]('2026-03-01', '2026-03-31');
+
+      useCalendarStore.getState().reset();
+      resolveCalendars([]);
+      await load;
+
+      expect(useCalendarStore.getState().loadedRange).toBeNull();
+      expect(useCalendarStore.getState().calendars).toEqual([]);
     });
   });
 

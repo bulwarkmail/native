@@ -299,8 +299,8 @@ export interface CalendarState {
   reset: () => void;
 }
 
-// In-flight dedupe for the two whole-account loads (see fetchCalendars).
-let calendarsInFlight: Promise<void> | null = null;
+// In-flight dedupe for the two whole-account loads (see loadCalendarList).
+let calendarsInFlight: Promise<boolean> | null = null;
 let tasksInFlight: Promise<void> | null = null;
 
 // One up with every reset (an account switch, a sign-out). A load still under
@@ -321,6 +321,42 @@ export class CalendarAccountChangedError extends Error {
     super('The calendar was reset while its events were loading');
     this.name = 'CalendarAccountChangedError';
   }
+}
+
+/**
+ * fetchCalendars: load the calendar list into the store. True when it did;
+ * false without a session, when the request failed, or when a reset overtook
+ * it - the range loads then leave their range unloaded, so the next one
+ * tries again.
+ */
+function loadCalendarList(): Promise<boolean> {
+  // CalendarScreen fires this on mount; on cold start that happens before
+  // restoreSession has connected jmapClient. Bail rather than surfacing
+  // a "Not authenticated" error - the refetch driven by the auth-store
+  // will run this again once the session is live.
+  if (!jmapClient.isConnected) return Promise.resolve(false);
+  // First-touch gate (#907): the screen mount, ensureRange and the
+  // auth-store all kick this off at once, and on a clustered Stalwart
+  // concurrent first Calendar/* requests can each lazily create a default
+  // calendar. Share one in-flight request instead.
+  if (calendarsInFlight) return calendarsInFlight;
+  const generation = storeGeneration;
+  const set = useCalendarStore.setState;
+  calendarsInFlight = (async () => {
+    try {
+      const calendars = sortCalendars((await fetchCalendars()) ?? []);
+      if (generation !== storeGeneration) return false;
+      set({ calendars });
+      return true;
+    } catch (err) {
+      if (generation === storeGeneration) set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
+      return false;
+    } finally {
+      // After a reset the slot belongs to the next account's load.
+      if (generation === storeGeneration) calendarsInFlight = null;
+    }
+  })();
+  return calendarsInFlight;
 }
 
 function persistHidden(ids: string[]): void {
@@ -737,29 +773,7 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   fetchCalendars: async () => {
-    // CalendarScreen fires this on mount; on cold start that happens before
-    // restoreSession has connected jmapClient. Bail rather than surfacing
-    // a "Not authenticated" error - the refetch driven by the auth-store
-    // will run this again once the session is live.
-    if (!jmapClient.isConnected) return;
-    // First-touch gate (#907): the screen mount, ensureRange and the
-    // auth-store all kick this off at once, and on a clustered Stalwart
-    // concurrent first Calendar/* requests can each lazily create a default
-    // calendar. Share one in-flight request instead.
-    if (calendarsInFlight) return calendarsInFlight;
-    const generation = storeGeneration;
-    calendarsInFlight = (async () => {
-      try {
-        const calendars = sortCalendars((await fetchCalendars()) ?? []);
-        if (generation === storeGeneration) set({ calendars });
-      } catch (err) {
-        if (generation === storeGeneration) set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
-      } finally {
-        // After a reset the slot belongs to the next account's load.
-        if (generation === storeGeneration) calendarsInFlight = null;
-      }
-    })();
-    return calendarsInFlight;
+    await loadCalendarList();
   },
 
   fetchEvents: async (calendarIds, after, before) => {
@@ -832,11 +846,19 @@ export const useCalendarStore = create<CalendarState>()(
     const { loadedRange } = get();
     if (loadedRange && rangeCovers(loadedRange, after, before)) return;
 
+    // Taken before the calendars load: a reset meanwhile (an account switch)
+    // makes this range the previous account's.
+    const generation = storeGeneration;
+    if (!jmapClient.isConnected) return;
+
     // Queries are windowed now, so load exactly the requested range instead
     // of an ever-growing union (which re-downloaded everything each time).
     if (get().calendars.length === 0) {
       // Calendars haven't loaded yet - fetch them (deduped), then events.
-      await get().fetchCalendars();
+      // A list that didn't load (no session any more, a failed request)
+      // leaves the range unloaded: marked loaded, it stayed empty.
+      const listed = await loadCalendarList();
+      if (generation !== storeGeneration || !listed) return;
     }
     const calendarIds = get().calendars.map((c) => c.id);
     if (calendarIds.length === 0) {
@@ -845,6 +867,7 @@ export const useCalendarStore = create<CalendarState>()(
     }
     const needTasks = get().tasks.length === 0 && get().taskOnlyCalendarIds.length === 0;
     await get().fetchEvents(calendarIds, after, before);
+    if (generation !== storeGeneration) return;
     if (needTasks) void get().fetchTasks();
   },
 
@@ -861,17 +884,22 @@ export const useCalendarStore = create<CalendarState>()(
       await get().ensureRange(after, before);
       return;
     }
+    // Taken before the calendars load, as in ensureRange.
+    const generation = storeGeneration;
     if (!jmapClient.isConnected) return;
     // Calendars haven't loaded yet (cold start with a cached window): fetch
     // them (deduped) first, like ensureRange.
-    if (get().calendars.length === 0) await get().fetchCalendars();
+    if (get().calendars.length === 0) {
+      const listed = await loadCalendarList();
+      if (generation !== storeGeneration || !listed) return;
+    }
     const calendars = get().calendars;
     const calendarIds = calendars.map((c) => c.id);
     if (calendarIds.length === 0) {
-      set({ loadedRange: plan.union });
+      // Only the window this plan grew from: a jump elsewhere replaced it.
+      if (sameRange(get().loadedRange, loaded)) set({ loadedRange: plan.union });
       return;
     }
-    const generation = storeGeneration;
     set({ loading: true, error: null });
     try {
       const incoming: CalendarEvent[] = [];
