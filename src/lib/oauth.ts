@@ -1,5 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
-import { secureFetch } from './client-cert';
+import { fetchWithoutForeignRedirect, secureFetch } from './client-cert';
 import { randomHex } from './random';
 
 // Webmail-mediated login. The app opens the webmail's normal login page with
@@ -623,9 +623,12 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           refresh_token: tokens.refreshToken!,
           client_id: tokens.clientId,
         });
+        // The refresh token goes in the body: a redirect to another host than
+        // the token endpoint's own comes back unfollowed (a transient failure
+        // below) instead of taking the token along.
         let response: Response;
         try {
-          response = await secureFetch(tokens.tokenEndpoint, {
+          response = await fetchWithoutForeignRedirect(tokens.tokenEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',

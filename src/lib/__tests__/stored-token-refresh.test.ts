@@ -5,7 +5,7 @@ const { mockSecureFetch, store } = vi.hoisted(() => ({
   store: new Map<string, unknown>(),
 }));
 
-vi.mock('../client-cert', () => ({ secureFetch: mockSecureFetch }));
+vi.mock('../client-cert', () => ({ secureFetch: mockSecureFetch, fetchWithoutForeignRedirect: mockSecureFetch }));
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     getStoredCredentials: vi.fn(async (id: string) => (store.has(id) ? structuredClone(store.get(id)) : null)),
