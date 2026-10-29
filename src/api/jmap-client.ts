@@ -15,6 +15,7 @@ import {
   type OAuthTokenSource,
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
+import { downloadNameSegment } from './download-name';
 import { writeSharedSecret, moveToSharedGroup } from '../lib/ios-push-shared';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 
@@ -1347,7 +1348,7 @@ export class JMAPClient {
     return this.session.downloadUrl
       .replace('{accountId}', encodeURIComponent(accountId ?? this.accountId))
       .replace('{blobId}', encodeURIComponent(blobId))
-      .replace('{name}', encodeURIComponent(name || 'download'))
+      .replace('{name}', encodeURIComponent(downloadNameSegment(name)))
       .replace('{type}', encodeURIComponent(type || 'application/octet-stream'));
   }
 
