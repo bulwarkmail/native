@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { Email } from '../../api/types';
+import type { Email, Identity } from '../../api/types';
 import { replyComposeParams } from '../reply-compose';
+import { resolveReplyIdentity } from '../reply-identity';
 
 const source = {
   id: 'm1',
@@ -25,6 +26,24 @@ describe('replyComposeParams', () => {
   it('adds nothing when nothing was typed', () => {
     expect(replyComposeParams('reply', source)?.prefillBody).toBeUndefined();
     expect(replyComposeParams('reply', source, undefined, '   ')?.prefillBody).toBeUndefined();
+  });
+
+  it('lets the reply From match an address the message names only in Bcc (native #87)', () => {
+    const viaBcc = {
+      ...source,
+      to: [{ name: 'owner/repo', email: 'repo@noreply.github.com' }],
+      bcc: [{ email: 'github@example.com' }],
+    } as Email;
+    const params = replyComposeParams('reply', viaBcc);
+    expect(params?.replyTo?.bcc).toEqual([{ email: 'github@example.com' }]);
+    const identities = [
+      { id: 'main', name: 'Me', email: 'me@example.com', mayDelete: false },
+    ] as Identity[];
+    const resolved = resolveReplyIdentity(identities, params!.replyTo!, {
+      ownEmails: ['me@example.com'], catchAll: true, matchMode: 'domain',
+    });
+    expect(resolved?.identityId).toBe('main');
+    expect(resolved?.overrideEmail).toBe('github@example.com');
   });
 });
 
