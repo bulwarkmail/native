@@ -193,10 +193,13 @@ beforeEach(() => {
 // Webmail 763732fdc / 3904af2cb: a search leaves Spam and Trash out unless
 // "All folders" is picked, and one started inside them searches them.
 describe('the default search scope', () => {
-  it("leaves every account's Trash and Junk out", async () => {
+  // Each account gets its own filter, still in one request: one request per
+  // account went past the servers' maxConcurrentRequests (4).
+  it("leaves every account's Trash and Junk out, in one request", async () => {
     await searchDefault('zephyr');
 
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
+    expect(server.current!.requests).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, args]) => [args.accountId, args.filter])).toEqual([
       ['c', { operator: 'AND', conditions: [{ text: 'zephyr' }, { inMailboxOtherThan: ['trash', 'junk'] }] }],
@@ -476,6 +479,25 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
     expect(ids()).toContain('m2');
     expect(server.current!.accounts.c.find((e) => e.id === 'o1')!.mailboxIds).toEqual({ trash: true });
     expect(useEmailStore.getState().pendingUndo?.items.map((it) => it.email.id).sort()).toEqual(['m1', 'o1']);
+  });
+
+  // "Move to Trash and mark as read": a message the server refused to move
+  // stays in its folder, so it must not be marked read either.
+  it('marks only the moved rows read when the server refuses one of them', async () => {
+    settings.deleteAction = 'trash-and-read';
+    await search('zephyr');
+    server.current!.refusing.set('team', new Set(['m2']));
+
+    await useEmailStore.getState()
+      .deleteEmailsBatch(['team:m1', 'team:m2'], 'trash', 'inbox')
+      .catch(() => undefined);
+
+    const seenPatches = server.current!.callsOf('Email/set')
+      .flatMap(([, a]) => Object.entries((a.update ?? {}) as Record<string, Record<string, unknown>>))
+      .filter(([, patch]) => Object.keys(patch).some((k) => k.startsWith('keywords')))
+      .map(([id]) => id);
+    expect(seenPatches).toEqual(['m1']);
+    expect(server.current!.accounts.team.find((e) => e.id === 'm1')!.keywords).toEqual({ $seen: true });
   });
 
   it('files the rest when one account refuses a whole move', async () => {

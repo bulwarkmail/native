@@ -45,7 +45,7 @@ export interface DkimEntry {
 }
 
 export interface AuthenticationResults {
-  spf?: { result: SpfResult; domain?: string; all?: SpfEntry[] };
+  spf?: { result: SpfResult; identity?: SpfEntry['identity']; domain?: string; all?: SpfEntry[] };
   /** The first signature's result; `all` lists every one when there are several. */
   dkim?: DkimEntry & { all?: DkimEntry[] };
   dmarc?: { result: DmarcResult; domain?: string; policy?: DmarcPolicy };
@@ -140,10 +140,10 @@ function alignedWith(fromDomain: string, candidate: string | undefined): boolean
  * the visible sender. A HELO pass never does.
  */
 function hasAlignedSpfPass(auth: AuthenticationResults, fromDomain: string): boolean {
-  if (auth.spf?.all) {
-    return auth.spf.all.some((entry) => entry.identity !== 'helo' && entry.result === 'pass' && alignedWith(fromDomain, entry.domain));
-  }
-  return auth.spf?.result === 'pass' && alignedWith(fromDomain, auth.spf.domain);
+  // With one SPF result there is no `all` list, and its identity is checked
+  // too: `spf=pass smtp.helo=<From domain>` alone used to count.
+  const entries = auth.spf?.all ?? (auth.spf ? [auth.spf] : []);
+  return entries.some((entry) => entry.identity === 'mailfrom' && entry.result === 'pass' && alignedWith(fromDomain, entry.domain));
 }
 
 /** A DKIM pass for a signing domain that aligns with the From domain. */
@@ -381,6 +381,7 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     }
     results.spf = {
       result: primary.result,
+      ...(primary.identity ? { identity: primary.identity } : {}),
       domain: primary.domain,
       ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };

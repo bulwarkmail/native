@@ -311,6 +311,27 @@ describe('email operations', () => {
       mockRequest.mockReset();
     });
 
+    it("sends each account's own filter in the shared request", async () => {
+      (jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>).mockReturnValueOnce(16);
+      mockRequest.mockImplementation(async (calls: Array<[string, Record<string, unknown>, string]>) => ({
+        methodResponses: calls.map(([name, , id]) => (name === 'Email/query'
+          ? [name, { ids: [], total: 0 }, id]
+          : [name, { list: [] }, id])),
+      }));
+      const sort = [{ property: 'receivedAt', isAscending: false }];
+      const own = { operator: 'AND', conditions: [{ text: 'x' }, { inMailboxOtherThan: ['trash'] }] };
+
+      await queryEmailPagesAcrossAccounts(
+        [{ position: 0, sort, filter: own }, { accountId: 'g1', position: 0, sort }],
+        { limit: 10, filter: { text: 'x' } },
+      );
+
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      const queries = mockRequest.mock.calls[0][0].filter((c: unknown[]) => c[0] === 'Email/query');
+      expect(queries.map((c: unknown[]) => (c[1] as { filter: unknown }).filter)).toEqual([own, { text: 'x' }]);
+      mockRequest.mockReset();
+    });
+
     it('leaves Thread/get out unless asked, and targets a shared account', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [

@@ -77,6 +77,17 @@ describe('stripDangerousTags', () => {
     expect(out).not.toMatch(/onerror/i);
   });
 
+  // The composer embeds the sanitised quote in its inline script, where any
+  // `</script` ends the script whatever the CSS around it.
+  it('leaves no end tag inside a kept stylesheet or title', () => {
+    const out = stripDangerousTags(
+      '<p>hello</p><style>p{}</script/><img src=x onerror=alert(1)><meta http-equiv=refresh content=0;url=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg== x=',
+    );
+    expect(out).not.toMatch(/<\/script/i);
+    expect(out).toContain('<style>p{}<\\/script/>');
+    expect(stripDangerousTags('<title>a</SCRIPT/>b</title>')).toBe('<title>a&lt;/SCRIPT/>b</title>');
+  });
+
   it('ends comments where the browser does', () => {
     expect(stripDangerousTags('a<!-- x --!><img src=x onerror=alert(1)>')).not.toMatch(/onerror/i);
     expect(stripDangerousTags('<p>a</p><!--> <img src=x onerror=alert(1)>')).not.toMatch(/onerror/i);
@@ -176,6 +187,39 @@ describe('blockExternalResources', () => {
     expect(html).not.toMatch(/<\/style>\s*<img/i);
   });
 
+  // The sheet pass was a regex over the serialised markup, so a `<style>` in
+  // one attribute and a `</style>` in a later one made it "scrub" the
+  // attributes between them, decoding the CSS escapes into real quotes.
+  it('scrubs only real stylesheets, not text inside attribute values', () => {
+    const input = String.raw`<a title="<style>x\22  href=\22 javascript:alert(1)\22  y=\22 url(https://e.example/)">click</a><p title="</style>">z</p>`;
+    const { html } = prepareEmailHtml(input, { blockRemoteImages: true, isDark: false });
+    expect(html).not.toMatch(/href="javascript:/i);
+    expect(html).toContain(String.raw`<a title="<style>x\22  href=\22 javascript:alert(1)\22  y=\22 url(https://e.example/)">click</a>`);
+  });
+
+  it('cuts external URLs out of a sheet and leaves its escapes as written', () => {
+    const css = String.raw`a{background:url(https://x/)} b{background:\5c 75rl(https://y/)} c{background:\75rl(https://z/)} d{content:"\"\3c /style\3e"}`;
+    const { html, blocked } = blockExternalResources(`<style>${css}</style>`);
+    expect(blocked).toBe(true);
+    // `\5c 75rl(` is the text `\75rl(`, not a url(): written decoded it
+    // became one. The escaped quote stays escaped.
+    expect(html).toBe(String.raw`<style>a{background:url()} b{background:\5c 75rl(https://y/)} c{background:url()} d{content:"\"\3c /style\3e"}</style>`);
+  });
+
+  it('reads an escape past the last code point as U+FFFD instead of throwing', () => {
+    expect(decodeCssEscapes('\\FFFFFF')).toBe('\ufffd');
+    expect(() => blockExternalResources('<style>a{b:\\FFFFFF url(https://t/)}</style>')).not.toThrow();
+  });
+
+  it('finds images the parser reads as <img>, and entity-encoded URLs', () => {
+    expect(hasRemoteContent('<image src="https://tracker.example/p.gif">')).toBe(true);
+    expect(hasRemoteContent('<img src="&#104;ttps://tracker.example/p.gif">')).toBe(true);
+    expect(hasRemoteContent('<img srcset="&#104;ttps://tracker.example/p.gif 1x">')).toBe(true);
+    expect(hasRemoteContent('<video poster="&#x68;ttps://t/p.jpg"></video>')).toBe(true);
+    const { html } = blockExternalResources('<image src="https://tracker.example/p.gif">');
+    expect(html).toContain('data-blocked-src="https://tracker.example/p.gif"');
+  });
+
   it('finds the image behind a stray quote, as the browser does', () => {
     const { html, blocked } = blockExternalResources('<img x"=y src=https://t/a.png>');
     expect(blocked).toBe(true);
@@ -238,6 +282,34 @@ describe('prepareEmailHtml', () => {
     const res = prepareEmailHtml('<img src="cid:a"><img src="cid:b">', { cidMap: { a: 'data:image/png;base64,AA' } });
     expect(res.html).toContain('src="data:image/png;base64,AA"');
     expect(res.html).toContain(`src="${TRANSPARENT_BLOCKED_PIXEL}"`);
+  });
+
+  // Stalwart (0.16 and 1.0) returns a part's Content-Type verbatim. A related
+  // part declared as this type, with bytes that are no known image format,
+  // used to put a live refresh meta into the reader (Android follows it
+  // without a tap).
+  it('never writes a hostile part type into the document', () => {
+    const type = 'image/x"><meta http-equiv=refresh content=0,url=https://evil.example/>';
+    const bytes = new TextEncoder().encode('ABC');
+    const uri = `data:${sniffImageMime(bytes, type)};base64,QUJD`;
+    for (const blockRemoteImages of [true, false]) {
+      const { html } = prepareEmailHtml('<p>hi</p><img src="cid:p1">', { blockRemoteImages, cidMap: { p1: uri }, isDark: false });
+      expect(html).not.toMatch(/<meta[^>]*refresh/i);
+      expect(html).not.toContain('evil.example');
+      expect(html).toContain(`<img src="${TRANSPARENT_BLOCKED_PIXEL}">`);
+    }
+    // A map value that is not an image type plus base64 is not used either.
+    const { html } = prepareEmailHtml('<img src="cid:p1">', { cidMap: { p1: 'data:image/png;base64,AA"><b>x</b>' } });
+    expect(html).not.toContain('<b>x</b>');
+  });
+
+  it('swaps cid references in src only, not in text or other attributes', () => {
+    const { html } = prepareEmailHtml(
+      '<img src="cid:abc" alt="cid:abc"><p>see cid:abc</p>',
+      { cidMap: { abc: 'data:image/png;base64,AAA' } },
+    );
+    expect(html).toContain('<img src="data:image/png;base64,AAA" alt="cid:abc">');
+    expect(html).toContain('<p>see cid:abc</p>');
   });
 
   it('tightens Word/Outlook HTML and drops the gutter for full-bleed canvases in auto mode', () => {
@@ -318,6 +390,12 @@ describe('sniffImageMime', () => {
   it('falls back to a declared image type, else octet-stream', () => {
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/tiff')).toBe('image/tiff');
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'application/octet-stream')).toBe('application/octet-stream');
+  });
+
+  it('uses only a plain image type from the part', () => {
+    expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/x"><meta http-equiv=refresh content=0,url=https://evil.example/>'))
+      .toBe('application/octet-stream');
+    expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/svg+xml; charset=utf-8')).toBe('image/svg+xml');
   });
 });
 

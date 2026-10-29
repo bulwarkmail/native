@@ -186,4 +186,14 @@ describe('cid image hydration', () => {
     expect(hydrated).toContain('data-cid="pic@x"');
     expect(rewriteInlineImages(hydrated).html).toContain('src="cid:pic@x"');
   });
+
+  // The composer builds the URI from the part's type, which the server
+  // returns verbatim.
+  it('leaves the placeholder when the data URL is not an image type plus base64', () => {
+    const { html } = rewriteCidImagesForEditor('<p><img src="cid:pic@x"></p>');
+    const hostile = 'data:image/x"><meta http-equiv=refresh content=0,url=https://evil.example/>;base64,QUJD';
+    const hydrated = replaceInlineImagePlaceholders(html, new Map([['pic@x', hostile]]));
+    expect(hydrated).toBe(html);
+    expect(hydrated).not.toContain('<meta');
+  });
 });

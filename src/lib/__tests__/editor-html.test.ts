@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildEditorCsp, buildEditorHtml, CHANGE_THROTTLE_MS, shouldBlockEditorRemoteImages,
+  buildEditorCsp, buildEditorHtml, CHANGE_THROTTLE_MS, isEditorNavigationAllowed, shouldBlockEditorRemoteImages,
 } from '../editor-html';
 import { LIGHT_COLORS, DARK_COLORS } from '../../theme/tokens';
 
@@ -28,18 +28,43 @@ describe('buildEditorHtml', () => {
   it('emits no cooked-away backslashes in the script', () => {
     // The page script is written escape-free on purpose; a backslash-free
     // source cannot silently lose escapes to template-literal cooking.
-    const script = extractScript(buildEditorHtml(base));
+    // (The embedded content writes `<` as an escape, so it is left out here.)
+    const script = extractScript(buildEditorHtml({ ...base, initialHtml: 'x' }));
     expect(script).not.toContain('\\');
   });
 
-  it('embeds initial content and placeholder as JSON strings', () => {
+  it('embeds initial content as a JSON string and the placeholder as an attribute', () => {
     const html = buildEditorHtml({
       ...base,
       initialHtml: '<p>He said "hi" & left</p>',
       placeholder: 'Say "something"…',
     });
-    expect(html).toContain(JSON.stringify('<p>He said "hi" & left</p>'));
-    expect(html).toContain(`data-placeholder=${JSON.stringify('Say "something"…')}`);
+    expect(html).toContain(JSON.stringify('<p>He said "hi" & left</p>').replace(/</g, '\\u003c'));
+    expect(html).toContain('data-placeholder="Say &quot;something&quot;…"');
+  });
+
+  // A quoted original's kept <style> carried `</script/>`: the page script
+  // ended there, the rest of the reply ran as markup and a refresh meta took
+  // the editor to a data:text/html page.
+  it('keeps a quoted </script inside the page script', () => {
+    const quoted = '<p>hello</p><style>p{}</script/><img src=x onerror=alert(1)><meta http-equiv=refresh content=0;url=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg== x=';
+    const initialHtml = `<p><br></p><div data-quoted-html>On X wrote:<blockquote>${quoted}</blockquote></div>\u2028`;
+    const html = buildEditorHtml({ ...base, initialHtml });
+    // The only end tag is the script's own.
+    expect(html.match(/<\/script/gi)).toHaveLength(1);
+    const script = extractScript(html);
+    expect(() => new Function(script)).not.toThrow();
+    const embedded = script.match(/var initial = (.*);/)![1];
+    expect(JSON.parse(embedded)).toBe(initialHtml);
+    expect(embedded).not.toContain('\u2028');
+  });
+
+  it('lets the editor load nothing but its own about:blank page', () => {
+    expect(isEditorNavigationAllowed('about:blank')).toBe(true);
+    expect(isEditorNavigationAllowed(undefined)).toBe(true);
+    expect(isEditorNavigationAllowed('data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==')).toBe(false);
+    expect(isEditorNavigationAllowed('about:srcdoc')).toBe(false);
+    expect(isEditorNavigationAllowed('https://example.com/')).toBe(false);
   });
 
   it('keeps the editor contenteditable and the bridge object wiring', () => {

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseUnsubscribeUrls, isValidUnsubscribeUrl, parseMailtoUrl, isOneClickUnsubscribe,
-  parseUnsubscribeMailto, unsubscribeConfirmMessage,
+  parseUnsubscribeMailto, unsubscribeConfirmMessage, unsubscribeSendFolders,
 } from '../unsubscribe';
+import type { Mailbox } from '../../api/types';
 
 describe('parseUnsubscribeUrls', () => {
   it('prefers http over mailto and validates both', () => {
@@ -56,6 +57,10 @@ describe('parseUnsubscribeMailto', () => {
 
   it('refuses a list of addresses or no address in the address part', () => {
     expect(parseUnsubscribeMailto('mailto:a@list.example,b@corp.example')).toBeNull();
+    // Encoded separators decode into a second recipient.
+    expect(parseUnsubscribeMailto('mailto:a%2Cb@x.com')).toBeNull();
+    expect(parseUnsubscribeMailto('mailto:a%3Bb@x.com')).toBeNull();
+    expect(parseUnsubscribeMailto('mailto:%22a%2Cb%22@x.com')).toBeNull();
     expect(parseUnsubscribeMailto('mailto:?to=a@list.example')).toBeNull();
     expect(parseUnsubscribeMailto('mailto:?cc=a@list.example')).toBeNull();
   });
@@ -78,5 +83,27 @@ describe('unsubscribeConfirmMessage', () => {
     expect(msg).toContain('stop');
     expect(msg).toContain('remove me');
     expect(unsubscribeConfirmMessage('Intro', null)).toBe('Intro');
+  });
+});
+
+describe('unsubscribeSendFolders', () => {
+  const mb = (id: string, role: string, shared?: string): Mailbox => ({
+    id: shared ? `${shared}:${id}` : id,
+    name: role,
+    role,
+    totalEmails: 0, unreadEmails: 0, totalThreads: 0, unreadThreads: 0,
+    myRights: {} as Mailbox['myRights'],
+    ...(shared ? { originalId: id, accountId: shared, isShared: true } : { accountId: 'own', isShared: false }),
+  });
+
+  // The identities the app holds are the own account's, so the mail is
+  // created there too, also for a newsletter that reached a team mailbox.
+  it("uses the own account's Sent and Drafts even when a shared account's come first", () => {
+    const folders = unsubscribeSendFolders([
+      mb('t-sent', 'sent', 'team'), mb('t-drafts', 'drafts', 'team'),
+      mb('sent', 'sent'), mb('drafts', 'drafts'),
+    ]);
+    expect(folders).toEqual({ sentId: 'sent', draftsId: 'drafts' });
+    expect(unsubscribeSendFolders([mb('t-sent', 'sent', 'team')])).toEqual({ sentId: undefined, draftsId: undefined });
   });
 });

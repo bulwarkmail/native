@@ -44,6 +44,32 @@ describe('loadSharedTags', () => {
     expect(useKeywordsStore.getState().sharedTags.team.tags).toHaveLength(1);
   });
 
+  // Every list row reads its tag colours from this object: a new one on each
+  // re-read re-rendered the whole list.
+  it('keeps the same object when a re-read finds the same tags, and counts it as fresh', async () => {
+    vi.useFakeTimers();
+    try {
+      metadata.mockResolvedValue(TEAM_TAGS);
+      await useKeywordsStore.getState().loadSharedTags('team');
+      const before = useKeywordsStore.getState().sharedTags;
+      vi.advanceTimersByTime(3 * 60_000);
+      await useKeywordsStore.getState().loadSharedTags('team');
+      expect(metadata).toHaveBeenCalledTimes(2);
+      expect(useKeywordsStore.getState().sharedTags).toBe(before);
+      // The unchanged answer still counts as a fresh read.
+      vi.advanceTimersByTime(60_000);
+      await useKeywordsStore.getState().loadSharedTags('team');
+      expect(metadata).toHaveBeenCalledTimes(2);
+
+      metadata.mockResolvedValue({ tags: { tags: { urgent: { label: 'Now', color: 'red' } } } });
+      await useKeywordsStore.getState().loadSharedTags('team', { force: true });
+      expect(useKeywordsStore.getState().sharedTags).not.toBe(before);
+      expect(useKeywordsStore.getState().sharedTags.team.tags[0].label).toBe('Now');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('drops an answer that arrives after the user switched to another login', async () => {
     let resolve!: (v: unknown) => void;
     metadata.mockReturnValue(new Promise((r) => { resolve = r; }));

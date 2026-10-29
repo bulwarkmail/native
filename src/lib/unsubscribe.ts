@@ -1,6 +1,9 @@
 // List-Unsubscribe (RFC 2369 / RFC 8058) and mailto: parsing. Port of the
 // relevant parts of the webmail's `lib/validation.ts`.
 
+import type { Mailbox } from '../api/types';
+import { mailboxesOfAccount } from './mailbox-tree';
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function isValidEmail(value: string): boolean {
@@ -151,7 +154,10 @@ export function parseUnsubscribeMailto(url: string): UnsubscribeMailto | null {
   } catch {
     to = addresses[0].trim();
   }
-  if (!isValidEmail(to)) return null;
+  // One plain address after decoding too: `a%2Cb@x.example` is two
+  // recipients to the server, and a quote, bracket or separator has no place
+  // in an unsubscribe address.
+  if (!isValidEmail(to) || /[,;<>"()\\]/.test(to)) return null;
 
   const subject = parsed.subject?.replace(/[\r\n]+/g, ' ').trim().slice(0, UNSUBSCRIBE_SUBJECT_MAX) || undefined;
   const body = parsed.body?.slice(0, UNSUBSCRIBE_BODY_MAX) || undefined;
@@ -168,4 +174,22 @@ export function unsubscribeConfirmMessage(intro: string, fields: UnsubscribeMail
   if (fields.subject) lines.push(fields.subject);
   if (fields.body) lines.push('', fields.body);
   return lines.join('\n');
+}
+
+/**
+ * Where a mailto unsubscribe is created and submitted: the user's own
+ * account, whose identities are the ones the app holds, with its Sent and
+ * Drafts (raw ids). Like the webmail, which sends it with the signed-in
+ * client and the identity that received the message. Creating it in a
+ * shared account's folders with an identity of the user's own account made
+ * the submission name an identity that account doesn't have.
+ */
+export function unsubscribeSendFolders(mailboxes: Mailbox[]): { sentId?: string; draftsId?: string } {
+  const own = mailboxesOfAccount(mailboxes, undefined);
+  const sent = own.find((m) => m.role === 'sent');
+  const drafts = own.find((m) => m.role === 'drafts');
+  return {
+    sentId: sent ? (sent.originalId ?? sent.id) : undefined,
+    draftsId: drafts ? (drafts.originalId ?? drafts.id) : undefined,
+  };
 }

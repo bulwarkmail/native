@@ -97,6 +97,35 @@ export const FOCUS_END_SOURCE = `function focusEnd(editor) {
     sel.addRange(range);
   }`;
 
+/**
+ * Whether the editor WebView may load `url`: only its initial about:blank
+ * document (`source={{ html }}` loads as about:blank on both platforms, as
+ * in the reader). Every other URL, `about:srcdoc` and `data:` included, is
+ * refused: a `data:text/html` page reached through a refresh meta or a
+ * pasted link would replace the editor with a document of the sender's.
+ */
+export function isEditorNavigationAllowed(url: string | undefined): boolean {
+  return !url || url === 'about:blank';
+}
+
+/**
+ * JSON for a value written into an inline `<script>`. The HTML tokenizer
+ * ends the script at the first `</script` whatever the JS around it, so a
+ * quoted original carrying one (inside a kept `<style>`, say) used to close
+ * the editor's script early and run as markup. `<` is written as `<`;
+ * U+2028/2029 are escaped too, for engines that read them as line ends.
+ */
+export function jsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export function buildEditorHtml(opts: {
   initialHtml: string;
   placeholder: string;
@@ -112,10 +141,10 @@ export function buildEditorHtml(opts: {
 }): string {
   const { initialHtml, placeholder, c, blockRemoteImages = false, pinVisualViewport = false } = opts;
   // Inject initial content as a JSON-encoded string so any HTML/quotes inside
-  // are safely embedded (no template literal collision with the script body).
-  const initialJson = JSON.stringify(initialHtml);
+  // are safely embedded (no template literal collision with the script body,
+  // and no `</script` that ends the script, see jsonForScript).
+  const initialJson = jsonForScript(initialHtml);
   const nonce = randomHex(16);
-  const placeholderJson = JSON.stringify(placeholder);
 
   return `<!DOCTYPE html>
 <html>
@@ -173,7 +202,7 @@ export function buildEditorHtml(opts: {
 </style>
 </head>
 <body>
-<div id="editor" contenteditable="true" dir="auto" data-placeholder=${placeholderJson}></div>
+<div id="editor" contenteditable="true" dir="auto" data-placeholder="${escapeAttr(placeholder)}"></div>
 <script nonce="${nonce}">
 (function () {
   var editor = document.getElementById('editor');
