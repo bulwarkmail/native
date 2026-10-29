@@ -661,6 +661,10 @@
       "up_to_date": "已是最新狀態"
     }
   },
+  "org_templates": {
+    "personal_in_account": "您的範本保存在您的帳號中，因此您登入的每部裝置上都能使用。與您共用收件匣的任何人都可以閱讀這些範本。",
+    "section_personal": "我的範本"
+  },
   "push_prompt": {
     "body": "開啟背景通知，即使應用程式已關閉也能收到新郵件。",
     "dismiss": "稍後再說",

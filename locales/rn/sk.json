@@ -661,6 +661,10 @@
       "up_to_date": "Všetko je aktuálne"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Vaše šablóny sa ukladajú vo vašom účte, takže ich máte na každom zariadení, kde sa prihlásite. Môže ich čítať každý, s kým zdieľate priečinok Doručené.",
+    "section_personal": "Moje šablóny"
+  },
   "push_prompt": {
     "body": "Zapnite oznámenia na pozadí, aby vám nové správy chodili, aj keď je aplikácia zatvorená.",
     "dismiss": "Teraz nie",

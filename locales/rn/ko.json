@@ -660,6 +660,10 @@
       "up_to_date": "이미 최신 상태예요"
     }
   },
+  "org_templates": {
+    "personal_in_account": "템플릿은 계정에 저장되므로 로그인하는 모든 기기에서 사용할 수 있어요. 받은편지함을 공유한 사람은 누구나 읽을 수 있어요.",
+    "section_personal": "내 템플릿"
+  },
   "push_prompt": {
     "body": "백그라운드 알림을 켜면 앱이 닫혀 있어도 새 메시지를 받을 수 있어요.",
     "dismiss": "나중에",

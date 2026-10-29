@@ -661,6 +661,10 @@
       "up_to_date": "Viss jau ir atjaunināts"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Jūsu veidnes tiek glabātas jūsu kontā, tāpēc tās ir pieejamas katrā ierīcē, kurā pierakstāties. Tās var lasīt ikviens, ar kuru kopīgojat savu Iesūtni.",
+    "section_personal": "Manas veidnes"
+  },
   "push_prompt": {
     "body": "Ieslēdziet fona paziņojumus, lai jaunas vēstules jūs sasniegtu arī tad, kad lietotne ir aizvērta.",
     "dismiss": "Ne tagad",

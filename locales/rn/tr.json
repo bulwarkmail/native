@@ -663,6 +663,10 @@
       "up_to_date": "Zaten güncel"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Şablonlarınız hesabınızda saklanır, böylece oturum açtığınız her cihazda elinizin altındadır. Gelen Kutunuzu paylaştığınız herkes bunları okuyabilir.",
+    "section_personal": "Şablonlarım"
+  },
   "push_prompt": {
     "body": "Uygulama kapalıyken de yeni iletilerden haberdar olmak için arka plan bildirimlerini açın.",
     "dismiss": "Şimdi değil",

@@ -664,6 +664,10 @@
       "up_to_date": "Già aggiornato"
     }
   },
+  "org_templates": {
+    "personal_in_account": "I tuoi modelli sono conservati nel tuo account, quindi li hai su ogni dispositivo da cui accedi. Chiunque con cui condividi la Posta in arrivo può leggerli.",
+    "section_personal": "I miei modelli"
+  },
   "push_prompt": {
     "body": "Attiva le notifiche in background per ricevere i nuovi messaggi anche quando l'app è chiusa.",
     "dismiss": "Non ora",

@@ -292,6 +292,11 @@
     "attachment_reminder_title": "Forgot an attachment?",
     "attachments_too_large_total": "The attachments would exceed the {max} this server allows per message.",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Attach} one {Attach 1 file} other {Attach # files}}",
+      "empty_folder": "This folder is empty",
+      "load_failed": "Your files could not be loaded"
+    },
     "format_plain_text": "Switch to plain text",
     "format_rich_text": "Switch to rich text (HTML)",
     "from_options": "Sender options",
@@ -486,6 +491,7 @@
     "reschedule_recipients_refused": "Nothing was changed: the server refused {recipients}.",
     "save_to_files": {
       "failed": "Couldn't save to Files",
+      "load_failed": "Couldn't load your folders. Try again.",
       "save_here": "Save here",
       "saved": "Saved to Files",
       "saved_to": "In {folder}",
@@ -709,6 +715,10 @@
       "unable_to_download": "Unable to download",
       "up_to_date": "Already up to date"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Your templates are kept in your account, so you have them on every device you sign in on. Anyone you share your Inbox with can read them.",
+    "section_personal": "My templates"
   },
   "push": {
     "ios": {

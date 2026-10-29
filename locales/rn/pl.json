@@ -662,6 +662,10 @@
       "up_to_date": "Wszystko jest aktualne"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Twoje szablony są przechowywane na Twoim koncie, więc masz je na każdym urządzeniu, na którym się logujesz. Może je przeczytać każdy, komu udostępniasz folder Odebrane.",
+    "section_personal": "Moje szablony"
+  },
   "push_prompt": {
     "body": "Włącz powiadomienia w tle, aby nowe wiadomości docierały do Ciebie, gdy aplikacja jest zamknięta.",
     "dismiss": "Nie teraz",

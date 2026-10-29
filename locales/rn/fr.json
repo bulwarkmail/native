@@ -666,6 +666,10 @@
       "up_to_date": "Déjà à jour"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Vos modèles sont conservés dans votre compte, vous les retrouvez donc sur chaque appareil où vous vous connectez. Toute personne avec qui vous partagez votre boîte de réception peut les lire.",
+    "section_personal": "Mes modèles"
+  },
   "push_prompt": {
     "body": "Activez les notifications en arrière-plan pour recevoir les nouveaux messages même lorsque l'application est fermée.",
     "dismiss": "Pas maintenant",

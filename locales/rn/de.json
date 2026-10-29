@@ -670,6 +670,10 @@
       "up_to_date": "Bereits aktuell"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Ihre Vorlagen werden in Ihrem Konto gespeichert, Sie haben sie also auf jedem Gerät, auf dem Sie sich anmelden. Alle, für die Sie Ihren Posteingang freigeben, können sie lesen.",
+    "section_personal": "Meine Vorlagen"
+  },
   "push_prompt": {
     "body": "Aktivieren Sie Hintergrundbenachrichtigungen, damit neue Nachrichten Sie auch bei geschlossener App erreichen.",
     "dismiss": "Nicht jetzt",

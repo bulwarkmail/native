@@ -665,6 +665,10 @@
       "up_to_date": "Já está atualizado"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Seus modelos ficam guardados na sua conta, então você os tem em todos os dispositivos em que faz login. Qualquer pessoa com quem você compartilha a Caixa de Entrada pode lê-los.",
+    "section_personal": "Meus modelos"
+  },
   "push_prompt": {
     "body": "Ative as notificações em segundo plano para receber novas mensagens mesmo com o app fechado.",
     "dismiss": "Agora não",

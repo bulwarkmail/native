@@ -661,6 +661,10 @@
       "up_to_date": "已是最新"
     }
   },
+  "org_templates": {
+    "personal_in_account": "您的模板保存在您的账户中，因此您登录的每台设备上都能使用。与您共享收件箱的任何人都可以阅读它们。",
+    "section_personal": "我的模板"
+  },
   "push_prompt": {
     "body": "开启后台通知，即使应用已关闭也能收到新邮件。",
     "dismiss": "以后再说",

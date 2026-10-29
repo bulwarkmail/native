@@ -662,6 +662,10 @@
       "up_to_date": "Deja actualizat"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Șabloanele dvs. sunt păstrate în cont, deci le aveți pe orice dispozitiv pe care vă autentificați. Oricine cu care partajați dosarul Primite le poate citi.",
+    "section_personal": "Șabloanele mele"
+  },
   "push_prompt": {
     "body": "Activați notificările în fundal pentru a primi mesajele noi chiar și când aplicația este închisă.",
     "dismiss": "Nu acum",

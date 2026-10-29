@@ -659,6 +659,10 @@
       "up_to_date": "Allerede oppdatert"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Malene dine lagres i kontoen din, så du har dem på alle enheter du logger på. Alle du deler innboksen din med, kan lese dem.",
+    "section_personal": "Mine maler"
+  },
   "push_prompt": {
     "body": "Slå på bakgrunnsvarsler, slik at nye meldinger når deg mens appen er lukket.",
     "dismiss": "Ikke nå",

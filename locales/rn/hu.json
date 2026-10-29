@@ -658,6 +658,10 @@
       "up_to_date": "Már minden naprakész"
     }
   },
+  "org_templates": {
+    "personal_in_account": "A sablonjaidat a fiókod tárolja, így minden eszközön megvannak, ahol bejelentkezel. Bárki elolvashatja őket, akivel megosztod a Beérkező leveleket.",
+    "section_personal": "Saját sablonok"
+  },
   "push_prompt": {
     "body": "Kapcsold be a háttérértesítéseket, hogy az új üzenetekről akkor is értesülj, amikor az alkalmazás be van zárva.",
     "dismiss": "Később",

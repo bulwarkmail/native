@@ -659,6 +659,10 @@
       "up_to_date": "Allerede opdateret"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Dine skabeloner gemmes på din konto, så du har dem på alle enheder, du logger ind på. Alle, du deler din indbakke med, kan læse dem.",
+    "section_personal": "Mine skabeloner"
+  },
   "push_prompt": {
     "body": "Slå baggrundsnotifikationer til, så nye beskeder når frem til dig, mens appen er lukket.",
     "dismiss": "Ikke nu",

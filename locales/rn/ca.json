@@ -662,6 +662,10 @@
       "up_to_date": "Ja està al dia"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Les vostres plantilles es desen al vostre compte, així que les teniu a tots els dispositius on inicieu la sessió. Qualsevol persona amb qui compartiu la safata d'entrada les pot llegir.",
+    "section_personal": "Les meves plantilles"
+  },
   "push_prompt": {
     "body": "Activeu les notificacions en segon pla perquè els missatges nous us arribin amb l'aplicació tancada.",
     "dismiss": "Ara no",

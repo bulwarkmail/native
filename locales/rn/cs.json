@@ -662,6 +662,10 @@
       "up_to_date": "Vše je aktuální"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Vaše šablony se ukládají ve vašem účtu, takže je máte na každém zařízení, kde se přihlásíte. Může je číst každý, s kým sdílíte složku Doručené.",
+    "section_personal": "Moje šablony"
+  },
   "push_prompt": {
     "body": "Zapněte oznámení na pozadí, aby vám nové zprávy chodily, i když je aplikace zavřená.",
     "dismiss": "Teď ne",

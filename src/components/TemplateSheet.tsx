@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Star, FileText } from './icons';
+import { X, Star, FileText, Users } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
@@ -22,7 +22,8 @@ interface TemplateSheetProps {
 /**
  * Bottom sheet listing the user's templates for insertion into the composer
  * (webmail template picker): favourites first, then the rest, with a search
- * box over name/subject/category.
+ * box over name/subject/category. The templates of the user's group
+ * mailboxes follow, each team under its name (Stalwart 1.0 and later).
  */
 export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) {
   const c = useColors();
@@ -32,6 +33,8 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   const templates = useTemplatesStore((s) => s.templates);
   const hydrated = useTemplatesStore((s) => s.hydrated);
   const hydrate = useTemplatesStore((s) => s.hydrate);
+  const teams = useTemplatesStore((s) => s.teams);
+  const refresh = useTemplatesStore((s) => s.refresh);
   const [query, setQuery] = React.useState('');
   const slideY = React.useRef(new Animated.Value(500)).current;
   // Centred on a wide window, clear of side insets in landscape.
@@ -46,6 +49,8 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   React.useEffect(() => {
     if (visible) {
       setQuery('');
+      // Templates changed in the webmail or on another device, and the team ones.
+      void refresh();
       Animated.parallel([
         Animated.timing(slideY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlayOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
@@ -56,6 +61,7 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
         Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, slideY, overlayOpacity]);
 
   const visibleTemplates = React.useMemo(() => {
@@ -65,6 +71,42 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
       return a.name.localeCompare(b.name);
     });
   }, [templates, query]);
+  const visibleTeams = React.useMemo(() => teams
+    .map((team) => ({
+      ...team,
+      templates: (query.trim() ? filterTemplates(team.templates, query.trim()) : team.templates)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .filter((team) => team.templates.length > 0), [teams, query]);
+  const total = templates.length + teams.reduce((n, team) => n + team.templates.length, 0);
+
+  const renderRow = (template: EmailTemplate, key: string, team?: boolean) => (
+    <Pressable
+      key={key}
+      onPress={() => {
+        onPick(template);
+        onClose();
+      }}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <View style={styles.iconWrap}>
+        {team
+          ? <Users size={16} color={c.textSecondary} />
+          : template.isFavorite
+            ? <Star size={16} color={c.primary} />
+            : <FileText size={16} color={c.textSecondary} />}
+      </View>
+      <View style={styles.details}>
+        <Text style={styles.name} numberOfLines={1}>{template.name}</Text>
+        {!!(template.subject || template.category) && (
+          <Text style={styles.subject} numberOfLines={1}>
+            {[template.category, template.subject].filter(Boolean).join(' · ')}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
 
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
@@ -91,7 +133,7 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
             </Pressable>
           </View>
         </View>
-        {templates.length > 4 && (
+        {total > 4 && (
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -102,36 +144,26 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
           />
         )}
         <ScrollView style={styles.scrollList} keyboardShouldPersistTaps="handled">
-          {visibleTemplates.length === 0 ? (
+          {visibleTemplates.length === 0 && visibleTeams.length === 0 ? (
             <Text style={styles.empty}>
-              {templates.length === 0
+              {total === 0
                 ? t('templates.no_templates', 'No templates yet')
                 : t('templates.no_results', 'No templates found')}
             </Text>
-          ) : visibleTemplates.map((template) => (
-            <Pressable
-              key={template.id}
-              onPress={() => {
-                onPick(template);
-                onClose();
-              }}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            >
-              <View style={styles.iconWrap}>
-                {template.isFavorite
-                  ? <Star size={16} color={c.primary} />
-                  : <FileText size={16} color={c.textSecondary} />}
-              </View>
-              <View style={styles.details}>
-                <Text style={styles.name} numberOfLines={1}>{template.name}</Text>
-                {!!(template.subject || template.category) && (
-                  <Text style={styles.subject} numberOfLines={1}>
-                    {[template.category, template.subject].filter(Boolean).join(' · ')}
-                  </Text>
-                )}
-              </View>
-            </Pressable>
-          ))}
+          ) : (
+            <>
+              {visibleTeams.length > 0 && visibleTemplates.length > 0 && (
+                <Text style={styles.section}>{t('org_templates.section_personal', 'My templates')}</Text>
+              )}
+              {visibleTemplates.map((template) => renderRow(template, template.id))}
+              {visibleTeams.map((team) => (
+                <React.Fragment key={team.accountId}>
+                  <Text style={styles.section} numberOfLines={1}>{team.name}</Text>
+                  {team.templates.map((template) => renderRow(template, `${team.accountId}|${template.id}`, true))}
+                </React.Fragment>
+              ))}
+            </>
+          )}
         </ScrollView>
       </Animated.View>
     </Modal>
@@ -182,6 +214,14 @@ function makeStyles(c: ThemePalette) {
     },
     scrollList: { paddingVertical: spacing.xs },
     empty: { ...typography.body, color: c.textMuted, textAlign: 'center', padding: spacing.xl },
+    section: {
+      ...typography.caption,
+      color: c.textMuted,
+      fontWeight: '600',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xs,
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',

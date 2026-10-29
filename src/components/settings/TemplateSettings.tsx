@@ -34,6 +34,8 @@ export function TemplateSettings() {
   const deleteTemplate = useTemplatesStore((s) => s.deleteTemplate);
   const exportAll = useTemplatesStore((s) => s.exportAll);
   const importTemplates = useTemplatesStore((s) => s.importTemplates);
+  const storedInAccount = useTemplatesStore((s) => s.storedInAccount);
+  const refresh = useTemplatesStore((s) => s.refresh);
 
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [importVisible, setImportVisible] = useState(false);
@@ -48,6 +50,10 @@ export function TemplateSettings() {
   useEffect(() => {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
+  // Kept in the account on Stalwart 1.0: changes from the webmail come in.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const openCreate = () => {
     setEditing({
@@ -136,6 +142,11 @@ export function TemplateSettings() {
   return (
     <View style={styles.container}>
       <SettingsSection title={tr('settings.templates.title', 'Email Templates')} description={tr('settings.templates.description_mobile', 'Reusable snippets for common replies. Tap one to edit; long-press to delete.')}>
+        {storedInAccount && (
+          <Text style={styles.count}>
+            {tr('org_templates.personal_in_account', 'Your templates are kept in your account, so you have them on every device you sign in on. Anyone you share your Inbox with can read them.')}
+          </Text>
+        )}
         <View style={styles.headerRow}>
           <View style={styles.countRow}>
             <FileText size={16} color={c.mutedForeground} />

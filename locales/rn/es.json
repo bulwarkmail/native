@@ -668,6 +668,10 @@
       "up_to_date": "Ya está al día"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Tus plantillas se guardan en tu cuenta, así que las tienes en todos los dispositivos en los que inicias sesión. Cualquier persona con quien compartas tu bandeja de entrada puede leerlas.",
+    "section_personal": "Mis plantillas"
+  },
   "push_prompt": {
     "body": "Activa las notificaciones en segundo plano para recibir los mensajes nuevos aunque la app esté cerrada.",
     "dismiss": "Ahora no",

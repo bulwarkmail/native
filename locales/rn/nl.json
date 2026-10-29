@@ -662,6 +662,10 @@
       "up_to_date": "Al up-to-date"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Je sjablonen worden in je account bewaard, dus je hebt ze op elk apparaat waarop je je aanmeldt. Iedereen met wie je je Postvak IN deelt, kan ze lezen.",
+    "section_personal": "Mijn sjablonen"
+  },
   "push_prompt": {
     "body": "Schakel achtergrondmeldingen in zodat nieuwe berichten u bereiken terwijl de app gesloten is.",
     "dismiss": "Niet nu",
