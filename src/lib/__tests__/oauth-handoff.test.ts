@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as WebBrowser from 'expo-web-browser';
 
 const { mockSecureFetch } = vi.hoisted(() => ({ mockSecureFetch: vi.fn() }));
-vi.mock('../client-cert', () => ({ secureFetch: mockSecureFetch }));
+vi.mock('../client-cert', () => ({ secureFetch: mockSecureFetch, fetchWithoutForeignRedirect: mockSecureFetch }));
 
 import { redeemPairingCode, runWebmailHandoff } from '../oauth';
 
