@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as WebBrowser from 'expo-web-browser';
 
-vi.mock('../client-cert', () => ({
-  secureFetch: vi.fn(),
-}));
+// One fake server behind both: the client check and registration go out
+// with fetchWithoutForeignRedirect.
+vi.mock('../client-cert', () => {
+  const fetchFn = vi.fn();
+  return { secureFetch: fetchFn, fetchWithoutForeignRedirect: fetchFn };
+});
 
 import { secureFetch } from '../client-cert';
 import { loginWithPkce, pkceScopes, type OAuthMetadata } from '../oauth-native';

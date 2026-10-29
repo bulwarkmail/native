@@ -24,7 +24,7 @@
 // Token auth also survives TOTP rotation, unlike Basic auth, which would have
 // to embed the ~30 s code in every request.
 
-import { mayFollowRedirect, secureFetch } from './client-cert';
+import { fetchWithoutForeignRedirect, mayFollowRedirect } from './client-cert';
 import { sha256Hex } from './sha256';
 import { base64UrlEncode, randomBytes, randomHex } from './random';
 import { HANDOFF_REDIRECT_URI, type OAuthTokens } from './oauth';
@@ -133,11 +133,17 @@ function withTimeout(ms: number): { signal?: AbortSignal; done: () => void } {
 }
 
 // The password and the PKCE verifier must not follow a redirect to another
-// host. The platform fetch follows redirects itself, so the check is on where
-// the answer came from; the client check below runs first and is a plain GET,
-// which keeps the password from being posted anywhere the server redirects.
+// host. The requests go out with fetchWithoutForeignRedirect, which hands such
+// a redirect back unfollowed; where the platform followed it anyway, the
+// answer's `url` says so. React Native's fetch never sets `redirected`, only
+// `url` (from the XHR's responseURL), so that is what counts.
 function assertSameServer(requested: string, response: Response): void {
-  if (response.redirected && response.url && !mayFollowRedirect(requested, response.url)) {
+  const status = response.status;
+  if (status >= 300 && status < 400) {
+    const location = response.headers?.get?.('location');
+    if (location) throw new TotpLoginError('login_failed', `${requested} redirects to another host`);
+  }
+  if (response.url && !mayFollowRedirect(requested, response.url)) {
     throw new TotpLoginError('login_failed', `${requested} redirects to another host`);
   }
 }
@@ -148,7 +154,7 @@ async function registerPublicClient(base: string): Promise<LoginClient> {
   const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await secureFetch(url, {
+    response = await fetchWithoutForeignRedirect(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
@@ -203,7 +209,7 @@ export async function resolveLoginClient(serverUrl: string): Promise<LoginClient
   const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await secureFetch(url, {
+    response = await fetchWithoutForeignRedirect(url, {
       headers: { Accept: 'application/json' },
       signal: t.signal,
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
@@ -344,7 +350,7 @@ async function requestLoginCode(
   const url = `${base}/api/auth`;
   let loginResponse: Response;
   try {
-    loginResponse = await secureFetch(url, {
+    loginResponse = await fetchWithoutForeignRedirect(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(stalwartLoginBody({
@@ -434,7 +440,7 @@ export async function exchangePasswordForTokens(
   const tokenUrl = `${base}/auth/token`;
   let tokenResponse: Response;
   try {
-    tokenResponse = await secureFetch(tokenUrl, {
+    tokenResponse = await fetchWithoutForeignRedirect(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: tokenParams.toString(),
