@@ -6,7 +6,7 @@ import {
 } from './jmap-client';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { secureFetch } from '../lib/client-cert';
-import { refreshOAuthAccessToken, type OAuthTokens } from '../lib/oauth';
+import { freshStoredCredentials } from '../lib/stored-token-refresh';
 import { textConditions } from '../lib/search-utils';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
@@ -23,7 +23,6 @@ const EMAIL_LIST_PROPERTIES = [
   'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment',
 ];
 
-const TOKEN_REFRESH_LEEWAY_MS = 60_000;
 const SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 const MAILBOX_CACHE_TTL_MS = 60 * 1000;
 
@@ -166,51 +165,6 @@ function sharedMailAccountsOf(session: JMAPSession, primaryId: string): { id: st
   return out;
 }
 
-// Refresh an about-to-expire OAuth token and persist it so the next fetch (and
-// a later account switch) reuse the fresh one. Returns possibly-updated creds.
-async function ensureFreshCredentials(
-  accountId: string,
-  creds: StoredCredentials,
-): Promise<StoredCredentials> {
-  if (
-    !creds.accessToken ||
-    !creds.refreshToken ||
-    !creds.tokenEndpoint ||
-    !creds.clientId ||
-    creds.expiresAt == null
-  ) {
-    return creds;
-  }
-  if (creds.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return creds;
-  try {
-    const tokens: OAuthTokens = {
-      accessToken: creds.accessToken,
-      refreshToken: creds.refreshToken,
-      expiresAt: creds.expiresAt,
-      tokenEndpoint: creds.tokenEndpoint,
-      clientId: creds.clientId,
-    };
-    const next = await refreshOAuthAccessToken(tokens);
-    const updated: StoredCredentials = {
-      ...creds,
-      accessToken: next.accessToken,
-      refreshToken: next.refreshToken ?? creds.refreshToken,
-      expiresAt: next.expiresAt,
-      tokenEndpoint: next.tokenEndpoint,
-      clientId: next.clientId,
-    };
-    const current = await jmapClient.getStoredCredentials(accountId);
-    if (!current || current.accessToken !== updated.accessToken) {
-      await jmapClient.setStoredCredentials(accountId, updated);
-    }
-    return updated;
-  } catch {
-    // Fall back to the existing (possibly expired) token; the request will
-    // surface a 401 which we report as an error for this account.
-    return creds;
-  }
-}
-
 // ── Per-account session + mailbox cache ────────────────────────────────
 
 interface AccountEntry {
@@ -266,7 +220,7 @@ async function entryFor(accountId: string): Promise<AccountEntry> {
 
   let creds = await jmapClient.getStoredCredentials(accountId);
   if (!creds) throw new Error('No stored credentials');
-  creds = await ensureFreshCredentials(accountId, creds);
+  creds = await freshStoredCredentials(accountId, creds);
   const baseUrl = creds.serverUrl.replace(/\/+$/, '');
   const authHeader = authHeaderFor(creds);
 

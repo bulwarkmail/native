@@ -78,6 +78,7 @@ vi.mock('../../api/jmap-client', () => {
       logout: vi.fn(async () => undefined),
       consumeLegacyCredentials: vi.fn(async () => null),
       clearAccountCredentials: vi.fn(async () => undefined),
+      clearAllCredentials: vi.fn(async () => undefined),
       getStoredOAuthTokens: vi.fn(async () => null),
       onAuthFailure: vi.fn(() => () => undefined),
       onTokenRefresh: vi.fn(() => () => undefined),
@@ -110,9 +111,15 @@ vi.mock('../../lib/push-notifications', () => ({
   forgetPushSubscriptionExpiry: vi.fn(async () => undefined),
 }));
 
+vi.mock('../../lib/oauth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/oauth')>();
+  return { ...actual, forgetRefreshRotations: vi.fn(actual.forgetRefreshRotations) };
+});
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { JMAPSession } from '../../api/types';
-import { AuthenticationError, NetworkError } from '../../api/jmap-client';
+import { AuthenticationError, NetworkError, jmapClient } from '../../api/jmap-client';
+import { forgetRefreshRotations } from '../../lib/oauth';
 import { sessionFingerprint, writeServerFingerprint } from '../../lib/server-fingerprint';
 import { useAccountStore } from '../account-store';
 import { useAuthStore } from '../auth-store';
@@ -206,5 +213,35 @@ describe('signing out of the active account (Stalwart 1.0)', () => {
 
     expect(where()).toEqual({ signedIn: true, auth: C, registry: C, email: C, client: C });
     expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([C]);
+  });
+});
+
+describe('what a sign-out leaves behind', () => {
+  // Pairing bundles aren't revoked, so no request goes out.
+  const tokensOf = (id: string) => ({
+    accessToken: `at-${id}`,
+    refreshToken: `rt-${id}`,
+    tokenEndpoint: 'https://mail.example.org/auth/token',
+    clientId: 'swc1.x',
+    source: 'pairing' as const,
+  });
+
+  beforeEach(() => {
+    vi.mocked(forgetRefreshRotations).mockClear();
+    vi.mocked(jmapClient.getStoredOAuthTokens).mockImplementation(async (id: string) => tokensOf(id));
+  });
+
+  it("drops the account's token rotations on each kind of sign-out", async () => {
+    await signedIn(A, B, C);
+    await useAuthStore.getState().removeAccount(C);
+    await settle();
+    expect(vi.mocked(forgetRefreshRotations).mock.calls).toEqual([[`rt-${C}`]]);
+
+    await useAuthStore.getState().logout();
+    await settle();
+    expect(vi.mocked(forgetRefreshRotations).mock.calls.at(-1)).toEqual([`rt-${A}`]);
+
+    await useAuthStore.getState().logoutAll();
+    expect(vi.mocked(forgetRefreshRotations).mock.calls.at(-1)).toEqual([`rt-${B}`]);
   });
 });

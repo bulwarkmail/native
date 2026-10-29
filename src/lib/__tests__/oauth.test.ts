@@ -8,7 +8,7 @@ vi.mock('../client-cert', () => ({
   secureFetch: mockSecureFetch,
 }));
 
-import { refreshOAuthAccessToken, resetRefreshRotations, type OAuthTokens } from '../oauth';
+import { forgetRefreshRotations, refreshOAuthAccessToken, resetRefreshRotations, type OAuthTokens } from '../oauth';
 
 describe('oauth token refresh deduplication', () => {
   beforeEach(() => {
@@ -87,6 +87,42 @@ describe('oauth token refresh deduplication', () => {
     const presented = mockSecureFetch.mock.calls.map(([, init]) => new URLSearchParams(String(init.body)).get('refresh_token'));
     expect(presented).toEqual(['r1', 'r2']);
     expect(res.refreshToken).toBe('r3');
+  });
+
+  it('forgets the whole chain of a signed-out account, from any of its tokens', async () => {
+    const tokens: OAuthTokens = {
+      accessToken: 'a1',
+      refreshToken: 'r1',
+      tokenEndpoint: 'https://auth.example.com/token',
+      clientId: 'swc1.x',
+    };
+    let generation = 1;
+    mockSecureFetch.mockImplementation(async () => {
+      generation += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: `a${generation}`, refresh_token: `r${generation}`, expires_in: 3600 }),
+      } as Response;
+    });
+    // Another account's chain: q1 -> r2.
+    const other = await refreshOAuthAccessToken({ ...tokens, accessToken: 'b1', refreshToken: 'q1' });
+    // This account's: r1 -> r3 -> r4.
+    await refreshOAuthAccessToken(tokens);
+    await refreshOAuthAccessToken({ ...tokens, accessToken: 'a3', refreshToken: 'r3', expiresAt: Date.now() });
+
+    // Sign-out reads the stored bundle, which may sit anywhere in the chain.
+    forgetRefreshRotations('r3');
+    mockSecureFetch.mockClear();
+    mockSecureFetch.mockResolvedValue({ ok: false, status: 400 } as Response);
+
+    // A stale copy no longer gets a successor out of memory.
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toThrow('400');
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+    // The other account's chain stays.
+    mockSecureFetch.mockClear();
+    expect((await refreshOAuthAccessToken({ ...tokens, accessToken: 'b1', refreshToken: 'q1' })).accessToken).toBe(other.accessToken);
+    expect(mockSecureFetch).not.toHaveBeenCalled();
   });
 
   it('keeps refreshing with the same token on a server that does not rotate', async () => {

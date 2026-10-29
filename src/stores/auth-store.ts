@@ -27,6 +27,7 @@ import {
   HandoffCancelledError,
   HandoffError,
   PairingError,
+  forgetRefreshRotations,
   type HandoffResult,
 } from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
@@ -371,11 +372,14 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { 
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
 // QR-paired bundles are left alone: webmail up to 1.11 handed the phone the
 // desktop's own refresh token, and newer ones hand out a separate grant whose
-// refresh token only the webmail's token proxy understands.
+// refresh token only the webmail's token proxy understands. The account's
+// chain also leaves the in-process rotation memory either way, so a stale copy
+// refreshed after the sign-out can't pick up its tokens from there.
 async function revokeStoredRefreshToken(accountId: string): Promise<void> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
     const tokens = await jmapClient.getStoredOAuthTokens(accountId);
+    forgetRefreshRotations(tokens?.refreshToken);
     if (!entry || !tokens || tokens.source === 'pairing') return;
     await revokeRefreshToken(entry.serverUrl, tokens);
   } catch {
