@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Bijlage vergeten?",
     "attachments_too_large_total": "De bijlagen zouden de {max} overschrijden die deze server per bericht toestaat.",
     "editor_unavailable": "Kon de inhoud van het bericht niet lezen. Kopieer uw tekst en sluit en open daarna het opstelvenster opnieuw.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Bijvoegen} one {1 bestand bijvoegen} other {# bestanden bijvoegen}}",
+      "empty_folder": "Deze map is leeg",
+      "load_failed": "Je bestanden konden niet worden geladen"
+    },
     "from_options": "Afzenderopties",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identiteit niet beschikbaar",
@@ -292,6 +297,30 @@
     "no_sent_folder": "Geen map Verzonden gevonden",
     "permission_camera": "Toestemming voor de camera is nodig om een foto te maken.",
     "permission_photos": "Toestemming voor de fotobibliotheek is nodig om afbeeldingen bij te voegen.",
+    "placeholder_warning": {
+      "title": "Tijdelijke aanduidingen controleren?",
+      "message": "Je bericht bevat tijdelijke tekst die ontvangers zullen zien. Wil je het bewerken voordat je het verzendt?",
+      "found": "Gevonden tijdelijke aanduidingen",
+      "more": "en nog {count}",
+      "dont_ask_again": "Niet meer vragen",
+      "send_anyway": "Toch verzenden",
+      "back": "Terug naar bewerken"
+    },
+    "placeholder_words": {
+      "before": [
+        "je",
+        "jouw",
+        "uw",
+        "voeg",
+        "vul"
+      ],
+      "after": [
+        "invoegen",
+        "invullen",
+        "toevoegen"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Aan contacten toevoegen",
     "recipient_copy": "Adres kopiëren",
     "recipient_move_to": "Verplaatsen naar {field}",
@@ -431,6 +460,14 @@
     "remove_color": "Label verwijderen",
     "replied": "Beantwoord",
     "reschedule_recipients_refused": "Er is niets gewijzigd: de server heeft {recipients} geweigerd.",
+    "save_to_files": {
+      "title": "Opslaan in Bestanden",
+      "save_here": "Hier opslaan",
+      "saved": "Opgeslagen in Bestanden",
+      "saved_to": "In {folder}",
+      "failed": "Kon niet opslaan in Bestanden",
+      "load_failed": "Kon je mappen niet laden. Probeer het opnieuw."
+    },
     "sender_actions": "Afzender…",
     "set_color": "Label instellen",
     "show_all_count": "Alles tonen ({count})",
@@ -624,6 +661,10 @@
       "unable_to_download": "Downloaden niet mogelijk",
       "up_to_date": "Al up-to-date"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Je sjablonen worden in je account bewaard, dus je hebt ze op elk apparaat waarop je je aanmeldt. Iedereen met wie je je Postvak IN deelt, kan ze lezen.",
+    "section_personal": "Mijn sjablonen"
   },
   "push_prompt": {
     "body": "Schakel achtergrondmeldingen in zodat nieuwe berichten u bereiken terwijl de app gesloten is.",
@@ -819,6 +860,10 @@
         "allow_mobile": "Toestaan",
         "ask_mobile": "Vragen",
         "block_mobile": "Blokkeren"
+      },
+      "placeholder_warning": {
+        "label": "Waarschuwing bij tijdelijke aanduidingen",
+        "description": "Vraag om bevestiging voordat een bericht wordt verzonden dat nog tijdelijke aanduidingen bevat zoals [TIME] of [Uw naam], lege sjabloonvelden of onafgemaakte tekst zoals TODO of TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Alleen in platte tekst opstellen en lezen."

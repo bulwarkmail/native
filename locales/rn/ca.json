@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Us heu oblidat d'un fitxer adjunt?",
     "attachments_too_large_total": "Els fitxers adjunts superarien els {max} que aquest servidor permet per missatge.",
     "editor_unavailable": "No s'ha pogut llegir el contingut del missatge. Copieu el text i, després, tanqueu i torneu a obrir el redactor.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Adjunta} one {Adjunta 1 fitxer} other {Adjunta # fitxers}}",
+      "empty_folder": "Aquesta carpeta és buida",
+      "load_failed": "No s'han pogut carregar els teus fitxers"
+    },
     "from_options": "Opcions del remitent",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitat no disponible",
@@ -292,6 +297,30 @@
     "no_sent_folder": "No s'ha trobat la carpeta Enviats",
     "permission_camera": "Cal permís per a la càmera per fer una foto.",
     "permission_photos": "Cal permís per a la galeria de fotos per adjuntar imatges.",
+    "placeholder_warning": {
+      "title": "Voleu revisar els marcadors?",
+      "message": "El missatge té text de marcador que veuran els destinataris. Voleu editar-lo abans d'enviar-lo?",
+      "found": "Marcadors trobats",
+      "more": "i {count} més",
+      "dont_ask_again": "No ho tornis a preguntar",
+      "send_anyway": "Envia igualment",
+      "back": "Torna a l'edició"
+    },
+    "placeholder_words": {
+      "before": [
+        "el teu",
+        "la teva",
+        "el vostre",
+        "la vostra",
+        "insereix",
+        "inseriu",
+        "afegeix",
+        "afegiu",
+        "escriviu"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Afegeix als contactes",
     "recipient_copy": "Copia l'adreça",
     "recipient_move_to": "Mou a {field}",
@@ -431,6 +460,14 @@
     "remove_color": "Elimina l'etiqueta",
     "replied": "Respost",
     "reschedule_recipients_refused": "No s'ha canviat res: el servidor ha rebutjat {recipients}.",
+    "save_to_files": {
+      "title": "Desa a Fitxers",
+      "save_here": "Desa aquí",
+      "saved": "S'ha desat a Fitxers",
+      "saved_to": "A {folder}",
+      "failed": "No s'ha pogut desar a Fitxers",
+      "load_failed": "No s'han pogut carregar les carpetes. Torna-ho a provar."
+    },
     "sender_actions": "Remitent…",
     "set_color": "Estableix l'etiqueta",
     "show_all_count": "Mostra-ho tot ({count})",
@@ -624,6 +661,10 @@
       "unable_to_download": "No s'ha pogut baixar",
       "up_to_date": "Ja està al dia"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Les vostres plantilles es desen al vostre compte, així que les teniu a tots els dispositius on inicieu la sessió. Qualsevol persona amb qui compartiu la safata d'entrada les pot llegir.",
+    "section_personal": "Les meves plantilles"
   },
   "push_prompt": {
     "body": "Activeu les notificacions en segon pla perquè els missatges nous us arribin amb l'aplicació tancada.",
@@ -819,6 +860,10 @@
         "allow_mobile": "Permet",
         "ask_mobile": "Pregunta",
         "block_mobile": "Bloqueja"
+      },
+      "placeholder_warning": {
+        "label": "Avís de marcadors",
+        "description": "Demana confirmació abans d'enviar un missatge que encara té marcadors com [TIME] o [El teu nom], camps de plantilla buits o text inacabat com TODO o TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Redacta i llegeix només en text sense format."

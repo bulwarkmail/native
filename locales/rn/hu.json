@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Elfelejtetted a csatolmányt?",
     "attachments_too_large_total": "A csatolmányok túllépnék a szerver által üzenetenként engedélyezett méretet ({max}).",
     "editor_unavailable": "Nem sikerült beolvasni az üzenet tartalmát. Másold ki a szöveget, majd zárd be és nyisd meg újra a szerkesztőt.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Csatolás} one {1 fájl csatolása} other {# fájl csatolása}}",
+      "empty_folder": "Ez a mappa üres",
+      "load_failed": "A fájlokat nem sikerült betölteni"
+    },
     "from_options": "Feladó beállításai",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Az azonosság nem érhető el",
@@ -292,6 +297,26 @@
     "no_sent_folder": "Nem található Elküldött mappa",
     "permission_camera": "Fénykép készítéséhez kameraengedély szükséges.",
     "permission_photos": "Képek csatolásához hozzáférés szükséges a fotókhoz.",
+    "placeholder_warning": {
+      "title": "Ellenőrzi a helykitöltőket?",
+      "message": "Az üzenet olyan helykitöltő szöveget tartalmaz, amelyet a címzettek is látni fognak. Szerkeszti küldés előtt?",
+      "found": "Talált helykitöltők",
+      "more": "és még {count}",
+      "dont_ask_again": "Ne kérdezze többé",
+      "send_anyway": "Küldés így is",
+      "back": "Vissza a szerkesztéshez"
+    },
+    "placeholder_words": {
+      "before": [
+        "az ön",
+        "a te",
+        "írja be",
+        "illessze be",
+        "adja meg"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Hozzáadás a névjegyekhez",
     "recipient_copy": "Cím másolása",
     "recipient_move_to": "Áthelyezés ide: {field}",
@@ -431,6 +456,14 @@
     "remove_color": "Címke eltávolítása",
     "replied": "Megválaszolva",
     "reschedule_recipients_refused": "Semmi sem változott: a kiszolgáló elutasította a következőt: {recipients}.",
+    "save_to_files": {
+      "title": "Mentés a Fájlokba",
+      "save_here": "Mentés ide",
+      "saved": "Mentve a Fájlokba",
+      "saved_to": "Ide: {folder}",
+      "failed": "Nem sikerült menteni a Fájlokba",
+      "load_failed": "Nem sikerült betölteni a mappákat. Próbálja újra."
+    },
     "sender_actions": "Feladó…",
     "set_color": "Címke beállítása",
     "show_all_count": "Összes megjelenítése ({count})",
@@ -624,6 +657,10 @@
       "unable_to_download": "Nem sikerült letölteni",
       "up_to_date": "Már minden naprakész"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "A sablonjaidat a fiókod tárolja, így minden eszközön megvannak, ahol bejelentkezel. Bárki elolvashatja őket, akivel megosztod a Beérkező leveleket.",
+    "section_personal": "Saját sablonok"
   },
   "push_prompt": {
     "body": "Kapcsold be a háttérértesítéseket, hogy az új üzenetekről akkor is értesülj, amikor az alkalmazás be van zárva.",
@@ -819,6 +856,10 @@
         "allow_mobile": "Engedélyezés",
         "ask_mobile": "Rákérdezés",
         "block_mobile": "Blokkolás"
+      },
+      "placeholder_warning": {
+        "label": "Figyelmeztetés helykitöltők esetén",
+        "description": "Megerősítés kérése olyan üzenet küldése előtt, amelyben még helykitöltők vannak, például [TIME] vagy [Az Ön neve], üres sablonmezők vagy befejezetlen szöveg, például TODO vagy TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Írás és olvasás csak egyszerű szövegként."

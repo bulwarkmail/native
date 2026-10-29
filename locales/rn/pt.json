@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Esqueceu um anexo?",
     "attachments_too_large_total": "Os anexos excederiam o limite de {max} por mensagem permitido por este servidor.",
     "editor_unavailable": "Não foi possível ler o conteúdo da mensagem. Copie seu texto e depois feche e reabra o editor.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Anexar} one {Anexar 1 arquivo} other {Anexar # arquivos}}",
+      "empty_folder": "Esta pasta está vazia",
+      "load_failed": "Não foi possível carregar seus arquivos"
+    },
     "from_options": "Opções de remetente",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identidade indisponível",
@@ -292,6 +297,33 @@
     "no_sent_folder": "Nenhuma pasta Enviados encontrada",
     "permission_camera": "É necessária permissão da câmera para tirar uma foto.",
     "permission_photos": "É necessária permissão da galeria de fotos para anexar imagens.",
+    "placeholder_warning": {
+      "title": "Verificar marcadores?",
+      "message": "A mensagem tem texto de marcador que os destinatários vão ver. Quer editá-la antes de enviar?",
+      "found": "Marcadores encontrados",
+      "more": "e mais {count}",
+      "dont_ask_again": "Não perguntar novamente",
+      "send_anyway": "Enviar mesmo assim",
+      "back": "Voltar à edição"
+    },
+    "placeholder_words": {
+      "before": [
+        "seu",
+        "sua",
+        "seus",
+        "suas",
+        "teu",
+        "tua",
+        "inserir",
+        "insira",
+        "adicionar",
+        "adicione",
+        "digite",
+        "informe"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Adicionar aos contatos",
     "recipient_copy": "Copiar endereço",
     "recipient_move_to": "Mover para {field}",
@@ -431,6 +463,14 @@
     "remove_color": "Remover etiqueta",
     "replied": "Respondido",
     "reschedule_recipients_refused": "Nada foi alterado: o servidor recusou {recipients}.",
+    "save_to_files": {
+      "title": "Guardar em Ficheiros",
+      "save_here": "Guardar aqui",
+      "saved": "Guardado em Ficheiros",
+      "saved_to": "Em {folder}",
+      "failed": "Não foi possível guardar em Ficheiros",
+      "load_failed": "Não foi possível carregar as pastas. Tente novamente."
+    },
     "sender_actions": "Remetente…",
     "set_color": "Definir etiqueta",
     "show_all_count": "Mostrar tudo ({count})",
@@ -624,6 +664,10 @@
       "unable_to_download": "Não foi possível baixar",
       "up_to_date": "Já está atualizado"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Seus modelos ficam guardados na sua conta, então você os tem em todos os dispositivos em que faz login. Qualquer pessoa com quem você compartilha a Caixa de Entrada pode lê-los.",
+    "section_personal": "Meus modelos"
   },
   "push_prompt": {
     "body": "Ative as notificações em segundo plano para receber novas mensagens mesmo com o app fechado.",
@@ -819,6 +863,10 @@
         "allow_mobile": "Permitir",
         "ask_mobile": "Perguntar",
         "block_mobile": "Bloquear"
+      },
+      "placeholder_warning": {
+        "label": "Aviso de marcadores",
+        "description": "Pedir confirmação antes de enviar uma mensagem que ainda tem marcadores como [TIME] ou [Seu nome], campos de modelo vazios ou texto inacabado como TODO ou TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Escrever e ler apenas em texto simples."

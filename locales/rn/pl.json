@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Zapomniano o załączniku?",
     "attachments_too_large_total": "Załączniki przekroczyłyby limit {max} na wiadomość obowiązujący na tym serwerze.",
     "editor_unavailable": "Nie można odczytać treści wiadomości. Skopiuj tekst, a następnie zamknij i ponownie otwórz edytor.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Dołącz} one {Dołącz 1 plik} few {Dołącz # pliki} many {Dołącz # plików} other {Dołącz # pliku}}",
+      "empty_folder": "Ten folder jest pusty",
+      "load_failed": "Nie udało się wczytać plików"
+    },
     "from_options": "Opcje nadawcy",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Tożsamość niedostępna",
@@ -292,6 +297,30 @@
     "no_sent_folder": "Nie znaleziono folderu Wysłane",
     "permission_camera": "Aby zrobić zdjęcie, potrzebny jest dostęp do aparatu.",
     "permission_photos": "Aby załączać obrazy, potrzebny jest dostęp do galerii zdjęć.",
+    "placeholder_warning": {
+      "title": "Sprawdzić symbole zastępcze?",
+      "message": "Wiadomość zawiera tekst zastępczy, który zobaczą odbiorcy. Czy chcesz go poprawić przed wysłaniem?",
+      "found": "Znalezione symbole zastępcze",
+      "more": "i jeszcze {count}",
+      "dont_ask_again": "Nie pytaj ponownie",
+      "send_anyway": "Wyślij mimo to",
+      "back": "Wróć do edycji"
+    },
+    "placeholder_words": {
+      "before": [
+        "twoje",
+        "twój",
+        "twoja",
+        "pana",
+        "pani",
+        "wstaw",
+        "wpisz",
+        "dodaj",
+        "podaj"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Dodaj do kontaktów",
     "recipient_copy": "Kopiuj adres",
     "recipient_move_to": "Przenieś do pola {field}",
@@ -431,6 +460,14 @@
     "remove_color": "Usuń etykietę",
     "replied": "Odpowiedziano",
     "reschedule_recipients_refused": "Nic nie zostało zmienione: serwer odrzucił {recipients}.",
+    "save_to_files": {
+      "title": "Zapisz w Plikach",
+      "save_here": "Zapisz tutaj",
+      "saved": "Zapisano w Plikach",
+      "saved_to": "W folderze {folder}",
+      "failed": "Nie udało się zapisać w Plikach",
+      "load_failed": "Nie udało się wczytać folderów. Spróbuj ponownie."
+    },
     "sender_actions": "Nadawca…",
     "set_color": "Ustaw etykietę",
     "show_all_count": "Pokaż wszystkie ({count})",
@@ -624,6 +661,10 @@
       "unable_to_download": "Nie można pobrać",
       "up_to_date": "Wszystko jest aktualne"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Twoje szablony są przechowywane na Twoim koncie, więc masz je na każdym urządzeniu, na którym się logujesz. Może je przeczytać każdy, komu udostępniasz folder Odebrane.",
+    "section_personal": "Moje szablony"
   },
   "push_prompt": {
     "body": "Włącz powiadomienia w tle, aby nowe wiadomości docierały do Ciebie, gdy aplikacja jest zamknięta.",
@@ -819,6 +860,10 @@
         "allow_mobile": "Zezwalaj",
         "ask_mobile": "Pytaj",
         "block_mobile": "Blokuj"
+      },
+      "placeholder_warning": {
+        "label": "Ostrzeżenie o symbolach zastępczych",
+        "description": "Poproś o potwierdzenie przed wysłaniem wiadomości, która wciąż zawiera symbole zastępcze, takie jak [TIME] lub [Twoje imię], puste pola szablonu albo niedokończony tekst, taki jak TODO lub TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Twórz i czytaj wiadomości tylko jako zwykły tekst."

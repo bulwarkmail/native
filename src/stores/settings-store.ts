@@ -173,6 +173,8 @@ interface PersistedSettings {
   requestReadReceiptDefault: boolean;
   // Confirm before sending a message without a subject (#684).
   emptySubjectWarningEnabled: boolean;
+  // Confirm before sending a message with unfilled placeholders like [TIME] or TODO.
+  placeholderWarningEnabled: boolean;
   // Draft autosave debounce, milliseconds.
   autoSaveDraftInterval: number;
   // Character separating user from tag (e.g. "user+tag@"), RFC 5233.
@@ -365,6 +367,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   signatureSeparatorEnabled: true,
   requestReadReceiptDefault: false,
   emptySubjectWarningEnabled: true,
+  placeholderWarningEnabled: true,
   autoSaveDraftInterval: 60000,
   subAddressDelimiter: '+',
   preferredIdentityIds: {},

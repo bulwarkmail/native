@@ -48,7 +48,7 @@ import {
   createSieveScript, deleteSieveScript, getSieveScriptContent, getSieveScripts, validateSieveScript,
 } from '../sieve';
 import { inlineContactMediaForExport, writeContactWithNewPhoto } from '../../lib/contact-media';
-import { getBulwarkMetadata, resetBulwarkMetadataPauses, supportsBulwarkMetadata } from '../bulwark-metadata';
+import { getBulwarkMetadata, resetBulwarkMetadata, supportsBulwarkMetadata } from '../bulwark-metadata';
 import { parseSharedTags, SHARED_TAGS_KEY } from '../../lib/shared-tags';
 import { generateVCard, parseVCard } from '../../lib/vcard';
 import type { ContactCard } from '../types';
@@ -358,7 +358,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
     // is in no group, so this checks the shape on its own Inbox: written the
     // way the webmail writes it, read the way the app reads it.
     it('reads shared tags from Inbox metadata on 1.0 and asks nothing of 0.16', async () => {
-      resetBulwarkMetadataPauses();
+      resetBulwarkMetadata();
       const accountId = client.accountId;
       if (!is10()) {
         expect(supportsBulwarkMetadata(accountId)).toBe(false);
@@ -378,7 +378,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
         // One tag patched on its own, as the webmail saves a change.
         await setTags({ label: 'Second', color: 'blue' }, `/tags/second-${RUN}`);
 
-        resetBulwarkMetadataPauses();
+        resetBulwarkMetadata();
         const entries = await getBulwarkMetadata(accountId);
         expect(parseSharedTags(entries?.[SHARED_TAGS_KEY])).toEqual([
           { id: `live-${RUN}`, label: 'Live check', color: 'teal' },

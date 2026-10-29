@@ -284,6 +284,11 @@
     "attachment_reminder_title": "첨부 파일을 잊으셨나요?",
     "attachments_too_large_total": "첨부 파일이 이 서버의 메시지당 한도({max})를 넘어요.",
     "editor_unavailable": "메시지 내용을 읽을 수 없어요. 텍스트를 복사한 다음 작성 화면을 닫았다가 다시 열어 주세요.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {첨부} other {파일 #개 첨부}}",
+      "empty_folder": "이 폴더는 비어 있습니다",
+      "load_failed": "파일을 불러올 수 없습니다"
+    },
     "from_options": "보내는 사람 옵션",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "보내는 사람을 사용할 수 없어요",
@@ -292,6 +297,28 @@
     "no_sent_folder": "보낸편지함을 찾을 수 없어요",
     "permission_camera": "사진을 찍으려면 카메라 권한이 필요해요.",
     "permission_photos": "이미지를 첨부하려면 사진 보관함 권한이 필요해요.",
+    "placeholder_warning": {
+      "title": "자리표시자를 확인할까요?",
+      "message": "메시지에 받는 사람에게 보이는 자리표시자 텍스트가 있습니다. 보내기 전에 수정할까요?",
+      "found": "찾은 자리표시자",
+      "more": "외 {count}개",
+      "dont_ask_again": "다시 묻지 않기",
+      "send_anyway": "그래도 보내기",
+      "back": "편집으로 돌아가기"
+    },
+    "placeholder_words": {
+      "before": [
+        "귀하의",
+        "당신의",
+        "고객님의"
+      ],
+      "after": [
+        "입력",
+        "삽입",
+        "추가"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "연락처에 추가",
     "recipient_copy": "주소 복사",
     "recipient_move_to": "{field}(으)로 이동",
@@ -431,6 +458,14 @@
     "remove_color": "태그 제거",
     "replied": "답장함",
     "reschedule_recipients_refused": "변경된 내용이 없습니다: 서버가 {recipients}을(를) 거부했습니다.",
+    "save_to_files": {
+      "title": "파일에 저장",
+      "save_here": "여기에 저장",
+      "saved": "파일에 저장했어요",
+      "saved_to": "{folder}에 저장",
+      "failed": "파일에 저장하지 못했어요",
+      "load_failed": "폴더를 불러오지 못했어요. 다시 시도하세요."
+    },
     "sender_actions": "보낸 사람…",
     "set_color": "태그 설정",
     "show_all_count": "전체 보기({count})",
@@ -624,6 +659,10 @@
       "unable_to_download": "다운로드할 수 없어요",
       "up_to_date": "이미 최신 상태예요"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "템플릿은 계정에 저장되므로 로그인하는 모든 기기에서 사용할 수 있어요. 받은편지함을 공유한 사람은 누구나 읽을 수 있어요.",
+    "section_personal": "내 템플릿"
   },
   "push_prompt": {
     "body": "백그라운드 알림을 켜면 앱이 닫혀 있어도 새 메시지를 받을 수 있어요.",
@@ -819,6 +858,10 @@
         "allow_mobile": "허용",
         "ask_mobile": "묻기",
         "block_mobile": "차단"
+      },
+      "placeholder_warning": {
+        "label": "자리표시자 경고",
+        "description": "[TIME]이나 [귀하의 이름] 같은 자리표시자, 비어 있는 템플릿 필드, TODO나 TBD 같은 미완성 텍스트가 남아 있는 메시지를 보내기 전에 확인을 요청합니다."
       },
       "plain_text_mode": {
         "description_mobile": "일반 텍스트로만 작성하고 읽어요."

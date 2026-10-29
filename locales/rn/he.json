@@ -284,6 +284,11 @@
     "attachment_reminder_title": "שכחת קובץ מצורף?",
     "attachments_too_large_total": "הקבצים המצורפים יחרגו מהמגבלה של {max} להודעה שהשרת הזה מאפשר.",
     "editor_unavailable": "לא ניתן היה לקרוא את תוכן ההודעה. העתק את הטקסט, ואז סגור ופתח מחדש את חלון הכתיבה.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {צירוף} one {צירוף קובץ 1} other {צירוף # קבצים}}",
+      "empty_folder": "התיקייה הזו ריקה",
+      "load_failed": "לא ניתן היה לטעון את הקבצים שלך"
+    },
     "from_options": "אפשרויות שולח",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "הזהות אינה זמינה",
@@ -292,6 +297,28 @@
     "no_sent_folder": "לא נמצאה תיקיית \"נשלח\"",
     "permission_camera": "נדרשת הרשאת מצלמה כדי לצלם תמונה.",
     "permission_photos": "נדרשת הרשאה לספריית התמונות כדי לצרף תמונות.",
+    "placeholder_warning": {
+      "title": "לבדוק מצייני מיקום?",
+      "message": "ההודעה מכילה טקסט מציין מיקום שהנמענים יראו. לערוך אותה לפני השליחה?",
+      "found": "מצייני מיקום שנמצאו",
+      "more": "ועוד {count}",
+      "dont_ask_again": "אל תשאל שוב",
+      "send_anyway": "שלח בכל זאת",
+      "back": "חזור לעריכה"
+    },
+    "placeholder_words": {
+      "before": [
+        "הכנס",
+        "הכניסו",
+        "הזן",
+        "הוסף"
+      ],
+      "after": [
+        "שלך",
+        "שלכם"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "הוסף לאנשי הקשר",
     "recipient_copy": "העתק כתובת",
     "recipient_move_to": "העבר אל {field}",
@@ -431,6 +458,14 @@
     "remove_color": "הסר תג",
     "replied": "נענה",
     "reschedule_recipients_refused": "דבר לא השתנה: השרת דחה את {recipients}.",
+    "save_to_files": {
+      "title": "שמירה בקבצים",
+      "save_here": "שמירה כאן",
+      "saved": "נשמר בקבצים",
+      "saved_to": "ב{folder}",
+      "failed": "לא ניתן היה לשמור בקבצים",
+      "load_failed": "לא ניתן היה לטעון את התיקיות. נסו שוב."
+    },
     "sender_actions": "שולח…",
     "set_color": "הגדר תג",
     "show_all_count": "הצג הכול ({count})",
@@ -624,6 +659,10 @@
       "unable_to_download": "לא ניתן להוריד",
       "up_to_date": "כבר מעודכן"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "התבניות שלך נשמרות בחשבון שלך, כך שהן זמינות בכל מכשיר שאתה מתחבר ממנו. כל מי ששיתפת איתו את הדואר הנכנס יכול לקרוא אותן.",
+    "section_personal": "התבניות שלי"
   },
   "push_prompt": {
     "body": "הפעל התראות ברקע כדי שהודעות חדשות יגיעו אליך גם כשהאפליקציה סגורה.",
@@ -819,6 +858,10 @@
         "allow_mobile": "אפשר",
         "ask_mobile": "שאל",
         "block_mobile": "חסום"
+      },
+      "placeholder_warning": {
+        "label": "אזהרה על מצייני מיקום",
+        "description": "בקש אישור לפני שליחת הודעה שעדיין יש בה מצייני מיקום כמו [TIME] או [השם שלך], שדות תבנית ריקים או טקסט לא גמור כמו TODO או TBD."
       },
       "plain_text_mode": {
         "description_mobile": "כתיבה וקריאה בטקסט רגיל בלבד."

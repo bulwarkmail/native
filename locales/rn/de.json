@@ -286,6 +286,11 @@
     "attachment_reminder_title": "Anhang vergessen?",
     "attachments_too_large_total": "Die Anhänge würden die {max} überschreiten, die dieser Server pro Nachricht erlaubt.",
     "editor_unavailable": "Der Nachrichteninhalt konnte nicht gelesen werden. Kopieren Sie Ihren Text, schließen Sie dann den Editor und öffnen Sie ihn erneut.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Anhängen} one {1 Datei anhängen} other {# Dateien anhängen}}",
+      "empty_folder": "Dieser Ordner ist leer",
+      "load_failed": "Ihre Dateien konnten nicht geladen werden"
+    },
     "from_options": "Absenderoptionen",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identität nicht verfügbar",
@@ -294,6 +299,31 @@
     "no_sent_folder": "Kein Gesendet-Ordner gefunden",
     "permission_camera": "Zum Aufnehmen eines Fotos ist die Kameraberechtigung erforderlich.",
     "permission_photos": "Zum Anhängen von Bildern ist die Berechtigung für die Fotomediathek erforderlich.",
+    "placeholder_warning": {
+      "title": "Platzhalter prüfen?",
+      "message": "Die Nachricht enthält Platzhaltertext, den die Empfänger sehen. Vor dem Senden bearbeiten?",
+      "found": "Gefundene Platzhalter",
+      "more": "und {count} weitere",
+      "dont_ask_again": "Nicht mehr fragen",
+      "send_anyway": "Trotzdem senden",
+      "back": "Zurück zur Bearbeitung"
+    },
+    "placeholder_words": {
+      "before": [
+        "ihr",
+        "ihre",
+        "ihren",
+        "dein",
+        "deine",
+        "deinen"
+      ],
+      "after": [
+        "einfügen",
+        "eintragen",
+        "ergänzen"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Zu Kontakten hinzufügen",
     "recipient_copy": "Adresse kopieren",
     "recipient_move_to": "Verschieben nach {field}",
@@ -437,6 +467,14 @@
     "remove_color": "Label entfernen",
     "replied": "Beantwortet",
     "reschedule_recipients_refused": "Nichts wurde geändert: Der Server hat {recipients} abgelehnt.",
+    "save_to_files": {
+      "title": "In Dateien speichern",
+      "save_here": "Hier speichern",
+      "saved": "In Dateien gespeichert",
+      "saved_to": "In {folder}",
+      "failed": "Konnte nicht in Dateien gespeichert werden",
+      "load_failed": "Ihre Ordner konnten nicht geladen werden. Versuchen Sie es erneut."
+    },
     "sender_actions": "Absender…",
     "set_color": "Label setzen",
     "show_all_count": "Alle anzeigen ({count})",
@@ -631,6 +669,10 @@
       "unable_to_download": "Download nicht möglich",
       "up_to_date": "Bereits aktuell"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Ihre Vorlagen werden in Ihrem Konto gespeichert, Sie haben sie also auf jedem Gerät, auf dem Sie sich anmelden. Alle, für die Sie Ihren Posteingang freigeben, können sie lesen.",
+    "section_personal": "Meine Vorlagen"
   },
   "push_prompt": {
     "body": "Aktivieren Sie Hintergrundbenachrichtigungen, damit neue Nachrichten Sie auch bei geschlossener App erreichen.",
@@ -828,6 +870,10 @@
         "allow_mobile": "Erlauben",
         "ask_mobile": "Fragen",
         "block_mobile": "Blockieren"
+      },
+      "placeholder_warning": {
+        "label": "Warnung bei Platzhaltern",
+        "description": "Vor dem Senden einer Nachricht nachfragen, die noch Platzhalter wie [TIME] oder [Ihr Name], leere Vorlagenfelder oder unfertigen Text wie TODO oder TBD enthält."
       },
       "plain_text_mode": {
         "description_mobile": "Nur im Klartext verfassen und lesen."

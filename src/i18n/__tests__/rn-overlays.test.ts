@@ -50,6 +50,13 @@ describe('RN overlay translations', () => {
       const problems: string[] = [];
       for (const [key, value] of readOverlay(code)) {
         const english = en.get(key);
+        // Word lists (email_composer.placeholder_words) are lists in every language.
+        if (Array.isArray(english)) {
+          if (!Array.isArray(value) || value.some((word) => typeof word !== 'string')) {
+            problems.push(`${key}: not a list of strings`);
+          }
+          continue;
+        }
         if (typeof english !== 'string') {
           problems.push(`${key}: not in locales/rn/en.json`);
           continue;

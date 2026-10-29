@@ -9,9 +9,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import {
   listScheduledEmails,
-  cancelScheduledSend,
   rescheduleScheduledSend,
-  restoreEmailToDraft,
   getFullEmail,
   type ScheduledEmail,
 } from '../api/email';
@@ -23,13 +21,17 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
-import { ownMailboxes } from '../lib/mailbox-tree';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { formatQuoteDate } from '../lib/quote-header';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { isPendingSend, sameScheduledSend, scheduledSendKey } from '../lib/scheduled-send-key';
+import { rescheduleErrorNotice, rescheduleLostMessage, restoredSubmission } from '../lib/compose-reschedule';
+import { cancelScheduledToDrafts, scheduledAccountOverride } from '../lib/compose-scheduled';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import { ScheduledMessageView } from '../components/compose/ScheduledMessageView';
+import type { Email } from '../api/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Scheduled'>;
 
@@ -49,6 +51,28 @@ export default function ScheduledScreen({ navigation }: Props) {
   const [rescheduleFor, setRescheduleFor] = React.useState<ScheduledEmail | null>(null);
   const [customStage, setCustomStage] = React.useState<'datetime' | 'date' | 'time' | null>(null);
   const customDraftRef = React.useRef<Date>(new Date());
+  // The scheduled message open in the read-only view (native #84).
+  const [viewing, setViewing] = React.useState<ScheduledEmail | null>(null);
+  const [viewEmail, setViewEmail] = React.useState<Email | null>(null);
+  const [viewError, setViewError] = React.useState<string | null>(null);
+  const viewSeq = React.useRef(0);
+  const openView = React.useCallback((item: ScheduledEmail) => {
+    const seq = ++viewSeq.current;
+    setViewing(item);
+    setViewEmail(null);
+    setViewError(null);
+    getFullEmail(item.emailId, scheduledAccountOverride(item, jmapClient.accountId)).then(
+      (email) => { if (viewSeq.current === seq) setViewEmail(email); },
+      (e: unknown) => { if (viewSeq.current === seq) setViewError(e instanceof Error ? e.message : String(e)); },
+    );
+  }, []);
+  const closeView = React.useCallback(() => {
+    viewSeq.current += 1;
+    setViewing(null);
+    setViewEmail(null);
+    setViewError(null);
+  }, []);
+  useBackWhileFocused(!!viewing, closeView);
 
   const formatWhen = React.useCallback(
     (iso: string) => formatQuoteDate(iso, timeFormat, locale),
@@ -84,6 +108,24 @@ export default function ScheduledScreen({ navigation }: Props) {
     try {
       await action();
     } catch (e) {
+      // A failed reschedule or "Send now" put the original back under a new
+      // id, or could not, and the message is back in Drafts (#1308).
+      const restored = restoredSubmission(e);
+      if (restored || rescheduleLostMessage(e)) {
+        if (restored) {
+          updateItem(item, { emailSubmissionId: restored.emailSubmissionId, sendAt: restored.sendAt ?? item.sendAt });
+          const pending = useSendUndoStore.getState().pending;
+          if (isPendingSend(pending, item, jmapClient.accountId)) {
+            useSendUndoStore.getState().setPending({ ...pending!, emailSubmissionId: restored.emailSubmissionId });
+          }
+        } else {
+          clearUndoFor(item);
+          removeItem(item);
+        }
+        const { title, message } = rescheduleErrorNotice(e, t, failTitle, formatWhen, item.sendAt);
+        Alert.alert(title, message);
+        return;
+      }
       if (e instanceof ScheduleTooLateError) {
         Alert.alert(
           t('email_composer.schedule_too_late_title', 'Too far ahead'),
@@ -126,7 +168,17 @@ export default function ScheduledScreen({ navigation }: Props) {
   };
 
   // Submission ids repeat across accounts: a row is its account and id.
-  const removeItem = (item: ScheduledEmail) => setItems((prev) => prev.filter((i) => !sameScheduledSend(i, item)));
+  const removeItem = (item: ScheduledEmail) => {
+    setItems((prev) => prev.filter((i) => !sameScheduledSend(i, item)));
+    // It is gone from Scheduled: the view of it closes too.
+    setViewing((v) => (v && sameScheduledSend(v, item) ? null : v));
+  };
+  const updateItem = (item: ScheduledEmail, patch: Pick<ScheduledEmail, 'emailSubmissionId' | 'sendAt'>) => {
+    setItems((prev) => prev
+      .map((i) => (sameScheduledSend(i, item) ? { ...i, ...patch } : i))
+      .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime()));
+    setViewing((v) => (v && sameScheduledSend(v, item) ? { ...v, ...patch } : v));
+  };
   const clearUndoFor = (item: ScheduledEmail) => {
     if (isPendingSend(useSendUndoStore.getState().pending, item, jmapClient.accountId)) useSendUndoStore.getState().clear();
   };
@@ -134,7 +186,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   const onCancel = (item: ScheduledEmail) => {
     Alert.alert(
       t('email_list.cancel_scheduled_send', 'Cancel send'),
-      t('scheduled.cancel_body', 'The message will not be delivered. A copy stays in your Sent folder.'),
+      t('scheduled.cancel_to_drafts_body', 'The message will not be sent. It goes back to your Drafts.'),
       [
         { text: t('scheduled.keep_scheduled', 'Keep scheduled'), style: 'cancel' },
         {
@@ -142,9 +194,15 @@ export default function ScheduledScreen({ navigation }: Props) {
           style: 'destructive',
           onPress: () => {
             void runAction(item, async () => {
-              await cancelScheduledSend(item.emailSubmissionId, item.accountId);
+              const inDrafts = await cancelScheduledToDrafts(item, mailboxes, jmapClient.accountId);
               clearUndoFor(item);
               removeItem(item);
+              toast.success(
+                t('scheduled.send_cancelled', 'Send cancelled'),
+                inDrafts
+                  ? { message: t('notifications.moved_to_mailbox', 'Moved to {mailbox}', { mailbox: t('sidebar.mailboxes.drafts', 'Drafts') }) }
+                  : undefined,
+              );
             }, t('scheduled.cancel_failed', 'Cancel failed'));
           },
         },
@@ -181,11 +239,10 @@ export default function ScheduledScreen({ navigation }: Props) {
     void runAction(item, async () => {
       const result = await rescheduleScheduledSend(item, seconds);
       clearUndoFor(item);
-      setItems((prev) => prev
-        .map((i) => (sameScheduledSend(i, item)
-          ? { ...i, emailSubmissionId: result.emailSubmissionId ?? i.emailSubmissionId, sendAt: result.sendAt ?? date.toISOString() }
-          : i))
-        .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime()));
+      updateItem(item, {
+        emailSubmissionId: result.emailSubmissionId ?? item.emailSubmissionId,
+        sendAt: result.sendAt ?? date.toISOString(),
+      });
       warnRefused(result.refusedRecipients);
     }, t('scheduled.reschedule_failed', 'Reschedule failed'));
   };
@@ -194,26 +251,12 @@ export default function ScheduledScreen({ navigation }: Props) {
   // the composer (webmail cancelScheduledEmailForEdit).
   const onEdit = (item: ScheduledEmail) => {
     void runAction(item, async () => {
-      await cancelScheduledSend(item.emailSubmissionId, item.accountId);
-      clearUndoFor(item);
       // A message held in a shared account goes back to that account's Drafts.
-      const shared = item.accountId !== jmapClient.accountId;
-      const scope = shared
-        ? mailboxes.filter((m) => m.isShared && m.accountId === item.accountId)
-        : ownMailboxes(mailboxes);
-      const drafts = scope.find((m) => m.role === 'drafts');
-      const sent = scope.find((m) => m.role === 'sent');
-      if (drafts) {
-        await restoreEmailToDraft(
-          item.emailId,
-          drafts.originalId ?? drafts.id,
-          sent ? (sent.originalId ?? sent.id) : undefined,
-          item.accountId,
-        );
-      }
+      await cancelScheduledToDrafts(item, mailboxes, jmapClient.accountId);
+      clearUndoFor(item);
       const email = await getFullEmail(item.emailId, item.accountId);
       removeItem(item);
-      navigation.replace('Compose', { draft: draftContextFromEmail(email, shared ? item.accountId : undefined) });
+      navigation.replace('Compose', { draft: draftContextFromEmail(email, scheduledAccountOverride(item, jmapClient.accountId)) });
     }, t('scheduled.edit_failed', 'Could not open the message for editing'));
   };
 
@@ -273,7 +316,7 @@ export default function ScheduledScreen({ navigation }: Props) {
   const renderItem = ({ item }: { item: ScheduledEmail }) => {
     const busy = busyId === scheduledSendKey(item);
     return (
-      <Pressable style={styles.row} onPress={() => setActionsFor(item)} disabled={busy}>
+      <Pressable style={styles.row} onPress={() => openView(item)} disabled={busy}>
         <View style={styles.rowMain}>
           <View style={styles.sendAtRow}>
             <Clock size={13} color={c.primary} />
@@ -289,13 +332,20 @@ export default function ScheduledScreen({ navigation }: Props) {
             <Text style={styles.preview} numberOfLines={1}>{item.preview}</Text>
           ) : null}
         </View>
-        <View style={styles.actionBtn}>
+        <Pressable
+          style={styles.actionBtn}
+          onPress={() => setActionsFor(item)}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('scheduled.actions', 'Actions')}
+        >
           {busy ? (
             <ActivityIndicator size="small" color={c.primary} />
           ) : (
             <MoreHorizontal size={18} color={c.textSecondary} />
           )}
-        </View>
+        </Pressable>
       </Pressable>
     );
   };
@@ -309,6 +359,23 @@ export default function ScheduledScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {viewing ? (
+        <ScheduledMessageView
+          item={viewing}
+          email={viewEmail}
+          error={viewError}
+          jmapAccountId={scheduledAccountOverride(viewing, jmapClient.accountId)}
+          busy={busyId === scheduledSendKey(viewing)}
+          formatWhen={formatWhen}
+          onBack={closeView}
+          onRetry={() => openView(viewing)}
+          onSendNow={() => onSendNow(viewing)}
+          onReschedule={() => setRescheduleFor(viewing)}
+          onEdit={() => onEdit(viewing)}
+          onCancelSend={() => onCancel(viewing)}
+        />
+      ) : (
+      <>
       <View style={styles.header}>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -353,6 +420,8 @@ export default function ScheduledScreen({ navigation }: Props) {
           refreshing={loading}
           onRefresh={() => { void load(); }}
         />
+      )}
+      </>
       )}
 
       {/* Per-message actions */}

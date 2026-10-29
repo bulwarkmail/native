@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Nezapomněli jste přílohu?",
     "attachments_too_large_total": "Přílohy by překročily limit {max}, který tento server povoluje na jednu zprávu.",
     "editor_unavailable": "Obsah zprávy se nepodařilo načíst. Zkopírujte svůj text a poté editor zavřete a znovu otevřete.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Připojit} one {Připojit 1 soubor} few {Připojit # soubory} other {Připojit # souborů}}",
+      "empty_folder": "Tato složka je prázdná",
+      "load_failed": "Vaše soubory se nepodařilo načíst"
+    },
     "from_options": "Možnosti odesílatele",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identita není k dispozici",
@@ -292,6 +297,30 @@
     "no_sent_folder": "Složka Odeslané nebyla nalezena",
     "permission_camera": "K pořízení fotky je potřeba oprávnění k fotoaparátu.",
     "permission_photos": "K připojení obrázků je potřeba oprávnění ke knihovně fotek.",
+    "placeholder_warning": {
+      "title": "Zkontrolovat zástupné texty?",
+      "message": "Vaše zpráva obsahuje zástupný text, který příjemci uvidí. Chcete ji před odesláním upravit?",
+      "found": "Nalezené zástupné texty",
+      "more": "a další ({count})",
+      "dont_ask_again": "Znovu se neptat",
+      "send_anyway": "Přesto odeslat",
+      "back": "Zpět k úpravám"
+    },
+    "placeholder_words": {
+      "before": [
+        "vaše",
+        "váš",
+        "vaši",
+        "tvoje",
+        "tvůj",
+        "vložte",
+        "doplňte",
+        "zadejte",
+        "uveďte"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Přidat do kontaktů",
     "recipient_copy": "Kopírovat adresu",
     "recipient_move_to": "Přesunout do pole {field}",
@@ -431,6 +460,14 @@
     "remove_color": "Odebrat štítek",
     "replied": "Zodpovězeno",
     "reschedule_recipients_refused": "Nic se nezměnilo: server odmítl {recipients}.",
+    "save_to_files": {
+      "title": "Uložit do Souborů",
+      "save_here": "Uložit sem",
+      "saved": "Uloženo do Souborů",
+      "saved_to": "Do složky {folder}",
+      "failed": "Nepodařilo se uložit do Souborů",
+      "load_failed": "Složky se nepodařilo načíst. Zkuste to znovu."
+    },
     "sender_actions": "Odesílatel…",
     "set_color": "Nastavit štítek",
     "show_all_count": "Zobrazit vše ({count})",
@@ -624,6 +661,10 @@
       "unable_to_download": "Nelze stáhnout",
       "up_to_date": "Vše je aktuální"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Vaše šablony se ukládají ve vašem účtu, takže je máte na každém zařízení, kde se přihlásíte. Může je číst každý, s kým sdílíte složku Doručené.",
+    "section_personal": "Moje šablony"
   },
   "push_prompt": {
     "body": "Zapněte oznámení na pozadí, aby vám nové zprávy chodily, i když je aplikace zavřená.",
@@ -819,6 +860,10 @@
         "allow_mobile": "Povolit",
         "ask_mobile": "Ptát se",
         "block_mobile": "Blokovat"
+      },
+      "placeholder_warning": {
+        "label": "Upozornění na zástupné texty",
+        "description": "Před odesláním zprávy, která stále obsahuje zástupné texty jako [TIME] nebo [Vaše jméno], nevyplněná pole šablony nebo nedokončený text jako TODO či TBD, požádat o potvrzení."
       },
       "plain_text_mode": {
         "description_mobile": "Psát a číst pouze v prostém textu."

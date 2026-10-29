@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Ek eklemeyi mi unuttunuz?",
     "attachments_too_large_total": "Ekler, bu sunucunun ileti başına izin verdiği {max} sınırını aşacak.",
     "editor_unavailable": "İleti içeriği okunamadı. Metninizi kopyalayın, ardından düzenleyiciyi kapatıp yeniden açın.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Ekle} one {1 dosya ekle} other {# dosya ekle}}",
+      "empty_folder": "Bu klasör boş",
+      "load_failed": "Dosyalarınız yüklenemedi"
+    },
     "from_options": "Gönderen seçenekleri",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Kimlik kullanılamıyor",
@@ -292,6 +297,31 @@
     "no_sent_folder": "Gönderilenler klasörü bulunamadı",
     "permission_camera": "Fotoğraf çekmek için kamera izni gerekiyor.",
     "permission_photos": "Görsel eklemek için fotoğraf arşivi izni gerekiyor.",
+    "placeholder_warning": {
+      "title": "Yer tutucular kontrol edilsin mi?",
+      "message": "İletinizde alıcıların göreceği yer tutucu metin var. Göndermeden önce düzenlemek ister misiniz?",
+      "found": "Bulunan yer tutucular",
+      "more": "ve {count} tane daha",
+      "dont_ask_again": "Bir daha sorma",
+      "send_anyway": "Yine de gönder",
+      "back": "Düzenlemeye dön"
+    },
+    "placeholder_words": {
+      "before": [
+        "şirketinizin",
+        "buraya"
+      ],
+      "after": [
+        "ekleyin",
+        "girin",
+        "yazın",
+        "-ınız",
+        "-iniz",
+        "-unuz",
+        "-ünüz"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Kişilere ekle",
     "recipient_copy": "Adresi kopyala",
     "recipient_move_to": "{field} alanına taşı",
@@ -431,6 +461,14 @@
     "remove_color": "Etiketi kaldır",
     "replied": "Yanıtlandı",
     "reschedule_recipients_refused": "Hiçbir şey değiştirilmedi: sunucu şu alıcıları reddetti: {recipients}.",
+    "save_to_files": {
+      "title": "Dosyalar'a kaydet",
+      "save_here": "Buraya kaydet",
+      "saved": "Dosyalar'a kaydedildi",
+      "saved_to": "{folder} içine",
+      "failed": "Dosyalar'a kaydedilemedi",
+      "load_failed": "Klasörler yüklenemedi. Yeniden deneyin."
+    },
     "sender_actions": "Gönderen…",
     "set_color": "Etiket ayarla",
     "show_all_count": "Tümünü göster ({count})",
@@ -624,6 +662,10 @@
       "unable_to_download": "İndirilemiyor",
       "up_to_date": "Zaten güncel"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Şablonlarınız hesabınızda saklanır, böylece oturum açtığınız her cihazda elinizin altındadır. Gelen Kutunuzu paylaştığınız herkes bunları okuyabilir.",
+    "section_personal": "Şablonlarım"
   },
   "push_prompt": {
     "body": "Uygulama kapalıyken de yeni iletilerden haberdar olmak için arka plan bildirimlerini açın.",
@@ -819,6 +861,10 @@
         "allow_mobile": "İzin ver",
         "ask_mobile": "Sor",
         "block_mobile": "Engelle"
+      },
+      "placeholder_warning": {
+        "label": "Yer tutucu uyarısı",
+        "description": "Hâlâ [TIME] veya [Adınız] gibi yer tutucular, boş şablon alanları ya da TODO veya TBD gibi bitmemiş metin içeren bir ileti gönderilmeden önce onay iste."
       },
       "plain_text_mode": {
         "description_mobile": "Yalnızca düz metin olarak yazın ve okuyun."

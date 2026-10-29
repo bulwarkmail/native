@@ -23,7 +23,7 @@ vi.mock('../jmap-client', () => ({
   },
 }));
 
-import { getBulwarkMetadata, resetBulwarkMetadataPauses, supportsBulwarkMetadata } from '../bulwark-metadata';
+import { getBulwarkMetadata, resetBulwarkMetadata, supportsBulwarkMetadata } from '../bulwark-metadata';
 
 const VENDOR = { supportsVendorNamespaces: true, supportsPrivate: true, namespaces: [], maxDepth: 8 };
 
@@ -52,7 +52,7 @@ function inboxWith(metadata: unknown) {
 beforeEach(() => {
   state.requests = [];
   state.answer = null;
-  resetBulwarkMetadataPauses();
+  resetBulwarkMetadata();
 });
 
 describe('getBulwarkMetadata', () => {

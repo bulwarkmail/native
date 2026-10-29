@@ -1,35 +1,70 @@
 // Bulwark's own data in JMAP Metadata (RFC draft, urn:ietf:params:jmap:metadata)
-// of an account's Inbox: the shared tag definitions of a group account
-// (namespace `org.bulwarkmail.tags`). Port of the reading half of the
-// webmail's lib/jmap/bulwark-metadata.ts and client.getBulwarkMetadata.
+// of an account's Inbox: personal templates in the user's own account, team
+// templates in a group account (webmail lib/jmap/bulwark-metadata.ts).
 //
-// Stalwart 1.0.0 serves Metadata; 0.16 advertises none, and a pre-release
-// 1.0 build advertised it but dropped the connection on a Mailbox/get that
-// selects it (42751a6b). So this is the only module that asks for it: only
-// for an account whose capabilities offer vendor namespaces on mailboxes,
-// in a request of its own, and any failure pauses that account for ten
-// minutes. Every other Mailbox/get keeps its explicit property list.
+// What Stalwart does: 1.0.0 serves it (seen live 2026-10-29: Mailbox/get and
+// Mailbox/set with `metadata/<namespace>` pointers on the Inbox, at most
+// 8 KB per namespace, "Metadata value size … exceeds the maximum of 8192
+// bytes" above that). Vendor namespaces need a dot, so every item gets one
+// of its own: `org.bulwarkmail.<key>`. 0.16 has no metadata and refuses the
+// capability in `using` (notRequest); an account that doesn't advertise it
+// is never asked. A pre-release 1.0 build advertised it but dropped the
+// connection on such a request, so the calls go in requests of their own
+// and any failure pauses that account for ten minutes.
+//
+// This is the only module that names the Metadata capability or property
+// (src/api/__tests__/jmap-metadata-requests.test.ts).
 
 import { jmapClient } from './jmap-client';
-import { CAPABILITIES } from './types';
+import { CAPABILITIES, type JMAPMethodCall } from './types';
 
-export const METADATA_CAPABILITY = 'urn:ietf:params:jmap:metadata';
+const METADATA_CAPABILITY = 'urn:ietf:params:jmap:metadata';
 export const BULWARK_NAMESPACE = 'org.bulwarkmail';
+/** Largest value Stalwart's default config takes in one namespace. */
+export const MAX_METADATA_ENTRY_BYTES = 8192;
 
-const PAUSE_AFTER_FAILURE_MS = 10 * 60_000;
+const KEY_RE = /^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*$/;
+const USING = [CAPABILITIES.CORE, CAPABILITIES.MAIL, METADATA_CAPABILITY];
+const PAUSE_MS = 10 * 60_000;
 
-/**
- * Whether the account's capabilities offer vendor-namespaced metadata on
- * mailboxes. Says nothing about whether the server really implements it.
- */
-export function advertisesMailboxMetadata(accountCapabilities: Record<string, unknown> | undefined): boolean {
-  const cap = accountCapabilities?.[METADATA_CAPABILITY] as
-    | { dataTypes?: Record<string, { supportsVendorNamespaces?: boolean }> }
-    | undefined;
-  return cap?.dataTypes?.Mailbox?.supportsVendorNamespaces === true;
+export class MetadataTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MetadataTooLargeError';
+  }
 }
 
-/** Bulwark's entries of a `metadata` object, by key (`tags`, `template.<id>`). */
+/** The server refused a metadata change; `type` is its SetError type. */
+export class MetadataRefusedError extends Error {
+  constructor(readonly type: string, message: string) {
+    super(message);
+    this.name = 'MetadataRefusedError';
+  }
+}
+
+export class MetadataUnsupportedError extends Error {
+  constructor(message = 'This server keeps no metadata for Bulwark') {
+    super(message);
+    this.name = 'MetadataUnsupportedError';
+  }
+}
+
+/** `templates`, `template.<id>`: lowercase, digits, dashes, dot-separated. */
+export function isValidMetadataKey(key: string): boolean {
+  return key.length <= 120 && KEY_RE.test(key);
+}
+
+function namespaceFor(key: string): string {
+  if (!isValidMetadataKey(key)) throw new Error(`Invalid metadata key: ${key}`);
+  return `${BULWARK_NAMESPACE}.${key}`;
+}
+
+/** The size Stalwart counts for a value: its JSON in UTF-8. */
+export function metadataValueBytes(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+/** Bulwark's entries of a metadata object, by key. */
 export function bulwarkEntries(metadata: unknown): Record<string, unknown> {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {};
   const prefix = `${BULWARK_NAMESPACE}.`;
@@ -40,52 +75,115 @@ export function bulwarkEntries(metadata: unknown): Record<string, unknown> {
   return out;
 }
 
-// Accounts whose last read failed, by server and account, with when.
+// Account ids repeat across servers and logins.
+const keyOf = (accountId: string) => `${jmapClient.serverUrl ?? ''}\u0000${jmapClient.username ?? ''}\u0000${accountId}`;
 const failedAt = new Map<string, number>();
-const pauseKey = (accountId: string) => `${jmapClient.serverUrl ?? ''}|${accountId}`;
+const inboxIds = new Map<string, string>();
 
-/** Whether the app may ask this account for its Inbox metadata now. */
-export function supportsBulwarkMetadata(accountId: string): boolean {
-  const failed = failedAt.get(pauseKey(accountId));
-  if (failed !== undefined && Date.now() - failed < PAUSE_AFTER_FAILURE_MS) return false;
-  const account = jmapClient.currentSession?.accounts?.[accountId] as
-    | { accountCapabilities?: Record<string, unknown> }
+/** Forget paused accounts and Inbox ids (tests). */
+export function resetBulwarkMetadata(): void {
+  failedAt.clear();
+  inboxIds.clear();
+}
+
+/** Whether the account advertises vendor metadata on mailboxes, whatever its last request did. */
+export function advertisesBulwarkMetadata(accountId: string): boolean {
+  const caps = jmapClient.currentSession?.accounts?.[accountId]?.accountCapabilities as Record<string, unknown> | undefined;
+  const cap = caps?.[METADATA_CAPABILITY] as
+    | { dataTypes?: Record<string, { supportsVendorNamespaces?: boolean }> }
     | undefined;
-  return advertisesMailboxMetadata(account?.accountCapabilities);
+  return cap?.dataTypes?.Mailbox?.supportsVendorNamespaces === true;
+}
+
+/** Whether Bulwark may keep data in this account's Inbox metadata now. */
+export function supportsBulwarkMetadata(accountId: string): boolean {
+  const at = failedAt.get(keyOf(accountId));
+  if (at !== undefined && Date.now() - at < PAUSE_MS) return false;
+  return advertisesBulwarkMetadata(accountId);
 }
 
 /**
- * Bulwark's shared metadata entries of the account's Inbox, by key. Null
- * when the account has none to offer (0.16) or the read failed; no request
- * goes out for an account that doesn't advertise Metadata.
+ * Bulwark's metadata entries of the account's Inbox, by key. Null when the
+ * account has no usable metadata; a failure pauses the account.
  */
 export async function getBulwarkMetadata(accountId: string): Promise<Record<string, unknown> | null> {
   if (!supportsBulwarkMetadata(accountId)) return null;
-  const property = 'metadata';
   try {
     const res = await jmapClient.request([
       ['Mailbox/query', { accountId, filter: { role: 'inbox' } }, 'q'],
       ['Mailbox/get', {
-        accountId,
-        '#ids': { resultOf: 'q', name: 'Mailbox/query', path: '/ids' },
-        properties: ['id', property],
+        accountId, '#ids': { resultOf: 'q', name: 'Mailbox/query', path: '/ids' }, properties: ['id', 'metadata'],
       }, 'g'],
-    ], [CAPABILITIES.CORE, CAPABILITIES.MAIL, METADATA_CAPABILITY]);
-    const get = res.methodResponses?.find((r) => r[0] === 'Mailbox/get');
+    ] as JMAPMethodCall[], USING);
+    const get = res.methodResponses.find(([name]) => name === 'Mailbox/get');
     const inbox = (get?.[1] as { list?: Array<Record<string, unknown>> } | undefined)?.list?.[0];
     // An answer without the property is a server that doesn't keep it,
     // never "every entry was removed".
-    if (!inbox || !(property in inbox)) throw new Error('No Inbox metadata in the answer');
-    failedAt.delete(pauseKey(accountId));
-    return bulwarkEntries(inbox[property]);
+    if (!inbox || !('metadata' in inbox)) throw new MetadataUnsupportedError('No Inbox metadata in the answer');
+    inboxIds.set(keyOf(accountId), inbox.id as string);
+    failedAt.delete(keyOf(accountId));
+    return bulwarkEntries(inbox.metadata);
   } catch (err) {
-    console.warn('[bulwark-metadata] unavailable for account', accountId, err);
-    failedAt.set(pauseKey(accountId), Date.now());
+    console.warn(`[metadata] unavailable for account ${accountId}:`, err);
+    failedAt.set(keyOf(accountId), Date.now());
     return null;
   }
 }
 
-/** Forget the failure pauses (sign-out, tests). */
-export function resetBulwarkMetadataPauses(): void {
-  failedAt.clear();
+/**
+ * Write one Bulwark entry of the account's Inbox metadata (null removes it),
+ * leaving every other entry as it is. Throws MetadataTooLargeError when the
+ * value is over the size the server takes, MetadataRefusedError for another
+ * refusal, MetadataUnsupportedError when the account has none.
+ */
+export async function setBulwarkMetadata(accountId: string, key: string, value: unknown): Promise<void> {
+  if (!supportsBulwarkMetadata(accountId)) throw new MetadataUnsupportedError();
+  if (value !== null && metadataValueBytes(value) > MAX_METADATA_ENTRY_BYTES) {
+    throw new MetadataTooLargeError(`The entry is larger than ${MAX_METADATA_ENTRY_BYTES} bytes`);
+  }
+  let inboxId = inboxIds.get(keyOf(accountId));
+  if (!inboxId) {
+    await getBulwarkMetadata(accountId);
+    inboxId = inboxIds.get(keyOf(accountId));
+    if (!inboxId) throw new MetadataUnsupportedError();
+  }
+  const res = await jmapClient.request(
+    [['Mailbox/set', { accountId, update: { [inboxId]: { [`metadata/${namespaceFor(key)}`]: value } } }, '0']],
+    USING,
+  );
+  const [name, body] = res.methodResponses[0] ?? [];
+  if (name !== 'Mailbox/set') {
+    throw new Error((body as { description?: string } | undefined)?.description || 'Failed to save metadata');
+  }
+  const refused = (body as { notUpdated?: Record<string, { type?: string; description?: string }> }).notUpdated?.[inboxId];
+  if (refused) {
+    if (/exceeds the maximum/i.test(refused.description ?? '')) throw new MetadataTooLargeError(refused.description!);
+    throw new MetadataRefusedError(refused.type ?? 'unknown', refused.description || `Failed to save metadata (${refused.type ?? 'unknown'})`);
+  }
+}
+
+/**
+ * The group accounts of the session: shared accounts whose principal is a
+ * group (Stalwart uses the account id as the principal id). A mailbox
+ * another person shared is not a team. Empty when the server won't say.
+ */
+export async function groupAccounts(): Promise<Array<{ id: string; name: string }>> {
+  const session = jmapClient.currentSession;
+  if (!session || !jmapClient.hasCapability(CAPABILITIES.PRINCIPALS)) return [];
+  const own = jmapClient.accountId;
+  const shared = Object.entries(session.accounts ?? {})
+    .filter(([id, account]) => id !== own && account && account.isPersonal === false);
+  if (shared.length === 0) return [];
+  try {
+    const res = await jmapClient.request(
+      [['Principal/get', { accountId: own, ids: shared.map(([id]) => id), properties: ['id', 'type'] }, '0']],
+      [CAPABILITIES.CORE, CAPABILITIES.PRINCIPALS],
+    );
+    const [name, body] = res.methodResponses[0] ?? [];
+    if (name !== 'Principal/get') return [];
+    const types = new Map(((body as { list?: Array<{ id: string; type?: string }> }).list ?? []).map((p) => [p.id, p.type]));
+    return shared.filter(([id]) => types.get(id) === 'group').map(([id, account]) => ({ id, name: account.name }));
+  } catch {
+    return [];
+  }
 }

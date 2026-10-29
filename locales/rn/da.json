@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Glemt en vedhæftning?",
     "attachments_too_large_total": "Vedhæftningerne ville overskride de {max}, som denne server tillader pr. besked.",
     "editor_unavailable": "Beskedens indhold kunne ikke læses. Kopiér din tekst, og luk og genåbn derefter editoren.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Vedhæft} one {Vedhæft 1 fil} other {Vedhæft # filer}}",
+      "empty_folder": "Denne mappe er tom",
+      "load_failed": "Dine filer kunne ikke indlæses"
+    },
     "from_options": "Afsenderindstillinger",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitet ikke tilgængelig",
@@ -292,6 +297,27 @@
     "no_sent_folder": "Ingen Sendt-mappe fundet",
     "permission_camera": "Der kræves kameratilladelse for at tage et foto.",
     "permission_photos": "Der kræves tilladelse til fotobiblioteket for at vedhæfte billeder.",
+    "placeholder_warning": {
+      "title": "Tjek pladsholdere?",
+      "message": "Din besked indeholder pladsholdertekst, som modtagerne vil se. Vil du redigere den, før du sender?",
+      "found": "Fundne pladsholdere",
+      "more": "og {count} mere",
+      "dont_ask_again": "Spørg ikke igen",
+      "send_anyway": "Send alligevel",
+      "back": "Tilbage til redigering"
+    },
+    "placeholder_words": {
+      "before": [
+        "din",
+        "dit",
+        "dine",
+        "indsæt",
+        "tilføj",
+        "skriv"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Tilføj til kontakter",
     "recipient_copy": "Kopiér adresse",
     "recipient_move_to": "Flyt til {field}",
@@ -431,6 +457,14 @@
     "remove_color": "Fjern tag",
     "replied": "Besvaret",
     "reschedule_recipients_refused": "Intet blev ændret: serveren afviste {recipients}.",
+    "save_to_files": {
+      "title": "Gem i Filer",
+      "save_here": "Gem her",
+      "saved": "Gemt i Filer",
+      "saved_to": "I {folder}",
+      "failed": "Kunne ikke gemme i Filer",
+      "load_failed": "Mapperne kunne ikke indlæses. Prøv igen."
+    },
     "sender_actions": "Afsender…",
     "set_color": "Sæt tag",
     "show_all_count": "Vis alle ({count})",
@@ -624,6 +658,10 @@
       "unable_to_download": "Kan ikke downloade",
       "up_to_date": "Allerede opdateret"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Dine skabeloner gemmes på din konto, så du har dem på alle enheder, du logger ind på. Alle, du deler din indbakke med, kan læse dem.",
+    "section_personal": "Mine skabeloner"
   },
   "push_prompt": {
     "body": "Slå baggrundsnotifikationer til, så nye beskeder når frem til dig, mens appen er lukket.",
@@ -819,6 +857,10 @@
         "allow_mobile": "Tillad",
         "ask_mobile": "Spørg",
         "block_mobile": "Blokér"
+      },
+      "placeholder_warning": {
+        "label": "Advarsel om pladsholdere",
+        "description": "Bed om bekræftelse, før en besked sendes, der stadig har pladsholdere som [TIME] eller [Dit navn], tomme skabelonfelter eller ufærdig tekst som TODO eller TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Skriv og læs kun i ren tekst."

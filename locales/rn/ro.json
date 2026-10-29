@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Ați uitat un atașament?",
     "attachments_too_large_total": "Atașamentele ar depăși limita de {max} per mesaj permisă de acest server.",
     "editor_unavailable": "Conținutul mesajului nu a putut fi citit. Copiați textul, apoi închideți și redeschideți editorul.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Atașează} one {Atașează 1 fișier} few {Atașează # fișiere} other {Atașează # de fișiere}}",
+      "empty_folder": "Acest dosar este gol",
+      "load_failed": "Fișierele tale nu au putut fi încărcate"
+    },
     "from_options": "Opțiuni expeditor",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitate indisponibilă",
@@ -292,6 +297,30 @@
     "no_sent_folder": "Nu s-a găsit folderul Trimise",
     "permission_camera": "Este necesară permisiunea pentru cameră pentru a face o fotografie.",
     "permission_photos": "Este necesară permisiunea pentru galeria foto pentru a atașa imagini.",
+    "placeholder_warning": {
+      "title": "Verificați substituenții?",
+      "message": "Mesajul conține text substituent pe care destinatarii îl vor vedea. Doriți să-l editați înainte de trimitere?",
+      "found": "Substituenți găsiți",
+      "more": "și încă {count}",
+      "dont_ask_again": "Nu mai întreba",
+      "send_anyway": "Trimite oricum",
+      "back": "Înapoi la editare"
+    },
+    "placeholder_words": {
+      "before": [
+        "introduceți",
+        "inserați",
+        "adăugați",
+        "completați"
+      ],
+      "after": [
+        "tău",
+        "ta",
+        "dvs.",
+        "dumneavoastră"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "Adaugă la contacte",
     "recipient_copy": "Copiați adresa",
     "recipient_move_to": "Mutați la {field}",
@@ -431,6 +460,14 @@
     "remove_color": "Eliminați eticheta",
     "replied": "Răspuns",
     "reschedule_recipients_refused": "Nu s-a schimbat nimic: serverul a respins {recipients}.",
+    "save_to_files": {
+      "title": "Salvează în Fișiere",
+      "save_here": "Salvează aici",
+      "saved": "Salvat în Fișiere",
+      "saved_to": "În {folder}",
+      "failed": "Nu s-a putut salva în Fișiere",
+      "load_failed": "Dosarele nu au putut fi încărcate. Încearcă din nou."
+    },
     "sender_actions": "Expeditor…",
     "set_color": "Setați eticheta",
     "show_all_count": "Afișează tot ({count})",
@@ -624,6 +661,10 @@
       "unable_to_download": "Descărcarea nu a fost posibilă",
       "up_to_date": "Deja actualizat"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Șabloanele dvs. sunt păstrate în cont, deci le aveți pe orice dispozitiv pe care vă autentificați. Oricine cu care partajați dosarul Primite le poate citi.",
+    "section_personal": "Șabloanele mele"
   },
   "push_prompt": {
     "body": "Activați notificările în fundal pentru a primi mesajele noi chiar și când aplicația este închisă.",
@@ -819,6 +860,10 @@
         "allow_mobile": "Permiteți",
         "ask_mobile": "Întrebați",
         "block_mobile": "Blocați"
+      },
+      "placeholder_warning": {
+        "label": "Avertisment pentru substituenți",
+        "description": "Cere confirmare înainte de a trimite un mesaj care încă are substituenți precum [TIME] sau [Numele tău], câmpuri de șablon goale sau text neterminat precum TODO sau TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Scrieți și citiți numai în text simplu."

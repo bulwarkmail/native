@@ -11,6 +11,10 @@ import path from 'path';
  * and the gets whose server default could grow to include metadata ask for an
  * explicit property list instead. Port of the webmail's
  * lib/__tests__/jmap-metadata-requests.test.ts.
+ *
+ * Stalwart 1.0.0 (the release) serves Mailbox metadata, and templates are
+ * kept there (src/api/bulwark-metadata.ts, in requests of their own, only
+ * for accounts that advertise it). Everything else still never asks for it.
  */
 
 const METADATA_CAPABILITY = 'urn:ietf:params:jmap:metadata';
@@ -239,18 +243,15 @@ describe('JMAP Metadata in the request-building sources', () => {
     /(['"`])metadata(\/[^'"`\n]*)?\1/,
   ];
 
-  // Stalwart 1.0.0 serves Metadata. The one module that reads it (a group's
-  // shared tags) asks only accounts that advertise it, in a request of its
-  // own; its tests cover that.
-  const METADATA_READER = 'src/api/bulwark-metadata.ts';
+  // The one module that may: Bulwark's own entries on the Inbox, asked for
+  // in requests of their own.
+  const METADATA_MODULE = 'src/api/bulwark-metadata.ts';
 
   it('never names a JMAP Metadata property, argument or capability in code', () => {
-    const files = [...sourceFiles('src'), 'App.tsx'];
+    const files = [...sourceFiles('src'), 'App.tsx'].filter((file) => file !== METADATA_MODULE);
     expect(files).toContain('src/api/email.ts');
-    expect(files).toContain(METADATA_READER);
     const hits: string[] = [];
     for (const file of files) {
-      if (file === METADATA_READER) continue;
       const code = withoutComments(readFileSync(path.join(root, file), 'utf8'));
       for (const pattern of FORBIDDEN) {
         const match = code.match(pattern);
@@ -258,5 +259,10 @@ describe('JMAP Metadata in the request-building sources', () => {
       }
     }
     expect(hits).toEqual([]);
+  });
+
+  it('keeps privateMetadata and ignoreMetadataOnlyChanges out of the metadata module too', () => {
+    const code = withoutComments(readFileSync(path.join(root, METADATA_MODULE), 'utf8'));
+    expect(code).not.toMatch(/privateMetadata|ignoreMetadataOnlyChanges/);
   });
 });

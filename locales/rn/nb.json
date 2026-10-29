@@ -284,6 +284,11 @@
     "attachment_reminder_title": "Glemt et vedlegg?",
     "attachments_too_large_total": "Vedleggene ville overskride grensen på {max} per melding som denne serveren tillater.",
     "editor_unavailable": "Kunne ikke lese innholdet i meldingen. Kopier teksten din, og lukk og åpne skrivevinduet på nytt.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Legg ved} one {Legg ved 1 fil} other {Legg ved # filer}}",
+      "empty_folder": "Denne mappen er tom",
+      "load_failed": "Filene dine kunne ikke lastes inn"
+    },
     "from_options": "Avsenderalternativer",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identiteten er ikke tilgjengelig",
@@ -292,6 +297,27 @@
     "no_sent_folder": "Fant ingen Sendt-mappe",
     "permission_camera": "Du må gi tilgang til kameraet for å ta et bilde.",
     "permission_photos": "Du må gi tilgang til bildebiblioteket for å legge ved bilder.",
+    "placeholder_warning": {
+      "title": "Sjekke plassholdere?",
+      "message": "Meldingen har plassholdertekst som mottakerne vil se. Vil du redigere den før du sender?",
+      "found": "Plassholdere som ble funnet",
+      "more": "og {count} til",
+      "dont_ask_again": "Ikke spør igjen",
+      "send_anyway": "Send likevel",
+      "back": "Tilbake til redigering"
+    },
+    "placeholder_words": {
+      "before": [
+        "din",
+        "ditt",
+        "dine",
+        "sett inn",
+        "legg til",
+        "skriv"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "Legg til som kontakt",
     "recipient_copy": "Kopier adressen",
     "recipient_move_to": "Flytt til {field}",
@@ -431,6 +457,14 @@
     "remove_color": "Fjern etiketten",
     "replied": "Besvart",
     "reschedule_recipients_refused": "Ingenting ble endret: serveren avviste {recipients}.",
+    "save_to_files": {
+      "title": "Lagre i Filer",
+      "save_here": "Lagre her",
+      "saved": "Lagret i Filer",
+      "saved_to": "I {folder}",
+      "failed": "Kunne ikke lagre i Filer",
+      "load_failed": "Kunne ikke laste inn mappene. Prøv igjen."
+    },
     "sender_actions": "Avsender…",
     "set_color": "Legg til etikett",
     "show_all_count": "Vis alle ({count})",
@@ -624,6 +658,10 @@
       "unable_to_download": "Kan ikke laste ned",
       "up_to_date": "Allerede oppdatert"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "Malene dine lagres i kontoen din, så du har dem på alle enheter du logger på. Alle du deler innboksen din med, kan lese dem.",
+    "section_personal": "Mine maler"
   },
   "push_prompt": {
     "body": "Slå på bakgrunnsvarsler, slik at nye meldinger når deg mens appen er lukket.",
@@ -819,6 +857,10 @@
         "allow_mobile": "Tillat",
         "ask_mobile": "Spør",
         "block_mobile": "Blokker"
+      },
+      "placeholder_warning": {
+        "label": "Advarsel om plassholdere",
+        "description": "Be om bekreftelse før du sender en melding som fortsatt har plassholdere som [TIME] eller [Ditt navn], tomme malfelt eller uferdig tekst som TODO eller TBD."
       },
       "plain_text_mode": {
         "description_mobile": "Skriv og les bare ren tekst."

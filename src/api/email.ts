@@ -1650,6 +1650,18 @@ function submissionError(err: { description?: string; type?: string }, fallback:
   return new ScheduleTooLateError(limit);
 }
 
+/**
+ * The send request came back without an EmailSubmission and without an
+ * error: nothing confirms the message left, and it may have (webmail
+ * SendUnconfirmedError, #1019). The draft is kept.
+ */
+export class SendUnconfirmedError extends Error {
+  constructor() {
+    super('Send confirmation was not received. Check Sent before sending again. Your draft has been kept.');
+    this.name = 'SendUnconfirmedError';
+  }
+}
+
 export interface SendEmailOptions {
   /**
    * Drafts folder id. When given, the message is created there with `$draft`
@@ -1660,6 +1672,12 @@ export interface SendEmailOptions {
   draftsMailboxId?: string;
   /** Previous draft version to destroy once the submission succeeded (#849). */
   draftId?: string;
+  /**
+   * Account `draftId` lives in, when not the submitting one: a draft saved
+   * in the own Drafts and sent from a group identity, or the other way
+   * round. Email ids repeat across accounts.
+   */
+  draftAccountId?: string;
   /** Submitting account (shared/group account); defaults to the primary. */
   accountId?: string;
 }
@@ -1804,6 +1822,14 @@ export async function sendEmail(
     }
   }
 
+  // No submission came back and nothing said why: an answer cut short, or a
+  // server that skipped the call. Nothing confirms the message left, and it
+  // may have. Reporting it as sent dropped the draft and closed the composer
+  // (#1019); this keeps both, and the copy made for it too, since it may be
+  // the one that went out.
+  if (!failure && !emailSubmissionId) failure = new SendUnconfirmedError();
+  if (failure instanceof SendUnconfirmedError) throw failure;
+
   if (failure) {
     // Nothing went out. A message created before the submission was refused
     // must not stay behind: nobody tracked that copy, so a retry left a
@@ -1855,11 +1881,12 @@ export async function sendEmail(
   // rather than a failed send (#849). The submission record rides along, and
   // nothing about it may turn into a warning.
   if (opts?.draftId && emailSubmissionId) {
+    const draftAccountId = opts.draftAccountId ?? accountId;
     try {
       if (recordToDestroy) {
         const cleanup = await jmapClient.request(
           [
-            ['Email/set', { accountId, destroy: [opts.draftId] }, '0'],
+            ['Email/set', { accountId: draftAccountId, destroy: [opts.draftId] }, '0'],
             submissionDestroyCall([recordToDestroy], accountId, '1'),
           ],
           SUBMISSION_USING,
@@ -1867,7 +1894,7 @@ export async function sendEmail(
         readSubmissionDestroy(cleanup, '1');
         assertEmailsDestroyed(requireMethodResult(cleanup, '0', 'Email/set'));
       } else {
-        await destroyEmails([opts.draftId], accountId);
+        await destroyEmails([opts.draftId], draftAccountId);
       }
     } catch (err) {
       filingWarning = filingWarning ?? `old draft cleanup failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -1916,6 +1943,11 @@ export async function saveDraftVersion(
   draftsMailboxId: string,
   previousDraftId?: string,
   accountIdOverride?: string,
+  /**
+   * Account the previous version lives in, when not this one: the draft
+   * moves between the own Drafts and a group's when its From does (#1090).
+   */
+  previousDraftAccountId?: string,
 ): Promise<SavedDraftVersion> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const emailCreate = buildEmailCreate(email);
@@ -1948,9 +1980,10 @@ export async function saveDraftVersion(
   } catch (err) {
     console.warn('[email] could not read back the saved draft parts:', err);
   }
-  if (previousDraftId && previousDraftId !== id) {
+  const previousAccountId = previousDraftAccountId ?? accountId;
+  if (previousDraftId && (previousDraftId !== id || previousAccountId !== accountId)) {
     try {
-      await destroyEmails([previousDraftId], accountId);
+      await destroyEmails([previousDraftId], previousAccountId);
     } catch (err) {
       console.warn('[email] failed to destroy previous draft version:', err);
     }
@@ -2125,20 +2158,52 @@ export async function cancelScheduledSend(emailSubmissionId: string, accountIdOv
 }
 
 /**
+ * A reschedule or "Send now" whose replacement the server refused, after the
+ * original had been cancelled: the original was put back at its old time
+ * under a new submission id, which the caller now holds instead (webmail
+ * RescheduleRestoredError). `reason` is why the replacement failed.
+ */
+export class RescheduleRestoredError extends Error {
+  constructor(
+    readonly reason: unknown,
+    readonly restoredSubmissionId: string,
+    readonly restoredSendAt?: string,
+  ) {
+    super(reason instanceof Error ? reason.message : String(reason));
+    this.name = 'RescheduleRestoredError';
+  }
+}
+
+/**
+ * A reschedule or "Send now" that failed and could not put the original back
+ * either: the message is no longer scheduled. It was moved back to Drafts
+ * (`inDrafts`) so it does not sit in Sent looking sent. `reason` is why the
+ * replacement failed.
+ */
+export class RescheduleLostError extends Error {
+  constructor(readonly reason: unknown, readonly inDrafts: boolean) {
+    super(`Reschedule failed and the message is no longer scheduled: ${reason instanceof Error ? reason.message : String(reason)}`);
+    this.name = 'RescheduleLostError';
+  }
+}
+
+/**
  * Change when a scheduled message goes out, or send it now with
- * `holdForSeconds` = 0. A replacement submission for the same Email, with the
- * held envelope and a fresh HOLDFOR, is created first, and the original is
- * cancelled only once the replacement exists (webmail parity). Both used to
- * go in one /set, whose create and update the server applies independently:
- * a refused replacement still cancelled the original, so the message never
- * went out, and a refused cancel (the original had just gone out) still let
- * the replacement go, so it was sent twice. Now a refused replacement leaves
- * the original alone, and a replacement whose original can't be cancelled is
- * withdrawn again. Returns the new submission id and send time, and the
- * recipients the server refused for the replacement when it took the others.
- * When it refused the replacement a recipient the original had been taken
- * for, the original is kept at its old time, and RecipientsRefusedError
- * names whom the replacement would have lost.
+ * `holdForSeconds` = 0. The original is cancelled first and a replacement
+ * for the same Email, with the held envelope and a fresh HOLDFOR, created
+ * after it (#1308, webmail parity). The other order failed on servers that
+ * allow one active submission per Email and refuse the second create, and on
+ * servers that undo onSuccessUpdateEmail on cancel, which pulled the message
+ * back to Drafts once the original was cancelled after the replacement
+ * existed; the replacement now files it in Sent itself.
+ *
+ * A cancel that fails changes nothing: the original still goes out, or went
+ * out already (NoLongerScheduledError). A replacement the server refuses, or
+ * takes for no recipient, puts the original back at its old time under a new
+ * id (RescheduleRestoredError); when that fails too the message goes back to
+ * Drafts (RescheduleLostError). Returns the new submission id and send time,
+ * and the recipients the server refused for the replacement when it took
+ * the others.
  */
 export async function rescheduleScheduledSend(
   scheduled: {
@@ -2154,149 +2219,161 @@ export async function rescheduleScheduledSend(
   recipients?: EmailAddress[],
 ): Promise<{ emailSubmissionId?: string; sendAt?: string; refusedRecipients?: RefusedRecipient[] }> {
   const accountId = scheduled.accountId ?? jmapClient.accountId;
-  // "Send now" is a 1-second hold, so the replacement can still be withdrawn.
+  // "Send now" is a 1-second hold, as in the webmail.
   const holdFor = Math.max(1, Math.ceil(holdForSeconds));
   // Reuse the held submission's envelope: it names every recipient,
   // Cc and Bcc included, and the envelope sender a catch-all From went
   // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
-  // The Email's To/Cc/Bcc are the fallback when the server has none. What
-  // the server answered for each recipient when it took the original comes
-  // along: whom a refusal of the replacement costs the message depends on it.
+  // The Email's To/Cc/Bcc are the fallback when the server has none. The
+  // account's Drafts and Sent come along for filing the replacement and for
+  // a message that ends up not scheduled at all.
   const lookup = await jmapClient.request(
     [
       ['EmailSubmission/get', {
-        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'deliveryStatus'],
+        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'sendAt'],
       }, '0'],
       ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
+      ['Mailbox/get', { accountId, ids: null, properties: ['id', 'role'] }, '2'],
     ],
     [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
   );
   const original = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
     envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
-    deliveryStatus?: Record<string, { delivered?: string } | null> | null;
+    sendAt?: string;
   }> | undefined)?.[0];
   const envelope = original?.envelope;
   const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
   const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
   const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
-  const rcpt = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
-  const create = {
-    emailId: scheduled.emailId,
-    identityId: scheduled.identityId,
-    envelope: {
-      mailFrom: {
-        email: envelope?.mailFrom?.email || scheduled.from?.[0]?.email,
-        parameters: { HOLDFOR: String(holdFor) },
-      },
-      rcptTo: rcpt,
-    },
+  const rcptTo = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
+  const mailFrom = envelope?.mailFrom?.email || scheduled.from?.[0]?.email;
+  // Without an answer the replacement is made without filing, and a message
+  // that can't be put back stays where it is.
+  const [mailboxAnswer, mailboxBody] = lookup.methodResponses.find(([, , callId]) => callId === '2') ?? [];
+  const roles = mailboxAnswer === 'Mailbox/get'
+    ? ((mailboxBody?.list ?? []) as Array<{ id: string; role?: string | null }>)
+    : [];
+  const draftsId = roles.find((m) => m.role === 'drafts')?.id;
+  const sentId = roles.find((m) => m.role === 'sent')?.id;
+
+  type Created = { id: string; sendAt?: string; delivery: { recipients: RefusedRecipient[]; all: boolean } };
+  // `until`: when the submission goes out (ms); undefined, at once.
+  const createSubmission = async (until: number | undefined): Promise<Created> => {
+    // HOLDFOR counts from when the server takes the request, so a retry
+    // after making room takes the time spent off it.
+    const holdSeconds = () => (until === undefined ? undefined : Math.max(1, Math.ceil((until - Date.now()) / 1000)));
+    const send = () => {
+      const seconds = holdSeconds();
+      return jmapClient.request(
+        [
+          ['EmailSubmission/set', {
+            accountId,
+            create: {
+              replacement: {
+                emailId: scheduled.emailId,
+                identityId: scheduled.identityId,
+                envelope: {
+                  mailFrom: seconds === undefined
+                    ? { email: mailFrom }
+                    : { email: mailFrom, parameters: { HOLDFOR: String(seconds) } },
+                  rcptTo,
+                },
+              },
+            },
+            ...(draftsId && sentId ? {
+              onSuccessUpdateEmail: {
+                '#replacement': { mailboxIds: { [sentId]: true }, [keywordPointer('$draft')]: null },
+              },
+            } : {}),
+          }, '0'],
+          deliveryStatusCall(accountId, 'replacement', '1'),
+        ],
+        SUBMISSION_USING,
+      );
+    };
+    let res = await send();
+    // A full submission quota (Stalwart 1.0): make room and try once more.
+    if (submissionCreateError(res, 'replacement')?.type === 'overQuota') {
+      await makeRoomForSubmission(accountId);
+      res = await send();
+    }
+    // Only the submission call counts: the implied Email/set of
+    // onSuccessUpdateEmail can fail while the submission was created.
+    const body = requireMethodResult(res, '0', 'EmailSubmission/set');
+    const notCreated = body.notCreated?.replacement as { description?: string; type?: string } | undefined;
+    if (notCreated) throw submissionError(notCreated, 'Failed to reschedule', accountId);
+    const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
+    if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
+    return {
+      id: created.id,
+      sendAt: created.sendAt,
+      delivery: refusedRecipients(res.methodResponses.find(([, , callId]) => callId === '1')),
+    };
+  };
+
+  // A submission that took no recipient goes nowhere; its record only counts
+  // against the limit. The recipients it refused, or null when it took some.
+  const withdrawIfDead = async (created: Created): Promise<RefusedRecipient[] | null> => {
+    if (!created.delivery.all) return null;
+    if (isStalwartAccount(accountId)) await destroyEmailSubmissions([created.id], accountId);
+    return created.delivery.recipients;
   };
 
   // HOLDFOR counts from when the server takes the request.
-  const sendAt = Date.now() + holdFor * 1000;
-  const createReplacement = (seconds: number) => jmapClient.request(
-    [
-      ['EmailSubmission/set', {
-        accountId,
-        create: {
-          replacement: {
-            ...create,
-            envelope: { ...create.envelope, mailFrom: { ...create.envelope.mailFrom, parameters: { HOLDFOR: String(seconds) } } },
-          },
-        },
-      }, '0'],
-      deliveryStatusCall(accountId, 'replacement', '1'),
-    ],
-    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
-  );
-  let res = await createReplacement(holdFor);
-  // A full submission quota (Stalwart 1.0): make room and try once more. The
-  // original is still pending, so making room never touches it.
-  if (submissionCreateError(res, 'replacement')?.type === 'overQuota') {
-    await makeRoomForSubmission(accountId);
-    // Making room can take a while - a prune, a walk through the change log -
-    // and meanwhile the original may have gone out: its time came, or it was
-    // "Send now" of a message due any moment. A replacement would then send
-    // it a second time. A read that fails throws, and nothing changes.
-    const originalStatus = await readSubmissionUndoStatus(scheduled.emailSubmissionId, accountId);
-    if (originalStatus !== 'pending') throw new NoLongerScheduledError(originalStatus === 'final');
-    // The time spent is taken off the hold; a moment already past goes out
-    // at once.
-    res = await createReplacement(Math.max(1, Math.ceil((sendAt - Date.now()) / 1000)));
-  }
-  const body = requireMethodResult(res, '0', 'EmailSubmission/set');
-  const notCreated = body.notCreated?.replacement as { description?: string; type?: string } | undefined;
-  if (notCreated) throw submissionError(notCreated, 'Failed to reschedule', accountId);
-  const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
-  if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
+  const holdUntil = Date.now() + holdFor * 1000;
 
-  // The recipients are checked again for the replacement, and a throttle
-  // used up since the original was taken ("452 4.4.5 Rate limit exceeded")
-  // can refuse some or all of them. Cancelling the original would lose the
-  // message for a recipient it took and the replacement didn't, so the
-  // original is kept then - it still goes at its old time to everyone it
-  // took - and the replacement is withdrawn. A recipient the original was
-  // refused for as well loses nothing, so the reschedule goes ahead; without
-  // a delivery status of the original, every recipient counts as taken.
-  // Should the replacement not be withdrawn, it goes ahead too, and the
-  // caller names the refused recipients: keeping both would send the others
-  // two copies (webmail aa99f038).
-  const delivery = refusedRecipients(res.methodResponses.find(([, , callId]) => callId === '1'));
-  const refusedBefore = new Set(Object.entries(original?.deliveryStatus ?? {})
-    .filter(([, status]) => status?.delivered === 'no')
-    .map(([address]) => address.toLowerCase()));
-  const lost = delivery.recipients.filter((recipient) => !refusedBefore.has(recipient.email.toLowerCase()));
-  if (lost.length > 0 && await withdrawReplacement(created.id, accountId, delivery.all)) {
-    throw new RecipientsRefusedError(lost);
-  }
-
-  // Either cancel below also removes the record it canceled, so a reschedule
-  // leaves only the replacement behind.
+  // Cancel first. Should it fail, nothing has changed and the original still
+  // goes out - unless it has gone out already ("Send now" of a message due
+  // any moment), or was cancelled on another device. Either cancel also
+  // removes the record it canceled.
   try {
     await cancelScheduledSend(scheduled.emailSubmissionId, accountId);
   } catch (err) {
-    // A cancel whose answer got lost may still have gone through. Otherwise
-    // the original is still due or has just gone out, and the replacement
-    // must not go as well.
-    if ((await submissionUndoStatus(scheduled.emailSubmissionId, accountId)) !== 'canceled') {
-      try {
-        await cancelScheduledSend(created.id, accountId);
-      } catch (withdrawErr) {
-        console.warn('[email] could not withdraw the replacement scheduled send:', withdrawErr);
-      }
-      const reason = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to cancel the previous schedule: ${reason}`);
+    const status = await submissionUndoStatus(scheduled.emailSubmissionId, accountId);
+    if (status === 'final' || status === 'canceled') throw new NoLongerScheduledError(status === 'final');
+    throw err;
+  }
+
+  let replacement: Created;
+  try {
+    replacement = await createSubmission(holdUntil);
+    // The recipients are checked again for the replacement, and a throttle
+    // used up since the original was taken can refuse some or all of them.
+    // When it took nobody the reschedule failed; when it took some, the
+    // caller names the refused ones.
+    const refused = await withdrawIfDead(replacement);
+    if (refused) throw new RecipientsRefusedError(refused);
+  } catch (err) {
+    // Put the original back at its old time: HOLDFOR with the seconds left,
+    // at once when that time has passed meanwhile.
+    const originalTime = original?.sendAt ? Date.parse(original.sendAt) : NaN;
+    let restored: Created | undefined;
+    try {
+      restored = await createSubmission(Number.isFinite(originalTime) && originalTime > Date.now() ? originalTime : undefined);
+    } catch (restoreErr) {
+      console.warn('[email] could not put the original scheduled send back:', restoreErr);
     }
+    if (restored && !(await withdrawIfDead(restored).catch(() => null))) {
+      throw new RescheduleRestoredError(err, restored.id, restored.sendAt ?? original?.sendAt);
+    }
+    // Neither went through: the message is not scheduled any more. It goes
+    // back to Drafts rather than sit in Sent looking sent.
+    let inDrafts = false;
+    if (draftsId) {
+      try {
+        await restoreEmailToDraft(scheduled.emailId, draftsId, sentId, accountId);
+        inDrafts = true;
+      } catch (draftErr) {
+        console.warn('[email] could not move the unscheduled message back to Drafts:', draftErr);
+      }
+    }
+    throw new RescheduleLostError(err, inDrafts);
   }
   return {
-    emailSubmissionId: created.id,
-    sendAt: created.sendAt,
-    ...(delivery.recipients.length > 0 ? { refusedRecipients: delivery.recipients } : {}),
+    emailSubmissionId: replacement.id,
+    sendAt: replacement.sendAt,
+    ...(replacement.delivery.recipients.length > 0 ? { refusedRecipients: replacement.delivery.recipients } : {}),
   };
-}
-
-/**
- * Withdraw the replacement of a reschedule that keeps its original instead;
- * true once it can no longer go out. A replacement the server took for
- * nobody (`tookNobody`) holds no mail, so only its record goes, on Stalwart
- * (elsewhere the prune takes it once it is final). Any other is cancelled,
- * which "Send now" may be too late for: its replacement is held for a second
- * only. A cancel that failed counts when a read shows it went through with
- * only its answer lost.
- */
-async function withdrawReplacement(replacementId: string, accountId: string, tookNobody: boolean): Promise<boolean> {
-  if (tookNobody) {
-    if (isStalwartAccount(accountId)) await destroyEmailSubmissions([replacementId], accountId);
-    return true;
-  }
-  try {
-    await cancelScheduledSend(replacementId, accountId);
-    return true;
-  } catch (err) {
-    if ((await submissionUndoStatus(replacementId, accountId)) === 'canceled') return true;
-    console.warn('[email] could not withdraw a replacement some recipients were refused for:', err);
-    return false;
-  }
 }
 
 /**
@@ -2412,4 +2489,29 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
     await destroyEmailSubmissions([submissionId], accountId);
   }
   return emailId;
+}
+
+/**
+ * Copy blobs into another account of the login (RFC 8620 §6.3): the blob of
+ * an attachment in a shared or group mailbox, filed in the user's Files, or
+ * a file attached to a message of another account. Resolves with the new
+ * blobId for each. Stalwart answers Blob/copy only with the blob capability
+ * in `using`. Same account: the ids as they are, nothing is sent.
+ */
+export async function copyBlobs(fromAccountId: string, blobIds: string[], toAccountId: string): Promise<Record<string, string>> {
+  if (blobIds.length === 0 || fromAccountId === toAccountId) {
+    return Object.fromEntries(blobIds.map((id) => [id, id]));
+  }
+  const res = await jmapClient.request(
+    [['Blob/copy', { fromAccountId, accountId: toAccountId, blobIds }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.BLOB],
+  );
+  const body = requireMethodResult(res, '0', 'Blob/copy');
+  const copied = (body.copied ?? {}) as Record<string, string>;
+  const missing = blobIds.find((id) => !copied[id]);
+  if (missing) {
+    const error = (body.notCopied ?? {})[missing] as { type?: string; description?: string } | undefined;
+    throw new Error(error?.description || error?.type || 'Blob/copy did not copy the blob');
+  }
+  return copied;
 }

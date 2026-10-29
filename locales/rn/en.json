@@ -310,12 +310,18 @@
     "attachment_reminder_title": "Forgot an attachment?",
     "attachments_too_large_total": "The attachments would exceed the {max} this server allows per message.",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Attach} one {Attach 1 file} other {Attach # files}}",
+      "empty_folder": "This folder is empty",
+      "load_failed": "Your files could not be loaded"
+    },
     "format_plain_text": "Switch to plain text",
     "format_rich_text": "Switch to rich text (HTML)",
     "from_options": "Sender options",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identity unavailable",
     "image_load_failed": "Could not load image",
+    "login_switched_attach_body": "You started this message in {account}. Switch back to that account to attach files.",
     "login_switched_body": "You started this message in {account}. Switch back to that account to send it.",
     "login_switched_save_body": "You started this message in {account}. Switch back to that account to save it.",
     "login_switched_title": "Account switched",
@@ -323,6 +329,32 @@
     "no_sent_folder": "No Sent folder found",
     "permission_camera": "Camera permission is required to take a photo.",
     "permission_photos": "Photo library permission is required to attach images.",
+    "placeholder_warning": {
+      "back": "Back to editing",
+      "dont_ask_again": "Don't ask again",
+      "found": "Placeholders found",
+      "message": "Your message has placeholder text that recipients will see. Do you want to edit it before sending?",
+      "more": "and {count} more",
+      "send_anyway": "Send anyway",
+      "title": "Check placeholders?"
+    },
+    "placeholder_words": {
+      "after": [],
+      "before": [
+        "your",
+        "insert",
+        "enter",
+        "add"
+      ],
+      "unfinished": [
+        "TODO",
+        "TBD",
+        "TBA",
+        "TBC",
+        "FIXME",
+        "XXX"
+      ]
+    },
     "read_receipt_off": "Request a read receipt",
     "recipient_add_contact": "Add to contacts",
     "recipient_copy": "Copy address",
@@ -351,6 +383,8 @@
     "send_now": "Send now",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
+    "send_unconfirmed_body": "The server did not confirm the send. Check your Sent folder before sending again. Your draft has been kept.",
+    "send_unconfirmed_title": "Send not confirmed",
     "submission_limit": "The server refused to send the message because a limit was reached: {reason}",
     "submission_quota": "The server has too many sent-message records for this account. Bulwark removed the ones it could; if this keeps happening, ask your administrator to raise the email submission limit.",
     "toolbar": {
@@ -358,7 +392,10 @@
       "remove_link": "Remove link"
     },
     "undo_send_label": "Sending in {seconds}s…",
+    "undo_send_other_login": "This message was sent from another account",
+    "undo_send_other_login_body": "Switch back to {account} to undo it or send it now. It goes out when the delay ends.",
     "upload_failed_short": "Upload failed",
+    "upload_login_switched": "Not uploaded: the account was switched",
     "uploading": "Uploading...",
     "uploading_pct": "Uploading {pct}%",
     "use_template": "Template",
@@ -464,10 +501,20 @@
       "pdf_unreadable": "This PDF can't be shown here.",
       "unsupported": "No preview for this file type."
     },
+    "quick_reply_login_switched": "This message is in another account. Switch back to it to reply.",
+    "quick_reply_unconfirmed": "The server did not confirm the send. Check your Sent folder before sending again.",
     "received_via": "to {name}",
     "remove_color": "Remove tag",
     "replied": "Replied",
     "reschedule_recipients_refused": "Nothing was changed: the server refused {recipients}.",
+    "save_to_files": {
+      "failed": "Couldn't save to Files",
+      "load_failed": "Couldn't load your folders. Try again.",
+      "save_here": "Save here",
+      "saved": "Saved to Files",
+      "saved_to": "In {folder}",
+      "title": "Save to Files"
+    },
     "sender_actions": "Sender…",
     "set_color": "Set tag",
     "show_all_count": "Show all ({count})",
@@ -689,6 +736,10 @@
       "up_to_date": "Already up to date"
     }
   },
+  "org_templates": {
+    "personal_in_account": "Your templates are kept in your account, so you have them on every device you sign in on. Anyone you share your Inbox with can read them.",
+    "section_personal": "My templates"
+  },
   "push": {
     "ios": {
       "more_messages": "and {count} more",
@@ -702,13 +753,18 @@
     "title": "Get notified about new mail"
   },
   "scheduled": {
+    "actions": "Actions",
     "already_sent": "This message was already sent.",
     "cancel_body": "The message will not be delivered. A copy stays in your Sent folder.",
     "cancel_failed": "Cancel failed",
+    "cancel_to_drafts_body": "The message will not be sent. It goes back to your Drafts.",
     "edit_failed": "Could not open the message for editing",
     "keep_scheduled": "Keep scheduled",
     "no_longer_scheduled": "This message is no longer scheduled.",
     "reschedule_failed": "Reschedule failed",
+    "reschedule_lost": "The message is no longer scheduled. Check Drafts and Sent before sending it again.",
+    "reschedule_lost_drafts": "The message is no longer scheduled. It is back in Drafts, where you can send it again.",
+    "send_cancelled": "Send cancelled",
     "send_now_failed": "Could not send now"
   },
   "settings": {
@@ -917,6 +973,10 @@
         "allow_mobile": "Allow",
         "ask_mobile": "Ask",
         "block_mobile": "Block"
+      },
+      "placeholder_warning": {
+        "description": "Ask for confirmation before sending a message that still has placeholders like [TIME] or [Your Name], template fields left empty, or unfinished text like TODO or TBD.",
+        "label": "Placeholder warning"
       },
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."

@@ -43,11 +43,11 @@ import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import {
-  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
+  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, SendUnconfirmedError,
+  type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
-import { uploadBlob, uploadBytes } from '../api/blob';
 import { partlyRefusedWarning, sendFailureMessage } from '../lib/send-failure-message';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
@@ -66,7 +66,14 @@ import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
-import { composerLoginMoved, servedLoginOf } from '../lib/draft-login';
+import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
+import { sendTargetFor } from '../lib/compose-send-account';
+import { attachmentFromFileNode } from '../lib/compose-files';
+import { supportsFiles } from '../api/files';
+import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
+import {
+  assertComposerLogin, ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
+} from '../lib/compose-login';
 import {
   initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs, withSnapshotBody,
 } from '../lib/draft-part-blobs';
@@ -82,7 +89,7 @@ import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
-import type { EmailAddress, Identity } from '../api/types';
+import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -480,6 +487,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
+  const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
@@ -824,7 +832,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const localId = `seed-${a.blobId}`;
         try {
           const buf = await jmapClient.fetchBlobArrayBuffer(a.blobId, a.name, a.type, seedOwnerAccountId);
-          const up = await uploadBytes(new Uint8Array(buf), a.type || 'application/octet-stream');
+          const up = await uploadBytesForLogin(ownerLoginRef.current, new Uint8Array(buf), a.type || 'application/octet-stream');
           if (!cancelled) updateAttachment(localId, { blobId: up.blobId, size: up.size, uploading: false });
         } catch (e) {
           if (!cancelled) {
@@ -857,7 +865,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           const mime = att.type?.toLowerCase().startsWith('image/') ? att.type : (sniffImageMime(bytes) ?? 'image/png');
           map.set(cid, `data:${mime};base64,${bytesToBase64(bytes)}`);
           let blobId = att.blobId;
-          if (seedOwnerAccountId) blobId = (await uploadBytes(bytes, mime)).blobId;
+          if (seedOwnerAccountId) blobId = (await uploadBytesForLogin(ownerLoginRef.current, bytes, mime)).blobId;
           inlineRegistryRef.current.set(cid, {
             localId: `cid-${cid}`,
             name: att.name || 'image',
@@ -1117,6 +1125,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Snapshot at the last successful draft save (null = never saved).
   const lastSavedRef = React.useRef<string | null>(draft ? baselineRef.current : null);
   const draftIdRef = React.useRef<string | null>(draft?.id ?? null);
+  // The account `draftIdRef` lives in, undefined for the login's own: a
+  // group identity's draft lives in the group's Drafts (#1090), and a send
+  // undone or a scheduled one cancelled for editing comes back in the
+  // account it was sent from. Email ids repeat across accounts, so the old
+  // version is destroyed there and nowhere else.
+  const draftAccountRef = React.useRef<string | undefined>(draft?.jmapAccountId);
+  const draftAccount = () => draftAccountRef.current ?? jmapClient.accountId;
   const messageIdRef = React.useRef<string | null>(draft?.messageId?.[0] ?? null);
   const inflightSaveRef = React.useRef<Promise<string | null> | null>(null);
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1125,10 +1140,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const sendingRef = React.useRef(false);
   // The login this message was started in (see lib/draft-login).
   const ownerLoginRef = React.useRef(useAccountStore.getState().activeAccountId);
-  const loginMoved = () => composerLoginMoved(ownerLoginRef.current, {
-    activeAccountId: useAccountStore.getState().activeAccountId,
-    servedLogin: servedLoginOf(jmapClient),
-  });
+  const loginMoved = () => loginMovedFrom(ownerLoginRef.current);
+  /** The address of the login this message was started in, for the "switch back" alerts. */
+  const ownerAccountLabel = () => {
+    const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
+    return owner?.email || owner?.displayName || '';
+  };
   const [draftStatus, setDraftStatus] = React.useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [savingDraft, setSavingDraft] = React.useState(false);
 
@@ -1351,6 +1368,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
         html = (await editorRef.current?.getHtml()) ?? html;
       } catch { /* the last change message is the best we have */ }
       if (html !== latestRef.current.bodyHtml) setBodyHtml(html);
+      // Reading the editor gave a switch time to land.
+      if (loginMoved()) return draftIdRef.current;
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
@@ -1361,9 +1380,26 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setDraftStatus('saving');
     try {
       const outgoing = buildOutgoing(identity, html, { forDraft: true });
-      const saved = await saveDraftVersion(outgoing, draftsMailbox.id, draftIdRef.current ?? undefined);
+      // A draft From a group identity is saved in the group's Drafts, like
+      // its Sent copy (#1090); one without a Drafts folder there in the own.
+      const target = await sendTargetFor(identity, outgoing.from[0]?.email ?? identity.email, mailboxes);
+      if (loginMoved()) {
+        setDraftStatus('idle');
+        return draftIdRef.current;
+      }
+      const saveIn = target.accountId && target.draftsMailboxId
+        ? { accountId: target.accountId, draftsMailboxId: target.draftsMailboxId }
+        : { accountId: undefined, draftsMailboxId: draftsMailbox.id };
+      const saved = await saveDraftVersion(
+        outgoing,
+        saveIn.draftsMailboxId,
+        draftIdRef.current ?? undefined,
+        saveIn.accountId,
+        draftIdRef.current ? draftAccount() : undefined,
+      );
       const id = saved.id;
       draftIdRef.current = id;
+      draftAccountRef.current = saveIn.accountId;
       // The previous version and its part blobs are gone: point every
       // attachment at the parts of the version just created.
       draftPartBlobsRef.current = rebaseDraftPartBlobs(
@@ -1446,13 +1482,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // Another login is active: saving writes nothing (saveDraftOnce), so
     // closing now would drop the text as if it had been saved.
     if (loginMoved()) {
-      const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
       Alert.alert(
         t('email_composer.login_switched_title', 'Account switched'),
         t(
           'email_composer.login_switched_save_body',
           'You started this message in {account}. Switch back to that account to save it.',
-          { account: owner?.email || owner?.displayName || '' },
+          { account: ownerAccountLabel() },
         ),
       );
       return;
@@ -1488,7 +1523,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       void (async () => {
         try { await inflightSaveRef.current; } catch { /* ignore */ }
         const id = draftIdRef.current ?? autosaved;
-        destroyEmails([id]).catch((err) => console.warn('[compose] discard failed', err));
+        destroyEmails([id], draftAccountRef.current).catch((err) => console.warn('[compose] discard failed', err));
       })();
     }
     allowLeaveRef.current = true;
@@ -1622,9 +1657,24 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return entry;
   };
 
+  // Attachments go into the blob store of the login the message belongs to;
+  // once another login is active they would land in that one's.
+  const refuseAttachAfterSwitch = (): boolean => {
+    if (!loginMoved()) return false;
+    Alert.alert(
+      t('email_composer.login_switched_title', 'Account switched'),
+      t(
+        'email_composer.login_switched_attach_body',
+        'You started this message in {account}. Switch back to that account to attach files.',
+        { account: ownerAccountLabel() },
+      ),
+    );
+    return true;
+  };
+
   const startUpload = async (entry: AttachmentEntry) => {
     try {
-      const { blobId, size, type } = await uploadBlob(entry.uri, entry.type, {
+      const { blobId, size, type } = await uploadFileForLogin(ownerLoginRef.current, entry.uri, entry.type, {
         signal: entry.abort?.signal,
         onProgress: (sent, total) => {
           if (total > 0) updateAttachment(entry.localId, { progress: Math.min(1, sent / total) });
@@ -1640,7 +1690,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       });
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return; // removed by the user
-      const message = e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
+      const message = e instanceof ComposerLoginMovedError
+        ? t('email_composer.upload_login_switched', 'Not uploaded: the account was switched')
+        : e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
       updateAttachment(entry.localId, { uploading: false, progress: undefined, error: message });
       Alert.alert(
         t('email_composer.upload_failed', 'Failed to upload {filename}', { filename: entry.name }),
@@ -1650,6 +1702,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const addFileAsset = (asset: { name: string; type: string; size: number; uri: string }) => {
+    if (refuseAttachAfterSwitch()) return;
     if (!checkAttachmentSize(asset.size, false)) return;
     void startUpload(addUploadEntry({ ...asset, inline: false }));
   };
@@ -1665,6 +1718,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   const pickPhotoAttachments = async () => {
+    if (refuseAttachAfterSwitch()) return;
     // The system photo picker needs no media permission (and Play rejects
     // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -1687,6 +1741,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const takePhotoAttachment = async () => {
+    if (refuseAttachAfterSwitch()) return;
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -1708,6 +1763,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const pickFileAttachments = async () => {
+    if (refuseAttachAfterSwitch()) return;
     let result: DocumentPicker.DocumentPickerResult;
     try {
       result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
@@ -1729,13 +1785,59 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const [attachMenuOpen, setAttachMenuOpen] = React.useState(false);
+  // Files in the user's Files on the server, when it keeps them (#1179).
+  const [filesPickerOpen, setFilesPickerOpen] = React.useState(false);
+  const hasServerFiles = supportsFiles();
   const attachOptions: SheetOption[] = [
     { label: t('email_composer.attach_photos', 'Photos & Videos'), onPress: () => { void pickPhotoAttachments(); } },
     { label: t('email_composer.attach_camera', 'Camera'), onPress: () => { void takePhotoAttachment(); } },
-    { label: t('email_composer.attach_files', 'Files'), onPress: () => { void pickFileAttachments(); } },
+    {
+      // Next to "Attach from Files" a plain "Files" would read as the same.
+      label: hasServerFiles
+        ? t('email_composer.attach_from_device', 'Upload from this device')
+        : t('email_composer.attach_files', 'Files'),
+      onPress: () => { void pickFileAttachments(); },
+    },
+    ...(hasServerFiles ? [{
+      label: t('email_composer.attach_from_files', 'Attach from Files'),
+      onPress: () => { if (!refuseAttachAfterSwitch()) setFilesPickerOpen(true); },
+    }] : []),
   ];
 
+  // A file from Files is attached by its blob: nothing is downloaded or
+  // uploaded, except a copy when Files lives in another account.
+  const attachFileNodes = (nodes: FileNode[]) => {
+    setFilesPickerOpen(false);
+    for (const node of nodes) {
+      if (refuseAttachAfterSwitch()) return;
+      if (!checkAttachmentSize(node.size ?? 0, false)) continue;
+      const entry: AttachmentEntry = {
+        localId: genLocalId(),
+        name: node.name,
+        type: node.type || 'application/octet-stream',
+        size: node.size ?? 0,
+        uri: '',
+        inline: false,
+        uploading: true,
+      };
+      setAttachments((prev) => [...prev, entry]);
+      void (async () => {
+        try {
+          assertComposerLogin(ownerLoginRef.current);
+          const part = await attachmentFromFileNode(node);
+          updateAttachment(entry.localId, { blobId: part.blobId, type: part.type, size: part.size || entry.size, uploading: false });
+        } catch (e) {
+          const message = e instanceof ComposerLoginMovedError
+            ? t('email_composer.upload_login_switched', 'Not uploaded: the account was switched')
+            : e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
+          updateAttachment(entry.localId, { uploading: false, error: message });
+        }
+      })();
+    }
+  };
+
   const insertInlineImages = async (assets: Array<{ uri: string; mimeType?: string | null; fileName?: string | null; fileSize?: number | null }>) => {
+    if (refuseAttachAfterSwitch()) return;
     for (const asset of assets) {
       const mime = asset.mimeType ?? 'image/jpeg';
       const fallbackName = asset.fileName || `image-${Date.now()}.${mime.split('/')[1] ?? 'jpg'}`;
@@ -1763,6 +1865,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const insertInlineImage = async () => {
+    if (refuseAttachAfterSwitch()) return;
     // The system photo picker needs no media permission (and Play rejects
     // READ_MEDIA_IMAGES for picking a photo now and then).
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -2021,6 +2124,54 @@ export default function ComposeScreen({ route, navigation }: Props) {
     });
   };
 
+  // Unfilled placeholders: template fields left as {{name}}, fill-ins like
+  // [TIME] from AI drafts, and markers like TODO (webmail
+  // lib/placeholder-check). The signature is left out, or a placeholder in
+  // it would stop every message. Asked once per placeholder: after "Send
+  // anyway" and a trip back to add an attachment, the same ones pass.
+  const confirmedPlaceholdersRef = React.useRef(new Set<string>());
+  const passesPlaceholderCheck = (body: string): Promise<boolean> => {
+    if (!placeholderWarningEnabled) return Promise.resolve(true);
+    const found = unfilledPlaceholdersInMessage({
+      subject,
+      body,
+      plainTextMode,
+      signature: signatureIdentity,
+      forwardedSeparator: quoteLabels.forwardedSeparator,
+      words: placeholderWordsFor(locale),
+    });
+    if (!found.some((p) => !confirmedPlaceholdersRef.current.has(p))) return Promise.resolve(true);
+    const SHOWN = 5;
+    const more = found.length > SHOWN
+      ? ` ${t('email_composer.placeholder_warning.more', 'and {count} more', { count: found.length - SHOWN })}`
+      : '';
+    const message = t(
+      'email_composer.placeholder_warning.message',
+      'Your message has placeholder text that recipients will see. Do you want to edit it before sending?',
+    );
+    const label = t('email_composer.placeholder_warning.found', 'Placeholders found');
+    return new Promise<boolean>((resolve) => {
+      Alert.alert(
+        t('email_composer.placeholder_warning.title', 'Check placeholders?'),
+        `${message}\n\n${label}: ${found.slice(0, SHOWN).join(', ')}${more}`,
+        [
+          { text: t('email_composer.placeholder_warning.back', 'Back to editing'), style: 'cancel', onPress: () => resolve(false) },
+          {
+            text: t('email_composer.placeholder_warning.dont_ask_again', "Don't ask again"),
+            onPress: () => { updateSetting('placeholderWarningEnabled', false); resolve(true); },
+          },
+          {
+            text: t('email_composer.placeholder_warning.send_anyway', 'Send anyway'),
+            onPress: () => {
+              for (const p of found) confirmedPlaceholdersRef.current.add(p);
+              resolve(true);
+            },
+          },
+        ],
+      );
+    });
+  };
+
   // Translate an absolute "send at" time into the HOLDFOR seconds the server
   // expects, clamping to what it actually supports. Returns null (and alerts)
   // when scheduling isn't possible so the caller can abort.
@@ -2133,18 +2284,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const performSendInner = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!primaryIdentity || !sentMailbox) return;
-    if (loginMoved()) {
-      const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
+    const refuseSendAfterSwitch = (): boolean => {
+      if (!loginMoved()) return false;
       Alert.alert(
         t('email_composer.login_switched_title', 'Account switched'),
         t(
           'email_composer.login_switched_body',
           'You started this message in {account}. Switch back to that account to send it.',
-          { account: owner?.email || owner?.displayName || '' },
+          { account: ownerAccountLabel() },
         ),
       );
-      return;
-    }
+      return true;
+    };
+    if (refuseSendAfterSwitch()) return;
 
     // Read the body straight from the editor DOM at send time. The `change`
     // messages that feed `bodyHtml` are async and best-effort — trusting them
@@ -2169,6 +2321,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
 
     if (!(await passesEmptySubjectCheck())) return;
+    if (!(await passesPlaceholderCheck(plainTextMode ? plainBody : liveBodyHtml))) return;
     if (!(await passesAttachmentReminder(plainTextMode ? plainBody : liveBodyHtml))) return;
 
     // Autosave must not race the send: cancel a scheduled save and let an
@@ -2180,16 +2333,31 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (inflightSaveRef.current) {
       try { await inflightSaveRef.current; } catch { /* stale version stays; cleaned up below */ }
     }
+    // The confirmations above wait for the user, long enough for a
+    // notification tap to switch logins.
+    if (refuseSendAfterSwitch()) return;
 
     setSending(true);
     try {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
+      // The account the submission is held in, for Undo (read before the
+      // request: a switch may land while it is out).
+      // A group or shared identity sends from its own account, and its Sent
+      // copy goes there (#1090).
+      const target = await sendTargetFor(primaryIdentity, outgoing.from[0]?.email ?? primaryIdentity.email, mailboxes);
+      if (refuseSendAfterSwitch()) return;
+      const submissionAccountId = target.accountId ?? jmapClient.connectedAccountId ?? undefined;
       const result = await sendEmail(
         outgoing,
-        primaryIdentity.id,
-        sentMailbox.id,
+        target.identityId,
+        target.sentMailboxId ?? sentMailbox.id,
         holdForSeconds,
-        { draftsMailboxId: draftsMailbox?.id, draftId: draftIdRef.current ?? undefined },
+        {
+          draftsMailboxId: target.accountId ? target.draftsMailboxId : draftsMailbox?.id,
+          draftId: draftIdRef.current ?? undefined,
+          draftAccountId: draftIdRef.current ? draftAccount() : undefined,
+          accountId: target.accountId,
+        },
       );
       draftIdRef.current = null;
       lastSavedRef.current = null;
@@ -2205,9 +2373,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const { title, message } = partlyRefusedWarning(refused, t);
         toast.warning(title, { message, duration: 10_000 });
       }
+      // A switch during the send: the original's id and the trusted senders
+      // book below are the other login's now.
+      const sameLogin = !loginMoved();
       // Flag the original so the list shows the reply/forward arrow; best
       // effort - the message already left.
-      if (replyTo?.originalEmailId) {
+      if (replyTo?.originalEmailId && sameLogin) {
         void patchKeywordsForEmails(
           [replyTo.originalEmailId],
           { [mode === 'forward' ? '$forwarded' : '$answered']: true },
@@ -2221,7 +2392,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const contacts = useContactsStore.getState();
         for (const r of [...outgoing.to, ...(outgoing.cc ?? [])]) {
           settings.addTrustedSender(r.email);
-          if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
+          if (sameLogin && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
           }
         }
@@ -2237,6 +2408,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
         // Undo-send window: the undo bar offers Undo / Send now.
         useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
           identityId: primaryIdentity.id,
+          accountId: submissionAccountId,
+          login: ownerLoginRef.current,
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
         });
@@ -2256,6 +2429,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
           t(
             'email_composer.send_timeout_body',
             'The message may already have gone out. Check your Sent folder before sending it again.',
+          ),
+        );
+        return;
+      }
+      if (e instanceof SendUnconfirmedError) {
+        // The message may have gone out: the composer and the draft stay,
+        // and the user checks Sent rather than sending it twice (#1019).
+        Alert.alert(
+          t('email_composer.send_unconfirmed_title', 'Send not confirmed'),
+          t(
+            'email_composer.send_unconfirmed_body',
+            'The server did not confirm the send. Check your Sent folder before sending again. Your draft has been kept.',
           ),
         );
         return;
@@ -2996,6 +3181,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <FilesPickerSheet
+        visible={filesPickerOpen}
+        mode="files"
+        onClose={() => setFilesPickerOpen(false)}
+        onPickFiles={attachFileNodes}
+      />
 
       <TemplateSheet
         visible={templateSheetOpen}

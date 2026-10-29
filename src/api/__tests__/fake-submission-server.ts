@@ -389,7 +389,27 @@ export function createFakeSubmissionServer(options: {
           if (emails.delete(id)) (body.destroyed ??= []).push(id);
           else (body.notDestroyed ??= {})[id] = { type: 'notFound' };
         }
+        // Pointer patches of mailboxes and keywords (a message back to Drafts).
+        for (const [id, patch] of Object.entries((args.update ?? {}) as Record<string, Record<string, unknown>>)) {
+          const email = emails.get(id);
+          if (!email) {
+            (body.notUpdated ??= {})[id] = { type: 'notFound' };
+            continue;
+          }
+          for (const [path, value] of Object.entries(patch)) {
+            const [field, key] = path.split('/');
+            const target = field === 'mailboxIds' ? email.mailboxIds : field === 'keywords' ? email.keywords : null;
+            if (!target || !key) continue;
+            if (value === null) delete target[key];
+            else target[key] = true;
+          }
+          (body.updated ??= {})[id] = null;
+        }
         responses.push(['Email/set', body, callId]);
+      } else if (name === 'Mailbox/get') {
+        responses.push(['Mailbox/get', {
+          accountId, state: 'm1', list: [{ id: 'drafts', role: 'drafts' }, { id: 'sent', role: 'sent' }], notFound: [],
+        }, callId]);
       } else if (name === 'Email/import') {
         const body: Record<string, any> = { accountId };
         for (const [creationId, item] of Object.entries(args.emails as Record<string, Record<string, any>>)) {

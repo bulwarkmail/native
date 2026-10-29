@@ -284,6 +284,11 @@
     "attachment_reminder_title": "忘记添加附件了吗？",
     "attachments_too_large_total": "附件将超过此服务器每封邮件 {max} 的上限。",
     "editor_unavailable": "无法读取邮件内容。请复制您的文本，然后关闭并重新打开撰写窗口。",
+    "files_picker": {
+      "attach": "{count, plural, =0 {添加附件} other {添加 # 个文件}}",
+      "empty_folder": "此文件夹为空",
+      "load_failed": "无法加载你的文件"
+    },
     "from_options": "发件人选项",
     "group_chip": "{name}（{count}）",
     "identity_unavailable": "身份不可用",
@@ -292,6 +297,29 @@
     "no_sent_folder": "未找到“已发送”文件夹",
     "permission_camera": "需要相机权限才能拍照。",
     "permission_photos": "需要相册权限才能附加图片。",
+    "placeholder_warning": {
+      "title": "检查占位符？",
+      "message": "你的邮件中有收件人会看到的占位符文本。要在发送前编辑吗？",
+      "found": "找到的占位符",
+      "more": "以及另外 {count} 个",
+      "dont_ask_again": "不再提示",
+      "send_anyway": "仍然发送",
+      "back": "返回编辑"
+    },
+    "placeholder_words": {
+      "before": [
+        "您的-",
+        "你的-",
+        "贵公司-",
+        "插入-",
+        "输入-",
+        "填写-",
+        "添加-",
+        "在此-"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "添加到联系人",
     "recipient_copy": "复制地址",
     "recipient_move_to": "移至{field}",
@@ -431,6 +459,14 @@
     "remove_color": "删除标签",
     "replied": "已回复",
     "reschedule_recipients_refused": "未作任何更改：服务器拒绝了 {recipients}。",
+    "save_to_files": {
+      "title": "保存到文件",
+      "save_here": "保存到此处",
+      "saved": "已保存到文件",
+      "saved_to": "在 {folder} 中",
+      "failed": "无法保存到文件",
+      "load_failed": "无法加载文件夹。请重试。"
+    },
     "sender_actions": "发件人…",
     "set_color": "设置颜色标签",
     "show_all_count": "显示全部（{count}）",
@@ -624,6 +660,10 @@
       "unable_to_download": "无法下载",
       "up_to_date": "已是最新"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "您的模板保存在您的账户中，因此您登录的每台设备上都能使用。与您共享收件箱的任何人都可以阅读它们。",
+    "section_personal": "我的模板"
   },
   "push_prompt": {
     "body": "开启后台通知，即使应用已关闭也能收到新邮件。",
@@ -819,6 +859,10 @@
         "allow_mobile": "允许",
         "ask_mobile": "询问",
         "block_mobile": "阻止"
+      },
+      "placeholder_warning": {
+        "label": "占位符提醒",
+        "description": "发送仍含有占位符（如 [TIME] 或 [您的姓名]）、空白模板字段或未完成文本（如 TODO 或 TBD）的邮件前请求确认。"
       },
       "plain_text_mode": {
         "description_mobile": "仅以纯文本撰写和阅读。"

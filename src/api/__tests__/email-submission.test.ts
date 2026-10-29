@@ -17,8 +17,11 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail } from '../email';
-import { ScheduleTooLateError } from '../jmap-result';
+import {
+  cancelScheduledSend, listScheduledEmails, RescheduleLostError, RescheduleRestoredError, rescheduleScheduledSend,
+  sendEmail, SendUnconfirmedError,
+} from '../email';
+import { NoLongerScheduledError, ScheduleTooLateError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -34,12 +37,18 @@ const SCHEDULED = {
   to: [{ email: 'to@example.com' }],
 };
 
+const ORIGINAL_AT = new Date(Date.now() + 3600_000).toISOString();
 const LOOKUP = {
   methodResponses: [
     ['EmailSubmission/get', {
-      list: [{ id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] } }],
+      list: [{
+        id: 'sub-1',
+        sendAt: ORIGINAL_AT,
+        envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] },
+      }],
     }, '0'],
     ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'to@example.com' }] }] }, '1'],
+    ['Mailbox/get', { list: [{ id: 'mb-drafts', role: 'drafts' }, { id: 'mb-sent', role: 'sent' }, { id: 'mb-in', role: 'inbox' }] }, '2'],
   ],
 };
 const REPLACED = [['EmailSubmission/set', {
@@ -58,8 +67,17 @@ const setCalls = () => mockRequest.mock.calls
     Object.keys(args.update ?? {}),
     args.destroy ?? [],
   ]);
+/** The replacement create of the n-th EmailSubmission/set create call. */
+const createdArgs = (n = 0) => mockRequest.mock.calls
+  .map((c) => c[0][0])
+  .filter(([method, args]: [string, { create?: object }]) => method === 'EmailSubmission/set' && args.create)[n][1];
+const REFUSED = (description: string) => set({ notCreated: { replacement: { type: 'forbiddenToSend', description } } });
 
 describe('rescheduleScheduledSend', () => {
+  afterEach(() => {
+    mockRequest.mockReset();
+  });
+
   it('keeps Cc, Bcc and the envelope sender of the held submission (B19)', async () => {
     mockRequest
       .mockResolvedValueOnce({
@@ -80,20 +98,18 @@ describe('rescheduleScheduledSend', () => {
           ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'to@example.com' }], cc: [{ email: 'cc@example.com' }] }] }, '1'],
         ],
       })
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockResolvedValueOnce(CANCELLED)
-      .mockResolvedValueOnce(DESTROYED('sub-1'));
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce({ methodResponses: REPLACED });
 
     const result = await rescheduleScheduledSend(SCHEDULED, 7200);
 
     expect(result).toEqual({ emailSubmissionId: 'sub-2', sendAt: '2026-09-25T08:00:00Z' });
-    // What the server answered for each recipient comes with the envelope.
     const [lookup] = mockRequest.mock.calls[0][0];
     expect(lookup).toEqual([
-      'EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope', 'deliveryStatus'] }, '0',
+      'EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope', 'sendAt'] }, '0',
     ]);
-    const args = mockRequest.mock.calls[1][0][0][1];
-    expect(args.create.replacement.envelope).toEqual({
+    expect(createdArgs().create.replacement.envelope).toEqual({
       mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '7200' } },
       rcptTo: [{ email: 'to@example.com' }, { email: 'cc@example.com' }, { email: 'bcc@example.com' }],
     });
@@ -114,104 +130,112 @@ describe('rescheduleScheduledSend', () => {
           }, '1'],
         ],
       })
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockResolvedValueOnce(CANCELLED)
-      .mockResolvedValueOnce(DESTROYED('sub-1'));
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce({ methodResponses: REPLACED });
 
     await rescheduleScheduledSend(SCHEDULED, 60);
 
-    expect(mockRequest.mock.calls[1][0][0][1].create.replacement.envelope).toEqual({
+    expect(createdArgs().create.replacement.envelope).toEqual({
       mailFrom: { email: 'news@shop.example', parameters: { HOLDFOR: '60' } },
       rcptTo: [{ email: 'to@example.com' }, { email: 'cc@example.com' }, { email: 'bcc@example.com' }],
     });
   });
 
-  it('creates the replacement before cancelling the original, then removes the canceled record', async () => {
+  // #1308: some servers refuse a second active submission for one Email, and
+  // some undo onSuccessUpdateEmail on cancel, pulling the message back out of
+  // Sent once the original went after its replacement.
+  it('cancels the original and removes its record before it creates the replacement, which files the message in Sent', async () => {
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockResolvedValueOnce(CANCELLED)
-      .mockResolvedValueOnce(DESTROYED('sub-1'));
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce({ methodResponses: REPLACED });
 
     await rescheduleScheduledSend(SCHEDULED, 7200);
 
-    expect(setCalls()).toEqual([[['replacement'], [], []], [[], ['sub-1'], []], [[], [], ['sub-1']]]);
-    expect(mockRequest.mock.calls[2][0][0][1].update).toEqual({ 'sub-1': { undoStatus: 'canceled' } });
+    expect(setCalls()).toEqual([[[], ['sub-1'], []], [[], [], ['sub-1']], [['replacement'], [], []]]);
+    expect(mockRequest.mock.calls[1][0][0][1].update).toEqual({ 'sub-1': { undoStatus: 'canceled' } });
+    expect(createdArgs().onSuccessUpdateEmail).toEqual({
+      '#replacement': { mailboxIds: { 'mb-sent': true }, 'keywords/$draft': null },
+    });
   });
 
-  it('sends now as a 1-second hold, so the replacement can still be withdrawn', async () => {
+  it('sends now as a 1-second hold', async () => {
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockResolvedValueOnce(CANCELLED)
-      .mockResolvedValueOnce(DESTROYED('sub-1'));
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce({ methodResponses: REPLACED });
 
     await rescheduleScheduledSend(SCHEDULED, 0);
 
-    const replacement = mockRequest.mock.calls[1][0][0][1].create.replacement;
-    expect(replacement.envelope).toEqual({
+    expect(createdArgs().create.replacement.envelope).toEqual({
       mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '1' } },
       rcptTo: [{ email: 'to@example.com' }],
     });
-    expect(setCalls()).toEqual([[['replacement'], [], []], [[], ['sub-1'], []], [[], [], ['sub-1']]]);
   });
 
-  it('leaves the original scheduled when the replacement is refused', async () => {
+  it('changes nothing when the original has already gone out', async () => {
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce(set({ notCreated: { replacement: { type: 'forbiddenToSend', description: 'Quota exceeded' } } }));
-
-    await expect(rescheduleScheduledSend(SCHEDULED, 7200)).rejects.toThrow('Quota exceeded');
-    // No cancel went out.
-    expect(setCalls()).toEqual([[['replacement'], [], []]]);
-  });
-
-  it('withdraws the replacement when the original has already gone out', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    mockRequest
-      .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockResolvedValueOnce(set({ notUpdated: { 'sub-1': { type: 'cannotUnsend', description: 'Already sent' } } }))
-      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'final' }] }, '0']] })
-      .mockResolvedValueOnce(set({ updated: { 'sub-2': null } }))
-      .mockResolvedValueOnce(DESTROYED('sub-2'));
+      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'final' }] }, '0']] });
 
-    await expect(rescheduleScheduledSend(SCHEDULED, 0)).rejects.toThrow('Failed to cancel the previous schedule: Already sent');
-    // The original went out, so its record stays for the prune; the
-    // withdrawn replacement's goes at once.
-    expect(setCalls()).toEqual([
-      [['replacement'], [], []], [[], ['sub-1'], []], [[], ['sub-2'], []], [[], [], ['sub-2']],
-    ]);
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
+    const err = await rescheduleScheduledSend(SCHEDULED, 0).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(NoLongerScheduledError);
+    expect(err).toMatchObject({ sent: true });
+    // No replacement: it would send the message a second time.
+    expect(setCalls()).toEqual([[[], ['sub-1'], []]]);
   });
 
-  it('still reports the failure when the replacement cannot be withdrawn either', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  it('changes nothing and reports the failure when the cancel fails while the original is still due', async () => {
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
-      .mockResolvedValueOnce(set({ notUpdated: { 'sub-1': { type: 'cannotUnsend' } } }))
-      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'final' }] }, '0']] })
-      .mockResolvedValueOnce(set({ notUpdated: { 'sub-2': { type: 'cannotUnsend' } } }));
-
-    await expect(rescheduleScheduledSend(SCHEDULED, 0)).rejects.toThrow('Failed to cancel the previous schedule');
-    expect(warn).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
-  });
-
-  it('keeps the replacement when a cancel whose answer got lost did go through', async () => {
-    mockRequest
-      .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockRejectedValueOnce(new Error('Network request failed'))
-      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'canceled' }] }, '0']] });
+      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'pending' }] }, '0']] });
 
-    const result = await rescheduleScheduledSend(SCHEDULED, 7200);
+    await expect(rescheduleScheduledSend(SCHEDULED, 7200)).rejects.toThrow('Network request failed');
+    expect(setCalls()).toEqual([[[], ['sub-1'], []]]);
+  });
 
-    expect(result.emailSubmissionId).toBe('sub-2');
-    // Unconfirmed, so the original's record is left for the prune.
-    expect(setCalls()).toEqual([[['replacement'], [], []], [[], ['sub-1'], []]]);
+  it('puts the original back at its old time, under a new id, when the replacement is refused', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(ORIGINAL_AT) - 1800_000);
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce(REFUSED('Quota exceeded'))
+      .mockResolvedValueOnce(set({ created: { replacement: { id: 'sub-3' } } }));
+
+    const err = await rescheduleScheduledSend(SCHEDULED, 7200).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(RescheduleRestoredError);
+    expect(err).toMatchObject({ restoredSubmissionId: 'sub-3', restoredSendAt: ORIGINAL_AT, message: 'Quota exceeded' });
+    // Half an hour was left of the original hold.
+    expect(createdArgs(1).create.replacement.envelope.mailFrom.parameters).toEqual({ HOLDFOR: '1800' });
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  it('moves the message back to Drafts when neither the replacement nor the original can be made', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
+      .mockResolvedValueOnce(REFUSED('Quota exceeded'))
+      .mockResolvedValueOnce(REFUSED('Quota exceeded'))
+      .mockResolvedValueOnce({ methodResponses: [['Email/set', { updated: { 'e-1': null } }, '0']] });
+
+    const err = await rescheduleScheduledSend(SCHEDULED, 7200).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(RescheduleLostError);
+    expect(err).toMatchObject({ inDrafts: true });
+    const [, restore] = mockRequest.mock.calls.at(-1)![0][0];
+    expect(restore.update).toEqual({
+      'e-1': { 'mailboxIds/mb-drafts': true, 'keywords/$draft': true, 'keywords/$seen': true, 'mailboxIds/mb-sent': null },
+    });
   });
 });
 
@@ -255,6 +279,22 @@ describe('sendEmail', () => {
 
     await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, { draftsMailboxId: 'drafts-mb' }))
       .rejects.toThrow('Invalid envelope');
+  });
+
+  // #1019: an answer without the submission confirms nothing. The draft
+  // stays, and so does the copy, which may be the one that went out.
+  it('reports a send the server did not confirm as unconfirmed, and keeps the draft', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+      ],
+    });
+
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, {
+      draftsMailboxId: 'drafts-mb', draftId: 'old-draft',
+    })).rejects.toBeInstanceOf(SendUnconfirmedError);
+    // No destroy of the old draft version, nor of the copy.
+    expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
   it('still fails when the message could not be created', async () => {
@@ -374,24 +414,24 @@ describe('hold-limit rejections', () => {
     expect(jmapClient.learnHoldLimit).not.toHaveBeenCalled();
   });
 
-  it('turns a refused reschedule into ScheduleTooLateError', async () => {
+  it('turns a refused reschedule into ScheduleTooLateError, with the original put back', async () => {
     mockRequest
-      .mockResolvedValueOnce({
-        methodResponses: [
-          ['EmailSubmission/get', { list: [{ id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] } }] }, '0'],
-          ['Email/get', { list: [] }, '1'],
-        ],
-      })
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'))
       .mockResolvedValueOnce({
         methodResponses: [['EmailSubmission/set', { notCreated: { replacement: HOLD_REJECTED } }, '0']],
-      });
+      })
+      .mockResolvedValueOnce(set({ created: { replacement: { id: 'sub-3' } } }));
 
     const err = await rescheduleScheduledSend(SCHEDULED, 5 * 24 * 3600).catch((e) => e);
 
-    expect(err).toBeInstanceOf(ScheduleTooLateError);
+    expect(err).toBeInstanceOf(RescheduleRestoredError);
+    expect((err as RescheduleRestoredError).reason).toBeInstanceOf(ScheduleTooLateError);
     expect(jmapClient.learnHoldLimit).toHaveBeenCalledWith(172_800);
-    // The original stays scheduled.
-    expect(setCalls()).toEqual([[['replacement'], [], []]]);
+    // The original goes at its old time again, under a new id.
+    expect(setCalls()).toEqual([[[], ['sub-1'], []], [[], [], ['sub-1']], [['replacement'], [], []], [['replacement'], [], []]]);
+    mockRequest.mockReset();
   });
 });
 
@@ -473,9 +513,9 @@ describe('scheduled sends in shared accounts (webmail #874)', () => {
 
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
-      .mockResolvedValueOnce(set({ created: { replacement: { id: 's-new', sendAt: FUTURE } } }))
       .mockResolvedValueOnce(set({ updated: { 's-grp': null } }))
-      .mockResolvedValueOnce(DESTROYED('s-grp'));
+      .mockResolvedValueOnce(DESTROYED('s-grp'))
+      .mockResolvedValueOnce(set({ created: { replacement: { id: 's-new', sendAt: FUTURE } } }));
     await rescheduleScheduledSend({ ...SCHEDULED, emailSubmissionId: 's-grp', accountId: 'grp-1' }, 0);
     expect(mockRequest.mock.calls.slice(2).map((c) => c[0][0][1].accountId)).toEqual(['grp-1', 'grp-1', 'grp-1', 'grp-1']);
   });

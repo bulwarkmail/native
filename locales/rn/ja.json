@@ -284,6 +284,11 @@
     "attachment_reminder_title": "添付ファイルを忘れていませんか？",
     "attachments_too_large_total": "添付ファイルがサーバーの上限（1 通あたり {max}）を超えます。",
     "editor_unavailable": "メッセージの内容を読み取れませんでした。テキストをコピーしてから、作成画面を閉じて開き直してください。",
+    "files_picker": {
+      "attach": "{count, plural, =0 {添付} other {# 件のファイルを添付}}",
+      "empty_folder": "このフォルダーは空です",
+      "load_failed": "ファイルを読み込めませんでした"
+    },
     "from_options": "送信者のオプション",
     "group_chip": "{name}（{count}）",
     "identity_unavailable": "送信者情報を利用できません",
@@ -292,6 +297,30 @@
     "no_sent_folder": "送信済みフォルダーが見つかりません",
     "permission_camera": "写真を撮影するには、カメラへのアクセス許可が必要です。",
     "permission_photos": "画像を添付するには、写真ライブラリへのアクセス許可が必要です。",
+    "placeholder_warning": {
+      "title": "プレースホルダーを確認しますか？",
+      "message": "メッセージに受信者に表示されるプレースホルダーのテキストが含まれています。送信前に編集しますか？",
+      "found": "見つかったプレースホルダー",
+      "more": "ほか {count} 件",
+      "dont_ask_again": "今後は確認しない",
+      "send_anyway": "そのまま送信",
+      "back": "編集に戻る"
+    },
+    "placeholder_words": {
+      "before": [
+        "あなたの-",
+        "貴社の-",
+        "御社の-"
+      ],
+      "after": [
+        "-を入力",
+        "-を記入",
+        "-を挿入",
+        "-を追加",
+        "-を入れる"
+      ],
+      "unfinished": []
+    },
     "recipient_add_contact": "連絡先に追加",
     "recipient_copy": "アドレスをコピー",
     "recipient_move_to": "{field}に移動",
@@ -431,6 +460,14 @@
     "remove_color": "ラベルを削除",
     "replied": "返信済み",
     "reschedule_recipients_refused": "何も変更されていません: サーバーが {recipients} を拒否しました。",
+    "save_to_files": {
+      "title": "ファイルに保存",
+      "save_here": "ここに保存",
+      "saved": "ファイルに保存しました",
+      "saved_to": "{folder} に保存",
+      "failed": "ファイルに保存できませんでした",
+      "load_failed": "フォルダを読み込めませんでした。もう一度お試しください。"
+    },
     "sender_actions": "差出人…",
     "set_color": "ラベルを設定",
     "show_all_count": "すべて表示（{count}）",
@@ -624,6 +661,10 @@
       "unable_to_download": "ダウンロードできません",
       "up_to_date": "すでに最新です"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "テンプレートはアカウントに保存されるため、サインインするどのデバイスでも使えます。受信トレイを共有している相手は誰でも読むことができます。",
+    "section_personal": "マイテンプレート"
   },
   "push_prompt": {
     "body": "バックグラウンド通知をオンにすると、アプリを閉じていても新着メッセージを受け取れます。",
@@ -819,6 +860,10 @@
         "allow_mobile": "許可",
         "ask_mobile": "確認",
         "block_mobile": "ブロック"
+      },
+      "placeholder_warning": {
+        "label": "プレースホルダーの警告",
+        "description": "[TIME] や [あなたの名前] などのプレースホルダー、空のテンプレート項目、TODO や TBD などの未完成のテキストが残っているメッセージを送信する前に確認します。"
       },
       "plain_text_mode": {
         "description_mobile": "プレーンテキストのみで作成・閲覧します。"

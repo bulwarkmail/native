@@ -284,6 +284,11 @@
     "attachment_reminder_title": "忘記新增附件了嗎？",
     "attachments_too_large_total": "附件將超過此伺服器每封郵件 {max} 的上限。",
     "editor_unavailable": "無法讀取郵件內容。請先複製您的文字，再關閉並重新開啟撰寫畫面。",
+    "files_picker": {
+      "attach": "{count, plural, =0 {附加} other {附加 # 個檔案}}",
+      "empty_folder": "此資料夾是空的",
+      "load_failed": "無法載入你的檔案"
+    },
     "from_options": "寄件者選項",
     "group_chip": "{name}（{count}）",
     "identity_unavailable": "寄件身分無法使用",
@@ -292,6 +297,29 @@
     "no_sent_folder": "找不到寄件備份信件匣",
     "permission_camera": "需要相機權限才能拍照。",
     "permission_photos": "需要相片圖庫權限才能附加圖片。",
+    "placeholder_warning": {
+      "title": "檢查預留位置？",
+      "message": "你的郵件中有收件者會看到的預留位置文字。要在傳送前編輯嗎？",
+      "found": "找到的預留位置",
+      "more": "以及另外 {count} 個",
+      "dont_ask_again": "不再提示",
+      "send_anyway": "仍然傳送",
+      "back": "繼續編輯"
+    },
+    "placeholder_words": {
+      "before": [
+        "您的-",
+        "你的-",
+        "貴公司-",
+        "插入-",
+        "輸入-",
+        "填寫-",
+        "新增-",
+        "在此-"
+      ],
+      "after": [],
+      "unfinished": []
+    },
     "recipient_add_contact": "新增至聯絡人",
     "recipient_copy": "複製地址",
     "recipient_move_to": "移至{field}",
@@ -431,6 +459,14 @@
     "remove_color": "移除標籤",
     "replied": "已回覆",
     "reschedule_recipients_refused": "未作任何變更：伺服器拒絕了 {recipients}。",
+    "save_to_files": {
+      "title": "儲存到檔案",
+      "save_here": "儲存在這裡",
+      "saved": "已儲存到檔案",
+      "saved_to": "在 {folder} 中",
+      "failed": "無法儲存到檔案",
+      "load_failed": "無法載入資料夾。請再試一次。"
+    },
     "sender_actions": "寄件者…",
     "set_color": "設定標籤",
     "show_all_count": "顯示全部（{count}）",
@@ -624,6 +660,10 @@
       "unable_to_download": "無法下載",
       "up_to_date": "已是最新狀態"
     }
+  },
+  "org_templates": {
+    "personal_in_account": "您的範本保存在您的帳號中，因此您登入的每部裝置上都能使用。與您共用收件匣的任何人都可以閱讀這些範本。",
+    "section_personal": "我的範本"
   },
   "push_prompt": {
     "body": "開啟背景通知，即使應用程式已關閉也能收到新郵件。",
@@ -819,6 +859,10 @@
         "allow_mobile": "允許",
         "ask_mobile": "詢問",
         "block_mobile": "封鎖"
+      },
+      "placeholder_warning": {
+        "label": "預留位置提醒",
+        "description": "傳送仍含有預留位置（如 [TIME] 或 [您的姓名]）、空白範本欄位或未完成文字（如 TODO 或 TBD）的郵件前請求確認。"
       },
       "plain_text_mode": {
         "description_mobile": "僅以純文字撰寫與閱讀。"

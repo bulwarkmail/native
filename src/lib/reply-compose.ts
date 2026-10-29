@@ -49,6 +49,10 @@ export function replyComposeParams(
       from: from ?? { email: '' },
       to: source.to,
       cc: source.cc,
+      // Never a recipient of the reply, but the composer picks the identity
+      // (and the catch-all From) by the address the message was delivered
+      // to, and a Sieve rule or a list may name that one only in Bcc.
+      bcc: source.bcc,
       // RFC 5322: a reply goes to Reply-To when the sender set one.
       replyToAddresses: source.replyTo,
       subject: source.subject ?? '',
