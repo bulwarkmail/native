@@ -240,6 +240,34 @@ describe('prepareEmailHtml', () => {
     expect(res.html).toContain(`src="${TRANSPARENT_BLOCKED_PIXEL}"`);
   });
 
+  // Stalwart (0.16 and 1.0) returns a part's Content-Type verbatim. A related
+  // part declared as this type, with bytes that are no known image format,
+  // used to put a live refresh meta into the reader (Android follows it
+  // without a tap).
+  it('never writes a hostile part type into the document', () => {
+    const type = 'image/x"><meta http-equiv=refresh content=0,url=https://evil.example/>';
+    const bytes = new TextEncoder().encode('ABC');
+    const uri = `data:${sniffImageMime(bytes, type)};base64,QUJD`;
+    for (const blockRemoteImages of [true, false]) {
+      const { html } = prepareEmailHtml('<p>hi</p><img src="cid:p1">', { blockRemoteImages, cidMap: { p1: uri }, isDark: false });
+      expect(html).not.toMatch(/<meta[^>]*refresh/i);
+      expect(html).not.toContain('evil.example');
+      expect(html).toContain(`<img src="${TRANSPARENT_BLOCKED_PIXEL}">`);
+    }
+    // A map value that is not an image type plus base64 is not used either.
+    const { html } = prepareEmailHtml('<img src="cid:p1">', { cidMap: { p1: 'data:image/png;base64,AA"><b>x</b>' } });
+    expect(html).not.toContain('<b>x</b>');
+  });
+
+  it('swaps cid references in src only, not in text or other attributes', () => {
+    const { html } = prepareEmailHtml(
+      '<img src="cid:abc" alt="cid:abc"><p>see cid:abc</p>',
+      { cidMap: { abc: 'data:image/png;base64,AAA' } },
+    );
+    expect(html).toContain('<img src="data:image/png;base64,AAA" alt="cid:abc">');
+    expect(html).toContain('<p>see cid:abc</p>');
+  });
+
   it('tightens Word/Outlook HTML and drops the gutter for full-bleed canvases in auto mode', () => {
     const word = prepareEmailHtml('<div class="WordSection1"><p class="MsoNormal">x</p></div>');
     expect(word.html).toContain('p.MsoNormal');
@@ -318,6 +346,12 @@ describe('sniffImageMime', () => {
   it('falls back to a declared image type, else octet-stream', () => {
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/tiff')).toBe('image/tiff');
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'application/octet-stream')).toBe('application/octet-stream');
+  });
+
+  it('uses only a plain image type from the part', () => {
+    expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/x"><meta http-equiv=refresh content=0,url=https://evil.example/>'))
+      .toBe('application/octet-stream');
+    expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/svg+xml; charset=utf-8')).toBe('image/svg+xml');
   });
 });
 

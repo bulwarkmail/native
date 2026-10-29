@@ -752,10 +752,37 @@ export function extractCidRefs(html: string): string[] {
   return Array.from(out);
 }
 
+/**
+ * A resolved inline image: an image type and nothing but base64 after it.
+ * The type comes from the part's Content-Type when the bytes aren't a known
+ * format, and the server hands that header over verbatim, quotes and `>`
+ * included.
+ */
+const INLINE_IMAGE_DATA_URI = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
+
+export function isInlineImageDataUri(uri: string | null | undefined): boolean {
+  return !!uri && INLINE_IMAGE_DATA_URI.test(uri);
+}
+
+// Swap `cid:` references for their resolved data: URI inside src (and the
+// legacy background) attributes only, through the tokenizer, on the
+// sanitised markup. A string replace on the whole document also rewrote
+// text and other attributes, and wrote a map value into the markup as is.
 function replaceCidRefs(html: string, cidMap: Record<string, string>): string {
-  return html.replace(/\bcid:([^"'\s)>]+)/gi, (_m, ref: string) => {
-    const key = ref.replace(/^<|>$/g, '');
-    return cidMap[key] ?? TRANSPARENT_BLOCKED_PIXEL;
+  return mapTags(html, (_tag, attrs) => {
+    let changed = false;
+    for (const attr of attrs) {
+      if (attr.value === null) continue;
+      const name = asciiLower(attr.name);
+      if (name !== 'src' && name !== 'background') continue;
+      const raw = attr.value.trim();
+      const url = /^cid:/i.test(raw) ? raw : decodeUriEntities(raw);
+      if (!/^cid:/i.test(url)) continue;
+      const uri = cidMap[url.slice(4).replace(/^<|>$/g, '')];
+      attr.value = isInlineImageDataUri(uri) ? uri : TRANSPARENT_BLOCKED_PIXEL;
+      changed = true;
+    }
+    return changed ? attrs : null;
   });
 }
 
@@ -941,8 +968,10 @@ export function sniffImageMime(bytes: Uint8Array, fallback?: string): string {
     && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
   ) return 'image/webp';
   if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return 'image/bmp';
+  // The declared type goes into a data: URI, and the server returns the
+  // part's Content-Type verbatim: only a plain `image/<subtype>` is used.
   const f = (fallback || '').toLowerCase().split(';')[0].trim();
-  if (f.startsWith('image/')) return f;
+  if (/^image\/[a-z0-9.+-]+$/.test(f)) return f;
   return 'application/octet-stream';
 }
 

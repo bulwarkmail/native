@@ -2,7 +2,7 @@
 // what the webmail composer (`components/email/email-composer.tsx`) produces.
 // All values are HTML-escaped before insertion into the document.
 
-import { escapeHtml, stripDangerousTags } from './email-html';
+import { escapeHtml, isInlineImageDataUri, stripDangerousTags } from './email-html';
 import { buildQuoteHeader, type QuoteHeaderLabels } from './quote-header';
 import type { TimeFormat } from '../stores/settings-store';
 
@@ -269,7 +269,10 @@ export function replaceInlineImagePlaceholders(
     (full, before: string, _q: string, dq: string | undefined, sq: string | undefined, after: string) => {
       const cid = dq ?? sq ?? '';
       const dataUrl = cidToDataUrl.get(cid);
-      if (!dataUrl) return full;
+      // The URI is built from the part's declared type, which the server
+      // returns verbatim: anything but an image type and base64 would land
+      // in the editor's markup as written.
+      if (!dataUrl || !isInlineImageDataUri(dataUrl)) return full;
       const rest = (before + after).replace(/\ssrc=("[^"]*"|'[^']*')/gi, '').trim();
       return `<img src="${dataUrl}" data-cid="${cid.replace(/"/g, '&quot;')}"${rest ? ' ' + rest : ''}>`;
     },
