@@ -26,6 +26,7 @@ vi.mock('../../api/calendar', () => ({
   setDefaultCalendar: vi.fn(async () => undefined),
   supportsSyntheticCalendarIds: vi.fn(async () => false),
   queryExpandedEvents: vi.fn(async () => []),
+  searchEventIds: vi.fn(async () => []),
   hydrateExpandedOccurrences: vi.fn(async (events: unknown[]) => events),
   resetSyntheticIdSupport: vi.fn(),
   resetTimeZoneChecks: vi.fn(),
@@ -47,7 +48,7 @@ vi.mock('../../device-sync/app/request', () => ({ requestDeviceSync: vi.fn() }))
 
 import * as calendarApi from '../../api/calendar';
 import type { CalendarEvent } from '../../api/types';
-import { CalendarAccountChangedError, useCalendarStore } from '../calendar-store';
+import { CalendarAccountChangedError, searchCalendarEvents, useCalendarStore } from '../calendar-store';
 
 const mockUpdate = vi.mocked(calendarApi.updateEvent);
 const mockDelete = vi.mocked(calendarApi.deleteEvents);
@@ -257,5 +258,39 @@ describe('a write the account switch overtook', () => {
     });
     await expect(useCalendarStore.getState().toggleTaskComplete('c')).rejects.toThrow('Network request failed');
     expect(useCalendarStore.getState().tasks[0].progress).toBe('completed');
+  });
+});
+
+describe('searchCalendarEvents', () => {
+  const mockSearch = vi.mocked(calendarApi.searchEventIds);
+
+  it('searches every account the store shows and edits a find in its own account', async () => {
+    useCalendarStore.setState({
+      calendars: [{ id: 'b', name: 'Mine' }, { id: 'acc-2:t', originalId: 't', accountId: 'acc-2', name: 'Team', isShared: true }] as never,
+      events: [],
+    });
+    mockSearch.mockImplementation(async (_filter, accountId) => (accountId === 'acc-2' ? ['x'] : ['c']));
+    mockGetEvents.mockImplementation(async (ids: string[], accountId?: string) => ids.map((id) => ({
+      ...event(id, accountId ? 'Team review' : 'My review'),
+      calendarIds: (accountId ? { t: true } : { b: true }) as Record<string, boolean>,
+    })));
+
+    const found = await searchCalendarEvents(['review']);
+
+    expect(mockSearch).toHaveBeenCalledWith({ text: 'review' }, undefined);
+    expect(mockSearch).toHaveBeenCalledWith({ text: 'review' }, 'acc-2');
+    expect(found.map((e) => e.id).sort()).toEqual(['acc-2:x', 'c']);
+    // Outside the loaded window, yet a change reaches the owner's account.
+    await useCalendarStore.getState().updateEvent('acc-2:x', { title: 'Renamed' });
+    expect(mockUpdate).toHaveBeenCalledWith('x', { title: 'Renamed' }, undefined, 'acc-2');
+  });
+
+  it('hands nothing found before an account switch to the next account', async () => {
+    mockSearch.mockImplementationOnce(async () => {
+      switchAccount();
+      return ['c'];
+    });
+    await expect(searchCalendarEvents(['review'])).rejects.toBeInstanceOf(CalendarAccountChangedError);
+    expect(mockGetEvents).not.toHaveBeenCalled();
   });
 });

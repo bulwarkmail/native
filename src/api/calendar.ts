@@ -1010,6 +1010,30 @@ export async function findEventsByUid(uid: string, accountId?: string): Promise<
   return getEvents(ids, accountId);
 }
 
+/**
+ * The ids of the events a CalendarEvent/query `filter` finds (the event
+ * search's `text` conditions), latest start first, at most `limit`. Not
+ * limited to a date window: a series is found by its stored event.
+ */
+export async function searchEventIds(
+  filter: Record<string, unknown>,
+  accountId?: string,
+  limit = 100,
+): Promise<string[]> {
+  const account = accountId || jmapClient.accountId;
+  return withCalendarTimeZone(async (timeZone) => {
+    const args: Record<string, unknown> = {
+      accountId: account,
+      filter,
+      sort: [{ property: 'start', isAscending: false }],
+      limit,
+    };
+    if (timeZone) args.timeZone = timeZone;
+    const res = await jmapClient.request([['CalendarEvent/query', args, '0']], USING);
+    return methodResult<{ ids: string[] }>(res).ids ?? [];
+  });
+}
+
 // `sendSchedulingMessages` asks Stalwart to deliver iMIP (RFC 6047) invitation
 // / reply / cancellation emails to participants. We pass it whenever an event
 // has participants so creating/updating/deleting a meeting notifies attendees.

@@ -34,7 +34,7 @@ import {
   queryEvents,
   isCalendarAccessDenied,
 } from '../calendar';
-import { useCalendarStore } from '../../stores/calendar-store';
+import { searchCalendarEvents, useCalendarStore } from '../../stores/calendar-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { saveOccurrenceEdit, deleteOccurrence, type SeriesEdit } from '../../lib/recurrence-scope-edit';
 import { editorTimesChanged, editorTimesFromEvent, eventTimeFieldsToSave } from '../../lib/event-editor-times';
@@ -751,6 +751,24 @@ live('live Stalwart calendar', () => {
       await useCalendarStore.getState().updateCalendar(defaultsCalendarId, { defaultAlertsWithTime: remindersToDefaultAlerts([]) });
       const [[, after]] = await raw(client, [['Calendar/get', { accountId: client.accountId, ids: [defaultsCalendarId], properties: ['defaultAlertsWithTime'] }, '0']]);
       expect(Object.keys(after.list[0].defaultAlertsWithTime ?? {})).toEqual([]);
+    }, 60_000);
+  });
+
+  describe('event search', () => {
+    it('finds an event outside the loaded window by a word of its title, and a series by its stored event', async () => {
+      await connectSingleton();
+      const word = RUN.replace(/[^a-z0-9]/gi, '');
+      await createEvent({ '@type': 'Event', title: `${RUN} ${word}single`, start: '2027-12-10T09:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin' } as Partial<CalendarEvent>, calendarId);
+      await createEvent(seriesData(`${word}series`, '2027-01-04T10:00:00', 4), calendarId);
+      await useCalendarStore.getState().fetchCalendars();
+
+      const single = await searchCalendarEvents([`${word}single`]);
+      expect(single.map((e) => e.title)).toEqual([`${RUN} ${word}single`]);
+      const series = await searchCalendarEvents([`${word}series`]);
+      expect(series).toHaveLength(1);
+      expect(series[0].recurrenceRules?.[0]?.count).toBe(4);
+      // Every word has to match.
+      expect(await searchCalendarEvents([`${word}single`, 'nosuchwordanywhere'])).toEqual([]);
     }, 60_000);
   });
 

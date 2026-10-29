@@ -23,6 +23,7 @@ import {
   ListChecks,
   Menu,
   Rows2,
+  Search,
   Square,
 } from '../components/icons';
 import {
@@ -60,6 +61,7 @@ import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
 import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
 import { CalendarEditSheet, type CalendarEditValues } from '../components/calendar/CalendarEditSheet';
 import { CalendarShareSheet } from '../components/calendar/CalendarShareSheet';
+import { CalendarSearchSheet } from '../components/calendar/CalendarSearchSheet';
 import {
   computeScrollWindow,
   fixedScrollWindowState,
@@ -225,6 +227,7 @@ export default function CalendarScreen() {
   }, [scrollWindow]);
 
   const [detailEvent, setDetailEvent] = React.useState<CalendarEvent | null>(null);
+  const [searchVisible, setSearchVisible] = React.useState(false);
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
   const [modalDate, setModalDate] = React.useState<Date | undefined>(undefined);
   const [modalVisible, setModalVisible] = React.useState(false);
@@ -982,6 +985,18 @@ export default function CalendarScreen() {
           </View>
         </Pressable>
         <View style={styles.headerActions}>
+          <Pressable
+            style={styles.headerBtn}
+            onPress={() => {
+              setMonthPanelOpen(false);
+              setSearchVisible(true);
+            }}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.search.title', 'Search events')}
+          >
+            <Search size={20} color={c.text} />
+          </Pressable>
           {/* Without free scrolling the views don't swipe: keep arrows. */}
           {!freeScroll && (
             <>
@@ -1281,6 +1296,15 @@ export default function CalendarScreen() {
         calendar={calendarEditTarget?.mode === 'edit' ? calendarEditTarget.calendar : null}
         onSave={handleCalendarEditSave}
         onClose={() => setCalendarEditTarget(null)}
+      />
+
+      <CalendarSearchSheet
+        visible={searchVisible}
+        calendars={calendars}
+        timeFormat={calendarTimeFormat}
+        currentUserEmails={currentUserEmails}
+        onSelectEvent={handleSelectEvent}
+        onClose={() => setSearchVisible(false)}
       />
 
       <CalendarShareSheet

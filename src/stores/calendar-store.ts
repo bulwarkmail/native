@@ -18,6 +18,7 @@ import {
   queryEvents,
   getEvents as fetchEvents,
   getEventIdentities,
+  searchEventIds,
   scanCalendarObjects,
   isCalendarAccessDenied,
   noteCalendarAccessError,
@@ -59,6 +60,7 @@ import { findTasksOnlyCalendarIds, isTaskLikeObject } from '../lib/calendar-comp
 import { mergeRangeEvents, mergedSpanLimit, planRangeLoad, sameRange } from '../lib/calendar-range-cache';
 import { requestDeviceSync } from '../device-sync/app/request';
 import { sortCalendars, sortOrderUpdates } from '../lib/calendar-sort';
+import { searchFilter } from '../lib/calendar-search';
 import { CALENDAR_AUTHORITY } from '../device-sync/types';
 
 // extendRange merges up to twice the requested range (at least half a year,
@@ -511,6 +513,41 @@ export async function loadEventsInRange(
 // `events`, so a mutation addressed at one looks up its account and raw id
 // here.
 const knownMasters = new Map<string, CalendarEvent>();
+
+/**
+ * The events of every calendar account the store shows that the server
+ * finds for `terms` (CalendarEvent/query `text`), whatever their date: a
+ * series by its stored event. They become known like a fetched master, so
+ * an edit or a delete from the detail sheet reaches their own account under
+ * their raw id. Throws CalendarAccountChangedError when the store was reset
+ * meanwhile; a failing shared account is skipped.
+ */
+export async function searchCalendarEvents(terms: string[]): Promise<CalendarEvent[]> {
+  const filter = searchFilter(terms);
+  if (!filter || !jmapClient.isConnected) return [];
+  const generation = storeGeneration;
+  const calendars = useCalendarStore.getState().calendars;
+  const accounts = new Set<string | undefined>([undefined]);
+  for (const cal of calendars) if (cal.accountId) accounts.add(cal.accountId);
+  const found: CalendarEvent[] = [];
+  for (const accountId of accounts) {
+    if (generation !== storeGeneration) throw new CalendarAccountChangedError();
+    if (accountId && isCalendarAccessDenied(accountId)) continue;
+    try {
+      const ids = await searchEventIds(filter, accountId);
+      if (generation !== storeGeneration) throw new CalendarAccountChangedError();
+      const events = ids.length > 0 ? await fetchEvents(ids, accountId) : [];
+      found.push(...events
+        .filter((e) => !isTaskLikeObject(e) && !!e.start)
+        .map((e) => mapServerEventToStoreEvent(e, calendars, accountId)));
+    } catch (err) {
+      if (!accountId || err instanceof CalendarAccountChangedError) throw err;
+    }
+  }
+  if (generation !== storeGeneration) throw new CalendarAccountChangedError();
+  for (const event of found) knownMasters.set(event.id, event);
+  return found;
+}
 
 export interface MutationTarget {
   storeEvent?: CalendarEvent;
