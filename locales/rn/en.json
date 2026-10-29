@@ -697,6 +697,8 @@
     "keep_scheduled": "Keep scheduled",
     "no_longer_scheduled": "This message is no longer scheduled.",
     "reschedule_failed": "Reschedule failed",
+    "reschedule_lost": "The message is no longer scheduled. Check Drafts and Sent before sending it again.",
+    "reschedule_lost_drafts": "The message is no longer scheduled. It is back in Drafts, where you can send it again.",
     "send_now_failed": "Could not send now"
   },
   "settings": {

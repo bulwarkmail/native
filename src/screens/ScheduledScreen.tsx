@@ -30,6 +30,7 @@ import { spacing, typography, componentSizes, radius, type ThemePalette } from '
 import { useColors } from '../theme/colors';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { isPendingSend, sameScheduledSend, scheduledSendKey } from '../lib/scheduled-send-key';
+import { rescheduleErrorNotice, rescheduleLostMessage, restoredSubmission } from '../lib/compose-reschedule';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Scheduled'>;
 
@@ -84,6 +85,26 @@ export default function ScheduledScreen({ navigation }: Props) {
     try {
       await action();
     } catch (e) {
+      // A failed reschedule or "Send now" put the original back under a new
+      // id, or could not, and the message is back in Drafts (#1308).
+      const restored = restoredSubmission(e);
+      if (restored || rescheduleLostMessage(e)) {
+        if (restored) {
+          setItems((prev) => prev.map((i) => (sameScheduledSend(i, item)
+            ? { ...i, emailSubmissionId: restored.emailSubmissionId, sendAt: restored.sendAt ?? i.sendAt }
+            : i)));
+          const pending = useSendUndoStore.getState().pending;
+          if (isPendingSend(pending, item, jmapClient.accountId)) {
+            useSendUndoStore.getState().setPending({ ...pending!, emailSubmissionId: restored.emailSubmissionId });
+          }
+        } else {
+          clearUndoFor(item);
+          removeItem(item);
+        }
+        const { title, message } = rescheduleErrorNotice(e, t, failTitle, formatWhen, item.sendAt);
+        Alert.alert(title, message);
+        return;
+      }
       if (e instanceof ScheduleTooLateError) {
         Alert.alert(
           t('email_composer.schedule_too_late_title', 'Too far ahead'),

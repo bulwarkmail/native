@@ -40,7 +40,7 @@ vi.mock('../blob', () => ({
 
 import { jmapClient } from '../jmap-client';
 import {
-  cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail, sendReadReceipt,
+  cancelScheduledSend, listScheduledEmails, RescheduleLostError, rescheduleScheduledSend, sendEmail, sendReadReceipt,
 } from '../email';
 import { NoLongerScheduledError, SubmissionQuotaError } from '../jmap-result';
 import { prunableSubmissionIds, pruneEmailSubmissions, resetSubmissionPrune } from '../submissions';
@@ -456,7 +456,9 @@ describe('rescheduling and "Send now"', () => {
     expect(argsOf(server, 'EmailSubmission/set').map((a) => a.destroy).filter(Boolean)).toEqual([[original]]);
   });
 
-  it('Stalwart 1.0: a full quota makes room without touching the pending original', async () => {
+  // The original is cancelled and its record removed first (#1308), so the
+  // replacement takes the room the original had.
+  it('Stalwart 1.0: a full account has room for the replacement once the original is cancelled', async () => {
     const server = setup('1.0', { limit: 3 });
     const now = Date.now();
     const [original] = server.seed('acc-1', [{ sendAt: now + HOUR, status: 'pending', emailId: 'mail-1' }]);
@@ -464,24 +466,42 @@ describe('rescheduling and "Send now"', () => {
 
     const result = await rescheduleScheduledSend(scheduled(original), 2 * 3600);
 
-    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(2);
-    expect(server.submissions()).toEqual([{ id: result.emailSubmissionId, sendAt: expect.any(Number), undoStatus: 'pending' }]);
+    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
+    expect(server.submissions().filter((s) => s.undoStatus === 'pending')).toEqual([
+      { id: result.emailSubmissionId, sendAt: expect.any(Number), undoStatus: 'pending' },
+    ]);
+    expect(server.submissions().some((s) => s.id === original)).toBe(false);
   });
 
-  it('Stalwart 1.0: still full after making room, the original stays scheduled', async () => {
-    const server = setup('1.0', { limit: 1 });
-    const [original] = server.seed('acc-1', [{ sendAt: Date.now() + HOUR, status: 'pending', emailId: 'mail-1' }]);
+  it('Stalwart 1.0: an original that went out before the cancel is not sent a second time', async () => {
+    const server = setup('1.0');
+    const [original] = server.seed('acc-1', [{ sendAt: Date.now() + 30_000, status: 'pending', emailId: 'mail-1' }]);
+    // Its HOLDFOR runs out while the lookup is under way.
+    server.afterEachRequest(() => server.deliver('acc-1', original));
 
     const err = await rescheduleScheduledSend(scheduled(original), 0).catch((e: unknown) => e);
 
-    expect(err).toBeInstanceOf(SubmissionQuotaError);
-    expect(argsOf(server, 'EmailSubmission/set').some((a) => a.update)).toBe(false);
-    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'pending' }]);
+    expect(err).toBeInstanceOf(NoLongerScheduledError);
+    expect(err).toMatchObject({ sent: true });
+    expect(argsOf(server, 'EmailSubmission/set').some((a) => a.create)).toBe(false);
+    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'final' }]);
   });
 
-  /** A full account: the original, due soon, and two delivered records the prune can remove. */
-  function fullWithOriginal(dueIn: number) {
-    const server = setup('1.0', { limit: 3 });
+  it('Stalwart 1.0: an original cancelled on another device meanwhile is left as it is', async () => {
+    const server = setup('1.0');
+    const [original] = server.seed('acc-1', [{ sendAt: Date.now() + HOUR, status: 'pending', emailId: 'mail-1' }]);
+    server.afterEachRequest(() => server.cancel('acc-1', original));
+
+    const err = await rescheduleScheduledSend(scheduled(original), 2 * 3600).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(NoLongerScheduledError);
+    expect(err).toMatchObject({ sent: false });
+    expect(argsOf(server, 'EmailSubmission/set').some((a) => a.create)).toBe(false);
+  });
+
+  /** An account at its limit once the original is gone: two delivered records the prune can remove. */
+  function fullAfterCancel(dueIn: number) {
+    const server = setup('1.0', { limit: 2 });
     const now = Date.now();
     const [original] = server.seed('acc-1', [{ sendAt: now + dueIn, status: 'pending', emailId: 'mail-1' }]);
     server.seed('acc-1', [{ sendAt: now - HOUR, status: 'final' }, { sendAt: now - 2 * HOUR, status: 'final' }]);
@@ -489,59 +509,10 @@ describe('rescheduling and "Send now"', () => {
   }
   const isQuery = (calls: Array<[string, unknown, string]>) => calls[0][0] === 'EmailSubmission/query';
 
-  it('Stalwart 1.0: an original that went out while room was made is not sent a second time', async () => {
-    const { server, original } = fullWithOriginal(30_000);
-    // Its HOLDFOR runs out while the prune looks for records to remove.
-    server.afterEachRequest((calls) => {
-      if (isQuery(calls)) server.deliver('acc-1', original);
-    });
-
-    const err = await rescheduleScheduledSend(scheduled(original), 0).catch((e: unknown) => e);
-
-    expect(err).toBeInstanceOf(NoLongerScheduledError);
-    expect(err).toMatchObject({ sent: true });
-    // The original was read again after the prune, and only the refused create was made.
-    expect(server.requests.at(-1)?.calls).toEqual([
-      ['EmailSubmission/get', { accountId: 'acc-1', ids: [original], properties: ['id', 'undoStatus'] }, '0'],
-    ]);
-    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
-    expect(argsOf(server, 'EmailSubmission/set').some((a) => a.update)).toBe(false);
-    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'final' }]);
-  });
-
-  it('Stalwart 1.0: an original cancelled on another device meanwhile is left as it is', async () => {
-    const { server, original } = fullWithOriginal(HOUR);
-    server.afterEachRequest((calls) => {
-      if (isQuery(calls)) server.cancel('acc-1', original);
-    });
-
-    const err = await rescheduleScheduledSend(scheduled(original), 2 * 3600).catch((e: unknown) => e);
-
-    expect(err).toBeInstanceOf(NoLongerScheduledError);
-    expect(err).toMatchObject({ sent: false });
-    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
-    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'canceled' }]);
-  });
-
-  it('Stalwart 1.0: when the original cannot be read again, nothing is resubmitted', async () => {
-    const { server, original } = fullWithOriginal(HOUR);
-    server.beforeEachRequest((calls) => {
-      const [name, args] = calls[0];
-      if (name === 'EmailSubmission/get' && (args as { properties?: string[] }).properties?.join() === 'id,undoStatus') {
-        throw new Error('Network request failed');
-      }
-    });
-
-    await expect(rescheduleScheduledSend(scheduled(original), 2 * 3600)).rejects.toThrow('Network request failed');
-
-    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
-    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'pending' }]);
-  });
-
   it('Stalwart 1.0: the retry takes the time spent making room off the hold', async () => {
     let clock = Date.parse('2026-09-25T12:00:00Z');
     vi.spyOn(Date, 'now').mockImplementation(() => clock);
-    const { server, original } = fullWithOriginal(HOUR);
+    const { server, original } = fullAfterCancel(HOUR);
     const target = clock + 2 * HOUR;
     // The prune takes five minutes.
     server.afterEachRequest((calls) => {
@@ -561,7 +532,7 @@ describe('rescheduling and "Send now"', () => {
   it('Stalwart 1.0: "Send now" that waited for room still goes out at once', async () => {
     let clock = Date.parse('2026-09-25T12:00:00Z');
     vi.spyOn(Date, 'now').mockImplementation(() => clock);
-    const { server, original } = fullWithOriginal(HOUR);
+    const { server, original } = fullAfterCancel(HOUR);
     server.afterEachRequest((calls) => {
       if (isQuery(calls)) clock += 5 * MINUTE;
     });
@@ -572,6 +543,22 @@ describe('rescheduling and "Send now"', () => {
       .filter((a) => a.create)
       .map((a) => a.create.replacement.envelope.mailFrom.parameters.HOLDFOR);
     expect(holds).toEqual(['1', '1']);
+  });
+
+  it('Stalwart 1.0: still full after making room, the original goes back to its old time', async () => {
+    const server = setup('1.0', { limit: 2 });
+    const now = Date.now();
+    const [original] = server.seed('acc-1', [{ sendAt: now + HOUR, status: 'pending', emailId: 'mail-1' }]);
+    // Two other held messages: nothing the prune may remove.
+    server.seed('acc-1', [{ sendAt: now + 2 * HOUR, status: 'pending' }, { sendAt: now + 3 * HOUR, status: 'pending' }]);
+
+    const err = await rescheduleScheduledSend(scheduled(original), 0).catch((e: unknown) => e);
+
+    // Neither the replacement nor the original found room: the message is
+    // back in Drafts rather than in Sent looking sent.
+    expect(err).toBeInstanceOf(RescheduleLostError);
+    expect((err as RescheduleLostError).reason).toBeInstanceOf(SubmissionQuotaError);
+    expect(server.emails.get('mail-1')).toMatchObject({ mailboxIds: { drafts: true }, keywords: { $draft: true } });
   });
 });
 

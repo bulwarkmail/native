@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../../api/email', () => ({
-  cancelScheduledSend: vi.fn(async () => undefined),
-  rescheduleScheduledSend: vi.fn(async () => ({ emailSubmissionId: 'sub-2' })),
-  restoreEmailToDraft: vi.fn(async () => undefined),
-  getFullEmail: vi.fn(),
-}));
+// The error classes are the real ones: the store tells them apart.
+vi.mock('../../api/email', async (importOriginal) => {
+  const { RescheduleLostError, RescheduleRestoredError } = await importOriginal<typeof import('../../api/email')>();
+  return {
+    RescheduleLostError,
+    RescheduleRestoredError,
+    cancelScheduledSend: vi.fn(async () => undefined),
+    rescheduleScheduledSend: vi.fn(async () => ({ emailSubmissionId: 'sub-2' })),
+    restoreEmailToDraft: vi.fn(async () => undefined),
+    getFullEmail: vi.fn(),
+  };
+});
 
 // The login the client serves: me@example.com on mail.example.com, whose
 // own JMAP account is 'primary'. Tests switch it to another server.
@@ -38,6 +44,7 @@ vi.mock('../../api/submissions', () => ({
 }));
 
 import * as emailApi from '../../api/email';
+import { RescheduleLostError, RescheduleRestoredError } from '../../api/email';
 import * as submissions from '../../api/submissions';
 import { NoLongerScheduledError, RecipientsRefusedError, SubmissionQuotaError } from '../../api/jmap-result';
 import type { Email, Mailbox } from '../../api/types';
@@ -221,12 +228,15 @@ describe('send-undo-store', () => {
       expect(prune).toHaveBeenCalledTimes(2);
     });
 
-    it('explains a send now refused for a full submission quota (Stalwart 1.0)', async () => {
+    // The original is cancelled before the release is made (#1308): when the
+    // release is refused, the original is put back under a new id, which
+    // Undo cancels from then on.
+    it('explains a send now refused for a full submission quota (Stalwart 1.0), and follows the put-back original', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      api.rescheduleScheduledSend.mockRejectedValueOnce(new SubmissionQuotaError(
+      api.rescheduleScheduledSend.mockRejectedValueOnce(new RescheduleRestoredError(new SubmissionQuotaError(
         'There are too many email submissions, please delete some before adding a new one.',
         true,
-      ));
+      ), 'sub-9', '2026-09-24T10:00:10Z'));
       useSendUndoStore.getState().setPending(entry());
 
       await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
@@ -236,11 +246,13 @@ describe('send-undo-store', () => {
         title: 'Could not send now',
         message: expect.stringContaining('ask your administrator to raise the email submission limit'),
       }]);
-      // Still held: it goes out when the delay ends.
-      expect(useSendUndoStore.getState().pending).not.toBeNull();
+      // Still held: it goes out when the delay ends, and Undo cancels the put-back one.
+      expect(useSendUndoStore.getState().pending).toMatchObject({ emailSubmissionId: 'sub-9', emailId: 'mail-1' });
+      await useSendUndoStore.getState().undo();
+      expect(api.cancelScheduledSend).toHaveBeenCalledWith('sub-9', undefined);
     });
 
-    it('drops the entry when the message went out while send now made room (Stalwart 1.0)', async () => {
+    it('drops the entry when the message went out before send now could cancel it', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       api.rescheduleScheduledSend.mockRejectedValueOnce(new NoLongerScheduledError(true));
       useSendUndoStore.getState().setPending(entry());
@@ -257,15 +269,14 @@ describe('send-undo-store', () => {
     });
 
     // A throttle used up since the send was taken (Stalwart 0.16 and 1.0 check
-    // the recipients again for the release): the original was kept, and a
+    // the recipients again for the release): the original was put back, and a
     // "not sent" would invite sending it a second time.
     it('says the held message is still scheduled when the server refused a recipient of the release', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      api.rescheduleScheduledSend.mockRejectedValueOnce(new RecipientsRefusedError([
+      api.rescheduleScheduledSend.mockRejectedValueOnce(new RescheduleRestoredError(new RecipientsRefusedError([
         { email: 'you@example.com', smtpReply: '452 4.4.5 Rate limit exceeded, try again later.' },
-      ]));
-      const pending = entry();
-      useSendUndoStore.getState().setPending(pending);
+      ]), 'sub-9'));
+      useSendUndoStore.getState().setPending(entry());
 
       await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
 
@@ -275,7 +286,22 @@ describe('send-undo-store', () => {
         message: 'Nothing was changed: the server refused you@example.com (452 4.4.5 Rate limit exceeded, try again later.).',
       }]);
       // It still goes out when the delay ends, and can still be undone.
-      expect(useSendUndoStore.getState()).toMatchObject({ pending, busy: false });
+      expect(useSendUndoStore.getState()).toMatchObject({ pending: { emailSubmissionId: 'sub-9' }, busy: false });
+    });
+
+    it('drops the entry and points to Drafts when neither the release nor the original could be made', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      api.rescheduleScheduledSend.mockRejectedValueOnce(new RescheduleLostError(new Error('Quota exceeded'), true));
+      useSendUndoStore.getState().setPending(entry());
+
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
+
+      expect(useToastStore.getState().toasts).toMatchObject([{
+        type: 'error',
+        title: 'Could not send now',
+        message: expect.stringContaining('back in Drafts'),
+      }]);
+      expect(useSendUndoStore.getState()).toMatchObject({ pending: null, busy: false });
     });
 
     it('names the recipients the server refused for the release while the others get it', async () => {

@@ -17,7 +17,8 @@ import { draftContextFromEmail } from '../lib/draft-context';
 import { composerLoginMoved, servedLoginOf } from '../lib/draft-login';
 import { mailboxesOfAccount } from '../lib/mailbox-tree';
 import { useAccountStore } from './account-store';
-import { partlyRefusedWarning, rescheduleFailureNotice } from '../lib/send-failure-message';
+import { rescheduleErrorNotice, rescheduleLostMessage, restoredSubmission } from '../lib/compose-reschedule';
+import { partlyRefusedWarning } from '../lib/send-failure-message';
 import type { ComposeDraftContext } from '../navigation/types';
 import { t } from './locale-store';
 import { toast } from './toast-store';
@@ -182,11 +183,22 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
       // The message stays held and goes out when the delay ends; say why it
       // did not go now: a full submission quota, say, or recipients refused
       // for the release that the held send had been taken for.
-      const { title, message } = rescheduleFailureNotice(err, t, t('scheduled.send_now_failed', 'Could not send now'));
+      const { title, message } = rescheduleErrorNotice(err, t, t('scheduled.send_now_failed', 'Could not send now'));
       toast.error(title, message);
-      // Making room for the release took long enough for the message to go
-      // out, or be cancelled on another device: nothing is left to undo.
-      set(err instanceof NoLongerScheduledError ? { pending: null, busy: false } : { busy: false });
+      // The original was cancelled first and put back under a new id: Undo
+      // cancels that one now.
+      const restored = restoredSubmission(err);
+      if (restored) {
+        set({
+          pending: { ...entry, emailSubmissionId: restored.emailSubmissionId, sendAt: restored.sendAt ?? entry.sendAt },
+          busy: false,
+        });
+        return false;
+      }
+      // It went out, was cancelled on another device, or is no longer
+      // scheduled at all: nothing is left to undo.
+      const gone = err instanceof NoLongerScheduledError || rescheduleLostMessage(err);
+      set(gone ? { pending: null, busy: false } : { busy: false });
       return false;
     }
   },
