@@ -66,6 +66,7 @@ import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
+import { composerLoginMoved } from '../lib/draft-login';
 import {
   initialDraftPartBlobState, liveBlobId, rebaseDraftPartBlobs, withSnapshotBody,
 } from '../lib/draft-part-blobs';
@@ -1122,6 +1123,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const lastSaveAtRef = React.useRef(0);
   const allowLeaveRef = React.useRef(false);
   const sendingRef = React.useRef(false);
+  // The login this message was started in (see lib/draft-login).
+  const ownerLoginRef = React.useRef(useAccountStore.getState().activeAccountId);
+  const loginMoved = () => composerLoginMoved(ownerLoginRef.current, {
+    activeAccountId: useAccountStore.getState().activeAccountId,
+    connectedAccountId: jmapClient.connectedAccountId,
+  });
   const [draftStatus, setDraftStatus] = React.useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [savingDraft, setSavingDraft] = React.useState(false);
 
@@ -1336,6 +1343,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
     const identity = primaryIdentity;
     if (!identity || !draftsMailbox || sendingRef.current) return draftIdRef.current;
+    // Another login is active: its Drafts and ids are not this draft's.
+    if (loginMoved()) return draftIdRef.current;
     let html = latestRef.current.bodyHtml;
     if (opts.live && !plainTextMode) {
       try {
@@ -1460,7 +1469,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // A draft this session created by autosave goes with the discard; a
     // re-opened draft keeps its last saved version.
     const autosaved = draftIdRef.current;
-    if (autosaved && !draft) {
+    // In another login that id names another message; the draft stays.
+    if (autosaved && !draft && !loginMoved()) {
       void (async () => {
         try { await inflightSaveRef.current; } catch { /* ignore */ }
         const id = draftIdRef.current ?? autosaved;
@@ -2109,6 +2119,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const performSendInner = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!primaryIdentity || !sentMailbox) return;
+    if (loginMoved()) {
+      const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
+      Alert.alert(
+        t('email_composer.login_switched_title', 'Account switched'),
+        t(
+          'email_composer.login_switched_body',
+          'You started this message in {account}. Switch back to that account to send it.',
+          { account: owner?.email || owner?.displayName || '' },
+        ),
+      );
+      return;
+    }
 
     // Read the body straight from the editor DOM at send time. The `change`
     // messages that feed `bodyHtml` are async and best-effort — trusting them
