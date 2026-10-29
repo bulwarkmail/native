@@ -96,6 +96,8 @@ function signIn(username: string, filesAccount = 'acc-1') {
 
 beforeEach(() => {
   signIn('me@example.org');
+  // No naming rules published unless a test says so.
+  (jmapClient.getAccountCapability as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
   nextId = 1;
   calls = [];
   refuseUpdate = new Set();
@@ -307,6 +309,18 @@ describe('restoreFromTrash', () => {
     expect(done.map((i) => i.node.id)).toEqual(['a']);
     expect(refused).toHaveLength(1);
     expect(byId('a')!.parentId).toBeNull();
+  });
+
+  it('gives a clashing WebDAV name a free one the server accepts', async () => {
+    // Stored by WebDAV with a ":" escaped, which JMAP names refuse.
+    store.push({ id: 'w', parentId: 'docs', name: 'a%3Ab.txt', blobId: 'bw' });
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'w'), 1730112000007);
+    store.push({ id: 'w2', parentId: 'docs', name: 'a%3Ab.txt', blobId: 'bw2' });
+    (jmapClient.getAccountCapability as ReturnType<typeof vi.fn>).mockReturnValue({ forbiddenNameChars: ':*' });
+    await restoreFromTrash(trashedItems(listed()));
+    const update = calls.filter((c) => c.update).pop()!.update as Record<string, Record<string, unknown>>;
+    expect(update.w).toEqual({ parentId: 'docs', name: 'a_b (1).txt' });
+    expect(byId('w')).toMatchObject({ parentId: 'docs', name: 'a_b (1).txt' });
   });
 
   it('gives a folder named .Trash that goes back to the root another name', async () => {

@@ -1,11 +1,12 @@
 import type { FileNode } from './types';
 import { jmapClient } from './jmap-client';
 import {
-  createFolder, deleteFileNodes, destroyEmptyFolders, filesAccountId, getAllFileNodes, isCrossAccountId,
-  isFolder, updateFileNodes,
+  createFolder, deleteFileNodes, destroyEmptyFolders, filesAccountId, getAllFileNodes, getFileNameRules,
+  isCrossAccountId, isFolder, updateFileNodes,
 } from './files';
 import { JMAPSetError } from './jmap-result';
 import { getUniqueName } from '../lib/filenode-name';
+import { acceptedFileName } from '../lib/file-name-rules';
 import {
   TRASH_FOLDER_NAME, findTrashFolder, restoreTarget, trashBatchName, trashPlaces, trashSubtreeIds, trashedItems,
   type TrashedItem,
@@ -226,6 +227,7 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
     }
     return null;
   };
+  const rules = getFileNameRules();
   const restored = new Set<string>();
   const tried = new Set<string>();
   const updates: Record<string, Partial<Pick<FileNode, 'name' | 'parentId'>>> = {};
@@ -249,7 +251,11 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
         ? from
         : restoreTarget(item, places);
       const used = namesIn(target);
-      const name = getUniqueName(item.node.name, used);
+      let name = getUniqueName(item.node.name, used);
+      // A new name goes to the server as it is, so it must pass its rules: a
+      // WebDAV name lists decoded ("a%3Ab.txt" as "a:b.txt"), and the ":"
+      // in "a:b (1).txt" would be refused.
+      if (name !== item.node.name) name = getUniqueName(acceptedFileName(name, rules), used);
       used.add(name);
       // The name only goes along when it has to change: the listing shows a
       // WebDAV name decoded, and sending that back would rename the file.
