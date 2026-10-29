@@ -1672,6 +1672,12 @@ export interface SendEmailOptions {
   draftsMailboxId?: string;
   /** Previous draft version to destroy once the submission succeeded (#849). */
   draftId?: string;
+  /**
+   * Account `draftId` lives in, when not the submitting one: a draft saved
+   * in the own Drafts and sent from a group identity, or the other way
+   * round. Email ids repeat across accounts.
+   */
+  draftAccountId?: string;
   /** Submitting account (shared/group account); defaults to the primary. */
   accountId?: string;
 }
@@ -1875,11 +1881,12 @@ export async function sendEmail(
   // rather than a failed send (#849). The submission record rides along, and
   // nothing about it may turn into a warning.
   if (opts?.draftId && emailSubmissionId) {
+    const draftAccountId = opts.draftAccountId ?? accountId;
     try {
       if (recordToDestroy) {
         const cleanup = await jmapClient.request(
           [
-            ['Email/set', { accountId, destroy: [opts.draftId] }, '0'],
+            ['Email/set', { accountId: draftAccountId, destroy: [opts.draftId] }, '0'],
             submissionDestroyCall([recordToDestroy], accountId, '1'),
           ],
           SUBMISSION_USING,
@@ -1887,7 +1894,7 @@ export async function sendEmail(
         readSubmissionDestroy(cleanup, '1');
         assertEmailsDestroyed(requireMethodResult(cleanup, '0', 'Email/set'));
       } else {
-        await destroyEmails([opts.draftId], accountId);
+        await destroyEmails([opts.draftId], draftAccountId);
       }
     } catch (err) {
       filingWarning = filingWarning ?? `old draft cleanup failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -1936,6 +1943,11 @@ export async function saveDraftVersion(
   draftsMailboxId: string,
   previousDraftId?: string,
   accountIdOverride?: string,
+  /**
+   * Account the previous version lives in, when not this one: the draft
+   * moves between the own Drafts and a group's when its From does (#1090).
+   */
+  previousDraftAccountId?: string,
 ): Promise<SavedDraftVersion> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const emailCreate = buildEmailCreate(email);
@@ -1968,9 +1980,10 @@ export async function saveDraftVersion(
   } catch (err) {
     console.warn('[email] could not read back the saved draft parts:', err);
   }
-  if (previousDraftId && previousDraftId !== id) {
+  const previousAccountId = previousDraftAccountId ?? accountId;
+  if (previousDraftId && (previousDraftId !== id || previousAccountId !== accountId)) {
     try {
-      await destroyEmails([previousDraftId], accountId);
+      await destroyEmails([previousDraftId], previousAccountId);
     } catch (err) {
       console.warn('[email] failed to destroy previous draft version:', err);
     }

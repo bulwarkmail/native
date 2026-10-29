@@ -67,6 +67,7 @@ import {
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
+import { sendTargetFor } from '../lib/compose-send-account';
 import {
   ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../lib/compose-login';
@@ -1121,6 +1122,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Snapshot at the last successful draft save (null = never saved).
   const lastSavedRef = React.useRef<string | null>(draft ? baselineRef.current : null);
   const draftIdRef = React.useRef<string | null>(draft?.id ?? null);
+  // The account `draftIdRef` lives in, undefined for the login's own: a
+  // group identity's draft lives in the group's Drafts (#1090), and a send
+  // undone or a scheduled one cancelled for editing comes back in the
+  // account it was sent from. Email ids repeat across accounts, so the old
+  // version is destroyed there and nowhere else.
+  const draftAccountRef = React.useRef<string | undefined>(draft?.jmapAccountId);
+  const draftAccount = () => draftAccountRef.current ?? jmapClient.accountId;
   const messageIdRef = React.useRef<string | null>(draft?.messageId?.[0] ?? null);
   const inflightSaveRef = React.useRef<Promise<string | null> | null>(null);
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1369,9 +1377,23 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setDraftStatus('saving');
     try {
       const outgoing = buildOutgoing(identity, html, { forDraft: true });
-      const saved = await saveDraftVersion(outgoing, draftsMailbox.id, draftIdRef.current ?? undefined);
+      // A draft From a group identity is saved in the group's Drafts, like
+      // its Sent copy (#1090); one without a Drafts folder there in the own.
+      const target = await sendTargetFor(identity, outgoing.from[0]?.email ?? identity.email, mailboxes);
+      if (loginMoved()) return draftIdRef.current;
+      const saveIn = target.accountId && target.draftsMailboxId
+        ? { accountId: target.accountId, draftsMailboxId: target.draftsMailboxId }
+        : { accountId: undefined, draftsMailboxId: draftsMailbox.id };
+      const saved = await saveDraftVersion(
+        outgoing,
+        saveIn.draftsMailboxId,
+        draftIdRef.current ?? undefined,
+        saveIn.accountId,
+        draftIdRef.current ? draftAccount() : undefined,
+      );
       const id = saved.id;
       draftIdRef.current = id;
+      draftAccountRef.current = saveIn.accountId;
       // The previous version and its part blobs are gone: point every
       // attachment at the parts of the version just created.
       draftPartBlobsRef.current = rebaseDraftPartBlobs(
@@ -1495,7 +1517,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       void (async () => {
         try { await inflightSaveRef.current; } catch { /* ignore */ }
         const id = draftIdRef.current ?? autosaved;
-        destroyEmails([id]).catch((err) => console.warn('[compose] discard failed', err));
+        destroyEmails([id], draftAccountRef.current).catch((err) => console.warn('[compose] discard failed', err));
       })();
     }
     allowLeaveRef.current = true;
@@ -2269,13 +2291,22 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
       // The account the submission is held in, for Undo (read before the
       // request: a switch may land while it is out).
-      const submissionAccountId = jmapClient.connectedAccountId ?? undefined;
+      // A group or shared identity sends from its own account, and its Sent
+      // copy goes there (#1090).
+      const target = await sendTargetFor(primaryIdentity, outgoing.from[0]?.email ?? primaryIdentity.email, mailboxes);
+      if (refuseSendAfterSwitch()) return;
+      const submissionAccountId = target.accountId ?? jmapClient.connectedAccountId ?? undefined;
       const result = await sendEmail(
         outgoing,
-        primaryIdentity.id,
-        sentMailbox.id,
+        target.identityId,
+        target.sentMailboxId ?? sentMailbox.id,
         holdForSeconds,
-        { draftsMailboxId: draftsMailbox?.id, draftId: draftIdRef.current ?? undefined },
+        {
+          draftsMailboxId: target.accountId ? target.draftsMailboxId : draftsMailbox?.id,
+          draftId: draftIdRef.current ?? undefined,
+          draftAccountId: draftIdRef.current ? draftAccount() : undefined,
+          accountId: target.accountId,
+        },
       );
       draftIdRef.current = null;
       lastSavedRef.current = null;
