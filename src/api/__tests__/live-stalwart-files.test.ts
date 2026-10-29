@@ -179,4 +179,32 @@ live('live Stalwart files', () => {
     expect(result.created?.l).toBeUndefined();
     expect(result.notCreated?.l?.properties).toEqual(['target']);
   }, 30_000);
+
+  // #1385: past maxObjectsInGet, 0.16 cuts the return-all /get short and 1.0
+  // refuses it with requestTooLarge.
+  it('lists an account holding more nodes than one FileNode/get returns', async () => {
+    const max = client.getMaxObjectsInGet();
+    const perSet = client.getMaxObjectsInSet();
+    const bulk = await createFolder('bulk', scratch);
+    const count = max + 5;
+    const made: string[] = [];
+    for (let start = 0; start < count; start += perSet) {
+      const create: Record<string, Record<string, unknown>> = {};
+      for (let i = start; i < Math.min(count, start + perSet); i++) {
+        create[`n${i}`] = { name: `n${i}`, parentId: bulk.id, ...(draft18() ? { '@type': 'Directory' } : {}) };
+      }
+      const res = await client.request([['FileNode/set', { accountId: filesAccountId(), create }, '0']],
+        [CAPABILITIES.CORE, CAPABILITIES.FILES]);
+      const [, result] = res.methodResponses[0] as unknown as [string, { created?: Record<string, { id: string }> }];
+      made.push(...Object.values(result.created ?? {}).map((c) => c.id));
+    }
+    expect(made).toHaveLength(count);
+
+    const all = await nodes();
+    const ids = new Set(all.map((n) => n.id));
+    expect(made.filter((id) => !ids.has(id))).toEqual([]);
+    expect(ids.has(scratch)).toBe(true);
+
+    await deleteFileNodes([bulk.id]);
+  }, 180_000);
 });

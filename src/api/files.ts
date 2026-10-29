@@ -192,12 +192,15 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
     using,
   );
   const result = res.methodResponses[0];
-  if (!result || result[0] === 'error') {
+  // Stalwart 1.0 refuses the return-all /get instead of cutting it short
+  // (#1385); then every node comes from the query below.
+  const tooMany = result?.[0] === 'error' && result[1]?.type === 'requestTooLarge';
+  if (!result || (result[0] === 'error' && !tooMany)) {
     throw new Error(result?.[1]?.description || 'FileNode list failed');
   }
-  const firstPage = ((result[1].list ?? []) as FileNode[]).map(fromDraftFileNode);
+  const firstPage = tooMany ? [] : ((result[1].list ?? []) as FileNode[]).map(fromDraftFileNode);
   const maxObjects = jmapClient.getMaxObjectsInGet();
-  if (firstPage.length < maxObjects) return firstPage;
+  if (!tooMany && firstPage.length < maxObjects) return firstPage;
 
   const known = new Map(firstPage.map((node) => [node.id, node]));
   // Several /get calls share one request, so a large account costs a few
@@ -256,6 +259,8 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
     }
   } catch (err) {
     // A partial tree beats none: keep what was read, as before #1069.
+    // With nothing read there is no tree to show, so say why.
+    if (known.size === 0) throw err;
     console.warn(`[files] listing for account ${accountId} is incomplete past ${maxObjects} nodes`, err);
   }
 
@@ -311,7 +316,10 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
           ...(!isPrimary && isDiscoverableOnly(node) ? { discoverableOnly: true } : {}),
         });
       }
-    } catch {
+    } catch (err) {
+      // A failed listing of the user's own drive is an error to show, not
+      // an empty drive (#1385 looked like "No files yet").
+      if (isPrimary) throw err;
       // A single unreachable shared account shouldn't hide the user's own
       // files; skip it and keep aggregating.
     }

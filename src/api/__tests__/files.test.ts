@@ -304,6 +304,8 @@ function fakeFilesServer(nodes: FakeNode[], opts: {
   // Stalwart before 0.16.6 returns leaf files only.
   queryOmitsFolders?: boolean;
   queryFails?: boolean;
+  // Stalwart 1.0 refuses a return-all /get past the limit (#1385).
+  refusesReturnAll?: boolean;
 }): MethodCall[][] {
   mockMaxObjectsInGet.mockReturnValue(opts.maxObjectsInGet);
   if (opts.maxCallsInRequest) mockMaxCallsInRequest.mockReturnValue(opts.maxCallsInRequest);
@@ -313,6 +315,9 @@ function fakeFilesServer(nodes: FakeNode[], opts: {
     const methodResponses = methodCalls.map(([method, args, callId]) => {
       if (method === 'FileNode/get') {
         const ids = args.ids as string[] | null;
+        if (ids === null && opts.refusesReturnAll && nodes.length > opts.maxObjectsInGet) {
+          return ['error', { type: 'requestTooLarge' }, callId];
+        }
         if (ids === null) return [method, { list: nodes.slice(0, opts.maxObjectsInGet) }, callId];
         if (ids.length > opts.maxObjectsInGet) return ['error', { type: 'requestTooLarge' }, callId];
         return [method, {
@@ -418,6 +423,27 @@ describe('listing past maxObjectsInGet (#1069)', () => {
       ([m, a]) => m === 'FileNode/get' && (a.ids as string[] | null)?.includes('hidden'),
     );
     expect(askedForHidden).toHaveLength(1);
+  });
+
+  // #1385: Stalwart 1.0 answers the return-all /get of a larger account with
+  // requestTooLarge instead of a first page.
+  it('lists every node when Stalwart 1.0 refuses the return-all /get', async () => {
+    const all = [
+      fakeFolder('d1'),
+      ...Array.from({ length: 6 }, (_, i) => fakeFile(`f${i}`, 'd1')),
+    ];
+    fakeFilesServer(all, { maxObjectsInGet: 3, refusesReturnAll: true });
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(sortedIds(all));
+  });
+
+  it('reports a failed listing of the own drive instead of an empty one', async () => {
+    fakeFilesServer([fakeFile('f0'), fakeFile('f1'), fakeFile('f2')], {
+      maxObjectsInGet: 2, refusesReturnAll: true, queryFails: true,
+    });
+
+    await expect(getAllFileNodesAcrossAccounts()).rejects.toThrow();
   });
 
   it('keeps the first page when the query is refused', async () => {
