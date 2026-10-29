@@ -45,7 +45,7 @@ function formOptions(t: TranslateFn) {
   const phoneFeatures: Option[] = [
     { value: '', label: t('contacts.form.phone', 'Phone') },
     { value: 'voice', label: t('contacts.form.phone_voice', 'Voice') },
-    { value: 'cell', label: t('contacts.form.phone_cell', 'Mobile') },
+    { value: 'mobile', label: t('contacts.form.phone_cell', 'Mobile') },
     { value: 'fax', label: t('contacts.form.phone_fax', 'Fax') },
     { value: 'pager', label: t('contacts.form.phone_pager', 'Pager') },
     { value: 'video', label: t('contacts.form.phone_video', 'Video') },

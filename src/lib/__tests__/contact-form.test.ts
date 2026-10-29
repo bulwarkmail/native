@@ -33,6 +33,14 @@ const CARDS: Array<[string, ContactCard]> = [
 ];
 
 describe('contact form save', () => {
+  // RFC 9553 has "mobile"; "cell" is what older versions of the form wrote.
+  it('reads a "cell" phone as mobile and saves it as the RFC 9553 feature', () => {
+    const card: ContactCard = { ...base, phones: { p1: { number: '+1000', features: { cell: true } } } };
+    const form = contactToForm(card, []);
+    expect(form.phones[0].feature).toBe('mobile');
+    expect(formToPatch(form, card, false, [card]).phones).toEqual({ p1: { number: '+1000', features: { mobile: true } } });
+  });
+
   it.each(CARDS)('a phone-only edit leaves the photo alone on Stalwart %s', (_version, card) => {
     const form = contactToForm(card, []);
     form.phones = [{ number: '+2000', context: '', feature: '' }];

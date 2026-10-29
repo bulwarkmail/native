@@ -45,7 +45,8 @@ describe('parseVCard', () => {
     expect(emails[0].contexts).toEqual({ work: true });
     const phones = Object.values(card.phones ?? {});
     expect(phones[0].number).toBe('+1-555-0100');
-    expect(phones[0].features).toEqual({ cell: true });
+    // CELL is "mobile" in RFC 9553; "cell" is no JSContact feature.
+    expect(phones[0].features).toEqual({ mobile: true });
     const given = card.name?.components?.find((c) => c.kind === 'given')?.value;
     const surname = card.name?.components?.find((c) => c.kind === 'surname')?.value;
     expect(given).toBe('Jane');
@@ -114,6 +115,58 @@ describe('generateVCard', () => {
     const out = contactToVCard(card);
     expect(out.match(/BEGIN:VCARD/g)).toHaveLength(1);
     expect(out.match(/END:VCARD/g)).toHaveLength(1);
+  });
+
+  // #1407: what Apple Contacts, Google and Outlook expect of a vCard 4.0.
+  describe('vCard 4.0 (#1407)', () => {
+    const card: ContactCard = {
+      id: 'c1',
+      addressBookIds: {},
+      uid: 'abc-123',
+      updated: '2026-10-29T08:15:00Z',
+      name: { components: [{ kind: 'given', value: 'Jane' }, { kind: 'surname', value: 'Doe' }] },
+      phones: {
+        p1: { number: '+1 555 0100', features: { mobile: true } },
+        p2: { number: '+1 555 0101', features: { cell: true } },
+      },
+      notes: { n1: { note: 'x'.repeat(200) } },
+    };
+    const out = generateVCard([card]);
+    const lines = out.split('\r\n');
+
+    it('says it is version 4.0 and ends every line with CRLF', () => {
+      expect(lines.slice(0, 2)).toEqual(['BEGIN:VCARD', 'VERSION:4.0']);
+      expect(out.endsWith('END:VCARD\r\n')).toBe(true);
+      expect(out.replace(/\r\n/g, '')).not.toContain('\n');
+    });
+
+    it('writes N before FN', () => {
+      expect(lines.indexOf('N:Doe;Jane;;;')).toBeGreaterThan(-1);
+      expect(lines.indexOf('N:Doe;Jane;;;')).toBeLessThan(lines.indexOf('FN:Jane Doe'));
+    });
+
+    it('writes mobiles as CELL, never MOBILE', () => {
+      expect(lines).toContain('TEL;TYPE=CELL:+1 555 0100');
+      expect(lines).toContain('TEL;TYPE=CELL:+1 555 0101');
+      expect(out).not.toContain('MOBILE');
+    });
+
+    it('marks a UID without a scheme as text and writes REV in the basic format', () => {
+      expect(lines).toContain('UID;VALUE=text:abc-123');
+      expect(lines).toContain('REV:20261029T081500Z');
+    });
+
+    it('folds lines longer than 75 octets', () => {
+      expect(lines.every((line) => line.length <= 75)).toBe(true);
+      expect(lines.some((line) => line.startsWith(' '))).toBe(true);
+    });
+
+    it('reads its own export back', () => {
+      const [back] = parseVCard(out);
+      expect(back.uid).toBe('abc-123');
+      expect(Object.values(back.phones ?? {}).map((p) => p.features)).toEqual([{ mobile: true }, { mobile: true }]);
+      expect(Object.values(back.notes ?? {})[0]?.note).toBe('x'.repeat(200));
+    });
   });
 });
 
@@ -185,7 +238,7 @@ describe('anniversary dates (issue #224)', () => {
 
   it('round-trips a birthday through generateVCard', () => {
     const exported = generateVCard([parseOne('BDAY:19850412')]);
-    expect(exported).toContain('BDAY:1985-04-12');
+    expect(exported).toContain('BDAY:19850412');
     const reparsed = parseVCard(exported)[0];
     expect(Object.values(reparsed.anniversaries || {})[0]?.date).toEqual({
       year: 1985, month: 4, day: 12,
@@ -194,7 +247,7 @@ describe('anniversary dates (issue #224)', () => {
 
   it('round-trips a day/month-only birthday', () => {
     const exported = generateVCard([parseOne('BDAY:--0412')]);
-    expect(exported).toContain('BDAY:--04-12');
+    expect(exported).toContain('BDAY:--0412');
     expect(Object.values(parseVCard(exported)[0].anniversaries || {})[0]?.date)
       .toEqual({ month: 4, day: 12 });
   });
@@ -207,7 +260,7 @@ describe('anniversary dates (issue #224)', () => {
       anniversaries: { a0: { kind: 'other', date: { year: 2015, month: 9, day: 20 } } },
     };
     const exported = generateVCard([card]);
-    expect(exported).toContain('X-ABDATE:2015-09-20');
+    expect(exported).toContain('X-ABDATE:20150920');
     const reparsed = parseVCard(exported)[0];
     expect(Object.values(reparsed.anniversaries || {})).toEqual([
       { kind: 'other', date: { year: 2015, month: 9, day: 20 } },
@@ -399,10 +452,10 @@ describe('photo export', () => {
       d: { kind: 'photo', uri: 'data:;base64,DDDD' },
     })]);
     const lines = vcf.split('\r\n');
-    expect(lines).toContain('PHOTO;ENCODING=b;TYPE=image/png:AAAA');
-    expect(lines).toContain('LOGO;ENCODING=b;TYPE=image/jpeg:BBBB');
-    expect(lines).toContain('PHOTO;ENCODING=b;TYPE=image/jpeg:CCCC');
-    expect(lines).toContain('PHOTO;ENCODING=b:DDDD');
+    expect(lines).toContain('PHOTO:data:image/png;base64,AAAA');
+    expect(lines).toContain('LOGO:data:image/jpeg;base64,BBBB');
+    expect(lines).toContain('PHOTO:data:image/jpeg;base64,CCCC');
+    expect(lines).toContain('PHOTO:data:;base64,DDDD');
   });
 
   it('skips a Stalwart 1.0 blob photo that was not downloaded into the card', () => {
