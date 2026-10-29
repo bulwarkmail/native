@@ -426,6 +426,17 @@ function usesDraftFileNodeCreate(accountId: string): boolean {
   return !!cap && typeof cap === 'object' && 'supportedNodeTypes' in cap;
 }
 
+/**
+ * Whether a FileNode made from a message part's blobId holds that part.
+ * Stalwart 1.0.0 stores the part; 0.16 stores the whole raw message the part
+ * is in under the part's name (seen on 0.16.27), so there the part's bytes
+ * have to be uploaded as a blob of their own first. Told apart as for the
+ * create shape: only 1.0.0 implements File Storage draft 18.
+ */
+export function fileNodeTakesPartBlobs(accountId: string = filesAccountId()): boolean {
+  return usesDraftFileNodeCreate(accountId);
+}
+
 /** One FileNode/set create in `accountId`, in the shape that server takes. */
 async function createFileNodeIn(
   accountId: string,

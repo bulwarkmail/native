@@ -199,6 +199,51 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(saved.attachments.map((a) => a.name)).toContain('from-files.txt');
     }, 60_000);
 
+    const text = (buf: ArrayBuffer) => new TextDecoder().decode(new Uint8Array(buf));
+    const nodeBlob = async (id: string) => {
+      const res = await singleton.request(
+        [['FileNode/get', { accountId: singleton.accountId, ids: [id] }, '0']],
+        [CAPABILITIES.CORE, CAPABILITIES.FILES],
+      );
+      return res.methodResponses[0][1].list[0] as { blobId: string; name: string };
+    };
+
+    // 0.16 made a FileNode from a part's blobId hold the whole raw message.
+    it("files a message's attachment part as the attachment's bytes, under a free name, and attaches it back", async () => {
+      const content = `part ${RUN}`;
+      const upload = await uploadBytes(new TextEncoder().encode(content), 'text/plain');
+      const draft = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `part ${tag}`, textBody: 'see attached',
+        attachments: [{ blobId: upload.blobId, name: 'part.txt', type: 'text/plain', disposition: 'attachment' }],
+      }, drafts);
+      createdEmails.push(draft.id);
+      const [full] = await getFullEmails([draft.id]);
+      const part = full.attachments!.find((a) => a.name === 'part.txt')!;
+      expect(part.blobId).toBeTruthy();
+
+      const name = `${tag}-part.txt`;
+      const first = await saveAttachmentToFiles({ blobId: part.blobId!, name, type: 'text/plain' }, null);
+      createdNodes.push(first.id);
+      const stored = await nodeBlob(first.id);
+      expect(text(await singleton.fetchBlobArrayBuffer(stored.blobId, name, 'text/plain'))).toBe(content);
+
+      // The same name again: the server would refuse it (alreadyExists).
+      const second = await saveAttachmentToFiles({ blobId: part.blobId!, name, type: 'text/plain' }, null);
+      createdNodes.push(second.id);
+      expect(second.name).toBe(`${tag}-part (1).txt`);
+
+      // And back: the file attached to a new draft carries the same bytes.
+      const back = await attachmentFromFileNode({ ...stored, id: first.id, nodeType: 'file', type: 'text/plain' });
+      const reply = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `back ${tag}`, textBody: 'see attached',
+        attachments: [{ blobId: back.blobId, name: 'back.txt', type: 'text/plain', disposition: 'attachment' }],
+      }, drafts);
+      createdEmails.push(reply.id);
+      const [again] = await getFullEmails([reply.id]);
+      const attached = again.attachments!.find((a) => a.name === 'back.txt')!;
+      expect(text(await singleton.fetchBlobArrayBuffer(attached.blobId!, 'back.txt', 'text/plain'))).toBe(content);
+    }, 60_000);
+
     it('copies blobs with Blob/copy only when the blob capability is in `using`', async () => {
       const upload = await uploadBytes(new TextEncoder().encode(`copy ${RUN}`), 'text/plain');
       const call = ['Blob/copy', { fromAccountId: singleton.accountId, accountId: singleton.accountId, blobIds: [upload.blobId] }, '0'];

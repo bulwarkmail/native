@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { files, email } = vi.hoisted(() => ({
+const { files, email, blob, client } = vi.hoisted(() => ({
   files: {
     filesAccountId: vi.fn(() => 'me'),
     copyFileNode: vi.fn(async (node: { blobId: string }, parentId: string | null, name: string) => ({
@@ -8,16 +8,30 @@ const { files, email } = vi.hoisted(() => ({
     })),
     fileNodeKind: vi.fn((node: { nodeType?: string; blobId?: string | null }) =>
       node.nodeType ?? (node.blobId == null ? 'directory' : 'file')),
+    // Stalwart 1.0.0 unless a test says otherwise.
+    fileNodeTakesPartBlobs: vi.fn(() => true),
+    getAllFileNodes: vi.fn(async (): Promise<Array<Record<string, unknown>>> => []),
+    getFileNameRules: vi.fn(() => null),
   },
   email: {
     // As the real one: the ids as they are within one account.
     copyBlobs: vi.fn(async (from: string, ids: string[], to: string) =>
       Object.fromEntries(ids.map((id) => [id, from === to ? id : `copy-of-${id}`]))),
   },
+  blob: {
+    uploadBytes: vi.fn(async (_bytes: Uint8Array, type: string, accountId?: string) => ({
+      blobId: `uploaded-to-${accountId}`, size: 3, type,
+    })),
+  },
+  client: {
+    accountId: 'me',
+    fetchBlobArrayBuffer: vi.fn(async () => new Uint8Array([1, 2, 3]).buffer),
+  },
 }));
 vi.mock('../../api/files', () => files);
 vi.mock('../../api/email', () => email);
-vi.mock('../../api/jmap-client', () => ({ jmapClient: { accountId: 'me' } }));
+vi.mock('../../api/blob', () => blob);
+vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
 
 import type { FileNode } from '../../api/types';
 import {
@@ -91,5 +105,36 @@ describe('Save to Files', () => {
     expect(files.copyFileNode).toHaveBeenCalledWith(
       expect.objectContaining({ blobId: 'copy-of-att-1' }), null, 'invoice.pdf',
     );
+  });
+
+  // 0.16 filed the whole raw message under the attachment's name.
+  it("uploads the attachment's bytes into the Files account on Stalwart 0.16", async () => {
+    files.fileNodeTakesPartBlobs.mockReturnValue(false);
+    try {
+      await saveAttachmentToFiles({ blobId: 'att-1', name: 'invoice.pdf', type: 'application/pdf' }, 'd1', 'team');
+    } finally {
+      files.fileNodeTakesPartBlobs.mockReturnValue(true);
+    }
+    expect(client.fetchBlobArrayBuffer).toHaveBeenCalledWith('att-1', 'invoice.pdf', 'application/pdf', 'team');
+    expect(blob.uploadBytes).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]), 'application/pdf', 'me');
+    expect(email.copyBlobs).not.toHaveBeenCalled();
+    expect(files.copyFileNode).toHaveBeenCalledWith(
+      expect.objectContaining({ blobId: 'uploaded-to-me' }), 'd1', 'invoice.pdf',
+    );
+  });
+
+  it('numbers the name when the folder holds one like it', async () => {
+    files.getAllFileNodes.mockResolvedValueOnce([
+      { id: 'x', name: 'invoice.pdf', parentId: 'd1' },
+      { id: 'y', name: 'invoice (1).pdf', parentId: 'd1' },
+      { id: 'z', name: 'other.pdf', parentId: null },
+      { id: 's', name: 'other (1).pdf', parentId: null, isShared: true },
+    ]);
+    await saveAttachmentToFiles({ blobId: 'att-1', name: 'invoice.pdf', type: 'application/pdf' }, 'd1');
+    expect(files.copyFileNode).toHaveBeenLastCalledWith(expect.anything(), 'd1', 'invoice (2).pdf');
+
+    files.getAllFileNodes.mockResolvedValueOnce([{ id: 'x', name: 'invoice.pdf', parentId: 'd1' }]);
+    await saveAttachmentToFiles({ blobId: 'att-1', name: 'invoice.pdf', type: 'application/pdf' }, null);
+    expect(files.copyFileNode).toHaveBeenLastCalledWith(expect.anything(), null, 'invoice.pdf');
   });
 });
