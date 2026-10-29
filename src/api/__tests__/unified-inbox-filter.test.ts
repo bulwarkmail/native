@@ -44,3 +44,28 @@ describe('buildFilter (aggregated views)', () => {
     });
   });
 });
+
+describe('buildFilter: searching from All mail', () => {
+  const all = [...MAILBOXES, mailbox('arch', 'archive'), mailbox('drafts', 'drafts'), mailbox('spam', 'junk')];
+
+  it('searches Sent, Archive and Drafts too, and only leaves Trash and Junk out', () => {
+    expect(buildFilter(all, { view: 'all', query: 'budget' })).toEqual({
+      operator: 'AND',
+      conditions: [{ inMailboxOtherThan: ['bin', 'spam'] }, { text: 'budget' }],
+    });
+  });
+
+  it('keeps the All mail folders without a query, and Unread narrows to its list', () => {
+    expect(buildFilter(all, { view: 'all' })).toEqual({
+      operator: 'OR', conditions: [{ inMailbox: 'in' }, { inMailbox: 'projects' }],
+    });
+    expect(buildFilter(all, { view: 'unread', query: 'budget' })).toEqual({
+      operator: 'AND',
+      conditions: [
+        { operator: 'OR', conditions: [{ inMailbox: 'in' }, { inMailbox: 'projects' }] },
+        { notKeyword: '$seen' },
+        { text: 'budget' },
+      ],
+    });
+  });
+});

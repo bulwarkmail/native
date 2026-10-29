@@ -350,7 +350,15 @@ export function buildFilter(
   opts: UnifiedFetchOptions,
 ): Record<string, unknown> | null {
   const conditions: Record<string, unknown>[] = [];
-  if (opts.view) {
+  const q = opts.query?.trim();
+  if (opts.view === 'all' && q) {
+    // Searching from All mail searches every folder but Trash and Junk, the
+    // default search scope: the All mail list leaves Sent, Archive and
+    // Drafts out, and narrowing the search to it hid every sent reply
+    // (webmail lib/unified-mailbox.ts searchCrossViewEmails).
+    const skipped = mailboxes.filter((m) => m.role === 'trash' || m.role === 'junk' || m.role === 'spam');
+    if (skipped.length > 0) conditions.push({ inMailboxOtherThan: skipped.map((m) => m.id) });
+  } else if (opts.view) {
     const included = crossIncludedMailboxes(mailboxes);
     if (included.length === 0) return null;
     conditions.push(
@@ -367,7 +375,6 @@ export function buildFilter(
   }
   // One condition per quoted phrase or `word*` (see splitSearchText), in the
   // same AND as the folder conditions.
-  const q = opts.query?.trim();
   if (q) conditions.push(...textConditions(q));
   return conditions.length === 1 ? conditions[0] : { operator: 'AND', conditions };
 }
