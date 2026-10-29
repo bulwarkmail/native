@@ -597,6 +597,61 @@ describe('contacts-store', () => {
   });
 });
 
+describe('an account switch while contacts load or save', () => {
+  function deferred<T>() {
+    let resolve: (v: T) => void = () => {};
+    const promise = new Promise<T>((r) => { resolve = r; });
+    return { promise, resolve };
+  }
+
+  it('drops the previous account\'s cards that arrive after the switch', async () => {
+    const old = deferred<ContactCard[]>();
+    mockGetAllContacts.mockReturnValueOnce(old.promise);
+    const oldLoad = useContactsStore.getState().fetchContacts();
+
+    useContactsStore.getState().reset();
+    mockGetAllContacts.mockResolvedValueOnce([card('new-1')]);
+    // Not handed the old account's load still in flight.
+    await useContactsStore.getState().fetchContacts();
+    expect(mockGetAllContacts).toHaveBeenCalledTimes(2);
+
+    old.resolve([card('old-1')]);
+    await oldLoad;
+    expect(useContactsStore.getState().contacts.map((c) => c.id)).toEqual(['new-1']);
+  });
+
+  it('drops the previous account\'s address books', async () => {
+    const old = deferred<AddressBook[]>();
+    mockGetAllAddressBooks.mockReturnValueOnce(old.promise);
+    const oldLoad = useContactsStore.getState().fetchAddressBooks();
+    useContactsStore.getState().reset();
+    old.resolve([{ id: 'ab-old', name: 'Old' } as AddressBook]);
+    await oldLoad;
+    expect(useContactsStore.getState().addressBooks).toEqual([]);
+  });
+
+  it('keeps a card created for the previous account out of the next one', async () => {
+    const write = deferred<ContactCard>();
+    mockCreateContact.mockReturnValueOnce(write.promise);
+    const create = useContactsStore.getState().createContact({}, 'ab-1');
+    useContactsStore.getState().reset();
+    write.resolve(card('created-before'));
+    await expect(create).rejects.toThrow(/account changed/);
+    expect(useContactsStore.getState().contacts).toEqual([]);
+  });
+
+  it('stops an import at the switch instead of writing into the next account', async () => {
+    const first = deferred<ContactCard>();
+    mockCreateContact.mockReturnValueOnce(first.promise);
+    const run = useContactsStore.getState().importContacts([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 'ab-1');
+    useContactsStore.getState().reset();
+    first.resolve(card('imported-a'));
+    await expect(run).rejects.toThrow(/account changed/);
+    expect(mockCreateContact).toHaveBeenCalledTimes(1);
+    expect(useContactsStore.getState().contacts).toEqual([]);
+  });
+});
+
 describe('persistence', () => {
   it('hands the storage the same slice while the cards are unchanged', () => {
     const partialize = useContactsStore.persist.getOptions().partialize!;

@@ -240,6 +240,34 @@ let addressBooksPromise: Promise<void> | null = null;
 let contactsPromise: Promise<void> | null = null;
 let trustedSendersPromise: Promise<void> | null = null;
 
+// One up with every reset (an account switch, a sign-out), as in the calendar
+// store. The client is one singleton that serves whichever account is active,
+// so a load or a write still under way from before must keep what it read to
+// itself: landing after the switch, it put the previous account's cards and
+// books under the next one, and a loop of writes went on in the new account.
+let storeGeneration = 0;
+
+/** The store was reset (another account) while a contacts write was under way. */
+export class ContactsAccountChangedError extends Error {
+  constructor() {
+    super('The account changed while the contacts were being saved');
+    this.name = 'ContactsAccountChangedError';
+  }
+}
+
+/** For one load or write: whether a reset has overtaken it since it started. */
+function generationGuard() {
+  const generation = storeGeneration;
+  const stale = () => generation !== storeGeneration;
+  return {
+    stale,
+    /** Throws ContactsAccountChangedError once stale: nothing more may be sent or kept. */
+    check: () => {
+      if (stale()) throw new ContactsAccountChangedError();
+    },
+  };
+}
+
 // Startup fetches every card and live `ContactCard` state changes refetch
 // them, so opening Contacts only downloads the cards again once the last full
 // fetch is this old - it covers changes missed while the app was in the
@@ -298,10 +326,13 @@ export const useContactsStore = create<ContactsState>()(
       };
 
       const loadAddressBooks = async (): Promise<void> => {
+        const { stale } = generationGuard();
         try {
           const addressBooks = (await fetchAllAddressBooks()) ?? [];
+          if (stale()) return;
           set({ addressBooks });
         } catch (err) {
+          if (stale()) return;
           set({ error: err instanceof Error ? err.message : 'Failed to load address books' });
         }
       };
@@ -346,19 +377,23 @@ export const useContactsStore = create<ContactsState>()(
           // has set up the client.
           if (!jmapClient.isConnected) return;
           if (addressBooksPromise) return addressBooksPromise;
-          addressBooksPromise = loadAddressBooks().finally(() => {
-            addressBooksPromise = null;
+          const promise = loadAddressBooks().finally(() => {
+            // A reset may have handed the slot to the next account's load.
+            if (addressBooksPromise === promise) addressBooksPromise = null;
           });
-          return addressBooksPromise;
+          addressBooksPromise = promise;
+          return promise;
         },
 
         fetchContacts: async (filter) => {
           if (!jmapClient.isConnected) return;
           if (contactsPromise) return contactsPromise;
-          contactsPromise = (async () => {
+          const { stale } = generationGuard();
+          const promise: Promise<void> = (async () => {
             // Books first: AddressBook/get is the call that makes Stalwart mint
             // the default book, so ContactCard/query must never run alongside it.
             if (addressBooksPromise) await addressBooksPromise;
+            if (stale()) return;
             set({ loading: true, error: null });
             try {
               let contacts: ContactCard[];
@@ -369,15 +404,18 @@ export const useContactsStore = create<ContactsState>()(
               } else {
                 contacts = (await fetchAllContacts()) ?? [];
               }
+              if (stale()) return;
               // A filtered load leaves only some of the cards in state.
               set({ contacts, loading: false, contactsFetchedAt: filtered ? 0 : Date.now() });
             } catch (err) {
+              if (stale()) return;
               set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load contacts' });
             }
           })().finally(() => {
-            contactsPromise = null;
+            if (contactsPromise === promise) contactsPromise = null;
           });
-          return contactsPromise;
+          contactsPromise = promise;
+          return promise;
         },
 
         fetchContactsIfStale: async () => {
@@ -411,12 +449,15 @@ export const useContactsStore = create<ContactsState>()(
         },
 
         createContact: async (contact, addressBookId, options) => {
+          const { check } = generationGuard();
           const { originalId, accountId, book } = bookTarget(addressBookId);
-          const write = (card: Partial<ContactCard>) => apiCreateContact(card, originalId, accountId);
+          // The photo goes up first; the card must not follow it into the next account.
+          const write = (card: Partial<ContactCard>) => { check(); return apiCreateContact(card, originalId, accountId); };
           const saved = options?.photoKey
             ? await writeContactWithNewPhoto(accountId, contact, options.photoKey, write)
             : await write(contact);
           const created = tagCreated(saved, book);
+          check();
           set({ contacts: [...get().contacts, created] });
           requestDeviceSync(CONTACTS_AUTHORITY);
           return created;
@@ -426,12 +467,14 @@ export const useContactsStore = create<ContactsState>()(
           const contact = get().contacts.find((c) => c.id === id);
           const { originalId, accountId } = contactTarget(id);
           const patch = cleanPatch(contact, changes);
-          const write = (card: Partial<ContactCard>) => apiUpdateContact(originalId, card, accountId);
+          const { check } = generationGuard();
+          const write = (card: Partial<ContactCard>) => { check(); return apiUpdateContact(originalId, card, accountId); };
           if (options?.photoKey) {
             await writeContactWithNewPhoto(accountId, patch, options.photoKey, write);
           } else {
             await write(patch);
           }
+          check();
           set({
             contacts: get().contacts.map((c) => {
               if (c.id !== id) return c;
@@ -459,8 +502,10 @@ export const useContactsStore = create<ContactsState>()(
         },
 
         deleteContact: async (id) => {
+          const { check } = generationGuard();
           const { originalId, accountId } = contactTarget(id);
           await apiDeleteContacts([originalId], accountId);
+          check();
           set({ contacts: cleanGroupMembers(get().contacts, new Set([id])).filter((c) => c.id !== id) });
           requestDeviceSync(CONTACTS_AUTHORITY);
         },
@@ -477,7 +522,9 @@ export const useContactsStore = create<ContactsState>()(
           }
           const removed = new Set<string>();
           let failed = 0;
+          const { check } = generationGuard();
           for (const [accountId, entries] of byAccount) {
+            check();
             try {
               const destroyed = new Set(
                 await apiDeleteContacts(entries.map((e) => e.originalId), accountId),
@@ -491,6 +538,7 @@ export const useContactsStore = create<ContactsState>()(
               failed += entries.length;
             }
           }
+          check();
           set({
             contacts: cleanGroupMembers(get().contacts, removed).filter((c) => !removed.has(c.id)),
             ...(failed > 0 ? { error: `Failed to delete ${failed} contact${failed === 1 ? '' : 's'}` } : {}),
@@ -502,17 +550,22 @@ export const useContactsStore = create<ContactsState>()(
           let imported = 0;
           let failed = 0;
           const { originalId, accountId, book } = bookTarget(addressBookId);
+          const { check } = generationGuard();
           for (const contact of incoming) {
+            check();
+            let created: ContactCard;
             try {
               // Strip the temporary client-side id; the server assigns a real one.
               const { id: _id, addressBookIds: _abIds, ...data } = contact;
-              const created = tagCreated(await apiCreateContact(data, originalId, accountId), book);
-              set({ contacts: [...get().contacts, created] });
-              imported++;
+              created = tagCreated(await apiCreateContact(data, originalId, accountId), book);
             } catch (err) {
               failed++;
               console.warn('[contacts-store] import failed for one contact', err);
+              continue;
             }
+            check();
+            set({ contacts: [...get().contacts, created] });
+            imported++;
           }
           if (imported > 0) requestDeviceSync(CONTACTS_AUTHORITY);
           return { imported, failed };
@@ -561,13 +614,16 @@ export const useContactsStore = create<ContactsState>()(
           const target = bookTarget(addressBookId);
           const primaryAccountId = getContactsAccountId();
           const targetAccount = target.accountId || primaryAccountId;
+          const { check } = generationGuard();
           for (const id of ids) {
+            check();
             const contact = get().contacts.find((c) => c.id === id);
             if (!contact) continue;
             const source = contactTarget(id);
             const sourceAccount = source.accountId || primaryAccountId;
             if (sourceAccount === targetAccount) {
               await apiUpdateContact(source.originalId, { addressBookIds: { [target.originalId]: true } }, source.accountId);
+              check();
               set({
                 contacts: get().contacts.map((c) =>
                   c.id === id ? { ...c, addressBookIds: { [addressBookId]: true } } : c,
@@ -583,7 +639,9 @@ export const useContactsStore = create<ContactsState>()(
               // successful create.
               const media = await inlineContactMedia(contact, 'keep');
               if (media) data.media = media;
+              check();
               const created = tagCreated(await apiCreateContact(data, target.originalId, target.accountId), target.book);
+              check();
               await apiDeleteContacts([source.originalId], source.accountId);
               set({ contacts: get().contacts.map((c) => (c.id === id ? created : c)) });
             }
@@ -645,7 +703,9 @@ export const useContactsStore = create<ContactsState>()(
         createAddressBook: async (name) => {
           const trimmed = name.trim();
           if (!trimmed) throw new Error('Address book name is required');
+          const { check } = generationGuard();
           const book = await apiCreateAddressBook(trimmed);
+          check();
           set({ addressBooks: [...get().addressBooks, book] });
           requestDeviceSync(CONTACTS_AUTHORITY);
           return book;
@@ -654,8 +714,10 @@ export const useContactsStore = create<ContactsState>()(
         renameAddressBook: async (id, name) => {
           const trimmed = name.trim();
           if (!trimmed) return;
+          const { check } = generationGuard();
           const { originalId, accountId } = bookTarget(id);
           await apiUpdateAddressBook(originalId, { name: trimmed }, accountId);
+          check();
           set({
             addressBooks: get().addressBooks.map((b) => (b.id === id ? { ...b, name: trimmed } : b)),
           });
@@ -663,8 +725,10 @@ export const useContactsStore = create<ContactsState>()(
         },
 
         deleteAddressBook: async (id) => {
+          const { check } = generationGuard();
           const { originalId, accountId } = bookTarget(id);
           await apiDeleteAddressBook(originalId, accountId);
+          check();
           // Stalwart destroys the cards filed in the book along with it, so
           // drop them from the cache instead of leaving orphans under "All".
           set({
@@ -679,8 +743,10 @@ export const useContactsStore = create<ContactsState>()(
         },
 
         setDefaultAddressBook: async (id) => {
+          const { check } = generationGuard();
           const { originalId, accountId, book } = bookTarget(id);
           await apiSetDefaultAddressBook(originalId, accountId);
+          check();
           set({
             addressBooks: get().addressBooks.map((b) => {
               if (b.id === id) return { ...b, isDefault: true };
@@ -704,12 +770,14 @@ export const useContactsStore = create<ContactsState>()(
           if (sentMailboxId) set({ sentMailboxId });
           const mailboxId = get().sentMailboxId;
           if (get().recentRecipientsLoaded || !mailboxId || !jmapClient.isConnected) return;
+          const { stale } = generationGuard();
           try {
             const recentRecipients = await queryRecentRecipients(mailboxId, 300);
+            if (stale()) return;
             set({ recentRecipients, recentRecipientsLoaded: true });
           } catch (err) {
             console.warn('[contacts-store] load recent recipients failed', err);
-            set({ recentRecipientsLoaded: true });
+            if (!stale()) set({ recentRecipientsLoaded: true });
           }
         },
 
@@ -791,7 +859,8 @@ export const useContactsStore = create<ContactsState>()(
           if (get().trustedSendersLoaded && !createIfMissing) return;
 
           set({ trustedSendersLoading: true });
-          trustedSendersPromise = (async () => {
+          const { stale } = generationGuard();
+          const promise: Promise<void> = (async () => {
             try {
               // Must throw rather than yield [] on failure: treating a failed
               // fetch as "no book yet" minted a duplicate on every hiccup (#730).
@@ -801,15 +870,18 @@ export const useContactsStore = create<ContactsState>()(
                 .filter((b) => b.name === TRUSTED_SENDERS_BOOK_NAME)
                 .sort((a, b) => a.id.localeCompare(b.id));
               let book = matches[0];
+              if (stale()) return;
               if (!book) {
                 if (!createIfMissing) {
                   set({ trustedSendersLoaded: true, trustedSendersLoading: false });
                   return;
                 }
                 book = await apiCreateAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+                if (stale()) return;
               }
               const bookId = book.id;
               const cards = await getContactsInBook(bookId);
+              if (stale()) return;
               set({
                 trustedSendersBookId: bookId,
                 trustedSenderEmails: collectContactEmails(cards),
@@ -818,12 +890,13 @@ export const useContactsStore = create<ContactsState>()(
               });
             } catch (err) {
               console.warn('[contacts-store] load trusted senders failed', err);
-              set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+              if (!stale()) set({ trustedSendersLoaded: true, trustedSendersLoading: false });
             }
           })().finally(() => {
-            trustedSendersPromise = null;
+            if (trustedSendersPromise === promise) trustedSendersPromise = null;
           });
-          return trustedSendersPromise;
+          trustedSendersPromise = promise;
+          return promise;
         },
 
         addToTrustedSendersBook: async (input) => {
@@ -839,6 +912,7 @@ export const useContactsStore = create<ContactsState>()(
           // The load may have found the address already filed in the book.
           if (get().trustedSenderEmails.includes(email)) return;
 
+          const { check } = generationGuard();
           await apiCreateContact(
             {
               ...(name ? { name: { full: name } } : {}),
@@ -846,6 +920,7 @@ export const useContactsStore = create<ContactsState>()(
             },
             bookId,
           );
+          check();
           set({ trustedSenderEmails: [...get().trustedSenderEmails, email] });
           requestDeviceSync(CONTACTS_AUTHORITY);
         },
@@ -854,10 +929,13 @@ export const useContactsStore = create<ContactsState>()(
           const { email } = parseTrustedSenderInput(input);
           const bookId = get().trustedSendersBookId;
           if (!bookId || !email) return;
+          const { check } = generationGuard();
           const cards = await getContactsInBook(bookId);
+          check();
           const matches = cards.filter((c) =>
             c.emails && Object.values(c.emails).some((e) => e.address?.toLowerCase().trim() === email));
           if (matches.length > 0) await apiDeleteContacts(matches.map((m) => m.id));
+          check();
           set({ trustedSenderEmails: get().trustedSenderEmails.filter((e) => e !== email) });
           if (matches.length > 0) requestDeviceSync(CONTACTS_AUTHORITY);
         },
@@ -870,21 +948,29 @@ export const useContactsStore = create<ContactsState>()(
           persistCategory(category);
         },
 
-        reset: () => set({
-          addressBooks: [],
-          contacts: [],
-          selectedCategory: { type: 'all' },
-          loading: false,
-          error: null,
-          contactsFetchedAt: 0,
-          trustedSendersBookId: null,
-          trustedSenderEmails: [],
-          trustedSendersLoaded: false,
-          trustedSendersLoading: false,
-          recentRecipients: [],
-          recentRecipientsLoaded: false,
-          sentMailboxId: null,
-        }),
+        reset: () => {
+          storeGeneration += 1;
+          // The next account's first load must not join one still under way
+          // for this one.
+          addressBooksPromise = null;
+          contactsPromise = null;
+          trustedSendersPromise = null;
+          set({
+            addressBooks: [],
+            contacts: [],
+            selectedCategory: { type: 'all' },
+            loading: false,
+            error: null,
+            contactsFetchedAt: 0,
+            trustedSendersBookId: null,
+            trustedSenderEmails: [],
+            trustedSendersLoaded: false,
+            trustedSendersLoading: false,
+            recentRecipients: [],
+            recentRecipientsLoaded: false,
+            sentMailboxId: null,
+          });
+        },
       };
     },
     {
