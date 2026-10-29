@@ -3,7 +3,8 @@
  * for what the phone writes: contacts with calendar links, vCard imports and
  * re-imports, address books with cards, the company directory, webmail 1.13+
  * filter scripts (rule periods, vacation forwarding and audience, exact
- * address rules) and rules made from a message.
+ * address rules), scripts with if/elsif/else chains and rules made from a
+ * message.
  *
  * Opt-in like live-stalwart.test.ts: skipped unless `BULWARK_LIVE_JMAP` and
  * `BULWARK_LIVE_PASS` are set.
@@ -18,6 +19,8 @@
  * Verified against stalwartlabs/stalwart:v0.16.27 and v1.0.0 (2026-10-29).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { JMAPClient } from '../jmap-client';
 import {
@@ -153,8 +156,14 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       expect(vcf).toContain('TEL;TYPE=CELL:');
 
       // A fresh store: the card is not in the list, the server names it.
+      // Without the user's say-so the card is left alone.
       useContactsStore.getState().reset();
-      const result = await useContactsStore.getState().importContacts(parseVCard(vcf), bookId);
+      const incoming = parseVCard(vcf);
+      const refused = await useContactsStore.getState().importContacts(incoming, bookId);
+      expect(refused).toMatchObject({ imported: 0, updated: 0, failed: 1 });
+      expect((await getContact(card.id))?.notes).toBeUndefined();
+
+      const result = await useContactsStore.getState().importContacts(incoming, bookId, new Set([card.uid!]));
       expect(result).toMatchObject({ imported: 0, updated: 1, failed: 0 });
       const back = await getContact(card.id);
       expect(Object.values(back?.notes ?? {})[0]?.note).toBe('from the export');
@@ -281,6 +290,28 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       expect(back.rules[0].id).toBe(`quick-${RUN}`);
       // The rule went in without losing what the vacation card set.
       expect(back.vacationForward?.to).toBe('backup@example.org');
+    }, 60_000);
+
+    // A save cut elsif/else at their first ";" and the server refused the
+    // script ("Unterminated block").
+    it('saves a script with if/elsif/else chains back as one the server takes', async () => {
+      for (const file of ['hand-written-elsif.sieve', 'category-tabs.sieve']) {
+        const fixture = readFileSync(join(__dirname, '../../lib/sieve/__tests__/fixtures', file), 'utf-8')
+          .replace(/\r\n/g, '\n');
+        expect({ file, ...(await validateSieveScript(fixture)) }).toEqual({ file, isValid: true });
+
+        await updateSieveScript(created!, fixture, true);
+        await useFilterStore.getState().selectAccount(null);
+        expect(useFilterStore.getState().isOpaque).toBe(false);
+        await useFilterStore.getState().saveFilters();
+        expect(useFilterStore.getState().error).toBeNull();
+
+        const saved = (await getSieveScripts()).find((x) => x.id === created)!;
+        const content = await getSieveScriptContent(saved.blobId);
+        const chain = file === 'category-tabs.sieve' ? '# BEGIN category-tabs' : '# Sorted by hand';
+        expect(content).toContain(fixture.slice(fixture.indexOf(chain)).trim());
+        expect({ file, ...(await validateSieveScript(content)) }).toEqual({ file, isValid: true });
+      }
     }, 60_000);
   });
 });
