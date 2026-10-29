@@ -74,6 +74,32 @@ describe('parseVCard', () => {
     expect(note).toBe('line one\nline two, still going');
   });
 
+  it('decodes the escaped colons Google Contacts writes (#1438)', () => {
+    const vcf = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:Test Example',
+      'NOTE:Reference\\: fictional value\\nSecond line\\, with comma\\; and semicolon',
+      'END:VCARD',
+    ].join('\r\n');
+    const [card] = parseVCard(vcf);
+    expect(Object.values(card.notes ?? {})[0]?.note).toBe(
+      'Reference: fictional value\nSecond line, with comma; and semicolon',
+    );
+  });
+
+  it('keeps an escaped backslash literal when an escapable character follows', () => {
+    const vcf = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:Paths',
+      'NOTE:C:\\\\new\\\\:dir\\\\\\:x\\\\\\\\',
+      'END:VCARD',
+    ].join('\r\n');
+    const [card] = parseVCard(vcf);
+    expect(Object.values(card.notes ?? {})[0]?.note).toBe('C:\\new\\:dir\\:x\\\\');
+  });
+
   it('parses CATEGORIES into keywords', () => {
     const vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Tagged\r\nEMAIL:t@x.com\r\nCATEGORIES:Friends,VIP\r\nEND:VCARD';
     const [card] = parseVCard(vcf);
