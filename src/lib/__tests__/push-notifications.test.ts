@@ -1118,6 +1118,7 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     await AsyncStorage.clear();
     await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
     listMock.mockResolvedValue([recorded(80)]);
     installFetch({});
   });
@@ -1126,6 +1127,26 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     listMock.mockImplementation(async () => []);
     createMock.mockImplementation(async () => CREATED);
     updateMock.mockImplementation(async () => undefined);
+  });
+
+  it('keeps the working record when a forced re-register moves to another relay', async () => {
+    // Stalwart answers overQuota before it looks at the URL; freeing a place
+    // would only lead to the new relay being refused with the old record gone.
+    let attempts = 0;
+    createMock.mockImplementation(async () => {
+      attempts += 1;
+      throw attempts === 1
+        ? overQuota()
+        : new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']);
+    });
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.home.lan', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.message).toContain('too many push registrations on the mail server');
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
   });
 
   it('a forced re-register frees the old record\'s place and tries once more', async () => {

@@ -1388,8 +1388,11 @@ async function setupPushNotificationsInner(
       // the one being replaced, so at the cap a forced re-register could never
       // create its replacement. The user asked for a new record: free the old
       // one's place and try once more. Should that fail too, push is off and
-      // the error says why.
-      if (!params.forceRecreate || !replacedServerId || !isJMAPSetError(err) || err.type !== 'overQuota') throw err;
+      // the error says why. Not when this run moves to another relay: Stalwart
+      // counts the subscriptions before it looks at the URL, so a relay it
+      // refuses would only show up after the working record is gone.
+      const relayChanged = previousRelayBaseUrl !== relayBaseUrl;
+      if (!params.forceRecreate || !replacedServerId || relayChanged || !isJMAPSetError(err) || err.type !== 'overQuota') throw err;
       logPhase('jmap', 'subscription limit reached, replacing the old record first');
       await destroyPushSubscription(replacedServerId);
       await AsyncStorage.removeItem(subKey);
