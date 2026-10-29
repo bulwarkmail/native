@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   Image,
   Modal,
@@ -22,6 +23,7 @@ import {
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
   ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink, RotateCcw,
 } from '../components/icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
@@ -277,25 +279,36 @@ export default function FilesScreen() {
   const headerName = inTrash ? trashLabel : path.length === 0 ? rootLabel : path[path.length - 1].name;
   const sharingEnabled = supportsSharing();
 
+  // Only the latest read is shown: one started before an account switch or a
+  // write may finish after the next one.
+  const loadSeqRef = useRef(0);
   const loadFiles = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial') => {
+    async (mode: 'initial' | 'refresh' | 'quiet' = 'initial') => {
+      const seq = ++loadSeqRef.current;
       if (mode === 'refresh') setRefreshing(true);
-      else setLoading(true);
-      setError(null);
+      else if (mode === 'initial') setLoading(true);
+      if (mode !== 'quiet') setError(null);
       try {
         // One fetch across all accessible accounts: own files plus nodes other
         // principals shared with us (tagged isShared, ids namespaced).
         const nodes = await getAllFileNodesAcrossAccounts();
-        setAllNodes(nodes);
+        if (seq === loadSeqRef.current) setAllNodes(nodes);
       } catch (e) {
-        setError(e instanceof Error ? e.message : t('files.download_error', 'Failed to load files'));
+        // A quiet read keeps what is on screen.
+        if (mode !== 'quiet' && seq === loadSeqRef.current) {
+          setError(e instanceof Error ? e.message : t('files.download_error', 'Failed to load files'));
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [t],
   );
+  const loadFilesRef = useRef(loadFiles);
+  loadFilesRef.current = loadFiles;
 
   // Load on mount and reset the whole drive whenever the active account, or
   // the server behind it, changes: the node cache, folder stack and
@@ -324,6 +337,32 @@ export default function FilesScreen() {
     if (action !== 'load' && !activeAccountId) return;
     void loadFiles(action === 'reload' ? 'refresh' : 'initial');
   }, [activeAccountId, session, loadFiles]);
+
+  // Read the drive again when the tab comes back into view or the app to the
+  // foreground: another device may have restored, moved or emptied what the
+  // rows on screen show. The first focus is the mount, which reads already.
+  const focusedRef = useRef(false);
+  const seenFocusRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      if (seenFocusRef.current && driveRef.current?.account) void loadFilesRef.current('quiet');
+      seenFocusRef.current = true;
+      return () => {
+        focusedRef.current = false;
+      };
+    }, []),
+  );
+  useEffect(() => {
+    let last = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && last !== 'active' && focusedRef.current && driveRef.current?.account) {
+        void loadFilesRef.current('quiet');
+      }
+      last = next;
+    });
+    return () => subscription.remove();
+  }, []);
 
   // If we navigated into a folder that no longer exists (deleted, moved to
   // the trash on another device, or its share was revoked), cut the stack
@@ -752,17 +791,21 @@ export default function FilesScreen() {
     clearSelection();
     try {
       const fromTrash = targets.flatMap((r) => (r.trash ? [r.trash] : []));
-      // The server removes folder descendants (onDestroyRemoveChildren).
-      if (fromTrash.length > 0) await purgeFromTrash(allNodes, fromTrash);
+      // The server removes folder descendants (onDestroyRemoveChildren). In
+      // the trash only what is still there goes (see purgeFromTrash).
+      let count = targets.length;
+      if (fromTrash.length > 0) count = await purgeFromTrash(fromTrash);
       else await deleteFileNodes(targets.map((r) => r.id));
-      toast.success(t('files.deleted_forever', '{count, plural, one {Deleted permanently} other {# items deleted permanently}}', {
-        count: targets.length,
-      }));
+      if (count > 0) {
+        toast.success(t('files.deleted_forever', '{count, plural, one {Deleted permanently} other {# items deleted permanently}}', {
+          count,
+        }));
+      }
     } catch (e) {
       Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
     }
     await loadFiles('refresh');
-  }, [confirmDelete, allNodes, clearSelection, loadFiles, t]);
+  }, [confirmDelete, clearSelection, loadFiles, t]);
 
   const restoreRows = useCallback(async (rows: FileRow[]) => {
     const items = rows.flatMap((r) => (r.trash ? [r.trash] : []));
@@ -784,13 +827,13 @@ export default function FilesScreen() {
     setConfirmEmptyTrash(false);
     clearSelection();
     try {
-      await emptyTrash(allNodes);
+      await emptyTrash();
       toast.success(t('files.trash_emptied', 'Trash emptied'));
     } catch (e) {
       Alert.alert(t('files.empty_trash_error', "Couldn't empty the trash"), fileErrorMessage(e, t));
     }
     await loadFiles('refresh');
-  }, [allNodes, clearSelection, loadFiles, t]);
+  }, [clearSelection, loadFiles, t]);
 
   const sortLabel = t(`files.${sortKey}`, sortKey);
   const SortDirIcon = sortDir === 'desc' ? ArrowDown : ArrowUp;

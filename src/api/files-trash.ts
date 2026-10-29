@@ -5,7 +5,8 @@ import {
 import { JMAPSetError } from './jmap-result';
 import { getUniqueName } from '../lib/filenode-name';
 import {
-  TRASH_FOLDER_NAME, findTrashFolder, restoreTarget, trashBatchName, trashSubtreeIds, type TrashedItem,
+  TRASH_FOLDER_NAME, findTrashFolder, restoreTarget, trashBatchName, trashSubtreeIds, trashedItems,
+  type TrashedItem,
 } from '../lib/files-trash';
 
 /*
@@ -148,21 +149,35 @@ export async function restoreFromTrash(nodes: FileNode[], items: TrashedItem[]):
   return result;
 }
 
-/** Delete items of the trash for good, with what is inside a deleted folder. */
-export async function purgeFromTrash(nodes: FileNode[], items: TrashedItem[]): Promise<void> {
-  if (items.length === 0) return;
-  const ids = new Set(items.map((item) => item.node.id));
+/**
+ * Delete items of the trash for good, with what is inside a deleted folder.
+ * The drive is read again first and only what is still in the trash goes: a
+ * row on screen may have been restored or moved out on another device since,
+ * and the destroy takes a folder's whole content wherever it sits. Returns
+ * how many items went.
+ */
+export async function purgeFromTrash(items: TrashedItem[]): Promise<number> {
+  if (items.length === 0) return 0;
+  const nodes = await getAllFileNodes();
+  const trash = findTrashFolder(nodes);
+  const inTrash = trashSubtreeIds(nodes, trash?.id);
+  const ids = new Set(items.map((item) => item.node.id).filter((id) => id !== trash?.id && inTrash.has(id)));
+  if (ids.size === 0) return 0;
+  // The trash folders the items sit in now, which need not be the ones on screen.
+  const batchIds = trashedItems(nodes, trash).flatMap((i) => (i.batchId && ids.has(i.node.id) ? [i.batchId] : []));
   try {
     await deleteFileNodes([...ids]);
   } finally {
     // Also after a partial refusal: the server keeps a trash folder that still holds anything.
-    await removeEmptyBatches(nodes, items.flatMap((i) => (i.batchId ? [i.batchId] : [])), ids);
+    await removeEmptyBatches(nodes, batchIds, ids);
   }
+  return ids.size;
 }
 
 /** Delete everything in the trash for good. The next delete makes a new trash folder. */
-export async function emptyTrash(nodes: FileNode[]): Promise<void> {
-  // Not in the listing on screen: another client may have made one since.
-  const trash = findTrashFolder(nodes) ?? findTrashFolder(await getAllFileNodes());
+export async function emptyTrash(): Promise<void> {
+  // Read again rather than trust the listing on screen: another client may
+  // have made the trash since, or put another folder in its place.
+  const trash = findTrashFolder(await getAllFileNodes());
   if (trash) await deleteFileNodes([trash.id]);
 }

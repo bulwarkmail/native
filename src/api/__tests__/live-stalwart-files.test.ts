@@ -362,12 +362,12 @@ live('live Stalwart files trash', () => {
     list = await own();
     expect(list.some((n) => n.id === batchId)).toBe(true);
 
-    await purgeFromTrash(list, trashedItems(list).filter((i) => i.node.id === x.id));
+    await purgeFromTrash(trashedItems(list).filter((i) => i.node.id === x.id));
     list = await own();
     expect(list.some((n) => n.id === x.id)).toBe(false);
     expect(list.some((n) => n.id === batchId)).toBe(true);
 
-    await purgeFromTrash(list, trashedItems(list).filter((i) => i.node.id === y.id));
+    await purgeFromTrash(trashedItems(list).filter((i) => i.node.id === y.id));
     list = await own();
     expect(list.some((n) => [x.id, y.id, batchId].includes(n.id))).toBe(false);
   }, 90_000);
@@ -378,7 +378,7 @@ live('live Stalwart files trash', () => {
     const file = await upload('empty-me.txt', scratch);
     const list = await own();
     await moveToTrash(list, [list.find((n) => n.id === file.id)!]);
-    await emptyTrash(await own());
+    await emptyTrash();
     const after = await own();
     expect(findTrashFolder(after)).toBeUndefined();
     expect(after.some((n) => n.id === file.id)).toBe(false);

@@ -218,23 +218,48 @@ describe('purgeFromTrash and emptyTrash', () => {
     let nodes = listed();
     await moveToTrash(nodes, nodes.filter((n) => n.id === 'docs'), 1730112000007);
     nodes = listed();
-    await purgeFromTrash(nodes, trashedItems(nodes));
+    expect(await purgeFromTrash(trashedItems(nodes))).toBe(1);
     expect(store.map((n) => n.id).sort()).toEqual(['n1', 'top']);
     expect(byId('n1')!.name).toBe('.Trash');
   });
 
-  it('empties the trash, everything in it included', async () => {
+  it('leaves a row on screen alone that was restored elsewhere meanwhile', async () => {
+    let nodes = listed();
+    await moveToTrash(nodes, nodes.filter((n) => n.id === 'docs'), 1730112000007);
+    nodes = listed();
+    const rows = trashedItems(nodes);
+    // Another device puts Docs back before the Delete permanently here.
+    byId('docs')!.parentId = null;
+    expect(await purgeFromTrash(rows)).toBe(0);
+    expect(store.map((n) => n.id).sort()).toEqual(['a', 'b', 'docs', 'n1', 'n2', 'top']);
+    expect(calls.some((c) => (c.destroy as string[] | undefined)?.includes('docs'))).toBe(false);
+  });
+
+  it('deletes only the rows still in the trash, and their trash folder as it is now', async () => {
     let nodes = listed();
     await moveToTrash(nodes, nodes.filter((n) => n.parentId === 'docs'), 1730112000007);
     nodes = listed();
-    await emptyTrash(nodes);
+    const rows = trashedItems(nodes);
+    byId('b')!.parentId = 'docs';
+    expect(await purgeFromTrash(rows)).toBe(1);
+    expect(byId('a')).toBeUndefined();
+    expect(byId('b')).toMatchObject({ parentId: 'docs' });
+    expect(store.some((n) => n.name === '1730112000007~docs')).toBe(false);
+  });
+
+  it('empties the trash, everything in it included', async () => {
+    const nodes = listed();
+    await moveToTrash(nodes, nodes.filter((n) => n.parentId === 'docs'), 1730112000007);
+    await emptyTrash();
     expect(store.map((n) => n.id).sort()).toEqual(['docs', 'top']);
   });
 
-  it('empties a trash made after the listing on screen', async () => {
-    const stale = listed();
-    await moveToTrash(stale, stale.filter((n) => n.id === 'top'), 1730112000007);
-    await emptyTrash(stale);
-    expect(store.map((n) => n.id).sort()).toEqual(['a', 'b', 'docs']);
+  it('empties the trash as it is now, not a folder that was the trash on screen', async () => {
+    store.push({ id: 'T', parentId: null, name: '.Trash', blobId: null }, { id: 'old', parentId: 'T', name: 'old.txt', blobId: 'bo' });
+    // Renamed elsewhere (WebDAV), and a new trash made since.
+    byId('T')!.name = 'Kept';
+    store.push({ id: 'T2', parentId: null, name: '.Trash', blobId: null }, { id: 'new', parentId: 'T2', name: 'new.txt', blobId: 'bn' });
+    await emptyTrash();
+    expect(store.map((n) => n.id).sort()).toEqual(['T', 'a', 'b', 'docs', 'old', 'top']);
   });
 });
