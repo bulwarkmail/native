@@ -81,6 +81,31 @@ export function isStalwartSupported(): boolean {
   return jmapClient.hasAccountCapability(STALWART_CAPABILITY);
 }
 
+/**
+ * The server refused an x:* method to this sign-in. Stalwart 1.0 gives the
+ * account's own settings (password, two-factor, app passwords, API keys,
+ * encryption) only to first-party clients; a token from the client the app
+ * registers itself reaches mail, contacts, calendars and files, and every
+ * x:* call answers `forbidden`. Basic auth and 0.16 tokens are not limited.
+ */
+export class AccountSecurityForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AccountSecurityForbiddenError';
+  }
+}
+
+/**
+ * Signed in to Stalwart 1.0 through the client the app registered itself,
+ * whose tokens reach no x:* object: the session then lists no Stalwart
+ * extension either (checked on 1.0.0), which is not the same as a server
+ * without it. Stalwart's registered client ids are `swc1.` sealed ids.
+ */
+export function isLimitedStalwartSignIn(): boolean {
+  const clientId = jmapClient.oauthClientId;
+  return !!clientId && clientId.startsWith('swc1.') && !isStalwartSupported() && !!jmapClient.currentSession;
+}
+
 // Pull a single method response out by its call id and throw on a JMAP method
 // error (the `['error', {type, description}, id]` envelope).
 function resultFor<T = Record<string, any>>(responses: MethodResponse[], callId: string): T {
@@ -88,7 +113,9 @@ function resultFor<T = Record<string, any>>(responses: MethodResponse[], callId:
   if (!match) throw new Error(`Missing JMAP response for call ${callId}`);
   if (match[0] === 'error') {
     const err = match[1] as { type?: string; description?: string };
-    throw new Error(err.description || err.type || 'JMAP error');
+    const message = err.description || err.type || 'JMAP error';
+    if (err.type === 'forbidden') throw new AccountSecurityForbiddenError(message);
+    throw new Error(message);
   }
   return match[1] as T;
 }
@@ -142,12 +169,19 @@ export async function fetchAuthInfo(): Promise<AuthInfo> {
     ['x:ApiKey/query', { accountId }, 'kq'],
   ]);
 
-  const passwordResult = resultFor<{ list?: Array<{ otpAuth?: { otpUrl?: string | null } }> }>(responses, 'p');
+  const passwordResult = resultFor<{
+    list?: Array<{ otpAuth?: { otpUrl?: string | null }; otpUrl?: string | null }>;
+  }>(responses, 'p');
   const appPwQuery = resultFor<{ ids?: string[] }>(responses, 'aq');
   const apiKeyQuery = resultFor<{ ids?: string[] }>(responses, 'kq');
 
-  const otpAuth = passwordResult.list?.[0]?.otpAuth;
-  const otpEnabled = !!(otpAuth && typeof otpAuth === 'object' && otpAuth.otpUrl);
+  // x:AccountPassword nests the TOTP URL in `otpAuth` on 0.16 and 1.0. 1.0's
+  // PasswordCredential (the admin's view of the same secret) has it as a
+  // top-level `otpUrl` instead, so take either.
+  const entry = passwordResult.list?.[0];
+  const otpAuth = entry?.otpAuth;
+  const otpEnabled = !!(otpAuth && typeof otpAuth === 'object' && otpAuth.otpUrl)
+    || (typeof entry?.otpUrl === 'string' && !!entry.otpUrl);
 
   const followUps: [string, Record<string, unknown>, string][] = [];
   if (appPwQuery.ids?.length) {

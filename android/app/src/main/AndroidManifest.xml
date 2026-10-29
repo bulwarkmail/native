@@ -47,6 +47,13 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="bulwarkmail"/>
       </intent-filter>
+      <!-- Browser sign-in callback of the client the app registers at Stalwart 1.0 (org.bulwarkmail.mobile:/auth/callback). -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="org.bulwarkmail.mobile"/>
+      </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.VIEW"/>
         <action android:name="android.intent.action.SENDTO"/>

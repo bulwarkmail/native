@@ -126,6 +126,15 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // The server refused the app itself (Stalwart 1.0 with app registration
+  // turned off, or a client the admin restricted), not the password.
+  if (name === 'TotpLoginError' && (err as { code?: string }).code === 'client_rejected') {
+    return {
+      title: t('login.mobile.err_client_rejected_title', "{host} didn't accept the app", { host }),
+      detail: t('login.mobile.err_client_rejected_detail', 'The server refused Bulwark as a sign-in client. Ask your administrator to allow it, or sign in with an app password.'),
+    };
+  }
+
   if (name === 'TotpLoginError' && lower.includes('invalid')) {
     return {
       title: t('login.mobile.err_bad_title', "That didn't work"),

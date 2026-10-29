@@ -13,7 +13,12 @@
 import * as WebBrowser from 'expo-web-browser';
 import { secureFetch } from './client-cert';
 import { HANDOFF_REDIRECT_URI, HandoffError, HandoffCancelledError, type OAuthTokens } from './oauth';
-import { generateCodeChallenge, generateCodeVerifier, DEFAULT_CLIENT_ID } from './totp-login';
+import {
+  generateCodeChallenge,
+  generateCodeVerifier,
+  resolveLoginClient,
+  DEFAULT_CLIENT_ID,
+} from './totp-login';
 import { randomHex } from './random';
 
 export interface OAuthMetadata {
@@ -119,6 +124,45 @@ function addAccountPrompt(metadata: OAuthMetadata): string {
   return 'select_account';
 }
 
+const DATA_SCOPE_PREFIX = 'urn:ietf:params:oauth:scope:';
+
+/**
+ * Scopes to ask for (webmail lib/oauth/scopes.ts). A provider that
+ * advertises OAuth data scopes is Stalwart: 1.0 gives a client it doesn't
+ * treat as first-party only what these name, and refuses a scope it doesn't
+ * list (`email`, `profile`) with `invalid_scope`. For such a provider the
+ * scopes it doesn't list are dropped and every data scope it lists is added;
+ * any other provider gets the usual OIDC set.
+ */
+export function pkceScopes(metadata: OAuthMetadata): string {
+  const wanted = ['openid', 'email', 'profile', 'offline_access'];
+  const supported = metadata.scopes_supported;
+  if (!supported?.length) return wanted.join(' ');
+  const kept = wanted.filter((s) => supported.includes(s));
+  const data = supported.filter((s) => typeof s === 'string' && s.startsWith(DATA_SCOPE_PREFIX));
+  if (data.length) return [...new Set([...kept, ...data])].join(' ');
+  return kept.join(' ') || supported.join(' ');
+}
+
+/**
+ * The client the browser sign-in uses. When the server is its own
+ * authorization server (Stalwart), the same check as the password sign-in
+ * decides: 0.16 takes `bulwark-webmail` on `bulwarkmobile://`, 1.0 knows no
+ * such client and gets one the app registers. An external identity provider
+ * keeps the webmail's client id.
+ */
+async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<{ clientId: string; redirectUri: string }> {
+  if (sameHost(metadata.authorization_endpoint, serverUrl) && sameHost(metadata.token_endpoint, serverUrl)) {
+    try {
+      return await resolveLoginClient(serverUrl);
+    } catch {
+      // A refused registration or a redirect away: the browser shows what
+      // the server says about the default client.
+    }
+  }
+  return { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+}
+
 /**
  * Run the authorization-code + PKCE flow in the system browser. Throws
  * `HandoffCancelledError` when the user closes the browser. With `addAccount`
@@ -130,15 +174,14 @@ export async function loginWithPkce(
   metadata: OAuthMetadata,
   opts?: { clientId?: string; scopes?: string; redirectUri?: string; addAccount?: boolean },
 ): Promise<OAuthTokens> {
-  const clientId = opts?.clientId ?? DEFAULT_CLIENT_ID;
-  const redirectUri = opts?.redirectUri ?? HANDOFF_REDIRECT_URI;
+  const client = opts?.clientId
+    ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI }
+    : await pkceClient(serverUrl, metadata);
+  const { clientId, redirectUri } = client;
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
   const state = randomHex(16);
-  const scope = opts?.scopes
-    ?? (metadata.scopes_supported?.length
-      ? ['openid', 'email', 'profile', 'offline_access'].filter((s) => metadata.scopes_supported!.includes(s)).join(' ') || metadata.scopes_supported.join(' ')
-      : 'openid email profile offline_access');
+  const scope = opts?.scopes ?? pkceScopes(metadata);
 
   const params = new URLSearchParams({
     response_type: 'code',

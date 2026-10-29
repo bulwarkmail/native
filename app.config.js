@@ -35,8 +35,10 @@ module.exports = {
     slug: 'bulwark-mobile',
     // mailto: lets Android/iOS offer the app for mail links in other apps;
     // bulwarkmail: is the webmail's sign-in link (bulwarkmail://pair?...).
+    // org.bulwarkmail.mobile: is where Stalwart 1.0 sends the browser sign-in
+    // back: it registers public clients only with a scheme that has a dot.
     // Android's manifest is maintained by hand and lists the same schemes.
-    scheme: ['bulwarkmobile', 'bulwarkmail', 'mailto'],
+    scheme: ['bulwarkmobile', 'bulwarkmail', 'mailto', 'org.bulwarkmail.mobile'],
     version: VERSION,
     orientation: 'default',
     icon: './assets/icon.png',

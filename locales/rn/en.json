@@ -553,6 +553,8 @@
       "err_bad_title": "That didn't work",
       "err_cert_detail": "The server's security certificate was rejected. If this is your own server, check the certificate is valid and not expired.",
       "err_cert_title": "Couldn't verify {host}",
+      "err_client_rejected_detail": "The server refused Bulwark as a sign-in client. Ask your administrator to allow it, or sign in with an app password.",
+      "err_client_rejected_title": "{host} didn't accept the app",
       "err_code_expired_detail": "Sign-in codes are good for two minutes. Show a new one in the webmail and scan again.",
       "err_code_expired_or_used_detail": "Show a new one in the webmail and scan again.",
       "err_code_expired_or_used_title": "That code has expired or was already used",
@@ -1197,6 +1199,7 @@
         "remove_title": "Remove public key?",
         "title": "Public Keys"
       },
+      "restricted": "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.",
       "two_factor": {
         "active": "Active",
         "code": "Verification code",
