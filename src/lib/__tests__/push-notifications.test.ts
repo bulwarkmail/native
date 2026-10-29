@@ -1244,6 +1244,36 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    // The working record still delivers through the old relay, so that one
+    // stays the relay in use, and this device is registered with it again.
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+    const relayCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c) => String(c[0]).includes('/api/push/register'))
+      .map((c) => `${(c[1] as RequestInit | undefined)?.method ?? 'GET'} ${String(c[0])}`);
+    expect(relayCalls).toEqual([
+      'POST https://relay.home.lan/api/push/register',
+      `DELETE https://relay.home.lan/api/push/register/${OUR_DCID}`,
+      `POST ${RELAY}/api/push/register`,
+    ]);
+  });
+
+  it('keeps the old relay when the new one never verifies the replacement', async () => {
+    verifyMock.mockRejectedValueOnce(new Error('invalid verification code'));
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.other.example', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.phase).toBe('verify');
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some((c) => String(c[0]) === `https://relay.other.example/api/push/register/${OUR_DCID}`
+      && (c[1] as RequestInit | undefined)?.method === 'DELETE')).toBe(true);
+
+    // A move that works keeps the new relay.
+    expect((await setupPushNotifications({ relayBaseUrl: 'https://relay.other.example', forceRecreate: true })).verified).toBe(true);
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe('https://relay.other.example');
   });
 
   it('a forced re-register frees the old record\'s place and tries once more', async () => {

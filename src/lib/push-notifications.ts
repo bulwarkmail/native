@@ -1187,9 +1187,15 @@ export function setupPushNotifications(
   const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
   const existing = inFlightSetups.get(key);
   if (existing) return existing;
-  const run = setupPushNotificationsInner(params).finally(() => {
-    inFlightSetups.delete(key);
-  });
+  const rollback: SetupRollback = {};
+  const run = setupPushNotificationsInner(params, rollback)
+    .catch(async (err: unknown) => {
+      await rollback.relayMove?.().catch(() => undefined);
+      throw err;
+    })
+    .finally(() => {
+      inFlightSetups.delete(key);
+    });
   inFlightSetups.set(key, run);
   return run;
 }
@@ -1198,8 +1204,14 @@ function logPhase(phase: string, detail?: string): void {
   console.log(`[push] ${phase}${detail ? `: ${detail}` : ''}`);
 }
 
+// What a failed setup run has to undo, set by the run as it goes.
+interface SetupRollback {
+  relayMove?: () => Promise<void>;
+}
+
 async function setupPushNotificationsInner(
   params: PushSetupParams,
+  rollback: SetupRollback,
 ): Promise<PushSetupResult> {
   const transport = await getEffectivePushTransport();
   const native = getNative();
@@ -1249,8 +1261,8 @@ async function setupPushNotificationsInner(
   await migrateLegacyPushKeys();
 
   const deviceClientId = await getOrCreateDeviceClientId(accountId);
-  // The relay a working registration goes through, put back should the mail
-  // server refuse the new one's address.
+  // The relay a working registration goes through, put back should a move
+  // to another relay fail.
   const previousRelayBaseUrl = await getStoredRelayBaseUrl();
   await setStoredRelayBaseUrl(relayBaseUrl);
 
@@ -1284,18 +1296,32 @@ async function setupPushNotificationsInner(
       });
     }
   };
-  await registerWith(relayBaseUrl, upEndpoint);
-  // Undo this run's relay steps once the mail server refuses the new relay's
-  // address. The refused URL may be another name of the relay in use, so the
-  // record dropped from it can be the working one; and a UnifiedPush
-  // distributor now holds the refused relay's VAPID key, which may make it
-  // turn away the previous relay's pushes. Registering with the previous relay
-  // again puts both back; the record itself only for an account that had a
-  // working subscription through it.
+  // Undo this run's relay steps once a move to another relay fails. The new
+  // URL may be another name of the relay in use, so the record dropped from
+  // it can be the working one; and a UnifiedPush distributor now holds the
+  // new relay's VAPID key, which may make it turn away the previous relay's
+  // pushes. Registering with the previous relay again puts both back; the
+  // record itself only for an account that had a working subscription
+  // through it.
   const restoreRelay = async (relay: string, hadSubscription: boolean) => {
     const endpoint = upEndpoint ? await getUnifiedPushEndpointOrThrow(relay) : null;
     if (hadSubscription) await registerWith(relay, endpoint);
   };
+  // Until a subscription through the new relay is verified, whatever still
+  // works goes through the relay used before, whichever step failed (the
+  // server refused the address, the subscription limit, a verification that
+  // never came): keep that one stored, since token refreshes, the settings,
+  // the device list and the next launch all follow it, and drop the record
+  // this run left on the new relay.
+  let match: PushSubscription | undefined;
+  if (previousRelayBaseUrl !== relayBaseUrl) {
+    rollback.relayMove = async () => {
+      await setStoredRelayBaseUrl(previousRelayBaseUrl);
+      await deregisterFromRelay(relayBaseUrl, deviceClientId);
+      if (previousRelayBaseUrl) await restoreRelay(previousRelayBaseUrl, !!match).catch(() => undefined);
+    };
+  }
+  await registerWith(relayBaseUrl, upEndpoint);
 
   // Reuse the previous JMAP subscription when the server still has it, but
   // push the expiry forward so it doesn't time out before the next app start.
@@ -1339,7 +1365,7 @@ async function setupPushNotificationsInner(
   // Ours only if it was made for this device: Stalwart's ids are short and
   // sequential, so once the server is reinstalled at the same address the
   // recorded id can name another device's subscription.
-  const match = storedServerId
+  match = storedServerId
     ? existingSubs.find((s) => s.id === storedServerId && (!s.deviceClientId || s.deviceClientId === deviceClientId))
     : undefined;
   if (storedServerId) {
@@ -1447,15 +1473,6 @@ async function setupPushNotificationsInner(
     serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
-    // The server will never take this relay's address. Whatever registration
-    // still works goes through the relay used before: keep that one stored
-    // (token refreshes and the next launch register with it) and drop the
-    // record this run left on the refused relay.
-    if (isRefusedPushUrl(err) && previousRelayBaseUrl !== relayBaseUrl) {
-      await setStoredRelayBaseUrl(previousRelayBaseUrl);
-      await deregisterFromRelay(relayBaseUrl, deviceClientId);
-      if (previousRelayBaseUrl) await restoreRelay(previousRelayBaseUrl, !!match).catch(() => undefined);
-    }
     throw subscriptionError(err, relayBaseUrl);
   }
 
@@ -1470,6 +1487,7 @@ async function setupPushNotificationsInner(
       t('settings.notifications.push.err_verify_rejected', 'The mail server rejected the verification code: {detail}', { detail }),
     );
   }
+  rollback.relayMove = undefined;
 
   await AsyncStorage.setItem(subKey, serverAssignedId);
   if (serverExpires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), serverExpires);
@@ -1786,8 +1804,9 @@ export interface PushEnableOutcome {
 /**
  * The enable and re-register buttons of the notification settings: run the
  * setup and say what it left behind. When the mail server refuses a new
- * relay, the setup goes back to the one in use; the relay field must show
- * that one again rather than the refused address, since the device list asks
+ * relay, or the move to it fails otherwise, the setup goes back to the one in
+ * use; the relay field must show that one again rather than the new address,
+ * since the device list asks
  * the relay in the field about each device and a revoke goes to it. With no
  * relay in use the typed one stays, so the user can correct it.
  */
