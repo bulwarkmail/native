@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { FileNode } from '../../api/types';
 import {
   findTrashFolder, parseTrashBatchName, restoreTarget, takesTrashName, trashBatchName, trashOriginPath,
-  trashSubtreeIds, trashedItems, withoutTrash,
+  trashPlaces, trashSubtreeIds, trashedItems, withoutTrash,
 } from '../files-trash';
 
 // The webmail's trash convention (its lib/files-trash.ts), read the same way here.
@@ -106,5 +106,24 @@ describe('trashOriginPath', () => {
     expect(trashOriginPath({ fromParentId: 'tax' }, drive)).toBe('/Documents/Taxes');
     expect(trashOriginPath({ fromParentId: null }, drive)).toBe('/');
     expect(trashOriginPath({ fromParentId: 'old' }, drive)).toBeNull();
+  });
+
+  it('reads the listing once for all the rows of the trash, not once per row', () => {
+    // A listing that counts how often it is gone through.
+    let reads = 0;
+    const counted = new Proxy([...drive], {
+      get(target, key, receiver) {
+        if (key === Symbol.iterator || key === 'find' || key === 'filter' || key === 'map' || key === 'some') reads++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const places = trashPlaces(counted);
+    const before = reads;
+    const rows = trashedItems(drive);
+    const paths = rows.map((item) => trashOriginPath(item, places));
+    expect(paths).toEqual(['/Documents/Taxes', '/Documents/Taxes', '/', '/']);
+    expect(reads).toBe(before);
+    expect(rows.map((item) => restoreTarget(item, places))).toEqual(['tax', 'tax', null, null]);
+    expect(reads).toBe(before);
   });
 });

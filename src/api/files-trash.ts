@@ -7,7 +7,7 @@ import {
 import { JMAPSetError } from './jmap-result';
 import { getUniqueName } from '../lib/filenode-name';
 import {
-  TRASH_FOLDER_NAME, findTrashFolder, restoreTarget, trashBatchName, trashSubtreeIds, trashedItems,
+  TRASH_FOLDER_NAME, findTrashFolder, restoreTarget, trashBatchName, trashPlaces, trashSubtreeIds, trashedItems,
   type TrashedItem,
 } from '../lib/files-trash';
 
@@ -185,7 +185,8 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
   const nodes = await getAllFileNodes();
   assertDrive(drive);
   const trash = findTrashFolder(nodes);
-  const hidden = trashSubtreeIds(nodes, trash?.id);
+  const places = trashPlaces(nodes);
+  const { hidden } = places;
   // The items as the trash holds them now: their name and trash folder may
   // have changed on another device.
   const current = new Map(trashedItems(nodes, trash).map((item) => [item.node.id, item]));
@@ -212,7 +213,7 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
   const updates: Record<string, Partial<Pick<FileNode, 'name' | 'parentId'>>> = {};
   const targets = new Map<string, string | null>();
   for (const item of pending) {
-    const target = restoreTarget(item, nodes);
+    const target = restoreTarget(item, places);
     const used = namesIn(target);
     const name = getUniqueName(item.node.name, used);
     used.add(name);

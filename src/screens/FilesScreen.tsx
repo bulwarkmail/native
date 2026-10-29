@@ -56,7 +56,7 @@ import {
   type TrashMoveResult,
 } from '../api/files-trash';
 import {
-  TRASH_FOLDER_NAME, takesTrashName, trashOriginPath, trashedItems, withoutTrash, type TrashedItem,
+  TRASH_FOLDER_NAME, takesTrashName, trashOriginPath, trashPlaces, trashedItems, withoutTrash, type TrashedItem,
 } from '../lib/files-trash';
 import { toast } from '../stores/toast-store';
 import { jmapClient } from '../api/jmap-client';
@@ -281,6 +281,8 @@ export default function FilesScreen() {
   // but the trash's own, hidden files shown or not.
   const driveNodes = useMemo(() => withoutTrash(allNodes), [allNodes]);
   const trashItems = useMemo(() => trashedItems(allNodes), [allNodes]);
+  // Looked up by every row of the trash; worked out once per listing.
+  const trashPlacesNow = useMemo(() => trashPlaces(allNodes), [allNodes]);
   // Inside a folder another account shared with us, new folders and uploads
   // go to that account, and only where its rights allow them. Nothing is
   // added to the trash other than by deleting.
@@ -1076,7 +1078,7 @@ export default function FilesScreen() {
 
   // Where a deleted item came from, on its row in the trash.
   const trashOrigin = (item: TrashedItem): string | null => {
-    const from = trashOriginPath(item, allNodes);
+    const from = trashOriginPath(item, trashPlacesNow);
     if (from === null) return null;
     return t('files.deleted_from', 'Deleted from {folder}', {
       folder: from === '/' ? t('files.my_files', 'My files') : from,

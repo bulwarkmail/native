@@ -55,14 +55,22 @@ export function parseTrashBatchName(name: string): { deletedAt: number; parentId
 export function trashSubtreeIds(nodes: FileNode[], trashId: string | undefined): Set<string> {
   const ids = new Set<string>();
   if (!trashId) return ids;
+  // One pass over the drive, then down the tree: a pass per level was slow
+  // for a deep trash in a large drive.
+  const children = new Map<string, string[]>();
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const list = children.get(n.parentId);
+    if (list) list.push(n.id);
+    else children.set(n.parentId, [n.id]);
+  }
+  const queue = [trashId];
   ids.add(trashId);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const n of nodes) {
-      if (n.parentId && ids.has(n.parentId) && !ids.has(n.id)) {
-        ids.add(n.id);
-        grew = true;
+  for (let i = 0; i < queue.length; i++) {
+    for (const child of children.get(queue[i]) ?? []) {
+      if (!ids.has(child)) {
+        ids.add(child);
+        queue.push(child);
       }
     }
   }
@@ -103,25 +111,45 @@ export function trashedItems(nodes: FileNode[], trash: FileNode | undefined = fi
 }
 
 /**
+ * What restoreTarget and trashOriginPath look up in a listing, worked out
+ * once for it: every row of the trash asks, and each time anew it cost a
+ * walk of the whole drive per row.
+ */
+export interface TrashPlaces {
+  byId: Map<string, FileNode>;
+  /** The trash and everything in it. */
+  hidden: Set<string>;
+}
+
+export function trashPlaces(nodes: FileNode[]): TrashPlaces {
+  return { byId: new Map(nodes.map((n) => [n.id, n])), hidden: trashSubtreeIds(nodes, findTrashFolder(nodes)?.id) };
+}
+
+function placesOf(from: FileNode[] | TrashPlaces): TrashPlaces {
+  return Array.isArray(from) ? trashPlaces(from) : from;
+}
+
+/**
  * Where a restored item goes: the folder it came from while that is still a
  * folder of the user's own drive outside the trash, the root otherwise.
  */
-export function restoreTarget(item: Pick<TrashedItem, 'fromParentId'>, nodes: FileNode[]): string | null {
-  const from = item.fromParentId;
-  if (from === null) return null;
-  const hidden = trashSubtreeIds(nodes, findTrashFolder(nodes)?.id);
-  const folder = nodes.find((n) => n.id === from);
-  return folder && isFolder(folder) && !folder.isShared && !hidden.has(folder.id) ? from : null;
+export function restoreTarget(item: Pick<TrashedItem, 'fromParentId'>, from: FileNode[] | TrashPlaces): string | null {
+  const parentId = item.fromParentId;
+  if (parentId === null) return null;
+  const { byId, hidden } = placesOf(from);
+  const folder = byId.get(parentId);
+  return folder && isFolder(folder) && !folder.isShared && !hidden.has(folder.id) ? parentId : null;
 }
 
 /**
  * The path of the folder a deleted item came from ("/Documents/Taxes", "/"
  * for the root); null when that folder is gone.
  */
-export function trashOriginPath(item: Pick<TrashedItem, 'fromParentId'>, nodes: FileNode[]): string | null {
+export function trashOriginPath(item: Pick<TrashedItem, 'fromParentId'>, from: FileNode[] | TrashPlaces): string | null {
   if (item.fromParentId === null) return '/';
-  if (restoreTarget(item, nodes) === null) return null;
-  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const places = placesOf(from);
+  if (restoreTarget(item, places) === null) return null;
+  const { byId } = places;
   const names: string[] = [];
   const seen = new Set<string>();
   for (let cur = byId.get(item.fromParentId); cur && !seen.has(cur.id); cur = cur.parentId ? byId.get(cur.parentId) : undefined) {
