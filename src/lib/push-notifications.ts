@@ -1235,28 +1235,42 @@ async function setupPushNotificationsInner(
   // individually and tags it with the JMAP account id so the headless task
   // can route it.
   logPhase('relay', relayBaseUrl);
-  if (apnsToken) {
-    await registerWithRelayApns({
-      relayBaseUrl,
-      subscriptionId: deviceClientId,
-      deviceToken: apnsToken,
-      accountLabel: params.accountLabel,
-    });
-  } else if (upEndpoint) {
-    await registerWithRelayUnifiedPush({
-      relayBaseUrl,
-      subscriptionId: deviceClientId,
-      endpoint: upEndpoint,
-      accountLabel: params.accountLabel,
-    });
-  } else {
-    await registerWithRelay({
-      relayBaseUrl,
-      subscriptionId: deviceClientId,
-      fcmToken: fcmToken!,
-      accountLabel: params.accountLabel,
-    });
-  }
+  const registerWith = async (relay: string, endpoint: UnifiedPushEndpoint | null) => {
+    if (apnsToken) {
+      await registerWithRelayApns({
+        relayBaseUrl: relay,
+        subscriptionId: deviceClientId,
+        deviceToken: apnsToken,
+        accountLabel: params.accountLabel,
+      });
+    } else if (endpoint) {
+      await registerWithRelayUnifiedPush({
+        relayBaseUrl: relay,
+        subscriptionId: deviceClientId,
+        endpoint,
+        accountLabel: params.accountLabel,
+      });
+    } else {
+      await registerWithRelay({
+        relayBaseUrl: relay,
+        subscriptionId: deviceClientId,
+        fcmToken: fcmToken!,
+        accountLabel: params.accountLabel,
+      });
+    }
+  };
+  await registerWith(relayBaseUrl, upEndpoint);
+  // Undo this run's relay steps once the mail server refuses the new relay's
+  // address. The refused URL may be another name of the relay in use, so the
+  // record dropped from it can be the working one; and a UnifiedPush
+  // distributor now holds the refused relay's VAPID key, which may make it
+  // turn away the previous relay's pushes. Registering with the previous relay
+  // again puts both back; the record itself only for an account that had a
+  // working subscription through it.
+  const restoreRelay = async (relay: string, hadSubscription: boolean) => {
+    const endpoint = upEndpoint ? await getUnifiedPushEndpointOrThrow(relay) : null;
+    if (hadSubscription) await registerWith(relay, endpoint);
+  };
 
   // Reuse the previous JMAP subscription when the server still has it, but
   // push the expiry forward so it doesn't time out before the next app start.
@@ -1410,6 +1424,7 @@ async function setupPushNotificationsInner(
     if (isRefusedPushUrl(err) && previousRelayBaseUrl !== relayBaseUrl) {
       await setStoredRelayBaseUrl(previousRelayBaseUrl);
       await deregisterFromRelay(relayBaseUrl, deviceClientId);
+      if (previousRelayBaseUrl) await restoreRelay(previousRelayBaseUrl, !!match).catch(() => undefined);
     }
     throw subscriptionError(err, relayBaseUrl);
   }

@@ -399,8 +399,18 @@ describe('setupPushNotifications subscription shape', () => {
     expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
     expect(destroyMock).not.toHaveBeenCalledWith('existing');
-    const deleted = fetchMock.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE').map((c) => String(c[0]));
-    expect(deleted).toEqual([`https://relay.home.lan/api/push/register/${OUR_DCID}`]);
+    const relayCalls = fetchMock.mock.calls
+      .filter((c) => String(c[0]).includes('/api/push/register'))
+      .map((c) => `${(c[1] as RequestInit | undefined)?.method ?? 'GET'} ${String(c[0])}`);
+    // The refused URL may be another name of the relay in use: after dropping
+    // the record there, this device registers with the previous relay again.
+    expect(relayCalls).toEqual([
+      'POST https://relay.home.lan/api/push/register',
+      `DELETE https://relay.home.lan/api/push/register/${OUR_DCID}`,
+      `POST ${RELAY}/api/push/register`,
+    ]);
+    const restored = fetchMock.mock.calls.filter((c) => String(c[0]) === `${RELAY}/api/push/register`);
+    expect(JSON.parse(String((restored[0][1] as RequestInit).body))).toMatchObject({ subscriptionId: OUR_DCID, fcmToken: 'fcm-token-xyz' });
 
     // The same relay refused (a server that tightened its rules) stays as it is.
     fetchMock.mockClear();
@@ -1297,6 +1307,37 @@ describe('setupPushNotifications over UnifiedPush', () => {
       };
       createMock.mockImplementation(async () => CREATED);
     }
+  });
+
+  it("puts the distributor back on the previous relay's VAPID key when the server refuses the new relay", async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ id: 'existing', deviceClientId: OUR_DCID, expires: new Date(Date.now() + 5 * 86400000).toISOString(), types: ['EmailDelivery'] }]);
+    createMock.mockRejectedValueOnce(new JMAPSetError('invalidProperties', 'Host is not a public domain name', ['url']));
+    const registered: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/api/push/vapid-public-key')) {
+        const publicKey = url.startsWith(RELAY) ? 'VAPID-PUB' : 'VAPID-LAN';
+        return { ok: true, status: 200, json: async () => ({ publicKey }) } as Response;
+      }
+      if (url.includes('/api/push/register')) {
+        registered.push(`${init?.method ?? 'GET'} ${url}`);
+        return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    const err = await setupPushNotifications({ relayBaseUrl: 'https://relay.home.lan', forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(upNative().register.mock.calls.map((c) => c[0])).toEqual(['VAPID-LAN', 'VAPID-PUB']);
+    expect(registered).toEqual([
+      'POST https://relay.home.lan/api/push/register/unifiedpush',
+      `DELETE https://relay.home.lan/api/push/register/${OUR_DCID}`,
+      `POST ${RELAY}/api/push/register/unifiedpush`,
+    ]);
+    expect(await AsyncStorage.getItem('push:relayBaseUrl:v1')).toBe(RELAY);
   });
 
   it('sends keys: null for a legacy distributor without Web Push keys', async () => {
