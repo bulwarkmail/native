@@ -78,6 +78,14 @@ export function currentTagsLogin(): string {
 }
 
 const sharedInflight = new Map<string, Promise<void>>();
+// When each login's account last answered: an unchanged answer keeps the
+// entry (and its `loadedAt`), but still counts as fresh.
+const sharedReadAt = new Map<string, number>();
+
+function sameTags(a: KeywordDef[], b: KeywordDef[]): boolean {
+  return a.length === b.length
+    && a.every((t, i) => t.id === b[i].id && t.label === b[i].label && t.color === b[i].color);
+}
 
 function persist(keywords: KeywordDef[]): void {
   void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(keywords)).catch((err) => {
@@ -94,10 +102,11 @@ export const useKeywordsStore = create<KeywordsState>((set, get) => ({
     const login = currentTagsLogin();
     if (!login || !accountId || accountId === jmapClient.connectedAccountId) return Promise.resolve();
     const current = get().sharedTags[accountId];
-    if (!options?.force && current?.login === login && Date.now() - current.loadedAt < SHARED_TAGS_STALE_MS) {
+    const key = `${login}|${accountId}`;
+    const readAt = Math.max(current?.loadedAt ?? 0, sharedReadAt.get(key) ?? 0);
+    if (!options?.force && current?.login === login && Date.now() - readAt < SHARED_TAGS_STALE_MS) {
       return Promise.resolve();
     }
-    const key = `${login}|${accountId}`;
     const running = sharedInflight.get(key);
     if (running) return running;
     const run = (async () => {
@@ -106,10 +115,16 @@ export const useKeywordsStore = create<KeywordsState>((set, get) => ({
       if (currentTagsLogin() !== login) return;
       // A failed read (or none to make) keeps the last good tags.
       if (!entries) return;
+      const tags = parseSharedTags(entries[SHARED_TAGS_KEY]);
+      sharedReadAt.set(key, Date.now());
+      // Unchanged tags keep the entry, and with it every row's tag colours:
+      // a new object re-rendered each row of the list on every re-read.
+      const prev = get().sharedTags[accountId];
+      if (prev?.login === login && sameTags(prev.tags, tags)) return;
       set((s) => ({
         sharedTags: {
           ...s.sharedTags,
-          [accountId]: { login, tags: parseSharedTags(entries[SHARED_TAGS_KEY]), loadedAt: Date.now() },
+          [accountId]: { login, tags, loadedAt: Date.now() },
         },
       }));
     })().finally(() => sharedInflight.delete(key));
