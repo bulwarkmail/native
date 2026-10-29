@@ -10,9 +10,12 @@
  *   BULWARK_LIVE_USER=usera@example.org \
  *   BULWARK_LIVE_PASS=… npx vitest run src/api/__tests__/live-stalwart.test.ts
  *
- * Verified against stalwartlabs/stalwart:v0.16.19.
+ * The mail it reads is imported into a scratch folder first and removed
+ * afterwards, so any account will do.
+ *
+ * Verified against stalwartlabs/stalwart:v0.16.27 and v1.0.0.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import {
@@ -50,6 +53,35 @@ const live = SERVER && PASS ? describe : describe.skip;
 // connected to the live server.
 let client: JMAPClient;
 
+// A thread (root + reply), a plain-text and an HTML-only message, unique per
+// run so a leftover from an aborted run neither threads with nor shadows them.
+function fixtureMessages(run: string, user: string): string[] {
+  const date = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toUTCString();
+  const head = (subject: string, id: string, hoursAgo: number, extra = '') =>
+    `From: Partner <partner@example.net>\r\nTo: ${user}\r\nSubject: ${subject}\r\n` +
+    `Date: ${date(hoursAgo)}\r\nMessage-ID: <${id}-${run}@live.test>\r\nMIME-Version: 1.0\r\n${extra}`;
+  return [
+    head('Quarterly numbers', 'q1', 3) + 'Content-Type: text/plain; charset=utf-8\r\n\r\nThe numbers are in.\r\n',
+    head('Re: Quarterly numbers', 'q2', 2, `In-Reply-To: <q1-${run}@live.test>\r\nReferences: <q1-${run}@live.test>\r\n`) +
+      'Content-Type: text/plain; charset=utf-8\r\n\r\nThanks, looks good.\r\n',
+    head('August digest', 'd1', 1) + 'Content-Type: text/html; charset=utf-8\r\n\r\n<html><body><p>News of the month</p></body></html>\r\n',
+  ];
+}
+
+async function importFixtures(mailboxId: string): Promise<void> {
+  const run = Date.now().toString(36);
+  const emails: Record<string, unknown> = {};
+  const messages = fixtureMessages(run, USER);
+  for (const [i, raw] of messages.entries()) {
+    const { blobId } = await uploadBytes(new TextEncoder().encode(raw), 'message/rfc822');
+    const receivedAt = new Date(Date.now() - (3 - i) * 3_600_000).toISOString().replace(/\.\d+Z$/, 'Z');
+    emails[`m${i}`] = { blobId, mailboxIds: { [mailboxId]: true }, keywords: {}, receivedAt };
+  }
+  const response = await client.request([['Email/import', { accountId: client.accountId, emails }, '0']]);
+  const [, result] = response.methodResponses[0] as [string, { created?: Record<string, unknown>; notCreated?: unknown }, string];
+  expect(Object.keys(result.created ?? {}), JSON.stringify(result.notCreated)).toHaveLength(messages.length);
+}
+
 async function connectSingleton(): Promise<void> {
   const mod = await import('../jmap-client');
   client = new JMAPClient();
@@ -63,6 +95,8 @@ live('live Stalwart', () => {
   let drafts = '';
   let sent = '';
   let junk = '';
+  // The scratch folder the fixtures live in; the mail tests read it.
+  let fixtures = '';
 
   beforeAll(async () => {
     await connectSingleton();
@@ -73,6 +107,14 @@ live('live Stalwart', () => {
     sent = byRole('sent');
     junk = byRole('junk');
     expect(inbox).toBeTruthy();
+    fixtures = await createMailbox({ name: `live-fixtures-${Date.now()}` });
+    await importFixtures(fixtures);
+  }, 60_000);
+
+  afterAll(async () => {
+    if (!fixtures) return;
+    await emptyMailbox(fixtures).catch(() => undefined);
+    await deleteMailbox(fixtures).catch(() => undefined);
   }, 60_000);
 
   describe('session', () => {
@@ -125,7 +167,7 @@ live('live Stalwart', () => {
       expect(EMAIL_FULL_PROPERTIES).toContain('references');
       expect(EMAIL_FULL_PROPERTIES).toContain('headers');
 
-      const { ids } = await queryEmails(inbox, { limit: 20 });
+      const { ids } = await queryEmails(fixtures, { limit: 20 });
       const emails = await getFullEmails(ids);
       const reply = emails.find((e) => (e.subject ?? '').startsWith('Re: '));
       expect(reply, 'seeded reply message missing').toBeTruthy();
@@ -136,7 +178,7 @@ live('live Stalwart', () => {
     }, 60_000);
 
     it('exposes an HTML-only body as the same part in textBody and htmlBody', async () => {
-      const { ids } = await queryEmails(inbox, { limit: 20 });
+      const { ids } = await queryEmails(fixtures, { limit: 20 });
       const emails = await getFullEmails(ids);
       const news = emails.find((e) => (e.subject ?? '').includes('August digest'));
       expect(news, 'seeded HTML-only message missing').toBeTruthy();
@@ -154,7 +196,7 @@ live('live Stalwart', () => {
     }, 60_000);
 
     it('returns every message of a thread, oldest first', async () => {
-      const { ids } = await queryEmails(inbox, { limit: 20 });
+      const { ids } = await queryEmails(fixtures, { limit: 20 });
       const emails = await getFullEmails(ids);
       const reply = emails.find((e) => (e.subject ?? '').startsWith('Re: '))!;
       const { threads } = await getThreadsHeaders([reply.threadId]);
@@ -165,8 +207,8 @@ live('live Stalwart', () => {
     }, 60_000);
 
     it('loads a list page with its threads in one chained request (PF7)', async () => {
-      const page = await queryEmailPage(inbox, { limit: 20, threads: true });
-      const { ids, total } = await queryEmails(inbox, { limit: 20 });
+      const page = await queryEmailPage(fixtures, { limit: 20, threads: true });
+      const { ids, total } = await queryEmails(fixtures, { limit: 20 });
       expect(page.ids).toEqual(ids);
       expect(page.total).toBe(total);
       expect(page.list.map((e) => e.id)).toEqual(ids);
@@ -267,7 +309,7 @@ live('live Stalwart', () => {
     }, 90_000);
 
     it('flips $junk/$notjunk when filing spam and undoing it (#850)', async () => {
-      const { ids } = await queryEmails(inbox, { limit: 5 });
+      const { ids } = await queryEmails(fixtures, { limit: 5 });
       const target = ids[0];
       await markAsSpam([target], junk, undefined, { markRead: true });
       let [msg] = await getFullEmails([target]);
@@ -275,9 +317,9 @@ live('live Stalwart', () => {
       expect(msg.keywords.$junk).toBe(true);
       expect(msg.keywords.$seen).toBe(true);
 
-      await undoSpam([target], inbox);
+      await undoSpam([target], fixtures);
       [msg] = await getFullEmails([target]);
-      expect(msg.mailboxIds[inbox]).toBe(true);
+      expect(msg.mailboxIds[fixtures]).toBe(true);
       expect(msg.mailboxIds[junk]).toBeUndefined();
       expect(msg.keywords.$junk).toBeUndefined();
       expect(msg.keywords.$notjunk).toBe(true);
@@ -302,9 +344,18 @@ live('live Stalwart', () => {
       const now = new Date();
       const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
       const to = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString();
-      const ids = await queryEvents(cals.map((c) => c.originalId ?? c.id), from, to);
-      expect(Array.isArray(ids)).toBe(true);
-      expect(ids.length).toBeGreaterThan(0);
+      // An event of our own inside the window, so an empty calendar passes too.
+      const cal = cals[0];
+      const created = await createEvent(
+        { title: 'Live window event', start: now.toISOString().replace(/\.\d+Z$/, ''), duration: 'PT30M', timeZone: 'Europe/Berlin' },
+        cal.originalId ?? cal.id,
+      );
+      try {
+        const ids = await queryEvents(cals.map((c) => c.originalId ?? c.id), from, to);
+        expect(ids).toContain(created.id);
+      } finally {
+        await deleteEvents([created.id]);
+      }
     }, 60_000);
 
     it('creates a timed event with a time zone and destroys it', async () => {
