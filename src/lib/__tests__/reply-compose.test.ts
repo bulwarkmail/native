@@ -27,3 +27,25 @@ describe('replyComposeParams', () => {
     expect(replyComposeParams('reply', source, undefined, '   ')?.prefillBody).toBeUndefined();
   });
 });
+
+describe('replyComposeParams: quoted inline images', () => {
+  const quotedImage = { blobId: 'b-img', type: 'image/png', name: 'logo.png', disposition: 'inline', cid: '<logo@x>' };
+  const unusedInline = { blobId: 'b-sig', type: 'image/png', name: 'sig.png', disposition: 'inline', cid: 'sig@x' };
+  const file = { blobId: 'b-pdf', type: 'application/pdf', name: 'report.pdf', disposition: 'attachment' };
+  const withImage = {
+    ...source,
+    htmlBody: [{ partId: '2', type: 'text/html' }],
+    textBody: [{ partId: '1', type: 'text/plain' }],
+    bodyValues: { 1: { value: 'Hi' }, 2: { value: '<p>Hi <img src="cid:logo@x"></p>' } },
+    attachments: [quotedImage, unusedInline, file],
+  } as unknown as Email;
+
+  it('hands a reply the image its quote embeds and nothing else', () => {
+    expect(replyComposeParams('reply', withImage)?.replyTo?.attachments).toEqual([quotedImage]);
+    expect(replyComposeParams('reply', source)?.replyTo?.attachments).toBeUndefined();
+  });
+
+  it('hands a forward the quoted image and the files, not unused inline parts', () => {
+    expect(replyComposeParams('forward', withImage)?.replyTo?.attachments).toEqual([quotedImage, file]);
+  });
+});
