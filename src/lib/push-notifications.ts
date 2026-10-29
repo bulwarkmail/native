@@ -1003,12 +1003,36 @@ async function registerWithRelayApns(params: {
  * Tell the iOS notification extension how to reach an account: which stored
  * credentials to use and the JMAP API URL. Without it the extension shows the
  * relay's placeholder text.
+ *
+ * The extension finds the entry by the push's JMAP account id alone
+ * (NotificationService.swift), and those ids repeat across servers. While
+ * another login with push has the same id, neither gets an entry: the
+ * placeholder says there is new mail, where one login's credentials would
+ * fetch and show a message of the other's server. Run again for the login
+ * that is left once the other is gone (the next resync does).
  */
-export async function shareAccountWithExtension(accountId: string, jmapAccountId: string | null): Promise<void> {
+export async function shareAccountWithExtension(
+  accountId: string,
+  jmapAccountId: string | null,
+  apiUrl: string | undefined = jmapClient.currentSession?.apiUrl,
+): Promise<void> {
   if (Platform.OS !== 'ios' || !jmapAccountId) return;
-  const apiUrl = jmapClient.currentSession?.apiUrl;
+  const byLocal = await readPushJmapAccountIds();
+  if (Object.keys(byLocal).some((local) => local !== accountId && byLocal[local] === jmapAccountId)) {
+    await removeIosPushAccount(jmapAccountId).catch(() => undefined);
+    return;
+  }
   if (!apiUrl) return;
   await writeIosPushAccount(jmapAccountId, { credentialsKey: credentialsKey(accountId), apiUrl }).catch(() => undefined);
+}
+
+/**
+ * Whether a local account (username@host) is the login a relay label names.
+ * The label is the username the account registered with the relay.
+ */
+export function accountMatchesPushLabel(localAccountId: string, label: string, username?: string): boolean {
+  const wanted = label.toLowerCase();
+  return username?.toLowerCase() === wanted || localAccountId.toLowerCase().startsWith(`${wanted}@`);
 }
 
 async function registerWithRelayUnifiedPush(params: {
@@ -2054,9 +2078,18 @@ export async function iosTapPayload(data: unknown): Promise<NotificationTapPaylo
   const emailId = typeof d.emailId === 'string' && d.emailId ? d.emailId : ids[0];
   if (!emailId) return null;
   // The local account the subscription belongs to: the one whose push
-  // setup recorded this JMAP account id.
+  // setup recorded this JMAP account id. Ids repeat across servers: with
+  // more than one such login the relay's label (the username) picks one, and
+  // when it can't, the app just opens rather than show another login's
+  // message on a guess.
   const byLocal = await readPushJmapAccountIds();
-  const accountId = Object.keys(byLocal).find((local) => byLocal[local] === jmapAccountId);
+  let candidates = Object.keys(byLocal).filter((local) => byLocal[local] === jmapAccountId);
+  if (candidates.length > 1) {
+    const label = typeof d.accountLabel === 'string' ? d.accountLabel : '';
+    candidates = label ? candidates.filter((local) => accountMatchesPushLabel(local, label)) : [];
+    if (candidates.length !== 1) return null;
+  }
+  const accountId = candidates[0];
   return {
     emailId,
     threadId: typeof d.threadId === 'string' ? d.threadId : '',

@@ -70,17 +70,45 @@ describe('matchAccountsForPush', () => {
   it('matches on the recorded JMAP account id first', () => {
     const payload = parseRelayPushData({ accountId: 'jb', accountLabel: 'alice' });
     expect(matchAccountsForPush(payload, accounts, { 'bob@mail.example.com': 'jb' }, registry))
-      .toEqual(['bob@mail.example.com']);
+      .toEqual({ accountIds: ['bob@mail.example.com'], ambiguous: false });
   });
 
   it('falls back to the relay accountLabel (username)', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'alice' });
-    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(['alice@mail.example.com']);
+    expect(matchAccountsForPush(payload, accounts, {}, registry).accountIds).toEqual(['alice@mail.example.com']);
   });
 
   it('checks every account when nothing matches', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'carol' });
-    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(accounts);
+    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual({ accountIds: accounts, ambiguous: false });
+  });
+
+  describe('with two logins on different servers that share a JMAP account id', () => {
+    const logins = ['alice@one.example.com', 'bob@two.example.net'];
+    const ids = { 'alice@one.example.com': 'b', 'bob@two.example.net': 'b' };
+    const users = [
+      { id: 'alice@one.example.com', username: 'alice' },
+      { id: 'bob@two.example.net', username: 'bob' },
+    ];
+
+    it('picks the login the relay label names', () => {
+      const payload = parseRelayPushData({ accountId: 'b', accountLabel: 'bob', emailIds: '["m1"]' });
+      expect(matchAccountsForPush(payload, logins, ids, users)).toEqual({ accountIds: ['bob@two.example.net'], ambiguous: false });
+    });
+
+    it('calls a push naming messages ambiguous when the label does not tell them apart', () => {
+      const sameName = [
+        { id: 'alice@one.example.com', username: 'alice' },
+        { id: 'alice@two.example.net', username: 'alice' },
+      ];
+      const both = ['alice@one.example.com', 'alice@two.example.net'];
+      const map = { 'alice@one.example.com': 'b', 'alice@two.example.net': 'b' };
+      const payload = parseRelayPushData({ accountId: 'b', accountLabel: 'alice', emailIds: '["m1"]' });
+      expect(matchAccountsForPush(payload, both, map, sameName)).toEqual({ accountIds: both, ambiguous: true });
+      // Without ids each login only looks at its own newest mail.
+      const legacy = parseRelayPushData({ accountId: 'b', accountLabel: 'alice', changed: '{"b":{"Email":"s"}}' });
+      expect(matchAccountsForPush(legacy, both, map, sameName).ambiguous).toBe(false);
+    });
   });
 });
 
@@ -143,6 +171,27 @@ describe('pushBackgroundTask notifications', () => {
     expect(showNotification).toHaveBeenCalledWith(
       expect.objectContaining({ emailId: 'm1', accountId: LOCAL, jmapAccountId: 'team' }),
     );
+  });
+
+  it("shows a plain notification, not another server's message, when two logins fit the push", async () => {
+    // A second login named alice, on another server whose account id is the same.
+    const SECOND = 'alice@other.example.net';
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL, SECOND]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary', [SECOND]: 'jmap-primary' }));
+
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'jmap-primary',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(emailGetAccount).toBeNull();
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    const shown = (showNotification.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(shown).toMatchObject({ title: 'New email', emailId: '', threadId: '' });
+    expect(shown.accountId).toBeUndefined();
+    expect(shown.subject).toBeUndefined();
   });
 
   it('tags the user\'s own mail with the primary account', async () => {
