@@ -544,11 +544,33 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
     expect(server.calls).toContain('PushSubscription/set');
   });
 
-  it('leaves alone a subscription with time left, one that lapsed, one of unknown expiry and one push was turned off for', async () => {
+  it('asks the server when the recorded expiry has passed or is unknown, which may be stale', async () => {
     for (const setup of [
-      () => recorded(6.5 * DAY),
       () => recorded(-DAY),
       () => AsyncStorage.removeItem(`push:subscriptionExpires:v1:${LOCAL}`),
+    ]) {
+      // The server's copy runs out in two days: extended.
+      Object.assign(server, { expires: new Date(Date.now() + 2 * DAY).toISOString(), calls: [] });
+      await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
+      await setup();
+      await push();
+      expect(server.calls).toEqual(['Email/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
+      expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(server.expires);
+
+      // The server's copy has a week left: recorded, not written.
+      const serverExpires = new Date(Date.now() + 6.5 * DAY).toISOString();
+      Object.assign(server, { expires: serverExpires, calls: [] });
+      await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
+      await setup();
+      await push();
+      expect(server.calls).toEqual(['Email/get', 'PushSubscription/get']);
+      expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(serverExpires);
+    }
+  });
+
+  it('leaves alone a subscription with time left and one push was turned off for', async () => {
+    for (const setup of [
+      () => recorded(6.5 * DAY),
       async () => {
         await recorded(2 * DAY);
         await AsyncStorage.setItem(`push:optedOut:v1:${LOCAL}`, '1');

@@ -18,6 +18,7 @@ import {
   migrateLegacyPushKeys,
   notifiedIdsKey,
   pushSubscriptionDueForExtension,
+  pushSubscriptionNeedsExtension,
   readPushAccountIds,
   readPushJmapAccountIds,
   recordPushSubscriptionExpires,
@@ -481,6 +482,11 @@ async function extendPushSubscription(accountId: string, session: DetachedSessio
     '0',
   );
   if (!current || (current.deviceClientId && due.deviceClientId && current.deviceClientId !== due.deviceClientId)) return;
+  // The recorded expiry was stale: the server's copy has time left.
+  if (current.expires && !pushSubscriptionNeedsExtension(current.expires)) {
+    await recordPushSubscriptionExpires(accountId, current.expires);
+    return;
+  }
   const responses = await jmapPost(session, [
     ['PushSubscription/set', { update: { [due.id]: { expires: wantedPushSubscriptionExpires() } } }, '0'],
     // The update's answer doesn't say what the server settled on.

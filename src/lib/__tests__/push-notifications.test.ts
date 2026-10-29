@@ -1439,6 +1439,19 @@ describe('resyncPushNotifications', () => {
     expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(expires);
   });
 
+  it('records the expiry the server settled on after a refresh, not the one before it', async () => {
+    const before = inDays(1);
+    const after = inDays(7);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValueOnce([{ id: 'existing', deviceClientId: OUR_DCID, expires: before, types: ['EmailDelivery'] }]);
+    listMock.mockResolvedValueOnce([{ id: 'existing', deviceClientId: OUR_DCID, expires: after, types: ['EmailDelivery'] }]);
+
+    await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(after);
+  });
+
   it('leaves an account alone after the user turned push off for it', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
     await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));

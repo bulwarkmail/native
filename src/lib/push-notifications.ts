@@ -1331,6 +1331,11 @@ async function setupPushNotificationsInner(
           throw subscriptionError(err, relayBaseUrl);
         }
         if (refreshed) {
+          // The update's answer doesn't say what the server settled on, and
+          // the expiry recorded above is from before it. Left there, it would
+          // read as lapsed days before the server's copy is, which turns the
+          // background extension off for an account without new mail.
+          if (refreshed.updated) await recordServerExpiry(accountId, match.id, deviceClientId);
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
           await writePushJmapAccountId(accountId, jmapAccountId);
@@ -1470,9 +1475,9 @@ async function addPushAccountId(accountId: string): Promise<void> {
 // update with a SetError, also with the mail types alone (the subscription is
 // gone, or no narrower map is accepted), which the caller answers with a
 // replacement; otherwise the emailPush map the update installed (null when it
-// left the filter alone). Every other failure - the network, a timeout, rate
-// limiting, a refused method call - says nothing about the subscription and
-// is thrown.
+// left the filter alone) and whether it wrote anything. Every other failure -
+// the network, a timeout, rate limiting, a refused method call - says nothing
+// about the subscription and is thrown.
 async function refreshSubscriptionExpires(
   sub: {
     id: string;
@@ -1483,7 +1488,7 @@ async function refreshSubscriptionExpires(
   // null when the server has no emailPush support - leave the property alone.
   desiredEmailPush: Record<string, EmailPushConfig> | null,
   types: readonly string[],
-): Promise<false | { emailPush: Record<string, EmailPushConfig> | null }> {
+): Promise<false | { emailPush: Record<string, EmailPushConfig> | null; updated: boolean }> {
   const typesNeedUpdate = !sameTypes(sub.types, types);
   const emailPushNeedsUpdate =
     desiredEmailPush !== null && !sameEmailPush(sub.emailPush, desiredEmailPush);
@@ -1492,7 +1497,7 @@ async function refreshSubscriptionExpires(
     const thresholdMs = SUBSCRIPTION_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
     if (Number.isFinite(remainingMs) && remainingMs > thresholdMs) {
       // Plenty of life left - skip the update round-trip.
-      return { emailPush: null };
+      return { emailPush: null, updated: false };
     }
   }
   try {
@@ -1505,11 +1510,27 @@ async function refreshSubscriptionExpires(
         emailPushNeedsUpdate ? desiredEmailPush : null,
         (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
       );
-      return { emailPush };
+      return { emailPush, updated: true };
     });
   } catch (err) {
     if (isJMAPSetError(err)) return false;
     throw err;
+  }
+}
+
+/**
+ * Record the expiry the server holds for the account's subscription, read
+ * back after an update. Best effort: without an answer the recorded one
+ * stays, and the background extension asks the server itself.
+ */
+async function recordServerExpiry(accountId: string, subscriptionId: string, deviceClientId: string): Promise<void> {
+  try {
+    const current = (await listPushSubscriptions()).find(
+      (s) => s.id === subscriptionId && (!s.deviceClientId || s.deviceClientId === deviceClientId),
+    );
+    if (current?.expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), current.expires);
+  } catch {
+    // The next run reads it again.
   }
 }
 
@@ -1573,12 +1594,21 @@ export async function forgetPushSubscriptionExpiry(accountId: string): Promise<v
 // at most about once a day: once less than this much of it is left.
 const BACKGROUND_EXTEND_BELOW_MS = 6 * 24 * 60 * 60 * 1000;
 
+/** Whether a subscription expiring then is due for a background extension. */
+export function pushSubscriptionNeedsExtension(expires: string | null | undefined): boolean {
+  const at = Date.parse(expires ?? '');
+  return !Number.isFinite(at) || at - Date.now() < BACKGROUND_EXTEND_BELOW_MS;
+}
+
 /**
- * The account's subscription when a background push should extend it: it is
- * recorded with a known expiry that has not passed yet (a lapsed one is the
- * launch-time resync's to re-create) and is less than six days away. Carries
- * this device's client id, so the caller can make sure a server that reused
- * the id hands back our own subscription.
+ * The account's subscription when a background push may have to extend it:
+ * it is recorded, and its recorded expiry is less than six days away, has
+ * passed or is unknown. Only the first is certain: the record can be older
+ * than the server's copy (a refresh whose answer never came back), so the
+ * caller reads the server's expiry before it extends anything. A push arriving
+ * at all says some subscription still delivers. Carries this device's client
+ * id, so the caller can make sure a server that reused the id hands back our
+ * own subscription.
  */
 export async function pushSubscriptionDueForExtension(
   accountId: string,
@@ -1586,10 +1616,7 @@ export async function pushSubscriptionDueForExtension(
   if (await AsyncStorage.getItem(optedOutKey(accountId))) return null;
   const id = await AsyncStorage.getItem(subscriptionIdKey(accountId));
   if (!id) return null;
-  const expires = Date.parse((await AsyncStorage.getItem(subscriptionExpiresKey(accountId))) ?? '');
-  if (!Number.isFinite(expires)) return null;
-  const left = expires - Date.now();
-  if (left <= 0 || left >= BACKGROUND_EXTEND_BELOW_MS) return null;
+  if (!pushSubscriptionNeedsExtension(await AsyncStorage.getItem(subscriptionExpiresKey(accountId)))) return null;
   return { id, deviceClientId: await AsyncStorage.getItem(deviceClientIdKey(accountId)) };
 }
 
