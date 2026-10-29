@@ -197,6 +197,23 @@ describe('getInvitationTrustAssessment', () => {
       .toBe('trusted');
   });
 
+  // A mailing list or a forwarder that rewrote the message broke the first
+  // signature; the sender's own one passed, and so did DMARC.
+  it('trusts a DMARC pass of the receiving server over a broken signature listed first', () => {
+    expect(getInvitationTrustAssessment(request, forged(
+      'dkim=fail header.d=lists.example.net header.s=l1; dkim=pass header.d=example.com header.s=k1; spf=softfail smtp.mailfrom=lists.example.net; dmarc=pass header.from=example.com',
+    ), 'request')).toMatchObject({ level: 'trusted', reason: null });
+    // A pass only a lower header claims is the sender's word, not the server's.
+    const below = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [
+        { name: 'Authentication-Results', value: 'mx.example.org; dkim=fail header.d=example.com; dmarc=fail header.from=example.com' },
+        { name: 'Authentication-Results', value: 'relay.example; dmarc=pass header.from=example.com' },
+      ],
+    });
+    expect(getInvitationTrustAssessment(request, below, 'request').reason).toBe('authentication_failed');
+  });
+
   it('warns about a forged organizer whose mail passes only for the forger\'s domain', () => {
     const e = email({
       from: [{ email: 'mallory@forger.example' }],
