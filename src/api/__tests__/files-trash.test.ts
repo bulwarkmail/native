@@ -277,6 +277,18 @@ describe('restoreFromTrash', () => {
     expect(byId('a2')).toMatchObject({ parentId: 'docs', name: 'a.txt' });
   });
 
+  it('gives a folder named .Trash that goes back to the root another name', async () => {
+    store.push({ id: 'x', parentId: 'docs', name: '.Trash', blobId: null }, { id: 'xin', parentId: 'x', name: 'in.txt', blobId: 'bi' });
+    let nodes = listed();
+    await moveToTrash(nodes, nodes.filter((n) => n.id === 'x'), 1730112000007);
+    // Docs goes too: the folder comes back to the root.
+    await moveToTrash(listed(), listed().filter((n) => n.id === 'docs'), 1730112000008);
+    nodes = listed();
+    await restoreFromTrash(trashedItems(nodes).filter((i) => i.node.id === 'x'));
+    expect(byId('x')).toMatchObject({ parentId: null, name: '.Trash (1)' });
+    expect(store.filter((n) => n.parentId === null && n.name === '.Trash')).toHaveLength(1);
+  });
+
   it('leaves an item alone that left the trash since the rows were listed', async () => {
     let nodes = listed();
     await moveToTrash(nodes, nodes.filter((n) => n.id === 'a'), 1730112000007);

@@ -28,6 +28,17 @@ export function findTrashFolder(nodes: FileNode[]): FileNode | undefined {
     && isFolder(n));
 }
 
+/**
+ * Whether naming a node `name` in `parentId` (create, rename, move or upload)
+ * would put it in the trash's place, `.Trash` at the root of the user's own
+ * drive: a folder there becomes the trash, and a file there keeps the trash
+ * from being made. `nodeId` is the node renamed or moved, if any; one of a
+ * shared drive stays in that drive.
+ */
+export function takesTrashName(name: string, parentId: string | null, nodeId?: string): boolean {
+  return name === TRASH_FOLDER_NAME && parentId === null && !(nodeId?.includes(':'));
+}
+
 /** The name of the folder one delete's items go into. */
 export function trashBatchName(parentId: string | null, deletedAt: number = Date.now()): string {
   return `${deletedAt}~${parentId ?? ''}`;

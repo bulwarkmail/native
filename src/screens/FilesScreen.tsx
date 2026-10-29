@@ -55,7 +55,9 @@ import {
   TrashUnavailableError, emptyTrash, moveToTrash, purgeFromTrash, restoreFromTrash, undoMoveToTrash,
   type TrashMoveResult,
 } from '../api/files-trash';
-import { trashOriginPath, trashedItems, withoutTrash, type TrashedItem } from '../lib/files-trash';
+import {
+  TRASH_FOLDER_NAME, takesTrashName, trashOriginPath, trashedItems, withoutTrash, type TrashedItem,
+} from '../lib/files-trash';
 import { toast } from '../stores/toast-store';
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
@@ -176,6 +178,11 @@ function fileNameProblemText(problem: FileNameProblem, t: Translate): string {
     case 'reserved':
       return t('files.name_reserved', 'This name is reserved on the server.');
   }
+}
+
+// Why ".Trash" can't go to the root (see takesTrashName).
+function trashNameText(t: Translate): string {
+  return t('files.name_trash', '".Trash" is the name of the trash folder at the top of your files. Choose another name.');
 }
 
 // The files an upload could not store, the first three by name, and what the
@@ -604,12 +611,16 @@ export default function FilesScreen() {
 
   // Explains a name the server would refuse before anything is sent: the
   // naming rules it publishes (Stalwart 0.16.6+) with 1.0's stricter ones on
-  // top, or at least the "/" every server refuses. True when the name can go.
-  const checkName = useCallback((name: string): boolean => {
+  // top, or at least the "/" every server refuses. `.Trash` is refused at the
+  // root, where it would become the trash (lib/files-trash). True when the
+  // name can go.
+  const checkName = useCallback((name: string, parentId: string | null, nodeId?: string): boolean => {
     const problem = fileNameProblem(name, getFileNameRules());
     const message = problem
       ? fileNameProblemText(problem, t)
-      : name.includes('/') ? t('files.invalid_name_slash', 'Names cannot contain "/".') : null;
+      : name.includes('/') ? t('files.invalid_name_slash', 'Names cannot contain "/".')
+      : takesTrashName(name, parentId, nodeId) ? trashNameText(t)
+      : null;
     if (message) Alert.alert(t('files.invalid_name', 'Invalid name'), message);
     return !message;
   }, [t]);
@@ -617,7 +628,7 @@ export default function FilesScreen() {
   const submitNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) return;
-    if (!checkName(name)) return;
+    if (!checkName(name, currentParentId)) return;
     setNewFolderOpen(false);
     setNewFolderName('');
     try {
@@ -635,7 +646,7 @@ export default function FilesScreen() {
       setRenameTarget(null);
       return;
     }
-    if (!checkName(name)) return;
+    if (!checkName(name, renameTarget.parentId ?? null, renameTarget.id)) return;
     const target = renameTarget;
     setRenameTarget(null);
     setRenameValue('');
@@ -666,6 +677,10 @@ export default function FilesScreen() {
   const performMove = useCallback(async (row: FileRow, destinationId: string | null) => {
     setMoveTarget(null);
     if ((row.parentId ?? null) === destinationId) return;
+    if (takesTrashName(row.name, destinationId, row.id)) {
+      Alert.alert(t('files.move_error', 'Failed to move'), trashNameText(t));
+      return;
+    }
     setBusyId(row.id);
     try {
       await moveFileNode(row.id, destinationId);
@@ -730,6 +745,8 @@ export default function FilesScreen() {
     uploadAbortRef.current = controller;
     const parentId = currentParentId;
     const siblings = allNodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.name);
+    // A file picked as ".Trash" gets a number at the root, where the name is the trash's.
+    if (takesTrashName(TRASH_FOLDER_NAME, parentId)) siblings.push(TRASH_FOLDER_NAME);
     // A refused file no longer stops the rest; the ones that failed are
     // reported once the batch is done.
     const { failed } = await uploadFileBatch(accepted, parentId, siblings, {

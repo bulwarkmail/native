@@ -480,6 +480,7 @@
     "move_to": "Move to…",
     "name_control_chars": "Names cannot contain control characters.",
     "name_too_long": "This name is too long for the server.",
+    "name_trash": "\".Trash\" is the name of the trash folder at the top of your files. Choose another name.",
     "open_error": "Could not open the file",
     "open_with": "Open with…",
     "preview_too_large": "This file is too large to preview.",

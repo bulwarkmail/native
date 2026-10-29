@@ -202,6 +202,8 @@ export async function restoreFromTrash(items: TrashedItem[], drive?: TrashDrive)
       names = new Set(nodes
         .filter((n) => (n.parentId ?? null) === parentId && !n.isShared && !hidden.has(n.id))
         .map((n) => n.name));
+      // Something named ".Trash" doesn't go back to the root under that name.
+      if (parentId === null) names.add(TRASH_FOLDER_NAME);
       taken.set(parentId, names);
     }
     return names;

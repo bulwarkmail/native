@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { FileNode } from '../../api/types';
 import {
-  findTrashFolder, parseTrashBatchName, restoreTarget, trashBatchName, trashOriginPath, trashSubtreeIds,
-  trashedItems, withoutTrash,
+  findTrashFolder, parseTrashBatchName, restoreTarget, takesTrashName, trashBatchName, trashOriginPath,
+  trashSubtreeIds, trashedItems, withoutTrash,
 } from '../files-trash';
 
 // The webmail's trash convention (its lib/files-trash.ts), read the same way here.
@@ -73,6 +73,18 @@ describe('withoutTrash', () => {
   it('leaves the trash and everything in it out', () => {
     expect([...trashSubtreeIds(drive, 't')].sort()).toEqual(['b1', 'b2', 'deep', 'loose', 'old', 'r1', 'r2', 't']);
     expect(withoutTrash(drive).map((n) => n.id)).toEqual(['docs', 'tax', 'keep', 'acc-2:t']);
+  });
+});
+
+describe('takesTrashName', () => {
+  it('refuses .Trash at the root of the own drive only', () => {
+    expect(takesTrashName('.Trash', null)).toBe(true);
+    expect(takesTrashName('.Trash', null, 'docs')).toBe(true);
+    expect(takesTrashName('.Trash', 'docs')).toBe(false);
+    expect(takesTrashName('.trash', null)).toBe(false);
+    expect(takesTrashName('.Trash (1)', null)).toBe(false);
+    // A node of a shared drive stays there.
+    expect(takesTrashName('.Trash', null, 'acc-2:x')).toBe(false);
   });
 });
 
