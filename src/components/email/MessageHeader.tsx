@@ -9,7 +9,7 @@ import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useKeywordsStore } from '../../stores/keywords-store';
+import { useAccountKeywordDefs } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import {
   deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
@@ -30,6 +30,8 @@ interface Props {
   onAddressPress: (address: EmailAddress) => void;
   /** Compact variant for collapsed thread cards. */
   compact?: boolean;
+  /** JMAP account the message lives in (a group's shared tags name its tags). */
+  jmapAccountId?: string;
 }
 
 function addressLabel(a: EmailAddress): string {
@@ -94,13 +96,13 @@ function DetailRow({ label, value, styles, mono }: { label: string; value?: stri
  * "Show details" panel (recipients & routing, authentication, identifiers,
  * mailing list, properties) the webmail viewer shows.
  */
-export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact }: Props) {
+export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact, jmapAccountId }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
-  const keywordDefs = useKeywordsStore((s) => s.keywords);
+  const keywordDefs = useAccountKeywordDefs(jmapAccountId ?? email.jmapAccountId);
   const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const [showDetails, setShowDetails] = React.useState(false);
   React.useEffect(() => { setShowDetails(false); }, [email.id]);

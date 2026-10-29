@@ -84,6 +84,7 @@ export function MessageContent({
           onToggleStar={onToggleStar}
           onAddressPress={onAddressPress}
           compact={compact}
+          jmapAccountId={jmapAccountId}
         />
         {attachmentPosition === 'beside-sender' && chips}
       </View>

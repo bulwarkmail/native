@@ -48,6 +48,8 @@ import {
   createSieveScript, deleteSieveScript, getSieveScriptContent, getSieveScripts, validateSieveScript,
 } from '../sieve';
 import { inlineContactMediaForExport, writeContactWithNewPhoto } from '../../lib/contact-media';
+import { getBulwarkMetadata, resetBulwarkMetadataPauses, supportsBulwarkMetadata } from '../bulwark-metadata';
+import { parseSharedTags, SHARED_TAGS_KEY } from '../../lib/shared-tags';
 import { generateVCard, parseVCard } from '../../lib/vcard';
 import type { ContactCard } from '../types';
 
@@ -350,6 +352,43 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       const [first] = res.methodResponses[0][1].list as Record<string, unknown>[];
       expect(first).not.toHaveProperty('metadata');
       expect(first).toHaveProperty('myRights');
+    }, 60_000);
+
+    // Shared tags (#1310) live in a group's Inbox metadata. The test login
+    // is in no group, so this checks the shape on its own Inbox: written the
+    // way the webmail writes it, read the way the app reads it.
+    it('reads shared tags from Inbox metadata on 1.0 and asks nothing of 0.16', async () => {
+      resetBulwarkMetadataPauses();
+      const accountId = client.accountId;
+      if (!is10()) {
+        expect(supportsBulwarkMetadata(accountId)).toBe(false);
+        expect(await getBulwarkMetadata(accountId)).toBeNull();
+        return;
+      }
+      const using = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:metadata'];
+      const inbox = (await getMailboxes()).find((m) => m.role === 'inbox')!.id;
+      const before = await getBulwarkMetadata(accountId);
+      expect(before).not.toBeNull();
+      const setTags = (value: unknown, path = '') => client.request([
+        ['Mailbox/set', { accountId, update: { [inbox]: { [`metadata/org.bulwarkmail.tags${path}`]: value } } }, '0'],
+      ], using);
+      try {
+        const written = await setTags({ tags: { [`live-${RUN}`]: { label: 'Live check', color: 'teal-dark', note: 'kept' } } });
+        expect(written.methodResponses[0][1].updated).toHaveProperty(inbox);
+        // One tag patched on its own, as the webmail saves a change.
+        await setTags({ label: 'Second', color: 'blue' }, `/tags/second-${RUN}`);
+
+        resetBulwarkMetadataPauses();
+        const entries = await getBulwarkMetadata(accountId);
+        expect(parseSharedTags(entries?.[SHARED_TAGS_KEY])).toEqual([
+          { id: `live-${RUN}`, label: 'Live check', color: 'teal' },
+          { id: `second-${RUN}`, label: 'Second', color: 'blue' },
+        ]);
+      } finally {
+        await setTags(before?.[SHARED_TAGS_KEY] ?? null);
+      }
+      const after = await getBulwarkMetadata(accountId);
+      expect(after?.[SHARED_TAGS_KEY]).toEqual(before?.[SHARED_TAGS_KEY]);
     }, 60_000);
 
     it('creates, reads, validates and deletes a Sieve script', async () => {

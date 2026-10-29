@@ -4,7 +4,9 @@ import { Plus, Pencil, Trash2, Check, X, RotateCcw, ScanSearch } from '../icons'
 import { SettingsSection } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useKeywordsStore, type KeywordDef } from '../../stores/keywords-store';
+import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../../stores/keywords-store';
+import { useEmailStore } from '../../stores/email-store';
+import { supportsBulwarkMetadata } from '../../api/bulwark-metadata';
 import { DARK_COLORS } from '../../theme/tokens';
 import { useLocaleStore } from '../../stores/locale-store';
 import { discoverKeywords } from '../../api/keyword-discovery';
@@ -203,7 +205,69 @@ export function KeywordSettings() {
           </View>
         )}
       </View>
+      <SharedTagsSection />
     </SettingsSection>
+  );
+}
+
+/**
+ * The shared tags of each group mailbox in the sidebar (#1310): what every
+ * member sees on its mail, read from the group's Inbox metadata. Shown, not
+ * edited here; Bulwark on the web edits them.
+ */
+function SharedTagsSection() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const sharedTags = useKeywordsStore((s) => s.sharedTags);
+  const loadSharedTags = useKeywordsStore((s) => s.loadSharedTags);
+  const accounts = React.useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of mailboxes) {
+      if (m.isShared && m.accountId && !seen.has(m.accountId)) seen.set(m.accountId, m.accountName ?? m.accountId);
+    }
+    return [...seen].map(([id, name]) => ({ id, name }));
+  }, [mailboxes]);
+  useEffect(() => {
+    for (const account of accounts) void loadSharedTags(account.id);
+  }, [accounts, loadSharedTags]);
+
+  if (accounts.length === 0) return null;
+  const login = currentTagsLogin();
+  return (
+    <View style={styles.sharedBlock}>
+      <Text style={styles.sharedTitle}>{t('shared_tags.title', 'Shared tags')}</Text>
+      <Text style={styles.scanStatus}>
+        {t('shared_tags.description', 'Tags of your group mailboxes. Everyone in the group sees the same names and colors on its mail.')}
+      </Text>
+      {accounts.map((account) => {
+        const entry = sharedTags[account.id];
+        const tags = entry && entry.login === login ? entry.tags : null;
+        return (
+          <View key={account.id} style={styles.sharedAccount}>
+            <Text style={styles.sharedAccountName}>{account.name}</Text>
+            {tags === null ? (
+              <Text style={styles.scanStatus}>
+                {supportsBulwarkMetadata(account.id)
+                  ? t('shared_tags.loading', 'Loading…')
+                  : t('shared_tags.unsupported', "This mail server can't keep shared tags, so this mailbox shows your own tags.")}
+              </Text>
+            ) : tags.length === 0 ? (
+              <Text style={styles.scanStatus}>{t('shared_tags.empty', 'No shared tags yet.')}</Text>
+            ) : (
+              tags.map((kw) => (
+                <View key={kw.id} style={styles.kwRow}>
+                  <View style={[styles.kwDot, { backgroundColor: c.tags[kw.color]?.dot ?? c.textMuted }]} />
+                  <Text style={styles.kwLabel}>{kw.label}</Text>
+                  <Text style={styles.kwId}>$label:{kw.id}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -335,6 +399,10 @@ function makeStyles(c: ThemePalette) {
   outlineBtnText: { ...typography.caption, color: c.mutedForeground },
   scanStatus: { ...typography.caption, color: c.mutedForeground, paddingTop: spacing.xs },
   scanResults: { gap: spacing.sm },
+  sharedBlock: { gap: spacing.sm, marginTop: spacing.lg },
+  sharedTitle: { ...typography.bodySemibold, color: c.text },
+  sharedAccount: { gap: spacing.sm },
+  sharedAccountName: { ...typography.caption, color: c.textSecondary, fontWeight: '600' },
   form: {
     gap: spacing.md,
     padding: spacing.md,

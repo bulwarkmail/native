@@ -28,11 +28,12 @@ import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
   useEmailStore, effectiveFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
-  searchSkipsTrashAndJunk, isTrashOrJunkRole, SCOPE_EXCEPT_TRASH_JUNK,
+  searchSkipsTrashAndJunk, isTrashOrJunkRole, SCOPE_EXCEPT_TRASH_JUNK, spannedAccounts,
   type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
-import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
+import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/keywords-store';
+import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
@@ -476,6 +477,24 @@ export default function EmailListScreen({
   const currentRole = currentMailbox?.role ?? null;
   // The JMAP account behind the open folder (undefined = the user's own).
   const currentOwnerAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
+
+  // A group account's messages carry its shared tags (#1310): read them for
+  // every shared account in the sidebar, and name a row's tags by the
+  // account it lives in.
+  const sharedTags = useKeywordsStore((s) => s.sharedTags);
+  const loadSharedTags = useKeywordsStore((s) => s.loadSharedTags);
+  React.useEffect(() => {
+    for (const accountId of spannedAccounts(mailboxes)) if (accountId) void loadSharedTags(accountId);
+  }, [mailboxes, loadSharedTags]);
+  const keywordDefsByAccount = React.useMemo(() => {
+    const login = currentTagsLogin();
+    const out = new Map<string, KeywordDef[]>();
+    for (const [accountId, entry] of Object.entries(sharedTags)) {
+      if (entry.login === login) out.set(accountId, mergeSharedTags(entry.tags, keywordDefs));
+    }
+    return out;
+  }, [sharedTags, keywordDefs]);
+  const folderKeywordDefs = (currentOwnerAccountId && keywordDefsByAccount.get(currentOwnerAccountId)) || keywordDefs;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
 
@@ -788,7 +807,7 @@ export default function EmailListScreen({
           showPreview={showPreview}
           showRecipient={showRecipient}
           tagIds={rowTagIds.get(key) ?? ''}
-          keywordDefs={keywordDefs}
+          keywordDefs={(item.jmapAccountId && keywordDefsByAccount.get(item.jmapAccountId)) || folderKeywordDefs}
           disableAvatarImages={inJunk && !showAvatarsInJunk}
           answered={flags?.answered ?? false}
           forwarded={flags?.forwarded ?? false}
@@ -805,7 +824,7 @@ export default function EmailListScreen({
     [
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showRecipient, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );
@@ -1020,8 +1039,8 @@ export default function EmailListScreen({
   const keywordFilterLabel = React.useMemo(() => {
     if (!filters.keyword) return null;
     const id = filters.keyword.replace(/^\$label:/, '').replace(/^\$color:/, '');
-    return keywordDefs.find((k) => k.id === id)?.label ?? id;
-  }, [filters.keyword, keywordDefs]);
+    return folderKeywordDefs.find((k) => k.id === id)?.label ?? id;
+  }, [filters.keyword, folderKeywordDefs]);
   const setFolderScope = (scope: string) => {
     const updated: EmailFilters = { ...filters };
     // The scope a search gets by default stays unset, so it keeps following
@@ -1909,7 +1928,7 @@ export default function EmailListScreen({
       <TagSheet
         visible={tagSheetOpen}
         onClose={() => setTagSheetOpen(false)}
-        keywords={keywordDefs}
+        keywords={folderKeywordDefs}
         selectedEmails={selectedEmails}
         onToggle={handleBatchTagToggle}
       />

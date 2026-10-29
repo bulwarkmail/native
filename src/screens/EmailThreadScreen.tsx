@@ -33,7 +33,7 @@ import {
   type FlagsHint,
 } from '../lib/email-detail-cache';
 import { shareEmailEml } from '../lib/email-export';
-import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
+import { useKeywordsStore, useAccountKeywordDefs, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { useLayout } from '../lib/use-layout';
@@ -336,7 +336,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     [bottomActions],
   );
 
-  const keywordDefs = useKeywordsStore((s) => s.keywords);
+  // A group account's messages are tagged with its shared tags (#1310).
+  const keywordDefs = useAccountKeywordDefs(ownerAccountId);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
   React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
