@@ -459,7 +459,9 @@ export async function redeemPairingCode(webmailUrl: string, code: string): Promi
     const exchange = (async () => {
       let response: Response;
       try {
-        response = await secureFetch(`${base}/api/auth/pair/redeem`, {
+        // The code is a one-time credential: never let a redirect carry it
+        // to another host.
+        response = await fetchWithoutForeignRedirect(`${base}/api/auth/pair/redeem`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({ pairing_code: code }),

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as WebBrowser from 'expo-web-browser';
 
 import { setManualFetchForTests } from '../client-cert';
-import { HandoffError, TransientRefreshError, refreshOAuthAccessToken, resetRefreshRotations } from '../oauth';
+import { HandoffError, PairingError, TransientRefreshError, redeemPairingCode, refreshOAuthAccessToken, resetRefreshRotations } from '../oauth';
 import { discoverOAuthMetadata, loginWithPkce, revokeRefreshToken, type OAuthMetadata } from '../oauth-native';
 
 // The refresh token, the code + verifier and the metadata that decides where
@@ -147,5 +147,15 @@ describe('metadata discovery', () => {
     });
 
     expect((await discoverOAuthMetadata(SERVER))?.token_endpoint).toBe(`${IDP}/token`);
+  });
+});
+
+describe('pairing', () => {
+  it('does not take a sign-in code along a redirect to another host', async () => {
+    routes[`${SERVER}/api/auth/pair/redeem`] = () => redirect(`${EVIL}/api/auth/pair/redeem`);
+
+    await expect(redeemPairingCode(SERVER, 'ABCD-EFGH')).rejects.toBeInstanceOf(PairingError);
+
+    expect(evilHits()).toEqual([]);
   });
 });
