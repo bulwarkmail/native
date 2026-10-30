@@ -7,6 +7,7 @@ import {
   resolveLoginClient,
   TotpLoginError,
   REGISTERED_REDIRECT_URI,
+  MOBILE_CLIENT_ID,
 } from '../totp-login';
 import { describeLoginError } from '../login-errors';
 
@@ -31,19 +32,28 @@ function json(body: unknown, status = 200): Response {
 interface Call { url: string; method: string; body?: string }
 
 // A fake Stalwart of either line. `v1` knows no client but the ones it
-// registered (ids `swc1.<n>`), takes `{query, consent}` and answers with a
+// registered (ids `swc1.<n>`) and those in `admin` (registered by an admin
+// for the given redirect URI), takes `{query, consent}` and answers with a
 // location; 0.16 has no client check and answers `client_code`.
-function fakeServer(version: '0.16' | '1.0', answer?: (query: URLSearchParams) => unknown) {
+function fakeServer(
+  version: '0.16' | '1.0',
+  answer?: (query: URLSearchParams) => unknown,
+  admin: Record<string, string> = {},
+) {
   const calls: Call[] = [];
   let registered = 0;
+  const knows = (clientId: string, redirectUri: string | null) =>
+    clientId.startsWith('swc1.') || (clientId in admin && admin[clientId] === redirectUri);
   fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     const call = { url, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? init.body : undefined };
     calls.push(call);
     const path = url.slice(BASE.length).split('?')[0];
     if (path === '/api/auth/client') {
       if (version === '0.16') return json({ type: 'about:blank', status: 404 }, 404);
-      const clientId = new URL(url).searchParams.get('client_id') ?? '';
-      return json(clientId.startsWith('swc1.') ? { name: 'Bulwark Mobile' } : { error: 'invalid_client', description: 'Unknown client id', redirect: false });
+      const params = new URL(url).searchParams;
+      return json(knows(params.get('client_id') ?? '', params.get('redirect_uri'))
+        ? { name: 'Bulwark Mobile' }
+        : { error: 'invalid_client', description: 'Unknown client id', redirect: false });
     }
     if (path === '/auth/register') {
       if (version === '0.16') return json({ error: 'invalid_redirect_uri' }, 400);
@@ -56,7 +66,7 @@ function fakeServer(version: '0.16' | '1.0', answer?: (query: URLSearchParams) =
       if (typeof body.query !== 'string') return json({ title: 'Invalid parameters', detail: 'JSON deserialization failed' }, 400);
       const query = new URLSearchParams(body.query);
       if (answer) return json(answer(query));
-      if (!query.get('client_id')?.startsWith('swc1.')) return json({ type: 'invalid', error: 'invalid_client', description: 'Unknown client id' });
+      if (!knows(query.get('client_id') ?? '', query.get('redirect_uri'))) return json({ type: 'invalid', error: 'invalid_client', description: 'Unknown client id' });
       return json({
         type: 'authenticated',
         location: `${query.get('redirect_uri')}?code=code-10&state=${query.get('state')}&iss=x`,
@@ -109,6 +119,21 @@ describe('exchangePasswordForTokens', () => {
     expect(tokenCall(calls).get('code')).toBe('code-10');
     expect(tokenCall(calls).get('client_id')).toBe('swc1.1');
     expect(tokenCall(calls).get('redirect_uri')).toBe(REGISTERED_REDIRECT_URI);
+  });
+
+  it('signs in on Stalwart 1.0 through the bulwark-mobile client the webmail setup registered (webmail #1459)', async () => {
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.clientId).toBe(MOBILE_CLIENT_ID);
+    expect(calls.some((c) => c.url.endsWith('/auth/register'))).toBe(false);
+    const query = new URLSearchParams(JSON.parse(authCalls(calls)[0].body!).query);
+    expect(query.get('client_id')).toBe(MOBILE_CLIENT_ID);
+    expect(query.get('redirect_uri')).toBe(REGISTERED_REDIRECT_URI);
+    expect(tokenCall(calls).get('client_id')).toBe(MOBILE_CLIENT_ID);
+    expect(tokenCall(calls).get('redirect_uri')).toBe(REGISTERED_REDIRECT_URI);
+    // A public client: there is no secret to send.
+    expect(tokenCall(calls).has('client_secret')).toBe(false);
   });
 
   it('keeps the registered client per server for the next sign-in', async () => {
@@ -289,6 +314,27 @@ describe('resolveLoginClient', () => {
     const client = await resolveLoginClient(BASE, { registrationEndpoint: 'https://public.example.com/auth/register' });
 
     expect(client.clientId).toBe('swc1.pub');
-    expect(urls).toEqual([`${BASE}/api/auth/client`, 'https://public.example.com/auth/register']);
+    expect(urls).toEqual([`${BASE}/api/auth/client`, `${BASE}/api/auth/client`, 'https://public.example.com/auth/register']);
+  });
+
+  it('asks for bulwark-mobile first, then the webmail client, before registering one', async () => {
+    const calls = fakeServer('1.0');
+    await resolveLoginClient(BASE);
+
+    const checked = calls
+      .filter((c) => c.url.startsWith(`${BASE}/api/auth/client`))
+      .map((c) => new URL(c.url).searchParams);
+    expect(checked.map((p) => [p.get('client_id'), p.get('redirect_uri')])).toEqual([
+      [MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI],
+      ['bulwark-webmail', 'bulwarkmobile://auth/callback'],
+    ]);
+  });
+
+  it('remembers bulwark-mobile for the next sign-in', async () => {
+    fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
+    await resolveLoginClient(BASE);
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
+    expect((await resolveLoginClient(BASE)).clientId).toBe(MOBILE_CLIENT_ID);
+    expect(calls).toHaveLength(0);
   });
 });

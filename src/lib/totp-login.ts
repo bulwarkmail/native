@@ -36,13 +36,22 @@ export const DEFAULT_CLIENT_ID = 'bulwark-webmail';
 
 /**
  * Redirect URI of the client the app registers at a Stalwart 1.0 that knows
- * no client for it. 1.0 lets a public client register only a loopback URI or
- * a private-use scheme with a dot in it (RFC 8252), which `bulwarkmobile://`
- * is not; this one is the iOS bundle id. The password login never visits it
- * (/api/auth hands the location back); the browser sign-in comes back on it,
- * so the app registers the scheme too.
+ * no client for it, and of `bulwark-mobile`. 1.0 lets a public client
+ * register only a loopback URI or a private-use scheme with a dot in it
+ * (RFC 8252), which `bulwarkmobile://` is not; this one is the App Store and
+ * Play id. The password login never visits it (/api/auth hands the location
+ * back); the browser sign-in comes back on it, so the app registers the
+ * scheme too.
  */
 export const REGISTERED_REDIRECT_URI = 'org.bulwarkmail.mobile:/auth/callback';
+
+/**
+ * The app's own client, which the webmail's admin OAuth setup registers on
+ * Stalwart 1.0 (webmail #1459): public and first-party, so its tokens reach
+ * the account's Stalwart settings, which those of a client the app
+ * registers itself don't.
+ */
+export const MOBILE_CLIENT_ID = 'bulwark-mobile';
 
 /**
  * The data scopes Stalwart 1.0 grants a client that isn't first-party. A
@@ -189,27 +198,20 @@ async function registerPublicClient(base: string, url = `${base}/auth/register`)
 }
 
 /**
- * The OAuth client to sign in to `serverUrl` as. Stalwart 1.0's client check
- * (GET /api/auth/client, which 0.16 doesn't have) says whether it knows the
- * webmail's client id with the app's redirect URI; when it doesn't, the app
- * registers its own public client, at `registrationEndpoint` when the OAuth
- * metadata names one. Any other server, and 0.16, gets `bulwark-webmail` as
- * before. A server having a bad moment (5xx, 429) gets the default without
- * it being remembered; an unreachable one throws `NetworkError`, as the
- * default would only end in the server refusing a client it doesn't know.
+ * Stalwart 1.0's client check (GET /api/auth/client, which 0.16 doesn't
+ * have): does the server take `clientId` on `redirectUri`? `busy` for a
+ * server having a bad moment (5xx, 429), `none` where there is no such
+ * check; an unreachable server throws `NetworkError`.
  */
-export async function resolveLoginClient(
-  serverUrl: string,
-  opts?: { registrationEndpoint?: string },
-): Promise<LoginClient> {
-  const base = trimBase(serverUrl);
-  const cached = loginClients.get(base);
-  if (cached) return cached;
-  const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+async function checkClient(
+  base: string,
+  clientId: string,
+  redirectUri: string,
+): Promise<'known' | 'unknown' | 'none' | 'busy'> {
   const query = new URLSearchParams({
     response_type: 'code',
-    client_id: DEFAULT_CLIENT_ID,
-    redirect_uri: HANDOFF_REDIRECT_URI,
+    client_id: clientId,
+    redirect_uri: redirectUri,
     state: 'probe',
     code_challenge: 'A'.repeat(43),
     code_challenge_method: 'S256',
@@ -228,24 +230,50 @@ export async function resolveLoginClient(
   } finally {
     t.done();
   }
-  if (!response || typeof response.status !== 'number') return fallback;
+  if (!response || typeof response.status !== 'number') return 'busy';
   assertSameServer(url, response);
-  if (response.status >= 500 || response.status === 429 || response.status === 408) return fallback;
+  if (response.status >= 500 || response.status === 429 || response.status === 408) return 'busy';
   // 0.16 and servers that aren't Stalwart: no such endpoint.
-  if (!response.ok) {
-    rememberClient(base, fallback);
-    return fallback;
-  }
+  if (!response.ok) return 'none';
   const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
-  if (!body || typeof body !== 'object') {
-    rememberClient(base, fallback);
-    return fallback;
+  if (!body || typeof body !== 'object') return 'none';
+  // `invalid_client` (unknown id) or a redirect URI the client doesn't list.
+  return typeof body.error === 'string' && body.error ? 'unknown' : 'known';
+}
+
+/**
+ * The OAuth client to sign in to `serverUrl` as. On Stalwart 1.0 that is
+ * `bulwark-mobile` where the admin's OAuth setup registered it, else the
+ * webmail's client if it takes the app's redirect URI, else a public client
+ * the app registers itself, at `registrationEndpoint` when the OAuth
+ * metadata names one. Any other server, and 0.16, gets `bulwark-webmail` as
+ * before. A server having a bad moment (5xx, 429) gets the default without
+ * it being remembered; an unreachable one throws `NetworkError`, as the
+ * default would only end in the server refusing a client it doesn't know.
+ */
+export async function resolveLoginClient(
+  serverUrl: string,
+  opts?: { registrationEndpoint?: string },
+): Promise<LoginClient> {
+  const base = trimBase(serverUrl);
+  const cached = loginClients.get(base);
+  if (cached) return cached;
+  const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+
+  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI);
+  if (own === 'busy') return fallback;
+  if (own === 'known') {
+    const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI };
+    rememberClient(base, client);
+    return client;
   }
-  // `invalid_client` (unknown id) or a redirect URI the admin's client
-  // doesn't list: either way the webmail's client isn't the app's to use.
-  if (typeof body.error === 'string' && body.error) {
-    const endpoint = opts?.registrationEndpoint;
-    return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined);
+  if (own === 'unknown') {
+    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI);
+    if (shared === 'busy') return fallback;
+    if (shared === 'unknown') {
+      const endpoint = opts?.registrationEndpoint;
+      return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined);
+    }
   }
   rememberClient(base, fallback);
   return fallback;

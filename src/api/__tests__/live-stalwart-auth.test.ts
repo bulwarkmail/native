@@ -17,8 +17,10 @@
  * started.
  *
  * What differs between the lines (checked on 0.16.27 and 1.0.0):
- * - 1.0 knows only registered clients, so the app registers its own public
- *   client (RFC 7591); 0.16 takes `bulwark-webmail`.
+ * - 1.0 knows only registered clients, so the app signs in as
+ *   `bulwark-mobile` where the webmail's admin OAuth setup registered it
+ *   (webmail #1459), else registers its own public client (RFC 7591); 0.16
+ *   takes `bulwark-webmail`. The run checks whichever the server has.
  * - 1.0 rotates refresh tokens and revokes the whole grant when a superseded
  *   one comes back after its successor was used.
  * - 1.0 has a revocation endpoint; 0.16 has none.
@@ -49,6 +51,7 @@ import {
 } from '../account-security';
 import {
   DEFAULT_CLIENT_ID,
+  MOBILE_CLIENT_ID,
   REGISTERED_REDIRECT_URI,
   exchangePasswordForTokens,
   resolveLoginClient,
@@ -116,6 +119,14 @@ async function nextTotpCode(): Promise<string> {
 
 // Stalwart 1.0 is the line with RP-initiated logout; 0.16 has none.
 let isV1 = false;
+// A 1.0 where the webmail's admin OAuth setup registered `bulwark-mobile`.
+let hasMobileClient = false;
+
+/** The client a 1.0 sign-in must have used. */
+function expectV1Client(clientId: string | null | undefined): void {
+  if (hasMobileClient) expect(clientId).toBe(MOBILE_CLIENT_ID);
+  else expect(clientId).toMatch(/^swc1\./);
+}
 
 function useSingleton(client: JMAPClient): void {
   (jmapClient as unknown as JMAPClient).restoreSnapshot(client.snapshot());
@@ -140,6 +151,18 @@ live('live Stalwart sign-in', () => {
   beforeAll(async () => {
     const metadata = await discoverOAuthMetadata(SERVER);
     isV1 = !!(metadata as { end_session_endpoint?: string } | null)?.end_session_endpoint;
+    if (isV1) {
+      const query = new URLSearchParams({
+        response_type: 'code',
+        client_id: MOBILE_CLIENT_ID,
+        redirect_uri: REGISTERED_REDIRECT_URI,
+        state: 's',
+        code_challenge: 'A'.repeat(43),
+        code_challenge_method: 'S256',
+      });
+      const check = (await (await fetch(`${SERVER}/api/auth/client?${query}`)).json()) as { error?: string };
+      hasMobileClient = !check.error;
+    }
     // Optional so the suite also runs against older sign-in code, to show
     // what it does on a server.
     resetLoginClients?.();
@@ -166,7 +189,7 @@ live('live Stalwart sign-in', () => {
     it('signs in with a client the server accepts, on a redirect it accepts', async () => {
       const client = await resolveLoginClient(SERVER);
       if (isV1) {
-        expect(client.clientId).toMatch(/^swc1\./);
+        expectV1Client(client.clientId);
         expect(client.redirectUri).toBe(REGISTERED_REDIRECT_URI);
         // The browser sign-in's authorization request with this client and
         // the scopes the app asks for passes 1.0's client check.
@@ -182,7 +205,8 @@ live('live Stalwart sign-in', () => {
         });
         const check = (await (await fetch(`${SERVER}/api/auth/client?${query}`)).json()) as { error?: string; scopes?: string[] };
         expect(check.error).toBeUndefined();
-        expect(check.scopes?.length).toBeGreaterThan(1);
+        // A first-party client shows as one scope, "Full access to your account".
+        expect(check.scopes?.length).toBeGreaterThan(hasMobileClient ? 0 : 1);
       } else {
         expect(client).toEqual({ clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI });
       }
@@ -208,7 +232,7 @@ live('live Stalwart sign-in', () => {
       expect(tokens.accessToken).toBeTruthy();
       expect(tokens.refreshToken).toBeTruthy();
       expect(tokens.tokenEndpoint).toBe(`${SERVER}/auth/token`);
-      if (isV1) expect(tokens.clientId).toMatch(/^swc1\./);
+      if (isV1) expectV1Client(tokens.clientId);
       else expect(tokens.clientId).toBe(DEFAULT_CLIENT_ID);
     });
 
@@ -237,9 +261,9 @@ live('live Stalwart sign-in', () => {
       expect(await client.forceRefreshToken()).toBe(true);
     }, 30_000);
 
-    it('account security: 1.0 refuses it to the registered client, 0.16 allows it', async () => {
+    it('account security: 1.0 refuses it to the registered client, allows it to bulwark-mobile; 0.16 allows it', async () => {
       useSingleton(client);
-      if (isV1) {
+      if (isV1 && !hasMobileClient) {
         // The session hides the extension from this client, and the calls
         // themselves are refused.
         expect(isStalwartSupported()).toBe(false);
@@ -317,7 +341,7 @@ live('live Stalwart sign-in', () => {
     const authUrl = new URL(browser.mock.calls[0][0] as string);
     expect(`${authUrl.origin}${authUrl.pathname}`).toBe(metadata.authorization_endpoint);
     if (isV1) {
-      expect(authUrl.searchParams.get('client_id')).toMatch(/^swc1\./);
+      expectV1Client(authUrl.searchParams.get('client_id'));
       expect(metadata.registration_endpoint).toBeTruthy();
     } else {
       // 0.16 on :8016 names its public address, not the one typed here, and
@@ -355,7 +379,7 @@ live('live Stalwart sign-in', () => {
       tokenSource: string;
     };
     expect(stored.tokenSource).toBe('totp');
-    if (isV1) expect(stored.clientId).toMatch(/^swc1\./);
+    if (isV1) expectV1Client(stored.clientId);
     else expect(stored.clientId).toBe(DEFAULT_CLIENT_ID);
     const res = await client.request([['Mailbox/get', { accountId: client.accountId, properties: ['role'] }, '0']]);
     expect(res.methodResponses[0][0]).toBe('Mailbox/get');
