@@ -3,6 +3,9 @@
 # covers it (the tap then opens another tab): on the phone, scroll it to the
 # middle. The iPad's list is a column Maestro's scroll (in the middle of the
 # screen) doesn't reach; its rows fit on screen.
+# The avatar's "Select <sender>: <subject>" checkbox mentions the subject
+# too, and a tap on it selects the row instead of opening it (#91): match
+# the row itself by its id.
 appId: org.bulwarkmail.mobile
 ---
 - runFlow:
@@ -10,7 +13,9 @@ appId: org.bulwarkmail.mobile
       true: ${DEVICE != 'tablet'}
     commands:
       - scrollUntilVisible:
-          element: ".*${SUBJECT}.*"
+          element:
+            id: email-row
+            text: ".*${SUBJECT}.*"
           direction: DOWN
           centerElement: true
           visibilityPercentage: 100
@@ -20,13 +25,17 @@ appId: org.bulwarkmail.mobile
       true: ${DEVICE == 'tablet'}
     commands:
       - scrollUntilVisible:
-          element: ".*${SUBJECT}.*"
+          element:
+            id: email-row
+            text: ".*${SUBJECT}.*"
           direction: DOWN
           timeout: 30000
 # A tap while the list still moves lands on another row.
 - waitForAnimationToEnd:
     timeout: 5000
-- tapOn: ".*${SUBJECT}.*"
+- tapOn:
+    id: email-row
+    text: ".*${SUBJECT}.*"
 # The message toolbar's "more" button: "Reply All" shows on the phone, but
 # the iPad pane has a quick reply box instead for mail to one recipient.
 - extendedWaitUntil:

@@ -11,9 +11,13 @@ appId: org.bulwarkmail.mobile
       - setOrientation: PORTRAIT
       - waitForAnimationToEnd:
           timeout: 3000
+      # Maestro repeats a tap that seems to change nothing; here the repeat
+      # landed on the app once the alert was gone (a day in the calendar's
+      # month grid, which opened that day). Tap once.
       - tapOn:
           text: "Allow"
           optional: true
+          retryTapIfNoChange: false
       - runFlow:
           when:
             true: ${ORIENTATION == 'landscape'}

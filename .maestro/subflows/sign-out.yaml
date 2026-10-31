@@ -25,6 +25,14 @@ appId: org.bulwarkmail.mobile
           element: "Sign out"
           direction: DOWN
           timeout: 30000
+      # The scroll can stop with the button half under the tab bar, where
+      # a tap reaches the tab bar instead: scroll on to the end of the list.
+      - swipe:
+          start: 50%,70%
+          end: 50%,30%
+          duration: 400
+      - waitForAnimationToEnd:
+          timeout: 3000
 - tapOn: "Sign out"
 - extendedWaitUntil:
     visible: "The account is removed from this device.*"

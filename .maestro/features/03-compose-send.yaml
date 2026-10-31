@@ -32,7 +32,9 @@ tags:
     visible: "Photos & Videos"
     timeout: 10000
 - assertVisible: "Camera"
-- assertVisible: "Files"
+# A server with Files offers "Upload from this device" and "Attach from
+# Files" instead of a plain "Files".
+- assertVisible: "Upload from this device|Files"
 - takeScreenshot: compose-02-attach-sheet
 - evalScript: ${output.pickPhoto = ORIENTATION != 'landscape'}
 # The system photo picker runs in another process: XCTest sees none of its

@@ -11,6 +11,11 @@ tags:
     visible: "Search settings"
     timeout: 20000
 - takeScreenshot: settings-00-list
+# The search also lists the settings inside each page under it, so a common
+# word ("Folders", "Calendar") pushes the page's row below the keyboard.
+# Each Q matches its page near the top. A PROOF the search lists under the
+# row would pass on the iPad without the page, so those differ. The Themes
+# cards are one element each, named by the theme: check the page's text.
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: account, ROW: ".*@example.org, .*", PROOF: "Logged-in accounts|Display Name"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: language, ROW: "Language, Region & Time, .*", Q: "Language", PROOF: "Date Format"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: notifications, ROW: "Notifications, .*", Q: "Notifications", PROOF: "Email Notifications"}}
@@ -22,16 +27,16 @@ tags:
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: vacation, ROW: "Out of Office, .*", Q: "Office", PROOF: "Reply automatically"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: filters, ROW: "Filters, .*", Q: "Filters", PROOF: "Email Filters"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: templates, ROW: "Templates, .*", Q: "Templates", PROOF: "Email Templates"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: folders, ROW: "Folders, .*", Q: "Folders", PROOF: ".*Inbox.*"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: folders, ROW: "Folders, .*", Q: "New folder", PROOF: ".*Inbox.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: tags, ROW: "Tags, .*", Q: "Tags", PROOF: "Email Tags"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: downloads, ROW: "Downloads, .*", Q: "Downloads", PROOF: "Email .*eml.* filename"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: security, ROW: "Security, .*", Q: "Security", PROOF: "Account Security|Detecting server capabilities.*"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: content, ROW: "Content & Senders, .*", Q: "Content", PROOF: "External Content"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", Q: "Calendar", PROOF: "Default view"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: contacts, ROW: "Contacts, .*", Q: "Contacts", PROOF: "Group by first letter"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: content, ROW: "Content & Senders, .*", Q: "Content &", PROOF: "External Content"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", Q: "Week start", PROOF: "Default view"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: contacts, ROW: "Contacts, .*", Q: "Group by", PROOF: "Sort by last name"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: files, ROW: "Files, .*", Q: "Files", PROOF: "Default View"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: sidebar-apps, ROW: "Sidebar Apps, .*", Q: "Sidebar", PROOF: "Keep Apps Loaded"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: themes, ROW: "Themes, .*", Q: "Themes", PROOF: "The default light and dark palettes."}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: themes, ROW: "Themes, .*", Q: "Themes", PROOF: "Pick a colou?r theme.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: storage, ROW: "Storage & backup, .*", Q: "Storage", PROOF: "Offline mail.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: about, ROW: "About, .*", Q: "About", PROOF: "This device"}}
 - tapOn:

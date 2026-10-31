@@ -63,7 +63,10 @@ tags:
     direction: DOWN
     centerElement: true
     timeout: 20000
-- longPressOn: ".*Grüße aus München.*"
+# The row, not its avatar checkbox (whose label has the subject too).
+- longPressOn:
+    id: email-row
+    text: ".*Grüße aus München.*"
 - extendedWaitUntil:
     visible: "Clear selection"
     timeout: 10000
@@ -76,7 +79,9 @@ tags:
       visible: "Clear selection"
     commands:
       - tapOn: "Clear selection"
-- longPressOn: ".*Grüße aus München.*"
+- longPressOn:
+    id: email-row
+    text: ".*Grüße aus München.*"
 - tapOn: "Unstar|Star"
 - runFlow:
     when:

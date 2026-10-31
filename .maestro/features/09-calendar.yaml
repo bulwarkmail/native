@@ -34,7 +34,12 @@ tags:
     timeout: 5000
 - takeScreenshot: calendar-04-week
 
-# Create
+# Create. The button starts the event on the selected day: make that today
+# (a stray tap, such as one through the notification prompt, can select
+# another day), so the schedule below finds it after Go to today.
+- tapOn: "Go to today"
+- waitForAnimationToEnd:
+    timeout: 3000
 - tapOn: "New event"
 - extendedWaitUntil:
     visible: "Save"
@@ -46,6 +51,19 @@ tags:
 - pressKey: Enter
 - waitForAnimationToEnd:
     timeout: 3000
+# A new event starts on the calendar's default reminders; Customize turns
+# them into the event's own list, which has Add reminder.
+- scrollUntilVisible:
+    element: "Customize|Add reminder"
+    direction: DOWN
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Customize"
+    commands:
+      - tapOn: "Customize"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - scrollUntilVisible:
     element: "Add reminder"
     direction: DOWN
