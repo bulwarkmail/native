@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -82,6 +83,8 @@ interface EventDetailSheetProps {
   // Copy the meeting link; only offered when the event has one.
   onCopyLink?: (event: CalendarEvent, link: string) => void;
   onRsvp?: (event: CalendarEvent, participantId: string, status: RsvpStatus) => void | Promise<void>;
+  /** Append a quick note to the description (webmail's "Add note"); offered where the event can be edited. */
+  onSaveNote?: (event: CalendarEvent, note: string) => Promise<void>;
 }
 
 function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, locale: Locale): string {
@@ -134,10 +137,20 @@ export function EventDetailSheet({
   onExport,
   onCopyLink,
   onRsvp,
+  onSaveNote,
 }: EventDetailSheetProps) {
   const c = useColors();
   const { locale, t } = useCalendarLocale();
   const [rsvpBusy, setRsvpBusy] = React.useState(false);
+  const [noteOpen, setNoteOpen] = React.useState(false);
+  const [noteText, setNoteText] = React.useState('');
+  const [noteBusy, setNoteBusy] = React.useState(false);
+  // A note typed for one event is not left for the next.
+  const eventId = event?.id;
+  React.useEffect(() => {
+    setNoteOpen(false);
+    setNoteText('');
+  }, [eventId]);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   // Bare addresses (the organizer above all — Stalwart drops its display
   // name) render with the contact card's name instead of the raw email.
@@ -227,6 +240,26 @@ export function EventDetailSheet({
       void openExternalUrl(action.uri, { confirm: true });
     } else {
       void openExternalUrl(mapsUrl(action.query, Platform.OS));
+    }
+  };
+
+  const copyTitle = () => {
+    if (!event) return;
+    void Clipboard.setStringAsync(event.title || '').then(() => {
+      toast.success(t('calendar.notifications.title_copied', 'Title copied'));
+    }).catch(() => {});
+  };
+
+  const saveNote = async () => {
+    const note = noteText.trim();
+    if (!event || !onSaveNote || !note || noteBusy) return;
+    setNoteBusy(true);
+    try {
+      await onSaveNote(event, note);
+      setNoteText('');
+      setNoteOpen(false);
+    } finally {
+      setNoteBusy(false);
     }
   };
 
@@ -333,6 +366,38 @@ export function EventDetailSheet({
                 linkify
               />
             ) : null}
+            {onSaveNote && canEdit && (noteOpen ? (
+              <View style={styles.noteBlock}>
+                <TextInput
+                  value={noteText}
+                  onChangeText={setNoteText}
+                  placeholder={t('calendar.detail.add_note', 'Add note')}
+                  placeholderTextColor={c.textMuted}
+                  accessibilityLabel={t('calendar.detail.add_note', 'Add note')}
+                  style={styles.noteInput}
+                  multiline
+                  autoFocus
+                />
+                <View style={styles.noteButtons}>
+                  <Pressable onPress={() => { setNoteText(''); setNoteOpen(false); }} style={styles.noteButton} accessibilityRole="button">
+                    <Text style={styles.noteCancel}>{t('calendar.form.cancel', 'Cancel')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { void saveNote(); }}
+                    disabled={!noteText.trim() || noteBusy}
+                    style={[styles.noteButton, (!noteText.trim() || noteBusy) && { opacity: 0.5 }]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.noteSave}>{t('calendar.detail.save_note', 'Save note')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable onPress={() => setNoteOpen(true)} style={styles.noteToggle} accessibilityRole="button">
+                <AlignLeft size={16} color={c.textMuted} />
+                <Text style={styles.noteToggleText}>{t('calendar.detail.add_note', 'Add note')}</Text>
+              </Pressable>
+            ))}
             {recurrence && (
               <DetailRow
                 icon={<Repeat size={16} color={c.textMuted} />}
@@ -419,7 +484,7 @@ export function EventDetailSheet({
             )}
           </ScrollView>
 
-          {(canEdit || onDuplicate || onExport || (onCopyLink && videoUri)) && (
+          {(
             <View style={styles.actions}>
               {onEdit && canEdit && (
                 <ActionButton
@@ -442,6 +507,11 @@ export function EventDetailSheet({
                   onPress={() => onExport(event)}
                 />
               )}
+              <ActionButton
+                icon={<Copy size={18} color={c.text} />}
+                label={t('calendar.events.copy_title_short', 'Title')}
+                onPress={copyTitle}
+              />
               {onCopyLink && videoUri && (
                 <ActionButton
                   icon={<Link2 size={18} color={c.text} />}
@@ -669,6 +739,24 @@ function makeStyles(c: ThemePalette) {
   joinBtnText: { ...typography.bodyMedium, color: c.primary },
 
   rsvpBlock: { gap: spacing.sm, marginTop: spacing.xs },
+  noteToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xs },
+  noteToggleText: { ...typography.body, color: c.textMuted },
+  noteBlock: { gap: spacing.xs },
+  noteInput: {
+    ...typography.body,
+    color: c.text,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 56,
+    textAlignVertical: 'top',
+  },
+  noteButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
+  noteButton: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  noteCancel: { ...typography.bodyMedium, color: c.textMuted },
+  noteSave: { ...typography.bodyMedium, color: c.primary },
   rsvpPrompt: { ...typography.bodyMedium, color: c.text },
   rsvpButtons: { flexDirection: 'row', gap: spacing.sm },
   rsvpBtn: {

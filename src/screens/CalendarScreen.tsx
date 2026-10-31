@@ -42,6 +42,8 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { CalendarAccountChangedError, calendarOperationScope, useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { appendEventNote } from '../lib/calendar-event-note';
+import { toast } from '../stores/toast-store';
 import { MonthView } from '../components/calendar/MonthView';
 import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
@@ -819,6 +821,22 @@ export default function CalendarScreen() {
     [deleteTask, t],
   );
 
+  // A quick note from the detail sheet goes under the description with a
+  // time stamp (webmail's handleSaveNoteFromDetail).
+  const handleSaveNoteFromDetail = React.useCallback(
+    async (event: CalendarEvent, note: string) => {
+      const description = appendEventNote(event.description, note, displayNow());
+      try {
+        await updateEvent(event.id, { description });
+        setDetailEvent((current) => (current?.id === event.id ? { ...current, description } : current));
+        toast.success(t('calendar.detail.note_saved', 'Note saved'));
+      } catch (err) {
+        reportError(err);
+      }
+    },
+    [updateEvent, reportError, t],
+  );
+
   // Clone the event one day later and open it in the editor (webmail's
   // handleDuplicateFromDetail).
   const handleDuplicateFromDetail = React.useCallback(
@@ -1181,6 +1199,7 @@ export default function CalendarScreen() {
         onDuplicate={(ev) => { if (!isReadOnlyEvent(ev)) void handleDuplicateFromDetail(ev); }}
         onExport={handleExportFromDetail}
         onCopyLink={handleCopyLink}
+        onSaveNote={handleSaveNoteFromDetail}
         onRsvp={async (ev, participantId, status) => {
           // An answer on one occurrence of a series asks whether it covers
           // just that occurrence or the whole series (webmail #1086).
