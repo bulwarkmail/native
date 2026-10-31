@@ -113,7 +113,7 @@ export function KeywordSettings() {
               />
             );
           }
-          const palette = c.tags[kw.color];
+          const palette = (c.tagsAsPicked ?? c.tags)[kw.color];
           return (
             <View key={kw.id} style={styles.kwRow}>
               <View style={[styles.kwDot, { backgroundColor: palette.dot }]} />
@@ -178,7 +178,7 @@ export function KeywordSettings() {
             </Text>
             {scan.found.map((kw) => (
               <View key={kw.id} style={styles.kwRow}>
-                <View style={[styles.kwDot, { backgroundColor: c.tags[kw.color]?.dot ?? c.textMuted }]} />
+                <View style={[styles.kwDot, { backgroundColor: (c.tagsAsPicked ?? c.tags)[kw.color]?.dot ?? c.textMuted }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.kwLabel}>{kw.label}</Text>
                   <Text style={styles.kwId}>{kw.keyword} · {kw.count}</Text>
@@ -251,7 +251,7 @@ function SharedTagsSection() {
             ) : (
               tags.map((kw) => (
                 <View key={kw.id} style={styles.kwRow}>
-                  <View style={[styles.kwDot, { backgroundColor: c.tags[kw.color]?.dot ?? c.textMuted }]} />
+                  <View style={[styles.kwDot, { backgroundColor: (c.tagsAsPicked ?? c.tags)[kw.color]?.dot ?? c.textMuted }]} />
                   <Text style={styles.kwLabel}>{kw.label}</Text>
                   <Text style={styles.kwId}>$label:{kw.id}</Text>
                 </View>
@@ -313,7 +313,9 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
         <Text style={styles.formLabel}>{t('settings.keywords.color_field', "Color")}</Text>
         <View style={styles.palette}>
           {PALETTE_KEYS.map((key) => {
-            const p = c.tags[key];
+            // The colours as picked, also with colour-blind-safe colours on
+            // (webmail keyword-settings.tsx draws KEYWORD_PALETTE).
+            const p = (c.tagsAsPicked ?? c.tags)[key];
             return (
               <Pressable
                 key={key}

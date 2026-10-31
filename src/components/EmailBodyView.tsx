@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image as ImageIcon, ShieldCheck } from './icons';
 import type { Email } from '../api/types';
 import { extractCidRefs, isUserLinkNavigation } from '../lib/email-html';
+import { buildEmailDarkModeScript } from '../lib/email-dark-mode';
 import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
 import { buildQuoteCollapseScript } from '../lib/quote-collapse';
 import { bodyDocument } from '../lib/email-body-document';
@@ -66,109 +67,6 @@ interface EmailBodyViewProps {
   /** "Show formatted" in the plain-text note: turn the per-message view off. */
   onShowFormatted?: () => void;
 }
-
-// Dark-mode re-inversion, mirroring the webmail's handleIframeLoad pass. The
-// body's `filter: invert(1)` flips colored emoji (yellow smiley -> blue, red
-// heart -> cyan) and stylesheet-defined background images, which the static CSS
-// attribute selectors can't reach. This walks the DOM once and wraps/re-inverts
-// those so they keep their original colors. Only injected when inversion is on.
-const DARK_REINVERT_SCRIPT = `
-(function () {
-  if (document.__rnDarkInvertDone) return;
-  var doc = document;
-  var win = window;
-  if (!doc.body) return;
-  document.__rnDarkInvertDone = true;
-
-  // Re-invert elements with stylesheet-defined background images (CSS attribute
-  // selectors only catch inline styles, not rules that survive in <style>).
-  doc.body.querySelectorAll('*').forEach(function (el) {
-    // Skip elements already handled by CSS attribute selectors.
-    if (el.style.backgroundImage || el.style.background ||
-        el.hasAttribute('background') || el.hasAttribute('bgcolor')) return;
-    // Skip leaf media elements (already re-inverted by CSS).
-    var tag = el.tagName;
-    if (['IMG','VIDEO','SVG','CANVAS','OBJECT','EMBED'].indexOf(tag) !== -1) return;
-    var computed = win.getComputedStyle(el);
-    if (computed.backgroundImage && computed.backgroundImage !== 'none') {
-      // Re-invert so the background image returns to its original
-      // appearance. Matches the CSS background-image rules: re-invert even
-      // when media is nested, then cancel the per-image re-invert on that
-      // media so it isn't left double-inverted.
-      el.style.filter = 'invert(1) hue-rotate(180deg)';
-      el.querySelectorAll('img, video, svg, canvas, object, embed, input[type="image"]')
-        .forEach(function (m) { m.style.filter = 'none'; });
-    }
-  });
-
-  // Re-invert emoji glyphs so they keep their original colors. Wrap each emoji
-  // run in a span that re-inverts. Only act when the ancestor invert depth is
-  // odd - emojis inside a double-inverted bgcolor container already render at
-  // their original colors.
-  var emojiRe;
-  try {
-    emojiRe = new RegExp('\\\\p{RGI_Emoji}', 'gv');
-  } catch (e) {
-    emojiRe = /\\p{Extended_Pictographic}(?:\\uFE0F)?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F)?)*/gu;
-  }
-  var emojiTestRe = /\\p{Extended_Pictographic}/u;
-  var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, IFRAME: 1 };
-
-  function isOddInvertDepth(start) {
-    var count = 0;
-    var n = start;
-    while (n) {
-      if (n === doc.body) { count++; break; }
-      var cs = win.getComputedStyle(n);
-      if (cs.filter && cs.filter.indexOf('invert') !== -1) count++;
-      n = n.parentElement;
-    }
-    return count % 2 === 1;
-  }
-
-  var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
-    acceptNode: function (node) {
-      var p = node.parentElement;
-      while (p) {
-        if (SKIP_TAGS[p.tagName]) return NodeFilter.FILTER_REJECT;
-        p = p.parentElement;
-      }
-      return emojiTestRe.test(node.nodeValue || '')
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_REJECT;
-    }
-  });
-
-  var emojiTextNodes = [];
-  var cur;
-  while ((cur = walker.nextNode())) emojiTextNodes.push(cur);
-
-  emojiTextNodes.forEach(function (textNode) {
-    var parent = textNode.parentElement;
-    if (!parent || !isOddInvertDepth(parent)) return;
-    var text = textNode.nodeValue || '';
-    emojiRe.lastIndex = 0;
-    var frag = doc.createDocumentFragment();
-    var lastIndex = 0;
-    var m;
-    while ((m = emojiRe.exec(text)) !== null) {
-      if (m.index > lastIndex) {
-        frag.appendChild(doc.createTextNode(text.slice(lastIndex, m.index)));
-      }
-      var span = doc.createElement('span');
-      span.style.cssText = 'filter:invert(1) hue-rotate(180deg)';
-      span.textContent = m[0];
-      frag.appendChild(span);
-      lastIndex = m.index + m[0].length;
-    }
-    if (lastIndex === 0) return;
-    if (lastIndex < text.length) {
-      frag.appendChild(doc.createTextNode(text.slice(lastIndex)));
-    }
-    parent.replaceChild(frag, textNode);
-  });
-})();
-`;
 
 // Image fix-ups, mirroring the webmail's post-render passes:
 //  - collapse empty <td>/<div> wrappers left behind by blocked images so a
@@ -546,6 +444,9 @@ export default function EmailBodyView({
   const syncTrustedSenders = isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts);
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
+  // The reading font reaches a plain-text body ("Same as above"), as in the
+  // webmail; HTML mail keeps the sender's fonts.
+  const appFont = useSettingsStore((s) => s.appFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   // Body text follows the app's text size and the system font scale (webmail
@@ -569,8 +470,8 @@ export default function EmailBodyView({
   React.useEffect(() => {
     if (syncTrustedSenders && !trustedSendersLoaded) void loadTrustedSendersBook(false);
   }, [syncTrustedSenders, trustedSendersLoaded, loadTrustedSendersBook]);
-  // Most marketing email is authored against a white background, so dark-mode
-  // inversion can wreck logos/banners. With this flag the user opts to render
+  // Most marketing email is authored against a white background, and some
+  // people prefer it as sent. With this flag the user opts to render
   // emails on a light surface even while the rest of the app is dark; the
   // per-message toggle in the More sheet overrides both.
   const renderAsDark = themeOverride
@@ -713,9 +614,10 @@ export default function EmailBodyView({
     quoteLabels,
     textFactor,
     plainDarkColors,
+    appFont,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
-    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors,
+    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont,
   ]);
 
   const source = React.useMemo(
@@ -730,18 +632,21 @@ export default function EmailBodyView({
   // Still cut off after the API's larger refetch (or the refetch failed).
   const showTruncated = !bodyOverride && hasTruncatedDisplayedBody(email);
 
-  // Inversion is applied for HTML bodies in dark mode unless the email ships
-  // its own dark-mode CSS - decided once by prepareEmailHtml on the same
-  // input the CSS was built from, so the DOM pass and the stylesheet agree.
+  // An HTML body shown dark has its colours rewritten after layout (webmail
+  // applyEmailDarkMode): decided once by prepareEmailHtml, whose head hides
+  // the body until this pass ran. It comes after the quote toggle and the
+  // Play buttons exist, so those are converted too, as in the webmail. Only
+  // with remote content allowed may a remote image be fetched again to look
+  // at its pixels.
   const injectedJs = React.useMemo(
     () =>
       (prepared.isHtml ? buildMailTextSizeScript(textFactor) : '')
       + (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
-      + (prepared.applyInversion ? DARK_REINVERT_SCRIPT : '')
       + (prepared.isHtml ? IMG_FIXUP_SCRIPT : '')
       + (prepared.isHtml && reduceMotion ? buildPauseAnimatedImagesScript(pauseLabels) : '')
+      + (prepared.recolorDark ? buildEmailDarkModeScript({ remoteContentAllowed: !shouldBlock }) : '')
       + HEIGHT_REPORTER + SWIPE_DETECTOR + PINCH_ZOOM,
-    [prepared.isHtml, prepared.applyInversion, quoteLabels, textFactor, reduceMotion, pauseLabels],
+    [prepared.isHtml, prepared.recolorDark, shouldBlock, quoteLabels, textFactor, reduceMotion, pauseLabels],
   );
 
   // Performance harness: how much of opening a message is the WebView.

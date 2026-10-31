@@ -1,3 +1,6 @@
+// First: wraps react-native's Text for the reading font before any module
+// copies it (src/theme/reading-font-text).
+import './src/theme/reading-font-install';
 import { createElement } from 'react';
 import { AppRegistry } from 'react-native';
 import { registerRootComponent } from 'expo';

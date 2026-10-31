@@ -17,6 +17,10 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 // Code that isn't an npm dependency but ships in the app.
 const VENDORED = [
   { name: 'Tabler Icons', version: '', license: 'MIT', url: 'https://tabler.io/icons' },
+  // Reading fonts (scripts/build-reading-fonts.py).
+  { name: 'Atkinson Hyperlegible Next', version: '', license: 'OFL-1.1', url: 'https://github.com/googlefonts/atkinson-hyperlegible-next' },
+  { name: 'Lexend', version: '', license: 'OFL-1.1', url: 'https://github.com/googlefonts/lexend' },
+  { name: 'OpenDyslexic', version: '', license: 'OFL-1.1', url: 'https://opendyslexic.org' },
 ];
 
 function repoUrl(meta) {

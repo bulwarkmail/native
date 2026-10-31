@@ -1,0 +1,785 @@
+{
+  "login": {
+    "jmap_endpoint_cors_hint": "Der Mailserver muss Anmeldungen von dieser Website erlauben. Ihre Administration kann das einrichten.",
+    "reconnecting": "Die Verbindung ist weg. Wir versuchen, wieder zu verbinden…",
+    "error": {
+      "invalid_credentials": "Die E-Mail-Adresse oder das Passwort ist falsch. Prüfen Sie beides und versuchen Sie es noch einmal.",
+      "invalid_token": "Der Server hat dieses Zugriffstoken nicht angenommen. Vielleicht ist es nicht vollständig oder nicht mehr gültig. Kopieren Sie es noch einmal oder erstellen Sie ein neues.",
+      "connection_failed": "Wir erreichen den Mailserver nicht. Prüfen Sie Ihre Internetverbindung und versuchen Sie es noch einmal.",
+      "cors_blocked": "Der Mailserver läuft, erlaubt aber keine Anmeldung von dieser Website. Bitten Sie Ihre Administration, diese Website auf dem Server zu erlauben.",
+      "server_error": "Der Mailserver hat gerade ein Problem. Versuchen Sie es in ein paar Minuten noch einmal.",
+      "generic": "Etwas ist schiefgelaufen. Versuchen Sie es noch einmal. Wenn das öfter passiert, fragen Sie Ihre Administration.",
+      "totp_required": "Ihr Konto braucht zur Anmeldung einen zweiten Code. Öffnen Sie Ihre Authenticator-App und geben Sie unten den 6-stelligen Code ein.",
+      "totp_invalid": "Dieser Code ist falsch oder zu alt. Geben Sie den Code ein, den Ihre Authenticator-App gerade anzeigt.",
+      "oauth_discovery_failed": "Die Anmeldung über Ihre Organisation funktioniert gerade nicht. Versuchen Sie es später noch einmal oder fragen Sie Ihre Administration.",
+      "token_exchange_failed": "Passwort und Code sind richtig, aber der Mailserver hat diese App nicht hereingelassen. Bitten Sie Ihre Administration, die Anmelde-Einstellungen für diese App zu prüfen."
+    },
+    "totp_toggle": "Ich habe einen Code aus meiner Authenticator-App",
+    "token_hint": "Manche Mailanbieter geben Ihnen ein Token statt eines Passworts. Erstellen Sie es in den Einstellungen Ihres Mailanbieters, kopieren Sie es und fügen Sie es hier ein.",
+    "config_error": {
+      "title": "Das Webmail ist nicht richtig eingerichtet",
+      "fetch_failed": "Das Webmail konnte seine Einstellungen nicht laden. Versuchen Sie es in ein paar Minuten noch einmal.",
+      "server_not_configured": "Es ist noch kein Mailserver eingerichtet. Bitten Sie Ihre Administration, einen einzurichten."
+    },
+    "session_expired": "Sie wurden abgemeldet. Melden Sie sich wieder an, um weiterzumachen.",
+    "oauth_error": {
+      "title": "Die Anmeldung hat nicht geklappt",
+      "invalid_state": "Die Anmeldung wurde unterbrochen. Fangen Sie noch einmal an.",
+      "missing_params": "Es fehlen Anmeldedaten. Fangen Sie noch einmal an.",
+      "token_exchange_failed": "Wir konnten die Anmeldung nicht abschließen. Versuchen Sie es noch einmal.",
+      "access_denied": "Sie dürfen sich hier nicht anmelden. Bitten Sie Ihre Administration um Zugang."
+    }
+  },
+  "session_limits": {
+    "idle_message": "Sie haben eine Weile nichts getan. In {seconds, plural, one {# Sekunde} other {# Sekunden}} werden Sie abgemeldet. E-Mails, die Sie gerade schreiben, werden als Entwurf gespeichert.",
+    "max_message": "Ihre Organisation meldet Sie {hours, plural, one {# Stunde} other {# Stunden}} nach der Anmeldung ab. In {seconds, plural, one {# Sekunde} other {# Sekunden}} werden Sie abgemeldet. E-Mails, die Sie gerade schreiben, werden als Entwurf gespeichert.",
+    "reason_max": "Sie wurden abgemeldet, weil Sie {hours, plural, one {# Stunde} other {# Stunden}} angemeldet waren. Länger erlaubt es Ihre Organisation nicht.",
+    "drafts_not_saved": "Einige E-Mails, die Sie geschrieben haben, konnten nicht als Entwurf gespeichert werden."
+  },
+  "totp_reauth": {
+    "title": "Neuen Code eingeben",
+    "description": "Ihr letzter Code gilt nicht mehr. Öffnen Sie Ihre Authenticator-App und geben Sie den neuen Code ein, um weiterzumachen.",
+    "oauth_hint": "Diese Abfrage kommt immer wieder. Ihre Administration kann das abstellen, indem sie eine andere Anmeldeart (OAuth) einschaltet.",
+    "code_label": "Code aus Ihrer Authenticator-App"
+  },
+  "email_list": {
+    "permanent_delete_confirm_message": "Diese E-Mail wird endgültig gelöscht. Sie können sie nicht zurückholen.",
+    "permanent_delete_confirm_batch_message": "{count, plural, one {Diese E-Mail wird} other {Diese # E-Mails werden}} endgültig gelöscht. Sie können sie nicht zurückholen.",
+    "empty_folder": {
+      "confirm_message": "Alle E-Mails in diesem Ordner werden endgültig gelöscht. Sie können sie nicht zurückholen."
+    }
+  },
+  "email_viewer": {
+    "read_receipt": {
+      "send_failed": "Die Lesebestätigung konnte nicht gesendet werden"
+    },
+    "archive_mailbox_not_found": "Es gibt keinen Archiv-Ordner, deshalb kann die E-Mail nicht archiviert werden",
+    "source_load_failed": "Die Rohdaten der E-Mail konnten nicht geladen werden. Versuchen Sie es noch einmal oder speichern Sie die E-Mail als Datei (.eml).",
+    "spam": {
+      "error": "Die E-Mail konnte nicht als Spam markiert werden. Versuchen Sie es noch einmal.",
+      "error_not_spam": "Die E-Mail konnte nicht zurückgeholt werden. Versuchen Sie es noch einmal."
+    },
+    "unsubscribe_banner": {
+      "error": "Das Abbestellen hat nicht geklappt. Versuchen Sie es später noch einmal."
+    },
+    "calendar_invitation": {
+      "parse_error": "Diese Einladung kann nicht gelesen werden",
+      "action_failed": "Das hat in Ihrem Kalender nicht geklappt. Versuchen Sie es noch einmal."
+    },
+    "undo_send_failed": "Das Senden konnte nicht gestoppt werden. Die E-Mail ist vielleicht schon gesendet.",
+    "undo_send_signed_out": "Das Senden konnte nicht gestoppt werden, weil Sie bei dem Konto, das sie sendet, nicht mehr angemeldet sind.",
+    "send_cancelled_restore_failed": "Das Senden wurde gestoppt. Die E-Mail konnte aber nicht zurück in „Entwürfe“ gelegt werden. Sie liegt noch in „Gesendet“.",
+    "send_cancelled_remove_failed": "Das Senden wurde gestoppt. Die E-Mail konnte aber nicht aus „Gesendet“ entfernt werden.",
+    "cancel_scheduled_failed": "Das geplante Senden konnte nicht gestoppt werden. Versuchen Sie es noch einmal.",
+    "save_to_files": {
+      "failed": "Die Datei konnte nicht in „Dateien“ gespeichert werden. Versuchen Sie es noch einmal."
+    }
+  },
+  "email_composer": {
+    "files_picker": {
+      "load_failed": "Ihre Dateien konnten nicht geladen werden. Versuchen Sie es noch einmal."
+    },
+    "save_failed": "Der Entwurf konnte nicht gespeichert werden. Versuchen Sie es noch einmal.",
+    "validation": {
+      "invalid_recipients": "Nicht gesendet. Diese Adressen sind nicht richtig: {addresses}",
+      "attachment_upload_failed": "Nicht gesendet. Ein Anhang konnte nicht hochgeladen werden. Entfernen Sie ihn und versuchen Sie es noch einmal."
+    },
+    "upload_failed": "{filename} konnte nicht hochgeladen werden. Versuchen Sie es noch einmal.",
+    "send_failed": "Ihre E-Mail wurde nicht gesendet. Versuchen Sie es noch einmal.",
+    "send_offline": "Sie sind nicht mit dem Internet verbunden. Ihre E-Mail ist noch da. Senden Sie sie noch einmal, wenn Sie wieder online sind.",
+    "send_timeout": "Der Server hat nicht mehr geantwortet. Vielleicht wurde Ihre E-Mail trotzdem gesendet. Schauen Sie in Ihren Ordner „Gesendet“, bevor Sie sie noch einmal senden.",
+    "submission_limit": "Der Server hat die E-Mail nicht gesendet, weil Sie eine Grenze erreicht haben: {reason}",
+    "send_plugin_failed": "Nicht gesendet. Eine Erweiterung, die die E-Mail sendet, hat nicht funktioniert oder zu lange gebraucht. Schauen Sie in Ihren Ordner „Gesendet“, bevor Sie sie noch einmal senden.",
+    "schedule_send_invalid": "Geben Sie ein Datum und eine Uhrzeit ein.",
+    "schedule_send_cleanup_warning": "Die E-Mail wird zur gewählten Zeit gesendet. Der Entwurf konnte aber nicht entfernt werden und liegt noch in „Entwürfe“.",
+    "invalid_recipient": "Das ist keine richtige E-Mail-Adresse",
+    "send_filing_warning": "Gesendet. Ein alter Entwurf dieser E-Mail liegt aber vielleicht noch in „Entwürfe“.",
+    "send_guard_failed": "Nicht gesendet. Eine Erweiterung, die E-Mails vor dem Senden prüft, hat nicht funktioniert oder nicht geantwortet."
+  },
+  "common": {
+    "reconnecting": "Die Verbindung ist weg. Wir versuchen, wieder zu verbinden…"
+  },
+  "notifications": {
+    "error_archiving": "Die E-Mail konnte nicht archiviert werden. Versuchen Sie es noch einmal.",
+    "error_updating": "Die E-Mail konnte nicht geändert werden. Versuchen Sie es noch einmal.",
+    "error_sending": "Ihre E-Mail wurde nicht gesendet. Versuchen Sie es noch einmal.",
+    "error_deleting": "Die E-Mail konnte nicht gelöscht werden. Versuchen Sie es noch einmal.",
+    "error_loading": "Ihre E-Mails konnten nicht geladen werden. Versuchen Sie es noch einmal.",
+    "move_failed": "Verschieben hat nicht geklappt. Versuchen Sie es noch einmal.",
+    "undo_failed": "Rückgängig machen hat nicht geklappt. Versuchen Sie es noch einmal.",
+    "copy_failed": "Kopieren hat nicht geklappt. Versuchen Sie es noch einmal.",
+    "move_error": "Die E-Mails konnten nicht in diesen Ordner verschoben werden. Versuchen Sie es noch einmal.",
+    "tag_failed": "Das Label konnte nicht hinzugefügt werden. Versuchen Sie es noch einmal.",
+    "identity_create_failed": "Die Absenderadresse konnte nicht hinzugefügt werden: {error}",
+    "identity_update_failed": "Die Absenderadresse konnte nicht geändert werden: {error}",
+    "identity_delete_failed": "Die Absenderadresse konnte nicht gelöscht werden: {error}",
+    "identity_unauthorized": "Sie dürfen von dieser E-Mail-Adresse nicht senden. Fragen Sie Ihre Administration, wenn Sie sie brauchen.",
+    "vacation_save_failed": "Ihre automatische Antwort konnte nicht gespeichert werden. Versuchen Sie es noch einmal.",
+    "filters_save_failed": "Ihre Filterregeln konnten nicht gespeichert werden. Versuchen Sie es noch einmal.",
+    "export_email_error": "Die E-Mail konnte nicht als Datei gespeichert werden. Versuchen Sie es noch einmal.",
+    "import_email_error": "Die E-Mail konnte nicht aus der Datei hinzugefügt werden. Prüfen Sie die Datei und versuchen Sie es noch einmal.",
+    "rule_apply_failed": "Die Regel konnte nicht auf die E-Mails angewendet werden, die schon da sind",
+    "rule_folder_failed": "Der Ordner konnte nicht erstellt werden. Versuchen Sie es noch einmal.",
+    "vacation_filters_save_failed": "Ihre automatische Antwort ist gespeichert. Die Weiterleitung und die Antwortliste konnten aber nicht gespeichert werden. Versuchen Sie es noch einmal."
+  },
+  "settings": {
+    "reset_confirm": "Alle Einstellungen auf den Anfangszustand zurücksetzen?",
+    "themes": {
+      "description": "Wählen Sie ein Aussehen. Ihre Administration kann weitere Designs hinzufügen.",
+      "locked": "Ihre Administration hat das Design gewählt. Sie können es nicht ändern.",
+      "forced": "Ihre Administration hat das Design „{name}“ gewählt. Sie können es nicht ändern."
+    },
+    "appearance": {
+      "message_list_order": {
+        "description": "Die Reihenfolge der E-Mails in der Liste. Der Server sortiert den ganzen Ordner, nicht nur die E-Mails, die Sie sehen.",
+        "tiebreak_note": "Sie können bis zu drei Stufen wählen. Eine spätere Stufe zählt nur, wenn die früheren gleich sind. Am Ende kommen immer die neuesten E-Mails zuerst.",
+        "scope": {
+          "description": "Ist das aus, gilt die Reihenfolge nur im Posteingang. Andere Ordner zeigen die neuesten E-Mails zuerst."
+        },
+        "unsupported_note": "Ihr Mailserver kann nicht nach gelesen oder ungelesen, Stern oder Label sortieren. Diese Stufen fallen weg, und die neuesten E-Mails kommen zuerst."
+      },
+      "description": "Ändern Sie, wie das Webmail aussieht",
+      "theme": {
+        "description": "Wählen Sie helle oder dunkle Farben"
+      },
+      "font_size": {
+        "description": "Machen Sie den Text größer oder kleiner"
+      },
+      "list_density": {
+        "description": "Wie viel Platz zwischen den Einträgen ist"
+      },
+      "animations": {
+        "description": "Dinge beim Öffnen und Schließen sanft bewegen"
+      },
+      "toolbar_position": {
+        "description": "Wo die Knöpfe für eine E-Mail stehen, etwa Antworten, Archivieren oder Löschen"
+      },
+      "toolbar_labels": {
+        "description": "Wörter neben den Symbolen der Knöpfe zeigen. Schalten Sie das aus, um Platz zu sparen, wenn Sie die Symbole kennen."
+      },
+      "hide_account_switcher": {
+        "description": "Die Kontoauswahl oben in der Ordnerliste ausblenden. Sie können das Konto weiterhin unten in der linken Leiste wechseln."
+      },
+      "show_rail_account_list": {
+        "label": "Ihre Konten in der linken Leiste zeigen",
+        "description": "Unten in der linken Leiste für jedes Konto einen Kreis zeigen, damit Sie schnell wechseln können. Darunter ist ein Knopf zum Abmelden."
+      },
+      "unified_mailbox": {
+        "description": "Ordner zeigen, die die E-Mails mehrerer Konten zusammenfassen, etwa einen Posteingang für alle. Dafür brauchen Sie mehr als ein Konto (oder ein Gruppenpostfach unten).",
+        "cross_account": {
+          "description": "Die E-Mails aller Ihrer Konten zusammenfassen, nicht nur des Kontos, das Sie gerade nutzen."
+        },
+        "include_group": {
+          "description": "Auch die Postfächer hinzufügen, die Sie mit einer Gruppe teilen."
+        }
+      },
+      "all_mail": {
+        "folders_description": "Wählen Sie, welche Ordner dieses Kontos zu den Listen „Alle Mails“, „Ungelesen“ und „Markiert“ gehören."
+      },
+      "colorful_sidebar_icons": {
+        "description": "Ordner- und Label-Symbole farbig zeigen (blauer Posteingang, roter Spam, grünes Gesendet und so weiter). Schalten Sie das aus für graue Symbole."
+      },
+      "tint_list_rows": {
+        "description": "Jede E-Mail in der Liste in der Farbe ihres ersten Labels einfärben. Ist das aus, zeigen die kleinen Punkte die Label-Farbe trotzdem."
+      },
+      "show_folder_total_count": {
+        "description": "Zeigen, wie viele E-Mails ein Ordner oder Label insgesamt hat, neben der Zahl der ungelesenen."
+      },
+      "favicon_unread_badge": {
+        "description": "Die Zahl der ungelesenen E-Mails auf dem Browser-Tab und dem App-Symbol zeigen. So sehen Sie neue E-Mails, auch wenn Sie gerade einen anderen Tab nutzen."
+      },
+      "show_shared_mail_accounts": {
+        "description": "Die Ordner von Postfächern, die andere mit Ihnen teilen, in der Ordnerliste unter „Geteilt“ zeigen. Schalten Sie das aus, um alle auszublenden, oder blenden Sie unten einzelne Konten aus. Kalender und Kontakte bleiben."
+      },
+      "pro_interface": {
+        "description": "Eine Ansicht für große Bildschirme mit vielen Tabs und mehreren Konten gleichzeitig. Sie können jederzeit zur normalen Ansicht zurück."
+      },
+      "account_marker": {
+        "description": "In den zusammengefassten Ordnern jede E-Mail mit der Farbe ihres Kontos markieren."
+      }
+    },
+    "keywords": {
+      "description": "Erstellen Sie Labels, um Ihre E-Mails zu ordnen. Die Labels werden mit Ihren E-Mails auf dem Server gespeichert.",
+      "migration_error": "Das Label konnte bei Ihren E-Mails nicht geändert werden. Versuchen Sie es noch einmal.",
+      "filters_migration_error": "Manche Filterregeln nutzen noch das alte Label. Ändern Sie sie selbst.",
+      "nesting": {
+        "description": "Labels in andere Labels legen, wie Ordner. Die Seitenleiste zeigt sie als Baum."
+      },
+      "has_children_locked": "In diesem Label liegen andere Labels. Deshalb können Sie es nicht umbenennen oder verschieben. Verschieben oder löschen Sie zuerst die Labels darin.",
+      "has_children_delete": "Löschen Sie zuerst die Labels in diesem Label",
+      "unrecognized": {
+        "description": "Dieser Browser speichert die Namen und Farben Ihrer Labels. Die Labels selbst sind an Ihren E-Mails gespeichert. Suchen Sie in Ihren E-Mails nach Labels, die hier fehlen, und fügen Sie sie wieder hinzu.",
+        "partial": "Nur Ihre {scanned} neuesten von {total} E-Mails wurden durchsucht. Labels, die nur an älteren E-Mails hängen, fehlen vielleicht.",
+        "error": "Ihre E-Mails konnten nicht nach Labels durchsucht werden. Versuchen Sie es noch einmal."
+      }
+    },
+    "notifications": {
+      "push": {
+        "description": "Erhalten Sie eine Meldung auf Ihrem Bildschirm, wenn neue E-Mails ankommen, auch wenn diese Website geschlossen ist. Der Dienst, der die Meldung weitergibt, sieht Ihre E-Mails nie.",
+        "relay_label": "Benachrichtigungsdienst",
+        "relay_desc": "Der Dienst, der Benachrichtigungen an Ihr Gerät weitergibt. Ihre Administration legt fest, welche Sie wählen können.",
+        "relay_locked_desc": "Ihre Administration hat den Benachrichtigungsdienst gewählt. Sie können ihn nicht ändern.",
+        "status_unsupported": "Dieser Browser kann keine Benachrichtigungen zeigen, wenn die Website geschlossen ist",
+        "status_lite": "Diese Version des Webmails kann keine Benachrichtigungen senden, wenn sie geschlossen ist.",
+        "reenable": "Wieder einschalten",
+        "ios_hint": "Auf iPhone und iPad fügen Sie diese Website zuerst zum Home-Bildschirm hinzu. Safari sendet Benachrichtigungen nur für Websites auf dem Home-Bildschirm.",
+        "devices_title": "Geräte, die Benachrichtigungen bekommen",
+        "devices_desc": "Alle Geräte, die Benachrichtigungen für dieses Konto bekommen. Wenn Sie ein Gerät entfernen, bekommt es sofort keine mehr.",
+        "devices_error": "Die Liste der Geräte konnte nicht geladen werden. Versuchen Sie es noch einmal.",
+        "device_status_unknown": "Der Benachrichtigungsdienst kennt dieses Gerät nicht",
+        "revoke": "Entfernen",
+        "confirm_revoke_title": "Dieses Gerät entfernen?",
+        "confirm_revoke_message": "Es bekommt sofort keine Benachrichtigungen mehr. Um sie wieder zu bekommen, schalten Sie die Benachrichtigungen auf diesem Gerät wieder ein.",
+        "confirm_revoke_message_this": "Dieses Gerät bekommt sofort keine Benachrichtigungen mehr.",
+        "shared_mailboxes_no_push": "Für Postfächer, die andere mit Ihnen teilen, bekommen Sie keine Benachrichtigungen.",
+        "error_forbidden": "Der Mailserver erlaubt für dieses Konto keine Benachrichtigungen.",
+        "error_over_quota": "Zu viele Geräte bekommen Benachrichtigungen für dieses Konto (meist sind höchstens 15 erlaubt). Entfernen Sie Geräte, die Sie nicht mehr nutzen, und versuchen Sie es dann noch einmal."
+      },
+      "push_all": {
+        "description": "Benachrichtigungen für mehrere Konten auf einmal ein- oder ausschalten.",
+        "result_partial": "Für {enabled} Konten eingeschaltet. Bei {failed} Konten hat es nicht geklappt."
+      },
+      "sound_selection": {
+        "choose_desc": "Wählen Sie einen Ton. Klicken Sie auf den Lautsprecher, um ihn anzuhören."
+      },
+      "email": {
+        "description": "Wählen Sie, wie Sie von neuen E-Mails erfahren",
+        "inbox_only_desc": "Nur bei E-Mails im Posteingang melden, nicht bei E-Mails, die ein Filter in einen anderen Ordner legt"
+      },
+      "calendar": {
+        "description": "Wählen Sie, wie Sie an Ihre Termine erinnert werden"
+      }
+    },
+    "language_region": {
+      "description": "Sprache, wie Datum und Uhrzeit aussehen, und andere Dinge für Ihr Land",
+      "date_locale": {
+        "description": "Die Reihenfolge von Tag, Monat und Jahr im Datum"
+      },
+      "time_format": {
+        "description": "Uhrzeiten wie 3:00 PM (12 Stunden) oder wie 15:00 (24 Stunden) zeigen"
+      },
+      "time_zone": {
+        "description": "Die Zeiten von E-Mails und Terminen in dieser Zeitzone zeigen. Wenn Sie keine wählen, gilt die Zeitzone Ihres Browsers."
+      }
+    },
+    "email_behavior": {
+      "inbox_type": {
+        "description": "Bei „Ungelesene zuerst“ stehen Ihre 25 neuesten ungelesenen E-Mails oben im Posteingang"
+      },
+      "clear_search_on_folder_change": {
+        "description": "Wenn Sie einen anderen Ordner öffnen, endet Ihre Suche und Sie sehen den ganzen Ordner. Ist das aus, sucht die Suche im neuen Ordner weiter."
+      },
+      "request_read_receipt": {
+        "label": "Immer eine Lesebestätigung anfordern",
+        "description": "Neue E-Mails bitten den Empfänger, Ihnen zu melden, wenn er die E-Mail geöffnet hat. Sie können das bei jeder E-Mail ausschalten."
+      },
+      "read_receipt_response": {
+        "label": "Wenn jemand eine Lesebestätigung möchte",
+        "description": "Manche Absender möchten erfahren, wann Sie ihre E-Mail öffnen. Wählen Sie, was dann passiert."
+      },
+      "description": "Legen Sie fest, was mit Ihren E-Mails passiert",
+      "mark_read": {
+        "description": "Wann eine geöffnete E-Mail als gelesen gilt"
+      },
+      "delete_action": {
+        "warning": "Gelöschte E-Mails sind dann endgültig weg. Sie können sie nicht zurückholen."
+      },
+      "message_spacing": {
+        "description": "Der Abstand um den Text einer geöffneten E-Mail"
+      },
+      "archive_mode": {
+        "description": "Wie archivierte E-Mails in Ordner sortiert werden"
+      },
+      "permanently_delete_junk": {
+        "label": "Spam endgültig löschen",
+        "description": "Wenn Sie eine E-Mail im Spam-Ordner löschen, ist sie sofort endgültig weg. Sie kommt nicht erst in den Papierkorb."
+      },
+      "confirm_bulk_delete": {
+        "description": "Fragen, bevor mehrere ausgewählte E-Mails in den Papierkorb kommen. Beim endgültigen Löschen wird immer gefragt."
+      },
+      "mail_layout": {
+        "description": "Wählen Sie, wie die E-Mail-Liste und die geöffnete E-Mail auf dem Bildschirm stehen.",
+        "split_description": "Die E-Mail-Liste und die geöffnete E-Mail stehen nebeneinander.",
+        "focus_description": "Jede E-Mail hat eine Zeile. Eine geöffnete E-Mail nutzt die ganze Breite. Die Ordnerliste bleibt sichtbar.",
+        "horizontal_description": "Die E-Mail-Liste steht oben. Die geöffnete E-Mail steht darunter."
+      },
+      "list_columns": {
+        "description": "Die Liste als Tabelle mit den Spalten Von, Betreff, Datum und Größe zeigen."
+      },
+      "show_verification_codes": {
+        "description": "Wenn eine E-Mail einen Anmelde- oder Bestätigungscode enthält, gibt es einen Knopf zum Kopieren. In der Liste bleibt der Knopf einen Tag lang."
+      },
+      "plain_text_mode": {
+        "description": "Alle E-Mails als reinen Text schreiben, ohne Fettdruck, Farben oder Bilder. Das gilt auch für Antworten und Weiterleitungen."
+      },
+      "auto_select_reply_identity": {
+        "description": "Wenn Sie antworten, geht die Antwort von der Adresse aus, an die die E-Mail ging. Das klappt mit all Ihren eigenen Adressen. Weiter unten wählen Sie, ob auch andere Adressen Ihrer Domain zählen."
+      },
+      "reply_identity_match": {
+        "label": "Welche Adressen als Ihre gelten",
+        "description": "„Nur exakte Adresse“ nutzt nur die Adressen, die Sie eingerichtet haben. „Jede Adresse auf meinen Domains“ antwortet auch von anderen Adressen Ihrer Domains. Wählen Sie die exakte Adresse, wenn diese anderen Adressen Verteilerlisten sind."
+      },
+      "signature_position": {
+        "description": "Wo Ihre Signatur steht, wenn Sie antworten oder weiterleiten. Über dem zitierten Text schließt sie Ihre Antwort ab. Darunter bleibt die alte E-Mail an einem Stück."
+      },
+      "signature_separator": {
+        "label": "Linie vor der Signatur",
+        "description": "Die übliche Zeile „-- “ vor Ihre Signatur setzen. Viele Mail-Apps erkennen die Signatur daran."
+      },
+      "sub_address_delimiter": {
+        "label": "Zeichen vor dem Adress-Stichwort",
+        "description": "Das Zeichen zwischen Ihrem Namen und dem Stichwort in einer Adresse, etwa user{delimiter}tag@domain.com. Nehmen Sie dasselbe Zeichen wie Ihr Mailserver."
+      },
+      "attachment_click_action": {
+        "label": "Wenn Sie auf einen Anhang klicken",
+        "description": "Wählen Sie, ob ein Klick auf einen Anhang ihn anzeigt oder auf Ihrem Gerät speichert"
+      },
+      "attachment_position": {
+        "description": "Wo Anhänge in einer geöffneten E-Mail stehen"
+      },
+      "always_light_mode": {
+        "description": "E-Mails mit hellem Hintergrund zeigen, auch wenn die App dunkel ist. Manche E-Mails sehen falsch aus, wenn sie dunkel dargestellt werden."
+      },
+      "external_content": {
+        "label": "Bilder aus dem Internet",
+        "description": "Wählen Sie, ob Bilder gezeigt werden, die eine E-Mail aus dem Internet lädt. Das Laden kann dem Absender verraten, dass Sie die E-Mail geöffnet haben."
+      },
+      "trusted_senders": {
+        "description": "Absender, deren Bilder immer gezeigt werden",
+        "empty_description": "Wenn eine E-Mail blockierte Bilder hat, klicken Sie auf „Diesem Absender immer vertrauen“, um den Absender hier hinzuzufügen.",
+        "save_error": "Die Liste konnte nicht gespeichert werden. Versuchen Sie es noch einmal.",
+        "use_address_book_label": "Liste im Adressbuch speichern",
+        "use_address_book_description": "Vertrauenswürdige Absender in einem eigenen Adressbuch speichern. Dann ist die Liste auf allen Ihren Geräten gleich."
+      },
+      "hover_actions": {
+        "description": "Die Knöpfe, die Sie sehen, wenn Sie mit der Maus über eine E-Mail in der Liste fahren"
+      },
+      "default_mail_program": {
+        "description": "E-Mail-Links auf Websites (mailto:-Links) in {appName} öffnen",
+        "error": "Ihr Browser kann das nicht"
+      },
+      "attachment_reminder": {
+        "description": "Wenn Ihre E-Mail von einem Anhang spricht, aber nichts angehängt ist, werden Sie vor dem Senden gewarnt",
+        "keywords_label": "Wörter, bei denen die Erinnerung kommt",
+        "keywords_description": "Wenn Ihre E-Mail eines dieser Wörter enthält, kommt die Erinnerung"
+      },
+      "placeholder_warning": {
+        "description": "Vor dem Senden fragen, wenn die E-Mail noch Lücken hat, etwa [TIME] oder [Ihr Name], leere Vorlagenfelder oder Notizen wie TODO."
+      },
+      "recipient_mentions": {
+        "description": "Tippen Sie @ in Ihrer E-Mail, um einen Empfänger auszuwählen. Sein Vorname kommt in den Text. Mit Enter oder Tab wählen Sie den markierten Namen."
+      },
+      "mention_adds_recipient": {
+        "description": "Wenn Sie @ tippen, können Sie auch Personen aus Ihren Kontakten wählen. Sind sie noch keine Empfänger, werden sie zur E-Mail hinzugefügt."
+      },
+      "hide_inline_image_attachments": {
+        "label": "Bilder im Text nicht als Anhang zeigen",
+        "description": "Bilder, die zum Text der E-Mail gehören, stehen nicht noch einmal in der Liste der Anhänge"
+      },
+      "attachment_image_previews": {
+        "description": "Kleine Vorschaubilder von angehängten Bildern statt eines Datei-Symbols zeigen"
+      },
+      "send_delay": {
+        "description": "Ihre E-Mails warten ein paar Sekunden, bevor sie gesendet werden. In dieser Zeit können Sie sie noch stoppen.",
+        "unsupported": "Der Mailserver dieses Kontos kann mit dem Senden nicht warten. Die Einstellung wird trotzdem für Ihre anderen Konten gespeichert."
+      },
+      "swipe_right_action": {
+        "description": "Auf einem Touchscreen: was passiert, wenn Sie eine E-Mail nach rechts wischen."
+      },
+      "swipe_left_action": {
+        "description": "Auf einem Touchscreen: was passiert, wenn Sie eine E-Mail nach links wischen."
+      },
+      "rtl_editing": {
+        "label": "Schreiben von rechts nach links",
+        "description": "Fügt dem Editor einen Knopf hinzu. Damit schreiben Sie einen Absatz von links nach rechts oder von rechts nach links."
+      }
+    },
+    "account": {
+      "description": "Sehen Sie die Angaben zu Ihrem Konto",
+      "auth_method_label": "So melden Sie sich an",
+      "auth_method_oauth": "Anmeldeseite Ihrer Organisation",
+      "server": {
+        "label": "Adresse des Mailservers"
+      },
+      "accounts": {
+        "description": "Ziehen Sie die Konten, um ihre Reihenfolge in der Kontoliste zu ändern"
+      },
+      "backup": {
+        "description": "Speichern Sie die Liste Ihrer Konten auf dem Server und holen Sie sie auf einem anderen Gerät zurück. Ein Passwort, das nur Sie kennen, schützt die Liste. Die Passwörter der Postfächer werden nicht gespeichert. Sie melden sich also bei jedem Konto neu an.",
+        "description_passwords": "Speichern Sie die Liste Ihrer Konten auf dem Server und holen Sie sie auf einem anderen Gerät zurück. Ein Passwort, das nur Sie kennen, schützt die Liste. Sie können auch die Passwörter der Postfächer speichern. Dann melden sich die Konten von selbst an.",
+        "password_hint": "Mindestens 10 Zeichen. Niemand kann dieses Passwort zurücksetzen. Wenn Sie es vergessen, speichern Sie die Liste noch einmal mit einem neuen Passwort.",
+        "restore_hint": "Das Passwort, das Sie beim Speichern der Liste gewählt haben.",
+        "include_passwords_hint": "Wenn Sie die Liste zurückholen, melden sich diese Konten von selbst an. Aber Vorsicht: Wer das Passwort der Sicherung kennt, kann jedes Postfach in der Liste öffnen.",
+        "skipped": "{count, plural, one {# Konto wurde} other {# Konten wurden}} nicht hinzugefügt, weil Sie schon die höchste erlaubte Zahl an Konten haben.",
+        "sign_in_failed": "{count, plural, one {# gespeichertes Passwort hat nicht funktioniert} other {# gespeicherte Passwörter haben nicht funktioniert}}. Melden Sie sich in der Kontoliste selbst bei diesen Konten an.",
+        "errors": {
+          "unlock_failed": "Das Passwort ist falsch, oder diese Liste gehört zu einem anderen Konto.",
+          "owner_signin_required": "Melden Sie sich noch einmal bei diesem Konto an. Versuchen Sie es dann erneut.",
+          "https_required": "Das geht nur über eine sichere Verbindung (die Adresse beginnt mit https).",
+          "storage_failed": "Der Server konnte die Liste nicht speichern oder öffnen. Versuchen Sie es später noch einmal."
+        }
+      },
+      "shared_accounts": {
+        "description": "Konten, die Sie mit anderen teilen und verwalten dürfen. Wählen Sie eines aus, um seine Filter, automatischen Antworten, Kalender und Kontakte zu ändern."
+      }
+    },
+    "security": {
+      "description": "Ändern Sie Ihr Passwort und schützen Sie Ihr Konto",
+      "not_available": "Die Sicherheitseinstellungen für diesen Mailserver können Sie hier nicht ändern. Vielleicht erlaubt Ihr Server das nicht. Mehr dazu steht in der <a href=\"https://bulwarkmail.org/docs/guides/account-security\" class=\"underline hover:opacity-80\" target=\"_blank\">Dokumentation</a>.",
+      "password": {
+        "error_title": "Ihr Passwort wurde nicht geändert",
+        "error_mismatch": "Die beiden neuen Passwörter sind nicht gleich. Geben Sie sie noch einmal ein.",
+        "error_min_length": "Ihr Passwort braucht mindestens 8 Zeichen",
+        "error_generic": "Ihr Passwort konnte nicht geändert werden. Versuchen Sie es noch einmal."
+      },
+      "display_name": {
+        "description": "Der Name, den der Mailserver für Sie anzeigt",
+        "error": "Ihr Name konnte nicht geändert werden. Versuchen Sie es noch einmal."
+      },
+      "totp": {
+        "label": "Code aus einer Authenticator-App",
+        "description": "Schützen Sie Ihr Konto besser: Bei der Anmeldung geben Sie zusätzlich einen Code aus einer App auf Ihrem Handy ein",
+        "enable_error": "Die Zwei-Faktor-Authentifizierung konnte nicht eingeschaltet werden. Versuchen Sie es noch einmal.",
+        "disable_error": "Die Zwei-Faktor-Authentifizierung konnte nicht ausgeschaltet werden. Versuchen Sie es noch einmal.",
+        "setup_instructions": "Öffnen Sie Ihre Authenticator-App (zum Beispiel Google Authenticator oder Authy) und fügen Sie diesen Link dort hinzu:",
+        "verification_code": "Code aus der App",
+        "disable_confirm_prompt": "Um die Zwei-Faktor-Authentifizierung auszuschalten, geben Sie Ihr Passwort ein.",
+        "password_required": "Geben Sie Ihr Passwort ein",
+        "code_required": "Geben Sie den Code aus der App ein",
+        "code_invalid": "Dieser Code ist falsch oder zu alt. Geben Sie den Code ein, den die App gerade anzeigt."
+      },
+      "app_passwords": {
+        "description": "Zusätzliche Passwörter für Mail-Apps, die keinen zweiten Code abfragen können, etwa manche Mail-Apps auf dem Handy",
+        "allowed_ips_label": "Nur von diesen Internetadressen (optional)",
+        "allowed_ips_hint": "Trennen Sie die Adressen mit Komma oder Leerzeichen. Lassen Sie das Feld leer, um alle Adressen zu erlauben.",
+        "copy_now_warning": "Kopieren Sie dieses Passwort jetzt. Sie sehen es nicht noch einmal.",
+        "add_error": "Das App-Passwort konnte nicht erstellt werden. Versuchen Sie es noch einmal.",
+        "remove_error": "Das App-Passwort konnte nicht gelöscht werden. Versuchen Sie es noch einmal.",
+        "delete_message": "Apps, die {name} nutzen, können sich dann nicht mehr anmelden."
+      },
+      "api_keys": {
+        "description": "Schlüssel für Programme und Skripte, die ohne Sie mit Ihrem Postfach arbeiten, zum Beispiel eine Sicherung",
+        "copy_now_warning": "Kopieren Sie diesen Schlüssel jetzt. Sie sehen ihn nicht noch einmal.",
+        "add_error": "Der Schlüssel konnte nicht erstellt werden. Versuchen Sie es noch einmal.",
+        "remove_error": "Der Schlüssel konnte nicht gelöscht werden. Versuchen Sie es noch einmal.",
+        "delete_message": "Programme und Skripte, die {name} nutzen, funktionieren dann nicht mehr."
+      },
+      "encryption": {
+        "label": "E-Mails verschlüsselt speichern",
+        "description": "Der Server speichert Ihre E-Mails verschlüsselt. Nur Ihr Schlüssel kann sie wieder lesbar machen.",
+        "error": "Die Verschlüsselung konnte nicht geändert werden. Versuchen Sie es noch einmal.",
+        "algorithm_label": "Art der Verschlüsselung",
+        "encrypt_on_append": "Auch E-Mails verschlüsseln, die Apps in Ihr Postfach legen",
+        "allow_spam_training": "Den Spamfilter aus neuen E-Mails lernen lassen, bevor sie verschlüsselt werden",
+        "disable_message": "Ab jetzt speichert der Server neue E-Mails ohne Verschlüsselung."
+      },
+      "public_keys": {
+        "key_label": "Öffentlicher Schlüssel (S/MIME oder PGP, als Text)",
+        "add_error": "Der öffentliche Schlüssel konnte nicht hinzugefügt werden. Prüfen Sie, ob Sie ihn ganz eingefügt haben.",
+        "remove_error": "Der öffentliche Schlüssel konnte nicht gelöscht werden. Versuchen Sie es noch einmal."
+      },
+      "email_client": {
+        "description": "Mit diesen Angaben richten Sie E-Mail auf Ihrem Computer oder Handy ein, zum Beispiel in Thunderbird, Apple Mail oder Outlook",
+        "jmap_username_label": "Benutzername für Mail-Apps",
+        "password_instructions": "Nutzen Sie in Ihrer Mail-App den Benutzernamen oben und ein App-Passwort. Ein App-Passwort erstellen Sie weiter unten auf dieser Seite."
+      },
+      "link_device": {
+        "description": "Melden Sie sich in der Bulwark-Mail-App auf Ihrem Handy an, ohne Ihr Passwort einzutippen. Ihr Handy bekommt eine eigene Anmeldung. Wenn Sie sich hier abmelden, bleibt Ihr Handy angemeldet.",
+        "error": "Der Code konnte nicht erstellt werden. Versuchen Sie es noch einmal.",
+        "password_prompt": "Geben Sie Ihr Passwort ein, damit wir wissen, dass Sie es sind. Ihr Passwort wird nicht an das Handy geschickt.",
+        "error_not_signed_in": "Sie wurden abgemeldet. Melden Sie sich wieder an und verbinden Sie dann Ihr Handy.",
+        "error_impersonation": "Sie sehen gerade das Postfach einer anderen Person. Von hier aus können Sie kein Handy verbinden.",
+        "error_too_many_attempts": "Sie haben es zu oft versucht. Warten Sie kurz und versuchen Sie es dann noch einmal.",
+        "error_session_secret": "Das Verbinden eines Handys ist auf diesem Server nicht eingerichtet. Fragen Sie Ihre Administration.",
+        "error_server_unreachable": "Wir erreichen Ihren Mailserver nicht. Versuchen Sie es noch einmal.",
+        "error_pairing_unavailable": "Ihr Mailserver erlaubt das Verbinden eines Handys auf diese Weise nicht. Fragen Sie Ihre Administration.",
+        "error_insecure_server": "Die Handy-App braucht eine sichere Verbindung zum Mailserver (https). Dieser Server hat keine."
+      },
+      "sections": {
+        "devices_description": "Lesen Sie Ihre E-Mails in anderen Apps und auf anderen Geräten."
+      }
+    },
+    "identities": {
+      "description": "Die E-Mail-Adressen, von denen Sie senden können",
+      "identities_count": {
+        "label": "Ihre Absenderadressen",
+        "description": "Adressen, von denen Sie E-Mails senden können"
+      },
+      "sub_addressing": {
+        "label": "Adressen mit Stichwort",
+        "description": "Hängen Sie ein Stichwort an Ihre Adresse, etwa user+shop@domain.com. E-Mails daran kommen trotzdem bei Ihnen an, und Sie können sie nach dem Stichwort sortieren."
+      }
+    },
+    "vacation": {
+      "description": "Neue E-Mails automatisch beantworten, während Sie weg sind",
+      "not_supported": "Ihr Mailserver kann keine automatischen Antworten senden.",
+      "fetch_error": "Ihre automatische Antwort konnte nicht geladen werden. Versuchen Sie es noch einmal.",
+      "status": {
+        "description": "Alle, die Ihnen schreiben, bekommen eine automatische Antwort"
+      },
+      "date_range": {
+        "start_description": "Leer lassen, um sofort zu beginnen"
+      },
+      "message": {
+        "subject_description": "Der Betreff der automatischen Antwort",
+        "html_description": "Fügen Sie eine Version mit Links und Formatierung hinzu. Wer sie in seiner Mail-App nicht sehen kann, bekommt den einfachen Text oben."
+      },
+      "warnings": {
+        "invalid_date": "Geben Sie ein Start- und Enddatum mit Uhrzeit ein oder lassen Sie das Feld leer",
+        "empty_body": "Die Nachricht ist leer. Die Leute würden eine Antwort ohne Text bekommen.",
+        "subject_too_long": "Der Betreff ist zu lang für den Server. Kürzen Sie ihn (höchstens {max} Byte).",
+        "body_too_long": "Die Nachricht ist zu lang für den Server. Kürzen Sie sie (höchstens {max} Byte, mit Formatierung).",
+        "forward_address": "Geben Sie die E-Mail-Adresse ein, an die weitergeleitet wird",
+        "not_running": "Weiterleitung und Antwortliste sind gespeichert, aber gerade aus. Klicken Sie auf Speichern, um sie wieder einzuschalten."
+      },
+      "forward": {
+        "description": "Neue E-Mails in der Zeit oben an eine andere Adresse weiterschicken, mit oder ohne automatische Antwort. Ohne Enddatum läuft das, bis Sie es ausschalten. Spam wird nicht weitergeleitet.",
+        "keep_description": "Ist das aus, wird die E-Mail nur weitergeleitet. Sie bleibt nicht in diesem Postfach, und Ihre Filterregeln laufen nicht darauf."
+      }
+    },
+    "folders": {
+      "description": "Verwalten Sie Ihre Ordner und legen Sie fest, wofür welcher Ordner dient",
+      "folder_list_description": "Klicken Sie auf das Symbol eines Ordners, um es zu ändern",
+      "standard_roles_description": "Legen Sie fest, welcher Ordner Ihr Posteingang, Gesendet, Papierkorb und so weiter ist.",
+      "reorder": "Ziehen Sie nach oben oder unten, um die Reihenfolge zu ändern. Ziehen Sie nach links oder rechts, um den Ordner in einen anderen Ordner zu legen.",
+      "move_partial_error": "{count, plural, one {# Ordner konnte} other {# Ordner konnten}} nicht verschoben werden. Versuchen Sie es noch einmal.",
+      "confirm_delete": "„{name}“ löschen? Die E-Mails in diesem Ordner kommen in den Papierkorb.",
+      "cannot_delete_role": "Dieser Ordner hat eine besondere Aufgabe, etwa Posteingang oder Papierkorb. Entfernen Sie zuerst die Aufgabe, dann können Sie ihn löschen.",
+      "error_delete_has_children": "Der Ordner wurde nicht gelöscht, weil andere Ordner darin liegen. Löschen oder verschieben Sie diese zuerst.",
+      "error_delete_has_email": "Der Ordner wurde nicht gelöscht, weil noch E-Mails darin liegen. Verschieben oder löschen Sie diese zuerst.",
+      "error_role": "Die Aufgabe des Ordners konnte nicht geändert werden. Versuchen Sie es noch einmal."
+    },
+    "advanced": {
+      "debug_mode": {
+        "description": "Mehr Einzelheiten darüber aufzeichnen, was die App tut. Das hilft, Fehler zu finden."
+      },
+      "settings_sync": {
+        "label": "Gleiche Einstellungen auf allen Geräten",
+        "description": "Ihre Einstellungen auf dem Server speichern, damit alle Ihre Browser und Geräte sie nutzen"
+      },
+      "sender_favicons": {
+        "description": "Bei Firmen das Symbol ihrer Website als Bild des Absenders zeigen",
+        "refresh_description": "Die Website-Symbole neu laden, zum Beispiel wenn eine Firma ein neues hat"
+      },
+      "show_avatars_in_junk": {
+        "label": "Bilder der Absender im Spam-Ordner zeigen",
+        "description": "Das Bild oder Website-Symbol des Absenders auch im Spam-Ordner zeigen. Das ist anfangs aus, weil gefälschte E-Mails mit Bild echter wirken."
+      },
+      "keyboard_shortcuts": {
+        "description": "Alle Tasten ansehen, die Sie statt der Maus nutzen können"
+      },
+      "refresh_cache": {
+        "label": "Daten neu vom Server laden",
+        "description": "Ihre Kontakte, Kalender und Ordner neu vom Server laden. Nutzen Sie das, wenn etwas alt oder falsch aussieht. Sie bleiben angemeldet.",
+        "confirm_title": "Daten neu vom Server laden?"
+      },
+      "reset_settings": {
+        "description": "Alle Einstellungen auf den Anfangszustand zurücksetzen"
+      },
+      "export_settings": {
+        "description": "Ihre Einstellungen als Datei auf Ihrem Gerät speichern"
+      },
+      "import_settings": {
+        "description": "Ihre Einstellungen aus einer früher gespeicherten Datei laden"
+      },
+      "sections": {
+        "backup_description": "Dieselben Einstellungen in anderen Browsern und auf anderen Geräten nutzen.",
+        "fix_description": "Wenn etwas alt oder falsch aussieht oder Sie neu anfangen möchten."
+      }
+    },
+    "sidebar_apps": {
+      "description": "Fügen Sie der linken Leiste eigene Apps und Links hinzu",
+      "keep_loaded_description": "Apps im Hintergrund offen lassen, wenn Sie wechseln, damit sie nicht neu laden müssen",
+      "managed_description": "Ihre Administration hat diese Apps für alle eingerichtet. Sie können sie nicht ändern."
+    },
+    "contacts": {
+      "group_by_letter_description": "In der Kontaktliste einen Buchstaben über jede Gruppe von Namen setzen",
+      "sort_by_last_name_description": "Kontakte nach Nachnamen sortieren, damit Familien nebeneinander stehen",
+      "import_description": "Kontakte aus einer Kontaktdatei (.vcf) hinzufügen",
+      "export_description": "Alle Kontakte in einer Kontaktdatei (.vcf) speichern"
+    },
+    "downloads": {
+      "description": "Legen Sie die Dateinamen für E-Mails und Anhänge fest, die Sie speichern.",
+      "email_template": {
+        "description": "Der Dateiname, wenn Sie eine E-Mail speichern oder in einen Ordner auf Ihrem Computer ziehen. Die Endung .eml wird automatisch angehängt."
+      },
+      "attachment_template": {
+        "description": "Der Dateiname, wenn Sie einen Anhang speichern oder herausziehen. Wenn Sie '{filename}' und '{ext}' weglassen, behält die Datei ihre Endung."
+      },
+      "bundle_template": {
+        "description": "Der Dateiname, wenn Sie mehrere E-Mails zusammen in einer .zip-Datei speichern. Die Endung .zip wird automatisch angehängt."
+      },
+      "spaces": {
+        "description": "Im Dateinamen ein anderes Zeichen statt Leerzeichen nutzen."
+      },
+      "lowercase": {
+        "description": "Den ganzen Dateinamen kleinschreiben."
+      },
+      "strip_diacritics": {
+        "description": "Buchstaben mit Akzenten in einfache Buchstaben ändern (ä → a, é → e). Manche Programme kommen mit Akzenten nicht klar."
+      },
+      "collapse_separators": {
+        "description": "Wenn mehrere Leerzeichen, _ oder - hintereinander stehen, nur eines behalten."
+      },
+      "after_export": {
+        "description": "Sie können die E-Mail in einen anderen Ordner verschieben, nachdem Sie sie als Datei gespeichert haben."
+      }
+    },
+    "filters": {
+      "description": "Regeln, die neue E-Mails von selbst sortieren, zum Beispiel in einen Ordner",
+      "no_rules_description": "Erstellen Sie eine Regel, dann werden neue E-Mails von selbst sortiert",
+      "vacation_active_description": "Neue E-Mails bekommen eine automatische Antwort",
+      "delete_confirm": "Diese Regel löschen?",
+      "raw_editor": "Regeln als Code bearbeiten (Sieve)",
+      "raw_editor_warning": "Wenn Sie den Code ändern, können Sie die Regeln hier vielleicht nicht mehr mit dem normalen Editor bearbeiten. Ihre Änderungen im Code ersetzen die normalen Regeln.",
+      "not_supported": "Ihr Mailserver kann keine Filterregeln nutzen.",
+      "match_all": "Alle Bedingungen müssen zutreffen",
+      "match_any": "Eine Bedingung genügt",
+      "stop_processing": "Die Regeln darunter nicht mehr prüfen",
+      "condition_fields": {
+        "header": "Andere Kopfzeile",
+        "body": "Text der E-Mail"
+      },
+      "comparators": {
+        "matches": "passt zum Muster (* = beliebiger Text)"
+      },
+      "forward_limit": "Dieser Server leitet eine E-Mail an höchstens {count} Adressen weiter. Weitere Weiterleitungen fallen weg.",
+      "forward_unavailable": "Dieser Server erlaubt keine Weiterleitung. Regeln, die E-Mails weiterleiten, tun nichts.",
+      "header_name": "Name der Kopfzeile",
+      "opaque_warning": "Diese Regeln wurden in einer anderen App geändert. Sie können sie hier nur als Code bearbeiten.",
+      "open_sieve_editor": "Regeln als Code bearbeiten (Sieve)",
+      "expanded_view_description": "Jede Regel mit allen Bedingungen und Aktionen zeigen",
+      "reset_warning": "Damit werden alle Ihre jetzigen Regeln gelöscht und Sie fangen ohne Regeln neu an.",
+      "validation_empty_conditions": "Fügen Sie mindestens eine Bedingung hinzu und füllen Sie ihren Wert aus",
+      "validation_empty_actions": "Fügen Sie mindestens eine Aktion hinzu",
+      "validation_header_name": "Verwenden Sie im Namen der Kopfzeile nur die Buchstaben A bis Z, Ziffern, - und _",
+      "sieve_editor": {
+        "title": "Filterregeln als Code (Sieve)",
+        "warning": "Wenn Sie den Code ändern, können Sie die Regeln hier vielleicht nicht mehr mit dem normalen Editor bearbeiten. Ihre Änderungen im Code ersetzen die normalen Regeln.",
+        "script_content": "Regeln als Code",
+        "valid": "Der Code hat keine Fehler",
+        "invalid": "Der Code hat Fehler",
+        "validating": "Wird geprüft…",
+        "validate": "Prüfen",
+        "overwrite_message": "Dieser Code enthält die Regeln aus dem normalen Editor nicht mehr. Wenn Sie speichern, ersetzt er sie. Das können Sie nicht rückgängig machen.",
+        "validation_failed": "Der Code konnte nicht geprüft werden. Versuchen Sie es noch einmal."
+      },
+      "managed_by_tooltip": "{source} verwaltet das. Ändern Sie es in dieser App oder bearbeiten Sie die Regeln als Code.",
+      "apply_existing_unsupported": "Nur manche Regeln können auch für E-Mails laufen, die schon da sind: Regeln, die Absender, Empfänger, Betreff oder Kopfzeilen prüfen und die verschieben, kopieren, als gelesen markieren, mit Stern markieren oder mit Label versehen.",
+      "period_hint": "Die Regel gilt für E-Mails, die in dieser Zeit ankommen. Lassen Sie ein Feld leer, wenn es keinen Start oder kein Ende gibt.",
+      "validation_period_invalid": "Geben Sie ein Datum mit Uhrzeit ein oder lassen Sie das Feld leer",
+      "apply_existing_period": "Eine Regel mit Zeitraum gilt nur für E-Mails, die in dieser Zeit ankommen. Deshalb kann sie nicht für E-Mails laufen, die schon da sind."
+    },
+    "templates": {
+      "description": "Speichern Sie E-Mails, die Sie oft schreiben, und nutzen Sie sie wieder. Sie können Lücken haben, die Sie jedes Mal ausfüllen.",
+      "export_import_description": "Speichern Sie Ihre Vorlagen als Datei oder bringen Sie sie auf ein anderes Gerät",
+      "validation": {
+        "too_long": "Der Name darf höchstens 200 Zeichen haben"
+      }
+    },
+    "files": {
+      "sort_direction": {
+        "description": "Von A bis Z oder von Z bis A"
+      },
+      "show_thumbnails": {
+        "description": "Von jedem Bild ein kleines Vorschaubild statt eines Symbols zeigen"
+      },
+      "show_hidden": {
+        "description": "Versteckte Dateien und Ordner zeigen (ihr Name beginnt mit einem Punkt)"
+      }
+    },
+    "reading_page": {
+      "sections": {
+        "images_description": "Bilder aus dem Internet können dem Absender verraten, dass Sie die E-Mail geöffnet haben."
+      }
+    }
+  },
+  "errors": {
+    "page_error_description": "Diese Seite funktioniert gerade nicht. Versuchen Sie es noch einmal oder gehen Sie zurück zum Posteingang.",
+    "sidebar_error": "Ihre Ordner konnten nicht geladen werden",
+    "email_list_error": "Ihre E-Mails konnten nicht geladen werden",
+    "viewer_error_title": "Diese E-Mail kann nicht angezeigt werden",
+    "viewer_error_description": "Etwas in dieser E-Mail verhindert, dass sie hier angezeigt wird. Vielleicht nutzt sie ein Format, das wir nicht unterstützen.",
+    "composer_error": "Das Fenster für neue E-Mails konnte nicht geöffnet werden",
+    "settings_error_title": "Die Einstellungen konnten nicht geöffnet werden",
+    "settings_error_description": "Ihre Einstellungen konnten nicht geladen werden. Was Sie jetzt ändern, wird vielleicht nicht gespeichert."
+  },
+  "identities": {
+    "delete_confirm": "Diese Absenderadresse löschen? Das können Sie nicht rückgängig machen.",
+    "cannot_delete": "Diese Absenderadresse können Sie nicht löschen",
+    "validation_errors": {
+      "invalid_emails": "Diese E-Mail-Adressen sind nicht richtig: {emails}"
+    },
+    "form": {
+      "email_invalid": "Geben Sie eine richtige E-Mail-Adresse ein",
+      "email_immutable": "Die E-Mail-Adresse können Sie nach dem Hinzufügen nicht mehr ändern",
+      "signature_byte_limit_reached": "Die Signatur ist zu lang für den Server"
+    },
+    "sub_address": {
+      "invalid_tag": "Verwenden Sie im Stichwort nur Buchstaben, Ziffern und Bindestriche (-)"
+    }
+  },
+  "calendar": {
+    "import": {
+      "url_description": "Geben Sie die Webadresse einer Kalenderdatei (.ics) ein, um ihre Termine hinzuzufügen."
+    },
+    "management": {
+      "description": "Erstellen Sie neue Kalender, benennen Sie sie um und ändern Sie ihre Farbe. Sie können auch mit der rechten Maustaste auf einen Kalender in der Seitenleiste klicken, um die Farbe zu ändern.",
+      "description_touch": "Erstellen Sie neue Kalender, benennen Sie sie um und ändern Sie ihre Farbe.",
+      "confirm_delete": "„{name}“ löschen? Alle Termine in diesem Kalender werden auch gelöscht.",
+      "confirm_clear": "Alle Termine in „{name}“ löschen? Das können Sie nicht rückgängig machen.",
+      "kind_hint": "Das legt fest, welche Apps auf Ihren anderen Geräten diesen Kalender zeigen. Sie können es später nicht ändern.",
+      "default_alerts_hint": "Neue Termine in diesem Kalender bekommen diese Erinnerungen, außer Sie ändern sie im Termin. Eine Änderung hier ändert keine Termine, die Sie schon haben. Erinnerungen per E-Mail schickt der Mailserver."
+    },
+    "subscription": {
+      "description": "Folgen Sie einem Kalender aus dem Internet, zum Beispiel mit Feiertagen. Seine Termine werden von selbst aktualisiert und in einem eigenen Kalender gezeigt. Die Adresse beginnt mit https:// oder webcal://.",
+      "confirm_delete": "„{name}“ nicht mehr folgen? Der Kalender und alle seine Termine werden entfernt."
+    }
+  },
+  "sharing": {
+    "description": "Erlauben Sie anderen Personen oder Gruppen auf diesem Server den Zugriff. Die Änderung gilt sofort.",
+    "directory_restricted": "Ihr Server zeigt keine Liste aller Benutzer. Deshalb sehen Sie nur Ihre Gruppen und Personen, die etwas mit Ihnen teilen. Ihre Administration kann das ändern.",
+    "directory_not_browsable": "Ihr Server zeigt keine Liste aller Benutzer.",
+    "directory_failed": "Die Liste der Personen und Gruppen konnte nicht geladen werden. Versuchen Sie es noch einmal.",
+    "share_failed": "Die Freigabe konnte nicht geändert werden. Versuchen Sie es noch einmal."
+  },
+  "delegates": {
+    "description": "Erlauben Sie jemandem in einem Schritt den Zugriff auf Ihre E-Mails, Kalender und Kontakte. Sehen Sie, wer worauf Zugriff hat.",
+    "read_failed": "Ein Teil Ihrer Freigaben konnte nicht geladen werden. Sie können Zugriffe ändern oder entfernen, sobald alles geladen ist.",
+    "remove_message": "{name} hat dann keinen Zugriff mehr auf alles, was Sie aus Ihrem Konto geteilt haben: E-Mails, Kalender, Kontakte und Dateien.",
+    "not_found": "Auf diesem Server gibt es niemanden mit der Adresse {address}.",
+    "lookup_failed": "Diese Adresse wurde nicht gefunden. Prüfen Sie sie und versuchen Sie es noch einmal.",
+    "known_only": "Sie sehen nur Ihre Gruppen und Personen, die etwas mit Ihnen geteilt haben.",
+    "directory_off_note": "Um jemand Neues hinzuzufügen, muss Ihre Administration zuerst die Suche nach Benutzern auf dem Server erlauben.",
+    "directory_failed": "Die Liste der Personen und Gruppen konnte nicht geladen werden. Versuchen Sie es noch einmal.",
+    "nothing_to_change": "Es hat sich nichts geändert. Wählen Sie, was die Person bekommen soll, oder klicken Sie auf „Zugriff entfernen“.",
+    "change_note": "Ordner, Kalender und Adressbücher, die Sie nicht auswählen, sind nicht mehr geteilt. Geteilte Dateien bleiben geteilt. „Zugriff entfernen“ nimmt auch diese weg.",
+    "rights_keep_hint": "Was die Person schon hat, bleibt gleich. Alles Neue bekommt dieselben Rechte wie der Rest dieser Art, oder nur Lesen.",
+    "send_note": "Personen mit Zugriff können Ihre E-Mails und Ihren Kalender lesen und ordnen. Sie können keine E-Mails als Sie oder für Sie senden. Wenn mehrere Personen eine Adresse brauchen, fragen Sie Ihre Administration nach einem geteilten Postfach.",
+    "partial_title": "Einiges konnte nicht geändert werden. Alles andere ist erledigt."
+  },
+  "smime": {
+    "your_certificates_desc": "Fügen Sie Ihre Zertifikate hinzu und verwalten Sie sie. Sie brauchen eines, um E-Mails mit S/MIME zu signieren oder zu verschlüsseln.",
+    "recipient_certificates_desc": "Zertifikate anderer Personen. Damit können Sie diesen Personen verschlüsselte E-Mails senden.",
+    "identity_bindings_desc": "Wählen Sie, welches Zertifikat zu welcher Ihrer Absenderadressen gehört",
+    "defaults_desc": "Wählen Sie, ob neue E-Mails von Anfang an signiert oder verschlüsselt werden",
+    "encrypt_by_default_desc": "Eine E-Mail von selbst verschlüsseln, wenn Sie für jeden Empfänger ein Zertifikat haben",
+    "remember_unlocked_desc": "Ihre Schlüssel entsperrt lassen, bis Sie diesen Browser schließen",
+    "p12_passphrase_desc": "Geben Sie das Passwort dieser Zertifikatsdatei ein",
+    "storage_passphrase_desc": "Wählen Sie ein Passwort. Es schützt diesen Schlüssel, solange er in Ihrem Browser gespeichert ist.",
+    "unlock_key_desc": "Geben Sie das Passwort dieses Schlüssels ein, um E-Mails zu signieren oder zu öffnen",
+    "cert_expired": "Dieses Zertifikat ist nicht mehr gültig",
+    "status_encrypted_no_key": "Diese E-Mail ist verschlüsselt, aber Ihnen fehlt der Schlüssel, um sie zu öffnen",
+    "status_encrypted_failed": "Diese E-Mail ist verschlüsselt und konnte nicht entschlüsselt werden. Vielleicht fehlt Ihnen der passende Schlüssel.",
+    "status_signed_invalid": "Die Signatur ist ungültig. Die E-Mail wurde vielleicht verändert.",
+    "status_signed_expired_cert": "Mit einem Zertifikat signiert, das nicht mehr gültig ist",
+    "status_signed_self_signed": "Die Signatur ist gültig. Der Absender hat das Zertifikat aber selbst erstellt, also hat niemand geprüft, wer er ist.",
+    "status_signed_mismatch": "Die Signatur ist gültig, gehört aber zu jemand anderem als dem Absender",
+    "auto_import_signer_certs_desc": "Wenn eine signierte E-Mail geprüft ist, das Zertifikat des Absenders speichern. Dann können Sie ihm später verschlüsselte E-Mails senden.",
+    "export_passphrase_desc": "Wählen Sie ein Passwort, um die gespeicherte Datei zu schützen",
+    "export_storage_desc": "Geben Sie das Passwort dieses Schlüssels ein, um ihn als Datei zu speichern"
+  },
+  "recover_deleted": {
+    "load_failed": "Gelöschte E-Mails konnten nicht geladen werden. Versuchen Sie es noch einmal."
+  }
+}

@@ -144,16 +144,44 @@ const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
   'zh-TW': () => require('../../locales/rn/zh-TW.json'),
 };
 
-const dictionaries: Partial<Record<LocaleCode, Dictionary>> = {};
+// Plain language (Settings > Accessibility, webmail i18n/plain-language.ts):
+// simpler wording for settings and error messages. Only English and German
+// have it; ../../locales/<code>/plain.json holds just the keys that get a
+// simpler version, under the same paths as common.json, and anything it
+// leaves out keeps the normal string. Every other language is unchanged
+// when the setting is on.
+const PLAIN_LOADERS: Partial<Record<LocaleCode, () => Dictionary>> = {
+  en: () => require('../../locales/en/plain.json'),
+  de: () => require('../../locales/de/plain.json'),
+};
 
-/** The merged catalog (vendored + RN overlay) for a locale, loaded on first use. */
-export function getDictionary(locale: LocaleCode): Dictionary {
+/** Whether a language has plain-language strings. */
+export function hasPlainLanguage(locale: string): boolean {
+  return Object.prototype.hasOwnProperty.call(PLAIN_LOADERS, locale);
+}
+
+const dictionaries: Partial<Record<LocaleCode, Dictionary>> = {};
+const plainDictionaries: Partial<Record<LocaleCode, Dictionary>> = {};
+
+/**
+ * The merged catalog (vendored + RN overlay) for a locale, loaded on first
+ * use. With `plain`, the plain-language strings win over it where the
+ * language has them.
+ */
+export function getDictionary(locale: LocaleCode, plain = false): Dictionary {
   let dict = dictionaries[locale];
   if (!dict) {
     dict = deepMerge(CATALOG_LOADERS[locale](), OVERLAY_LOADERS[locale]());
     dictionaries[locale] = dict;
   }
-  return dict;
+  const loadPlain = plain ? PLAIN_LOADERS[locale] : undefined;
+  if (!loadPlain) return dict;
+  let plainDict = plainDictionaries[locale];
+  if (!plainDict) {
+    plainDict = deepMerge(dict, loadPlain());
+    plainDictionaries[locale] = plainDict;
+  }
+  return plainDict;
 }
 
 /** Which catalogs have been loaded so far (for tests). */
@@ -250,8 +278,11 @@ export function translate(
   key: string,
   fallback?: string,
   params?: MessageParams,
+  plain = false,
 ): string {
-  const message = lookup(getDictionary(locale), key)
+  // A key the language lacks falls back to normal English, as in the
+  // webmail (plain strings are laid over the language's own catalog only).
+  const message = lookup(getDictionary(locale, plain), key)
     ?? lookup(getDictionary('en'), key)
     ?? fallback
     ?? key;

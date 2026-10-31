@@ -57,8 +57,8 @@ export const QUOTE_COLLAPSED_ATTR = 'data-quote-collapsed';
 /**
  * The in-page implementation of `setupQuoteCollapse`, as a self-contained
  * script for `injectedJavaScript`. Idempotent per document. Uses inline
- * styles only (style-src allows inline; neutral greys read fine after the
- * dark-mode invert filter too).
+ * styles only (style-src allows inline; the dark-mode recolour pass runs
+ * after it and converts the toggle like the rest of the mail).
  */
 export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
   const cfg = JSON.stringify({

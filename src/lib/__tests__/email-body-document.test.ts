@@ -50,6 +50,15 @@ describe('bodyDocument', () => {
     expect(bodyDocument(input({ cidMap: { a: 'data:image/png;base64,AA' } }))).not.toBe(first);
   });
 
+  it('draws a plain-text body in the reading font and rebuilds when it changes', () => {
+    const text = input({ rawHtml: null, text: 'Hello' });
+    const plain = bodyDocument(text);
+    const lexend = bodyDocument({ ...text, appFont: 'lexend' });
+    expect(lexend).not.toBe(plain);
+    expect(lexend.html).toContain('font-family: "Lexend"');
+    expect(plain.html).not.toContain('Lexend');
+  });
+
   it('keeps messages apart by key', () => {
     const a = bodyDocument(input({ key: '|e1' }));
     const b = bodyDocument(input({ key: 'group|e1' }));
