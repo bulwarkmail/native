@@ -135,7 +135,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: no page (`src/screens/SettingsScreen.tsx:150-174`); text size 0.92/1/1.12 (`src/theme/dynamic.ts:14-18`). Text follows the system font scale; reduce motion follows the system (`src/theme/dynamic.ts:88-120`).
   - Fix hint: a page that groups the existing switches, widens the text size range and takes the presets that make sense on a phone.
 
-- [x] **Form fields have no name for screen readers** — `P2` — `bug` — fixed in ff5a8c91 (settings and sign-in; contact form and event editor are listed for their branches)
+- [x] **Form fields have no name for screen readers** — `P2` — `bug` — fixed in ff5a8c91 (settings and sign-in; contact form and event editor are listed for their branches), mail search field, filter panel and unified search field in 3c3274e4
   - What WEB does: every field has a label tied to it (`components/ui/field.tsx:42`; ef13556a0, 0e2a05e0e, dcc21acd0, 4e2affe40, f73643bbb).
   - What RN does: the shared Input draws its label as separate Text (`src/components/Input.tsx:40-55`); the Security password and code fields have no label at all (`src/components/settings/AccountSecuritySettings.tsx:181`, `:191`, `:198`); contact fields rely on placeholders (`src/screens/ContactFormScreen.tsx:823-834`); the reminder field's only name is "30" (`src/components/calendar/EventModal.tsx:772`, `:817`).
   - Fix hint: Input passes its label as accessibilityLabel; every bare TextInput gets one.

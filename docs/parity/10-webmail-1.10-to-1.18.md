@@ -431,7 +431,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [ ] **Settings extras: language search, date locale override, font size everywhere, nav-bar icon style, sidebar apps never rendered, screenshot protection, Flat fields theme** — `P3` — `missing`/`partial` (old 08/09 items) — screenshot protection not done: needs a new native module (expo-screen-capture); text size widened in c9b3bdfe
   - What RN does: `src/components/settings/LanguageSettings.tsx:87`, `src/theme/dynamic.ts:48`, `src/lib/sidebar-apps.ts:10`, `src/theme/builtin-themes.ts:18`.
 
-- [ ] **Search snippets, size filter, mail folder sharing, global search (1.10.0)** — `P3` — `missing`
+- [x] **Search snippets, size filter, mail folder sharing, global search (1.10.0)** — `P3` — `missing` — search snippets fixed in 1342e2a0, size filter in aac8a403 (live checks on 0.16 and 1.0 in 12b798c0); not done: mail folder sharing and global search, own feature, not in this run
 
 ## Old open items (docs/parity 01-09, audit-2026-09)
 Of 42 open boxes and "Missing vs webmail" items, 8 are done (84fef142 calendar UI strings, f62849d1 iOS push, 75299244 Tabler icons, 26a34d59 autocomplete groups, 5802cae contact deep link, status bar theming, birthday time zone, folder colours 548b647), 9 are no longer relevant (identity and template sync, settings sync, S/MIME is a plugin, #379 migration, stability banner, admin relay list, Android badge is iOS-only by design), and 25 are still open; those are folded into the rows above.
