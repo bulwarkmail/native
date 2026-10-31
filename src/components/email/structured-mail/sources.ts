@@ -3,6 +3,7 @@
 // since the app has one client (api/jmap-client).
 import type { Email } from '../../../api/types';
 import type { StructuredCard } from '../../../lib/structured-mail';
+import { pkpassSource } from './pkpass-source';
 
 /**
  * Card sources beyond the HTML markup, read asynchronously once a trusted
@@ -22,5 +23,5 @@ export interface CardSourceContext {
 
 export type CardSource = (context: CardSourceContext) => Promise<StructuredCard[]>;
 
-/** Registered sources. */
-export const CARD_SOURCES: CardSource[] = [];
+/** Registered sources: Apple Wallet passes. */
+export const CARD_SOURCES: CardSource[] = [pkpassSource];
