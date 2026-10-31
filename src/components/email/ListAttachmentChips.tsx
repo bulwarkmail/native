@@ -27,7 +27,7 @@ const MAX_CHIPS = 2;
  * The row's attachment parts: the ones the email already carries (a message
  * opened before), else loaded lazily when it has a paperclip.
  */
-function useListAttachments(email: Email, load?: LoadListAttachments): Attachment[] | undefined {
+export function useListAttachments(email: Email, load?: LoadListAttachments): Attachment[] | undefined {
   const [loaded, setLoaded] = React.useState<{ key: string; attachments: Attachment[] } | null>(null);
   const needsLoad = !!load && !!email.hasAttachment && !email.attachments;
   // Rows of a list spanning accounts can share an id (#1082).
@@ -47,7 +47,10 @@ function useListAttachments(email: Email, load?: LoadListAttachments): Attachmen
 
 interface ChipsProps {
   email: Email;
-  load?: LoadListAttachments;
+  /** The row's parts (useListAttachments); undefined while they load. */
+  attachments: Attachment[] | undefined;
+  /** The parts are being loaded: hold the chips' line so the row doesn't grow. */
+  pending?: boolean;
   onOpen: (email: Email, attachment: Attachment) => void;
   /** Selection mode: taps belong to the row. */
   disabled?: boolean;
@@ -59,13 +62,23 @@ interface ChipsProps {
  * that file directly.
  */
 export const ListAttachmentChips = React.memo(function ListAttachmentChips({
-  email, load, onOpen, disabled,
+  email, attachments, pending, onOpen, disabled,
 }: ChipsProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const dyn = useTypography();
-  const attachments = useListAttachments(email, load);
   const real = React.useMemo(() => realAttachments(attachments), [attachments]);
+  // The line the chips will take, held while they load (webmail 7b25d3a95):
+  // the row grew under the finger when they arrived.
+  if (pending && attachments === undefined) {
+    return (
+      <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="list-chips-placeholder">
+        <View style={[styles.chip, styles.placeholderChip]}>
+          <Text style={[styles.name, dyn.caption]}> </Text>
+        </View>
+      </View>
+    );
+  }
   if (real.length === 0) return null;
 
   const shown = real.slice(0, MAX_CHIPS);
@@ -214,6 +227,8 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.surface,
     },
     chipPressed: { backgroundColor: c.surfaceHover },
+    // Empty space of a chip's height; a failed load leaves no grey stub behind.
+    placeholderChip: { width: 96, opacity: 0 },
     name: { ...typography.caption, color: c.textSecondary, flexShrink: 1 },
     more: {
       paddingHorizontal: 6,

@@ -24,8 +24,9 @@ import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
 import {
-  ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
+  ListAttachmentChips, ListAttachmentOpener, useListAttachments, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { showsPaperclip } from '../lib/list-attachments';
 import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
 import { useSenderWarning } from '../components/email/use-sender-warning';
 import type { LoadListAttachments } from '../lib/list-attachments';
@@ -193,6 +194,9 @@ const EmailRow = React.memo(function EmailRow({
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
   const verificationCode = useListVerificationCode(item);
+  // The row's parts, loaded once it is on screen: the chips show them and
+  // the paperclip goes when they are only inline images.
+  const attachments = useListAttachments(item, onOpenAttachment ? loadAttachments : undefined);
   // Sent and Drafts rows show the recipient: the check says nothing about them.
   const senderWarning = useSenderWarning(showRecipient ? undefined : item);
 
@@ -272,7 +276,7 @@ const EmailRow = React.memo(function EmailRow({
             {forwarded && (
               <Forward size={componentSizes.statusIcon} color={c.textMuted} />
             )}
-            {item.hasAttachment && (
+            {showsPaperclip(item.hasAttachment, attachments) && (
               <Paperclip size={componentSizes.statusIcon} color={c.textMuted} />
             )}
           </View>
@@ -312,7 +316,8 @@ const EmailRow = React.memo(function EmailRow({
         {onOpenAttachment && (
           <ListAttachmentChips
             email={item}
-            load={loadAttachments}
+            attachments={attachments}
+            pending={!!loadAttachments && item.hasAttachment && !item.attachments}
             onOpen={onOpenAttachment}
             disabled={selectionMode}
           />

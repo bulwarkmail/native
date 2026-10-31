@@ -24,6 +24,17 @@ export function realAttachments(attachments?: readonly Attachment[] | null): Att
 }
 
 /**
+ * Whether a list row shows the paperclip: the server's `hasAttachment` until
+ * the row's parts are loaded, then only when a real attachment is among them,
+ * so a message with nothing but inline images loses it (webmail
+ * components/email/attachment-chips.tsx).
+ */
+export function showsPaperclip(hasAttachment: boolean, attachments: readonly Attachment[] | undefined): boolean {
+  if (attachments === undefined) return hasAttachment;
+  return realAttachments(attachments).length > 0;
+}
+
+/**
  * Long names are unreadable cut at the tail; the extension is the most
  * identifying part, so keep it and elide the middle.
  */
