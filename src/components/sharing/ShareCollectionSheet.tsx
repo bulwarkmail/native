@@ -236,6 +236,7 @@ export function ShareCollectionSheet<R extends object>({
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>{t('calendar.share.add_people', 'Add people')}</Text>
                   <TextInput
+                    accessibilityLabel={t('sharing.add_person', 'Add person or group')}
                     value={search}
                     onChangeText={setSearch}
                     placeholder={t('calendar.share.search_placeholder', 'Search by name or email')}

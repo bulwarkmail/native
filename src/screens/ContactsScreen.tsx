@@ -530,6 +530,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
         <View style={styles.searchBar}>
           <Search size={16} color={c.textMuted} />
           <TextInput
+            accessibilityLabel={t('contacts.search_placeholder', 'Search contacts...')}
             style={styles.searchInput}
             placeholder={t('contacts.search_placeholder', 'Search contacts...')}
             placeholderTextColor={c.textMuted}

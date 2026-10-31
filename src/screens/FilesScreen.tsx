@@ -1092,6 +1092,7 @@ export default function FilesScreen() {
         <View style={styles.toolbarRow}>
           {searchOpen ? (
             <TextInput
+              accessibilityLabel={t('files.search_placeholder', 'Search files...')}
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder={t('files.search_placeholder', 'Search files...')}
@@ -1748,6 +1749,7 @@ function PromptModal(props: PromptModalProps) {
             <View style={styles.dialog}>
               <Text style={styles.title}>{props.title}</Text>
               <TextInput
+                accessibilityLabel={props.placeholder ?? props.title}
                 value={props.value}
                 onChangeText={props.onChange}
                 placeholder={props.placeholder}

@@ -94,6 +94,7 @@ export default function TagAssignSheet({
 
         <View style={styles.inputRow}>
           <TextInput
+            accessibilityLabel={t('contacts.tag_name_placeholder', 'New tag name')}
             style={styles.input}
             placeholder={t('contacts.tag_name_placeholder', 'New tag name')}
             placeholderTextColor={c.textMuted}

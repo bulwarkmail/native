@@ -94,6 +94,7 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
       )}
 
       <TextInput
+        accessibilityLabel={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}
         // No full-screen keyboard in landscape: it would hide the suggestions
         // and the text around the field.
         disableFullscreenUI

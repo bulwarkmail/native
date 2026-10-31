@@ -282,6 +282,7 @@ export function TasksSheet({
 
           <View style={styles.addRow}>
             <TextInput
+              accessibilityLabel={t('calendar.tasks.title_placeholder', 'Task title')}
               value={editor.title}
               onChangeText={(v) => setEditor((e) => ({ ...e, title: v }))}
               placeholder={editor.id ? t('calendar.tasks.title_placeholder', 'Task title') : t('calendar.tasks.add_placeholder', 'Add a task…')}
@@ -305,6 +306,7 @@ export function TasksSheet({
           {expanded && (
             <View style={styles.editor}>
               <TextInput
+                accessibilityLabel={t('calendar.tasks.description_placeholder', 'Notes')}
                 value={editor.description}
                 onChangeText={(v) => setEditor((e) => ({ ...e, description: v }))}
                 placeholder={t('calendar.tasks.description_placeholder', 'Notes')}

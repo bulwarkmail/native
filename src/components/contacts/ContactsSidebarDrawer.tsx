@@ -282,6 +282,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
                 <View key={kw.keyword} style={styles.renameRow}>
                   <Tag size={16} color={c.textSecondary} />
                   <TextInput
+                    accessibilityLabel={t('contacts.rename_category', 'Rename category')}
                     style={styles.renameInput}
                     value={renameValue}
                     onChangeText={setRenameValue}

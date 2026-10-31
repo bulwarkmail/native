@@ -331,6 +331,7 @@ export function VacationSettings() {
           description={t('settings.vacation.date_range.start_description', 'Leave empty for no start limit')}
         >
           <TextInput
+            accessibilityLabel={t('settings.vacation.date_range.start', 'Start Date')}
             value={fromDate}
             onChangeText={setFromDate}
             placeholder="YYYY-MM-DD HH:MM"
@@ -345,6 +346,7 @@ export function VacationSettings() {
           description={t('settings.vacation.date_range.end_description', 'Leave empty for no end limit')}
         >
           <TextInput
+            accessibilityLabel={t('settings.vacation.date_range.end', 'End Date')}
             value={toDate}
             onChangeText={setToDate}
             placeholder="YYYY-MM-DD HH:MM"
@@ -379,6 +381,7 @@ export function VacationSettings() {
           <Text style={styles.bodyLabel}>{t('settings.vacation.message.body_label', 'Message Body')}</Text>
           <Text style={styles.bodyDesc}>{t('settings.vacation.message.body_description', 'Plain text message content')}</Text>
           <TextInput
+            accessibilityLabel={t('settings.vacation.message.body_label', 'Message Body')}
             value={body}
             onChangeText={setBody}
             placeholder={t('settings.vacation.message.body_placeholder', 'Thank you for your email. I am currently out of the office and will respond when I return.')}
