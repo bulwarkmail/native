@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, Pressable, Linking, ActivityIndicator } from 'react-native';
+import { Alert, View, Text, StyleSheet, Pressable, Linking, ActivityIndicator, Platform } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   Key, Smartphone, Lock, Eye, EyeOff, ShieldCheck, Monitor, Trash2,
@@ -20,6 +20,7 @@ import {
 import { useLocaleStore } from '../../stores/locale-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { passwordChangeOutcome } from './password-change';
+import { clientCertCopy } from './client-cert-copy';
 import {
   AccountSecurityForbiddenError,
   isLimitedStalwartSignIn,
@@ -50,7 +51,7 @@ import {
 import { generateTotpEnrolment, type TotpEnrolment } from '../../lib/totp';
 
 // ── TLS client certificate (mobile-only) ──────────────────
-// Picks an installed Android cert for mTLS handshakes. Independent of the
+// Picks an installed Android cert (iOS: imports a .p12 file) for mTLS handshakes. Independent of the
 // Stalwart account features below, so it stays visible even on non-Stalwart
 // servers.
 function ClientCertSection() {
@@ -59,6 +60,7 @@ function ClientCertSection() {
   const t = useLocaleStore((s) => s.t);
   const [certAlias, setCertAlias] = useState<string | null>(null);
   const [certBusy, setCertBusy] = useState(false);
+  const copy = clientCertCopy(Platform.OS, t);
 
   useEffect(() => {
     void getClientCertAlias().then(setCertAlias);
@@ -82,7 +84,7 @@ function ClientCertSection() {
     if (certBusy) return;
     Alert.alert(
       t('settings.security.client_cert.clear_title', "Stop using client certificate?"),
-      t('settings.security.client_cert.clear_message', "New requests will no longer present a certificate. The certificate stays installed in Android."),
+      copy.clearMessage,
       [
         { text: t('common.cancel', "Cancel"), style: 'cancel' },
         {
@@ -105,7 +107,7 @@ function ClientCertSection() {
   return (
     <SettingsSection
       title={t('settings.security.client_cert.title', "TLS client certificate")}
-      description={t('settings.security.client_cert.description', "Picks an installed Android certificate to authenticate to the server during the TLS handshake. Useful when the reverse proxy enforces mTLS.")}
+      description={copy.description}
     >
       <View style={styles.certRow}>
         <ShieldCheck size={18} color={certAlias ? c.success : c.mutedForeground} />
@@ -116,7 +118,7 @@ function ClientCertSection() {
               : t('settings.security.client_cert.not_set', "Not set")}
           </Text>
           <Text style={styles.certHint}>
-            {t('settings.security.client_cert.hint', "Install the certificate via Android Settings → Security → Encryption & credentials, then pick it here.")}
+            {copy.hint}
           </Text>
         </View>
       </View>
