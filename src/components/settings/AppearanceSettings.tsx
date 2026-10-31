@@ -6,15 +6,9 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ThemeMode, type Density } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
+import { densityPreviewConfig } from './density-preview';
 
 type Theme = ThemeMode;
-
-const DENSITY_PREVIEW: Record<Density, { py: number; gap: number; showAvatar: boolean; showPreview: boolean }> = {
-  'extra-compact': { py: 2, gap: 6, showAvatar: false, showPreview: false },
-  compact: { py: 4, gap: 8, showAvatar: true, showPreview: false },
-  regular: { py: 10, gap: 12, showAvatar: true, showPreview: true },
-  comfortable: { py: 16, gap: 16, showAvatar: true, showPreview: true },
-};
 
 const PREVIEW_ROWS = [
   { unread: true, sender: 'Alice Johnson', subject: 'Project update - Q1 roadmap', preview: 'Here are the latest numbers from…' },
@@ -25,7 +19,8 @@ const PREVIEW_ROWS = [
 function DensityPreview({ density }: { density: Density }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const cfg = DENSITY_PREVIEW[density];
+  const showPreview = useSettingsStore((s) => s.showPreview);
+  const cfg = densityPreviewConfig(density, showPreview);
   return (
     <View style={styles.densityPreview}>
       {PREVIEW_ROWS.map((row, i) => (
