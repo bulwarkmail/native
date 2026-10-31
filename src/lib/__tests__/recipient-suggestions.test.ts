@@ -87,6 +87,7 @@ describe('composer suggestions wiring', () => {
     expect(src).toMatch(/const results = await searchRecipients\(q\);/);
     expect(src).toMatch(/if \(!q \|\| searchingServer \|\| loginMovedFrom\(ownerLoginRef\.current\)\) return;/);
     expect(src).toMatch(/onSearchServer=\{canSearchServer \?/);
-    expect(src).toMatch(/t\('email_composer\.autocomplete_search_server', 'Search the server'\)/);
+    const list = fs.readFileSync(path.resolve(__dirname, '../../components/compose/RecipientSuggestionList.tsx'), 'utf8');
+    expect(list).toMatch(/t\('email_composer\.autocomplete_search_server', 'Search the server'\)/);
   });
 });
