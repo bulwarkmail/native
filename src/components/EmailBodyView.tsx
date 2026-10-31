@@ -16,12 +16,13 @@ import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-s
 import { senderVerificationOf } from '../lib/email-headers';
 import { plainTextReading } from '../lib/html-to-readable-text';
 import { buildMailTextSizeScript, mailTextFactor } from '../lib/mail-reading';
+import { buildPauseAnimatedImagesScript, withReducedMotion } from '../lib/mail-motion';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
-import { useTypography } from '../theme/dynamic';
+import { useShouldAnimate, useTypography } from '../theme/dynamic';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { perfEndAfterPaint, perfLap } from '../lib/perf-marks';
 import type { RootStackParamList } from '../navigation/types';
@@ -552,6 +553,10 @@ export default function EmailBodyView({
   // scaled body style, so it follows whatever steps the text size setting has.
   const dyn = useTypography();
   const textFactor = mailTextFactor(dyn.body.fontSize / typography.body.fontSize, PixelRatio.getFontScale());
+  // Reduce motion (the system setting, or the app's animations switch) holds
+  // inside mail too: CSS animations stop and animated images pause behind a
+  // Play button (webmail 24a13cc1f, bb7869798).
+  const reduceMotion = !useShouldAnimate();
   const trustedSenderEmails = useContactsStore((s) => s.trustedSenderEmails);
   const trustedSendersLoaded = useContactsStore((s) => s.trustedSendersLoaded);
   const loadTrustedSendersBook = useContactsStore((s) => s.loadTrustedSendersBook);
@@ -713,7 +718,14 @@ export default function EmailBodyView({
     messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors,
   ]);
 
-  const source = React.useMemo(() => ({ html: prepared.html }), [prepared.html]);
+  const source = React.useMemo(
+    () => ({ html: reduceMotion && prepared.isHtml ? withReducedMotion(prepared.html) : prepared.html }),
+    [prepared.html, prepared.isHtml, reduceMotion],
+  );
+  const pauseLabels = React.useMemo(() => ({
+    play: t('email_viewer.play_animation', 'Play animation'),
+    pause: t('email_viewer.pause_animation', 'Pause animation'),
+  }), [t]);
   const showBanner = shouldBlock && prepared.blockedExternal;
   // Still cut off after the API's larger refetch (or the refetch failed).
   const showTruncated = !bodyOverride && hasTruncatedDisplayedBody(email);
@@ -727,8 +739,9 @@ export default function EmailBodyView({
       + (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
       + (prepared.applyInversion ? DARK_REINVERT_SCRIPT : '')
       + (prepared.isHtml ? IMG_FIXUP_SCRIPT : '')
+      + (prepared.isHtml && reduceMotion ? buildPauseAnimatedImagesScript(pauseLabels) : '')
       + HEIGHT_REPORTER + SWIPE_DETECTOR + PINCH_ZOOM,
-    [prepared.isHtml, prepared.applyInversion, quoteLabels, textFactor],
+    [prepared.isHtml, prepared.applyInversion, quoteLabels, textFactor, reduceMotion, pauseLabels],
   );
 
   // Performance harness: how much of opening a message is the WebView.
