@@ -20,7 +20,13 @@ interface TagCountsState {
   /** `generation` the counts were fetched at. */
   fetchedAt: number;
   /** Fetch the counts unless the cached ones are current. */
-  ensure: (login: string, tagIds: string[], accountIds: Array<string | undefined>) => Promise<void>;
+  ensure: (
+    login: string,
+    tagIds: string[],
+    accountIds: Array<string | undefined>,
+    /** Each account's Trash and Junk ids (key '' = the own account), left out of the counts. */
+    excluded?: Record<string, string[]>,
+  ) => Promise<void>;
   /** An Email change arrived: the next `ensure` fetches again. */
   invalidate: () => void;
 }
@@ -35,8 +41,8 @@ export const useTagCountsStore = create<TagCountsState>((set, get) => ({
   generation: 0,
   fetchedAt: -1,
 
-  ensure: (login, tagIds, accountIds) => {
-    const key = `${login}|${accountIds.map((id) => id ?? '').join(',')}|${tagIds.join(',')}`;
+  ensure: (login, tagIds, accountIds, excluded = {}) => {
+    const key = `${login}|${accountIds.map((id) => id ?? '').join(',')}|${tagIds.join(',')}|${JSON.stringify(excluded)}`;
     if (get().login !== login) set({ counts: {}, login, key: null });
     const { generation } = get();
     if (get().key === key && get().fetchedAt === generation) return Promise.resolve();
@@ -44,7 +50,7 @@ export const useTagCountsStore = create<TagCountsState>((set, get) => ({
     const seq = ++lastSeq;
     const promise = (async () => {
       try {
-        const list = await fetchTagCounts(tagIds, accountIds);
+        const list = await fetchTagCounts(tagIds, accountIds, excluded);
         // A later ensure (another login, other tags) supersedes this one.
         if (inflight?.seq !== seq || get().login !== login) return;
         set({ counts: Object.fromEntries(list.map((c) => [c.id, c])), key, fetchedAt: generation });

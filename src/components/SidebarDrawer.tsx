@@ -15,7 +15,7 @@ import {
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
-import { useEmailStore, spannedAccounts } from '../stores/email-store';
+import { useEmailStore, spannedAccounts, trashAndJunkIds } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -462,8 +462,10 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   React.useEffect(() => {
     if (!visible || !tagsExpanded || keywordDefs.length === 0 || !activeAccountId || !jmapClient.isConnected) return;
     const accounts = tagAccountsKey.split('|').map((id) => id || undefined);
-    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts);
-  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, activeAccountId, tagCountsGeneration, ensureTagCounts]);
+    // Trash and Junk stay out of the counts as they do of the tag view (#1156).
+    const excluded = Object.fromEntries(accounts.map((id) => [id ?? '', trashAndJunkIds(mailboxes, id)]));
+    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts, excluded);
+  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, mailboxes, activeAccountId, tagCountsGeneration, ensureTagCounts]);
 
   // ── Folder actions (long-press) ───────────────────────────────────────
   const refFor = (mb: Mailbox) => ({

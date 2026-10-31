@@ -303,9 +303,12 @@ export function searchSkipsTrashAndJunk(
   filters: EmailFilters,
   openRole?: string | null,
 ): boolean {
-  if (filters.keyword) return false;
   if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return true;
   if (filters.folder) return false;
+  // A tag view leaves Trash and Junk out, as Gmail's label views do: a
+  // deleted message keeps its keywords and stayed listed under the tag
+  // (webmail #1156). It is still in the Trash folder itself.
+  if (filters.keyword) return true;
   return effectiveFolderScope(searchQuery, filters, openRole) === 'all';
 }
 
@@ -626,7 +629,7 @@ export function spansAccounts(
 }
 
 // The raw JMAP ids of one account's Trash and Junk (undefined = the user's own).
-function trashAndJunkIds(mailboxes: Mailbox[], accountId: string | undefined): string[] {
+export function trashAndJunkIds(mailboxes: Mailbox[], accountId: string | undefined): string[] {
   return accountMailboxes(mailboxes, accountId)
     .filter((m) => isTrashOrJunkRole(m.role))
     .map((m) => m.originalId ?? m.id);

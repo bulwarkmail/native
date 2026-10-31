@@ -41,6 +41,7 @@ import {
 } from '../email';
 import { senderWarningOf } from '../../lib/email-headers';
 import { scheduledEmailIdsInThread } from '../thread-scheduled';
+import { fetchTagCounts, KEYWORDS_CAPABILITY } from '../tag-counts';
 import { uploadBytes } from '../blob';
 import { getIdentities, updateIdentity } from '../identity';
 import { isJMAPSetError } from '../jmap-result';
@@ -466,5 +467,28 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       const [filed] = await getFullEmails([result.emailId!]);
       expect((await scheduledEmailIdsInThread(filed.threadId)).size).toBe(0);
     }, 90_000);
+
+    it('leaves Trash out of the tag counts (bulwarkmail/webmail#1156)', async (ctx) => {
+      const boxes = await getMailboxes();
+      const trash = boxes.find((b) => b.role === 'trash')!.id;
+      const tag = 'readerpass';
+      const keyword = `$label:${tag}`;
+      const live = await importMessage(scratch, `tag live ${mailTag}`, 'a');
+      const gone = await importMessage(trash, `tag deleted ${mailTag}`, 'b', { $seen: true });
+      // Set afterwards: 0.16 drops the keywords Email/import is given.
+      await patchKeywordsForEmails([live, gone], { [keyword]: true });
+      const flags = await getEmailFlags([live]);
+      if (!flags.list[0]?.keywords?.[keyword]) {
+        // Seen on the 0.16.27 test server: Email/set answers "updated" but
+        // keeps only system keywords for this account. Nothing to count.
+        ctx.skip('the server did not keep the tag keyword');
+        return;
+      }
+      const all = await eventually(() => fetchTagCounts([tag]), ([c]) => c.total === 2);
+      expect(all).toEqual([{ id: tag, total: 2, unread: 1 }]);
+      expect(await fetchTagCounts([tag], [undefined], { '': [trash] })).toEqual([{ id: tag, total: 1, unread: 1 }]);
+      // Stalwart answers Keyword/get for no keyword counters (no capability).
+      expect(client.currentSession?.capabilities?.[KEYWORDS_CAPABILITY]).toBeUndefined();
+    }, 60_000);
   });
 });
