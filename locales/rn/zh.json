@@ -124,7 +124,7 @@
       "time_zone": "时区",
       "time_zone_auto": "设备时区",
       "time_zone_auto_zone": "设备时区（{zone}）",
-      "time_zone_desc": "用于新建活动和显示日历的时区。“设备”将跟随手机设置。"
+      "time_zone_desc": "用于新建活动和显示日历的时区。“设备”将跟随此设备的设置。"
     },
     "share": {
       "add_people": "添加用户",
@@ -674,7 +674,7 @@
       "err_pair_connect_detail": "请在电脑上显示新的登录码，然后重新扫描。",
       "err_pair_connect_title": "已登录，但无法连接到 {host}",
       "err_pair_insecure_detail": "{host} 想要使用未加密的连接。",
-      "err_pair_network_detail": "请检查网络连接，并确认手机可以访问网页邮箱，然后重试。",
+      "err_pair_network_detail": "请检查网络连接，并确认此设备可以访问网页邮箱，然后重试。",
       "err_pair_rate_detail": "请等待一分钟后重试。",
       "err_pair_server_detail": "请使用新的登录码重试。如果仍然失败，请联系管理员。",
       "err_pair_server_title": "网页邮箱无法完成登录",
@@ -762,7 +762,7 @@
       "server_cert_active": "正在使用客户端证书“{alias}”登录。点按可选择其他证书。",
       "server_cert_clear": "不使用证书登录",
       "server_cert_failed": "无法选择证书",
-      "server_cert_hint": "您的服务器要求客户端证书吗？请选择此手机上已安装的证书。"
+      "server_cert_hint": "您的服务器要求客户端证书吗？请选择此设备上已安装的证书。"
     }
   },
   "offline": {
@@ -1237,7 +1237,7 @@
       "window_24h": "过去 24 小时",
       "window_days": "过去 {count} 天",
       "window_desc": "按邮件接收日期计算，缓存多久以前的邮件。",
-      "description_short": "在此手机上保留最近的邮件，无网络时也能打开。",
+      "description_short": "在此设备上保留最近的邮件，无网络时也能打开。",
       "keep_24h": "24 小时",
       "keep_days": "{count} 天",
       "keep_from": "保留以下时间内的邮件",
@@ -1437,7 +1437,7 @@
       "licences_desc": "应用采用 AGPL-3.0，以及所用库的许可证",
       "never_checked": "尚未检查",
       "privacy": "隐私",
-      "privacy_desc": "哪些内容留在此手机上，哪些发送到您的服务器",
+      "privacy_desc": "哪些内容留在此设备上，哪些发送到您的服务器",
       "report_problem": "报告问题",
       "report_problem_desc": "在 GitHub 上新建 issue，并自动填写版本号",
       "server": "服务器",
@@ -1476,17 +1476,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "关闭滑动面板和过渡效果。手机设置中开启减少动效时，应用也会这样做。"
+        "description_mobile": "关闭滑动面板和过渡效果。设备设置中开启减少动效时，应用也会这样做。"
       },
       "text_size": {
-        "description_mobile": "在手机文字大小的基础上缩放应用文字。100% 即手机的文字大小。"
+        "description_mobile": "在设备文字大小的基础上缩放应用文字。100% 即设备的文字大小。"
       },
       "toast_duration": {
         "automatic": "自动（使用屏幕阅读器时更长）"
       }
     },
     "backup": {
-      "description": "将您的设置转移到另一部手机或网页邮箱。",
+      "description": "将您的设置转移到另一台设备或网页邮箱。",
       "export_import": "导出或导入",
       "export_import_desc": "JSON 文件，格式与网页邮箱相同",
       "reset": "重置",
@@ -1505,7 +1505,7 @@
       "other_title": "其他连接",
       "phone_backup": "这些数据都不会进入 Android 的云备份。",
       "phone_secure": "您的登录信息保存在系统的安全存储中。设置、离线邮件缓存以及等待同步的更改保存在应用自己的存储中。",
-      "phone_title": "在此手机上",
+      "phone_title": "在此设备上",
       "push": "开启通知后，您的服务器会告知推送中继（{relay}）有内容发生变化，中继再通过{service}唤醒应用。中继只能看到设备令牌和变更标记，看不到您的邮件。您可以在“通知”中使用自己的中继。",
       "push_title": "推送通知",
       "server": "邮件、日历、联系人和文件从您的服务器加载，并保存回服务器。除下列连接外，应用只与您的服务器通信。",

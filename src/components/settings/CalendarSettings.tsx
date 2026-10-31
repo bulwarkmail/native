@@ -118,7 +118,7 @@ export function CalendarSettings() {
           label={t('calendar.settings.time_zone', 'Time zone')}
           description={t(
             'calendar.settings.time_zone_desc',
-            'Zone used for new events and for interpreting the calendar. "Device" follows the phone.',
+            'Zone used for new events and for interpreting the calendar. "Device" follows the time zone set on this device.',
           )}
         >
           <Select

@@ -124,7 +124,7 @@
       "time_zone": "Időzóna",
       "time_zone_auto": "Eszköz időzónája",
       "time_zone_auto_zone": "Eszköz időzónája ({zone})",
-      "time_zone_desc": "Az új eseményekhez és a naptár megjelenítéséhez használt zóna. Az „Eszköz időzónája” a telefont követi."
+      "time_zone_desc": "Az új eseményekhez és a naptár megjelenítéséhez használt zóna. Az „Eszköz időzónája” ezt az eszközt követi."
     },
     "share": {
       "add_people": "Személyek hozzáadása",
@@ -671,7 +671,7 @@
       "err_pair_connect_detail": "Jeleníts meg új kódot a számítógépen, és olvasd be újra.",
       "err_pair_connect_title": "Bejelentkezve, de nem sikerült csatlakozni: {host}",
       "err_pair_insecure_detail": "A(z) {host} titkosítatlan kapcsolatot akar használni.",
-      "err_pair_network_detail": "Ellenőrizd a kapcsolatot, és hogy a telefonod eléri-e a webmailt, majd próbáld újra.",
+      "err_pair_network_detail": "Ellenőrizd a kapcsolatot, és hogy ez az eszköz eléri-e a webmailt, majd próbáld újra.",
       "err_pair_rate_detail": "Várj egy percet, majd próbáld újra.",
       "err_pair_server_detail": "Próbáld újra egy új kóddal. Ha továbbra sem sikerül, fordulj a rendszergazdához.",
       "err_pair_server_title": "A webmail nem tudta befejezni a bejelentkezést",
@@ -759,7 +759,7 @@
       "server_cert_active": "Bejelentkezés a(z) „{alias}” klienstanúsítvánnyal. Koppints, ha másikat választanál.",
       "server_cert_clear": "Bejelentkezés tanúsítvány nélkül",
       "server_cert_failed": "Nem sikerült tanúsítványt választani",
-      "server_cert_hint": "A szervered klienstanúsítványt kér? Válassz egyet a telefonra telepítettek közül."
+      "server_cert_hint": "A szervered klienstanúsítványt kér? Válassz egyet az eszközre telepítettek közül."
     }
   },
   "offline": {
@@ -1234,7 +1234,7 @@
       "window_24h": "Utolsó 24 óra",
       "window_days": "Utolsó {count} nap",
       "window_desc": "Milyen régre visszamenőleg legyen gyorsítótárazva, az üzenet fogadási dátuma alapján.",
-      "description_short": "A legutóbbi üzenetek tárolása ezen a telefonon, hogy kapcsolat nélkül is megnyíljanak.",
+      "description_short": "A legutóbbi üzenetek tárolása ezen az eszközön, hogy kapcsolat nélkül is megnyíljanak.",
       "keep_24h": "24 óra",
       "keep_days": "{count} nap",
       "keep_from": "Megőrzött időszak",
@@ -1434,7 +1434,7 @@
       "licences_desc": "AGPL-3.0 az alkalmazáshoz és az általa használt könyvtárakhoz",
       "never_checked": "Még nincs ellenőrizve",
       "privacy": "Adatvédelem",
-      "privacy_desc": "Mi marad ezen a telefonon, és mi kerül a szerveredre",
+      "privacy_desc": "Mi marad ezen az eszközön, és mi kerül a szerveredre",
       "report_problem": "Probléma jelentése",
       "report_problem_desc": "Hibajegyet nyit a GitHubon, a verzió már kitöltve",
       "server": "Szerver",
@@ -1473,17 +1473,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Kikapcsolja a csúszó paneleket és az átmeneteket. Az alkalmazás akkor is ezt teszi, ha a telefon beállításaiban be van kapcsolva a csökkentett mozgás."
+        "description_mobile": "Kikapcsolja a csúszó paneleket és az átmeneteket. Az alkalmazás akkor is ezt teszi, ha az eszköz beállításaiban be van kapcsolva a csökkentett mozgás."
       },
       "text_size": {
-        "description_mobile": "A telefon szövegméretén felül méretezi az alkalmazás szövegét. A 100% a telefon szövegmérete."
+        "description_mobile": "Az eszköz szövegméretén felül méretezi az alkalmazás szövegét. A 100% az eszköz szövegmérete."
       },
       "toast_duration": {
         "automatic": "Automatikus (képernyőolvasóval hosszabb)"
       }
     },
     "backup": {
-      "description": "Vidd át a beállításaidat egy másik telefonra vagy a webmailbe.",
+      "description": "Vidd át a beállításaidat egy másik eszközre vagy a webmailbe.",
       "export_import": "Exportálás vagy importálás",
       "export_import_desc": "JSON-fájl, a webmaillel azonos formátumban",
       "reset": "Visszaállítás",
@@ -1502,7 +1502,7 @@
       "other_title": "Egyéb kapcsolatok",
       "phone_backup": "Ezek egyike sem kerül az Android felhőalapú biztonsági mentésébe.",
       "phone_secure": "A bejelentkezési adataid a rendszer biztonságos tárolójában vannak. A beállításokat, az offline levél-gyorsítótárat és a szinkronizálásra váró módosításokat az alkalmazás saját tárolója őrzi.",
-      "phone_title": "Ezen a telefonon",
+      "phone_title": "Ezen az eszközön",
       "push": "Ha az értesítések be vannak kapcsolva, a szervered szól a push relének ({relay}), hogy valami megváltozott, a relé pedig ezen keresztül ébreszti fel az alkalmazást: {service}. A relé egy eszköztokent és egy változásjelzőt lát, a leveleidet soha. Az Értesítések alatt saját relét is használhatsz.",
       "push_title": "Push értesítések",
       "server": "A levelek, naptárak, névjegyek és fájlok a szerveredről töltődnek be, és oda mentődnek vissza. Az alábbi kapcsolatokon kívül az alkalmazás csak a szervereddel kommunikál.",

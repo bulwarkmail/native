@@ -124,7 +124,7 @@
       "time_zone": "Časové pásmo",
       "time_zone_auto": "Časové pásmo zařízení",
       "time_zone_auto_zone": "Časové pásmo zařízení ({zone})",
-      "time_zone_desc": "Pásmo pro nové události a pro zobrazení kalendáře. „Časové pásmo zařízení“ se řídí telefonem."
+      "time_zone_desc": "Pásmo pro nové události a pro zobrazení kalendáře. „Časové pásmo zařízení“ se řídí tímto zařízením."
     },
     "share": {
       "add_people": "Přidat osoby",
@@ -675,7 +675,7 @@
       "err_pair_connect_detail": "Zobrazte na počítači nový kód a naskenujte ho znovu.",
       "err_pair_connect_title": "Přihlášeno, ale nelze se připojit k {host}",
       "err_pair_insecure_detail": "{host} chce použít nešifrované spojení.",
-      "err_pair_network_detail": "Zkontrolujte připojení a zda se telefon dostane k webmailu, a zkuste to znovu.",
+      "err_pair_network_detail": "Zkontrolujte připojení a zda se toto zařízení dostane k webmailu, a zkuste to znovu.",
       "err_pair_rate_detail": "Počkejte minutu a zkuste to znovu.",
       "err_pair_server_detail": "Zkuste to znovu s novým kódem. Pokud to stále selhává, obraťte se na správce.",
       "err_pair_server_title": "Webmail nemohl dokončit přihlášení",
@@ -763,7 +763,7 @@
       "server_cert_active": "Přihlášení pomocí klientského certifikátu „{alias}“. Klepnutím zvolíte jiný.",
       "server_cert_clear": "Přihlásit se bez certifikátu",
       "server_cert_failed": "Certifikát se nepodařilo vybrat",
-      "server_cert_hint": "Vyžaduje váš server klientský certifikát? Vyberte jeden z nainstalovaných v tomto telefonu."
+      "server_cert_hint": "Vyžaduje váš server klientský certifikát? Vyberte jeden z nainstalovaných v tomto zařízení."
     }
   },
   "offline": {
@@ -1238,7 +1238,7 @@
       "window_24h": "Posledních 24 hodin",
       "window_days": "{count, plural, one {Poslední # den} few {Poslední # dny} many {Posledních # dne} other {Posledních # dní}}",
       "window_desc": "Jak daleko do minulosti ukládat, podle data přijetí zprávy.",
-      "description_short": "Uchovávat nedávné zprávy v tomto telefonu, aby se otevřely i bez připojení.",
+      "description_short": "Uchovávat nedávné zprávy v tomto zařízení, aby se otevřely i bez připojení.",
       "keep_24h": "24 hodin",
       "keep_days": "{count} dní",
       "keep_from": "Uchovávat poštu za posledních",
@@ -1438,7 +1438,7 @@
       "licences_desc": "AGPL-3.0 pro aplikaci a knihovny, které používá",
       "never_checked": "Zatím nezkontrolováno",
       "privacy": "Soukromí",
-      "privacy_desc": "Co zůstává v tomto telefonu a co jde na váš server",
+      "privacy_desc": "Co zůstává v tomto zařízení a co jde na váš server",
       "report_problem": "Nahlásit problém",
       "report_problem_desc": "Otevře hlášení na GitHubu s vyplněnou verzí",
       "server": "Server",
@@ -1477,17 +1477,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Vypne vysouvací panely a přechody. Aplikace to udělá i tehdy, když je v nastavení telefonu zapnuté omezení pohybu."
+        "description_mobile": "Vypne vysouvací panely a přechody. Aplikace to udělá i tehdy, když je v nastavení zařízení zapnuté omezení pohybu."
       },
       "text_size": {
-        "description_mobile": "Mění velikost textu aplikace nad rámec velikosti textu v telefonu. 100 % odpovídá velikosti v telefonu."
+        "description_mobile": "Mění velikost textu aplikace nad rámec velikosti textu v zařízení. 100 % odpovídá velikosti v zařízení."
       },
       "toast_duration": {
         "automatic": "Automaticky (déle se čtečkou obrazovky)"
       }
     },
     "backup": {
-      "description": "Přeneste nastavení do jiného telefonu nebo do webmailu.",
+      "description": "Přeneste nastavení do jiného zařízení nebo do webmailu.",
       "export_import": "Export nebo import",
       "export_import_desc": "Soubor JSON ve stejném formátu jako ve webmailu",
       "reset": "Resetovat",
@@ -1506,7 +1506,7 @@
       "other_title": "Další připojení",
       "phone_backup": "Nic z toho se neukládá do cloudové zálohy Androidu.",
       "phone_secure": "Vaše přihlašovací údaje jsou uloženy v zabezpečeném úložišti systému. Nastavení, mezipaměť offline pošty a změny čekající na synchronizaci jsou uloženy ve vlastním úložišti aplikace.",
-      "phone_title": "V tomto telefonu",
+      "phone_title": "V tomto zařízení",
       "push": "Když jsou oznámení zapnutá, váš server sdělí push relay ({relay}), že se něco změnilo, a relay probudí aplikaci přes {service}. Relay vidí token zařízení a značku změny, nikdy vaši poštu. V nastavení Oznámení můžete použít vlastní relay.",
       "push_title": "Push oznámení",
       "server": "Pošta, kalendáře, kontakty a soubory se načítají z vašeho serveru a ukládají zpět na něj. Kromě níže uvedených připojení komunikuje aplikace jen s vaším serverem.",

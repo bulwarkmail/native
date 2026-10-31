@@ -124,7 +124,7 @@
       "time_zone": "Laika josla",
       "time_zone_auto": "Ierīces laika josla",
       "time_zone_auto_zone": "Ierīces laika josla ({zone})",
-      "time_zone_desc": "Josla, ko izmanto jauniem notikumiem un kalendāra attēlošanai. \"Ierīces laika josla\" seko tālrunim."
+      "time_zone_desc": "Josla, ko izmanto jauniem notikumiem un kalendāra attēlošanai. \"Ierīces laika josla\" seko šai ierīcei."
     },
     "share": {
       "add_people": "Pievienot personas",
@@ -674,7 +674,7 @@
       "err_pair_connect_detail": "Parādiet jaunu kodu datorā un skenējiet vēlreiz.",
       "err_pair_connect_title": "Pierakstījāties, bet neizdevās izveidot savienojumu ar {host}",
       "err_pair_insecure_detail": "{host} vēlas izmantot nešifrētu savienojumu.",
-      "err_pair_network_detail": "Pārbaudiet savienojumu un to, vai tālrunis var piekļūt tīmekļa pastam, un mēģiniet vēlreiz.",
+      "err_pair_network_detail": "Pārbaudiet savienojumu un to, vai šī ierīce var piekļūt tīmekļa pastam, un mēģiniet vēlreiz.",
       "err_pair_rate_detail": "Uzgaidiet minūti un mēģiniet vēlreiz.",
       "err_pair_server_detail": "Mēģiniet vēlreiz ar jaunu kodu. Ja tas joprojām neizdodas, sazinieties ar administratoru.",
       "err_pair_server_title": "Tīmekļa pasts nevarēja pabeigt pierakstīšanos",
@@ -762,7 +762,7 @@
       "server_cert_active": "Pierakstīšanās ar klienta sertifikātu “{alias}”. Pieskarieties, lai izvēlētos citu.",
       "server_cert_clear": "Pierakstīties bez sertifikāta",
       "server_cert_failed": "Neizdevās izvēlēties sertifikātu",
-      "server_cert_hint": "Vai jūsu serveris pieprasa klienta sertifikātu? Izvēlieties kādu, kas instalēts šajā tālrunī."
+      "server_cert_hint": "Vai jūsu serveris pieprasa klienta sertifikātu? Izvēlieties kādu, kas instalēts šajā ierīcē."
     }
   },
   "offline": {
@@ -1237,7 +1237,7 @@
       "window_24h": "Pēdējās 24 stundas",
       "window_days": "Pēdējās {count} dienas",
       "window_desc": "Cik tālu pagātnē saglabāt, pēc vēstules saņemšanas datuma.",
-      "description_short": "Glabājiet jaunākās vēstules šajā tālrunī, lai tās atvērtos arī bez savienojuma.",
+      "description_short": "Glabājiet jaunākās vēstules šajā ierīcē, lai tās atvērtos arī bez savienojuma.",
       "keep_24h": "24 stundas",
       "keep_days": "{count} dienas",
       "keep_from": "Glabāt pastu par pēdējām",
@@ -1437,7 +1437,7 @@
       "licences_desc": "AGPL-3.0 lietotnei un tās izmantotajām bibliotēkām",
       "never_checked": "Vēl nav pārbaudīts",
       "privacy": "Privātums",
-      "privacy_desc": "Kas paliek šajā tālrunī un kas tiek sūtīts uz jūsu serveri",
+      "privacy_desc": "Kas paliek šajā ierīcē un kas tiek sūtīts uz jūsu serveri",
       "report_problem": "Ziņot par problēmu",
       "report_problem_desc": "Atver problēmas pieteikumu GitHub ar jau aizpildītu versiju",
       "server": "Serveris",
@@ -1476,17 +1476,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Izslēdz slīdošos paneļus un pārejas. Lietotne to dara arī tad, ja tālruņa iestatījumos ir ieslēgta samazināta kustība."
+        "description_mobile": "Izslēdz slīdošos paneļus un pārejas. Lietotne to dara arī tad, ja ierīces iestatījumos ir ieslēgta samazināta kustība."
       },
       "text_size": {
-        "description_mobile": "Mērogo lietotnes tekstu papildus tālruņa teksta lielumam. 100% ir tālruņa teksta lielums."
+        "description_mobile": "Mērogo lietotnes tekstu papildus ierīces teksta lielumam. 100% ir ierīces teksta lielums."
       },
       "toast_duration": {
         "automatic": "Automātiski (ilgāk ar ekrāna lasītāju)"
       }
     },
     "backup": {
-      "description": "Pārnesiet iestatījumus uz citu tālruni vai tīmekļa pastu.",
+      "description": "Pārnesiet iestatījumus uz citu ierīci vai tīmekļa pastu.",
       "export_import": "Eksportēt vai importēt",
       "export_import_desc": "JSON fails tādā pašā formātā kā tīmekļa pastā",
       "reset": "Atiestatīt",
@@ -1505,7 +1505,7 @@
       "other_title": "Citi savienojumi",
       "phone_backup": "Nekas no tā netiek iekļauts Android mākoņa dublējumā.",
       "phone_secure": "Jūsu pierakstīšanās dati tiek glabāti sistēmas drošajā krātuvē. Iestatījumi, bezsaistes pasta kešatmiņa un izmaiņas, kas gaida sinhronizāciju, tiek glabāti pašas lietotnes krātuvē.",
-      "phone_title": "Šajā tālrunī",
+      "phone_title": "Šajā ierīcē",
       "push": "Kad paziņojumi ir ieslēgti, jūsu serveris paziņo push relejam ({relay}), ka kaut kas ir mainījies, un relejs pamodina lietotni ar šī pakalpojuma starpniecību: {service}. Relejs redz ierīces marķieri un izmaiņu atzīmi, bet nekad jūsu pastu. Sadaļā Paziņojumi varat izmantot savu releju.",
       "push_title": "Push paziņojumi",
       "server": "Pasts, kalendāri, kontakti un faili tiek ielādēti no jūsu servera un saglabāti atpakaļ tajā. Izņemot tālāk minētos savienojumus, lietotne sazinās tikai ar jūsu serveri.",

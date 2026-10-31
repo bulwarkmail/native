@@ -124,7 +124,7 @@
       "time_zone": "시간대",
       "time_zone_auto": "기기 시간대",
       "time_zone_auto_zone": "기기 시간대({zone})",
-      "time_zone_desc": "새 일정과 캘린더 표시에 사용하는 시간대예요. \"기기\"를 선택하면 휴대폰 설정을 따라요."
+      "time_zone_desc": "새 일정과 캘린더 표시에 사용하는 시간대예요. \"기기\"를 선택하면 이 기기의 설정을 따라요."
     },
     "share": {
       "add_people": "사용자 추가",
@@ -673,7 +673,7 @@
       "err_pair_connect_detail": "컴퓨터에서 새 코드를 표시한 후 다시 스캔해 주세요.",
       "err_pair_connect_title": "로그인했지만 {host}에 연결하지 못했어요",
       "err_pair_insecure_detail": "{host}에서 암호화되지 않은 연결을 사용하려고 해요.",
-      "err_pair_network_detail": "연결 상태와 휴대폰에서 웹메일에 접속할 수 있는지 확인한 후 다시 시도해 주세요.",
+      "err_pair_network_detail": "연결 상태와 이 기기에서 웹메일에 접속할 수 있는지 확인한 후 다시 시도해 주세요.",
       "err_pair_rate_detail": "1분 정도 기다린 후 다시 시도해 주세요.",
       "err_pair_server_detail": "새 코드로 다시 시도해 주세요. 계속 실패하면 관리자에게 문의해 주세요.",
       "err_pair_server_title": "웹메일에서 로그인을 완료하지 못했어요",
@@ -761,7 +761,7 @@
       "server_cert_active": "클라이언트 인증서 \"{alias}\"(으)로 로그인해요. 다른 인증서를 선택하려면 탭하세요.",
       "server_cert_clear": "인증서 없이 로그인",
       "server_cert_failed": "인증서를 선택하지 못했어요",
-      "server_cert_hint": "서버에서 클라이언트 인증서를 요구하나요? 이 휴대폰에 설치된 인증서를 선택해 주세요."
+      "server_cert_hint": "서버에서 클라이언트 인증서를 요구하나요? 이 기기에 설치된 인증서를 선택해 주세요."
     }
   },
   "offline": {
@@ -1236,7 +1236,7 @@
       "window_24h": "최근 24시간",
       "window_days": "최근 {count}일",
       "window_desc": "메시지를 받은 날짜를 기준으로 얼마나 이전까지 캐시할지 정해요.",
-      "description_short": "최근 메시지를 이 휴대폰에 보관해서 연결 없이도 열 수 있게 해요.",
+      "description_short": "최근 메시지를 이 기기에 보관해서 연결 없이도 열 수 있게 해요.",
       "keep_24h": "24시간",
       "keep_days": "{count}일",
       "keep_from": "보관할 메일 기간(최근)",
@@ -1436,7 +1436,7 @@
       "licences_desc": "앱의 AGPL-3.0 라이선스와 앱이 사용하는 라이브러리",
       "never_checked": "아직 확인하지 않음",
       "privacy": "개인정보 보호",
-      "privacy_desc": "이 휴대폰에 남는 정보와 서버로 전송되는 정보",
+      "privacy_desc": "이 기기에 남는 정보와 서버로 전송되는 정보",
       "report_problem": "문제 신고",
       "report_problem_desc": "버전이 채워진 이슈를 GitHub에서 열어요",
       "server": "서버",
@@ -1475,17 +1475,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "슬라이드 패널과 전환 효과를 꺼요. 휴대폰 설정에서 움직임 줄이기가 켜져 있을 때도 앱이 자동으로 꺼요."
+        "description_mobile": "슬라이드 패널과 전환 효과를 꺼요. 기기 설정에서 움직임 줄이기가 켜져 있을 때도 앱이 자동으로 꺼요."
       },
       "text_size": {
-        "description_mobile": "휴대폰의 글자 크기를 기준으로 앱의 글자 크기를 조절해요. 100%는 휴대폰의 글자 크기와 같아요."
+        "description_mobile": "기기의 글자 크기를 기준으로 앱의 글자 크기를 조절해요. 100%는 기기의 글자 크기와 같아요."
       },
       "toast_duration": {
         "automatic": "자동(화면 낭독기 사용 시 더 길게)"
       }
     },
     "backup": {
-      "description": "설정을 다른 휴대폰이나 웹메일로 옮겨요.",
+      "description": "설정을 다른 기기나 웹메일로 옮겨요.",
       "export_import": "내보내기 또는 가져오기",
       "export_import_desc": "웹메일과 같은 형식의 JSON 파일",
       "reset": "초기화",
@@ -1504,7 +1504,7 @@
       "other_title": "기타 연결",
       "phone_backup": "이 정보는 Android 클라우드 백업에 포함되지 않아요.",
       "phone_secure": "로그인 정보는 시스템의 보안 저장소에 보관돼요. 설정, 오프라인 메일 캐시, 동기화 대기 중인 변경 사항은 앱 자체 저장소에 보관돼요.",
-      "phone_title": "이 휴대폰",
+      "phone_title": "이 기기",
       "push": "알림이 켜져 있으면 서버가 푸시 릴레이({relay})에 변경 사항이 있다고 알리고, 릴레이는 {service}를 통해 앱을 깨워요. 릴레이가 보는 것은 기기 토큰과 변경 표시뿐이며, 메일 내용은 절대 보지 않아요. 알림에서 직접 운영하는 릴레이를 사용할 수도 있어요.",
       "push_title": "푸시 알림",
       "server": "메일, 캘린더, 연락처, 파일은 서버에서 불러오고 서버에 다시 저장해요. 아래 연결을 제외하면 앱은 내 서버와만 통신해요.",

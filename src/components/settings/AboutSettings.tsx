@@ -166,7 +166,7 @@ export function AboutSettings({ onOpen }: AboutSettingsProps) {
         />
         <SettingItem
           label={t('settings.about.privacy', 'Privacy')}
-          description={t('settings.about.privacy_desc', 'What stays on this phone and what goes to your server')}
+          description={t('settings.about.privacy_desc', 'What stays on this device and what goes to your server')}
           onPress={() => onOpen?.('privacy')}
         />
         {/* The operator's accessibility and help links, from the account's webmail. */}

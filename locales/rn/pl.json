@@ -124,7 +124,7 @@
       "time_zone": "Strefa czasowa",
       "time_zone_auto": "Strefa czasowa urządzenia",
       "time_zone_auto_zone": "Strefa czasowa urządzenia ({zone})",
-      "time_zone_desc": "Strefa używana dla nowych wydarzeń i do odczytu kalendarza. „Strefa czasowa urządzenia” podąża za telefonem."
+      "time_zone_desc": "Strefa używana dla nowych wydarzeń i do odczytu kalendarza. „Strefa czasowa urządzenia” podąża za tym urządzeniem."
     },
     "share": {
       "add_people": "Dodaj osoby",
@@ -675,7 +675,7 @@
       "err_pair_connect_detail": "Wyświetl nowy kod na komputerze i zeskanuj go ponownie.",
       "err_pair_connect_title": "Zalogowano, ale nie można połączyć się z {host}",
       "err_pair_insecure_detail": "{host} chce użyć nieszyfrowanego połączenia.",
-      "err_pair_network_detail": "Sprawdź połączenie i czy telefon ma dostęp do webmaila, a potem spróbuj ponownie.",
+      "err_pair_network_detail": "Sprawdź połączenie i czy to urządzenie ma dostęp do webmaila, a potem spróbuj ponownie.",
       "err_pair_rate_detail": "Poczekaj minutę i spróbuj ponownie.",
       "err_pair_server_detail": "Spróbuj ponownie z nowym kodem. Jeśli nadal się nie udaje, skontaktuj się z administratorem.",
       "err_pair_server_title": "Webmail nie mógł dokończyć logowania",
@@ -763,7 +763,7 @@
       "server_cert_active": "Logowanie z certyfikatem klienta „{alias}”. Stuknij, aby wybrać inny.",
       "server_cert_clear": "Zaloguj się bez certyfikatu",
       "server_cert_failed": "Nie udało się wybrać certyfikatu",
-      "server_cert_hint": "Czy Twój serwer wymaga certyfikatu klienta? Wybierz jeden z zainstalowanych na tym telefonie."
+      "server_cert_hint": "Czy Twój serwer wymaga certyfikatu klienta? Wybierz jeden z zainstalowanych na tym urządzeniu."
     }
   },
   "offline": {
@@ -1238,7 +1238,7 @@
       "window_24h": "Ostatnie 24 godziny",
       "window_days": "Ostatnie {count} dni",
       "window_desc": "Jak daleko wstecz zapisywać pocztę, według daty otrzymania wiadomości.",
-      "description_short": "Przechowuj najnowsze wiadomości na tym telefonie, aby otwierały się bez połączenia.",
+      "description_short": "Przechowuj najnowsze wiadomości na tym urządzeniu, aby otwierały się bez połączenia.",
       "keep_24h": "24 godziny",
       "keep_days": "{count} dni",
       "keep_from": "Zachowuj pocztę z ostatnich",
@@ -1438,7 +1438,7 @@
       "licences_desc": "AGPL-3.0 dla aplikacji i używanych przez nią bibliotek",
       "never_checked": "Jeszcze nie sprawdzono",
       "privacy": "Prywatność",
-      "privacy_desc": "Co zostaje na tym telefonie, a co trafia na Twój serwer",
+      "privacy_desc": "Co zostaje na tym urządzeniu, a co trafia na Twój serwer",
       "report_problem": "Zgłoś problem",
       "report_problem_desc": "Otwiera zgłoszenie na GitHubie z wypełnioną wersją",
       "server": "Serwer",
@@ -1477,17 +1477,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Wyłącza wysuwane panele i przejścia. Aplikacja robi to też, gdy w ustawieniach telefonu włączone jest ograniczenie ruchu."
+        "description_mobile": "Wyłącza wysuwane panele i przejścia. Aplikacja robi to też, gdy w ustawieniach urządzenia włączone jest ograniczenie ruchu."
       },
       "text_size": {
-        "description_mobile": "Skaluje tekst aplikacji względem rozmiaru tekstu w telefonie. 100% to rozmiar ustawiony w telefonie."
+        "description_mobile": "Skaluje tekst aplikacji względem rozmiaru tekstu w urządzeniu. 100% to rozmiar ustawiony w urządzeniu."
       },
       "toast_duration": {
         "automatic": "Automatycznie (dłużej z czytnikiem ekranu)"
       }
     },
     "backup": {
-      "description": "Przenieś ustawienia na inny telefon lub do webmaila.",
+      "description": "Przenieś ustawienia na inne urządzenie lub do webmaila.",
       "export_import": "Eksport lub import",
       "export_import_desc": "Plik JSON w tym samym formacie co w webmailu",
       "reset": "Resetuj",
@@ -1506,7 +1506,7 @@
       "other_title": "Inne połączenia",
       "phone_backup": "Nic z tego nie trafia do kopii zapasowej Androida w chmurze.",
       "phone_secure": "Twoje dane logowania są przechowywane w bezpiecznym magazynie systemu. Ustawienia, pamięć podręczna poczty offline i zmiany czekające na synchronizację są przechowywane we własnej pamięci aplikacji.",
-      "phone_title": "Na tym telefonie",
+      "phone_title": "Na tym urządzeniu",
       "push": "Gdy powiadomienia są włączone, Twój serwer informuje przekaźnik push ({relay}), że coś się zmieniło, a przekaźnik budzi aplikację przez {service}. Przekaźnik widzi token urządzenia i znacznik zmiany, nigdy Twoją pocztę. W ustawieniach Powiadomienia możesz użyć własnego przekaźnika.",
       "push_title": "Powiadomienia push",
       "server": "Poczta, kalendarze, kontakty i pliki są wczytywane z Twojego serwera i na nim zapisywane. Poza połączeniami wymienionymi poniżej aplikacja komunikuje się tylko z Twoim serwerem.",

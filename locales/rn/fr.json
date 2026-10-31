@@ -124,7 +124,7 @@
       "time_zone": "Fuseau horaire",
       "time_zone_auto": "Fuseau horaire de l'appareil",
       "time_zone_auto_zone": "Fuseau horaire de l'appareil ({zone})",
-      "time_zone_desc": "Fuseau utilisé pour les nouveaux événements et pour l'affichage du calendrier. « Fuseau horaire de l'appareil » suit le téléphone."
+      "time_zone_desc": "Fuseau utilisé pour les nouveaux événements et pour l'affichage du calendrier. « Fuseau horaire de l'appareil » suit celui de cet appareil."
     },
     "share": {
       "add_people": "Ajouter des personnes",
@@ -679,7 +679,7 @@
       "err_pair_connect_detail": "Affichez un nouveau code sur votre ordinateur et scannez-le à nouveau.",
       "err_pair_connect_title": "Connecté, mais impossible de joindre {host}",
       "err_pair_insecure_detail": "{host} veut utiliser une connexion non chiffrée.",
-      "err_pair_network_detail": "Vérifiez votre connexion et que votre téléphone peut accéder au webmail, puis réessayez.",
+      "err_pair_network_detail": "Vérifiez votre connexion et que cet appareil peut accéder au webmail, puis réessayez.",
       "err_pair_rate_detail": "Patientez une minute, puis réessayez.",
       "err_pair_server_detail": "Réessayez avec un nouveau code. Si le problème persiste, contactez votre administrateur.",
       "err_pair_server_title": "Le webmail n'a pas pu terminer la connexion",
@@ -767,7 +767,7 @@
       "server_cert_active": "Connexion avec le certificat client « {alias} ». Touchez pour en choisir un autre.",
       "server_cert_clear": "Se connecter sans le certificat",
       "server_cert_failed": "Impossible de choisir un certificat",
-      "server_cert_hint": "Votre serveur demande-t-il un certificat client ? Choisissez-en un installé sur ce téléphone."
+      "server_cert_hint": "Votre serveur demande-t-il un certificat client ? Choisissez-en un installé sur cet appareil."
     }
   },
   "offline": {
@@ -1242,7 +1242,7 @@
       "window_24h": "Dernières 24 heures",
       "window_days": "{count} derniers jours",
       "window_desc": "Jusqu'où remonter pour la mise en cache, selon la date de réception des messages.",
-      "description_short": "Conservez les messages récents sur ce téléphone pour les ouvrir sans connexion.",
+      "description_short": "Conservez les messages récents sur cet appareil pour les ouvrir sans connexion.",
       "keep_24h": "24 heures",
       "keep_days": "{count} jours",
       "keep_from": "Conserver les e-mails depuis",
@@ -1442,7 +1442,7 @@
       "licences_desc": "AGPL-3.0 pour l'application, et les bibliothèques qu'elle utilise",
       "never_checked": "Pas encore vérifié",
       "privacy": "Confidentialité",
-      "privacy_desc": "Ce qui reste sur ce téléphone et ce qui part vers votre serveur",
+      "privacy_desc": "Ce qui reste sur cet appareil et ce qui part vers votre serveur",
       "report_problem": "Signaler un problème",
       "report_problem_desc": "Ouvre un ticket sur GitHub avec la version déjà renseignée",
       "server": "Serveur",
@@ -1481,17 +1481,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Désactive les panneaux coulissants et les transitions. L'application le fait aussi quand la réduction des mouvements est activée dans les réglages de votre téléphone."
+        "description_mobile": "Désactive les panneaux coulissants et les transitions. L'application le fait aussi quand la réduction des mouvements est activée dans les réglages de votre appareil."
       },
       "text_size": {
-        "description_mobile": "Agrandit ou réduit le texte de l'application en plus de la taille de texte de votre téléphone. 100 % correspond à la taille de votre téléphone."
+        "description_mobile": "Agrandit ou réduit le texte de l'application en plus de la taille de texte de votre appareil. 100 % correspond à la taille de votre appareil."
       },
       "toast_duration": {
         "automatic": "Automatique (plus long avec un lecteur d'écran)"
       }
     },
     "backup": {
-      "description": "Transférez vos paramètres vers un autre téléphone ou le webmail.",
+      "description": "Transférez vos paramètres vers un autre appareil ou le webmail.",
       "export_import": "Exporter ou importer",
       "export_import_desc": "Un fichier JSON, au même format que le webmail",
       "reset": "Réinitialiser",
@@ -1510,7 +1510,7 @@
       "other_title": "Autres connexions",
       "phone_backup": "Rien de tout cela n'est inclus dans la sauvegarde cloud d'Android.",
       "phone_secure": "Vos identifiants de connexion sont conservés dans le stockage sécurisé du système. Les paramètres, le cache des e-mails hors ligne et les modifications en attente de synchronisation sont conservés dans le stockage propre de l'application.",
-      "phone_title": "Sur ce téléphone",
+      "phone_title": "Sur cet appareil",
       "push": "Quand les notifications sont activées, votre serveur signale au relais push ({relay}) qu'un changement a eu lieu, et le relais réveille l'application via {service}. Le relais voit un jeton d'appareil et un marqueur de changement, jamais vos e-mails. Vous pouvez utiliser votre propre relais dans Notifications.",
       "push_title": "Notifications push",
       "server": "Les e-mails, calendriers, contacts et fichiers sont chargés depuis votre serveur et y sont enregistrés. En dehors des connexions ci-dessous, l'application ne communique qu'avec votre serveur.",

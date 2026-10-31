@@ -205,7 +205,7 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
 
       <SettingsSection
         title={t('settings.offline.title', 'Offline mail')}
-        description={t('settings.offline.description_short', 'Keep recent messages on this phone so they open without a connection.')}
+        description={t('settings.offline.description_short', 'Keep recent messages on this device so they open without a connection.')}
       >
         <SettingItem label={t('settings.offline.enabled', 'Cache recent mail')}>
           <ToggleSwitch
@@ -231,7 +231,7 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
 
       <SettingsSection
         title={t('settings.backup.title', 'Settings backup')}
-        description={t('settings.backup.description', 'Move your settings to another phone or the webmail.')}
+        description={t('settings.backup.description', 'Move your settings to another device or the webmail.')}
       >
         {exportAllowed && (
           <SettingItem

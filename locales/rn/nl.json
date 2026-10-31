@@ -124,7 +124,7 @@
       "time_zone": "Tijdzone",
       "time_zone_auto": "Tijdzone van apparaat",
       "time_zone_auto_zone": "Tijdzone van apparaat ({zone})",
-      "time_zone_desc": "Tijdzone voor nieuwe afspraken en voor het weergeven van de agenda. \"Tijdzone van apparaat\" volgt de telefoon."
+      "time_zone_desc": "Tijdzone voor nieuwe afspraken en voor het weergeven van de agenda. \"Tijdzone van apparaat\" volgt dit apparaat."
     },
     "share": {
       "add_people": "Personen toevoegen",
@@ -675,7 +675,7 @@
       "err_pair_connect_detail": "Toon een nieuwe code op uw computer en scan opnieuw.",
       "err_pair_connect_title": "Ingelogd, maar kan geen verbinding maken met {host}",
       "err_pair_insecure_detail": "{host} wil een onversleutelde verbinding gebruiken.",
-      "err_pair_network_detail": "Controleer uw verbinding en of uw telefoon de webmail kan bereiken, en probeer het opnieuw.",
+      "err_pair_network_detail": "Controleer uw verbinding en of dit apparaat de webmail kan bereiken, en probeer het opnieuw.",
       "err_pair_rate_detail": "Wacht een minuut en probeer het dan opnieuw.",
       "err_pair_server_detail": "Probeer het opnieuw met een nieuwe code. Blijft het mislukken, neem dan contact op met uw beheerder.",
       "err_pair_server_title": "De webmail kon het inloggen niet voltooien",
@@ -763,7 +763,7 @@
       "server_cert_active": "Inloggen met het clientcertificaat \"{alias}\". Tik om een ander te kiezen.",
       "server_cert_clear": "Inloggen zonder het certificaat",
       "server_cert_failed": "Kan geen certificaat kiezen",
-      "server_cert_hint": "Vraagt je server om een clientcertificaat? Kies er een dat op deze telefoon is geïnstalleerd."
+      "server_cert_hint": "Vraagt je server om een clientcertificaat? Kies er een dat op dit apparaat is geïnstalleerd."
     }
   },
   "offline": {
@@ -1238,7 +1238,7 @@
       "window_24h": "Afgelopen 24 uur",
       "window_days": "Afgelopen {count} dagen",
       "window_desc": "Hoe ver terug er in de cache wordt bewaard, gemeten naar de ontvangstdatum van het bericht.",
-      "description_short": "Recente berichten op deze telefoon bewaren, zodat ze ook zonder verbinding openen.",
+      "description_short": "Recente berichten op dit apparaat bewaren, zodat ze ook zonder verbinding openen.",
       "keep_24h": "24 uur",
       "keep_days": "{count} dagen",
       "keep_from": "E-mail bewaren van de afgelopen",
@@ -1438,7 +1438,7 @@
       "licences_desc": "AGPL-3.0 voor de app en de bibliotheken die ze gebruikt",
       "never_checked": "Nog niet gecontroleerd",
       "privacy": "Privacy",
-      "privacy_desc": "Wat op deze telefoon blijft en wat naar je server gaat",
+      "privacy_desc": "Wat op dit apparaat blijft en wat naar je server gaat",
       "report_problem": "Een probleem melden",
       "report_problem_desc": "Opent een issue op GitHub met de versie al ingevuld",
       "server": "Server",
@@ -1477,17 +1477,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Schakelt schuivende panelen en overgangen uit. De app doet dit ook wanneer minder beweging aanstaat in de instellingen van je telefoon."
+        "description_mobile": "Schakelt schuivende panelen en overgangen uit. De app doet dit ook wanneer minder beweging aanstaat in de instellingen van je apparaat."
       },
       "text_size": {
-        "description_mobile": "Schaalt de tekst van de app bovenop de tekstgrootte van je telefoon. 100% is de grootte van je telefoon."
+        "description_mobile": "Schaalt de tekst van de app bovenop de tekstgrootte van je apparaat. 100% is de grootte van je apparaat."
       },
       "toast_duration": {
         "automatic": "Automatisch (langer met een schermlezer)"
       }
     },
     "backup": {
-      "description": "Zet je instellingen over naar een andere telefoon of naar de webmail.",
+      "description": "Zet je instellingen over naar een ander apparaat of naar de webmail.",
       "export_import": "Exporteren of importeren",
       "export_import_desc": "Een JSON-bestand, in hetzelfde formaat als de webmail",
       "reset": "Herstellen",
@@ -1506,7 +1506,7 @@
       "other_title": "Andere verbindingen",
       "phone_backup": "Niets daarvan gaat naar de cloudback-up van Android.",
       "phone_secure": "Je inloggegevens worden bewaard in de beveiligde opslag van het systeem. Instellingen, de offline e-mailcache en wijzigingen die nog moeten synchroniseren worden in de eigen opslag van de app bewaard.",
-      "phone_title": "Op deze telefoon",
+      "phone_title": "Op dit apparaat",
       "push": "Als meldingen aanstaan, laat je server de push-relay ({relay}) weten dat er iets is veranderd, en de relay wekt de app via {service}. De relay ziet een apparaattoken en een wijzigingsmarkering, nooit je e-mail. Onder Meldingen kun je je eigen relay gebruiken.",
       "push_title": "Pushmeldingen",
       "server": "E-mail, agenda's, contacten en bestanden worden van je server geladen en daar weer opgeslagen. Afgezien van de verbindingen hieronder praat de app alleen met je server.",

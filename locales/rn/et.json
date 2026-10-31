@@ -122,7 +122,7 @@
       "time_zone": "Ajavöönd",
       "time_zone_auto": "Seadme ajavöönd",
       "time_zone_auto_zone": "Seadme ajavöönd ({zone})",
-      "time_zone_desc": "Ajavöönd, mida kasutatakse uute sündmuste jaoks ja kalendri tõlgendamisel. „Seadme ajavöönd“ järgib telefoni."
+      "time_zone_desc": "Ajavöönd, mida kasutatakse uute sündmuste jaoks ja kalendri tõlgendamisel. „Seadme ajavöönd“ järgib seda seadet."
     },
     "share": {
       "add_people": "Lisa inimesi",
@@ -587,7 +587,7 @@
       "licences_desc": "AGPL-3.0 rakendusele ja selle kasutatavatele teekidele",
       "never_checked": "Pole veel kontrollitud",
       "privacy": "Privaatsus",
-      "privacy_desc": "Mis jääb sellesse telefoni ja mis läheb sinu serverisse",
+      "privacy_desc": "Mis jääb sellesse seadmesse ja mis läheb sinu serverisse",
       "report_problem": "Teata probleemist",
       "report_problem_desc": "Avab GitHubis probleemiteate, kuhu versioon on juba sisestatud",
       "server": "Server",
@@ -626,10 +626,10 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Lülitab välja libisevad paneelid ja üleminekud. Rakendus teeb seda ka siis, kui telefoni seadetes on vähendatud liikumine sisse lülitatud."
+        "description_mobile": "Lülitab välja libisevad paneelid ja üleminekud. Rakendus teeb seda ka siis, kui seadme seadetes on vähendatud liikumine sisse lülitatud."
       },
       "text_size": {
-        "description_mobile": "Skaleerib rakenduse teksti lisaks telefoni teksti suurusele. 100% on telefoni enda suurus."
+        "description_mobile": "Skaleerib rakenduse teksti lisaks seadme teksti suurusele. 100% on seadme enda suurus."
       },
       "toast_duration": {
         "automatic": "Automaatne (ekraanilugejaga pikem)"
@@ -683,7 +683,7 @@
       }
     },
     "backup": {
-      "description": "Vii oma seaded teise telefoni või veebiposti.",
+      "description": "Vii oma seaded teise seadmesse või veebiposti.",
       "export_import": "Ekspordi või impordi",
       "export_import_desc": "JSON-fail, samas vormingus kui veebipostis",
       "reset": "Lähtesta",
@@ -907,7 +907,7 @@
       "clear_title": "Tühjenda võrguühenduseta kirjad",
       "days_ago": "{count} p tagasi",
       "description": "Laadi hiljutised kirjad alla, et need avaneksid kohe ja oleksid loetavad ka ilma ühenduseta. Ainult kirjade sisu — manused laaditakse endiselt vajaduse korral.",
-      "description_short": "Hoia hiljutisi kirju selles telefonis, et need avaneksid ilma ühenduseta.",
+      "description_short": "Hoia hiljutisi kirju selles seadmes, et need avaneksid ilma ühenduseta.",
       "downloading": "Allalaadimine {completed}/{total}…",
       "enabled": "Salvesta hiljutised kirjad vahemällu",
       "enabled_desc": "Sisselülitatuna hoiab rakendus valitud ajavahemiku kirjade sisu selles seadmes.",
@@ -947,7 +947,7 @@
       "other_title": "Muud ühendused",
       "phone_backup": "Midagi sellest ei lähe Androidi pilvevarundusse.",
       "phone_secure": "Sinu sisselogimisandmeid hoitakse süsteemi turvalises hoidlas. Seadeid, võrguühenduseta kirjade vahemälu ja sünkroonimist ootavaid muudatusi hoitakse rakenduse enda hoidlas.",
-      "phone_title": "Selles telefonis",
+      "phone_title": "Selles seadmes",
       "push": "Kui teavitused on sees, annab su server push-releele ({relay}) teada, et midagi muutus, ja relee äratab rakenduse (teenus: {service}). Relee näeb seadmetõendit ja muudatuse märget, mitte kunagi su kirju. Oma releed saad kasutada jaotises Teavitused.",
       "push_title": "Push-teavitused",
       "server": "Kirjad, kalendrid, kontaktid ja failid laaditakse sinu serverist ja salvestatakse sinna tagasi. Peale allpool toodud ühenduste suhtleb rakendus ainult sinu serveriga.",
@@ -1436,7 +1436,7 @@
       "err_pair_connect_detail": "Näita arvutis uut koodi ja skaneeri uuesti.",
       "err_pair_connect_title": "Sisse logitud, kuid ühendus ebaõnnestus: {host}",
       "err_pair_insecure_detail": "{host} soovib kasutada krüpteerimata ühendust.",
-      "err_pair_network_detail": "Kontrolli ühendust ja seda, kas telefon jõuab veebipostini, ning proovi uuesti.",
+      "err_pair_network_detail": "Kontrolli ühendust ja seda, kas see seade jõuab veebipostini, ning proovi uuesti.",
       "err_pair_rate_detail": "Oota minut ja proovi siis uuesti.",
       "err_pair_server_detail": "Proovi uuesti uue koodiga. Kui see ikka ebaõnnestub, pöördu administraatori poole.",
       "err_pair_server_title": "Veebipost ei saanud sisselogimist lõpule viia",
@@ -1500,7 +1500,7 @@
       "server_cert_active": "Sisselogimine kliendisertifikaadiga „{alias}“. Puuduta, et valida muu.",
       "server_cert_clear": "Logi sisse ilma sertifikaadita",
       "server_cert_failed": "Sertifikaati ei õnnestunud valida",
-      "server_cert_hint": "Kas sinu server küsib kliendisertifikaati? Vali mõni sellesse telefoni paigaldatud sertifikaat.",
+      "server_cert_hint": "Kas sinu server küsib kliendisertifikaati? Vali mõni sellesse seadmesse paigaldatud sertifikaat.",
       "server_hint": "Sama aadress, mille sisestad brauserisse. Lisame https:// ise.",
       "server_label": "Serveri aadress",
       "server_not_found": "Domeenile {domain} ei leitud serverit. Kui majutad serverit ise, on aadress sama, mida kasutad veebiposti jaoks.",

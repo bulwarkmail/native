@@ -187,7 +187,7 @@ describe('matching', () => {
 
   it('returns the matching settings of a pane, by label or description', () => {
     expect(subResultsForQuery(index, 'accessibility', 'text size')).toEqual([
-      { label: 'Text size', description: "Scales the app's text on top of your phone's text size. 100% is your phone's size." },
+      { label: 'Text size', description: "Scales the app's text on top of your device's text size. 100% is your device's size." },
     ]);
     expect(subResultsForQuery(index, 'accessibility', 'archived').map((r) => r.label)).toEqual(['Confirm before archiving']);
     expect(subResultsForQuery(index, 'accessibility', '')).toEqual([]);

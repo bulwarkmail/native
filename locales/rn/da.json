@@ -124,7 +124,7 @@
       "time_zone": "Tidszone",
       "time_zone_auto": "Enhedens tidszone",
       "time_zone_auto_zone": "Enhedens tidszone ({zone})",
-      "time_zone_desc": "Tidszone til nye begivenheder og til visning af kalenderen. \"Enhedens tidszone\" følger telefonen."
+      "time_zone_desc": "Tidszone til nye begivenheder og til visning af kalenderen. \"Enhedens tidszone\" følger denne enhed."
     },
     "share": {
       "add_people": "Tilføj personer",
@@ -672,7 +672,7 @@
       "err_pair_connect_detail": "Vis en ny kode på din computer, og scan igen.",
       "err_pair_connect_title": "Logget ind, men kunne ikke oprette forbindelse til {host}",
       "err_pair_insecure_detail": "{host} vil bruge en ukrypteret forbindelse.",
-      "err_pair_network_detail": "Tjek din forbindelse, og at din telefon kan nå webmailen, og prøv så igen.",
+      "err_pair_network_detail": "Tjek din forbindelse, og at denne enhed kan nå webmailen, og prøv så igen.",
       "err_pair_rate_detail": "Vent et minut, og prøv så igen.",
       "err_pair_server_detail": "Prøv igen med en ny kode. Hvis det bliver ved med at mislykkes, så kontakt din administrator.",
       "err_pair_server_title": "Webmailen kunne ikke gennemføre login",
@@ -760,7 +760,7 @@
       "server_cert_active": "Logger ind med klientcertifikatet \"{alias}\". Tryk for at vælge et andet.",
       "server_cert_clear": "Log ind uden certifikatet",
       "server_cert_failed": "Kunne ikke vælge et certifikat",
-      "server_cert_hint": "Beder din server om et klientcertifikat? Vælg et, der er installeret på denne telefon."
+      "server_cert_hint": "Beder din server om et klientcertifikat? Vælg et, der er installeret på denne enhed."
     }
   },
   "offline": {
@@ -1235,7 +1235,7 @@
       "window_24h": "Seneste 24 timer",
       "window_days": "Seneste {count} dage",
       "window_desc": "Hvor langt tilbage der gemmes i cachen, målt efter beskedens modtagelsesdato.",
-      "description_short": "Gem de seneste beskeder på denne telefon, så de kan åbnes uden forbindelse.",
+      "description_short": "Gem de seneste beskeder på denne enhed, så de kan åbnes uden forbindelse.",
       "keep_24h": "24 timer",
       "keep_days": "{count} dage",
       "keep_from": "Gem mail fra de seneste",
@@ -1435,7 +1435,7 @@
       "licences_desc": "AGPL-3.0 for appen og de biblioteker, den bruger",
       "never_checked": "Ikke tjekket endnu",
       "privacy": "Privatliv",
-      "privacy_desc": "Hvad der bliver på denne telefon, og hvad der sendes til din server",
+      "privacy_desc": "Hvad der bliver på denne enhed, og hvad der sendes til din server",
       "report_problem": "Rapportér et problem",
       "report_problem_desc": "Opretter en sag på GitHub med versionen udfyldt",
       "server": "Server",
@@ -1474,17 +1474,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Slår glidende paneler og overgange fra. Appen gør det også, når reduceret bevægelse er slået til i telefonens indstillinger."
+        "description_mobile": "Slår glidende paneler og overgange fra. Appen gør det også, når reduceret bevægelse er slået til i enhedens indstillinger."
       },
       "text_size": {
-        "description_mobile": "Skalerer appens tekst oven i telefonens tekststørrelse. 100 % er telefonens størrelse."
+        "description_mobile": "Skalerer appens tekst oven i enhedens tekststørrelse. 100 % er enhedens størrelse."
       },
       "toast_duration": {
         "automatic": "Automatisk (længere med skærmlæser)"
       }
     },
     "backup": {
-      "description": "Flyt dine indstillinger til en anden telefon eller til webmailen.",
+      "description": "Flyt dine indstillinger til en anden enhed eller til webmailen.",
       "export_import": "Eksportér eller importér",
       "export_import_desc": "En JSON-fil i samme format som webmailen",
       "reset": "Nulstil",
@@ -1503,7 +1503,7 @@
       "other_title": "Andre forbindelser",
       "phone_backup": "Intet af det kommer med i Androids sikkerhedskopi i skyen.",
       "phone_secure": "Dine loginoplysninger opbevares i systemets sikre lager. Indstillinger, offlinemail-cachen og ændringer, der venter på synkronisering, opbevares i appens eget lager.",
-      "phone_title": "På denne telefon",
+      "phone_title": "På denne enhed",
       "push": "Når notifikationer er slået til, fortæller din server push-relæet ({relay}), at noget er ændret, og relæet vækker appen via {service}. Relæet ser et enhedstoken og en ændringsmarkør, aldrig din mail. Du kan bruge dit eget relæ under Notifikationer.",
       "push_title": "Push-notifikationer",
       "server": "Mail, kalendere, kontakter og filer indlæses fra din server og gemmes tilbage på den. Bortset fra forbindelserne nedenfor taler appen kun med din server.",

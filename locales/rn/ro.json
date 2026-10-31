@@ -124,7 +124,7 @@
       "time_zone": "Fus orar",
       "time_zone_auto": "Fusul orar al dispozitivului",
       "time_zone_auto_zone": "Fusul orar al dispozitivului ({zone})",
-      "time_zone_desc": "Fusul folosit pentru evenimentele noi și pentru interpretarea calendarului. „Dispozitiv” urmează fusul telefonului."
+      "time_zone_desc": "Fusul folosit pentru evenimentele noi și pentru interpretarea calendarului. „Dispozitiv” urmează fusul acestui dispozitiv."
     },
     "share": {
       "add_people": "Adăugați persoane",
@@ -675,7 +675,7 @@
       "err_pair_connect_detail": "Afișați un cod nou pe computer și scanați-l din nou.",
       "err_pair_connect_title": "Autentificat, dar nu se poate conecta la {host}",
       "err_pair_insecure_detail": "{host} vrea să folosească o conexiune necriptată.",
-      "err_pair_network_detail": "Verificați conexiunea și dacă telefonul poate accesa webmailul, apoi încercați din nou.",
+      "err_pair_network_detail": "Verificați conexiunea și dacă acest dispozitiv poate accesa webmailul, apoi încercați din nou.",
       "err_pair_rate_detail": "Așteptați un minut, apoi încercați din nou.",
       "err_pair_server_detail": "Încercați din nou cu un cod nou. Dacă tot nu funcționează, contactați administratorul.",
       "err_pair_server_title": "Webmailul nu a putut finaliza autentificarea",
@@ -763,7 +763,7 @@
       "server_cert_active": "Autentificare cu certificatul de client „{alias}”. Atingeți pentru a alege altul.",
       "server_cert_clear": "Autentificare fără certificat",
       "server_cert_failed": "Nu s-a putut alege un certificat",
-      "server_cert_hint": "Serverul dvs. cere un certificat de client? Alegeți unul instalat pe acest telefon."
+      "server_cert_hint": "Serverul dvs. cere un certificat de client? Alegeți unul instalat pe acest dispozitiv."
     }
   },
   "offline": {
@@ -1238,7 +1238,7 @@
       "window_24h": "Ultimele 24 de ore",
       "window_days": "{count, plural, one {Ultima zi} few {Ultimele # zile} other {Ultimele # de zile}}",
       "window_desc": "Cât de departe în trecut să se păstreze în cache, după data primirii mesajului.",
-      "description_short": "Păstrați mesajele recente pe acest telefon, ca să se deschidă fără conexiune.",
+      "description_short": "Păstrați mesajele recente pe acest dispozitiv, ca să se deschidă fără conexiune.",
       "keep_24h": "24 de ore",
       "keep_days": "{count} zile",
       "keep_from": "Păstrați e-mailurile din ultimele",
@@ -1438,7 +1438,7 @@
       "licences_desc": "AGPL-3.0 pentru aplicație și bibliotecile pe care le folosește",
       "never_checked": "Neverificat încă",
       "privacy": "Confidențialitate",
-      "privacy_desc": "Ce rămâne pe acest telefon și ce ajunge la serverul dvs.",
+      "privacy_desc": "Ce rămâne pe acest dispozitiv și ce ajunge la serverul dvs.",
       "report_problem": "Raportați o problemă",
       "report_problem_desc": "Deschide o problemă pe GitHub, cu versiunea deja completată",
       "server": "Server",
@@ -1477,17 +1477,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Dezactivează panourile glisante și tranzițiile. Aplicația face acest lucru și când mișcarea redusă este activată în setările telefonului."
+        "description_mobile": "Dezactivează panourile glisante și tranzițiile. Aplicația face acest lucru și când mișcarea redusă este activată în setările dispozitivului."
       },
       "text_size": {
-        "description_mobile": "Scalează textul aplicației peste dimensiunea textului din telefon. 100% este dimensiunea din telefon."
+        "description_mobile": "Scalează textul aplicației peste dimensiunea textului din dispozitiv. 100% este dimensiunea din dispozitiv."
       },
       "toast_duration": {
         "automatic": "Automat (mai lung cu un cititor de ecran)"
       }
     },
     "backup": {
-      "description": "Mutați setările pe alt telefon sau în webmail.",
+      "description": "Mutați setările pe alt dispozitiv sau în webmail.",
       "export_import": "Export sau import",
       "export_import_desc": "Un fișier JSON, în același format ca în webmail",
       "reset": "Resetare",
@@ -1506,7 +1506,7 @@
       "other_title": "Alte conexiuni",
       "phone_backup": "Nimic din toate acestea nu ajunge în copia de rezervă în cloud a Android.",
       "phone_secure": "Datele dvs. de autentificare sunt păstrate în spațiul de stocare securizat al sistemului. Setările, cache-ul e-mailurilor offline și modificările care așteaptă sincronizarea sunt păstrate în spațiul de stocare propriu al aplicației.",
-      "phone_title": "Pe acest telefon",
+      "phone_title": "Pe acest dispozitiv",
       "push": "Când notificările sunt activate, serverul dvs. îi spune releului push ({relay}) că s-a schimbat ceva, iar releul trezește aplicația prin {service}. Releul vede un token al dispozitivului și un marcaj de modificare, niciodată e-mailurile dvs. Puteți folosi propriul releu din Notificări.",
       "push_title": "Notificări push",
       "server": "E-mailurile, calendarele, contactele și fișierele sunt încărcate de pe serverul dvs. și salvate înapoi pe el. În afara conexiunilor de mai jos, aplicația comunică doar cu serverul dvs.",

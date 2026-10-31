@@ -124,7 +124,7 @@
       "time_zone": "Saat dilimi",
       "time_zone_auto": "Cihaz saat dilimi",
       "time_zone_auto_zone": "Cihaz saat dilimi ({zone})",
-      "time_zone_desc": "Yeni etkinlikler ve takvimin yorumlanması için kullanılan saat dilimi. \"Cihaz saat dilimi\" telefonu izler."
+      "time_zone_desc": "Yeni etkinlikler ve takvimin yorumlanması için kullanılan saat dilimi. \"Cihaz saat dilimi\" bu cihazı izler."
     },
     "share": {
       "add_people": "Kişi ekle",
@@ -676,7 +676,7 @@
       "err_pair_connect_detail": "Bilgisayarınızda yeni bir kod gösterip tekrar tarayın.",
       "err_pair_connect_title": "Giriş yapıldı ancak {host} ile bağlantı kurulamadı",
       "err_pair_insecure_detail": "{host} şifrelenmemiş bir bağlantı kullanmak istiyor.",
-      "err_pair_network_detail": "Bağlantınızı ve telefonunuzun webmail'e erişip erişemediğini kontrol edin, ardından tekrar deneyin.",
+      "err_pair_network_detail": "Bağlantınızı ve bu cihazın webmail'e erişip erişemediğini kontrol edin, ardından tekrar deneyin.",
       "err_pair_rate_detail": "Bir dakika bekleyip tekrar deneyin.",
       "err_pair_server_detail": "Yeni bir kodla tekrar deneyin. Sorun devam ederse yöneticinize başvurun.",
       "err_pair_server_title": "Webmail girişi tamamlayamadı",
@@ -764,7 +764,7 @@
       "server_cert_active": "\"{alias}\" istemci sertifikasıyla giriş yapılıyor. Başka birini seçmek için dokunun.",
       "server_cert_clear": "Sertifika olmadan giriş yap",
       "server_cert_failed": "Sertifika seçilemedi",
-      "server_cert_hint": "Sunucunuz istemci sertifikası mı istiyor? Bu telefonda yüklü olan birini seçin."
+      "server_cert_hint": "Sunucunuz istemci sertifikası mı istiyor? Bu cihazda yüklü olan birini seçin."
     }
   },
   "offline": {
@@ -1239,7 +1239,7 @@
       "window_24h": "Son 24 saat",
       "window_days": "Son {count} gün",
       "window_desc": "İletinin alınma tarihine göre ne kadar geriye kadar önbelleğe alınacağı.",
-      "description_short": "Son iletileri bu telefonda tutun; böylece bağlantı olmadan da açılırlar.",
+      "description_short": "Son iletileri bu cihazda tutun; böylece bağlantı olmadan da açılırlar.",
       "keep_24h": "24 saat",
       "keep_days": "{count} gün",
       "keep_from": "Postaları saklama süresi",
@@ -1439,7 +1439,7 @@
       "licences_desc": "Uygulama için AGPL-3.0 ve kullandığı kütüphaneler",
       "never_checked": "Henüz kontrol edilmedi",
       "privacy": "Gizlilik",
-      "privacy_desc": "Bu telefonda ne kalır, sunucunuza ne gider",
+      "privacy_desc": "Bu cihazda ne kalır, sunucunuza ne gider",
       "report_problem": "Sorun bildir",
       "report_problem_desc": "GitHub'da sürüm bilgisi doldurulmuş bir kayıt açar",
       "server": "Sunucu",
@@ -1478,17 +1478,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Kayan panelleri ve geçişleri kapatır. Telefonunuzun ayarlarında hareketi azaltma açıksa uygulama bunu kendiliğinden yapar."
+        "description_mobile": "Kayan panelleri ve geçişleri kapatır. Cihazınızın ayarlarında hareketi azaltma açıksa uygulama bunu kendiliğinden yapar."
       },
       "text_size": {
-        "description_mobile": "Uygulamanın metnini telefonunuzun metin boyutunun üzerine ölçekler. %100, telefonunuzun boyutudur."
+        "description_mobile": "Uygulamanın metnini cihazınızın metin boyutunun üzerine ölçekler. %100, cihazınızın boyutudur."
       },
       "toast_duration": {
         "automatic": "Otomatik (ekran okuyucuyla daha uzun)"
       }
     },
     "backup": {
-      "description": "Ayarlarınızı başka bir telefona veya webmail'e taşıyın.",
+      "description": "Ayarlarınızı başka bir cihaza veya webmail'e taşıyın.",
       "export_import": "Dışa veya içe aktar",
       "export_import_desc": "Webmail ile aynı biçimde bir JSON dosyası",
       "reset": "Sıfırla",
@@ -1507,7 +1507,7 @@
       "other_title": "Diğer bağlantılar",
       "phone_backup": "Bunların hiçbiri Android'in bulut yedeğine gitmez.",
       "phone_secure": "Giriş bilgileriniz sistemin güvenli depolama alanında saklanır. Ayarlar, çevrimdışı posta önbelleği ve senkronizasyon bekleyen değişiklikler uygulamanın kendi depolama alanında saklanır.",
-      "phone_title": "Bu telefonda",
+      "phone_title": "Bu cihazda",
       "push": "Bildirimler açıkken sunucunuz push rölesine ({relay}) bir şeyin değiştiğini bildirir ve röle uygulamayı {service} aracılığıyla uyandırır. Röle bir cihaz belirteci ve bir değişiklik işareti görür, postanızı asla görmez. Bildirimler bölümünde kendi rölenizi kullanabilirsiniz.",
       "push_title": "Anlık Bildirimler",
       "server": "Posta, takvimler, kişiler ve dosyalar sunucunuzdan yüklenir ve yine oraya kaydedilir. Aşağıdaki bağlantılar dışında uygulama yalnızca sunucunuzla iletişim kurar.",

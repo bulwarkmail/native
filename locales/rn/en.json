@@ -149,7 +149,7 @@
       "time_zone": "Time zone",
       "time_zone_auto": "Device time zone",
       "time_zone_auto_zone": "Device time zone ({zone})",
-      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone."
+      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the time zone set on this device."
     },
     "share": {
       "add_people": "Add people",
@@ -901,7 +901,7 @@
       "err_pair_connect_detail": "Show a new code on your computer and scan again.",
       "err_pair_connect_title": "Signed in, but couldn't connect to {host}",
       "err_pair_insecure_detail": "{host} wants to use an unencrypted connection.",
-      "err_pair_network_detail": "Check your connection and that your phone can reach the webmail, then try again.",
+      "err_pair_network_detail": "Check your connection and that this device can reach the webmail, then try again.",
       "err_pair_rate_detail": "Wait a minute, then try again.",
       "err_pair_server_detail": "Try again with a new code. If it keeps failing, ask your administrator.",
       "err_pair_server_title": "The webmail couldn't complete the sign-in",
@@ -965,7 +965,7 @@
       "server_cert_active": "Signing in with the client certificate \"{alias}\". Tap to choose another.",
       "server_cert_clear": "Sign in without the certificate",
       "server_cert_failed": "Could not pick a certificate",
-      "server_cert_hint": "Does your server ask for a client certificate? Pick one installed on this phone.",
+      "server_cert_hint": "Does your server ask for a client certificate? Pick one installed on this device.",
       "server_hint": "Same address you type in the browser. We'll add https:// for you.",
       "server_label": "Server address",
       "server_not_found": "We couldn't find a server for {domain}. If you self-host, the address is the one you use for webmail.",
@@ -1067,7 +1067,7 @@
       "licences_desc": "AGPL-3.0 for the app, and the libraries it uses",
       "never_checked": "Not checked yet",
       "privacy": "Privacy",
-      "privacy_desc": "What stays on this phone and what goes to your server",
+      "privacy_desc": "What stays on this device and what goes to your server",
       "report_problem": "Report a problem",
       "report_problem_desc": "Opens an issue on GitHub with the version filled in",
       "server": "Server",
@@ -1106,10 +1106,10 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Turns off sliding panels and transitions. The app also does this when reduced motion is on in your phone's settings."
+        "description_mobile": "Turns off sliding panels and transitions. The app also does this when reduced motion is on in your device's settings."
       },
       "text_size": {
-        "description_mobile": "Scales the app's text on top of your phone's text size. 100% is your phone's size."
+        "description_mobile": "Scales the app's text on top of your device's text size. 100% is your device's size."
       },
       "toast_duration": {
         "automatic": "Automatic (longer with a screen reader)"
@@ -1163,7 +1163,7 @@
       }
     },
     "backup": {
-      "description": "Move your settings to another phone or the webmail.",
+      "description": "Move your settings to another device or the webmail.",
       "export_import": "Export or import",
       "export_import_desc": "A JSON file, same format as the webmail",
       "reset": "Reset",
@@ -1547,7 +1547,7 @@
       "clear_title": "Clear offline mail",
       "days_ago": "{count} d ago",
       "description": "Download recent messages so they open instantly and remain readable without a connection. Bodies only — attachments are still fetched on demand.",
-      "description_short": "Keep recent messages on this phone so they open without a connection.",
+      "description_short": "Keep recent messages on this device so they open without a connection.",
       "downloading": "Downloading {completed}/{total}…",
       "enabled": "Cache recent mail",
       "enabled_desc": "When on, the app keeps message bodies for the selected window on this device.",
@@ -1587,7 +1587,7 @@
       "other_title": "Other connections",
       "phone_backup": "None of it goes into Android's cloud backup.",
       "phone_secure": "Your sign-in details are kept in the system's secure storage. Settings, the offline mail cache and changes waiting to sync are kept in the app's own storage.",
-      "phone_title": "On this phone",
+      "phone_title": "On this device",
       "push": "When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through {service}. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.",
       "push_title": "Push notifications",
       "server": "Mail, calendars, contacts and files are loaded from your server and saved back to it. Apart from the connections below, the app talks only to your server.",
