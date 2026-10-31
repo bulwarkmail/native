@@ -44,20 +44,22 @@ tags:
     timeout: 20000
 - takeScreenshot: files-04-folder-created
 - longPressOn: ".*${output.folder}.*"
+# Delete moves it to the trash at once, with Undo and no question (like the
+# webmail). A tap while the actions sheet still slides in can miss: tap
+# again while Delete is still there.
+- extendedWaitUntil:
+    visible: "Delete"
+    timeout: 10000
 - repeat:
     while:
-      notVisible: "Delete this item.*"
+      visible: "Delete"
     times: 3
     commands:
-      - tapOn: "Delete"
+      - tapOn:
+          text: "Delete"
+          optional: true
       - waitForAnimationToEnd:
           timeout: 3000
-- extendedWaitUntil:
-    visible: "Delete this item.*"
-    timeout: 10000
-- tapOn:
-    text: "Delete"
-    below: "Delete this item.*"
 - extendedWaitUntil:
     notVisible: ".*${output.folder}.*"
     timeout: 20000
