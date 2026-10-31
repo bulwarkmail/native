@@ -5,12 +5,9 @@
 
 import type * as OpenPgp from 'openpgp';
 import { bytesToBinary, binaryToBytes, decodeBody, findNode, parseEntity, toCrlf, type MimeNode } from './mime';
+import { loadOpenPgp } from './openpgp-module';
 
-let mod: typeof OpenPgp | null = null;
-async function pgp(): Promise<typeof OpenPgp> {
-  if (!mod) mod = await import('openpgp');
-  return mod;
-}
+const pgp = loadOpenPgp;
 
 export interface PgpUserId {
   name: string;

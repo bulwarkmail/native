@@ -4,8 +4,13 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { runCryptoSelfTest } from '../self-test';
 import { useNodeCrypto } from './helpers';
 import { setNodeStyleCrypto } from '../provider';
+import { useHermesRuntime } from './hermes-runtime';
+
+let restoreRuntime: (() => void) | null = null;
 
 afterEach(() => {
+  restoreRuntime?.();
+  restoreRuntime = null;
   vi.unstubAllGlobals();
   useNodeCrypto();
 });
@@ -16,6 +21,17 @@ describe('runCryptoSelfTest', () => {
     const results = await runCryptoSelfTest();
     expect(results.filter((r) => !r.ok)).toEqual([]);
     expect(results.length).toBeGreaterThan(10);
+  }, 60_000);
+
+  // Hermes has no Symbol.species; openpgp's verify broke on it (#58).
+  it('passes the OpenPGP checks on a Hermes-like runtime', async () => {
+    useNodeCrypto();
+    restoreRuntime = useHermesRuntime('expo');
+    const results = await runCryptoSelfTest();
+    expect(results.filter((r) => r.name.startsWith('OpenPGP'))).toEqual([
+      { name: 'OpenPGP: curve25519 key, sign + encrypt, decrypt + verify', ok: true },
+      { name: 'OpenPGP: RSA key', ok: true },
+    ]);
   }, 60_000);
 
   it('reports the checks a missing algorithm breaks, and keeps going', async () => {

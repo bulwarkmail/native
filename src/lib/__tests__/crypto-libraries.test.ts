@@ -3,7 +3,7 @@
 // plugins (repos/plugins/bulwark-gpg, repos/plugins/smime). This runs under
 // Node, which has WebCrypto; on Hermes the app installs one from
 // react-native-quick-crypto (src/lib/crypto/install-webcrypto.ts).
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import * as nodeCrypto from 'node:crypto';
 import { webcrypto } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -15,6 +15,9 @@ import * as asn1js from 'asn1js';
 import { Convert } from 'pvtsutils';
 import { cbcDecrypt, setNodeStyleCrypto, type NodeStyleCrypto } from '../crypto/provider';
 import { installWebCrypto } from '../crypto/install-webcrypto';
+import { prepareOpenPgp } from '../crypto/openpgp-module';
+import { decryptMessage, detachedSign, encryptBytes, verifyDetached } from '../crypto/pgp';
+import { useHermesRuntime } from '../crypto/__tests__/hermes-runtime';
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
 
@@ -92,22 +95,13 @@ describe('crypto libraries', () => {
 });
 
 describe('openpgp on a Hermes-like runtime', () => {
+  let restore: (() => void) | null = null;
   afterEach(() => {
-    vi.unstubAllGlobals();
+    restore?.();
+    restore = null;
   });
 
-  // Metro bundles openpgp's browser build (metro.config.js). Hermes has
-  // WebCrypto only through the installed module, and no web streams or
-  // WebAssembly: the build must work with plain strings and bytes.
-  it('the browser build Metro bundles encrypts, signs and decrypts without streams or WebAssembly', async () => {
-    vi.stubGlobal('ReadableStream', undefined);
-    vi.stubGlobal('TransformStream', undefined);
-    vi.stubGlobal('WritableStream', undefined);
-    vi.stubGlobal('WebAssembly', undefined);
-    const req = createRequire(import.meta.url);
-    const browserBuild = path.join(path.dirname(req.resolve('openpgp')), '..', 'openpgp.min.mjs');
-    const pgp = (await import(/* @vite-ignore */ pathToFileURL(browserBuild).href)) as typeof openpgp;
-
+  async function roundTrip(pgp: typeof openpgp): Promise<void> {
     for (const keyOptions of [{ type: 'ecc', curve: 'curve25519Legacy' }, { type: 'rsa', rsaBits: 2048 }] as const) {
       const { privateKey, publicKey } = await pgp.generateKey({
         ...keyOptions,
@@ -126,10 +120,48 @@ describe('openpgp on a Hermes-like runtime', () => {
         message: await pgp.readMessage({ armoredMessage: armored as string }),
         decryptionKeys: priv,
         verificationKeys: pub,
+        expectSigned: true,
       });
       expect(data).toBe('ohne Streams');
       await expect(signatures[0].verified).resolves.toBe(true);
+
+      const signed = await pgp.sign({ message: await pgp.createMessage({ text: 'signiert' }), signingKeys: priv });
+      const verified = await pgp.verify({
+        message: await pgp.readMessage({ armoredMessage: signed as string }),
+        verificationKeys: pub,
+        expectSigned: true,
+      });
+      expect(verified.data).toBe('signiert');
     }
+  }
+
+  // Metro bundles openpgp's browser build (metro.config.js), and the app
+  // prepares it in loadOpenPgp() (src/lib/crypto/openpgp-module.ts).
+  for (const streams of ['expo', 'none'] as const) {
+    it(`the browser build Metro bundles encrypts, signs, decrypts and verifies (${streams === 'expo' ? "Expo's stream polyfill" : 'no web streams'}, no Symbol.species, no WebAssembly)`, async () => {
+      restore = useHermesRuntime(streams);
+      const req = createRequire(import.meta.url);
+      const browserBuild = path.join(path.dirname(req.resolve('openpgp')), '..', 'openpgp.min.mjs');
+      const pgp = prepareOpenPgp((await import(/* @vite-ignore */ pathToFileURL(browserBuild).href)) as typeof openpgp);
+      await roundTrip(pgp);
+    }, 60_000);
+  }
+
+  it('the app decrypts and verifies a signed message without Symbol.species', async () => {
+    const { privateKey, publicKey } = await openpgp.generateKey({
+      type: 'ecc',
+      curve: 'curve25519Legacy',
+      userIDs: [{ email: 'hermes@example.org' }],
+      format: 'object',
+    });
+    restore = useHermesRuntime('expo');
+    const data = new TextEncoder().encode('Grüße');
+    const armoredMessage = await encryptBytes({ data, recipientPublicKeysArmored: [publicKey.armor()], signingKey: privateKey });
+    const opened = await decryptMessage({ armoredMessage, decryptionKeys: [privateKey], verificationKeysArmored: [publicKey.armor()] });
+    expect(new TextDecoder().decode(opened.data)).toBe('Grüße');
+    expect(opened.signature.status).toBe('valid');
+    const armoredSignature = await detachedSign(data, privateKey);
+    await expect(verifyDetached({ data, armoredSignature, verificationKeysArmored: [publicKey.armor()] })).resolves.toMatchObject({ status: 'valid' });
   }, 60_000);
 });
 

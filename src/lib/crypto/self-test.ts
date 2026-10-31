@@ -3,6 +3,7 @@
 // (react-native-quick-crypto on a device) and reports which work. On a new
 // platform or library version this names a gap before a message fails.
 
+import { loadOpenPgp } from './openpgp-module';
 import { cbcDecrypt, chacha20Poly1305Decrypt, nodeStyleCrypto, rsaPkcs1Decrypt, toArrayBuffer, webCrypto } from './provider';
 
 export interface SelfTestResult {
@@ -121,14 +122,14 @@ function checks(): Check[] {
       assert(new TextDecoder().decode(chacha20Poly1305Decrypt(key32, nonce, sealed)) === 'bulwark self-test', 'chacha');
     }],
     ['OpenPGP: curve25519 key, sign + encrypt, decrypt + verify', async () => {
-      const openpgp = await import('openpgp');
+      const openpgp = await loadOpenPgp();
       const { privateKey, publicKey } = await openpgp.generateKey({ type: 'ecc', curve: 'curve25519Legacy', userIDs: [{ email: 'self-test@example.org' }], format: 'object' });
       const armored = await openpgp.encrypt({ message: await openpgp.createMessage({ text: 'ok' }), encryptionKeys: publicKey, signingKeys: privateKey });
       const res = await openpgp.decrypt({ message: await openpgp.readMessage({ armoredMessage: armored as string }), decryptionKeys: privateKey, verificationKeys: publicKey, expectSigned: true });
       assert(res.data === 'ok', 'decrypt');
     }],
     ['OpenPGP: RSA key', async () => {
-      const openpgp = await import('openpgp');
+      const openpgp = await loadOpenPgp();
       const { privateKey, publicKey } = await openpgp.generateKey({ type: 'rsa', rsaBits: 2048, userIDs: [{ email: 'self-test@example.org' }], format: 'object' });
       const signed = await openpgp.sign({ message: await openpgp.createMessage({ text: 'ok' }), signingKeys: privateKey });
       const v = await openpgp.verify({ message: await openpgp.readMessage({ armoredMessage: signed as string }), verificationKeys: publicKey, expectSigned: true });
