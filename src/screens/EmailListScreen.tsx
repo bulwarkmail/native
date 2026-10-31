@@ -10,7 +10,7 @@ import {
   Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check,
 } from '../components/icons';
 import { ActionSheet } from '../components/email/ActionSheet';
-import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor } from '../lib/sort-choices';
+import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor, type SortChoiceKey } from '../lib/sort-choices';
 import { orderForMailbox, sanitizeSortLevels } from '../lib/message-list-order';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -112,15 +112,18 @@ function isPinned(email: Email): boolean {
   return !!email.keywords?.$pinned;
 }
 
-const SORT_FALLBACKS: Record<string, string> = {
-  newest: 'Newest first',
-  oldest: 'Oldest first',
-  unread: 'Unread first',
-  starred: 'Starred first',
-  sender: 'Sender (A–Z)',
-  subject: 'Subject (A–Z)',
-  largest: 'Largest first',
-};
+// Written out so the string harvest finds every key.
+function sortChoiceLabel(key: SortChoiceKey, t: (key: string, fallback?: string) => string): string {
+  switch (key) {
+    case 'newest': return t('email_list.sort.newest', 'Newest first');
+    case 'oldest': return t('email_list.sort.oldest', 'Oldest first');
+    case 'unread': return t('email_list.sort.unread', 'Unread first');
+    case 'starred': return t('email_list.sort.starred', 'Starred first');
+    case 'sender': return t('email_list.sort.sender', 'Sender (A–Z)');
+    case 'subject': return t('email_list.sort.subject', 'Subject (A–Z)');
+    case 'largest': return t('email_list.sort.largest', 'Largest first');
+  }
+}
 
 // Height of the sender line when the avatar is hidden (extra-compact density),
 // used to anchor the unread dot on that first line.
@@ -1283,7 +1286,7 @@ export default function EmailListScreen({
         onPress={() => setSortMenuOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={t('email_list.sort.title', 'Sort')}
-        accessibilityValue={currentSortChoice ? { text: t(`email_list.sort.${currentSortChoice}`, currentSortChoice) } : undefined}
+        accessibilityValue={currentSortChoice ? { text: sortChoiceLabel(currentSortChoice, t) } : undefined}
       >
         {currentSortChoice === 'newest' ? (
           <ArrowDownWideNarrow size={18} color={c.textMuted} />
@@ -2016,7 +2019,7 @@ export default function EmailListScreen({
         items={[
           ...SORT_CHOICES.map((choice) => ({
             key: choice.key,
-            label: t(`email_list.sort.${choice.key}`, SORT_FALLBACKS[choice.key]),
+            label: sortChoiceLabel(choice.key, t),
             trailing: currentSortChoice === choice.key ? <Check size={16} color={c.primary} /> : undefined,
             onPress: () => {
               setSortMenuOpen(false);
