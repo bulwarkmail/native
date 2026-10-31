@@ -998,6 +998,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // ── "@" mentions in the body (webmail #1134) ──────────────────────────
   // What follows the "@" being typed in the editor, null when none is.
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+  // Settings > Composing: mentions can be turned off, and a picked contact
+  // who isn't a recipient yet joins To, Cc or nothing (webmail
+  // recipientMentionsEnabled, mentionAddsRecipientTo; 'off' offers the
+  // recipients only).
+  const recipientMentionsEnabled = useSettingsStore((s) => s.recipientMentionsEnabled);
+  const mentionAddsRecipientTo = useSettingsStore((s) => s.mentionAddsRecipientTo);
   // Who an "@" offers: To and Cc. Never Bcc - naming a blind-copied
   // recipient in the text would disclose them to everyone else.
   const mentionCandidates = React.useMemo(
@@ -1007,29 +1013,31 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Contacts come after the recipients; anyone already on the message is
   // left out, Bcc and the identity's own Bcc included.
   const mentionItems = React.useMemo<MentionCandidate[]>(() => {
-    if (mentionQuery === null) return [];
+    if (mentionQuery === null || !recipientMentionsEnabled) return [];
     const onMessage = new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
         .flatMap((r) => (r.group ? r.group.members.map((m) => m.email) : [r.email]))
         .concat((primaryIdentity?.bcc ?? []).map((r) => r.email))
         .map((e) => e.trim().toLowerCase()),
     );
-    const contacts = mentionQuery
+    const contacts = mentionQuery && mentionAddsRecipientTo !== 'off'
       ? getAutocomplete(mentionQuery, 16)
         .filter((s) => !s.group && !!s.email && !onMessage.has(s.email.trim().toLowerCase()))
         .map((s) => ({ name: s.name || undefined, email: s.email }))
       : [];
-    return mentionSuggestions(mentionCandidates, contacts, mentionQuery, 'to');
+    return mentionSuggestions(mentionCandidates, contacts, mentionQuery, mentionAddsRecipientTo === 'cc' ? 'cc' : 'to');
     // contactsVersion/recentVersion re-run the lookup when the store loads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mentionQuery, mentionCandidates, toRecipients, ccRecipients, bccRecipients, primaryIdentity, getAutocomplete, contactsVersion, recentVersion]);
+  }, [mentionQuery, mentionCandidates, toRecipients, ccRecipients, bccRecipients, primaryIdentity, getAutocomplete, contactsVersion, recentVersion, recipientMentionsEnabled, mentionAddsRecipientTo]);
   const pickMention = (candidate: MentionCandidate) => {
     editorRef.current?.insertMention(candidate.label, mentionHref(candidate.email));
-    // A contact who isn't on the message yet joins To (webmail default).
-    if (candidate.addsTo === 'cc') {
+    // A contact who isn't on the message yet joins To or Cc, as set.
+    if (mentionAddsRecipientTo === 'off' || !candidate.addsTo) {
+      // A recipient already: nothing to add.
+    } else if (candidate.addsTo === 'cc') {
       setCcRecipients((prev) => addMentionedRecipient(prev, candidate, (c) => ({ name: c.name ?? '', email: c.email })));
       setCcVisible(true);
-    } else if (candidate.addsTo) {
+    } else {
       setToRecipients((prev) => addMentionedRecipient(prev, candidate, (c) => ({ name: c.name ?? '', email: c.email })));
     }
     setMentionQuery(null);
@@ -3090,7 +3098,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
               onViewportShift={onEditorViewportShift}
-              mentions
+              mentions={recipientMentionsEnabled}
               onMentionQuery={setMentionQuery}
             />
           )}

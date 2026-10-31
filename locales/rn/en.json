@@ -1253,6 +1253,9 @@
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
       },
+      "recipient_mentions": {
+        "description_mobile": "Typing @ in the message offers its recipients and inserts the chosen one's first name."
+      },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
       },

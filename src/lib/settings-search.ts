@@ -118,6 +118,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.auto_select_reply_identity',
     'settings.email_behavior.reply_identity_match',
     'settings.email_behavior.plain_text_mode',
+    'settings.email_behavior.recipient_mentions',
+    'settings.email_behavior.mention_adds_recipient',
     'settings.email_behavior.request_read_receipt',
     'settings.email_behavior.empty_subject_warning',
     'settings.email_behavior.placeholder_warning',
