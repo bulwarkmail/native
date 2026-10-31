@@ -18,6 +18,8 @@ import {
   pickClientCertAlias,
 } from '../../lib/client-cert';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useAuthStore } from '../../stores/auth-store';
+import { passwordChangeOutcome } from './password-change';
 import {
   AccountSecurityForbiddenError,
   isLimitedStalwartSignIn,
@@ -155,21 +157,45 @@ function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
     if (newPwd.length < 8) { setError(t('settings.security.password.too_short', "New password must be at least 8 characters.")); return; }
     if (newPwd !== confirmPwd) { setError(t('settings.security.password.mismatch', "Passwords do not match.")); return; }
     setSaving(true);
+    const tokenSignIn = jmapClient.usesBearerAuth;
+    let failure: unknown = null;
     try {
-      const tokenSignIn = jmapClient.usesBearerAuth;
       await changePassword(currentPwd, newPwd, otpEnabled ? otpCode : undefined);
-      setCurrentPwd(''); setOtpCode(''); setNewPwd(''); setConfirmPwd('');
-      Alert.alert(
-        t('settings.security.password.changed_title', "Password changed"),
-        tokenSignIn
-          ? t('settings.security.password.changed_sign_in_again', "Your account password was updated. Sign in again with the new password.")
-          : t('settings.security.password.changed', "Your account password was updated."),
-      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('settings.security.password.error', "Failed to change password."));
+      failure = err ?? new Error('Failed to change password');
     } finally {
       setSaving(false);
     }
+    const outcome = passwordChangeOutcome(failure, tokenSignIn);
+    if (outcome.kind === 'error') {
+      setError(outcome.message || t('settings.security.password.error', "Failed to change password."));
+      return;
+    }
+    setCurrentPwd(''); setOtpCode(''); setNewPwd(''); setConfirmPwd('');
+    if (outcome.kind === 'changed') {
+      Alert.alert(
+        t('settings.security.password.changed_title', "Password changed"),
+        t('settings.security.password.changed', "Your account password was updated."),
+      );
+      return;
+    }
+    // The change ended the session (see password-change): say so, then open
+    // the sign-in to this account, filled in, instead of letting the next
+    // request fail with a generic error.
+    const accountId = useAuthStore.getState().activeAccountId;
+    Alert.alert(
+      outcome.changed
+        ? t('settings.security.password.changed_title', "Password changed")
+        : t('settings.security.password.session_ended_title', "Sign in again"),
+      outcome.changed
+        ? t('settings.security.password.changed_sign_in_again', "Your account password was updated. Sign in again with the new password.")
+        : t('settings.security.password.session_ended', "Changing the password ended this session. Sign in again with your new password."),
+      [{
+        text: t('login.mobile.continue', 'Continue'),
+        onPress: () => { if (accountId) void useAuthStore.getState().requestReauth(accountId); },
+      }],
+      { cancelable: false },
+    );
   };
 
   return (

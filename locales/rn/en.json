@@ -1490,6 +1490,8 @@
         "description": "Change the password for this account.",
         "error": "Failed to change password.",
         "mismatch": "Passwords do not match.",
+        "session_ended": "Changing the password ended this session. Sign in again with your new password.",
+        "session_ended_title": "Sign in again",
         "toggle_visibility": "Show or hide password",
         "too_short": "New password must be at least 8 characters."
       },
