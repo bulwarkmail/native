@@ -69,7 +69,6 @@ function pathOf(all: Mailbox[], mb: Mailbox, t: (k: string, f?: string) => strin
 export function FolderSettings() {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
-  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -78,6 +77,9 @@ export function FolderSettings() {
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
 
   const [editor, setEditor] = useState<Editor | null>(null);
+  // Save and Cancel above the taskbar, and above the keyboard while the
+  // name is typed in.
+  const bottomInset = useSheetBottomInset(!!editor);
   const [draftName, setDraftName] = useState('');
   const [draftParent, setDraftParent] = useState<string>(NO_PARENT);
   const [draftAccount, setDraftAccount] = useState<string>(OWN_ACCOUNT);

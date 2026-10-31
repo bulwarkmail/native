@@ -99,7 +99,6 @@ function parseAddressList(value: string): { list: EmailAddress[]; invalid: strin
 export function IdentitySettings() {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
-  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const identities = useSettingsStore((s) => s.identities);
@@ -113,6 +112,8 @@ export function IdentitySettings() {
   const preferredId = accountId ? preferredIdentityIds[accountId] : undefined;
 
   const [editing, setEditing] = useState<DraftIdentity | null>(null);
+  // Save above the taskbar, and above the keyboard while a field is typed in.
+  const bottomInset = useSheetBottomInset(!!editing);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 

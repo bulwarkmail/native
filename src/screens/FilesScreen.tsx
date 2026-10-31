@@ -1736,6 +1736,8 @@ interface PromptModalProps {
 
 function PromptModal(props: PromptModalProps) {
   const c = useColors();
+  // Centred above the keyboard, so the name field and its button stay visible.
+  const bottomInset = useSheetBottomInset(props.visible);
   const styles = React.useMemo(() => makePromptStyles(c), [c]);
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS}
@@ -1745,7 +1747,7 @@ function PromptModal(props: PromptModalProps) {
       onRequestClose={props.onCancel}
     >
       <TouchableWithoutFeedback accessible={false} onPress={props.onCancel}>
-        <View style={styles.backdrop}>
+        <View style={[styles.backdrop, { paddingBottom: spacing.lg + bottomInset }]}>
           <TouchableWithoutFeedback accessible={false}>
             <View style={styles.dialog}>
               <Text style={styles.title}>{props.title}</Text>
@@ -1808,7 +1810,7 @@ function ActionsSheet({
 }: ActionsSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
-  const bottomInset = useSheetBottomInset();
+  const bottomInset = useSheetBottomInset(!!target);
   const formatModified = useFormatModified();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
@@ -1963,7 +1965,7 @@ interface FolderPickerSheetProps {
 function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: FolderPickerSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
-  const bottomInset = useSheetBottomInset();
+  const bottomInset = useSheetBottomInset(!!target);
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   const options = useMemo(() => {
@@ -2054,7 +2056,7 @@ interface SortSheetProps {
 function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChangeDir }: SortSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
-  const bottomInset = useSheetBottomInset();
+  const bottomInset = useSheetBottomInset(visible);
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!visible) return null;

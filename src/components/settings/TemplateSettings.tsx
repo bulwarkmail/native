@@ -24,7 +24,6 @@ import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 export function TemplateSettings() {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
-  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const tr = useLocaleStore((s) => s.t);
@@ -41,6 +40,8 @@ export function TemplateSettings() {
 
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [importVisible, setImportVisible] = useState(false);
+  // Save above the taskbar, and above the keyboard while a field is typed in.
+  const bottomInset = useSheetBottomInset(!!editing || importVisible);
   const [importText, setImportText] = useState('');
   const [draftName, setDraftName] = useState('');
   const [draftSubject, setDraftSubject] = useState('');

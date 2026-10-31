@@ -45,6 +45,7 @@ import { SafeAreaModal } from '../SafeAreaModal';
 import { useFilterStore } from '../../stores/filter-store';
 import { forwardsOfEditedRule, ruleForwardLimit } from '../../lib/sieve/forward-limit';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useModalKeyboardPadding } from '../../lib/sheet-bottom-inset';
 
 const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment', 'all'];
 
@@ -91,6 +92,8 @@ export function FilterRuleModal({
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  // The Android dialog doesn't shrink for the keyboard; the body ends above it.
+  const keyboardPadding = useModalKeyboardPadding(visible);
   const keywords = useKeywordsStore((s) => s.keywords);
   const isEdit = !!editedRule;
   const rule = editedRule ?? initialRule;
@@ -315,7 +318,7 @@ export function FilterRuleModal({
         </View>
 
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={{ flex: 1, paddingBottom: keyboardPadding }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">

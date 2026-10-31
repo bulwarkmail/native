@@ -14,6 +14,7 @@ import { isTrustedSendersSyncOn } from '../../lib/trusted-senders';
 import { removeTrustedSenderWithUndo } from '../../lib/settings-undo';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import { ToastHost } from '../ToastHost';
 
 interface TrustedRow {
@@ -48,6 +49,8 @@ export function ContentSendersSettings() {
   const removeFromTrustedSendersBook = useContactsStore((s) => s.removeFromTrustedSendersBook);
 
   const [modalOpen, setModalOpen] = useState(false);
+  // The card centres above the keyboard while an address is typed in.
+  const bottomInset = useSheetBottomInset(modalOpen);
   const [newSender, setNewSender] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -197,7 +200,7 @@ export function ContentSendersSettings() {
         animationType="fade"
         onRequestClose={() => setModalOpen(false)}
       >
-        <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setModalOpen(false)}>
+        <Pressable accessible={false} style={[styles.modalBackdrop, { paddingBottom: bottomInset }]} onPress={() => setModalOpen(false)}>
           <Pressable accessible={false} style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('settings.email_behavior.trusted_senders.modal_title', 'Trusted Senders')}</Text>
