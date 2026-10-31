@@ -45,20 +45,14 @@ import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
 // Pause between a mute change and the push-filter update it sends (#78).
 const MUTES_RESYNC_DELAY_MS = 1_000;
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
-import ComposeScreen from './src/screens/ComposeScreen';
 import EmailThreadScreen from './src/screens/EmailThreadScreen';
-import EmailSourceScreen from './src/screens/EmailSourceScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import MailTab from './src/screens/MailTab';
-import FilesScreen from './src/screens/FilesScreen';
-import CalendarScreen from './src/screens/CalendarScreen';
-import ContactsTab from './src/screens/ContactsTab';
 import ContactDetailScreen from './src/screens/ContactDetailScreen';
-import ContactFormScreen from './src/screens/ContactFormScreen';
 import GroupDetailScreen from './src/screens/GroupDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
-import ScheduledScreen from './src/screens/ScheduledScreen';
-import UnifiedInboxScreen from './src/screens/UnifiedInboxScreen';
+// Screens that aren't on the way to the inbox load on first visit
+// (getComponent below), so their modules stay out of the startup work.
 import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
@@ -322,7 +316,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       </Tab.Screen>
       <Tab.Screen
         name="Calendar"
-        component={CalendarScreen}
+        getComponent={() => require('./src/screens/CalendarScreen').default}
         options={{
           title: tabLabels.calendar,
           tabBarButtonTestID: 'tab-calendar',
@@ -338,7 +332,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       />
       <Tab.Screen
         name="Contacts"
-        component={ContactsTab}
+        getComponent={() => require('./src/screens/ContactsTab').default}
         options={{
           title: tabLabels.contacts,
           tabBarButtonTestID: 'tab-contacts',
@@ -354,7 +348,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       />
       <Tab.Screen
         name="Files"
-        component={FilesScreen}
+        getComponent={() => require('./src/screens/FilesScreen').default}
         options={{
           title: tabLabels.files,
           tabBarButtonTestID: 'tab-files',
@@ -904,10 +898,10 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }} screenLayout={withHosts}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
         <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
-        <Stack.Screen name="EmailSource" component={EmailSourceScreen} />
+        <Stack.Screen name="EmailSource" getComponent={() => require('./src/screens/EmailSourceScreen').default} />
         <Stack.Screen
           name="Compose"
-          component={ComposeScreen}
+          getComponent={() => require('./src/screens/ComposeScreen').default}
           // A tablet shows the composer as a panel over the screen it came
           // from, so that screen stays drawn behind the dimmed backdrop.
           options={isSplit
@@ -917,15 +911,15 @@ export default function App() {
         <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
         <Stack.Screen
           name="ContactForm"
-          component={ContactFormScreen}
+          getComponent={() => require('./src/screens/ContactFormScreen').default}
           options={{
             presentation: 'modal',
             animation: 'slide_from_bottom',
           }}
         />
         <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
-        <Stack.Screen name="Scheduled" component={ScheduledScreen} />
-        <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
+        <Stack.Screen name="Scheduled" getComponent={() => require('./src/screens/ScheduledScreen').default} />
+        <Stack.Screen name="UnifiedInbox" getComponent={() => require('./src/screens/UnifiedInboxScreen').default} />
         <Stack.Screen
           name="AddAccount"
           options={{

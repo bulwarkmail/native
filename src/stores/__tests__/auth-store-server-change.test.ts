@@ -28,6 +28,12 @@ const { client } = vi.hoisted(() => {
     client: {
       session,
       requests: [] as Array<Array<[string, Record<string, unknown>, string]>>,
+      // Milliseconds each request takes (0: answered on the next tick).
+      latency: 0,
+      // The new server takes the old states, and skips the changes since.
+      acceptsOldStates: false,
+      // What the new server's Mailbox/get lists.
+      mailboxes: [] as unknown[],
     },
   };
 });
@@ -35,6 +41,9 @@ const { client } = vi.hoisted(() => {
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     loadAccount: vi.fn(async () => true),
+    loadAccountFromCache: vi.fn(async () => false),
+    revalidateSession: vi.fn(async () => null),
+    getStoredCredentials: vi.fn(async () => null),
     consumeLegacyCredentials: vi.fn(async () => null),
     clearAccountCredentials: vi.fn(async () => undefined),
     reset: vi.fn(),
@@ -51,12 +60,18 @@ vi.mock('../../api/jmap-client', () => ({
     getAccountName: () => 'user',
     request: vi.fn(async (calls: Array<[string, Record<string, unknown>, string]>) => {
       client.requests.push(calls);
+      if (client.latency) await new Promise((r) => setTimeout(r, client.latency));
       // The 1.0 server knows nothing of the 0.16.23 states.
       return {
         methodResponses: calls.map(([name, args, id]) => (name.endsWith('/changes')
-          ? ['error', { type: 'cannotCalculateChanges' }, id]
+          ? (client.acceptsOldStates
+            ? [name, {
+              accountId: args.accountId, oldState: args.sinceState, newState: 'sfy',
+              created: [], updated: [], destroyed: [], hasMoreChanges: false,
+            }, id]
+            : ['error', { type: 'cannotCalculateChanges' }, id])
           : [name, {
-            accountId: args.accountId, state: 'sfy', list: [], notFound: [],
+            accountId: args.accountId, state: 'sfy', list: name === 'Mailbox/get' ? client.mailboxes : [], notFound: [],
             ...(name === 'Email/set'
               ? { updated: Object.fromEntries(Object.keys((args.update ?? {}) as object).map((k) => [k, null])) }
               : {}),
@@ -65,6 +80,7 @@ vi.mock('../../api/jmap-client', () => ({
     }),
     getStoredOAuthTokens: vi.fn(async () => null),
     accountId: 'f',
+    connectedAccountId: 'f',
     isConnected: true,
     currentSession: client.session('1.0'),
     username: 'user',
@@ -72,6 +88,7 @@ vi.mock('../../api/jmap-client', () => ({
   },
   AuthenticationError: class AuthenticationError extends Error {},
   NetworkError: class NetworkError extends Error {},
+  SessionSupersededError: class SessionSupersededError extends Error {},
 }));
 
 vi.mock('../../lib/push-notifications', () => ({
@@ -103,6 +120,9 @@ beforeEach(async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   await AsyncStorage.clear();
   client.requests.length = 0;
+  client.latency = 0;
+  client.acceptsOldStates = false;
+  client.mailboxes = [];
   // A cold start: nothing is attached yet.
   await useOutboxStore.getState().setAccount(null);
   await useOfflineCacheStore.getState().setAccount(null);
@@ -206,5 +226,63 @@ describe('restoring the session on a replaced server', () => {
     expect(await AsyncStorage.getItem(OUTBOX_KEY)).toBeNull();
     expect(forgetPushSubscriptionExpiry).toHaveBeenCalledWith(ACCOUNT);
     expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
+  });
+});
+
+// A start from the session saved at the last connect sends its reads with
+// that session, before the server answered. Until the server confirmed the
+// session and its check ran, the queue waits; on a replaced server what the
+// early reads bring back is dropped with the rest, never kept.
+describe('starting from the saved session', () => {
+  async function startFromSavedSession(server: string) {
+    const { jmapClient } = await import('../../api/jmap-client');
+    vi.mocked(jmapClient.loadAccountFromCache).mockResolvedValueOnce(true);
+    let confirm!: () => void;
+    vi.mocked(jmapClient.revalidateSession).mockReturnValueOnce(
+      new Promise((resolve) => { confirm = () => resolve(session(server)); }),
+    );
+    expect(await useAuthStore.getState().restoreSession()).toBe(true);
+    return confirm;
+  }
+
+  it('sends the queue only once the server confirmed the saved session (Stalwart 1.0)', async () => {
+    await writeServerFingerprint(ACCOUNT, sessionFingerprint(session('1.0')));
+    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(QUEUED));
+
+    const confirm = await startFromSavedSession('1.0');
+    await new Promise((r) => setTimeout(r, 20));
+    // The reads went out without waiting; the queue did not.
+    expect(client.requests.flat().some(([name]) => name === 'Mailbox/changes')).toBe(true);
+    expect(emailSets()).toEqual([]);
+
+    confirm();
+    await vi.waitFor(() => expect(emailSets()).toHaveLength(1));
+    expect(emailSets()[0][1]).toEqual({ accountId: 'f', update: { b: { 'keywords/$seen': true } } });
+  });
+
+  it('keeps nothing the early reads brought back from a replaced server (Stalwart 0.16.23 to 1.0)', async () => {
+    await writeServerFingerprint(ACCOUNT, sessionFingerprint(session('0.16.23')));
+    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(QUEUED));
+    // The early reads are still on their way when the session arrives, and
+    // the new server answers the old folder state with "no changes".
+    client.latency = 40;
+    client.acceptsOldStates = true;
+    client.mailboxes = [{
+      id: 'm1', name: 'Inbox', role: 'inbox', parentId: null, sortOrder: 0,
+      totalEmails: 0, unreadEmails: 0, totalThreads: 0, unreadThreads: 0, myRights: {}, isSubscribed: true,
+    }];
+
+    const confirm = await startFromSavedSession('1.0');
+    confirm();
+    await vi.waitFor(async () => expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0'))));
+    await new Promise((r) => setTimeout(r, 150));
+
+    const email = useEmailStore.getState();
+    expect(JSON.stringify([email.mailboxState, email.emailStates, email.queryState, email.mailboxSnapshots])).not.toContain('s1iaq');
+    // The folder list was read again after the drop, from the new server.
+    expect(email.mailboxes.map((m) => m.id)).toEqual(['m1']);
+    expect(emailSets()).toEqual([]);
+    expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(await AsyncStorage.getItem(OUTBOX_KEY)).toBeNull();
   });
 });

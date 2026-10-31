@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   JMAPSession,
   JMAPMethodCall,
@@ -44,6 +45,20 @@ const CREDENTIALS_PREFIX = 'jmap_credentials__';
 // SecureStore keys: letters, digits, ".", "-", "_" only - no "@" or "/".
 export function credentialsKey(accountId: string): string {
   return CREDENTIALS_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+// The session document from the account's last connect (URLs, account ids,
+// capabilities; no secrets). Start-up uses it to show the account without
+// waiting for the network, then fetches a fresh one (revalidateSession).
+const SESSION_CACHE_PREFIX = 'jmap_session_cache__';
+
+function sessionCacheKey(accountId: string): string {
+  return SESSION_CACHE_PREFIX + accountId;
+}
+
+interface CachedSession {
+  serverUrl: string;
+  session: JMAPSession;
 }
 
 export interface StoredCredentials {
@@ -155,6 +170,12 @@ export class JMAPClient {
    * install it (see SessionSupersededError).
    */
   private sessionEpoch = 0;
+  /**
+   * The local account id the session was loaded or signed in for, which
+   * keys its saved session document (rememberSession). Null while no
+   * session is up.
+   */
+  private sessionCacheId: string | null = null;
   private firstTouchGate = new FirstTouchGate();
   private rateLimitedUntil = 0;
   private authFailureListeners = new Set<(err: AuthenticationError) => void>();
@@ -301,6 +322,7 @@ export class JMAPClient {
     this.firstTouchGate.reset();
 
     const accountId = generateAccountId(username, baseUrl);
+    this.sessionCacheId = accountId;
     await writeSharedSecret(credentialsKey(accountId), JSON.stringify(credentials));
 
     return session;
@@ -380,6 +402,7 @@ export class JMAPClient {
     this.credentials = credentials;
 
     const accountId = generateAccountId(username, baseUrl);
+    this.sessionCacheId = accountId;
     await writeSharedSecret(credentialsKey(accountId), JSON.stringify(credentials));
 
     return { session, username, accountId };
@@ -427,6 +450,7 @@ export class JMAPClient {
     this.credentials = credentials;
 
     const accountId = generateAccountId(username, baseUrl);
+    this.sessionCacheId = accountId;
     await writeSharedSecret(credentialsKey(accountId), JSON.stringify(credentials));
 
     return { session, username, accountId };
@@ -671,6 +695,8 @@ export class JMAPClient {
     const session = this.rewriteSessionUrls(fetched, creds.serverUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
+    this.sessionCacheId = accountId;
+    this.rememberSession();
     return true;
   }
 
@@ -685,6 +711,7 @@ export class JMAPClient {
   private detachSession(): number {
     this.session = null;
     this._accountId = null;
+    this.sessionCacheId = null;
     this.sessionEpoch += 1;
     return this.sessionEpoch;
   }
@@ -700,6 +727,94 @@ export class JMAPClient {
   }
 
   /**
+   * Start-up without a network round trip: the account's credentials and the
+   * session document saved at its last connect. Returns false when either is
+   * missing (or the saved one is for another server); the caller then uses
+   * loadAccount. A wrong password or revoked token surfaces on the first
+   * request (401, onAuthFailure) or in revalidateSession. Like loadAccount it
+   * hands the client to the account at once, and throws
+   * SessionSupersededError when another account change began while the saved
+   * session was read: that one owns the client.
+   */
+  async loadAccountFromCache(accountId: string): Promise<boolean> {
+    const epoch = this.detachSession();
+    const [stored, cachedRaw] = await Promise.all([
+      SecureStore.getItemAsync(credentialsKey(accountId)),
+      AsyncStorage.getItem(sessionCacheKey(accountId)).catch(() => null),
+    ]);
+    this.assertCurrentSession(epoch);
+    if (!stored || !cachedRaw) return false;
+    let creds: StoredCredentials;
+    let cached: CachedSession;
+    try {
+      creds = JSON.parse(stored);
+      cached = JSON.parse(cachedRaw);
+    } catch {
+      return false;
+    }
+    if (!cached?.session?.apiUrl || cached.serverUrl !== creds.serverUrl) return false;
+    let accountIdInSession: string;
+    try {
+      accountIdInSession = this.resolveAccountId(cached.session);
+    } catch {
+      return false;
+    }
+    // As in loadAccount: iOS credentials saved before the notification
+    // extension existed move to the keychain group it can read.
+    void moveToSharedGroup(credentialsKey(accountId)).catch(() => undefined);
+    this.credentials = creds;
+    this.firstTouchGate.reset();
+    this.session = cached.session;
+    this._accountId = accountIdInSession;
+    this.sessionCacheId = accountId;
+    return true;
+  }
+
+  /**
+   * Fetch a fresh session document for the account the client holds now,
+   * after a start from the saved one. Resolves null when the client was
+   * handed to another account meanwhile (a switch, sign-in, sign-out or a
+   * snapshot put back: the session epoch moved), and the result is dropped.
+   * On a failure the saved session goes, as loadAccount leaves none behind,
+   * and the error is thrown: AuthenticationError for refused credentials,
+   * anything else for a server that could not be reached.
+   */
+  async revalidateSession(): Promise<JMAPSession | null> {
+    const creds = this.credentials;
+    if (!creds || !this.session) return null;
+    const epoch = this.sessionEpoch;
+    let fresh: JMAPSession;
+    let accountIdInSession: string;
+    try {
+      fresh = this.rewriteSessionUrls(await this.fetchSession(creds.serverUrl), creds.serverUrl);
+      if (epoch !== this.sessionEpoch) return null;
+      accountIdInSession = this.resolveAccountId(fresh);
+    } catch (err) {
+      if (epoch !== this.sessionEpoch) return null;
+      this.session = null;
+      this._accountId = null;
+      throw err;
+    }
+    this.session = fresh;
+    this._accountId = accountIdInSession;
+    this.rememberSession();
+    return fresh;
+  }
+
+  /**
+   * Save the live session document for the next start, under the local
+   * account id the session was loaded for (the registry's, which for an
+   * account signed in before ports were part of ids is username@host).
+   */
+  private rememberSession(): void {
+    if (!this.session || !this.credentials) return;
+    const accountId = this.sessionCacheId
+      ?? generateAccountId(this.credentials.username, this.credentials.serverUrl);
+    const entry: CachedSession = { serverUrl: this.credentials.serverUrl, session: this.session };
+    void AsyncStorage.setItem(sessionCacheKey(accountId), JSON.stringify(entry)).catch(() => undefined);
+  }
+
+  /**
    * Snapshot of the live connection so a failed "add account" / switch can put
    * the previous account back without a network round-trip.
    */
@@ -708,6 +823,7 @@ export class JMAPClient {
       session: this.session,
       credentials: this.credentials,
       accountId: this._accountId,
+      sessionCacheId: this.sessionCacheId,
     };
   }
 
@@ -716,17 +832,20 @@ export class JMAPClient {
     this.session = snap.session;
     this.credentials = snap.credentials;
     this._accountId = snap.accountId;
+    this.sessionCacheId = snap.sessionCacheId ?? null;
     this.firstTouchGate.reset();
   }
 
   async clearAccountCredentials(accountId: string): Promise<void> {
     await SecureStore.deleteItemAsync(credentialsKey(accountId));
+    await AsyncStorage.removeItem(sessionCacheKey(accountId)).catch(() => undefined);
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
     await Promise.all([
       SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
       ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
+      ...accountIds.map((id) => AsyncStorage.removeItem(sessionCacheKey(id)).catch(() => undefined)),
     ]);
   }
 
@@ -788,6 +907,7 @@ export class JMAPClient {
     this.session = null;
     this.credentials = null;
     this._accountId = null;
+    this.sessionCacheId = null;
     this.firstTouchGate.reset();
     this.rateLimitedUntil = 0;
   }
@@ -800,6 +920,7 @@ export class JMAPClient {
     await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
     if (currentAccountId) {
       await SecureStore.deleteItemAsync(credentialsKey(currentAccountId));
+      await AsyncStorage.removeItem(sessionCacheKey(currentAccountId)).catch(() => undefined);
     }
   }
 
@@ -1023,6 +1144,7 @@ export class JMAPClient {
     const session = this.rewriteSessionUrls(fetched, baseUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
+    this.rememberSession();
     return session;
   }
 
@@ -1390,6 +1512,8 @@ export interface ClientSnapshot {
   session: JMAPSession | null;
   credentials: StoredCredentials | null;
   accountId: string | null;
+  /** The local account id the session's saved document is kept under. */
+  sessionCacheId?: string | null;
 }
 
 // ── URL helpers ──────────────────────────────────────────

@@ -33,4 +33,14 @@ if (process.env.BULWARK_MODULE_TIMINGS) {
   }
 }
 
+// Evaluate a module when it is first used instead of all of them before the
+// first render. Expo's default leaves this off; React Native's own template
+// turns it on. Side-effect-only imports (`import './x'`) still run in place.
+config.transformer.getTransformOptions = async () => ({
+  transform: {
+    experimentalImportSupport: true,
+    inlineRequires: true,
+  },
+});
+
 module.exports = config;

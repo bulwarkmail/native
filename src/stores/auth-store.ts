@@ -39,6 +39,7 @@ import {
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
 import { reconcileServerFingerprint } from '../lib/server-change';
+import { readServerFingerprint, sessionFingerprint } from '../lib/server-fingerprint';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
 import { perfMark } from '../lib/perf-marks';
 import { abortable, isSignInCancelled, throwIfCancelled } from '../lib/sign-in-abort';
@@ -213,12 +214,13 @@ function clearAccountFeatureStores(accountId: string | null): void {
 // Once a session is up and before anything reads the account's caches: when
 // the server behind it is not the one that filled them, they go (see
 // lib/server-change). A failed check never blocks signing in; it runs again
-// with the next session.
-async function checkServerChange(accountId: string, session: JMAPSession): Promise<void> {
+// with the next session. Resolves to true when the caches were dropped.
+async function checkServerChange(accountId: string, session: JMAPSession): Promise<boolean> {
   try {
-    await reconcileServerFingerprint(accountId, session);
+    return await reconcileServerFingerprint(accountId, session);
   } catch (err) {
     console.warn('[auth-store] server change check failed:', err);
+    return false;
   }
 }
 
@@ -316,6 +318,11 @@ let signInSaved: { client: ClientSnapshot; isCurrent: () => boolean } | null = n
 // A restore that a switch overtook gave up, and with the switch failing too,
 // the app went to the sign-in screen with every account still registered.
 let restoreUnderWay: Promise<void> | null = null;
+
+// The account a cold start brought up from the session saved at its last
+// connect, until the server confirms it (revalidateRestoredSession). Its
+// session is not live yet: its server was not checked and its outbox waits.
+let unconfirmedStart: string | null = null;
 
 async function switchesSettled(): Promise<void> {
   while (pendingSwitch) await pendingSwitch.settled;
@@ -448,23 +455,31 @@ async function signIn(
 
 function refetchFeatureStores(accountId: string): void {
   resumeOutbox(accountId);
+  void reloadFeatureStores();
+}
+
+// The reads of refetchFeatureStores, without the outbox: a start from the
+// saved session runs them before the server was checked (see
+// revalidateRestoredSession). Resolves when they have all ended.
+function reloadFeatureStores(): Promise<void> {
   // Fire-and-forget: each store handles its own errors.
   const emailStore = useEmailStore.getState();
-  void emailStore.fetchMailboxes();
+  const reads: Promise<unknown>[] = [emailStore.fetchMailboxes()];
   // If a mailbox was selected before this restore (cached from last session),
   // refresh its contents so the user sees up-to-date mail without manually
   // pulling to refresh.
   if (emailStore.currentMailboxId) {
-    void emailStore.refreshEmails();
+    reads.push(emailStore.refreshEmails());
   }
-  void useContactsStore.getState().fetchContacts();
+  reads.push(useContactsStore.getState().fetchContacts());
   const calendarStore = useCalendarStore.getState();
-  void calendarStore.fetchCalendars();
+  reads.push(calendarStore.fetchCalendars());
   // Refresh the event range cached from last session (if any) so recurring
   // events reflect new invitations / cancellations without the user swiping.
   if (calendarStore.loadedRange) {
-    void calendarStore.refresh();
+    reads.push(calendarStore.refresh());
   }
+  return Promise.allSettled(reads).then(() => undefined);
 }
 
 // Pairing codes this app process has redeemed or is redeeming. Codes are
@@ -603,6 +618,9 @@ function applyConnectedState(
     client: jmapClient,
     reauth: null,
   });
+  // A session from the server, or a start from the saved one, which sets
+  // this again right after.
+  unconfirmedStart = null;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -990,6 +1008,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // leaving the previous account dead until relaunch. With switches under
     // way, that is the account the first of them left; with an add-account
     // sign-in under way, the connection it saved.
+    // (A start from the saved session is not live until the server
+    // confirmed it: its session in this store stays null till then.)
     const origin: SwitchOrigin = underWay?.origin ?? {
       accountId: get().activeAccountId,
       live: get().session !== null,
@@ -1024,6 +1044,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // still in the snapshot taken then, and its server was checked.
         jmapClient.restoreSnapshot(origin.client);
         if (origin.live) refetchFeatureStores(accountId);
+        else if (unconfirmedStart === accountId) void revalidateRestoredSession(accountId);
         set({ isLoading: false });
         return;
       }
@@ -1036,6 +1057,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // Its session and server check still hold; without one, the next
         // session resumes the outbox.
         if (origin.accountId && origin.live) resumeOutbox(origin.accountId);
+        // A start from the saved session whose check this switch overtook.
+        else if (origin.accountId && unconfirmedStart === origin.accountId) {
+          void revalidateRestoredSession(origin.accountId);
+        }
       };
       try {
         const ok = await jmapClient.loadAccount(accountId);
@@ -1169,6 +1194,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // hydrates, sees the right account's cached emails instead of stale
       // data from a previous session.
       useEmailStore.getState().setActiveAccount(target.id);
+
+      // Start from the session saved at the last connect: the cached mail
+      // shows without waiting for the server, and a fresh session follows.
+      // Not for an account the server refused: only a new sign-in brings it
+      // back, and the load below asks for one.
+      let fromCache = false;
+      if (!target.needsSignIn) {
+        try {
+          fromCache = await jmapClient.loadAccountFromCache(target.id);
+        } catch (err) {
+          // A sign-in or sign-out that began meanwhile owns the client.
+          if (err instanceof SessionSupersededError) throw err;
+          fromCache = false;
+        }
+      }
+      if (fromCache) {
+        accountStore.setActiveAccount(target.id);
+        followStoredServer(target.id);
+        // The client serves the saved session, so the reads go out now. The
+        // session here stays null until the server confirmed it: what waits
+        // for a live one (push setup, the offline sync, the outbox) waits
+        // for that, as on a start without the saved session.
+        set({
+          isAuthenticated: true,
+          isLoading: false,
+          hasRestoredSession: true,
+          error: null,
+          serverUrl: target.serverUrl,
+          username: target.username,
+          session: null,
+          accountId: jmapClient.accountId,
+          activeAccountId: target.id,
+          client: jmapClient,
+          reauth: null,
+        });
+        unconfirmedStart = target.id;
+        perfMark('restore-done', { cached: true });
+        const reads = reloadFeatureStores();
+        void revalidateRestoredSession(target.id, reads);
+        void syncAccountDisplayName(target.id);
+        return true;
+      }
 
       try {
         const ok = await jmapClient.loadAccount(target.id);
@@ -1316,6 +1383,71 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearReauth: () => set({ reauth: null }),
 }));
+
+/**
+ * After a start from the saved session: fetch a fresh one, then do what a
+ * load from the server does before the account counts as up: follow the
+ * server its credentials sign in to, check the server was not replaced, mark
+ * the account connected, put the session in this store and resume the
+ * outbox. A refused sign-in keeps the account and asks for a new one, as a
+ * load refused at start does (keepForSignIn); no network marks the account
+ * offline and drops the saved session, as a start without network does, and
+ * the session retry brings it up. A switch, sign-in or sign-out that begins
+ * meanwhile owns the client and the stores: the client drops a session that
+ * arrives after it (its epoch moved), and the stores are left alone.
+ *
+ * `reads` are the ones the start sent with the saved session. When the
+ * server may have been replaced they end before the check, so nothing they
+ * bring back lands after it dropped the caches.
+ */
+async function revalidateRestoredSession(accountId: string, reads?: Promise<void>): Promise<void> {
+  const generation = accountChange;
+  const isCurrent = () => generation === accountChange
+    && useAuthStore.getState().activeAccountId === accountId;
+  const before = jmapClient.connectedAccountId;
+  let fresh: JMAPSession | null;
+  try {
+    fresh = await jmapClient.revalidateSession();
+  } catch (err) {
+    if (!isCurrent() || err instanceof SessionSupersededError) return;
+    unconfirmedStart = null;
+    if (err instanceof AuthenticationError) {
+      const reauth = await keepForSignIn(accountId);
+      if (isCurrent()) useAuthStore.setState({ session: null, accountId: null, isLoading: false, error: null, reauth });
+      return;
+    }
+    useAccountStore.getState().updateAccount(accountId, {
+      isConnected: false,
+      hasError: true,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    useAuthStore.setState({ session: null, accountId: null });
+    return;
+  }
+  if (!fresh || !isCurrent()) return;
+  followStoredServer(accountId);
+  if (reads) {
+    const recorded = await readServerFingerprint(accountId).catch(() => null);
+    if (recorded !== sessionFingerprint(fresh)) await reads;
+    if (!isCurrent()) return;
+  }
+  const dropped = await checkServerChange(accountId, fresh);
+  // A keep-alive may have read the session again meanwhile.
+  const live = jmapClient.currentSession;
+  if (!isCurrent() || !live) return;
+  unconfirmedStart = null;
+  useAccountStore.getState().updateAccount(accountId, {
+    isConnected: true,
+    hasError: false,
+    errorMessage: undefined,
+    needsSignIn: false,
+  });
+  useAuthStore.setState({ session: live, accountId: jmapClient.accountId });
+  resumeOutbox(accountId);
+  // The reads made from the saved session went to another JMAP account, or
+  // into caches the server check has just dropped.
+  if (dropped || jmapClient.connectedAccountId !== before) void reloadFeatureStores();
+}
 
 // A 401 on a live session (revoked password/token, expired refresh token)
 // used to leave the user on a dead session until relaunch: nothing outside

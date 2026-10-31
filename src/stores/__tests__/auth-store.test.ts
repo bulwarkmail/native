@@ -6,6 +6,8 @@ vi.mock('../../api/jmap-client', () => ({
     logout: vi.fn(),
     restoreSession: vi.fn(),
     loadAccount: vi.fn(),
+    loadAccountFromCache: vi.fn(async () => false),
+    revalidateSession: vi.fn(async () => null),
     consumeLegacyCredentials: vi.fn(async () => null),
     clearAccountCredentials: vi.fn(async () => undefined),
     clearAllCredentials: vi.fn(async () => undefined),
@@ -17,7 +19,9 @@ vi.mock('../../api/jmap-client', () => ({
     hasAccountCapability: vi.fn(() => false),
     request: vi.fn(async () => { throw new Error('not mocked'); }),
     getStoredOAuthTokens: vi.fn(async () => null),
+    getStoredCredentials: vi.fn(async () => null),
     accountId: 'acc-1',
+    connectedAccountId: 'acc-1',
     currentSession: { apiUrl: 'https://mail.example.com/jmap/' },
     username: 'user',
     serverUrl: 'https://mail.example.com',
@@ -28,6 +32,7 @@ vi.mock('../../api/jmap-client', () => ({
   NetworkError: class NetworkError extends Error {
     constructor(msg: string) { super(msg); this.name = 'NetworkError'; }
   },
+  SessionSupersededError: class SessionSupersededError extends Error {},
 }));
 
 vi.mock('../../lib/push-notifications', () => ({
@@ -35,12 +40,13 @@ vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
 }));
 
-import { jmapClient } from '../../api/jmap-client';
+import { jmapClient, AuthenticationError, NetworkError } from '../../api/jmap-client';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
 import { useContactsStore } from '../contacts-store';
 import { useEmailStore } from '../email-store';
+import { useOutboxStore } from '../outbox-store';
 import type { Email } from '../../api/types';
 import { peekRow, rememberRows } from '../../lib/email-detail-cache';
 import { bodyDocument } from '../../lib/email-body-document';
@@ -49,6 +55,8 @@ import { lastBodyHeight, rememberBodyHeight } from '../../lib/body-heights';
 const mockConnect = jmapClient.connect as ReturnType<typeof vi.fn>;
 const mockLogout = jmapClient.logout as ReturnType<typeof vi.fn>;
 const mockLoadAccount = jmapClient.loadAccount as ReturnType<typeof vi.fn>;
+const mockLoadFromCache = jmapClient.loadAccountFromCache as ReturnType<typeof vi.fn>;
+const mockRevalidate = jmapClient.revalidateSession as ReturnType<typeof vi.fn>;
 
 function resetAccountStore(): void {
   useAccountStore.setState({
@@ -234,6 +242,173 @@ describe('auth-store', () => {
 
       expect(restored).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    describe('from the session saved at the last connect', () => {
+      const account = (id: string, isDefault: boolean) => ({
+        id, serverUrl: 'https://mail.example.com', username: id,
+        displayName: id, email: id, avatarColor: '#000', lastLoginAt: 0,
+        isConnected: true, hasError: false, isDefault,
+      });
+
+      function registerAccount() {
+        useAccountStore.setState({
+          accounts: [account('acc-1', true)],
+          activeAccountId: 'acc-1',
+          defaultAccountId: 'acc-1',
+        });
+      }
+
+      function registerTwoAccounts() {
+        useAccountStore.setState({
+          accounts: [account('acc-1', true), account('acc-2', false)],
+          activeAccountId: 'acc-1',
+          defaultAccountId: 'acc-1',
+        });
+      }
+
+      function deferred<T>() {
+        let resolve!: (value: T) => void;
+        let reject!: (err: unknown) => void;
+        const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+        return { promise, resolve, reject };
+      }
+
+      const resume = vi.fn(async () => undefined);
+      const realResume = useOutboxStore.getState().resume;
+      beforeEach(() => {
+        // clearAllMocks keeps queued once-values; a test that fails early
+        // must not hand its leftovers to the next one.
+        mockLoadAccount.mockReset();
+        mockLoadFromCache.mockReset().mockResolvedValue(false);
+        mockRevalidate.mockReset().mockResolvedValue(null);
+        resume.mockClear();
+        useOutboxStore.setState({ resume });
+        return () => useOutboxStore.setState({ resume: realResume });
+      });
+
+      // Start-up used to wait for the server's session document before the
+      // cached inbox could show.
+      it('shows the account without waiting for the server', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockReturnValueOnce(new Promise(() => undefined));
+
+        const restored = await useAuthStore.getState().restoreSession();
+
+        expect(restored).toBe(true);
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+        expect(useAuthStore.getState().activeAccountId).toBe('acc-1');
+        expect(mockLoadAccount).not.toHaveBeenCalled();
+        expect(mockRevalidate).toHaveBeenCalledTimes(1);
+      });
+
+      // What waits for a live session (push setup, the offline sync, the
+      // outbox) must not run on the saved one before the server confirmed it
+      // and its server check ran.
+      it('counts the session as live, and resumes the outbox, only once the server confirmed it', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        const check = deferred<unknown>();
+        mockRevalidate.mockReturnValueOnce(check.promise);
+
+        await useAuthStore.getState().restoreSession();
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(useAuthStore.getState().session).toBeNull();
+        expect(resume).not.toHaveBeenCalledWith('acc-1');
+
+        check.resolve({ apiUrl: 'https://mail.example.com/jmap/' });
+        await vi.waitFor(() => expect(useAuthStore.getState().session).not.toBeNull());
+        expect(resume).toHaveBeenCalledWith('acc-1');
+        expect(useAccountStore.getState().accounts[0]).toMatchObject({ isConnected: true, hasError: false });
+      });
+
+      // A 401 used to evict the account (and everything kept for it) with
+      // "Session expired".
+      it('keeps the account for a new sign-in when the server refuses the stored credentials', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockRejectedValueOnce(new AuthenticationError('Invalid credentials'));
+
+        await useAuthStore.getState().restoreSession();
+        await vi.waitFor(() => expect(useAuthStore.getState().reauth).not.toBeNull());
+
+        expect(useAuthStore.getState().reauth).toMatchObject({ accountId: 'acc-1' });
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+        expect(useAuthStore.getState().session).toBeNull();
+        expect(useAccountStore.getState().accounts).toHaveLength(1);
+        expect(useAccountStore.getState().accounts[0]).toMatchObject({ needsSignIn: true, isConnected: false });
+        // The refusal is the answer: no second round trip to hear it again.
+        expect(mockLoadAccount).not.toHaveBeenCalled();
+        expect(resume).not.toHaveBeenCalledWith('acc-1');
+      });
+
+      it('stays signed in and marks the account offline without network', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockRejectedValueOnce(new Error('Network request failed'));
+
+        await useAuthStore.getState().restoreSession();
+        await vi.waitFor(() => expect(useAccountStore.getState().accounts[0].hasError).toBe(true));
+
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+        expect(useAccountStore.getState().accounts[0].isConnected).toBe(false);
+      });
+
+      it('does not start from the saved session for an account that must sign in again', async () => {
+        registerAccount();
+        useAccountStore.getState().updateAccount('acc-1', { needsSignIn: true });
+        mockLoadAccount.mockRejectedValueOnce(new AuthenticationError('Invalid credentials'));
+
+        await useAuthStore.getState().restoreSession();
+
+        expect(mockLoadFromCache).not.toHaveBeenCalled();
+        expect(useAuthStore.getState().reauth).toMatchObject({ accountId: 'acc-1' });
+      });
+
+      // The check of the saved session is the older account change once a
+      // switch began: what it learns must not land on the account in use,
+      // even when that is the same account again.
+      it('drops a refusal of the saved session that arrives after switching away and back', async () => {
+        registerTwoAccounts();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        const check = deferred<unknown>();
+        mockRevalidate.mockReturnValueOnce(check.promise);
+        await useAuthStore.getState().restoreSession();
+
+        mockLoadAccount.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+        await useAuthStore.getState().switchAccount('acc-2');
+        await useAuthStore.getState().switchAccount('acc-1');
+        expect(useAuthStore.getState().session).not.toBeNull();
+
+        check.reject(new AuthenticationError('Invalid credentials'));
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(useAuthStore.getState().activeAccountId).toBe('acc-1');
+        expect(useAuthStore.getState().session).not.toBeNull();
+        expect(useAuthStore.getState().reauth).toBeNull();
+        expect(useAccountStore.getState().getAccountById('acc-1')?.needsSignIn).toBeFalsy();
+      });
+
+      // A switch that fails puts the account back. Its saved session was
+      // never confirmed (the switch overtook the check), so the check runs
+      // again, and the outbox waits for it.
+      it('checks the saved session again when a switch that overtook the check fails', async () => {
+        registerTwoAccounts();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        mockRevalidate.mockReturnValueOnce(new Promise(() => undefined));
+        await useAuthStore.getState().restoreSession();
+
+        mockLoadAccount.mockRejectedValueOnce(new NetworkError('offline'));
+        mockRevalidate.mockResolvedValueOnce({ apiUrl: 'https://mail.example.com/jmap/' });
+        await useAuthStore.getState().switchAccount('acc-2');
+
+        expect(useAuthStore.getState().activeAccountId).toBe('acc-1');
+        expect(mockRevalidate).toHaveBeenCalledTimes(2);
+        await vi.waitFor(() => expect(useAuthStore.getState().session).not.toBeNull());
+        expect(resume).toHaveBeenCalledWith('acc-1');
+      });
     });
 
     it('stops waiting for a persisted store that never finishes hydrating', async () => {
