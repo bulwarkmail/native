@@ -497,6 +497,18 @@ export function loadThread(threadId: string, accountId?: string): Promise<Thread
   return d.promise;
 }
 
+/**
+ * Fetch a conversation again even though the account's Email state says the
+ * held copy is current: something changed it here that the state doesn't
+ * know of yet, such as a reply draft just saved into it. The held copy keeps
+ * rendering until the new one lands. Undefined when the fetch fails.
+ */
+export function refreshThread(threadId: string, accountId?: string): Promise<ThreadView | undefined> {
+  const held = threads.get(keyOf(threadId, accountId));
+  if (held) held.state = undefined;
+  return loadThread(threadId, accountId).catch(() => undefined);
+}
+
 interface ThreadBatch {
   accountId: string | undefined;
   waiting: Map<string, Deferred<ThreadView>>;

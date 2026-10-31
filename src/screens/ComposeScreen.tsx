@@ -119,6 +119,7 @@ import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { draftThreadOf, refreshDraftThread } from '../lib/draft-thread-refresh';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { AttachmentPreviewModal } from '../components/email/AttachmentPreviewModal';
 import { useFilePreview } from '../components/email/use-file-preview';
@@ -1635,6 +1636,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       lastSavedRef.current = snapshot;
       lastSaveAtRef.current = Date.now();
       setDraftStatus('saved');
+      // The reader and the list show the draft in its conversation now, not
+      // after the next pull-to-refresh.
+      const thread = draftThreadOf({ replyTo, draft });
+      if (thread) void refreshDraftThread(thread);
       return id;
     } catch (err) {
       setDraftStatus('failed');
