@@ -6,6 +6,7 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import EmailBodyView from '../EmailBodyView';
 import { CalendarInvitationBanner } from './CalendarInvitationBanner';
+import { StructuredMailBanner } from './structured-mail/StructuredMailBanner';
 import { MessageHeader } from './MessageHeader';
 import { AttachmentChips } from './AttachmentChips';
 import { UnsubscribeBanner } from './UnsubscribeBanner';
@@ -114,6 +115,7 @@ export function MessageContent({
       )}
 
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
+      <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />
 
       <View style={[styles.body, fill && styles.fill]}>
         {deferBody ? (
