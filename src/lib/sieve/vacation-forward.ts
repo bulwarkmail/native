@@ -1,6 +1,7 @@
 import type { VacationForward } from './types';
 import { isValidEmail } from '../recipients';
 import { isPeriodBoundary } from './period';
+import { toAsciiEmail } from '../idn';
 
 /**
  * Forwarding from the vacation card (see VacationForward). The generator
@@ -14,6 +15,15 @@ export const VACATION_FORWARD_MARKER = '# Vacation forwarding';
  * comment of someone's own that only begins like it is not taken for it.
  */
 export const VACATION_FORWARD_MARKER_RE = /^[ \t]*# Vacation forwarding[ \t]*$/m;
+
+/**
+ * The forwarding address as typed, the way the Sieve redirect needs it: a
+ * Unicode domain in its ASCII (`xn--`) form, which the server can deliver
+ * to (webmail #1100).
+ */
+export function vacationForwardAddress(typed: string): string {
+  return toAsciiEmail(typed.trim());
+}
 
 /** Whether `value` is forwarding Bulwark can write back as it reads. */
 export function isValidVacationForward(value: unknown): value is VacationForward {

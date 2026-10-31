@@ -15,6 +15,8 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { isValidEmail } from '../../lib/recipients';
 import { ownDomains } from '../../lib/sieve/vacation-audience';
+import { vacationForwardAddress } from '../../lib/sieve/vacation-forward';
+import { toUnicodeEmail } from '../../lib/idn';
 import type { VacationForward } from '../../lib/sieve/types';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { stripDangerousTags, escapeHtml } from '../../lib/email-html';
@@ -65,7 +67,8 @@ export function VacationSettings() {
   // Seed the editor once per load; RichTextEditor only reads initialHtml on mount.
   const [editorSeed, setEditorSeed] = useState(store.htmlBody || '');
   const [forwardEnabled, setForwardEnabled] = useState(store.forward?.enabled ?? false);
-  const [forwardTo, setForwardTo] = useState(store.forward?.to ?? '');
+  // Shown with its domain in Unicode, as it was typed.
+  const [forwardTo, setForwardTo] = useState(toUnicodeEmail(store.forward?.to ?? ''));
   const [forwardKeep, setForwardKeep] = useState(store.forward?.keepCopy ?? false);
   const [audienceOnly, setAudienceOnly] = useState<AudienceChoice>(store.audience?.only ?? 'all');
   // "Internal" are the account's own domains, as its identities give them.
@@ -92,7 +95,7 @@ export function VacationSettings() {
     setHtmlBody(store.htmlBody || '');
     setEditorSeed(store.htmlBody || '');
     setForwardEnabled(store.forward?.enabled ?? false);
-    setForwardTo(store.forward?.to ?? '');
+    setForwardTo(toUnicodeEmail(store.forward?.to ?? ''));
     setForwardKeep(store.forward?.keepCopy ?? false);
     setAudienceOnly(store.audience?.only ?? 'all');
   }, [
@@ -115,7 +118,8 @@ export function VacationSettings() {
 
   // Forwarding as a save stores it: an address that is off is kept for next
   // time if it is usable, and dropped otherwise.
-  const forwardAddress = forwardTo.trim();
+  // Checked and stored with a Unicode domain in ASCII form (webmail #1100).
+  const forwardAddress = vacationForwardAddress(forwardTo);
   const forwardInvalid = store.forwardAvailable && forwardEnabled && !isValidEmail(forwardAddress);
   const forwardSettings: VacationForwardSettings | null | undefined = !store.forwardAvailable
     ? undefined
