@@ -12,6 +12,7 @@ import { useTemplatesStore, type EmailTemplate } from '../stores/templates-store
 import { filterTemplates } from '../lib/template-utils';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { TemplateSettings } from './settings/TemplateSettings';
 
 interface TemplateSheetProps {
@@ -41,6 +42,8 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   const [query, setQuery] = React.useState('');
   // The template manager, shown in place of the picker.
   const [managing, setManaging] = React.useState(false);
+  // Above the keyboard while the search field is typed in.
+  const bottomInset = useSheetBottomInset(visible && !managing);
   const slideY = React.useRef(new Animated.Value(500)).current;
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -130,7 +133,7 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
+          { paddingBottom: Math.max(bottomInset, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>

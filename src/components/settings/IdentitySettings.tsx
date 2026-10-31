@@ -29,6 +29,7 @@ import { sanitizeDisplayName } from '../../lib/rfc5322-mailbox';
 import { sanitizeSignatureHtml } from '../../lib/signature-utils';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import Badge from '../Badge';
 import { identityDraftChanged } from './identity-draft';
 
@@ -111,6 +112,8 @@ export function IdentitySettings() {
   const preferredId = accountId ? preferredIdentityIds[accountId] : undefined;
 
   const [editing, setEditing] = useState<DraftIdentity | null>(null);
+  // Save above the taskbar, and above the keyboard while a field is typed in.
+  const bottomInset = useSheetBottomInset(!!editing);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -330,7 +333,7 @@ export function IdentitySettings() {
 
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={requestClose}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: bottomInset }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editing?.id ? t('settings.identities.edit', "Edit identity") : t('settings.identities.create', "New identity")}

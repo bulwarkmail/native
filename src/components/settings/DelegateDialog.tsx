@@ -19,6 +19,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useModalKeyboardPadding } from '../../lib/sheet-bottom-inset';
 import { findPrincipalByEmail } from '../../api/delegation';
 import type { Principal } from '../../api/types';
 import type { PrincipalListing } from '../../api/files';
@@ -74,6 +75,8 @@ export function DelegateDialog({
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  // The Android dialog doesn't shrink for the keyboard; the body ends above it.
+  const keyboardPadding = useModalKeyboardPadding();
   const changing = !!initial;
 
   const [principal, setPrincipal] = useState<Principal | null>(initial?.principal ?? null);
@@ -154,7 +157,7 @@ export function DelegateDialog({
   return (
     <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible animationType="slide" onRequestClose={close}>
       <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}>
-        <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={[styles.screen, { paddingBottom: keyboardPadding }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
               {changing && principal

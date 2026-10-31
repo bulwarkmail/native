@@ -11,6 +11,7 @@ import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
 import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useModalKeyboardPadding } from '../../lib/sheet-bottom-inset';
 import { seedsOnRender } from '../../lib/sieve/editor-seed';
 
 interface SieveEditorSheetProps {
@@ -25,6 +26,8 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  // The Android dialog doesn't shrink for the keyboard; the body ends above it.
+  const keyboardPadding = useModalKeyboardPadding(visible);
 
   const [script, setScript] = useState(content);
   const [isValidating, setIsValidating] = useState(false);
@@ -85,7 +88,7 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
         </View>
 
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={{ flex: 1, paddingBottom: keyboardPadding }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.body}>

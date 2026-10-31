@@ -120,10 +120,10 @@ export function KeywordSettings() {
               <Text style={styles.kwLabel}>{kw.label}</Text>
               <Text style={styles.kwId}>$label:{kw.id}</Text>
               <View style={{ flexDirection: 'row', gap: 2 }}>
-                <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.edit', "Edit tag")}>
+                <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.edit_tag', 'Edit {name}', { name: kw.label })}>
                   <Pencil size={14} color={c.mutedForeground} />
                 </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete', "Delete tag")}>
+                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete_tag', 'Delete {name}', { name: kw.label })}>
                   <Trash2 size={14} color={c.mutedForeground} />
                 </Pressable>
               </View>

@@ -6,6 +6,7 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { useLocaleStore } from '../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 
 interface DialogInput {
   value: string;
@@ -53,11 +54,14 @@ export default function Dialog({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  // The card centres in the space above the keyboard (a prompt's field and
+  // its confirm button stay visible) and above the navigation bar.
+  const bottomInset = useSheetBottomInset(visible);
   const confirmLabel = confirmText ?? t('common.confirm', 'Confirm');
   const cancelLabel = cancelText ?? t('common.cancel', 'Cancel');
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, { paddingBottom: spacing.lg + bottomInset }]}>
         <View style={styles.dialog}>
           <View style={styles.content}>
             {variant === 'destructive' && (

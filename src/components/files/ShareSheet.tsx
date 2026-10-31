@@ -22,6 +22,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 
 type RolePreset = 'read' | 'readWrite' | 'manager';
 
@@ -71,6 +72,7 @@ interface ShareSheetProps {
 export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -165,15 +167,21 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
           ? t('sharing.directory_not_browsable', "Your server doesn't let you browse its user directory.")
           : null;
 
-  const renderPrincipalLabel = (principalId: string) => {
+  const principalName = (principalId: string) => {
     const p = principalsById.get(principalId);
     // Stalwart 1.0 with directory queries off hides every principal the user
     // has no relationship with, so a sharee may have no name.
     const unresolved = !p && !loadingPrincipals;
+    return p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId);
+  };
+
+  const renderPrincipalLabel = (principalId: string) => {
+    const p = principalsById.get(principalId);
+    const unresolved = !p && !loadingPrincipals;
     return (
       <View style={styles.principalInfo}>
         <Text style={styles.principalName} numberOfLines={1}>
-          {p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId)}
+          {principalName(principalId)}
         </Text>
         {p?.email || unresolved ? (
           <Text style={styles.principalEmail} numberOfLines={1}>
@@ -189,7 +197,7 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <View style={styles.titleRow}>
                 <Icon size={18} color={c.textMuted} />
                 <Text style={styles.title} numberOfLines={1}>
@@ -255,7 +263,8 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
                               )}
                               hitSlop={8}
                               accessibilityRole="button"
-                              accessibilityLabel={t('files.share_remove', 'Remove access')}
+                              // One per person: the name tells the buttons apart.
+                              accessibilityLabel={t('files.share_remove_for', 'Remove access for {name}', { name: principalName(principalId) })}
                             >
                               <Trash2 size={18} color={c.error} />
                             </Pressable>

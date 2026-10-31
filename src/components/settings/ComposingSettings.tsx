@@ -8,6 +8,7 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ReplyIdentityMatch, type SignaturePosition } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { SUPPORTED_SUB_ADDRESS_DELIMITERS } from '../../lib/sub-addressing';
+import { RADIO_GROUP_A11Y, radioOptionA11y } from '../radio-a11y';
 
 export function ComposingSettings() {
   const c = useColors();
@@ -82,12 +83,13 @@ export function ComposingSettings() {
     current: T,
     onPick: (value: T) => void,
   ) => (
-    <View style={styles.segmentRow}>
+    <View style={styles.segmentRow} {...RADIO_GROUP_A11Y}>
       {options.map((opt) => {
         const active = current === opt.value;
         return (
           <Pressable
             key={String(opt.value)}
+            {...radioOptionA11y(active)}
             onPress={() => onPick(opt.value)}
             style={[styles.segment, active && styles.segmentActive]}
           >
@@ -131,7 +133,10 @@ export function ComposingSettings() {
 
       <SettingItem
         label={t('settings.email_behavior.plain_text_mode.label', "Plain Text Only")}
-        description={t('settings.email_behavior.plain_text_mode.description', "Disable the rich text editor and send all emails as plain text only, including replies and forwards")}
+        // The app also shows received mail as plain text with this on, which
+        // the webmail's description (sending only) leaves out; same text as
+        // under Reading.
+        description={t('settings.email_behavior.plain_text_mode.description_mobile', 'Compose and read in plain text only.')}
       >
         <ToggleSwitch checked={plainTextMode} onChange={(v) => updateSetting('plainTextMode', v)} />
       </SettingItem>

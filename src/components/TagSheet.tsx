@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Check, Tag } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -13,6 +12,7 @@ import { getEmailTagIds } from '../lib/thread-utils';
 import type { Email } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { NewTagRow } from './NewTagRow';
 
 interface TagSheetProps {
@@ -29,7 +29,8 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const insets = useSafeAreaInsets();
+  // Above the taskbar, and above the keyboard while "New tag" is typed in.
+  const bottomInset = useSheetBottomInset(visible);
   const slideY = React.useRef(new Animated.Value(500)).current;
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -77,7 +78,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
+          { paddingBottom: Math.max(bottomInset, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>
@@ -86,7 +87,9 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
           </View>
           <View style={styles.header}>
             <Text style={styles.title}>
-              {t('context_menu.items_selected', `${selectedEmails.length} emails selected`, { count: selectedEmails.length })}
+              {/* Not context_menu.items_selected: "{count} emails selected" has no
+                  singular, and the sheet opens for one email too. */}
+              {t('context_menu.emails_selected', '{count, plural, one {# email selected} other {# emails selected}}', { count: selectedEmails.length })}
             </Text>
             <Pressable onPress={onClose} hitSlop={10} style={styles.close}
               accessibilityRole="button"

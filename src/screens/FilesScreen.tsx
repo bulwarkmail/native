@@ -22,6 +22,7 @@ import {
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
   ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink, RotateCcw, Star, Clock,
+  FolderOpen, type AppIcon,
 } from '../components/icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { File, Paths } from 'expo-file-system';
@@ -69,6 +70,9 @@ import { filesGridLayout } from '../lib/files-grid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatListDate } from '../lib/date-format';
 import { useLayout, useSheetInsets } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import { filesListWidth } from '../lib/files-split';
+import { radioOptionA11y } from '../components/radio-a11y';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import { driveChange, type DriveScope } from '../lib/files-drive';
@@ -254,6 +258,10 @@ export default function FilesScreen() {
   const [renameTarget, setRenameTarget] = useState<FileRow | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [actionsTarget, setActionsTarget] = useState<FileRow | null>(null);
+  // The menu of a starred folder or a recent file.
+  const [placeMenu, setPlaceMenu] = useState<PlaceMenu | null>(null);
+  // Width inside the side insets, for the list next to a docked preview.
+  const [contentWidth, setContentWidth] = useState(0);
   const [shareTarget, setShareTarget] = useState<FileRow | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileRow | null>(null);
   const [previewTarget, setPreviewTarget] = useState<FileRow | null>(null);
@@ -1323,29 +1331,41 @@ export default function FilesScreen() {
     openFolderStack(place.stack);
     if (!reveal && !isSymlink(place.node)) openFile({ ...place.node, displayName: place.node.name });
   };
+  // A sheet, not an Alert: an Android alert shows at most three buttons, so
+  // the recent file's Cancel was dropped, and it ignores Back and outside
+  // taps. Same items as the webmail's sidebar menu (files-sidebar.tsx).
   const recentActions = (id: string, name: string) => {
-    Alert.alert(name, undefined, [
-      { text: t('files.open', 'Open'), onPress: () => openRecent(id) },
-      { text: t('files.show_in_folder', 'Show in folder'), onPress: () => openRecent(id, true) },
-      {
-        text: t('files.remove_from_recent', 'Remove from recent'),
-        onPress: () => {
-          if (activeAccountId) useFilesPlacesStore.getState().removeRecentFiles(activeAccountId, [id]);
+    setPlaceMenu({
+      title: name,
+      actions: [
+        { key: 'open', label: t('files.open', 'Open'), icon: Eye, onPress: () => openRecent(id) },
+        { key: 'reveal', label: t('files.show_in_folder', 'Show in folder'), icon: FolderOpen, onPress: () => openRecent(id, true) },
+        {
+          key: 'remove',
+          label: t('files.remove_from_recent', 'Remove from recent'),
+          icon: X,
+          onPress: () => {
+            if (activeAccountId) useFilesPlacesStore.getState().removeRecentFiles(activeAccountId, [id]);
+          },
         },
-      },
-      { text: t('files.cancel', 'Cancel'), style: 'cancel' },
-    ]);
+      ],
+    });
   };
-  const starredActions = (folderPath: string, name: string) => {
-    Alert.alert(name, undefined, [
-      {
-        text: t('files.unstar', 'Remove star'),
-        onPress: () => {
-          if (activeAccountId) useFilesPlacesStore.getState().toggleFavorite(activeAccountId, folderPath);
+  const starredActions = (folderPath: string, name: string, stack: FolderStep[]) => {
+    setPlaceMenu({
+      title: name,
+      actions: [
+        { key: 'open', label: t('files.open', 'Open'), icon: FolderOpen, onPress: () => openFolderStack(stack) },
+        {
+          key: 'unstar',
+          label: t('files.unstar', 'Remove star'),
+          icon: Star,
+          onPress: () => {
+            if (activeAccountId) useFilesPlacesStore.getState().toggleFavorite(activeAccountId, folderPath);
+          },
         },
-      },
-      { text: t('files.cancel', 'Cancel'), style: 'cancel' },
-    ]);
+      ],
+    });
   };
   const placesHeader = showPlaces && (starredFolders.length > 0 || recentFiles.length > 0) ? (
     <View style={styles.places}>
@@ -1358,7 +1378,7 @@ export default function FilesScreen() {
           <Pressable
             key={folderPath}
             onPress={() => openFolderStack(stack)}
-            onLongPress={() => starredActions(folderPath, name)}
+            onLongPress={() => starredActions(folderPath, name, stack)}
             delayLongPress={300}
             style={({ pressed }) => [styles.fileRow, pressed && { backgroundColor: c.surfaceHover }]}
             accessibilityRole="button"
@@ -1366,7 +1386,7 @@ export default function FilesScreen() {
             <Star size={20} color={c.starred} fill={c.starred} />
             <Text style={[styles.fileName, styles.placeName]} numberOfLines={1}>{name}</Text>
             <Pressable
-              onPress={() => starredActions(folderPath, name)}
+              onPress={() => starredActions(folderPath, name, stack)}
               hitSlop={8}
               style={styles.rowMore}
               accessibilityRole="button"
@@ -1547,8 +1567,11 @@ export default function FilesScreen() {
   // On a wide window an open file shows beside the list instead of covering it.
   const previewDocked = isSplit && previewTarget != null;
   return (
-    <View style={[styles.container, previewDocked && styles.splitRow, { paddingLeft: insets.left, paddingRight: insets.right }]}>
-      <View style={styles.listColumn}>
+    <View
+      style={[styles.container, previewDocked && styles.splitRow, { paddingLeft: insets.left, paddingRight: insets.right }]}
+      onLayout={(e) => setContentWidth(e.nativeEvent.layout.width - insets.left - insets.right)}
+    >
+      <View style={[styles.listColumn, previewDocked && { flex: 0, width: filesListWidth(contentWidth) }]}>
         {renderHeader()}
         {body}
       </View>
@@ -1655,6 +1678,8 @@ export default function FilesScreen() {
         onPick={(destinationId) => moveTarget && void performMove(moveTarget, destinationId)}
       />
 
+      <PlaceActionsSheet menu={placeMenu} t={t} onClose={() => setPlaceMenu(null)} />
+
       <SortSheet
         visible={sortSheetOpen}
         sortKey={sortKey}
@@ -1735,6 +1760,8 @@ interface PromptModalProps {
 
 function PromptModal(props: PromptModalProps) {
   const c = useColors();
+  // Centred above the keyboard, so the name field and its button stay visible.
+  const bottomInset = useSheetBottomInset(props.visible);
   const styles = React.useMemo(() => makePromptStyles(c), [c]);
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS}
@@ -1744,7 +1771,7 @@ function PromptModal(props: PromptModalProps) {
       onRequestClose={props.onCancel}
     >
       <TouchableWithoutFeedback accessible={false} onPress={props.onCancel}>
-        <View style={styles.backdrop}>
+        <View style={[styles.backdrop, { paddingBottom: spacing.lg + bottomInset }]}>
           <TouchableWithoutFeedback accessible={false}>
             <View style={styles.dialog}>
               <Text style={styles.title}>{props.title}</Text>
@@ -1807,6 +1834,7 @@ function ActionsSheet({
 }: ActionsSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset(!!target);
   const formatModified = useFormatModified();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
@@ -1828,7 +1856,7 @@ function ActionsSheet({
         <TouchableWithoutFeedback accessible={false} onPress={onClose}>
           <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
             <TouchableWithoutFeedback accessible={false}>
-              <View style={styles.sheet}>
+              <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
                 <Text style={styles.sheetTitle} numberOfLines={1}>
                   {target.displayName}
                 </Text>
@@ -1871,7 +1899,7 @@ function ActionsSheet({
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {target.displayName}
               </Text>
@@ -1946,6 +1974,62 @@ function ActionsSheet({
   );
 }
 
+interface PlaceAction {
+  key: string;
+  label: string;
+  icon: AppIcon;
+  onPress: () => void;
+}
+
+interface PlaceMenu {
+  title: string;
+  actions: PlaceAction[];
+}
+
+/**
+ * The actions of a starred folder or a recent file, with a Cancel row. Back
+ * and a tap outside close it too.
+ */
+function PlaceActionsSheet({ menu, t, onClose }: { menu: PlaceMenu | null; t: Translate; onClose: () => void }) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset(!!menu);
+  const c = useColors();
+  const styles = React.useMemo(() => makeSheetStyles(c), [c]);
+  if (!menu) return null;
+  return (
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
+              <Text style={styles.sheetTitle} numberOfLines={1}>{menu.title}</Text>
+              {menu.actions.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <Pressable
+                    key={a.key}
+                    style={styles.action}
+                    accessibilityRole="button"
+                    onPress={() => { onClose(); a.onPress(); }}
+                  >
+                    <Icon size={18} color={c.text} />
+                    <Text style={styles.actionLabel}>{a.label}</Text>
+                  </Pressable>
+                );
+              })}
+              <View style={styles.sheetDivider} />
+              <Pressable style={styles.action} accessibilityRole="button" onPress={onClose}>
+                <Text style={styles.actionLabel}>{t('files.cancel', 'Cancel')}</Text>
+              </Pressable>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+}
+
 interface FolderPickerSheetProps {
   target: FileRow | null;
   allNodes: FileNode[];
@@ -1961,6 +2045,7 @@ interface FolderPickerSheetProps {
 function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: FolderPickerSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset(!!target);
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   const options = useMemo(() => {
@@ -2003,7 +2088,7 @@ function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: 
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {t('files.move_to', 'Move to…')} · {target.displayName}
               </Text>
@@ -2051,6 +2136,7 @@ interface SortSheetProps {
 function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChangeDir }: SortSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset(visible);
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!visible) return null;
@@ -2060,10 +2146,10 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Sort')}</Text>
               {keys.map((k) => (
-                <Pressable key={k} style={styles.action} onPress={() => { onChangeKey(k); onClose(); }}>
+                <Pressable key={k} style={styles.action} {...radioOptionA11y(sortKey === k)} onPress={() => { onChangeKey(k); onClose(); }}>
                   <Text style={[styles.actionLabel, sortKey === k && { color: c.primary, fontWeight: '600' }]}>
                     {t(`files.${k}`, k)}
                   </Text>
@@ -2072,7 +2158,7 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
               ))}
               <View style={styles.sheetDivider} />
               {(['asc', 'desc'] as FilesSortDir[]).map((d) => (
-                <Pressable key={d} style={styles.action} onPress={() => { onChangeDir(d); onClose(); }}>
+                <Pressable key={d} style={styles.action} {...radioOptionA11y(sortDir === d)} onPress={() => { onChangeDir(d); onClose(); }}>
                   {d === 'asc' ? <ArrowUp size={18} color={c.text} /> : <ArrowDown size={18} color={c.text} />}
                   <Text style={[styles.actionLabel, sortDir === d && { color: c.primary, fontWeight: '600' }]}>
                     {d === 'asc'
@@ -2098,7 +2184,8 @@ function makeStyles(c: ThemePalette) {
     },
     splitRow: { flexDirection: 'row' },
     listColumn: { flex: 1 },
-    previewPane: { width: '45%', borderLeftWidth: 1, borderLeftColor: c.border },
+    // The rest of the row; the list column gets filesListWidth.
+    previewPane: { flex: 1, borderLeftWidth: 1, borderLeftColor: c.border },
     header: {
       paddingBottom: spacing.sm,
       borderBottomWidth: 1,

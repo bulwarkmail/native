@@ -320,6 +320,7 @@
   },
   "context_menu": {
     "color_tag": "Tag",
+    "emails_selected": "{count, plural, one {# email selected} other {# emails selected}}",
     "remove_color": "Remove tag",
     "rules": {
       "login_changed": "You switched accounts, so the rule was not saved"
@@ -327,6 +328,9 @@
   },
   "deep_link": {
     "open_failed": "Couldn't open this"
+  },
+  "delegates": {
+    "remove_for": "Remove access for {name}"
   },
   "device_sync": {
     "auth_problem_text": "The server no longer accepts the sign-in of {account}, so its contacts and calendars on this device stopped syncing. Sign in again to resume. Changes made on this device are kept.",
@@ -733,6 +737,7 @@
     "share_no_users": "No other users found",
     "share_remove": "Remove access",
     "share_remove_confirm": "Remove access?",
+    "share_remove_for": "Remove access for {name}",
     "share_role_custom": "Custom",
     "share_search_placeholder": "Search by name or email",
     "share_unavailable": "Sharing is not available on this device",
@@ -1240,6 +1245,7 @@
       "not_empty_message": "\"{name}\" contains {count} emails. Delete anyway?",
       "not_empty_title": "Folder not empty",
       "own_account": "My folders",
+      "parent_folder": "Parent folder",
       "role": "Special use",
       "role_hint": "Assign a special-use role (Archive, Junk, …) to this folder. Each role can be held by one folder.",
       "save_failed": "Save failed",
@@ -1627,6 +1633,10 @@
       "message": {
         "description": "The message that will be sent as a reply",
         "title": "Auto-Reply Message"
+      },
+      "status": {
+        "ended": "Ended",
+        "scheduled": "Scheduled"
       },
       "warnings": {
         "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\""

@@ -27,6 +27,7 @@ import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import Badge from '../Badge';
 
 const ROLE_ICON: Record<string, any> = {
@@ -76,6 +77,9 @@ export function FolderSettings() {
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
 
   const [editor, setEditor] = useState<Editor | null>(null);
+  // Save and Cancel above the taskbar, and above the keyboard while the
+  // name is typed in.
+  const bottomInset = useSheetBottomInset(!!editor);
   const [draftName, setDraftName] = useState('');
   const [draftParent, setDraftParent] = useState<string>(NO_PARENT);
   const [draftAccount, setDraftAccount] = useState<string>(OWN_ACCOUNT);
@@ -300,7 +304,7 @@ export function FolderSettings() {
 
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: bottomInset }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editor?.kind === 'edit'
@@ -348,7 +352,8 @@ export function FolderSettings() {
               <Text style={styles.fieldLabel}>
                 {editor?.kind === 'edit'
                   ? t('settings.folders.move_under', 'Move under')
-                  : t('settings.folders.subfolder_of', 'Parent folder')}
+                  // Not subfolder_of: that is the webmail's "Inside {name}" hint.
+                  : t('settings.folders.parent_folder', 'Parent folder')}
               </Text>
               <Select
                 value={draftParent}

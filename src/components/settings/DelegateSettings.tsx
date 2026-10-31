@@ -241,10 +241,24 @@ export function DelegateSettings() {
                     </View>
                   </View>
                   <View style={styles.rowButtons}>
-                    <Button variant="outline" size="sm" onPress={() => setDialog({ mode: 'change', summary })} disabled={busy || incomplete}>
+                    {/* Named with the person: every row has the same two buttons. */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => setDialog({ mode: 'change', summary })}
+                      disabled={busy || incomplete}
+                      accessibilityLabel={t('delegates.dialog_title_change', 'Change access for {name}', { name: display.name })}
+                    >
                       {t('delegates.change', 'Change')}
                     </Button>
-                    <Button variant="outline" size="sm" onPress={() => confirmRemove(summary)} disabled={incomplete} loading={busy}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => confirmRemove(summary)}
+                      disabled={incomplete}
+                      loading={busy}
+                      accessibilityLabel={t('delegates.remove_for', 'Remove access for {name}', { name: display.name })}
+                    >
                       {t('delegates.remove', 'Remove access')}
                     </Button>
                   </View>

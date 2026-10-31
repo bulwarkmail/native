@@ -29,6 +29,7 @@ import {
   utcIsoToLocalInput,
 } from '../../lib/vacation-dates';
 import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-limits';
+import { vacationStatus } from '../../lib/vacation-status';
 import { jmapClient } from '../../api/jmap-client';
 import { getSieveCapabilities } from '../../api/sieve';
 
@@ -139,6 +140,8 @@ export function VacationSettings() {
   const toParsed = parseLocalInput(toDate);
   const formatError = !isValidLocalInput(fromDate) || !isValidLocalInput(toDate);
   const endBeforeStart = !!(fromParsed && toParsed && toParsed <= fromParsed);
+  // "Scheduled" while the start date is ahead, not "Active".
+  const status = vacationStatus(enabled, fromParsed, toParsed);
   const htmlText = htmlEnabled ? htmlToPlainText(htmlBody).trim() : '';
   const hasHtmlContent = htmlText.length > 0;
   const emptyBody = enabled && !body.trim() && !hasHtmlContent;
@@ -235,6 +238,9 @@ export function VacationSettings() {
     forwardChanged, forwardSettings, audienceChanged, audienceSettings,
   ]);
 
+  const saveLabel = store.isSaving
+    ? t('settings.vacation.saving', 'Saving...')
+    : t('settings.vacation.save', 'Save Changes');
   const title = t('settings.vacation.title', 'Vacation Responder');
   const description = t('settings.vacation.description', "Automatically reply to incoming emails while you're away");
 
@@ -284,11 +290,15 @@ export function VacationSettings() {
           description={t('settings.vacation.status.description', 'Send an automatic reply to people who email you')}
         >
           <View style={styles.statusRow}>
-            <View style={[styles.pill, enabled ? styles.pillActive : styles.pillInactive]}>
-              <Text style={[styles.pillText, enabled ? styles.pillTextActive : styles.pillTextInactive]}>
-                {enabled
+            <View style={[styles.pill, status === 'active' ? styles.pillActive : status === 'scheduled' ? styles.pillScheduled : styles.pillInactive]}>
+              <Text style={[styles.pillText, status === 'active' ? styles.pillTextActive : status === 'scheduled' ? styles.pillTextScheduled : styles.pillTextInactive]}>
+                {status === 'active'
                   ? t('settings.vacation.status.active', 'Active')
-                  : t('settings.vacation.status.inactive', 'Inactive')}
+                  : status === 'scheduled'
+                    ? t('settings.vacation.status.scheduled', 'Scheduled')
+                    : status === 'ended'
+                      ? t('settings.vacation.status.ended', 'Ended')
+                      : t('settings.vacation.status.inactive', 'Inactive')}
               </Text>
             </View>
             <ToggleSwitch checked={enabled} onChange={setEnabled} />
@@ -373,7 +383,7 @@ export function VacationSettings() {
             placeholder={t('settings.vacation.message.subject_placeholder', 'Out of Office')}
             placeholderTextColor={c.mutedForeground}
             accessibilityLabel={t('settings.vacation.message.subject_label', 'Subject')}
-            style={[styles.subjectInput, oversize.subject && styles.inputInvalid]}
+            style={[styles.subjectInput, !subject && styles.placeholderShown, oversize.subject && styles.inputInvalid]}
           />
           {subjectTooLong && <Text style={styles.fieldError}>{subjectTooLong}</Text>}
         </View>
@@ -386,7 +396,7 @@ export function VacationSettings() {
             onChangeText={setBody}
             placeholder={t('settings.vacation.message.body_placeholder', 'Thank you for your email. I am currently out of the office and will respond when I return.')}
             placeholderTextColor={c.mutedForeground}
-            style={[styles.bodyInput, oversize.body && styles.inputInvalid]}
+            style={[styles.bodyInput, !body && styles.placeholderShown, oversize.body && styles.inputInvalid]}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
@@ -528,10 +538,16 @@ export function VacationSettings() {
       )}
 
       <View style={styles.saveRow}>
-        <Button onPress={() => void handleSave()} disabled={!canSave} loading={store.isSaving}>
-          {store.isSaving
-            ? t('settings.vacation.saving', 'Saving...')
-            : t('settings.vacation.save', 'Save Changes')}
+        {/* Named, so Android doesn't keep announcing the spinner's "busy"
+            once the save is done: React Native leaves a view's old content
+            description when the new one would be empty. */}
+        <Button
+          onPress={() => void handleSave()}
+          disabled={!canSave}
+          loading={store.isSaving}
+          accessibilityLabel={saveLabel}
+        >
+          {saveLabel}
         </Button>
       </View>
     </View>
@@ -597,6 +613,11 @@ function makeStyles(c: ThemePalette) {
   pillText: { fontSize: 12 },
   pillTextActive: { color: c.success },
   pillTextInactive: { color: c.mutedForeground },
+  pillScheduled: { backgroundColor: c.primaryBg },
+  pillTextScheduled: { color: c.primary },
+  // An empty field's placeholder in italics: the sample reply read as a
+  // message already typed, next to the warning that the body is empty.
+  placeholderShown: { fontStyle: 'italic' },
   dateInput: {
     minWidth: 180,
     paddingHorizontal: spacing.md,

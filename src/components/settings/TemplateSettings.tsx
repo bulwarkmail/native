@@ -19,6 +19,7 @@ import { useTemplatesStore, type EmailTemplate } from '../../stores/templates-st
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 
 export function TemplateSettings() {
   // Centred on a wide window, clear of side insets in landscape.
@@ -39,6 +40,8 @@ export function TemplateSettings() {
 
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [importVisible, setImportVisible] = useState(false);
+  // Save above the taskbar, and above the keyboard while a field is typed in.
+  const bottomInset = useSheetBottomInset(!!editing || importVisible);
   const [importText, setImportText] = useState('');
   const [draftName, setDraftName] = useState('');
   const [draftSubject, setDraftSubject] = useState('');
@@ -213,7 +216,7 @@ export function TemplateSettings() {
       {/* Edit/Create modal */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: bottomInset }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editing?.id ? tr('settings.templates.edit', 'Edit Template') : tr('settings.templates.add', 'New Template')}
@@ -287,7 +290,7 @@ export function TemplateSettings() {
       {/* Import modal */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={importVisible} animationType="slide" transparent onRequestClose={() => setImportVisible(false)}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: bottomInset }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{tr('settings.templates.import', 'Import')}</Text>
               <Pressable onPress={() => setImportVisible(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel={tr('common.close', 'Close')}>
