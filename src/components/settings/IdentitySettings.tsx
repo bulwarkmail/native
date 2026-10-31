@@ -30,6 +30,7 @@ import { sanitizeSignatureHtml } from '../../lib/signature-utils';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import Badge from '../Badge';
+import { identityDraftChanged } from './identity-draft';
 
 type DraftIdentity = {
   id: string;
@@ -117,9 +118,35 @@ export function IdentitySettings() {
     void fetchIdentities();
   }, [fetchIdentities]);
 
-  const openCreate = () => setEditing(emptyDraft());
-  const openEdit = (i: Identity) => setEditing(toDraft(i));
-  const closeEditor = () => setEditing(null);
+  // The draft as it was opened, to tell whether closing would drop changes.
+  const [initialDraft, setInitialDraft] = useState<DraftIdentity | null>(null);
+  const openDraft = (draft: DraftIdentity) => {
+    setEditing(draft);
+    setInitialDraft(draft);
+  };
+  const openCreate = () => openDraft(emptyDraft());
+  const openEdit = (i: Identity) => openDraft(toDraft(i));
+  const closeEditor = () => {
+    setEditing(null);
+    setInitialDraft(null);
+  };
+  // Close, Cancel and Android Back ask first when something was typed.
+  const requestClose = () => {
+    if (saving) return;
+    if (!identityDraftChanged(initialDraft, editing)) {
+      closeEditor();
+      return;
+    }
+    Alert.alert(
+      t('settings.discard_changes', 'Discard changes?'),
+      undefined,
+      [
+        { text: t('settings.keep_editing', 'Keep editing'), style: 'cancel' },
+        { text: t('settings.discard', 'Discard'), style: 'destructive', onPress: closeEditor },
+      ],
+      { cancelable: true },
+    );
+  };
 
   const setAsDefault = (identity: Identity) => {
     if (!accountId) return;
@@ -301,14 +328,14 @@ export function IdentitySettings() {
         </Pressable>
       ))}
 
-      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={requestClose}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editing?.id ? t('settings.identities.edit', "Edit identity") : t('settings.identities.create', "New identity")}
               </Text>
-              <Pressable onPress={closeEditor} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close', "Close")}>
+              <Pressable onPress={requestClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close', "Close")}>
                 <X size={20} color={c.text} />
               </Pressable>
             </View>
@@ -386,7 +413,7 @@ export function IdentitySettings() {
               </Text>
             </ScrollView>
             <View style={styles.modalActions}>
-              <Button variant="outline" size="sm" onPress={closeEditor} disabled={saving}>{t('common.cancel', "Cancel")}</Button>
+              <Button variant="outline" size="sm" onPress={requestClose} disabled={saving}>{t('common.cancel', "Cancel")}</Button>
               <Button
                 variant="default"
                 size="sm"
