@@ -65,13 +65,13 @@ export function MailboxShareSheet({ mailbox, name, onClose }: MailboxShareSheetP
   if (!collection) {
     return (
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="fade" onRequestClose={onClose}>
-        <Pressable
-          style={styles.backdrop}
-          onPress={onClose}
-          accessibilityLabel={t('sharing.loading_principals', 'Loading users…')}
-        >
+        <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
           <View style={[styles.spinner, { backgroundColor: c.background }]}>
-            <ActivityIndicator size="small" color={c.textMuted} />
+            <ActivityIndicator
+              size="small"
+              color={c.textMuted}
+              accessibilityLabel={t('sharing.loading_principals', 'Loading users…')}
+            />
           </View>
         </Pressable>
       </Modal>
