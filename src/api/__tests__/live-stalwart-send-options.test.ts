@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
-import { cancelScheduledSend, destroyEmails, getMailboxes, listScheduledEmails, sendEmail } from '../email';
+import { cancelScheduledSend, destroyEmails, getMailboxes, listScheduledEmails, rescheduleScheduledSend, sendEmail } from '../email';
 import { getIdentities } from '../identity';
 import { supportsSubmissionExtension } from '../../lib/submission-options';
 
@@ -103,6 +103,17 @@ live('live Stalwart: composer send options', () => {
     expect(submission.envelope.rcptTo).toEqual([
       expect.objectContaining({ email: identity.email, parameters: expect.objectContaining({ NOTIFY: 'SUCCESS,FAILURE,DELAY' }) }),
     ]);
-    await cancelScheduledSend(result.emailSubmissionId!);
+
+    // Moved to another time, it keeps them.
+    const held = (await listScheduledEmails()).find((s) => s.emailSubmissionId === result.emailSubmissionId)!;
+    const moved = await rescheduleScheduledSend(held, 7200);
+    const after = await singleton.request([['EmailSubmission/get', {
+      accountId: singleton.accountId, ids: [moved.emailSubmissionId], properties: ['envelope'],
+    }, '0']], ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']);
+    const [replacement] = after.methodResponses[0][1].list;
+    expect(replacement.envelope.mailFrom.parameters).toMatchObject({ RET: 'HDRS', HOLDFOR: '7200' });
+    expect('REQUIRETLS' in replacement.envelope.mailFrom.parameters).toBe(true);
+    expect(replacement.envelope.rcptTo[0].parameters).toMatchObject({ NOTIFY: 'SUCCESS,FAILURE,DELAY' });
+    await cancelScheduledSend(moved.emailSubmissionId!);
   }, 60_000);
 });

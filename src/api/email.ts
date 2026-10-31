@@ -2289,6 +2289,22 @@ export class RescheduleLostError extends Error {
  * and send time, and the recipients the server refused for the replacement
  * when it took the others.
  */
+/**
+ * The SMTP parameters among `names` that a held submission's envelope
+ * carries, or undefined with none. Only the ones the composer sets are kept,
+ * never parameters the server may have added.
+ */
+function keptSubmissionParameters(
+  parameters: Record<string, string | null> | null | undefined,
+  names: string[],
+): Record<string, string | null> | undefined {
+  if (!parameters) return undefined;
+  const kept = Object.fromEntries(
+    Object.entries(parameters).filter(([key]) => names.includes(key.toUpperCase())),
+  );
+  return Object.keys(kept).length > 0 ? kept : undefined;
+}
+
 export async function rescheduleScheduledSend(
   scheduled: {
     emailSubmissionId: string;
@@ -2321,8 +2337,9 @@ export async function rescheduleScheduledSend(
     ],
     [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
   );
+  type EnvelopeAddress = { email?: string; parameters?: Record<string, string | null> | null };
   const original = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
-    envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
+    envelope?: { mailFrom?: EnvelopeAddress; rcptTo?: EnvelopeAddress[] } | null;
     sendAt?: string;
     identityId?: string;
   }> | undefined)?.[0];
@@ -2335,7 +2352,15 @@ export async function rescheduleScheduledSend(
   const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
   const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
   const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
-  const rcptTo = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
+  // The original's delivery notification (RET / NOTIFY) and REQUIRETLS
+  // ride along; dropping them turned a moved send into a plain one.
+  const keptMailFromParams = keptSubmissionParameters(envelope?.mailFrom?.parameters, ['RET', 'REQUIRETLS']);
+  const keptRcptParams = keptSubmissionParameters(
+    envelope?.rcptTo?.find((r) => r.parameters)?.parameters, ['NOTIFY'],
+  );
+  const rcptTo = source
+    .map((r) => ({ email: (r.email ?? '').trim(), ...(keptRcptParams ? { parameters: keptRcptParams } : {}) }))
+    .filter((r) => r.email);
   const mailFrom = envelope?.mailFrom?.email || scheduled.from?.[0]?.email;
   // Without an answer the replacement is made without filing, and a message
   // that can't be put back stays where it is.
@@ -2366,9 +2391,12 @@ export async function rescheduleScheduledSend(
                 emailId: scheduled.emailId,
                 identityId,
                 envelope: {
-                  mailFrom: seconds === undefined
+                  mailFrom: seconds === undefined && !keptMailFromParams
                     ? { email: mailFrom }
-                    : { email: mailFrom, parameters: { HOLDFOR: String(seconds) } },
+                    : {
+                      email: mailFrom,
+                      parameters: { ...keptMailFromParams, ...(seconds === undefined ? {} : { HOLDFOR: String(seconds) }) },
+                    },
                   rcptTo,
                 },
               },

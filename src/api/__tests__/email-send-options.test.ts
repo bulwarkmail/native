@@ -20,7 +20,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { saveDraftVersion, sendEmail } from '../email';
+import { rescheduleScheduledSend, saveDraftVersion, sendEmail } from '../email';
 import { draftContextFromEmail } from '../../lib/draft-context';
 import type { Email } from '../types';
 
@@ -116,5 +116,42 @@ describe('delivery status notifications and REQUIRETLS', () => {
   it('leaves the envelope to the server without options, hold or From override', async () => {
     await sendEmail(OUTGOING, 'id-1', 'sent', undefined, { draftsMailboxId: 'drafts' });
     expect(sentCalls().submission.envelope).toBeUndefined();
+  });
+});
+
+describe('moving a held send', () => {
+  it('keeps its delivery notification and REQUIRETLS, and only those', async () => {
+    const set = (body: Record<string, unknown>) => ({ methodResponses: [['EmailSubmission/set', body, '0']] });
+    mockRequest.mockReset();
+    mockRequest
+      .mockResolvedValueOnce({
+        methodResponses: [
+          ['EmailSubmission/get', {
+            list: [{
+              id: 'sub-1',
+              envelope: {
+                mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '3600', RET: 'HDRS', REQUIRETLS: null, SIZE: '1234' } },
+                rcptTo: [{ email: 'you@example.com', parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY', ORCPT: 'x' } }],
+              },
+            }],
+          }, '0'],
+          ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'you@example.com' }] }] }, '1'],
+        ],
+      })
+      .mockResolvedValueOnce(set({ updated: { 'sub-1': null } }))
+      .mockResolvedValueOnce(set({ destroyed: ['sub-1'] }))
+      .mockResolvedValueOnce(set({ created: { replacement: { id: 'sub-2', sendAt: '2026-11-01T08:00:00Z' } } }));
+
+    await rescheduleScheduledSend(
+      { emailSubmissionId: 'sub-1', emailId: 'e-1', identityId: 'id-1', from: [{ email: 'me@example.com' }], to: [{ email: 'you@example.com' }] } as never,
+      7200,
+    );
+    const create = mockRequest.mock.calls
+      .map((c) => c[0][0])
+      .find(([method, args]: [string, { create?: object }]) => method === 'EmailSubmission/set' && args.create)[1];
+    expect(create.create.replacement.envelope).toEqual({
+      mailFrom: { email: 'me@example.com', parameters: { RET: 'HDRS', REQUIRETLS: null, HOLDFOR: '7200' } },
+      rcptTo: [{ email: 'you@example.com', parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } }],
+    });
   });
 });
