@@ -56,6 +56,7 @@ import {
   collapseThreads, groupByThread, expandThreadSelection, getThreadTagIds, threadKeyOf, accountScopedId, rowKeyOf,
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
+import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -725,7 +726,11 @@ export default function EmailListScreen({
       deleteAction,
       permanentlyDeleteJunk,
     });
-    if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
+    if (permanent) {
+      if (!(await confirmPermanentDelete(ids.length, t))) return;
+    } else if (!(await confirmMailRemoval('delete', ids.length, t))) {
+      return;
+    }
     if (ids.length === 1) await deleteEmailAction(ids[0], trashMailboxId, currentMailboxId);
     else await deleteEmailsBatch(ids, trashMailboxId, currentMailboxId);
   }, [currentMailboxId, trashMailboxId, inJunk, deleteAction, permanentlyDeleteJunk, deleteEmailAction, deleteEmailsBatch, t]);
@@ -738,8 +743,10 @@ export default function EmailListScreen({
       case 'archive':
         if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
-          if (ids.length > 1) reportFailure(archiveEmailsBatch(ids));
-          else reportFailure(archiveEmailAction(id));
+          reportFailure(confirmMailRemoval('archive', ids.length, t).then((ok) => {
+            if (!ok) return undefined;
+            return ids.length > 1 ? archiveEmailsBatch(ids) : archiveEmailAction(id);
+          }));
         } else if (!archiveMailboxId) {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -904,12 +911,17 @@ export default function EmailListScreen({
       deleteAction,
       permanentlyDeleteJunk,
     });
-    if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
+    if (permanent) {
+      if (!(await confirmPermanentDelete(ids.length, t))) return;
+    } else if (!(await confirmMailRemoval('delete', ids.length, t))) {
+      return;
+    }
     await deleteEmailsBatch(ids, trash.id, currentMailboxId);
     clearSelection();
   };
 
   const handleBulkArchive = async () => {
+    if (!(await confirmMailRemoval('archive', selectedMessageIds.length, t))) return;
     await archiveEmailsBatch(selectedMessageIds);
     clearSelection();
   };

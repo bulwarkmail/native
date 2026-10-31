@@ -14,6 +14,7 @@ import {
   Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter, FileText, Type,
 } from '../components/icons';
 import { pickEmailBody } from '../lib/email-body';
+import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -545,14 +546,18 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       );
       return;
     }
-    performDelete();
+    // "Confirm before deleting" (webmail lib/mail-removal-confirm.ts).
+    void confirmMailRemoval('delete', 1, t).then((ok) => { if (ok) performDelete(); });
   };
 
   const onArchive = () => {
     if (!email || !canArchive) return;
-    archiveEmailAction(email.id, { email, accountId: ownerAccountId })
-      .catch((err) => toastFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
-    navigation.goBack();
+    void confirmMailRemoval('archive', 1, t).then((ok) => {
+      if (!ok) return;
+      archiveEmailAction(email.id, { email, accountId: ownerAccountId })
+        .catch((err) => toastFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
+      navigation.goBack();
+    });
   };
 
   // The same store path as the list and swipe actions: files into the
