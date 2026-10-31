@@ -218,6 +218,48 @@ describe('pushBackgroundTask notifications', () => {
     );
   });
 
+  it('shows a generic notification when the lookup fails, not none (#1041)', async () => {
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.endsWith('/.well-known/jmap')) return { ok: false, status: 503 };
+      throw new Error('unexpected');
+    });
+    await pushBackgroundTask({ kind: 'jmap-email-push', accountLabel: 'alice', accountId: 'jmap-primary', emailIds: '["m1"]' });
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect((showNotification.mock.calls[0] as unknown[])[0]).toMatchObject({
+      title: 'New email',
+      body: 'alice',
+      emailId: '',
+      threadId: '',
+      groupKey: `bulwark-mail:${LOCAL}`,
+    });
+  });
+
+  it('takes a method error for a failed lookup, not for "nothing new" (#1041)', async () => {
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return { ok: true, json: async () => ({ apiUrl: 'https://mail.example.com/jmap/', primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' } }) };
+      }
+      return { ok: true, json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }) };
+    });
+    await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"EmailDelivery":"s"}}' });
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect((showNotification.mock.calls[0] as unknown[])[0]).toMatchObject({ title: 'New email', emailId: '' });
+  });
+
+  it('stays quiet when the lookup worked and found nothing new', async () => {
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return { ok: true, json: async () => ({ apiUrl: 'https://mail.example.com/jmap/', primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' } }) };
+      }
+      return { ok: true, json: async () => ({ methodResponses: [['Email/get', { list: [{ id: 'm1', keywords: { $seen: true } }] }, '0']] }) };
+    });
+    await pushBackgroundTask({ kind: 'jmap-email-push', accountLabel: 'alice', accountId: 'jmap-primary', emailIds: '["m1"]' });
+
+    expect(showNotification).not.toHaveBeenCalled();
+  });
+
   it("says a message has no subject in the app's language", async () => {
     await AsyncStorage.setItem('webmail:locale:v1', JSON.stringify({ override: 'de' }));
     (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => ({

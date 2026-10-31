@@ -331,6 +331,31 @@ async function openDetachedSession(accountId: string): Promise<DetachedSession |
   return { apiUrl: rewriteApiUrl(session, baseUrl), authHeader, jmapAccountId };
 }
 
+/**
+ * The lookup for a push failed: the server, the session or a method answered
+ * with an error. That is not "nothing new" (webmail #1041): the push said
+ * something arrived, so a generic notification is shown instead of none.
+ */
+export class PushLookupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PushLookupError';
+  }
+}
+
+/** The first response, or a PushLookupError when the method failed. */
+function methodResult(
+  responses: Array<[string, Record<string, any>, string]>,
+  method: string,
+): Record<string, any> {
+  const [name, body] = responses[0] ?? [];
+  if (name !== method) {
+    const type = name === 'error' && typeof body?.type === 'string' ? body.type : name ?? 'no response';
+    throw new PushLookupError(`${method} failed: ${type}`);
+  }
+  return body ?? {};
+}
+
 async function jmapPost(
   session: DetachedSession,
   methodCalls: JMAPMethodCall[],
@@ -353,8 +378,7 @@ async function detachedGetEmails(
   const responses = await jmapPost(session, [
     ['Email/get', { accountId, ids, properties: EMAIL_PROPERTIES }, '0'],
   ]);
-  const [name, body] = responses[0] ?? [];
-  if (name !== 'Email/get') return [];
+  const body = methodResult(responses, 'Email/get');
   return (body.list as Email[]) ?? [];
 }
 
@@ -366,8 +390,7 @@ async function detachedNewestUnreadInboxIds(
   const mailboxResponses = await jmapPost(session, [
     ['Mailbox/get', { accountId, properties: ['id', 'role'] }, '0'],
   ]);
-  const [mbName, mbBody] = mailboxResponses[0] ?? [];
-  if (mbName !== 'Mailbox/get') return [];
+  const mbBody = methodResult(mailboxResponses, 'Mailbox/get');
   const inbox = ((mbBody.list as Mailbox[]) ?? []).find((m) => m.role === 'inbox');
   if (!inbox) return [];
   const queryResponses = await jmapPost(session, [
@@ -382,8 +405,7 @@ async function detachedNewestUnreadInboxIds(
       '0',
     ],
   ]);
-  const [qName, qBody] = queryResponses[0] ?? [];
-  if (qName !== 'Email/query') return [];
+  const qBody = methodResult(queryResponses, 'Email/query');
   return (qBody.ids as string[]) ?? [];
 }
 
@@ -441,6 +463,8 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
           accountId,
           err instanceof Error ? err.message : err,
         );
+        // Something arrived; say so even though the lookup couldn't say what.
+        if (!match.ambiguous) await showLookupFailedNotification(accountId, payload).catch(() => undefined);
       }
     }
   } catch (error) {
@@ -609,6 +633,29 @@ async function showPlainNotification(payload: RelayPushData): Promise<void> {
     threadId: '',
     groupKey: 'bulwark-mail:plain',
     groupTitle: label || 'Bulwark',
+  });
+}
+
+/**
+ * New mail in `accountId` that couldn't be looked up (webmail #1041): the
+ * account's name and no message, so a tap opens the app as it is. One per
+ * account; the next failure replaces it rather than stacking up.
+ */
+async function showLookupFailedNotification(accountId: string, payload: RelayPushData): Promise<void> {
+  const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
+  if (!native?.showNotification) return;
+  const locale = await notificationLocale();
+  const label = payload.accountLabel ?? accountId.split('@')[0] ?? accountId;
+  await native.showNotification({
+    notificationId: `mail-unknown:${accountId}`,
+    title: translate(locale, 'notifications.new_email', 'New email'),
+    body: label,
+    initials: getEmailInitials(label, ''),
+    bgColorHex: hslToHex(generateEmailAvatarColor(label, '')),
+    emailId: '',
+    threadId: '',
+    groupKey: `bulwark-mail:${accountId}`,
+    groupTitle: label,
   });
 }
 
