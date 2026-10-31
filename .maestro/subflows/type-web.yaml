@@ -4,10 +4,15 @@
 # field and type again. The caret is still at the end of what was just
 # typed, so eraseText (which deletes before the caret) empties it; selecting
 # the text with a long press didn't work and appended instead. SECRET=yes
-# skips the check (a password field shows dots).
+# skips the check (a password field shows dots). TAP=no types into the
+# field that has the focus already.
 appId: org.bulwarkmail.mobile
 ---
-- tapOn: ${HINT}
+- runFlow:
+    when:
+      true: ${TAP != 'no'}
+    commands:
+      - tapOn: ${HINT}
 - waitForAnimationToEnd:
     timeout: 3000
 - inputText: ${TEXT}

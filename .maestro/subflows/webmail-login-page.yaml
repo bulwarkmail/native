@@ -11,12 +11,25 @@ appId: org.bulwarkmail.mobile
     env:
       HINT: "user@example.com"
       TEXT: ${LOGIN}
+# On the iPhone, Safari's keyboard toolbar (Previous, Next, Done) can sit
+# over the password field, and a tap there leaves the focus in Email (the
+# password then went into Email). Its Next moves the focus to the password.
+- evalScript: ${output.webNext = false}
+- runFlow:
+    when:
+      visible: "Next"
+    commands:
+      - tapOn: "Next"
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - evalScript: ${output.webNext = true}
 - runFlow:
     file: type-web.yaml
     env:
       HINT: "Enter your password"
       TEXT: ${PASSWORD}
       SECRET: "yes"
+      TAP: "${output.webNext ? 'no' : 'yes'}"
 - tapOn: "Sign in"
 - runFlow:
     when:
