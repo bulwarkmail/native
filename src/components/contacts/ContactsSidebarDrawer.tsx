@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  X, Users, Tag, BookUser, Inbox, ChevronDown, ChevronRight, Plus, Share2, Check,
+  X, Users, Tag, BookUser, Inbox, ChevronDown, ChevronRight, Plus, Share2, Check, Trash2,
 } from '../icons';
+import { toast } from '../../stores/toast-store';
 import type { RootStackParamList } from '../../navigation/types';
 import type { AddressBook } from '../../api/types';
 import type { ContactCategory } from '../../stores/contacts-store';
@@ -46,6 +47,8 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   const contacts = useContactsStore((s) => s.contacts);
   const addressBooks = useContactsStore((s) => s.addressBooks);
   const renameKeyword = useContactsStore((s) => s.renameKeyword);
+  const removeKeyword = useContactsStore((s) => s.removeKeyword);
+  const addKeyword = useContactsStore((s) => s.addKeyword);
 
   const totalCount = React.useMemo(
     () => contacts.filter((c) => !isGroup(c)).length,
@@ -148,6 +151,31 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
     } finally {
       setRenameBusy(false);
     }
+  };
+
+  // A category can be put back as it was, so it goes at once with an Undo
+  // (webmail 1.19 useDeleteCategory).
+  const deleteCategory = async (keyword: string) => {
+    if (renameBusy) return;
+    setRenameBusy(true);
+    let ids: string[];
+    try {
+      ids = await removeKeyword(keyword);
+      setRenaming(null);
+    } catch {
+      toast.error(t('contacts.category_delete_failed', "Couldn't delete the category"));
+      return;
+    } finally {
+      setRenameBusy(false);
+    }
+    toast.success(t('contacts.category_deleted', 'Category "{name}" deleted', { name: keyword }), {
+      action: {
+        label: t('contacts.undo', 'Undo'),
+        onPress: () => {
+          void addKeyword(keyword, ids).catch(() => toast.error(t('contacts.toast.error_update', 'Failed to update contact')));
+        },
+      },
+    });
   };
 
   const renderBook = (book: AddressBook & { count: number }) => (
@@ -270,6 +298,15 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
                     accessibilityLabel={t('common.save', 'Save')}
                   >
                     <Check size={16} color={c.primary} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { void deleteCategory(kw.keyword); }}
+                    hitSlop={6}
+                    style={styles.renameBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('contacts.delete_category', 'Delete category')}
+                  >
+                    <Trash2 size={16} color={c.error} />
                   </Pressable>
                   <Pressable
                     onPress={() => setRenaming(null)}
