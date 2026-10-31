@@ -73,6 +73,8 @@ import {
 import type { SeriesEdit } from '../../lib/recurrence-scope-edit';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
+import { ParticipantAvailability } from './ParticipantAvailability';
+import { editorAvailabilityWindow } from '../../lib/calendar-free-busy';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
@@ -256,6 +258,12 @@ export function EventModal({
   const [showEndDate, setShowEndDate] = React.useState(false);
   const [showEndTime, setShowEndTime] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+
+  // The event window the attendees' free/busy is checked against.
+  const availabilityWindow = React.useMemo(
+    () => editorAvailabilityWindow({ allDay, start, end }),
+    [allDay, start, end],
+  );
 
   // What the form holds against what it opened with: Close and Back ask
   // before they drop changes (webmail 13f9f27c4).
@@ -901,6 +909,7 @@ export function EventModal({
                 </Text>
               </View>
             )}
+            <ParticipantAvailability attendees={attendees} window={availabilityWindow} />
             {organizes && attendees.length > 0 && (
               <View style={styles.allDayRow}>
                 <Text style={[styles.fieldText, { flex: 1 }]}>
