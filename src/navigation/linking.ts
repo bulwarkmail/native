@@ -9,6 +9,7 @@ import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
 import { setPendingCalendarOpen } from './pending-calendar-open';
 import { setPendingMailSearch } from './pending-mail-search';
+import { setPendingMailFolder } from './pending-mail-folder';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
@@ -283,6 +284,8 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
     case 'folder':
+      // The mail list opens the folder once its folders are loaded.
+      setPendingMailFolder(link.ref);
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
     case 'calendar':

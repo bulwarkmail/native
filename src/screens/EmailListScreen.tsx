@@ -68,6 +68,8 @@ import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
+import { usePendingMailFolder } from '../navigation/pending-mail-folder';
+import { resolveFolderRef } from '../lib/folder-ref';
 import type { Attachment, Email } from '../api/types';
 import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/perf-marks';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -1201,6 +1203,18 @@ export default function EmailListScreen({
       void ensureMailboxes();
     }
   }, [ensureMailboxes, mailboxes.length]);
+
+  // A `mail/folder/<ref>` link opens its folder once the folders are here;
+  // one that names no folder of this account leaves the list as it is.
+  const pendingFolder = usePendingMailFolder((s) => s.ref);
+  React.useEffect(() => {
+    if (pendingFolder === null || mailboxes.length === 0) return;
+    const ref = usePendingMailFolder.getState().consume();
+    const id = ref === null ? null : resolveFolderRef(ref, mailboxes);
+    if (!id) return;
+    clearSearchAndFilters();
+    if (id !== currentMailboxId) void selectMailbox(id);
+  }, [pendingFolder, mailboxes, currentMailboxId, selectMailbox, clearSearchAndFilters]);
 
   React.useEffect(() => {
     if (mailboxes.length > 0 && !currentMailboxId) {
