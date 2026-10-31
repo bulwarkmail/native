@@ -17,6 +17,8 @@ struct JmapFetchResult {
 
 enum JmapError: Error {
   case noCredentials
+  /// The access token needs a refresh the caller didn't allow.
+  case needsRefresh
   case http(Int)
   case badResponse
 }
@@ -47,11 +49,18 @@ enum Jmap {
   /// access token that is about to expire. A refreshed bundle is written back
   /// to the shared keychain item so the app picks it up (and doesn't refresh
   /// again with a refresh token the server has already replaced).
-  static func authorization(credentialsKey: String) async throws -> String {
+  ///
+  /// `allowRefresh: false` throws instead of refreshing: the app's foreground
+  /// renewal leaves that to the app's own code, which runs then too and would
+  /// race it for the same refresh token.
+  static func authorization(credentialsKey: String, allowRefresh: Bool = true) async throws -> String {
     guard let json = SharedKeychain.readJSON(credentialsKey) else { throw JmapError.noCredentials }
     var creds = StoredCredentials(json: json)
     if let token = creds.accessToken {
       let nowMs = Date().timeIntervalSince1970 * 1000
+      if !allowRefresh, let expiresAt = creds.expiresAt, expiresAt - nowMs < 60_000 {
+        throw JmapError.needsRefresh
+      }
       if let expiresAt = creds.expiresAt, expiresAt - nowMs < 60_000,
          let refresh = creds.refreshToken, let endpoint = creds.tokenEndpoint, let clientId = creds.clientId,
          let url = URL(string: endpoint) {
@@ -97,6 +106,67 @@ enum Jmap {
       refreshToken: body["refresh_token"] as? String,
       expiresIn: (body["expires_in"] as? NSNumber)?.doubleValue
     )
+  }
+
+  /// One JMAP request; the method responses as the server sent them.
+  static func call(apiUrl: URL, authorization: String, using: [String], methodCalls: [[Any]]) async throws -> [[Any]] {
+    var request = URLRequest(url: apiUrl)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.setValue(authorization, forHTTPHeaderField: "Authorization")
+    let body: [String: Any] = ["using": using, "methodCalls": methodCalls]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (data, response) = try await session.data(for: request)
+    guard let http = response as? HTTPURLResponse else { throw JmapError.badResponse }
+    guard http.statusCode == 200 else { throw JmapError.http(http.statusCode) }
+    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let responses = root["methodResponses"] as? [[Any]] else { throw JmapError.badResponse }
+    return responses
+  }
+
+  struct ListedPushSubscription {
+    let id: String
+    let deviceClientId: String?
+    let expires: String?
+  }
+
+  static let pushSubscriptionProperties = ["id", "deviceClientId", "expires"]
+
+  /// Subscription `id` as the PushSubscription/get answer `callId` lists it.
+  static func listedPushSubscription(_ responses: [[Any]], callId: String, id: String) -> ListedPushSubscription? {
+    for response in responses where response.count >= 3 {
+      guard response[0] as? String == "PushSubscription/get", response[2] as? String == callId,
+            let args = response[1] as? [String: Any],
+            let list = args["list"] as? [[String: Any]] else { continue }
+      for item in list where item["id"] as? String == id {
+        return ListedPushSubscription(
+          id: id,
+          deviceClientId: item["deviceClientId"] as? String,
+          expires: item["expires"] as? String
+        )
+      }
+    }
+    return nil
+  }
+
+  static func pushSubscription(apiUrl: URL, id: String, authorization: String) async throws -> ListedPushSubscription? {
+    let methodCalls: [[Any]] = [
+      ["PushSubscription/get", ["ids": [id], "properties": pushSubscriptionProperties], "0"],
+    ]
+    let responses = try await call(apiUrl: apiUrl, authorization: authorization, using: ["urn:ietf:params:jmap:core"], methodCalls: methodCalls)
+    return listedPushSubscription(responses, callId: "0", id: id)
+  }
+
+  /// Asks for a later expiry and reads back the one the server settled on:
+  /// servers clamp it, and the update's answer doesn't say.
+  static func extendPushSubscription(apiUrl: URL, id: String, expires: String, authorization: String) async throws -> ListedPushSubscription? {
+    let methodCalls: [[Any]] = [
+      ["PushSubscription/set", ["update": [id: ["expires": expires]]], "0"],
+      ["PushSubscription/get", ["ids": [id], "properties": pushSubscriptionProperties], "1"],
+    ]
+    let responses = try await call(apiUrl: apiUrl, authorization: authorization, using: ["urn:ietf:params:jmap:core"], methodCalls: methodCalls)
+    return listedPushSubscription(responses, callId: "1", id: id)
   }
 
   static func fetch(apiUrl: URL, accountId: String, emailIds: [String], authorization: String) async throws -> JmapFetchResult {

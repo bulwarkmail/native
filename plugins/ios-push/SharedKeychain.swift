@@ -1,5 +1,10 @@
 import Foundation
+import os
 import Security
+
+/// Ids and steps only, never credentials or message content. Shared by the
+/// notification extension and the app's push renewal (PushRenewal.swift).
+let pushLog = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "org.bulwarkmail.mobile", category: "push")
 
 /// Items the app shares with this extension through a keychain access group
 /// (BulwarkKeychainGroup in Info.plist). The app writes them with
@@ -29,6 +34,38 @@ enum SharedKeychain {
       return nil
     }
     return item as? Data
+  }
+
+  /// SecureStore keys: letters, digits, ".", "-", "_" only. The app builds
+  /// the same key part (src/lib/ios-push-shared.ts keyPart).
+  static func keyPart(_ id: String) -> String {
+    String(id.map { ch in (ch.isASCII && (ch.isLetter || ch.isNumber)) || ch == "." || ch == "-" || ch == "_" ? ch : "_" })
+  }
+
+  /// The keys of the shared items whose key starts with `prefix`.
+  static func keys(withPrefix prefix: String) -> [String] {
+    guard let group else { return [] }
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccessGroup as String: group,
+      kSecMatchLimit as String: kSecMatchLimitAll,
+      kSecReturnAttributes as String: true,
+    ]
+    var items: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &items)
+    guard status == errSecSuccess, let list = items as? [[String: Any]] else {
+      if status != errSecItemNotFound {
+        pushLog.error("keychain listing failed: \(status, privacy: .public)")
+      }
+      return []
+    }
+    return list.compactMap { item in
+      let account = item[kSecAttrAccount as String]
+      let key = (account as? Data).flatMap { String(data: $0, encoding: .utf8) } ?? (account as? String)
+      guard let key, key.hasPrefix(prefix) else { return nil }
+      return key
+    }
   }
 
   static func readJSON(_ key: String) -> [String: Any]? {

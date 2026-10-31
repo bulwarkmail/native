@@ -2,16 +2,15 @@ import Foundation
 import os
 import UserNotifications
 
-/// Ids and steps only, never credentials or message content.
-let pushLog = Logger(subsystem: "org.bulwarkmail.mobile.NotificationService", category: "push")
-
 /// Turns the relay's content-blind push ("New message" plus ids) into a real
 /// notification: sender, subject and preview, fetched over JMAP on this
 /// device with the account's own credentials. Nothing about the message ever
 /// passes through the relay or Apple.
 ///
 /// What the app shares through the keychain group (src/lib/ios-push-shared.ts):
-///   bulwark_push_account__<JMAP account id>  {credentialsKey, apiUrl, label}
+///   bulwark_push_account__<JMAP account id>  {credentialsKey, apiUrl, label,
+///                                            subscriptionId, deviceClientId,
+///                                            subscriptionExpires}
 ///   bulwark_push_settings                    {badge, activeAccountId, strings{...}}
 ///   <credentialsKey>                         the account's stored credentials
 /// If anything is missing or the server can't be reached, the relay's
@@ -38,6 +37,15 @@ final class NotificationService: UNNotificationServiceExtension {
     let push = request.content.userInfo["body"] as? [String: Any]
     work = Task { [weak self] in
       let enriched = await NotificationService.enrich(content, push: push)
+      // A timeout from here on shows what was fetched.
+      self?.placeholder = enriched
+      // Keep the account's subscription alive (PushRenewal.swift). Does
+      // nothing until it is less than six days from expiring, so this costs
+      // a request or two about once a day. After the fetch, not beside it:
+      // both may refresh the same OAuth token.
+      if let accountId = push?["accountId"] as? String, !accountId.isEmpty {
+        await PushRenewal.renewIfDue(jmapAccountId: accountId)
+      }
       self?.finish(enriched)
     }
   }
@@ -54,7 +62,7 @@ final class NotificationService: UNNotificationServiceExtension {
   }
 
   static func sanitize(_ id: String) -> String {
-    String(id.map { ch in (ch.isASCII && (ch.isLetter || ch.isNumber)) || ch == "." || ch == "-" || ch == "_" ? ch : "_" })
+    SharedKeychain.keyPart(id)
   }
 
   static func enrich(_ content: UNMutableNotificationContent, push: [String: Any]?) async -> UNMutableNotificationContent {

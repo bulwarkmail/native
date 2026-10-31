@@ -69,6 +69,18 @@ export interface IosPushAccount {
    * group account that has this account's id.
    */
   label?: string;
+  /**
+   * This device's PushSubscription on the account's server, so the native
+   * side keeps it alive (plugins/ios-push/PushRenewal.swift): Stalwart drops
+   * a subscription seven days after its last refresh, and on iOS the app's JS
+   * runs only when the app is opened. The native side extends it only while
+   * the server still lists it with this device's client id, and writes the
+   * expiry it settled on back here.
+   */
+  subscriptionId?: string;
+  deviceClientId?: string;
+  /** When the subscription expires, as last recorded (UTCDate). */
+  subscriptionExpires?: string;
 }
 
 export async function writeIosPushAccount(jmapAccountId: string, account: IosPushAccount): Promise<void> {
