@@ -13,7 +13,7 @@ import { GlobalSearchSheet } from '../components/search/GlobalSearchSheet';
 import { ActionSheet } from '../components/email/ActionSheet';
 import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor, type SortChoiceKey } from '../lib/sort-choices';
 import { orderForMailbox, sanitizeSortLevels } from '../lib/message-list-order';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { spacing, radius, typography, componentSizes, mix, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
@@ -91,6 +91,7 @@ import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { searchEverythingPlacement } from '../lib/search-everything-entry';
 import { fitToolbarActions } from '../lib/selection-toolbar';
+import { setPromptListColumn } from '../lib/push-prompt-frame';
 
 // The server refuses keywords per message (a read-only shared folder;
 // Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
@@ -486,6 +487,21 @@ export default function EmailListScreen({
   // The undo bar floats over the list's bottom right on a phone (on a split
   // layout it sits over the reading pane instead).
   const { isSplit, shortHeight, widthClass } = useLayout();
+  // In a split view the push prompt floats in this column, not over the
+  // reader's quick reply (lib/push-prompt-frame).
+  const isFocused = useIsFocused();
+  const rootRef = React.useRef<View>(null);
+  const reportListColumn = React.useCallback(() => {
+    if (!isSplit || !isFocused) {
+      setPromptListColumn(null);
+      return;
+    }
+    rootRef.current?.measureInWindow((x, _y, width) => setPromptListColumn({ x, width }));
+  }, [isSplit, isFocused]);
+  React.useEffect(() => {
+    reportListColumn();
+    return () => setPromptListColumn(null);
+  }, [reportListColumn]);
   const selectionCountOnly = isSplit || widthClass === 'compact';
   const listUndo = useEmailStore((s) => s.pendingUndo != null);
   const sendUndo = useSendUndoStore((s) => s.pending != null);
@@ -1493,7 +1509,11 @@ export default function EmailListScreen({
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}>
+    <View
+      ref={rootRef}
+      onLayout={reportListColumn}
+      style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}
+    >
       {/* Header */}
       {selectionMode ? (
         // Keyed apart from the normal header: reused in place, its title
