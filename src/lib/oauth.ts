@@ -1,13 +1,16 @@
 import * as WebBrowser from 'expo-web-browser';
 import { fetchWithoutForeignRedirect, secureFetch } from './client-cert';
-import { randomHex } from './random';
+import { base64UrlEncode, randomBytes, randomHex } from './random';
+import { sha256Hex } from './sha256';
 
 // Webmail-mediated login. The app opens the webmail's normal login page with
-// extra `mobile_redirect_uri` and `mobile_state` query params. The webmail
-// uses its existing password and OAuth flows, and once the user is signed
-// in, redirects back to the app's custom scheme with credentials packed into
-// the URL fragment. Fragments aren't sent to the server, so password and
-// token material don't appear in HTTP access logs along the way.
+// extra `mobile_redirect_uri`, `mobile_state` and `mobile_code_challenge`
+// query params. The webmail uses its existing password and OAuth flows, and
+// once the user is signed in, redirects back to the app's custom scheme with
+// a one-time code in the query string; the app redeems it with the PKCE
+// verifier for the sign-in (another app that catches the link can't). Older
+// webmails and Lite ignore the challenge and put the credentials in the URL
+// fragment, which is still read.
 
 export const HANDOFF_REDIRECT_URI = 'bulwarkmobile://auth/callback';
 
@@ -190,12 +193,30 @@ async function isTrustedHandoffEndpoint(
   }
 }
 
-function buildHandoffUrl(webmailUrl: string, state: string): string {
+/**
+ * PKCE pair for the hand-off (bulwarkmail.org/docs/development/mobile-handoff):
+ * a fresh 43-character verifier from the CSPRNG for every sign-in, and its
+ * S256 challenge.
+ */
+export function createHandoffPkce(): { verifier: string; challenge: string } {
+  const verifier = base64UrlEncode(randomBytes(32));
+  const challenge = base64UrlEncode(hexToBytes(sha256Hex(new TextEncoder().encode(verifier))));
+  return { verifier, challenge };
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+export function buildHandoffUrl(webmailUrl: string, state: string, codeChallenge?: string): string {
   const base = webmailUrl.replace(/\/+$/, '');
   const params = new URLSearchParams({
     mobile_redirect_uri: HANDOFF_REDIRECT_URI,
     mobile_state: state,
   });
+  if (codeChallenge) params.set('mobile_code_challenge', codeChallenge);
   return `${base}/login?${params.toString()}`;
 }
 
@@ -205,12 +226,168 @@ function parseFragment(url: string): URLSearchParams {
   return new URLSearchParams(url.slice(hashIdx + 1));
 }
 
+function parseQuery(url: string): URLSearchParams {
+  const q = url.indexOf('?');
+  if (q === -1) return new URLSearchParams();
+  const h = url.indexOf('#', q);
+  return new URLSearchParams(url.slice(q + 1, h === -1 ? undefined : h));
+}
+
+/**
+ * Why redeeming a hand-off code failed. Every failure spends the code, so the
+ * sign-in has to start over.
+ *   invalid_request / invalid_code / expired_code / invalid_verifier: the
+ *     webmail's 400 answers
+ *   rate_limited: 429; forbidden: 403 (a same-origin refusal)
+ *   network / server / bad_response: the request itself
+ */
+export type HandoffRedeemReason =
+  | 'invalid_request'
+  | 'invalid_code'
+  | 'expired_code'
+  | 'invalid_verifier'
+  | 'rate_limited'
+  | 'forbidden'
+  | 'network'
+  | 'server'
+  | 'bad_response';
+
+export class HandoffRedeemError extends HandoffError {
+  readonly reason: HandoffRedeemReason;
+  readonly status?: number;
+
+  constructor(reason: HandoffRedeemReason, message: string, status?: number) {
+    super(message);
+    this.name = 'HandoffRedeemError';
+    this.reason = reason;
+    this.status = status;
+  }
+}
+
+export const HANDOFF_REDEEM_TIMEOUT_MS = 15_000;
+const HANDOFF_400_REASONS: readonly HandoffRedeemReason[] = ['invalid_request', 'invalid_code', 'expired_code', 'invalid_verifier'];
+
+/**
+ * Trade the one-time code from the callback link for the parked sign-in.
+ * Sent like every native request, without Origin or Sec-Fetch-Site, which
+ * the route would refuse as cross-origin. The code is a credential, so a
+ * redirect to another host is not followed.
+ */
+export async function redeemHandoffCode(
+  webmailUrl: string,
+  code: string,
+  codeVerifier: string,
+): Promise<Record<string, unknown>> {
+  const base = webmailUrl.replace(/\/+$/, '');
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new HandoffRedeemError('network', 'Timed out redeeming the sign-in code'));
+    }, HANDOFF_REDEEM_TIMEOUT_MS);
+  });
+  let status: number;
+  let ok: boolean;
+  let data: Record<string, unknown> | null;
+  try {
+    const exchange = (async () => {
+      let response: Response;
+      try {
+        response = await fetchWithoutForeignRedirect(`${base}/api/auth/handoff/redeem`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ code, code_verifier: codeVerifier }),
+          signal: controller.signal,
+          timeoutMs: HANDOFF_REDEEM_TIMEOUT_MS,
+        });
+      } catch (err) {
+        throw new HandoffRedeemError(
+          'network',
+          `Could not redeem the sign-in code: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      return { status: response.status, ok: response.ok, data: await readJsonBody(response) };
+    })();
+    ({ status, ok, data } = await Promise.race([exchange, deadline]));
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!ok) {
+    const error = data ? stringField(data, 'error') : undefined;
+    if (status === 400) {
+      const reason = HANDOFF_400_REASONS.find((r) => r === error) ?? 'invalid_code';
+      throw new HandoffRedeemError(reason, `The sign-in code was refused (${error ?? status}). Sign in again.`, status);
+    }
+    if (status === 429) throw new HandoffRedeemError('rate_limited', 'Too many sign-in attempts (429)', status);
+    if (status === 403) throw new HandoffRedeemError('forbidden', 'The webmail refused the sign-in code (403)', status);
+    throw new HandoffRedeemError('server', `Redeeming the sign-in code failed with status ${status}`, status);
+  }
+  if (!data) throw new HandoffRedeemError('bad_response', 'The sign-in response was not JSON', status);
+  return data;
+}
+
+// Reads one field of the sign-in, from the fragment (strings) or the redeem
+// answer (JSON, where expires_in is a number).
+type BundleField = (key: string) => string | undefined;
+
+async function handoffResultFrom(field: BundleField, webmailUrl: string): Promise<HandoffResult> {
+  const flow = field('flow');
+  const serverUrl = field('server_url') ?? null;
+  if (!serverUrl) throw new HandoffError('Sign-in response missing server URL');
+  if (!isHttpsUrl(serverUrl) && !isLoopbackHttp(serverUrl)) {
+    throw new HandoffError('Sign-in response server URL must use https');
+  }
+
+  if (flow === 'password') {
+    const username = field('username');
+    const password = field('password');
+    if (!username || !password) {
+      throw new HandoffError('Sign-in response missing credentials');
+    }
+    return { flow: 'password', serverUrl, username, password };
+  }
+
+  if (flow === 'oauth') {
+    const accessToken = field('access_token');
+    const tokenEndpoint = field('token_endpoint');
+    const clientId = field('client_id');
+    if (!accessToken || !tokenEndpoint || !clientId) {
+      throw new HandoffError('Sign-in response missing OAuth tokens');
+    }
+    if (!(await isTrustedHandoffEndpoint(tokenEndpoint, serverUrl, webmailUrl, clientId))) {
+      throw new HandoffError('Sign-in response token endpoint is not trusted');
+    }
+    const refreshToken = field('refresh_token');
+    const expiresIn = Number.parseInt(field('expires_in') ?? '', 10);
+    return {
+      flow: 'oauth',
+      serverUrl,
+      tokens: {
+        accessToken,
+        refreshToken,
+        expiresAt: Number.isFinite(expiresIn) && expiresIn > 0 ? Date.now() + expiresIn * 1000 : undefined,
+        tokenEndpoint,
+        clientId,
+        source: 'handoff',
+      },
+    };
+  }
+
+  throw new HandoffError(`Unknown sign-in flow: ${flow ?? 'missing'}`);
+}
+
 export async function runWebmailHandoff(
   webmailUrl: string,
   opts?: { addAccount?: boolean },
 ): Promise<HandoffResult> {
   const state = randomState();
-  const handoffUrl = buildHandoffUrl(webmailUrl, state);
+  // The redeem answer carries the sign-in, so it only goes over TLS (or
+  // loopback http in development). A plain-http webmail gets no challenge
+  // and answers in the fragment, as before.
+  const pkce = isHttpsUrl(webmailUrl) || isLoopbackHttp(webmailUrl) ? createHandoffPkce() : null;
+  const handoffUrl = buildHandoffUrl(webmailUrl, state, pkce?.challenge);
 
   // Adding an account: on iOS, keep the browser's webmail and identity
   // provider cookies out of the session so the signed-in account can't
@@ -229,60 +406,36 @@ export async function runWebmailHandoff(
     throw new HandoffError(`Sign-in failed: ${result.type}`);
   }
 
-  const params = parseFragment(result.url);
-  const err = params.get('error');
+  const fragment = parseFragment(result.url);
+  const query = parseQuery(result.url);
+  const err = fragment.get('error') ?? query.get('error');
   if (err) throw new HandoffError(err);
+
+  // A webmail that got the challenge answers with a one-time code in the
+  // query string; older webmails and Lite put the sign-in in the fragment.
+  const code = query.get('code');
+  if (pkce && code && !fragment.has('flow')) {
+    // CSRF guard: the state must round-trip unchanged before the code is
+    // spent; a link with another state didn't come from this sign-in.
+    if (query.get('state') !== state) throw new HandoffError('State mismatch');
+    const bundle = await redeemHandoffCode(webmailUrl, code, pkce.verifier);
+    const echoed = stringField(bundle, 'state');
+    if (echoed !== undefined && echoed !== state) throw new HandoffError('State mismatch');
+    return handoffResultFrom((key) => {
+      const value = bundle[key];
+      if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+      return typeof value === 'string' && value ? value : undefined;
+    }, webmailUrl);
+  }
 
   // CSRF guard: the state we generated must round-trip through the webmail
   // unchanged. A mismatch means the redirect didn't come from the flow we
   // started, and the rest of the fragment shouldn't be trusted.
-  if (params.get('state') !== state) {
+  if (fragment.get('state') !== state) {
     throw new HandoffError('State mismatch');
   }
 
-  const flow = params.get('flow');
-  const serverUrl = params.get('server_url');
-  if (!serverUrl) throw new HandoffError('Sign-in response missing server URL');
-  if (!isHttpsUrl(serverUrl) && !isLoopbackHttp(serverUrl)) {
-    throw new HandoffError('Sign-in response server URL must use https');
-  }
-
-  if (flow === 'password') {
-    const username = params.get('username');
-    const password = params.get('password');
-    if (!username || !password) {
-      throw new HandoffError('Sign-in response missing credentials');
-    }
-    return { flow: 'password', serverUrl, username, password };
-  }
-
-  if (flow === 'oauth') {
-    const accessToken = params.get('access_token');
-    const tokenEndpoint = params.get('token_endpoint');
-    const clientId = params.get('client_id');
-    if (!accessToken || !tokenEndpoint || !clientId) {
-      throw new HandoffError('Sign-in response missing OAuth tokens');
-    }
-    if (!(await isTrustedHandoffEndpoint(tokenEndpoint, serverUrl, webmailUrl, clientId))) {
-      throw new HandoffError('Sign-in response token endpoint is not trusted');
-    }
-    const refreshToken = params.get('refresh_token') ?? undefined;
-    const expiresIn = params.get('expires_in');
-    return {
-      flow: 'oauth',
-      serverUrl,
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresAt: expiresIn ? Date.now() + parseInt(expiresIn, 10) * 1000 : undefined,
-        tokenEndpoint,
-        clientId,
-        source: 'handoff',
-      },
-    };
-  }
-
-  throw new HandoffError(`Unknown sign-in flow: ${flow ?? 'missing'}`);
+  return handoffResultFrom((key) => fragment.get(key) || undefined, webmailUrl);
 }
 
 // QR login payloads. A QR scanned on the login screen either bootstraps the
