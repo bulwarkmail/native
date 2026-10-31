@@ -21,6 +21,9 @@ export const MIN_EDITOR_HEIGHT = 220;
 // page with `getHtml` instead of waiting for the next post.
 export const CHANGE_THROTTLE_MS = 400;
 
+// Room above a reply's quote for its "•••" toggle (px).
+const QUOTE_TOGGLE_SPACE = 30;
+
 /**
  * The editor page's Content-Security-Policy, mirroring the viewer's
  * (`src/lib/email-html.ts`). Nothing but images, styles and our own inline
@@ -138,8 +141,18 @@ export function buildEditorHtml(opts: {
    * only: its WebView pans the visual viewport to reveal the caret.
    */
   pinVisualViewport?: boolean;
+  /**
+   * A reply: the quoted original (the top-level `data-quoted-html` block,
+   * attribution included) starts hidden behind a "•••" toggle (webmail
+   * reply-quote-collapse, #1405). Hiding is styling on the editor element
+   * only, so the quote stays in the body that is saved and sent.
+   */
+  collapseQuote?: boolean;
+  /** The toggle's accessible names. */
+  quoteToggleLabels?: { show: string; hide: string };
 }): string {
-  const { initialHtml, placeholder, c, blockRemoteImages = false, pinVisualViewport = false } = opts;
+  const { initialHtml, placeholder, c, blockRemoteImages = false, pinVisualViewport = false, collapseQuote = false } = opts;
+  const quoteLabels = opts.quoteToggleLabels ?? { show: 'Show quoted text', hide: 'Hide quoted text' };
   // Inject initial content as a JSON-encoded string so any HTML/quotes inside
   // are safely embedded (no template literal collision with the script body,
   // and no `</script` that ends the script, see jsonForScript).
@@ -199,6 +212,23 @@ export function buildEditorHtml(opts: {
   }
   #editor pre { padding: 8px 12px; overflow-x: auto; }
   ::selection { background: ${c.primary}33; }
+  body { position: relative; }
+  #editor.rne-quote-toggle > [data-quoted-html] { padding-top: ${QUOTE_TOGGLE_SPACE}px; }
+  #editor.rne-quote-collapsed > [data-quoted-html] { height: ${QUOTE_TOGGLE_SPACE}px; overflow: hidden; }
+  #rne-quote-toggle {
+    position: absolute;
+    display: none;
+    margin: 0;
+    padding: 0 12px;
+    height: 22px;
+    line-height: 22px;
+    border: none;
+    border-radius: 999px;
+    background: ${c.surfaceActive};
+    color: ${c.textMuted};
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
 </style>
 </head>
 <body>
@@ -230,6 +260,7 @@ export function buildEditorHtml(opts: {
   }
 
   function reportHeight() {
+    placeQuoteToggle();
     var h = Math.max(${MIN_EDITOR_HEIGHT}, editor.scrollHeight + 8);
     if (Math.abs(h - lastHeight) < 2) return;
     lastHeight = h;
@@ -304,11 +335,87 @@ export function buildEditorHtml(opts: {
     post('selection', state);
   }
 
+  // ── Collapsed reply quote ──────────────────────────────────────────
+  // The toggle lives outside the editable element, over the top of the
+  // quote, so it never becomes part of the message.
+  var COLLAPSE_QUOTE = ${collapseQuote ? 'true' : 'false'};
+  var QUOTE_LABELS = ${jsonForScript(quoteLabels)};
+  var quoteToggle = null;
+
+  function topQuote() {
+    var node = editor.firstElementChild;
+    while (node) {
+      if (node.hasAttribute && node.hasAttribute('data-quoted-html')) return node;
+      node = node.nextElementSibling;
+    }
+    return null;
+  }
+
+  function quoteCollapsed() {
+    return !!quoteToggle && editor.classList.contains('rne-quote-collapsed');
+  }
+
+  function placeQuoteToggle() {
+    if (!quoteToggle) return;
+    var quote = topQuote();
+    if (!quote) {
+      quoteToggle.style.display = 'none';
+      editor.classList.remove('rne-quote-collapsed');
+      return;
+    }
+    quoteToggle.style.display = 'block';
+    quoteToggle.style.top = (quote.offsetTop + 4) + 'px';
+    quoteToggle.style.left = quote.offsetLeft + 'px';
+  }
+
+  function setQuoteCollapsed(collapsed) {
+    if (!quoteToggle) return;
+    if (collapsed) editor.classList.add('rne-quote-collapsed');
+    else editor.classList.remove('rne-quote-collapsed');
+    var label = collapsed ? QUOTE_LABELS.show : QUOTE_LABELS.hide;
+    quoteToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    quoteToggle.setAttribute('aria-label', label);
+    quoteToggle.title = label;
+    reportHeight();
+  }
+
+  // The caret never stays inside hidden text: moving it there shows the quote.
+  function revealQuoteAtCaret() {
+    if (!quoteCollapsed()) return;
+    var quote = topQuote();
+    var sel = window.getSelection();
+    if (!quote || !sel || !sel.rangeCount) return;
+    var node = sel.anchorNode;
+    while (node && node !== editor) {
+      if (node === quote) {
+        setQuoteCollapsed(false);
+        return;
+      }
+      node = node.parentNode;
+    }
+  }
+
   // ── Initial content ────────────────────────────────────────────────
   var initial = ${initialJson};
   if (initial && typeof initial === 'string') editor.innerHTML = initial;
   refreshEmpty();
   lastHtml = editor.innerHTML;
+
+  if (COLLAPSE_QUOTE && topQuote()) {
+    quoteToggle = document.createElement('button');
+    quoteToggle.id = 'rne-quote-toggle';
+    quoteToggle.type = 'button';
+    quoteToggle.textContent = '•••';
+    // Keep the caret and the keyboard where they are.
+    quoteToggle.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    quoteToggle.addEventListener('click', function (e) {
+      e.preventDefault();
+      setQuoteCollapsed(!quoteCollapsed());
+    });
+    document.body.appendChild(quoteToggle);
+    editor.classList.add('rne-quote-toggle');
+    setQuoteCollapsed(true);
+  }
 
   editor.addEventListener('input', function () {
     scheduleChange();
@@ -320,7 +427,10 @@ export function buildEditorHtml(opts: {
   });
   editor.addEventListener('focus', function () { post('focus', null); });
   document.addEventListener('selectionchange', function () {
-    if (document.activeElement === editor) reportSelection();
+    if (document.activeElement === editor) {
+      revealQuoteAtCaret();
+      reportSelection();
+    }
   });
 
   // ── Bridge: receive commands from RN ───────────────────────────────

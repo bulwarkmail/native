@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   buildEditorCsp, buildEditorHtml, CHANGE_THROTTLE_MS, isEditorNavigationAllowed, shouldBlockEditorRemoteImages,
 } from '../editor-html';
@@ -316,5 +318,120 @@ describe('editor visual viewport pinning', () => {
 
   it('survives a WebView without visualViewport', () => {
     expect(() => boot(true, false)).not.toThrow();
+  });
+});
+
+describe('collapsed reply quote (webmail #1405)', () => {
+  type Listener = (e?: { preventDefault: () => void }) => void;
+  function boot(opts: { collapseQuote?: boolean; withQuote?: boolean } = {}) {
+    const docListeners: Record<string, Listener[]> = {};
+    const classes = new Set<string>();
+    const appended: unknown[] = [];
+    const created: string[] = [];
+    let anchorNode: unknown = null;
+    const editor: Record<string, unknown> = {
+      innerHTML: '',
+      get textContent() { return 'x'; },
+      scrollHeight: 400,
+      classList: {
+        add: (n: string) => classes.add(n),
+        remove: (n: string) => classes.delete(n),
+        contains: (n: string) => classes.has(n),
+      },
+      querySelector: () => null,
+      setAttribute: () => undefined,
+      focus: () => undefined,
+      addEventListener: () => undefined,
+    };
+    const quoteChild = { parentNode: null as unknown };
+    const quote = {
+      hasAttribute: (n: string) => n === 'data-quoted-html',
+      nextElementSibling: null,
+      offsetTop: 120,
+      offsetLeft: 16,
+      parentNode: editor,
+    };
+    quoteChild.parentNode = quote;
+    const typed = { hasAttribute: () => false, nextElementSibling: opts.withQuote === false ? null : quote, parentNode: editor };
+    Object.defineProperty(editor, 'firstElementChild', { get: () => typed });
+    const button = {
+      style: {} as Record<string, string>,
+      attrs: {} as Record<string, string>,
+      listeners: {} as Record<string, Listener[]>,
+      title: '',
+      setAttribute(n: string, v: string) { this.attrs[n] = v; },
+      addEventListener(n: string, fn: Listener) { (this.listeners[n] ??= []).push(fn); },
+    };
+    const document = {
+      activeElement: editor as unknown,
+      body: { appendChild: (n: unknown) => appended.push(n) },
+      getElementById: () => editor,
+      createElement: (tag: string) => { created.push(tag); return button; },
+      addEventListener: (name: string, fn: Listener) => { (docListeners[name] ??= []).push(fn); },
+      queryCommandState: () => false,
+    };
+    const window = {
+      ReactNativeWebView: { postMessage: () => undefined },
+      addEventListener: () => undefined,
+      getSelection: () => ({ rangeCount: 1, anchorNode }),
+    };
+    const script = extractScript(buildEditorHtml({
+      initialHtml: '<p><br></p><div data-quoted-html="true">q</div>',
+      placeholder: '',
+      c: LIGHT_COLORS,
+      collapseQuote: opts.collapseQuote ?? true,
+      quoteToggleLabels: { show: 'Zitat zeigen', hide: 'Zitat verbergen' },
+    }));
+    new Function('window', 'document', script)(window, document);
+    const click = () => (button.listeners.click ?? []).forEach((fn) => fn({ preventDefault: () => undefined }));
+    const caretAt = (node: unknown) => { anchorNode = node; (docListeners.selectionchange ?? []).forEach((fn) => fn()); };
+    return { classes, appended, created, button, click, caretAt, quoteChild, typed };
+  }
+
+  it('starts a reply with the quote folded behind a toggle outside the editable text', () => {
+    const page = boot();
+    expect(page.classes.has('rne-quote-collapsed')).toBe(true);
+    // On the page body, never inside the editor: it is no part of the message.
+    expect(page.appended).toEqual([page.button]);
+    expect(page.button.attrs['aria-expanded']).toBe('false');
+    expect(page.button.attrs['aria-label']).toBe('Zitat zeigen');
+    expect(page.button.style.top).toBe('124px');
+    expect(page.button.style.display).toBe('block');
+  });
+
+  it('shows and hides the quote on a tap', () => {
+    const page = boot();
+    page.click();
+    expect(page.classes.has('rne-quote-collapsed')).toBe(false);
+    expect(page.button.attrs['aria-label']).toBe('Zitat verbergen');
+    page.click();
+    expect(page.classes.has('rne-quote-collapsed')).toBe(true);
+  });
+
+  it('shows the quote when the caret moves into it', () => {
+    const page = boot();
+    page.caretAt(page.typed);
+    expect(page.classes.has('rne-quote-collapsed')).toBe(true);
+    page.caretAt(page.quoteChild);
+    expect(page.classes.has('rne-quote-collapsed')).toBe(false);
+  });
+
+  it('adds nothing to a message without a quote, or when not asked', () => {
+    expect(boot({ withQuote: false }).created).toEqual([]);
+    expect(boot({ collapseQuote: false }).created).toEqual([]);
+  });
+
+  it('hides the quote with styles on the editor element, so it stays in the sent body', () => {
+    const html = buildEditorHtml({ initialHtml: 'x', placeholder: '', c: LIGHT_COLORS, collapseQuote: true });
+    expect(html).toMatch(/#editor\.rne-quote-collapsed > \[data-quoted-html\] \{ height: 30px; overflow: hidden; \}/);
+    const script = extractScript(html);
+    expect(() => new Function(script)).not.toThrow();
+    expect(script).not.toContain('\\');
+  });
+
+  it('is asked for on a reply in the composer', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../screens/ComposeScreen.tsx'), 'utf8');
+    expect(source).toMatch(/const collapseReplyQuote = isReplyLike && \(mode === 'reply' \|\| mode === 'replyAll'\);/);
+    expect(source).toMatch(/collapseQuote=\{collapseReplyQuote && editorSeedHtml === initialBodyHtml\}/);
   });
 });

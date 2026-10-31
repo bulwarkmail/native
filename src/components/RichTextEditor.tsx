@@ -87,10 +87,17 @@ interface Props {
    * stays visible (see `pinVisualViewport` in editor-html).
    */
   onViewportShift?: (dy: number) => void;
+  /** Start a reply's quoted original hidden behind a toggle (read once, on mount). */
+  collapseQuote?: boolean;
+  /** The quote toggle's accessible names. */
+  quoteToggleLabels?: { show: string; hide: string };
 }
 
 const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function RichTextEditor(
-  { initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur, onViewportShift },
+  {
+    initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur, onViewportShift,
+    collapseQuote = false, quoteToggleLabels,
+  },
   ref,
 ) {
   const c = useColors();
@@ -113,6 +120,7 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   const html = React.useMemo(
     () => buildEditorHtml({
       initialHtml, placeholder, c, blockRemoteImages, pinVisualViewport: Platform.OS === 'android',
+      collapseQuote, quoteToggleLabels,
     }),
     // c reference changes per theme switch but we don't want to lose user
     // edits on a theme change. Bake in the initial colors only.

@@ -696,6 +696,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
   });
 
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  const collapseReplyQuote = isReplyLike && (mode === 'reply' || mode === 'replyAll');
+  const quoteToggleLabels = React.useMemo(() => ({
+    show: t('email_viewer.show_quoted_text', 'Show quoted text'),
+    hide: t('email_viewer.hide_quoted_text', 'Hide quoted text'),
+  }), [t]);
   // The label column grows with the system font size: at 1.3 "Betreff"
   // wrapped into "Betref" / "f" in a fixed 56 dp column.
   const { fontScale } = useWindowDimensions();
@@ -2842,6 +2847,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
               ref={editorRef}
               initialHtml={editorSeedHtml}
               blockRemoteImages={blockRemoteImages}
+              // A reply's quoted history starts folded behind "•••" and still
+              // goes out with the reply (webmail #1405). Only the editor built
+              // on open: one rebuilt by a switch from plain text shows it all.
+              collapseQuote={collapseReplyQuote && editorSeedHtml === initialBodyHtml}
+              quoteToggleLabels={quoteToggleLabels}
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
