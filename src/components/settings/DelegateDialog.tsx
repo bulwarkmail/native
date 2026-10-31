@@ -177,7 +177,7 @@ export function DelegateDialog({
           </View>
 
           {failures ? (
-            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
               <Text style={styles.label} accessibilityLiveRegion="assertive">
                 {t('delegates.partial_title', "These couldn't be changed. The rest is done.")}
               </Text>

@@ -2092,7 +2092,7 @@ function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: 
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {t('files.move_to', 'Move to…')} · {target.displayName}
               </Text>
-              <ScrollView style={{ maxHeight: 360 }}>
+              <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
                 {options.map((opt) => {
                   const isCurrent = opt.id === currentParent;
                   return (

@@ -147,7 +147,7 @@ export function DeviceSyncCollectionsSheet({ visible, onClose, registryId, autho
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {state.kind === 'error' && (
             <View style={styles.message} accessibilityRole="alert">
               <Text style={styles.errorText}>{errorText}</Text>

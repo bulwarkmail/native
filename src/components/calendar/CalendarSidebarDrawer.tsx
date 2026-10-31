@@ -186,7 +186,7 @@ export function CalendarSidebarDrawer({
             <Text style={styles.headerTitle}>{t('calendar.title', 'Calendar')}</Text>
           </View>
 
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             {views && views.length > 0 && (
               <View style={styles.viewsSection}>
                 {views.map(({ key, label, Icon }) => {

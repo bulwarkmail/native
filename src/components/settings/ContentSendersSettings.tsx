@@ -258,6 +258,7 @@ export function ContentSendersSettings() {
               </Text>
             ) : (
               <FlatList
+                keyboardShouldPersistTaps="handled"
                 data={rows}
                 keyExtractor={(item) => item.email}
                 style={styles.list}

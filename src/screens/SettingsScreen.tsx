@@ -456,7 +456,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
         {/* Keyed per page: React would otherwise reuse the list's ScrollView
             and open the page at the list's scroll offset. */}
-        <ScrollView key={`page-${selectedTab}`} ref={paneScrollRef} style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
+        <ScrollView key={`page-${selectedTab}`} ref={paneScrollRef} style={styles.scrollArea} contentContainerStyle={styles.detailContent} keyboardShouldPersistTaps="handled">
           <View ref={paneContentRef}>
             <SearchHighlightContext.Provider value={searchHighlight}>
               {scopeBanner}

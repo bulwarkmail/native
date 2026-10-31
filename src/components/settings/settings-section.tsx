@@ -303,7 +303,7 @@ export function Select({ value, onChange, options, style }: SelectProps) {
       >
         <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setOpen(false)}>
           <View style={styles.modalContent}>
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               {options.map((opt) => {
                 const selected = opt.value === value;
                 return (

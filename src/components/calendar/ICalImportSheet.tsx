@@ -240,7 +240,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                   </Text>
                 </View>
               </View>
-              <ScrollView style={{ flex: 1 }}>
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
                 {result.refused.map(({ event, reason }, idx) => {
                   const date = eventDateLabel(event, locale);
                   return (
@@ -302,7 +302,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
           ) : (
             <>
               {writable.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calChips}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calChips} keyboardShouldPersistTaps="handled">
                   {writable.map((cal) => (
                     <Pressable
                       key={cal.id}
@@ -332,7 +332,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                 </View>
               </View>
 
-              <ScrollView style={{ flex: 1 }}>
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
                 {parsed.map((event, idx) => {
                   const isSelected = selected.has(idx);
                   const date = eventDateLabel(event, locale);
