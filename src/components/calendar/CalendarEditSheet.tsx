@@ -27,7 +27,7 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
 import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
-import { customColorGrid, normalizeHexColor } from '../../lib/calendar-custom-color';
+import { customColorGrid, HEX_FIELD_MAX_LENGTH, hexFieldText, normalizeHexColor } from '../../lib/calendar-custom-color';
 
 const CUSTOM_COLOR_GRID = customColorGrid();
 import Button from '../Button';
@@ -260,11 +260,14 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                       const hex = normalizeHexColor(v);
                       if (hex) setColor(hex);
                     }}
+                    // "3b82f6" works as well as "#3b82f6"; leaving the field
+                    // shows it with its "#".
+                    onBlur={() => setHexInput((v) => hexFieldText(v))}
                     placeholder="#3b82f6"
                     placeholderTextColor={c.textMuted}
                     autoCapitalize="none"
                     autoCorrect={false}
-                    maxLength={7}
+                    maxLength={HEX_FIELD_MAX_LENGTH}
                     accessibilityLabel={t('calendar.management.custom_color', 'Custom color (hex)')}
                     style={[styles.input, styles.hexInput, hexInvalid && styles.inputInvalid]}
                   />
@@ -283,7 +286,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                 </View>
                 {hexInvalid && (
                   <Text style={styles.error}>
-                    {t('calendar.management.color_invalid', 'Enter a color as # and six hex digits, such as #3b82f6.')}
+                    {t('calendar.management.color_invalid', 'Enter a color as six hex digits, with or without #, such as #3b82f6.')}
                   </Text>
                 )}
                 {moreColors && (
@@ -307,9 +310,11 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                     ))}
                   </View>
                 )}
-                <Text style={styles.label}>{t('calendar.management.description', 'Description')}</Text>
+                {/* Not calendar.management.description: in the webmail's
+                    catalog that is the management page's desktop help text. */}
+                <Text style={styles.label}>{t('calendar.management.description_field', 'Description')}</Text>
                 <TextInput
-                  accessibilityLabel={t('calendar.management.description', 'Description')}
+                  accessibilityLabel={t('calendar.management.description_field', 'Description')}
                   value={description}
                   onChangeText={setDescription}
                   placeholder={t('calendar.management.description_placeholder', 'Optional')}

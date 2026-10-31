@@ -30,6 +30,7 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { addressBookLabel } from '../lib/address-book-label';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactForm'>;
 type Route = RouteProp<RootStackParamList, 'ContactForm'>;
@@ -517,7 +518,7 @@ export default function ContactFormScreen() {
             style={[styles.pill, form.addressBookId === book.id && styles.pillActive]}
           >
             <Text style={[styles.pillText, form.addressBookId === book.id && styles.pillTextActive]}>
-              {book.isShared && book.accountName ? `${book.name} (${book.accountName})` : book.name}
+              {addressBookLabel(book)}
             </Text>
           </Pressable>
         ))}

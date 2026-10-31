@@ -14,6 +14,7 @@ import { useContactsStore, type RecipientSuggestion } from '../../stores/contact
 import { useLocaleStore } from '../../stores/locale-store';
 import type { Attendee } from '../../lib/calendar-participants';
 import { participantSuggestions, participantsFromSuggestion } from '../../lib/calendar-participant-suggestions';
+import { participantRemoveAccessibilityLabel } from '../../lib/calendar-a11y';
 
 interface ParticipantInputProps {
   attendees: Attendee[];
@@ -31,7 +32,14 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const [draft, setDraft] = React.useState('');
+  const [draft, setDraftState] = React.useState('');
+  // Done submits and then blurs the field; both handlers run before a
+  // re-render, so they read the text from here, not from `draft`.
+  const draftRef = React.useRef('');
+  const setDraft = React.useCallback((value: string) => {
+    draftRef.current = value;
+    setDraftState(value);
+  }, []);
   // Contacts, groups and recent Sent recipients, as the composer offers them.
   const getAutocomplete = useContactsStore((s) => s.getAutocomplete);
   const getGroupRecipients = useContactsStore((s) => s.getGroupRecipients);
@@ -68,7 +76,8 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
   };
 
   const handleSubmit = () => {
-    if (draft.trim()) addParticipant(draft);
+    const typed = draftRef.current;
+    if (typed.trim()) addParticipant(typed);
   };
 
   return (
@@ -84,7 +93,7 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
                 onPress={() => onRemove(a.email)}
                 hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel={t('calendar.participants.remove', 'Remove')}
+                accessibilityLabel={participantRemoveAccessibilityLabel(a, t)}
               >
                 <X size={12} color={c.textMuted} />
               </Pressable>
@@ -93,28 +102,8 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
         </View>
       )}
 
-      <TextInput
-        accessibilityLabel={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}
-        // No full-screen keyboard in landscape: it would hide the suggestions
-        // and the text around the field.
-        disableFullscreenUI
-        value={draft}
-        onChangeText={setDraft}
-        placeholder={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}
-        placeholderTextColor={c.textMuted}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="email-address"
-        // The app's own suggestions only: system autofill would cover them.
-        autoComplete="off"
-        importantForAutofill="no"
-        textContentType="none"
-        onSubmitEditing={handleSubmit}
-        onBlur={handleSubmit}
-        returnKeyType="done"
-        style={styles.input}
-      />
-
+      {/* Above the field, not below it: below, the keyboard covered the
+          list (the editor keeps only the focused field in view). */}
       {filteredSuggestions.length > 0 && (
         <ScrollView
           style={styles.suggestions}
@@ -140,6 +129,28 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
           ))}
         </ScrollView>
       )}
+
+      <TextInput
+        accessibilityLabel={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}
+        // No full-screen keyboard in landscape: it would hide the suggestions
+        // and the text around the field.
+        disableFullscreenUI
+        value={draft}
+        onChangeText={setDraft}
+        placeholder={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}
+        placeholderTextColor={c.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        // The app's own suggestions only: system autofill would cover them.
+        autoComplete="off"
+        importantForAutofill="no"
+        textContentType="none"
+        onSubmitEditing={handleSubmit}
+        onBlur={handleSubmit}
+        returnKeyType="done"
+        style={styles.input}
+      />
     </View>
   );
 }

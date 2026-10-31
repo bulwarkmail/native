@@ -24,6 +24,20 @@ index ed1af56..12c3630 100644
              intent,
              PendingIntent.FLAG_CANCEL_CURRENT
                  | PendingIntent.FLAG_MUTABLE
+diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetProvider.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetProvider.java
+index c138d81..bcd490d 100644
+--- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetProvider.java
++++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetProvider.java
+@@ -133,6 +133,9 @@ public class RNWidgetProvider extends AppWidgetProvider {
+         try {
+             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uri));
+             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++            // This app's own activity, never a chooser: another build of the app
++            // (another flavor) handles the same scheme and would be offered too.
++            intent.setPackage(context.getPackageName());
+             context.startActivity(intent);
+         } catch (Exception e) {
+             e.printStackTrace();
 diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java
 index 2a34305..711503b 100644
 --- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetUtil.java

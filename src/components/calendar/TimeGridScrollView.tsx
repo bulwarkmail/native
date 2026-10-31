@@ -89,6 +89,8 @@ interface TimeGridScrollViewProps {
   onSelectDate?: (date: Date) => void;
   onSelectEvent?: (event: CalendarEvent) => void;
   onCreateAtTime?: (date: Date) => void;
+  /** A change takes the "New event" block away (the editor closed, the tab was left). */
+  draftResetKey?: number;
 }
 
 /**
@@ -119,6 +121,7 @@ function TimeGridScrollViewInner({
   onSelectDate,
   onSelectEvent,
   onCreateAtTime,
+  draftResetKey = 0,
 }: TimeGridScrollViewProps) {
   const c = useColors();
   // "Light event colors" (webmail calendarTintedEvents).
@@ -314,6 +317,9 @@ function TimeGridScrollViewInner({
   // A tap on an empty slot marks it with a "New event" block; tapping that
   // block creates the event. Two taps, so a stray tap never opens the editor.
   const [draft, setDraft] = React.useState<{ key: string; hour: number } | null>(null);
+  React.useEffect(() => {
+    setDraft(null);
+  }, [draftResetKey]);
   const handleTapAt = React.useCallback((day: Date, hour: number) => {
     const key = dayKey(day);
     setDraft((cur) => (cur && cur.key === key && cur.hour === hour ? null : { key, hour }));

@@ -76,8 +76,10 @@
       "clear_confirm": "Alle entfernen",
       "clear_description": "Alle Termine in diesem Kalender werden gelöscht. Termine, die auch zu einem anderen Kalender gehören, werden nur aus diesem entfernt.",
       "clear_title": "Alle Termine entfernen?",
+      "color_invalid": "Geben Sie eine Farbe als sechs Hex-Ziffern ein, mit oder ohne #, etwa #3b82f6.",
       "delete_description": "Der Kalender und alle seine Termine werden gelöscht. Dies kann nicht rückgängig gemacht werden.",
       "delete_title": "Kalender löschen?",
+      "description_field": "Beschreibung",
       "description_placeholder": "Optional",
       "edit_calendar": "Kalender bearbeiten",
       "new_calendar": "Neuer Kalender"
@@ -91,7 +93,8 @@
     },
     "occurrence_not_found_again": "Die Änderung wurde nicht gespeichert: Der Termin konnte auf dem Server nicht wiedergefunden werden. Versuchen Sie es erneut.",
     "participants": {
-      "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen."
+      "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen.",
+      "remove_named": "{name} entfernen"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {Termin} other {Terminen}}",
@@ -146,7 +149,8 @@
     },
     "detail": {
       "delete_confirm": "Dieses Ereignis löschen?"
-    }
+    },
+    "change_month_named": "{month}, Monat wechseln"
   },
   "common": {
     "add": "Hinzufügen",

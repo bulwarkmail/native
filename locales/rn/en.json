@@ -13,6 +13,7 @@
     "alerts": {
       "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}"
     },
+    "change_month_named": "{month}, change month",
     "colors": {
       "indigo": "Indigo",
       "teal": "Teal"
@@ -95,10 +96,11 @@
       "clear_confirm": "Remove all",
       "clear_description": "Every event in this calendar will be deleted. Events that also belong to another calendar are only unlinked.",
       "clear_title": "Remove all events?",
-      "color_invalid": "Enter a color as # and six hex digits, such as #3b82f6.",
+      "color_invalid": "Enter a color as six hex digits, with or without #, such as #3b82f6.",
       "custom_color": "Custom color (hex)",
       "delete_description": "The calendar and all of its events will be deleted. This cannot be undone.",
       "delete_title": "Delete calendar?",
+      "description_field": "Description",
       "description_placeholder": "Optional",
       "edit_calendar": "Edit calendar",
       "fewer_colors": "Fewer colors",
@@ -115,7 +117,8 @@
     "occurrence_not_found_again": "The change was not saved: the occurrence could not be found again on the server. Please try again.",
     "participants": {
       "group_members": "{count, plural, one {# member} other {# members}}",
-      "limit_warning": "More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit."
+      "limit_warning": "More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit.",
+      "remove_named": "Remove {name}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",

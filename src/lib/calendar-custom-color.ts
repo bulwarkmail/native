@@ -10,6 +10,21 @@ export function normalizeHexColor(input: string): string | null {
   return `#${hex.toLowerCase()}`;
 }
 
+/**
+ * What the hex field shows once the user leaves it: a colour typed without
+ * its "#", in capitals or as three digits, spelled out as "#rrggbb"; anything
+ * else stays as typed, so the hint under the field still applies to it.
+ */
+export function hexFieldText(input: string): string {
+  return normalizeHexColor(input) ?? input;
+}
+
+/**
+ * Longest text the hex field takes: "#rrggbb" plus a space either side, as a
+ * pasted value can carry. Seven cut a pasted " #3b82f6" to an invalid colour.
+ */
+export const HEX_FIELD_MAX_LENGTH = 9;
+
 function hslToHex(h: number, s: number, l: number): string {
   const a = s * Math.min(l, 1 - l);
   const f = (n: number) => {

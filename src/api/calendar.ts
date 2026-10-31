@@ -865,7 +865,10 @@ async function queryExpandedRange(
  * rule / overrides (and all-day ones without showWithoutTime). Fetch those
  * from the base events in one batched get and merge them in, so an
  * occurrence carries the same series context the device-side expansion
- * copies from its master.
+ * copies from its master. Stalwart 0.16 also hands a one-off event out
+ * under a synthetic id, without a recurrenceId and without
+ * showWithoutTime: an all-day one would read as 00:00 to 00:00, so its base
+ * is fetched as well.
  */
 export async function hydrateExpandedOccurrences(
   events: CalendarEvent[],
@@ -873,7 +876,7 @@ export async function hydrateExpandedOccurrences(
 ): Promise<CalendarEvent[]> {
   const baseIds = Array.from(new Set(
     events
-      .filter((event) => isServerRecurrenceInstance(event) && event.recurrenceId)
+      .filter((event) => isServerRecurrenceInstance(event))
       .map((event) => event.baseEventId as string),
   ));
   if (baseIds.length === 0) return events;

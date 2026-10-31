@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { Trash2, UserPlus, Users } from '../icons';
 import { listPrincipals, ownPrincipalId, type PrincipalListing } from '../../api/files';
+import { findPrincipalByEmail } from '../../api/delegation';
 import type { Principal } from '../../api/types';
 import { directoryNotice } from '../../lib/principal-directory';
+import { canLookUpAddress, lookupMessage, lookupResult, type Lookup } from '../../lib/delegation/display';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -72,12 +74,17 @@ export function ShareCollectionSheet<R extends object>({
   const [shares, setShares] = React.useState<Record<string, R>>({});
   const [search, setSearch] = React.useState('');
   const [savingId, setSavingId] = React.useState<string | null>(null);
+  // A typed address nobody listed has: looked up on its own, as the
+  // Delegates dialog does (webmail delegate-dialog.tsx). The listing can
+  // miss people the server still finds by address.
+  const [lookup, setLookup] = React.useState<Lookup>({ state: 'idle' });
 
   React.useEffect(() => {
     if (!collection) return undefined;
     let cancelled = false;
     setShares(collection.shareWith ?? {});
     setSearch('');
+    setLookup({ state: 'idle' });
     setLoading(true);
     void listPrincipals().then(({ principals: list, ...listing }) => {
       if (cancelled) return;
@@ -138,6 +145,29 @@ export function ShareCollectionSheet<R extends object>({
     }
   };
 
+  const typedAddress = search.trim();
+  // Anyone listed with that address is a candidate, has access or is the user.
+  const offerLookup = !loading && candidates.length === 0 && canLookUpAddress(search, principals);
+
+  const lookUp = async () => {
+    if (!offerLookup || lookup.state === 'busy' || savingId) return;
+    setLookup({ state: 'busy' });
+    const found = await findPrincipalByEmail(typedAddress);
+    let ownIds: string[] = [];
+    try {
+      ownIds = [ownPrincipalId()];
+    } catch {
+      // No session yet: the server's answer still says who it is.
+    }
+    const result = lookupResult(typedAddress, found, ownIds);
+    setLookup(result.lookup);
+    const picked = result.picked;
+    if (!picked) return;
+    setPrincipals((prev) => (prev.some((p) => p.id === picked.id) ? prev : [...prev, picked]));
+    if (shares[picked.id] == null) await applyShare(picked.id, addRights);
+    setSearch('');
+  };
+
   if (!collection) return null;
 
   // The list below is partial or empty for a reason the user can't see
@@ -164,8 +194,10 @@ export function ShareCollectionSheet<R extends object>({
         <Text style={styles.principalName} numberOfLines={1}>
           {p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId)}
         </Text>
-        {p?.email || unresolved ? (
-          <Text style={styles.principalEmail} numberOfLines={1}>{p?.email || principalId}</Text>
+        {/* Never the id in its place: Stalwart 1.0's are a letter or two
+            ("e") and read as a broken address. */}
+        {p?.email ? (
+          <Text style={styles.principalEmail} numberOfLines={1}>{p.email}</Text>
         ) : null}
       </View>
     );
@@ -238,7 +270,10 @@ export function ShareCollectionSheet<R extends object>({
                   <TextInput
                     accessibilityLabel={t('sharing.add_person', 'Add person or group')}
                     value={search}
-                    onChangeText={setSearch}
+                    onChangeText={(text) => {
+                      setSearch(text);
+                      setLookup({ state: 'idle' });
+                    }}
                     placeholder={t('calendar.share.search_placeholder', 'Search by name or email')}
                     placeholderTextColor={c.textMuted}
                     autoCapitalize="none"
@@ -250,6 +285,30 @@ export function ShareCollectionSheet<R extends object>({
                   ) : null}
                   {loading ? (
                     <ActivityIndicator size="small" color={c.textMuted} style={{ marginTop: spacing.md }} />
+                  ) : offerLookup ? (
+                    <View>
+                      <Pressable
+                        onPress={() => void lookUp()}
+                        disabled={lookup.state === 'busy' || !!savingId}
+                        style={({ pressed }) => [styles.candidateRow, pressed && styles.rowPressed]}
+                        accessibilityRole="button"
+                        accessibilityState={{ busy: lookup.state === 'busy' }}
+                      >
+                        <Text style={[styles.principalName, styles.principalInfo]} numberOfLines={1}>
+                          {lookup.state === 'busy'
+                            ? t('delegates.looking_up', 'Looking up…')
+                            : t('delegates.use_address', 'Use {address}', { address: typedAddress })}
+                        </Text>
+                        {lookup.state === 'busy' || savingId ? (
+                          <ActivityIndicator size="small" color={c.textMuted} />
+                        ) : (
+                          <UserPlus size={18} color={c.primary} />
+                        )}
+                      </Pressable>
+                      {lookupMessage(lookup, t) ? (
+                        <Text style={styles.empty} accessibilityLiveRegion="polite">{lookupMessage(lookup, t)}</Text>
+                      ) : null}
+                    </View>
                   ) : candidates.length === 0 ? (
                     notice && !search.trim() ? null : (
                       <Text style={styles.empty}>

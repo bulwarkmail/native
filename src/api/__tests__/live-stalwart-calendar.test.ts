@@ -937,6 +937,28 @@ live('live Stalwart calendar', () => {
     }, 60_000);
   });
 
+  describe('an all-day event', () => {
+    // 0.16 expands a one-off event to a synthetic id without showWithoutTime;
+    // the detail sheet then said 00:00 - 00:00 and the editor's switch was off.
+    it('stays all-day on the calendar and in the editor', async () => {
+      await connectSingleton();
+      const created = await createEvent({
+        '@type': 'Event',
+        title: `${RUN} all day`,
+        start: '2027-11-10T00:00:00',
+        duration: 'P1D',
+        showWithoutTime: true,
+      } as Partial<CalendarEvent>, calendarId, false);
+      const uid = created.uid ?? (await getEvents([created.id]))[0].uid!;
+      const [event] = await loadOccurrences(uid, '2027-11-08T00:00:00Z', '2027-11-15T00:00:00Z');
+      expect(event, 'the event is on the calendar').toBeTruthy();
+      expect(event.showWithoutTime).toBe(true);
+      expect(event.timeZone ?? null).toBeNull();
+      expect(editorTimesFromEvent(event).allDay).toBe(true);
+      expect(getEventStartDate(event).getDate()).toBe(10);
+    }, 60_000);
+  });
+
   describe('a subscribed feed', () => {
     const FEED_URL = 'https://feeds.invalid/live.ics';
     let feed = '';

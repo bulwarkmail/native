@@ -11,6 +11,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { monthButtonAccessibilityLabel } from '../lib/calendar-a11y';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
   Calendar as CalendarIcon,
@@ -239,6 +241,15 @@ export default function CalendarScreen() {
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
   const [modalDate, setModalDate] = React.useState<Date | undefined>(undefined);
   const [modalVisible, setModalVisible] = React.useState(false);
+  // The "New event" block a tap on an empty slot leaves: gone once the
+  // editor opens or closes, or the user leaves the tab.
+  const [slotDraftReset, setSlotDraftReset] = React.useState(0);
+  React.useEffect(() => {
+    setSlotDraftReset((n) => n + 1);
+  }, [modalVisible]);
+  useFocusEffect(
+    React.useCallback(() => () => setSlotDraftReset((n) => n + 1), []),
+  );
   const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
   const [sidebarVisible, setSidebarVisible] = React.useState(false);
   const [tasksVisible, setTasksVisible] = React.useState(false);
@@ -1027,7 +1038,7 @@ export default function CalendarScreen() {
           style={styles.titleBtn}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel={t('calendar.mini_calendar_change', 'Change month')}
+          accessibilityLabel={monthButtonAccessibilityLabel(headerTitle(titleDate, locale), t)}
           accessibilityState={{ expanded: monthPanelOpen }}
         >
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -1177,6 +1188,7 @@ export default function CalendarScreen() {
             onSelectDate={viewMode === 'day' ? handleSelectDate : openDay}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
+            draftResetKey={slotDraftReset}
           />
         )}
         {viewMode === 'week' && !freeScroll && (
