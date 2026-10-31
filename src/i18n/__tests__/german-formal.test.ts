@@ -22,7 +22,7 @@ function strings(obj: Record<string, unknown>, prefix = '', out: Array<[string, 
   return out;
 }
 
-const INFORMAL = /\b(du|dich|dir|dein|deine|deinen|deinem|deiner|deines)\b|(?:^|[.!?]\s+)(Öffne|Tippe|Wähle|Prüfe|Übertrage)\s/i;
+const INFORMAL = /\b(du|dich|dir|dein|deine|deinen|deinem|deiner|deines)\b|(?:^|[.!?]\s+)(Öffne|Tippe|Wähle|Prüfe|Übertrage|Passe)\s/i;
 
 describe('German phone strings', () => {
   it('say "Sie", not "du"', () => {
