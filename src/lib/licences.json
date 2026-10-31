@@ -41,6 +41,12 @@
       "url": "https://github.com/software-mansion/react-native-screens"
     },
     {
+      "name": "asn1js",
+      "version": "3.1.0",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/PeculiarVentures/ASN1.js"
+    },
+    {
       "name": "date-fns",
       "version": "4.4.0",
       "license": "MIT",
@@ -161,10 +167,28 @@
       "url": "https://github.com/Stuk/jszip"
     },
     {
+      "name": "openpgp",
+      "version": "6.3.2",
+      "license": "LGPL-3.0+",
+      "url": "https://openpgpjs.org/"
+    },
+    {
+      "name": "pkijs",
+      "version": "3.4.3",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/PeculiarVentures/PKI.js"
+    },
+    {
       "name": "postal-mime",
       "version": "4.2.0",
       "license": "MIT-0",
       "url": "https://postal-mime.postalsys.com"
+    },
+    {
+      "name": "pvtsutils",
+      "version": "1.3.6",
+      "license": "MIT",
+      "url": "https://github.com/PeculiarVentures/pvtsutils"
     },
     {
       "name": "react",
@@ -213,6 +237,12 @@
       "version": "13.15.0",
       "license": "MIT",
       "url": "https://github.com/react-native-webview/react-native-webview"
+    },
+    {
+      "name": "webcrypto-liner",
+      "version": "1.4.3",
+      "license": "MIT",
+      "url": "https://github.com/PeculiarVentures/webcrypto-liner"
     },
     {
       "name": "zustand",
