@@ -258,6 +258,12 @@ function opFamily(op: OutboxOp): string {
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryAttempt = 0;
+/**
+ * A flush was asked for while one ran (a message queued or retried then):
+ * the running one works from lists it took when it started, so another
+ * follows it.
+ */
+let flushAgain = false;
 
 // Reads of a bucket from storage. A read still running when the account
 // changes or its queue is cleared must not put the old entries back, so
@@ -436,7 +442,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   pendingForEmail: (emailId) => get().entries.filter((e) => e.op.emailId === emailId),
 
   flush: async () => {
-    if (get().flushing || get().paused || !get().resumed || !get().hydrated) return;
+    if (get().flushing) {
+      flushAgain = true;
+      return;
+    }
+    if (get().paused || !get().resumed || !get().hydrated) return;
     const accountId = get().activeAccountId;
     if (!accountId) return;
     if (get().entries.length === 0 && !hasWaitingSends()) return;
@@ -445,6 +455,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (!useNetworkStore.getState().online) return;
 
     set({ flushing: true });
+    flushAgain = false;
     let brokeTransient = false;
     let dropped = false;
     // An entry that took on a later edit while its op was out runs again.
@@ -509,7 +520,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       set({ flushing: false });
     }
     if (brokeTransient && (get().entries.length > 0 || hasWaitingSends())) scheduleRetry();
-    else if (changedInFlight) void get().flush();
+    else if (changedInFlight || flushAgain) void get().flush();
     if (dropped) void refreshAfterDrop();
   },
 
@@ -562,6 +573,22 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (!opts?.keepAsDraft) return true;
     const p = send.payload;
     try {
+      // An attempt that may have reached the server is looked for first, as
+      // before a resend: a message that went out must not come back as a
+      // draft.
+      if (send.maybeSent) {
+        const [{ wasQueuedSendSent }, { useEmailStore }] = await Promise.all([
+          import('../api/queued-send'),
+          import('./email-store'),
+        ]);
+        if (await wasQueuedSendSent(send, useEmailStore.getState().mailboxes)) {
+          if (p.original) {
+            patchKeywordsForEmails([p.original.emailId], { [p.original.keyword]: true }, p.original.accountId).catch(() => undefined);
+          }
+          void notifyAlreadySent(send);
+          return true;
+        }
+      }
       if (!p.draftsMailboxId) throw new Error('No Drafts folder');
       const { saveDraftVersion } = await import('../api/email');
       await saveDraftVersion(p.outgoing, p.draftsMailboxId, p.draftId, undefined, p.draftAccountId);
@@ -690,14 +717,17 @@ async function flushSends(accountId: string): Promise<'done' | 'transient'> {
     } catch (err) {
       const kind = classifySendFailure(err, isTransientNetworkError);
       const message = err instanceof Error ? err.message : String(err);
-      updateSend(accountId, afterFailure(started, kind, message));
+      const next = afterFailure(started, kind, message);
+      updateSend(accountId, next);
+      // Refused, or unconfirmed too often: it waits for the user now, and
+      // nothing retries it, so say so whatever the reason.
+      if (next.status === 'failed') void notifyQueuedSendFailed(started, message);
       if (kind === 'auth') {
         useOutboxStore.setState({ paused: true });
         break;
       }
       if (kind === 'offline' || kind === 'unconfirmed') return 'transient';
-      // Refused: this one waits for the user; the others go on.
-      void notifyQueuedSendFailed(started, message);
+      // Refused: the others go on.
     }
   }
   return 'done';
@@ -726,6 +756,19 @@ async function afterQueuedSend(send: QueuedSend, outcome: QueuedSendOutcomeLike)
     }
   } catch (err) {
     console.warn('[outbox] could not report a queued send', err);
+  }
+}
+
+/** Taking back a message found to have gone out already: nothing became a draft. */
+async function notifyAlreadySent(send: QueuedSend): Promise<void> {
+  try {
+    const [{ toast }, { useLocaleStore }] = await Promise.all([import('./toast-store'), import('./locale-store')]);
+    const t = useLocaleStore.getState().t;
+    toast.info(t('outbox.already_sent', 'This message was already sent'), {
+      message: send.payload.outgoing.subject || undefined,
+    });
+  } catch (err) {
+    console.warn('[outbox] could not report an already sent message', err);
   }
 }
 

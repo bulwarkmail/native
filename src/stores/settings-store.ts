@@ -859,14 +859,51 @@ function policyContext(explicit: readonly string[]): PolicyPatchContext {
 }
 
 /**
+ * Defaults an earlier version had, for the settings whose default changed
+ * since. Versions before explicitSettings saved the whole snapshot, defaults
+ * included, so a value equal to the old default was most likely never
+ * picked: senderFavicons was on until sender domains stopped going to the
+ * favicon service by default; the other three changed when the defaults were
+ * aligned with the webmail (0.1.59).
+ */
+const LEGACY_DEFAULTS: Readonly<Partial<Record<keyof PersistedSettings, unknown>>> = {
+  senderFavicons: true,
+  includeGroupInUnified: false,
+  autoSelectReplyIdentity: true,
+  showBirthdayCalendar: true,
+};
+
+function isLegacyDefault(source: Record<string, unknown>, key: string): boolean {
+  return key in LEGACY_DEFAULTS && source[key] === LEGACY_DEFAULTS[key as keyof PersistedSettings];
+}
+
+/**
  * Settings from before explicitSettings existed: a value other than the
  * build default can only have come from the user, so it counts as chosen
- * (webmail legacyExplicitSettings).
+ * (webmail legacyExplicitSettings). A value equal to that setting's old
+ * default doesn't (webmail migrateNotificationSoundDefault).
  */
 export function legacyExplicitSettings(source: Record<string, unknown>): string[] {
   return Object.keys(source).filter(
-    (key) => isPolicySettingKey(key) && source[key] !== undefined && source[key] !== POLICY_BUILT_IN[key],
+    (key) =>
+      isPolicySettingKey(key) &&
+      source[key] !== undefined &&
+      source[key] !== POLICY_BUILT_IN[key] &&
+      !isLegacyDefault(source, key),
   );
+}
+
+/**
+ * Moves a setting still at its old default, in settings from before
+ * explicitSettings existed, to the current default: the user never picked
+ * it (webmail migrateNotificationSoundDefault, migrateTintListRowsDefault).
+ */
+export function migrateLegacyDefaults<T extends Record<string, unknown>>(source: T): T {
+  const out: Record<string, unknown> = { ...source };
+  for (const key of Object.keys(LEGACY_DEFAULTS)) {
+    if (isLegacyDefault(out, key)) out[key] = DEFAULT_PERSISTED[key as keyof PersistedSettings];
+  }
+  return out as T;
 }
 
 /** Whether the organisation policy pins `key`, so the user can't change it. */
@@ -942,9 +979,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-        const merged = mergeWithDefaults(parsed);
+        let merged = mergeWithDefaults(parsed);
         if (!Array.isArray(parsed.explicitSettings)) {
           merged.explicitSettings = legacyExplicitSettings(merged as unknown as Record<string, unknown>);
+          merged = migrateLegacyDefaults(merged as unknown as Record<string, unknown>) as unknown as PersistedSettings;
         }
         // The policy may have arrived (from its cache) before the settings.
         const patch = currentPolicyPatch(merged);
@@ -1089,12 +1127,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return false;
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-    const incoming = fromExportShape(parsed as Record<string, unknown>);
+    let incoming = fromExportShape(parsed as Record<string, unknown>);
     // A file without explicitSettings (older clients): what it sets to
-    // something other than the default was chosen.
-    const chosen = Array.isArray(incoming.explicitSettings)
-      ? incoming.explicitSettings.filter((key): key is string => typeof key === 'string')
+    // something other than the default was chosen, and what is still at an
+    // old default moves to the current one.
+    const legacy = !Array.isArray(incoming.explicitSettings);
+    const chosen = !legacy
+      ? (incoming.explicitSettings as unknown[]).filter((key): key is string => typeof key === 'string')
       : legacyExplicitSettings(incoming as Record<string, unknown>);
+    if (legacy) incoming = migrateLegacyDefaults(incoming as Record<string, unknown>) as typeof incoming;
     // Validate against the current state so keys absent from the file keep
     // their value instead of snapping back to the default.
     const merged = mergeWithDefaults({

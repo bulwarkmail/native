@@ -7,16 +7,22 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useCryptoKeysStore, type CryptoKeyRecord } from '../../stores/crypto-keys-store';
-import type { SecureStatus } from '../../lib/crypto/secure-message';
-import { secureBannerRows, type BannerTone as Tone } from '../../lib/crypto/banner-rows';
+import type { OfferedPgpKey, SecureStatus } from '../../lib/crypto/secure-message';
+import { offeredKeyRow, secureBannerRows, type BannerTone as Tone } from '../../lib/crypto/banner-rows';
+import { savePgpKeyFor } from '../../lib/crypto/keyring';
+import { toast } from '../../stores/toast-store';
 
-/** Status banner above a PGP / S/MIME message, with Unlock for a locked key. */
-export function SecureMessageBanner({ status, loading }: { status: SecureStatus | null; loading?: boolean }) {
+/**
+ * Status banner above a PGP / S/MIME message, with Unlock for a locked key
+ * and Save for a public key the message carries for its sender.
+ */
+export function SecureMessageBanner({ status, loading, offeredKey }: { status: SecureStatus | null; loading?: boolean; offeredKey?: OfferedPgpKey }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const keys = useCryptoKeysStore((s) => s.keys);
   const [unlockRecord, setUnlockRecord] = React.useState<CryptoKeyRecord | null>(null);
+  const [saving, setSaving] = React.useState(false);
 
   if (loading) {
     return (
@@ -28,11 +34,23 @@ export function SecureMessageBanner({ status, loading }: { status: SecureStatus 
   }
   if (!status) return null;
   const rows = secureBannerRows(status, t);
-  if (rows.length === 0) return null;
   const color = (tone: Tone) => (tone === 'ok' ? c.success : tone === 'warn' ? c.warning : tone === 'error' ? c.error : c.textMuted);
   const lockedRecord = status.lockedKeyIds?.length
     ? keys.find((k) => k.kind === status.kind && status.lockedKeyIds!.includes(k.id)) ?? null
     : null;
+  const offer = offeredKeyRow(offeredKey, keys, t);
+  if (rows.length === 0 && !offer) return null;
+  const saveOffered = async () => {
+    if (!offeredKey) return;
+    setSaving(true);
+    try {
+      await savePgpKeyFor(offeredKey.armored, offeredKey.email);
+    } catch (err) {
+      toast.error(t('encryption.banner.save_key_failed', 'Could not save the key'), { message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <View style={styles.wrap} accessibilityRole="summary">
@@ -48,6 +66,13 @@ export function SecureMessageBanner({ status, loading }: { status: SecureStatus 
           </View>
         );
       })}
+      {offer && (
+        <View style={[styles.row, { borderColor: c.border }]}>
+          <Shield size={16} color={c.textMuted} />
+          <Text style={[styles.text, { color: c.textMuted }]}>{offer.text}</Text>
+          <Button size="sm" variant="outline" disabled={saving} onPress={() => { void saveOffered(); }}>{offer.action}</Button>
+        </View>
+      )}
       <UnlockKeyDialog
         record={unlockRecord}
         reason={t('encryption.unlock_read_reason', 'The message is encrypted to this key.')}

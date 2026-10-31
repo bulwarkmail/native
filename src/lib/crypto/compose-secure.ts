@@ -8,7 +8,7 @@ import type { OutgoingEmail } from '../../api/email';
 import type { ContactCard } from '../../api/types';
 import { useCryptoKeysStore, keysForEmail, isRecordCurrent, type CryptoKeyRecord, type PgpKeyRecord, type SmimeCertRecord } from '../../stores/crypto-keys-store';
 import { messagePriorityHeaders } from '../message-priority';
-import { base64Decode, formatHeader, encodeHeaderWords, type MimeAttachment, type MimeMessageInput } from './mime';
+import { base64Decode, formatHeader, formatAddress, type MimeAttachment, type MimeMessageInput } from './mime';
 import { buildSecureMessage, type SecureMode } from './secure-send';
 import { ownKeyFor, unlockedPgpKey, unlockedSmimeKey } from './keyring';
 
@@ -100,7 +100,7 @@ export function secureReadiness(choice: SecureChoice, fromEmail: string, recipie
 function extraHeaders(outgoing: OutgoingEmail): string[] {
   const lines: string[] = [];
   if (outgoing.replyTo?.length) {
-    lines.push(formatHeader('Reply-To', outgoing.replyTo.map((a) => (a.name ? `${encodeHeaderWords(a.name)} <${a.email}>` : a.email)).join(', ')));
+    lines.push(formatHeader('Reply-To', outgoing.replyTo.map(formatAddress).join(', ')));
   }
   for (const [prop, value] of Object.entries(messagePriorityHeaders(outgoing.priority))) {
     const name = /^header:([^:]+):/.exec(prop)?.[1];

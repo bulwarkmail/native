@@ -25,8 +25,10 @@ vi.mock('../../api/email', () => ({
 }));
 
 const runQueuedSend = vi.fn(async (..._a: any[]): Promise<any> => ({ kind: 'sent', result: { scheduled: false } }));
+const wasQueuedSendSent = vi.fn(async (..._a: any[]) => false);
 vi.mock('../../api/queued-send', () => ({
   runQueuedSend: (...a: any[]) => runQueuedSend(...a),
+  wasQueuedSendSent: (...a: any[]) => wasQueuedSendSent(...a),
 }));
 vi.mock('../email-store', () => ({
   useEmailStore: { getState: () => ({ mailboxes: [{ id: 'sent', role: 'sent' }] }) },
@@ -139,6 +141,37 @@ describe('offline send queue', () => {
     expect(runQueuedSend).toHaveBeenCalledTimes(1);
   });
 
+  it('sends a message queued while another one is on its way', async () => {
+    let release!: () => void;
+    runQueuedSend.mockImplementationOnce(() => new Promise((r) => { release = () => r({ kind: 'sent', result: {} }); }));
+    useNetworkStore.setState({ online: true, connected: true });
+    useOutboxStore.getState().enqueueSend(payload('first'));
+    await flushed();
+    expect(runQueuedSend).toHaveBeenCalledTimes(1);
+    useOutboxStore.getState().enqueueSend(payload('second'));
+    release();
+    await vi.waitFor(() => expect(useOutboxStore.getState().sends).toEqual([]));
+    expect(runQueuedSend.mock.calls.map(([s]) => s.payload.outgoing.subject)).toEqual(['first', 'second']);
+  });
+
+  it('sends a message retried while another one is on its way', async () => {
+    useNetworkStore.setState({ online: true, connected: true });
+    runQueuedSend.mockRejectedValueOnce(new Error('Invalid envelope'));
+    const failed = useOutboxStore.getState().enqueueSend(payload('failed'))!;
+    await vi.waitFor(() => expect(useOutboxStore.getState().sends[0]?.status).toBe('failed'));
+
+    let release!: () => void;
+    runQueuedSend.mockImplementationOnce(() => new Promise((r) => { release = () => r({ kind: 'sent', result: {} }); }));
+    useOutboxStore.getState().enqueueSend(payload('other'));
+    await flushed();
+    expect(runQueuedSend).toHaveBeenCalledTimes(2);
+    const retried = useOutboxStore.getState().retrySend(failed);
+    release();
+    await retried;
+    await vi.waitFor(() => expect(useOutboxStore.getState().sends).toEqual([]));
+    expect(runQueuedSend.mock.calls.map(([s]) => s.payload.outgoing.subject)).toEqual(['failed', 'other', 'failed']);
+  });
+
   it('parks a refused message with its reason and leaves it until the user tries again', async () => {
     useNetworkStore.setState({ online: true, connected: true });
     runQueuedSend.mockRejectedValueOnce(new Error('Invalid envelope'));
@@ -152,6 +185,39 @@ describe('offline send queue', () => {
     await useOutboxStore.getState().retrySend(id);
     expect(runQueuedSend).toHaveBeenCalledTimes(2);
     expect(useOutboxStore.getState().sends).toEqual([]);
+  });
+
+  it('says so when a message fails after too many unconfirmed attempts, as for a refused one', async () => {
+    useNetworkStore.setState({ online: true, connected: true });
+    runQueuedSend.mockRejectedValueOnce(new Error('Invalid envelope'));
+    useOutboxStore.getState().enqueueSend(payload('refused'));
+    await flushed();
+    await flushed();
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0][1]).toEqual({ message: 'refused: Invalid envelope' });
+
+    toast.error.mockClear();
+    const id = useOutboxStore.getState().enqueueSend(payload('unconfirmed'))!;
+    useOutboxStore.setState({ sends: useOutboxStore.getState().sends.map((s) => (s.id === id ? { ...s, attempts: 2 } : s)) });
+    runQueuedSend.mockRejectedValueOnce(named('SendUnconfirmedError', 'Send confirmation was not received'));
+    useOutboxStore.setState({ flushing: false });
+    await useOutboxStore.getState().flush();
+    await flushed();
+    expect(useOutboxStore.getState().sends.find((s) => s.id === id)).toMatchObject({ status: 'failed', attempts: 3 });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0]).toEqual([
+      'A message in the Outbox could not be sent', { message: 'unconfirmed: Send confirmation was not received' },
+    ]);
+  });
+
+  it('does not report an unconfirmed attempt that will be tried again', async () => {
+    useNetworkStore.setState({ online: true, connected: true });
+    runQueuedSend.mockRejectedValueOnce(named('SendUnconfirmedError', 'Send confirmation was not received'));
+    useOutboxStore.getState().enqueueSend(payload());
+    await flushed();
+    await flushed();
+    expect(useOutboxStore.getState().sends[0]).toMatchObject({ status: 'queued', attempts: 1 });
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('stops after an expired session without failing the message', async () => {
@@ -186,6 +252,38 @@ describe('offline send queue', () => {
     const again = useOutboxStore.getState().enqueueSend(payload('stays'))!;
     expect(await useOutboxStore.getState().cancelSend(again, { keepAsDraft: true })).toBe(false);
     expect(useOutboxStore.getState().sends[0]).toMatchObject({ id: again, status: 'failed' });
+  });
+
+  it('does not turn a message an earlier attempt sent into a draft, and says it was sent', async () => {
+    const id = useOutboxStore.getState().enqueueSend(payload('went-out'), { maybeSent: true })!;
+    wasQueuedSendSent.mockResolvedValueOnce(true);
+    expect(await useOutboxStore.getState().cancelSend(id, { keepAsDraft: true })).toBe(true);
+    expect(wasQueuedSendSent).toHaveBeenCalledWith(expect.objectContaining({ id, maybeSent: true }), [{ id: 'sent', role: 'sent' }]);
+    expect(saveDraftVersion).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().sends).toEqual([]);
+    await flushed();
+    expect(toast.info).toHaveBeenCalledWith('This message was already sent', { message: 'went-out' });
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['orig-1'], { $answered: true }, undefined);
+  });
+
+  it('moves a marked message to Drafts when no earlier attempt sent it, and looks only for marked ones', async () => {
+    const marked = useOutboxStore.getState().enqueueSend(payload('marked'), { maybeSent: true })!;
+    expect(await useOutboxStore.getState().cancelSend(marked, { keepAsDraft: true })).toBe(true);
+    expect(wasQueuedSendSent).toHaveBeenCalledTimes(1);
+    expect(saveDraftVersion).toHaveBeenCalledTimes(1);
+
+    const plain = useOutboxStore.getState().enqueueSend(payload('plain'))!;
+    expect(await useOutboxStore.getState().cancelSend(plain, { keepAsDraft: true })).toBe(true);
+    expect(wasQueuedSendSent).toHaveBeenCalledTimes(1);
+    expect(saveDraftVersion).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a marked message in the Outbox when the lookup fails', async () => {
+    const id = useOutboxStore.getState().enqueueSend(payload('unknown'), { maybeSent: true })!;
+    wasQueuedSendSent.mockRejectedValueOnce(named('NetworkError', 'Network request failed'));
+    expect(await useOutboxStore.getState().cancelSend(id, { keepAsDraft: true })).toBe(false);
+    expect(saveDraftVersion).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().sends[0]).toMatchObject({ id, status: 'failed' });
   });
 
   it('drops the queued messages with the rest when the server behind the account changed', async () => {

@@ -40,6 +40,7 @@ import {
   listScheduledEmails, RescheduleLostError, RescheduleRestoredError, rescheduleScheduledSend, sendEmail,
 } from '../email';
 import { RecipientsRefusedError, jmapErrorType } from '../jmap-result';
+import { verdictFromCopies } from '../../lib/send-queue';
 import { pruneEmailSubmissions, resetSubmissionPrune } from '../submissions';
 import {
   createFakeSubmissionServer, RATE_LIMITED, RELAY_DENIED, type StalwartVersion,
@@ -85,6 +86,33 @@ afterEach(() => {
   vi.restoreAllMocks();
   // A record get reports as pending, with its time ahead, is never destroyed.
   expect(fake.server?.violations ?? []).toEqual([]);
+});
+
+describe('a send from an account without a Drafts folder', () => {
+  // The copy is made in Sent right away. If the submission is refused and
+  // the answer is lost, that copy must not look sent to the offline queue,
+  // which takes a copy without $draft as proof the message went out.
+  it('leaves a copy a refused, unanswered submission made marked as a draft', async () => {
+    const server = setup('1.0', { forbiddenAccounts: ['shared-1'] });
+    server.afterEachRequest(() => { throw new TypeError('Network request failed'); });
+
+    await expect(sendEmail({ ...OUTGOING, messageId: 'm1@example.com' }, 'id-1', 'sent', undefined, { accountId: 'shared-1' }))
+      .rejects.toThrow('Network request failed');
+
+    const copies = [...server.emails.values()];
+    expect(copies).toEqual([expect.objectContaining({ mailboxIds: { sent: true }, keywords: { $seen: true, $draft: true } })]);
+    expect(verdictFromCopies(copies)).toEqual({ kind: 'resend', staleIds: [copies[0].id] });
+  });
+
+  it('takes $draft off the copy once the submission went through', async () => {
+    const server = setup('1.0');
+
+    await sendEmail(OUTGOING, 'id-1', 'sent', undefined, {});
+
+    const copies = [...server.emails.values()];
+    expect(copies).toEqual([expect.objectContaining({ mailboxIds: { sent: true }, keywords: { $seen: true } })]);
+    expect(verdictFromCopies(copies)).toEqual({ kind: 'sent', copyId: copies[0].id });
+  });
 });
 
 describe('a send whose recipients the server refuses', () => {

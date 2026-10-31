@@ -143,6 +143,36 @@ describe('the native renewal', () => {
     expect(set).toBeGreaterThan(own);
   });
 
+  it('treats an update the server refused as not extended, and records nothing', () => {
+    const jmap = read('plugins/ios-push/Jmap.swift');
+    const extend = jmap.slice(jmap.indexOf('static func extendPushSubscription('));
+    const check = extend.indexOf('notUpdated(responses, method: "PushSubscription/set", callId: "0", id: id)');
+    expect(check).toBeGreaterThan(-1);
+    expect(extend.indexOf('throw JmapError.notUpdated(')).toBeGreaterThan(check);
+    expect(check).toBeLessThan(extend.indexOf('return listedPushSubscription(responses, callId: "1", id: id)'));
+    // The renewal stops on it before logging "extended" or recording.
+    const body = renewal.slice(renewal.indexOf('static func renew(key:'), renewal.indexOf('private static func record('));
+    const refused = body.match(/catch JmapError\.notUpdated[\s\S]*?\}/)?.[0] ?? '';
+    expect(refused).toContain('return false');
+    expect(refused).not.toContain('record(');
+    expect(body.indexOf('try await Jmap.extendPushSubscription(')).toBeLessThan(body.indexOf('pushLog.info("extended subscription'));
+  });
+
+  it('writes back only the expiry, into the entry as it is now, while it names the same subscription', () => {
+    const record = renewal.slice(renewal.indexOf('private static func record('));
+    expect(record).toMatch(/^private static func record\(key: String, subscriptionId: String, expires: String\)/);
+    expect(record).toMatch(/guard var json = SharedKeychain\.readJSON\(key\),\s*json\["subscriptionId"\] as\? String == subscriptionId else \{ return \}/);
+    expect(record).toMatch(/json\["subscriptionExpires"\] = expires\s*SharedKeychain\.update\(key, json: json\)/);
+    expect(renewal).not.toMatch(/record\(key: key, account:/);
+  });
+
+  it('reads a refused update the way JMAP reports it', () => {
+    const jmap = read('plugins/ios-push/Jmap.swift');
+    const helper = jmap.slice(jmap.indexOf('static func notUpdated('));
+    expect(helper).toMatch(/args\["notUpdated"\] as\? \[String: Any\]\)\?\[id\]/);
+    expect(helper).toMatch(/updated\.keys\.contains\(id\) \{ return nil \}/);
+  });
+
   it('runs from the notification extension after the fetch for the pushed account', () => {
     const renew = nse.indexOf('await PushRenewal.renewIfDue(jmapAccountId: accountId)');
     expect(renew).toBeGreaterThan(nse.indexOf('await NotificationService.enrich('));

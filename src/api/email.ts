@@ -1781,8 +1781,12 @@ export async function sendEmail(
     emailCreate.mailboxIds = { [opts!.draftsMailboxId!]: true };
     emailCreate.keywords = { $seen: true, $draft: true };
   } else {
+    // No Drafts folder: created in Sent, but still with `$draft` until the
+    // submission succeeds, so a copy whose submission was refused (with the
+    // answer lost) never passes for a sent message. The send queue takes a
+    // copy without `$draft` as proof the message went out (verdictFromCopies).
     emailCreate.mailboxIds = { [sentMailboxId]: true };
-    emailCreate.keywords = { $seen: true };
+    emailCreate.keywords = { $seen: true, $draft: true };
   }
   const createCall: [string, Record<string, unknown>, string] = raw
     ? ['Email/import', { accountId, emails: { draft: emailCreate } }, '0']
@@ -1818,14 +1822,11 @@ export async function sendEmail(
     accountId,
     create: { 'sub-1': submissionCreate },
   };
-  if (viaDrafts) {
-    submissionArgs.onSuccessUpdateEmail = {
-      '#sub-1': {
-        mailboxIds: { [sentMailboxId]: true },
-        [keywordPointer('$draft')]: null,
-      },
-    };
-  }
+  submissionArgs.onSuccessUpdateEmail = {
+    '#sub-1': viaDrafts
+      ? { mailboxIds: { [sentMailboxId]: true }, [keywordPointer('$draft')]: null }
+      : { [keywordPointer('$draft')]: null },
+  };
 
   let res = await jmapClient.request(
     [

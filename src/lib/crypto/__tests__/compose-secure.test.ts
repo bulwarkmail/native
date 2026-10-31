@@ -102,6 +102,18 @@ describe('prepareSecureSend', () => {
     expect(new TextDecoder().decode(uploaded!)).not.toMatch(/bcc@example.org/i);
   }, 60_000);
 
+  it('quotes a Reply-To name with a comma so it stays one address', async () => {
+    await importPgpKey(me.privateKey, me.passphrase);
+    let uploaded: Uint8Array | null = null;
+    const msg = { ...outgoing(), replyTo: [{ name: 'Support, ACME', email: 'help@acme.com' }] };
+    await prepareSecureSend(msg, { mode: 'pgp', sign: true, encrypt: false }, {
+      fetchBlob: async () => new Uint8Array([1]),
+      upload: async (bytes) => { uploaded = bytes; return 'x'; },
+    });
+    const text = new TextDecoder().decode(uploaded!);
+    expect(text).toMatch(/^Reply-To: "Support, ACME" <help@acme.com>$/m);
+  }, 60_000);
+
   it('stops when a recipient has no key, or when the signing key is locked', async () => {
     await importPgpKey(me.privateKey, me.passphrase);
     const deps = { fetchBlob: async () => new Uint8Array(), upload: async () => 'x' };

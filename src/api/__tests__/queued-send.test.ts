@@ -18,7 +18,7 @@ vi.mock('../../lib/compose-send-account', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { findCopiesByMessageId, runQueuedSend } from '../queued-send';
+import { findCopiesByMessageId, runQueuedSend, wasQueuedSendSent } from '../queued-send';
 import { newQueuedSend, type QueuedSendPayload } from '../../lib/send-queue';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -82,6 +82,31 @@ describe('runQueuedSend', () => {
     const now = Date.parse('2026-10-31T12:00:00Z');
     await runQueuedSend(newQueuedSend('q', { ...PAYLOAD, scheduledAt: '2026-10-31T13:00:00Z' }, now, false), [], now);
     expect(sendEmail.mock.calls[0][3]).toBe(3600);
+  });
+});
+
+describe('wasQueuedSendSent', () => {
+  it('finds a copy an earlier attempt sent, and removes the old draft', async () => {
+    mockRequest.mockResolvedValueOnce(found([
+      { id: 'draft-1', keywords: { $draft: true }, messageId: ['m1@x.de'] },
+      { id: 'sent-1', keywords: { $seen: true }, messageId: ['m1@x.de'] },
+    ]));
+    expect(await wasQueuedSendSent(newQueuedSend('q', PAYLOAD, 0, true), [])).toBe(true);
+    expect(destroyEmails).toHaveBeenCalledWith(['draft-1'], 'acc-1');
+  });
+
+  it('says not sent when only drafts are there, and removes nothing', async () => {
+    mockRequest.mockResolvedValueOnce(found([
+      { id: 'draft-1', keywords: { $draft: true }, messageId: ['m1@x.de'] },
+      { id: 'left-1', keywords: { $draft: true, $seen: true }, messageId: ['m1@x.de'] },
+    ]));
+    expect(await wasQueuedSendSent(newQueuedSend('q', PAYLOAD, 0, true), [])).toBe(false);
+    expect(destroyEmails).not.toHaveBeenCalled();
+  });
+
+  it('does not look for a message no attempt reached the server with', async () => {
+    expect(await wasQueuedSendSent(newQueuedSend('q', PAYLOAD, 0, false), [])).toBe(false);
+    expect(mockRequest).not.toHaveBeenCalled();
   });
 });
 

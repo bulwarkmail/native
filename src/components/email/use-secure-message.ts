@@ -3,7 +3,7 @@ import type { Email } from '../../api/types';
 import { fetchBlobBytes } from '../../lib/email-export';
 import { secureKindHint, openSecureMessage, type SecureKeyAccess, type SecureResult } from '../../lib/crypto/secure-message';
 import {
-  unlockedPgpKeys, ownKeys, allPgpPublicKeys, isUnlocked, unlockedSmimeKey, onUnlockChange, rememberSignerCertificate, rememberSignerPgpKey,
+  unlockedPgpKeys, ownKeys, allPgpPublicKeys, isUnlocked, unlockedSmimeKey, onUnlockChange, rememberSignerCertificate,
   unlockIfUnprotected,
 } from '../../lib/crypto/keyring';
 import { base64Decode } from '../../lib/crypto/mime';
@@ -17,7 +17,6 @@ export function keyringAccess(): SecureKeyAccess {
     pgpOwnKeys: () => (ownKeys('pgp') as PgpKeyRecord[]).map((k) => ({ id: k.id, publicKeyArmored: k.publicKeyArmored, unlocked: isUnlocked(k) })),
     pgpPublicKeys: allPgpPublicKeys,
     smimeKeys: () => (ownKeys('smime') as SmimeCertRecord[]).map((k) => ({ id: k.id, certificate: base64Decode(k.certificate), pkcs8: unlockedSmimeKey(k.id)?.pkcs8 })),
-    rememberPgpKey: rememberSignerPgpKey,
     rememberCertificate: rememberSignerCertificate,
   };
 }

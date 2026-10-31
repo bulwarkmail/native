@@ -1,6 +1,6 @@
 // What the reader's banner says for each PGP / S/MIME outcome (#58).
 import { describe, expect, it } from 'vitest';
-import { secureBannerRows } from '../banner-rows';
+import { offeredKeyRow, secureBannerRows } from '../banner-rows';
 
 const t = (_k: string, fallback: string, vars?: Record<string, string | number>) =>
   fallback.replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? ''));
@@ -27,5 +27,24 @@ describe('secureBannerRows', () => {
     expect(secureBannerRows({ kind: 'pgp', encrypted: false, decrypted: false, signature: 'invalid', error: 'bad' }, t)[0].text).toBe('Invalid signature (OpenPGP): bad');
     expect(secureBannerRows({ kind: 'pgp', encrypted: false, decrypted: false, signature: 'unknown' }, t)[0].tone).toBe('warn');
     expect(secureBannerRows({ kind: 'pgp', encrypted: false, decrypted: false, signature: 'none' }, t)).toEqual([]);
+  });
+});
+
+describe('offeredKeyRow', () => {
+  const offer = { armored: 'k', fingerprint: 'abcd1234abcd1234abcd1234abcd1234abcd1234', email: 'a@example.org' };
+
+  it('offers to save the key for the sender, with its fingerprint', () => {
+    expect(offeredKeyRow(offer, [], t)).toEqual({
+      key: 'offer',
+      tone: 'muted',
+      text: 'The message contains a public key for a@example.org. Fingerprint: ABCD 1234 ABCD 1234 ABCD 1234 ABCD 1234 ABCD 1234',
+      action: 'Save key for a@example.org',
+    });
+  });
+
+  it('offers nothing without a key, or once that key is stored', () => {
+    expect(offeredKeyRow(undefined, [], t)).toBeNull();
+    expect(offeredKeyRow(offer, [{ kind: 'pgp', id: offer.fingerprint }], t)).toBeNull();
+    expect(offeredKeyRow(offer, [{ kind: 'smime', id: offer.fingerprint }], t)).not.toBeNull();
   });
 });

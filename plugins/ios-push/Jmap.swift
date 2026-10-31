@@ -21,6 +21,8 @@ enum JmapError: Error {
   case needsRefresh
   case http(Int)
   case badResponse
+  /// A /set call listed the record under notUpdated (or not under updated).
+  case notUpdated(String)
 }
 
 /// Credentials as the app stores them (src/api/jmap-client.ts StoredCredentials).
@@ -166,7 +168,28 @@ enum Jmap {
       ["PushSubscription/get", ["ids": [id], "properties": pushSubscriptionProperties], "1"],
     ]
     let responses = try await call(apiUrl: apiUrl, authorization: authorization, using: ["urn:ietf:params:jmap:core"], methodCalls: methodCalls)
+    if let refused = notUpdated(responses, method: "PushSubscription/set", callId: "0", id: id) {
+      throw JmapError.notUpdated(refused)
+    }
     return listedPushSubscription(responses, callId: "1", id: id)
+  }
+
+  /// Why the /set answer `callId` didn't update `id`, or nil when it did.
+  /// A method error or an answer without `id` under updated counts as refused.
+  static func notUpdated(_ responses: [[Any]], method: String, callId: String, id: String) -> String? {
+    for response in responses where response.count >= 3 && response[2] as? String == callId {
+      guard response[0] as? String == method, let args = response[1] as? [String: Any] else {
+        let args = response[1] as? [String: Any]
+        return (args?["type"] as? String) ?? "error"
+      }
+      if let refused = (args["notUpdated"] as? [String: Any])?[id] {
+        let error = refused as? [String: Any]
+        return (error?["description"] as? String) ?? (error?["type"] as? String) ?? "notUpdated"
+      }
+      if let updated = args["updated"] as? [String: Any], updated.keys.contains(id) { return nil }
+      return "not in updated"
+    }
+    return "no answer"
   }
 
   static func fetch(apiUrl: URL, accountId: String, emailIds: [String], authorization: String) async throws -> JmapFetchResult {
