@@ -3,7 +3,10 @@
     "after": "Nach",
     "before": "Vor",
     "no_attachment": "Ohne Anhang",
-    "not_starred": "Nicht markiert"
+    "not_starred": "Nicht markiert",
+    "advanced_filters_count": "{name}, {count} aktiv",
+    "larger_than_kb": "Größer als {size} KB",
+    "smaller_than_kb": "Kleiner als {size} KB"
   },
   "calendar": {
     "alerts": {
@@ -26,7 +29,8 @@
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
       "nothing_planned": "Nichts geplant. Zum Erstellen tippen.",
-      "tap_to_create": "Tippen Sie auf +, um einen zu erstellen"
+      "tap_to_create": "Tippen Sie auf +, um einen zu erstellen",
+      "copy_title_short": "Titel"
     },
     "fab": {
       "event": "Termin",
@@ -70,7 +74,11 @@
       "trust_authentication_missing": "Der Absender konnte nicht verifiziert werden.",
       "trust_sender_mismatch": "Der Absender weicht vom Organisator des Termins ab.",
       "trust_sender_mismatch_unverified": "Der Absender stimmt nicht mit dem Organisator überein, und die Nachricht ist nicht authentifiziert.",
-      "trust_verified": "Absender verifiziert"
+      "trust_verified": "Absender verifiziert",
+      "cancel_outdated": "Ihr Kalender enthält eine neuere Version dieses Termins als diese Absage.",
+      "remove_error": "Der Termin konnte nicht entfernt werden",
+      "remove_from_calendar": "Aus Kalender entfernen",
+      "removed_from_calendar": "Aus Ihrem Kalender entfernt."
     },
     "management": {
       "clear_confirm": "Alle entfernen",
@@ -82,7 +90,10 @@
       "description_field": "Beschreibung",
       "description_placeholder": "Optional",
       "edit_calendar": "Kalender bearbeiten",
-      "new_calendar": "Neuer Kalender"
+      "new_calendar": "Neuer Kalender",
+      "custom_color": "Eigene Farbe (Hex)",
+      "fewer_colors": "Weniger Farben",
+      "more_colors": "Mehr Farben"
     },
     "notifications": {
       "channel_name": "Kalendererinnerungen",
@@ -94,7 +105,8 @@
     "occurrence_not_found_again": "Die Änderung wurde nicht gespeichert: Der Termin konnte auf dem Server nicht wiedergefunden werden. Versuchen Sie es erneut.",
     "participants": {
       "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen.",
-      "remove_named": "{name} entfernen"
+      "remove_named": "{name} entfernen",
+      "group_members": "{count, plural, one {# Mitglied} other {# Mitglieder}}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {Termin} other {Terminen}}",
@@ -130,7 +142,10 @@
       "not_a_feed": "Diese URL hat keinen iCalendar-Feed geliefert",
       "not_synced": "Noch nicht synchronisiert",
       "url_scheme_invalid": "Die URL muss mit https://, http://, webcal:// oder webcals:// beginnen",
-      "your_subscriptions": "Ihre Abonnements"
+      "your_subscriptions": "Ihre Abonnements",
+      "account_changed": "Das Konto hat gewechselt, während das Abonnement synchronisiert wurde. Es wird erneut in seinem eigenen Konto synchronisiert.",
+      "feed_truncated": "Der Feed wurde vor seinem Ende abgeschnitten. Es wurde nichts geändert.",
+      "mass_removal": "Der Feed hat auf einmal {count} von {total} Terminen weggelassen. Sie wurden behalten, falls der Feed fehlerhaft ist."
     },
     "tasks": {
       "add_placeholder": "Aufgabe hinzufügen…",
@@ -148,9 +163,14 @@
       "three_days": "3 Tage"
     },
     "detail": {
-      "delete_confirm": "Dieses Ereignis löschen?"
+      "delete_confirm": "Dieses Ereignis löschen?",
+      "location_hint": "Öffnet den Ort; lange drücken zum Kopieren"
     },
-    "change_month_named": "{month}, Monat wechseln"
+    "change_month_named": "{month}, Monat wechseln",
+    "a11y": {
+      "event_count": "{count, plural, one {# Termin} other {# Termine}}"
+    },
+    "account_changed": "Das Konto hat gewechselt, während der Kalender geladen oder gespeichert wurde."
   },
   "common": {
     "add": "Hinzufügen",
@@ -263,7 +283,9 @@
       "no_address_book": "Erstellen Sie ein Adressbuch, bevor Sie Kontakte importieren.",
       "picker_failed": "Die Dateiauswahl konnte nicht geöffnet werden",
       "replaces": "Ersetzt {name}",
-      "update_existing": "Vorhandenen aktualisieren"
+      "update_existing": "Vorhandenen aktualisieren",
+      "unnamed": "Unbenannter Kontakt",
+      "updated_count": "{count, plural, one {1 Kontakt war bereits vorhanden und wurde aktualisiert.} other {# Kontakte waren bereits vorhanden und wurden aktualisiert.}}"
     },
     "no_tags_hint": "Noch keine Kategorien. Geben Sie oben eine ein.",
     "picker": {
@@ -273,7 +295,11 @@
     "rename_tag_hint_mobile": "Tippen Sie lange auf eine Kategorie, um sie umzubenennen",
     "tag_name_placeholder": "Name der neuen Kategorie",
     "unnamed": "Unbenannt",
-    "delete_confirm_title": "Kontakt löschen"
+    "delete_confirm_title": "Kontakt löschen",
+    "directory": {
+      "restricted_hint": "Ihr Mailserver listet nur die Konten auf, mit denen Sie bereits zu tun haben, etwa Ihre Gruppen und Personen, die etwas mit Ihnen teilen.",
+      "restricted_queries_off": "Ihr Mailserver listet nur die Konten auf, mit denen Sie bereits zu tun haben, etwa Ihre Gruppen und Personen, die etwas mit Ihnen teilen. Ein Administrator kann Verzeichnisabfragen aktivieren, damit alle angezeigt werden."
+    }
   },
   "context_menu": {
     "color_tag": "Label",
@@ -381,7 +407,31 @@
     "uploading_pct": "Hochladen {pct} %",
     "validation": {
       "subject_required": "Betreff hinzufügen"
-    }
+    },
+    "format_plain_text": "Zu Nur-Text wechseln",
+    "format_rich_text": "Zu formatiertem Text (HTML) wechseln",
+    "login_switched_attach_body": "Sie haben diese Nachricht in {account} begonnen. Wechseln Sie zurück zu diesem Konto, um Dateien anzuhängen.",
+    "login_switched_body": "Sie haben diese Nachricht in {account} begonnen. Wechseln Sie zurück zu diesem Konto, um sie zu senden.",
+    "login_switched_save_body": "Sie haben diese Nachricht in {account} begonnen. Wechseln Sie zurück zu diesem Konto, um sie zu speichern.",
+    "login_switched_title": "Konto gewechselt",
+    "option_encrypt": "Verschlüsseln",
+    "option_encrypt_hint": "Nur die Empfänger (und Sie) können sie lesen; jeder Empfänger braucht einen Schlüssel",
+    "option_security": "Signatur und Verschlüsselung",
+    "option_sign": "Signieren",
+    "option_sign_pgp_hint": "Eine OpenPGP-Signatur mit Ihrem Schlüssel hinzufügen",
+    "option_sign_smime_hint": "Eine S/MIME-Signatur mit Ihrem Zertifikat hinzufügen",
+    "read_receipt_off": "Lesebestätigung anfordern",
+    "secure_failed_title": "Signieren oder Verschlüsseln nicht möglich",
+    "secure_missing_keys": "Kein Schlüssel für {recipients}. Importieren Sie einen unter Einstellungen → Verschlüsselung.",
+    "secure_no_key": "Auf diesem Gerät gibt es keinen Schlüssel für {email}. Importieren Sie einen unter Einstellungen → Verschlüsselung.",
+    "secure_offline": "Signierte oder verschlüsselte Nachrichten können nicht im Postausgang warten. Senden Sie sie, wenn Sie online sind.",
+    "secure_unlock_reason": "Ihr Schlüssel signiert diese Nachricht.",
+    "send_unconfirmed_body": "Der Server hat das Senden nicht bestätigt. Prüfen Sie Ihren Gesendet-Ordner, bevor Sie erneut senden. Ihr Entwurf wurde behalten.",
+    "send_unconfirmed_title": "Senden nicht bestätigt",
+    "undo_send_other_login": "Diese Nachricht wurde von einem anderen Konto gesendet",
+    "undo_send_other_login_body": "Wechseln Sie zurück zu {account}, um das Senden rückgängig zu machen oder sofort zu senden. Sie geht raus, wenn die Verzögerung abläuft.",
+    "upload_login_switched": "Nicht hochgeladen: Das Konto wurde gewechselt",
+    "use_template": "Vorlage"
   },
   "email_list": {
     "cross_account_move_offline": "Verschieben zwischen Konten erfordert eine Verbindung",
@@ -510,7 +560,10 @@
     "view_light_mode": "Im hellen Modus anzeigen",
     "not_spam_short": "Kein Spam",
     "previous": "Vorherige",
-    "next": "Nächste"
+    "next": "Nächste",
+    "quick_reply_login_switched": "Diese Nachricht gehört zu einem anderen Konto. Wechseln Sie zurück zu diesem Konto, um zu antworten.",
+    "quick_reply_unconfirmed": "Der Server hat das Senden nicht bestätigt. Prüfen Sie Ihren Gesendet-Ordner, bevor Sie erneut senden.",
+    "spam_short": "Spam"
   },
   "files": {
     "delete_cascade_hint": "Ordner werden samt ihrem gesamten Inhalt gelöscht. Dies kann nicht rückgängig gemacht werden.",
@@ -555,7 +608,27 @@
     "batch_delete_success": "{count, plural, one {1 Element gelöscht} other {# Elemente gelöscht}}",
     "delete_confirm_message": "Möchten Sie \"{name}\" wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
     "delete_confirm_title": "Ressource löschen",
-    "delete_success": "Erfolgreich gelöscht"
+    "delete_success": "Erfolgreich gelöscht",
+    "name_trash": "„.Trash“ ist der Name des Papierkorb-Ordners auf der obersten Ebene Ihrer Dateien. Wählen Sie einen anderen Namen.",
+    "settings_behavior": "Verhalten",
+    "settings_colored_icons": "Farbige Symbole",
+    "settings_colored_icons_desc": "Farbige statt einfarbige Symbole verwenden",
+    "settings_default_sort": "Standardsortierung",
+    "settings_default_sort_desc": "Wählen Sie die Standardsortierung für Dateien",
+    "settings_default_view": "Standardansicht",
+    "settings_default_view_desc": "Wählen Sie zwischen Raster- und Listenansicht",
+    "settings_display": "Anzeige",
+    "settings_icons": "Symbole",
+    "settings_show_hidden": "Versteckte Dateien anzeigen",
+    "settings_show_hidden_desc": "Dateien und Ordner anzeigen, die mit einem Punkt beginnen",
+    "settings_show_icons": "Dateisymbole anzeigen",
+    "settings_show_icons_desc": "Symbole neben Dateien und Ordnern anzeigen",
+    "settings_show_thumbnails": "Vorschaubilder anzeigen",
+    "settings_show_thumbnails_desc": "Bildvorschauen statt Symbole für Bilddateien anzeigen",
+    "settings_sort_direction": "Sortierrichtung",
+    "settings_sort_direction_desc": "Wählen Sie auf- oder absteigende Reihenfolge",
+    "trash_unavailable_message": "{count, plural, one {Dieses Element kann} other {Diese # Elemente können}} nicht in den Papierkorb verschoben werden. Stattdessen endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+    "upload": "Hochladen"
   },
   "identities": {
     "badge": {
@@ -678,7 +751,26 @@
       "unencrypted": "Unverschlüsselte Verbindung",
       "use_password": "Stattdessen mit Passwort anmelden",
       "username_label": "E-Mail oder Benutzername",
-      "your_server": "Ihrem Server"
+      "your_server": "Ihrem Server",
+      "cancel_sign_in": "Anmeldung abbrechen",
+      "err_client_rejected_detail": "Der Server hat Bulwark als Anmelde-Client abgelehnt. Bitten Sie Ihren Administrator, ihn zuzulassen, oder melden Sie sich mit einem App-Passwort an.",
+      "err_client_rejected_title": "{host} hat die App nicht akzeptiert",
+      "err_handoff_expired_detail": "Der Browser hat die Anmeldung erst nach ihrem Ablauf zurückgegeben. Melden Sie sich erneut an.",
+      "err_handoff_expired_title": "Die Anmeldung hat zu lange gedauert",
+      "err_handoff_network_detail": "Das Webmail war nach Ihrer Anmeldung nicht erreichbar. Prüfen Sie Ihre Verbindung und melden Sie sich erneut an.",
+      "err_handoff_network_title": "Anmeldung konnte nicht abgeschlossen werden",
+      "err_handoff_rate_detail": "Warten Sie ein paar Minuten und melden Sie sich dann erneut an.",
+      "err_handoff_refused_detail": "Der Anmeldelink wurde bereits verwendet oder stammt nicht aus dieser Anmeldung. Melden Sie sich erneut an.",
+      "err_handoff_refused_title": "Das Webmail hat diese Anmeldung nicht akzeptiert",
+      "err_handoff_server_detail": "Melden Sie sich erneut an. Wenn es weiterhin fehlschlägt, wenden Sie sich an Ihren Administrator.",
+      "err_handoff_server_title": "Das Webmail konnte die Anmeldung nicht abschließen",
+      "err_token_exchange_title": "{host} hat keine Sitzung gestartet",
+      "reauth_detail": "Der Server akzeptiert die gespeicherte Anmeldung für {account} nicht mehr. Melden Sie sich erneut an, um dieses Konto weiter zu nutzen.",
+      "reauth_title": "Erneut anmelden",
+      "server_cert_active": "Anmeldung mit dem Client-Zertifikat „{alias}“. Tippen, um ein anderes zu wählen.",
+      "server_cert_clear": "Ohne Zertifikat anmelden",
+      "server_cert_failed": "Zertifikat konnte nicht ausgewählt werden",
+      "server_cert_hint": "Verlangt Ihr Server ein Client-Zertifikat? Wählen Sie eines, das auf diesem Telefon installiert ist."
     }
   },
   "notifications": {
@@ -718,7 +810,15 @@
     "keep_scheduled": "Geplant lassen",
     "no_longer_scheduled": "Diese Nachricht ist nicht mehr geplant.",
     "reschedule_failed": "Neu planen fehlgeschlagen",
-    "send_now_failed": "Sofortiges Senden fehlgeschlagen"
+    "send_now_failed": "Sofortiges Senden fehlgeschlagen",
+    "actions": "Aktionen",
+    "cancel_to_drafts_body": "Die Nachricht wird nicht gesendet. Sie kommt zurück in Ihre Entwürfe.",
+    "cancelled_not_moved": "Senden abgebrochen, aber nicht in Entwürfe verschoben",
+    "cancelled_not_moved_body": "Die Nachricht wird nicht gesendet. Sie liegt noch in „Gesendet“.",
+    "login_switched": "Diese geplanten Nachrichten gehören zu einem anderen Konto. Wechseln Sie zurück zu diesem Konto, um sie zu ändern.",
+    "reschedule_lost": "Die Nachricht ist nicht mehr geplant. Prüfen Sie Entwürfe und Gesendet, bevor Sie sie erneut senden.",
+    "reschedule_lost_drafts": "Die Nachricht ist nicht mehr geplant. Sie liegt wieder in den Entwürfen, wo Sie sie erneut senden können.",
+    "send_cancelled": "Senden abgebrochen"
   },
   "settings": {
     "account": {
@@ -763,7 +863,10 @@
       "toolbar_labels": {
         "description_mobile": "Textbeschriftungen neben den Symbolleistensymbolen anzeigen."
       },
-      "description_mobile": "Passe an, wie die App aussieht"
+      "description_mobile": "Passen Sie an, wie die App aussieht",
+      "accessibility_link": {
+        "description_mobile": "Schriftgröße, reduzierte Bewegung und die Voreinstellungen zur Barrierefreiheit finden Sie unter Barrierefreiheit."
+      }
     },
     "badges": {
       "experimental": "Experimentell",
@@ -942,6 +1045,9 @@
       "disable_threading": {
         "description": "E-Mails als einzelne Nachrichten statt nach Konversation gruppiert anzeigen",
         "label": "Konversationsgruppierung deaktivieren"
+      },
+      "recipient_mentions": {
+        "description_mobile": "Wenn Sie in der Nachricht @ tippen, werden deren Empfänger angeboten und der Vorname des gewählten wird eingefügt."
       }
     },
     "experimental": {
@@ -1057,7 +1163,9 @@
       "email": {
         "app_icon_badge": "Ungelesen-Zähler auf dem App-Symbol",
         "app_icon_badge_desc": "Die Anzahl ungelesener Nachrichten im Posteingang als Badge auf dem App-Symbol anzeigen.",
-        "sound_channel_hint": "Ton und Vibration für E-Mail-Benachrichtigungen werden über den Android-Benachrichtigungskanal gesteuert: Tippen Sie lange auf eine Benachrichtigung oder öffnen Sie die App-Einstellungen des Systems."
+        "sound_channel_hint": "Ton und Vibration für E-Mail-Benachrichtigungen werden über den Android-Benachrichtigungskanal gesteuert: Tippen Sie lange auf eine Benachrichtigung oder öffnen Sie die App-Einstellungen des Systems.",
+        "mute_account": "Dieses Konto stummschalten",
+        "mute_account_desc": "Keine Benachrichtigungen über neue E-Mails in diesem Konto. Tippen Sie in der Seitenleiste lange auf einen Ordner, um nur ihn stummzuschalten oder wieder einzuschalten."
       },
       "push": {
         "confirm_disable_message_mobile": "Dieses Gerät erhält für dieses Konto keine Benachrichtigungen über neue E-Mails mehr.",
@@ -1098,7 +1206,13 @@
         "transport_unifiedpush": "UnifiedPush",
         "up_distributor_desc": "Mehrere UnifiedPush-Distributor-Apps sind installiert - wählen Sie die aus, die Benachrichtigungen zustellen soll.",
         "up_distributor_label": "Distributor",
-        "up_no_distributor": "Auf diesem Gerät ist keine UnifiedPush-Distributor-App installiert. Installieren Sie eine (z. B. ntfy) und versuchen Sie es erneut."
+        "up_no_distributor": "Auf diesem Gerät ist keine UnifiedPush-Distributor-App installiert. Installieren Sie eine (z. B. ntfy) und versuchen Sie es erneut.",
+        "accounts_desc_mobile": "Hintergrundbenachrichtigungen für jedes angemeldete Konto auf diesem Gerät. Wechseln Sie zu einem Konto, um sie dafür ein- oder auszuschalten.",
+        "err_account_changed": "Das Konto hat gewechselt, während Push eingerichtet wurde. Versuchen Sie es erneut.",
+        "err_apns_empty": "iOS hat ein leeres Push-Token zurückgegeben.",
+        "err_apns_token": "iOS konnte kein Push-Token ausstellen ({detail}).",
+        "err_relay_no_apns": "Das Push-Relay unter {url} stellt noch nicht an iPhones und iPads zu.",
+        "err_url_refused": "Der Mailserver weigert sich, Benachrichtigungen an das Relay unter {url} zu senden. Er akzeptiert nur https-Adressen mit einem öffentlichen Domainnamen, keine private IP-Adresse und keinen lokalen Namen wie localhost, .local oder .lan. Verwenden Sie das gehostete Relay oder geben Sie Ihrem Relay einen öffentlichen Domainnamen."
       },
       "calendar": {
         "invitation_parsing": "E-Mail-Einladungen erkennen",
@@ -1159,7 +1273,10 @@
         "not_set": "Nicht festgelegt",
         "pick": "Zertifikat auswählen",
         "pick_failed": "Auswahl fehlgeschlagen",
-        "title": "TLS-Client-Zertifikat"
+        "title": "TLS-Client-Zertifikat",
+        "clear_message_ios": "Neue Anfragen legen kein Zertifikat mehr vor. Das Zertifikat wird aus der App entfernt; um es wieder zu verwenden, wählen Sie die Datei erneut aus.",
+        "description_ios": "Importiert eine Zertifikatsdatei, mit der sich die App beim TLS-Handshake am Server authentifiziert. Nützlich, wenn der Reverse-Proxy mTLS erzwingt.",
+        "hint_ios": "Wählen Sie die Zertifikatsdatei (.p12 oder .pfx) in Dateien aus und geben Sie ihr Passwort ein."
       },
       "credentials": {
         "allowed_ips": "Erlaubte IPs (optional)",
@@ -1193,7 +1310,9 @@
         "error": "Passwort konnte nicht geändert werden.",
         "mismatch": "Die Passwörter stimmen nicht überein.",
         "toggle_visibility": "Passwort ein- oder ausblenden",
-        "too_short": "Das neue Passwort muss mindestens 8 Zeichen lang sein."
+        "too_short": "Das neue Passwort muss mindestens 8 Zeichen lang sein.",
+        "session_ended": "Durch die Passwortänderung wurde diese Sitzung beendet. Melden Sie sich mit Ihrem neuen Passwort erneut an.",
+        "session_ended_title": "Erneut anmelden"
       },
       "public_keys": {
         "add_error": "Öffentlicher Schlüssel konnte nicht hinzugefügt werden",
@@ -1225,6 +1344,12 @@
         "open_app": "Zur Authenticator-App hinzufügen",
         "password_required": "Geben Sie Ihr aktuelles Passwort ein.",
         "section_title": "Zwei-Faktor-Authentifizierung"
+      },
+      "restricted": "Ihr Server erlaubt nur Apps, die sein Administrator freigegeben hat, das Passwort, die Zwei-Faktor-Anmeldung, App-Passwörter und API-Schlüssel zu ändern. Bulwark hat sich ohne diese Freigabe angemeldet: E-Mail, Kontakte, Kalender und Dateien funktionieren, diese Einstellungen aber nicht. Ändern Sie sie in der Weboberfläche Ihres Servers oder im Bulwark Webmail.",
+      "screen_privacy": {
+        "block_screenshots": "Bildschirmfotos blockieren",
+        "block_screenshots_description": "Verhindert Bildschirmfotos und Bildschirmaufnahmen der App und verbirgt ihren Inhalt in der Ansicht der zuletzt verwendeten Apps.",
+        "title": "Bildschirmschutz"
       }
     },
     "sidebar_apps": {
@@ -1260,7 +1385,9 @@
       "language": "Sprache, Region & Zeit",
       "sidebar_apps": "Sidebar-Apps",
       "templates": "Vorlagen",
-      "themes": "Designs"
+      "themes": "Designs",
+      "downloads": "Downloads",
+      "layout": "Layout"
     },
     "templates": {
       "delete_confirm": "\"{name}\" endgültig löschen?",
@@ -1272,7 +1399,8 @@
       "imported_count": "{count, plural, one {# Vorlage} other {# Vorlagen}} hinzugefügt.",
       "is_html": "Text ist HTML",
       "placeholders_hint": "Platzhalter: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
-      "share_unavailable": "Teilen nicht möglich"
+      "share_unavailable": "Teilen nicht möglich",
+      "import_json_label": "Vorlagen als JSON"
     },
     "themes": {
       "default_description": "Die Standardpaletten für Hell und Dunkel.",
@@ -1285,6 +1413,14 @@
       },
       "warnings": {
         "date_format": "Datumsangaben müssen das Format \"YYYY-MM-DD\" oder \"YYYY-MM-DD HH:MM\" haben"
+      },
+      "date_range": {
+        "description": "Die automatische Antwort optional auf einen bestimmten Zeitraum beschränken",
+        "title": "Zeitraum"
+      },
+      "message": {
+        "description": "Die Nachricht, die als Antwort gesendet wird",
+        "title": "Text der automatischen Antwort"
       }
     },
     "about": {
@@ -1359,7 +1495,8 @@
       "contacts": "Adressbücher, Sortierung",
       "files": "Ansicht, Sortierung, Vorschaubilder",
       "sidebar_apps": "Web-Apps im Seitenmenü",
-      "updates": "Neue Versionen installieren"
+      "updates": "Neue Versionen installieren",
+      "accessibility": "Schriftgröße, Bewegung, Bestätigungen"
     },
     "troubleshooting": {
       "cache_desc": "Wenn eine Liste veraltet oder falsch aussieht.",
@@ -1389,6 +1526,18 @@
       "presets": {
         "dyslexia": {
           "description_mobile": "Atkinson Hyperlegible als Schrift, auch für Nachrichten als reiner Text."
+        },
+        "applied_mobile": "{name} hat {count, plural, one {# Einstellung} other {# Einstellungen}} geändert",
+        "apply": "Anwenden",
+        "apply_named": "{name} anwenden",
+        "low-vision": {
+          "description_mobile": "Text auf 150 % und Beschriftungen unter den Symbolleistensymbolen."
+        },
+        "motion": {
+          "description_mobile": "Keine Animationen und keine gleitenden Übergänge."
+        },
+        "screen-reader": {
+          "description_mobile": "Keine Gruppierung nach Konversation, jede Nachricht hat also eine eigene Zeile."
         }
       },
       "font": {
@@ -1399,6 +1548,15 @@
       },
       "plain_language": {
         "description_mobile": "Einfachere Formulierungen in Einstellungen und Fehlermeldungen. Auf Deutsch und Englisch verfügbar."
+      },
+      "reduce_motion": {
+        "description_mobile": "Schaltet gleitende Bereiche und Übergänge aus. Die App tut das auch, wenn in den Einstellungen Ihres Telefons „Bewegung reduzieren“ aktiviert ist."
+      },
+      "text_size": {
+        "description_mobile": "Skaliert den Text der App zusätzlich zur Schriftgröße Ihres Telefons. 100 % entspricht der Größe Ihres Telefons."
+      },
+      "toast_duration": {
+        "automatic": "Automatisch (länger mit Screenreader)"
       }
     }
   },
@@ -1419,7 +1577,8 @@
     "sign_out_confirm_message": "Das Konto wird von diesem Gerät entfernt. Sie können sich jederzeit wieder anmelden.",
     "sign_out_confirm_title": "Abmelden?",
     "sign_out_confirm_title_account": "Von {account} abmelden?",
-    "tab_unavailable": "{name} (nicht verfügbar)"
+    "tab_unavailable": "{name} (nicht verfügbar)",
+    "account_sign_in_again": "Erneut anmelden"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, one {# Konto konnte nicht geladen werden} other {# Konten konnten nicht geladen werden}}"
@@ -1660,6 +1819,107 @@
       "title": "Abwesenheitsnotiz",
       "unsupported": "Abwesenheitsnotizen sind nicht verfügbar",
       "until": "Bis {date}"
+    }
+  },
+  "deep_link": {
+    "open_failed": "Konnte nicht geöffnet werden"
+  },
+  "encryption": {
+    "armored_key": "Schlüssel im ASCII-Format",
+    "banner": {
+      "checking": "Verschlüsselung und Signatur werden geprüft…",
+      "decrypted": "Entschlüsselt ({kind})",
+      "failed": "Entschlüsseln fehlgeschlagen: {reason}",
+      "invalid": "Ungültige Signatur ({kind})",
+      "invalid_reason": "Ungültige Signatur ({kind}): {reason}",
+      "locked": "Verschlüsselt ({kind}). Entsperren Sie Ihren Schlüssel, um die Nachricht zu lesen.",
+      "no_key": "Verschlüsselt ({kind}) für einen Schlüssel, der nicht auf diesem Gerät ist.",
+      "self_signed": "Das Zertifikat ist selbstsigniert und nicht von einer bekannten Stelle ausgestellt.",
+      "signed": "Gültige Signatur ({kind})",
+      "signed_by": "Gültige Signatur ({kind}) von {signer}",
+      "signer_mismatch": "Der Unterzeichner ist nicht der unter „Von“ angezeigte Absender.",
+      "unknown_key": "Signiert ({kind}) mit einem Schlüssel, den Sie nicht importiert haben.",
+      "unsupported": "Verschlüsselt mit {algorithm}, das die App nicht entschlüsseln kann."
+    },
+    "check_description": "Führt jeden Algorithmus, den PGP und S/MIME verwenden, auf diesem Gerät aus.",
+    "check_run": "Prüfung starten",
+    "check_title": "Verschlüsselungsunterstützung prüfen",
+    "delete_private_message": "{key} und der zugehörige private Schlüssel werden von diesem Gerät entfernt. Damit verschlüsselte E-Mails können hier nicht mehr gelesen werden, es sei denn, Sie importieren ihn erneut.",
+    "delete_public_message": "{key} wird von diesem Gerät entfernt.",
+    "delete_title": "Schlüssel löschen?",
+    "expired": "Abgelaufen am {date}",
+    "expires": "Läuft am {date} ab",
+    "find_key": "Schlüssel auf keys.openpgp.org suchen",
+    "import": "Importieren",
+    "import_cert": "Zertifikat importieren",
+    "import_p12": "S/MIME-Zertifikat importieren (.p12)",
+    "import_pgp_file": "PGP-Schlüsseldatei importieren",
+    "import_public_file": "Datei mit öffentlichem Schlüssel importieren",
+    "imported": "{key} importiert",
+    "lock": "Sperren",
+    "lock_all": "Alle Schlüssel sperren",
+    "lock_all_description": "Die entsperrten Schlüssel vergessen, bis Sie ihre Passphrase erneut eingeben.",
+    "locked": "Gesperrt",
+    "locked_all": "Schlüssel gesperrt",
+    "lookup_confirm": "Vergleichen Sie diesen Fingerabdruck mit dem, den Ihnen der Inhaber gegeben hat (persönlich, per Telefon), bevor Sie ihn importieren.",
+    "lookup_none": "Kein Schlüssel gefunden.",
+    "lookup_placeholder": "E-Mail-Adresse oder Fingerabdruck",
+    "lookup_search": "Suchen",
+    "lookup_verified": "Der Schlüssel hat den Fingerabdruck, nach dem Sie gesucht haben.",
+    "no_other_keys": "Noch keine.",
+    "no_own_keys": "Noch keine Schlüssel.",
+    "not_a_key": "Dies ist kein Schlüssel und kein Zertifikat, das die App lesen kann.",
+    "others_description": "Öffentliche Schlüssel und Zertifikate, um damit zu verschlüsseln und Signaturen zu prüfen. Schlüssel aus signierten E-Mails und aus Ihren Kontakten werden ebenfalls verwendet.",
+    "others_title": "Schlüssel anderer Personen",
+    "own_description": "E-Mails mit OpenPGP oder S/MIME signieren und entschlüsseln. Private Schlüssel bleiben im sicheren Speicher dieses Geräts und werden einmal pro App-Sitzung mit ihrer Passphrase entsperrt.",
+    "own_title": "Ihre Schlüssel",
+    "p12_password_message": "Geben Sie das Passwort ein, mit dem die .p12-Datei exportiert wurde. Sie brauchen es erneut, um den Schlüssel nach einem Neustart der App zu entsperren.",
+    "p12_password_title": "Zertifikatspasswort",
+    "passphrase": "Passphrase",
+    "passphrase_message": "Geben Sie die Passphrase dieses Schlüssels ein. Sie wird jetzt geprüft und einmal pro App-Sitzung erneut abgefragt.",
+    "passphrase_title": "Schlüssel-Passphrase",
+    "password": "Passwort",
+    "paste_pgp": "PGP-Schlüssel einfügen",
+    "paste_public": "Öffentlichen Schlüssel einfügen",
+    "share_cert": "Zertifikat teilen",
+    "share_key": "Öffentlichen Schlüssel teilen",
+    "tab": "Verschlüsselung",
+    "title": "Verschlüsselung",
+    "unlock": "Entsperren",
+    "unlock_pgp_message": "Geben Sie die Passphrase Ihres PGP-Schlüssels {key} ein.",
+    "unlock_read_reason": "Die Nachricht ist für diesen Schlüssel verschlüsselt.",
+    "unlock_smime_message": "Geben Sie das Passwort Ihres S/MIME-Zertifikats {key} ein.",
+    "unlock_title": "Schlüssel entsperren",
+    "unlocked": "Entsperrt",
+    "unlocking": "Wird entsperrt…",
+    "wrong_passphrase": "Diese Passphrase ist nicht richtig."
+  },
+  "outbox": {
+    "discard": "Verwerfen",
+    "discard_body": "Sie wird nicht gesendet, und ihr Text geht verloren.",
+    "discard_title": "Diese Nachricht verwerfen?",
+    "failed_count": "{count, plural, one {# Nachricht} other {# Nachrichten}} nicht gesendet",
+    "move_failed_body": "Die Nachricht bleibt im Postausgang. Versuchen Sie es erneut, wenn die Verbindung wieder besteht.",
+    "move_failed_title": "Verschieben in Entwürfe fehlgeschlagen",
+    "move_to_drafts": "In Entwürfe verschieben",
+    "open_hint": "Öffnet den Postausgang",
+    "queued_body": "Sie wird gesendet, sobald Sie wieder online sind.",
+    "queued_title": "Im Postausgang gespeichert",
+    "retry": "Erneut versuchen",
+    "send_failed": "Eine Nachricht im Postausgang konnte nicht gesendet werden",
+    "sent": "Nachricht aus dem Postausgang gesendet",
+    "status_failed": "Nicht gesendet",
+    "status_failed_reason": "Nicht gesendet: {reason}",
+    "status_offline": "Wartet auf eine Verbindung",
+    "status_retrying": "Wartet auf das Senden",
+    "status_sending": "Wird gesendet…",
+    "title": "Postausgang",
+    "waiting": "{count, plural, one {# Nachricht} other {# Nachrichten}} im Postausgang"
+  },
+  "push": {
+    "ios": {
+      "more_messages": "und {count} weitere",
+      "no_subject": "(kein Betreff)"
     }
   }
 }
