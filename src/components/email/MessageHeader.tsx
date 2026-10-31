@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import {
-  Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock,
+  Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion,
 } from '../icons';
 import type { Email, EmailAddress, Identity } from '../../api/types';
 import { spacing, radius, typography, typography as tokenTypography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -21,7 +21,6 @@ import {
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
 import { formatSize } from '../../lib/attachment-display';
-import { isSmimeEmail } from '../../lib/smime';
 import { resolveEmailTags } from '../../lib/thread-utils';
 import { findVerificationCode, verificationCodeBodyText } from '../../lib/verification-code';
 import { VerificationCodeChip } from './VerificationCodeChip';
@@ -166,7 +165,6 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const important = !!email.keywords?.$important;
   const answered = !!email.keywords?.$answered;
   const forwarded = !!email.keywords?.$forwarded;
-  const smime = React.useMemo(() => isSmimeEmail(email), [email]);
   const delta = deliveryDeltaMs(email);
 
   const auth: AuthenticationResults | undefined = info.auth;
@@ -243,7 +241,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
         </View>
       </View>
 
-      {(tags.length > 0 || important || answered || forwarded || viaIdentity || smime) && (
+      {(tags.length > 0 || important || answered || forwarded || viaIdentity) && (
         <View style={styles.badges}>
           {important && (
             <View style={[styles.badge, { backgroundColor: c.warningBg }]}>
@@ -278,12 +276,6 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
                   ? t('identities.badge.identity_short', 'via {name}', { name: viaIdentity.identity.name })
                   : t('email_viewer.received_via', 'to {name}', { name: viaIdentity.identity.email })}
               </Text>
-            </View>
-          )}
-          {smime && (
-            <View style={styles.badge}>
-              <Lock size={11} color={c.textMuted} />
-              <Text style={styles.badgeText}>{t('email_viewer.smime_unsupported', 'Signed/encrypted with S/MIME - not supported on mobile')}</Text>
             </View>
           )}
         </View>

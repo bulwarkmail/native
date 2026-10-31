@@ -18,7 +18,7 @@ export type SettingsTabId =
   | 'appearance' | 'layout'
   | 'reading' | 'composing' | 'identities' | 'vacation'
   | 'filters' | 'recovery' | 'templates' | 'folders' | 'keywords' | 'downloads'
-  | 'security' | 'content_senders'
+  | 'security' | 'content_senders' | 'encryption'
   | 'calendar' | 'contacts' | 'files' | 'sidebar_apps'
   // about_data is Storage & backup (the id predates the split from About);
   // debug, licences and privacy are pages opened from inside another one.
@@ -170,6 +170,12 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.downloads.strip_diacritics',
     'settings.downloads.after_export',
   ],
+  encryption: [
+    'encryption.own_title',
+    'encryption.others_title',
+    'encryption.find_key',
+    'encryption.check_title',
+  ],
   security: [
     'settings.security.screen_privacy',
     'settings.security.client_cert',
@@ -286,6 +292,7 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   folders: 'mailbox rename role',
   keywords: 'tags labels colors',
   downloads: 'download filename template eml attachment save export',
+  encryption: 'pgp gpg openpgp s/mime smime certificate key sign signature encrypt decrypt p12 pfx keyserver',
   security: 'password 2fa two-factor totp app password mfa api key certificate encryption screenshot screen recording recent apps privacy',
   content_senders: 'block sender remote images privacy tracking',
   calendar: `event schedule appointment meeting timezone${supportsDeviceSync ? ' android phone device sync' : ''}`,

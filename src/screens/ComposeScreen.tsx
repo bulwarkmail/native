@@ -79,6 +79,13 @@ import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
 import { ComposerOptionsSheet, activeComposerOptionCount, type ComposerOptions } from '../components/compose/ComposerOptionsSheet';
+import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
+import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
+import { prepareSecureSend, resolveRecipientKeys, SecureSendError, type SecureChoice } from '../lib/crypto/compose-secure';
+import type { SecureMode } from '../lib/crypto/secure-send';
+import { useCryptoKeysStore, type CryptoKeyRecord } from '../stores/crypto-keys-store';
+import { usePolicyFeature } from '../stores/policy-store';
+import { fetchBlobBytes } from '../lib/email-export';
 import type { MessagePriority } from '../lib/message-priority';
 import { supportsSubmissionExtension } from '../lib/submission-options';
 import {
@@ -635,9 +642,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const initialPriority: MessagePriority = draft?.priority ?? 'normal';
   const [priority, setPriority] = React.useState<MessagePriority>(initialPriority);
   const [optionsSheetOpen, setOptionsSheetOpen] = React.useState(false);
+  // Sign / encrypt with OpenPGP or S/MIME (#58), per message.
+  const [secureMode, setSecureMode] = React.useState<SecureMode>('pgp');
+  const [secureSign, setSecureSign] = React.useState(false);
+  const [secureEncrypt, setSecureEncrypt] = React.useState(false);
+  const [unlockRecord, setUnlockRecord] = React.useState<CryptoKeyRecord | null>(null);
+  const unlockResolveRef = React.useRef<((ok: boolean) => void) | null>(null);
   const composerOptions = React.useMemo<ComposerOptions>(
-    () => ({ requestReadReceipt, requestDsn, requireTls, priority }),
-    [requestReadReceipt, requestDsn, requireTls, priority],
+    () => ({ requestReadReceipt, requestDsn, requireTls, priority, secureMode, sign: secureSign, encrypt: secureEncrypt }),
+    [requestReadReceipt, requestDsn, requireTls, priority, secureMode, secureSign, secureEncrypt],
   );
   // Read when the sheet opens: the session may have arrived since the
   // composer did.
@@ -648,6 +661,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (next.requestDsn !== undefined) setRequestDsn(next.requestDsn);
     if (next.requireTls !== undefined) setRequireTls(next.requireTls);
     if (next.priority !== undefined) setPriority(next.priority);
+    if (next.secureMode !== undefined) setSecureMode(next.secureMode);
+    if (next.sign !== undefined) setSecureSign(next.sign);
+    if (next.encrypt !== undefined) setSecureEncrypt(next.encrypt);
   }, []);
   const [subAddressTag, setSubAddressTag] = React.useState('');
   const [fromOverride, setFromOverride] = React.useState<{ name: string; email: string } | null>(null);
@@ -1495,6 +1511,78 @@ export default function ComposeScreen({ route, navigation }: Props) {
       envelopeMailFrom,
     };
   }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, signatureSeparatorEnabled, t]);
+
+  // Which of OpenPGP / S/MIME the From address has a key for, and who of the
+  // recipients has none (read while the options sheet is open).
+  const cryptoKeys = useCryptoKeysStore((s) => s.keys);
+  const smimeAllowed = usePolicyFeature('smimeEnabled');
+  const secureFromEmail = primaryIdentity ? senderAddress(primaryIdentity).from.email : '';
+  const secureAvailable = React.useMemo(
+    () => ({ pgp: !!ownKeyFor('pgp', secureFromEmail), smime: smimeAllowed && !!ownKeyFor('smime', secureFromEmail) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cryptoKeys, secureFromEmail, smimeAllowed],
+  );
+  React.useEffect(() => {
+    if (!secureAvailable[secureMode] && secureAvailable[secureMode === 'pgp' ? 'smime' : 'pgp']) {
+      setSecureMode(secureMode === 'pgp' ? 'smime' : 'pgp');
+    }
+  }, [secureAvailable, secureMode]);
+  const secureHint = React.useMemo(() => {
+    if (!optionsSheetOpen || !secureEncrypt) return null;
+    const emails = [...expandRecipients(finalTo), ...expandRecipients(finalCc), ...expandRecipients(finalBcc)].map((r) => toAddress(r).email);
+    const { missing } = resolveRecipientKeys(secureMode, emails, useContactsStore.getState().contacts);
+    return missing.length
+      ? t('email_composer.secure_missing_keys', 'No key for {recipients}. Import one under Settings → Encryption.', { recipients: missing.join(', ') })
+      : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optionsSheetOpen, secureEncrypt, secureMode, finalTo, finalCc, finalBcc, cryptoKeys, t]);
+
+  // Unlock the own key for a signed send; resolves false when cancelled.
+  const askUnlock = (record: CryptoKeyRecord): Promise<boolean> => new Promise((resolve) => {
+    unlockResolveRef.current = resolve;
+    setUnlockRecord(record);
+  });
+  const finishUnlock = (ok: boolean) => {
+    setUnlockRecord(null);
+    unlockResolveRef.current?.(ok);
+    unlockResolveRef.current = null;
+  };
+
+  /**
+   * Build, sign/encrypt and upload the raw message for a secure send
+   * (#58); the blob id for sendEmail, or null when the user was told why
+   * it can't go out.
+   */
+  const prepareSecureBlob = async (choice: SecureChoice, outgoing: OutgoingEmail, accountId: string | undefined): Promise<string | null> => {
+    const title = t('email_composer.secure_failed_title', 'Cannot sign or encrypt');
+    const own = ownKeyFor(choice.mode, outgoing.from[0]?.email ?? '');
+    if (!own) {
+      Alert.alert(title, t('email_composer.secure_no_key', 'There is no key for {email} on this device. Import one under Settings → Encryption.', { email: outgoing.from[0]?.email ?? '' }));
+      return null;
+    }
+    if (choice.sign && !isUnlocked(own)) {
+      if (await needsPassphrase(own)) {
+        if (!(await askUnlock(own))) return null;
+      } else {
+        await unlock(own, '');
+      }
+    }
+    try {
+      return await prepareSecureSend(outgoing, choice, {
+        contacts: useContactsStore.getState().contacts,
+        fetchBlob: (blobId, name, type) => fetchBlobBytes(blobId, name, type),
+        upload: async (bytes) => (await uploadBytesForLogin(ownerLoginRef.current, bytes, 'message/rfc822', accountId)).blobId,
+      });
+    } catch (e) {
+      if (e instanceof SecureSendError) {
+        Alert.alert(title, e.code === 'missing-recipients'
+          ? t('email_composer.secure_missing_keys', 'No key for {recipients}. Import one under Settings → Encryption.', { recipients: (e.detail ?? []).join(', ') })
+          : e.message);
+        return null;
+      }
+      throw e;
+    }
+  };
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -2612,8 +2700,23 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setSending(true);
     try {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
-      queuedOutgoing = outgoing;
-      if (!useNetworkStore.getState().online && queueForLater(outgoing, false)) return;
+      const secureChoice: SecureChoice | null = secureSign || secureEncrypt
+        ? { mode: secureMode, sign: secureSign, encrypt: secureEncrypt }
+        : null;
+      if (secureChoice) {
+        // The Outbox would send it as plain mail later: a signed or
+        // encrypted message only goes out now.
+        if (!useNetworkStore.getState().online) {
+          Alert.alert(
+            t('email_composer.secure_failed_title', 'Cannot sign or encrypt'),
+            t('email_composer.secure_offline', 'Signed or encrypted messages can\'t wait in the Outbox. Send it when you are online.'),
+          );
+          return;
+        }
+      } else {
+        queuedOutgoing = outgoing;
+        if (!useNetworkStore.getState().online && queueForLater(outgoing, false)) return;
+      }
       // The account the submission is held in, for Undo (read before the
       // request: a switch may land while it is out).
       // A group or shared identity sends from its own account, and its Sent
@@ -2621,6 +2724,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const target = await sendTargetFor(primaryIdentity, outgoing.from[0]?.email ?? primaryIdentity.email, mailboxes);
       if (refuseSendAfterSwitch()) return;
       const submissionAccountId = target.accountId ?? jmapClient.connectedAccountId ?? undefined;
+      let rawBlobId: string | undefined;
+      if (secureChoice) {
+        const blobId = await prepareSecureBlob(secureChoice, outgoing, target.accountId);
+        if (!blobId) return;
+        if (refuseSendAfterSwitch()) return;
+        rawBlobId = blobId;
+      }
       const result = await sendEmail(
         outgoing,
         target.identityId,
@@ -2635,6 +2745,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           // hides the toggles the account's submission extensions lack).
           requestDsn: requestDsn && supportsSubmissionExtension('DSN', target.accountId),
           requireTls: requireTls && supportsSubmissionExtension('REQUIRETLS', target.accountId),
+          rawBlobId,
         },
       );
       draftIdRef.current = null;
@@ -3661,6 +3772,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
         requireTlsAvailable={requireTlsAvailable}
         onChange={onComposerOptionsChange}
         onClose={() => setOptionsSheetOpen(false)}
+        secureAvailable={secureAvailable}
+        secureHint={secureHint}
+      />
+
+      <UnlockKeyDialog
+        record={unlockRecord}
+        reason={t('email_composer.secure_unlock_reason', 'Your key signs this message.')}
+        onUnlocked={() => finishUnlock(true)}
+        onCancel={() => finishUnlock(false)}
       />
 
       <FilesPickerSheet

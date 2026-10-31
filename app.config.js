@@ -83,6 +83,10 @@ module.exports = {
     },
     plugins: [
       'expo-secure-store',
+      // WebCrypto for PGP and S/MIME (#58). On iOS it raises the deployment
+      // target (app and pods) to 16.4, the minimum Nitro modules build for;
+      // Android has nothing to set.
+      'react-native-quick-crypto',
       '@react-native-community/datetimepicker',
       'expo-localization',
       [

@@ -1,17 +1,20 @@
 // The PGP and S/MIME libraries (#58), installed ahead of the features: each
 // one loads and does one basic operation. The same libraries as the webmail's
 // plugins (repos/plugins/bulwark-gpg, repos/plugins/smime). This runs under
-// Node, which has WebCrypto; on Hermes openpgp and pkijs need a WebCrypto
-// subtle installed first (docs in the S/MIME and PGP feature work).
-import { describe, it, expect } from 'vitest';
+// Node, which has WebCrypto; on Hermes the app installs one from
+// react-native-quick-crypto (src/lib/crypto/install-webcrypto.ts).
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import * as nodeCrypto from 'node:crypto';
 import { webcrypto } from 'node:crypto';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as openpgp from 'openpgp';
 import * as pkijs from 'pkijs';
 import * as asn1js from 'asn1js';
 import { Convert } from 'pvtsutils';
-// @ts-expect-error The ES build has no typings; the webmail's smime plugin
-// imports it the same way, since the "browser" build has no named exports.
-import * as liner from 'webcrypto-liner/build/index.es.js';
+import { cbcDecrypt, setNodeStyleCrypto, type NodeStyleCrypto } from '../crypto/provider';
+import { installWebCrypto } from '../crypto/install-webcrypto';
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
 
@@ -76,15 +79,76 @@ describe('crypto libraries', () => {
     await expect(parsed.verify(undefined, engine)).resolves.toBe(true);
   });
 
-  it('webcrypto-liner adds 3DES, which legacy S/MIME mail still uses', async () => {
-    liner.setCrypto(webcrypto);
-    const crypto = new liner.Crypto() as Crypto;
-    const key = await crypto.subtle.generateKey({ name: 'DES-EDE3-CBC', length: 192 } as unknown as AesKeyGenParams, true, ['encrypt', 'decrypt']);
-    const iv = crypto.getRandomValues(new Uint8Array(8));
-    const alg = { name: 'DES-EDE3-CBC', iv } as unknown as AesCbcParams;
-    const sealed = await crypto.subtle.encrypt(alg, key as CryptoKey, new TextEncoder().encode('legacy'));
+  it('3DES, which legacy S/MIME mail still uses, decrypts through the native crypto module', () => {
+    setNodeStyleCrypto(() => nodeCrypto as unknown as NodeStyleCrypto);
+    const key = nodeCrypto.randomBytes(24);
+    const iv = nodeCrypto.randomBytes(8);
+    const c = nodeCrypto.createCipheriv('des-ede3-cbc', key, iv);
+    const sealed = Buffer.concat([c.update('legacy'), c.final()]);
     expect(sealed.byteLength).toBe(8);
-    const opened = await crypto.subtle.decrypt(alg, key as CryptoKey, sealed);
+    const opened = cbcDecrypt('des-ede3-cbc', new Uint8Array(key), new Uint8Array(iv), new Uint8Array(sealed));
     expect(new TextDecoder().decode(opened)).toBe('legacy');
+  });
+});
+
+describe('openpgp on a Hermes-like runtime', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Metro bundles openpgp's browser build (metro.config.js). Hermes has
+  // WebCrypto only through the installed module, and no web streams or
+  // WebAssembly: the build must work with plain strings and bytes.
+  it('the browser build Metro bundles encrypts, signs and decrypts without streams or WebAssembly', async () => {
+    vi.stubGlobal('ReadableStream', undefined);
+    vi.stubGlobal('TransformStream', undefined);
+    vi.stubGlobal('WritableStream', undefined);
+    vi.stubGlobal('WebAssembly', undefined);
+    const req = createRequire(import.meta.url);
+    const browserBuild = path.join(path.dirname(req.resolve('openpgp')), '..', 'openpgp.min.mjs');
+    const pgp = (await import(/* @vite-ignore */ pathToFileURL(browserBuild).href)) as typeof openpgp;
+
+    for (const keyOptions of [{ type: 'ecc', curve: 'curve25519Legacy' }, { type: 'rsa', rsaBits: 2048 }] as const) {
+      const { privateKey, publicKey } = await pgp.generateKey({
+        ...keyOptions,
+        userIDs: [{ email: 'hermes@example.org' }],
+        passphrase: 'pw',
+        format: 'armored',
+      });
+      const priv = await pgp.decryptKey({ privateKey: await pgp.readPrivateKey({ armoredKey: privateKey }), passphrase: 'pw' });
+      const pub = await pgp.readKey({ armoredKey: publicKey });
+      const armored = await pgp.encrypt({
+        message: await pgp.createMessage({ text: 'ohne Streams' }),
+        encryptionKeys: pub,
+        signingKeys: priv,
+      });
+      const { data, signatures } = await pgp.decrypt({
+        message: await pgp.readMessage({ armoredMessage: armored as string }),
+        decryptionKeys: priv,
+        verificationKeys: pub,
+      });
+      expect(data).toBe('ohne Streams');
+      await expect(signatures[0].verified).resolves.toBe(true);
+    }
+  }, 60_000);
+});
+
+describe('installWebCrypto', () => {
+  it('puts a lazy subtle and getRandomValues on a runtime without crypto', () => {
+    const target: Record<string, unknown> = {};
+    installWebCrypto(target);
+    const crypto = target.crypto as Record<string, unknown>;
+    expect(typeof crypto.getRandomValues).toBe('function');
+    // The native module loads on first use of subtle, not at install.
+    expect(Object.getOwnPropertyDescriptor(crypto, 'subtle')?.get).toBeTypeOf('function');
+  });
+
+  it('keeps a crypto that is already there', () => {
+    const subtle = {};
+    const getRandomValues = () => undefined;
+    const target: Record<string, unknown> = { crypto: { subtle, getRandomValues } };
+    installWebCrypto(target);
+    expect((target.crypto as { subtle: unknown }).subtle).toBe(subtle);
+    expect((target.crypto as { getRandomValues: unknown }).getRandomValues).toBe(getRandomValues);
   });
 });

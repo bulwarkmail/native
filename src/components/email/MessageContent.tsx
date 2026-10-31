@@ -12,6 +12,8 @@ import { AttachmentChips } from './AttachmentChips';
 import { UnsubscribeBanner } from './UnsubscribeBanner';
 import { ReadReceiptBanner } from './ReadReceiptBanner';
 import { useBodyOverride } from './use-body-override';
+import { useSecureMessage } from './use-secure-message';
+import { SecureMessageBanner } from './SecureMessageBanner';
 import { deriveHeaderInfo } from '../../lib/email-headers';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
 
@@ -66,6 +68,20 @@ export function MessageContent({
   const calendarParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const headerInfo = React.useMemo(() => deriveHeaderInfo(email), [email]);
   const unwrap = useBodyOverride(email, jmapAccountId);
+  // PGP / S/MIME (#58): the decrypted or verified body replaces the
+  // message's own; an encrypted one that can't be opened shows nothing but
+  // the banner (the plugins' render takeover).
+  const secure = useSecureMessage(email, jmapAccountId);
+  const secureBody = secure.result
+    ? secure.result.body ?? (secure.result.status.encrypted ? { html: null, text: '' } : null)
+    : null;
+  const bodyOverride = secureBody ?? unwrap.override;
+  // Only an encrypted message hides its attachments from the server; a
+  // signed one has them listed already.
+  const extracted = React.useMemo(
+    () => (secure.result?.status.encrypted && secure.result.attachments.length ? [...secure.result.attachments, ...unwrap.extracted] : unwrap.extracted),
+    [secure.result, unwrap.extracted],
+  );
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);
   const from = email.from?.[0];
 
@@ -75,7 +91,7 @@ export function MessageContent({
       jmapAccountId={jmapAccountId}
       calendarBannerShown={calendarBannerShown}
       tnefUnpacked={unwrap.tnefUnpacked}
-      extracted={unwrap.extracted}
+      extracted={extracted}
     />
   );
 
@@ -114,13 +130,14 @@ export function MessageContent({
         />
       )}
 
+      {(secure.loading || secure.result) && <SecureMessageBanner status={secure.result?.status ?? null} loading={secure.loading} />}
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
       <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />
 
       <View style={[styles.body, fill && styles.fill]}>
         {deferBody ? (
           <BodyPlaceholder styles={styles} fill={fill} />
-        ) : unwrap.loading ? (
+        ) : unwrap.loading || secure.loading ? (
           <View style={styles.loading}><ActivityIndicator color={c.primary} /></View>
         ) : (
           <EmailBodyView
@@ -132,7 +149,7 @@ export function MessageContent({
             themeOverride={themeOverride}
             plainView={plainView}
             onShowFormatted={onShowFormatted ? () => onShowFormatted(email) : undefined}
-            bodyOverride={unwrap.override}
+            bodyOverride={bodyOverride}
             onSettled={onBodySettled}
             fill={fill}
           />

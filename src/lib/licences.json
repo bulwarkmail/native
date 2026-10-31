@@ -209,6 +209,24 @@
       "url": "https://github.com/sAleksovski/react-native-android-widget"
     },
     {
+      "name": "react-native-nitro-modules",
+      "version": "0.37.1",
+      "license": "MIT",
+      "url": "https://nitro.margelo.com"
+    },
+    {
+      "name": "react-native-quick-base64",
+      "version": "3.0.1",
+      "license": "MIT",
+      "url": "https://github.com/craftzdog/react-native-quick-base64"
+    },
+    {
+      "name": "react-native-quick-crypto",
+      "version": "1.1.9",
+      "license": "MIT",
+      "url": "https://github.com/margelo/react-native-quick-crypto"
+    },
+    {
       "name": "react-native-safe-area-context",
       "version": "5.6.2",
       "license": "MIT",
@@ -237,12 +255,6 @@
       "version": "13.15.0",
       "license": "MIT",
       "url": "https://github.com/react-native-webview/react-native-webview"
-    },
-    {
-      "name": "webcrypto-liner",
-      "version": "1.4.3",
-      "license": "MIT",
-      "url": "https://github.com/PeculiarVentures/webcrypto-liner"
     },
     {
       "name": "zustand",
