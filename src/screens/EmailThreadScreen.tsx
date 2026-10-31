@@ -15,6 +15,7 @@ import {
 } from '../components/icons';
 import { pickEmailBody } from '../lib/email-body';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
+import { useTagUndoGroup } from '../lib/tag-undo-group';
 import { NewTagRow } from '../components/NewTagRow';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
@@ -177,6 +178,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
+  // Tag changes made in the sheet get one Undo, shown once it closes.
+  const tagUndoGroup = useTagUndoGroup(tagMenuOpen);
   const [rulesOpen, setRulesOpen] = React.useState(false);
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
@@ -378,8 +381,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   // list row follows when the list holds that account (never a same-id row
   // of another one).
   const setKeyword = React.useCallback(
-    (target: Email, token: string, on: boolean) =>
-      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId }),
+    (target: Email, token: string, on: boolean, undoGroup?: string) =>
+      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId }, { undoGroup }),
     [setKeywordForEmails, ownerAccountId],
   );
 
@@ -473,7 +476,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     if (next[token]) delete next[token];
     else next[token] = true;
     updateLocalKeywords(email.id, next);
-    setKeyword(email, token, !!next[token]).catch((err) => {
+    setKeyword(email, token, !!next[token], tagUndoGroup || undefined).catch((err) => {
       updateLocalKeywords(email.id, email.keywords);
       toastFailure(t('notifications.tag_failed', 'Tagging failed'), err);
     });

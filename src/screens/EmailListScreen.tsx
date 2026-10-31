@@ -22,6 +22,7 @@ import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
+import { useTagUndoGroup } from '../lib/tag-undo-group';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
 import {
@@ -711,6 +712,8 @@ export default function EmailListScreen({
   // Batch (multi-select) sheets.
   const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  // The sheet's changes share one Undo, shown once it closes.
+  const tagUndoGroup = useTagUndoGroup(tagSheetOpen);
 
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -1030,7 +1033,7 @@ export default function EmailListScreen({
   };
 
   const handleBatchTagToggle = (token: string, on: boolean) => {
-    setKeywordForEmails(selectedMessageIds, token, on).catch((err) =>
+    setKeywordForEmails(selectedMessageIds, token, on, undefined, { undoGroup: tagUndoGroup }).catch((err) =>
       reportKeywordFailure(t('notifications.tag_failed', 'Tagging failed'), err));
   };
 

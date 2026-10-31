@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // Actions the viewer runs on the message it shows, which may live in another
 // account than the open folder (unified inbox, notification, deep link).
@@ -127,6 +129,63 @@ const ROW = { id: 'e1', subject: 'Hello', keywords: { $seen: true }, mailboxIds:
 beforeEach(() => {
   vi.clearAllMocks();
   useEmailStore.getState().reset();
+});
+
+describe('tag undo from a tag sheet', () => {
+  it('gathers the changes made in one sheet into one Undo that puts every tag back', async () => {
+    const tagged = { ...ROW, keywords: { $seen: true, '$label:blue': true } } as Email;
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [tagged] });
+    const opts = { undoGroup: 'tags:1' };
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$label:orange', true, undefined, opts);
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$label:blue', false, undefined, opts);
+    // The bar sat under the sheet; closing it shows the bar from now.
+    useEmailStore.setState({ pendingUndo: { ...useEmailStore.getState().pendingUndo!, createdAt: 1 } });
+    useEmailStore.getState().releaseUndoGroup('tags:1');
+    const entry = useEmailStore.getState().pendingUndo!;
+    expect(entry.undoGroup).toBeUndefined();
+    expect(entry.createdAt).toBeGreaterThan(1);
+
+    await useEmailStore.getState().undoLast();
+    expect(mockPatchPerEmail).toHaveBeenCalledWith(
+      [{ id: 'e1', patch: { '$label:orange': null, '$label:blue': true } }],
+      undefined,
+    );
+    expect(useEmailStore.getState().emails[0].keywords).toEqual({ $seen: true, '$label:blue': true });
+  });
+
+  it('offers Undo for a tag set in the viewer\'s tag sheet, and none for its star', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [] });
+    const viewed = { email: ROW, accountId: undefined };
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$flagged', true, viewed);
+    expect(useEmailStore.getState().pendingUndo).toBeNull();
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$label:orange', true, viewed, { undoGroup: 'tags:2' });
+    expect(useEmailStore.getState().pendingUndo).toMatchObject({ kind: 'keywords', label: 'Email tagged' });
+
+    await useEmailStore.getState().undoLast();
+    expect(mockPatchPerEmail).toHaveBeenCalledWith([{ id: 'e1', patch: { '$label:orange': null } }], undefined);
+  });
+
+  it('starts a new Undo for the next sheet', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [ROW] });
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$label:orange', true, undefined, { undoGroup: 'tags:3' });
+    useEmailStore.getState().releaseUndoGroup('tags:3');
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$label:green', true, undefined, { undoGroup: 'tags:4' });
+
+    expect(useEmailStore.getState().pendingUndo?.keywordPatch).toEqual({ '$label:green': true });
+  });
+
+  it('wires both tag sheets to one Undo per sheet', () => {
+    const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', '..', rel), 'utf8');
+    const list = read('screens/EmailListScreen.tsx');
+    expect(list).toMatch(/const tagUndoGroup = useTagUndoGroup\(tagSheetOpen\);/);
+    expect(list).toMatch(/setKeywordForEmails\(selectedMessageIds, token, on, undefined, \{ undoGroup: tagUndoGroup \}\)/);
+    const viewer = read('screens/EmailThreadScreen.tsx');
+    expect(viewer).toMatch(/const tagUndoGroup = useTagUndoGroup\(tagMenuOpen\);/);
+    expect(viewer).toMatch(/setKeyword\(email, token, !!next\[token\], tagUndoGroup \|\| undefined\)/);
+  });
 });
 
 describe('keyword undo', () => {
