@@ -7,6 +7,7 @@ import type { Attachment, Email } from '../api/types';
 import { findCalendarAttachment } from './calendar-invitation';
 import { pickEmailBody, selectRenderableHtml } from './email-body';
 import { extractCidRefs } from './email-html';
+import { stripBidiControls } from './bidi';
 
 const MIME_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'Document.pdf',
@@ -31,7 +32,10 @@ const MIME_TYPE_LABELS: Record<string, string> = {
 };
 
 export function getAttachmentDisplayName(name: string | null | undefined, mimeType?: string): string {
-  if (name) return name;
+  // A direction override in a sender-chosen name can fake the file type
+  // (`report<U+202E>fdp.exe` shows as `reportexe.pdf`).
+  const shown = name ? stripBidiControls(name) : '';
+  if (shown) return shown;
   if (mimeType) {
     const base = mimeType.split(';')[0].trim().toLowerCase();
     const label = MIME_TYPE_LABELS[base];

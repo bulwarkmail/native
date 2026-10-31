@@ -246,6 +246,12 @@ describe('cachePreviewFile (in-app preview)', () => {
     expect(file.name).toBe('a_b_.txt');
   });
 
+  it('drops direction-override characters, so the real extension is the one the file gets shown with', async () => {
+    const rlo = String.fromCharCode(0x202e);
+    const file = await cachePreviewFile('blob-b', `report${rlo}fdp.exe`, 'application/octet-stream');
+    expect(file.name).toBe('reportfdp.exe');
+  });
+
   it('removes its folder and rethrows when the download fails', async () => {
     vi.mocked(File.downloadFileAsync).mockRejectedValueOnce(new Error('Download failed: 404'));
 
