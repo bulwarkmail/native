@@ -1,4 +1,5 @@
 import type { Attachment, Email } from '../api/types';
+import { isReportPart } from './attachment-display';
 
 /**
  * Attachment chips for message-list rows (webmail 0e1c34cd, #1089).
@@ -14,11 +15,12 @@ import type { Attachment, Email } from '../api/types';
 /**
  * The parts the sender actually attached. Anything marked inline or
  * referenced by a Content-ID (signature logos, spacers, tracking pixels) is
- * dropped, as are parts without a filename, which can't be labelled or saved.
+ * dropped, as are parts without a filename, which can't be labelled or saved,
+ * and the report parts of a bounce or a read receipt.
  */
 export function realAttachments(attachments?: readonly Attachment[] | null): Attachment[] {
   if (!attachments?.length) return [];
-  return attachments.filter((a) => a.disposition !== 'inline' && !a.cid && !!a.name);
+  return attachments.filter((a) => a.disposition !== 'inline' && !a.cid && !!a.name && !isReportPart(a.type));
 }
 
 /**

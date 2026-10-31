@@ -56,10 +56,22 @@ export function isCalendarMimeType(type?: string | null): boolean {
   return CAL_MIME.has(type.split(';')[0].trim().toLowerCase());
 }
 
-/** Machine-readable report parts (MDN receipts, DSN bounces) - never real attachments. */
+/**
+ * Machine-readable report parts: the delivery status of a bounce (RFC 3464),
+ * the disposition of a read receipt (RFC 8098) and their RFC 6533 UTF-8
+ * forms. A multipart/report needs them, but they are not files anyone
+ * attached, so no view lists them and a forward leaves them out (webmail
+ * lib/attachment-visibility.ts).
+ */
+const REPORT_PART_TYPES: ReadonlySet<string> = new Set([
+  'message/delivery-status',
+  'message/disposition-notification',
+  'message/global-delivery-status',
+  'message/global-disposition-notification',
+]);
+
 export function isReportPart(type?: string | null): boolean {
-  const base = (type || '').split(';')[0].trim().toLowerCase();
-  return base === 'message/disposition-notification' || base === 'message/delivery-status';
+  return REPORT_PART_TYPES.has((type || '').split(';')[0].trim().toLowerCase());
 }
 
 export function isRfc822Attachment(att: Pick<Attachment, 'name' | 'type'>): boolean {
