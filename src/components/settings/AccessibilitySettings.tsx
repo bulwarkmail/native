@@ -5,7 +5,7 @@ import Button from '../Button';
 import { spacing } from '../../theme/tokens';
 import { useLocaleStore } from '../../stores/locale-store';
 import { usePolicyStore, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
-import { policyAllowsValue } from '../../lib/org-policy';
+import { isLockedSetting, policyAllowsValue } from '../../lib/org-policy';
 import { APP_FONTS, FONT_SIZES, useSettingsStore, type AppFont, type FontSize } from '../../stores/settings-store';
 import { uiFontsBundled } from '../../theme/reading-fonts';
 import { toast } from '../../stores/toast-store';
@@ -104,7 +104,15 @@ export function AccessibilitySettings() {
 
   const applyPreset = (id: AccessibilityPresetId) => {
     const name = presetName(id);
-    const changes = presetChanges(id, useSettingsStore.getState());
+    // Settings the organisation pins or bounds stay as they are (webmail
+    // accessibility-settings.tsx isSettingLocked, allowsValue).
+    const rules = usePolicyStore.getState().rules;
+    const changes = presetChanges(
+      id,
+      useSettingsStore.getState(),
+      (key) => isLockedSetting(rules, key),
+      (key, value) => policyAllowsValue(key, value, rules),
+    );
     if (changes.length === 0) {
       toast.info(t('settings.accessibility.presets.nothing_changed', '{name}: your settings already match.', { name }));
       return;
