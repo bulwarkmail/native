@@ -13,6 +13,7 @@ import { getEmailTagIds } from '../lib/thread-utils';
 import type { Email } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { NewTagRow } from './NewTagRow';
 
 interface TagSheetProps {
   visible: boolean;
@@ -132,6 +133,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
               </Pressable>
             );
           })}
+          <NewTagRow keywords={keywords} onCreated={(token) => onToggle(token, true)} />
         </ScrollView>
       </Animated.View>
     </Modal>

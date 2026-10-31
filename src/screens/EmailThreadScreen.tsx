@@ -15,6 +15,7 @@ import {
 } from '../components/icons';
 import { pickEmailBody } from '../lib/email-body';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
+import { NewTagRow } from '../components/NewTagRow';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -693,7 +694,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       label: t('email_viewer.tag', 'Tag'),
       icon: (s, col) => <Tag size={s} color={col} />,
       onPress: () => setTagMenuOpen(true),
-      available: keywordDefs.length > 0,
+      // Always: the tag sheet can make a new tag.
+      available: true,
     },
   };
 
@@ -898,7 +900,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         isInJunk={isInJunk}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
-        canTag={keywordDefs.length > 0}
+        canTag
         renderDark={activeRenderDark}
         plainView={activeHasHtml ? activePlainView : null}
         onTogglePlainView={() => {
@@ -1595,14 +1597,14 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
             </Pressable>
           </View>
         </View>
-        {keywords.length === 0 ? (
-          <Text style={{ ...typography.body, color: c.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
-            {t('email_viewer.tag_no_matches', 'No matching tags')}
-          </Text>
-        ) : (
-          // Scrolls like the More sheet: a long tag list (or a landscape
-          // window) ran past the screen with no way to reach the last tags.
-          <ScrollView style={styles.sheetScroll} bounces={false}>
+        {/* Scrolls like the More sheet: a long tag list (or a landscape
+            window) ran past the screen with no way to reach the last tags. */}
+        <ScrollView style={styles.sheetScroll} bounces={false} keyboardShouldPersistTaps="handled">
+          {keywords.length === 0 && (
+            <Text style={{ ...typography.body, color: c.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
+              {t('email_viewer.tag_no_matches', 'No matching tags')}
+            </Text>
+          )}
           {keywords.map((kw) => {
             const token = keywordToken(kw.id);
             const active = !!activeKeywords[token];
@@ -1617,8 +1619,9 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
               />
             );
           })}
-          </ScrollView>
-        )}
+          {/* "New tag" (webmail 19676a14f): made, saved and put on the message. */}
+          <NewTagRow keywords={keywords} onCreated={onToggle} />
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
