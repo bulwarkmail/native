@@ -1,6 +1,5 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText } from '../icons';
 import type { Attachment, Email, Mailbox } from '../../api/types';
 import { getEmailAttachments } from '../../api/email';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -13,8 +12,9 @@ import { accountIdOfRow } from '../../stores/email-store';
 import { accountScopedId } from '../../lib/thread-utils';
 import {
   attachmentKind, realAttachments, requestListAttachments, shortAttachmentName,
-  type AttachmentKind, type LoadListAttachments,
+  type LoadListAttachments,
 } from '../../lib/list-attachments';
+import { ATTACHMENT_ICONS, attachmentIconColor } from './attachment-icons';
 import { getAttachmentDisplayName } from '../../lib/attachment-display';
 import { attachmentSaveName, downloadAttachment } from '../../lib/email-export';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
@@ -22,26 +22,6 @@ import { useFilePreview } from './use-file-preview';
 
 /** How many chips a row shows before collapsing the rest into a count. */
 const MAX_CHIPS = 2;
-
-const ICONS: Record<AttachmentKind, typeof FileIcon> = {
-  image: FileImage,
-  pdf: FileText,
-  sheet: FileSpreadsheet,
-  archive: FileArchive,
-  document: FileText,
-  other: FileIcon,
-};
-
-function iconColor(kind: AttachmentKind, c: ThemePalette): string {
-  switch (kind) {
-    case 'image': return c.tags.purple.dot;
-    case 'pdf': return c.tags.red.dot;
-    case 'sheet': return c.tags.green.dot;
-    case 'archive': return c.tags.amber.dot;
-    case 'document': return c.tags.blue.dot;
-    default: return c.textMuted;
-  }
-}
 
 /**
  * The row's attachment parts: the ones the email already carries (a message
@@ -94,7 +74,7 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
     <View style={styles.row}>
       {shown.map((a, i) => {
         const kind = attachmentKind(a.type, a.name);
-        const Icon = ICONS[kind];
+        const Icon = ATTACHMENT_ICONS[kind];
         return (
           <Pressable
             key={`${a.blobId}-${i}`}
@@ -106,7 +86,7 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
             accessibilityRole="button"
             accessibilityLabel={a.name}
           >
-            <Icon size={12} color={iconColor(kind, c)} />
+            <Icon size={12} color={attachmentIconColor(kind, c)} />
             <Text style={[styles.name, dyn.caption]} numberOfLines={1}>{shortAttachmentName(a.name ?? '')}</Text>
           </Pressable>
         );
