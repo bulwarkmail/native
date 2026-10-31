@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import {
+  avatarContent,
   generateEmailAvatarColor,
   getContactPhotoForEmail,
   getEmailInitials,
@@ -14,6 +15,8 @@ import type { ContactPhotoRef } from '../lib/contact-utils';
 import { useContactPhotoSource } from '../lib/use-contact-photo';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
+import { useColors } from '../theme/colors';
+import { ShieldAlert } from './icons';
 
 interface SenderAvatarProps {
   name?: string | null;
@@ -32,23 +35,32 @@ interface SenderAvatarProps {
    * the contact has no photo, so no other card's photo is borrowed.
    */
   photo?: ContactPhotoRef | null;
+  /**
+   * The message's sender check failed or is unverified (see
+   * useSenderWarning): a warning shield with this label instead of any photo,
+   * favicon or initials, so a forged From doesn't get the real sender's logo
+   * or photo (webmail #1439).
+   */
+  senderWarning?: string | null;
 }
 
 // Mirrors the webmail `Avatar` priority for the subset available on native:
-// address-book photo → company favicon (if sender domain is non-personal and
-// `senderFavicons` is on) → initials over HSL-hashed color.
-export default function SenderAvatar({ name, email, size = 40, style, disableImages, photo }: SenderAvatarProps) {
-  const senderFavicons = useSettingsStore((s) => s.senderFavicons) && !disableImages;
+// sender warning → address-book photo → company favicon (if sender domain is
+// non-personal and `senderFavicons` is on) → initials over HSL-hashed color.
+export default function SenderAvatar({ name, email, size = 40, style, disableImages, photo, senderWarning }: SenderAvatarProps) {
+  const c = useColors();
+  const warned = !!senderWarning;
+  const senderFavicons = useSettingsStore((s) => s.senderFavicons) && !disableImages && !warned;
   // Compared shallowly, so only avatars whose photo changed re-render when the
   // contacts change; the index behind it is built once per contacts array.
   const indexedPhoto = useContactsStore(
-    useShallow((s) => (photo === undefined ? getContactPhotoForEmail(s.contacts, email) : undefined)),
+    useShallow((s) => (photo === undefined && !warned ? getContactPhotoForEmail(s.contacts, email) : undefined)),
   );
   const contactPhoto = photo === undefined ? indexedPhoto : photo;
   // A blob photo (Stalwart 1.0) has no source while it waits for its
   // download or after it failed; the favicon or initials show meanwhile.
   const { source: photoSource, onLoad: onPhotoLoad, onError: onPhotoError } =
-    useContactPhotoSource(disableImages ? null : contactPhoto);
+    useContactPhotoSource(disableImages || warned ? null : contactPhoto);
   const [imgError, setImgError] = React.useState(false);
 
   React.useEffect(() => {
@@ -61,8 +73,11 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
 
   const faviconDomain = getFaviconDomain(email ?? undefined);
   const domainFailed = faviconDomain ? hasFaviconFailed(faviconDomain) : false;
-  const showPhoto = !disableImages && !!photoSource;
-  const showFavicon = !showPhoto && senderFavicons && !!faviconDomain && !imgError && !domainFailed;
+  const content = avatarContent({
+    senderWarning,
+    hasPhoto: !disableImages && !!photoSource,
+    showFavicon: senderFavicons && !!faviconDomain && !imgError && !domainFailed,
+  });
 
   const handleError = React.useCallback(() => {
     setImgError(true);
@@ -75,14 +90,29 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
       width: size,
       height: size,
       borderRadius: size / 2,
-      backgroundColor: showPhoto ? 'transparent' : showFavicon ? '#ffffff' : bgColor,
+      backgroundColor: content === 'warning'
+        ? c.errorBg
+        : content === 'photo' ? 'transparent' : content === 'favicon' ? '#ffffff' : bgColor,
     },
     style,
   ];
 
   const fontSize = Math.round(size * 0.4);
 
-  if (showPhoto && photoSource) {
+  if (content === 'warning') {
+    return (
+      <View
+        style={containerStyle}
+        accessible
+        accessibilityLabel={`${primaryName || email || ''} (${senderWarning})`}
+        testID="sender-warning-avatar"
+      >
+        <ShieldAlert size={Math.round(size * 0.5)} color={c.error} />
+      </View>
+    );
+  }
+
+  if (content === 'photo' && photoSource) {
     return (
       <View style={containerStyle}>
         <Image
@@ -96,7 +126,7 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
     );
   }
 
-  if (showFavicon && faviconDomain) {
+  if (content === 'favicon' && faviconDomain) {
     return (
       <View style={containerStyle}>
         <Image

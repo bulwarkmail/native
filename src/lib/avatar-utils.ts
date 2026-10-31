@@ -196,3 +196,24 @@ export function getContactPhotoForEmail(
   const key = email?.trim().toLowerCase();
   return key ? getContactPhotoIndex(contacts).get(key) : undefined;
 }
+
+// --- What the avatar shows --------------------------------------------------
+
+export type AvatarContent = 'warning' | 'photo' | 'favicon' | 'initials';
+
+/**
+ * What a sender avatar shows, in the webmail `Avatar`'s order. A failed or
+ * unverified sender check comes first: a warning shield instead of any photo,
+ * favicon or initials, so a forged From doesn't get the real sender's logo or
+ * contact photo (webmail 605a3983b, #1439).
+ */
+export function avatarContent(options: {
+  senderWarning?: string | null;
+  hasPhoto: boolean;
+  showFavicon: boolean;
+}): AvatarContent {
+  if (options.senderWarning) return 'warning';
+  if (options.hasPhoto) return 'photo';
+  if (options.showFavicon) return 'favicon';
+  return 'initials';
+}

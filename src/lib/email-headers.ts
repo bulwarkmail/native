@@ -244,6 +244,28 @@ export function senderVerificationOf(email: Pick<Email, 'headers' | 'from'>): Se
   return getSenderVerification(parseAuthenticationResults(values), email.from?.[0]?.email);
 }
 
+/**
+ * The list fetch asks for the Authentication-Results headers by this
+ * property, so list rows and collapsed conversation cards can judge the
+ * sender too (webmail 605a3983b, #1439). Stalwart answers header properties
+ * from the stored headers, not the message blob.
+ */
+export const LIST_AUTH_RESULTS_PROPERTY = 'header:Authentication-Results:all';
+
+/**
+ * The sender check for a message as the list or the reader holds it: from
+ * the full headers when they are there, else from the list property. Null
+ * when the checks back the From or there is nothing to judge by.
+ */
+export function senderWarningOf(email: Pick<Email, 'headers' | 'from'>): SenderVerification | null {
+  if (email.headers) return senderVerificationOf(email);
+  const raw = (email as { [LIST_AUTH_RESULTS_PROPERTY]?: unknown })[LIST_AUTH_RESULTS_PROPERTY];
+  if (!Array.isArray(raw)) return null;
+  const values = raw.filter((value): value is string => typeof value === 'string');
+  if (values.length === 0) return null;
+  return getSenderVerification(parseAuthenticationResults(values), email.from?.[0]?.email);
+}
+
 interface ResInfo {
   method: string;
   result: string;

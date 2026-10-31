@@ -8,6 +8,7 @@ import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { secureFetch } from '../lib/client-cert';
 import { freshStoredCredentials } from '../lib/stored-token-refresh';
 import { textConditions } from '../lib/search-utils';
+import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
 // Unread / Starred). Because the JMAP client is a single-account singleton
@@ -21,6 +22,8 @@ import { textConditions } from '../lib/search-utils';
 const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
   'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment',
+  // The sender check, for the warning shield on a forged From (#1439).
+  LIST_AUTH_RESULTS_PROPERTY,
 ];
 
 const SESSION_CACHE_TTL_MS = 10 * 60 * 1000;

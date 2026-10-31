@@ -37,7 +37,9 @@ import {
   searchEmails,
   sendEmail,
   MAILBOX_PROPERTIES,
+  queryEmailPage,
 } from '../email';
+import { senderWarningOf } from '../../lib/email-headers';
 import { uploadBytes } from '../blob';
 import { getIdentities, updateIdentity } from '../identity';
 import { isJMAPSetError } from '../jmap-result';
@@ -416,6 +418,34 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       } finally {
         await updateIdentity(identity.id, before);
       }
+    }, 60_000);
+  });
+
+  describe('mail list (reader pass)', () => {
+    it('lists the Authentication-Results headers so a forged From gets the warning shield (bulwarkmail/webmail#1439)', async () => {
+      const subject = `forged ${mailTag}`;
+      const raw = [
+        'Authentication-Results: mx.example.org; spf=fail smtp.mailfrom=evil.example; dkim=none; dmarc=fail header.from=bank.example',
+        'From: Bank <ceo@bank.example>',
+        `To: ${USER}`,
+        `Subject: ${subject}`,
+        `Date: ${new Date().toUTCString()}`,
+        `Message-ID: <forged-${RUN}@live.test>`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        'hello',
+        '',
+      ].join('\r\n');
+      const { blobId } = await uploadBytes(new TextEncoder().encode(raw), 'message/rfc822');
+      const id = await importEmailBlob(blobId, scratch, {});
+      const page = await queryEmailPage(scratch, { limit: 10 });
+      const row = page.list.find((e) => e.id === id);
+      expect(row).toBeDefined();
+      expect(senderWarningOf(row!)?.status).toBe('failed');
+      // The full fetch reads the same verdict from `headers`.
+      const [full] = await getFullEmails([id]);
+      expect(senderWarningOf(full)?.status).toBe('failed');
     }, 60_000);
   });
 });

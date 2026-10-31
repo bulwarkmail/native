@@ -19,17 +19,27 @@ import { hasTruncatedDisplayedBody } from '../lib/email-body';
 import { withInlineBodyParts } from '../lib/email-inline-parts';
 import { stalwartStateWentBack } from './stalwart-state';
 import { isTransientNetworkError } from '../lib/network-error';
+import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 
-export const EMAIL_LIST_PROPERTIES = [
+const EMAIL_SUMMARY_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
   'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment',
 ];
 
+export const EMAIL_LIST_PROPERTIES = [
+  ...EMAIL_SUMMARY_PROPERTIES,
+  // The sender check, so a list row shows a warning shield instead of the
+  // favicon or photo of a forged From (webmail #1439).
+  LIST_AUTH_RESULTS_PROPERTY,
+];
+
 // The viewer derives reply threading (In-Reply-To/References), Reply-To
 // handling, SPF/DKIM/DMARC chips, List-Unsubscribe and read-receipt requests
-// from these; without `messageId`/`headers` none of that can work.
+// from these; without `messageId`/`headers` none of that can work. The full
+// `headers` carry Authentication-Results, so the list's header property is
+// left out.
 export const EMAIL_FULL_PROPERTIES = [
-  ...EMAIL_LIST_PROPERTIES,
+  ...EMAIL_SUMMARY_PROPERTIES,
   'bodyStructure', 'textBody', 'htmlBody', 'bodyValues',
   'attachments', 'blobId', 'bcc', 'replyTo', 'sentAt',
   'messageId', 'inReplyTo', 'references', 'headers',

@@ -172,7 +172,12 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           accessibilityRole="button"
           accessibilityLabel={from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
         >
-          <SenderAvatar name={from?.name} email={from?.email} size={compact ? componentSizes.avatarSm : componentSizes.avatarMd} />
+          <SenderAvatar
+            name={from?.name}
+            email={from?.email}
+            size={compact ? componentSizes.avatarSm : componentSizes.avatarMd}
+            senderWarning={verificationText?.label}
+          />
         </Pressable>
         <View style={styles.info}>
           <Pressable onPress={from ? () => onAddressPress(from) : undefined}>

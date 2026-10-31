@@ -26,6 +26,7 @@ import { singleLine } from '../lib/single-line';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
+import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -313,6 +314,8 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     const unread = !item.keywords?.$seen;
     const starred = !!item.keywords?.$flagged;
     const isSelected = selected.has(rowKey(item));
+    // Sent and Drafts rows show the recipient: the check says nothing about them.
+    const verification = showRecipient ? null : senderWarningOf(item);
     return (
       <SwipeableRow
         leftAction={selectionMode ? 'none' : swipeLeftAction}
@@ -344,6 +347,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
+              senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
             />
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />

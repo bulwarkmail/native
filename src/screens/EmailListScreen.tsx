@@ -24,6 +24,7 @@ import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
 import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
+import { useSenderWarning } from '../components/email/use-sender-warning';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -176,6 +177,8 @@ const EmailRow = React.memo(function EmailRow({
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
   const verificationCode = useListVerificationCode(item);
+  // Sent and Drafts rows show the recipient: the check says nothing about them.
+  const senderWarning = useSenderWarning(showRecipient ? undefined : item);
 
   return (
     <Pressable
@@ -215,6 +218,7 @@ const EmailRow = React.memo(function EmailRow({
           email={senderEmail}
           size={componentSizes.avatarMd}
           disableImages={disableAvatarImages}
+          senderWarning={senderWarning}
         />
       )}
 
