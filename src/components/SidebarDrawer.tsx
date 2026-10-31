@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
-  Clock, Layers, Users, Tag, Mails, MoreHorizontal, MailOpen, StickyNote, AlarmClock, Flag,
+  Clock, Layers, Users, Tag, Mails, MoreHorizontal, Share2, MailOpen, StickyNote, AlarmClock, Flag,
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Bell, BellOff, RotateCcw,
   type AppIcon,
 } from './icons';
@@ -35,6 +35,9 @@ import {
 } from '../api/email';
 import { useTagCountsStore } from '../stores/tag-counts-store';
 import { sidebarTagRows } from '../lib/keyword-nesting';
+import { supportsMailboxSharing } from '../api/delegation';
+import { MailboxShareSheet } from './sharing/MailboxShareSheet';
+import { canShareMailbox } from '../lib/mailbox-share';
 import { tagIdFromKeyword } from '../lib/thread-utils';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -381,6 +384,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // The folder whose "Share" sheet is open (webmail MailboxShareDialog).
+  const [sharing, setSharing] = React.useState<{ mailbox: Mailbox; name: string } | null>(null);
   const tagCounts = useTagCountsStore((s) => s.counts);
   const tagCountsGeneration = useTagCountsStore((s) => s.generation);
   const ensureTagCounts = useTagCountsStore((s) => s.ensure);
@@ -662,6 +667,14 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             false,
           ),
         }),
+      });
+    }
+    if (canShareMailbox(mb, supportsMailboxSharing())) {
+      actions.push({
+        key: 'share',
+        label: t('mailbox_context_menu.share', 'Share…'),
+        icon: Share2,
+        onPress: () => setSharing({ mailbox: mb, name }),
       });
     }
     if (!mb.role && mb.myRights?.mayRename !== false) {
@@ -1316,6 +1329,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             onClose={() => setPrompt(null)}
           />
         )}
+        <MailboxShareSheet mailbox={sharing?.mailbox ?? null} name={sharing?.name} onClose={() => setSharing(null)} />
       </View>
     );
   }
@@ -1351,6 +1365,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
           onClose={() => setPrompt(null)}
         />
       )}
+      <MailboxShareSheet mailbox={sharing?.mailbox ?? null} name={sharing?.name} onClose={() => setSharing(null)} />
     </SafeAreaModal>
   );
 }
