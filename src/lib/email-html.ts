@@ -955,9 +955,9 @@ export type PlainTextFont = 'sans' | 'mono';
 // (no filter inversion), and a dark-mode-appropriate link colour.
 export function wrapPlainTextEmail(
   innerHtml: string,
-  options: { isDark?: boolean; font?: PlainTextFont } = {},
+  options: { isDark?: boolean; font?: PlainTextFont; fontPx?: number } = {},
 ): string {
-  const { isDark = true, font = 'sans' } = options;
+  const { isDark = true, font = 'sans', fontPx = 14 } = options;
   const cleaned = stripDangerousTags(innerHtml);
 
   const bg = isDark ? '#0a0a0a' : '#ffffff';
@@ -976,7 +976,7 @@ body {
   margin: 0;
   padding: 16px;
   font-family: ${fontFamily};
-  font-size: 14px;
+  font-size: ${fontPx}px;
   line-height: 1.6;
   color: ${fg};
   white-space: pre-wrap;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Linking, Platform, Text, Pressable, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Linking, Platform, Text, Pressable, PixelRatio, useWindowDimensions } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,11 +15,13 @@ import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { senderVerificationOf } from '../lib/email-headers';
 import { plainTextReading } from '../lib/html-to-readable-text';
+import { buildMailTextSizeScript, mailTextFactor } from '../lib/mail-reading';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
+import { useTypography } from '../theme/dynamic';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { perfEndAfterPaint, perfLap } from '../lib/perf-marks';
 import type { RootStackParamList } from '../navigation/types';
@@ -545,6 +547,11 @@ export default function EmailBodyView({
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  // Body text follows the app's text size and the system font scale (webmail
+  // c07ba1a37); it was fixed at 14 px. The app's factor is read off its
+  // scaled body style, so it follows whatever steps the text size setting has.
+  const dyn = useTypography();
+  const textFactor = mailTextFactor(dyn.body.fontSize / typography.body.fontSize, PixelRatio.getFontScale());
   const trustedSenderEmails = useContactsStore((s) => s.trustedSenderEmails);
   const trustedSendersLoaded = useContactsStore((s) => s.trustedSendersLoaded);
   const loadTrustedSendersBook = useContactsStore((s) => s.loadTrustedSendersBook);
@@ -692,9 +699,10 @@ export default function EmailBodyView({
     messageSpacing,
     plainTextFont,
     quoteLabels,
+    textFactor,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
-    messageSpacing, plainTextFont, quoteLabels,
+    messageSpacing, plainTextFont, quoteLabels, textFactor,
   ]);
 
   const source = React.useMemo(() => ({ html: prepared.html }), [prepared.html]);
@@ -707,11 +715,12 @@ export default function EmailBodyView({
   // input the CSS was built from, so the DOM pass and the stylesheet agree.
   const injectedJs = React.useMemo(
     () =>
-      (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
+      (prepared.isHtml ? buildMailTextSizeScript(textFactor) : '')
+      + (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
       + (prepared.applyInversion ? DARK_REINVERT_SCRIPT : '')
       + (prepared.isHtml ? IMG_FIXUP_SCRIPT : '')
       + HEIGHT_REPORTER + SWIPE_DETECTOR + PINCH_ZOOM,
-    [prepared.isHtml, prepared.applyInversion, quoteLabels],
+    [prepared.isHtml, prepared.applyInversion, quoteLabels, textFactor],
   );
 
   // Performance harness: how much of opening a message is the WebView.
@@ -854,6 +863,9 @@ export default function EmailBodyView({
           // Native Android zoom would scale the viewport inside the fixed-size
           // container; pinch zoom is implemented in the page instead.
           setBuiltInZoomControls={false}
+          // The system font size is part of textFactor; Android's WebView
+          // would scale the text by it a second time.
+          textZoom={100}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
           setSupportMultipleWindows={false}
