@@ -323,6 +323,26 @@ let restoreUnderWay: Promise<void> | null = null;
 // connect, until the server confirms it (revalidateRestoredSession). Its
 // session is not live yet: its server was not checked and its outbox waits.
 let unconfirmedStart: string | null = null;
+/** The reads that start sent with the saved session. */
+let unconfirmedStartReads: { accountId: string; promise: Promise<void> } | null = null;
+/**
+ * The check of the saved session under way. A session retry (the network
+ * coming back) during a start from the saved session waits for it instead of
+ * loading the account beside it.
+ */
+let revalidation: { accountId: string; promise: Promise<void> } | null = null;
+
+function readsOfStart(accountId: string): Promise<void> | undefined {
+  return unconfirmedStartReads?.accountId === accountId ? unconfirmedStartReads.promise : undefined;
+}
+
+function startRevalidation(accountId: string, reads?: Promise<void>): Promise<void> {
+  const promise: Promise<void> = revalidateRestoredSession(accountId, reads).finally(() => {
+    if (revalidation?.promise === promise) revalidation = null;
+  });
+  revalidation = { accountId, promise };
+  return promise;
+}
 
 async function switchesSettled(): Promise<void> {
   while (pendingSwitch) await pendingSwitch.settled;
@@ -627,6 +647,7 @@ function applyConnectedState(
   // A session from the server, or a start from the saved one, which sets
   // this again right after.
   unconfirmedStart = null;
+  unconfirmedStartReads = null;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -1057,7 +1078,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // still in the snapshot taken then, and its server was checked.
         jmapClient.restoreSnapshot(origin.client);
         if (origin.live) refetchFeatureStores(accountId);
-        else if (unconfirmedStart === accountId) void revalidateRestoredSession(accountId);
+        else if (unconfirmedStart === accountId) void startRevalidation(accountId);
         set({ isLoading: false });
         return;
       }
@@ -1072,7 +1093,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (origin.accountId && origin.live) resumeOutbox(origin.accountId);
         // A start from the saved session whose check this switch overtook.
         else if (origin.accountId && unconfirmedStart === origin.accountId) {
-          void revalidateRestoredSession(origin.accountId);
+          void startRevalidation(origin.accountId);
         }
       };
       try {
@@ -1245,7 +1266,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         unconfirmedStart = target.id;
         perfMark('restore-done', { cached: true });
         const reads = reloadFeatureStores();
-        void revalidateRestoredSession(target.id, reads);
+        unconfirmedStartReads = { accountId: target.id, promise: reads };
+        void startRevalidation(target.id, reads);
         void syncAccountDisplayName(target.id);
         return true;
       }
@@ -1358,6 +1380,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!target) return false;
     // The server refused its sign-in: only a new one brings it back.
     if (target.needsSignIn) return false;
+    // A start from the saved session: its check brings the session up, after
+    // the reads that start sent. Loading the account beside it checked the
+    // server while those reads were still landing. Only a check that ended
+    // without network leaves the load below to try.
+    if (unconfirmedStart === activeAccountId) {
+      const running = revalidation?.accountId === activeAccountId
+        ? revalidation.promise
+        : startRevalidation(activeAccountId, readsOfStart(activeAccountId));
+      await running;
+      if (!isCurrent() || get().activeAccountId !== activeAccountId) return false;
+      if (get().session) return true;
+      if (get().reauth || unconfirmedStart === activeAccountId) return false;
+    }
+    const startReads = readsOfStart(activeAccountId);
     try {
       const ok = await jmapClient.loadAccount(activeAccountId);
       if (!ok || !isCurrent()) return false;
@@ -1369,6 +1405,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       const fresh = jmapClient.currentSession!;
       followStoredServer(activeAccountId);
+      if (startReads) {
+        // What the start read from the saved session lands before a server
+        // that was replaced drops the caches.
+        const recorded = await readServerFingerprint(activeAccountId).catch(() => null);
+        if (recorded !== sessionFingerprint(fresh)) await startReads;
+        if (!isCurrent()) return false;
+      }
       await checkServerChange(activeAccountId, fresh);
       if (!isCurrent()) return false;
       applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
@@ -1449,6 +1492,7 @@ async function revalidateRestoredSession(accountId: string, reads?: Promise<void
   const live = jmapClient.currentSession;
   if (!isCurrent() || !live) return;
   unconfirmedStart = null;
+  unconfirmedStartReads = null;
   useAccountStore.getState().updateAccount(accountId, {
     isConnected: true,
     hasError: false,

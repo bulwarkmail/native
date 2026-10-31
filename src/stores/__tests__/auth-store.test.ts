@@ -391,6 +391,55 @@ describe('auth-store', () => {
         expect(useAccountStore.getState().getAccountById('acc-1')?.needsSignIn).toBeFalsy();
       });
 
+      // The network coming back (App.tsx) retries the session while the
+      // start from the saved session is still checking it: the retry used to
+      // load the account beside the check, and check the server while the
+      // start's reads were still landing.
+      it('waits for the check of the saved session when the network comes back during it', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        const check = deferred<unknown>();
+        mockRevalidate.mockReturnValueOnce(check.promise);
+        await useAuthStore.getState().restoreSession();
+
+        let retried: boolean | undefined;
+        const retry = useAuthStore.getState().retrySession().then((ok) => { retried = ok; });
+        await new Promise((r) => setTimeout(r, 10));
+        expect(mockLoadAccount).not.toHaveBeenCalled();
+        expect(retried).toBeUndefined();
+
+        check.resolve({ apiUrl: 'https://mail.example.com/jmap/' });
+        await retry;
+        expect(retried).toBe(true);
+        expect(useAuthStore.getState().session).not.toBeNull();
+        expect(mockLoadAccount).not.toHaveBeenCalled();
+        expect(mockRevalidate).toHaveBeenCalledTimes(1);
+        expect((resume.mock.calls as unknown[][]).filter(([id]) => id === 'acc-1')).toHaveLength(1);
+      });
+
+      it('loads the account once the check of the saved session failed without network', async () => {
+        registerAccount();
+        mockLoadFromCache.mockResolvedValueOnce(true);
+        const check = deferred<unknown>();
+        mockRevalidate.mockReturnValueOnce(check.promise);
+        await useAuthStore.getState().restoreSession();
+
+        mockLoadAccount.mockResolvedValueOnce(true);
+        const retry = useAuthStore.getState().retrySession();
+        await new Promise((r) => setTimeout(r, 10));
+        expect(mockLoadAccount).not.toHaveBeenCalled();
+        check.reject(new NetworkError('offline'));
+
+        expect(await retry).toBe(true);
+        expect(mockLoadAccount).toHaveBeenCalledTimes(1);
+        expect(useAuthStore.getState().session).not.toBeNull();
+        // The start is confirmed: a failed switch away does not check it again.
+        mockLoadAccount.mockRejectedValueOnce(new NetworkError('offline'));
+        useAccountStore.setState({ accounts: [...useAccountStore.getState().accounts, account('acc-2', false)] });
+        await useAuthStore.getState().switchAccount('acc-2');
+        expect(mockRevalidate).toHaveBeenCalledTimes(1);
+      });
+
       // A switch that fails puts the account back. Its saved session was
       // never confirmed (the switch overtook the check), so the check runs
       // again, and the outbox waits for it.
