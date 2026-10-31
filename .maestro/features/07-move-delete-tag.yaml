@@ -74,6 +74,12 @@ tags:
     timeout: 10000
 - takeScreenshot: actions-04-selected
 # Star (or Unstar, when an earlier run left it starred), then toggle back.
+# On a tablet the list column is narrow and Star sits in the More menu.
+- runFlow:
+    when:
+      notVisible: "Star|Unstar"
+    commands:
+      - tapOn: "More actions"
 - tapOn: "Star|Unstar"
 # A bulk action ends selection mode by itself.
 - runFlow:
@@ -84,6 +90,11 @@ tags:
 - longPressOn:
     id: email-row
     text: ".*Grüße aus München.*"
+- runFlow:
+    when:
+      notVisible: "Unstar|Star"
+    commands:
+      - tapOn: "More actions"
 - tapOn: "Unstar|Star"
 - runFlow:
     when:
