@@ -16,6 +16,7 @@ import {
 } from './pending-calendar-date';
 import { setPendingMailSearch } from './pending-mail-search';
 import { setPendingMailFolder } from './pending-mail-folder';
+import { setPendingFilesLink } from './pending-files-link';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
@@ -52,7 +53,10 @@ export type DeepLink =
   // `/contacts/new`, with `?email=`/`?addEmail=` and `?name=`/`?addName=`.
   | { kind: 'contact-new'; email?: string; name?: string }
   | { kind: 'contacts' }
-  | { kind: 'files' }
+  // `path`: a folder (`/files/<folder>/<sub>`); `preview`: a file in it to
+  // open (`?preview=`); `shared`: a node of a drive shared with the user
+  // (`?shared=<owner>:<id>`). None of them: just the Files tab.
+  | { kind: 'files'; path?: string; preview?: string; shared?: string }
   | { kind: 'settings'; tab?: string }
   | { kind: 'compose'; to: EmailAddress[]; cc: EmailAddress[]; bcc?: EmailAddress[]; subject?: string; body?: string };
 
@@ -191,8 +195,19 @@ export function parseDeepLink(url: string): DeepLink | null {
       }
       return { kind: 'contacts' };
     }
-    case 'files':
-      return { kind: 'files' };
+    case 'files': {
+      // Webmail parseFilesPath.
+      const parts = segments.slice(1).map(decodeSegment).filter(Boolean);
+      const preview = search.get('preview') || undefined;
+      const shared = search.get('shared') || undefined;
+      if (parts.length === 0 && !preview && !shared) return { kind: 'files' };
+      return {
+        kind: 'files',
+        path: `/${parts.join('/')}`,
+        ...(preview ? { preview } : {}),
+        ...(shared ? { shared } : {}),
+      };
+    }
     case 'settings':
       return { kind: 'settings', tab: kind ? decodeSegment(kind) : undefined };
     case 'compose': {
@@ -355,6 +370,14 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       navigation.navigate('MainTabs', { screen: 'Contacts' } as never);
       return true;
     case 'files':
+      // The Files tab walks to the folder once it has listed the drive.
+      if (link.path || link.preview || link.shared) {
+        setPendingFilesLink({
+          path: link.path ?? '/',
+          ...(link.preview ? { preview: link.preview } : {}),
+          ...(link.shared ? { shared: link.shared } : {}),
+        });
+      }
       navigation.navigate('MainTabs', { screen: 'Files' } as never);
       return true;
     case 'settings':

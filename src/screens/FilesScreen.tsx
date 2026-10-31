@@ -89,6 +89,7 @@ import {
   RECENT_FILES_SHOWN, folderPathOf, nodePlace, resolveFolderPath, type FolderStep,
 } from '../lib/files-places';
 import { NO_FILES_PLACES, useFilesPlacesStore } from '../stores/files-places-store';
+import { usePendingFilesLink, type FilesLink } from '../navigation/pending-files-link';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 // A file row carries the display name alongside the rest of the node.
@@ -1408,6 +1409,52 @@ export default function FilesScreen() {
       <Text style={styles.placesTitle} accessibilityRole="header">{rootLabel}</Text>
     </View>
   ) : null;
+
+  // A `/files/<folder>?preview=<name>` link (webmail files-app): once the
+  // drive is listed, walk to the folder and open the file there. A link into
+  // a shared drive names the node by id (`?shared=`).
+  const applyFilesLink = (link: FilesLink) => {
+    let stack: FolderStep[] | null = null;
+    let fileNode: FileNode | undefined;
+    if (link.shared) {
+      const place = nodePlace(driveNodes, link.shared);
+      if (place && isFolder(place.node)) stack = [...place.stack, { id: place.node.id, name: place.node.name }];
+      else if (place) {
+        stack = place.stack;
+        fileNode = place.node;
+      }
+    } else if (link.path === `/${TRASH_FOLDER_NAME}`) {
+      setPath([]);
+      setInTrash(true);
+      setSearchQuery('');
+      clearSelection();
+      return;
+    } else {
+      stack = resolveFolderPath(driveNodes.filter((n) => !n.isShared), link.path);
+    }
+    if (!stack) {
+      toast.error(link.preview
+        ? t('deep_link.file_not_found', 'This file is no longer available.')
+        : t('deep_link.folder_not_found', 'This folder is no longer available.'));
+      return;
+    }
+    openFolderStack(stack);
+    if (!link.preview && !fileNode) return;
+    const parentId = stack.length > 0 ? stack[stack.length - 1].id : null;
+    const target = fileNode ?? listFolder(driveNodes, parentId).find((n) => n.name === link.preview && !isFolder(n));
+    const row = target ? { ...target, displayName: target.name } : null;
+    if (row && !isSymlink(row) && canPreviewInApp(row)) openPreview(row);
+    else toast.error(t('deep_link.file_not_found', 'This file is no longer available.'));
+  };
+  const applyFilesLinkRef = useRef(applyFilesLink);
+  applyFilesLinkRef.current = applyFilesLink;
+  const pendingFilesLink = usePendingFilesLink((s) => s.link);
+  useEffect(() => {
+    // Wait for the listing: the walk needs the drive's folders.
+    if (!pendingFilesLink || loading || !driveRef.current?.account) return;
+    const link = usePendingFilesLink.getState().consume();
+    if (link) applyFilesLinkRef.current(link);
+  }, [pendingFilesLink, loading]);
 
   let body: React.ReactNode;
   if (loading && !refreshing) {
