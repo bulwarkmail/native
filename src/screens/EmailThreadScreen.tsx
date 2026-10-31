@@ -15,10 +15,15 @@ import {
 } from '../components/icons';
 import { pickEmailBody } from '../lib/email-body';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
+import { useTagUndoGroup } from '../lib/tag-undo-group';
+import { cardReplyActions } from '../lib/thread-card-actions';
 import { NewTagRow } from '../components/NewTagRow';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, typography as tokenTypography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useTypography } from '../theme/dynamic';
+// The user's text size (Settings > Accessibility), as the list has it.
+type ScaledTypography = ReturnType<typeof useTypography>;
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
 import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
@@ -35,7 +40,7 @@ import {
 import { patchKeywordsForEmails } from '../api/email';
 import {
   loadDetail, loadDetails, loadThread, patchDetail, peekDetail, peekRow, peekThread, subscribeEmailCache,
-  type FlagsHint,
+  EmailNotFoundError, type FlagsHint,
 } from '../lib/email-detail-cache';
 import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, useAccountKeywordDefs, keywordToken, type KeywordDef } from '../stores/keywords-store';
@@ -50,7 +55,7 @@ import { replyComposeParams } from '../lib/reply-compose';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
-import { accountScopedId, isReplyableMember, quickReplyTarget } from '../lib/thread-utils';
+import { accountScopedId, quickReplyTarget } from '../lib/thread-utils';
 import { scheduledEmailIdsInThread } from '../api/thread-scheduled';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -95,7 +100,8 @@ export default function EmailThreadScreen(props: Props) {
 
 function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Props) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const { t } = useLocaleStore();
   // The JMAP account the message lives in, as the screen that opened it named
   // it (undefined = the user's own). Never the open folder's: that may be
@@ -113,8 +119,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const { width: windowWidth } = useWindowDimensions();
   // Pages are as wide as the pager itself, which is the window on a phone
   // but only the detail pane in a split view. Measured, so a rotation or a
-  // pane resize re-sizes them.
-  const [pageWidth, setPageWidth] = React.useState(windowWidth);
+  // pane resize re-sizes them. The pages render only once it is measured:
+  // laid out at the window's width first, a split view's pager scrolled the
+  // opened message to the wrong offset, and on a tablet the pane once stayed
+  // empty (just the toolbar and the bottom bar) until the message was
+  // reopened.
+  const [measuredWidth, setMeasuredWidth] = React.useState(0);
+  const pageWidth = measuredWidth || windowWidth;
   const markRead = useEmailStore((s) => s.markRead);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
@@ -177,6 +188,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
+  // Tag changes made in the sheet get one Undo, shown once it closes.
+  const tagUndoGroup = useTagUndoGroup(tagMenuOpen);
   const [rulesOpen, setRulesOpen] = React.useState(false);
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
@@ -233,9 +246,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
 
   // Cache first: a held copy renders at once and the promise resolves with the
   // checked one (which mark-as-read goes by). Concurrent loads share a request.
+  // `onGone` hears when the server has no such message any more.
   const ensureDetail = React.useCallback(
-    (id: string): Promise<Email | null> =>
-      loadDetail(id, ownerAccountId, hintFor(id)).catch(() => peekDetail(id, ownerAccountId) ?? null),
+    (id: string, onGone?: () => void): Promise<Email | null> =>
+      loadDetail(id, ownerAccountId, hintFor(id)).catch((err) => {
+        if (err instanceof EmailNotFoundError) onGone?.();
+        return peekDetail(id, ownerAccountId) ?? null;
+      }),
     [ownerAccountId, hintFor],
   );
   const ensureDetails = React.useCallback((ids: string[]) => {
@@ -324,12 +341,12 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   }, [pageWidth]);
   const onPagerLayout = React.useCallback((e: LayoutChangeEvent) => {
     const width = Math.round(e.nativeEvent.layout.width);
-    if (width > 0) setPageWidth((prev) => (prev === width ? prev : width));
+    if (width > 0) setMeasuredWidth((prev) => (prev === width ? prev : width));
   }, []);
 
   const pagerExtraData = React.useMemo(
-    () => [cacheVersion, neighboursReady],
-    [cacheVersion, neighboursReady],
+    () => [cacheVersion, neighboursReady, pageWidth],
+    [cacheVersion, neighboursReady, pageWidth],
   );
 
   // While the body is pinch-zoomed the pager must not treat horizontal
@@ -378,8 +395,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   // list row follows when the list holds that account (never a same-id row
   // of another one).
   const setKeyword = React.useCallback(
-    (target: Email, token: string, on: boolean) =>
-      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId }),
+    (target: Email, token: string, on: boolean, undoGroup?: string) =>
+      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId }, { undoGroup }),
     [setKeywordForEmails, ownerAccountId],
   );
 
@@ -414,10 +431,18 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     // this lands. Then mark it read per the user's delay.
     setError(null);
     void (async () => {
-      const fetched = await ensureDetail(activeEmailId);
+      let gone = false;
+      const fetched = await ensureDetail(activeEmailId, () => { gone = true; });
       if (cancelled) return;
       if (!fetched) {
-        if (!detailOf(activeEmailId)) setError(t('email_viewer.load_failed', 'Failed to load email'));
+        if (!detailOf(activeEmailId)) {
+          // Deleted or moved elsewhere: say so (webmail deep_link
+          // message_not_found) and let the list drop its row.
+          setError(gone
+            ? t('deep_link.message_not_found', 'This message is no longer available.')
+            : t('email_viewer.load_failed', 'Failed to load email'));
+          if (gone) void useEmailStore.getState().refreshEmails();
+        }
         return;
       }
       cancelRead = scheduleMarkRead(fetched);
@@ -473,7 +498,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     if (next[token]) delete next[token];
     else next[token] = true;
     updateLocalKeywords(email.id, next);
-    setKeyword(email, token, !!next[token]).catch((err) => {
+    setKeyword(email, token, !!next[token], tagUndoGroup || undefined).catch((err) => {
       updateLocalKeywords(email.id, email.keywords);
       toastFailure(t('notifications.tag_failed', 'Tagging failed'), err);
     });
@@ -795,10 +820,11 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         </View>
       ) : (
         <>
+          <View style={styles.pagerViewport} onLayout={onPagerLayout}>
+          {measuredWidth > 0 && (
           <FlatList
             ref={listRef}
             style={styles.pagerViewport}
-            onLayout={onPagerLayout}
             onContentSizeChange={snapToActive}
             data={emails}
             extraData={pagerExtraData}
@@ -811,7 +837,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
             windowSize={3}
             initialNumToRender={1}
             maxToRenderPerBatch={2}
-            removeClippedSubviews
+            // Not removeClippedSubviews: with three pages it saves nothing,
+            // and Android can leave the open page detached after a resize.
             scrollEnabled={!pagerLocked && kbObstruction === 0}
             onScrollBeginDrag={releaseNeighbours}
             onMomentumScrollEnd={onMomentumEnd}
@@ -856,6 +883,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
               </View>
             )}
           />
+          )}
+          </View>
 
           {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
           {kbObstruction === 0 && (
@@ -1257,7 +1286,7 @@ function EmailPane({
               fill={!asConversation}
               email={full ?? m}
               expanded={open}
-              replyable={!!full && isReplyableMember(m, scheduledIds)}
+              replyActions={cardReplyActions(m, !!full, scheduledIds)}
               deferBody={!full || !bodyEnabled}
               onBodySettled={onBodySettled}
               onToggleExpanded={() => toggleCard(m.id)}
@@ -1382,7 +1411,8 @@ function MoreMenuSheet({
   onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(600)).current;
@@ -1548,7 +1578,8 @@ interface TagMenuSheetProps {
 
 function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: TagMenuSheetProps) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
@@ -1633,7 +1664,8 @@ function MoreMenuItem({
   icon, label, onPress, trailing,
 }: { icon: React.ReactNode; label: string; onPress?: () => void; trailing?: React.ReactNode }) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   return (
     <Pressable
       onPress={onPress}
@@ -1650,7 +1682,8 @@ function ToolbarButton({
   icon, label, onPress,
 }: { icon: React.ReactNode; label: string; onPress?: () => void }) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   // Icons only in a short (landscape) window, which leaves room for the message.
   const labelsSetting = useSettingsStore((s) => s.showToolbarLabels);
   const { shortHeight } = useLayout();
@@ -1672,7 +1705,8 @@ function BottomBarButton({
   icon, label, onPress, disabled,
 }: { icon: React.ReactNode; label: string; onPress?: () => void; disabled?: boolean }) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   // Icons only in a short (landscape) window, which leaves room for the message.
   const labelsSetting = useSettingsStore((s) => s.showToolbarLabels);
   const { shortHeight } = useLayout();
@@ -1694,7 +1728,7 @@ function BottomBarButton({
   );
 }
 
-function makeStyles(c: ThemePalette) {
+function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypography) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
 
@@ -1770,9 +1804,10 @@ function makeStyles(c: ThemePalette) {
   // Webmail viewer on a phone: text-lg font-bold tracking-tight.
   subjectText: {
     flex: 1,
-    fontSize: 18,
+    // 18 / 26 at the default text size, scaled with it.
+    fontSize: typography.h3.fontSize,
     fontWeight: '700',
-    lineHeight: 26,
+    lineHeight: Math.round((26 * typography.h3.fontSize) / 18),
     color: c.text,
     letterSpacing: -0.2,
   },

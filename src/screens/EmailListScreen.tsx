@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback, Alert, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -22,6 +22,8 @@ import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
+import { useTagUndoGroup } from '../lib/tag-undo-group';
+import { selectAllA11y } from '../lib/select-all-a11y';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
 import {
@@ -51,14 +53,14 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { toast } from '../stores/toast-store';
 import { getContactDisplayName } from '../lib/contact-utils';
-import { listAddressLabel } from '../lib/list-sender';
+import { listAddressLabel, rowShowsRecipient } from '../lib/list-sender';
 import { useOwnDomainAddress } from '../lib/use-own-domain-address';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import { cleanPreview } from '../lib/preview-text';
 import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import {
-  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
+  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes, mailboxesOfAccount,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
@@ -69,7 +71,10 @@ import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { moveSheetCurrentId } from '../lib/move-targets';
 import { listViewKey } from '../lib/list-view-key';
 import { searchScopeFolders } from '../lib/search-scope-folders';
-import { SIZE_PRESETS_MB, sizeFilterBytes, sizePresetOf } from '../lib/search-utils';
+import {
+  SIZE_PRESETS_MB, sizeFilterBytes, sizePresetOf, sizeChipLabel, filterButtonLabel, keepCustomSize, filterSheetFrame,
+} from '../lib/search-utils';
+import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -575,7 +580,18 @@ export default function EmailListScreen({
   }, [sharedTags, keywordDefs]);
   const folderKeywordDefs = (currentOwnerAccountId && keywordDefsByAccount.get(currentOwnerAccountId)) || keywordDefs;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
-  const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
+  // A search started in Sent runs over every folder: each row names its
+  // recipient only when it is in Sent or Drafts itself.
+  const rowScope = effectiveFolderScope(storeSearchQuery, filters, currentRole);
+  const showRecipientFor = React.useCallback(
+    (item: Email) => rowShowsRecipient(
+      item.mailboxIds,
+      rowScope === 'current' ? [] : mailboxesOfAccount(mailboxes, accountIdOfRow(item)),
+      currentRole,
+      rowScope,
+    ),
+    [rowScope, mailboxes, currentRole],
+  );
   const formatAddress = useOwnDomainAddress();
 
   // When threading is on, collapse same-thread emails so the list shows the
@@ -711,6 +727,8 @@ export default function EmailListScreen({
   // Batch (multi-select) sheets.
   const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  // The sheet's changes share one Undo, shown once it closes.
+  const tagUndoGroup = useTagUndoGroup(tagSheetOpen);
 
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -718,6 +736,7 @@ export default function EmailListScreen({
   const selectedLabel = t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selectedIds.size });
   const allSelected =
     visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(rowKeyOf(e)));
+  const selectAll = selectAllA11y(allSelected, selectedIds.size, t);
 
   // Refs so row press handlers stay referentially stable across renders.
   // FlatList rows then skip re-render when the parent re-renders for unrelated
@@ -891,7 +910,7 @@ export default function EmailListScreen({
           item={item}
           threadCount={threadCountFor(item)}
           showPreview={showPreview}
-          showRecipient={showRecipient}
+          showRecipient={showRecipientFor(item)}
           formatAddress={formatAddress}
           tagIds={rowTagIds.get(key) ?? ''}
           keywordDefs={(item.jmapAccountId && keywordDefsByAccount.get(item.jmapAccountId)) || folderKeywordDefs}
@@ -911,7 +930,7 @@ export default function EmailListScreen({
     [
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showRecipientFor, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );
@@ -1030,7 +1049,7 @@ export default function EmailListScreen({
   };
 
   const handleBatchTagToggle = (token: string, on: boolean) => {
-    setKeywordForEmails(selectedMessageIds, token, on).catch((err) =>
+    setKeywordForEmails(selectedMessageIds, token, on, undefined, { undoGroup: tagUndoGroup }).catch((err) =>
       reportKeywordFailure(t('notifications.tag_failed', 'Tagging failed'), err));
   };
 
@@ -1179,6 +1198,41 @@ export default function EmailListScreen({
   // size" (webmail search-filter-panel).
   const [customSize, setCustomSize] = React.useState(false);
   const sizePreset = customSize ? 'custom' : sizePresetOf(filters.minSizeKb, filters.maxSizeKb);
+  React.useEffect(() => {
+    if (!keepCustomSize(customSize, filterMenuOpen, filters.minSizeKb, filters.maxSizeKb)) setCustomSize(false);
+  }, [customSize, filterMenuOpen, filters.minSizeKb, filters.maxSizeKb]);
+  // Clear empties every field of the sheet, also text not yet committed
+  // (the fields commit after a pause): a new key remounts them.
+  const [filterFormKey, setFilterFormKey] = React.useState(0);
+  const clearFilters = () => {
+    setCustomSize(false);
+    setFilterFormKey((k) => k + 1);
+    setFilters({});
+  };
+  // The sheet stays between the system bars and above the keyboard.
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const keyboardHeight = useKeyboardObstruction(insets.bottom);
+  // The sheet's window as laid out, and its tallest height in this
+  // orientation: a window that resizes for the keyboard is shorter by then.
+  const [filterWindow, setFilterWindow] = React.useState({ width: 0, full: 0, now: 0 });
+  const onFilterBackdropLayout = (height: number) => setFilterWindow((w) => {
+    const full = w.width === windowWidth ? Math.max(w.full, height) : height;
+    return w.width === windowWidth && w.full === full && w.now === height ? w : { width: windowWidth, full, now: height };
+  });
+  const filterWindowKnown = filterWindow.width === windowWidth && filterWindow.now > 0;
+  const filterFrame = filterSheetFrame(
+    filterWindowKnown ? filterWindow.now : windowHeight,
+    insets.top,
+    insets.bottom,
+    keyboardHeight,
+    spacing.lg,
+    filterWindowKnown ? filterWindow.full - filterWindow.now : 0,
+  );
+  const filterScrollRef = React.useRef<ScrollView>(null);
+  // The size fields are near the end: bring them up once the keyboard is out.
+  const revealSizeFields = () => {
+    setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 350);
+  };
   const pickSizePreset = (key: string) => {
     setCustomSize(key === 'custom');
     if (key === 'custom') return;
@@ -1271,8 +1325,8 @@ export default function EmailListScreen({
         onPress={toggleSelectAllVisible}
         hitSlop={6}
         accessibilityRole="checkbox"
-        accessibilityLabel={t('email_list.batch_actions.select_all', 'Select all')}
-        accessibilityState={{ checked: allSelected ? true : selectionMode ? 'mixed' : false }}
+        accessibilityLabel={selectAll.label}
+        accessibilityState={{ checked: selectAll.checked }}
       >
         {allSelected ? (
           <SquareCheck size={18} color={c.primary} />
@@ -1336,8 +1390,7 @@ export default function EmailListScreen({
         style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
         onPress={() => setFilterMenuOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel={t('advanced_search.advanced_filters_tooltip', 'Advanced search filters')}
-        accessibilityValue={activeFilterCount > 0 ? { text: String(activeFilterCount) } : undefined}
+        accessibilityLabel={filterButtonLabel(activeFilterCount, t)}
       >
         <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
         {activeFilterCount > 0 && (
@@ -1642,13 +1695,13 @@ export default function EmailListScreen({
           )}
           {sizeFilterBytes(filters.minSizeKb) !== null ? (
             <FilterChip
-              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} KB` })}
+              label={sizeChipLabel('min', filters.minSizeKb ?? '', t)}
               onRemove={() => setFilterField('minSizeKb', undefined)}
             />
           ) : null}
           {sizeFilterBytes(filters.maxSizeKb) !== null ? (
             <FilterChip
-              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} KB` })}
+              label={sizeChipLabel('max', filters.maxSizeKb ?? '', t)}
               onRemove={() => setFilterField('maxSizeKb', undefined)}
             />
           ) : null}
@@ -1656,6 +1709,7 @@ export default function EmailListScreen({
             onPress={() => {
               setSearchInput('');
               setCustomSize(false);
+              setFilterFormKey((k) => k + 1);
               clearSearchAndFilters();
             }}
             style={styles.clearAllButton}
@@ -1813,14 +1867,17 @@ export default function EmailListScreen({
         onRequestClose={() => setFilterMenuOpen(false)}
       >
         <TouchableWithoutFeedback accessible={false} onPress={() => setFilterMenuOpen(false)}>
-          <View style={styles.filterBackdrop}>
+          <View
+            style={[styles.filterBackdrop, { paddingTop: filterFrame.paddingTop, paddingBottom: filterFrame.paddingBottom }]}
+            onLayout={(e) => onFilterBackdropLayout(e.nativeEvent.layout.height)}
+          >
             <TouchableWithoutFeedback accessible={false}>
-              <View style={styles.filterMenu}>
+              <View style={[styles.filterMenu, { maxHeight: filterFrame.maxHeight }]}>
                 <View style={styles.filterMenuHeader}>
                   <Text style={styles.filterMenuTitle}>{t('email_list.filter_title', 'Filter emails')}</Text>
                   <View style={styles.filterMenuHeaderActions}>
                     <Pressable
-                      onPress={() => { setCustomSize(false); setFilters({}); }}
+                      onPress={clearFilters}
                       style={styles.filterMenuHeaderBtn}
                       hitSlop={6}
                       accessibilityRole="button"
@@ -1840,7 +1897,13 @@ export default function EmailListScreen({
                   </View>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.filterMenuBody} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                  key={filterFormKey}
+                  ref={filterScrollRef}
+                  style={styles.filterMenuScroll}
+                  contentContainerStyle={styles.filterMenuBody}
+                  keyboardShouldPersistTaps="handled"
+                >
                   <View style={styles.filterFieldRow}>
                     <View style={styles.filterFieldHalf}>
                       <Text style={styles.filterFieldLabel}>{t('advanced_search.from', 'From')}</Text>
@@ -2010,6 +2073,7 @@ export default function EmailListScreen({
                             accessibilityLabel={t('advanced_search.size_min', 'Larger than (KB)')}
                             placeholderTextColor={c.textMuted}
                             keyboardType="number-pad"
+                            onFocus={revealSizeFields}
                             style={styles.filterFieldInput}
                             testID="advanced-search-min-size"
                           />
@@ -2022,6 +2086,7 @@ export default function EmailListScreen({
                             accessibilityLabel={t('advanced_search.size_max', 'Smaller than (KB)')}
                             placeholderTextColor={c.textMuted}
                             keyboardType="number-pad"
+                            onFocus={revealSizeFields}
                             style={styles.filterFieldInput}
                             testID="advanced-search-max-size"
                           />
@@ -2447,7 +2512,6 @@ function makeStyles(c: ThemePalette) {
   filterMenu: {
     width: '100%',
     maxWidth: 380,
-    maxHeight: '85%',
     backgroundColor: c.popover,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -2491,6 +2555,7 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
     borderRadius: radius.xs,
   },
+  filterMenuScroll: { flexGrow: 0, flexShrink: 1 },
   filterMenuBody: {
     padding: spacing.lg,
     gap: spacing.md,

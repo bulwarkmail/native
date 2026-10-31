@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { listAddressLabel } from '../list-sender';
+import { listAddressLabel, rowShowsRecipient } from '../list-sender';
 import { toUnicodeEmailOnOwnDomains } from '../idn';
 
 // A sender with no display name on one of the user's own IDN domains showed
@@ -40,5 +40,42 @@ describe('list rows', () => {
     expect(unified.match(/listAddressLabel\([^)]*formatAddress/g)).toHaveLength(2);
     expect(unified.match(/senderName\(item, [^)]*\), formatAddress\)/g)).toHaveLength(2);
     expect(unified).not.toMatch(/\.name \|\| [\w.?[\]]*\.email/);
+  });
+});
+
+// A search started in Sent spans every folder: Inbox hits showed their
+// recipient (the user) instead of their sender.
+describe('rowShowsRecipient', () => {
+  const OWN = [
+    { id: 'inb', role: 'inbox' },
+    { id: 'snt', role: 'sent' },
+    { id: 'drf', role: 'drafts' },
+  ];
+  const SHARED = [
+    { id: 'grp-1:inb', originalId: 'inb', role: 'inbox' },
+    { id: 'grp-1:snt', originalId: 'snt', role: 'sent' },
+  ];
+
+  it('follows the open folder for its own list', () => {
+    expect(rowShowsRecipient({ inb: true }, [], 'sent', 'current')).toBe(true);
+    expect(rowShowsRecipient({ snt: true }, [], 'inbox', 'current')).toBe(false);
+  });
+
+  it("follows each row's own folders in a search over every folder", () => {
+    expect(rowShowsRecipient({ inb: true }, OWN, 'sent', 'all')).toBe(false);
+    expect(rowShowsRecipient({ snt: true }, OWN, 'sent', 'all')).toBe(true);
+    expect(rowShowsRecipient({ drf: true }, OWN, 'inbox', 'all')).toBe(true);
+    expect(rowShowsRecipient({ inb: true }, OWN, 'sent', 'inb')).toBe(false);
+  });
+
+  it("matches a shared account's folders on their raw ids", () => {
+    expect(rowShowsRecipient({ snt: true }, SHARED, 'sent', 'all')).toBe(true);
+    expect(rowShowsRecipient({ inb: true }, SHARED, 'sent', 'all')).toBe(false);
+  });
+
+  it('is wired into the list rows', () => {
+    const list = fs.readFileSync(path.resolve(__dirname, '..', '..', 'screens/EmailListScreen.tsx'), 'utf8');
+    expect(list).toMatch(/showRecipient=\{showRecipientFor\(item\)\}/);
+    expect(list).not.toMatch(/const showRecipient = currentRole === 'sent'/);
   });
 });

@@ -155,6 +155,25 @@ describe('flush', () => {
     expect(useOutboxStore.getState().entries).toHaveLength(0);
   });
 
+  it('sends an edit merged into an entry while that entry was being sent', async () => {
+    useNetworkStore.setState({ online: false });
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $flagged: true } });
+    useNetworkStore.setState({ online: true });
+
+    // The star is out when the Undo comes in and coalesces into its entry.
+    let release!: () => void;
+    patchKeywordsForEmails.mockImplementationOnce(() => new Promise<undefined>((r) => { release = () => r(undefined); }));
+    const flushing = useOutboxStore.getState().flush();
+    await vi.waitFor(() => expect(patchKeywordsForEmails).toHaveBeenCalledTimes(1));
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $flagged: null } });
+    release();
+    await flushing;
+
+    await vi.waitFor(() => expect(patchKeywordsForEmails).toHaveBeenCalledTimes(2));
+    expect(patchKeywordsForEmails).toHaveBeenLastCalledWith(['e1'], { $flagged: null }, undefined);
+    await vi.waitFor(() => expect(useOutboxStore.getState().entries).toHaveLength(0));
+  });
+
   it('does nothing while offline', async () => {
     useNetworkStore.setState({ online: false });
     useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });

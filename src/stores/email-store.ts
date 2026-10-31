@@ -55,6 +55,7 @@ import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
 import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from './outbox-store';
 import { useTagCountsStore } from './tag-counts-store';
+import { patchDetail, peekDetail } from '../lib/email-detail-cache';
 
 // ── Refresh coalescing ─────────────────────────────────────────────────
 // Push events, mount effects and post-action follow-ups all call
@@ -358,6 +359,11 @@ export interface UndoEntry {
   label: string;
   /** Time the entry was created - the snackbar uses this to drive its timer. */
   createdAt: number;
+  /**
+   * The open tag sheet the changes came from: each further change made in it
+   * joins this entry, and closing it shows the bar afresh (releaseUndoGroup).
+   */
+  undoGroup?: string;
   /** JMAP account the messages live under; unset for the user's own mail. */
   accountId?: string;
   /**
@@ -380,7 +386,44 @@ export interface UndoEntry {
      * (a list that spans accounts); `accountId` above applies otherwise.
      */
     accountId?: string;
+    /** The viewer's message, not a row of the list: undo leaves the list alone. */
+    unlisted?: boolean;
   }>;
+}
+
+/** Options of setKeywordForEmails. */
+export interface KeywordChangeOptions {
+  /**
+   * The tag sheet the change is made in. Gives a viewer change an Undo too,
+   * and gathers every change made before the sheet closes into one Undo.
+   */
+  undoGroup?: string;
+}
+
+/**
+ * Adds a change made in the same tag sheet to its Undo: each message keeps
+ * the value a keyword had before the sheet first changed it.
+ */
+function joinKeywordUndo(
+  entry: UndoEntry,
+  items: UndoEntry['items'],
+  patch: KeywordPatch,
+): Pick<UndoEntry, 'keywordPatch' | 'items'> {
+  const before = entry.keywordPatch ?? {};
+  const itemKey = (it: UndoEntry['items'][number]) => `${it.accountId ?? ''}|${rowKeyOf(it.email)}`;
+  const earlier = new Map(entry.items.map((it) => [itemKey(it), it]));
+  const joined = items.map((it) => {
+    const prev = earlier.get(itemKey(it));
+    if (!prev) return it;
+    earlier.delete(itemKey(it));
+    const originalKeywords = { ...it.originalKeywords };
+    for (const keyword of Object.keys(before)) {
+      if (prev.originalKeywords?.[keyword]) originalKeywords[keyword] = true;
+      else delete originalKeywords[keyword];
+    }
+    return { ...it, originalKeywords };
+  });
+  return { keywordPatch: { ...before, ...patch }, items: [...earlier.values(), ...joined] };
 }
 
 // Cached emails for one mailbox (the base view: no search query, no filters).
@@ -502,7 +545,14 @@ export interface EmailState {
    * `Email/set`. With `viewed`, on the viewer's message in its own account;
    * the list row follows only when the list holds that account.
    */
-  setKeywordForEmails: (emailIds: string[], token: string, on: boolean, viewed?: ViewedEmail) => Promise<void>;
+  setKeywordForEmails: (
+    emailIds: string[], token: string, on: boolean, viewed?: ViewedEmail, options?: KeywordChangeOptions,
+  ) => Promise<void>;
+  /**
+   * A tag sheet closed: its changes' Undo shows for the bar's full time from
+   * now, as it sat under the sheet so far.
+   */
+  releaseUndoGroup: (undoGroup: string) => void;
   undoLast: () => Promise<void>;
   clearUndo: () => void;
   searchEmails: (query: string) => Promise<Email[]>;
@@ -2156,10 +2206,18 @@ export const useEmailStore = create<EmailState>()(
     if (refusal) throw refusal;
   },
 
-  setKeywordForEmails: async (emailIds, token, on, viewed) => {
+  setKeywordForEmails: async (emailIds, token, on, viewed, options) => {
     const state = get();
     const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
+    const undoGroup = options?.undoGroup;
+    // The list's changes get an Undo; the viewer's only from its tag sheet.
+    const offersUndo = (!viewed || !!undoGroup) && keywordUndoLabel(token, on, targets.length) !== null;
+    // While this change is on its way the bar must not still offer the
+    // previous one's Undo: tapping it right after a star undid the tag set
+    // before, and the star stayed.
+    const before = get().pendingUndo;
+    if (offersUndo && before && !(undoGroup && before.undoGroup === undoGroup)) set({ pendingUndo: null });
     // One Email/set per account the selection spans (#1082); the viewer's
     // message goes to the account it names.
     const groups = viewed ? [{ accountId: viewed.accountId, emails: targets }] : groupByAccount(state, targets);
@@ -2210,27 +2268,42 @@ export const useEmailStore = create<EmailState>()(
     for (const { accountId, emails } of written) {
       for (const e of emails) patchCache(e.id, { keywords: patch }, accountId);
     }
-    // Undo for a read, star or tag change from the list: each message gets
-    // back the keyword it had (the reader's own toggles get no bar).
+    // Undo for a read, star or tag change from the list, or a tag change in
+    // the viewer's tag sheet (webmail lib/email-action-toast.ts
+    // setSelectionTagWithUndo): each message gets back the keyword it had.
+    // The reader's own star and read toggles get no bar.
     const changed = written.flatMap(({ accountId, emails }) => emails.map((email) => ({ email, accountId })));
-    const label = !viewed && changed.length > 0 ? keywordUndoLabel(token, on, changed.length) : null;
+    const label = offersUndo && changed.length > 0 ? keywordUndoLabel(token, on, changed.length) : null;
     if (label) {
+      const items: UndoEntry['items'] = changed.map(({ email, accountId }) => ({
+        email,
+        originalMailboxIds: { ...email.mailboxIds },
+        originalKeywords: { ...email.keywords },
+        accountId,
+        ...(listed ? {} : { unlisted: true }),
+      }));
+      const current = get().pendingUndo;
+      const joined = undoGroup && current?.kind === 'keywords' && current.undoGroup === undoGroup
+        ? joinKeywordUndo(current, items, patch)
+        : { keywordPatch: patch, items };
       set({
         pendingUndo: {
           kind: 'keywords',
           label,
           createdAt: Date.now(),
-          keywordPatch: patch,
-          items: changed.map(({ email, accountId }) => ({
-            email,
-            originalMailboxIds: { ...email.mailboxIds },
-            originalKeywords: { ...email.keywords },
-            accountId,
-          })),
+          ...(undoGroup ? { undoGroup } : {}),
+          ...joined,
         },
       });
     }
     if (refusal) throw refusal;
+  },
+
+  releaseUndoGroup: (undoGroup) => {
+    const entry = get().pendingUndo;
+    if (!entry || entry.undoGroup !== undoGroup) return;
+    const { undoGroup: _done, ...rest } = entry;
+    set({ pendingUndo: { ...rest, createdAt: Date.now() } });
   },
 
   undoLast: async () => {
@@ -2246,6 +2319,7 @@ export const useEmailStore = create<EmailState>()(
         id: it.email.id,
         key: rowKeyOf(it.email),
         accountId: it.accountId ?? entry.accountId,
+        listed: !it.unlisted,
         patch: revertKeywordPatch(keywordPatch, it.originalKeywords),
       }));
       const accounts = new Set(undo.map((u) => u.accountId ?? ''));
@@ -2265,14 +2339,19 @@ export const useEmailStore = create<EmailState>()(
         set({ error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed') });
         return;
       }
-      const byKey = new Map(undo.map((u) => [u.key, u.patch]));
+      const byKey = new Map(undo.filter((u) => u.listed).map((u) => [u.key, u.patch]));
       set({
         emails: get().emails.map((e) => {
           const patch = byKey.get(rowKeyOf(e));
           return patch ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e;
         }),
       });
-      for (const u of undo) patchCache(u.id, { keywords: u.patch }, u.accountId);
+      for (const u of undo) {
+        patchCache(u.id, { keywords: u.patch }, u.accountId);
+        // The open viewer reads the message from the detail cache.
+        const held = peekDetail(u.id, u.accountId);
+        if (held) patchDetail(u.id, u.accountId, { keywords: applyKeywordPatch(held.keywords, u.patch) });
+      }
       return;
     }
 

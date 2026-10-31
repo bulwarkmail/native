@@ -29,6 +29,66 @@ export function sizePresetOf(minSizeKb: string | undefined, maxSizeKb: string | 
 }
 
 /** Filter properties whose value the server reads as free text. */
+type Translate = (key: string, fallback: string, values?: Record<string, string | number>) => string;
+
+/**
+ * The chip for a custom size bound: "Larger than 1 KB". It read "Larger than
+ * (KB): 1 KB", built from the field's placeholder.
+ */
+export function sizeChipLabel(bound: 'min' | 'max', kb: string, t: Translate): string {
+  return bound === 'min'
+    ? t('advanced_search.larger_than_kb', 'Larger than {size} KB', { size: kb })
+    : t('advanced_search.smaller_than_kb', 'Smaller than {size} KB', { size: kb });
+}
+
+/**
+ * The filter button's name for screen readers, with the number of active
+ * filters in it. It was given as an accessibility value, which Android left
+ * in the description ("Advanced search filters, 1") once the value went away
+ * after Clear; a changed label always replaces the description.
+ */
+export function filterButtonLabel(count: number, t: Translate): string {
+  const name = t('advanced_search.advanced_filters_tooltip', 'Advanced search filters');
+  return count > 0 ? t('advanced_search.advanced_filters_count', '{name}, {count} active', { name, count }) : name;
+}
+
+/**
+ * Whether "Custom size" stays picked. With the sheet closed and no bound
+ * left (the chip removed, the search cleared) it goes back to "Any size":
+ * it stayed picked, with empty fields, after the size chip was removed.
+ */
+export function keepCustomSize(
+  customSize: boolean,
+  sheetOpen: boolean,
+  minSizeKb: string | undefined,
+  maxSizeKb: string | undefined,
+): boolean {
+  if (!customSize) return false;
+  return sheetOpen || !!minSizeKb || !!maxSizeKb;
+}
+
+/**
+ * Where the filter sheet sits: clear of the status bar, the navigation bar
+ * and the keyboard, and never taller than the space between them, so its
+ * body scrolls instead of running off the bottom (Pixel 7: the last row was
+ * cut off) and the size fields stay above the keyboard. `height` is the
+ * sheet's window; `shrunkBy` how much the window already gave way to the
+ * keyboard (adjustResize, which an edge-to-edge window doesn't get), so the
+ * keyboard is not taken off twice.
+ */
+export function filterSheetFrame(
+  height: number,
+  insetTop: number,
+  insetBottom: number,
+  keyboard: number,
+  gap: number,
+  shrunkBy = 0,
+): { paddingTop: number; paddingBottom: number; maxHeight: number } {
+  const paddingTop = insetTop + gap;
+  const paddingBottom = Math.max(insetBottom, keyboard - Math.max(0, shrunkBy)) + gap;
+  return { paddingTop, paddingBottom, maxHeight: Math.max(120, height - paddingTop - paddingBottom) };
+}
+
 export type SearchTextProperty = 'text' | 'from' | 'to' | 'subject' | 'body';
 
 // A "quoted phrase" (the closing quote may still be missing while the user

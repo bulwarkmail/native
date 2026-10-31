@@ -163,6 +163,31 @@ function putThread(key: string, entry: ThreadEntry): void {
   }
 }
 
+// Local changes (patchDetail) by message key, numbered in the order they
+// were made. A response read before one of them must not undo it: the read
+// mark set on open was put back by the conversation's headers arriving just
+// after it, and the reader's toolbar offered "Mark as read" again.
+let localClock = 0;
+const localPatches = new Map<string, { at: number; patch: FlagsHint }>();
+const MAX_LOCAL_PATCHES = 500;
+
+/** What was changed here on `key` after a request started at `startedAt` went out. */
+function localSince(key: string, startedAt: number): FlagsHint | undefined {
+  const local = localPatches.get(key);
+  return local && local.at > startedAt ? local.patch : undefined;
+}
+
+/**
+ * The server has no such message (deleted or moved out of reach elsewhere),
+ * as opposed to a load that failed: the viewer says it is gone.
+ */
+export class EmailNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Email ${id} not found`);
+    this.name = 'EmailNotFoundError';
+  }
+}
+
 /** The copy held for a message, if any. Synchronous: for rendering. */
 export function peekDetail(id: string, accountId?: string): Email | undefined {
   return details.get(keyOf(id, accountId))?.email;
@@ -185,6 +210,13 @@ export function subscribeEmailCache(listener: () => void): () => void {
  */
 export function patchDetail(id: string, accountId: string | undefined, patch: FlagsHint): void {
   const key = keyOf(id, accountId);
+  // Re-inserted, so the oldest change is the first to go.
+  const earlier = localPatches.get(key)?.patch;
+  localPatches.delete(key);
+  localPatches.set(key, { at: ++localClock, patch: { ...earlier, ...patch } });
+  while (localPatches.size > MAX_LOCAL_PATCHES) {
+    localPatches.delete(localPatches.keys().next().value as string);
+  }
   let changed = false;
   const entry = details.get(key);
   if (entry) {
@@ -217,6 +249,7 @@ export function clearEmailDetailCache(): void {
   pendingThreads.clear();
   threadBatches.clear();
   latestStates.clear();
+  localPatches.clear();
   detailChars = 0;
 }
 
@@ -252,12 +285,15 @@ async function fetchBodies(
 ): Promise<void> {
   if (ids.length === 0) return;
   const gen = generation;
+  const startedAt = localClock;
   try {
     const res = await getFullEmailsWithState(ids, accountId);
     const keep = gen === generation;
     if (keep) noteEmailState(accountId, res.state);
     const found = new Map<string, Email>();
-    for (const email of res.list) {
+    for (const fetched of res.list) {
+      const local = localSince(keyOf(fetched.id, accountId), startedAt);
+      const email = local ? { ...fetched, ...local } : fetched;
       found.set(email.id, email);
       if (!keep) continue;
       putDetail(keyOf(email.id, accountId), { email, state: res.state, chars: bodyChars(email) });
@@ -267,7 +303,7 @@ async function fetchBodies(
     for (const id of ids) {
       const email = found.get(id);
       if (email) waiting.get(id)?.resolve(email);
-      else waiting.get(id)?.reject(new Error(`Email ${id} not found`));
+      else waiting.get(id)?.reject(new EmailNotFoundError(id));
     }
   } catch (err) {
     for (const id of ids) waiting.get(id)?.reject(err);
@@ -281,6 +317,7 @@ async function revalidate(
 ): Promise<void> {
   if (ids.length === 0) return;
   const gen = generation;
+  const startedAt = localClock;
   let gone = new Set<string>();
   try {
     const res = await getEmailFlags(ids, accountId);
@@ -288,10 +325,11 @@ async function revalidate(
     noteEmailState(accountId, res.state);
     gone = new Set(res.notFound);
     let changed = false;
-    for (const flags of res.list) {
-      const key = keyOf(flags.id, accountId);
+    for (const read of res.list) {
+      const key = keyOf(read.id, accountId);
       const entry = details.get(key);
       if (!entry) continue;
+      const flags = { ...read, ...localSince(key, startedAt) };
       const same = sameFlags(flags.keywords, entry.email.keywords)
         && sameFlags(flags.mailboxIds, entry.email.mailboxIds);
       // Keep the object when nothing changed, so nothing re-renders.
@@ -318,7 +356,7 @@ async function revalidate(
   for (const id of ids) {
     const email = peekDetail(id, accountId);
     if (email) waiting.get(id)?.resolve(email);
-    else waiting.get(id)?.reject(new Error(`Email ${id} not found`));
+    else waiting.get(id)?.reject(gone.has(id) ? new EmailNotFoundError(id) : new Error(`Email ${id} not found`));
   }
 }
 
@@ -471,6 +509,7 @@ async function fetchThreads({ accountId, waiting }: ThreadBatch): Promise<void> 
   const gen = generation;
   // What was held when the load started: shown again if the refetch fails.
   const fallback = (threadId: string) => (gen === generation ? threads.get(keyOf(threadId, accountId)) : undefined);
+  const startedAt = localClock;
   try {
     const res = await getThreadsHeaders(Array.from(waiting.keys()), accountId);
     if (gen !== generation) throw new Error('cleared');
@@ -483,15 +522,20 @@ async function fetchThreads({ accountId, waiting }: ThreadBatch): Promise<void> 
         else d.reject(new Error(`Thread ${threadId} not found`));
         continue;
       }
+      // A change made here while the headers were on their way stays.
+      const list = found.list.map((e) => {
+        const local = localSince(keyOf(e.id, accountId), startedAt);
+        return local ? { ...e, ...local } : e;
+      });
       const entry: ThreadEntry = {
         ids: found.emailIds,
-        headers: new Map(found.list.map((e) => [e.id, e])),
+        headers: new Map(list.map((e) => [e.id, e])),
         state: res.state,
       };
       putThread(keyOf(threadId, accountId), entry);
       // The headers were just read: a member's copy held from an earlier
       // open takes their keywords and folders, which may have changed since.
-      for (const header of found.list) {
+      for (const header of list) {
         const memberKey = keyOf(header.id, accountId);
         const held = details.get(memberKey);
         if (!held) continue;

@@ -394,6 +394,8 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     set({ flushing: true });
     let brokeTransient = false;
     let dropped = false;
+    // An entry that took on a later edit while its op was out runs again.
+    let changedInFlight = false;
     try {
       // Process oldest-first so dependent moves replay in the order they were
       // made. We snapshot the order but re-read the live list each iteration,
@@ -413,7 +415,9 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
 
         try {
           await runOp(entry.op);
-          removeEntry(accountId, entry.id);
+          // An edit queued meanwhile was merged into this entry (an Undo of
+          // the star being sent): dropping the entry would lose it.
+          if (!removeEntry(accountId, entry.id, entry.op)) changedInFlight = true;
           retryAttempt = 0;
         } catch (err) {
           if (get().activeAccountId !== accountId) break;
@@ -446,6 +450,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       set({ flushing: false });
     }
     if (brokeTransient && get().entries.length > 0) scheduleRetry();
+    else if (changedInFlight) void get().flush();
     if (dropped) void refreshAfterDrop();
   },
 
@@ -502,12 +507,20 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
 
 // ── Internal helpers that mutate+persist the live list ──────────────────────
 
-function removeEntry(accountId: string, id: string): void {
+/**
+ * Drops a replayed entry. With `sent`, only while the entry still holds that
+ * op: one an enqueue coalesced into while it was out stays, and false says
+ * so.
+ */
+function removeEntry(accountId: string, id: string, sent?: OutboxOp): boolean {
   const store = useOutboxStore.getState();
-  if (store.activeAccountId !== accountId) return;
+  if (store.activeAccountId !== accountId) return true;
+  const current = store.entries.find((e) => e.id === id);
+  if (current && sent && current.op !== sent) return false;
   const entries = store.entries.filter((e) => e.id !== id);
   useOutboxStore.setState({ entries });
   persist(accountId, entries);
+  return true;
 }
 
 function moveToFailed(accountId: string, id: string, err: unknown): void {
