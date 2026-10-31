@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFloatingCardFrame } from '../lib/use-layout';
+import { useFloatingCardFrame, useLayout } from '../lib/use-layout';
+import { pushPromptBottom } from '../lib/push-prompt-frame';
 import { BellRing, X } from './icons';
 import Button from './Button';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -52,6 +53,8 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
   const insets = useSafeAreaInsets();
   // Full width above the tab bar on a phone; bottom right on a tablet.
   const frame = useFloatingCardFrame();
+  // Above the reading pane's bottom bar on a split view.
+  const { isSplit } = useLayout();
   const duration = useAnimDuration(200);
   const appear = React.useRef(new Animated.Value(0)).current;
 
@@ -118,7 +121,7 @@ export function PushOnboardingPrompt(): React.ReactElement | null {
       style={[
         styles.wrap,
         {
-          left: frame.left, right: frame.right, bottom: insets.bottom + frame.bottom,
+          left: frame.left, right: frame.right, bottom: insets.bottom + pushPromptBottom(frame.bottom, isSplit),
           opacity: appear,
           transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
         },
