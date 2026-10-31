@@ -12,6 +12,7 @@ import {
   eventAccessibilityLabel,
   monthButtonAccessibilityLabel,
   participantRemoveAccessibilityLabel,
+  touchSlop,
 } from '../calendar-a11y';
 import { useSettingsStore } from '../../stores/settings-store';
 import { gregorianCalendar, jalaliCalendar } from '../calendar-system';
@@ -83,6 +84,18 @@ describe('header and chip buttons', () => {
   it('names the cross on a participant chip by the person it removes', () => {
     expect(participantRemoveAccessibilityLabel({ name: 'Ana Lima', email: 'ana@example.com' }, t)).toBe('Remove Ana Lima');
     expect(participantRemoveAccessibilityLabel({ name: '', email: 'ana@example.com' }, t)).toBe('Remove ana@example.com');
+  });
+
+  it('grows the 12 dp cross on a participant chip to a 44 dp touch target', async () => {
+    expect(touchSlop(12)).toBe(16);
+    expect(12 + 2 * touchSlop(12)).toBeGreaterThanOrEqual(44);
+    expect(touchSlop(13)).toBe(16);
+    expect(touchSlop(48)).toBe(0);
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const chips = fs.readFileSync(path.resolve(__dirname, '../../components/calendar/ParticipantInput.tsx'), 'utf8');
+    expect(chips).toMatch(/const REMOVE_ICON = 12;/);
+    expect(chips).toMatch(/hitSlop=\{touchSlop\(REMOVE_ICON\)\}[\s\S]{0,200}<X size=\{REMOVE_ICON\}/);
   });
 
   it('is what the calendar header and the participant chips use', async () => {
