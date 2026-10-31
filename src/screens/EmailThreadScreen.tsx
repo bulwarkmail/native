@@ -49,7 +49,8 @@ import { replyComposeParams } from '../lib/reply-compose';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
-import { accountScopedId } from '../lib/thread-utils';
+import { accountScopedId, isReplyableMember, quickReplyTarget } from '../lib/thread-utils';
+import { scheduledEmailIdsInThread } from '../api/thread-scheduled';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -1013,6 +1014,8 @@ interface EmailPaneProps {
   onZoomChange: (zoom: { pinching: boolean; zoomed: boolean }) => void;
 }
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 // One swipeable page: the subject plus either a single message or the whole
 // conversation as collapsible cards (newest + unread expanded, mark-read on
 // expand). The pager keeps three of these mounted (prev, current, next) so a
@@ -1069,6 +1072,19 @@ function EmailPane({
   }, [bodyEnabled, expanded, threadIds, ensureDetails]);
 
   React.useEffect(() => () => { readTimers.forEach((cancel) => cancel()); readTimers.clear(); }, [readTimers]);
+
+  // Members waiting for a scheduled send: no Reply on them, and the quick
+  // reply answers the newest message that is neither one nor a draft (#1404).
+  const [scheduledIds, setScheduledIds] = React.useState<ReadonlySet<string>>(NO_IDS);
+  const isConversation = !!threadIds && threadIds.length > 1;
+  React.useEffect(() => {
+    if (!active || !threading || !threadId || !isConversation) return undefined;
+    let cancelled = false;
+    void scheduledEmailIdsInThread(threadId, jmapAccountId).then((ids) => {
+      if (!cancelled) setScheduledIds(ids.size > 0 ? ids : NO_IDS);
+    });
+    return () => { cancelled = true; };
+  }, [active, threading, threadId, isConversation, jmapAccountId]);
 
   // Keeps the quick reply in view while the keyboard opens. Above the
   // skeleton's early return: a page opened by id alone (a notification)
@@ -1149,7 +1165,7 @@ function EmailPane({
   // and WebView stay mounted when a conversation arrives around it.
   const members = conversation ?? [shown];
   const firstOpenId = conversation?.find((m) => expanded?.has(m.id) ?? m.id === id)?.id;
-  const newest = conversation ? conversation[conversation.length - 1] : email;
+  const newest = quickReplyTarget(conversation ?? (email ? [email] : []), scheduledIds);
   // The quick reply quotes the message, so it waits for the newest one's body.
   const newestLoaded = !!newest && !!peekDetail(newest.id, jmapAccountId);
   const onPaneZoom = (z: { pinching: boolean; zoomed: boolean }) => {
@@ -1237,7 +1253,7 @@ function EmailPane({
               fill={!asConversation}
               email={full ?? m}
               expanded={open}
-              replyable={!!full}
+              replyable={!!full && isReplyableMember(m, scheduledIds)}
               deferBody={!full || !bodyEnabled}
               onBodySettled={onBodySettled}
               onToggleExpanded={() => toggleCard(m.id)}

@@ -40,6 +40,7 @@ import {
   queryEmailPage,
 } from '../email';
 import { senderWarningOf } from '../../lib/email-headers';
+import { scheduledEmailIdsInThread } from '../thread-scheduled';
 import { uploadBytes } from '../blob';
 import { getIdentities, updateIdentity } from '../identity';
 import { isJMAPSetError } from '../jmap-result';
@@ -447,5 +448,23 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       const [full] = await getFullEmails([id]);
       expect(senderWarningOf(full)?.status).toBe('failed');
     }, 60_000);
+
+    it("finds a conversation's message that waits for a scheduled send (bulwarkmail/webmail#1404)", async () => {
+      const [identity] = await getIdentities();
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `scheduled reply ${mailTag}`, textBody: 'live' },
+        identity.id, sent, 3600, { draftsMailboxId: drafts },
+      );
+      try {
+        const [filed] = await getFullEmails([result.emailId!]);
+        const ids = await scheduledEmailIdsInThread(filed.threadId);
+        expect([...ids]).toEqual([result.emailId]);
+      } finally {
+        await cancelScheduledSend(result.emailSubmissionId!).catch(() => undefined);
+      }
+      // Once cancelled it can be replied to again.
+      const [filed] = await getFullEmails([result.emailId!]);
+      expect((await scheduledEmailIdsInThread(filed.threadId)).size).toBe(0);
+    }, 90_000);
   });
 });

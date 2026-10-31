@@ -178,3 +178,30 @@ export function expandThreadSelection(
   }
   return out;
 }
+
+/**
+ * Whether a conversation member can be replied to: not the user's own draft
+ * and not a message waiting for its scheduled send (webmail 8b29254a6,
+ * #1404).
+ */
+export function isReplyableMember(
+  email: Pick<Email, 'id' | 'keywords'>,
+  scheduledIds: ReadonlySet<string>,
+): boolean {
+  return !email.keywords?.$draft && !scheduledIds.has(email.id);
+}
+
+/**
+ * The message the quick reply answers: the newest member that can be
+ * replied to, so it never quotes the user's own draft or scheduled reply.
+ * Null when there is none.
+ */
+export function quickReplyTarget<T extends Pick<Email, 'id' | 'keywords'>>(
+  members: readonly T[],
+  scheduledIds: ReadonlySet<string>,
+): T | null {
+  for (let i = members.length - 1; i >= 0; i--) {
+    if (isReplyableMember(members[i], scheduledIds)) return members[i];
+  }
+  return null;
+}
