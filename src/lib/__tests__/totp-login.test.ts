@@ -183,6 +183,31 @@ describe('exchangePasswordForTokens', () => {
     expect(describeLoginError(err, { serverUrl: BASE }).title).toBe("mail.example.com didn't accept the app");
   });
 
+  it('answers a consentRequired with authConsent for the same request, instead of calling the password wrong', async () => {
+    let asked = 0;
+    const calls = fakeServer('1.0', (q) => {
+      asked += 1;
+      return asked === 1
+        ? { type: 'consentRequired', token: 'consent-token' }
+        : { type: 'authenticated', location: `${q.get('redirect_uri')}?code=code-consent&state=${q.get('state')}` };
+    });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.accessToken).toBe('at');
+    const [first, second] = authCalls(calls).map((c) => JSON.parse(c.body!));
+    expect(second).toEqual({ type: 'authConsent', token: 'consent-token', query: first.query, consent: true });
+    expect(tokenCall(calls).get('code')).toBe('code-consent');
+  });
+
+  it('does not answer a second consentRequired, and does not call it a wrong password', async () => {
+    const calls = fakeServer('1.0', () => ({ type: 'consentRequired', token: 't' }));
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e);
+
+    expect(err).toBeInstanceOf(TotpLoginError);
+    expect(err.code).not.toBe('invalid_credentials');
+    expect(authCalls(calls)).toHaveLength(2);
+  });
+
   it('maps the credential verdicts of 1.0', async () => {
     fakeServer('1.0', () => ({ type: 'failure' }));
     expect((await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e)).code).toBe('invalid_credentials');

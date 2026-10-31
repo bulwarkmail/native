@@ -19,6 +19,9 @@
 //   `consent: true`, knows only registered clients and answers
 //   `{ type: "authenticated", location }`, the redirect URI carrying the code.
 //   A body without `query` gets a 400 "JSON deserialization failed".
+//   1.0.1 may answer `{ type: "consentRequired", token }` instead (no
+//   `consent` sent and no grant yet); the app then posts `authConsent` with
+//   the token and the same query (readStalwartLoginResponse, answerConsent).
 // Neither rejects fields it doesn't know, so one body serves both.
 //
 // Token auth also survives TOTP rotation, unlike Basic auth, which would have
@@ -331,7 +334,12 @@ export type StalwartLoginOutcome =
    * client, redirect URI not registered, scope not allowed), before looking
    * at the credentials.
    */
-  | { kind: 'rejected'; error: string; description?: string };
+  | { kind: 'rejected'; error: string; description?: string }
+  /**
+   * Stalwart 1.0.1 wants the user's consent for this client first: answered
+   * with an `authConsent` request carrying `token` (answerConsent).
+   */
+  | { kind: 'consent_required'; token: string };
 
 function locationParams(location: string): URLSearchParams | null {
   // A private-use scheme isn't something every URL parser takes apart, so
@@ -360,6 +368,11 @@ export function readStalwartLoginResponse(body: unknown, state: string): Stalwar
     }
     case 'mfaRequired':
       return { kind: 'mfa_required' };
+    case 'consentRequired':
+      // It used to fall through to "wrong password".
+      return typeof res.token === 'string' && res.token
+        ? { kind: 'consent_required', token: res.token }
+        : { kind: 'rejected', error: 'consent_required' };
     case 'invalid':
       return {
         kind: 'rejected',
@@ -381,31 +394,19 @@ export function readStalwartLoginResponse(body: unknown, state: string): Stalwar
   }
 }
 
-async function requestLoginCode(
+async function postLoginRequest(
   base: string,
-  username: string,
-  password: string,
-  totp: string | undefined,
-  client: LoginClient,
-  challenge: string,
+  payload: Record<string, unknown>,
+  state: string,
   signal?: AbortSignal,
 ): Promise<StalwartLoginOutcome> {
-  const state = randomHex(16);
   const url = `${base}/api/auth`;
   let loginResponse: Response;
   try {
     loginResponse = await fetchWithoutForeignRedirect(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(stalwartLoginBody({
-        username,
-        password,
-        totp,
-        clientId: client.clientId,
-        redirectUri: client.redirectUri,
-        codeChallenge: challenge,
-        state,
-      })),
+      body: JSON.stringify(payload),
       signal,
     });
   } catch (err) {
@@ -425,6 +426,47 @@ async function requestLoginCode(
     throw new TotpLoginError('login_failed', 'Login response was not JSON');
   }
   return readStalwartLoginResponse(body, state);
+}
+
+/**
+ * Answers Stalwart 1.0.1's `consentRequired` with `authConsent` for the same
+ * authorization request (`query`). The user typed the password into the
+ * app's own sign-in form for this account, which is the consent the browser
+ * page would ask for. A second consentRequired is not answered again.
+ */
+export async function answerConsent(
+  base: string,
+  token: string,
+  query: string,
+  state: string,
+  signal?: AbortSignal,
+): Promise<StalwartLoginOutcome> {
+  const outcome = await postLoginRequest(base, { type: 'authConsent', token, query, consent: true }, state, signal);
+  return outcome.kind === 'consent_required' ? { kind: 'rejected', error: 'consent_required' } : outcome;
+}
+
+async function requestLoginCode(
+  base: string,
+  username: string,
+  password: string,
+  totp: string | undefined,
+  client: LoginClient,
+  challenge: string,
+  signal?: AbortSignal,
+): Promise<StalwartLoginOutcome> {
+  const state = randomHex(16);
+  const payload = stalwartLoginBody({
+    username,
+    password,
+    totp,
+    clientId: client.clientId,
+    redirectUri: client.redirectUri,
+    codeChallenge: challenge,
+    state,
+  });
+  const outcome = await postLoginRequest(base, payload, state, signal);
+  if (outcome.kind !== 'consent_required') return outcome;
+  return answerConsent(base, outcome.token, String(payload.query), state, signal);
 }
 
 /**
@@ -471,6 +513,9 @@ export async function exchangePasswordForTokens(
       throw new TotpLoginError('totp_required', 'TOTP_REQUIRED');
     case 'invalid_credentials':
       throw new TotpLoginError('invalid_credentials', 'Invalid username, password or code');
+    case 'consent_required':
+      // answerConsent never hands this back; for the type checker.
+      throw new TotpLoginError('login_failed', 'Sign-in refused: consent_required');
     case 'rejected':
       throw new TotpLoginError(
         outcome.error === 'missing_code' || outcome.error === 'state_mismatch' ? 'login_failed' : 'client_rejected',

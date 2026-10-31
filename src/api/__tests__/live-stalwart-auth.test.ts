@@ -53,9 +53,15 @@ import {
   DEFAULT_CLIENT_ID,
   MOBILE_CLIENT_ID,
   REGISTERED_REDIRECT_URI,
+  STALWART_LOGIN_SCOPE,
+  answerConsent,
   exchangePasswordForTokens,
+  generateCodeChallenge,
+  generateCodeVerifier,
+  readStalwartLoginResponse,
   resolveLoginClient,
   resetLoginClients,
+  stalwartLoginBody,
 } from '../../lib/totp-login';
 import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
 import {
@@ -276,6 +282,69 @@ live('live Stalwart sign-in', () => {
       }
     });
   });
+
+  it('1.0.1: a consentRequired answer is met with authConsent and signs in', async () => {
+    if (!isV1) return;
+    // A client of its own (1.0 ids are sealed, so registering stores
+    // nothing) has no grant yet, so leaving `consent` out gets the question.
+    const reg = await fetch(`${SERVER}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: `Bulwark Mobile consent check ${Date.now()}`,
+        redirect_uris: [REGISTERED_REDIRECT_URI],
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        scope: STALWART_LOGIN_SCOPE,
+      }),
+    });
+    const { client_id: clientId } = (await reg.json()) as { client_id: string };
+    const verifier = generateCodeVerifier();
+    const state = 'consent-state';
+    const body = stalwartLoginBody({
+      username: USER,
+      password: PASS,
+      clientId,
+      redirectUri: REGISTERED_REDIRECT_URI,
+      codeChallenge: generateCodeChallenge(verifier),
+      state,
+    });
+    delete body.consent;
+    const first = await fetch(`${SERVER}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const asked = readStalwartLoginResponse(await first.json(), state);
+    expect(asked.kind).toBe('consent_required');
+    if (asked.kind !== 'consent_required') return;
+
+    const answered = await answerConsent(SERVER, asked.token, String(body.query), state);
+    expect(answered.kind).toBe('code');
+    if (answered.kind !== 'code') return;
+    const tokenRes = await fetch(`${SERVER}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: answered.code,
+        client_id: clientId,
+        redirect_uri: REGISTERED_REDIRECT_URI,
+        code_verifier: verifier,
+      }).toString(),
+    });
+    const tokens = (await tokenRes.json()) as { access_token?: string; refresh_token?: string };
+    expect(tokens.access_token).toBeTruthy();
+    expect(await sessionStatus(tokens.access_token!)).toBe(200);
+    await revokeRefreshToken(SERVER, {
+      accessToken: tokens.access_token!,
+      refreshToken: tokens.refresh_token,
+      tokenEndpoint: `${SERVER}/auth/token`,
+      clientId,
+      source: 'totp',
+    });
+  }, 30_000);
 
   it('account security with the password (Basic) works on both', async () => {
     const client = new JMAPClient();
