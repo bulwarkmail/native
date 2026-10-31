@@ -27,6 +27,13 @@ export async function readCachedIdentities(localAccountId: string | null | undef
   }
 }
 
+/** Drop the identities kept for a login that left this device. */
+export async function forgetCachedIdentities(localAccountId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(keyFor(localAccountId));
+  } catch { /* best effort */ }
+}
+
 /** Keep what the server just said, for the next composer opened offline. */
 export async function writeCachedIdentities(localAccountId: string | null | undefined, identities: Identity[]): Promise<void> {
   if (!localAccountId) return;

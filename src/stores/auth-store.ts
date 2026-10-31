@@ -1,3 +1,4 @@
+import { forgetCachedIdentities } from '../lib/identity-cache';
 import { create } from 'zustand';
 import {
   jmapClient,
@@ -176,6 +177,7 @@ function clearDeviceWideAccountData(): void {
 // until nobody is signed in. When it was the last account, the device-wide
 // data goes too.
 async function forgetRemovedAccount(accountId: string): Promise<void> {
+  void forgetCachedIdentities(accountId);
   try {
     const feeds = useCalendarSubscriptionsStore;
     // On a cold start the stored list may not have been read yet; written
