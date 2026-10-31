@@ -4,6 +4,7 @@
 // splitPastedRecipients, expandRecipients). All DOM-free.
 
 import { splitMailbox } from './rfc5322-mailbox';
+import { toAsciiEmail } from './idn';
 
 /**
  * A composer recipient. Display name is optional; email is required - except
@@ -19,13 +20,21 @@ export interface Recipient {
 
 /**
  * RFC 5322 compliant email validation with security enhancements.
+ *
+ * A domain written in Unicode (`anna@bücher.de`) counts when its ASCII form
+ * (`anna@xn--bcher-kva.de`) is valid; {@link outgoingAddress} sends that form
+ * (webmail #1100). The local part stays ASCII-only.
  */
 export function isValidEmail(email: string): boolean {
-  // Length check
-  if (!email || email.length > 254) return false;
+  if (!email) return false;
 
   // Security: Block control characters and header injection
   if (/[\r\n\0<>]/.test(email)) return false;
+
+  email = toAsciiEmail(email);
+
+  // Length check
+  if (email.length > 254) return false;
 
   // RFC 5322 compliant regex (simplified but secure)
   const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -44,6 +53,15 @@ export function isValidEmail(email: string): boolean {
   if (domain.includes('..')) return false;
 
   return true;
+}
+
+/**
+ * A recipient as it goes into the message: the address with its domain in
+ * ASCII (xn--) form, so a domain typed in Unicode reaches every server.
+ */
+export function outgoingAddress(r: { name?: string; email: string }): { name?: string; email: string } {
+  const email = toAsciiEmail(r.email);
+  return r.name ? { name: r.name, email } : { email };
 }
 
 /**

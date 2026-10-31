@@ -60,8 +60,9 @@ import {
 import { htmlComposeBodyToPlainText, initialPlainTextMode, plainComposeBodyToHtml } from '../lib/compose-format';
 import { buildQuoteHeader, formatQuoteDate, quoteHeaderLabels, type QuoteHeaderLabels } from '../lib/quote-header';
 import {
-  isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, type Recipient as ParsedRecipient,
+  isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, outgoingAddress, type Recipient as ParsedRecipient,
 } from '../lib/recipients';
+import { toUnicodeEmail } from '../lib/idn';
 import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
@@ -188,8 +189,9 @@ function fromParsed(r: ParsedRecipient): Recipient {
   return { name: r.name ?? '', email: r.email, group: r.group };
 }
 
+// A domain typed in Unicode goes out in its ASCII form (webmail #1100).
 function toAddress(r: { name?: string; email: string }): EmailAddress {
-  return r.name ? { name: r.name, email: r.email } : { email: r.email };
+  return outgoingAddress(r);
 }
 
 function chipIsValid(r: Recipient): boolean {
@@ -2606,7 +2608,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const fromDisplay = React.useMemo(() => {
     if (!primaryIdentity) return identityError ? t('email_composer.identity_unavailable', 'Identity unavailable') : t('common.loading', 'Loading...');
     const { from } = senderAddress(primaryIdentity);
-    return from.name ? `${from.name} <${from.email}>` : from.email;
+    // An IDN domain arrives in its xn-- form; show it as written (#1100).
+    const email = toUnicodeEmail(from.email);
+    return from.name ? `${from.name} <${email}>` : email;
   }, [primaryIdentity, identityError, senderAddress, t]);
 
   const draftStatusText =
@@ -3341,9 +3345,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 )}
                 {!!primaryIdentity && (
                   <Text style={styles.modalLabel} numberOfLines={1}>
-                    {t('identities.sub_address.preview_label', 'Preview:')} {tagDraft && !tagError
+                    {t('identities.sub_address.preview_label', 'Preview:')} {toUnicodeEmail(tagDraft && !tagError
                       ? generateSubAddress(primaryIdentity.email, tagDraft, subAddressDelimiter)
-                      : primaryIdentity.email}
+                      : primaryIdentity.email)}
                   </Text>
                 )}
               </>

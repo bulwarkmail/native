@@ -11,6 +11,7 @@ import type { Identity } from '../api/types';
 import { useLocaleStore } from '../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { toUnicodeEmail } from '../lib/idn';
 
 interface IdentitySheetProps {
   visible: boolean;
@@ -97,7 +98,7 @@ export function IdentitySheet({
                     </Text>
                   )}
                   <Text style={[styles.identityEmail, !identity.name && styles.identityEmailOnly]} numberOfLines={1}>
-                    {identity.email}
+                    {toUnicodeEmail(identity.email)}
                   </Text>
                 </View>
                 {isSelected && (
