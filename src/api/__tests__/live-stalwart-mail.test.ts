@@ -38,7 +38,10 @@ import {
   sendEmail,
   MAILBOX_PROPERTIES,
   queryEmailPage,
+  getSearchSnippets,
 } from '../email';
+import { textFilter, sizeFilterBytes } from '../../lib/search-utils';
+import { parseSearchSnippet } from '../../lib/search-snippet';
 import { senderWarningOf } from '../../lib/email-headers';
 import { scheduledEmailIdsInThread } from '../thread-scheduled';
 import { fetchTagCounts, KEYWORDS_CAPABILITY } from '../tag-counts';
@@ -337,6 +340,49 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       // A phrase next to a bare word: two conditions ANDed (the splitter).
       expect(await searchEmails('"annual report" board', scratch)).toContain(id);
       expect(await searchEmails('"annual report" nonexistentword', scratch)).not.toContain(id);
+    }, 60_000);
+
+    it('marks the matched words in SearchSnippet/get, also for a phrase next to a word', async () => {
+      const word = `snip${RUN}`;
+      const id = await importMessage(scratch, `snippet ${mailTag}`, `Hello,\n\nthe quarterly forecast mentions ${word} & more.\n`);
+      await eventually(() => searchEmails(word, scratch), (ids) => ids.includes(id));
+
+      const [list] = await getSearchSnippets(textFilter(word), [{ emailIds: [id] }]);
+      const snippet = list?.find((s) => s.emailId === id);
+      expect(snippet?.preview).toContain(`<mark>${word}</mark>`);
+      // Everything around the marks is HTML-escaped, and decodes back.
+      expect(snippet?.preview).toContain('&amp;');
+      const text = parseSearchSnippet(snippet!.preview!).map((seg) => seg.text).join('');
+      expect(text).toContain(`${word} & more`);
+      expect(parseSearchSnippet(snippet!.preview!).filter((seg) => seg.marked).map((seg) => seg.text.toLowerCase()))
+        .toContain(word.toLowerCase());
+
+      // The query keeps the phrase as a phrase; the snippet call gets it
+      // loosened, or the server would mark nothing.
+      const phrase = textFilter(`"quarterly forecast" ${word}`);
+      expect(await searchEmails(`"quarterly forecast" ${word}`, scratch)).toContain(id);
+      const [loosened] = await getSearchSnippets(phrase, [{ emailIds: [id] }]);
+      const marked = parseSearchSnippet(loosened?.find((s) => s.emailId === id)?.preview ?? '')
+        .filter((seg) => seg.marked).map((seg) => seg.text.toLowerCase());
+      expect(marked).toEqual(expect.arrayContaining(['quarterly', 'forecast', word.toLowerCase()]));
+    }, 60_000);
+
+    it('filters by size: minSize keeps the large message, maxSize the small one', async () => {
+      const small = await importMessage(scratch, `size small ${mailTag}`, 'short');
+      const filler = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.\r\n'.repeat(4000);
+      const large = await importMessage(scratch, `size large ${mailTag}`, filler);
+      // 100 KB, as the filter panel's custom field sends it.
+      const bound = sizeFilterBytes('100')!;
+      const larger = await queryEmailPage(scratch, { filter: { minSize: bound } });
+      expect(larger.ids).toContain(large);
+      expect(larger.ids).not.toContain(small);
+      const smaller = await queryEmailPage(scratch, { filter: { maxSize: bound } });
+      expect(smaller.ids).toContain(small);
+      expect(smaller.ids).not.toContain(large);
+      // "Larger than 1 MB" keeps neither.
+      const presetMb = await queryEmailPage(scratch, { filter: { minSize: sizeFilterBytes(String(1024))! } });
+      expect(presetMb.ids).not.toContain(large);
+      expect(presetMb.ids).not.toContain(small);
     }, 60_000);
 
     it('reports a new folder through Mailbox/changes', async () => {
