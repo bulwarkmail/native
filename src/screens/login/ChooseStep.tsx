@@ -5,6 +5,8 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors, useResolvedTheme } from '../../theme/colors';
 import type { AccountEntry } from '../../stores/account-store';
 import { getAccountInitials } from '../../lib/avatar-utils';
+import { accountRowText, serverHostLabel } from '../../lib/account-utils';
+import { accountServerLine } from '../../lib/account-labels';
 import OptionTile from './OptionTile';
 import LoginNotice from './LoginNotice';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -17,20 +19,19 @@ const LOGO_DARK = require('../../../assets/logos/Bulwark Logo White.png');
 interface ChooseStepProps {
   isAddMode: boolean;
   accounts: AccountEntry[];
-  /** Host of the signed-in account, offered as a shortcut in add mode. */
-  knownServerUrl: string | null;
+  /**
+   * The servers of the signed-in accounts, the active one first, each
+   * offered as a shortcut in add mode.
+   */
+  knownServerUrls: string[];
   onScan: () => void;
   /** Paste the sign-in link instead of scanning its code. */
   onPaste: () => void;
   onUseEmail: () => void;
-  onUseKnownServer: () => void;
+  onUseKnownServer: (serverUrl: string) => void;
   onManualSetup: () => void;
   notice?: { title: string; detail?: string } | null;
   disabled?: boolean;
-}
-
-function hostOf(url: string): string {
-  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split('/')[0];
 }
 
 function initialsOf(account: AccountEntry): string {
@@ -44,7 +45,7 @@ function initialsOf(account: AccountEntry): string {
 export default function ChooseStep({
   isAddMode,
   accounts,
-  knownServerUrl,
+  knownServerUrls,
   onScan,
   onPaste,
   onUseEmail,
@@ -57,6 +58,7 @@ export default function ChooseStep({
   const theme = useResolvedTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const hasKnownServer = isAddMode && knownServerUrls.length > 0;
 
   // Sits right under the scan tile, wherever that is.
   const pasteTile = (
@@ -91,21 +93,35 @@ export default function ChooseStep({
 
       {isAddMode && accounts.length > 0 ? (
         <View style={styles.accountList}>
-          {accounts.map((account) => (
-            <View key={account.id} style={styles.accountRow}>
-              <View style={[styles.avatar, { backgroundColor: account.avatarColor }]}>
-                <Text style={styles.avatarText}>{initialsOf(account)}</Text>
+          {accounts.map((account) => {
+            // The address leads when another account has the same name, and
+            // the server shows when another has the same address or the port
+            // isn't the default, as in the switcher.
+            const rowText = accountRowText(account, accounts);
+            const server = accountServerLine(account, accounts);
+            return (
+              <View key={account.id} style={styles.accountRow}>
+                <View style={[styles.avatar, { backgroundColor: account.avatarColor }]}>
+                  <Text style={styles.avatarText}>{initialsOf(account)}</Text>
+                </View>
+                <View style={styles.accountText}>
+                  <Text style={styles.accountName} numberOfLines={1}>
+                    {rowText.title}
+                  </Text>
+                  {rowText.subtitle ? (
+                    <Text style={styles.accountEmail} numberOfLines={1}>
+                      {rowText.subtitle}
+                    </Text>
+                  ) : null}
+                  {server ? (
+                    <Text style={styles.accountEmail} numberOfLines={1}>
+                      {server}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
-              <View style={styles.accountText}>
-                <Text style={styles.accountName} numberOfLines={1}>
-                  {account.displayName || account.username}
-                </Text>
-                <Text style={styles.accountEmail} numberOfLines={1}>
-                  {account.email || account.username}
-                </Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : null}
 
@@ -116,15 +132,18 @@ export default function ChooseStep({
       ) : null}
 
       <View style={styles.options}>
-        {isAddMode && knownServerUrl ? (
-          <OptionTile
-            emphasis="primary"
-            title={t('login.mobile.known_server_title', 'Another account on {host}', { host: hostOf(knownServerUrl) })}
-            description={t('login.mobile.known_server_desc', "We already know this server, so there's no setup")}
-            renderIcon={(color, size) => <Plus size={size} color={color} />}
-            onPress={onUseKnownServer}
-            disabled={disabled}
-          />
+        {hasKnownServer ? (
+          knownServerUrls.map((url, i) => (
+            <OptionTile
+              key={url}
+              emphasis={i === 0 ? 'primary' : undefined}
+              title={t('login.mobile.known_server_title', 'Another account on {host}', { host: serverHostLabel(url) })}
+              description={t('login.mobile.known_server_desc', "We already know this server, so there's no setup")}
+              renderIcon={(color, size) => <Plus size={size} color={color} />}
+              onPress={() => onUseKnownServer(url)}
+              disabled={disabled}
+            />
+          ))
         ) : (
           <>
             <OptionTile
@@ -147,7 +166,7 @@ export default function ChooseStep({
           disabled={disabled}
         />
 
-        {isAddMode && knownServerUrl ? (
+        {hasKnownServer ? (
           <>
             <OptionTile
               title={t('login.mobile.scan_title', 'Scan a sign-in code')}
