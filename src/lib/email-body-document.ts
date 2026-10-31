@@ -6,7 +6,7 @@
 
 import {
   prepareEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml,
-  type MessageSpacing, type PlainTextFont,
+  type MessageSpacing, type PlainTextFont, type PlainTextColors,
 } from './email-html';
 import { collapsePlainTextQuotes, type QuoteCollapseLabels } from './quote-collapse';
 import { mailBaseFontPx } from './mail-reading';
@@ -31,6 +31,8 @@ export interface BodyDocumentInput {
    * body. An HTML body is scaled by an injected pass instead. Default 1.
    */
   textFactor?: number;
+  /** The app theme's colours for a plain-text body in dark mode. */
+  plainDarkColors?: PlainTextColors;
 }
 
 export interface BodyDocument {
@@ -61,7 +63,12 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
   }
   const safe = collapsePlainTextQuotes(plainTextToSafeHtml(text), input.quoteLabels);
   return {
-    html: wrapPlainTextEmail(safe, { isDark, font: input.plainTextFont, fontPx: mailBaseFontPx(input.textFactor ?? 1) }),
+    html: wrapPlainTextEmail(safe, {
+      isDark,
+      font: input.plainTextFont,
+      fontPx: mailBaseFontPx(input.textFactor ?? 1),
+      darkColors: input.plainDarkColors,
+    }),
     applyInversion: false,
     hasNativeDark: false,
     blockedExternal: false,
@@ -90,6 +97,7 @@ export function bodyDocument(input: BodyDocumentInput): BodyDocument {
   const key = JSON.stringify([
     input.key, input.blockRemoteImages, input.isDark, input.messageSpacing, input.plainTextFont,
     input.quoteLabels.show, input.quoteLabels.hide, input.emptyLabel, input.textFactor ?? 1,
+    input.plainDarkColors ?? null,
   ]);
   const hit = documents.get(key);
   if (hit && sameSources(hit.input, input)) {

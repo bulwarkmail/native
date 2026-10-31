@@ -953,16 +953,32 @@ export type PlainTextFont = 'sans' | 'mono';
 // WebView. Mirrors the webmail's plain-text render path: app font by default
 // (monospace on request, #830), `white-space: pre-wrap`, native dark theme
 // (no filter inversion), and a dark-mode-appropriate link colour.
+/** The app theme's colours for a plain-text body read in dark mode. */
+export interface PlainTextColors {
+  background: string;
+  text: string;
+  link: string;
+}
+
+/** A theme colour for a style sheet: nothing that could end the declaration or the element. */
+function cssColor(value: string, fallback: string): string {
+  const cleaned = value.replace(/[<>{};\\]/g, '').trim();
+  return cleaned || fallback;
+}
+
 export function wrapPlainTextEmail(
   innerHtml: string,
-  options: { isDark?: boolean; font?: PlainTextFont; fontPx?: number } = {},
+  options: { isDark?: boolean; font?: PlainTextFont; fontPx?: number; darkColors?: PlainTextColors } = {},
 ): string {
-  const { isDark = true, font = 'sans', fontPx = 14 } = options;
+  const { isDark = true, font = 'sans', fontPx = 14, darkColors } = options;
   const cleaned = stripDangerousTags(innerHtml);
 
-  const bg = isDark ? '#0a0a0a' : '#ffffff';
-  const fg = isDark ? '#fafafa' : '#1a1a1a';
-  const link = isDark ? '#60a5fa' : '#1a73e8';
+  // In dark mode the body takes the app theme's ground, text and link colours
+  // when they are given (a built-in dark theme isn't #0a0a0a); light mode
+  // stays on white like HTML mail.
+  const bg = isDark ? cssColor(darkColors?.background ?? '', '#0a0a0a') : '#ffffff';
+  const fg = isDark ? cssColor(darkColors?.text ?? '', '#fafafa') : '#1a1a1a';
+  const link = isDark ? cssColor(darkColors?.link ?? '', '#60a5fa') : '#1a73e8';
   const fontFamily = font === 'mono'
     ? 'ui-monospace, Menlo, Consolas, "SF Mono", monospace'
     : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';

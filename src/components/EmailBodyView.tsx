@@ -688,6 +688,13 @@ export default function EmailBodyView({
   // Sanitised and wrapped once per message, body and settings, and reused
   // when the same body mounts again (lib/email-body-document).
   const emptyLabel = t('email_viewer.no_body_content', '(No body content available)');
+  // A plain-text body in a dark app theme takes the theme's colours, not a
+  // fixed #0a0a0a. Only while the app itself is dark: a single message
+  // switched to dark in a light app has no dark palette to borrow.
+  const plainDarkColors = React.useMemo(
+    () => (resolvedTheme === 'dark' ? { background: c.background, text: c.text, link: c.textLink } : undefined),
+    [resolvedTheme, c.background, c.text, c.textLink],
+  );
   const prepared = React.useMemo(() => bodyDocument({
     key: `${jmapAccountId ?? ''}|${email.id}`,
     rawHtml,
@@ -700,9 +707,10 @@ export default function EmailBodyView({
     plainTextFont,
     quoteLabels,
     textFactor,
+    plainDarkColors,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
-    messageSpacing, plainTextFont, quoteLabels, textFactor,
+    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors,
   ]);
 
   const source = React.useMemo(() => ({ html: prepared.html }), [prepared.html]);
