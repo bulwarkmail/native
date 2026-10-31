@@ -10,6 +10,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useAccountStore } from '../../stores/account-store';
+import { usePolicyStore } from '../../stores/policy-store';
 import { toast } from '../../stores/toast-store';
 import { jmapClient } from '../../api/jmap-client';
 import { listPrincipals, type PrincipalListing } from '../../api/files';
@@ -39,7 +40,7 @@ import { delegationPolicy } from '../../lib/delegation/policy';
 // Settings > Sharing > Delegates. Give someone access to mail, calendars and
 // contacts in one step, and see and take back who has access to what. The
 // admin's hiding, rights limit and app gates come from lib/delegation/policy
-// (nothing is limited until the app has the org policy).
+// (the active account's organisation policy).
 
 // Names kept for a login go with it: removed from the app, or everyone signed out.
 useAccountStore.subscribe((state, prev) => {
@@ -55,7 +56,8 @@ export function DelegateSettings() {
   const session = useAuthStore((s) => s.session);
   const accountKey = useAuthStore((s) => s.activeAccountId) ?? '';
   const username = useAuthStore((s) => s.username);
-  const policy = delegationPolicy();
+  const effectivePolicy = usePolicyStore((s) => s.effective);
+  const policy = useMemo(() => delegationPolicy(effectivePolicy), [effectivePolicy]);
   const levels = useMemo(() => allowedLevels(policy.allowedValues), [policy.allowedValues]);
   const { calendarsEnabled, contactsEnabled, filesEnabled } = policy;
 

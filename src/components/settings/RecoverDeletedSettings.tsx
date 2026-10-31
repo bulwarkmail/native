@@ -7,6 +7,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
+import { usePolicyStore } from '../../stores/policy-store';
 import { toast } from '../../stores/toast-store';
 import { jmapClient } from '../../api/jmap-client';
 import { listArchivedEmails, restoreArchivedItems } from '../../api/archived-items';
@@ -29,7 +30,7 @@ import { useDeletedItemsRecovery } from '../../lib/recovery/use-deleted-items-re
 // "Show older" past 2000. Restoring asks the server to put them back in the
 // Inbox; it does that in the background, and the mail list picks them up
 // from the push that follows. The admin's day limit comes from
-// lib/recovery/policy (no limit until the app has the org policy).
+// lib/recovery/policy (the active account's organisation policy).
 
 type ListState =
   | { status: 'loading' }
@@ -52,7 +53,7 @@ export function RecoverDeletedSettings() {
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const { available, accountId, key } = useDeletedItemsRecovery();
-  const { days } = recoveryPolicy();
+  const days = usePolicyStore((s) => recoveryPolicy(s.effective).days);
   const record = useRecoveryStore((s) => s.record);
   const forgetRecent = useRecoveryStore((s) => s.forgetRecent);
 

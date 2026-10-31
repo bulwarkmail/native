@@ -6,6 +6,7 @@ import { RotateCcw } from '../icons';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyStore } from '../../stores/policy-store';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { recoveryPolicy } from '../../lib/recovery/policy';
 import { useRecoveryStore } from '../../lib/recovery/recovery-store';
@@ -28,7 +29,7 @@ export function TrashRecoveryLink({ mailbox }: { mailbox: Mailbox | undefined })
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { available, accountId, key } = useDeletedItemsRecovery();
-  const { days } = recoveryPolicy();
+  const days = usePolicyStore((s) => recoveryPolicy(s.effective).days);
   const recent = useRecoveryStore((s) => (key ? s.recent[key] : undefined));
   const checkRecent = useRecoveryStore((s) => s.checkRecent);
   const ownTrash = isOwnTrash(mailbox, accountId);

@@ -7,6 +7,7 @@ import {
 } from '../../api/archived-items';
 import { useAuthStore } from '../../stores/auth-store';
 import { recoveryPolicy } from './policy';
+import { usePolicyStore } from '../../stores/policy-store';
 import { recoveryKey, useRecoveryStore, type RecoveryClient } from './recovery-store';
 
 /** The archive calls for one JMAP account, as the detection store asks them. */
@@ -41,7 +42,7 @@ export function useDeletedItemsRecovery(): DeletedItemsRecovery {
   // connectedAccountId, not accountId: the client is between sessions while an
   // account switch reconnects, and accountId throws then (a crash in render).
   const accountId = session ? jmapClient.connectedAccountId : null;
-  const off = recoveryPolicy().hidden;
+  const off = usePolicyStore((s) => recoveryPolicy(s.effective).hidden);
   const key = accountId ? recoveryKey(activeAccountId, accountId) : null;
   const check = useRecoveryStore((s) => (key ? s.checks[key] : undefined));
   const detect = useRecoveryStore((s) => s.detect);
