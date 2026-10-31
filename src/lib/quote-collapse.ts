@@ -92,24 +92,22 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
     }
     return false;
   }
-  function precedingTextEndsWithColon(el) {
-    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  // One walk in document order, remembering the last non-blank text: a
+  // blockquote is reached before its own text, so that is the text preceding
+  // it. Walking from the start again per blockquote took quadratic time and
+  // froze the reader on a mail full of blockquotes (webmail quote-collapse.ts).
+  function findAttributedBlockquote() {
+    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
     var last = null;
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
-      var rel = el.compareDocumentPosition(node);
-      if (rel & Node.DOCUMENT_POSITION_CONTAINED_BY) continue;
-      if (!(rel & Node.DOCUMENT_POSITION_PRECEDING)) break;
-      var text = (node.nodeValue || '').trim();
-      if (text !== '') last = text;
-    }
-    return last !== null && /:$/.test(last);
-  }
-  function findAttributedBlockquote() {
-    var bqs = body.querySelectorAll('blockquote');
-    for (var i = 0; i < bqs.length; i++) {
-      var bq = bqs[i];
-      if (bq.parentElement && bq.parentElement.closest('blockquote')) continue;
-      if (precedingTextEndsWithColon(bq)) return bq;
+      if (node.nodeType === Node.TEXT_NODE) {
+        var text = (node.nodeValue || '').trim();
+        if (text !== '') last = text;
+        continue;
+      }
+      if (node.tagName !== 'BLOCKQUOTE') continue;
+      if (node.parentElement && node.parentElement.closest('blockquote')) continue;
+      if (last !== null && /:$/.test(last)) return node;
     }
     return null;
   }
