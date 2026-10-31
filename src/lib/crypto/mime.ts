@@ -90,7 +90,8 @@ function unfold(value: string | undefined): string {
   return String(value ?? '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim();
 }
 
-function formatAddress(addr: MimeAddress): string {
+/** One address for a header: the name quoted (or RFC 2047-encoded) so commas in it stay inside. */
+export function formatAddress(addr: MimeAddress): string {
   if (addr.name) {
     const name = unfold(addr.name);
     // Raw 8-bit in a header is rejected by some MTAs; encode it.
