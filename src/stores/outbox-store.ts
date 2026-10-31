@@ -690,14 +690,17 @@ async function flushSends(accountId: string): Promise<'done' | 'transient'> {
     } catch (err) {
       const kind = classifySendFailure(err, isTransientNetworkError);
       const message = err instanceof Error ? err.message : String(err);
-      updateSend(accountId, afterFailure(started, kind, message));
+      const next = afterFailure(started, kind, message);
+      updateSend(accountId, next);
+      // Refused, or unconfirmed too often: it waits for the user now, and
+      // nothing retries it, so say so whatever the reason.
+      if (next.status === 'failed') void notifyQueuedSendFailed(started, message);
       if (kind === 'auth') {
         useOutboxStore.setState({ paused: true });
         break;
       }
       if (kind === 'offline' || kind === 'unconfirmed') return 'transient';
-      // Refused: this one waits for the user; the others go on.
-      void notifyQueuedSendFailed(started, message);
+      // Refused: the others go on.
     }
   }
   return 'done';

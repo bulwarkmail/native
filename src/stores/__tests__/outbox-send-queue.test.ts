@@ -154,6 +154,39 @@ describe('offline send queue', () => {
     expect(useOutboxStore.getState().sends).toEqual([]);
   });
 
+  it('says so when a message fails after too many unconfirmed attempts, as for a refused one', async () => {
+    useNetworkStore.setState({ online: true, connected: true });
+    runQueuedSend.mockRejectedValueOnce(new Error('Invalid envelope'));
+    useOutboxStore.getState().enqueueSend(payload('refused'));
+    await flushed();
+    await flushed();
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0][1]).toEqual({ message: 'refused: Invalid envelope' });
+
+    toast.error.mockClear();
+    const id = useOutboxStore.getState().enqueueSend(payload('unconfirmed'))!;
+    useOutboxStore.setState({ sends: useOutboxStore.getState().sends.map((s) => (s.id === id ? { ...s, attempts: 2 } : s)) });
+    runQueuedSend.mockRejectedValueOnce(named('SendUnconfirmedError', 'Send confirmation was not received'));
+    useOutboxStore.setState({ flushing: false });
+    await useOutboxStore.getState().flush();
+    await flushed();
+    expect(useOutboxStore.getState().sends.find((s) => s.id === id)).toMatchObject({ status: 'failed', attempts: 3 });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0]).toEqual([
+      'A message in the Outbox could not be sent', { message: 'unconfirmed: Send confirmation was not received' },
+    ]);
+  });
+
+  it('does not report an unconfirmed attempt that will be tried again', async () => {
+    useNetworkStore.setState({ online: true, connected: true });
+    runQueuedSend.mockRejectedValueOnce(named('SendUnconfirmedError', 'Send confirmation was not received'));
+    useOutboxStore.getState().enqueueSend(payload());
+    await flushed();
+    await flushed();
+    expect(useOutboxStore.getState().sends[0]).toMatchObject({ status: 'queued', attempts: 1 });
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it('stops after an expired session without failing the message', async () => {
     useNetworkStore.setState({ online: true, connected: true });
     runQueuedSend.mockRejectedValueOnce(named('AuthenticationError', 'Session expired'));
