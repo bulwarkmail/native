@@ -2,14 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { DARK_COLORS, LIGHT_COLORS } from '../tokens';
 
 // The standard theme's roles from branding/APP.md ("Tokens used here"),
-// which follow the webmail's app/globals.css.
+// which follow the webmail's app/globals.css (muted-foreground raised to
+// 4.5:1 in 9f6c7b99c).
 describe('standard theme tokens match the webmail', () => {
   it('light', () => {
     expect(LIGHT_COLORS.background).toBe('#ffffff');
     expect(LIGHT_COLORS.text).toBe('#0f172a');
     expect(LIGHT_COLORS.popover).toBe('#ffffff');
     expect(LIGHT_COLORS.border).toBe('#e2e8f0');
-    expect(LIGHT_COLORS.mutedForeground).toBe('#64748b');
+    expect(LIGHT_COLORS.mutedForeground).toBe('#59687c');
   });
 
   it('dark: white primary with near-black text on neutral greys', () => {
@@ -19,7 +20,7 @@ describe('standard theme tokens match the webmail', () => {
     expect(DARK_COLORS.primaryForeground).toBe('#171717');
     expect(DARK_COLORS.popover).toBe('#1c1c1c');
     expect(DARK_COLORS.border).toBe('rgba(128, 128, 128, 0.3)');
-    expect(DARK_COLORS.mutedForeground).toBe('#a3a3a3');
+    expect(DARK_COLORS.mutedForeground).toBe('#adadad');
     expect(DARK_COLORS.muted).toBe('#262626');
   });
 });
