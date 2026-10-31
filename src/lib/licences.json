@@ -144,7 +144,7 @@
     },
     {
       "name": "jszip",
-      "version": "3.10.1",
+      "version": "3.10.2",
       "license": "(MIT OR GPL-3.0-or-later)",
       "url": "https://github.com/Stuk/jszip"
     },
@@ -204,7 +204,7 @@
     },
     {
       "name": "zustand",
-      "version": "5.0.12",
+      "version": "5.0.16",
       "license": "MIT",
       "url": "https://github.com/pmndrs/zustand"
     },
