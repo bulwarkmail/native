@@ -1754,6 +1754,13 @@ export interface SendEmailOptions {
   requestDsn?: boolean;
   /** Refuse delivery over an unencrypted hop (RFC 8689 REQUIRETLS). */
   requireTls?: boolean;
+  /**
+   * A complete message already uploaded as a blob (a signed or encrypted
+   * PGP / S/MIME message, #58): it is added with Email/import instead of
+   * built with Email/set, and the envelope always names every recipient,
+   * since Bcc is not in its headers. The webmail's sendRawEmail.
+   */
+  rawBlobId?: string;
 }
 
 export async function sendEmail(
@@ -1767,7 +1774,8 @@ export async function sendEmail(
   opts?: SendEmailOptions,
 ): Promise<SendEmailResult> {
   const accountId = opts?.accountId ?? jmapClient.accountId;
-  const emailCreate = buildEmailCreate(email);
+  const raw = !!opts?.rawBlobId;
+  const emailCreate: Record<string, unknown> = raw ? { blobId: opts!.rawBlobId } : buildEmailCreate(email);
   const viaDrafts = !!opts?.draftsMailboxId;
   if (viaDrafts) {
     emailCreate.mailboxIds = { [opts!.draftsMailboxId!]: true };
@@ -1776,6 +1784,9 @@ export async function sendEmail(
     emailCreate.mailboxIds = { [sentMailboxId]: true };
     emailCreate.keywords = { $seen: true };
   }
+  const createCall: [string, Record<string, unknown>, string] = raw
+    ? ['Email/import', { accountId, emails: { draft: emailCreate } }, '0']
+    : ['Email/set', { accountId, create: { draft: emailCreate } }, '0'];
 
   const submissionCreate: Record<string, unknown> = { emailId: '#draft', identityId };
   // For a deferred send the envelope must be set explicitly so the HOLDFOR
@@ -1791,7 +1802,7 @@ export async function sendEmail(
   );
   const hasMailFromParams = Object.keys(parameters.mailFrom).length > 0;
   const hasRcptToParams = Object.keys(parameters.rcptTo).length > 0;
-  if (hasMailFromParams || hasRcptToParams || email.envelopeMailFrom) {
+  if (hasMailFromParams || hasRcptToParams || email.envelopeMailFrom || raw) {
     const rcptTo = [...email.to, ...(email.cc ?? []), ...(email.bcc ?? [])]
       .map((r) => r.email.trim())
       .filter(Boolean)
@@ -1818,7 +1829,7 @@ export async function sendEmail(
 
   let res = await jmapClient.request(
     [
-      ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
+      createCall,
       ['EmailSubmission/set', submissionArgs, '1'],
       // Which recipients the server took. A refused one is lost without a
       // bounce while the create succeeds and files the message in Sent.
@@ -1830,7 +1841,7 @@ export async function sendEmail(
   // Stalwart 1.0 refuses a submission once the account holds `maxSubmissions`
   // records (overQuota). The message exists by then, so make room and submit
   // that copy once more instead of failing the send.
-  const copyCreated = res.methodResponses.find(([name, , callId]) => name === 'Email/set' && callId === '0');
+  const copyCreated = res.methodResponses.find(([name, , callId]) => (name === 'Email/set' || name === 'Email/import') && callId === '0');
   const copyId = (copyCreated?.[1] as { created?: Record<string, { id?: string }> } | undefined)?.created?.draft?.id;
   if (copyCreated && copyId && submissionCreateError(res, 'sub-1')?.type === 'overQuota') {
     await makeRoomForSubmission(accountId);
@@ -1871,7 +1882,7 @@ export async function sendEmail(
       failure = new Error((result as { description?: string }).description ?? 'Send failed');
       break;
     }
-    if (methodName === 'Email/set') {
+    if (methodName === 'Email/set' || methodName === 'Email/import') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string; properties?: string[] }> }).notCreated?.draft;
       if (notCreated) {
         const props = notCreated.properties?.length ? ` (properties: ${notCreated.properties.join(', ')})` : '';
