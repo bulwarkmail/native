@@ -2,8 +2,11 @@
 // clear flow and exposes a `secureFetch` that mirrors the global `fetch` API
 // closely enough that callers can swap them out.
 //
-// On non-Android platforms (or when the user has not picked a cert) we fall
-// straight back to the global `fetch` so we don't pay any bridge overhead.
+// Android (BulwarkClientCertModule.kt) picks a certificate from the system's
+// KeyChain; iOS (plugins/ios-client-cert) imports a .p12 file into the app's
+// keychain. Both have the same methods. Where the module is missing (web,
+// tests), or when the user has not picked a cert, we fall straight back to
+// the global `fetch` so we don't pay any bridge overhead.
 
 type Native = {
   getAlias(): Promise<string | null>;
@@ -29,17 +32,18 @@ type Native = {
 let nativeProbed = false;
 let nativeModule: Native | null = null;
 
+/** The client-certificate module react-native offers, on any platform that has one. */
+export function clientCertModuleOf(rn: { NativeModules: Record<string, unknown> }): Native | null {
+  return (rn.NativeModules.BulwarkClientCert as Native | undefined) ?? null;
+}
+
 function getNative(): Native | null {
   if (nativeProbed) return nativeModule;
   nativeProbed = true;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const rn = require('react-native') as {
-      Platform: { OS: string };
-      NativeModules: Record<string, unknown>;
-    };
-    if (rn.Platform.OS !== 'android') return (nativeModule = null);
-    nativeModule = (rn.NativeModules.BulwarkClientCert as Native | undefined) ?? null;
+    const rn = require('react-native') as { NativeModules: Record<string, unknown> };
+    nativeModule = clientCertModuleOf(rn);
   } catch {
     nativeModule = null;
   }
@@ -63,7 +67,7 @@ export async function getClientCertAlias(): Promise<string | null> {
 
 export async function pickClientCertAlias(host: string | null): Promise<string | null> {
   const native = getNative();
-  if (!native) throw new Error('Client certificates require Android');
+  if (!native) throw new Error('Client certificates are not available on this device');
   const alias = await native.pickAlias(host);
   cachedAlias = alias;
   return alias;
@@ -144,9 +148,9 @@ function buildResponse(raw: {
 
 /**
  * Drop-in replacement for `fetch` that routes through the native client when
- * the user has selected a client certificate. When no cert is set (or we're
- * on iOS), it just calls the platform `fetch` and the caller pays no
- * bridge overhead.
+ * the user has selected a client certificate. When no cert is set (or there
+ * is no native module), it just calls the platform `fetch` and the caller
+ * pays no bridge overhead.
  */
 export interface SecureFetchInit extends RequestInit {
   /** Native-path deadline (ms); blob transfers pass a longer one. */

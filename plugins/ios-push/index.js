@@ -8,6 +8,11 @@
 //   only ids; the extension fetches sender and subject over JMAP on the device
 //   before iOS shows the notification. Its sources live next to this file and
 //   are copied into ios/ at prebuild, like everything else in ios/.
+// - Push renewal (PushRenewal.swift): Stalwart drops a subscription seven days
+//   after its last refresh. The extension extends the pushed account's, and
+//   the app (PushRenewalTask.swift, compiled into the app target) every
+//   account's on foreground and from a background app refresh task, which
+//   AppDelegate registers at launch and Info.plist permits.
 //
 // Options (app.config.js):
 //   apsEnvironment: 'production' | 'development' (APS_ENVIRONMENT env wins)
@@ -20,7 +25,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  IOSConfig,
+  withAppDelegate,
   withEntitlementsPlist,
+  withInfoPlist,
   withXcodeProject,
   withDangerousMod,
   createRunOncePlugin,
@@ -28,7 +36,17 @@ const {
 
 const TARGET = 'NotificationService';
 const DEPLOYMENT_TARGET = '15.1';
-const SOURCE_FILES = ['NotificationService.swift', 'SharedKeychain.swift', 'Jmap.swift'];
+const SOURCE_FILES = ['NotificationService.swift', 'SharedKeychain.swift', 'Jmap.swift', 'PushRenewal.swift'];
+// Compiled into the app as well: the renewal on foreground and in the
+// background refresh task.
+const APP_SOURCE_FILES = ['SharedKeychain.swift', 'Jmap.swift', 'PushRenewal.swift', 'PushRenewalTask.swift'];
+// PushRenewalTask.identifier
+const RENEWAL_TASK_ID = 'org.bulwarkmail.mobile.push-renewal';
+const RENEWAL_REGISTER_CALL = 'PushRenewalTask.register()';
+// Where Expo's AppDelegate.swift hands launch to its superclass; the
+// registration has to run before that returns (Expo's Maps plugin uses the
+// same anchor).
+const APP_DELEGATE_LAUNCH = /^([ \t]*)return super\.application\(\w+, didFinishLaunchingWithOptions: \w+\)/m;
 
 function sharedGroupSuffix() {
   return 'org.bulwarkmail.shared';
@@ -111,9 +129,68 @@ function withExtensionFiles(config) {
         infoPlist({ version: cfg.version, buildNumber: cfg.ios?.buildNumber ?? '1' }),
       );
       fs.writeFileSync(path.join(dir, `${TARGET}.entitlements`), entitlementsPlist());
+      const appDir = path.join(cfg.modRequest.platformProjectRoot, cfg.modRequest.projectName);
+      for (const file of APP_SOURCE_FILES) {
+        fs.copyFileSync(path.join(__dirname, file), path.join(appDir, file));
+      }
       return cfg;
     },
   ]);
+}
+
+/** Compile the renewal sources into the app target. */
+function addAppSources(cfg) {
+  const projectName = cfg.modRequest.projectName;
+  for (const file of APP_SOURCE_FILES) {
+    IOSConfig.XcodeUtils.addBuildSourceFileToGroup({
+      filepath: `${projectName}/${file}`,
+      groupName: projectName,
+      project: cfg.modResults,
+    });
+  }
+}
+
+/**
+ * The app's Info.plist entries for the renewal: the refresh task id, the
+ * background mode it needs, and the keychain group SharedKeychain reads
+ * (the extension's Info.plist names the same group).
+ */
+function setRenewalInfoPlist(plist, { teamId }) {
+  const ids = new Set(plist.BGTaskSchedulerPermittedIdentifiers ?? []);
+  ids.add(RENEWAL_TASK_ID);
+  plist.BGTaskSchedulerPermittedIdentifiers = [...ids];
+  const modes = new Set(plist.UIBackgroundModes ?? []);
+  modes.add('fetch');
+  plist.UIBackgroundModes = [...modes];
+  plist.BulwarkKeychainGroup = `${teamId || '$(DEVELOPMENT_TEAM)'}.${sharedGroupSuffix()}`;
+  return plist;
+}
+
+/** AppDelegate.swift with the renewal task registered during launch. */
+function addRenewalToAppDelegate(contents) {
+  if (contents.includes(RENEWAL_REGISTER_CALL)) return contents;
+  if (!APP_DELEGATE_LAUNCH.test(contents)) {
+    throw new Error('plugins/ios-push: AppDelegate.swift has no didFinishLaunching return to register push renewal before');
+  }
+  return contents.replace(
+    APP_DELEGATE_LAUNCH,
+    (line, indent) => `${indent}// plugins/ios-push: BGTaskScheduler handlers must exist before launch ends.\n${indent}${RENEWAL_REGISTER_CALL}\n${line}`,
+  );
+}
+
+function withRenewal(config, { teamId }) {
+  config = withInfoPlist(config, (cfg) => {
+    setRenewalInfoPlist(cfg.modResults, { teamId });
+    return cfg;
+  });
+  config = withAppDelegate(config, (cfg) => {
+    if (cfg.modResults.language !== 'swift') {
+      throw new Error('plugins/ios-push: push renewal expects a Swift AppDelegate');
+    }
+    cfg.modResults.contents = addRenewalToAppDelegate(cfg.modResults.contents);
+    return cfg;
+  });
+  return config;
 }
 
 function setReleaseProfiles(cfg, { appProfile, extensionProfile }) {
@@ -137,6 +214,7 @@ function setReleaseProfiles(cfg, { appProfile, extensionProfile }) {
 function withExtensionTarget(config, { teamId, appProfile, extensionProfile }) {
   return withXcodeProject(config, (cfg) => {
     addExtensionTarget(cfg, { teamId });
+    addAppSources(cfg);
     setReleaseProfiles(cfg, { appProfile, extensionProfile });
     return cfg;
   });
@@ -189,7 +267,10 @@ function withIosPush(config, options = {}) {
   config = withAppEntitlements(config, { apsEnvironment });
   config = withExtensionFiles(config);
   config = withExtensionTarget(config, { teamId, appProfile, extensionProfile });
+  config = withRenewal(config, { teamId });
   return config;
 }
 
 module.exports = createRunOncePlugin(withIosPush, 'bulwark-ios-push', '1.0.0');
+// For the tests (src/lib/__tests__/ios-push-renewal.test.ts).
+module.exports.internals = { addRenewalToAppDelegate, setRenewalInfoPlist, SOURCE_FILES, APP_SOURCE_FILES, RENEWAL_TASK_ID };

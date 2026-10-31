@@ -1073,7 +1073,30 @@ export async function shareAccountWithExtension(
     credentialsKey: credentialsKey(accountId),
     apiUrl,
     ...(username ? { label: username } : {}),
+    ...(await sharedSubscription(accountId)),
   }).catch(() => undefined);
+}
+
+/**
+ * The account's subscription as the iOS native renewal needs it
+ * (IosPushAccount.subscriptionId). Nothing for an account the user turned
+ * push off for, or without a recorded subscription: nothing to keep alive.
+ */
+async function sharedSubscription(
+  accountId: string,
+): Promise<{ subscriptionId?: string; deviceClientId?: string; subscriptionExpires?: string }> {
+  const [subscriptionId, deviceClientId, expires, optedOut] = await Promise.all([
+    AsyncStorage.getItem(subscriptionIdKey(accountId)),
+    AsyncStorage.getItem(deviceClientIdKey(accountId)),
+    AsyncStorage.getItem(subscriptionExpiresKey(accountId)),
+    AsyncStorage.getItem(optedOutKey(accountId)),
+  ]);
+  if (!subscriptionId || optedOut) return {};
+  return {
+    subscriptionId,
+    ...(deviceClientId ? { deviceClientId } : {}),
+    ...(expires ? { subscriptionExpires: expires } : {}),
+  };
 }
 
 /**

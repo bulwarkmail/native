@@ -153,8 +153,10 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             }
         }
 
-        val builder = NotificationCompat.Builder(ctx, BulwarkMessagingService.CHANNEL_ID)
+        val builder = NotificationCompat.Builder(ctx, BulwarkMessagingService.channelId(ctx))
             .setSmallIcon(R.drawable.ic_notification)
+            // Android 7 has no channels: the notification names its sound.
+            .setSound(BulwarkMessagingService.soundUri(ctx))
             .setLargeIcon(largeIcon)
             .setContentTitle(title)
             // body is the subject with the "(No subject)" fallback; an empty
@@ -284,7 +286,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val summary = NotificationCompat.Builder(ctx, BulwarkMessagingService.CHANNEL_ID)
+        val summary = NotificationCompat.Builder(ctx, BulwarkMessagingService.channelId(ctx))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(groupTitle)
             .setContentText(if (count == 1) "1 new message" else "$count new messages")
