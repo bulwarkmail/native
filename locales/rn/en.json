@@ -95,7 +95,7 @@
       "clear_confirm": "Remove all",
       "clear_description": "Every event in this calendar will be deleted. Events that also belong to another calendar are only unlinked.",
       "clear_title": "Remove all events?",
-      "color_invalid": "Enter a color as # and six hex digits, such as #3b82f6.",
+      "color_invalid": "Enter a color as six hex digits, with or without #, such as #3b82f6.",
       "custom_color": "Custom color (hex)",
       "delete_description": "The calendar and all of its events will be deleted. This cannot be undone.",
       "delete_title": "Delete calendar?",

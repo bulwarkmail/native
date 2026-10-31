@@ -76,6 +76,7 @@
       "clear_confirm": "Alle entfernen",
       "clear_description": "Alle Termine in diesem Kalender werden gelöscht. Termine, die auch zu einem anderen Kalender gehören, werden nur aus diesem entfernt.",
       "clear_title": "Alle Termine entfernen?",
+      "color_invalid": "Geben Sie eine Farbe als sechs Hex-Ziffern ein, mit oder ohne #, etwa #3b82f6.",
       "delete_description": "Der Kalender und alle seine Termine werden gelöscht. Dies kann nicht rückgängig gemacht werden.",
       "delete_title": "Kalender löschen?",
       "description_field": "Beschreibung",
