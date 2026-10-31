@@ -65,6 +65,7 @@ import {
   TotpLoginError,
 } from '../../lib/totp-login';
 import { describeLoginError } from '../../lib/login-errors';
+import { fetchMailQuota, serverSupportsQuota, toMailQuota } from '../quota';
 import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
 import {
   HANDOFF_REDIRECT_URI,
@@ -388,6 +389,28 @@ live('live Stalwart sign-in', () => {
     );
     expect(copy.detail).toMatch(/password and code were accepted/);
   }, 30_000);
+
+  it('reads the storage quota the way Settings shows it, on both (#1242)', async () => {
+    const client = new JMAPClient();
+    await client.connect(SERVER, USER, PASS);
+    useSingleton(client);
+    if (!serverSupportsQuota()) return;
+    const res = await client.request([['Quota/get', { accountId: client.accountId }, '0']], [
+      'urn:ietf:params:jmap:core',
+      'urn:ietf:params:jmap:quota',
+    ]);
+    const [name, body] = res.methodResponses[0] as unknown as [string, { list: Array<Record<string, number | null>> }];
+    expect(name).toBe('Quota/get');
+    const shown = await fetchMailQuota();
+    expect(shown).toEqual(toMailQuota(body.list as never));
+    if (shown) {
+      const raw = body.list.find((q) => q.resourceType === ('octets' as unknown as number))!;
+      // Never above a softLimit the server set below its hardLimit.
+      if (typeof raw.softLimit === 'number' && raw.softLimit > 0 && typeof raw.hardLimit === 'number' && raw.softLimit < raw.hardLimit) {
+        expect(shown.total).toBe(raw.softLimit);
+      }
+    }
+  });
 
   it('account security with the password (Basic) works on both', async () => {
     const client = new JMAPClient();
