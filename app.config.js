@@ -108,6 +108,8 @@ module.exports = {
       ['./plugins/ios-push', { apsEnvironment: APS_ENVIRONMENT, teamId: APPLE_TEAM_ID }],
       // TLS client certificates (#3): the iOS side of src/lib/client-cert.ts.
       './plugins/ios-client-cert',
+      // The iOS inbox widget (WidgetKit); src/widgets/ios.ts feeds it.
+      ['./plugins/ios-widget', { teamId: APPLE_TEAM_ID }],
       // Bundles the Involved sound calendar reminders (src/lib/calendar-
       // notifications.ts) and new mail (plugins/ios-push) play on iOS.
       // Android has it in res/raw.

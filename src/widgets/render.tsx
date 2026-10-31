@@ -16,6 +16,7 @@ import { serial } from './serial';
 import { readView } from './state';
 import type { WidgetSnapshot } from './snapshot';
 import { DARK, LIGHT, type WidgetPalette } from './theme';
+import { iosWidgetPlaced, writeIosWidget } from './ios';
 import type { Layout, WidgetLocalState } from './layouts/types';
 import * as mail from './layouts/mail';
 import * as moreMail from './layouts/more-mail';
@@ -161,11 +162,13 @@ let queued: Promise<void> | null = null;
  * one drawn is the newest; calls made while one is still waiting share it.
  */
 export function redrawAll(): Promise<void> {
-  if (Platform.OS !== 'android') return Promise.resolve();
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return Promise.resolve();
   if (queued) return queued;
   const run = serial(async () => {
     queued = null;
-    await updateAllWidgets(await readView());
+    // iOS draws its WidgetKit widget itself from a snapshot handed over (./ios.ts).
+    if (Platform.OS === 'ios') await writeIosWidget(await readView());
+    else await updateAllWidgets(await readView());
   });
   queued = run;
   return run;
@@ -180,10 +183,11 @@ let placedCache: { at: number; value: boolean } | null = null;
 
 /** Whether any Bulwark widget is on a home screen; cached briefly. */
 export async function hasPlacedWidgets(maxAgeMs = 60_000): Promise<boolean> {
-  if (Platform.OS !== 'android') return false;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return false;
   if (placedCache && Date.now() - placedCache.at < maxAgeMs) return placedCache.value;
-  const counts = await Promise.all(WIDGET_NAMES.map((n) => getWidgetInfo(n).then((l) => l.length).catch(() => 0)));
-  const value = counts.some((c) => c > 0);
+  const value = Platform.OS === 'ios'
+    ? await iosWidgetPlaced()
+    : (await Promise.all(WIDGET_NAMES.map((n) => getWidgetInfo(n).then((l) => l.length).catch(() => 0)))).some((c) => c > 0);
   placedCache = { at: Date.now(), value };
   return value;
 }

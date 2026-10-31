@@ -48,6 +48,12 @@ export function handleAppState(next: string): void {
   if (next !== 'background') return;
   if (timer) clearTimeout(timer);
   timer = null;
+  // iOS has no headless task to fetch in: hand the WidgetKit widget what the
+  // app already has, which needs no network.
+  if (Platform.OS === 'ios') {
+    void redrawAll().catch(() => undefined);
+    return;
+  }
   const native = NativeModules.BulwarkWidgets as { refreshInBackground?: () => Promise<boolean> } | undefined;
   void (native?.refreshInBackground?.() ?? Promise.resolve(false))
     .catch(() => false)
@@ -56,9 +62,9 @@ export function handleAppState(next: string): void {
     });
 }
 
-/** Start following app state; returns the cleanup. No-op off Android. */
+/** Start following app state; returns the cleanup. No-op off Android and iOS. */
 export function startWidgetSync(): () => void {
-  if (Platform.OS !== 'android') return () => {};
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return () => {};
   const { useEmailStore } = require('../stores/email-store') as typeof import('../stores/email-store');
   const { useCalendarStore } = require('../stores/calendar-store') as typeof import('../stores/calendar-store');
   const { useSettingsStore } = require('../stores/settings-store') as typeof import('../stores/settings-store');
@@ -93,7 +99,7 @@ export function startWidgetSync(): () => void {
 
 /** Wipe what the widgets show after the last account signed out. */
 export async function signOutWidgets(): Promise<void> {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
   // Signed out of every account, not merely offline or mid-switch.
   if ((await readRegistry()).accounts.length > 0) return;
   await replaceAll({ ...emptySnapshot(), generatedAt: Date.now() });
