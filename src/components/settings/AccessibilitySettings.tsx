@@ -4,6 +4,8 @@ import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-s
 import Button from '../Button';
 import { spacing } from '../../theme/tokens';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyStore, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
+import { policyAllowsValue } from '../../lib/org-policy';
 import { APP_FONTS, FONT_SIZES, useSettingsStore, type AppFont, type FontSize } from '../../stores/settings-store';
 import { uiFontsBundled } from '../../theme/reading-fonts';
 import { toast } from '../../stores/toast-store';
@@ -81,6 +83,16 @@ export function AccessibilitySettings() {
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const toastDuration = useSettingsStore((s) => s.toastDuration);
   const sendConfirmation = useSettingsStore((s) => s.sendConfirmation);
+  // What the organisation pins or hides (webmail accessibility-settings.tsx):
+  // a minimum notification duration leaves out the shorter choices.
+  const policyRules = usePolicyStore((s) => s.rules);
+  const toastDurationLocked = useSettingLocked('toastDuration');
+  const sendConfirmationLocked = useSettingLocked('sendConfirmation');
+  const sendConfirmationHidden = useSettingHidden('sendConfirmation');
+  const toastChoices = React.useMemo(
+    () => TOAST_DURATION_CHOICES.filter((value) => value === toastDuration || policyAllowsValue('toastDuration', value, policyRules)),
+    [toastDuration, policyRules],
+  );
   const confirmDelete = useSettingsStore((s) => s.confirmDelete);
   const confirmArchive = useSettingsStore((s) => s.confirmArchive);
 
@@ -214,23 +226,27 @@ export function AccessibilitySettings() {
         <SettingItem
           label={t('settings.accessibility.toast_duration.label', 'Notification duration')}
           description={t('settings.accessibility.toast_duration.description', 'How long messages such as "Moved to Archive" with their Undo button stay on screen.')}
+          locked={toastDurationLocked}
         >
           <Select
             value={String(toastDuration)}
             onChange={(v) => update('toastDuration', Number(v))}
-            options={TOAST_DURATION_CHOICES.map((value) => ({ value: String(value), label: durationLabel(value) }))}
+            options={toastChoices.map((value) => ({ value: String(value), label: durationLabel(value) }))}
           />
         </SettingItem>
-        <SettingItem
-          label={t('settings.accessibility.confirm_send.label', 'Confirm before sending')}
-          description={t('settings.accessibility.confirm_send.description', 'Asks before a message is sent.')}
-        >
-          <ToggleSwitch
-            checked={sendConfirmation}
-            onChange={(v) => update('sendConfirmation', v)}
-            accessibilityLabel={t('settings.accessibility.confirm_send.label', 'Confirm before sending')}
-          />
-        </SettingItem>
+        {!sendConfirmationHidden && (
+          <SettingItem
+            label={t('settings.accessibility.confirm_send.label', 'Confirm before sending')}
+            description={t('settings.accessibility.confirm_send.description', 'Asks before a message is sent.')}
+            locked={sendConfirmationLocked}
+          >
+            <ToggleSwitch
+              checked={sendConfirmation}
+              onChange={(v) => update('sendConfirmation', v)}
+              accessibilityLabel={t('settings.accessibility.confirm_send.label', 'Confirm before sending')}
+            />
+          </SettingItem>
+        )}
         <SettingItem
           label={t('settings.accessibility.confirm_delete.label', 'Confirm before deleting')}
           description={t('settings.accessibility.confirm_delete.description', 'Asks before a message is deleted, also for single messages.')}

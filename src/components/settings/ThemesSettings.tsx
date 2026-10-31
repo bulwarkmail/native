@@ -7,6 +7,8 @@ import { resolvePalette, useColors, useResolvedTheme } from '../../theme/colors'
 import { BUILTIN_THEMES } from '../../theme/builtin-themes';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyStore, useSettingLocked } from '../../stores/policy-store';
+import { visibleThemeCards } from './theme-cards';
 
 interface ThemeCard {
   id: string | null;
@@ -28,19 +30,23 @@ export function ThemesSettings() {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const active = useSettingsStore((s) => s.activeThemeId);
   const update = useSettingsStore((s) => s.updateSetting);
+  // The organisation can turn built-in themes off, and pin one (or the
+  // default, with themes turned off) for everyone (webmail themes-settings.tsx).
+  const policy = usePolicyStore((s) => s.effective);
+  const themeLocked = useSettingLocked('activeThemeId');
 
   useEffect(() => {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
 
-  const cards: ThemeCard[] = [
+  const cards = React.useMemo<ThemeCard[]>(() => visibleThemeCards([
     {
       id: null,
       name: t('settings.themes.default_name', 'Bulwark'),
       description: t('settings.themes.default_description', 'The default light and dark palettes.'),
     },
     ...BUILTIN_THEMES.map((theme) => ({ id: theme.id, name: theme.name, description: theme.description })),
-  ];
+  ], policy), [t, policy]);
 
   return (
     <SettingsSection
@@ -50,6 +56,11 @@ export function ThemesSettings() {
         'Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail.',
       )}
     >
+      {themeLocked && (
+        <View style={styles.lockedNote}>
+          <Text style={styles.lockedNoteText}>{t('settings.themes.locked', 'Theme selection is locked by an administrator.')}</Text>
+        </View>
+      )}
       <View style={styles.grid}>
         {cards.map((card) => {
           const isActive = (active ?? null) === card.id;
@@ -58,10 +69,11 @@ export function ThemesSettings() {
             <Pressable
               key={card.id ?? 'default'}
               onPress={() => update('activeThemeId', card.id)}
+              disabled={themeLocked}
               accessibilityRole="radio"
-              accessibilityState={{ selected: isActive, checked: isActive }}
+              accessibilityState={{ selected: isActive, checked: isActive, disabled: themeLocked }}
               accessibilityLabel={card.name}
-              style={[styles.card, isActive && styles.cardActive]}
+              style={[styles.card, isActive && styles.cardActive, themeLocked && !isActive && styles.cardDisabled]}
             >
               <View style={[styles.preview, { backgroundColor: preview.background, borderColor: preview.border }]}>
                 <View style={[styles.previewRail, { backgroundColor: preview.surface, borderRightColor: preview.border }]} />
@@ -112,6 +124,17 @@ function makeStyles(c: ThemePalette) {
     borderColor: c.primary,
     backgroundColor: c.primaryBg,
   },
+  cardDisabled: { opacity: 0.6 },
+  lockedNote: {
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.warning,
+    backgroundColor: c.warningBg,
+  },
+  lockedNoteText: { ...typography.caption, color: c.text },
   preview: {
     width: '100%',
     aspectRatio: 16 / 10,

@@ -238,21 +238,24 @@ export function getContactPhotoForEmail(
 
 // --- What the avatar shows --------------------------------------------------
 
-export type AvatarContent = 'warning' | 'photo' | 'favicon' | 'initials';
+export type AvatarContent = 'warning' | 'photo' | 'brand' | 'favicon' | 'initials';
 
 /**
  * What a sender avatar shows, in the webmail `Avatar`'s order. A failed or
  * unverified sender check comes first: a warning shield instead of any photo,
- * favicon or initials, so a forged From doesn't get the real sender's logo or
- * contact photo (webmail 605a3983b, #1439).
+ * logo, favicon or initials, so a forged From doesn't get the real sender's
+ * logo or contact photo (webmail 605a3983b, #1439). Then the contact photo,
+ * the domain's BIMI logo (see avatar-bimi.ts), the favicon.
  */
 export function avatarContent(options: {
   senderWarning?: string | null;
   hasPhoto: boolean;
+  showBrand?: boolean;
   showFavicon: boolean;
 }): AvatarContent {
   if (options.senderWarning) return 'warning';
   if (options.hasPhoto) return 'photo';
+  if (options.showBrand) return 'brand';
   if (options.showFavicon) return 'favicon';
   return 'initials';
 }

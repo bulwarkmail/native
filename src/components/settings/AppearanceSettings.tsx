@@ -7,6 +7,7 @@ import { useSettingsStore, type ThemeMode, type Density } from '../../stores/set
 import { useLocaleStore } from '../../stores/locale-store';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { densityPreviewConfig } from './density-preview';
+import { useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 
 type Theme = ThemeMode;
 
@@ -81,6 +82,10 @@ export function AppearanceSettings() {
   const theme = useSettingsStore((s) => s.theme);
   const t = useLocaleStore((s) => s.t);
   const setTheme = useSettingsStore((s) => s.setTheme);
+  // The organisation's theme policy can pin the colour mode (#1280).
+  const themeLocked = useSettingLocked('theme');
+  const densityLocked = useSettingLocked('density');
+  const densityHidden = useSettingHidden('density');
   const density = useSettingsStore((s) => s.density);
   const setDensity = useSettingsStore((s) => s.setDensity);
   const showToolbarLabels = useSettingsStore((s) => s.showToolbarLabels);
@@ -99,7 +104,7 @@ export function AppearanceSettings() {
       title={t('settings.appearance.title', "Appearance")}
       description={t('settings.appearance.description_mobile', 'Customize how the app looks')}
     >
-      <SettingItem label={t('settings.appearance.theme.label', "Theme")} description={t('settings.appearance.theme.description', "Choose your preferred color scheme")}>
+      <SettingItem label={t('settings.appearance.theme.label', "Theme")} description={t('settings.appearance.theme.description', "Choose your preferred color scheme")} locked={themeLocked}>
         <RadioGroup
           value={theme}
           onChange={(v) => setTheme(v as Theme)}
@@ -119,21 +124,25 @@ export function AppearanceSettings() {
         link="page"
       />
 
-      <View>
-        <SettingItem label={t('settings.appearance.list_density.label', "Density")} description={t('settings.appearance.list_density.description', "Control spacing and padding across the UI")} noBorder />
-        <RadioGroup
-          value={density}
-          onChange={(v) => setDensity(v as Density)}
-          options={[
-            { value: 'extra-compact', label: t('settings.appearance.list_density.extra_compact', "Extra Compact") },
-            { value: 'compact', label: t('settings.appearance.list_density.compact', "Compact") },
-            { value: 'regular', label: t('settings.appearance.list_density.regular', "Regular") },
-            { value: 'comfortable', label: t('settings.appearance.list_density.comfortable', "Comfortable") },
-          ]}
-        />
-        <DensityPreview density={density} />
-        <View style={styles.divider} />
-      </View>
+      {!densityHidden && (
+        <View>
+          <SettingItem label={t('settings.appearance.list_density.label', "Density")} description={t('settings.appearance.list_density.description', "Control spacing and padding across the UI")} noBorder locked={densityLocked} />
+          <View pointerEvents={densityLocked ? 'none' : 'auto'} style={densityLocked && styles.lockedControl}>
+            <RadioGroup
+              value={density}
+              onChange={(v) => setDensity(v as Density)}
+              options={[
+                { value: 'extra-compact', label: t('settings.appearance.list_density.extra_compact', "Extra Compact") },
+                { value: 'compact', label: t('settings.appearance.list_density.compact', "Compact") },
+                { value: 'regular', label: t('settings.appearance.list_density.regular', "Regular") },
+                { value: 'comfortable', label: t('settings.appearance.list_density.comfortable', "Comfortable") },
+              ]}
+            />
+          </View>
+          <DensityPreview density={density} />
+          <View style={styles.divider} />
+        </View>
+      )}
 
       <SettingItem label={t('settings.appearance.toolbar_labels.label', "Show Toolbar Labels")} description={t('settings.appearance.toolbar_labels.description_mobile', "Display text labels next to toolbar icons.")}>
         <ToggleSwitch checked={showToolbarLabels} onChange={setShowToolbarLabels} />
@@ -191,6 +200,7 @@ function makeStyles(c: ThemePalette) {
     fontSize: 11,
     color: c.textMuted,
   },
+  lockedControl: { opacity: 0.6 },
   divider: {
     height: 1,
     backgroundColor: c.border,

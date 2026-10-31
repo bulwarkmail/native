@@ -54,6 +54,8 @@ import { useAuthStore } from '../stores/auth-store';
 import { useManagedAccountStore } from '../stores/managed-account-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { usePolicyStore } from '../stores/policy-store';
+import { policyHiddenPages } from '../components/settings/policy-pages';
 import { useUpdatesStore } from '../stores/updates-store';
 import { SUPPORTED_LOCALES } from '../i18n';
 import { settingsSummary, type SummaryState } from '../lib/settings-summary';
@@ -231,12 +233,15 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   // list, not shown as "Not on this server", where the server lacks them.
   const recoveryAvailable = useDeletedItemsRecovery().available;
   const delegationAvailable = useDelegationAvailable();
+  // Pages the organisation's policy takes away (feature gates, hidden pages).
+  const policy = usePolicyStore((s) => s.effective);
   const hiddenTabs = React.useMemo(() => {
     const set = new Set<Tab>();
     if (!recoveryAvailable) set.add('recovery');
     if (!delegationAvailable) set.add('sharing');
+    for (const page of policyHiddenPages(policy)) set.add(page as Tab);
     return set;
-  }, [recoveryAvailable, delegationAvailable]);
+  }, [recoveryAvailable, delegationAvailable, policy]);
 
   // A shared/group account picked under "Shared with me" scopes Settings to
   // the panes that account can be managed in (webmail: scoped settings).

@@ -7,7 +7,6 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import {
   useSettingsStore,
-  normalizeBottomQuickActions,
   REPLY_QUICK_ACTIONS,
   ALL_QUICK_ACTIONS,
   type SwipeAction,
@@ -16,7 +15,8 @@ import {
 } from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
 import { useKeywordsStore } from '../../stores/keywords-store';
-import { useSettingLocked } from '../../stores/policy-store';
+import { usePolicyFeature, useSettingLocked } from '../../stores/policy-store';
+import { bottomQuickActionsFor, swipeActionShown, withoutArchive } from '../../lib/swipe-actions';
 import {
   ORDER_PRESETS, detectPreset, presetLevels, sanitizeSortLevels,
   type OrderPreset, type MessageListOrderScope,
@@ -74,12 +74,16 @@ export function LayoutSettings() {
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
   const t = useLocaleStore((s) => s.t);
-  const SWIPE_OPTIONS = React.useMemo(() => swipeOptions(t), [t]);
+  // With the organisation's Archive action off, Archive is no swipe or quick
+  // action, and a stored one shows as what it does (webmail
+  // message-list-settings.tsx).
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
+  const SWIPE_OPTIONS = React.useMemo(() => withoutArchive(swipeOptions(t), archiveEnabled), [t, archiveEnabled]);
   const SWIPE_MODE_OPTIONS = React.useMemo(() => swipeModeOptions(t), [t]);
   const QUICK_ACTION_LABELS = React.useMemo(() => quickActionLabels(t), [t]);
   const QUICK_ACTION_OPTIONS = React.useMemo(
-    () => ALL_QUICK_ACTIONS.map((value) => ({ value, label: QUICK_ACTION_LABELS[value] })),
-    [QUICK_ACTION_LABELS],
+    () => withoutArchive(ALL_QUICK_ACTIONS.map((value) => ({ value, label: QUICK_ACTION_LABELS[value] })), archiveEnabled),
+    [QUICK_ACTION_LABELS, archiveEnabled],
   );
 
   useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
@@ -125,7 +129,7 @@ export function LayoutSettings() {
     { value: 'all', label: t('settings.message_list_order.scope_all', 'All folders') },
   ];
 
-  const bottomActions = normalizeBottomQuickActions(bottomQuickActionsRaw);
+  const bottomActions = bottomQuickActionsFor(bottomQuickActionsRaw, archiveEnabled);
   // Pick an action for a bar slot. If the chosen action already occupies
   // another slot, swap the two so the three slots stay unique.
   const setQuickActionSlot = (index: number, value: QuickAction) => {
@@ -242,7 +246,7 @@ export function LayoutSettings() {
           {t('settings.email_behavior.swipe_right_action.description_mobile', "Action when you drag a row from its left edge towards the right.")}
         </Text>
         <RadioGroup
-          value={swipeRightAction}
+          value={swipeActionShown(swipeRightAction, archiveEnabled)}
           onChange={(v) => setSwipeRightAction(v as SwipeAction)}
           options={SWIPE_OPTIONS}
         />
@@ -257,7 +261,7 @@ export function LayoutSettings() {
           {t('settings.email_behavior.swipe_left_action.description_mobile', "Action when you drag a row from its right edge towards the left.")}
         </Text>
         <RadioGroup
-          value={swipeLeftAction}
+          value={swipeActionShown(swipeLeftAction, archiveEnabled)}
           onChange={(v) => setSwipeLeftAction(v as SwipeAction)}
           options={SWIPE_OPTIONS}
         />

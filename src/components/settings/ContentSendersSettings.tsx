@@ -13,6 +13,7 @@ import { useHasContacts } from '../../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../../lib/trusted-senders';
 import { removeTrustedSenderWithUndo } from '../../lib/settings-undo';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyFeature, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import { ToastHost } from '../ToastHost';
@@ -31,6 +32,12 @@ export function ContentSendersSettings() {
   const t = useLocaleStore((s) => s.t);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const setExternalContentPolicy = useSettingsStore((s) => s.setExternalContentPolicy);
+  // The organisation can take the option away or pin it (webmail
+  // reading-settings.tsx).
+  const externalContentAllowed = usePolicyFeature('externalContentEnabled');
+  const externalContentHidden = useSettingHidden('externalContentPolicy');
+  const externalContentLocked = useSettingLocked('externalContentPolicy');
+  const showExternalContent = externalContentAllowed && !externalContentHidden;
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const setEmailAlwaysLightMode = useSettingsStore((s) => s.setEmailAlwaysLightMode);
   const trustedSenders = useSettingsStore((s) => s.trustedSenders);
@@ -134,20 +141,23 @@ export function ContentSendersSettings() {
         title={t('settings.tabs.content_senders', 'Content & Senders')}
         description={t('settings.email_behavior.content_senders_description_mobile', 'Control how external resources and tracking pixels are handled.')}
       >
-        <SettingItem
-          label={t('settings.email_behavior.external_content.label', 'External Content')}
-          description={t('settings.email_behavior.external_content.description', 'How to handle images and external content')}
-        >
-          <RadioGroup
-            value={externalContentPolicy}
-            onChange={(v) => setExternalContentPolicy(v as ExternalContentPolicy)}
-            options={[
-              { value: 'ask', label: t('settings.email_behavior.external_content.ask_mobile', 'Ask') },
-              { value: 'block', label: t('settings.email_behavior.external_content.block_mobile', 'Block') },
-              { value: 'allow', label: t('settings.email_behavior.external_content.allow_mobile', 'Allow') },
-            ]}
-          />
-        </SettingItem>
+        {showExternalContent && (
+          <SettingItem
+            label={t('settings.email_behavior.external_content.label', 'External Content')}
+            description={t('settings.email_behavior.external_content.description', 'How to handle images and external content')}
+            locked={externalContentLocked}
+          >
+            <RadioGroup
+              value={externalContentPolicy}
+              onChange={(v) => setExternalContentPolicy(v as ExternalContentPolicy)}
+              options={[
+                { value: 'ask', label: t('settings.email_behavior.external_content.ask_mobile', 'Ask') },
+                { value: 'block', label: t('settings.email_behavior.external_content.block_mobile', 'Block') },
+                { value: 'allow', label: t('settings.email_behavior.external_content.allow_mobile', 'Allow') },
+              ]}
+            />
+          </SettingItem>
+        )}
 
         <SettingItem
           label={t('settings.email_behavior.always_light_mode.label', 'Always Show Emails in Light Mode')}
