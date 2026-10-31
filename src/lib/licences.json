@@ -24,19 +24,19 @@
     },
     {
       "name": "@react-navigation/bottom-tabs",
-      "version": "7.15.9",
+      "version": "7.21.0",
       "license": "MIT",
       "url": "https://github.com/react-navigation/react-navigation"
     },
     {
       "name": "@react-navigation/native",
-      "version": "7.2.2",
+      "version": "7.5.1",
       "license": "MIT",
       "url": "https://reactnavigation.org"
     },
     {
       "name": "@react-navigation/native-stack",
-      "version": "7.14.10",
+      "version": "7.21.0",
       "license": "MIT",
       "url": "https://github.com/software-mansion/react-native-screens"
     },
