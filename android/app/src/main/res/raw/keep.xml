@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The calendar reminder channel names its sound by resource name from JS
+     (src/lib/calendar-notifications.ts), which the release resource shrinker
+     can't see. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/involved_notification" />

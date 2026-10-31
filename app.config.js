@@ -106,6 +106,15 @@ module.exports = {
         },
       ],
       ['./plugins/ios-push', { apsEnvironment: APS_ENVIRONMENT, teamId: APPLE_TEAM_ID }],
+      // Bundles the Involved sound calendar reminders play on iOS
+      // (src/lib/calendar-notifications.ts). Android has it in res/raw.
+      [
+        'expo-notifications',
+        {
+          mode: APS_ENVIRONMENT,
+          sounds: ['./assets/sounds/involved_notification.wav'],
+        },
+      ],
     ],
     extra: {
       commit: COMMIT,
