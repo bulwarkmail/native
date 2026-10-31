@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Tag, Type, Highlighter,
+  Users, Tag, Type, Highlighter, Trash2,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -1525,11 +1525,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
       saveTimerRef.current = null;
     }
     for (const a of attachments) a.abort?.abort();
-    // A draft this session created by autosave goes with the discard; a
-    // re-opened draft keeps its last saved version.
+    // The draft goes with the discard: one this session autosaved, and a
+    // re-opened one too (webmail handleDiscardAndClose). Keeping the latest
+    // autosaved version of a re-opened draft kept the very edits the user
+    // discarded.
     const autosaved = draftIdRef.current;
     // In another login that id names another message; the draft stays.
-    if (autosaved && !draft && !loginMoved()) {
+    if (autosaved && !loginMoved()) {
       void (async () => {
         try { await inflightSaveRef.current; } catch { /* ignore */ }
         const id = draftIdRef.current ?? autosaved;
@@ -1563,6 +1565,26 @@ export default function ComposeScreen({ route, navigation }: Props) {
     );
   };
 
+  // Every change is in the saved draft: closing loses nothing, so it asks
+  // nothing (webmail handleClose savedAlready). Read from the editor itself,
+  // whose change messages can lag the last keystrokes.
+  const savedAlready = async (): Promise<boolean> => {
+    if (!draftIdRef.current || !lastSavedRef.current || draftStatus === 'failed') return false;
+    let html = latestRef.current.bodyHtml;
+    if (!plainTextMode) {
+      try {
+        html = (await editorRef.current?.getHtml()) ?? html;
+      } catch {
+        return false;
+      }
+    }
+    const snapshot = snapshotOf({
+      to: finalTo, cc: finalCc, bcc: finalBcc, subject,
+      body: plainTextMode ? latestRef.current.plainBody : html, attachments,
+    });
+    return snapshot === lastSavedRef.current;
+  };
+
   // The OS back gesture / hardware back goes through the same guard as the
   // header X. `usePreventRemove` (not a bare `beforeRemove` listener) also
   // blocks the iOS modal swipe-down, which is dismissed natively otherwise.
@@ -1572,8 +1594,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
       navigation.dispatch(data.action);
       return;
     }
-    showCloseDialog(() => navigation.dispatch(data.action));
+    void (async () => {
+      if (await savedAlready()) {
+        allowLeaveRef.current = true;
+        navigation.dispatch(data.action);
+        return;
+      }
+      showCloseDialog(() => navigation.dispatch(data.action));
+    })();
   });
+
+  // Discard deletes the draft, also one without unsaved changes such as a
+  // re-opened draft or a scheduled message back for editing, which the X
+  // closes and keeps (webmail handleDiscardClick).
+  const onDiscard = () => {
+    if (!isDirty && !needsSave && !draftIdRef.current) {
+      allowLeaveRef.current = true;
+      navigation.goBack();
+      return;
+    }
+    Alert.alert(
+      t('email_composer.discard_draft_title', 'Discard draft?'),
+      t('email_composer.discard_draft_message', 'The draft will be deleted.'),
+      [
+        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('email_composer.discard', 'Discard'), style: 'destructive', onPress: () => discardAndClose(() => navigation.goBack()) },
+      ],
+    );
+  };
 
   const onClose = () => {
     navigation.goBack();
@@ -2110,8 +2158,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // Confirm an empty subject instead of silently blocking Send (#684).
+  // Asked once: after "Send anyway" and a trip back from a later prompt, the
+  // next Send doesn't ask again (webmail emptySubjectConfirmedRef).
+  const emptySubjectConfirmedRef = React.useRef(false);
   const passesEmptySubjectCheck = (): Promise<boolean> => {
-    if (subject.trim() || !emptySubjectWarningEnabled) return Promise.resolve(true);
+    if (subject.trim() || !emptySubjectWarningEnabled || emptySubjectConfirmedRef.current) return Promise.resolve(true);
     return new Promise<boolean>((resolve) => {
       Alert.alert(
         t('email_composer.empty_subject.title', 'Send without a subject?'),
@@ -2122,7 +2173,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
             text: t('email_composer.empty_subject.dont_ask_again', "Don't ask again"),
             onPress: () => { updateSetting('emptySubjectWarningEnabled', false); resolve(true); },
           },
-          { text: t('email_composer.empty_subject.send_anyway', 'Send anyway'), onPress: () => resolve(true) },
+          {
+            text: t('email_composer.empty_subject.send_anyway', 'Send anyway'),
+            onPress: () => { emptySubjectConfirmedRef.current = true; resolve(true); },
+          },
         ],
       );
     });
@@ -2609,6 +2663,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
           )}
         </View>
         <View style={styles.headerRight}>
+          <Pressable
+            onPress={onDiscard}
+            style={styles.headerBtn}
+            hitSlop={8}
+            disabled={savingDraft}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_composer.discard', 'Discard')}
+          >
+            <Trash2 size={20} color={c.text} />
+          </Pressable>
           <Pressable
             onPress={() => setAttachMenuOpen(true)}
             style={styles.headerBtn}
