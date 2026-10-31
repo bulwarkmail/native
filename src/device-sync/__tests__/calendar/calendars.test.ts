@@ -94,6 +94,16 @@ describe('calendar planner: calendar rows', () => {
     expect(values[Calendars.OWNER_ACCOUNT]).toBe(ME);
   });
 
+  it('names a shared calendar once when Stalwart already put the account in its name', () => {
+    const plan = calendarPlanner.planCalendars(
+      [{ jmapAccountId: 'd', calendar: { id: 'x', name: 'Stalwart Calendar (team@example.org)', myRights: { mayWriteAll: true } } as CalendarLike, readOnly: false, accountName: 'team@example.org' }],
+      [],
+      new Harness().ctx,
+    );
+    const values = (plan.groups[0].ops[0] as { values: Record<string, unknown> }).values;
+    expect(values[Calendars.CALENDAR_DISPLAY_NAME]).toBe('Stalwart Calendar (team@example.org)');
+  });
+
   it('deletes rows of deselected calendars and never syncs the birthday calendar', async () => {
     const h = await new Harness().setup(['b', 'w']);
     const local = await h.calendars();

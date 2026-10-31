@@ -22,6 +22,7 @@ import { CONTACTS_AUTHORITY } from '../../device-sync/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import type { AddressBook } from '../../api/types';
+import { addressBookLabel } from '../../lib/address-book-label';
 
 export function ContactsSettings() {
   const c = useColors();
@@ -261,7 +262,7 @@ export function ContactsSettings() {
               <>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.bookName} numberOfLines={1}>
-                    {book.isShared && book.accountName ? `${book.name} (${book.accountName})` : book.name}
+                    {addressBookLabel(book)}
                   </Text>
                   <Text style={styles.bookCount}>
                     {t('settings.contacts.book_count', '{count, plural, one {# contact} other {# contacts}}', { count: book.count })}

@@ -40,6 +40,7 @@ import { DeviceSyncCollectionsSheet } from './DeviceSyncCollectionsSheet';
 import { describeSyncStatus, type StatusAction } from './status';
 import { useAndroidSync } from './use-android-sync';
 import { useSyncCollections } from './use-sync-collections';
+import { nameWithAccount } from '../../../lib/address-book-label';
 
 interface Props {
   account: AccountEntry;
@@ -280,7 +281,7 @@ export function DeviceSyncAccountRow({ account, authority }: Props) {
     { value: '', label: t('settings.device_sync.new_contacts_default', 'Default address book') },
     ...writableSelected.map((col) => ({
       value: col.key,
-      label: col.isPersonal ? col.name : `${col.name} (${col.accountName})`,
+      label: col.isPersonal ? col.name : nameWithAccount(col.name, col.accountName),
     })),
   ];
   const newContactsValue = entry.newContactsAddressBook && newContactsOptions.some((o) => o.value === entry.newContactsAddressBook)

@@ -17,6 +17,7 @@ import type { CalendarLike } from '../wire';
 import { collectionKey, parseCollectionKey } from '../common/ids';
 import { deepEqual, parseJsonColumn } from '../common/json';
 import { BIRTHDAY_CALENDAR_ID } from '../../lib/birthday-calendar';
+import { nameWithAccount } from '../../lib/address-book-label';
 import { colors } from '../../theme/tokens';
 import { isSelfAddress } from './attendees';
 import { CAN_PARTIALLY_UPDATE } from './columns';
@@ -80,7 +81,7 @@ export function calendarValues(selected: SelectedCalendar, ctx: CalendarsContext
   return {
     [Calendars._SYNC_ID]: collectionKey(selected.jmapAccountId, calendar.id),
     [Calendars.NAME]: name,
-    [Calendars.CALENDAR_DISPLAY_NAME]: shared ? `${name} (${selected.accountName})` : name,
+    [Calendars.CALENDAR_DISPLAY_NAME]: shared ? nameWithAccount(name, selected.accountName) : name,
     [Calendars.CALENDAR_COLOR]: cssColorToArgb(calendar.color) ?? cssColorToArgb(paletteColor(calendar.id))!,
     [Calendars.CALENDAR_ACCESS_LEVEL]: access.level,
     [Calendars.OWNER_ACCOUNT]: ctx.ownerAccount,
