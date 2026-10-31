@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
   Calendar as CalendarIcon,
@@ -239,6 +240,15 @@ export default function CalendarScreen() {
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
   const [modalDate, setModalDate] = React.useState<Date | undefined>(undefined);
   const [modalVisible, setModalVisible] = React.useState(false);
+  // The "New event" block a tap on an empty slot leaves: gone once the
+  // editor opens or closes, or the user leaves the tab.
+  const [slotDraftReset, setSlotDraftReset] = React.useState(0);
+  React.useEffect(() => {
+    setSlotDraftReset((n) => n + 1);
+  }, [modalVisible]);
+  useFocusEffect(
+    React.useCallback(() => () => setSlotDraftReset((n) => n + 1), []),
+  );
   const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
   const [sidebarVisible, setSidebarVisible] = React.useState(false);
   const [tasksVisible, setTasksVisible] = React.useState(false);
@@ -1177,6 +1187,7 @@ export default function CalendarScreen() {
             onSelectDate={viewMode === 'day' ? handleSelectDate : openDay}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
+            draftResetKey={slotDraftReset}
           />
         )}
         {viewMode === 'week' && !freeScroll && (
