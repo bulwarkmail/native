@@ -1540,7 +1540,46 @@ export const useCalendarStore = create<CalendarState>()(
     const scope = writeScope();
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiUpdateEvent(realId, changes, undefined, writeAccount(scope, task?.accountId));
+    const sourceAccount = task?.accountId ?? undefined;
+    // Store calendar ids (namespaced for a shared account) back to the raw
+    // ids of the account that owns the calendar, which may be another one
+    // than the task's (webmail #1204).
+    const patch: Partial<CalendarEvent> = { ...changes };
+    let destAccount = sourceAccount;
+    if (changes.calendarIds) {
+      const remapped: Record<string, boolean> = {};
+      for (const [calId, on] of Object.entries(changes.calendarIds)) {
+        const cal = get().calendars.find((c) => c.id === calId);
+        remapped[cal?.originalId || calId] = on;
+        if (on && cal) destAccount = cal.accountId ?? undefined;
+      }
+      patch.calendarIds = remapped;
+    }
+    if (destAccount !== sourceAccount) {
+      // JMAP has no move across accounts: create the task in the calendar's
+      // account, then destroy the original. Creating first means a failed
+      // create leaves the task where it was.
+      const [original] = await fetchEvents([realId], writeAccount(scope, sourceAccount));
+      if (!original) throw new Error('Task not found');
+      assertInScope(scope);
+      const {
+        id: _id, created: _created, updated: _updated, sequence: _sequence, isOrigin: _isOrigin,
+        utcStart: _utcStart, utcEnd: _utcEnd, calendarIds: _calendarIds, ...rest
+      } = original as CalendarEvent & Record<string, unknown>;
+      const destCalendarId = Object.keys(patch.calendarIds ?? {})[0];
+      const { calendarIds: _patchCalendars, ...fields } = patch;
+      await apiCreateEvent(
+        { ...rest, ...fields, '@type': 'Task' } as Partial<CalendarEvent>,
+        destCalendarId,
+        undefined,
+        writeAccount(scope, destAccount),
+      );
+      await apiDeleteEvents([realId], undefined, writeAccount(scope, sourceAccount));
+      // Under a new id in another account: reload rather than patch.
+      if (inScope(scope)) await get().fetchTasks();
+      return;
+    }
+    await apiUpdateEvent(realId, patch, undefined, writeAccount(scope, sourceAccount));
     // Saved; the next account's tasks can carry the same ids.
     if (!inScope(scope)) return;
     set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });

@@ -656,6 +656,49 @@ describe('calendar-store', () => {
     });
   });
 
+  describe('updateTask in shared calendars (#1204)', () => {
+    const calendars = [
+      { id: 'own', name: 'Own' },
+      { id: 'acc-2:shared', originalId: 'shared', accountId: 'acc-2', isShared: true, name: 'Team' },
+      { id: 'acc-2:other', originalId: 'other', accountId: 'acc-2', isShared: true, name: 'Team 2' },
+    ] as any[];
+
+    it('moves a task within a shared account under the raw calendar id', async () => {
+      useCalendarStore.setState({
+        calendars,
+        tasks: [{ id: 'acc-2:t1', originalId: 't1', accountId: 'acc-2', calendarIds: { 'acc-2:shared': true } } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+      await useCalendarStore.getState().updateTask('acc-2:t1', { calendarIds: { 'acc-2:other': true } });
+      expect(mockUpdateEvent).toHaveBeenCalledWith('t1', { calendarIds: { other: true } }, undefined, 'acc-2');
+      expect(mockCreateEvent).not.toHaveBeenCalled();
+    });
+
+    it('moves an own task into a shared calendar by making it there and removing the original', async () => {
+      useCalendarStore.setState({
+        calendars,
+        tasks: [{ id: 't1', calendarIds: { own: true }, title: 'Pay' } as any],
+      });
+      mockGetEvents.mockResolvedValue([{
+        id: 't1', '@type': 'Task', uid: 'u-1', title: 'Pay', calendarIds: { own: true }, sequence: 2, created: 'x',
+      }]);
+      mockCreateEvent.mockResolvedValue({ id: 'n1' });
+      mockDeleteEvents.mockResolvedValue(undefined);
+      await useCalendarStore.getState().updateTask('t1', { calendarIds: { 'acc-2:shared': true }, title: 'Pay rent' });
+
+      expect(mockUpdateEvent).not.toHaveBeenCalled();
+      const [created, calendarId, , account] = mockCreateEvent.mock.calls[0];
+      expect(calendarId).toBe('shared');
+      expect(account).toBe('acc-2');
+      expect(created).toMatchObject({ '@type': 'Task', uid: 'u-1', title: 'Pay rent' });
+      expect(created).not.toHaveProperty('id');
+      expect(created).not.toHaveProperty('sequence');
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['t1'], undefined, 'acc-1');
+      // Created first: a failed create leaves the task where it was.
+      expect(mockCreateEvent.mock.invocationCallOrder[0]).toBeLessThan(mockDeleteEvents.mock.invocationCallOrder[0]);
+    });
+  });
+
   describe('deleteEvent', () => {
     it('should remove event from list', async () => {
       useCalendarStore.setState({

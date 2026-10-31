@@ -783,6 +783,38 @@ live('live Stalwart calendar', () => {
       expect(list).toHaveLength(1);
       expect(list[0].recurrenceOverrides?.['2027-10-11T10:00:00']?.title).toBe(`${RUN} owner second`);
     }, 60_000);
+
+    it('moves a task into the shared calendar and back out of it (#1204)', async () => {
+      expect(sharedCalendarId, 'the calendar shared above').toBeTruthy();
+      await connectSingleton();
+      const [[, made]] = await raw(client, [['CalendarEvent/set', {
+        accountId: client.accountId,
+        create: { t: { '@type': 'Task', title: `${RUN} moving task`, calendarIds: { [calendarId]: true }, due: '2027-11-03T10:00:00', timeZone: 'Europe/Berlin' } },
+      }, '0']]);
+      expect(made.created?.t?.id, JSON.stringify(made.notCreated)).toBeTruthy();
+      const store = useCalendarStore.getState();
+      await store.fetchCalendars();
+      await useCalendarStore.getState().fetchTasks();
+      const taskOf = () => useCalendarStore.getState().tasks.find((t) => t.title === `${RUN} moving task`);
+      const shared = useCalendarStore.getState().calendars.find((c) => c.name === `${RUN} team`)!;
+      const task = taskOf()!;
+      expect(task.accountId).toBeFalsy();
+
+      await useCalendarStore.getState().updateTask(task.id, { calendarIds: { [shared.id]: true } });
+      const inShared = (await raw(other!, [['CalendarEvent/query', { accountId: other!.accountId, filter: { inCalendar: sharedCalendarId } }, 'q'],
+        ['CalendarEvent/get', { accountId: other!.accountId, '#ids': { resultOf: 'q', name: 'CalendarEvent/query', path: '/ids' }, properties: ['id', 'uid', 'title', '@type'] }, 'g']]))
+        .find((r) => r[2] === 'g')?.[1].list as Record<string, any>[];
+      const moved = inShared.find((e) => e.title === `${RUN} moving task`);
+      expect(moved?.uid).toBe(task.uid);
+      expect((await raw(client, [['CalendarEvent/get', { accountId: client.accountId, ids: [task.id], properties: ['id'] }, '0']]))[0][1].notFound)
+        .toEqual([task.id]);
+      expect(taskOf()?.accountId).toBe(other!.accountId);
+
+      // And back into the user's own calendar.
+      await useCalendarStore.getState().updateTask(taskOf()!.id, { calendarIds: { [calendarId]: true } });
+      expect(taskOf()?.accountId).toBeFalsy();
+      await removeRunEvents(client);
+    }, 60_000);
   });
 
   describe('a new calendar', () => {
