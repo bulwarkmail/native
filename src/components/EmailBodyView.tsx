@@ -14,6 +14,7 @@ import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { senderVerificationOf } from '../lib/email-headers';
+import { plainTextReading } from '../lib/html-to-readable-text';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -54,6 +55,13 @@ interface EmailBodyViewProps {
    * page below the header) rather than a guessed height.
    */
   fill?: boolean;
+  /**
+   * Per-message "Show as plain text" from the More sheet; null or undefined
+   * follows the "Plain Text Only" setting.
+   */
+  plainView?: boolean | null;
+  /** "Show formatted" in the plain-text note: turn the per-message view off. */
+  onShowFormatted?: () => void;
 }
 
 // Dark-mode re-inversion, mirroring the webmail's handleIframeLoad pass. The
@@ -521,6 +529,7 @@ const PINCH_ZOOM = `
 
 export default function EmailBodyView({
   email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  plainView: plainViewOverride, onShowFormatted,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -535,6 +544,7 @@ export default function EmailBodyView({
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   const trustedSenderEmails = useContactsStore((s) => s.trustedSenderEmails);
   const trustedSendersLoaded = useContactsStore((s) => s.trustedSendersLoaded);
   const loadTrustedSendersBook = useContactsStore((s) => s.loadTrustedSendersBook);
@@ -562,8 +572,19 @@ export default function EmailBodyView({
     if (bodyOverride) return { html: bodyOverride.html ?? null, text: bodyOverride.text ?? null };
     return pickEmailBody(email);
   }, [email, bodyOverride]);
-  const rawHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
-  const text = picked.text;
+  const formattedHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
+  // HTML mail as plain text: "Plain Text Only" for every message, or the More
+  // sheet's per-message switch. The message's own text part when it has one,
+  // else a readable conversion that keeps link targets and image alt text
+  // (webmail 1e929b0a9). A plain-text view loads nothing remote, so the
+  // external-content banner goes too.
+  const plainView = plainViewOverride ?? plainTextMode;
+  const plainText = React.useMemo(
+    () => (plainView ? plainTextReading({ html: formattedHtml, text: picked.text }) : null),
+    [plainView, formattedHtml, picked.text],
+  );
+  const rawHtml = plainText !== null ? null : formattedHtml;
+  const text = plainText ?? picked.text;
   // A From address the server's checks don't back may be forged: neither
   // honour an earlier "Always trust" for it nor offer one, or a forgery of a
   // trusted sender would load remote content (and trusting it would let the
@@ -765,6 +786,18 @@ export default function EmailBodyView({
 
   return (
     <View style={[styles.wrapper, fill && styles.wrapperFill]}>
+      {plainText !== null && (
+        <View style={styles.plainNote}>
+          <Text style={styles.bannerText}>
+            {t('email_viewer.shown_as_plain_text', 'This message is shown as plain text.')}
+          </Text>
+          {onShowFormatted && (
+            <Pressable onPress={onShowFormatted} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.plainNoteLink}>{t('email_viewer.show_formatted', 'Show formatted')}</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
       {showBanner && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -894,6 +927,19 @@ function makeStyles(c: ThemePalette) {
   bannerButtonText: {
     ...typography.caption,
     color: c.textSecondary,
+  },
+  plainNote: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  plainNoteLink: {
+    ...typography.caption,
+    color: c.primary,
+    textDecorationLine: 'underline',
   },
   webContainer: {
     width: '100%',

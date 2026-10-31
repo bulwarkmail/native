@@ -11,8 +11,9 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter,
+  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter, FileText, Type,
 } from '../components/icons';
+import { pickEmailBody } from '../lib/email-body';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -177,6 +178,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
   const [themeOverrides, setThemeOverrides] = React.useState<Record<string, 'light' | 'dark'>>({});
+  // Per-message "Show as plain text" (More sheet); unset follows "Plain Text Only".
+  const [plainOverrides, setPlainOverrides] = React.useState<Record<string, boolean>>({});
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  const showFormatted = React.useCallback(
+    (m: Email) => setPlainOverrides((prev) => ({ ...prev, [m.id]: false })),
+    [],
+  );
 
   // Message details and conversations come from the shared cache
   // (lib/email-detail-cache): every rendered pane, the active one and its
@@ -693,6 +701,10 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const showMarkUnread = windowWidth >= 340;
   const showArchive = windowWidth >= 400 && canArchive;
 
+  // The active message read as plain text, and whether it has HTML to switch from.
+  const activePlainView = email ? plainOverrides[email.id] ?? plainTextMode : false;
+  const activeHasHtml = !!email && !!pickEmailBody(email).html;
+
   // Current rendering mode of the active message, for the More sheet label.
   const activeRenderDark = email
     ? (themeOverrides[email.id] ? themeOverrides[email.id] === 'dark' : !emailAlwaysLightMode && resolvedTheme === 'dark')
@@ -817,6 +829,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
                   currentMailboxRole={currentMailboxRole}
                   identities={identities}
                   themeOverrides={themeOverrides}
+                  plainOverrides={plainOverrides}
+                  onShowFormatted={showFormatted}
                   ensureDetail={ensureDetail}
                   ensureDetails={ensureDetails}
                   ensureThread={ensureThread}
@@ -880,6 +894,12 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         canExport={!!email?.blobId}
         canTag={keywordDefs.length > 0}
         renderDark={activeRenderDark}
+        plainView={activeHasHtml ? activePlainView : null}
+        onTogglePlainView={() => {
+          setMoreMenuOpen(false);
+          if (!email) return;
+          setPlainOverrides((prev) => ({ ...prev, [email.id]: !activePlainView }));
+        }}
         hasSender={!!email?.from?.[0]?.email}
         onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
         onToggleUnread={() => { setMoreMenuOpen(false); onToggleUnread(); }}
@@ -971,6 +991,8 @@ interface EmailPaneProps {
   currentMailboxRole: string | null;
   identities: Identity[];
   themeOverrides: Record<string, 'light' | 'dark'>;
+  plainOverrides: Record<string, boolean>;
+  onShowFormatted: (email: Email) => void;
   ensureDetail: (id: string) => Promise<Email | null>;
   ensureDetails: (ids: string[]) => void;
   ensureThread: (threadId: string) => void;
@@ -993,7 +1015,8 @@ interface EmailPaneProps {
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
   id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
-  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
+  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, plainOverrides, onShowFormatted,
+  ensureDetail, ensureDetails,
   ensureThread, scheduleMarkRead, styles, bottomBarHeight, kbObstruction, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
@@ -1219,6 +1242,8 @@ function EmailPane({
               currentMailboxRole={currentMailboxRole}
               active={active}
               themeOverride={themeOverrides[m.id] ?? null}
+              plainView={plainOverrides[m.id] ?? null}
+              onShowFormatted={onShowFormatted}
               onSwipe={onSwipe}
               onZoomChange={onPaneZoom}
               onToggleStar={onToggleStar}
@@ -1307,6 +1332,9 @@ interface MoreMenuSheetProps {
   canViewSource: boolean;
   canExport: boolean;
   renderDark: boolean;
+  /** The active message read as plain text; null when it has no HTML to switch from. */
+  plainView: boolean | null;
+  onTogglePlainView: () => void;
   hasSender: boolean;
   onArchive: () => void;
   onToggleUnread: () => void;
@@ -1324,7 +1352,7 @@ interface MoreMenuSheetProps {
 
 function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
-  showSpam, isInJunk, canViewSource, canExport, renderDark, hasSender,
+  showSpam, isInJunk, canViewSource, canExport, renderDark, plainView, onTogglePlainView, hasSender,
   onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onToggleTheme, onSenderActions,
   onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
@@ -1428,6 +1456,13 @@ function MoreMenuSheet({
               }
               label={isInJunk ? t('email_viewer.not_spam_short', 'Not spam') : t('email_viewer.spam.button_title', 'Report spam')}
               onPress={onToggleSpam}
+            />
+          )}
+          {plainView !== null && (
+            <MoreMenuItem
+              icon={plainView ? <Type size={18} color={c.textSecondary} /> : <FileText size={18} color={c.textSecondary} />}
+              label={plainView ? t('email_viewer.show_formatted', 'Show formatted') : t('email_viewer.show_as_plain_text', 'Show as plain text')}
+              onPress={onTogglePlainView}
             />
           )}
           <MoreMenuItem

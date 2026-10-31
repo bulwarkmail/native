@@ -22,6 +22,10 @@ export interface MessageContentProps {
   /** On screen rather than pre-rendered by the pager (gates auto-sent read receipts). */
   active: boolean;
   themeOverride?: 'light' | 'dark' | null;
+  /** Per-message "Show as plain text"; null follows the "Plain Text Only" setting. */
+  plainView?: boolean | null;
+  /** Turn the per-message plain-text view off ("Show formatted"). */
+  onShowFormatted?: (email: Email) => void;
   onSwipe?: (direction: 'prev' | 'next') => void;
   onZoomChange?: (zoom: { pinching: boolean; zoomed: boolean }) => void;
   onToggleStar?: (email: Email) => void;
@@ -52,8 +56,8 @@ export interface MessageContentProps {
  * cards.
  */
 export function MessageContent({
-  email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
-  onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled, fill,
+  email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, plainView, onShowFormatted,
+  onSwipe, onZoomChange, onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled, fill,
 }: MessageContentProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -124,6 +128,8 @@ export function MessageContent({
             onSwipe={onSwipe}
             onZoomChange={onZoomChange}
             themeOverride={themeOverride}
+            plainView={plainView}
+            onShowFormatted={onShowFormatted ? () => onShowFormatted(email) : undefined}
             bodyOverride={unwrap.override}
             onSettled={onBodySettled}
             fill={fill}
