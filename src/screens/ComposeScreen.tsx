@@ -86,6 +86,10 @@ import { MentionSuggestionList } from '../components/compose/MentionSuggestionLi
 import { RecipientChip, RecipientSuggestionList } from '../components/compose/RecipientSuggestionList';
 import { RecipientPicker } from '../components/compose/RecipientPicker';
 import { isPickerReopenTooSoon, needsRecipientPicker } from '../lib/recipient-picker';
+import { useOutboxStore } from '../stores/outbox-store';
+import { useNetworkStore } from '../stores/network-store';
+import { isTransientNetworkError } from '../lib/network-error';
+import { classifySendFailure, shouldQueueFailedSend } from '../lib/send-queue';
 import {
   assertComposerLogin, ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../lib/compose-login';
@@ -2515,9 +2519,48 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // notification tap to switch logins.
     if (refuseSendAfterSwitch()) return;
 
+    // Offline, or the connection fails on the way: the message waits in the
+    // Outbox and goes out once the app is back online (parity 04/09/10
+    // "offline send"). The Outbox takes over the autosaved draft, which it
+    // removes once the message is sent.
+    let queuedOutgoing: OutgoingEmail | null = null;
+    const queueForLater = (outgoing: OutgoingEmail, maybeSent: boolean): boolean => {
+      if (!primaryIdentity || !sentMailbox || loginMoved()) return false;
+      const outbox = useOutboxStore.getState();
+      // Only into the queue of the login the message was written in.
+      if (outbox.activeAccountId !== ownerLoginRef.current) return false;
+      const queuedId = outbox.enqueueSend({
+        outgoing,
+        identity: primaryIdentity,
+        fromEmail: outgoing.from[0]?.email ?? primaryIdentity.email,
+        sentMailboxId: sentMailbox.id,
+        draftsMailboxId: draftsMailbox?.id,
+        draftId: draftIdRef.current ?? undefined,
+        draftAccountId: draftIdRef.current ? draftAccount() : undefined,
+        requestDsn,
+        requireTls,
+        scheduledAt: scheduledAt?.toISOString(),
+        original: replyTo?.originalEmailId
+          ? { emailId: replyTo.originalEmailId, accountId: replyTo.jmapAccountId, keyword: mode === 'forward' ? '$forwarded' : '$answered' }
+          : undefined,
+      }, { maybeSent });
+      if (!queuedId) return false;
+      draftIdRef.current = null;
+      lastSavedRef.current = null;
+      toast.info(
+        t('outbox.queued_title', 'Saved to the Outbox'),
+        { message: t('outbox.queued_body', 'It goes out as soon as you are back online.') },
+      );
+      allowLeaveRef.current = true;
+      navigation.goBack();
+      return true;
+    };
+
     setSending(true);
     try {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
+      queuedOutgoing = outgoing;
+      if (!useNetworkStore.getState().online && queueForLater(outgoing, false)) return;
       // The account the submission is held in, for Undo (read before the
       // request: a switch may land while it is out).
       // A group or shared identity sends from its own account, and its Sent
@@ -2608,6 +2651,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       allowLeaveRef.current = true;
       navigation.goBack();
     } catch (e) {
+      // The connection failed: the request may have got through, so the
+      // Outbox looks for the message before it sends it again.
+      if (queuedOutgoing && shouldQueueFailedSend(classifySendFailure(e, isTransientNetworkError))
+        && queueForLater(queuedOutgoing, true)) {
+        return;
+      }
       if (e instanceof RequestTimeoutError) {
         // The request may have reached the server; a blind retry would send
         // the message twice (#702).
