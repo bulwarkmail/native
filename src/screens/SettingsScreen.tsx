@@ -8,7 +8,7 @@ import {
   Palette, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive,
   BookUser, PanelLeftClose, Bell, RefreshCw,
-  LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Download,
+  LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Download, KeyRound,
   Database, Bug, Scale, Users, RotateCcw,
   type AppIcon,
 } from '../components/icons';
@@ -38,6 +38,7 @@ import { FilterSettings } from '../components/settings/FilterSettings';
 import { TemplateSettings } from '../components/settings/TemplateSettings';
 import { KeywordSettings } from '../components/settings/KeywordSettings';
 import { AccountSecuritySettings } from '../components/settings/AccountSecuritySettings';
+import { EncryptionSettings } from '../components/settings/EncryptionSettings';
 import { SidebarAppsSettings } from '../components/settings/SidebarAppsSettings';
 import { ThemesSettings } from '../components/settings/ThemesSettings';
 import { ContentSendersSettings } from '../components/settings/ContentSendersSettings';
@@ -128,6 +129,8 @@ const TABS: TabDef[] = [
   // Privacy & Security
   { id: 'security',        label: 'Security',           icon: Shield,         group: 'privacy',    implemented: true  },
   { id: 'content_senders', label: 'Content & Senders',  icon: EyeOff,         group: 'privacy',    implemented: true  },
+  // PGP and S/MIME keys (#58); the webmail has them in its plugins' settings.
+  { id: 'encryption',      label: 'Encryption',         icon: KeyRound,       group: 'privacy',    implemented: true  },
 
   // Apps
   { id: 'calendar',        label: 'Calendar',           icon: Calendar,       group: 'apps',       implemented: true  },
@@ -135,8 +138,7 @@ const TABS: TabDef[] = [
   { id: 'files',           label: 'Files',              icon: HardDrive,      group: 'apps',       implemented: true  },
   { id: 'sidebar_apps',    label: 'Sidebar Apps',       icon: PanelLeftClose, group: 'apps',       implemented: true  },
 
-  // Advanced. S/MIME and plugins come from webmail plugins, so the app has
-  // no page for them.
+  // Advanced. Plugins come from the webmail, so the app has no page for them.
   { id: 'themes',          label: 'Themes',             icon: Palette,        group: 'advanced',   implemented: true  },
   { id: 'about_data',      label: 'Storage & backup',   icon: Database,       group: 'advanced',   implemented: true  },
   { id: 'updates',         label: 'Updates',            icon: RefreshCw,      group: 'advanced',   implemented: true  },
@@ -155,6 +157,7 @@ const TAB_LABEL_KEYS: Partial<Record<Tab, string>> = {
   privacy: 'settings.about.privacy',
   sharing: 'delegates.tab',
   recovery: 'recover_deleted.tab',
+  encryption: 'encryption.tab',
 };
 const tabLabelKey = (id: Tab) => TAB_LABEL_KEYS[id] ?? `settings.tabs.${id}`;
 
@@ -178,6 +181,7 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   recovery: RecoverDeletedSettings,
   security: AccountSecuritySettings,
   content_senders: ContentSendersSettings,
+  encryption: EncryptionSettings,
   calendar: CalendarSettings,
   contacts: ContactsSettings,
   files: FilesSettings,
