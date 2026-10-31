@@ -128,7 +128,7 @@ function RowCounts({ unread, total, showTotal, onPressUnread }: {
           disabled={!onPressUnread}
           hitSlop={8}
           accessibilityRole={onPressUnread ? 'button' : undefined}
-          accessibilityLabel={onPressUnread ? t('sidebar.show_unread', 'Show unread') : undefined}
+          accessibilityLabel={onPressUnread ? t('sidebar.unread_filter', 'Show unread only ({count})', { count: unread }) : undefined}
         >
           <Text style={styles.countUnread}>{unread}</Text>
         </Pressable>
@@ -167,11 +167,19 @@ function SidebarRow({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
+  // Which folder is open, and the unread count with the folder's name
+  // ("Inbox, 3 unread"), for screen readers (webmail 7c282f1f4).
+  const accessibleName = unread > 0 && !isAccountHeader
+    ? t('shell.name_unread', '{name}, {count} unread', { name: label, count: unread })
+    : label;
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={350}
+      accessibilityRole={isAccountHeader ? 'header' : 'button'}
+      accessibilityLabel={accessibleName}
+      accessibilityState={isAccountHeader ? undefined : { selected: isSelected }}
       style={({ pressed }) => [
         styles.row,
         isSelected && styles.rowSelected,
