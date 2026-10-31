@@ -80,14 +80,48 @@ export function buildInitialHtml(
   return `<p><br></p>${QUOTED_BLOCK_START}${quoted}</div>`;
 }
 
+export interface HtmlToPlainTextOptions {
+  /**
+   * Mark quoted text (<blockquote>) with "> " and list items with "- " or
+   * "1. ", as plain-text mail does (webmail lib/html-to-text.ts mailMarkup).
+   * Without them the text part of a reply could not tell the reply from the
+   * quote. Use for the text/plain part of a sent message.
+   */
+  mailMarkup?: boolean;
+}
+
+// Private-use characters that stand in for converted quotes until the end.
+const QUOTE_TOKEN_OPEN = '\u0003';
+const QUOTE_TOKEN_CLOSE = '\u0004';
+const QUOTE_TOKEN_RE = /\u0003(\d+)\u0004/g;
+// An innermost blockquote: one with no other blockquote opening inside.
+const INNERMOST_BLOCKQUOTE_RE = /<blockquote\b[^>]*>((?:(?!<blockquote\b)[\s\S])*?)<\/blockquote>/i;
+
 /**
  * Strip HTML tags and decode common entities for a plain-text fallback body.
  * Mirrors the webmail's `htmlToPlainText` (DOMParser-based) since we don't
  * have DOMParser in the RN runtime. Links keep their target as `text <href>`
  * so a pasted link survives the text/plain alternative.
  */
-export function htmlToPlainText(html: string): string {
+export function htmlToPlainText(html: string, options: HtmlToPlainTextOptions = {}): string {
   if (!html) return '';
+  if (!options.mailMarkup) return blocksToPlainText(html, false);
+  // Quotes from the innermost out: each becomes its text with "> " in front
+  // of every line, so a quote in a quote reads "> > ".
+  const quotes: string[] = [];
+  const expand = (text: string) => text.replace(QUOTE_TOKEN_RE, (_m, i: string) => quotes[Number(i)]);
+  let s = html;
+  for (let m = INNERMOST_BLOCKQUOTE_RE.exec(s); m; m = INNERMOST_BLOCKQUOTE_RE.exec(s)) {
+    const inner = expand(blocksToPlainText(m[1], true));
+    const token = inner
+      ? `\n\n${QUOTE_TOKEN_OPEN}${quotes.push(inner.split('\n').map((line) => (line ? `> ${line}` : '>')).join('\n')) - 1}${QUOTE_TOKEN_CLOSE}\n\n`
+      : '';
+    s = s.slice(0, m.index) + token + s.slice(m.index + m[0].length);
+  }
+  return expand(blocksToPlainText(s, true));
+}
+
+function blocksToPlainText(html: string, mailMarkup: boolean): string {
   let s = html;
   // Drop non-content blocks entirely.
   s = s.replace(/<(script|style|head|title)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
@@ -109,7 +143,30 @@ export function htmlToPlainText(html: string): string {
   s = s.replace(/<\/(p|div|blockquote|pre)>/gi, '\n\n');
   s = s.replace(/<\/(li|h[1-6]|tr)>/gi, '\n');
   s = s.replace(/<\/(td|th)>/gi, '\t');
-  s = s.replace(/<li[^>]*>/gi, '• ');
+  if (mailMarkup) {
+    // "- " in a bullet list, "1. " (from the list's start) in a numbered one.
+    const lists: Array<{ ordered: boolean; next: number }> = [];
+    s = s.replace(/<(\/?)(ol|ul|li)\b([^>]*)>/gi, (tag, close: string, name: string, attrs: string) => {
+      const kind = name.toLowerCase();
+      if (kind === 'li') {
+        if (close) return tag;
+        const list = lists[lists.length - 1];
+        if (!list?.ordered) return '- ';
+        return `${list.next++}. `;
+      }
+      if (close) {
+        lists.pop();
+        return tag;
+      }
+      // A list inside an item starts on its own line.
+      const nested = lists.length > 0;
+      const start = Number(attrs.match(/\sstart\s*=\s*["']?(-?\d+)/i)?.[1] ?? 1);
+      lists.push({ ordered: kind === 'ol', next: Number.isFinite(start) ? start : 1 });
+      return nested ? `\n${tag}` : tag;
+    });
+  } else {
+    s = s.replace(/<li[^>]*>/gi, '• ');
+  }
   s = s.replace(/<[^>]+>/g, '');
   s = s.replace(/\u0001/g, '<').replace(/\u0002/g, '>');
   // Decode the most common entities; leave the rest as-is.
@@ -121,8 +178,14 @@ export function htmlToPlainText(html: string): string {
     .replace(/&#39;/gi, "'")
     .replace(/&#x27;/gi, "'")
     .replace(/&amp;/gi, '&');
-  // Collapse runs of >2 newlines and trim trailing whitespace per line.
-  s = s.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n');
+  // Collapse runs of >2 newlines and trim trailing whitespace per line, but
+  // keep the space that makes "-- " the RFC 3676 signature delimiter, so the
+  // text part still marks the signature (webmail lib/html-to-text.ts).
+  s = s
+    .split('\n')
+    .map((line) => (/^--[ \t\u00a0]*$/.test(line) ? '-- ' : line.replace(/[ \t]+$/, '')))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
   return s.trim();
 }
 

@@ -1306,7 +1306,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       // can preserve pasted <script>/<style>/etc. Strip them before sending.
       const safeHtml = stripDangerousTags(opts.forDraft ? rewritten.html : stripEditorMarkers(rewritten.html));
       htmlBody = `<div>${safeHtml}</div>`;
-      textBody = htmlToPlainText(safeHtml);
+      // The text part marks the quote with "> ", numbers ordered lists and
+      // keeps the "-- " signature delimiter, as plain-text mail does.
+      textBody = htmlToPlainText(safeHtml, { mailMarkup: true });
     }
 
     const inlineFromBody = usedCids

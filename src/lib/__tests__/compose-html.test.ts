@@ -98,6 +98,33 @@ describe('htmlToPlainText', () => {
   it('decodes &nbsp; to space', () => {
     expect(htmlToPlainText('hello&nbsp;world')).toBe('hello world');
   });
+
+  it('keeps the "-- " signature delimiter', () => {
+    expect(htmlToPlainText('<p>Thanks</p><p data-signature-block="separator">-- </p><p>Jane</p>')).toBe('Thanks\n\n-- \n\nJane');
+    expect(htmlToPlainText('<p>Thanks</p><p>--&nbsp;</p><p>Jane</p>')).toBe('Thanks\n\n-- \n\nJane');
+  });
+});
+
+describe('htmlToPlainText with mail markup (the sent text part)', () => {
+  const mail = (html: string) => htmlToPlainText(html, { mailMarkup: true });
+
+  it('marks quoted text with "> ", nested quotes twice', () => {
+    expect(mail('<p>My reply</p><div data-quoted-html="true">On Monday, Ann wrote:<br><blockquote style="x">Hello<br>there<blockquote>older</blockquote></blockquote></div>'))
+      .toBe('My reply\n\nOn Monday, Ann wrote:\n\n> Hello\n> there\n>\n> > older');
+  });
+
+  it('numbers ordered lists from their start and dashes bullet lists', () => {
+    expect(mail('<ol><li>one</li><li>two</li></ol><ul><li>a</li></ul><ol start="4"><li>four</li></ol>'))
+      .toBe('1. one\n2. two\n- a\n4. four');
+  });
+
+  it('numbers a list nested in a bullet item on its own', () => {
+    expect(mail('<ul><li>a<ol><li>x</li><li>y</li></ol></li><li>b</li></ul>')).toBe('- a\n1. x\n2. y\n\n- b');
+  });
+
+  it('keeps the signature delimiter', () => {
+    expect(mail('<p>Hi</p><p data-signature-block="separator">-- </p><p>Jane</p>')).toBe('Hi\n\n-- \n\nJane');
+  });
 });
 
 describe('rewriteInlineImages', () => {
