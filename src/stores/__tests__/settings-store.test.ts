@@ -28,6 +28,13 @@ describe('settings-store', () => {
     });
   });
 
+  describe('week start', () => {
+    it('keeps a Saturday week start across a restart', () => {
+      expect(mergeWithDefaults({ calendarFirstDayOfWeek: 6 } as never).calendarFirstDayOfWeek).toBe(6);
+      expect(mergeWithDefaults({ calendarFirstDayOfWeek: 3 } as never).calendarFirstDayOfWeek).not.toBe(3);
+    });
+  });
+
   describe('mergeWithDefaults', () => {
     it('rejects values outside the allowed set', () => {
       const out = mergeWithDefaults({

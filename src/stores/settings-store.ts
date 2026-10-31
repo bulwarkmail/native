@@ -642,7 +642,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   swipeMode: oneOf(['instant', 'reveal']),
   archiveMode: oneOf(['single', 'year', 'month']),
   calendarDefaultView: oneOf(['month', 'week', 'day', 'agenda']),
-  calendarFirstDayOfWeek: oneOf([0, 1]),
+  calendarFirstDayOfWeek: oneOf([0, 1, 6]),
   calendarTimeFormat: oneOf(['12h', '24h']),
   calendarHoverPreview: oneOf(['instant', 'delay-500ms', 'delay-1s', 'delay-2s', 'off']),
   filesFolderLayout: oneOf(['inline', 'sidebar']),
