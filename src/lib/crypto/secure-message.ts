@@ -9,7 +9,7 @@ import type { BodyPart, Email } from '../../api/types';
 import { binaryToBytes, bytesToBinary, decodeBody, findNode, parseEntity, type MimeNode } from './mime';
 import {
   detectPgp, decryptMessage, verifyDetached, verifyCleartext, encryptionKeyIds, keyHasId, canonicalSignedBytes,
-  extractPublicKeyBlock, PgpArgon2UnsupportedError, type PgpSignatureSummary,
+  extractPublicKeyBlock, inspectKey, PgpArgon2UnsupportedError, type PgpSignatureSummary,
 } from './pgp';
 import type { SmimeKeyMaterial, SmimeSignatureStatus } from './smime/cms';
 
@@ -43,11 +43,24 @@ export interface SecureAttachment {
   bytes: Uint8Array;
 }
 
+/**
+ * A public key in the message for its From address. Never saved on its own:
+ * any sender can put a key in a message, so the banner offers it and only
+ * the user saves it (keyring savePgpKeyFor).
+ */
+export interface OfferedPgpKey {
+  armored: string;
+  fingerprint: string;
+  /** The From address, which one of the key's user ids names. */
+  email: string;
+}
+
 export interface SecureResult {
   status: SecureStatus;
   /** The decrypted/verified body, or null when there is none to show (locked, failed). */
   body: { html: string | null; text: string | null } | null;
   attachments: SecureAttachment[];
+  offeredKey?: OfferedPgpKey;
 }
 
 /** What the reader needs from the key store; injected so tests need no SecureStore. */
@@ -60,8 +73,8 @@ export interface SecureKeyAccess {
   pgpPublicKeys(): string[];
   /** Own S/MIME keys; `pkcs8` set when unlocked. */
   smimeKeys(): SmimeKeyMaterial[];
-  rememberPgpKey?(armored: string): Promise<void>;
-  rememberCertificate?(der: Uint8Array): Promise<void>;
+  /** Keep the certificate of a valid signature, if it names `fromEmail`. */
+  rememberCertificate?(der: Uint8Array, fromEmail: string): Promise<void>;
 }
 
 type PartLike = Pick<BodyPart, 'type'> & { subParts?: PartLike[] };
@@ -164,8 +177,7 @@ async function openPgp(raw: Uint8Array, fromEmail: string | undefined, keys: Sec
       }
       applyPgpSignature(status, sig, fromEmail);
       const rendered = await renderPayload(payload);
-      await maybeRememberEmbeddedKey(rendered.body?.text, keys);
-      return { status, ...rendered };
+      return withOfferedKey({ status, ...rendered }, rendered.body?.text, fromEmail);
     }
     if (info.kind === 'pgp-mime-signed') {
       applyPgpSignature(status, await verifySignedPart(info.signedBytes, info.signature, verificationKeys), fromEmail);
@@ -174,8 +186,7 @@ async function openPgp(raw: Uint8Array, fromEmail: string | undefined, keys: Sec
     // inline-signed
     const v = await verifyCleartext({ cleartext: info.cleartext, verificationKeysArmored: verificationKeys });
     applyPgpSignature(status, v.signature, fromEmail);
-    await maybeRememberEmbeddedKey(v.text, keys);
-    return { status, body: { html: null, text: v.text }, attachments: [] };
+    return withOfferedKey({ status, body: { html: null, text: v.text }, attachments: [] }, v.text, fromEmail);
   } catch (err) {
     status.error = err instanceof PgpArgon2UnsupportedError ? err.message : err instanceof Error ? err.message : String(err);
     if (status.encrypted) status.decrypted = false;
@@ -194,9 +205,27 @@ async function verifySignedPart(signed: Uint8Array, signature: string, verificat
   return retry.status === 'valid' ? retry : first;
 }
 
-async function maybeRememberEmbeddedKey(text: string | null | undefined, keys: SecureKeyAccess): Promise<void> {
+/**
+ * Offers a public key the text carries, only when one of its user ids is the
+ * From address and the signature (if any) did not fail. Nothing is stored
+ * here: the webmail's bulwark-gpg plugin imports keys only from its
+ * settings, and a key that arrived in a message would otherwise be used to
+ * verify and encrypt for whatever address it claims.
+ */
+async function withOfferedKey(result: SecureResult, text: string | null | undefined, fromEmail: string | undefined): Promise<SecureResult> {
+  const from = fromEmail?.trim().toLowerCase();
+  if (!from || result.status.signature === 'invalid') return result;
   const block = extractPublicKeyBlock(text ?? '');
-  if (block && keys.rememberPgpKey) await keys.rememberPgpKey(block);
+  if (!block) return result;
+  try {
+    const info = await inspectKey(block);
+    if (info.isPrivate) return result;
+    if (!info.userIDs.some((u) => u.email.trim().toLowerCase() === from)) return result;
+    return { ...result, offeredKey: { armored: info.publicKeyArmored, fingerprint: info.fingerprint.toLowerCase(), email: from } };
+  } catch {
+    // a broken embedded key: nothing to offer
+    return result;
+  }
 }
 
 function applySmimeSignature(status: SecureStatus, sig: SmimeSignatureStatus): void {
@@ -228,7 +257,7 @@ async function openSmime(raw: Uint8Array, fromEmail: string | undefined, keys: S
       const entity = binaryToBytes(signed.raw);
       const sig = await cms.smimeVerifyDetached(decodeBody(sigPart), entity, fromEmail);
       applySmimeSignature(status, sig);
-      if (sig.signatureValid && sig.signerCertificate) await keys.rememberCertificate?.(sig.signerCertificate);
+      if (sig.signatureValid && sig.signerCertificate && fromEmail) await keys.rememberCertificate?.(sig.signerCertificate, fromEmail);
       return { status, ...(await renderPayload(entity)) };
     }
 
@@ -236,7 +265,7 @@ async function openSmime(raw: Uint8Array, fromEmail: string | undefined, keys: S
     if (cms.isSignedData(der)) {
       const v = await cms.smimeVerifyOpaque(der, fromEmail);
       applySmimeSignature(status, v.status);
-      if (v.status.signatureValid && v.status.signerCertificate) await keys.rememberCertificate?.(v.status.signerCertificate);
+      if (v.status.signatureValid && v.status.signerCertificate && fromEmail) await keys.rememberCertificate?.(v.status.signerCertificate, fromEmail);
       return { status, ...(await renderPayload(v.mimeBytes)) };
     }
 
@@ -274,7 +303,7 @@ async function openSmime(raw: Uint8Array, fromEmail: string | undefined, keys: S
     if (innerSigned && cms.isSignedData(innerSigned)) {
       const v = await cms.smimeVerifyOpaque(innerSigned, fromEmail);
       applySmimeSignature(status, v.status);
-      if (v.status.signatureValid && v.status.signerCertificate) await keys.rememberCertificate?.(v.status.signerCertificate);
+      if (v.status.signatureValid && v.status.signerCertificate && fromEmail) await keys.rememberCertificate?.(v.status.signerCertificate, fromEmail);
       payload = v.mimeBytes;
     } else if (inner.type === 'multipart/signed' && /pkcs7-signature/i.test(inner.params.protocol || '')) {
       const full = parseEntity(bytesToBinary(decrypted));

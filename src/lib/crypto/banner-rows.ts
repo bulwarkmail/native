@@ -1,5 +1,6 @@
 // Banner rows for a PGP / S/MIME status (#58).
-import type { SecureStatus } from './secure-message';
+import type { OfferedPgpKey, SecureStatus } from './secure-message';
+import { formatFingerprint } from './key-labels';
 
 export type BannerTone = 'ok' | 'warn' | 'error' | 'muted';
 type Translate = (key: string, fallback: string, vars?: Record<string, string | number>) => string;
@@ -47,5 +48,29 @@ export function secureBannerRows(status: SecureStatus, t: Translate): BannerRow[
     rows.push({ key: 'sig', tone: 'warn', text: t('encryption.banner.unknown_key', 'Signed ({kind}) with a key you have not imported.', { kind }) });
   }
   return rows;
+}
+
+/**
+ * The row that offers to save the public key a message carries for its
+ * From address, with its fingerprint to compare, and the label of the save
+ * button. Null without an offer, or once a key with that fingerprint is
+ * stored.
+ */
+export function offeredKeyRow(
+  offer: OfferedPgpKey | undefined,
+  stored: ReadonlyArray<{ kind: string; id: string }>,
+  t: Translate,
+): (BannerRow & { action: string }) | null {
+  if (!offer) return null;
+  if (stored.some((k) => k.kind === 'pgp' && k.id === offer.fingerprint)) return null;
+  return {
+    key: 'offer',
+    tone: 'muted',
+    text: t('encryption.banner.key_offered', 'The message contains a public key for {email}. Fingerprint: {fingerprint}', {
+      email: offer.email,
+      fingerprint: formatFingerprint(offer.fingerprint),
+    }),
+    action: t('encryption.banner.save_key', 'Save key for {email}', { email: offer.email }),
+  };
 }
 

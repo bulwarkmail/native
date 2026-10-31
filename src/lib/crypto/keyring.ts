@@ -219,23 +219,38 @@ export function allPgpPublicKeys(): string[] {
   return records().filter((k): k is PgpKeyRecord => k.kind === 'pgp').map((k) => k.publicKeyArmored);
 }
 
-/** Remember the key of someone who signed a message, unless it is known already. */
-export async function rememberSignerPgpKey(armored: string): Promise<void> {
-  try {
-    const info = await inspectKey(armored);
-    if (info.isPrivate) return;
-    if (records().some((k) => k.kind === 'pgp' && k.id === info.fingerprint.toLowerCase())) return;
-    upsert(pgpRecord(info, false, 'message'));
-  } catch {
-    // a broken embedded key: ignore
+/**
+ * Save a public key that came in a message from `email`, when the user asks
+ * to (the reader's banner offers it). Refused unless one of the key's user
+ * ids is that address: a sender must not plant a key for someone else.
+ */
+export async function savePgpKeyFor(armored: string, email: string): Promise<PgpKeyRecord> {
+  const info = await inspectKey(armored);
+  if (info.isPrivate) throw new Error('Only a public key can be saved from a message');
+  const address = email.trim().toLowerCase();
+  if (!address || !info.userIDs.some((u) => u.email.trim().toLowerCase() === address)) {
+    throw new Error('The key is not for ' + email);
   }
+  const known = records().find((k): k is PgpKeyRecord => k.kind === 'pgp' && k.id === info.fingerprint.toLowerCase());
+  if (known) return known;
+  const record = pgpRecord(info, false, 'message');
+  upsert(record);
+  // Open messages verify again with the key.
+  notify();
+  return record;
 }
 
-export async function rememberSignerCertificate(der: Uint8Array): Promise<void> {
+/**
+ * Keep the certificate of a valid S/MIME signature on a message from
+ * `fromEmail`, unless it is known already. Only one that names that address
+ * (subject email or SAN rfc822Name) is kept.
+ */
+export async function rememberSignerCertificate(der: Uint8Array, fromEmail: string): Promise<void> {
   try {
     const { describeCertificate } = await import('./smime/certificate');
     const info = await describeCertificate(der);
-    if (!info.emailAddresses.length) return;
+    const from = fromEmail.trim().toLowerCase();
+    if (!from || !info.emailAddresses.some((e) => e.toLowerCase() === from)) return;
     if (records().some((k) => k.kind === 'smime' && k.id === info.fingerprint)) return;
     upsert(smimeRecord(info, der, [], false, 'message'));
   } catch {

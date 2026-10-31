@@ -130,7 +130,7 @@ export function MessageContent({
         />
       )}
 
-      {(secure.loading || secure.result) && <SecureMessageBanner status={secure.result?.status ?? null} loading={secure.loading} />}
+      {(secure.loading || secure.result) && <SecureMessageBanner status={secure.result?.status ?? null} loading={secure.loading} offeredKey={secure.result?.offeredKey} />}
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
       <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />
 
