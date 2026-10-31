@@ -97,6 +97,59 @@ export function seriesOccursAt(
   return (rules ?? []).some((rule) => generateDates(from, rule, at, until).some((date) => date.getTime() === at.getTime()));
 }
 
+/**
+ * Dates stand for wall-clock times through their device-local fields. A
+ * wall time the device's clock skips (its own DST gap) can't be one: the
+ * Date moves past the gap. Such a Date carries the wall time it stands for
+ * here, so a series in another zone keeps its times on the device's DST day.
+ */
+const intendedWall = new WeakMap<Date, string>();
+
+/** The LocalDateTime `date` stands for. */
+function wallString(date: Date): string {
+  return intendedWall.get(date) ?? format(date, "yyyy-MM-dd'T'HH:mm:ss");
+}
+
+/** A Date for the LocalDateTime `wall` ("yyyy-MM-ddTHH:mm:ss"), remembering it when the device's clock skips it. */
+function dateForWall(wall: string): Date {
+  const date = parseISO(wall);
+  const wallMs = localDateTimeAsUtc(wall);
+  if (!isNaN(date.getTime()) && wallMs !== null && wallAsUtc(date) !== wallMs) {
+    intendedWall.set(date, utcFieldsString(wallMs));
+  }
+  return date;
+}
+
+/** The UTC fields of `ms` as a LocalDateTime. */
+function utcFieldsString(ms: number): string {
+  const w = new Date(ms);
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  return `${pad(w.getUTCFullYear(), 4)}-${pad(w.getUTCMonth() + 1)}-${pad(w.getUTCDate())}`
+    + `T${pad(w.getUTCHours())}:${pad(w.getUTCMinutes())}:${pad(w.getUTCSeconds())}`;
+}
+
+/** The wall-clock fields of a LocalDateTime as a UTC timestamp, read from its digits. */
+function localDateTimeAsUtc(value: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(value);
+  if (!m) return null;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0));
+}
+
+/**
+ * The wall time `y-m-d h:mi:s` names in `timeZone`: itself, or past the gap
+ * when that zone's clock skips it (as a device-local Date would move). Null
+ * for an unknown zone.
+ */
+function wallInZone(
+  fields: [number, number, number, number, number, number],
+  timeZone: string,
+): string | null {
+  const formatter = getTzFormatter(timeZone);
+  if (!formatter) return null;
+  const instant = zonedWallMsToUtc(Date.UTC(...fields), formatter);
+  return utcFieldsString(wallClockAsUtcTimestamp(formatter, instant));
+}
+
 function occurrenceDateKey(master: CalendarEvent, date: Date): string {
   return master.showWithoutTime ? format(date, 'yyyy-MM-dd') : date.toISOString();
 }
@@ -106,8 +159,10 @@ function expandEvent(
   rangeStart: Date,
   rangeEnd: Date,
 ): CalendarEvent[] {
-  const eventStart = parseISO(master.start);
+  const eventStart = master.showWithoutTime ? parseISO(master.start) : dateForWall(master.start.slice(0, 19));
   if (isNaN(eventStart.getTime())) return [];
+  // Daily occurrences are built on the event's own clock (see wallInZone).
+  const zone = !master.showWithoutTime && master.timeZone ? master.timeZone : undefined;
 
   const rules = master.recurrenceRules || [];
   const overrides = master.recurrenceOverrides || {};
@@ -120,13 +175,13 @@ function expandEvent(
   for (const exRule of master.excludedRecurrenceRules || []) {
     // includeStartDate=false: "the series start is always an occurrence"
     // applies to recurrence rules, not to exclusion rules.
-    for (const date of generateDates(eventStart, exRule, rangeStart, rangeEnd, false)) {
+    for (const date of generateDates(eventStart, exRule, rangeStart, rangeEnd, false, undefined, zone)) {
       excludedDates.add(occurrenceDateKey(master, date));
     }
   }
 
   for (const rule of rules) {
-    const dates = generateDates(eventStart, rule, rangeStart, rangeEnd);
+    const dates = generateDates(eventStart, rule, rangeStart, rangeEnd, true, undefined, zone);
     for (const date of dates) {
       const dateKey = occurrenceDateKey(master, date);
 
@@ -136,7 +191,7 @@ function expandEvent(
 
       const recurrenceId = master.showWithoutTime
         ? format(date, "yyyy-MM-dd'T'00:00:00")
-        : format(date, "yyyy-MM-dd'T'HH:mm:ss");
+        : wallString(date);
 
       const override = overrides[recurrenceId] as
         | (Partial<CalendarEvent> & { excluded?: boolean })
@@ -153,7 +208,7 @@ function expandEvent(
   for (const [recurrenceId, rawOverride] of Object.entries(overrides)) {
     const override = rawOverride as Partial<CalendarEvent> & { excluded?: boolean };
     if (override.excluded) continue;
-    const overrideDate = parseISO(recurrenceId);
+    const overrideDate = master.showWithoutTime ? parseISO(recurrenceId) : dateForWall(recurrenceId.slice(0, 19));
     if (isNaN(overrideDate.getTime())) continue;
 
     // Overrides take precedence over excludedRecurrenceRules (they re-add
@@ -288,12 +343,16 @@ function wallClockAsUtcTimestamp(formatter: Intl.DateTimeFormat, instant: number
 export function zonedWallTimeToUtc(wall: Date, timeZone: string): Date | null {
   const formatter = getTzFormatter(timeZone);
   if (!formatter) return null;
-  const wallMs = wallAsUtc(wall);
+  return new Date(zonedWallMsToUtc(wallAsUtc(wall), formatter));
+}
+
+/** The instant of the wall clock `wallMs` (its fields read as UTC) in the formatter's zone. */
+function zonedWallMsToUtc(wallMs: number, formatter: Intl.DateTimeFormat): number {
   let guess = wallMs;
   for (let i = 0; i < 2; i++) {
     guess = wallMs - (wallClockAsUtcTimestamp(formatter, guess) - guess);
   }
-  return new Date(guess);
+  return guess;
 }
 
 function createOccurrence(
@@ -304,7 +363,7 @@ function createOccurrence(
 ): CalendarEvent {
   const startStr = master.showWithoutTime
     ? format(date, "yyyy-MM-dd'T'00:00:00")
-    : format(date, "yyyy-MM-dd'T'HH:mm:ss");
+    : wallString(date);
 
   // The occurrence as the rule generates it, with its override applied as a
   // patch: a moved or resized occurrence has its own start, time zone and
@@ -340,7 +399,10 @@ function createOccurrence(
     // occurrences on the other side of a DST transition in that zone keep
     // their wall time. Reusing the master's fixed UTC offset (the fallback
     // below) would shift them by the DST delta.
-    const zoned = occurrence.timeZone ? zonedWallTimeToUtc(wall, occurrence.timeZone) : null;
+    // From the digits: a wall time the device's clock skips is still this one.
+    const formatter = occurrence.timeZone ? getTzFormatter(occurrence.timeZone) : null;
+    const wallMs = localDateTimeAsUtc(start);
+    const zoned = formatter && wallMs !== null ? new Date(zonedWallMsToUtc(wallMs, formatter)) : null;
     if (zoned) {
       utcStart = zoned.toISOString();
       if (durationMs !== null) {
@@ -430,6 +492,8 @@ function generateDates(
   rangeEnd: Date,
   includeStartDate = true,
   maxOccurrences = 500,
+  // The series' time zone: daily occurrences are built on its clock.
+  timeZone?: string,
 ): Date[] {
   const rule = addImplicitByX(rawRule, eventStart);
   const dates: Date[] = [];
@@ -465,7 +529,7 @@ function generateDates(
       break;
     }
 
-    const candidates = generateCandidatesForPeriod(current, rule, eventStart);
+    const candidates = generateCandidatesForPeriod(current, rule, eventStart, timeZone);
 
     const filtered = rule.bySetPosition?.length
       ? applyBySetPosition(candidates, rule.bySetPosition)
@@ -509,6 +573,7 @@ function generateCandidatesForPeriod(
   periodStart: Date,
   rule: RecurrenceRule,
   eventStart: Date,
+  timeZone?: string,
 ): Date[] {
   const freq = rule.frequency;
   let candidates: Date[];
@@ -523,17 +588,27 @@ function generateCandidatesForPeriod(
     case 'weekly':
       candidates = expandWeekly(periodStart, rule, eventStart);
       break;
-    case 'daily':
+    case 'daily': {
       // The start's wall-clock time on this day. The period anchor is
       // advanced day by day and keeps whatever time a DST gap pushed it to
       // (02:30 -> 03:30, or midnight -> 01:00 for an all-day event), so using
       // it made every later day fail the implicit byHour and the series
       // stopped at the gap. Mirrors the webmail (34fb9d247).
-      candidates = [new Date(
+      // With a time zone, on that zone's clock: the device's own DST gap
+      // must not move an occurrence of a series in another zone.
+      const time = timeZone ? /T(\d{2}):(\d{2}):(\d{2})/.exec(wallString(eventStart)) : null;
+      const zoned = time && timeZone
+        ? wallInZone([
+          periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate(),
+          Number(time[1]), Number(time[2]), Number(time[3]),
+        ], timeZone)
+        : null;
+      candidates = [zoned ? dateForWall(zoned) : new Date(
         periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate(),
         eventStart.getHours(), eventStart.getMinutes(), eventStart.getSeconds(), eventStart.getMilliseconds(),
       )];
       break;
+    }
     case 'hourly':
     case 'minutely':
     case 'secondly':
