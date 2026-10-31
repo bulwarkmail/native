@@ -28,7 +28,8 @@ const USER = process.env.BULWARK_LIVE_USER ?? 'e2e-perf@example.org';
 const PASS = process.env.BULWARK_LIVE_PASS ?? '';
 const live = SERVER && PASS ? describe : describe.skip;
 
-const RUN = Date.now().toString(36);
+const RUN_STARTED = Date.now();
+const RUN = RUN_STARTED.toString(36);
 
 let singleton: JMAPClient;
 
@@ -52,8 +53,17 @@ live('live Stalwart: offline send queue', () => {
   }, 60_000);
 
   afterAll(async () => {
-    const res = await singleton.request([['Email/query', { accountId: singleton.accountId, filter: { subject: tag } }, '0']]);
-    const leftovers = res.methodResponses[0][1].ids as string[] ?? [];
+    // Not a subject search: Stalwart answers that from a full-text index
+    // that lags. Every message since the run began is read and compared.
+    const res = await singleton.request([
+      ['Email/query', { accountId: singleton.accountId, filter: { after: new Date(RUN_STARTED - 60_000).toISOString() }, limit: 500 }, '0'],
+      ['Email/get', {
+        accountId: singleton.accountId, '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' }, properties: ['id', 'subject'],
+      }, '1'],
+    ]);
+    const matching = (res.methodResponses[1][1].list as Array<{ id: string; subject?: string }> ?? [])
+      .filter((e) => e.subject?.includes(tag)).map((e) => e.id);
+    const leftovers = matching;
     if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
   }, 60_000);
 
