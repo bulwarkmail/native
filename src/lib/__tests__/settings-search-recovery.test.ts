@@ -22,4 +22,14 @@ describe('settings search for Delegates and Recover deleted items', () => {
     expect(finds('recovery', 'Recover deleted items', 'emptied')).toBe(true);
     expect(finds('recovery', 'Recover deleted items', 'colleague')).toBe(false);
   });
+
+  // The delete action's warning ("... cannot be recovered") put Reading in
+  // the results, and it has nothing about recovering.
+  it('finds "recover" in Recover deleted items only, not in Reading', () => {
+    const q = normalizeSettingsQuery('recover');
+    expect(tabMatchesQuery(index, 'recovery', 'Recover deleted items', q)).toBe(true);
+    expect(tabMatchesQuery(index, 'reading', 'Reading', q)).toBe(false);
+    // Reading is still found by the delete action itself.
+    expect(tabMatchesQuery(index, 'reading', 'Reading', normalizeSettingsQuery('delete action'))).toBe(true);
+  });
 });

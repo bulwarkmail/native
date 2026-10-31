@@ -323,6 +323,12 @@ export function getByPath(obj: unknown, path: string): unknown {
   return cur;
 }
 
+// Leaves that say what a setting does once picked, not what it is: the
+// delete action's warning ("... cannot be recovered") made a search for
+// "recover" offer Reading, which has nothing about recovering. The webmail
+// indexes labels only.
+const UNSEARCHED_LEAVES = new Set(['warning']);
+
 // Every string leaf key below `path`.
 export function collectStringKeys(node: unknown, path: string, sink: string[]): void {
   if (typeof node === 'string') {
@@ -331,6 +337,7 @@ export function collectStringKeys(node: unknown, path: string, sink: string[]): 
   }
   if (!node || typeof node !== 'object' || Array.isArray(node)) return;
   for (const [key, value] of Object.entries(node as Dictionary)) {
+    if (typeof value === 'string' && UNSEARCHED_LEAVES.has(key)) continue;
     collectStringKeys(value, `${path}.${key}`, sink);
   }
 }
