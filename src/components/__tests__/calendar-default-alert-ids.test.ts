@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../icons', () => ({ Check: () => null, Plus: () => null, X: () => null }));
 vi.mock('../Button', () => ({ default: () => null }));
 vi.mock('../../lib/use-layout', () => ({ useSheetInsets: () => ({}) }));
+vi.mock('../../lib/sheet-bottom-inset', () => ({ useSheetBottomInset: () => 0 }));
 vi.mock('../../theme/colors', () => ({ useColors: () => ({}) }));
 
 import type { Alert } from '../../api/types';

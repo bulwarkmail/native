@@ -10,7 +10,9 @@ describe('folder list names', () => {
 
   it('marks the open folder as selected and says its unread count with its name', () => {
     expect(src).toMatch(/accessibilityState=\{isAccountHeader \? undefined : \{ selected: isSelected \}\}/);
-    expect(src).toMatch(/t\('shell\.name_unread', '\{name\}, \{count\} unread', \{ name: label, count: unread \}\)/);
+    expect(src).toMatch(/const accessibleName = isAccountHeader \? label : unreadRowLabel\(label, unread, t\)/);
+    const helper = fs.readFileSync(path.resolve(__dirname, '../../lib/unread-row-label.ts'), 'utf8');
+    expect(helper).toMatch(/t\('shell\.name_unread', '\{name\}, \{count\} unread', \{ name, count: unread \}\)/);
     expect(src).toMatch(/accessibilityLabel=\{accessibleName\}/);
   });
 
