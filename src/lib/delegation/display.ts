@@ -97,6 +97,22 @@ export type Lookup =
   | { state: 'self' }
   | { state: 'failed' };
 
+/** The line under a typed address after a lookup, or null (webmail delegate-dialog.tsx). */
+export function lookupMessage(lookup: Lookup, t: Translate): string | null {
+  switch (lookup.state) {
+    case 'notFound':
+      return t('delegates.not_found', 'Nobody on this server has the address {address}.', { address: lookup.address });
+    case 'failed':
+      return t('delegates.lookup_failed', "Couldn't look up this address.");
+    case 'self':
+      return t('delegates.is_you', "That's you.");
+    case 'directoryOff':
+      return t('delegates.directory_off_note', 'Your administrator has to turn on directory lookups in Stalwart before you can add someone new.');
+    default:
+      return null;
+  }
+}
+
 /** What a lookup of `address` found, as the dialog shows it; `picked` is set when it found someone. */
 export function lookupResult(
   address: string,

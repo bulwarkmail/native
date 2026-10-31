@@ -22,8 +22,10 @@ import { JMAPClient } from '../jmap-client';
 import { CAPABILITIES } from '../types';
 import { applyShareChanges, getShareTargets, supportsDelegation, supportsMailboxSharing } from '../delegation';
 import { buildGrantChanges, buildRevokeChanges, summarizeDelegates } from '../../lib/delegation/delegation';
-import { principalRowDisplay, resolvePrincipal } from '../../lib/delegation/display';
+import { lookupMessage, lookupResult, principalRowDisplay, resolvePrincipal } from '../../lib/delegation/display';
 import { listPrincipals } from '../files';
+import { findPrincipalByEmail } from '../delegation';
+import { getAddressBooks, setAddressBookShare } from '../contacts';
 
 const t = (_key: string, fallback?: string) => fallback ?? '';
 
@@ -149,6 +151,31 @@ live('live Stalwart: delegates', () => {
         expect(row.name).not.toBe('Unknown person');
       }
     } finally {
+      expect(await revokeAll()).toBe(true);
+    }
+  }, 120_000);
+
+  // The calendar and address book share sheet looks a typed address up on
+  // its own. 0.16 finds it and the book is shared; 1.0 with directory
+  // queries off refuses every lookup, and the sheet says an administrator
+  // has to turn them on instead of "No matches".
+  it('shares an address book with a typed address the server finds, and says why when it will not look', async () => {
+    await useOwner();
+    const listing = await listPrincipals();
+    const found = await findPrincipalByEmail(USER2!);
+    const result = lookupResult(USER2!, found, [owner.accountId]);
+    if (listing.directoryQueriesOff) {
+      expect(found).toMatchObject({ principal: null, status: 'forbidden', directoryQueriesOff: true });
+      expect(lookupMessage(result.lookup, t)).toMatch(/administrator has to turn on directory lookups/);
+      return;
+    }
+    expect(result.picked?.id).toBe(delegate.accountId);
+    const book = (await getAddressBooks()).find((b) => b.isDefault) ?? (await getAddressBooks())[0];
+    try {
+      await setAddressBookShare(book.id, result.picked!.id, { mayRead: true, mayWrite: false, mayDelete: false, mayShare: false } as never);
+      expect((await delegateView()).addressBooks).toContain(book.id);
+    } finally {
+      await useOwner();
       expect(await revokeAll()).toBe(true);
     }
   }, 120_000);
