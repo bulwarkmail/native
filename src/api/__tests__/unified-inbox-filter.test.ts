@@ -45,6 +45,15 @@ describe('buildFilter (aggregated views)', () => {
   });
 });
 
+describe("buildFilter: a server's own all mailbox (bulwarkmail/webmail#1241)", () => {
+  it('is left out of All mail and Unread', () => {
+    const withAll = [...MAILBOXES, mailbox('every', 'all')];
+    expect(buildFilter(withAll, { view: 'all' })).toEqual({
+      operator: 'OR', conditions: [{ inMailbox: 'in' }, { inMailbox: 'projects' }],
+    });
+  });
+});
+
 describe('buildFilter: searching from All mail', () => {
   const all = [...MAILBOXES, mailbox('arch', 'archive'), mailbox('drafts', 'drafts'), mailbox('spam', 'junk')];
 
