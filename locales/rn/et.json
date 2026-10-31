@@ -1,0 +1,76 @@
+{
+  "calendar": {
+    "detail": {
+      "delete_confirm": "Kustutada see sündmus?"
+    }
+  },
+  "contacts": {
+    "bulk": {
+      "delete_confirm_title": "Kustuta kontaktid"
+    },
+    "delete_confirm_title": "Kustuta kontakt"
+  },
+  "email_viewer": {
+    "not_spam_short": "Pole rämpspost",
+    "spam_short": "Rämpspost"
+  },
+  "files": {
+    "batch_delete_confirm_message": "Kas oled kindel, et soovid kustutada {count, plural, one {1 üksuse} other {# üksust}}? Seda ei saa tagasi võtta.",
+    "batch_delete_success": "{count, plural, one {1 üksus kustutatud} other {# üksust kustutatud}}",
+    "delete_confirm_message": "Kas oled kindel, et soovid kustutada \"{name}\"? Seda ei saa tagasi võtta.",
+    "delete_confirm_title": "Kustuta ressurss",
+    "delete_success": "Edukalt kustutatud"
+  },
+  "settings": {
+    "composer": {
+      "autosave": {
+        "1m": "Iga minuti järel",
+        "2m": "Iga 2 minuti järel",
+        "30s": "Iga 30 sekundi järel",
+        "5m": "Iga 5 minuti järel",
+        "description": "Kui sageli mustandeid automaatselt salvestatakse",
+        "label": "Automaatsalvestuse intervall"
+      },
+      "description": "Seadista kirja koostamise sätteid",
+      "title": "Koostamine"
+    },
+    "email_behavior": {
+      "disable_threading": {
+        "description": "Kuva e-kirjad üksikute kirjadena vestluste kaupa rühmitamise asemel",
+        "label": "Keela vestluste rühmitamine"
+      }
+    },
+    "filters": {
+      "sieve_editor": {
+        "confirm_save": "Kinnita salvestamine",
+        "save_warning": "Salvestamine kirjutab kõik visuaalsed reeglid üle. Seda ei saa tagasi võtta. Kinnitamiseks klõpsa uuesti nuppu Salvesta."
+      }
+    },
+    "identities": {
+      "title": "Saatja identiteedid"
+    },
+    "notifications": {
+      "calendar": {
+        "invitation_parsing": "Tuvasta e-kirjade kutsed",
+        "invitation_parsing_desc": "Tuvasta kalendrikutsed e-kirjade manustest ja kuva kalenditoimingud"
+      }
+    },
+    "tab_groups": {
+      "advanced": "Täpsemalt",
+      "appearance": "Välimus",
+      "general": "Üldine",
+      "privacy": "Privaatsus ja turvalisus"
+    },
+    "tabs": {
+      "content_senders": "Sisu ja saatjad",
+      "downloads": "Allalaadimised",
+      "identities": "Identiteedid",
+      "keywords": "Sildid",
+      "language": "Keel, piirkond ja kellaaeg",
+      "layout": "Paigutus",
+      "sidebar_apps": "Külgriba rakendused",
+      "templates": "Mallid",
+      "themes": "Teemad"
+    }
+  }
+}
