@@ -10,7 +10,7 @@ import {
 } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { componentSizes, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import {
   buildEventDayIndex,
@@ -157,6 +157,7 @@ function MonthWeekRowInner({
   const { width } = useWindowDimensions();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
+  const paint = useCvdColor();
   const chipTime = monthChipShowsTime(true, width / 7);
   if (variant === 'full') {
     return (
@@ -241,7 +242,7 @@ function MonthWeekRowInner({
                 {visible.map((event, idx) => (
                   <View
                     key={`${event.id}-${idx}`}
-                    style={[styles.dot, { backgroundColor: getEventColor(event, calendars) }]}
+                    style={[styles.dot, { backgroundColor: paint(getEventColor(event, calendars)) }]}
                   />
                 ))}
                 {overflow > 0 && (
@@ -255,7 +256,7 @@ function MonthWeekRowInner({
                   // Solid bars in the calendar colour; declined and
                   // cancelled events outlined (repos/branding/APP.md).
                   const inactive = isInactiveEvent(event, currentUserEmails);
-                  const colors = eventBlockColors(getEventColor(event, calendars), inactive, c, tinted);
+                  const colors = eventBlockColors(paint(getEventColor(event, calendars)), inactive, c, tinted);
                   return (
                     <View
                       key={`${event.id}-${idx}`}
@@ -331,6 +332,7 @@ function FullWeekRow({
   const { t, system } = useCalendarLocale();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
+  const paint = useCvdColor();
   const showTime = monthChipShowsTime(showTimeInMonthView, width / 7);
   return (
     <View style={[styles.fullWeekRow, { height }]}>
@@ -371,7 +373,7 @@ function FullWeekRow({
             </View>
             {dayEvents.slice(0, shown).map((event, idx) => {
               const inactive = isInactiveEvent(event, currentUserEmails);
-              const colors = eventBlockColors(getEventColor(event, calendars), inactive, c, tinted);
+              const colors = eventBlockColors(paint(getEventColor(event, calendars)), inactive, c, tinted);
               // No time on events that fill the whole day.
               const time = showTime && !event.showWithoutTime && !isTimedEventFullDayOnDate(event, d)
                 ? `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `

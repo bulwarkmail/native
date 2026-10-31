@@ -16,7 +16,7 @@ import {
 } from '../icons';
 import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { useAnimDuration } from '../../theme/dynamic';
 import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
 import { BIRTHDAY_CALENDAR_ID } from '../../lib/birthday-calendar';
@@ -309,6 +309,7 @@ function Section({
   isSubscriptionCalendar?: (calendarId: string) => boolean;
 }) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   // Neighbours a calendar can move past: the server calendars of this section.
@@ -352,8 +353,8 @@ function Section({
                 style={[
                   styles.swatch,
                   {
-                    backgroundColor: visible ? getCalendarColor(cal) : 'transparent',
-                    borderColor: getCalendarColor(cal),
+                    backgroundColor: visible ? paint(getCalendarColor(cal)) : 'transparent',
+                    borderColor: paint(getCalendarColor(cal)),
                   },
                 ]}
               >

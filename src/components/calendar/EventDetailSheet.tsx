@@ -39,7 +39,7 @@ import {
 import { format, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import {
   eventTimeRange,
   getEventColor,
@@ -140,6 +140,7 @@ export function EventDetailSheet({
   onSaveNote,
 }: EventDetailSheetProps) {
   const c = useColors();
+  const paint = useCvdColor();
   const { locale, t } = useCalendarLocale();
   const [rsvpBusy, setRsvpBusy] = React.useState(false);
   const [noteOpen, setNoteOpen] = React.useState(false);
@@ -200,7 +201,7 @@ export function EventDetailSheet({
 
   if (!event) return null;
 
-  const color = getEventColor(event, calendars);
+  const color = paint(getEventColor(event, calendars));
   const calendarId = getPrimaryCalendarId(event);
   const calendar = calendars.find((c) => c.id === calendarId);
   const range = formatRange(event, timeFormat, locale);

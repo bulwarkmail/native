@@ -17,7 +17,7 @@ import { singleLine } from '../../lib/single-line';
 import { prefetchMessage } from '../../lib/email-detail-cache';
 import SenderAvatar from '../SenderAvatar';
 import { radius, spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 
 const EMAIL_LIMIT = 5;
 const EVENT_LIMIT = 5;
@@ -92,6 +92,7 @@ interface Props {
 
 export function ContactActivity({ contact }: Props) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const t = useLocaleStore((s) => s.t);
@@ -254,7 +255,7 @@ export function ContactActivity({ contact }: Props) {
             upcomingEvents.map((event) => (
               <View key={event.id} style={styles.eventRow}>
                 <View
-                  style={[styles.eventDot, { backgroundColor: getEventColor(event, calendars) }]}
+                  style={[styles.eventDot, { backgroundColor: paint(getEventColor(event, calendars)) }]}
                 />
                 <Text style={styles.eventTime}>{formatEventTime(event, t)}</Text>
                 <View style={styles.eventInfo}>
