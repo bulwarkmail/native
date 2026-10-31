@@ -11,6 +11,23 @@ export function editorFormSnapshot(fields: Record<string, unknown>): string {
   return JSON.stringify(fields);
 }
 
+/**
+ * The editor's times as the dirty check compares them. An all-day event
+ * compares by its first and last day: the editor seeds its last day as
+ * 23:59:59.999 (the exclusive end minus 1 ms) and then sets both to
+ * midnight, so comparing instants asked "Discard changes?" for an all-day
+ * event opened and closed untouched. A timed one compares by the instant.
+ */
+export function editorTimesSnapshot(times: { allDay: boolean; start: Date; end: Date }): Record<string, unknown> {
+  if (!times.allDay) return { allDay: false, start: times.start, end: times.end };
+  return { allDay: true, start: dayKey(times.start), end: dayKey(times.end) };
+}
+
+function dayKey(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 /** Whether the form holds changes against `baseline`, the form it opened with (null: not seeded yet). */
 export function editorFormChanged(baseline: string | null, current: string): boolean {
   return baseline !== null && baseline !== current;
