@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors, useResolvedTheme } from '../../theme/colors';
@@ -16,6 +16,8 @@ interface SigningInStepProps {
   phase: SigningInPhase;
   serverUrl: string | null;
   email: string | null;
+  /** Stops the sign-in and goes back to the step it started from (U-133). */
+  onCancel?: () => void;
 }
 
 function hostOf(url: string | null): string {
@@ -32,7 +34,7 @@ function initialsOf(email: string): string {
  * current stage makes a slow first connection legible instead of a bare
  * spinner that could mean anything.
  */
-export default function SigningInStep({ phase, serverUrl, email }: SigningInStepProps) {
+export default function SigningInStep({ phase, serverUrl, email, onCancel }: SigningInStepProps) {
   const c = useColors();
   const theme = useResolvedTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -68,6 +70,18 @@ export default function SigningInStep({ phase, serverUrl, email }: SigningInStep
         <Text style={styles.detail}>{copy[phase].detail}</Text>
 
         <ActivityIndicator size="small" color={c.primary} style={styles.spinner} />
+
+        {onCancel ? (
+          <Pressable
+            onPress={onCancel}
+            hitSlop={8}
+            style={({ pressed }) => [styles.cancel, pressed && styles.cancelPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t('login.mobile.cancel_sign_in', 'Cancel sign-in')}
+          >
+            <Text style={styles.cancelText}>{t('common.cancel', 'Cancel')}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -98,5 +112,15 @@ function makeStyles(c: ThemePalette) {
     title: { ...typography.h2, color: c.text, textAlign: 'center' },
     detail: { ...typography.body, color: c.textSecondary, textAlign: 'center' },
     spinner: { marginTop: spacing.xl },
+    cancel: {
+      marginTop: spacing.lg,
+      minHeight: componentSizes.buttonLg,
+      paddingHorizontal: spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+    },
+    cancelPressed: { opacity: 0.6 },
+    cancelText: { ...typography.bodyMedium, color: c.primary },
   });
 }

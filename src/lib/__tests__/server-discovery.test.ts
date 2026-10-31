@@ -196,4 +196,16 @@ describe('discoverServerForEmail', () => {
     await expect(discoverServerForEmail('ada')).resolves.toBeNull();
     expect(mockSecureFetch).not.toHaveBeenCalled();
   });
+
+  it('stops searching as soon as the sign-in is cancelled (U-133)', async () => {
+    // Every host hangs; only the cancel can end the search before the deadline.
+    mockSecureFetch.mockImplementation(() => new Promise(() => undefined));
+    const controller = new AbortController();
+    const started = Date.now();
+    const search = discoverServerForEmail('ada@example.com', { timeoutMs: 60_000, signal: controller.signal });
+    setTimeout(() => controller.abort(), 20);
+    await expect(search).resolves.toBeNull();
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(mockSecureFetch.mock.calls[0][1].signal.aborted).toBe(true);
+  });
 });

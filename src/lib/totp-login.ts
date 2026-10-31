@@ -29,6 +29,7 @@ import { sha256Hex } from './sha256';
 import { base64UrlEncode, randomBytes, randomHex } from './random';
 import { HANDOFF_REDIRECT_URI, type OAuthTokens } from './oauth';
 import { NetworkError } from '../api/jmap-client';
+import { signalWithTimeout, throwIfCancelled } from './sign-in-abort';
 
 // Stalwart 0.16's built-in OAuth accepts any client id; the webmail's public
 // one keeps refresh behaviour identical to the browser-handoff bundle.
@@ -134,13 +135,6 @@ function rememberClient(base: string, client: LoginClient): void {
   loginClients.set(base, client);
 }
 
-function withTimeout(ms: number): { signal?: AbortSignal; done: () => void } {
-  if (typeof AbortController === 'undefined') return { done: () => undefined };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return { signal: controller.signal, done: () => clearTimeout(timer) };
-}
-
 // The password and the PKCE verifier must not follow a redirect to another
 // host. The requests go out with fetchWithoutForeignRedirect, which hands such
 // a redirect back unfollowed; where the platform followed it anyway, the
@@ -163,8 +157,12 @@ function assertSameServer(requested: string, response: Response): void {
  * names, which may be on the public address it advertises rather than the one
  * the user typed; the id is sealed with the server's key, so it serves both.
  */
-async function registerPublicClient(base: string, url = `${base}/auth/register`): Promise<LoginClient> {
-  const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
+async function registerPublicClient(
+  base: string,
+  url = `${base}/auth/register`,
+  signal?: AbortSignal,
+): Promise<LoginClient> {
+  const t = signalWithTimeout(signal, CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetchWithoutForeignRedirect(url, {
@@ -182,6 +180,7 @@ async function registerPublicClient(base: string, url = `${base}/auth/register`)
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   } finally {
     t.done();
@@ -207,6 +206,7 @@ async function checkClient(
   base: string,
   clientId: string,
   redirectUri: string,
+  signal?: AbortSignal,
 ): Promise<'known' | 'unknown' | 'none' | 'busy'> {
   const query = new URLSearchParams({
     response_type: 'code',
@@ -217,7 +217,7 @@ async function checkClient(
     code_challenge_method: 'S256',
   });
   const url = `${base}/api/auth/client?${query.toString()}`;
-  const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
+  const t = signalWithTimeout(signal, CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetchWithoutForeignRedirect(url, {
@@ -226,6 +226,7 @@ async function checkClient(
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   } finally {
     t.done();
@@ -253,14 +254,15 @@ async function checkClient(
  */
 export async function resolveLoginClient(
   serverUrl: string,
-  opts?: { registrationEndpoint?: string },
+  opts?: { registrationEndpoint?: string; signal?: AbortSignal },
 ): Promise<LoginClient> {
   const base = trimBase(serverUrl);
   const cached = loginClients.get(base);
   if (cached) return cached;
   const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+  const signal = opts?.signal;
 
-  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI);
+  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, signal);
   if (own === 'busy') return fallback;
   if (own === 'known') {
     const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI };
@@ -268,11 +270,11 @@ export async function resolveLoginClient(
     return client;
   }
   if (own === 'unknown') {
-    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI);
+    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI, signal);
     if (shared === 'busy') return fallback;
     if (shared === 'unknown') {
       const endpoint = opts?.registrationEndpoint;
-      return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined);
+      return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined, signal);
     }
   }
   rememberClient(base, fallback);
@@ -386,6 +388,7 @@ async function requestLoginCode(
   totp: string | undefined,
   client: LoginClient,
   challenge: string,
+  signal?: AbortSignal,
 ): Promise<StalwartLoginOutcome> {
   const state = randomHex(16);
   const url = `${base}/api/auth`;
@@ -403,8 +406,10 @@ async function requestLoginCode(
         codeChallenge: challenge,
         state,
       })),
+      signal,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   }
   assertSameServer(url, loginResponse);
@@ -434,26 +439,28 @@ export async function exchangePasswordForTokens(
   username: string,
   password: string,
   totp?: string,
-  opts?: { clientId?: string; redirectUri?: string },
+  opts?: { clientId?: string; redirectUri?: string; signal?: AbortSignal },
 ): Promise<OAuthTokens> {
   const base = trimBase(serverUrl);
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
+  const signal = opts?.signal;
+  throwIfCancelled(signal);
 
   let client: LoginClient = opts?.clientId
     ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI }
-    : await resolveLoginClient(base);
-  let outcome = await requestLoginCode(base, username, password, totp, client, challenge);
+    : await resolveLoginClient(base, { signal });
+  let outcome = await requestLoginCode(base, username, password, totp, client, challenge, signal);
   // A remembered client the server no longer knows (another server now
   // answers at the address, or its key changed), or the default taken while
   // the client check failed: ask again, once. 1.0 checks the client before
   // the credentials, so this costs no failed sign-in.
   if (outcome.kind === 'rejected' && outcome.error === 'invalid_client' && !opts?.clientId) {
     loginClients.delete(base);
-    const fresh = await resolveLoginClient(base);
+    const fresh = await resolveLoginClient(base, { signal });
     if (fresh.clientId !== client.clientId) {
       client = fresh;
-      outcome = await requestLoginCode(base, username, password, totp, client, challenge);
+      outcome = await requestLoginCode(base, username, password, totp, client, challenge, signal);
     }
   }
 
@@ -486,8 +493,10 @@ export async function exchangePasswordForTokens(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: tokenParams.toString(),
+      signal,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   }
   assertSameServer(tokenUrl, tokenResponse);

@@ -132,7 +132,7 @@ describe('loginViaPairing with an app password', () => {
 
     await useAuthStore.getState().loginViaPairing(WEBMAIL, newCode());
 
-    expect(connect).toHaveBeenCalledWith(SERVER, 'ada@example.com', 'app-pass-123', undefined);
+    expect(connect).toHaveBeenCalledWith(SERVER, 'ada@example.com', 'app-pass-123', undefined, undefined);
     expect(connectWithOAuth).not.toHaveBeenCalled();
     expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: true, username: 'ada@example.com', serverUrl: SERVER });
   });

@@ -101,6 +101,23 @@ describe('exchangePasswordForTokens', () => {
     expect(calls.some((c) => c.url.endsWith('/auth/register'))).toBe(false);
   });
 
+  it('cancels the client check and the login requests with the sign-in screen (U-133)', async () => {
+    const signals: Array<AbortSignal | undefined> = [];
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      signals.push(init?.signal ?? undefined);
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new TypeError('Aborted')));
+      });
+    });
+    const controller = new AbortController();
+    const pending = exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456', { signal: controller.signal });
+    await vi.waitFor(() => expect(signals.length).toBe(1));
+    controller.abort();
+    // A cancel, not "server unreachable".
+    await expect(pending).rejects.toMatchObject({ name: 'SignInCancelledError' });
+    expect(signals[0]?.aborted).toBe(true);
+  });
+
   it('registers its own client on Stalwart 1.0 and signs in with it', async () => {
     const calls = fakeServer('1.0');
     const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');

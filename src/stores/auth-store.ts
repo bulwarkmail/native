@@ -41,6 +41,7 @@ import {
 import { reconcileServerFingerprint } from '../lib/server-change';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
 import { perfMark } from '../lib/perf-marks';
+import { abortable, isSignInCancelled, throwIfCancelled } from '../lib/sign-in-abort';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -97,14 +98,14 @@ export interface AuthState {
     serverUrl: string,
     username: string,
     password: string,
-    opts?: { addAccount?: boolean; totp?: string },
+    opts?: SignInOptions & { totp?: string },
   ) => Promise<void>;
   /** Access-token (Bearer) sign-in with a token the user pasted, e.g. a Fastmail API token. */
-  loginWithToken: (serverUrl: string, token: string, opts?: { addAccount?: boolean }) => Promise<void>;
-  loginViaWebmail: (webmailUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
+  loginWithToken: (serverUrl: string, token: string, opts?: SignInOptions) => Promise<void>;
+  loginViaWebmail: (webmailUrl: string, opts?: SignInOptions) => Promise<void>;
   /** OAuth/OIDC (PKCE) straight against the mail server's authorization server. */
-  loginViaOAuth: (serverUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
-  loginViaPairing: (webmailUrl: string, code: string, opts?: { addAccount?: boolean }) => Promise<void>;
+  loginViaOAuth: (serverUrl: string, opts?: SignInOptions) => Promise<void>;
+  loginViaPairing: (webmailUrl: string, code: string, opts?: SignInOptions) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
@@ -259,6 +260,16 @@ async function switchesSettled(): Promise<void> {
   while (pendingSwitch) await pendingSwitch.settled;
 }
 
+/**
+ * `signal` is the sign-in screen's Cancel (U-133): once it fires, the sign-in
+ * rejects with SignInCancelledError, puts the connection in use back and
+ * keeps nothing of the account it was adding.
+ */
+export interface SignInOptions {
+  addAccount?: boolean;
+  signal?: AbortSignal;
+}
+
 interface SignedIn {
   session: JMAPSession;
   serverUrl: string;
@@ -276,12 +287,14 @@ interface SignedIn {
 async function signIn(
   set: (partial: Partial<AuthState>) => void,
   get: () => AuthState,
-  opts: { addAccount?: boolean } | undefined,
+  opts: SignInOptions | undefined,
   connect: () => Promise<SignedIn>,
 ): Promise<SignedIn> {
   signInsUnderWay += 1;
   let saved: typeof signInSaved = null;
+  const signal = opts?.signal;
   try {
+    throwIfCancelled(signal);
     // A switch under way lands first, so there is one account to put back.
     await switchesSettled();
     const isCurrent = beginAccountChange();
@@ -304,7 +317,23 @@ async function signIn(
     let wasRegistered = true;
     const accountStore = useAccountStore.getState();
     try {
-      signedIn = await connect();
+      const connecting = connect();
+      if (signal) {
+        // Cancelled while connecting: the connect goes on in the background
+        // until its next session check (putting the connection back below
+        // supersedes it). Should it get as far as storing credentials for
+        // the account anyway, they go too.
+        connecting.then(
+          (late) => {
+            if (!signal.aborted || signedIn) return;
+            if (!useAccountStore.getState().getAccountById(late.accountId)) {
+              void jmapClient.clearAccountCredentials(late.accountId).catch(() => undefined);
+            }
+          },
+          () => undefined,
+        );
+      }
+      signedIn = await abortable(connecting, signal);
       if (!isCurrent()) throw new SessionSupersededError();
       wasRegistered = !!accountStore.getAccountById(signedIn.accountId);
       // Contacts/calendar are still single-bucket, so wipe those now that
@@ -315,6 +344,7 @@ async function signIn(
       }
       await checkServerChange(signedIn.accountId, signedIn.session);
       if (!isCurrent()) throw new SessionSupersededError();
+      throwIfCancelled(signal);
       accountStore.addAccount({
         serverUrl: signedIn.serverUrl,
         username: signedIn.username,
@@ -325,7 +355,8 @@ async function signIn(
         hasError: false,
       });
     } catch (err) {
-      putBack(!!signedIn);
+      // A cancelled connect may already hold the client: take it back.
+      putBack(!!signedIn || isSignInCancelled(err));
       // connect() stored credentials for an account the registry never took
       // (the account limit, or a newer account change): none stay behind.
       if (signedIn && !wasRegistered && !useAccountStore.getState().getAccountById(signedIn.accountId)) {
@@ -394,7 +425,7 @@ function assertRoomForAccount(accountId?: string): void {
 
 // Adding an account to a full registry: refuse before a sign-in code is
 // spent or a browser sign-in started, since what they buy can't be kept.
-function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { addAccount?: boolean }): void {
+function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: SignInOptions): void {
   if (!opts?.addAccount) return;
   try {
     assertRoomForAccount();
@@ -463,12 +494,29 @@ async function completeOAuthHandoff(
   set: (partial: Partial<AuthState>) => void,
   get: () => AuthState,
   result: Extract<HandoffResult, { flow: 'oauth' }>,
-  opts?: { addAccount?: boolean },
+  opts?: SignInOptions,
 ): Promise<void> {
   await signIn(set, get, opts, async () => {
     const { session, username, accountId } = await jmapClient.connectWithOAuth(result.serverUrl, result.tokens);
     return { session, serverUrl: result.serverUrl.replace(/\/+$/, ''), username, accountId };
   });
+}
+
+// After an await of a sign-in step that takes no signal: stop when the user
+// cancelled meanwhile.
+function cancelledSignIn(set: (partial: Partial<AuthState>) => void, opts?: SignInOptions): void {
+  if (!opts?.signal?.aborted) return;
+  set({ isLoading: false, error: null });
+  throwIfCancelled(opts.signal);
+}
+
+function oauthSignInMessage(err: unknown): string | null {
+  if (isSignInCancelled(err)) return null;
+  return err instanceof AuthenticationError
+    ? 'Authentication rejected by server'
+    : err instanceof Error
+      ? err.message
+      : 'OAuth sign-in failed';
 }
 
 function applyConnectedState(
@@ -514,12 +562,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Adding an additional account keeps the live connection until the
       // new sign-in succeeded, so a typo doesn't kill the current session.
       await signIn(set, get, opts, async () => {
-        const session = await jmapClient.connect(serverUrl, username, password, opts?.totp);
+        const session = await jmapClient.connect(serverUrl, username, password, opts?.totp, opts?.signal);
         const base = serverUrl.replace(/\/+$/, '');
         return { session, serverUrl: base, username, accountId: generateAccountId(username, base) };
       });
       set({ pendingTotpLogin: null });
     } catch (err) {
+      if (isSignInCancelled(err)) {
+        set({ isLoading: false, error: null });
+        throw err;
+      }
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         // Keep what the user (or the webmail hand-off) supplied so the code
         // step doesn't make them retype the password.
@@ -550,7 +602,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       set({ pendingTotpLogin: null });
     } catch (err) {
-      set({ isLoading: false, error: err instanceof Error ? err.message : 'Connection failed' });
+      set({ isLoading: false, error: isSignInCancelled(err) ? null : err instanceof Error ? err.message : 'Connection failed' });
       throw err;
     }
   },
@@ -562,8 +614,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // served there. Opening `/login?mobile_redirect_uri=…` on a bare Stalwart
     // lands on a 404 or the admin page, so check first and fall back to the
     // server's own OAuth (PKCE) when the webmail is missing.
-    if (!(await probeWebmail(webmailUrl))) {
+    const hasWebmail = await probeWebmail(webmailUrl);
+    cancelledSignIn(set, opts);
+    if (!hasWebmail) {
       const metadata = await discoverOAuthMetadata(webmailUrl);
+      cancelledSignIn(set, opts);
       if (metadata) {
         await get().loginViaOAuth(webmailUrl, opts);
         return;
@@ -575,12 +630,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     let result;
     try {
       result = await runWebmailHandoff(webmailUrl, { addAccount: opts?.addAccount });
+      cancelledSignIn(set, opts);
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         // User closed the browser tab — quiet exit, no error banner.
         set({ isLoading: false, error: null });
         return;
       }
+      if (isSignInCancelled(err)) throw err;
       const message = err instanceof Error ? err.message : 'Sign-in failed';
       set({ isLoading: false, error: message });
       throw err;
@@ -600,13 +657,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await completeOAuthHandoff(set, get, result, opts);
     } catch (err) {
-      const message =
-        err instanceof AuthenticationError
-          ? 'Authentication rejected by server'
-          : err instanceof Error
-            ? err.message
-            : 'OAuth sign-in failed';
-      set({ isLoading: false, error: message });
+      set({ isLoading: false, error: oauthSignInMessage(err) });
       throw err;
     }
   },
@@ -620,11 +671,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const metadata = await discoverOAuthMetadata(base);
       if (!metadata) throw new HandoffError('This server does not offer OAuth sign-in');
       tokens = await loginWithPkce(base, metadata, { addAccount: opts?.addAccount });
+      cancelledSignIn(set, opts);
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         set({ isLoading: false, error: null });
         return;
       }
+      if (isSignInCancelled(err)) throw err;
       const message = err instanceof Error ? err.message : 'Sign-in failed';
       set({ isLoading: false, error: message });
       throw err;
@@ -632,13 +685,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await completeOAuthHandoff(set, get, { flow: 'oauth', serverUrl: base, tokens }, opts);
     } catch (err) {
-      const message =
-        err instanceof AuthenticationError
-          ? 'Authentication rejected by server'
-          : err instanceof Error
-            ? err.message
-            : 'OAuth sign-in failed';
-      set({ isLoading: false, error: message });
+      set({ isLoading: false, error: oauthSignInMessage(err) });
       throw err;
     }
   },
@@ -660,13 +707,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     let result: HandoffResult;
     try {
-      result = await redeemPairingCode(webmailUrl, code);
+      result = await abortable(redeemPairingCode(webmailUrl, code), opts?.signal);
     } catch (err) {
       // Not redeemed here: the server is the judge of a retry (it answers
       // "used" if the request did get through).
       pairingCodesSeen.delete(code);
       const message = err instanceof Error ? err.message : 'Pairing failed';
-      set({ isLoading: false, error: message });
+      set({ isLoading: false, error: isSignInCancelled(err) ? null : message });
       throw err;
     }
 
@@ -677,6 +724,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // keeps for that step), and the account limit, which a new code won't fix.
     const serverHost = hostOfUrl(result.serverUrl);
     const connectFailed = (err: unknown): unknown => {
+      if (isSignInCancelled(err)) {
+        set({ isLoading: false, error: null });
+        return err;
+      }
       if (err instanceof Error && (err.name === 'TotpRequiredError' || err instanceof AccountLimitError)) {
         // `login` has settled the store already; the OAuth path has not.
         if (get().isLoading) set({ isLoading: false, error: err.message });
@@ -700,7 +751,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // password): the normal password sign-in, which also keeps the live
       // account when adding another one fails.
       try {
-        await get().login(result.serverUrl, result.username, result.password, { addAccount: opts?.addAccount });
+        await get().login(result.serverUrl, result.username, result.password, { addAccount: opts?.addAccount, signal: opts?.signal });
       } catch (err) {
         throw connectFailed(err);
       }

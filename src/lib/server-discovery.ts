@@ -8,6 +8,7 @@
 // slow or hostile network must never be worse than typing it in.
 
 import { secureFetch } from './client-cert';
+import { signalWithTimeout } from './sign-in-abort';
 
 export const DISCOVERY_TIMEOUT_MS = 2500;
 
@@ -96,18 +97,21 @@ export function serverCandidates(domain: string): string[] {
   return [`https://${domain}`, `https://mail.${domain}`, `https://webmail.${domain}`];
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T, signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(() => {
-        clearTimeout(timer);
-        resolve(fallback);
-      });
+    if (signal?.aborted) {
+      resolve(fallback);
+      return;
+    }
+    const finish = (value: T) => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(value);
+    };
+    const onAbort = () => finish(fallback);
+    const timer = setTimeout(() => finish(fallback), ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    promise.then(finish).catch(() => finish(fallback));
   });
 }
 
@@ -128,15 +132,16 @@ function looksLikeSession(body: unknown): boolean {
 export async function probeJmapServer(
   baseUrl: string,
   timeoutMs: number = DISCOVERY_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<boolean> {
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const abortTimer = setTimeout(() => controller?.abort(), timeoutMs);
+  // Gives up at the deadline, or when the user cancels the sign-in.
+  const deadline = signalWithTimeout(signal, timeoutMs);
 
   const request = (async () => {
     try {
       const response = await secureFetch(`${baseUrl}/.well-known/jmap`, {
         headers: { Accept: 'application/json' },
-        signal: controller?.signal,
+        signal: deadline.signal,
       });
       if (response.status === 401) return true;
       if (response.status !== 200) return false;
@@ -149,9 +154,9 @@ export async function probeJmapServer(
   try {
     // The abort signal doesn't reach the native client-certificate path, so
     // race the whole thing rather than trusting the request to give up.
-    return await withTimeout(request, timeoutMs, false);
+    return await withTimeout(request, timeoutMs, false, signal);
   } finally {
-    clearTimeout(abortTimer);
+    deadline.done();
   }
 }
 
@@ -159,6 +164,8 @@ export interface DiscoveryOptions {
   /** Servers of already-registered accounts, trusted without a probe. */
   knownServerUrls?: string[];
   timeoutMs?: number;
+  /** The sign-in screen's Cancel: discovery stops and finds nothing. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -170,7 +177,7 @@ export async function discoverServerForEmail(
   options: DiscoveryOptions = {},
 ): Promise<string | null> {
   const domain = emailDomain(email);
-  if (!domain) return null;
+  if (!domain || options.signal?.aborted) return null;
 
   // A server we're already signed in to for this domain needs no probe, and
   // covers the common case of adding a second account on the same host.
@@ -186,8 +193,9 @@ export async function discoverServerForEmail(
   const timeoutMs = options.timeoutMs ?? DISCOVERY_TIMEOUT_MS;
   const candidates = serverCandidates(domain);
   const results = await Promise.all(
-    candidates.map(async (candidate) => ((await probeJmapServer(candidate, timeoutMs)) ? candidate : null)),
+    candidates.map(async (candidate) => ((await probeJmapServer(candidate, timeoutMs, options.signal)) ? candidate : null)),
   );
+  if (options.signal?.aborted) return null;
 
   // `find` keeps candidate order, so a bare domain wins over `mail.` even when
   // both answer.
