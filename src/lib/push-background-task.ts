@@ -128,6 +128,11 @@ interface ShowNotificationOptions {
   groupTitle: string;
   markReadLabel?: string;
   deleteLabel?: string;
+  // Whether Delete asks to unlock the phone first (#85). Delete only ever
+  // moves the message to Trash; with a Trash to move it to, nothing is lost
+  // and the action runs from the lock screen and the open shade. Without
+  // one, or when that is not known, the unlock stays.
+  deleteNeedsUnlock?: boolean;
   replyLabel?: string;
 }
 
@@ -374,16 +379,29 @@ async function jmapPost(
   return body.methodResponses ?? [];
 }
 
+/**
+ * The messages to notify, and whether their account has a Trash for the
+ * notification's Delete to move them to (asked in the same request). An
+ * answer without the folders counts as no Trash.
+ */
 async function detachedGetEmails(
   session: DetachedSession,
   accountId: string,
   ids: string[],
-): Promise<Email[]> {
+): Promise<{ emails: Email[]; hasTrash: boolean }> {
   const responses = await jmapPost(session, [
     ['Email/get', { accountId, ids, properties: EMAIL_PROPERTIES }, '0'],
+    ['Mailbox/get', { accountId, properties: ['id', 'role'] }, '1'],
   ]);
   const body = methodResult(responses, 'Email/get');
-  return (body.list as Email[]) ?? [];
+  return { emails: (body.list as Email[]) ?? [], hasTrash: answerHasTrash(responses) };
+}
+
+/** Whether the Mailbox/get answer (call id '1') lists a Trash. */
+export function answerHasTrash(responses: Array<[string, Record<string, any>, string]>): boolean {
+  const answer = responses.find(([name, , id]) => name === 'Mailbox/get' && id === '1');
+  const list = answer?.[1]?.list;
+  return Array.isArray(list) && list.some((m: Mailbox) => m?.role === 'trash');
 }
 
 async function detachedNewestUnreadInboxIds(
@@ -543,6 +561,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData, 
 async function notifyForPush(accountId: string, session: DetachedSession, payload: RelayPushData): Promise<void> {
   const alreadyNotified = await readNotifiedIds(accountId);
   let candidates: Email[];
+  let hasTrash = false;
   let emailAccountId = session.jmapAccountId;
 
   if (payload.emailIds.length > 0) {
@@ -552,7 +571,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const fresh = payload.emailIds.filter((id) => !alreadyNotified.includes(id));
     if (fresh.length === 0) return;
     emailAccountId = payload.jmapAccountId ?? session.jmapAccountId;
-    candidates = await detachedGetEmails(session, emailAccountId, fresh);
+    ({ emails: candidates, hasTrash } = await detachedGetEmails(session, emailAccountId, fresh));
   } else {
     // Legacy `jmap-state-change` payload without ids: look at the newest
     // unread inbox messages and notify the ones not shown before. The ring
@@ -561,7 +580,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const ids = await detachedNewestUnreadInboxIds(session, LEGACY_QUERY_LIMIT);
     const fresh = ids.filter((id) => !alreadyNotified.includes(id));
     if (fresh.length === 0) return;
-    candidates = await detachedGetEmails(session, session.jmapAccountId, fresh);
+    ({ emails: candidates, hasTrash } = await detachedGetEmails(session, session.jmapAccountId, fresh));
   }
 
   const toNotify = selectNotifiableEmails(candidates, alreadyNotified);
@@ -613,6 +632,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
       groupTitle,
       markReadLabel,
       deleteLabel,
+      deleteNeedsUnlock: !hasTrash,
       replyLabel,
     });
   }
