@@ -62,7 +62,9 @@ import {
   resolveLoginClient,
   resetLoginClients,
   stalwartLoginBody,
+  TotpLoginError,
 } from '../../lib/totp-login';
+import { describeLoginError } from '../../lib/login-errors';
 import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
 import {
   HANDOFF_REDIRECT_URI,
@@ -344,6 +346,47 @@ live('live Stalwart sign-in', () => {
       clientId,
       source: 'totp',
     });
+  }, 30_000);
+
+  it('a refused token exchange is not reported as a wrong password, on both', async () => {
+    // A code the server issued, redeemed with the wrong PKCE verifier: the
+    // token endpoint refuses it after the credentials were accepted.
+    const client = await resolveLoginClient(SERVER);
+    const state = 'exchange-state';
+    const res = await fetch(`${SERVER}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stalwartLoginBody({
+        username: USER,
+        password: PASS,
+        clientId: client.clientId,
+        redirectUri: client.redirectUri,
+        codeChallenge: generateCodeChallenge(generateCodeVerifier()),
+        state,
+      })),
+    });
+    const outcome = readStalwartLoginResponse(await res.json(), state);
+    expect(outcome.kind).toBe('code');
+    if (outcome.kind !== 'code') return;
+    const token = await fetch(`${SERVER}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: outcome.code,
+        client_id: client.clientId,
+        redirect_uri: client.redirectUri,
+        code_verifier: generateCodeVerifier(),
+      }).toString(),
+    });
+    expect(token.ok).toBe(false);
+    // What exchangePasswordForTokens throws for that answer, and what the
+    // sign-in screen makes of it.
+    const copy = describeLoginError(
+      new TotpLoginError('token_exchange_failed', `Token exchange failed: ${token.status}`),
+      { serverUrl: SERVER },
+    );
+    expect(copy.detail).toMatch(/password and code were accepted/);
   }, 30_000);
 
   it('account security with the password (Basic) works on both', async () => {

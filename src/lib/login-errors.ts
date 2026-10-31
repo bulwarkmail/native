@@ -141,6 +141,15 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // Password and code were fine; the token endpoint then refused the app
+  // (webmail TOKEN_EXCHANGE_FAILED copy).
+  if (name === 'TotpLoginError' && (err as { code?: string }).code === 'token_exchange_failed') {
+    return {
+      title: t('login.mobile.err_token_exchange_title', "{host} didn't start a session", { host }),
+      detail: t('login.error.token_exchange_failed', 'Your password and code were accepted, but the mail server refused to start a session for this app. Ask your administrator to check its OAuth client settings.'),
+    };
+  }
+
   if (name === 'TotpLoginError' && lower.includes('invalid')) {
     return {
       title: t('login.mobile.err_bad_title', "That didn't work"),
