@@ -562,6 +562,22 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (!opts?.keepAsDraft) return true;
     const p = send.payload;
     try {
+      // An attempt that may have reached the server is looked for first, as
+      // before a resend: a message that went out must not come back as a
+      // draft.
+      if (send.maybeSent) {
+        const [{ wasQueuedSendSent }, { useEmailStore }] = await Promise.all([
+          import('../api/queued-send'),
+          import('./email-store'),
+        ]);
+        if (await wasQueuedSendSent(send, useEmailStore.getState().mailboxes)) {
+          if (p.original) {
+            patchKeywordsForEmails([p.original.emailId], { [p.original.keyword]: true }, p.original.accountId).catch(() => undefined);
+          }
+          void notifyAlreadySent(send);
+          return true;
+        }
+      }
       if (!p.draftsMailboxId) throw new Error('No Drafts folder');
       const { saveDraftVersion } = await import('../api/email');
       await saveDraftVersion(p.outgoing, p.draftsMailboxId, p.draftId, undefined, p.draftAccountId);
@@ -729,6 +745,19 @@ async function afterQueuedSend(send: QueuedSend, outcome: QueuedSendOutcomeLike)
     }
   } catch (err) {
     console.warn('[outbox] could not report a queued send', err);
+  }
+}
+
+/** Taking back a message found to have gone out already: nothing became a draft. */
+async function notifyAlreadySent(send: QueuedSend): Promise<void> {
+  try {
+    const [{ toast }, { useLocaleStore }] = await Promise.all([import('./toast-store'), import('./locale-store')]);
+    const t = useLocaleStore.getState().t;
+    toast.info(t('outbox.already_sent', 'This message was already sent'), {
+      message: send.payload.outgoing.subject || undefined,
+    });
+  } catch (err) {
+    console.warn('[outbox] could not report an already sent message', err);
   }
 }
 

@@ -1004,6 +1004,7 @@
     "section_personal": "My templates"
   },
   "outbox": {
+    "already_sent": "This message was already sent",
     "discard": "Discard",
     "discard_body": "It will not be sent, and its text is lost.",
     "discard_title": "Discard this message?",

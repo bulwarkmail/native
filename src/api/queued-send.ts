@@ -8,7 +8,7 @@ import type { Mailbox } from './types';
 import { sendTargetFor } from '../lib/compose-send-account';
 import { supportsSubmissionExtension } from '../lib/submission-options';
 import { stripMessageIdBrackets } from '../lib/email-threading';
-import { holdForScheduled, verdictFromCopies, type FoundCopy, type QueuedSend } from '../lib/send-queue';
+import { holdForScheduled, verdictFromCopies, type CopyVerdict, type FoundCopy, type QueuedSend } from '../lib/send-queue';
 
 /** How far before the queueing a copy can be dated (the server's clock may differ). */
 const CLOCK_SKEW_MS = 10 * 60_000;
@@ -68,34 +68,64 @@ export type QueuedSendOutcome =
  * went out; copies a refused attempt left in Drafts are removed before the
  * new attempt.
  */
-export async function runQueuedSend(send: QueuedSend, mailboxes: Mailbox[], now = Date.now()): Promise<QueuedSendOutcome> {
+/** The account and folders a queued message goes through, as the composer works them out. */
+async function queuedSendTarget(send: QueuedSend, mailboxes: Mailbox[]) {
   const p = send.payload;
   const target = await sendTargetFor(p.identity, p.fromEmail, mailboxes);
-  const accountId = target.accountId ?? jmapClient.accountId;
-  const draftAccountId = p.draftAccountId ?? jmapClient.accountId;
+  return {
+    target,
+    accountId: target.accountId ?? jmapClient.accountId,
+    draftAccountId: p.draftAccountId ?? jmapClient.accountId,
+    sentMailboxId: target.sentMailboxId ?? p.sentMailboxId,
+    draftsMailboxId: target.accountId ? target.draftsMailboxId : p.draftsMailboxId,
+  };
+}
 
-  const sentMailboxId = target.sentMailboxId ?? p.sentMailboxId;
-  const draftsMailboxId = target.accountId ? target.draftsMailboxId : p.draftsMailboxId;
+type Resolved = Awaited<ReturnType<typeof queuedSendTarget>>;
+
+/**
+ * Whether an earlier, unanswered attempt at `send` went out. When it did, the
+ * old draft that send would have removed is removed now.
+ */
+async function earlierAttempt(send: QueuedSend, r: Resolved): Promise<CopyVerdict> {
+  const p = send.payload;
+  const copies = await findCopiesByMessageId(p.outgoing.messageId!, {
+    accountId: r.target.accountId,
+    mailboxIds: [r.sentMailboxId, r.draftsMailboxId ?? ''],
+    since: send.createdAt,
+  });
+  // The autosaved draft lives in this account only when the draft did.
+  const draftHere = p.draftId && r.draftAccountId === r.accountId ? p.draftId : undefined;
+  const verdict = verdictFromCopies(copies, draftHere);
+  if (verdict.kind === 'sent' && p.draftId && p.draftId !== verdict.copyId) {
+    // The send went out but its answer was lost, so the old draft it would
+    // have removed is still there.
+    await destroyEmails([p.draftId], r.draftAccountId).catch((err) => {
+      console.warn('[send-queue] could not remove the draft of a sent message', err);
+    });
+  }
+  return verdict;
+}
+
+/**
+ * Before a queued message is taken back (moved to Drafts): true when an
+ * earlier attempt that may have reached the server did send it. A message no
+ * attempt reached the server with is never looked up.
+ */
+export async function wasQueuedSendSent(send: QueuedSend, mailboxes: Mailbox[]): Promise<boolean> {
+  if (!send.maybeSent || !send.payload.outgoing.messageId) return false;
+  const verdict = await earlierAttempt(send, await queuedSendTarget(send, mailboxes));
+  return verdict.kind === 'sent';
+}
+
+export async function runQueuedSend(send: QueuedSend, mailboxes: Mailbox[], now = Date.now()): Promise<QueuedSendOutcome> {
+  const p = send.payload;
+  const resolved = await queuedSendTarget(send, mailboxes);
+  const { target, accountId, sentMailboxId, draftsMailboxId } = resolved;
 
   if (send.maybeSent && p.outgoing.messageId) {
-    const copies = await findCopiesByMessageId(p.outgoing.messageId, {
-      accountId: target.accountId,
-      mailboxIds: [sentMailboxId, draftsMailboxId ?? ''],
-      since: send.createdAt,
-    });
-    // The autosaved draft lives in this account only when the draft did.
-    const draftHere = p.draftId && draftAccountId === accountId ? p.draftId : undefined;
-    const verdict = verdictFromCopies(copies, draftHere);
-    if (verdict.kind === 'sent') {
-      // The send went out but its answer was lost, so the old draft it would
-      // have removed is still there.
-      if (p.draftId && p.draftId !== verdict.copyId) {
-        await destroyEmails([p.draftId], draftAccountId).catch((err) => {
-          console.warn('[send-queue] could not remove the draft of a sent message', err);
-        });
-      }
-      return { kind: 'alreadySent', accountId: target.accountId };
-    }
+    const verdict = await earlierAttempt(send, resolved);
+    if (verdict.kind === 'sent') return { kind: 'alreadySent', accountId: target.accountId };
     if (verdict.staleIds.length > 0) {
       await destroyEmails(verdict.staleIds, accountId);
     }
