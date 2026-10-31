@@ -319,7 +319,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   externalContentPolicy: 'ask',
   trustedSenders: [],
   trustedSendersAddressBook: null,
-  senderFavicons: true,
+  senderFavicons: false,
   hideInlineImageAttachments: true,
 
   groupContactsByLetter: true,
