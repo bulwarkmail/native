@@ -304,7 +304,7 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
     <View style={styles.form}>
       <View>
         <Text style={styles.formLabel}>{t('settings.keywords.label_field', "Display Name")}</Text>
-        <TextInput
+        <TextInput accessibilityLabel={t('settings.keywords.label_field', "Display Name")}
           value={label}
           onChangeText={setLabel}
           placeholder={t('settings.keywords.label_placeholder', "e.g. Work, Personal, Urgent")}

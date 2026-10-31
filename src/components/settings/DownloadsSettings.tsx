@@ -52,6 +52,7 @@ export function DownloadsSettings() {
         description={t('settings.downloads.email_template.description_mobile', "Template used when exporting a message as an .eml file.")}
       >
         <Input
+          accessibilityLabel={t('settings.downloads.email_template.label', "Email (.eml) filename")}
           value={emailTemplate}
           onChangeText={(v) => update('emailExportTemplate', v)}
           autoCapitalize="none"
@@ -76,6 +77,7 @@ export function DownloadsSettings() {
         description={t('settings.downloads.attachment_template.description_mobile', "Template used when saving or sharing an attachment.")}
       >
         <Input
+          accessibilityLabel={t('settings.downloads.attachment_template.label', "Attachment filename")}
           value={attachmentTemplate}
           onChangeText={(v) => update('attachmentExportTemplate', v)}
           autoCapitalize="none"

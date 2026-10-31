@@ -224,6 +224,7 @@ export function ContactsSettings() {
             {editingId === book.id ? (
               <>
                 <TextInput
+                  accessibilityLabel={t('contacts.address_books.name_label', 'Address book name')}
                   style={styles.bookInput}
                   value={editName}
                   onChangeText={setEditName}
@@ -311,7 +312,7 @@ export function ContactsSettings() {
         {adding ? (
           <View style={styles.bookRow}>
             <BookUser size={16} color={c.textSecondary} />
-            <TextInput
+            <TextInput accessibilityLabel={t('contacts.address_books.name_label', 'Address book name')}
               style={styles.bookInput}
               value={newName}
               onChangeText={setNewName}

@@ -314,7 +314,7 @@ export function IdentitySettings() {
             </View>
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.fieldLabel}>{t('settings.identities.display_name', "Display name")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('settings.identities.display_name', "Display name")}
                 value={editing?.name ?? ''}
                 onChangeText={(name) => setEditing((d) => (d ? { ...d, name } : d))}
                 placeholder={t('settings.identities.display_name_placeholder', 'Jane Doe')}
@@ -322,7 +322,7 @@ export function IdentitySettings() {
                 style={styles.input}
               />
               <Text style={styles.fieldLabel}>{t('settings.identities.email_address', "Email address")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('settings.identities.email_address', "Email address")}
                 value={editing?.email ?? ''}
                 onChangeText={(email) => setEditing((d) => (d ? { ...d, email } : d))}
                 placeholder={t('identities.form.email_placeholder', 'your.email@example.com')}
@@ -337,7 +337,7 @@ export function IdentitySettings() {
                 <Text style={styles.hint}>{t('settings.identities.email_locked', "JMAP does not allow changing an identity's email; create a new one instead.")}</Text>
               )}
               <Text style={styles.fieldLabel}>{t('identities.form.reply_to_label', 'Reply-To (optional)')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.reply_to_label', 'Reply-To (optional)')}
                 value={editing?.replyTo ?? ''}
                 onChangeText={(replyTo) => setEditing((d) => (d ? { ...d, replyTo } : d))}
                 placeholder={t('identities.form.reply_to_placeholder', 'different@example.com')}
@@ -348,7 +348,7 @@ export function IdentitySettings() {
                 keyboardType="email-address"
               />
               <Text style={styles.fieldLabel}>{t('identities.form.bcc_label', 'Auto BCC (optional)')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.bcc_label', 'Auto BCC (optional)')}
                 value={editing?.bcc ?? ''}
                 onChangeText={(bcc) => setEditing((d) => (d ? { ...d, bcc } : d))}
                 placeholder={t('identities.form.bcc_placeholder', 'archive@example.com')}
@@ -359,7 +359,7 @@ export function IdentitySettings() {
                 keyboardType="email-address"
               />
               <Text style={styles.fieldLabel}>{t('identities.form.text_signature_label', "Text Signature")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.text_signature_label', "Text Signature")}
                 value={editing?.textSignature ?? ''}
                 onChangeText={(textSignature) => setEditing((d) => (d ? { ...d, textSignature } : d))}
                 placeholder="--&#10;Jane Doe&#10;Bulwark Mail"
@@ -371,7 +371,7 @@ export function IdentitySettings() {
                 {t('identities.form.signature_byte_counter', '{bytes} / {max} bytes', { bytes: textBytes, max: SIGNATURE_MAX_BYTES })}
               </Text>
               <Text style={styles.fieldLabel}>{t('identities.form.html_signature_label', "HTML Signature")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.html_signature_label', "HTML Signature")}
                 value={editing?.htmlSignature ?? ''}
                 onChangeText={(htmlSignature) => setEditing((d) => (d ? { ...d, htmlSignature } : d))}
                 placeholder="<p><b>Jane Doe</b><br>Bulwark Mail</p>"

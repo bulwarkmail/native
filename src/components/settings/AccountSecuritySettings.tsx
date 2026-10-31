@@ -178,7 +178,7 @@ function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
         <View style={styles.pwField}>
           <Text style={styles.pwLabel}>{t('settings.security.password.current', "Current password")}</Text>
           <View style={styles.pwInputRow}>
-            <Input value={currentPwd} onChangeText={setCurrentPwd} secureTextEntry={!showCurrent} autoCapitalize="none" containerStyle={{ flex: 1 }} />
+            <Input accessibilityLabel={t('settings.security.password.current', "Current password")} value={currentPwd} onChangeText={setCurrentPwd} secureTextEntry={!showCurrent} autoCapitalize="none" containerStyle={{ flex: 1 }} />
             <Pressable style={styles.eyeBtn} onPress={() => setShowCurrent((v) => !v)} accessibilityRole="button" accessibilityLabel={t('settings.security.password.toggle_visibility', "Show or hide password")}>
               {showCurrent ? <EyeOff size={16} color={c.mutedForeground} /> : <Eye size={16} color={c.mutedForeground} />}
             </Pressable>
@@ -188,14 +188,14 @@ function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
         {otpEnabled && (
           <View style={styles.pwField}>
             <Text style={styles.pwLabel}>{t('settings.security.two_factor.code', "Verification code")}</Text>
-            <Input value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" />
+            <Input accessibilityLabel={t('settings.security.two_factor.code', "Verification code")} value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" />
           </View>
         )}
 
         <View style={styles.pwField}>
           <Text style={styles.pwLabel}>{t('settings.security.password.new', "New password")}</Text>
           <View style={styles.pwInputRow}>
-            <Input value={newPwd} onChangeText={setNewPwd} secureTextEntry={!showNew} autoCapitalize="none" containerStyle={{ flex: 1 }} />
+            <Input accessibilityLabel={t('settings.security.password.new', "New password")} value={newPwd} onChangeText={setNewPwd} secureTextEntry={!showNew} autoCapitalize="none" containerStyle={{ flex: 1 }} />
             <Pressable style={styles.eyeBtn} onPress={() => setShowNew((v) => !v)} accessibilityRole="button" accessibilityLabel={t('settings.security.password.toggle_visibility', "Show or hide password")}>
               {showNew ? <EyeOff size={16} color={c.mutedForeground} /> : <Eye size={16} color={c.mutedForeground} />}
             </Pressable>
@@ -204,7 +204,7 @@ function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
 
         <View style={styles.pwField}>
           <Text style={styles.pwLabel}>{t('settings.security.password.confirm', "Confirm password")}</Text>
-          <Input value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry={!showNew} autoCapitalize="none" />
+          <Input accessibilityLabel={t('settings.security.password.confirm', "Confirm password")} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry={!showNew} autoCapitalize="none" />
         </View>
 
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -252,7 +252,7 @@ function DisplayNameSection({ initial, onSaved }: { initial: string; onSaved: (n
   return (
     <SettingItem label={t('settings.security.display_name.label', "Display name")} description={t('settings.security.display_name.description', "The name shown on this account.")}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Input value={name} onChangeText={setName} placeholder={t('settings.security.display_name.label', "Display name")} containerStyle={{ width: 150 }} />
+        <Input accessibilityLabel={t('settings.security.display_name.label', "Display name")} value={name} onChangeText={setName} placeholder={t('settings.security.display_name.label', "Display name")} containerStyle={{ width: 150 }} />
         <Button size="sm" loading={saving} disabled={saving || name === initial} onPress={() => { void save(); }}>
           {saved ? <Check size={14} color={c.primaryForeground} /> : t('common.save', "Save")}
         </Button>
@@ -356,11 +356,11 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
           </View>
           <View>
             <Text style={styles.pwLabel}>{t('settings.security.password.current', "Current password")}</Text>
-            <Input value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+            <Input accessibilityLabel={t('settings.security.password.current', "Current password")} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
           </View>
           <View>
             <Text style={styles.pwLabel}>{t('settings.security.two_factor.code', "Verification code")}</Text>
-            <Input value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} />
+            <Input accessibilityLabel={t('settings.security.two_factor.code', "Verification code")} value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} />
           </View>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <View style={styles.rowGap}>
@@ -375,8 +375,8 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
       {disableOpen && (
         <View style={styles.panel}>
           <Text style={styles.panelHint}>{t('settings.security.two_factor.disable_hint_code', "Enter your password and a code from your authenticator app to turn off two-factor authentication.")}</Text>
-          <Input value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" placeholder={t('settings.security.password.current', "Current password")} />
-          <Input value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" placeholder={t('settings.security.two_factor.code', "Verification code")} />
+          <Input accessibilityLabel={t('settings.security.password.current', "Current password")} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" placeholder={t('settings.security.password.current', "Current password")} />
+          <Input accessibilityLabel={t('settings.security.two_factor.code', "Verification code")} value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" placeholder={t('settings.security.two_factor.code', "Verification code")} />
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <View style={styles.rowGap}>
             <Button variant="destructive" size="sm" loading={saving} disabled={saving || !password || !otpCode.trim()} onPress={() => { void confirmDisable(); }}>
@@ -488,7 +488,7 @@ function CredentialSection({ icon: Icon, title, description, nameLabel, namePlac
         <View style={styles.panel}>
           <View>
             <Text style={styles.pwLabel}>{nameLabel}</Text>
-            <Input value={name} onChangeText={setName} placeholder={namePlaceholder} />
+            <Input accessibilityLabel={nameLabel} value={name} onChangeText={setName} placeholder={namePlaceholder} />
           </View>
           <View>
             <Text style={styles.pwLabel}>{t('settings.security.credentials.expires', "Expires (optional)")}</Text>
@@ -508,7 +508,7 @@ function CredentialSection({ icon: Icon, title, description, nameLabel, namePlac
           </View>
           <View>
             <Text style={styles.pwLabel}>{t('settings.security.credentials.allowed_ips', "Allowed IPs (optional)")}</Text>
-            <Input value={allowedIpsRaw} onChangeText={setAllowedIpsRaw} placeholder="1.2.3.4, 10.0.0.0/8" autoCapitalize="none" />
+            <Input accessibilityLabel={t('settings.security.credentials.allowed_ips', "Allowed IPs (optional)")} value={allowedIpsRaw} onChangeText={setAllowedIpsRaw} placeholder="1.2.3.4, 10.0.0.0/8" autoCapitalize="none" />
             <Text style={styles.fieldHint}>{t('settings.security.credentials.allowed_ips_hint', "Comma or space separated. Leave empty to allow any IP.")}</Text>
           </View>
           <View style={styles.rowGap}>
@@ -656,11 +656,11 @@ function PublicKeysSection({
         <View style={styles.panel}>
           <View>
             <Text style={styles.pwLabel}>{t('settings.security.public_keys.name_label', 'Public Key name')}</Text>
-            <Input value={name} onChangeText={setName} placeholder={t('settings.security.public_keys.name_placeholder', 'e.g. My Key')} />
+            <Input accessibilityLabel={t('settings.security.public_keys.name_label', 'Public Key name')} value={name} onChangeText={setName} placeholder={t('settings.security.public_keys.name_placeholder', 'e.g. My Key')} />
           </View>
           <View>
             <Text style={styles.pwLabel}>{t('settings.security.public_keys.key_label', 'Public Key (S/MIME or PGP ASCII-armored)')}</Text>
-            <Input
+            <Input accessibilityLabel={t('settings.security.public_keys.key_label', 'Public Key (S/MIME or PGP ASCII-armored)')}
               value={keyText}
               onChangeText={setKeyText}
               placeholder={t('settings.security.public_keys.key_placeholder', 'Paste your public key here')}

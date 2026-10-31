@@ -246,7 +246,7 @@ export function ReadingSettings() {
             ))}
           </View>
           <View style={styles.addKeywordRow}>
-            <TextInput
+            <TextInput accessibilityLabel={t('settings.email_behavior.attachment_reminder.add_placeholder', "Add keyword...")}
               value={newKeyword}
               onChangeText={setNewKeyword}
               placeholder={t('settings.email_behavior.attachment_reminder.add_placeholder', "Add keyword...")}
