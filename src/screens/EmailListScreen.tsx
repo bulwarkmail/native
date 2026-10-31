@@ -89,6 +89,7 @@ import { resolveFolderRef } from '../lib/folder-ref';
 import type { Attachment, Email } from '../api/types';
 import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/perf-marks';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { searchEverythingPlacement } from '../lib/search-everything-entry';
 
 // The server refuses keywords per message (a read-only shared folder;
 // Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
@@ -1075,6 +1076,11 @@ export default function EmailListScreen({
   // "Search everything": mail, contacts, events and files of every account
   // (webmail global search palette).
   const [globalSearchOpen, setGlobalSearchOpen] = React.useState(false);
+  const openSearchEverything = () => {
+    setSearchFocused(false);
+    searchInputRef.current?.blur();
+    setGlobalSearchOpen(true);
+  };
   React.useEffect(() => {
     // Keep local input in sync when the store is cleared externally
     // (e.g. clearing the search from the chips row).
@@ -1143,6 +1149,8 @@ export default function EmailListScreen({
     (filters.keyword ? 1 : 0) +
     (filters.folder && filters.folder !== 'current' ? 1 : 0);
   const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
+  // In the panel under the focused field, else a chip while a search is on.
+  const searchEverythingAt = searchEverythingPlacement({ searchFocused, hasActiveSearchOrFilter });
 
   // Back first leaves the selection, then the search and filters; only then
   // does it leave the app (it used to exit with a search still open).
@@ -1567,15 +1575,13 @@ export default function EmailListScreen({
       {/* Search bar (always visible; inside the header in a short window) */}
       {!shortHeight && renderSearchBar(false)}
 
-      {searchFocused && (
+      {searchEverythingAt === 'panel' && (
         <View style={styles.recentSearches}>
           <Pressable
-            style={[styles.recentSearchRow, styles.recentSearchMain]}
-            onPress={() => {
-              setSearchFocused(false);
-              searchInputRef.current?.blur();
-              setGlobalSearchOpen(true);
-            }}
+            // Not recentSearchMain: flex 1 in this column left the row's
+            // height out, and the chips below were drawn over it.
+            style={styles.searchEverythingRow}
+            onPress={openSearchEverything}
             accessibilityRole="button"
             testID="search-everything"
           >
@@ -1629,6 +1635,13 @@ export default function EmailListScreen({
 
       {hasActiveSearchOrFilter && (
         <View style={styles.filterChipsRow}>
+          {searchEverythingAt === 'chips' ? (
+            <FilterChip
+              icon={<Globe size={12} color={c.textSecondary} />}
+              label={t('global_search.title', 'Search everything')}
+              onPress={openSearchEverything}
+            />
+          ) : null}
           {storeSearchQuery ? (
             <FilterChip
               icon={<Search size={12} color={c.textSecondary} />}
@@ -2489,6 +2502,7 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
   },
   recentSearches: {
+    flexShrink: 0,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     backgroundColor: c.popover,
@@ -2511,6 +2525,14 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
   },
   recentSearchMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  searchEverythingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    minHeight: 44,
+    flexShrink: 0,
+  },
   recentSearchText: { ...typography.body, color: c.text, flexShrink: 1 },
   emptyFolderBanner: {
     flexDirection: 'row',
