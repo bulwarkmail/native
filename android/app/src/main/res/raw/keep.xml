@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The calendar reminder channel names its sound by resource name from JS
-     (src/lib/calendar-notifications.ts), which the release resource shrinker
-     can't see. -->
+<!-- The calendar reminder channel (src/lib/calendar-notifications.ts) and the
+     mail channel (BulwarkMessagingService.kt) name their sound by resource
+     name, which the release resource shrinker can't see. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
     tools:keep="@raw/involved_notification" />

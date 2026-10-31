@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -49,7 +51,10 @@ class BulwarkMessagingService : FirebaseMessagingService() {
     }
 
     companion object {
-        const val CHANNEL_ID = "bulwark_mail"
+        // Plays the Involved sound; see channelId().
+        const val CHANNEL_ID = "bulwark_mail_involved"
+        // The first mail channel, with the system's default sound.
+        const val LEGACY_CHANNEL_ID = "bulwark_mail"
         private const val TAG = "BulwarkPush"
         private const val START_WAKE_LOCK_MS = 10_000L
 
@@ -103,10 +108,39 @@ class BulwarkMessagingService : FirebaseMessagingService() {
             startWakeLock = null
         }
 
+        /**
+         * The channel new-mail notifications go to. A channel's sound can't
+         * change after it is created, so the Involved sound (the webmail's
+         * default, lib/notification-sound.ts) needs a channel of its own; the
+         * old one stays as the user left it. Someone who turned mail
+         * notifications off in the old channel keeps them off: their
+         * notifications keep going there.
+         */
+        fun channelId(context: Context): String {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return CHANNEL_ID
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val legacy = manager.getNotificationChannel(LEGACY_CHANNEL_ID)
+            return if (legacy != null && legacy.importance == NotificationManager.IMPORTANCE_NONE) {
+                LEGACY_CHANNEL_ID
+            } else {
+                CHANNEL_ID
+            }
+        }
+
+        /** The Involved sound (res/raw, kept from the shrinker by res/raw/keep.xml). */
+        fun soundUri(context: Context): Uri =
+            Uri.parse("android.resource://${context.packageName}/raw/involved_notification")
+
         fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (channelId(context) != CHANNEL_ID) return
             if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+            val sound = soundUri(context)
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Mail notifications",
@@ -114,6 +148,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
             ).apply {
                 description = "Incoming email alerts"
                 enableVibration(true)
+                setSound(sound, attributes)
             }
             manager.createNotificationChannel(channel)
         }

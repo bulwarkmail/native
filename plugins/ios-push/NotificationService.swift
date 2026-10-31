@@ -30,6 +30,10 @@ final class NotificationService: UNNotificationServiceExtension {
       contentHandler(request.content)
       return
     }
+    // The webmail's default new-mail sound. The app bundles the file
+    // (expo-notifications in app.config.js); iOS looks it up in the app's
+    // bundle, so the placeholder plays it too.
+    content.sound = UNNotificationSound(named: UNNotificationSoundName("involved_notification.wav"))
     placeholder = content
     let push = request.content.userInfo["body"] as? [String: Any]
     work = Task { [weak self] in

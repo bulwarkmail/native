@@ -106,8 +106,9 @@ module.exports = {
         },
       ],
       ['./plugins/ios-push', { apsEnvironment: APS_ENVIRONMENT, teamId: APPLE_TEAM_ID }],
-      // Bundles the Involved sound calendar reminders play on iOS
-      // (src/lib/calendar-notifications.ts). Android has it in res/raw.
+      // Bundles the Involved sound calendar reminders (src/lib/calendar-
+      // notifications.ts) and new mail (plugins/ios-push) play on iOS.
+      // Android has it in res/raw.
       [
         'expo-notifications',
         {
