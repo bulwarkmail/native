@@ -54,6 +54,8 @@ interface TimedEventBlockProps {
   /** Position and size in the day column. */
   style: StyleProp<ViewStyle>;
   onPress?: () => void;
+  /** What a screen reader says: title, date, time (see lib/calendar-a11y). */
+  accessibilityLabel?: string;
 }
 
 /** A timed event in a day column. */
@@ -66,11 +68,14 @@ export function TimedEventBlock({
   continuesAfter,
   style,
   onPress,
+  accessibilityLabel,
 }: TimedEventBlockProps) {
   const inactive = colors.border !== null;
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
       style={[
         styles.block,
         corners('vertical', continuesBefore, continuesAfter, EVENT_RADIUS),
@@ -114,6 +119,8 @@ interface AllDayEventBarProps {
   /** Position and size in the all-day strip. */
   style: StyleProp<ViewStyle>;
   onPress?: () => void;
+  /** What a screen reader says: title, date, time (see lib/calendar-a11y). */
+  accessibilityLabel?: string;
 }
 
 /** An all-day or multi-day event in the strip above the grid. */
@@ -124,10 +131,13 @@ export function AllDayEventBar({
   continuesAfter,
   style,
   onPress,
+  accessibilityLabel,
 }: AllDayEventBarProps) {
   const inactive = colors.border !== null;
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
       onPress={onPress}
       style={[
         styles.bar,
