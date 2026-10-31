@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   StyleSheet,
   Text,
@@ -22,7 +23,8 @@ import {
   DEFAULT_RELAY_BASE_URL,
   disablePushForAccount,
   getStoredRelayBaseUrl,
-  isPushEnabledForAccount,
+  isPushActiveForAccount,
+  shouldRecheckPushState,
   isPushSupported,
   isValidRelayUrl,
   listPushDevices,
@@ -118,11 +120,25 @@ export function NotificationSettings() {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
 
+  // Read again when the app comes back to the front: notifications may have
+  // been turned off in the phone's settings meanwhile (webmail #1148).
+  const [recheck, setRecheck] = useState(0);
+  const pushStatusKind = React.useRef(pushStatus.kind);
+  pushStatusKind.current = pushStatus.kind;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && shouldRecheckPushState(pushStatusKind.current)) setRecheck((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const stored = await getStoredRelayBaseUrl();
-      const enabled = activeAccountId ? await isPushEnabledForAccount(activeAccountId) : false;
+      const enabled = activeAccountId ? await isPushActiveForAccount(activeAccountId) : false;
+      // An enable or disable that started meanwhile has the final word.
+      if (!shouldRecheckPushState(pushStatusKind.current)) return;
       if (cancelled) return;
       if (stored) setRelayUrl(stored);
       setPushEnabled(enabled);
@@ -137,7 +153,7 @@ export function NotificationSettings() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAccountId]);
+  }, [activeAccountId, recheck]);
 
   const trimmed = relayUrl.trim().replace(/\/+$/, '');
   const relayValid = isValidRelayUrl(trimmed);

@@ -793,6 +793,31 @@ export async function isPushEnabledForAccount(accountId: string): Promise<boolea
   return (await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null;
 }
 
+/**
+ * Whether push works for the account right now: it is set up, and the
+ * system still lets the app show notifications (they can be turned off in
+ * the phone's settings while the app is in the background). A failed check
+ * reads as off (webmail #1148).
+ */
+export async function isPushActiveForAccount(accountId: string): Promise<boolean> {
+  try {
+    if (!(await isPushEnabledForAccount(accountId))) return false;
+    const permission = await Notifications.getPermissionsAsync();
+    return permission.granted !== false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether Settings > Notifications should read the push state again when
+ * the app comes back: not while an enable or disable runs, nor right after
+ * one failed, which would wipe its message (webmail #1148).
+ */
+export function shouldRecheckPushState(status: 'idle' | 'busy' | 'enabled' | 'error'): boolean {
+  return status !== 'busy' && status !== 'error';
+}
+
 export async function wasPushPromptDismissed(accountId: string): Promise<boolean> {
   return (await AsyncStorage.getItem(promptDismissedKey(accountId))) !== null;
 }
