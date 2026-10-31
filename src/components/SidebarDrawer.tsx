@@ -21,7 +21,8 @@ import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
-import { MAX_ACCOUNTS } from '../lib/account-utils';
+import { MAX_ACCOUNTS, accountRowText } from '../lib/account-utils';
+import { toUnicodeEmail } from '../lib/idn';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
 } from '../lib/mailbox-tree';
@@ -857,9 +858,9 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                 const isActive = acc.id === activeAccountId;
                 let accHost = '';
                 try { accHost = new URL(acc.serverUrl).hostname; } catch { accHost = acc.serverUrl; }
-                const accEmail = acc.email || (acc.username.includes('@')
-                  ? acc.username
-                  : accHost ? `${acc.username}@${accHost}` : acc.username);
+                // The address leads when another account has the same name
+                // (webmail 3bb9f7df8).
+                const rowText = accountRowText(acc, accounts);
                 return (
                   <Pressable
                     key={acc.id}
@@ -893,13 +894,15 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                     <View style={styles.accountMenuInfo}>
                       <View style={styles.accountMenuNameRow}>
                         <Text style={styles.accountMenuName} numberOfLines={1}>
-                          {acc.displayName || acc.username}
+                          {toUnicodeEmail(rowText.title)}
                         </Text>
                         {acc.isDefault && (
                           <Star size={12} color="#f59e0b" fill="#f59e0b" />
                         )}
                       </View>
-                      <Text style={styles.accountMenuHost} numberOfLines={1}>{accEmail}</Text>
+                      {rowText.subtitle ? (
+                        <Text style={styles.accountMenuHost} numberOfLines={1}>{toUnicodeEmail(rowText.subtitle)}</Text>
+                      ) : null}
                       <View style={styles.accountMenuStatusRow}>
                         {acc.hasError ? (
                           <>
