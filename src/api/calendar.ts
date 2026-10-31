@@ -1250,23 +1250,43 @@ export async function createCalendar(
   const accountId = targetAccountId || jmapClient.accountId;
   const props: Record<string, unknown> = { name, color, isVisible: true, isSubscribed: true };
   if (description?.trim()) props.description = description.trim();
+  // Stalwart's create answer never carries the name sent, and 1.0 answers
+  // `color: null` for one it stored. A get in the same request reads the
+  // calendar back with its rights, as the webmail re-reads it. The creation
+  // id stands for the new id: 0.16 refuses a result reference into
+  // `created`, both take `#new-cal`.
   const res = await jmapClient.request(
-    [['Calendar/set', {
-      accountId,
-      create: { 'new-cal': props },
-    }, '0']],
+    [
+      ['Calendar/set', {
+        accountId,
+        create: { 'new-cal': props },
+      }, '0'],
+      ['Calendar/get', {
+        accountId,
+        ids: ['#new-cal'],
+        properties: CALENDAR_PROPERTIES,
+      }, '1'],
+    ],
     USING,
   );
   const result = methodResult<{
     created?: Record<string, Calendar>;
     notCreated?: Record<string, { description?: string; type?: string }>;
-  }>(res);
+  }>(res, '0');
   const created = result.created?.['new-cal'];
   if (!created) {
     const err = result.notCreated?.['new-cal'];
     throw new Error(err?.description || err?.type || 'Failed to create calendar');
   }
-  return created;
+  let stored: Calendar | undefined;
+  try {
+    stored = methodResult<{ list?: Calendar[] }>(res, '1').list?.find((c) => c.id === created.id);
+  } catch {
+    // The calendar exists; what was sent stands in for the read-back.
+  }
+  if (stored) return { ...props, ...created, ...stored } as Calendar;
+  const echoed = Object.fromEntries(Object.entries(created).filter(([, v]) => v !== null));
+  return { ...props, ...echoed } as Calendar;
 }
 
 /**

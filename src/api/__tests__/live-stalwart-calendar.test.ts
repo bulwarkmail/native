@@ -700,6 +700,27 @@ live('live Stalwart calendar', () => {
     }, 60_000);
   });
 
+  describe('a new calendar', () => {
+    let newCalendarId = '';
+
+    afterAll(async () => {
+      if (newCalendarId) {
+        await raw(client, [['Calendar/set', { accountId: client.accountId, destroy: [newCalendarId], onDestroyRemoveEvents: true }, '0']]).catch(() => undefined);
+      }
+    }, 30_000);
+
+    it('has its name, colour and rights in the store right after it is made', async () => {
+      await connectSingleton();
+      await useCalendarStore.getState().fetchCalendars();
+      const made = await useCalendarStore.getState().createCalendar(`${RUN} new`, '#0f766e');
+      newCalendarId = made.id;
+      const inStore = useCalendarStore.getState().calendars.find((c) => c.id === made.id);
+      expect(inStore).toMatchObject({ name: `${RUN} new`, color: '#0f766e' });
+      expect(inStore?.myRights?.mayDelete).toBe(true);
+      expect(inStore?.myRights?.mayWriteAll).toBe(true);
+    }, 30_000);
+  });
+
   describe('a calendar\'s default reminders (#1209)', () => {
     let defaultsCalendarId = '';
     let otherCalendarId = '';
