@@ -10,6 +10,11 @@ import { MAX_ACCOUNTS } from './account-utils';
 export interface LoginErrorCopy {
   title: string;
   detail?: string;
+  /**
+   * `info` for a next step rather than a failure: the server asking for the
+   * two-factor code (webmail #1422). Absent means an error.
+   */
+  tone?: 'error' | 'info';
 }
 
 type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
@@ -123,6 +128,7 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     return {
       title: t('login.mobile.err_totp_title', 'Enter your two-factor code'),
       detail: t('login.mobile.err_totp_detail', 'This account is protected with two-factor sign-in. Type the 6-digit code from your authenticator app.'),
+      tone: 'info',
     };
   }
 
@@ -157,6 +163,7 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     return {
       title: t('login.mobile.err_totp_title', 'Enter your two-factor code'),
       detail: t('login.mobile.err_totp_detail', 'This account is protected with two-factor sign-in. Type the 6-digit code from your authenticator app.'),
+      tone: 'info',
     };
   }
 

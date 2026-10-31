@@ -16,6 +16,14 @@ describe('describeLoginError', () => {
     expect(copy.detail).toMatch(/app password/i);
   });
 
+  it('shows the two-factor prompt as a next step, not as an error (bulwarkmail/webmail#1422)', () => {
+    expect(describeLoginError(named('TotpRequiredError', 'MFA code required')).tone).toBe('info');
+    expect(describeLoginError(named('Error', 'Session discovery failed: 402 Payment Required')).tone).toBe('info');
+    // A wrong code still is one.
+    expect(describeLoginError(named('TotpLoginError', 'Invalid username, password or code')).tone).not.toBe('info');
+    expect(describeLoginError(named('AuthenticationError', 'Invalid credentials')).tone).not.toBe('info');
+  });
+
   it('blames a refused access token on the token, not on a password', () => {
     for (const err of [named('InvalidTokenError', 'Invalid access token'), 'Invalid access token']) {
       const copy = describeLoginError(err);
