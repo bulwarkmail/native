@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { acceptSignInLink, handleDeepLink, parseDeepLink, parseSignInLink, shareToDeepLink } from '../linking';
+import { acceptSignInLink, enterLinkAccount, handleDeepLink, parseDeepLink, parseSignInLink, shareToDeepLink } from '../linking';
+import { usePendingMailFolder } from '../pending-mail-folder';
 import { usePendingSignInLinkStore } from '../pending-sign-in-link';
 import { usePendingSettingsTab } from '../pending-settings-tab';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
@@ -166,6 +167,40 @@ describe('handleDeepLink', () => {
     expect(await handleDeepLink(link!, {
       navigation: navigation as never, resolveThreadId: async () => null, switchAccount: async () => false,
     })).toBe(false);
+  });
+
+  it('starts the stack over on the inbox of the account a link switched to', async () => {
+    const calls: unknown[][] = [];
+    const navigation = {
+      isReady: () => true,
+      navigate: vi.fn((...args: unknown[]) => { calls.push(['navigate', ...args]); }),
+      reset: vi.fn((state: unknown) => { calls.push(['reset', state]); }),
+    };
+    const ok = await handleDeepLink(
+      { kind: 'message', emailId: 'M1', threadId: 'T1', accountId: 'b@example.org@mail' },
+      { navigation: navigation as never, resolveThreadId: async () => null, switchAccount: async () => 'switched' },
+    );
+    expect(ok).toBe(true);
+    // The old account's screens go, the message opens over the new inbox.
+    expect(calls).toEqual([
+      ['reset', { index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Mail' } }] }],
+      ['navigate', 'EmailThread', { emailId: 'M1', threadId: 'T1' }],
+    ]);
+    expect(usePendingMailFolder.getState().consume()).toBe('inbox');
+  });
+
+  it('leaves the stack alone when the link names the active account', async () => {
+    const navigation = { isReady: () => true, navigate: vi.fn(), reset: vi.fn() };
+    await handleDeepLink(
+      { kind: 'message', emailId: 'M1', threadId: 'T1', accountId: 'a@example.org@mail' },
+      { navigation: navigation as never, resolveThreadId: async () => null, switchAccount: async () => true },
+    );
+    expect(navigation.reset).not.toHaveBeenCalled();
+    expect(navigation.navigate).toHaveBeenCalledWith('EmailThread', { emailId: 'M1', threadId: 'T1' });
+    // A notification tap goes the same way (App navigateToNotificationTap).
+    expect(await enterLinkAccount(navigation as never, 'gone@example.org@mail', async () => false)).toBe(false);
+    expect(await enterLinkAccount(navigation as never, undefined, async () => 'switched')).toBe(true);
+    expect(navigation.reset).not.toHaveBeenCalled();
   });
 
   it('parks the settings tab and opens the Settings tab', async () => {
