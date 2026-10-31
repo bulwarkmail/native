@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { multiDayCount } from '../lib/calendar-time-grid';
+import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
   Calendar as CalendarIcon,
   ChevronDown,
@@ -340,7 +340,7 @@ export default function CalendarScreen() {
       const allDay = !!task.showWithoutTime || dateOnly;
       out.push({
         ...task,
-        id: `task:${task.id}`,
+        id: `${TASK_CHIP_ID_PREFIX}${task.id}`,
         start: dateOnly ? `${task.due}T00:00:00` : task.due,
         showWithoutTime: allDay,
         duration: allDay ? 'P1D' : 'PT30M',
@@ -623,8 +623,8 @@ export default function CalendarScreen() {
 
   // Task chips route to the tasks sheet; everything else opens the detail sheet.
   const handleSelectEvent = React.useCallback((event: CalendarEvent) => {
-    if (event.id.startsWith('task:')) {
-      setTasksInitialId(event.id.slice('task:'.length));
+    if (event.id.startsWith(TASK_CHIP_ID_PREFIX)) {
+      setTasksInitialId(event.id.slice(TASK_CHIP_ID_PREFIX.length));
       setTasksVisible(true);
       return;
     }

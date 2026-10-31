@@ -21,13 +21,14 @@ import {
   getEventColor,
   isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
-  packWeekSegments,
   type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllDayToggle } from './AllDayToggle';
+import { packAllDaySegments, shownAllDayRows } from '../../lib/calendar-time-grid';
 
 const HOUR_HEIGHT = 48;
 const GUTTER_WIDTH = 44;
@@ -91,12 +92,16 @@ function WeekViewInner({
       events.filter((e) => !e.showWithoutTime),
       weekDays,
     );
-    return packWeekSegments([...explicit, ...timedFull]);
+    return packAllDaySegments([...explicit, ...timedFull]);
   }, [events, weekDays]);
 
-  const allDayRowCount = React.useMemo(() => {
+  const allDayRows = React.useMemo(() => {
     return allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0);
   }, [allDaySegments]);
+  // Three rows until expanded (webmail #1122).
+  const [allDayExpanded, setAllDayExpanded] = React.useState(false);
+  const allDayRowCount = shownAllDayRows(allDayRows, allDayExpanded);
+  const allDayHiddenRows = allDayRows - shownAllDayRows(allDayRows, false);
 
   const allDayStripHeight =
     allDayRowCount > 0
@@ -181,6 +186,13 @@ function WeekViewInner({
         <View style={[styles.allDayStrip, { height: allDayStripHeight }]}>
           <View style={[styles.gutter, styles.allDayLabelWrap]}>
             <Text style={styles.allDayLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t('calendar.events.all_day', 'All day')}</Text>
+            {allDayHiddenRows > 0 ? (
+              <AllDayToggle
+                hiddenRows={allDayHiddenRows}
+                expanded={allDayExpanded}
+                onToggle={() => setAllDayExpanded((v) => !v)}
+              />
+            ) : null}
           </View>
           <View style={styles.allDayGrid}>
             {/* Empty per-day columns to draw vertical separators */}
@@ -189,7 +201,7 @@ function WeekViewInner({
             ))}
             {/* Segments overlay - multi-day events span their date range */}
             <View style={styles.allDayOverlay} pointerEvents="box-none">
-              {allDaySegments.map((segment) => {
+              {allDaySegments.filter((segment) => segment.row < allDayRowCount).map((segment) => {
                 const leftPct = (segment.startIndex / weekDays.length) * 100;
                 const widthPct = (segment.span / weekDays.length) * 100;
                 return (
