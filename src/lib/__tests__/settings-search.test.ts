@@ -101,6 +101,8 @@ describe('settings search index (English catalog)', () => {
     about: 'AboutSettings.tsx',
     debug: 'TroubleshootingSettings.tsx',
     updates: 'UpdatesSettings.tsx',
+    sharing: 'DelegateSettings.tsx',
+    recovery: 'RecoverDeletedSettings.tsx',
   };
 
   for (const [tab, file] of Object.entries(PANE_FILES) as [SettingsTabId, string][]) {
