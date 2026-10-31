@@ -10,6 +10,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyFeature } from '../../stores/policy-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { useOutboxStore } from '../../stores/outbox-store';
 import { runOfflineSync, formatBytes } from '../../lib/offline-sync';
@@ -29,6 +30,9 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
   const exportSettings = useSettingsStore((s) => s.exportSettings);
   const importSettings = useSettingsStore((s) => s.importSettings);
+  // The organisation can turn settings export and import off (webmail
+  // about-data-settings.tsx).
+  const exportAllowed = usePolicyFeature('settingsExportEnabled');
 
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -229,19 +233,21 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
         title={t('settings.backup.title', 'Settings backup')}
         description={t('settings.backup.description', 'Move your settings to another phone or the webmail.')}
       >
-        <SettingItem
-          label={t('settings.backup.export_import', 'Export or import')}
-          description={t('settings.backup.export_import_desc', 'A JSON file, same format as the webmail')}
-        >
-          <View style={styles.buttonPair}>
-            <Button variant="outline" size="sm" onPress={() => void handleExport()}>
-              {t('settings.advanced.export_settings.button', 'Export')}
-            </Button>
-            <Button variant="outline" size="sm" onPress={() => void handleImport()}>
-              {t('settings.advanced.import_settings.button', 'Import')}
-            </Button>
-          </View>
-        </SettingItem>
+        {exportAllowed && (
+          <SettingItem
+            label={t('settings.backup.export_import', 'Export or import')}
+            description={t('settings.backup.export_import_desc', 'A JSON file, same format as the webmail')}
+          >
+            <View style={styles.buttonPair}>
+              <Button variant="outline" size="sm" onPress={() => void handleExport()}>
+                {t('settings.advanced.export_settings.button', 'Export')}
+              </Button>
+              <Button variant="outline" size="sm" onPress={() => void handleImport()}>
+                {t('settings.advanced.import_settings.button', 'Import')}
+              </Button>
+            </View>
+          </SettingItem>
+        )}
         <SettingItem
           label={t('settings.advanced.reset_settings.label', 'Reset Settings')}
           description={t('settings.backup.reset_desc', 'Back to the defaults; mail stays')}

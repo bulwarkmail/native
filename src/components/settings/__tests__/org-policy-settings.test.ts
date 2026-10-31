@@ -43,4 +43,10 @@ describe('organisation policy on the settings pages', () => {
     expect(page).toMatch(/\{showExternalContent && \(\s*<SettingItem\s+label=\{t\('settings\.email_behavior\.external_content\.label'[\s\S]*?locked=\{externalContentLocked\}/);
     expect(page).toContain("const externalContentLocked = useSettingLocked('externalContentPolicy');");
   });
+
+  it('offers settings export and import only while the organisation allows them', () => {
+    const page = settings('StorageSettings');
+    expect(page).toContain("const exportAllowed = usePolicyFeature('settingsExportEnabled');");
+    expect(page).toMatch(/\{exportAllowed && \(\s*<SettingItem\s+label=\{t\('settings\.backup\.export_import'[\s\S]*?handleExport[\s\S]*?handleImport[\s\S]*?<\/SettingItem>\s*\)\}/);
+  });
 });
