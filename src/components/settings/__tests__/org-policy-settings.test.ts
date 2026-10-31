@@ -26,4 +26,12 @@ describe('organisation policy on the settings pages', () => {
     expect(page).toContain('disabled={themeLocked}');
     expect(page).toContain("{themeLocked && (");
   });
+
+  it('hides the tasks option when the organisation turns tasks off, and marks it locked', () => {
+    const page = settings('CalendarSettings');
+    expect(page).toContain("const tasksAllowed = usePolicyFeature('calendarTasksEnabled');");
+    expect(page).toContain("const tasksLocked = useSettingLocked('enableCalendarTasks');");
+    expect(page).toMatch(/\{tasksAllowed && \(\s*<SettingItem\s+label=\{t\('calendar\.settings\.enable_tasks'[\s\S]*?locked=\{tasksLocked\}/);
+    expect(page).toContain('{tasksAllowed && tasksEnabled && (');
+  });
 });

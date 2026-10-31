@@ -7,6 +7,7 @@ import {
   type TimeFormat,
 } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyFeature, useSettingLocked } from '../../stores/policy-store';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
@@ -49,6 +50,10 @@ export function CalendarSettings() {
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
+  // An organisation can turn tasks off: the option goes, as in the webmail
+  // (calendar-settings.tsx), and the policy pins it off.
+  const tasksAllowed = usePolicyFeature('calendarTasksEnabled');
+  const tasksLocked = useSettingLocked('enableCalendarTasks');
 
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
@@ -185,17 +190,20 @@ export function CalendarSettings() {
           />
         </SettingItem>
 
-        <SettingItem
-          label={t('calendar.settings.enable_tasks', 'Enable tasks')}
-          description={t('calendar.settings.enable_tasks_desc', 'Show a tasks view in the calendar for managing to-dos')}
-        >
-          <ToggleSwitch
-            checked={tasksEnabled}
-            onChange={(v) => update('enableCalendarTasks', v)}
-          />
-        </SettingItem>
+        {tasksAllowed && (
+          <SettingItem
+            label={t('calendar.settings.enable_tasks', 'Enable tasks')}
+            description={t('calendar.settings.enable_tasks_desc', 'Show a tasks view in the calendar for managing to-dos')}
+            locked={tasksLocked}
+          >
+            <ToggleSwitch
+              checked={tasksEnabled}
+              onChange={(v) => update('enableCalendarTasks', v)}
+            />
+          </SettingItem>
+        )}
 
-        {tasksEnabled && (
+        {tasksAllowed && tasksEnabled && (
           <SettingItem
             label={t('calendar.settings.show_tasks_on_calendar', 'Show tasks on calendar')}
             description={t(
