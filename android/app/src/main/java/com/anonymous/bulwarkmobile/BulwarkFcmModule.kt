@@ -77,6 +77,10 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val markReadLabel = options.takeIf { it.hasKey("markReadLabel") }?.getString("markReadLabel") ?: "Mark as read"
         val deleteLabel = options.takeIf { it.hasKey("deleteLabel") }?.getString("deleteLabel") ?: "Delete"
         val replyLabel = options.takeIf { it.hasKey("replyLabel") }?.getString("replyLabel") ?: "Reply"
+        // Delete moves the mail to Trash where there is one: no unlock needed
+        // for that (#85). Without a Trash it destroys the mail, so it asks.
+        // Unlock stays the default for a caller that doesn't say.
+        val deleteNeedsUnlock = !options.hasKey("deleteNeedsUnlock") || options.getBoolean("deleteNeedsUnlock")
 
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
         // block waiting for the favicon request.
@@ -86,7 +90,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             postNotification(
                 notificationId, title, body, preview, largeIcon, bgColorHex,
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
-                groupTitle, markReadLabel, deleteLabel, replyLabel,
+                groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
             )
             if (groupKey != null) postGroupSummary(groupKey, groupTitle, bgColorHex, accountId)
             promise.resolve(null)
@@ -122,6 +126,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         markReadLabel: String,
         deleteLabel: String,
         replyLabel: String,
+        deleteNeedsUnlock: Boolean,
     ) {
         val ctx = reactApplicationContext
         val intent = Intent(ctx, MainActivity::class.java).apply {
@@ -209,8 +214,8 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             )
             builder.addAction(
                 NotificationCompat.Action.Builder(0, deleteLabel, deletePending)
-                    // Android 12+: unlock first, so a locked phone can't delete mail.
-                    .setAuthenticationRequired(true)
+                    // Android 12+: unlock first, so a locked phone can't destroy mail.
+                    .setAuthenticationRequired(deleteNeedsUnlock)
                     .build()
             )
 
