@@ -7,7 +7,7 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe, MoreVertical,
 } from '../components/icons';
 import { GlobalSearchSheet } from '../components/search/GlobalSearchSheet';
 import { ActionSheet } from '../components/email/ActionSheet';
@@ -90,6 +90,7 @@ import type { Attachment, Email } from '../api/types';
 import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/perf-marks';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { searchEverythingPlacement } from '../lib/search-everything-entry';
+import { fitToolbarActions } from '../lib/selection-toolbar';
 
 // The server refuses keywords per message (a read-only shared folder;
 // Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
@@ -740,6 +741,9 @@ export default function EmailListScreen({
   // Batch (multi-select) sheets.
   const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  // The selection toolbar's width and its "More" menu (see fitToolbarActions).
+  const [selectionBarWidth, setSelectionBarWidth] = React.useState<number | null>(null);
+  const [selectionMoreOpen, setSelectionMoreOpen] = React.useState(false);
   // The sheet's changes share one Undo, shown once it closes.
   const tagUndoGroup = useTagUndoGroup(tagSheetOpen);
 
@@ -1341,6 +1345,69 @@ export default function EmailListScreen({
     }
   }, [mailboxes, currentMailboxId, selectMailbox]);
 
+  // The selection toolbar's actions, in bar order. What doesn't fit the
+  // list column goes into a "More" menu, the least used first.
+  type SelectionAction = 'star' | 'read' | 'tag' | 'move' | 'spam' | 'archive' | 'delete';
+  const selectionActions: Array<{ key: SelectionAction; label: string; icon: React.ReactNode; onPress: () => void }> = [
+    {
+      key: 'star',
+      label: allSelectedAreStarred ? t('context_menu.unstar', 'Unstar') : t('context_menu.star', 'Star'),
+      icon: (
+        <Star
+          size={20}
+          color={allSelectedAreStarred ? c.starred : c.text}
+          fill={allSelectedAreStarred ? c.starred : 'transparent'}
+        />
+      ),
+      onPress: () => reportFailure(handleBulkStar()),
+    },
+    {
+      key: 'read',
+      label: allSelectedAreRead
+        ? t('email_list.batch_actions.mark_unread', 'Mark as unread')
+        : t('email_list.batch_actions.mark_read', 'Mark as read'),
+      icon: allSelectedAreRead ? <MailIcon size={20} color={c.text} /> : <MailOpen size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkMarkReadToggle()),
+    },
+    {
+      key: 'tag',
+      label: t('context_menu.tag', 'Tag'),
+      icon: <Tag size={20} color={c.text} />,
+      onPress: () => setTagSheetOpen(true),
+    },
+    {
+      key: 'move',
+      label: t('email_viewer.move', 'Move'),
+      icon: <FolderInput size={20} color={c.text} />,
+      onPress: () => setBatchMoveOpen(true),
+    },
+    ...(canSpamSelection ? [{
+      key: 'spam' as const,
+      label: inJunk ? t('context_menu.not_spam', 'Not spam') : t('context_menu.mark_as_spam', 'Report spam'),
+      icon: inJunk ? <ShieldCheck size={20} color={c.text} /> : <ShieldAlert size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkSpam()),
+    }] : []),
+    ...(canArchiveSelection ? [{
+      key: 'archive' as const,
+      label: t('context_menu.archive', 'Archive'),
+      icon: <Archive size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkArchive()),
+    }] : []),
+    {
+      key: 'delete',
+      label: t('email_list.batch_actions.delete', 'Delete'),
+      icon: <Trash2 size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkDelete()),
+    },
+  ];
+  const toolbarFit = fitToolbarActions(selectionActions.map((a) => a.key), {
+    width: selectionBarWidth,
+    // Padding (sm each side), the close button and the count (min 24 + xs each side).
+    reserved: spacing.sm * 2 + componentSizes.buttonLg + 24 + spacing.xs * 2,
+    button: componentSizes.buttonLg,
+    overflowOrder: ['spam', 'tag', 'star', 'read', 'move', 'archive', 'delete'],
+  });
+
   const renderSearchBar = (inHeader: boolean) => (
     <View style={[styles.searchBar, inHeader && styles.searchBarInHeader]}>
       <Pressable
@@ -1431,7 +1498,11 @@ export default function EmailListScreen({
       {selectionMode ? (
         // Keyed apart from the normal header: reused in place, its title
         // kept the "1 email selected" label for screen readers.
-        <View key="selection-header" style={[styles.header, styles.selectionHeader]}>
+        <View
+          key="selection-header"
+          style={[styles.header, styles.selectionHeader]}
+          onLayout={(e) => setSelectionBarWidth(e.nativeEvent.layout.width)}
+        >
           <Pressable
             onPress={clearSelection}
             style={styles.headerButton}
@@ -1449,87 +1520,32 @@ export default function EmailListScreen({
           >
             {selectionCountOnly ? String(selectedIds.size) : selectedLabel}
           </Text>
-          <Pressable
-            onPress={() => reportFailure(handleBulkStar())}
-            style={styles.headerButton}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={allSelectedAreStarred ? t('context_menu.unstar', 'Unstar') : t('context_menu.star', 'Star')}
-          >
-            <Star
-              size={20}
-              color={allSelectedAreStarred ? c.starred : c.text}
-              fill={allSelectedAreStarred ? c.starred : 'transparent'}
-            />
-          </Pressable>
-          <Pressable
-            onPress={() => reportFailure(handleBulkMarkReadToggle())}
-            style={styles.headerButton}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={allSelectedAreRead
-              ? t('email_list.batch_actions.mark_unread', 'Mark as unread')
-              : t('email_list.batch_actions.mark_read', 'Mark as read')}
-          >
-            {allSelectedAreRead ? (
-              <MailIcon size={20} color={c.text} />
-            ) : (
-              <MailOpen size={20} color={c.text} />
-            )}
-          </Pressable>
-          <Pressable
-            onPress={() => setTagSheetOpen(true)}
-            style={styles.headerButton}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={t('context_menu.tag', 'Tag')}
-          >
-            <Tag size={20} color={c.text} />
-          </Pressable>
-          <Pressable
-            onPress={() => setBatchMoveOpen(true)}
-            style={styles.headerButton}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={t('email_viewer.move', 'Move')}
-          >
-            <FolderInput size={20} color={c.text} />
-          </Pressable>
-          {canSpamSelection && (
+          {toolbarFit.visible.map((key) => {
+            const action = selectionActions.find((a) => a.key === key)!;
+            return (
+              <Pressable
+                key={key}
+                onPress={action.onPress}
+                style={styles.headerButton}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+              >
+                {action.icon}
+              </Pressable>
+            );
+          })}
+          {toolbarFit.overflow.length > 0 ? (
             <Pressable
-              onPress={() => reportFailure(handleBulkSpam())}
+              onPress={() => setSelectionMoreOpen(true)}
               style={styles.headerButton}
               hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel={inJunk ? t('context_menu.not_spam', 'Not spam') : t('context_menu.mark_as_spam', 'Report spam')}
+              accessibilityLabel={t('email_list.batch_actions.more', 'More actions')}
             >
-              {inJunk ? (
-                <ShieldCheck size={20} color={c.text} />
-              ) : (
-                <ShieldAlert size={20} color={c.text} />
-              )}
+              <MoreVertical size={20} color={c.text} />
             </Pressable>
-          )}
-          {canArchiveSelection && (
-            <Pressable
-              onPress={() => reportFailure(handleBulkArchive())}
-              style={styles.headerButton}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel={t('context_menu.archive', 'Archive')}
-            >
-              <Archive size={20} color={c.text} />
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => reportFailure(handleBulkDelete())}
-            style={styles.headerButton}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={t('email_list.batch_actions.delete', 'Delete')}
-          >
-            <Trash2 size={20} color={c.text} />
-          </Pressable>
+          ) : null}
         </View>
       ) : (
         <View key="header" style={styles.header}>
@@ -2234,6 +2250,26 @@ export default function EmailListScreen({
         }}
       />
 
+      <ActionSheet
+        visible={selectionMoreOpen && selectionMode && toolbarFit.overflow.length > 0}
+        title={selectedLabel}
+        onClose={() => setSelectionMoreOpen(false)}
+        items={toolbarFit.overflow.map((key) => {
+          const action = selectionActions.find((a) => a.key === key)!;
+          return {
+            key,
+            label: action.label,
+            icon: action.icon,
+            destructive: key === 'delete',
+            onPress: () => {
+              setSelectionMoreOpen(false);
+              // A sheet opened from here waits for this one to go (iOS
+              // drops a Modal shown while another is dismissing).
+              setTimeout(action.onPress, Platform.OS === 'ios' ? 350 : 0);
+            },
+          };
+        })}
+      />
       <ActionSheet
         visible={sortMenuOpen}
         title={t('email_list.sort.title', 'Sort')}
