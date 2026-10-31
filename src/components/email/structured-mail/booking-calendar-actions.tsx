@@ -13,8 +13,7 @@ import type { RootStackParamList } from '../../../navigation/types';
 import { useLocaleStore } from '../../../stores/locale-store';
 import { useColors } from '../../../theme/colors';
 import { radius, spacing, typography, type ThemePalette } from '../../../theme/tokens';
-import { ArrowRight, CalendarDays, CalendarPlus, ChevronDown } from '../../icons';
-import { CalendarCheck, CalendarX } from './icons';
+import { ArrowRight, CalendarCheck, CalendarDays, CalendarPlus, CalendarX, ChevronDown } from '../../icons';
 import { useBookingCalendar } from './use-booking-calendar';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;

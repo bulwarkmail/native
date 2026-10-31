@@ -325,6 +325,37 @@ describe('pushBackgroundTask notifications', () => {
     }));
   });
 
+  it('drops a leading style sheet from the notification preview (webmail #1136)', async () => {
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => (url.endsWith('/.well-known/jmap')
+        ? {
+          apiUrl: 'https://mail.example.com/jmap/',
+          primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+          accounts: { 'jmap-primary': {} },
+        }
+        : {
+          methodResponses: [[
+            'Email/get',
+            { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Sale', preview: '@media screen and (min-width:600px){.hide{display:none!important}} Our autumn sale\nstarts today', from: [{ name: 'Shop', email: 'news@shop.example' }] }] },
+            '0',
+          ]],
+        }),
+    }));
+
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'jmap-primary',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({
+      emailId: 'm1',
+      preview: 'Our autumn sale starts today',
+    }));
+  });
+
   it('handles markRead action via detached JMAP', async () => {
     const postCalls: any[] = [];
     (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: any) => {
@@ -759,9 +790,12 @@ describe('senderFaviconsAllowed', () => {
     expect(await senderFaviconsAllowed()).toBe(true);
   });
 
-  it('defaults to on like the store, but skips icons when the settings are unreadable', async () => {
+  it('defaults to off like the store, and skips icons when the settings are unreadable', async () => {
     await AsyncStorage.removeItem(KEY);
-    expect(await senderFaviconsAllowed()).toBe(true);
+    expect(await senderFaviconsAllowed()).toBe(false);
+    // Settings saved before the key existed: the store fills in its default (off).
+    await AsyncStorage.setItem(KEY, JSON.stringify({ emailNotificationsEnabled: true }));
+    expect(await senderFaviconsAllowed()).toBe(false);
     await AsyncStorage.setItem(KEY, '{not json');
     expect(await senderFaviconsAllowed()).toBe(false);
     await AsyncStorage.removeItem(KEY);

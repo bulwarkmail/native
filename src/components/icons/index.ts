@@ -29,6 +29,7 @@ const G = {
   'arrows-vertical': ["M8 7l4 -4l4 4","M8 17l4 4l4 -4","M12 3l0 18"],
   'ban': ["M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0","M5.7 5.7l12.6 12.6"],
   'beach': ["M17.553 16.75a7.5 7.5 0 0 0 -10.606 0","M18 3.804a6 6 0 0 0 -8.196 2.196l10.392 6a6 6 0 0 0 -2.196 -8.196","M16.732 10c1.658 -2.87 2.225 -5.644 1.268 -6.196c-.957 -.552 -3.075 1.326 -4.732 4.196","M15 9l-3 5.196","M3 19.25a2.4 2.4 0 0 1 1 -.25a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 1 .25"],
+  'bed': ["M5 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M22 17v-3h-20","M2 8v9","M12 14h10v-2a3 3 0 0 0 -3 -3h-7v5"],
   'bell': ["M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6","M9 17v1a3 3 0 0 0 6 0v-1"],
   'bell-off': ["M9.346 5.353c.21 -.129 .428 -.246 .654 -.353a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3m-1 3h-13a4 4 0 0 0 2 -3v-3a6.996 6.996 0 0 1 1.273 -3.707","M9 17v1a3 3 0 0 0 6 0v-1","M3 3l18 18"],
   'bell-ringing': ["M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6","M9 17v1a3 3 0 0 0 6 0v-1","M21 6.727a11.05 11.05 0 0 0 -2.794 -3.727","M3 6.727a11.05 11.05 0 0 1 2.792 -3.727"],
@@ -37,11 +38,15 @@ const G = {
   'book-2': ["M19 4v16h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12","M19 16h-12a2 2 0 0 0 -2 2","M9 8h6"],
   'bug': ["M9 9v-1a3 3 0 0 1 6 0v1","M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3","M3 13l4 0","M17 13l4 0","M12 20l0 -6","M4 19l3.35 -2","M20 19l-3.35 -2","M4 7l3.75 2.4","M20 7l-3.75 2.4"],
   'building': ["M3 21l18 0","M9 8l1 0","M9 12l1 0","M9 16l1 0","M14 8l1 0","M14 12l1 0","M14 16l1 0","M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16"],
+  'bus': ["M4 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M16 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M4 17h-2v-11a1 1 0 0 1 1 -1h14a5 7 0 0 1 5 7v5h-2m-4 0h-8","M16 5l1.5 7l4.5 0","M2 10l15 0","M7 5l0 5","M12 5l0 5"],
   'cake': ["M3 20h18v-8a3 3 0 0 0 -3 -3h-12a3 3 0 0 0 -3 3v8","M3 14.803c.312 .135 .654 .204 1 .197a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1c.35 .007 .692 -.062 1 -.197","M12 4l1.465 1.638a2 2 0 1 1 -3.015 .099l1.55 -1.737"],
   'calendar': ["M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12","M16 3v4","M8 3v4","M4 11h16","M11 15h1","M12 15v3"],
+  'calendar-check': ["M11.5 21h-5.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6","M16 3v4","M8 3v4","M4 11h16","M15 19l2 2l4 -4"],
   'calendar-month': ["M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12","M16 3v4","M8 3v4","M4 11h16","M8 14v4","M12 14v4","M16 14v4"],
   'calendar-plus': ["M12.5 21h-6.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v5","M16 3v4","M8 3v4","M4 11h16","M16 19h6","M19 16v6"],
+  'calendar-x': ["M13 21h-7a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6.5","M16 3v4","M8 3v4","M4 11h16","M22 22l-5 -5","M17 22l5 -5"],
   'camera': ["M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2","M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"],
+  'car': ["M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M5 17h-2v-6l2 -5h9l4 5h1a2 2 0 0 1 2 2v4h-2m-4 0h-6m-6 -6h15m-6 0v-5"],
   'check': ["M5 12l5 5l10 -10"],
   'checks': ["M7 12l5 5l10 -10","M2 12l5 5m5 -5l5 -5"],
   'chevron-down': ["M6 9l6 6l6 -6"],
@@ -121,6 +126,7 @@ const G = {
   'minus': ["M5 12l14 0"],
   'moon': ["M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"],
   'note': ["M13 20l7 -7","M13 20v-6a1 1 0 0 1 1 -1h6v-7a2 2 0 0 0 -2 -2h-12a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7"],
+  'package': ["M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5","M12 12l8 -4.5","M12 12l0 9","M12 12l-8 -4.5","M16 5.25l-8 4.5"],
   'palette': ["M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25","M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0","M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0","M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"],
   'paperclip': ["M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5"],
   'pencil': ["M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4","M13.5 6.5l4 4"],
@@ -128,6 +134,7 @@ const G = {
   'photo': ["M15 8h.01","M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12","M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5","M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"],
   'pinned': ["M9 4v6l-2 4v2h10v-2l-2 -4v-6","M12 16l0 5","M8 4l8 0"],
   'pinned-off': ["M9 4v1","M9 9v1l-2 4v2h9","M16 12l-1 -2v-6","M12 16v5","M8 4h8","M3 3l18 18"],
+  'plane': ["M16 10h4a2 2 0 0 1 0 4h-4l-4 7h-3l2 -7h-4l-2 2h-3l2 -4l-2 -4h3l2 2h4l-2 -7h3l4 7"],
   'plus': ["M12 5l0 14","M5 12l14 0"],
   'puzzle': ["M4 7h3a1 1 0 0 0 1 -1v-1a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h3a1 1 0 0 1 1 1v3a1 1 0 0 0 1 1h1a2 2 0 0 1 0 4h-1a1 1 0 0 0 -1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-1a2 2 0 0 0 -4 0v1a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h1a2 2 0 0 0 0 -4h-1a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1"],
   'qrcode': ["M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4","M7 17l0 .01","M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4","M7 7l0 .01","M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4","M17 7l0 .01","M14 14l3 0","M20 14l0 .01","M14 14l0 3","M14 20l3 0","M17 17l3 0","M20 17l0 3"],
@@ -147,6 +154,7 @@ const G = {
   'shield-check': ["M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06","M15 19l2 2l4 -4"],
   'shield-exclamation': ["M15.04 19.745c-.942 .551 -1.964 .976 -3.04 1.255a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 .195 6.015","M19 16v3","M19 22v.01"],
   'shield-question': ["M15.065 19.732c-.95 .557 -1.98 .986 -3.065 1.268a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3c.51 1.738 .617 3.55 .333 5.303","M19 22v.01","M19 19a2.003 2.003 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483"],
+  'shopping-bag': ["M6.331 8h11.339a2 2 0 0 1 1.977 2.304l-1.255 8.152a3 3 0 0 1 -2.966 2.544h-6.852a3 3 0 0 1 -2.965 -2.544l-1.255 -8.152a2 2 0 0 1 1.977 -2.304","M9 11v-5a3 3 0 0 1 6 0v5"],
   'sort-ascending': ["M4 6l7 0","M4 12l7 0","M4 18l9 0","M15 9l3 -3l3 3","M18 6l0 12"],
   'sort-descending': ["M4 6l9 0","M4 12l7 0","M4 18l7 0","M15 15l3 3l3 -3","M18 6l0 12"],
   'square': ["M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14"],
@@ -160,7 +168,11 @@ const G = {
   'tags': ["M3 8v4.172a2 2 0 0 0 .586 1.414l5.71 5.71a2.41 2.41 0 0 0 3.408 0l3.592 -3.592a2.41 2.41 0 0 0 0 -3.408l-5.71 -5.71a2 2 0 0 0 -1.414 -.586h-4.172a2 2 0 0 0 -2 2","M18 19l1.592 -1.592a4.82 4.82 0 0 0 0 -6.816l-4.592 -4.592","M7 10h-.01"],
   'template': ["M4 5a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1l0 -2","M4 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6","M14 12l6 0","M14 16l6 0","M14 20l6 0"],
   'terminal': ["M5 7l5 5l-5 5","M12 19l7 0"],
+  'ticket': ["M15 5l0 2","M15 11l0 2","M15 17l0 2","M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"],
+  'tools-kitchen-2': ["M19 3v12h-5c-.023 -3.681 .184 -7.406 5 -12m0 12v6h-1v-3m-10 -14v17m-3 -17v3a3 3 0 1 0 6 0v-3"],
+  'train': ["M21 13c0 -3.87 -3.37 -7 -10 -7h-8","M3 15h16a2 2 0 0 0 2 -2","M3 6v5h17.5","M3 11v4","M8 11v-5","M13 11v-4.5","M3 19h18"],
   'trash': ["M4 7l16 0","M10 11l0 6","M14 11l0 6","M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12","M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"],
+  'truck': ["M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"],
   'typography': ["M4 20l3 0","M14 20l7 0","M6.9 15l6.9 0","M10.2 6.3l5.8 13.7","M5 20l6 -16l2 0l7 16"],
   'underline': ["M7 5v5a5 5 0 0 0 10 0v-5","M5 19h14"],
   'unlink': ["M17 22v-2","M9 15l6 -6","M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464","M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463","M20 17h2","M2 7h2","M7 2v2"],
@@ -193,6 +205,7 @@ export const ArrowUp = makeIcon('ArrowUp', G['arrow-up']);
 export const ArrowUpDown = makeIcon('ArrowUpDown', G['arrows-sort']);
 export const ArrowUpNarrowWide = makeIcon('ArrowUpNarrowWide', G['sort-ascending']);
 export const Ban = makeIcon('Ban', G['ban']);
+export const Bed = makeIcon('Bed', G['bed']);
 export const Bell = makeIcon('Bell', G['bell']);
 export const BellOff = makeIcon('BellOff', G['bell-off']);
 export const BellRing = makeIcon('BellRing', G['bell-ringing']);
@@ -202,11 +215,15 @@ export const BookOpen = makeIcon('BookOpen', G['book']);
 export const BookUser = makeIcon('BookUser', G['address-book']);
 export const Bug = makeIcon('Bug', G['bug']);
 export const Building = makeIcon('Building', G['building']);
+export const Bus = makeIcon('Bus', G['bus']);
 export const Cake = makeIcon('Cake', G['cake']);
 export const Calendar = makeIcon('Calendar', G['calendar']);
+export const CalendarCheck = makeIcon('CalendarCheck', G['calendar-check']);
 export const CalendarDays = makeIcon('CalendarDays', G['calendar-month']);
 export const CalendarPlus = makeIcon('CalendarPlus', G['calendar-plus']);
+export const CalendarX = makeIcon('CalendarX', G['calendar-x']);
 export const Camera = makeIcon('Camera', G['camera']);
+export const Car = makeIcon('Car', G['car']);
 export const Check = makeIcon('Check', G['check']);
 export const CheckCheck = makeIcon('CheckCheck', G['checks']);
 export const CheckCircle = makeIcon('CheckCircle', G['circle-check']);
@@ -295,6 +312,7 @@ export const Moon = makeIcon('Moon', G['moon']);
 export const MoreHorizontal = makeIcon('MoreHorizontal', G['dots']);
 export const MoreVertical = makeIcon('MoreVertical', G['dots-vertical']);
 export const MoveVertical = makeIcon('MoveVertical', G['arrows-vertical']);
+export const Package = makeIcon('Package', G['package']);
 export const Palette = makeIcon('Palette', G['palette']);
 export const Palmtree = makeIcon('Palmtree', G['beach']);
 export const PanelLeftClose = makeIcon('PanelLeftClose', G['layout-sidebar-left-collapse']);
@@ -306,6 +324,7 @@ export const Pencil = makeIcon('Pencil', G['pencil']);
 export const Phone = makeIcon('Phone', G['phone']);
 export const Pin = makeIcon('Pin', G['pinned']);
 export const PinOff = makeIcon('PinOff', G['pinned-off']);
+export const Plane = makeIcon('Plane', G['plane']);
 export const Plus = makeIcon('Plus', G['plus']);
 export const Puzzle = makeIcon('Puzzle', G['puzzle']);
 export const QrCode = makeIcon('QrCode', G['qrcode']);
@@ -316,6 +335,7 @@ export const RemoveFormatting = makeIcon('RemoveFormatting', G['clear-formatting
 export const Repeat = makeIcon('Repeat', G['repeat']);
 export const Reply = makeIcon('Reply', G['arrow-back-up']);
 export const ReplyAll = makeIcon('ReplyAll', G['arrow-back-up-double']);
+export const Restaurant = makeIcon('Restaurant', G['tools-kitchen-2']);
 export const RotateCcw = makeIcon('RotateCcw', G['rotate']);
 export const Rows2 = makeIcon('Rows2', G['layout-rows']);
 export const Rss = makeIcon('Rss', G['rss']);
@@ -331,6 +351,7 @@ export const Shield = makeIcon('Shield', G['shield']);
 export const ShieldAlert = makeIcon('ShieldAlert', G['shield-exclamation']);
 export const ShieldCheck = makeIcon('ShieldCheck', G['shield-check']);
 export const ShieldQuestion = makeIcon('ShieldQuestion', G['shield-question']);
+export const ShoppingBag = makeIcon('ShoppingBag', G['shopping-bag']);
 export const Shuffle = makeIcon('Shuffle', G['arrows-shuffle']);
 export const Smartphone = makeIcon('Smartphone', G['device-mobile']);
 export const Square = makeIcon('Square', G['square']);
@@ -344,8 +365,11 @@ export const Table = makeIcon('Table', G['table']);
 export const Tag = makeIcon('Tag', G['tag']);
 export const Tags = makeIcon('Tags', G['tags']);
 export const Terminal = makeIcon('Terminal', G['terminal']);
+export const Ticket = makeIcon('Ticket', G['ticket']);
+export const Train = makeIcon('Train', G['train']);
 export const Trash = makeIcon('Trash', G['trash']);
 export const Trash2 = makeIcon('Trash2', G['trash']);
+export const Truck = makeIcon('Truck', G['truck']);
 export const Type = makeIcon('Type', G['typography']);
 export const Underline = makeIcon('Underline', G['underline']);
 export const Undo2 = makeIcon('Undo2', G['arrow-back']);

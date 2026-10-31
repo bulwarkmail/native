@@ -13,6 +13,7 @@ import {
   getFaviconUrl,
 } from './avatar-utils';
 import { singleLine } from './single-line';
+import { cleanPreview } from './preview-text';
 import {
   lastNotifiedKey,
   migrateLegacyPushKeys,
@@ -67,13 +68,14 @@ async function emailNotificationsAllowed(): Promise<boolean> {
 
 // The "Sender Favicons" setting covers notification icons as well as the
 // in-app avatars: with it off the tray shows initials, and the sender's domain
-// and the device's IP never reach the icon service. Off when unreadable.
+// and the device's IP never reach the icon service. Off by default, like the
+// store, and off when unreadable.
 export async function senderFaviconsAllowed(): Promise<boolean> {
   try {
     const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return true; // first launch: the store's default is on
+    if (!raw) return false; // first launch: the store's default is off
     const parsed = JSON.parse(raw) as PushPersistedSettings;
-    return parsed.senderFavicons !== false;
+    return parsed.senderFavicons === true;
   } catch {
     return false;
   }
@@ -583,7 +585,8 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const faviconDomain = favicons ? getFaviconDomain(address) : null;
     const iconUrl = faviconDomain ? getFaviconUrl(faviconDomain) : undefined;
 
-    const preview = email.preview ? singleLine(email.preview) : undefined;
+    // No leading style sheet or preheader padding (webmail #1136).
+    const preview = singleLine(cleanPreview(email.preview)) || undefined;
     const markReadLabel = translate(locale, 'email_viewer.mark_read', 'Mark as read');
     const deleteLabel = translate(locale, 'email_viewer.delete', 'Delete');
     const replyLabel = translate(locale, 'email_viewer.reply', 'Reply');

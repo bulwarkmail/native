@@ -12,6 +12,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { discoverKeywords } from '../../api/keyword-discovery';
 import { findUnrecognizedKeywords, type UnrecognizedKeyword } from '../../lib/keyword-discovery';
 import { jmapClient } from '../../api/jmap-client';
+import { deleteKeywordWithUndo } from '../../lib/settings-undo';
 
 type Keyword = KeywordDef;
 
@@ -26,7 +27,6 @@ export function KeywordSettings() {
   const t = useLocaleStore((s) => s.t);
   const addKeyword = useKeywordsStore((s) => s.add);
   const updateKeyword = useKeywordsStore((s) => s.update);
-  const removeKeyword = useKeywordsStore((s) => s.remove);
   const resetDefaults = useKeywordsStore((s) => s.resetDefaults);
   const hydrated = useKeywordsStore((s) => s.hydrated);
   const hydrate = useKeywordsStore((s) => s.hydrate);
@@ -47,17 +47,10 @@ export function KeywordSettings() {
     }
   };
 
-  // Deleting a tag takes it off every message's tag list on this device; ask
-  // first, as the reset next to it does.
-  const deleteKeyword = (id: string, label: string) => {
-    Alert.alert(
-      t('settings.keywords.delete_confirm_title', 'Delete tag "{label}"?', { label }),
-      undefined,
-      [
-        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('settings.keywords.delete', 'Delete tag'), style: 'destructive', onPress: () => removeKeyword(id) },
-      ],
-    );
+  // A tag can be put back as it was, so it goes at once with an Undo
+  // (webmail R3).
+  const deleteKeyword = (id: string) => {
+    deleteKeywordWithUndo(id, t);
   };
 
   // One stray tap used to wipe a carefully built tag list (webmail removed
@@ -130,7 +123,7 @@ export function KeywordSettings() {
                 <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.edit', "Edit tag")}>
                   <Pencil size={14} color={c.mutedForeground} />
                 </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id, kw.label)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete', "Delete tag")}>
+                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete', "Delete tag")}>
                   <Trash2 size={14} color={c.mutedForeground} />
                 </Pressable>
               </View>

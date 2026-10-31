@@ -21,6 +21,7 @@ import { isSmimeEmail } from '../../lib/smime';
 import { resolveEmailTags } from '../../lib/thread-utils';
 import { findVerificationCode, verificationCodeBodyText } from '../../lib/verification-code';
 import { VerificationCodeChip } from './VerificationCodeChip';
+import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
 
 interface Props {
   email: Email;
@@ -109,6 +110,9 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
 
   const info = React.useMemo(() => headerInfo ?? deriveHeaderInfo(email), [headerInfo, email]);
   const from = email.from?.[0];
+  // An address on one of the user's own IDN domains reads as written (#1100).
+  const formatAddress = useOwnDomainAddress();
+  const fromEmail = from?.email ? formatAddress(from.email) : '';
   const starred = !!email.keywords?.$flagged;
   const displayDate = emailDisplayDate(email);
   const spoofed = isAuthenticationSpoofed(info.auth);
@@ -170,7 +174,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           onPress={from ? () => onAddressPress(from) : undefined}
           hitSlop={4}
           accessibilityRole="button"
-          accessibilityLabel={from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
+          accessibilityLabel={from?.name || fromEmail || t('email_viewer.unknown_sender', 'Unknown')}
         >
           <SenderAvatar
             name={from?.name}
@@ -182,10 +186,10 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
         <View style={styles.info}>
           <Pressable onPress={from ? () => onAddressPress(from) : undefined}>
             <Text style={styles.name} numberOfLines={1}>
-              {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
+              {from?.name || fromEmail || t('email_viewer.unknown_sender', 'Unknown')}
             </Text>
-            {from?.name && from?.email ? (
-              <Text style={styles.email} numberOfLines={1}>{from.email}</Text>
+            {from?.name && fromEmail ? (
+              <Text style={styles.email} numberOfLines={1}>{fromEmail}</Text>
             ) : null}
           </Pressable>
           {verificationText && (

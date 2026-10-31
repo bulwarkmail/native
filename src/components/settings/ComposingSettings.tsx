@@ -14,6 +14,7 @@ export function ComposingSettings() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
+  const quickReplyEnabled = useSettingsStore((s) => s.quickReplyEnabled);
   const t = useLocaleStore((s) => s.t);
   const setAutoSelectReplyIdentity = useSettingsStore((s) => s.setAutoSelectReplyIdentity);
   const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
@@ -104,6 +105,13 @@ export function ComposingSettings() {
       title={t('settings.composer.title', "Composer")}
       description={t('settings.composer.description', "Configure email composition settings")}
     >
+      <SettingItem
+        label={t('settings.email_behavior.quick_reply.label', 'Quick reply')}
+        description={t('settings.email_behavior.quick_reply.description', 'Show the quick reply box below messages.')}
+      >
+        <ToggleSwitch checked={quickReplyEnabled} onChange={(v) => updateSetting('quickReplyEnabled', v)} />
+      </SettingItem>
+
       <SettingItem
         label={t('settings.email_behavior.auto_select_reply_identity.label', "Reply From Received Address")}
         description={t('settings.email_behavior.auto_select_reply_identity.description_mobile', "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too.")}

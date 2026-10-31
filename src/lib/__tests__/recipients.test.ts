@@ -8,6 +8,7 @@ import {
   expandRecipients,
   splitPastedRecipients,
   parseMailtoUrl,
+  outgoingAddress,
 } from '../recipients';
 
 describe('isValidEmail', () => {
@@ -23,6 +24,28 @@ describe('isValidEmail', () => {
     expect(isValidEmail('a@b.c\r\nBcc: x@y.z')).toBe(false);
     expect(isValidEmail('<a@b.c>')).toBe(false);
     expect(isValidEmail('noat')).toBe(false);
+  });
+
+  it('accepts a domain written in Unicode when its ASCII form is valid (webmail #1100)', () => {
+    expect(isValidEmail('anna@bücher.de')).toBe(true);
+    expect(isValidEmail('ivan@пример.рф')).toBe(true);
+    expect(isValidEmail('anna@xn--bcher-kva.de')).toBe(true);
+    // Still no spaces, no non-ASCII local part, no bogus xn-- labels.
+    expect(isValidEmail('anna@bü cher.de')).toBe(false);
+    expect(isValidEmail('änna@bücher.de')).toBe(false);
+    expect(isValidEmail('anna@xn--zzzz-.de')).toBe(false);
+    expect(isValidEmail('anna@bücher.de\r\nBcc: x@y.z')).toBe(false);
+  });
+});
+
+describe('outgoingAddress', () => {
+  it('sends a Unicode domain in its ASCII form and keeps the name', () => {
+    expect(outgoingAddress({ name: 'Anna', email: 'anna@bücher.de' })).toEqual({ name: 'Anna', email: 'anna@xn--bcher-kva.de' });
+    expect(outgoingAddress({ email: 'ivan@пример.рф' })).toEqual({ email: 'ivan@xn--e1afmkfd.xn--p1ai' });
+  });
+
+  it('leaves ASCII addresses and the local part alone', () => {
+    expect(outgoingAddress({ name: '', email: 'Anna.B@Example.org' })).toEqual({ email: 'Anna.B@Example.org' });
   });
 });
 

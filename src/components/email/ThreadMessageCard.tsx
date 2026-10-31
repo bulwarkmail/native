@@ -12,6 +12,7 @@ import { emailDisplayDate, formatHeaderDate, formatHeaderTime } from '../../lib/
 import { singleLine } from '../../lib/single-line';
 import { cleanPreview } from '../../lib/preview-text';
 import { useSenderWarning } from './use-sender-warning';
+import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
 
 interface Props extends MessageContentProps {
   expanded: boolean;
@@ -46,6 +47,8 @@ export function ThreadMessageCard({
   const starred = !!email.keywords?.$flagged;
   const date = emailDisplayDate(email);
   const senderWarning = useSenderWarning(expanded ? undefined : email);
+  // An address on one of the user's own IDN domains reads as written (#1100).
+  const formatAddress = useOwnDomainAddress();
 
   if (!expanded) {
     return (
@@ -54,7 +57,7 @@ export function ThreadMessageCard({
         <View style={styles.collapsedInfo}>
           <View style={styles.collapsedTop}>
             <Text style={[styles.collapsedName, unread && styles.unread]} numberOfLines={1}>
-              {from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
+              {from?.name || (from?.email && formatAddress(from.email)) || t('email_viewer.unknown_sender', 'Unknown')}
             </Text>
             {email.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
             <Text style={styles.collapsedDate}>{formatHeaderDate(date, locale)} {formatHeaderTime(date, timeFormat, locale)}</Text>

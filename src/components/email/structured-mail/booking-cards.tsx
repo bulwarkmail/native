@@ -4,7 +4,7 @@
 // points the reading direction, where the webmail draws arrow icons.
 import React from 'react';
 import { I18nManager, Text, View } from 'react-native';
-import { ArrowRight, Clock, MapPin, Phone, Users } from '../../icons';
+import { ArrowRight, Bed, Bus, Car, Clock, MapPin, Phone, Plane, Restaurant, Ticket, Train, Users } from '../../icons';
 import {
   formatAddress,
   formatMomentDate,
@@ -46,7 +46,6 @@ import {
   useCardStyles,
 } from './card-parts';
 import { CopyValueChip } from './copy-value-chip';
-import { Bed, Bus, Car, Plane, Restaurant, Ticket, Train } from './icons';
 
 export interface BookingCardProps<B extends Booking = Booking> {
   booking: B;

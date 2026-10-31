@@ -11,8 +11,10 @@ import { useSettingsStore, type ExternalContentPolicy } from '../../stores/setti
 import { useContactsStore } from '../../stores/contacts-store';
 import { useHasContacts } from '../../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../../lib/trusted-senders';
+import { removeTrustedSenderWithUndo } from '../../lib/settings-undo';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { ToastHost } from '../ToastHost';
 
 interface TrustedRow {
   email: string;
@@ -107,20 +109,19 @@ export function ContentSendersSettings() {
     }
   };
 
+  // Taking a sender off the list is reversible: no question, a toast with
+  // Undo that adds the address back (webmail trusted-senders-modal R3).
   const handleRemove = async (row: TrustedRow) => {
-    if (row.local) removeTrustedSender(row.email);
-    if (row.synced) {
-      setBusy(row.email);
-      try {
-        await removeFromTrustedSendersBook(row.email);
-      } catch (err) {
-        Alert.alert(
-          t('settings.email_behavior.trusted_senders.sync_remove_failed', 'Could not remove from address book'),
-          err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'),
-        );
-      } finally {
-        setBusy(null);
-      }
+    if (row.synced) setBusy(row.email);
+    try {
+      await removeTrustedSenderWithUndo(row, {
+        removeLocal: removeTrustedSender,
+        addLocal: addTrustedSender,
+        removeFromBook: removeFromTrustedSendersBook,
+        addToBook: addToTrustedSendersBook,
+      }, t);
+    } finally {
+      if (row.synced) setBusy(null);
     }
   };
 
@@ -269,6 +270,9 @@ export function ContentSendersSettings() {
             )}
           </Pressable>
         </Pressable>
+        {/* The screen's toast host sits under this Modal; this one shows the
+            Undo after removing a sender above the list. */}
+        <ToastHost />
       </Modal>
     </View>
   );

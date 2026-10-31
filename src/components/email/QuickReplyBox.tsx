@@ -267,6 +267,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
         // No full-screen keyboard in landscape: it would hide the suggestions
         // and the text around the field.
         disableFullscreenUI
+        accessibilityLabel={t('email_viewer.quick_reply_placeholder', 'Write a quick reply...')}
         value={text}
         onChangeText={setText}
         onFocus={onFocus}
