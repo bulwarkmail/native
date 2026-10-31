@@ -133,7 +133,10 @@ export function ComposingSettings() {
 
       <SettingItem
         label={t('settings.email_behavior.plain_text_mode.label', "Plain Text Only")}
-        description={t('settings.email_behavior.plain_text_mode.description', "Disable the rich text editor and send all emails as plain text only, including replies and forwards")}
+        // The app also shows received mail as plain text with this on, which
+        // the webmail's description (sending only) leaves out; same text as
+        // under Reading.
+        description={t('settings.email_behavior.plain_text_mode.description_mobile', 'Compose and read in plain text only.')}
       >
         <ToggleSwitch checked={plainTextMode} onChange={(v) => updateSetting('plainTextMode', v)} />
       </SettingItem>
