@@ -61,6 +61,7 @@ import { useEmailStore } from './src/stores/email-store';
 import { loadDetail, prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
+import { startPolicySync, usePolicyFeature } from './src/stores/policy-store';
 import { useLocaleStore } from './src/stores/locale-store';
 import { useLayout } from './src/lib/use-layout';
 import { toast } from './src/stores/toast-store';
@@ -231,6 +232,12 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const hasContacts = useHasContacts();
   const hasFiles = useHasFiles();
   const disabledTabStyle = { opacity: 0.4 } as const;
+  // The organisation policy can turn a whole area off (webmail feature
+  // gates); its tab goes away rather than showing as unavailable.
+  const calendarAllowed = usePolicyFeature('calendarEnabled');
+  const contactsAllowed = usePolicyFeature('contactsEnabled');
+  const filesAllowed = usePolicyFeature('filesEnabled');
+  const hiddenTab = { tabBarItemStyle: { display: 'none' as const }, tabBarButton: () => null };
   const t = useLocaleStore((state) => state.t);
   // The webmail's navigation names; a tab the server lacks says so.
   const tabLabels = {
@@ -323,10 +330,11 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
           tabBarItemStyle: hasCalendar ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasCalendar ? tabLabels.calendar : unavailable(tabLabels.calendar),
+          ...(calendarAllowed ? null : hiddenTab),
         }}
         listeners={{
           tabPress: (e) => {
-            if (!hasCalendar) e.preventDefault();
+            if (!hasCalendar || !calendarAllowed) e.preventDefault();
           },
         }}
       />
@@ -339,10 +347,11 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           tabBarIcon: ({ color, size }) => <BookUser size={size} color={color} />,
           tabBarItemStyle: hasContacts ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasContacts ? tabLabels.contacts : unavailable(tabLabels.contacts),
+          ...(contactsAllowed ? null : hiddenTab),
         }}
         listeners={{
           tabPress: (e) => {
-            if (!hasContacts) e.preventDefault();
+            if (!hasContacts || !contactsAllowed) e.preventDefault();
           },
         }}
       />
@@ -355,10 +364,11 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           tabBarIcon: ({ color, size }) => <HardDrive size={size} color={color} />,
           tabBarItemStyle: hasFiles ? undefined : disabledTabStyle,
           tabBarAccessibilityLabel: hasFiles ? tabLabels.files : unavailable(tabLabels.files),
+          ...(filesAllowed ? null : hiddenTab),
         }}
         listeners={{
           tabPress: (e) => {
-            if (!hasFiles) e.preventDefault();
+            if (!hasFiles || !filesAllowed) e.preventDefault();
           },
         }}
       />
@@ -421,7 +431,14 @@ export default function App() {
     // Device sync (Android, #34): live changes, the app's own edits and the
     // foreground ask Android to sync; accounts are checked against Android's.
     startDeviceSyncTriggers();
-    return useNetworkStore.getState().init();
+    // The organisation policy of the active account's webmail: the cached
+    // one at once, a fresh one on start and on every account switch.
+    const stopPolicySync = startPolicySync();
+    const stopNetwork = useNetworkStore.getState().init();
+    return () => {
+      stopPolicySync();
+      stopNetwork?.();
+    };
   }, []);
 
   // Home-screen widgets follow the signed-in data; once the last account is

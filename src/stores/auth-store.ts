@@ -108,7 +108,7 @@ export interface AuthState {
    * login screen re-runs it with a code via `login(..., { totp })`. Cleared
    * on the next successful sign-in.
    */
-  pendingTotpLogin: { serverUrl: string; username: string; password: string } | null;
+  pendingTotpLogin: { serverUrl: string; username: string; password: string; webmailUrl?: string } | null;
   /** The account to sign in to again, set when its stored sign-in was refused. */
   reauth: ReauthTarget | null;
 
@@ -336,6 +336,11 @@ async function switchesSettled(): Promise<void> {
 export interface SignInOptions {
   addAccount?: boolean;
   signal?: AbortSignal;
+  /**
+   * The Bulwark webmail the sign-in came through (browser hand-off or QR
+   * pairing), kept on the account for its organisation policy.
+   */
+  webmailUrl?: string;
 }
 
 interface SignedIn {
@@ -421,6 +426,7 @@ async function signIn(
         lastLoginAt: Date.now(),
         isConnected: true,
         hasError: false,
+        ...(opts?.webmailUrl ? { webmailUrl: opts.webmailUrl.replace(/\/+$/, '') } : {}),
       });
     } catch (err) {
       // A cancelled connect may already hold the client: take it back.
@@ -642,6 +648,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // An address on an internationalized domain signs in with the domain's
     // ASCII form, the one Stalwart stores (#1100); the local part stays.
     const username = toAsciiEmail(typedUsername);
+    // The code step after a hand-off's password: the account still came
+    // through that webmail.
+    const pending = get().pendingTotpLogin;
+    if (!opts?.webmailUrl && opts?.totp && pending?.webmailUrl
+      && pending.username === username && pending.serverUrl === serverUrl.replace(/\/+$/, '')) {
+      opts = { ...opts, webmailUrl: pending.webmailUrl };
+    }
     try {
       // A new account with no room left fails here, before connect swaps
       // the live client over or stores credentials for it.
@@ -662,7 +675,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         // Keep what the user (or the webmail hand-off) supplied so the code
         // step doesn't make them retype the password.
-        set({ pendingTotpLogin: { serverUrl: serverUrl.replace(/\/+$/, ''), username, password } });
+        set({ pendingTotpLogin: { serverUrl: serverUrl.replace(/\/+$/, ''), username, password, webmailUrl: opts?.webmailUrl } });
       }
       const message = err instanceof Error && err.name === 'TotpRequiredError'
         ? 'Two-factor code required'
@@ -734,7 +747,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Hand the credentials to the existing password login path so account
       // registration + feature-store wiring all behave identically to a
       // manual sign-in.
-      await get().login(result.serverUrl, result.username, result.password, opts);
+      await get().login(result.serverUrl, result.username, result.password, { ...opts, webmailUrl });
       return;
     }
 
@@ -742,7 +755,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // token bundle. Bootstrap the JMAP session with Bearer auth and let
     // ensure/forceRefreshToken keep it alive going forward.
     try {
-      await completeOAuthHandoff(set, get, result, opts);
+      await completeOAuthHandoff(set, get, result, { ...opts, webmailUrl });
     } catch (err) {
       set({ isLoading: false, error: oauthSignInMessage(err) });
       throw err;
@@ -838,7 +851,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // password): the normal password sign-in, which also keeps the live
       // account when adding another one fails.
       try {
-        await get().login(result.serverUrl, result.username, result.password, { addAccount: opts?.addAccount, signal: opts?.signal });
+        await get().login(result.serverUrl, result.username, result.password, { addAccount: opts?.addAccount, signal: opts?.signal, webmailUrl });
       } catch (err) {
         throw connectFailed(err);
       }
@@ -846,7 +859,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      await completeOAuthHandoff(set, get, result, opts);
+      await completeOAuthHandoff(set, get, result, { ...opts, webmailUrl });
     } catch (err) {
       throw connectFailed(err);
     }

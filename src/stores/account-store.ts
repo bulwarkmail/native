@@ -23,6 +23,10 @@ export interface AccountEntry {
   // JMAP primary account id (from the session's primaryAccounts). Recorded
   // when push is set up so a relay payload can be routed to this entry.
   jmapAccountId?: string;
+  // The Bulwark webmail the account signed in through (QR pairing or the
+  // browser hand-off), as an origin. The organisation policy and the
+  // operator's links are read from it; unknown for a manual server sign-in.
+  webmailUrl?: string;
 }
 
 interface AccountState {
@@ -67,6 +71,8 @@ export const useAccountStore = create<AccountState>()(
                     serverUrl: entry.serverUrl || a.serverUrl,
                     displayName: entry.displayName || a.displayName,
                     email: entry.email || a.email,
+                    // A manual sign-in knows no webmail: keep the one on file.
+                    webmailUrl: entry.webmailUrl || a.webmailUrl,
                     lastLoginAt: entry.lastLoginAt,
                     isConnected: entry.isConnected,
                     hasError: entry.hasError,

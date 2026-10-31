@@ -145,11 +145,11 @@ describe('loginViaPairing with an app password', () => {
     useAuthStore.setState({ login });
     try {
       await useAuthStore.getState().loginViaPairing(WEBMAIL, newCode(), { addAccount: true });
-      expect(login).toHaveBeenCalledWith(SERVER, 'ada@example.com', 'app-pass-123', { addAccount: true });
+      expect(login).toHaveBeenCalledWith(SERVER, 'ada@example.com', 'app-pass-123', { addAccount: true, webmailUrl: WEBMAIL });
 
       redeem.mockResolvedValueOnce(passwordResult);
       await useAuthStore.getState().loginViaPairing(WEBMAIL, newCode());
-      expect(login).toHaveBeenLastCalledWith(SERVER, 'ada@example.com', 'app-pass-123', { addAccount: undefined });
+      expect(login).toHaveBeenLastCalledWith(SERVER, 'ada@example.com', 'app-pass-123', { addAccount: undefined, webmailUrl: WEBMAIL });
     } finally {
       useAuthStore.setState({ login: original });
     }
@@ -177,7 +177,7 @@ describe('loginViaPairing with an app password', () => {
 
     await expect(useAuthStore.getState().loginViaPairing(WEBMAIL, newCode())).rejects.toBe(totp);
     expect(useAuthStore.getState().pendingTotpLogin).toEqual({
-      serverUrl: SERVER, username: 'ada@example.com', password: 'app-pass-123',
+      serverUrl: SERVER, username: 'ada@example.com', password: 'app-pass-123', webmailUrl: WEBMAIL,
     });
     expect(useAuthStore.getState().isLoading).toBe(false);
   });
