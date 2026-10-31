@@ -57,6 +57,7 @@ import {
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
+import { moveSheetCurrentId } from '../lib/move-targets';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -868,6 +869,14 @@ export default function EmailListScreen({
     () => expandThreadSelection(selectedIds, emails, disableThreading),
     [selectedIds, emails, disableThreading],
   );
+  // The open folder can't be picked in the move sheets only when the rows
+  // being moved are all in it: search hits from other folders can move into
+  // it (#1452).
+  const pendingMoveCurrentId = React.useMemo(() => {
+    if (!pendingMoveId) return currentMailboxId;
+    const wanted = new Set(expandThreadSelection([pendingMoveId], emails, disableThreading));
+    return moveSheetCurrentId(mailboxes, currentMailboxId, emails.filter((e) => wanted.has(rowKeyOf(e))));
+  }, [pendingMoveId, emails, disableThreading, mailboxes, currentMailboxId]);
   const selectedEmails = React.useMemo(() => {
     const wanted = new Set(selectedMessageIds);
     return emails.filter((e) => wanted.has(rowKeyOf(e)));
@@ -1921,11 +1930,11 @@ export default function EmailListScreen({
         visible={pendingMoveId !== null}
         onClose={() => setPendingMoveId(null)}
         mailboxes={mailboxes}
-        currentMailboxId={currentMailboxId}
+        currentMailboxId={pendingMoveCurrentId}
         onPick={(toId) => {
           const id = pendingMoveId;
           setPendingMoveId(null);
-          if (id && currentMailboxId && toId !== currentMailboxId) {
+          if (id && currentMailboxId && toId !== pendingMoveCurrentId) {
             const ids = idsForRow(id);
             if (ids.length > 1) reportFailure(moveEmailsToMailbox(ids, toId));
             else reportFailure(moveToMailboxAction(id, currentMailboxId, toId));
@@ -1937,7 +1946,7 @@ export default function EmailListScreen({
         visible={batchMoveOpen}
         onClose={() => setBatchMoveOpen(false)}
         mailboxes={mailboxes}
-        currentMailboxId={currentMailboxId}
+        currentMailboxId={moveSheetCurrentId(mailboxes, currentMailboxId, selectedEmails)}
         onPick={handleBatchMovePick}
       />
 
