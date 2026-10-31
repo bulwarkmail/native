@@ -45,6 +45,8 @@ export type SignaturePosition = 'above_quote' | 'below_quote';
 // With autoSelectReplyIdentity on: 'exact' = configured identities only,
 // 'domain' = also same-domain catch-all addresses (rewrites From), #1000.
 export type ReplyIdentityMatch = 'exact' | 'domain';
+/** Where an "@" mention puts a picked contact who isn't a recipient yet; 'off' offers the recipients only. */
+export type MentionAddsRecipientTo = 'to' | 'cc' | 'off';
 // Actions that can be placed in the email reader's bottom quick-action bar.
 // The first three are the reply family (the default bar); any reply-family
 // action the user removes from the bar is relocated to the top toolbar so it
@@ -362,6 +364,12 @@ export interface PersistedSettings {
   // coloured bar at the start, instead of solid blocks (webmail
   // calendarTintedEvents, same key).
   calendarTintedEvents: boolean;
+  // mentions: "@" in the message body offers the recipients and inserts a
+  // first name (webmail recipientMentionsEnabled), and where a picked
+  // contact who isn't a recipient yet goes (mentionAddsRecipientTo). Same
+  // keys as the webmail's for export/import.
+  recipientMentionsEnabled: boolean;
+  mentionAddsRecipientTo: MentionAddsRecipientTo;
   // Keys the user changed themselves (webmail #1248, same key). An
   // organisation default only fills in settings not listed here.
   explicitSettings: string[];
@@ -537,6 +545,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   quickReplyEnabled: true,
   // calendar2:
   calendarTintedEvents: false,
+  // mentions:
+  recipientMentionsEnabled: true,
+  mentionAddsRecipientTo: 'to',
   explicitSettings: [],
 };
 
@@ -698,6 +709,8 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   offlineCacheMaxMB: intBetween(1, 100000),
   // platform:
   toastDuration: oneOf([-1, 0, 5, 10, 20, 60]),
+  // mentions:
+  mentionAddsRecipientTo: oneOf(['to', 'cc', 'off']),
   explicitSettings: stringArray,
   sidebarApps: (v) => Array.isArray(v) && v.every((a) =>
     a && typeof a === 'object'

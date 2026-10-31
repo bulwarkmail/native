@@ -1253,6 +1253,9 @@
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
       },
+      "recipient_mentions": {
+        "description_mobile": "Typing @ in the message offers its recipients and inserts the chosen one's first name."
+      },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
       },
@@ -1515,9 +1518,12 @@
         "choose_another": "Choose another",
         "clear": "Clear",
         "clear_message": "New requests will no longer present a certificate. The certificate stays installed in Android.",
+        "clear_message_ios": "New requests will no longer present a certificate. The certificate is removed from the app; to use it again, pick the file again.",
         "clear_title": "Stop using client certificate?",
         "description": "Picks an installed Android certificate to authenticate to the server during the TLS handshake. Useful when the reverse proxy enforces mTLS.",
+        "description_ios": "Imports a certificate file to authenticate to the server during the TLS handshake. Useful when the reverse proxy enforces mTLS.",
         "hint": "Install the certificate via Android Settings → Security → Encryption & credentials, then pick it here.",
+        "hint_ios": "Pick the certificate file (.p12 or .pfx) in Files and enter its password.",
         "not_set": "Not set",
         "pick": "Pick certificate",
         "pick_failed": "Pick failed",

@@ -22,6 +22,8 @@ import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
+import { usePolicyFeature } from '../stores/policy-store';
+import { swipeActionShown } from '../lib/swipe-actions';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
@@ -33,6 +35,7 @@ import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
 import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
+import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -78,8 +81,10 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const crossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
   const deleteAction = useSettingsStore((s) => s.deleteAction);
   const permanentlyDeleteJunk = useSettingsStore((s) => s.permanentlyDeleteJunk);
-  const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
-  const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
+  // The organisation's Archive gate: a stored Archive swipe does nothing while it is off.
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
+  const swipeLeftAction = swipeActionShown(useSettingsStore((s) => s.swipeLeftAction), archiveEnabled);
+  const swipeRightAction = swipeActionShown(useSettingsStore((s) => s.swipeRightAction), archiveEnabled);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const locale = useLocaleStore((s) => s.locale);
@@ -302,7 +307,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   const handleSwipe = (email: UnifiedEmail, action: SwipeAction) => {
     switch (action) {
-      case 'archive': if (role !== 'archive') void archive([email]); break;
+      case 'archive': if (archiveEnabled && role !== 'archive') void archive([email]); break;
       case 'delete': void remove([email]); break;
       case 'spam': if (role !== 'sent' && role !== 'drafts') spam([email]); break;
       case 'read': setRead([email], !email.keywords?.$seen); break;
@@ -380,6 +385,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
               senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
+              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item)}
             />
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
@@ -480,7 +486,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               {role === 'junk' ? <ShieldCheck size={20} color={c.text} /> : <ShieldAlert size={20} color={c.text} />}
             </Pressable>
           )}
-          {role !== 'archive' && (
+          {archiveEnabled && role !== 'archive' && (
             <Pressable
               onPress={() => { void archive(selectedEmails).then((done) => { if (done) clearSelection(); }); }}
               style={styles.headerBtn}

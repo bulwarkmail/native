@@ -478,10 +478,20 @@ export interface WebmailLinks {
   helpUrl?: string;
   easyReadUrl?: string;
   signLanguageUrl?: string;
+  /** The config's company name (`loginCompanyName`), for the organisation signature's {company}. */
+  companyName?: string;
+  /**
+   * The webmail's "no third-party traffic" mode (#903, config
+   * `noThirdPartyTraffic`): remote content in mail never loads.
+   */
+  noThirdPartyTraffic?: boolean;
 }
 
 /** The accessibility and help links, in the webmail's fixed order (lib/help-links.ts). */
-export const HELP_LINK_ORDER: ReadonlyArray<[HelpLinkId, keyof WebmailLinks]> = [
+/** The keys of WebmailLinks that hold a link. */
+export type WebmailLinkKey = Exclude<keyof WebmailLinks, 'companyName' | 'noThirdPartyTraffic'>;
+
+export const HELP_LINK_ORDER: ReadonlyArray<[HelpLinkId, WebmailLinkKey]> = [
   ['statement', 'accessibilityStatementUrl'],
   ['feedback', 'accessibilityFeedbackUrl'],
   ['help', 'helpUrl'],
@@ -500,6 +510,14 @@ export function webmailLinksFromConfig(raw: unknown): WebmailLinks {
   for (const [, key] of HELP_LINK_ORDER) {
     const value = raw[key];
     if (typeof value === 'string' && LINK_RE.test(value.trim())) out[key] = value.trim();
+  }
+  if (typeof raw.loginCompanyName === 'string' && raw.loginCompanyName.trim()) {
+    out.companyName = raw.loginCompanyName.trim().slice(0, 200);
+  }
+  // A boolean, or a string as in env (webmail lib/third-party-mode.ts parseNoThirdPartyValue).
+  const noThirdParty = raw.noThirdPartyTraffic;
+  if (noThirdParty === true || (typeof noThirdParty === 'string' && /^(true|1|yes|on)$/i.test(noThirdParty.trim()))) {
+    out.noThirdPartyTraffic = true;
   }
   return out;
 }

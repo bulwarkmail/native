@@ -13,7 +13,7 @@ import { useHasContacts } from '../../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../../lib/trusted-senders';
 import { removeTrustedSenderWithUndo } from '../../lib/settings-undo';
 import { useLocaleStore } from '../../stores/locale-store';
-import { usePolicyFeature, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
+import { useNoThirdPartyTraffic, usePolicyFeature, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import { ToastHost } from '../ToastHost';
@@ -38,6 +38,9 @@ export function ContentSendersSettings() {
   const externalContentHidden = useSettingHidden('externalContentPolicy');
   const externalContentLocked = useSettingLocked('externalContentPolicy');
   const showExternalContent = externalContentAllowed && !externalContentHidden;
+  // No third-party traffic (webmail #903) blocks remote content outright:
+  // the setting shows as the organisation's, set to block.
+  const remoteBlockedByOrg = useNoThirdPartyTraffic();
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const setEmailAlwaysLightMode = useSettingsStore((s) => s.setEmailAlwaysLightMode);
   const trustedSenders = useSettingsStore((s) => s.trustedSenders);
@@ -145,10 +148,10 @@ export function ContentSendersSettings() {
           <SettingItem
             label={t('settings.email_behavior.external_content.label', 'External Content')}
             description={t('settings.email_behavior.external_content.description', 'How to handle images and external content')}
-            locked={externalContentLocked}
+            locked={externalContentLocked || remoteBlockedByOrg}
           >
             <RadioGroup
-              value={externalContentPolicy}
+              value={remoteBlockedByOrg ? 'block' : externalContentPolicy}
               onChange={(v) => setExternalContentPolicy(v as ExternalContentPolicy)}
               options={[
                 { value: 'ask', label: t('settings.email_behavior.external_content.ask_mobile', 'Ask') },

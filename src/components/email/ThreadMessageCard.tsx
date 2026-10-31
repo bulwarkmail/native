@@ -15,6 +15,7 @@ import { emailDisplayDate, formatHeaderDate, formatHeaderTime } from '../../lib/
 import { singleLine } from '../../lib/single-line';
 import { cleanPreview } from '../../lib/preview-text';
 import { useSenderWarning } from './use-sender-warning';
+import { brandIndicatorDomain } from '../../lib/avatar-bimi';
 import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
 import type { CardReplyActions } from '../../lib/thread-card-actions';
 
@@ -61,7 +62,7 @@ export function ThreadMessageCard({
   if (!expanded) {
     return (
       <Pressable onPress={onToggleExpanded} style={({ pressed }) => [styles.collapsed, pressed && styles.pressed]}>
-        <SenderAvatar name={from?.name} email={from?.email} size={componentSizes.avatarSm} senderWarning={senderWarning} />
+        <SenderAvatar name={from?.name} email={from?.email} size={componentSizes.avatarSm} senderWarning={senderWarning} brandDomain={brandIndicatorDomain(email)} />
         <View style={styles.collapsedInfo}>
           <View style={styles.collapsedTop}>
             <Text style={[styles.collapsedName, unread && styles.unread]} numberOfLines={1}>

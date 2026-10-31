@@ -20,6 +20,8 @@ import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
 import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-utils';
+import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup } from '../../lib/org-signature';
+import { usePolicyStore } from '../../stores/policy-store';
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { sendTargetFor } from '../../lib/compose-send-account';
@@ -193,6 +195,11 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
         labels: quoteHeaderLabels(t),
       });
       const threading = computeReplyThreadingHeaders(email);
+      // The organisation signature and disclaimer, as the composer adds them
+      // (webmail lib/outgoing/quick-reply.ts, lib/org/outgoing.ts).
+      const policy = usePolicyStore.getState();
+      const orgSetup = orgSignatureSetup(policy.effective, identity, null, policy.links.companyName ?? '');
+      const signer = effectiveSignatureIdentity(signatureIdentityFor(identity, identities), identity, orgSetup.signature, orgSetup.restriction);
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, target.accountId);
       // Where the reply goes, read before it goes: Undo must reach that login
       // and account whatever the app switches to meanwhile.
@@ -205,10 +212,12 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
           subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
           // Signed as the composer signs a plain-text reply; an alias without a
           // signature of its own carries the primary identity's.
-          textBody: signPlainTextReply(body, `${header.text}${quoted}`, signatureIdentityFor(identity, identities), {
-            position: signaturePosition,
-            separator: signatureSeparatorEnabled,
-          }),
+          textBody: finalizeOrgOutgoing({
+            text: signPlainTextReply(body, `${header.text}${quoted}`, signer, {
+              position: signaturePosition,
+              separator: signatureSeparatorEnabled,
+            }),
+          }, orgSetup, { separator: signatureSeparatorEnabled }).text,
           inReplyTo: threading?.inReplyTo,
           references: threading?.references,
         },

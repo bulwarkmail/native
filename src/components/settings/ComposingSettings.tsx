@@ -5,9 +5,9 @@ import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useSettingsStore, type ReplyIdentityMatch, type SignaturePosition } from '../../stores/settings-store';
+import { useSettingsStore, type MentionAddsRecipientTo, type ReplyIdentityMatch, type SignaturePosition } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useSettingLocked } from '../../stores/policy-store';
+import { usePolicyFeature, useSettingLocked } from '../../stores/policy-store';
 import { SUPPORTED_SUB_ADDRESS_DELIMITERS } from '../../lib/sub-addressing';
 import { RADIO_GROUP_A11Y, radioOptionA11y } from '../radio-a11y';
 
@@ -29,11 +29,16 @@ export function ComposingSettings() {
   const autoSelectReplyIdentityLocked = useSettingLocked('autoSelectReplyIdentity');
   const replyIdentityMatchLocked = useSettingLocked('replyIdentityMatch');
   const plainTextModeLocked = useSettingLocked('plainTextMode');
+  // Catch-all matching only rewrites From, which the organisation can turn
+  // off (webmail composing-settings.tsx customFromEnabled).
+  const customFromEnabled = usePolicyFeature('customFromEnabled');
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
   const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
+  const recipientMentionsEnabled = useSettingsStore((s) => s.recipientMentionsEnabled);
+  const mentionAddsRecipientTo = useSettingsStore((s) => s.mentionAddsRecipientTo);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
@@ -76,6 +81,12 @@ export function ComposingSettings() {
   const SIGNATURE_POSITIONS: { label: string; value: SignaturePosition }[] = [
     { label: t('settings.email_behavior.signature_position.above_quote', 'Before quoted text'), value: 'above_quote' },
     { label: t('settings.email_behavior.signature_position.below_quote', 'After quoted text'), value: 'below_quote' },
+  ];
+
+  const MENTION_ADDS_RECIPIENT: { label: string; value: MentionAddsRecipientTo }[] = [
+    { label: t('settings.email_behavior.mention_adds_recipient.to', 'Add to To'), value: 'to' },
+    { label: t('settings.email_behavior.mention_adds_recipient.cc', 'Add to Cc'), value: 'cc' },
+    { label: t('settings.email_behavior.mention_adds_recipient.off', 'Only offer recipients'), value: 'off' },
   ];
 
   const REPLY_IDENTITY_MATCHES: { label: string; value: ReplyIdentityMatch }[] = [
@@ -127,7 +138,7 @@ export function ComposingSettings() {
         <ToggleSwitch checked={autoSelectReplyIdentity} onChange={setAutoSelectReplyIdentity} />
       </SettingItem>
 
-      {autoSelectReplyIdentity && (
+      {autoSelectReplyIdentity && customFromEnabled && (
         <View style={styles.subBlock}>
           <Text style={styles.subLabel}>{t('settings.email_behavior.reply_identity_match.label', 'Received Address Matching')}</Text>
           <Text style={styles.subDescription}>
@@ -150,6 +161,24 @@ export function ComposingSettings() {
       >
         <ToggleSwitch checked={plainTextMode} onChange={(v) => updateSetting('plainTextMode', v)} />
       </SettingItem>
+
+      <SettingItem
+        label={t('settings.email_behavior.recipient_mentions.label', 'Mention recipients with @')}
+        // The webmail's description names Enter and Tab, which a phone has not.
+        description={t('settings.email_behavior.recipient_mentions.description_mobile', "Typing @ in the message offers its recipients and inserts the chosen one's first name.")}
+      >
+        <ToggleSwitch checked={recipientMentionsEnabled} onChange={(v) => updateSetting('recipientMentionsEnabled', v)} />
+      </SettingItem>
+
+      {recipientMentionsEnabled && (
+        <View style={styles.subBlock}>
+          <Text style={styles.subLabel}>{t('settings.email_behavior.mention_adds_recipient.label', 'Contacts in @ mentions')}</Text>
+          <Text style={styles.subDescription}>
+            {t('settings.email_behavior.mention_adds_recipient.description', "Typing @ also offers your contacts and people from the directory. Picking someone who isn't a recipient yet adds them to the message.")}
+          </Text>
+          {segmented(MENTION_ADDS_RECIPIENT, mentionAddsRecipientTo, (v) => updateSetting('mentionAddsRecipientTo', v))}
+        </View>
+      )}
 
       <SettingItem
         label={t('settings.email_behavior.request_read_receipt.label', "Request read receipts by default")}

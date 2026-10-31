@@ -45,11 +45,20 @@ export interface PresetChange {
   to: unknown;
 }
 
-/** The changes a preset would make to `state`: only values that differ. */
-export function presetChanges(id: AccessibilityPresetId, state: Partial<PersistedSettings>): PresetChange[] {
+/**
+ * The changes a preset would make to `state`: only values that differ, and
+ * none the organisation has locked (`isLocked`) or bounded (`allows`, such
+ * as a minimum toast duration).
+ */
+export function presetChanges(
+  id: AccessibilityPresetId,
+  state: Partial<PersistedSettings>,
+  isLocked: (key: string) => boolean = () => false,
+  allows: (key: string, value: unknown) => boolean = () => true,
+): PresetChange[] {
   const changes: PresetChange[] = [];
   for (const [key, to] of Object.entries(ACCESSIBILITY_PRESETS[id]) as Array<[keyof PersistedSettings, unknown]>) {
-    if (!(key in state) || state[key] === to) continue;
+    if (!(key in state) || state[key] === to || isLocked(key) || !allows(key, to)) continue;
     changes.push({ key, from: state[key], to });
   }
   return changes;

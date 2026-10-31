@@ -8,6 +8,7 @@ import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../../../lib/tru
 import { useHasContacts } from '../../../lib/capabilities';
 import { useContactsStore } from '../../../stores/contacts-store';
 import { useSettingsStore } from '../../../stores/settings-store';
+import { useNoThirdPartyTraffic } from '../../../stores/policy-store';
 import { BookingCalendarActions } from './booking-calendar-actions';
 import { StructuredMailCards } from './structured-mail-cards';
 import { useStructuredMail } from './use-structured-mail';
@@ -28,6 +29,8 @@ interface Props {
 export function StructuredMailBanner({ email, jmapAccountId }: Props) {
   const cards = useStructuredMail(email, jmapAccountId);
   const policy = useSettingsStore((s) => s.externalContentPolicy);
+  // No third-party traffic (webmail #903): remote images never load.
+  const remoteBlockedByOrg = useNoThirdPartyTraffic();
   const trustedSenders = useSettingsStore((s) => s.trustedSenders);
   const isSenderTrusted = useSettingsStore((s) => s.isSenderTrusted);
   const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
@@ -35,13 +38,13 @@ export function StructuredMailBanner({ email, jmapAccountId }: Props) {
   const hasContacts = useHasContacts();
   const sender = email.from?.[0]?.email;
   const allowRemoteImages = React.useMemo(
-    () => policy === 'allow' || isSenderContentTrusted(sender, {
+    () => !remoteBlockedByOrg && (policy === 'allow' || isSenderContentTrusted(sender, {
       isLocallyTrusted: isSenderTrusted,
       syncEnabled: isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts),
       trustedBookEmails,
-    }),
+    })),
     // trustedSenders changes what isSenderTrusted answers.
-    [policy, sender, isSenderTrusted, trustedSenders, trustedSendersAddressBook, hasContacts, trustedBookEmails], // eslint-disable-line react-hooks/exhaustive-deps
+    [remoteBlockedByOrg, policy, sender, isSenderTrusted, trustedSenders, trustedSendersAddressBook, hasContacts, trustedBookEmails], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const calendarActions = React.useCallback(
     (booking: Booking) => <BookingCalendarActions booking={booking} email={email} />,

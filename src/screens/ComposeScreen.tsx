@@ -35,6 +35,8 @@ import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useNoThirdPartyTraffic, usePolicyFeature, usePolicyStore } from '../stores/policy-store';
+import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
@@ -414,6 +416,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
+  const customFromEnabled = usePolicyFeature('customFromEnabled');
+  // No third-party traffic (webmail #903): a quoted original's remote images stay blocked.
+  const remoteBlockedByOrg = useNoThirdPartyTraffic();
   // Per-message format (#1022): seeded from the "plain text only" setting,
   // or the format a reopened draft was written in, and switchable from the
   // toolbar for just this message.
@@ -516,8 +521,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return shouldBlockEditorRemoteImages({
       seedHtml: draft ? draft.htmlBody : replyTo?.htmlBody,
       isDraft: !!draft,
-      externalContentPolicy: settings.externalContentPolicy,
-      senderTrusted: !!sender && (
+      externalContentPolicy: remoteBlockedByOrg ? 'block' : settings.externalContentPolicy,
+      senderTrusted: !remoteBlockedByOrg && !!sender && (
         settings.isSenderTrusted(sender)
         || useContactsStore.getState().trustedSenderEmails.includes(sender)
       ),
@@ -970,7 +975,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const resolved = resolveReplyIdentity(identities, replyTo, {
         ownEmails,
         catchAll: autoSelectReplyIdentity && mode !== 'forward',
-        matchMode: replyIdentityMatch,
+        // Without the organisation's custom From, only an exact identity (webmail email-composer.tsx).
+        matchMode: customFromEnabled ? replyIdentityMatch : 'exact',
       });
       if (resolved) {
         setSelectedIdentityId(resolved.identityId);
@@ -982,7 +988,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     setSelectedIdentityId(defaultIdentity.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identities, autoSelectReplyIdentity, replyIdentityMatch, replyTo, draft, selectedIdentityId, preferredIdentityIds]);
+  }, [identities, autoSelectReplyIdentity, replyIdentityMatch, customFromEnabled, replyTo, draft, selectedIdentityId, preferredIdentityIds]);
 
   const primaryIdentity = React.useMemo(() => {
     if (identities.length === 0) return null;
@@ -996,6 +1002,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // ── "@" mentions in the body (webmail #1134) ──────────────────────────
   // What follows the "@" being typed in the editor, null when none is.
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+  // Settings > Composing: mentions can be turned off, and a picked contact
+  // who isn't a recipient yet joins To, Cc or nothing (webmail
+  // recipientMentionsEnabled, mentionAddsRecipientTo; 'off' offers the
+  // recipients only).
+  const recipientMentionsEnabled = useSettingsStore((s) => s.recipientMentionsEnabled);
+  const mentionAddsRecipientTo = useSettingsStore((s) => s.mentionAddsRecipientTo);
   // Who an "@" offers: To and Cc. Never Bcc - naming a blind-copied
   // recipient in the text would disclose them to everyone else.
   const mentionCandidates = React.useMemo(
@@ -1005,29 +1017,31 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Contacts come after the recipients; anyone already on the message is
   // left out, Bcc and the identity's own Bcc included.
   const mentionItems = React.useMemo<MentionCandidate[]>(() => {
-    if (mentionQuery === null) return [];
+    if (mentionQuery === null || !recipientMentionsEnabled) return [];
     const onMessage = new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
         .flatMap((r) => (r.group ? r.group.members.map((m) => m.email) : [r.email]))
         .concat((primaryIdentity?.bcc ?? []).map((r) => r.email))
         .map((e) => e.trim().toLowerCase()),
     );
-    const contacts = mentionQuery
+    const contacts = mentionQuery && mentionAddsRecipientTo !== 'off'
       ? getAutocomplete(mentionQuery, 16)
         .filter((s) => !s.group && !!s.email && !onMessage.has(s.email.trim().toLowerCase()))
         .map((s) => ({ name: s.name || undefined, email: s.email }))
       : [];
-    return mentionSuggestions(mentionCandidates, contacts, mentionQuery, 'to');
+    return mentionSuggestions(mentionCandidates, contacts, mentionQuery, mentionAddsRecipientTo === 'cc' ? 'cc' : 'to');
     // contactsVersion/recentVersion re-run the lookup when the store loads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mentionQuery, mentionCandidates, toRecipients, ccRecipients, bccRecipients, primaryIdentity, getAutocomplete, contactsVersion, recentVersion]);
+  }, [mentionQuery, mentionCandidates, toRecipients, ccRecipients, bccRecipients, primaryIdentity, getAutocomplete, contactsVersion, recentVersion, recipientMentionsEnabled, mentionAddsRecipientTo]);
   const pickMention = (candidate: MentionCandidate) => {
     editorRef.current?.insertMention(candidate.label, mentionHref(candidate.email));
-    // A contact who isn't on the message yet joins To (webmail default).
-    if (candidate.addsTo === 'cc') {
+    // A contact who isn't on the message yet joins To or Cc, as set.
+    if (mentionAddsRecipientTo === 'off' || !candidate.addsTo) {
+      // A recipient already: nothing to add.
+    } else if (candidate.addsTo === 'cc') {
       setCcRecipients((prev) => addMentionedRecipient(prev, candidate, (c) => ({ name: c.name ?? '', email: c.email })));
       setCcVisible(true);
-    } else if (candidate.addsTo) {
+    } else {
       setToRecipients((prev) => addMentionedRecipient(prev, candidate, (c) => ({ name: c.name ?? '', email: c.email })));
     }
     setMentionQuery(null);
@@ -1039,10 +1053,37 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identityPickedByUser, setIdentityPickedByUser] = React.useState(false);
   // An alias without a signature falls back to the primary identity's,
   // unless the user picked it.
-  const signatureIdentity = React.useMemo(
+  const ownSignatureIdentity = React.useMemo(
     () => signatureIdentityFor(primaryIdentity, identities, { pickedByUser: identityPickedByUser }),
     [primaryIdentity, identities, identityPickedByUser],
   );
+  // The organisation signature and disclaimer of the webmail's policy, filled
+  // in for the identity the message goes out from (webmail
+  // hooks/use-org-signature.ts). The signature stands in for an identity
+  // without one, or replaces every identity's when locked or hidden.
+  const orgPolicy = usePolicyStore((s) => s.effective);
+  const orgCompany = usePolicyStore((s) => s.links.companyName ?? '');
+  const orgSetup = React.useMemo(
+    () => orgSignatureSetup(orgPolicy, primaryIdentity, null, orgCompany),
+    [orgPolicy, primaryIdentity, orgCompany],
+  );
+  const signatureIdentity = React.useMemo(
+    () => effectiveSignatureIdentity(ownSignatureIdentity, primaryIdentity, orgSetup.signature, orgSetup.restriction) ?? null,
+    [ownSignatureIdentity, primaryIdentity, orgSetup],
+  );
+  // The disclaimer under the editor, read-only: it is added on send, never
+  // part of the body or a draft. Not shown when the body already ends with
+  // it (a message back from Undo), which gets no second copy (webmail
+  // org-disclaimer-preview.tsx).
+  const disclaimerBody = React.useDeferredValue(plainTextMode ? plainBody : bodyHtml);
+  const orgDisclaimerText = React.useMemo(() => {
+    const disclaimer = orgSetup.disclaimer;
+    if (!disclaimer) return '';
+    const carried = !!disclaimerBody && (plainTextMode
+      ? textCarriesDisclaimer(disclaimerBody, disclaimer)
+      : htmlCarriesDisclaimer(disclaimerBody, disclaimer));
+    return carried ? '' : getPlainTextSignature({ textSignature: disclaimer.text, htmlSignature: disclaimer.html });
+  }, [orgSetup, disclaimerBody, plainTextMode]);
 
   const openIdentityPicker = () => {
     if (identities.length <= 1) return;
@@ -1422,6 +1463,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         ? { inReplyTo: draft.inReplyTo ?? [], references: draft.references ?? draft.inReplyTo ?? [] }
         : null;
 
+    // On send, never on a draft: a locked organisation signature the user
+    // removed goes back in, and the disclaimer goes below everything
+    // (webmail lib/org/outgoing.ts).
+    if (!opts.forDraft) {
+      const setup = orgSignatureSetup(usePolicyStore.getState().effective, identity, null, usePolicyStore.getState().links.companyName ?? '');
+      const finished = finalizeOrgOutgoing({ html: htmlBody, text: textBody }, setup, { separator: signatureSeparatorEnabled });
+      htmlBody = finished.html;
+      textBody = finished.text;
+    }
+
     const identityBcc = opts.forDraft ? [] : (identity.bcc ?? []).filter((r) => !!r.email);
     const bccAll = [...expandRecipients(finalBcc).map(toAddress), ...identityBcc];
 
@@ -1443,7 +1494,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       priority: priority !== 'normal' ? priority : undefined,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, signatureSeparatorEnabled, t]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -2122,6 +2173,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   ];
 
   // ── Templates ────────────────────────────────────────────────────────
+  // The organisation can turn templates off (webmail email-composer.tsx).
+  const templatesEnabled = usePolicyFeature('templatesEnabled');
   const [templateSheetOpen, setTemplateSheetOpen] = React.useState(false);
   const [placeholderPrompt, setPlaceholderPrompt] = React.useState<{
     template: EmailTemplate;
@@ -3049,9 +3102,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
               onViewportShift={onEditorViewportShift}
-              mentions
+              mentions={recipientMentionsEnabled}
               onMentionQuery={setMentionQuery}
             />
+          )}
+          {!!orgDisclaimerText && (
+            <View style={styles.orgDisclaimer} testID="org-disclaimer-preview">
+              <Text style={styles.orgDisclaimerTitle}>{t('org_signature.disclaimer_added_on_send', 'Added when you send')}</Text>
+              <Text style={styles.orgDisclaimerText}>{orgDisclaimerText}</Text>
+            </View>
           )}
           {/* The empty space under the body looks like part of it (on a
               tablet, most of the panel): a tap there starts typing in it. */}
@@ -3079,9 +3138,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             contentContainerStyle={styles.formatActions}
             keyboardShouldPersistTaps="always"
           >
-            <ToolbarButton onPress={() => setTemplateSheetOpen(true)}
-              label={t('email_composer.use_template', 'Template')}
-              icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
+            {templatesEnabled && (
+              <ToolbarButton onPress={() => setTemplateSheetOpen(true)}
+                label={t('email_composer.use_template', 'Template')}
+                icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
+            )}
             <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
               label={t('email_composer.read_receipt_off', 'Request a read receipt')}
               icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
@@ -3662,6 +3723,15 @@ function makeStyles(c: ThemePalette) {
   },
   scrollContent: { flexGrow: 1 },
   bodyFiller: { flexGrow: 1, minHeight: 48 },
+  orgDisclaimer: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: c.border,
+  },
+  orgDisclaimerTitle: { ...typography.captionMedium, color: c.textMuted, marginBottom: spacing.xs },
+  orgDisclaimerText: { ...typography.caption, color: c.textMuted },
 
   header: {
     flexDirection: 'row',

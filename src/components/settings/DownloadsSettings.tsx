@@ -17,6 +17,7 @@ import {
   type EmailFilenameOptions,
 } from '../../lib/download-filename';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyFeature } from '../../stores/policy-store';
 
 const SAMPLE = buildSampleEmail();
 const SAMPLE_ATTACHMENT = { name: 'Rechnung 2026.pdf', type: 'application/pdf' };
@@ -34,7 +35,11 @@ export function DownloadsSettings() {
   const spaceReplacement = useSettingsStore((s) => s.exportSpaceReplacement);
   const lowercase = useSettingsStore((s) => s.exportLowercase);
   const stripDiacritics = useSettingsStore((s) => s.exportStripDiacritics);
-  const postExportAction = useSettingsStore((s) => s.postExportAction);
+  // Without the organisation's Archive action there is no "move to archive"
+  // after an export (webmail downloads-settings.tsx).
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
+  const storedPostExportAction = useSettingsStore((s) => s.postExportAction);
+  const postExportAction = archiveEnabled || storedPostExportAction !== 'archive' ? storedPostExportAction : 'keep';
 
   useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
 
@@ -136,7 +141,7 @@ export function DownloadsSettings() {
             onChange={(v) => update('postExportAction', v as PostExportAction)}
             options={[
               { value: 'keep', label: t('settings.downloads.after_export.keep', "Keep in mailbox") },
-              { value: 'archive', label: t('settings.downloads.after_export.archive', "Move to archive") },
+              ...(archiveEnabled ? [{ value: 'archive', label: t('settings.downloads.after_export.archive', "Move to archive") }] : []),
               { value: 'trash', label: t('settings.downloads.after_export.trash', "Move to trash") },
             ]}
           />

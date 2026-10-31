@@ -33,6 +33,7 @@ import {
 import { showsPaperclip } from '../lib/list-attachments';
 import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
 import { useSenderWarning } from '../components/email/use-sender-warning';
+import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -41,6 +42,8 @@ import {
   type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
+import { usePolicyFeature } from '../stores/policy-store';
+import { swipeActionShown } from '../lib/swipe-actions';
 import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/keywords-store';
 import { formatKeyword } from '../lib/keyword-nesting';
 import { mergeSharedTags } from '../lib/shared-tags';
@@ -223,6 +226,8 @@ const EmailRow = React.memo(function EmailRow({
   const attachments = useListAttachments(item, onOpenAttachment ? loadAttachments : undefined);
   // Sent and Drafts rows show the recipient: the check says nothing about them.
   const senderWarning = useSenderWarning(showRecipient ? undefined : item);
+  // The sender's BIMI logo, for a message that passed DMARC for its From domain.
+  const brandDomain = React.useMemo(() => (showRecipient ? undefined : brandIndicatorDomain(item)), [showRecipient, item]);
 
   return (
     <Pressable
@@ -276,6 +281,7 @@ const EmailRow = React.memo(function EmailRow({
             size={componentSizes.avatarMd}
             disableImages={disableAvatarImages}
             senderWarning={senderWarning}
+            brandDomain={brandDomain}
           />
         </Pressable>
       )}
@@ -538,8 +544,10 @@ export default function EmailListScreen({
   const retryFailedOps = useOutboxStore((s) => s.retryFailed);
   const discardFailedOps = useOutboxStore((s) => s.discardFailed);
 
-  const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
-  const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
+  // The organisation's Archive gate: a stored Archive swipe does nothing while it is off.
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
+  const swipeLeftAction = swipeActionShown(useSettingsStore((s) => s.swipeLeftAction), archiveEnabled);
+  const swipeRightAction = swipeActionShown(useSettingsStore((s) => s.swipeRightAction), archiveEnabled);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showPreview = useSettingsStore((s) => s.showPreview);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
@@ -1041,7 +1049,7 @@ export default function EmailListScreen({
   };
 
   const canArchiveSelection =
-    archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
+    archiveEnabled && archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
   const canSpamSelection =
     currentRole !== 'sent' && currentRole !== 'drafts' && (inJunk || junkMailboxId != null);
 
