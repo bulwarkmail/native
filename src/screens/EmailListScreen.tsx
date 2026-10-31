@@ -53,14 +53,14 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { toast } from '../stores/toast-store';
 import { getContactDisplayName } from '../lib/contact-utils';
-import { listAddressLabel } from '../lib/list-sender';
+import { listAddressLabel, rowShowsRecipient } from '../lib/list-sender';
 import { useOwnDomainAddress } from '../lib/use-own-domain-address';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import { cleanPreview } from '../lib/preview-text';
 import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import {
-  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
+  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes, mailboxesOfAccount,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
@@ -577,7 +577,18 @@ export default function EmailListScreen({
   }, [sharedTags, keywordDefs]);
   const folderKeywordDefs = (currentOwnerAccountId && keywordDefsByAccount.get(currentOwnerAccountId)) || keywordDefs;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
-  const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
+  // A search started in Sent runs over every folder: each row names its
+  // recipient only when it is in Sent or Drafts itself.
+  const rowScope = effectiveFolderScope(storeSearchQuery, filters, currentRole);
+  const showRecipientFor = React.useCallback(
+    (item: Email) => rowShowsRecipient(
+      item.mailboxIds,
+      rowScope === 'current' ? [] : mailboxesOfAccount(mailboxes, accountIdOfRow(item)),
+      currentRole,
+      rowScope,
+    ),
+    [rowScope, mailboxes, currentRole],
+  );
   const formatAddress = useOwnDomainAddress();
 
   // When threading is on, collapse same-thread emails so the list shows the
@@ -896,7 +907,7 @@ export default function EmailListScreen({
           item={item}
           threadCount={threadCountFor(item)}
           showPreview={showPreview}
-          showRecipient={showRecipient}
+          showRecipient={showRecipientFor(item)}
           formatAddress={formatAddress}
           tagIds={rowTagIds.get(key) ?? ''}
           keywordDefs={(item.jmapAccountId && keywordDefsByAccount.get(item.jmapAccountId)) || folderKeywordDefs}
@@ -916,7 +927,7 @@ export default function EmailListScreen({
     [
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showRecipientFor, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );
