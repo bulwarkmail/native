@@ -58,7 +58,9 @@ function angleRunCloses(value: string, from: number): boolean {
   let inQuotes = false;
   for (let i = from + 1; i < value.length; i++) {
     const ch = value[i];
-    if (ch === '"') inQuotes = !inQuotes;
+    // A quoted-pair (`\"`) never closes the quote.
+    if (inQuotes && ch === '\\') i++;
+    else if (ch === '"') inQuotes = !inQuotes;
     else if (inQuotes) continue;
     else if (ch === '>') return true;
     else if (ch === '<') return false;
@@ -84,7 +86,13 @@ export function splitRecipients(value: string, separators = ','): string[] {
   let inGroup = false;
   for (let i = 0; i < value.length; i++) {
     const ch = value[i];
-    if (ch === '"') {
+    if (inQuotes && ch === '\\' && i + 1 < value.length) {
+      // A quoted-pair: a `"` in a display name is written `\"`. Taking it as
+      // the closing quote let a name like `Support", ceo@corp.example, "x`
+      // split into an extra recipient (webmail lib/email-composer-utils.ts).
+      current += ch + value[i + 1];
+      i++;
+    } else if (ch === '"') {
       inQuotes = !inQuotes;
       current += ch;
     } else if (ch === '<' && !inQuotes) {

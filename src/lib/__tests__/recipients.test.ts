@@ -38,6 +38,23 @@ describe('splitRecipients', () => {
   it('keeps RFC 5322 groups as one entry', () => {
     expect(splitRecipients('Team: a@x.com, b@y.com;, c@z.com')).toEqual(['Team: a@x.com, b@y.com;', 'c@z.com']);
   });
+
+  it('does not take an escaped quote in a display name as the closing one', () => {
+    expect(splitRecipients('"Support\\", ceo@corp.example, \\"x" <s@x.com>, b@y.com'))
+      .toEqual(['"Support\\", ceo@corp.example, \\"x" <s@x.com>', 'b@y.com']);
+  });
+
+  it('does not take an escaped quote as closing when an unclosed angle bracket looks ahead', () => {
+    expect(splitRecipients('John <j@x.com, "a\\"> b" <b@y.com>')).toEqual(['John <j@x.com', '"a\\"> b" <b@y.com>']);
+  });
+});
+
+describe('splitPastedRecipients with an escaped quote (composer paste)', () => {
+  it('adds no extra recipient from inside a display name', () => {
+    const { valid, invalid } = splitPastedRecipients('"Support\\", ceo@corp.example, \\"x" <s@x.com>, b@y.com');
+    expect(valid.map((r) => r.email)).toEqual(['s@x.com', 'b@y.com']);
+    expect(invalid).toEqual([]);
+  });
 });
 
 describe('parseRecipient', () => {
