@@ -147,6 +147,9 @@ export interface PersistedSettings {
   trustedSendersAddressBook: boolean | null;
   senderFavicons: boolean;
   hideInlineImageAttachments: boolean;
+  // Mobile-only, device-local: block screenshots and screen recordings and
+  // hide the app's content in the recent-apps switcher (lib/screen-privacy).
+  blockScreenshots: boolean;
 
   // Language, region & time
   dateFormat: DateFormat;
@@ -374,6 +377,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   trustedSendersAddressBook: null,
   senderFavicons: false,
   hideInlineImageAttachments: true,
+  blockScreenshots: false,
 
   groupContactsByLetter: true,
   sortContactsByLastName: false,
@@ -762,6 +766,7 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'filesShowThumbnails',
   'filesShowHiddenFiles',
   'calendarDefaultView',
+  'blockScreenshots',
 ]);
 
 export function toExportShape(state: PersistedSettings): Record<string, unknown> {

@@ -126,6 +126,7 @@ describe('settings search index (English catalog)', () => {
     expect(labelsFor('reading')).toContain('Clear search when switching folders');
     expect(labelsFor('composing')).toContain('Quick reply');
     expect(labelsFor('notifications')).toContain('Unread count on app icon');
+    expect(labelsFor('security')).toContain('Block screenshots');
     // Webmail-only settings are not offered.
     expect(labelsFor('calendar')).not.toContain('Free scrolling');
     expect(labelsFor('notifications')).not.toContain('Notification sound');

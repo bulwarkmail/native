@@ -19,6 +19,7 @@ import {
 } from '../../lib/client-cert';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useAuthStore } from '../../stores/auth-store';
+import { useSettingsStore } from '../../stores/settings-store';
 import { passwordChangeOutcome } from './password-change';
 import {
   AccountSecurityForbiddenError,
@@ -130,6 +131,26 @@ function ClientCertSection() {
           </Button>
         )}
       </View>
+    </SettingsSection>
+  );
+}
+
+// ── Screen privacy (mobile-only) ──────────────────────────
+// The webmail has no counterpart: a browser can't block screenshots.
+// lib/screen-privacy applies the setting.
+function ScreenPrivacySection() {
+  const t = useLocaleStore((s) => s.t);
+  const blockScreenshots = useSettingsStore((s) => s.blockScreenshots);
+  const update = useSettingsStore((s) => s.updateSetting);
+  return (
+    <SettingsSection title={t('settings.security.screen_privacy.title', "Screen privacy")}>
+      <SettingItem
+        label={t('settings.security.screen_privacy.block_screenshots', "Block screenshots")}
+        description={t('settings.security.screen_privacy.block_screenshots_description', "Stops screenshots and screen recordings of the app and hides its content in the recent apps view.")}
+        noBorder
+      >
+        <ToggleSwitch checked={blockScreenshots} onChange={(v) => update('blockScreenshots', v)} />
+      </SettingItem>
     </SettingsSection>
   );
 }
@@ -973,6 +994,8 @@ export function AccountSecuritySettings() {
 
   return (
     <View style={styles.container}>
+      <ScreenPrivacySection />
+
       {certSupported && <ClientCertSection />}
 
       {supported === null && (

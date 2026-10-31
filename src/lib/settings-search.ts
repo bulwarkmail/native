@@ -169,6 +169,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.downloads.after_export',
   ],
   security: [
+    'settings.security.screen_privacy',
     'settings.security.client_cert',
     'settings.security.password',
     'settings.security.display_name',
@@ -283,7 +284,7 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   folders: 'mailbox rename role',
   keywords: 'tags labels colors',
   downloads: 'download filename template eml attachment save export',
-  security: 'password 2fa two-factor totp app password mfa api key certificate encryption',
+  security: 'password 2fa two-factor totp app password mfa api key certificate encryption screenshot screen recording recent apps privacy',
   content_senders: 'block sender remote images privacy tracking',
   calendar: `event schedule appointment meeting timezone${supportsDeviceSync ? ' android phone device sync' : ''}`,
   contacts: `address book contact${supportsDeviceSync ? ' android phone device sync' : ''}`,

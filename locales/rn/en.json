@@ -1569,6 +1569,11 @@
         "title": "Public Keys"
       },
       "restricted": "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.",
+      "screen_privacy": {
+        "block_screenshots": "Block screenshots",
+        "block_screenshots_description": "Stops screenshots and screen recordings of the app and hides its content in the recent apps view.",
+        "title": "Screen privacy"
+      },
       "two_factor": {
         "active": "Active",
         "code": "Verification code",

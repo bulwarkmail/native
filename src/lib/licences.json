@@ -119,6 +119,12 @@
       "url": "https://docs.expo.dev/versions/latest/sdk/notifications/"
     },
     {
+      "name": "expo-screen-capture",
+      "version": "8.0.10",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/screen-capture"
+    },
+    {
       "name": "expo-secure-store",
       "version": "15.0.8",
       "license": "MIT",

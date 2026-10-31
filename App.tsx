@@ -62,6 +62,7 @@ import { loadDetail, prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
 import { startPolicySync, usePolicyFeature } from './src/stores/policy-store';
+import { startScreenPrivacySync } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
 import { useLayout } from './src/lib/use-layout';
 import { toast } from './src/stores/toast-store';
@@ -434,9 +435,12 @@ export default function App() {
     // The organisation policy of the active account's webmail: the cached
     // one at once, a fresh one on start and on every account switch.
     const stopPolicySync = startPolicySync();
+    // Settings > Security > Block screenshots.
+    const stopScreenPrivacy = startScreenPrivacySync();
     const stopNetwork = useNetworkStore.getState().init();
     return () => {
       stopPolicySync();
+      stopScreenPrivacy();
       stopNetwork?.();
     };
   }, []);
