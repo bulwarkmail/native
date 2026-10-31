@@ -35,6 +35,8 @@ import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
+import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
@@ -1039,10 +1041,37 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identityPickedByUser, setIdentityPickedByUser] = React.useState(false);
   // An alias without a signature falls back to the primary identity's,
   // unless the user picked it.
-  const signatureIdentity = React.useMemo(
+  const ownSignatureIdentity = React.useMemo(
     () => signatureIdentityFor(primaryIdentity, identities, { pickedByUser: identityPickedByUser }),
     [primaryIdentity, identities, identityPickedByUser],
   );
+  // The organisation signature and disclaimer of the webmail's policy, filled
+  // in for the identity the message goes out from (webmail
+  // hooks/use-org-signature.ts). The signature stands in for an identity
+  // without one, or replaces every identity's when locked or hidden.
+  const orgPolicy = usePolicyStore((s) => s.effective);
+  const orgCompany = usePolicyStore((s) => s.links.companyName ?? '');
+  const orgSetup = React.useMemo(
+    () => orgSignatureSetup(orgPolicy, primaryIdentity, null, orgCompany),
+    [orgPolicy, primaryIdentity, orgCompany],
+  );
+  const signatureIdentity = React.useMemo(
+    () => effectiveSignatureIdentity(ownSignatureIdentity, primaryIdentity, orgSetup.signature, orgSetup.restriction) ?? null,
+    [ownSignatureIdentity, primaryIdentity, orgSetup],
+  );
+  // The disclaimer under the editor, read-only: it is added on send, never
+  // part of the body or a draft. Not shown when the body already ends with
+  // it (a message back from Undo), which gets no second copy (webmail
+  // org-disclaimer-preview.tsx).
+  const disclaimerBody = React.useDeferredValue(plainTextMode ? plainBody : bodyHtml);
+  const orgDisclaimerText = React.useMemo(() => {
+    const disclaimer = orgSetup.disclaimer;
+    if (!disclaimer) return '';
+    const carried = !!disclaimerBody && (plainTextMode
+      ? textCarriesDisclaimer(disclaimerBody, disclaimer)
+      : htmlCarriesDisclaimer(disclaimerBody, disclaimer));
+    return carried ? '' : getPlainTextSignature({ textSignature: disclaimer.text, htmlSignature: disclaimer.html });
+  }, [orgSetup, disclaimerBody, plainTextMode]);
 
   const openIdentityPicker = () => {
     if (identities.length <= 1) return;
@@ -1422,6 +1451,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         ? { inReplyTo: draft.inReplyTo ?? [], references: draft.references ?? draft.inReplyTo ?? [] }
         : null;
 
+    // On send, never on a draft: a locked organisation signature the user
+    // removed goes back in, and the disclaimer goes below everything
+    // (webmail lib/org/outgoing.ts).
+    if (!opts.forDraft) {
+      const setup = orgSignatureSetup(usePolicyStore.getState().effective, identity, null, usePolicyStore.getState().links.companyName ?? '');
+      const finished = finalizeOrgOutgoing({ html: htmlBody, text: textBody }, setup, { separator: signatureSeparatorEnabled });
+      htmlBody = finished.html;
+      textBody = finished.text;
+    }
+
     const identityBcc = opts.forDraft ? [] : (identity.bcc ?? []).filter((r) => !!r.email);
     const bccAll = [...expandRecipients(finalBcc).map(toAddress), ...identityBcc];
 
@@ -1443,7 +1482,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       priority: priority !== 'normal' ? priority : undefined,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, signatureSeparatorEnabled, t]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -2122,6 +2161,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   ];
 
   // ── Templates ────────────────────────────────────────────────────────
+  // The organisation can turn templates off (webmail email-composer.tsx).
+  const templatesEnabled = usePolicyFeature('templatesEnabled');
   const [templateSheetOpen, setTemplateSheetOpen] = React.useState(false);
   const [placeholderPrompt, setPlaceholderPrompt] = React.useState<{
     template: EmailTemplate;
@@ -3053,6 +3094,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
               onMentionQuery={setMentionQuery}
             />
           )}
+          {!!orgDisclaimerText && (
+            <View style={styles.orgDisclaimer} testID="org-disclaimer-preview">
+              <Text style={styles.orgDisclaimerTitle}>{t('org_signature.disclaimer_added_on_send', 'Added when you send')}</Text>
+              <Text style={styles.orgDisclaimerText}>{orgDisclaimerText}</Text>
+            </View>
+          )}
           {/* The empty space under the body looks like part of it (on a
               tablet, most of the panel): a tap there starts typing in it. */}
           <Pressable
@@ -3079,9 +3126,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             contentContainerStyle={styles.formatActions}
             keyboardShouldPersistTaps="always"
           >
-            <ToolbarButton onPress={() => setTemplateSheetOpen(true)}
-              label={t('email_composer.use_template', 'Template')}
-              icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
+            {templatesEnabled && (
+              <ToolbarButton onPress={() => setTemplateSheetOpen(true)}
+                label={t('email_composer.use_template', 'Template')}
+                icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
+            )}
             <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
               label={t('email_composer.read_receipt_off', 'Request a read receipt')}
               icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
@@ -3662,6 +3711,15 @@ function makeStyles(c: ThemePalette) {
   },
   scrollContent: { flexGrow: 1 },
   bodyFiller: { flexGrow: 1, minHeight: 48 },
+  orgDisclaimer: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: c.border,
+  },
+  orgDisclaimerTitle: { ...typography.captionMedium, color: c.textMuted, marginBottom: spacing.xs },
+  orgDisclaimerText: { ...typography.caption, color: c.textMuted },
 
   header: {
     flexDirection: 'row',

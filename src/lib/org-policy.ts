@@ -478,6 +478,8 @@ export interface WebmailLinks {
   helpUrl?: string;
   easyReadUrl?: string;
   signLanguageUrl?: string;
+  /** The config's company name (`loginCompanyName`), for the organisation signature's {company}. */
+  companyName?: string;
 }
 
 /** The accessibility and help links, in the webmail's fixed order (lib/help-links.ts). */
@@ -500,6 +502,9 @@ export function webmailLinksFromConfig(raw: unknown): WebmailLinks {
   for (const [, key] of HELP_LINK_ORDER) {
     const value = raw[key];
     if (typeof value === 'string' && LINK_RE.test(value.trim())) out[key] = value.trim();
+  }
+  if (typeof raw.loginCompanyName === 'string' && raw.loginCompanyName.trim()) {
+    out.companyName = raw.loginCompanyName.trim().slice(0, 200);
   }
   return out;
 }
