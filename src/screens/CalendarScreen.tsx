@@ -165,6 +165,7 @@ export default function CalendarScreen() {
   const calendarFreeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const showBirthdayCalendar = useSettingsStore((s) => s.showBirthdayCalendar);
+  const birthdayCalendarColor = useSettingsStore((s) => s.birthdayCalendarColor);
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
   const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
   const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
@@ -318,8 +319,8 @@ export default function CalendarScreen() {
   }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor]);
 
   const allCalendars = React.useMemo(
-    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar()] : displayCalendars),
-    [displayCalendars, showBirthdayCalendar],
+    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar(undefined, birthdayCalendarColor)] : displayCalendars),
+    [displayCalendars, showBirthdayCalendar, birthdayCalendarColor],
   );
   // Tasks with a due date are overlaid on the grid as chips (webmail's
   // showTasksOnCalendar); tapping one opens the tasks sheet on that task.
@@ -884,6 +885,10 @@ export default function CalendarScreen() {
 
   const handleSetCalendarColor = React.useCallback(
     (cal: Calendar, color: string) => {
+      if (cal.id === BIRTHDAY_CALENDAR_ID) {
+        useSettingsStore.getState().updateSetting('birthdayCalendarColor', color);
+        return;
+      }
       if (cal.isShared) {
         // Per-viewer recolor (#345): the owner's colour is left alone.
         setSharedCalendarColor(sharedCalendarColorKey(cal), color);
