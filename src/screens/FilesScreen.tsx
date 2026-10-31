@@ -72,6 +72,7 @@ import { formatListDate } from '../lib/date-format';
 import { useLayout, useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { filesListWidth } from '../lib/files-split';
+import { radioOptionA11y } from '../components/radio-a11y';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import { driveChange, type DriveScope } from '../lib/files-drive';
@@ -2148,7 +2149,7 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
             <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Sort')}</Text>
               {keys.map((k) => (
-                <Pressable key={k} style={styles.action} onPress={() => { onChangeKey(k); onClose(); }}>
+                <Pressable key={k} style={styles.action} {...radioOptionA11y(sortKey === k)} onPress={() => { onChangeKey(k); onClose(); }}>
                   <Text style={[styles.actionLabel, sortKey === k && { color: c.primary, fontWeight: '600' }]}>
                     {t(`files.${k}`, k)}
                   </Text>
@@ -2157,7 +2158,7 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
               ))}
               <View style={styles.sheetDivider} />
               {(['asc', 'desc'] as FilesSortDir[]).map((d) => (
-                <Pressable key={d} style={styles.action} onPress={() => { onChangeDir(d); onClose(); }}>
+                <Pressable key={d} style={styles.action} {...radioOptionA11y(sortDir === d)} onPress={() => { onChangeDir(d); onClose(); }}>
                   {d === 'asc' ? <ArrowUp size={18} color={c.text} /> : <ArrowDown size={18} color={c.text} />}
                   <Text style={[styles.actionLabel, sortDir === d && { color: c.primary, fontWeight: '600' }]}>
                     {d === 'asc'

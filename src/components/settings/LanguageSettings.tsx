@@ -8,6 +8,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore, type DateFormat, type TimeFormat } from '../../stores/settings-store';
 import { formatListDate } from '../../lib/date-format';
 import { SUPPORTED_LOCALES, detectDeviceLocale, type LocaleCode } from '../../i18n';
+import { radioOptionA11y } from '../radio-a11y';
 
 export function LanguageSettings() {
   const c = useColors();
@@ -43,6 +44,7 @@ export function LanguageSettings() {
     return (
       <Pressable
         key={code}
+        {...radioOptionA11y(active)}
         onPress={() => setOverride(code === 'system' ? null : (code as LocaleCode))}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
