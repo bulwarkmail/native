@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Star, FileText, Users } from './icons';
+import { X, Star, FileText, Users, Settings, ArrowLeft } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
@@ -12,6 +12,7 @@ import { useTemplatesStore, type EmailTemplate } from '../stores/templates-store
 import { filterTemplates } from '../lib/template-utils';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { TemplateSettings } from './settings/TemplateSettings';
 
 interface TemplateSheetProps {
   visible: boolean;
@@ -24,6 +25,8 @@ interface TemplateSheetProps {
  * (webmail template picker): favourites first, then the rest, with a search
  * box over name/subject/category. The templates of the user's group
  * mailboxes follow, each team under its name (Stalwart 1.0 and later).
+ * "Manage templates" opens the template manager in its place, and back
+ * returns to the list (webmail template picker, 19676a14f).
  */
 export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) {
   const c = useColors();
@@ -36,6 +39,8 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   const teams = useTemplatesStore((s) => s.teams);
   const refresh = useTemplatesStore((s) => s.refresh);
   const [query, setQuery] = React.useState('');
+  // The template manager, shown in place of the picker.
+  const [managing, setManaging] = React.useState(false);
   const slideY = React.useRef(new Animated.Value(500)).current;
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -49,6 +54,7 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   React.useEffect(() => {
     if (visible) {
       setQuery('');
+      setManaging(false);
       // Templates changed in the webmail or on another device, and the team ones.
       void refresh();
       Animated.parallel([
@@ -109,7 +115,15 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
   );
 
   return (
-    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      supportedOrientations={MODAL_ORIENTATIONS}
+      visible={visible}
+      transparent
+      animationType="none"
+      // Back leaves the manager for the list first.
+      onRequestClose={managing ? () => setManaging(false) : onClose}
+      statusBarTranslucent
+    >
       <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
       </Animated.View>
@@ -165,7 +179,36 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
             </>
           )}
         </ScrollView>
+        <Pressable
+          onPress={() => setManaging(true)}
+          style={({ pressed }) => [styles.manage, pressed && styles.rowPressed]}
+          accessibilityRole="button"
+        >
+          <Settings size={16} color={c.textSecondary} />
+          <Text style={styles.manageText}>{t('templates.manage', 'Manage templates')}</Text>
+        </Pressable>
       </Animated.View>
+      {managing && (
+        <View style={[styles.manager, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+          <View style={styles.managerHeader}>
+            <Pressable
+              onPress={() => setManaging(false)}
+              hitSlop={10}
+              style={styles.sheetClose}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back', 'Back')}
+            >
+              <ArrowLeft size={22} color={c.text} />
+            </Pressable>
+            <Text style={styles.managerTitle} numberOfLines={1} accessibilityRole="header">
+              {t('settings.tabs.templates', 'Templates')}
+            </Text>
+          </View>
+          <ScrollView style={styles.scrollList} contentContainerStyle={styles.managerContent} keyboardShouldPersistTaps="handled">
+            <TemplateSettings />
+          </ScrollView>
+        </View>
+      )}
     </Modal>
   );
 }
@@ -173,6 +216,28 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     sheetOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+    manage: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      minHeight: 44,
+      paddingHorizontal: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+    },
+    manageText: { ...typography.body, color: c.textSecondary },
+    manager: { ...StyleSheet.absoluteFillObject, backgroundColor: c.background },
+    managerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    managerTitle: { ...typography.h3, color: c.text, flex: 1 },
+    managerContent: { padding: spacing.lg },
     sheetOverlayPress: { flex: 1 },
     sheet: {
       position: 'absolute',
