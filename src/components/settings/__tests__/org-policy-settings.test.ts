@@ -1,0 +1,19 @@
+import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Where the organisation policy reaches the settings pages. No React Native
+// renderer in the test env, so this checks the wiring (as
+// src/components/__tests__/org-policy-wiring.test.ts does); what the policy
+// does to the settings is tested in org-policy.test.ts and policy-store.test.ts.
+
+const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', '..', '..', '..', rel), 'utf8');
+const settings = (name: string) => read(`src/components/settings/${name}.tsx`);
+
+describe('organisation policy on the settings pages', () => {
+  it('shows the colour mode as set by the organisation when its theme policy locks it', () => {
+    const page = settings('AppearanceSettings');
+    expect(page).toContain("const themeLocked = useSettingLocked('theme');");
+    expect(page).toMatch(/label=\{t\('settings\.appearance\.theme\.label', "Theme"\)\}[^>]*locked=\{themeLocked\}>/);
+  });
+});

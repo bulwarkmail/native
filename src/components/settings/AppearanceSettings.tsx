@@ -7,6 +7,7 @@ import { useSettingsStore, type ThemeMode, type Density } from '../../stores/set
 import { useLocaleStore } from '../../stores/locale-store';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { densityPreviewConfig } from './density-preview';
+import { useSettingLocked } from '../../stores/policy-store';
 
 type Theme = ThemeMode;
 
@@ -81,6 +82,8 @@ export function AppearanceSettings() {
   const theme = useSettingsStore((s) => s.theme);
   const t = useLocaleStore((s) => s.t);
   const setTheme = useSettingsStore((s) => s.setTheme);
+  // The organisation's theme policy can pin the colour mode (#1280).
+  const themeLocked = useSettingLocked('theme');
   const density = useSettingsStore((s) => s.density);
   const setDensity = useSettingsStore((s) => s.setDensity);
   const showToolbarLabels = useSettingsStore((s) => s.showToolbarLabels);
@@ -99,7 +102,7 @@ export function AppearanceSettings() {
       title={t('settings.appearance.title', "Appearance")}
       description={t('settings.appearance.description_mobile', 'Customize how the app looks')}
     >
-      <SettingItem label={t('settings.appearance.theme.label', "Theme")} description={t('settings.appearance.theme.description', "Choose your preferred color scheme")}>
+      <SettingItem label={t('settings.appearance.theme.label', "Theme")} description={t('settings.appearance.theme.description', "Choose your preferred color scheme")} locked={themeLocked}>
         <RadioGroup
           value={theme}
           onChange={(v) => setTheme(v as Theme)}
