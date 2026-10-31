@@ -141,6 +141,37 @@ describe('offline send queue', () => {
     expect(runQueuedSend).toHaveBeenCalledTimes(1);
   });
 
+  it('sends a message queued while another one is on its way', async () => {
+    let release!: () => void;
+    runQueuedSend.mockImplementationOnce(() => new Promise((r) => { release = () => r({ kind: 'sent', result: {} }); }));
+    useNetworkStore.setState({ online: true, connected: true });
+    useOutboxStore.getState().enqueueSend(payload('first'));
+    await flushed();
+    expect(runQueuedSend).toHaveBeenCalledTimes(1);
+    useOutboxStore.getState().enqueueSend(payload('second'));
+    release();
+    await vi.waitFor(() => expect(useOutboxStore.getState().sends).toEqual([]));
+    expect(runQueuedSend.mock.calls.map(([s]) => s.payload.outgoing.subject)).toEqual(['first', 'second']);
+  });
+
+  it('sends a message retried while another one is on its way', async () => {
+    useNetworkStore.setState({ online: true, connected: true });
+    runQueuedSend.mockRejectedValueOnce(new Error('Invalid envelope'));
+    const failed = useOutboxStore.getState().enqueueSend(payload('failed'))!;
+    await vi.waitFor(() => expect(useOutboxStore.getState().sends[0]?.status).toBe('failed'));
+
+    let release!: () => void;
+    runQueuedSend.mockImplementationOnce(() => new Promise((r) => { release = () => r({ kind: 'sent', result: {} }); }));
+    useOutboxStore.getState().enqueueSend(payload('other'));
+    await flushed();
+    expect(runQueuedSend).toHaveBeenCalledTimes(2);
+    const retried = useOutboxStore.getState().retrySend(failed);
+    release();
+    await retried;
+    await vi.waitFor(() => expect(useOutboxStore.getState().sends).toEqual([]));
+    expect(runQueuedSend.mock.calls.map(([s]) => s.payload.outgoing.subject)).toEqual(['failed', 'other', 'failed']);
+  });
+
   it('parks a refused message with its reason and leaves it until the user tries again', async () => {
     useNetworkStore.setState({ online: true, connected: true });
     runQueuedSend.mockRejectedValueOnce(new Error('Invalid envelope'));

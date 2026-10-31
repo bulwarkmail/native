@@ -258,6 +258,12 @@ function opFamily(op: OutboxOp): string {
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryAttempt = 0;
+/**
+ * A flush was asked for while one ran (a message queued or retried then):
+ * the running one works from lists it took when it started, so another
+ * follows it.
+ */
+let flushAgain = false;
 
 // Reads of a bucket from storage. A read still running when the account
 // changes or its queue is cleared must not put the old entries back, so
@@ -436,7 +442,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   pendingForEmail: (emailId) => get().entries.filter((e) => e.op.emailId === emailId),
 
   flush: async () => {
-    if (get().flushing || get().paused || !get().resumed || !get().hydrated) return;
+    if (get().flushing) {
+      flushAgain = true;
+      return;
+    }
+    if (get().paused || !get().resumed || !get().hydrated) return;
     const accountId = get().activeAccountId;
     if (!accountId) return;
     if (get().entries.length === 0 && !hasWaitingSends()) return;
@@ -445,6 +455,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (!useNetworkStore.getState().online) return;
 
     set({ flushing: true });
+    flushAgain = false;
     let brokeTransient = false;
     let dropped = false;
     // An entry that took on a later edit while its op was out runs again.
@@ -509,7 +520,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       set({ flushing: false });
     }
     if (brokeTransient && (get().entries.length > 0 || hasWaitingSends())) scheduleRetry();
-    else if (changedInFlight) void get().flush();
+    else if (changedInFlight || flushAgain) void get().flush();
     if (dropped) void refreshAfterDrop();
   },
 
