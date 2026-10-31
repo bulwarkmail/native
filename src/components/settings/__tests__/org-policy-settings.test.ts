@@ -63,4 +63,52 @@ describe('organisation policy on the settings pages', () => {
     expect(reading).toContain("const archiveEnabled = usePolicyFeature('archiveActionEnabled');");
     expect(reading).toMatch(/\{archiveEnabled && \(\s*<View style=\{styles\.group\}>\s*<SettingItem label=\{t\('settings\.email_behavior\.archive_mode\.label'/);
   });
+
+  // The webmail's lockable settings (lib/admin/restriction-keys.ts, page
+  // `policy`) the app has a row for, and whether the webmail also hides the
+  // row when the restriction says so.
+  const LOCKABLE_ROWS: ReadonlyArray<[page: string, key: string, hides: boolean]> = [
+    ['AppearanceSettings', 'density', true],
+    ['AccessibilitySettings', 'toastDuration', false],
+    ['AccessibilitySettings', 'sendConfirmation', true],
+    ['ReadingSettings', 'markAsReadDelay', true],
+    ['ReadingSettings', 'deleteAction', true],
+    ['ReadingSettings', 'showPreview', true],
+    ['ReadingSettings', 'includeGroupInUnified', true],
+    ['ReadingSettings', 'plainTextMode', false],
+    ['ReadingSettings', 'autoSelectReplyIdentity', false],
+    ['ReadingSettings', 'messageSpacing', true],
+    ['ReadingSettings', 'emailsPerPage', true],
+    ['ComposingSettings', 'autoSelectReplyIdentity', false],
+    ['ComposingSettings', 'replyIdentityMatch', false],
+    ['ComposingSettings', 'plainTextMode', false],
+    ['NotificationSettings', 'emailNotificationsEnabled', true],
+    ['NotificationSettings', 'pushNotifyInboxOnly', true],
+    ['NotificationSettings', 'calendarNotificationsEnabled', true],
+  ];
+
+  it.each(LOCKABLE_ROWS)('%s marks %s as set by the organisation when locked', (page, key, hides) => {
+    const source = settings(page);
+    const locked = new RegExp(`const (\\w+) = useSettingLocked\\('${key}'\\);`).exec(source);
+    expect(locked, `useSettingLocked('${key}')`).not.toBeNull();
+    // On the row, or on the control of a row whose control sits outside it.
+    expect(source).toMatch(new RegExp(`locked=\\{${locked![1]}\\}|pointerEvents=\\{${locked![1]} \\? 'none' : 'auto'\\}`));
+    if (hides) {
+      const hidden = new RegExp(`const (\\w+) = useSettingHidden\\('${key}'\\);`).exec(source);
+      expect(hidden, `useSettingHidden('${key}')`).not.toBeNull();
+      expect(source).toMatch(new RegExp(`\\{!${hidden![1]} && \\(|&& !${hidden![1]} && \\(`));
+    }
+  });
+
+  it('keeps notification durations under the organisation minimum out of the choices', () => {
+    const page = settings('AccessibilitySettings');
+    expect(page).toContain("policyAllowsValue('toastDuration', value, policyRules)");
+    expect(page).toContain('options={toastChoices.map(');
+  });
+
+  it('keeps the controls of locked rows that sit outside their row still', () => {
+    expect(settings('AppearanceSettings')).toMatch(/<View pointerEvents=\{densityLocked \? 'none' : 'auto'\}[^>]*>\s*<RadioGroup\s+value=\{density\}/);
+    expect(settings('ReadingSettings')).toMatch(/<View pointerEvents=\{deleteActionLocked \? 'none' : 'auto'\}[^>]*>\s*<Select\s+value=\{deleteAction\}/);
+    expect(settings('ComposingSettings')).toMatch(/<View pointerEvents=\{replyIdentityMatchLocked \? 'none' : 'auto'\}[^>]*>\s*\{segmented\(REPLY_IDENTITY_MATCHES/);
+  });
 });

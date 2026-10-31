@@ -18,7 +18,7 @@ import { useEmailStore } from '../../stores/email-store';
 import { archiveEmails, queryEmails, getEmails } from '../../api/email';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
-import { usePolicyFeature } from '../../stores/policy-store';
+import { usePolicyFeature, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 
 export function ReadingSettings() {
   const c = useColors();
@@ -51,6 +51,22 @@ export function ReadingSettings() {
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
   const readReceiptResponse = useSettingsStore((s) => s.readReceiptResponse);
+  // Settings the organisation pins or hides (webmail reading-settings.tsx,
+  // message-list-settings.tsx, layout-settings.tsx).
+  const markAsReadLocked = useSettingLocked('markAsReadDelay');
+  const markAsReadHidden = useSettingHidden('markAsReadDelay');
+  const deleteActionLocked = useSettingLocked('deleteAction');
+  const deleteActionHidden = useSettingHidden('deleteAction');
+  const showPreviewLocked = useSettingLocked('showPreview');
+  const showPreviewHidden = useSettingHidden('showPreview');
+  const includeGroupLocked = useSettingLocked('includeGroupInUnified');
+  const includeGroupHidden = useSettingHidden('includeGroupInUnified');
+  const plainTextModeLocked = useSettingLocked('plainTextMode');
+  const autoSelectReplyIdentityLocked = useSettingLocked('autoSelectReplyIdentity');
+  const messageSpacingLocked = useSettingLocked('messageSpacing');
+  const messageSpacingHidden = useSettingHidden('messageSpacing');
+  const emailsPerPageLocked = useSettingLocked('emailsPerPage');
+  const emailsPerPageHidden = useSettingHidden('emailsPerPage');
 
   const [newKeyword, setNewKeyword] = useState('');
   const [reorganizing, setReorganizing] = useState(false);
@@ -118,38 +134,44 @@ export function ReadingSettings() {
 
   return (
     <SettingsSection title={t('settings.email_behavior.title', "Email Behavior")} description={t('settings.email_behavior.description', "Configure how emails are handled")}>
-      <SettingItem label={t('settings.email_behavior.mark_read.label', "Mark as Read")} description={t('settings.email_behavior.mark_read.description', "When to mark emails as read when opened")}>
-        <Select
-          value={String(markAsReadDelay)}
-          onChange={(v) => update('markAsReadDelay', Number(v))}
-          options={[
-            { value: '0', label: t('settings.email_behavior.mark_read.instant', "Instantly") },
-            { value: '3000', label: t('settings.email_behavior.mark_read.delay_3s', "After 3 seconds") },
-            { value: '5000', label: t('settings.email_behavior.mark_read.delay_5s', "After 5 seconds") },
-            { value: '-1', label: t('settings.email_behavior.mark_read.never', "Never") },
-          ]}
-        />
-      </SettingItem>
+      {!markAsReadHidden && (
+        <SettingItem label={t('settings.email_behavior.mark_read.label', "Mark as Read")} description={t('settings.email_behavior.mark_read.description', "When to mark emails as read when opened")} locked={markAsReadLocked}>
+          <Select
+            value={String(markAsReadDelay)}
+            onChange={(v) => update('markAsReadDelay', Number(v))}
+            options={[
+              { value: '0', label: t('settings.email_behavior.mark_read.instant', "Instantly") },
+              { value: '3000', label: t('settings.email_behavior.mark_read.delay_3s', "After 3 seconds") },
+              { value: '5000', label: t('settings.email_behavior.mark_read.delay_5s', "After 5 seconds") },
+              { value: '-1', label: t('settings.email_behavior.mark_read.never', "Never") },
+            ]}
+          />
+        </SettingItem>
+      )}
 
-      <View style={styles.group}>
-        <SettingItem label={t('settings.email_behavior.delete_action.label', "Delete Action")} description={t('settings.email_behavior.delete_action.description', "What happens when you delete an email")} noBorder />
-        <Select
-          value={deleteAction}
-          onChange={(v) => update('deleteAction', v as DeleteAction)}
-          options={[
-            { value: 'trash', label: t('settings.email_behavior.delete_action.trash', "Move to Trash") },
-            { value: 'trash-and-read', label: t('settings.email_behavior.delete_action.trash_and_read', "Move to Trash and mark as read") },
-            { value: 'permanent', label: t('settings.email_behavior.delete_action.permanent', "Delete Permanently") },
-          ]}
-        />
-        {deleteAction === 'permanent' && (
-          <View style={styles.warning}>
-            <AlertTriangle size={14} color={c.error} />
-            <Text style={styles.warningText}>{t('settings.email_behavior.delete_action.warning', "Emails will be permanently deleted and cannot be recovered. This action is irreversible.")}</Text>
+      {!deleteActionHidden && (
+        <View style={styles.group}>
+          <SettingItem label={t('settings.email_behavior.delete_action.label', "Delete Action")} description={t('settings.email_behavior.delete_action.description', "What happens when you delete an email")} noBorder locked={deleteActionLocked} />
+          <View pointerEvents={deleteActionLocked ? 'none' : 'auto'} style={deleteActionLocked && styles.lockedControl}>
+            <Select
+              value={deleteAction}
+              onChange={(v) => update('deleteAction', v as DeleteAction)}
+              options={[
+                { value: 'trash', label: t('settings.email_behavior.delete_action.trash', "Move to Trash") },
+                { value: 'trash-and-read', label: t('settings.email_behavior.delete_action.trash_and_read', "Move to Trash and mark as read") },
+                { value: 'permanent', label: t('settings.email_behavior.delete_action.permanent', "Delete Permanently") },
+              ]}
+            />
           </View>
-        )}
-        <View style={styles.divider} />
-      </View>
+          {deleteAction === 'permanent' && (
+            <View style={styles.warning}>
+              <AlertTriangle size={14} color={c.error} />
+              <Text style={styles.warningText}>{t('settings.email_behavior.delete_action.warning', "Emails will be permanently deleted and cannot be recovered. This action is irreversible.")}</Text>
+            </View>
+          )}
+          <View style={styles.divider} />
+        </View>
+      )}
 
       {archiveEnabled && (
         <View style={styles.group}>
@@ -196,9 +218,11 @@ export function ReadingSettings() {
         <ToggleSwitch checked={clearSearchOnFolderChange} onChange={(v) => update('clearSearchOnFolderChange', v)} />
       </SettingItem>
 
-      <SettingItem label={t('settings.email_behavior.show_preview.label', "Show Preview Text")} description={t('settings.email_behavior.show_preview.description', "Display email preview in the list")}>
-        <ToggleSwitch checked={showPreview} onChange={(v) => update('showPreview', v)} />
-      </SettingItem>
+      {!showPreviewHidden && (
+        <SettingItem label={t('settings.email_behavior.show_preview.label', "Show Preview Text")} description={t('settings.email_behavior.show_preview.description', "Display email preview in the list")} locked={showPreviewLocked}>
+          <ToggleSwitch checked={showPreview} onChange={(v) => update('showPreview', v)} />
+        </SettingItem>
+      )}
 
       <SettingItem label={t('settings.email_behavior.show_verification_codes.label', "Show Verification Codes")} description={t('settings.email_behavior.show_verification_codes.description', "Offer the code from sign-in and confirmation emails for one-click copying, in the list for a day and in the message")}>
         <ToggleSwitch checked={showVerificationCodes} onChange={(v) => update('showVerificationCodes', v)} />
@@ -208,15 +232,17 @@ export function ReadingSettings() {
         <ToggleSwitch checked={disableThreading} onChange={(v) => update('disableThreading', v)} />
       </SettingItem>
 
-      <SettingItem label={t('settings.appearance.unified_mailbox.include_group.label', "Include group inboxes")} description={t('settings.appearance.unified_mailbox.include_group.description', "Also merge shared/group inboxes into the unified view.")}>
-        <ToggleSwitch checked={includeGroupInUnified} onChange={(v) => update('includeGroupInUnified', v)} />
-      </SettingItem>
+      {!includeGroupHidden && (
+        <SettingItem label={t('settings.appearance.unified_mailbox.include_group.label', "Include group inboxes")} description={t('settings.appearance.unified_mailbox.include_group.description', "Also merge shared/group inboxes into the unified view.")} locked={includeGroupLocked}>
+          <ToggleSwitch checked={includeGroupInUnified} onChange={(v) => update('includeGroupInUnified', v)} />
+        </SettingItem>
+      )}
 
-      <SettingItem label={t('settings.email_behavior.plain_text_mode.label', "Plain Text Only")} description={t('settings.email_behavior.plain_text_mode.description_mobile', "Compose and read in plain text only.")}>
+      <SettingItem label={t('settings.email_behavior.plain_text_mode.label', "Plain Text Only")} description={t('settings.email_behavior.plain_text_mode.description_mobile', "Compose and read in plain text only.")} locked={plainTextModeLocked}>
         <ToggleSwitch checked={plainTextMode} onChange={(v) => update('plainTextMode', v)} />
       </SettingItem>
 
-      <SettingItem label={t('settings.email_behavior.auto_select_reply_identity.label', "Reply From Received Address")} description={t('settings.email_behavior.auto_select_reply_identity.description_mobile', "When replying, send from the address the message was originally sent to.")}>
+      <SettingItem label={t('settings.email_behavior.auto_select_reply_identity.label', "Reply From Received Address")} description={t('settings.email_behavior.auto_select_reply_identity.description_mobile', "When replying, send from the address the message was originally sent to.")} locked={autoSelectReplyIdentityLocked}>
         <ToggleSwitch checked={autoSelectReplyIdentity} onChange={(v) => update('autoSelectReplyIdentity', v)} />
       </SettingItem>
 
@@ -320,17 +346,19 @@ export function ReadingSettings() {
         />
       </SettingItem>
 
-      <SettingItem label={t('settings.email_behavior.message_spacing.label', "Message Spacing")} description={t('settings.email_behavior.message_spacing.description', "Padding around the message body in the reader")}>
-        <Select
-          value={messageSpacing}
-          onChange={(v) => update('messageSpacing', v as MessageSpacing)}
-          options={[
-            { value: 'auto', label: t('settings.email_behavior.message_spacing.auto', "Auto (recommended)") },
-            { value: 'always', label: t('settings.email_behavior.message_spacing.always', "Always add spacing") },
-            { value: 'edge', label: t('settings.email_behavior.message_spacing.edge', "Edge to edge") },
-          ]}
-        />
-      </SettingItem>
+      {!messageSpacingHidden && (
+        <SettingItem label={t('settings.email_behavior.message_spacing.label', "Message Spacing")} description={t('settings.email_behavior.message_spacing.description', "Padding around the message body in the reader")} locked={messageSpacingLocked}>
+          <Select
+            value={messageSpacing}
+            onChange={(v) => update('messageSpacing', v as MessageSpacing)}
+            options={[
+              { value: 'auto', label: t('settings.email_behavior.message_spacing.auto', "Auto (recommended)") },
+              { value: 'always', label: t('settings.email_behavior.message_spacing.always', "Always add spacing") },
+              { value: 'edge', label: t('settings.email_behavior.message_spacing.edge', "Edge to edge") },
+            ]}
+          />
+        </SettingItem>
+      )}
 
       <SettingItem label={t('settings.email_behavior.read_receipt_response.label', "Respond to read-receipt requests")} description={t('settings.email_behavior.read_receipt_response.description', "What to do when an incoming message asks for a read receipt.")}>
         <Select
@@ -344,18 +372,20 @@ export function ReadingSettings() {
         />
       </SettingItem>
 
-      <SettingItem label={t('settings.email_behavior.emails_per_page.label', "Emails Per Page")} description={t('settings.email_behavior.emails_per_page.description', "Number of emails to load at once")}>
-        <Select
-          value={String(emailsPerPage)}
-          onChange={(v) => update('emailsPerPage', Number(v))}
-          options={[
-            { value: '10', label: '10' },
-            { value: '25', label: '25' },
-            { value: '50', label: '50' },
-            { value: '100', label: '100' },
-          ]}
-        />
-      </SettingItem>
+      {!emailsPerPageHidden && (
+        <SettingItem label={t('settings.email_behavior.emails_per_page.label', "Emails Per Page")} description={t('settings.email_behavior.emails_per_page.description', "Number of emails to load at once")} locked={emailsPerPageLocked}>
+          <Select
+            value={String(emailsPerPage)}
+            onChange={(v) => update('emailsPerPage', Number(v))}
+            options={[
+              { value: '10', label: '10' },
+              { value: '25', label: '25' },
+              { value: '50', label: '50' },
+              { value: '100', label: '100' },
+            ]}
+          />
+        </SettingItem>
+      )}
 
     </SettingsSection>
   );
@@ -364,6 +394,7 @@ export function ReadingSettings() {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   group: {},
+  lockedControl: { opacity: 0.6 },
   warning: {
     flexDirection: 'row',
     gap: spacing.sm,

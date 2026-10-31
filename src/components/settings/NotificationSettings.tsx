@@ -19,6 +19,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useEmailStore } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
+import { useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 import {
   DEFAULT_RELAY_BASE_URL,
   disablePushForAccount,
@@ -99,6 +100,13 @@ export function NotificationSettings() {
   // The Inbox-only filter needs the server's emailPush filter too (webmail #983).
   const inboxOnly = useSettingsStore((s) => s.pushNotifyInboxOnly);
   const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
+  // Settings the organisation pins or hides (webmail notification-settings.tsx).
+  const emailEnabledLocked = useSettingLocked('emailNotificationsEnabled');
+  const emailEnabledHidden = useSettingHidden('emailNotificationsEnabled');
+  const inboxOnlyLocked = useSettingLocked('pushNotifyInboxOnly');
+  const inboxOnlyHidden = useSettingHidden('pushNotifyInboxOnly');
+  const calEnabledLocked = useSettingLocked('calendarNotificationsEnabled');
+  const calEnabledHidden = useSettingHidden('calendarNotificationsEnabled');
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const appIconBadge = useSettingsStore((s) => s.appIconUnreadBadge);
 
@@ -570,16 +578,20 @@ export function NotificationSettings() {
         title={t('settings.notifications.email.title', 'Email Notifications')}
         description={t('settings.notifications.email.description', 'Configure notifications for incoming emails')}
       >
-        <SettingItem
-          label={t('settings.notifications.email.enabled', 'Email notifications')}
-          description={t('settings.notifications.email.enabled_desc', 'Show notifications when new emails arrive')}
-        >
-          <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
-        </SettingItem>
-        {inboxOnlyAvailable && (
+        {!emailEnabledHidden && (
+          <SettingItem
+            label={t('settings.notifications.email.enabled', 'Email notifications')}
+            description={t('settings.notifications.email.enabled_desc', 'Show notifications when new emails arrive')}
+            locked={emailEnabledLocked}
+          >
+            <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
+          </SettingItem>
+        )}
+        {inboxOnlyAvailable && !inboxOnlyHidden && (
           <SettingItem
             label={t('settings.notifications.email.inbox_only', 'Inbox only')}
             description={t('settings.notifications.email.inbox_only_desc', 'Only notify for mail that lands in the Inbox; skip mail a filter files into another folder')}
+            locked={inboxOnlyLocked}
           >
             <ToggleSwitch
               checked={inboxOnly}
@@ -629,12 +641,15 @@ export function NotificationSettings() {
         title={t('settings.notifications.calendar.title', 'Calendar Notifications')}
         description={t('settings.notifications.calendar.description', 'Configure notifications for calendar events')}
       >
-        <SettingItem
-          label={t('settings.notifications.calendar.enabled', 'Event notifications')}
-          description={t('settings.notifications.calendar.enabled_desc', 'Show alerts for upcoming calendar events')}
-        >
-          <ToggleSwitch checked={calEnabled} onChange={(v) => update('calendarNotificationsEnabled', v)} />
-        </SettingItem>
+        {!calEnabledHidden && (
+          <SettingItem
+            label={t('settings.notifications.calendar.enabled', 'Event notifications')}
+            description={t('settings.notifications.calendar.enabled_desc', 'Show alerts for upcoming calendar events')}
+            locked={calEnabledLocked}
+          >
+            <ToggleSwitch checked={calEnabled} onChange={(v) => update('calendarNotificationsEnabled', v)} />
+          </SettingItem>
+        )}
         <SettingItem
           label={t('settings.notifications.calendar.invitation_parsing', 'Parse email invitations')}
           description={t(

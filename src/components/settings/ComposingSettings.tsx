@@ -7,6 +7,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ReplyIdentityMatch, type SignaturePosition } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useSettingLocked } from '../../stores/policy-store';
 import { SUPPORTED_SUB_ADDRESS_DELIMITERS } from '../../lib/sub-addressing';
 import { RADIO_GROUP_A11Y, radioOptionA11y } from '../radio-a11y';
 
@@ -24,6 +25,10 @@ export function ComposingSettings() {
   const setAttachmentReminderKeywords = useSettingsStore((s) => s.setAttachmentReminderKeywords);
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  // Settings the organisation can pin (webmail lib/admin/restriction-keys.ts).
+  const autoSelectReplyIdentityLocked = useSettingLocked('autoSelectReplyIdentity');
+  const replyIdentityMatchLocked = useSettingLocked('replyIdentityMatch');
+  const plainTextModeLocked = useSettingLocked('plainTextMode');
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
@@ -117,6 +122,7 @@ export function ComposingSettings() {
       <SettingItem
         label={t('settings.email_behavior.auto_select_reply_identity.label', "Reply From Received Address")}
         description={t('settings.email_behavior.auto_select_reply_identity.description_mobile', "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too.")}
+        locked={autoSelectReplyIdentityLocked}
       >
         <ToggleSwitch checked={autoSelectReplyIdentity} onChange={setAutoSelectReplyIdentity} />
       </SettingItem>
@@ -127,7 +133,10 @@ export function ComposingSettings() {
           <Text style={styles.subDescription}>
             {t('settings.email_behavior.reply_identity_match.description', 'Which received addresses count as yours. Exact address only picks one of your configured identities. Same domain also treats any other address on one of your identity domains as a catch-all alias and rewrites the From header to it. Choose exact address if those addresses are distribution lists rather than aliases.')}
           </Text>
-          {segmented(REPLY_IDENTITY_MATCHES, replyIdentityMatch, (v) => updateSetting('replyIdentityMatch', v))}
+          {replyIdentityMatchLocked && <Text style={styles.subDescription}>{t('settings.org_locked', 'Set by your organisation')}</Text>}
+          <View pointerEvents={replyIdentityMatchLocked ? 'none' : 'auto'} style={replyIdentityMatchLocked && styles.lockedControl}>
+            {segmented(REPLY_IDENTITY_MATCHES, replyIdentityMatch, (v) => updateSetting('replyIdentityMatch', v))}
+          </View>
         </View>
       )}
 
@@ -137,6 +146,7 @@ export function ComposingSettings() {
         // the webmail's description (sending only) leaves out; same text as
         // under Reading.
         description={t('settings.email_behavior.plain_text_mode.description_mobile', 'Compose and read in plain text only.')}
+        locked={plainTextModeLocked}
       >
         <ToggleSwitch checked={plainTextMode} onChange={(v) => updateSetting('plainTextMode', v)} />
       </SettingItem>
@@ -271,6 +281,7 @@ function makeStyles(c: ThemePalette) {
   subBlock: { paddingVertical: spacing.md, gap: spacing.sm },
   subLabel: { ...typography.bodyMedium, color: c.text },
   subDescription: { ...typography.caption, color: c.mutedForeground },
+  lockedControl: { opacity: 0.6 },
   segmentRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
   segment: {
     flex: 1,
