@@ -49,6 +49,45 @@ describe('generateAccountId', () => {
   });
 });
 
+describe('a new default-port account next to a kept host-only id', () => {
+  const legacy = { id: 'u@example.org@mail.example.org', username: 'u@example.org', serverUrl: 'https://mail.example.org:8120' };
+
+  it('gets an id of its own instead of the one the other server kept', () => {
+    setKnownAccounts([legacy]);
+    expect(generateAccountId('u@example.org', 'https://mail.example.org')).toBe('u@example.org@mail.example.org:443');
+    expect(generateAccountId('u@example.org', 'http://mail.example.org/jmap')).toBe('u@example.org@mail.example.org:80');
+    // The kept account itself still resolves to its old id.
+    expect(generateAccountId('u@example.org', 'https://mail.example.org:8120')).toBe(legacy.id);
+  });
+
+  it('keeps that id after the other account is gone', () => {
+    const own = { id: 'u@example.org@mail.example.org:443', username: 'u@example.org', serverUrl: 'https://mail.example.org' };
+    setKnownAccounts([legacy, own]);
+    expect(generateAccountId('u@example.org', 'https://mail.example.org')).toBe(own.id);
+    setKnownAccounts([own]);
+    expect(generateAccountId('u@example.org', 'https://mail.example.org')).toBe(own.id);
+  });
+
+  it('leaves an existing default-port account under its plain id', () => {
+    setKnownAccounts([{ id: 'u@example.org@mail.example.org', username: 'u@example.org', serverUrl: 'https://mail.example.org/' }]);
+    expect(generateAccountId('u@example.org', 'https://mail.example.org')).toBe('u@example.org@mail.example.org');
+  });
+
+  it('adds it to the registry as a second account', () => {
+    useAccountStore.setState({
+      accounts: [{ ...entry('u@example.org', legacy.serverUrl), id: legacy.id, avatarColor: '#000', isDefault: true }],
+      activeAccountId: legacy.id,
+      defaultAccountId: legacy.id,
+    });
+    const id = useAccountStore.getState().addAccount(entry('u@example.org', 'https://mail.example.org'));
+    expect(id).toBe('u@example.org@mail.example.org:443');
+    expect(useAccountStore.getState().accounts.map((x) => [x.id, x.serverUrl])).toEqual([
+      [legacy.id, legacy.serverUrl],
+      ['u@example.org@mail.example.org:443', 'https://mail.example.org'],
+    ]);
+  });
+});
+
 describe('the account registry', () => {
   it('adds the same address on another port of the same host as a second account', () => {
     const store = useAccountStore.getState();

@@ -50,6 +50,11 @@ function hostOnlyAccountId(username: string, serverUrl: string): string {
   return `${username}@${host}`;
 }
 
+/** The default port of `serverUrl`'s scheme: 80 for http, 443 otherwise. */
+function defaultPortOf(serverUrl: string): string {
+  return /^http:/i.test(serverUrl.trim()) ? '80' : '443';
+}
+
 /** What the registry tells generateAccountId (structural: no AccountEntry import). */
 export interface KnownAccount {
   id: string;
@@ -78,13 +83,22 @@ export function setKnownAccounts(accounts: readonly KnownAccount[]): void {
  * outbox, push registration and settings: when the registry holds the
  * host-only id for the same server, that is the answer. A second server on
  * the same host then gets the id with its port, and the two stay apart.
- * Accounts on the default ports have the same id either way.
+ * Accounts on the default ports have the same id either way, with one
+ * exception: when the registry holds username@host for a server on another
+ * port of that host (kept from before ports counted), the default-port
+ * server gets username@host:443 (or :80 for http), so the two don't share
+ * credentials and caches. It keeps that id once it has it.
  */
 export function generateAccountId(username: string, serverUrl: string): string {
   const legacy = hostOnlyAccountId(username, serverUrl);
   const host = serverHostLabel(serverUrl);
   const id = `${username}@${host}`;
-  if (id === legacy) return id;
+  if (id === legacy) {
+    const explicit = `${id}:${defaultPortOf(serverUrl)}`;
+    if (knownAccounts.some((a) => a.id === explicit)) return explicit;
+    const taken = knownAccounts.some((a) => a.id === id && `${a.username}@${serverHostLabel(a.serverUrl)}` !== id);
+    return taken ? explicit : id;
+  }
   const kept = knownAccounts.find((a) => a.id === legacy
     && a.username === username
     && `${a.username}@${serverHostLabel(a.serverUrl)}` === id);
