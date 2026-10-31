@@ -75,6 +75,20 @@ describe('embedded signature range', () => {
     expect(spliceSignature('<p>x</p>', a)).toBe(`<p>x</p>${a}`);
   });
 
+  it('swaps the signature after the user typed into the line under it, keeping the text', () => {
+    const a = buildEmbeddedSignatureHtml({ textSignature: 'A' }, { separator: true });
+    const b = buildEmbeddedSignatureHtml({ textSignature: 'B' }, { separator: true });
+    const typed = a.replace('data-signature-block="end"><br></p>', 'data-signature-block="end">PS: call me</p>');
+    expect(typed).not.toBe(a);
+    const body = `<p>hello</p>${typed}<div data-quoted-html="true">q</div>`;
+    expect(containsEmbeddedSignature(body)).toBe(true);
+    const swapped = spliceSignature(body, b);
+    expect(swapped).toBe(`<p>hello</p>${b}<p>PS: call me</p><div data-quoted-html="true">q</div>`);
+    // One signature, never two.
+    expect(swapped.match(/data-signature-block="body"/g)).toHaveLength(1);
+    expect(stripEmbeddedSignature(body)).toBe('<p>hello</p><p>PS: call me</p><div data-quoted-html="true">q</div>');
+  });
+
   it('inserts above the quote marker', () => {
     const sig = buildEmbeddedSignatureHtml({ textSignature: 'S' }, { separator: true });
     const marker = '<div data-quoted-html="true">';
@@ -91,6 +105,11 @@ describe('signatureIdentityFor', () => {
   it('uses the identity\'s own signature, else the primary\'s', () => {
     expect(signatureIdentityFor(signedAlias, [alias, primary, signedAlias])).toBe(signedAlias);
     expect(signatureIdentityFor(alias, [alias, primary, signedAlias])).toBe(primary);
+  });
+
+  it("keeps a hand-picked identity's own empty signature", () => {
+    expect(signatureIdentityFor(alias, [alias, primary], { pickedByUser: true })).toBeNull();
+    expect(signatureIdentityFor(signedAlias, [alias, primary, signedAlias], { pickedByUser: true })).toBe(signedAlias);
   });
 
   it('returns null when neither has one', () => {

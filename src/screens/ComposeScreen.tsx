@@ -985,10 +985,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return identities.find((i) => i.id === selectedIdentityId) ?? defaultIdentity;
   }, [identities, selectedIdentityId]);
 
-  // An alias without a signature falls back to the primary identity's.
+  // Set once the user picks From by hand: their pick then brings its own
+  // signature, also when it has none (webmail identityPickedByUser).
+  const [identityPickedByUser, setIdentityPickedByUser] = React.useState(false);
+  // An alias without a signature falls back to the primary identity's,
+  // unless the user picked it.
   const signatureIdentity = React.useMemo(
-    () => signatureIdentityFor(primaryIdentity, identities),
-    [primaryIdentity, identities],
+    () => signatureIdentityFor(primaryIdentity, identities, { pickedByUser: identityPickedByUser }),
+    [primaryIdentity, identities, identityPickedByUser],
   );
 
   const openIdentityPicker = () => {
@@ -3220,7 +3224,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         onClose={() => setIdentitySheetOpen(false)}
         identities={identities}
         selectedIdentityId={selectedIdentityId}
-        onPick={(identity) => { setSelectedIdentityId(identity.id); setFromOverride(null); }}
+        onPick={(identity) => { setSelectedIdentityId(identity.id); setFromOverride(null); setIdentityPickedByUser(true); }}
       />
 
       <AttachmentPreviewModal {...filePreview.modalProps} />

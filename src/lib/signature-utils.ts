@@ -83,9 +83,14 @@ export function hasSignature(signature?: SignatureSource): boolean {
 export function signatureIdentityFor<T extends { textSignature?: string; htmlSignature?: string; mayDelete?: boolean }>(
   identity: T | null | undefined,
   identities: T[],
+  options: { pickedByUser?: boolean } = {},
 ): T | null {
   if (!identity) return null;
   if (hasSignature(identity)) return identity;
+  // An identity the user picked by hand keeps its own, also an empty one:
+  // switching to a team address without a signature sent the team mail with
+  // the personal signature (webmail email-composer.tsx ownSignatureIdentity).
+  if (options.pickedByUser) return null;
   const primary = identities.find((i) => !i.mayDelete) ?? identities[0];
   return primary && hasSignature(primary) ? primary : null;
 }
@@ -242,10 +247,27 @@ export function buildEmbeddedSignatureHtml(
   return '';
 }
 
+// The end marker is the empty line under the signature, so a tap below the
+// signature puts the caret there; its content (group 1) may be text the user
+// typed.
 const SIGNATURE_RANGE_RE = new RegExp(
-  `<p\\s+${SIGNATURE_RANGE_MARKER}=["'](?:separator|start)["'][^>]*>[\\s\\S]*?<p\\s+${SIGNATURE_RANGE_MARKER}=["']end["'][^>]*>(?:<br\\s*/?>)?</p>`,
+  `<p\\s+${SIGNATURE_RANGE_MARKER}=["'](?:separator|start)["'][^>]*>[\\s\\S]*?<p\\s+${SIGNATURE_RANGE_MARKER}=["']end["'][^>]*>((?:(?!</p>)[\\s\\S])*)</p>`,
   'i',
 );
+
+/**
+ * Text typed into the end marker is the user's, not part of the signature:
+ * kept as an ordinary paragraph after it (webmail compose-format.ts
+ * removeSignatureRange).
+ */
+function keptEndText(endContent: string): string {
+  const text = endContent
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;| /g, ' ')
+    .trim();
+  return text ? `<p>${endContent}</p>` : '';
+}
 
 /** True when the body carries an embedded signature range. */
 export function containsEmbeddedSignature(html: string): boolean {
@@ -259,7 +281,7 @@ export function containsEmbeddedSignature(html: string): boolean {
  */
 export function spliceSignature(html: string, nextSignatureHtml: string): string {
   if (SIGNATURE_RANGE_RE.test(html)) {
-    return html.replace(SIGNATURE_RANGE_RE, () => nextSignatureHtml);
+    return html.replace(SIGNATURE_RANGE_RE, (_m, end: string) => `${nextSignatureHtml}${keptEndText(end)}`);
   }
   if (!nextSignatureHtml) return html;
   return `${html}${nextSignatureHtml}`;
@@ -267,7 +289,7 @@ export function spliceSignature(html: string, nextSignatureHtml: string): string
 
 /** The body without its embedded signature range. */
 export function stripEmbeddedSignature(html: string): string {
-  return html.replace(SIGNATURE_RANGE_RE, '');
+  return html.replace(SIGNATURE_RANGE_RE, (_m, end: string) => keptEndText(end));
 }
 
 /**
