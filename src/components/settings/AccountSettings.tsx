@@ -15,7 +15,7 @@ import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
 import { fetchMailQuota, type MailQuota } from '../../api/quota';
-import { MAX_ACCOUNTS, accountRowText } from '../../lib/account-utils';
+import { MAX_ACCOUNTS, accountRowText, nonDefaultPort, serverHostLabel } from '../../lib/account-utils';
 import { toUnicodeEmail } from '../../lib/idn';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -41,6 +41,7 @@ export function AccountSettings() {
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const session = useAuthStore((s) => s.session);
   const switchAccount = useAuthStore((s) => s.switchAccount);
+  const requestReauth = useAuthStore((s) => s.requestReauth);
   const removeAccountAuth = useAuthStore((s) => s.removeAccount);
   const accounts = useAccountStore((s) => s.accounts);
   const defaultAccountId = useAccountStore((s) => s.defaultAccountId);
@@ -178,7 +179,11 @@ export function AccountSettings() {
                 </View>
                 <Pressable
                   style={{ flex: 1, minWidth: 0 }}
-                  onPress={() => { if (!isActive) void switchAccount(a.id); }}
+                  onPress={() => {
+                    // The server refused its stored sign-in: sign in again.
+                    if (a.needsSignIn) void requestReauth(a.id);
+                    else if (!isActive) void switchAccount(a.id);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={isActive
                     ? t('settings.account.accounts.active', 'Currently active account')
@@ -189,12 +194,16 @@ export function AccountSettings() {
                     {isActive && <Check size={14} color={c.success} />}
                   </View>
                   {rowText.subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{toUnicodeEmail(rowText.subtitle)}</Text> : null}
+                  {/* Two servers on one host are two accounts with the same address. */}
+                  {nonDefaultPort(a.serverUrl) ? <Text style={styles.rowSub} numberOfLines={1}>{serverHostLabel(a.serverUrl)}</Text> : null}
                   {isDefault && (
                     <Text style={styles.defaultBadge}>
                       {t('settings.account.accounts.default_badge', 'Default account')}
                     </Text>
                   )}
-                  {a.hasError && a.errorMessage ? (
+                  {a.needsSignIn ? (
+                    <Text style={styles.rowError} numberOfLines={1}>{t('sidebar.account_sign_in_again', 'Sign in again')}</Text>
+                  ) : a.hasError && a.errorMessage ? (
                     <Text style={styles.rowError} numberOfLines={1}>{a.errorMessage}</Text>
                   ) : null}
                 </Pressable>

@@ -82,10 +82,12 @@ import { signOutWidgets, startWidgetSync } from './src/widgets/sync';
 import { draftContextFromEmail } from './src/lib/draft-context';
 import {
   acceptSignInLink,
+  enterLinkAccount,
   handleDeepLink,
   parseDeepLink,
   routeParkedSignInLink,
   shareToDeepLink,
+  type AccountSwitchResult,
   type DeepLink,
 } from './src/navigation/linking';
 import { usePendingSignInLinkStore } from './src/navigation/pending-sign-in-link';
@@ -107,20 +109,26 @@ const navigationRef = createNavigationContainerRef<RootStackParamList>();
 // on every getInitialURL(), and a sign-in link must not run twice.
 let initialSignInLinkRead = false;
 
+// Move to the account a notification, reminder or link names. An account
+// that was signed out meanwhile has nothing safe to open.
+async function switchToAccount(accountId: string): Promise<AccountSwitchResult> {
+  const auth = useAuthStore.getState();
+  if (auth.activeAccountId === accountId) return true;
+  if (!useAccountStore.getState().getAccountById(accountId)) return false;
+  await auth.switchAccount(accountId);
+  return useAuthStore.getState().activeAccountId === accountId ? 'switched' : false;
+}
+
 async function navigateToNotificationTap(payload: NotificationTapPayload): Promise<void> {
   if (!navigationRef.isReady()) return;
 
   // The notification carries the account it was generated for. If the user
   // has since switched to a different account (or had a different one active
   // when the notification arrived), opening EmailThread under the active
-  // account would fetch the email from the wrong server and fail.
-  const auth = useAuthStore.getState();
-  if (payload.accountId && payload.accountId !== auth.activeAccountId) {
-    const account = useAccountStore.getState().getAccountById(payload.accountId);
-    if (!account) return; // account was logged out — nothing safe to open.
-    await auth.switchAccount(payload.accountId);
-    if (useAuthStore.getState().activeAccountId !== payload.accountId) return;
-  }
+  // account would fetch the email from the wrong server and fail. After a
+  // switch the stack starts over on that account's inbox, so Back from the
+  // message lands there instead of on the old account's screens.
+  if (!(await enterLinkAccount(navigationRef, payload.accountId, switchToAccount))) return;
 
   prefetchMessage({ id: payload.emailId, threadId: payload.threadId });
   navigationRef.navigate('EmailThread', {
@@ -138,12 +146,7 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
 // under the account it was scheduled for. The target is parked for
 // CalendarScreen, which also picks it up when it mounts after a cold start.
 async function openCalendarReminder(target: CalendarReminderTarget): Promise<void> {
-  const auth = useAuthStore.getState();
-  if (target.appAccountId && target.appAccountId !== auth.activeAccountId) {
-    if (!useAccountStore.getState().getAccountById(target.appAccountId)) return;
-    await auth.switchAccount(target.appAccountId);
-    if (useAuthStore.getState().activeAccountId !== target.appAccountId) return;
-  }
+  if (!(await enterLinkAccount(navigationRef, target.appAccountId, switchToAccount))) return;
   setPendingCalendarOpen(target);
   // On a cold start the navigator mounts right after the auth gate flips.
   for (let attempt = 0; attempt < 50 && !navigationRef.isReady(); attempt++) {
@@ -178,13 +181,7 @@ async function openDeepLink(link: DeepLink): Promise<void> {
         return false;
       }
     },
-    switchAccount: async (accountId) => {
-      const auth = useAuthStore.getState();
-      if (auth.activeAccountId === accountId) return true;
-      if (!useAccountStore.getState().getAccountById(accountId)) return false;
-      await auth.switchAccount(accountId);
-      return useAuthStore.getState().activeAccountId === accountId;
-    },
+    switchAccount: switchToAccount,
   });
   // A widget or a link elsewhere brought the app up for this; say it failed
   // rather than leave the user wondering why the app just opened.
@@ -643,6 +640,24 @@ export default function App() {
     return () => { cancelled = true; };
   }, [addAccountForLink]);
 
+  // The server refused the stored sign-in of an account (auth store
+  // keepForSignIn): open the sign-in to it, filled in, over what is cached.
+  const reauthTarget = useAuthStore((s) => s.reauth);
+  React.useEffect(() => {
+    if (!isAuthenticated || !reauthTarget) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 50 && !navigationRef.isReady(); attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (cancelled) return;
+      }
+      if (cancelled || !navigationRef.isReady()) return;
+      if (navigationRef.getCurrentRoute()?.name === 'AddAccount') return;
+      navigationRef.navigate('AddAccount');
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, reauthTarget]);
+
   // Re-register the device with the configured relay once authenticated,
   // and whenever the FCM token rotates. Honours the user's notification
   // preference - flipping it off tears down THIS account's subscription so
@@ -654,7 +669,10 @@ export default function App() {
   );
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   React.useEffect(() => {
-    if (!isAuthenticated || !client) return;
+    // The setup asks the server through the client: it waits for the
+    // session, and runs again once one comes up (an account added or
+    // switched to, a cold start that began offline).
+    if (!isAuthenticated || !client || !haveLiveSession) return;
 
     let cancelled = false;
     const doSetup = async () => {
@@ -700,7 +718,7 @@ export default function App() {
       unsubscribe();
       unsubscribeUp();
     };
-  }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId]);
+  }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId, haveLiveSession]);
 
   // Muting a folder or account changes the server-side push filter (#78),
   // which the setup above would only send at the next launch. Send it now,

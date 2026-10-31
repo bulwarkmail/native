@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage } from './persist-storage';
-import { AccountLimitError, generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
+import { AccountLimitError, generateAccountId, MAX_ACCOUNTS, setKnownAccounts } from '../lib/account-utils';
 import { generateAvatarColor } from '../lib/avatar-utils';
 
 export interface AccountEntry {
@@ -15,6 +15,10 @@ export interface AccountEntry {
   isConnected: boolean;
   hasError: boolean;
   errorMessage?: string;
+  // The server refused the stored sign-in (a password changed, a token that
+  // expired, a server moved to Stalwart 1.0): the account stays, and the
+  // user is asked to sign in to it again.
+  needsSignIn?: boolean;
   isDefault: boolean;
   // JMAP primary account id (from the session's primaryAccounts). Recorded
   // when push is set up so a relay payload can be routed to this entry.
@@ -58,12 +62,17 @@ export const useAccountStore = create<AccountState>()(
               a.id === id
                 ? {
                     ...a,
+                    // The same server under another URL (a path, a scheme):
+                    // the credentials just stored carry the new one.
+                    serverUrl: entry.serverUrl || a.serverUrl,
                     displayName: entry.displayName || a.displayName,
                     email: entry.email || a.email,
                     lastLoginAt: entry.lastLoginAt,
                     isConnected: entry.isConnected,
                     hasError: entry.hasError,
                     errorMessage: entry.errorMessage,
+                    // Signed in again.
+                    needsSignIn: false,
                   }
                 : a,
             ),
@@ -180,3 +189,8 @@ export const useAccountStore = create<AccountState>()(
     },
   ),
 );
+
+// generateAccountId keeps the ids accounts were signed in under, which it
+// reads from the registry (see lib/account-utils).
+setKnownAccounts(useAccountStore.getState().accounts);
+useAccountStore.subscribe((state) => setKnownAccounts(state.accounts));

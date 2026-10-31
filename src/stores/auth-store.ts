@@ -9,7 +9,7 @@ import {
 } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
 import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-security';
-import { useAccountStore } from './account-store';
+import { useAccountStore, type AccountEntry } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
@@ -33,7 +33,7 @@ import {
   forgetRefreshRotations,
   type HandoffResult,
 } from '../lib/oauth';
-import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
+import { discoverOAuthMetadata, endProviderSession, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
@@ -77,6 +77,20 @@ async function waitForHydration(store: {
   });
 }
 
+/**
+ * An account whose stored sign-in the server refused, to be signed in to
+ * again: the sign-in screen opens on it with the server and the username
+ * filled in. The method is how it signed in: a pasted access token is asked
+ * for again, a password account goes to the password form, an OAuth one to
+ * the server's sign-in page.
+ */
+export interface ReauthTarget {
+  accountId: string;
+  serverUrl: string;
+  username: string;
+  method: 'password' | 'oauth' | 'token';
+}
+
 export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -94,6 +108,8 @@ export interface AuthState {
    * on the next successful sign-in.
    */
   pendingTotpLogin: { serverUrl: string; username: string; password: string } | null;
+  /** The account to sign in to again, set when its stored sign-in was refused. */
+  reauth: ReauthTarget | null;
 
   login: (
     serverUrl: string,
@@ -115,6 +131,9 @@ export interface AuthState {
   restoreSession: () => Promise<boolean>;
   retrySession: () => Promise<boolean>;
   clearError: () => void;
+  /** Ask for a new sign-in to an account (sets reauth). */
+  requestReauth: (accountId: string) => Promise<void>;
+  clearReauth: () => void;
 }
 
 // The messages the viewer read, their rendered documents and their heights,
@@ -201,6 +220,47 @@ async function checkServerChange(accountId: string, session: JMAPSession): Promi
   } catch (err) {
     console.warn('[auth-store] server change check failed:', err);
   }
+}
+
+// The registry names the server the account's stored credentials sign in
+// to. Before ports were part of account ids, signing in to a second server
+// on the same host stored its credentials under the first server's account
+// and left the registry naming the first server. That account has been the
+// second server's since (its mail, its sends), and now says so; the ids
+// stay consistent with it (see generateAccountId).
+function followStoredServer(accountId: string): void {
+  const served = jmapClient.serverUrl;
+  const accountStore = useAccountStore.getState();
+  const entry = accountStore.getAccountById(accountId);
+  if (served && entry && entry.serverUrl !== served) accountStore.updateAccount(accountId, { serverUrl: served });
+}
+
+// The message an account the server refused carries in the registry (the
+// account rows translate it from needsSignIn).
+const SIGN_IN_AGAIN = 'Sign in again';
+
+/**
+ * The server refused an account's stored sign-in (401: the password was
+ * changed, a pasted token expired, the server moved from Stalwart 0.16 to
+ * 1.0 and lost the grant). The account stays, with its caches and settings,
+ * and is marked for a new sign-in; it used to be removed with "Your session
+ * has expired", which lost everything kept for it. Its credentials stay too
+ * until the new sign-in replaces them. Null when the account is gone.
+ */
+async function keepForSignIn(accountId: string): Promise<ReauthTarget | null> {
+  const entry = useAccountStore.getState().getAccountById(accountId);
+  if (!entry) return null;
+  const creds = await jmapClient.getStoredCredentials(accountId).catch(() => null);
+  const method: ReauthTarget['method'] = creds?.accessToken ? (creds.tokenEndpoint ? 'oauth' : 'token') : 'password';
+  if (useAccountStore.getState().getAccountById(accountId)) {
+    useAccountStore.getState().updateAccount(accountId, {
+      isConnected: false,
+      hasError: true,
+      errorMessage: SIGN_IN_AGAIN,
+      needsSignIn: true,
+    });
+  }
+  return { accountId, serverUrl: entry.serverUrl, username: creds?.username || entry.username, method };
 }
 
 // The outbox replays against whatever account the JMAP client serves, and a
@@ -441,7 +501,9 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: Si
 // desktop's own refresh token, and newer ones hand out a separate grant whose
 // refresh token only the webmail's token proxy understands. The account's
 // chain also leaves the in-process rotation memory either way, so a stale copy
-// refreshed after the sign-out can't pick up its tokens from there.
+// refreshed after the sign-out can't pick up its tokens from there. A browser
+// sign-in's provider session is ended too, in the background: the sign-out
+// never waits for the logout page (see endProviderSession).
 async function revokeStoredRefreshToken(accountId: string): Promise<void> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
@@ -449,6 +511,7 @@ async function revokeStoredRefreshToken(accountId: string): Promise<void> {
     forgetRefreshRotations(tokens?.refreshToken);
     if (!entry || !tokens || tokens.source === 'pairing') return;
     await revokeRefreshToken(entry.serverUrl, tokens);
+    void endProviderSession(entry.serverUrl, tokens);
   } catch {
     // never block sign-out
   }
@@ -538,6 +601,7 @@ function applyConnectedState(
     accountId: jmapClient.accountId,
     activeAccountId: accountId,
     client: jmapClient,
+    reauth: null,
   });
 }
 
@@ -553,6 +617,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   activeAccountId: null,
   client: null,
   pendingTotpLogin: null,
+  reauth: null,
 
   login: async (serverUrl, typedUsername, password, opts) => {
     set({ isLoading: true, error: null });
@@ -811,16 +876,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // afresh each time: the state taken above still lists the account just
     // removed, and signing out of the last one "switched" to it, which did
     // nothing, and left the app on an empty mail view.
-    for (let tries = useAccountStore.getState().accounts.length; tries > 0; tries--) {
-      const registry = useAccountStore.getState();
-      const next = registry.getDefaultAccount() ?? registry.accounts[0];
-      if (!next) break;
-      await get().switchAccount(next.id);
-      // Landed, or another switch has begun and decides.
-      if (get().activeAccountId === next.id || pendingSwitch) return;
-      if (!useAccountStore.getState().getAccountById(next.id)) continue; // its sign-in was refused
-      // Its server did not answer: show what is cached for it, as a cold
-      // start does, and let the session retry bring it up.
+    // Its server did not answer, or refused its stored sign-in: show what is
+    // cached for it, as a cold start does. The session retry brings an
+    // unreachable one up; a refused one asks for a new sign-in.
+    const showCached = (next: AccountEntry, reauth: ReauthTarget | null) => {
       useAccountStore.getState().setActiveAccount(next.id);
       useEmailStore.getState().setActiveAccount(next.id);
       set({
@@ -833,7 +892,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         accountId: null,
         activeAccountId: next.id,
         client: jmapClient,
+        reauth,
       });
+    };
+    // An account whose sign-in is refused stays for a new sign-in
+    // (keepForSignIn) and the next one is tried; it opens only when no
+    // other account comes up.
+    let refused: { account: AccountEntry; reauth: ReauthTarget | null } | null = null;
+    const tried = new Set<string>();
+    for (let tries = useAccountStore.getState().accounts.length; tries > 0; tries--) {
+      const registry = useAccountStore.getState();
+      const next = [registry.getDefaultAccount(), ...registry.accounts]
+        .find((a): a is AccountEntry => !!a && !tried.has(a.id));
+      if (!next) break;
+      tried.add(next.id);
+      await get().switchAccount(next.id);
+      // Landed, or another switch has begun and decides.
+      if (get().activeAccountId === next.id || pendingSwitch) return;
+      const after = useAccountStore.getState().getAccountById(next.id);
+      if (!after) continue;
+      if (after.needsSignIn) {
+        refused ??= { account: after, reauth: get().reauth };
+        set({ reauth: null });
+        continue;
+      }
+      showCached(after, null);
+      return;
+    }
+    if (refused) {
+      showCached(refused.account, refused.reauth);
       return;
     }
 
@@ -965,13 +1052,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch (err) {
         if (!isCurrent() || err instanceof SessionSupersededError) return;
         if (err instanceof AuthenticationError) {
-          await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
+          // Back to the account the switch left, and ask for a new sign-in
+          // to this one (see keepForSignIn).
+          const reauth = await keepForSignIn(accountId);
           if (!isCurrent()) return;
-          accountStore.removeAccount(accountId);
-          useEmailStore.getState().removeAccount(accountId);
           restorePrevious();
-          set({ isLoading: false, error: 'Session expired for this account' });
-          await forgetRemovedAccount(accountId);
+          set({ isLoading: false, error: null, reauth });
           return;
         }
         // NetworkError or anything else - keep the previous active account
@@ -993,6 +1079,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false, error: 'Failed to load session' });
         return;
       }
+      followStoredServer(accountId);
       await checkServerChange(accountId, session);
       if (!isCurrent()) return;
 
@@ -1001,6 +1088,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isConnected: true,
         hasError: false,
         errorMessage: undefined,
+        needsSignIn: false,
         lastLoginAt: Date.now(),
       });
       applyConnectedState(set, session, target.serverUrl, target.username, accountId);
@@ -1120,13 +1208,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return true;
         }
         if (err instanceof AuthenticationError) {
-          // Server reachable but credentials rejected — drop them.
-          await jmapClient.clearAccountCredentials(target.id).catch(() => undefined);
-          accountStore.removeAccount(target.id);
-          useEmailStore.getState().removeAccount(target.id);
-          await forgetRemovedAccount(target.id);
-          set({ isLoading: false, hasRestoredSession: true, error: 'Session expired' });
-          return false;
+          // Server reachable but the stored sign-in refused: keep the account
+          // and what is cached for it, as for an unreachable server, and ask
+          // for a new sign-in (see keepForSignIn).
+          const reauth = await keepForSignIn(target.id);
+          accountStore.setActiveAccount(target.id);
+          set({
+            isAuthenticated: true,
+            isLoading: false,
+            hasRestoredSession: true,
+            error: null,
+            serverUrl: target.serverUrl,
+            username: target.username,
+            session: null,
+            accountId: null,
+            activeAccountId: target.id,
+            client: jmapClient,
+            reauth,
+          });
+          return true;
         }
         throw err;
       }
@@ -1136,9 +1236,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isConnected: true,
         hasError: false,
         errorMessage: undefined,
+        needsSignIn: false,
       });
 
       const session = jmapClient.currentSession!;
+      followStoredServer(target.id);
       await checkServerChange(target.id, session);
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
       perfMark('restore-done');
@@ -1174,6 +1276,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const accountStore = useAccountStore.getState();
     const target = accountStore.getAccountById(activeAccountId);
     if (!target) return false;
+    // The server refused its sign-in: only a new one brings it back.
+    if (target.needsSignIn) return false;
     try {
       const ok = await jmapClient.loadAccount(activeAccountId);
       if (!ok || !isCurrent()) return false;
@@ -1181,8 +1285,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isConnected: true,
         hasError: false,
         errorMessage: undefined,
+        needsSignIn: false,
       });
       const fresh = jmapClient.currentSession!;
+      followStoredServer(activeAccountId);
       await checkServerChange(activeAccountId, fresh);
       if (!isCurrent()) return false;
       applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
@@ -1191,22 +1297,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       if (!isCurrent() || err instanceof SessionSupersededError) return false;
       if (err instanceof AuthenticationError) {
-        // Now we know the credentials are bad — fall back to logout flow.
-        await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
-        accountStore.removeAccount(activeAccountId);
-        await forgetRemovedAccount(activeAccountId);
-        set({
-          isAuthenticated: false,
-          isLoading: false,
-          hasRestoredSession: true,
-          error: 'Session expired',
-          serverUrl: null,
-          username: null,
-          session: null,
-          accountId: null,
-          activeAccountId: null,
-          client: null,
-        });
+        // Now we know the stored sign-in is refused: the account stays on
+        // what is cached for it and asks for a new sign-in (keepForSignIn).
+        const reauth = await keepForSignIn(activeAccountId);
+        if (isCurrent()) set({ isLoading: false, error: null, reauth });
       }
       // NetworkError or anything else: stay where we are.
       return false;
@@ -1214,6 +1308,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  requestReauth: async (accountId) => {
+    const reauth = await keepForSignIn(accountId);
+    if (reauth) set({ reauth });
+  },
+
+  clearReauth: () => set({ reauth: null }),
 }));
 
 // A 401 on a live session (revoked password/token, expired refresh token)

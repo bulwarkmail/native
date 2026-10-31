@@ -50,6 +50,13 @@ export const DEFAULT_CLIENT_ID = 'bulwark-webmail';
 export const REGISTERED_REDIRECT_URI = 'org.bulwarkmail.mobile:/auth/callback';
 
 /**
+ * Where the identity provider sends the browser back after sign-out ended
+ * its session (OIDC RP-Initiated Logout), registered with the client the app
+ * registers. Same scheme as the sign-in redirect, which the app handles.
+ */
+export const REGISTERED_LOGOUT_REDIRECT_URI = 'org.bulwarkmail.mobile:/auth/logout';
+
+/**
  * The app's own client, which the webmail's admin OAuth setup registers on
  * Stalwart 1.0 (webmail #1459): public and first-party, so its tokens reach
  * the account's Stalwart settings, which those of a client the app
@@ -174,6 +181,7 @@ async function registerPublicClient(
       body: JSON.stringify({
         client_name: 'Bulwark Mobile',
         redirect_uris: [REGISTERED_REDIRECT_URI],
+        post_logout_redirect_uris: [REGISTERED_LOGOUT_REDIRECT_URI],
         token_endpoint_auth_method: 'none',
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
@@ -552,6 +560,7 @@ export async function exchangePasswordForTokens(
     access_token?: string;
     expires_in?: number;
     refresh_token?: string;
+    id_token?: string;
   };
   if (!tokens.access_token) {
     throw new TotpLoginError('token_exchange_failed', 'Token response missing access_token');
@@ -564,5 +573,6 @@ export async function exchangePasswordForTokens(
     tokenEndpoint: tokenUrl,
     clientId: client.clientId,
     source: 'totp',
+    ...(typeof tokens.id_token === 'string' && tokens.id_token ? { idToken: tokens.id_token } : {}),
   };
 }

@@ -276,6 +276,40 @@ export function routeParkedSignInLink(accountCount: number): 'add-account' | 'ac
   return 'add-account';
 }
 
+/**
+ * What switching to the account a link or notification names came to: false
+ * when that account is not signed in here (or the switch failed), true when
+ * it was the active one already, 'switched' when the app moved to it.
+ */
+export type AccountSwitchResult = boolean | 'switched';
+
+/**
+ * After a link or notification switched accounts, the screens on the stack
+ * are the old account's. Start the stack over on the new account's inbox, so
+ * whatever the link opens goes on top of it and Back lands there.
+ */
+export function resetToAccountInbox(navigation: NavigationContainerRefWithCurrent<RootStackParamList>): void {
+  setPendingMailFolder('inbox');
+  navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Mail' } }] } as never);
+}
+
+/**
+ * Move to the account `accountId` names, if it is not the active one, and
+ * start the stack over when the app moved (resetToAccountInbox). False when
+ * the account is not signed in here: nothing may be opened then.
+ */
+export async function enterLinkAccount(
+  navigation: NavigationContainerRefWithCurrent<RootStackParamList>,
+  accountId: string | undefined,
+  switchAccount: ((accountId: string) => Promise<AccountSwitchResult>) | undefined,
+): Promise<boolean> {
+  if (!accountId || !switchAccount) return true;
+  const result = await switchAccount(accountId);
+  if (!result) return false;
+  if (result === 'switched' && navigation.isReady()) resetToAccountInbox(navigation);
+  return true;
+}
+
 export interface DeepLinkNavigator {
   navigation: NavigationContainerRefWithCurrent<RootStackParamList>;
   // Resolve a message id to its thread (EmailThread needs both). Returns
@@ -286,8 +320,9 @@ export interface DeepLinkNavigator {
   // be loaded.
   openDraft?: (emailId: string, jmapAccountId?: string) => Promise<boolean>;
   // Switch to the account a permalink names (`?account=`); resolves false
-  // when that account is not signed in on this device.
-  switchAccount?: (accountId: string) => Promise<boolean>;
+  // when that account is not signed in on this device, 'switched' when the
+  // app moved to it (see AccountSwitchResult).
+  switchAccount?: (accountId: string) => Promise<AccountSwitchResult>;
 }
 
 /** Navigate for a parsed link. Returns false when nothing could be opened. */
@@ -295,9 +330,7 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
   const { navigation } = nav;
   if (!navigation.isReady()) return false;
 
-  if ('accountId' in link && link.accountId && nav.switchAccount) {
-    if (!(await nav.switchAccount(link.accountId))) return false;
-  }
+  if ('accountId' in link && !(await enterLinkAccount(navigation, link.accountId, nav.switchAccount))) return false;
 
   switch (link.kind) {
     case 'message': {

@@ -218,6 +218,39 @@ describe('pushBackgroundTask notifications', () => {
     );
   });
 
+  // #85: Delete only moves to Trash, so with a Trash it needs no unlock and
+  // the shade stays open; without one the unlock stays.
+  it.each([
+    ['without unlocking when the account has a Trash', [{ id: 'tr', role: 'trash' }], false],
+    ['behind the unlock when the account has no Trash', [{ id: 'in', role: 'inbox' }], true],
+  ])('offers Delete %s', async (_label, mailboxes, needsUnlock) => {
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return {
+          ok: true,
+          json: async () => ({
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }),
+        };
+      }
+      const calls = JSON.parse(init?.body ?? '{}').methodCalls as Array<[string, Record<string, unknown>, string]>;
+      return {
+        ok: true,
+        json: async () => ({
+          methodResponses: calls.map(([name, , id]) => (name === 'Mailbox/get'
+            ? [name, { list: mailboxes }, id]
+            : [name, { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Hi', from: [{ email: 'bob@example.com' }] }] }, id])),
+        }),
+      };
+    });
+
+    await pushBackgroundTask({ kind: 'jmap-email-push', accountLabel: 'alice', accountId: 'jmap-primary', emailIds: '["m1"]' });
+
+    expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', deleteNeedsUnlock: needsUnlock }));
+  });
+
   it('shows a generic notification when the lookup fails, not none (#1041)', async () => {
     (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
       if (url.endsWith('/.well-known/jmap')) return { ok: false, status: 503 };
@@ -693,14 +726,14 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
     await recorded(2 * DAY);
     await push();
     expect(showNotification).toHaveBeenCalled();
-    expect(server.calls).toEqual(['Email/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
+    expect(server.calls).toEqual(['Email/get', 'Mailbox/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
     expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(server.expires);
 
     // Recorded now: the next pushes leave it alone for a day.
     server.calls = [];
     await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
     await push();
-    expect(server.calls).toEqual(['Email/get']);
+    expect(server.calls).toEqual(['Email/get', 'Mailbox/get']);
   });
 
   it('extends it also when the push brings nothing new to show', async () => {
@@ -721,7 +754,7 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
       await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
       await setup();
       await push();
-      expect(server.calls).toEqual(['Email/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
+      expect(server.calls).toEqual(['Email/get', 'Mailbox/get', 'PushSubscription/get', 'PushSubscription/set', 'PushSubscription/get']);
       expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(server.expires);
 
       // The server's copy has a week left: recorded, not written.
@@ -730,7 +763,7 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
       await AsyncStorage.multiRemove([`push:notifiedIds:v1:${LOCAL}`, `push:lastNotifiedEmailId:v2:${LOCAL}`]);
       await setup();
       await push();
-      expect(server.calls).toEqual(['Email/get', 'PushSubscription/get']);
+      expect(server.calls).toEqual(['Email/get', 'Mailbox/get', 'PushSubscription/get']);
       expect(await AsyncStorage.getItem(`push:subscriptionExpires:v1:${LOCAL}`)).toBe(serverExpires);
     }
   });
@@ -748,7 +781,7 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
       await AsyncStorage.removeItem(`push:optedOut:v1:${LOCAL}`);
       await setup();
       await push();
-      expect(server.calls).toEqual(['Email/get']);
+      expect(server.calls).toEqual(['Email/get', 'Mailbox/get']);
     }
   });
 
@@ -756,7 +789,7 @@ describe('pushBackgroundTask keeps the push subscription alive', () => {
     await recorded(2 * DAY);
     server.deviceClientId = 'dcid-someone-else';
     await push();
-    expect(server.calls).toEqual(['Email/get', 'PushSubscription/get']);
+    expect(server.calls).toEqual(['Email/get', 'Mailbox/get', 'PushSubscription/get']);
   });
 
   it('still notifies when the server cannot be asked about the subscription', async () => {

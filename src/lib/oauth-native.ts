@@ -18,6 +18,9 @@ import {
   generateCodeVerifier,
   resolveLoginClient,
   DEFAULT_CLIENT_ID,
+  MOBILE_CLIENT_ID,
+  REGISTERED_LOGOUT_REDIRECT_URI,
+  REGISTERED_REDIRECT_URI,
 } from './totp-login';
 import { randomHex } from './random';
 import { NetworkError } from '../api/jmap-client';
@@ -27,6 +30,7 @@ export interface OAuthMetadata {
   authorization_endpoint: string;
   token_endpoint: string;
   revocation_endpoint?: string;
+  end_session_endpoint?: string;
   registration_endpoint?: string;
   scopes_supported?: string[];
   prompt_values_supported?: string[];
@@ -264,6 +268,7 @@ export async function loginWithPkce(
     access_token?: string;
     refresh_token?: string;
     expires_in?: number;
+    id_token?: string;
   };
   if (!data.access_token) throw new HandoffError('Token response missing access_token');
   return {
@@ -273,7 +278,68 @@ export async function loginWithPkce(
     tokenEndpoint: metadata.token_endpoint,
     clientId,
     source: 'native',
+    // Kept for ending the provider's session at sign-out (endProviderSession).
+    ...(typeof data.id_token === 'string' && data.id_token ? { idToken: data.id_token } : {}),
   };
+}
+
+/**
+ * The provider's logout URL for a sign-out (OIDC RP-Initiated Logout 1.0;
+ * webmail lib/oauth/end-session.ts buildEndSessionUrl), or null when the
+ * provider advertises no end_session_endpoint or an unusable one.
+ *
+ * `client_id` always goes along, `id_token_hint` when the sign-in's id token
+ * was kept. The browser carries the id token there, so the endpoint must be
+ * https, or on the mail server's own host, which the app already talks to in
+ * the clear when the user chose that. `post_logout_redirect_uri` is sent only
+ * for a client the app registered itself, with that URI on file: a provider
+ * refuses the whole logout for one it does not have.
+ */
+export function buildEndSessionUrl(
+  serverUrl: string,
+  metadata: Pick<OAuthMetadata, 'end_session_endpoint'>,
+  tokens: Pick<OAuthTokens, 'clientId' | 'idToken'>,
+): { url: string; returnUrl: string } | null {
+  const endpoint = metadata.end_session_endpoint;
+  if (typeof endpoint !== 'string' || !/^https?:\/\//i.test(endpoint)) return null;
+  if (!/^https:\/\//i.test(endpoint) && !sameHost(endpoint, serverUrl)) return null;
+  const registered = tokens.clientId !== DEFAULT_CLIENT_ID && tokens.clientId !== MOBILE_CLIENT_ID;
+  const params = new URLSearchParams({ client_id: tokens.clientId });
+  if (tokens.idToken) params.set('id_token_hint', tokens.idToken);
+  if (registered) params.set('post_logout_redirect_uri', REGISTERED_LOGOUT_REDIRECT_URI);
+  return {
+    url: `${endpoint}${endpoint.includes('?') ? '&' : '?'}${params.toString()}`,
+    // The browser session closes when the provider sends it back to the app.
+    returnUrl: registered ? REGISTERED_LOGOUT_REDIRECT_URI : REGISTERED_REDIRECT_URI,
+  };
+}
+
+let endSessionQueue: Promise<void> = Promise.resolve();
+
+/**
+ * End the identity provider's own login session at sign-out, best effort.
+ * Revoking the refresh token ends the app's grant, but the session the
+ * provider keeps in the browser stays, and the next browser sign-in would go
+ * through without asking (webmail #905). Only a browser sign-in left one
+ * (source 'native'); the password and TOTP sign-ins and the webmail's
+ * hand-off and pairing did not, or own it. Opens the logout page in the
+ * auth browser session, one at a time. Never throws and is not awaited by
+ * the sign-out.
+ */
+export function endProviderSession(serverUrl: string, tokens: OAuthTokens): Promise<void> {
+  if (tokens.source !== 'native') return Promise.resolve();
+  const run = async () => {
+    try {
+      const metadata = await discoverOAuthMetadata(serverUrl);
+      const target = metadata ? buildEndSessionUrl(serverUrl, metadata, tokens) : null;
+      if (!target) return;
+      await WebBrowser.openAuthSessionAsync(target.url, target.returnUrl);
+    } catch {
+      // never block or fail a sign-out
+    }
+  };
+  endSessionQueue = endSessionQueue.then(run, run);
+  return endSessionQueue;
 }
 
 /**

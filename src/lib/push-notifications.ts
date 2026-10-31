@@ -1225,6 +1225,28 @@ async function pollVerificationCode(
 const inFlightSetups = new Map<string, Promise<PushSetupResult>>();
 
 /**
+ * The local account the singleton client serves with a live session; null
+ * while it has none, such as during an account change, when it holds the
+ * credentials of the account being signed in to before its session is up.
+ * The setup asks the server through the client, so it must know the client
+ * still serves the account it is setting up: a listing of another account's
+ * subscriptions took the account's own for revoked and turned its push off.
+ */
+function servedAccountId(): string | null {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  if (!jmapClient.isConnected || !username || !serverUrl) return null;
+  return generateAccountId(username, serverUrl);
+}
+
+function accountChangedError(): PushSetupError {
+  return new PushSetupError(
+    'account',
+    t('settings.notifications.push.err_account_changed', 'The account changed while push was being set up. Try again.'),
+  );
+}
+
+/**
  * Full setup flow: ask permission, fetch the device's FCM token, register
  * with the relay, create a JMAP PushSubscription, poll for the verification
  * code, and finalise the subscription. Concurrent calls for the same account
@@ -1300,12 +1322,10 @@ async function setupPushNotificationsInner(
 
   // setupPushNotifications operates on the currently-loaded jmapClient. We
   // need its username/serverUrl up-front so we can key per-account state.
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (!username || !serverUrl) {
+  const accountId = servedAccountId();
+  if (!accountId) {
     throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
-  const accountId = generateAccountId(username, serverUrl);
 
   await migrateLegacyPushKeys();
 
@@ -1381,6 +1401,8 @@ async function setupPushNotificationsInner(
   // A failed listing ends the run here: taken for "the server has no
   // subscription", it would drop the key of a working registration.
   logPhase('jmap');
+  // From here on the server is asked through the client (see servedAccountId).
+  if (servedAccountId() !== accountId) throw accountChangedError();
   let existingSubs: PushSubscription[];
   try {
     existingSubs = await listPushSubscriptions();
@@ -1868,12 +1890,15 @@ function isOwnSubscription(
 export async function resyncPushNotifications(
   params: PushSetupParams,
 ): Promise<PushSetupResult | null> {
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (!username || !serverUrl) return null;
-  const accountId = generateAccountId(username, serverUrl);
+  // Without a live session (an account change under way) there is nothing
+  // to ask; the caller runs this again once the session is up.
+  const accountId = servedAccountId();
+  if (!accountId) return null;
   if (await AsyncStorage.getItem(optedOutKey(accountId))) return null;
-  if (await wasRevokedOnServer(accountId)) {
+  const revoked = await wasRevokedOnServer(accountId);
+  // The listing went to whatever account the client served meanwhile.
+  if (servedAccountId() !== accountId) return null;
+  if (revoked) {
     logPhase('revoked', 'subscription gone before it was due to expire; leaving push off');
     await disablePushForAccount(accountId);
     return null;

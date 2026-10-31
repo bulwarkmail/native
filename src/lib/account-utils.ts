@@ -13,7 +13,34 @@ export class AccountLimitError extends Error {
   }
 }
 
-export function generateAccountId(username: string, serverUrl: string): string {
+/**
+ * The port of `serverUrl` when it is not the scheme's default (443 for
+ * https, 80 for http), else null. Read from the text, since React Native's
+ * URL keeps a default port where the WHATWG one drops it.
+ */
+export function nonDefaultPort(serverUrl: string): string | null {
+  const m = /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/?#]*@)?(?:\[[^\]]*\]|[^:/?#]*):(\d+)(?=[/?#]|$)/i.exec(serverUrl.trim());
+  if (!m) return null;
+  const scheme = m[1].toLowerCase();
+  const port = String(Number(m[2]));
+  if ((scheme === 'https' && port === '443') || (scheme === 'http' && port === '80')) return null;
+  return port;
+}
+
+/** `serverUrl`'s host, with its port when that is not the default. */
+export function serverHostLabel(serverUrl: string): string {
+  let host: string;
+  try {
+    host = new URL(serverUrl).hostname;
+  } catch {
+    return serverUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  }
+  const port = nonDefaultPort(serverUrl);
+  return port ? `${host}:${port}` : host;
+}
+
+/** The id an account got before ports were part of it: username@host. */
+function hostOnlyAccountId(username: string, serverUrl: string): string {
   let host = serverUrl;
   try {
     host = new URL(serverUrl).hostname;
@@ -21,6 +48,47 @@ export function generateAccountId(username: string, serverUrl: string): string {
     host = serverUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   }
   return `${username}@${host}`;
+}
+
+/** What the registry tells generateAccountId (structural: no AccountEntry import). */
+export interface KnownAccount {
+  id: string;
+  username: string;
+  serverUrl: string;
+}
+
+let knownAccounts: readonly KnownAccount[] = [];
+
+/**
+ * The registry's accounts, so generateAccountId keeps the ids accounts were
+ * signed in under. The account store feeds this whenever it changes; the
+ * headless push task, which reads the registry from storage, feeds it too.
+ */
+export function setKnownAccounts(accounts: readonly KnownAccount[]): void {
+  knownAccounts = accounts;
+}
+
+/**
+ * The local id of the account `username` has on `serverUrl`:
+ * username@host, plus `:port` when the server is not on its scheme's
+ * default port. Two servers on one host are two accounts.
+ *
+ * Accounts were once keyed by username@host only. One signed in that way on
+ * a server with a port keeps that id, and with it its credentials, caches,
+ * outbox, push registration and settings: when the registry holds the
+ * host-only id for the same server, that is the answer. A second server on
+ * the same host then gets the id with its port, and the two stay apart.
+ * Accounts on the default ports have the same id either way.
+ */
+export function generateAccountId(username: string, serverUrl: string): string {
+  const legacy = hostOnlyAccountId(username, serverUrl);
+  const host = serverHostLabel(serverUrl);
+  const id = `${username}@${host}`;
+  if (id === legacy) return id;
+  const kept = knownAccounts.find((a) => a.id === legacy
+    && a.username === username
+    && `${a.username}@${serverHostLabel(a.serverUrl)}` === id);
+  return kept ? kept.id : id;
 }
 
 /** What naming an account in a list needs (structural: no AccountEntry import). */
