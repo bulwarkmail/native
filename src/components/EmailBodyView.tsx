@@ -20,6 +20,7 @@ import { buildMailTextSizeScript, mailTextFactor } from '../lib/mail-reading';
 import { buildPauseAnimatedImagesScript, withReducedMotion } from '../lib/mail-motion';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
+import { useNoThirdPartyTraffic } from '../stores/policy-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
@@ -437,6 +438,9 @@ export default function EmailBodyView({
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<Nav>();
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
+  // No third-party traffic (webmail #903): remote content never loads,
+  // whatever the policy or trust says, and nothing offers to load it.
+  const remoteBlockedByOrg = useNoThirdPartyTraffic();
   const isSenderTrusted = useSettingsStore((s) => s.isSenderTrusted);
   const addTrustedSender = useSettingsStore((s) => s.addTrustedSender);
   const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
@@ -523,10 +527,10 @@ export default function EmailBodyView({
   // trusted, regardless of what the detection pass finds - the pass only
   // drives the banner and the placeholder swap.
   const shouldBlock =
-    !!rawHtml &&
-    !trusted &&
-    !allowOnce &&
-    externalContentPolicy !== 'allow';
+    !!rawHtml && (
+      remoteBlockedByOrg ||
+      (!trusted && !allowOnce && externalContentPolicy !== 'allow')
+    );
 
   // The WebView's height: what the page reported, else the height this body
   // had the last time it was shown, else (see `fill`) an estimate. Never a
@@ -736,9 +740,11 @@ export default function EmailBodyView({
       {showBanner && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
-            {t('email_viewer.external_content_warning', 'Images and external content have been blocked')}
+            {remoteBlockedByOrg
+              ? t('third_party.remote_content_blocked', "Your organisation blocks content from other servers, so remote pictures in this message aren't shown.")
+              : t('email_viewer.external_content_warning', 'Images and external content have been blocked')}
           </Text>
-          <View style={styles.bannerActions}>
+          {!remoteBlockedByOrg && <View style={styles.bannerActions}>
             {externalContentPolicy === 'ask' && (
               <Pressable style={styles.bannerButton} onPress={onLoadImages} hitSlop={8}>
                 <ImageIcon size={14} color={c.textSecondary} />
@@ -751,7 +757,7 @@ export default function EmailBodyView({
                 <Text style={styles.bannerButtonText}>{t('email_viewer.trust_sender', 'Always trust this sender')}</Text>
               </Pressable>
             ) : null}
-          </View>
+          </View>}
         </View>
       )}
       {showTruncated && (

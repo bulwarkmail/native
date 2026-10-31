@@ -35,7 +35,7 @@ import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
-import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
+import { useNoThirdPartyTraffic, usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
@@ -416,6 +416,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
+  const customFromEnabled = usePolicyFeature('customFromEnabled');
+  // No third-party traffic (webmail #903): a quoted original's remote images stay blocked.
+  const remoteBlockedByOrg = useNoThirdPartyTraffic();
   // Per-message format (#1022): seeded from the "plain text only" setting,
   // or the format a reopened draft was written in, and switchable from the
   // toolbar for just this message.
@@ -518,8 +521,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return shouldBlockEditorRemoteImages({
       seedHtml: draft ? draft.htmlBody : replyTo?.htmlBody,
       isDraft: !!draft,
-      externalContentPolicy: settings.externalContentPolicy,
-      senderTrusted: !!sender && (
+      externalContentPolicy: remoteBlockedByOrg ? 'block' : settings.externalContentPolicy,
+      senderTrusted: !remoteBlockedByOrg && !!sender && (
         settings.isSenderTrusted(sender)
         || useContactsStore.getState().trustedSenderEmails.includes(sender)
       ),
@@ -972,7 +975,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const resolved = resolveReplyIdentity(identities, replyTo, {
         ownEmails,
         catchAll: autoSelectReplyIdentity && mode !== 'forward',
-        matchMode: replyIdentityMatch,
+        // Without the organisation's custom From, only an exact identity (webmail email-composer.tsx).
+        matchMode: customFromEnabled ? replyIdentityMatch : 'exact',
       });
       if (resolved) {
         setSelectedIdentityId(resolved.identityId);
@@ -984,7 +988,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     setSelectedIdentityId(defaultIdentity.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identities, autoSelectReplyIdentity, replyIdentityMatch, replyTo, draft, selectedIdentityId, preferredIdentityIds]);
+  }, [identities, autoSelectReplyIdentity, replyIdentityMatch, customFromEnabled, replyTo, draft, selectedIdentityId, preferredIdentityIds]);
 
   const primaryIdentity = React.useMemo(() => {
     if (identities.length === 0) return null;

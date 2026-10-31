@@ -40,7 +40,7 @@ describe('organisation policy on the settings pages', () => {
     expect(page).toContain("const externalContentAllowed = usePolicyFeature('externalContentEnabled');");
     expect(page).toContain("const externalContentHidden = useSettingHidden('externalContentPolicy');");
     expect(page).toContain('const showExternalContent = externalContentAllowed && !externalContentHidden;');
-    expect(page).toMatch(/\{showExternalContent && \(\s*<SettingItem\s+label=\{t\('settings\.email_behavior\.external_content\.label'[\s\S]*?locked=\{externalContentLocked\}/);
+    expect(page).toMatch(/\{showExternalContent && \(\s*<SettingItem\s+label=\{t\('settings\.email_behavior\.external_content\.label'[\s\S]*?locked=\{externalContentLocked(?: \|\| remoteBlockedByOrg)?\}/);
     expect(page).toContain("const externalContentLocked = useSettingLocked('externalContentPolicy');");
   });
 

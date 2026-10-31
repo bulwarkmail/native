@@ -267,6 +267,15 @@ export function useSettingLocked(key: string): boolean {
   return usePolicyStore((s) => isLockedSetting(s.rules, key));
 }
 
+/**
+ * Whether the active account's webmail runs without third-party traffic
+ * (webmail hooks/use-third-party-mode.ts): remote content in mail never
+ * loads, whatever the setting or a trusted sender says.
+ */
+export function useNoThirdPartyTraffic(): boolean {
+  return usePolicyStore((s) => s.links.noThirdPartyTraffic === true);
+}
+
 /** Whether the active account's policy hides a setting (by the app's key). */
 export function useSettingHidden(key: string): boolean {
   return usePolicyStore((s) => s.rules.hidden.includes(key));

@@ -7,7 +7,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type MentionAddsRecipientTo, type ReplyIdentityMatch, type SignaturePosition } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useSettingLocked } from '../../stores/policy-store';
+import { usePolicyFeature, useSettingLocked } from '../../stores/policy-store';
 import { SUPPORTED_SUB_ADDRESS_DELIMITERS } from '../../lib/sub-addressing';
 import { RADIO_GROUP_A11Y, radioOptionA11y } from '../radio-a11y';
 
@@ -29,6 +29,9 @@ export function ComposingSettings() {
   const autoSelectReplyIdentityLocked = useSettingLocked('autoSelectReplyIdentity');
   const replyIdentityMatchLocked = useSettingLocked('replyIdentityMatch');
   const plainTextModeLocked = useSettingLocked('plainTextMode');
+  // Catch-all matching only rewrites From, which the organisation can turn
+  // off (webmail composing-settings.tsx customFromEnabled).
+  const customFromEnabled = usePolicyFeature('customFromEnabled');
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
@@ -135,7 +138,7 @@ export function ComposingSettings() {
         <ToggleSwitch checked={autoSelectReplyIdentity} onChange={setAutoSelectReplyIdentity} />
       </SettingItem>
 
-      {autoSelectReplyIdentity && (
+      {autoSelectReplyIdentity && customFromEnabled && (
         <View style={styles.subBlock}>
           <Text style={styles.subLabel}>{t('settings.email_behavior.reply_identity_match.label', 'Received Address Matching')}</Text>
           <Text style={styles.subDescription}>
