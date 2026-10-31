@@ -19,7 +19,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Reading mail
 
-- [ ] **A forged From keeps the real sender's favicon and contact photo** — `P2` — `bug`
+- [x] **A forged From keeps the real sender's favicon and contact photo** — `P2` — `bug` — fixed in 0b0fc021
   - What WEB does: when the sender check fails or is unverified, the avatar shows a warning shield instead of a photo, logo or initials, in the reader, the conversation and the list (`components/ui/avatar.tsx:323`, `hooks/use-sender-warning.ts:13`, `components/email/email-viewer.tsx:721`). The list fetch asks for `header:Authentication-Results:all` (`lib/jmap/client.ts:461`). 605a3983b (#1439).
   - What RN does: MessageHeader works out the verdict (`src/components/email/MessageHeader.tsx:118`) but renders SenderAvatar with the claimed address (`:175`); the same in thread cards (`src/components/email/ThreadMessageCard.tsx:50`) and list rows (`src/screens/EmailListScreen.tsx:213`). SenderAvatar picks a contact photo or the domain favicon (`src/components/SenderAvatar.tsx:62-65`). List rows have no auth data (`src/api/email.ts:23-26`).
   - Fix hint: pass a sender warning from getSenderVerification into SenderAvatar and draw a shield; for list rows add `header:Authentication-Results:all` to the list properties.
@@ -29,17 +29,17 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing; the only banners above the body are unsubscribe and invitation (`src/components/email/MessageContent.tsx:104`, `:112`).
   - Fix hint: port `lib/structured-mail/` with an RN-side HTML parser passed through `parseHtml` (`lib/structured-mail/index.ts:4-5`, `:21`) and build RN cards. The admin switch needs the org policy, so default on.
 
-- [ ] **"Plain Text Only" says it also changes reading, but the reader ignores it** — `P2` — `bug`
+- [x] **"Plain Text Only" says it also changes reading, but the reader ignores it** — `P2` — `bug` — fixed in 7dc45778
   - What WEB does: reads HTML mail as plain text by default or per message (`lib/html-to-readable-text.ts:39`, `components/email/email-viewer.tsx`; 1e929b0a9).
   - What RN does: the switch reads "Compose and read in plain text only" (`src/components/settings/ReadingSettings.tsx:208-210`), but only the composer and the placeholder check read plainTextMode (`src/lib/compose-html.ts:175`, `src/lib/placeholder-check.ts:157`); EmailBodyView never does (`src/components/EmailBodyView.tsx:529-537`).
   - Fix hint: render the text part (or the HTML turned into text) when the setting is on, and add a per-message "Show as plain text".
 
-- [ ] **Mail body ignores the app's text size and iOS Dynamic Type** — `P2` — `missing`
+- [x] **Mail body ignores the app's text size and iOS Dynamic Type** — `P2` — `missing` — fixed in 7b551fc3, a3650ebf
   - What WEB does: bodies follow the chosen text size, with a separate mail text size and a minimum font size (`lib/mail-reading.ts:32`, `:42`; c07ba1a37).
   - What RN does: the body is fixed at 14 px for HTML and plain text (`src/lib/email-html.ts:695`, `:979`); the app's text size scales only the app's own UI (`src/theme/dynamic.ts:48-69`). Android's WebView may follow the system font size (no textZoom set; unverified), iOS doesn't. Pinch zoom exists (`src/components/EmailBodyView.tsx:408`).
   - Fix hint: scale the body's base font size by the app setting and `PixelRatio.getFontScale()`.
 
-- [ ] **Reading aids: paused animated images, reduce motion in mail, reader view, read aloud, reading width** — `P3` — `missing`
+- [ ] **Reading aids: paused animated images, reduce motion in mail, reader view, read aloud, reading width** — `P3` — `missing` — reduce motion and paused animated images fixed in 6d701c4b; not done: reader view, read aloud and reading width are left to the OS
   - What WEB does: animations in mail stop with reduce motion (24a13cc1f), animated images pause behind a play button (bb7869798), plus reader view, read aloud, reading mask and width (caed2d313, af3019ea2, a982c3f23, 8cc0f8f25, dcc0d600f).
   - What RN does: none. The app reads reduce motion (`src/theme/dynamic.ts:92`) but doesn't pass it into mail.
   - Fix hint: pass reduce motion into the body CSS (animation off, GIFs paused) first; read aloud and reader view are left to the OS.
@@ -49,54 +49,54 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: contact photo, DuckDuckGo favicon, initials (`src/components/SenderAvatar.tsx:38`, `:62-65`; `src/lib/avatar-utils.ts:149`).
   - Fix hint: use the paired webmail's `/api/bimi` once the app keeps the webmail URL (same blocker as the org policy, file 10).
 
-- [ ] **A DKIM pass reported only by `header.i` doesn't count (#1420)** — `P3` — `bug`
+- [x] **A DKIM pass reported only by `header.i` doesn't count (#1420)** — `P3` — `bug` — fixed in 49d43729
   - What WEB does: takes the signer domain from `header.i` when `header.d` is missing (`lib/email-headers.ts:282`, `:346`). f8f2e93cd.
   - What RN does: reads `header.d` only (`src/lib/email-headers.ts:397`); such mail shows as unverified and its invitations lose trust.
   - Fix hint: port identityDomain.
 
-- [ ] **Reply and quick reply are offered on drafts and scheduled messages in a conversation** — `P3` — `bug`
+- [x] **Reply and quick reply are offered on drafts and scheduled messages in a conversation** — `P3` — `bug` — fixed in 35297379
   - What WEB does: hides Reply and Reply all on a conversation's drafts and scheduled messages (`components/email/email-viewer.tsx:881`). 8b29254a6 (#1404).
   - What RN does: every card is replyable (`src/screens/EmailThreadScreen.tsx:1212`, `src/components/email/ThreadMessageCard.tsx:68-85`); quick reply targets the last member, which can be the user's own draft (`src/screens/EmailThreadScreen.tsx:1124`).
   - Fix hint: `replyable={false}` for `$draft` and scheduled members; point quick reply at the newest message that is neither.
 
-- [ ] **Bounce and receipt report parts show as list chips and go along on forward** — `P3` — `bug`
+- [x] **Bounce and receipt report parts show as list chips and go along on forward** — `P3` — `bug` — fixed in 7772da84 (list chips, global- types), 482e9a20 (forward, compose)
   - What WEB does: leaves `message/delivery-status`, `message/disposition-notification` and their `global-` forms out of list chips and forwards (`lib/attachment-visibility.ts:73`, `components/email/email-composer.tsx:985`). 8a09ba573.
   - What RN does: the reader hides them (`src/lib/attachment-display.ts:56`, `:130`), list chips and forwards don't (`src/lib/list-attachments.ts:21`, `src/lib/reply-compose.ts:14-19`); isReportPart misses the `global-` types.
   - Fix hint: filter isReportPart in both places and add the two global types.
 
-- [ ] **Attachment icons in the reader aren't coloured by file type** — `P3` — `partial`
+- [x] **Attachment icons in the reader aren't coloured by file type** — `P3` — `partial` — fixed in 4849cf23
   - What WEB does: reader chips use the list's per-type icon and colour (`components/email/attachment-chips.tsx`). a78d03a18.
   - What RN does: list chips are typed (`src/components/email/ListAttachmentChips.tsx:96`), reader chips use a plain paperclip (`src/components/email/AttachmentChips.tsx:244`).
   - Fix hint: reuse attachmentKind in AttachmentChips.
 
-- [ ] **Avatar initials are always white, even on light colours** — `P3` — `bug`
+- [x] **Avatar initials are always white, even on light colours** — `P3` — `bug` — fixed in 6f66fa06
   - What WEB does: picks black or white initials by contrast (`components/ui/avatar.tsx:174-182`; 2e13accad).
   - What RN does: always `#ffffff` (`src/components/SenderAvatar.tsx:130-133`); several palette colours give 3.1 to 3.7:1 (`src/lib/avatar-utils.ts:19-20`, `:47-48`).
   - Fix hint: port initialsColor.
 
 ### Mail list and search
 
-- [ ] **Search results can't be moved into the open folder (#1452)** — `P3` — `bug`
+- [x] **Search results can't be moved into the open folder (#1452)** — `P3` — `bug` — fixed in 9a4515f9
   - What WEB does: a search across folders keeps the open folder selected, and hits from other folders can move into it (`lib/move-targets.ts:71`). dafdda534.
   - What RN does: the move sheet greys out the current folder (`src/components/MoveSheet.tsx:110-115`) and the single-row pick returns on it (`src/screens/EmailListScreen.tsx:1904-1918`), even for rows from other folders.
   - Fix hint: in search mode mark a folder current only when the rows are already in it.
 
-- [ ] **No Undo for read/unread, star and tag changes** — `P3` — `missing`
+- [x] **No Undo for read/unread, star and tag changes** — `P3` — `missing` — fixed in da1da0ec
   - What WEB does: the toast offers Undo and puts back each message's previous keywords (`lib/email-action-toast.ts:86`). ee17c0dba.
   - What RN does: UndoEntry covers archive, delete, move and spam only (`src/stores/email-store.ts:322`).
   - Fix hint: a `keywords` undo kind with the original keywords per item.
 
-- [ ] **No Sort menu in the list header** — `P3` — `partial`
+- [x] **No Sort menu in the list header** — `P3` — `partial` — fixed in 1cbe28b1, beff8744
   - What WEB does: Sort menu with the order presets in the list header (`components/email/mail-list-menus.tsx`). e3f1ccce7.
   - What RN does: the header only flips the direction (`src/screens/EmailListScreen.tsx:1193`); presets live in Settings > Layout (`src/components/settings/LayoutSettings.tsx:88-104`).
   - Fix hint: a sort button that opens the presets.
 
-- [ ] **Tag counts don't use Keyword/get where the server counts keywords (#1399)** — `P3` — `missing`
+- [x] **Tag counts don't use Keyword/get where the server counts keywords (#1399)** — `P3` — `missing` — fixed in eb6bf6d3
   - What WEB does: one Keyword/get when the capability has `supportsCounts`, else two Email/query per tag (`lib/jmap/client.ts:2721`, `:2737`).
   - What RN does: always two queries per tag (`src/api/tag-counts.ts:22-40`).
   - Fix hint: same check and fallback. Stalwart doesn't advertise counts, so low value.
 
-- [ ] **The folder list doesn't say which folder is open, and the unread count reads "Show unread"** — `P3` — `bug`
+- [x] **The folder list doesn't say which folder is open, and the unread count reads "Show unread"** — `P3` — `bug` — fixed in e3a34eb1
   - What WEB does: says which folder is open and how many are unread (7c282f1f4, 80a2a212a).
   - What RN does: folder rows have no selected state (`src/components/SidebarDrawer.tsx:170-180`); the count is a button labelled "Show unread" (`:126-133`).
   - Fix hint: `accessibilityState.selected` and a label like "Inbox, 3 unread".
@@ -113,12 +113,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: seeds the full quote into the editor (`src/screens/ComposeScreen.tsx:562-615`).
   - Fix hint: hide the quoted block in the editor behind a toggle, keep it in the sent body.
 
-- [ ] **Tag picker can't make a tag; template picker can't open the template manager** — `P3` — `missing`
+- [x] **Tag picker can't make a tag; template picker can't open the template manager** — `P3` — `missing` — fixed in e09cd395 (new tag), 2c1f266f (template manager, compose)
   - What WEB does: "New tag" in the tag picker (`components/email/tag-picker.tsx:214`), "Manage" in the template picker (`components/templates/template-picker.tsx:227`). 19676a14f.
   - What RN does: tag sheets list existing tags only (`src/screens/EmailThreadScreen.tsx:1489`, `src/components/TagSheet.tsx`); the template sheet shows "No templates yet" with no way on (`src/components/TemplateSheet.tsx:148-150`).
   - Fix hint: a "New tag" row and a "Manage templates" link.
 
-- [ ] **No optional confirm before sending, deleting or archiving** — `P3` — `missing`
+- [ ] **No optional confirm before sending, deleting or archiving** — `P3` — `missing` — delete and archive fixed in 9794dc03; confirm before send is the compose agent's
   - What WEB does: `sendConfirmation`, `confirmDelete`, `confirmArchive` (`components/email/email-composer.tsx:501`, `lib/mail-removal-confirm.ts:24`, `lib/accessibility-settings.ts:93-94`). 4d91d9b29, 374ae9c8d.
   - What RN does: asks only before a permanent delete (`src/lib/delete-confirm.ts:27`).
   - Fix hint: three settings and an Alert in the send, delete and archive paths, swipes and quick reply included.

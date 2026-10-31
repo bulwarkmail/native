@@ -137,7 +137,7 @@ current lines is in "Webmail bugs" at the end of this file.
 - [ ] **U-133 no way out of a hung "Signing in"** — `P2` — `missing` — src/screens/LoginScreen.tsx:218 swallows Back while busy, SigningInStep has no cancel; abortable sign-in, M
 - [ ] **U-069 recipient suggestions hidden in phone landscape** — `P2` — `missing` — needs a full-screen picker, M (feature)
 - [ ] **U-045 German Prev/Next read "Zurück"/"Weiter"** — `P3` — `bug` — override in locales/rn/de.json
-- [ ] **Plain-text mail dark background fixed at #0a0a0a** — `P3` — `partial` — src/lib/email-html.ts:963 ignores the theme
+- [x] **Plain-text mail dark background fixed at #0a0a0a** — `P3` — `partial` — src/lib/email-html.ts:963 ignores the theme — fixed in 43973608
 - [ ] **U-017 system alert vs Dialog, U-136 empty all-day strip, U-124 language order** — product calls, kept deferred unless you say otherwise
 - U-016 scrim token: won't fix (no visible change). U-018 font scale resets navigation: React Native limitation. U-131: done (776447dd).
 
@@ -151,7 +151,7 @@ current lines is in "Webmail bugs" at the end of this file.
 ### GitHub (bulwarkmail/native)
 
 - Fixed on main, unreleased (close after 0.1.87 ships): #80, #82, #83, #84, #86, #87, #89. #81 is fixed in code (01983a38), unchecked on iOS.
-- [ ] **#91 multi-select without long press** — `P3` — `missing` — EmailListScreen.tsx:190-218; tap on the avatar toggles selection
+- [x] **#91 multi-select without long press** — `P3` — `missing` — EmailListScreen.tsx:190-218; tap on the avatar toggles selection — fixed in 6715df7f
 - [ ] **#90 custom calendar colours** — `P3` — `missing` — CalendarEditSheet.tsx:222 offers the palette only
 - [ ] **#85 keep the shade open on Delete** — question 1
 - [ ] **#58 PGP / S/MIME** — `P3` — L, not in this run
