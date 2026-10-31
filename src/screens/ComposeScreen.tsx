@@ -84,7 +84,6 @@ import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/ke
 import { prepareSecureSend, resolveRecipientKeys, SecureSendError, type SecureChoice } from '../lib/crypto/compose-secure';
 import type { SecureMode } from '../lib/crypto/secure-send';
 import { useCryptoKeysStore, type CryptoKeyRecord } from '../stores/crypto-keys-store';
-import { usePolicyFeature } from '../stores/policy-store';
 import { fetchBlobBytes } from '../lib/email-export';
 import type { MessagePriority } from '../lib/message-priority';
 import { supportsSubmissionExtension } from '../lib/submission-options';
