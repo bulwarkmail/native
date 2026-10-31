@@ -64,7 +64,10 @@ export default function Button({
       disabled={isDisabled}
       hitSlop={HIT_SLOP[size]}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
+      // A text button names itself by its text: React Native only replaces a
+      // content description with a non-empty one, so without it TalkBack kept
+      // reading "busy" after the spinner went away.
+      accessibilityLabel={accessibilityLabel ?? (typeof children === 'string' ? children : undefined)}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
     >
       {loading ? (
