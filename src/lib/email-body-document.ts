@@ -37,8 +37,8 @@ export interface BodyDocumentInput {
 
 export interface BodyDocument {
   html: string;
-  /** Inversion CSS is in effect; the DOM re-invert pass should run. */
-  applyInversion: boolean;
+  /** Shown dark: the recolour pass (lib/email-dark-mode) has to run. */
+  recolorDark: boolean;
   hasNativeDark: boolean;
   /** At least one external resource was neutralised. */
   blockedExternal: boolean;
@@ -69,7 +69,7 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       fontPx: mailBaseFontPx(input.textFactor ?? 1),
       darkColors: input.plainDarkColors,
     }),
-    applyInversion: false,
+    recolorDark: false,
     hasNativeDark: false,
     blockedExternal: false,
     isHtml: false,

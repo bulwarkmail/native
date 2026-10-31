@@ -21,6 +21,8 @@
 // class-based colours (native #46/#49). When external content is blocked the
 // sheet is scrubbed of url()/@import/@font-face references instead.
 
+import { DARK_PENDING_CLASS, emailColorScheme, emailDarkModeCss, resolveColorSchemeMedia } from './email-dark-mode';
+
 const FORBIDDEN_TAGS = [
   'script', 'iframe', 'object', 'embed', 'form',
   'input', 'button', 'textarea', 'select', 'option',
@@ -675,9 +677,9 @@ export function hasRemoteContent(html: string): boolean {
 // ─── Styles ──────────────────────────────────────────────────────────────
 
 // Base styles for HTML emails - mirrors the webmail iframe body.
-// Emails are authored for light mode; we render them true-to-life and apply a
-// filter inversion trick for dark mode (unless the email has native dark
-// support via @media (prefers-color-scheme: dark)).
+// Emails are authored for light mode; they are rendered true-to-life, and in
+// dark mode their colours are rewritten after layout by the injected pass in
+// ./email-dark-mode.
 function baseStyles(bodyPadding: string): string {
   return `
 html { background: #ffffff; height: auto !important; }
@@ -729,46 +731,6 @@ pre { white-space: pre-wrap; word-wrap: break-word; }
 const WORD_HTML_CSS = `
 body { line-height: 1.15; }
 p.MsoNormal, li.MsoNormal, div.MsoNormal { margin: 0 0 6px; }
-`;
-
-// Applied when the host is in dark mode and the email does NOT have native
-// dark-mode CSS. Matches the webmail's darkModeCSS verbatim.
-//
-// Background-COLOR containers (bgcolor, background: shorthand) are re-inverted
-// so their fill flips to a dark tone, but skipped when they wrap media: the
-// inner image already gets its own re-invert, and a filter on the container
-// would double-invert it. Nested colour containers must NOT stack another
-// invert either - each filter toggles the inversion, so an odd number of
-// stacked filters lands back on light-on-light; the descendant rule disables
-// filter on a colour container nested inside another.
-//
-// Background-IMAGE containers are different: a real photo and whatever is
-// composited over it was designed by the sender to read together, so the
-// whole subtree should return to its original light-mode appearance - even
-// when it wraps media. Re-invert those unconditionally (no :has guard) and
-// cancel the per-image re-invert for media inside them.
-const DARK_INVERSION = `
-html { background: #121212; }
-body { filter: invert(1) hue-rotate(180deg); background: #ededed; }
-img, video, svg, canvas, object, embed, input[type="image"] {
-  filter: invert(1) hue-rotate(180deg);
-}
-[style*="background:"]:not(:has(img, video, svg, canvas, object, embed)),
-[bgcolor]:not(:has(img, video, svg, canvas, object, embed)) {
-  filter: invert(1) hue-rotate(180deg);
-}
-:where([style*="background:"], [bgcolor])
-  :where([style*="background:"], [bgcolor]):not(:has(img, video, svg, canvas, object, embed)) {
-  filter: none !important;
-}
-[style*="background-image"],
-[background] {
-  filter: invert(1) hue-rotate(180deg);
-}
-[style*="background-image"] :where(img, video, svg, canvas, object, embed, input[type="image"]),
-[background] :where(img, video, svg, canvas, object, embed, input[type="image"]) {
-  filter: none;
-}
 `;
 
 // Matches the webmail's `emailHasNativeDarkMode` detector: true if the HTML
@@ -855,16 +817,16 @@ export interface WrapOptions {
   /** Neutralise external resources and switch to the strict CSP. */
   blockRemoteImages?: boolean;
   cidMap?: Record<string, string>;
-  /** When true, the host renders in dark mode; inversion is applied unless
-   *  the email already has native dark-mode CSS. */
+  /** When true, the host renders in dark mode: the head gets the dark
+   *  fallback colours and the body stays hidden until the recolour pass ran. */
   isDark?: boolean;
   messageSpacing?: MessageSpacing;
 }
 
 export interface PreparedEmailHtml {
   html: string;
-  /** Inversion CSS is in effect; the DOM re-invert pass should run. */
-  applyInversion: boolean;
+  /** Shown dark: the recolour pass (./email-dark-mode) has to run. */
+  recolorDark: boolean;
   /** The email ships its own `prefers-color-scheme: dark` rules. */
   hasNativeDark: boolean;
   /** At least one external resource was neutralised. */
@@ -897,10 +859,10 @@ function buildCsp(strict: boolean): string {
 }
 
 /**
- * Turn a raw HTML body into a complete, sandboxed document. `hasNativeDark`
- * and `applyInversion` are evaluated once on the sanitised input and returned
- * so the caller injects the matching DOM pass (a mismatch between the CSS
- * decision and the script decision was native #49).
+ * Turn a raw HTML body into a complete, sandboxed document. `recolorDark` is
+ * returned so the caller injects the recolour pass exactly when the head
+ * hides the body for it (a mismatch between the CSS decision and the script
+ * decision was native #49).
  */
 export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): PreparedEmailHtml {
   const { blockRemoteImages = false, cidMap, isDark = true, messageSpacing = 'auto' } = options;
@@ -915,9 +877,14 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
   }
 
   const hasNativeDark = hasNativeDarkMode(processed);
-  const applyInversion = isDark && !hasNativeDark;
-  const colorScheme = isDark && hasNativeDark ? 'light dark' : 'light';
-  const darkCss = applyInversion ? DARK_INVERSION : '';
+  // The recolour pass runs on every mail shown dark, also one with its own
+  // dark styles: those are pinned to the app's theme below, and the pass
+  // leaves colours that are already dark or readable alone (webmail
+  // email-viewer.tsx recolorDark).
+  const recolorDark = isDark;
+  const colorScheme = emailColorScheme(isDark, hasNativeDark);
+  const darkCss = recolorDark ? emailDarkModeCss() : '';
+  const rootClass = recolorDark ? ` class="${DARK_PENDING_CLASS}"` : '';
 
   const word = isWordHtml(processed);
   const hasStyleTag = /<style\b/i.test(processed);
@@ -929,7 +896,7 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
   const bodyDir = declaresOwnDirection(processed) ? '' : ' dir="auto"';
 
   const html = `<!doctype html>
-<html style="color-scheme: ${colorScheme};">
+<html${rootClass} style="color-scheme: ${colorScheme};">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -937,10 +904,10 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
 <meta name="referrer" content="no-referrer">
 <style>${baseStyles(bodyPadding)}${word ? WORD_HTML_CSS : ''}${darkCss}</style>
 </head>
-<body${bodyDir}>${processed}<style>html,body{height:auto!important;min-height:0!important;max-height:none!important}</style></body>
+<body${bodyDir}>${resolveColorSchemeMedia(processed, isDark)}<style>html,body{height:auto!important;min-height:0!important;max-height:none!important}</style></body>
 </html>`;
 
-  return { html, applyInversion, hasNativeDark, blockedExternal };
+  return { html, recolorDark, hasNativeDark, blockedExternal };
 }
 
 export function wrapEmailHtml(innerHtml: string, options: WrapOptions = {}): string {

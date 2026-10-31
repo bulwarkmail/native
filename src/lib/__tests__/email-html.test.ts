@@ -254,21 +254,39 @@ describe('prepareEmailHtml', () => {
     expect(prepareEmailHtml('<p>x</p>').html).not.toMatch(/<script/i);
   });
 
-  it('evaluates native dark mode once and reports the inversion decision', () => {
-    const native = prepareEmailHtml('<style>@media (prefers-color-scheme: dark){body{color:#fff}}</style><p>x</p>', { isDark: true });
-    expect(native.hasNativeDark).toBe(true);
-    expect(native.applyInversion).toBe(false);
-    expect(native.html).toContain('color-scheme: light dark');
-    expect(native.html).not.toContain('invert(1)');
-
+  // Dark mode rewrites the mail's colours after layout (lib/email-dark-mode)
+  // instead of inverting the body with a filter, as the webmail does since
+  // 7401ea665: the head only sets fallback colours and hides the body until
+  // the pass ran.
+  it('recolours a mail shown dark instead of inverting it', () => {
     const plain = prepareEmailHtml('<p>x</p>', { isDark: true });
-    expect(plain.applyInversion).toBe(true);
-    expect(plain.html).toContain('body { filter: invert(1) hue-rotate(180deg)');
-    // Current webmail revision: background-image containers re-invert without the :has guard.
-    expect(plain.html).toMatch(/\[style\*="background-image"\],\s*\[background\]\s*\{\s*filter: invert\(1\)/);
+    expect(plain.recolorDark).toBe(true);
+    expect(plain.html).not.toContain('invert(1)');
+    expect(plain.html).toContain('<html class="bulwark-dark-pending"');
+    expect(plain.html).toContain('body { color: #e6e6e6; background: #141414; }');
+    expect(plain.html).toContain('animation: bulwark-dark-reveal 0s 1.5s forwards');
 
     const light = prepareEmailHtml('<p>x</p>', { isDark: false });
-    expect(light.applyInversion).toBe(false);
+    expect(light.recolorDark).toBe(false);
+    expect(light.html).not.toContain('bulwark-dark-pending');
+    expect(light.html).not.toContain('#141414');
+  });
+
+  it('recolours a mail with its own dark styles too and pins them to the app theme', () => {
+    const mail = '<style>@media (prefers-color-scheme: dark){body{color:#fff}} @media (prefers-color-scheme: light){p{color:#000}}</style><p>x</p>';
+    const dark = prepareEmailHtml(mail, { isDark: true });
+    expect(dark.hasNativeDark).toBe(true);
+    expect(dark.recolorDark).toBe(true);
+    expect(dark.html).toContain('color-scheme: dark');
+    expect(dark.html).toContain('@media (min-width: 0px){body{color:#fff}}');
+    expect(dark.html).toContain('@media (max-width: 0.001px){p{color:#000}}');
+
+    // A light app (or "Always view emails in light mode") on a dark phone
+    // must not get the mail's dark variant.
+    const light = prepareEmailHtml(mail, { isDark: false });
+    expect(light.html).toContain('color-scheme: light');
+    expect(light.html).not.toContain('light dark');
+    expect(light.html).toContain('@media (max-width: 0.001px){body{color:#fff}}');
   });
 
   it('reports blocked external content', () => {
