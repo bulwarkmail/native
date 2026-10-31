@@ -10,8 +10,8 @@ let watching = false;
 function watch(): void {
   if (watching) return;
   watching = true;
-  const info = AccessibilityInfo as typeof AccessibilityInfo | undefined;
   try {
+    const info = AccessibilityInfo as typeof AccessibilityInfo | undefined;
     void info?.isScreenReaderEnabled?.().then((on) => { screenReaderOn = on; }).catch(() => undefined);
     info?.addEventListener?.('screenReaderChanged', (on: boolean) => { screenReaderOn = on; });
   } catch {

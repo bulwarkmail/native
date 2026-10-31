@@ -18,8 +18,17 @@ export interface AnnounceOptions {
   assertive?: boolean;
 }
 
+function isIos(): boolean {
+  try {
+    return Platform.OS === 'ios';
+  } catch {
+    // A react-native stand-in without Platform (tests).
+    return false;
+  }
+}
+
 export function announce(message: string, options: AnnounceOptions = {}): void {
-  if (Platform.OS !== 'ios') return;
+  if (!isIos()) return;
   const text = message.replace(/\s+/g, ' ').trim();
   if (!text) return;
   const now = Date.now();
