@@ -6,6 +6,7 @@ import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { ALL_DEBUG_CATEGORIES, useSettingsStore, type DebugCategory } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useSettingLocked } from '../../stores/policy-store';
 import { clearCachedData } from '../../lib/clear-cached-data';
 
 /** Settings → Storage & backup → Troubleshooting (webmail: the Debug page). */
@@ -14,6 +15,7 @@ export function TroubleshootingSettings() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const debugMode = useSettingsStore((s) => s.debugMode);
+  const debugModeLocked = useSettingLocked('debugMode');
   const debugCategories = useSettingsStore((s) => s.debugCategories);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,7 +58,7 @@ export function TroubleshootingSettings() {
         title={t('settings.advanced.debug_mode.label', 'Debug Mode')}
         description={t('settings.advanced.debug_mode.description', 'Enable detailed logging for troubleshooting')}
       >
-        <SettingItem label={t('settings.advanced.debug_mode.label', 'Debug Mode')} noBorder={!debugMode}>
+        <SettingItem label={t('settings.advanced.debug_mode.label', 'Debug Mode')} noBorder={!debugMode} locked={debugModeLocked}>
           <ToggleSwitch checked={debugMode} onChange={(v) => updateSetting('debugMode', v)} />
         </SettingItem>
         {debugMode && (

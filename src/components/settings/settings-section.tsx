@@ -98,6 +98,7 @@ export function SettingItem({
 }: SettingItemProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   const highlight = useSearchHighlight(label);
   // The control sits on the right. When that leaves the label column narrower
   // than STACK_BELOW (a long translation, two buttons), the control moves
@@ -125,10 +126,12 @@ export function SettingItem({
           {locked && <Lock size={12} color={c.mutedForeground} />}
         </View>
         {description && <Text style={styles.settingDescription}>{description}</Text>}
+        {locked && <Text style={styles.settingDescription}>{t('settings.org_locked', 'Set by your organisation')}</Text>}
       </View>
       {children && (
         <SettingLabelContext.Provider value={label}>
-          <View style={styles.settingRight}>{children}</View>
+          {/* A locked setting shows its value but can't be changed. */}
+          <View style={styles.settingRight} pointerEvents={locked ? 'none' : 'auto'}>{children}</View>
         </SettingLabelContext.Provider>
       )}
       {onPress && (link === 'external'

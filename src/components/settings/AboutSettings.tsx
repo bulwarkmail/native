@@ -12,6 +12,8 @@ import { useAccountStore } from '../../stores/account-store';
 import { useUpdatesStore } from '../../stores/updates-store';
 import { supportsSideloadUpdates } from '../../lib/platform-capabilities';
 import { buildIssueUrl, sourceCodeUrl, updateSourceUrl } from '../../lib/about-links';
+import { helpLinks } from '../../lib/org-policy';
+import { usePolicyStore } from '../../stores/policy-store';
 
 const LOGO_WHITE = require('../../../assets/logos/Bulwark Logo White.png');
 const LOGO_COLOR = require('../../../assets/logos/Bulwark Logo Color.png');
@@ -35,11 +37,21 @@ interface AboutSettingsProps {
   onOpen?: (page: 'updates' | 'licences' | 'privacy') => void;
 }
 
+// English labels of the webmail's help_links keys.
+const HELP_LINK_LABELS = {
+  statement: 'Accessibility statement',
+  feedback: 'Report a barrier',
+  help: 'Help',
+  easy_read: 'Easy Read',
+  sign_language: 'Sign language',
+} as const;
+
 export function AboutSettings({ onOpen }: AboutSettingsProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const scheme = useResolvedTheme();
   const t = useLocaleStore((s) => s.t);
+  const operatorLinks = usePolicyStore((s) => s.links);
   const locale = useLocaleStore((s) => s.locale);
 
   const authUsername = useAuthStore((s) => s.username);
@@ -157,6 +169,15 @@ export function AboutSettings({ onOpen }: AboutSettingsProps) {
           description={t('settings.about.privacy_desc', 'What stays on this phone and what goes to your server')}
           onPress={() => onOpen?.('privacy')}
         />
+        {/* The operator's accessibility and help links, from the account's webmail. */}
+        {helpLinks(operatorLinks).map((link) => (
+          <SettingItem
+            key={link.id}
+            label={t(`help_links.${link.id}`, HELP_LINK_LABELS[link.id])}
+            onPress={() => void Linking.openURL(link.href)}
+            link="external"
+          />
+        ))}
         <SettingItem
           label={t('settings.about.report_problem', 'Report a problem')}
           description={t('settings.about.report_problem_desc', 'Opens an issue on GitHub with the version filled in')}

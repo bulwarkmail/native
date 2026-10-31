@@ -5,6 +5,15 @@ import { getIdentities as fetchIdentities } from '../api/identity';
 import { jmapClient } from '../api/jmap-client';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 import { EMPTY_NOTIFICATION_MUTES, normalizeNotificationMutes, type NotificationMutes } from '../lib/notification-mutes';
+import {
+  EMPTY_SETTINGS_RULES,
+  isLockedSetting,
+  policyAllowsValue,
+  policyReleasePatch,
+  policySettingsPatch,
+  type PolicyPatchContext,
+  type SettingsRules,
+} from '../lib/org-policy';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -350,6 +359,9 @@ export interface PersistedSettings {
   // coloured bar at the start, instead of solid blocks (webmail
   // calendarTintedEvents, same key).
   calendarTintedEvents: boolean;
+  // Keys the user changed themselves (webmail #1248, same key). An
+  // organisation default only fills in settings not listed here.
+  explicitSettings: string[];
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -521,6 +533,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   quickReplyEnabled: true,
   // calendar2:
   calendarTintedEvents: false,
+  explicitSettings: [],
 };
 
 export interface SettingsState extends PersistedSettings {
@@ -584,6 +597,13 @@ export interface SettingsState extends PersistedSettings {
   updateSidebarApp: (id: string, updates: Partial<Omit<SidebarApp, 'id'>>) => void;
   removeSidebarApp: (id: string) => void;
   reorderSidebarApps: (apps: SidebarApp[]) => void;
+
+  /**
+   * Apply what the active account's organisation policy does to the
+   * settings (lib/org-policy). Values the previous rules imposed and these
+   * don't go back to the default.
+   */
+  applyPolicyRules: (rules: SettingsRules) => void;
 
   // Restore every persisted key to its default (keeps identities/session state).
   resetToDefaults: () => void;
@@ -674,6 +694,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   offlineCacheMaxMB: intBetween(1, 100000),
   // platform:
   toastDuration: oneOf([-1, 0, 5, 10, 20, 60]),
+  explicitSettings: stringArray,
   sidebarApps: (v) => Array.isArray(v) && v.every((a) =>
     a && typeof a === 'object'
     && typeof (a as SidebarApp).id === 'string'
@@ -785,6 +806,76 @@ function identityScope(): string | null {
 
 let identitiesInFlight: { scope: string | null; promise: Promise<void> } | null = null;
 
+// -- Organisation policy --------------------------------------------------
+// The policy store hands over what the active account's webmail policy
+// does to the settings (lib/org-policy settingsRulesFromPolicy); this store
+// applies it: defaults for settings the user hasn't chosen, locks whatever
+// they chose, and refuses a change to a locked setting.
+
+let policyRules: SettingsRules = EMPTY_SETTINGS_RULES;
+let lockedWriteListener: ((key: keyof PersistedSettings) => void) | null = null;
+
+/** Settings a policy may set: plain values, and the theme. Lists and maps stay the user's. */
+export function isPolicySettingKey(key: string): boolean {
+  if (key === 'explicitSettings' || !Object.prototype.hasOwnProperty.call(DEFAULT_PERSISTED, key)) return false;
+  if (key === 'activeThemeId') return true;
+  const type = typeof DEFAULT_PERSISTED[key as keyof PersistedSettings];
+  return type === 'boolean' || type === 'number' || type === 'string';
+}
+
+const POLICY_BUILT_IN: Record<string, unknown> = Object.fromEntries(
+  Object.entries(DEFAULT_PERSISTED).filter(([key]) => isPolicySettingKey(key)),
+);
+
+function isValidPolicyValue(key: string, value: unknown): boolean {
+  if (key === 'activeThemeId') return value === null || (typeof value === 'string' && value.length > 0);
+  const def = DEFAULT_PERSISTED[key as keyof PersistedSettings];
+  if (typeof value !== typeof def) return false;
+  if (typeof value === 'number' && !Number.isFinite(value)) return false;
+  const validator = VALIDATORS[key as keyof PersistedSettings];
+  return validator ? validator(value) : true;
+}
+
+function policyContext(explicit: readonly string[]): PolicyPatchContext {
+  return { builtIn: POLICY_BUILT_IN, explicit: new Set(explicit), isValid: isValidPolicyValue };
+}
+
+/**
+ * Settings from before explicitSettings existed: a value other than the
+ * build default can only have come from the user, so it counts as chosen
+ * (webmail legacyExplicitSettings).
+ */
+export function legacyExplicitSettings(source: Record<string, unknown>): string[] {
+  return Object.keys(source).filter(
+    (key) => isPolicySettingKey(key) && source[key] !== undefined && source[key] !== POLICY_BUILT_IN[key],
+  );
+}
+
+/** Whether the organisation policy pins `key`, so the user can't change it. */
+export function isSettingLockedByPolicy(key: string): boolean {
+  return isLockedSetting(policyRules, key);
+}
+
+/** Called when a change to a locked setting was refused (the policy store shows a toast). */
+export function setPolicyLockedWriteListener(listener: ((key: keyof PersistedSettings) => void) | null): void {
+  lockedWriteListener = listener;
+}
+
+/** Test hook. */
+export function resetPolicyRulesForTests(): void {
+  policyRules = EMPTY_SETTINGS_RULES;
+  lockedWriteListener = null;
+}
+
+/** What the current policy changes in `state`; empty without one. */
+function currentPolicyPatch(state: PersistedSettings): Partial<PersistedSettings> {
+  return policySettingsPatch(
+    state as unknown as Record<string, unknown>,
+    policyRules,
+    policyContext(state.explicitSettings),
+  ) as Partial<PersistedSettings>;
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...DEFAULT_PERSISTED,
   identities: [],
@@ -833,18 +924,53 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-        set({ ...mergeWithDefaults(parsed), hydrated: true });
+        const merged = mergeWithDefaults(parsed);
+        if (!Array.isArray(parsed.explicitSettings)) {
+          merged.explicitSettings = legacyExplicitSettings(merged as unknown as Record<string, unknown>);
+        }
+        // The policy may have arrived (from its cache) before the settings.
+        const patch = currentPolicyPatch(merged);
+        set({ ...merged, ...patch, hydrated: true });
+        if (Object.keys(patch).length > 0) persist(snapshot(get()));
         return;
       }
     } catch (err) {
       console.warn('[settings-store] hydrate failed', err);
     }
-    set({ hydrated: true });
+    const patch = currentPolicyPatch(snapshot(get()));
+    set({ ...patch, hydrated: true });
+    if (Object.keys(patch).length > 0) persist(snapshot(get()));
   },
 
   updateSetting: (key, value) => {
-    set({ [key]: value } as Partial<SettingsState>);
+    const current = get()[key];
+    if (value !== current && (isLockedSetting(policyRules, key) || !policyAllowsValue(key, value, policyRules))) {
+      lockedWriteListener?.(key);
+      return;
+    }
+    // The user chose this value, so an organisation default no longer replaces it.
+    const explicit = get().explicitSettings;
+    const mark = isPolicySettingKey(key) && !explicit.includes(key);
+    set({ [key]: value, ...(mark ? { explicitSettings: [...explicit, key] } : {}) } as Partial<SettingsState>);
     persist(snapshot(get()));
+  },
+
+  applyPolicyRules: (rules) => {
+    const previous = policyRules;
+    policyRules = rules;
+    const state = snapshot(get());
+    const released = policyReleasePatch(
+      state as unknown as Record<string, unknown>,
+      previous,
+      rules,
+      policyContext(state.explicitSettings),
+    ) as Partial<PersistedSettings>;
+    const patch = { ...released, ...currentPolicyPatch({ ...state, ...released }) };
+    if (Object.keys(patch).length === 0) return;
+    set(patch as Partial<SettingsState>);
+    // Before the stored settings were read, writing would replace them;
+    // hydrate applies the rules again.
+    if (get().hydrated) persist(snapshot(get()));
   },
 
   forgetPreferredIdentities: async (jmapAccountIds) => {
@@ -857,22 +983,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     get().updateSetting('preferredIdentityIds', next);
   },
 
-  setExternalContentPolicy: (policy) => { set({ externalContentPolicy: policy }); persist(snapshot(get())); },
-  setSenderFavicons: (enabled) => { set({ senderFavicons: enabled }); persist(snapshot(get())); },
-  setGroupContactsByLetter: (enabled) => { set({ groupContactsByLetter: enabled }); persist(snapshot(get())); },
-  setTheme: (theme) => { set({ theme }); persist(snapshot(get())); },
-  setFontSize: (fontSize) => { set({ fontSize }); persist(snapshot(get())); },
-  setDensity: (density) => { set({ density }); persist(snapshot(get())); },
-  setShowToolbarLabels: (enabled) => { set({ showToolbarLabels: enabled }); persist(snapshot(get())); },
-  setAnimationsEnabled: (enabled) => { set({ animationsEnabled: enabled }); persist(snapshot(get())); },
-  setEmailAlwaysLightMode: (enabled) => { set({ emailAlwaysLightMode: enabled }); persist(snapshot(get())); },
-  setAutoSelectReplyIdentity: (enabled) => { set({ autoSelectReplyIdentity: enabled }); persist(snapshot(get())); },
-  setAttachmentReminderEnabled: (enabled) => { set({ attachmentReminderEnabled: enabled }); persist(snapshot(get())); },
-  setAttachmentReminderKeywords: (keywords) => { set({ attachmentReminderKeywords: keywords }); persist(snapshot(get())); },
-  setSwipeLeftAction: (action) => { set({ swipeLeftAction: action }); persist(snapshot(get())); },
-  setSwipeRightAction: (action) => { set({ swipeRightAction: action }); persist(snapshot(get())); },
-  setSwipeMode: (mode) => { set({ swipeMode: mode }); persist(snapshot(get())); },
-  setArchiveMode: (mode) => { set({ archiveMode: mode }); persist(snapshot(get())); },
+  setExternalContentPolicy: (policy) => get().updateSetting('externalContentPolicy', policy),
+  setSenderFavicons: (enabled) => get().updateSetting('senderFavicons', enabled),
+  setGroupContactsByLetter: (enabled) => get().updateSetting('groupContactsByLetter', enabled),
+  setTheme: (theme) => get().updateSetting('theme', theme),
+  setFontSize: (fontSize) => get().updateSetting('fontSize', fontSize),
+  setDensity: (density) => get().updateSetting('density', density),
+  setShowToolbarLabels: (enabled) => get().updateSetting('showToolbarLabels', enabled),
+  setAnimationsEnabled: (enabled) => get().updateSetting('animationsEnabled', enabled),
+  setEmailAlwaysLightMode: (enabled) => get().updateSetting('emailAlwaysLightMode', enabled),
+  setAutoSelectReplyIdentity: (enabled) => get().updateSetting('autoSelectReplyIdentity', enabled),
+  setAttachmentReminderEnabled: (enabled) => get().updateSetting('attachmentReminderEnabled', enabled),
+  setAttachmentReminderKeywords: (keywords) => get().updateSetting('attachmentReminderKeywords', keywords),
+  setSwipeLeftAction: (action) => get().updateSetting('swipeLeftAction', action),
+  setSwipeRightAction: (action) => get().updateSetting('swipeRightAction', action),
+  setSwipeMode: (mode) => get().updateSetting('swipeMode', mode),
+  setArchiveMode: (mode) => get().updateSetting('archiveMode', mode),
 
   addTrustedSender: (email) => {
     const normalized = stripDisplayName(email);
@@ -929,7 +1055,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   resetToDefaults: () => {
-    set({ ...DEFAULT_PERSISTED });
+    set({ ...DEFAULT_PERSISTED, explicitSettings: [] });
+    // The defaults here are the organisation's, then the build's.
+    set(currentPolicyPatch(snapshot(get())) as Partial<SettingsState>);
     persist(snapshot(get()));
   },
 
@@ -944,10 +1072,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
     const incoming = fromExportShape(parsed as Record<string, unknown>);
+    // A file without explicitSettings (older clients): what it sets to
+    // something other than the default was chosen.
+    const chosen = Array.isArray(incoming.explicitSettings)
+      ? incoming.explicitSettings.filter((key): key is string => typeof key === 'string')
+      : legacyExplicitSettings(incoming as Record<string, unknown>);
     // Validate against the current state so keys absent from the file keep
     // their value instead of snapping back to the default.
-    const merged = mergeWithDefaults({ ...snapshot(get()), ...incoming });
-    set({ ...merged });
+    const merged = mergeWithDefaults({
+      ...snapshot(get()),
+      ...incoming,
+      explicitSettings: [...new Set([...get().explicitSettings, ...chosen])],
+    });
+    // Locks hold over an imported file too.
+    set({ ...merged, ...currentPolicyPatch(merged) });
     persist(snapshot(get()));
     return true;
   },

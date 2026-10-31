@@ -20,6 +20,7 @@ import {
   normalizeServerUrl,
 } from '../lib/server-discovery';
 import { describeLoginError, type LoginErrorCopy } from '../lib/login-errors';
+import { describeHandoffRedeemError } from './login/handoff-errors';
 import {
   clearClientCertAlias,
   getClientCertAlias,
@@ -346,7 +347,8 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       } catch (err) {
         if (!isLive(attempt) || isSignInCancelled(err)) return;
         if (continueWithSecondFactor(err, target)) return;
-        setNotice(describeLoginError(err, { serverUrl: target, t }));
+        // A refused sign-in code is spent: say so; Continue starts over.
+        setNotice(describeHandoffRedeemError(err, t) ?? describeLoginError(err, { serverUrl: target, t }));
       } finally {
         if (endAttempt(attempt)) setBusy(null);
       }
