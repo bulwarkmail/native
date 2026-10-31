@@ -1626,6 +1626,10 @@
         "description": "The message that will be sent as a reply",
         "title": "Auto-Reply Message"
       },
+      "status": {
+        "ended": "Ended",
+        "scheduled": "Scheduled"
+      },
       "warnings": {
         "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\""
       }

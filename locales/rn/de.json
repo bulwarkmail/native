@@ -1261,6 +1261,10 @@
       "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet."
     },
     "vacation": {
+      "status": {
+        "ended": "Beendet",
+        "scheduled": "Geplant"
+      },
       "warnings": {
         "date_format": "Datumsangaben müssen das Format \"YYYY-MM-DD\" oder \"YYYY-MM-DD HH:MM\" haben"
       }
