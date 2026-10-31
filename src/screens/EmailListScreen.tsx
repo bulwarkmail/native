@@ -7,8 +7,9 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe,
 } from '../components/icons';
+import { GlobalSearchSheet } from '../components/search/GlobalSearchSheet';
 import { ActionSheet } from '../components/email/ActionSheet';
 import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor, type SortChoiceKey } from '../lib/sort-choices';
 import { orderForMailbox, sanitizeSortLevels } from '../lib/message-list-order';
@@ -1063,6 +1064,9 @@ export default function EmailListScreen({
   // Stalwart 1.0).
   const [searchInput, setSearchInput] = React.useState(storeSearchQuery);
   const [searchFocused, setSearchFocused] = React.useState(false);
+  // "Search everything": mail, contacts, events and files of every account
+  // (webmail global search palette).
+  const [globalSearchOpen, setGlobalSearchOpen] = React.useState(false);
   React.useEffect(() => {
     // Keep local input in sync when the store is cleared externally
     // (e.g. clearing the search from the chips row).
@@ -1555,8 +1559,21 @@ export default function EmailListScreen({
       {/* Search bar (always visible; inside the header in a short window) */}
       {!shortHeight && renderSearchBar(false)}
 
-      {searchFocused && ((!searchInput.trim() && recentSearches.length > 0) || contactSuggestions.length > 0) && (
+      {searchFocused && (
         <View style={styles.recentSearches}>
+          <Pressable
+            style={[styles.recentSearchRow, styles.recentSearchMain]}
+            onPress={() => {
+              setSearchFocused(false);
+              searchInputRef.current?.blur();
+              setGlobalSearchOpen(true);
+            }}
+            accessibilityRole="button"
+            testID="search-everything"
+          >
+            <Globe size={12} color={c.textMuted} />
+            <Text style={styles.recentSearchText} numberOfLines={1}>{t('global_search.title', 'Search everything')}</Text>
+          </Pressable>
           {!searchInput.trim() && recentSearches.length > 0 && (
             <>
               <Text style={styles.recentSearchesTitle}>{t('advanced_search.suggestions_recent', 'Recent searches')}</Text>
@@ -1861,6 +1878,12 @@ export default function EmailListScreen({
       </Pressable>
 
       {!sidebarDocked && <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
+      <GlobalSearchSheet
+        visible={globalSearchOpen}
+        initialQuery={searchInput}
+        onClose={() => setGlobalSearchOpen(false)}
+        navigation={navigation}
+      />
       <ListAttachmentOpener ref={attachmentOpenerRef} />
 
       <Modal supportedOrientations={MODAL_ORIENTATIONS}
