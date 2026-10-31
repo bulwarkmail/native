@@ -130,9 +130,10 @@ export type CopyVerdict =
 
 /**
  * What the copies with the message's Message-ID say. A send creates the
- * message as a draft and the submission's onSuccessUpdateEmail files it in
- * Sent without `$draft` in the same request, so a copy without `$draft` went
- * out (or is held for a scheduled time). Copies still marked `$draft` are
+ * message as a draft (in Drafts, or in Sent when the account has no Drafts
+ * folder) and only the submission's onSuccessUpdateEmail takes `$draft` off
+ * (and files it in Sent) in the same request, so a copy without `$draft`
+ * went out (or is held for a scheduled time). Copies still marked `$draft` are
  * the autosaved draft (`draftId`, kept until the send succeeds) and copies
  * a refused submission left behind with its answer lost: those go before
  * the message is sent again.

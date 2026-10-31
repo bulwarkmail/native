@@ -101,6 +101,18 @@ live('live Stalwart: offline send queue', () => {
     expect(copies.map((c) => c.id)).toEqual([first.emailId]);
   }, 60_000);
 
+  it('takes $draft off a copy sent without a Drafts folder only once it went out', async () => {
+    const outgoing = message('no-drafts');
+    // Created in Sent with $draft; onSuccessUpdateEmail takes it off.
+    const result = await sendEmail(outgoing, identity.id, sent, undefined, {});
+    const copies = await findCopiesByMessageId(outgoing.messageId, lookup());
+    expect(copies.map((c) => c.id)).toEqual([result.emailId]);
+    expect(copies[0].keywords?.$draft).toBeFalsy();
+    expect(copies[0].keywords?.$seen).toBe(true);
+    const outcome = await runQueuedSend(newQueuedSend('q3', { ...payloadFor(outgoing), draftsMailboxId: undefined }, Date.now(), true), boxes);
+    expect(outcome.kind).toBe('alreadySent');
+  }, 60_000);
+
   it('sends a marked message whose only copy is its draft, and removes the draft', async () => {
     const outgoing = message('draft-only');
     const draft = await saveDraftVersion(outgoing, drafts);
