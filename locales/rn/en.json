@@ -1017,6 +1017,15 @@
         "description_mobile": "Text size, reduced motion and the accessibility presets are on the Accessibility page."
       },
       "description_mobile": "Customize how the app looks",
+      "cross_all": {
+        "label_mobile": "All mail"
+      },
+      "cross_starred": {
+        "label_mobile": "All starred"
+      },
+      "cross_unread": {
+        "label_mobile": "All unread"
+      },
       "language": {
         "restart_for_direction": "Restart the app to apply the new text direction.",
         "system_default": "System default"
