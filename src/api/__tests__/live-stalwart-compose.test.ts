@@ -38,6 +38,8 @@ import { htmlToPlainText } from '../../lib/compose-html';
 import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature-utils';
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
+import { mergeRecipientSuggestions } from '../../lib/recipient-suggestions';
+import { useContactsStore } from '../../stores/contacts-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useTemplatesStore } from '../../stores/templates-store';
 
@@ -312,6 +314,44 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       } finally {
         if (!hadMarker) await setBulwarkMetadata(singleton.accountId, 'templates', null).catch(() => undefined);
       }
+    }, 60_000);
+  });
+
+  // The composer's suggestions: "Search the server" finds a recipient in
+  // the Sent folder the recent list never loaded, and directory people are
+  // offered (parity 06).
+  describe('recipient suggestions', () => {
+    it('finds a Sent recipient on demand and suggests people from the directory', async () => {
+      const rcpt = `rcpt-${RUN}@example.net`;
+      const saved = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ name: `Rcpt ${RUN}`, email: rcpt }], subject: `suggest ${tag}`, textBody: 'hi',
+      }, sent);
+      createdEmails.push(saved.id);
+      useContactsStore.getState().reset();
+      useContactsStore.setState({ sentMailboxId: sent, recentRecipientsLoaded: true });
+
+      const local = useContactsStore.getState().getAutocomplete(`rcpt-${RUN}`, 16);
+      expect(local).toEqual([]);
+      // The server indexes a new message shortly after it is stored.
+      let server: Awaited<ReturnType<ReturnType<typeof useContactsStore.getState>['searchRecipients']>> = [];
+      await vi.waitFor(async () => {
+        server = await useContactsStore.getState().searchRecipients(`rcpt-${RUN}`);
+        expect(server.map((s) => s.email)).toContain(rcpt);
+      }, { timeout: 20_000, interval: 1_000 });
+      const merged = mergeRecipientSuggestions({
+        local, isContact: () => false, directory: [], server, exclude: new Set(), limit: 8,
+      });
+      expect(merged).toEqual([{ name: `Rcpt ${RUN}`, email: rcpt }]);
+
+      await useContactsStore.getState().fetchDirectory();
+      const me = USER.split('@')[0];
+      const withDirectory = mergeRecipientSuggestions({
+        local: [], isContact: () => false,
+        directory: useContactsStore.getState().lookupDirectory(me, 16),
+        server: [], exclude: new Set(), limit: 8,
+      });
+      expect(withDirectory.map((s) => s.email.toLowerCase())).toContain(USER.toLowerCase());
+      useContactsStore.getState().reset();
     }, 60_000);
   });
 

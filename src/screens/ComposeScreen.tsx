@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Tag, Type, Highlighter, Trash2,
+  Users, Tag, Type, Highlighter, Trash2, Search,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -63,6 +63,7 @@ import {
   isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, outgoingAddress, type Recipient as ParsedRecipient,
 } from '../lib/recipients';
 import { toUnicodeEmail } from '../lib/idn';
+import { mergeRecipientSuggestions } from '../lib/recipient-suggestions';
 import {
   findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
 } from '../lib/reply-identity';
@@ -250,17 +251,21 @@ function initialsOf(name: string, email: string): string {
 }
 
 function SuggestionList({
-  suggestions, onPick, onPressIn,
+  suggestions, onPick, onPressIn, onSearchServer, searchingServer,
 }: {
   suggestions: RecipientSuggestion[];
   onPick: (s: RecipientSuggestion) => void;
   onPressIn?: () => void;
+  /** Search the Sent folder on the server for more (webmail: "Search the server"). */
+  onSearchServer?: () => void;
+  searchingServer?: boolean;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   return (
     <View style={styles.suggestionBox}>
+      <ScrollView style={styles.suggestionScroll} keyboardShouldPersistTaps="always" nestedScrollEnabled>
       {suggestions.map((s, i) => (
         <Pressable
           key={`${s.group?.id ?? s.email}-${i}`}
@@ -287,6 +292,32 @@ function SuggestionList({
           </View>
         </Pressable>
       ))}
+      {onSearchServer && (
+        <Pressable
+          onPressIn={onPressIn}
+          onPress={() => { if (!searchingServer) onSearchServer(); }}
+          disabled={searchingServer}
+          accessibilityRole="button"
+          accessibilityState={{ busy: !!searchingServer, disabled: !!searchingServer }}
+          style={({ pressed }) => [
+            styles.suggestionRow,
+            suggestions.length > 0 && styles.suggestionSearchRowDivided,
+            pressed && styles.suggestionRowPressed,
+          ]}
+        >
+          <View style={styles.suggestionSearchIcon}>
+            {searchingServer
+              ? <ActivityIndicator size="small" color={c.textSecondary} />
+              : <Search size={16} color={c.textSecondary} />}
+          </View>
+          <Text style={styles.suggestionSearchText} numberOfLines={1}>
+            {searchingServer
+              ? t('email_composer.autocomplete_searching', 'Searching...')
+              : t('email_composer.autocomplete_search_server', 'Search the server')}
+          </Text>
+        </Pressable>
+      )}
+      </ScrollView>
     </View>
   );
 }
@@ -740,6 +771,22 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const loadRecentRecipients = useContactsStore((s) => s.loadRecentRecipients);
   const contactsVersion = useContactsStore((s) => s.contacts);
   const recentVersion = useContactsStore((s) => s.recentRecipients);
+  const findContactByEmail = useContactsStore((s) => s.findContactByEmail);
+  const lookupDirectory = useContactsStore((s) => s.lookupDirectory);
+  const directoryVersion = useContactsStore((s) => s.directory);
+  const directoryStatus = useContactsStore((s) => s.directoryStatus);
+  const fetchDirectory = useContactsStore((s) => s.fetchDirectory);
+  const searchRecipients = useContactsStore((s) => s.searchRecipients);
+  // A known Sent folder makes the on-demand server search worth offering.
+  const canSearchServer = useContactsStore((s) => s.sentMailboxId != null);
+  const [serverHits, setServerHits] = React.useState<{ query: string; results: RecipientSuggestion[] } | null>(null);
+  const [searchingServer, setSearchingServer] = React.useState(false);
+
+  // People in the company directory are suggested too (webmail loads the
+  // directory at sign-in); the store keeps one load per login.
+  React.useEffect(() => {
+    if (directoryStatus === 'idle' && !loginMovedFrom(ownerLoginRef.current)) void fetchDirectory();
+  }, [directoryStatus, fetchDirectory]);
 
   React.useEffect(() => {
     if (sentMailbox?.id) void loadRecentRecipients(sentMailbox.id);
@@ -759,12 +806,32 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const suggestions = React.useMemo<RecipientSuggestion[]>(() => {
     const q = suggestionQuery.trim();
     if (q.length < 1) return [];
-    return getAutocomplete(q, 16)
-      .filter((s) => s.group || !alreadySelected.has(s.email.toLowerCase()))
-      .slice(0, 8);
-    // contactsVersion/recentVersion re-run the lookup when the store loads.
+    return mergeRecipientSuggestions({
+      local: getAutocomplete(q, 16),
+      isContact: (s) => !!s.group || !!findContactByEmail(s.email),
+      directory: lookupDirectory(q, 16),
+      server: serverHits?.query === q ? serverHits.results : [],
+      exclude: alreadySelected,
+      limit: 8,
+    });
+    // contactsVersion/recentVersion/directoryVersion re-run the lookup when the store loads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggestionQuery, alreadySelected, getAutocomplete, contactsVersion, recentVersion]);
+  }, [suggestionQuery, alreadySelected, getAutocomplete, findContactByEmail, lookupDirectory, serverHits, contactsVersion, recentVersion, directoryVersion]);
+
+  // On demand: search the Sent folder on the server for recipients matching
+  // what is typed, and add new ones below the suggestions (webmail
+  // handleServerSearch). Only for the login the message is written in.
+  const searchServer = async () => {
+    const q = suggestionQuery.trim();
+    if (!q || searchingServer || loginMovedFrom(ownerLoginRef.current)) return;
+    setSearchingServer(true);
+    try {
+      const results = await searchRecipients(q);
+      if (!loginMovedFrom(ownerLoginRef.current)) setServerHits({ query: q, results });
+    } finally {
+      setSearchingServer(false);
+    }
+  };
 
   const setterFor = (field: Field) =>
     field === 'to' ? setToRecipients : field === 'cc' ? setCcRecipients : setBccRecipients;
@@ -2685,13 +2752,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
             textContentType="none"
           />
         </View>
-        {activeField === field && suggestions.length > 0 && (
+        {activeField === field && (suggestions.length > 0 || (canSearchServer && !!input.trim())) && (
           <SuggestionList
             suggestions={suggestions}
             onPick={pickSuggestion}
             onPressIn={() => {
               isPickingSuggestion.current = true;
             }}
+            onSearchServer={canSearchServer ? () => {
+              // No pick: a later blur turns the typed text into a chip again.
+              setTimeout(() => { isPickingSuggestion.current = false; }, 250);
+              void searchServer();
+            } : undefined}
+            searchingServer={searchingServer}
           />
         )}
         {field === 'to' && !ccVisible && (
@@ -3554,6 +3627,10 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
   },
   suggestionRowPressed: { backgroundColor: c.surfaceHover },
+  suggestionScroll: { maxHeight: 320 },
+  suggestionSearchRowDivided: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.borderLight },
+  suggestionSearchIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  suggestionSearchText: { ...typography.body, color: c.textSecondary, flex: 1 },
   suggestionAvatar: {
     width: 32, height: 32,
     borderRadius: 16,
