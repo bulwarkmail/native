@@ -1,1 +1,1840 @@
-{}
+{
+  "advanced_search": {
+    "advanced_filters_count": "{name}, ใช้งานอยู่ {count} รายการ",
+    "after": "หลังจาก",
+    "before": "ก่อนวันที่",
+    "larger_than_kb": "ใหญ่กว่า {size} KB",
+    "smaller_than_kb": "เล็กกว่า {size} KB"
+  },
+  "calendar": {
+    "a11y": {
+      "event_count": "{count, plural, other {# กิจกรรม}}"
+    },
+    "account_changed": "บัญชีมีการเปลี่ยนแปลงระหว่างที่ปฏิทินกำลังโหลดหรือบันทึก",
+    "alerts": {
+      "minutes_after": "{count, plural, other {# นาทีภายหลัง}}"
+    },
+    "change_month_named": "{month}, เปลี่ยนเดือน",
+    "colors": {
+      "indigo": "คราม",
+      "teal": "เขียวหัวเป็ด"
+    },
+    "detail": {
+      "delete_confirm": "ลบกิจกรรมนี้หรือไม่?",
+      "location_hint": "เปิดสถานที่ แตะค้างไว้เพื่อคัดลอก"
+    },
+    "drawer": {
+      "my_calendars": "ปฏิทินของฉัน",
+      "no_calendars": "ยังไม่มีปฏิทิน",
+      "shared_with_me": "ที่แชร์กับฉัน",
+      "subscribed": "ที่สมัครรับข้อมูล"
+    },
+    "event_modal": {
+      "participant_placeholder": "เพิ่มผู้เข้าร่วมด้วยอีเมล"
+    },
+    "events": {
+      "copy_link_short": "ลิงก์",
+      "copy_title_short": "ชื่อกิจกรรม:",
+      "export_ics_short": ".ics",
+      "nothing_planned": "ไม่มีกำหนดการ แตะเพื่อสร้าง",
+      "tap_to_create": "แตะ + เพื่อสร้าง"
+    },
+    "fab": {
+      "event": "กิจกรรม",
+      "task": "งาน"
+    },
+    "form": {
+      "description_placeholder": "บันทึก วาระการประชุม…",
+      "location_placeholder": "สถานที่หรือที่อยู่",
+      "time": "เวลา:"
+    },
+    "import": {
+      "file_too_large_max": "ไฟล์มีขนาดใหญ่เกินไป (สูงสุด {size} MB)",
+      "imported_count": "{count, plural, other {นำเข้ากิจกรรมแล้ว # รายการ}}",
+      "no_calendar": "สร้างปฏิทินก่อนนำเข้ากิจกรรม",
+      "no_calendar_title": "ไม่มีปฏิทิน",
+      "picker_error": "ไม่สามารถเปิดตัวเลือกไฟล์ได้",
+      "picker_unavailable": "บิลด์นี้ไม่ได้ติดตั้งตัวเลือกไฟล์ บิลด์แอปใหม่เพื่อเปิดใช้การนำเข้า",
+      "picker_unavailable_title": "ไม่สามารถนำเข้าได้",
+      "refused_count": "{count, plural, other {ไม่สามารถนำเข้ากิจกรรม # รายการ:}}",
+      "refused_message": "{count, plural, =1 {ไม่สามารถนำเข้ากิจกรรมได้: {reason}} other {ไม่สามารถนำเข้ากิจกรรม # รายการ: {reason}}}",
+      "selected_count": "เลือกไว้ {count} รายการ"
+    },
+    "invitation": {
+      "accept": "ใช่",
+      "add_error": "ไม่สามารถเพิ่มกิจกรรมได้",
+      "add_to_calendar": "เพิ่มลงในปฏิทิน",
+      "added": "เพิ่มลงในปฏิทินแล้ว",
+      "already_in_calendar": "มีกิจกรรมนี้ในปฏิทินของคุณแล้ว",
+      "cancel_outdated": "ปฏิทินของคุณมีเวอร์ชันของกิจกรรมนี้ที่ใหม่กว่าการยกเลิกนี้",
+      "cancelled": "กิจกรรมนี้ถูกยกเลิกแล้ว",
+      "decline": "ไม่ใช่",
+      "join_video": "เข้าร่วมวิดีโอคอล",
+      "no_writable_calendar": "ไม่มีปฏิทินที่เขียนได้",
+      "organizer": "ผู้จัด",
+      "reading": "กำลังอ่านคำเชิญ…",
+      "remove_error": "ไม่สามารถนำกิจกรรมออกได้",
+      "remove_from_calendar": "นำออกจากปฏิทิน",
+      "removed_from_calendar": "นำออกจากปฏิทินของคุณแล้ว",
+      "reply": "ผู้เข้าร่วมตอบกลับคำเชิญนี้แล้ว",
+      "response_error": "ไม่สามารถส่งการตอบกลับของคุณได้",
+      "response_sent": "ส่งการตอบรับแล้ว",
+      "tentative": "อาจจะเข้าร่วม",
+      "title": "คำเชิญปฏิทิน",
+      "trust_authentication_failed": "ข้อความนี้ไม่ผ่านการตรวจสอบสิทธิ์ผู้ส่ง (SPF/DKIM/DMARC)",
+      "trust_authentication_missing": "ไม่สามารถยืนยันผู้ส่งได้",
+      "trust_sender_mismatch": "ผู้ส่งไม่ตรงกับผู้จัดการประชุมของกิจกรรม",
+      "trust_sender_mismatch_unverified": "ผู้ส่งไม่ตรงกับผู้จัดการประชุม และข้อความไม่ผ่านการตรวจสอบสิทธิ์",
+      "trust_verified": "ยืนยันผู้ส่งแล้ว"
+    },
+    "management": {
+      "clear_confirm": "ลบทั้งหมด",
+      "clear_description": "กิจกรรมทุกรายการในปฏิทินนี้จะถูกลบ ส่วนกิจกรรมที่อยู่ในปฏิทินอื่นด้วยจะถูกยกเลิกการเชื่อมโยงเท่านั้น",
+      "clear_title": "ลบกิจกรรมทั้งหมดหรือไม่?",
+      "color_invalid": "ระบุสีเป็นเลขฐานสิบหก (hex) 6 หลัก จะมี # หรือไม่ก็ได้ เช่น #3b82f6",
+      "custom_color": "สีกำหนดเอง (hex)",
+      "delete_description": "ปฏิทินและกิจกรรมทั้งหมดในปฏิทินจะถูกลบ และไม่สามารถกู้คืนได้",
+      "delete_title": "ลบปฏิทินไหม",
+      "description_field": "คำอธิบาย:",
+      "description_placeholder": "ไม่บังคับ",
+      "edit_calendar": "แก้ไขปฏิทิน",
+      "fewer_colors": "สีน้อยลง",
+      "more_colors": "สีเพิ่มเติม",
+      "new_calendar": "ปฏิทินใหม่"
+    },
+    "notifications": {
+      "channel_name": "การเตือนปฏิทิน",
+      "starts_in_days": "{count, plural, other {เริ่มในอีก # วัน}}",
+      "starts_in_hours": "{count, plural, other {เริ่มในอีก # ชั่วโมง}}",
+      "starts_in_minutes": "{count, plural, other {เริ่มในอีก # นาที}}"
+    },
+    "occurrence_not_found_again": "ไม่ได้บันทึกการเปลี่ยนแปลง: ไม่พบกิจกรรมครั้งนี้บนเซิร์ฟเวอร์แล้ว กรุณาลองใหม่อีกครั้ง",
+    "participants": {
+      "group_members": "{count, plural, other {สมาชิก # คน}}",
+      "remove_named": "นำ {name} ออก"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, other {ครั้ง}}",
+      "every_count_days": "{count, plural, other {ทุก # วัน}}",
+      "every_count_months": "{count, plural, other {ทุก # เดือน}}",
+      "every_count_weeks": "{count, plural, other {ทุก # สัปดาห์}}",
+      "every_count_years": "{count, plural, other {ทุก # ปี}}",
+      "occurrence_count": "{count, plural, other {# ครั้ง}}",
+      "until_date": "จนถึง {date}"
+    },
+    "settings": {
+      "device_sync_desc": "แสดงปฏิทินของคุณในแอปปฏิทินและแอปอื่นๆ บนอุปกรณ์นี้ การเปลี่ยนแปลงจะซิงค์ทั้งสองทาง",
+      "device_sync_title": "ซิงค์ไปยังอุปกรณ์นี้",
+      "show_week_numbers_mobile_desc": "แสดงหมายเลขสัปดาห์ในมุมมองเดือน",
+      "time_zone": "เขตเวลา",
+      "time_zone_auto": "เขตเวลาของอุปกรณ์",
+      "time_zone_auto_zone": "เขตเวลาของอุปกรณ์ ({zone})",
+      "time_zone_desc": "เขตเวลาที่ใช้กับกิจกรรมใหม่และการแสดงปฏิทิน “เขตเวลาของอุปกรณ์” จะใช้ตามโทรศัพท์"
+    },
+    "share": {
+      "add_people": "เพิ่มบุคคล",
+      "error": "อัปเดตการแชร์ไม่สำเร็จ",
+      "no_matches": "ไม่พบรายการที่ตรงกัน",
+      "no_principals": "เซิร์ฟเวอร์นี้ไม่รองรับการแชร์",
+      "search_placeholder": "ค้นหาตามชื่อหรืออีเมล",
+      "shared_with": "แชร์กับ"
+    },
+    "subscription": {
+      "account_changed": "บัญชีมีการเปลี่ยนแปลงระหว่างที่การสมัครรับข้อมูลกำลังซิงค์ ระบบจะซิงค์อีกครั้งในบัญชีของการสมัครรับข้อมูลนั้นเอง",
+      "add_feed": "เพิ่มฟีด",
+      "feed_too_large": "ฟีดมีขนาดใหญ่เกินไป",
+      "feed_truncated": "ฟีดถูกตัดก่อนจบ จึงไม่มีการเปลี่ยนแปลงใดๆ",
+      "fetch_failed": "ไม่สามารถดึงข้อมูลฟีดได้ (HTTP {status})",
+      "mass_removal": "ฟีดไม่มีกิจกรรม {count} จาก {total} รายการพร้อมกัน ระบบจึงเก็บกิจกรรมเหล่านั้นไว้เผื่อฟีดมีปัญหา",
+      "name_and_url_required": "กรุณาระบุชื่อและ URL ของฟีด",
+      "not_a_feed": "URL นั้นไม่ได้ส่งคืนฟีด iCalendar",
+      "not_synced": "ยังไม่ได้ซิงค์",
+      "url_scheme_invalid": "URL ต้องขึ้นต้นด้วย https://, http://, webcal:// หรือ webcals://",
+      "your_subscriptions": "การสมัครรับข้อมูลของคุณ"
+    },
+    "tasks": {
+      "add_placeholder": "เพิ่มงาน...",
+      "add_time": "เพิ่มเวลา",
+      "clear_due_date": "ล้างกำหนดส่ง",
+      "delete_confirm": "ลบงานนี้หรือไม่?",
+      "delete_error": "ลบงานไม่สำเร็จ",
+      "not_found": "งานนี้ไม่มีอยู่แล้ว",
+      "save_error": "บันทึกงานไม่สำเร็จ",
+      "update_error": "อัปเดตงานไม่สำเร็จ"
+    },
+    "views": {
+      "n_days": "{count} วัน",
+      "schedule": "ตารางกำหนดการ",
+      "three_days": "3 วัน"
+    }
+  },
+  "common": {
+    "add": "เพิ่ม",
+    "back": "ย้อนกลับ",
+    "confirm": "ยืนยัน",
+    "create": "สร้าง",
+    "dismiss": "ปิดข้อความ",
+    "done": "เสร็จสิ้น",
+    "open": "เปิด",
+    "open_link_message": "การดำเนินการนี้จะเปิด {host} นอกแอป",
+    "open_link_title": "เปิดลิงก์หรือไม่?",
+    "remove": "ลบออก",
+    "retry": "ลองใหม่",
+    "undo": "เลิกทำ",
+    "update": "อัปเดต"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {ลบ “{name}” หรือไม่? การดำเนินการนี้ไม่สามารถเลิกทำได้} other {ลบ “{name}” หรือไม่? ผู้ติดต่อ # รายการในสมุดที่อยู่นี้จะถูกลบไปด้วย การดำเนินการนี้ไม่สามารถเลิกทำได้}}"
+    },
+    "all_contacts": "ผู้ติดต่อทั้งหมด",
+    "bulk": {
+      "add_tag": "เพิ่มแท็ก",
+      "delete_confirm_mobile": "{count, plural, other {ลบผู้ติดต่อ # รายการหรือไม่? การดำเนินการนี้ไม่สามารถเลิกทำได้}}",
+      "delete_confirm_title": "ลบผู้ติดต่อ",
+      "move_to_address_book": "ย้ายไปยังสมุดที่อยู่",
+      "tag_failed": "เพิ่มป้ายกำกับไม่สำเร็จ"
+    },
+    "contact": "ข้อมูลผู้ติดต่อ",
+    "create_hint_mobile": "แตะค้างไว้เพื่อสร้างกลุ่มแทน",
+    "delete_confirm_title": "ลบผู้ติดต่อ",
+    "detail": {
+      "add_to_group_failed": "เพิ่มลงในกลุ่มไม่สำเร็จ",
+      "copy_name": "{name} (สำเนา)",
+      "created_on": "สร้างเมื่อ {date}",
+      "duplicate_failed": "ทำสำเนาไม่สำเร็จ",
+      "duplicate_no_book": "ไม่สามารถทำสำเนาได้หากไม่มีสมุดที่อยู่",
+      "no_address_book": "ไม่มีสมุดที่อยู่",
+      "not_found": "ไม่พบผู้ติดต่อ",
+      "open_dialer_failed": "ไม่สามารถเปิดแอปโทรศัพท์ได้",
+      "open_link_failed": "ไม่สามารถเปิดลิงก์ได้",
+      "open_maps_failed": "ไม่สามารถเปิดแผนที่ได้",
+      "open_sms_failed": "ไม่สามารถเปิดแอปข้อความได้",
+      "share": "แชร์",
+      "share_title": "แชร์ {name}",
+      "sms": "SMS",
+      "timezone_value": "เขตเวลา: {zone}",
+      "updated_on": "อัปเดตเมื่อ {date}"
+    },
+    "directory": {
+      "restricted_hint": "เซิร์ฟเวอร์อีเมลของคุณแสดงเฉพาะบัญชีที่คุณทำงานด้วยอยู่แล้ว เช่น กลุ่มของคุณและบุคคลที่แชร์กับคุณ",
+      "restricted_queries_off": "เซิร์ฟเวอร์อีเมลของคุณแสดงเฉพาะบัญชีที่คุณทำงานด้วยอยู่แล้ว เช่น กลุ่มของคุณและบุคคลที่แชร์กับคุณ ผู้ดูแลระบบสามารถเปิดการค้นหาไดเรกทอรีเพื่อแสดงทุกคนได้"
+    },
+    "empty_state_hint_mobile": "แตะ + เพื่อเพิ่ม",
+    "export": {
+      "failed": "ส่งออกไม่สำเร็จ"
+    },
+    "form": {
+      "add_nickname": "เพิ่มชื่อเล่น",
+      "add_note": "เพิ่มบันทึกย่อ",
+      "add_organization": "เพิ่มองค์กร",
+      "address_book_required": "เลือกสมุดที่อยู่เพื่อบันทึกผู้ติดต่อนี้",
+      "categories_placeholder_mobile": "เพิ่มป้ายกำกับแล้วกด Enter",
+      "context_none": "ไม่มี",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY หรือ --MM-DD",
+      "display_name_optional": "ชื่อที่แสดง (ไม่บังคับ)",
+      "display_name_placeholder": "ชื่อที่แสดงแบบกำหนดเอง",
+      "edit_named": "แก้ไข {name}",
+      "gender_unspecified": "ไม่ระบุ",
+      "grammatical_gender": "เพศทางไวยากรณ์",
+      "invalid_date_message": "“{date}” ไม่ใช่วันที่ ใช้รูปแบบ YYYY-MM-DD, YYYY-MM, YYYY หรือ --MM-DD",
+      "invalid_date_title": "วันที่ไม่ถูกต้อง",
+      "invalid_email_message": "“{address}” ไม่ใช่ที่อยู่อีเมลที่ถูกต้อง",
+      "invalid_email_title": "อีเมลไม่ถูกต้อง",
+      "label": "ป้ายชื่อ",
+      "label_placeholder": "ที่ทำงาน, ส่วนตัว, …",
+      "missing_address_book": "ไม่มีสมุดที่อยู่",
+      "missing_info": "ข้อมูลไม่ครบ",
+      "name_or_email_required": "เพิ่มชื่อหรืออีเมลอย่างน้อยหนึ่งรายการ",
+      "new_organization": "องค์กรใหม่",
+      "org_name_required": "เพิ่มชื่อองค์กร",
+      "photo_hint_mobile": "แตะรูปภาพเพื่อเลือกรูป",
+      "photo_media_unread": "ไม่สามารถอ่านรูปภาพของผู้ติดต่อจากเซิร์ฟเวอร์ได้ จึงไม่มีการบันทึกใดๆ กรุณาลองใหม่อีกครั้ง",
+      "photo_permission_message": "อนุญาตการเข้าถึงคลังรูปภาพเพื่อเลือกรูปภาพผู้ติดต่อ",
+      "photo_permission_title": "ต้องได้รับสิทธิ์เข้าถึงรูปภาพ",
+      "pick_date": "เลือกวันที่",
+      "pronouns": "สรรพนาม",
+      "pronouns_placeholder": "เขา/เธอ",
+      "url": "URL"
+    },
+    "group": "กลุ่ม",
+    "groups": {
+      "add_member": "เพิ่มสมาชิก",
+      "add_members": "เพิ่มสมาชิก",
+      "add_members_failed": "เพิ่มสมาชิกไม่สำเร็จ",
+      "create_ellipsis": "กลุ่มใหม่…",
+      "delete_confirm_named": "ลบ “{name}” หรือไม่? สมาชิกจะไม่ถูกลบ",
+      "delete_failed": "ลบกลุ่มไม่สำเร็จ",
+      "email_all": "ส่งอีเมลถึงทุกคน",
+      "members_with_count": "สมาชิก ({count})",
+      "no_emails": "ไม่มีอีเมล",
+      "no_members_hint": "แตะ “เพิ่มสมาชิก” เพื่อเริ่มต้น",
+      "not_found": "ไม่พบกลุ่ม",
+      "remove_member": "นำสมาชิกออก",
+      "remove_member_confirm": "นำ “{name}” ออกจากกลุ่มนี้หรือไม่?",
+      "remove_member_failed": "นำสมาชิกออกไม่สำเร็จ"
+    },
+    "import": {
+      "change_target": "เปลี่ยน",
+      "choose_file_mobile": "เลือกไฟล์ vCard",
+      "failed_count": "{count, plural, other {ไม่สามารถนำเข้าผู้ติดต่อ # รายการได้}}",
+      "import_count": "นำเข้า {count} รายการ",
+      "into_address_book": "นำเข้าไปยังสมุดที่อยู่",
+      "into_named": "นำเข้าไปยัง {name}",
+      "no_address_book": "สร้างสมุดที่อยู่ก่อนนำเข้าผู้ติดต่อ",
+      "picker_failed": "ไม่สามารถเปิดตัวเลือกไฟล์ได้",
+      "replaces": "แทนที่ {name}",
+      "unnamed": "ผู้ติดต่อที่ไม่มีชื่อ",
+      "update_existing": "อัปเดตรายการที่มีอยู่",
+      "updated_count": "{count, plural, other {ผู้ติดต่อ # รายการมีอยู่แล้วและได้รับการอัปเดต}}"
+    },
+    "no_tags_hint": "ยังไม่มีป้ายกำกับ พิมพ์ชื่อป้ายกำกับด้านบน",
+    "picker": {
+      "add_count": "{count, plural, =0 {เพิ่ม} other {เพิ่ม (#)}}",
+      "title": "เพิ่มผู้ติดต่อ"
+    },
+    "rename_tag_hint_mobile": "แตะป้ายกำกับค้างไว้เพื่อเปลี่ยนชื่อ",
+    "tag_name_placeholder": "ชื่อป้ายกำกับใหม่",
+    "unnamed": "ไม่มีชื่อ"
+  },
+  "context_menu": {
+    "color_tag": "แท็ก",
+    "emails_selected": "{count, plural, other {เลือกอีเมลแล้ว # ฉบับ}}",
+    "remove_color": "ลบป้ายกำกับ",
+    "rules": {
+      "login_changed": "คุณสลับบัญชี จึงไม่ได้บันทึกกฎ"
+    }
+  },
+  "deep_link": {
+    "open_failed": "ไม่สามารถเปิดรายการนี้ได้"
+  },
+  "delegates": {
+    "remove_for": "ยกเลิกสิทธิ์เข้าถึงของ {name}"
+  },
+  "device_sync": {
+    "auth_problem_text": "เซิร์ฟเวอร์ไม่ยอมรับการเข้าสู่ระบบของ {account} อีกต่อไป ผู้ติดต่อและปฏิทินของบัญชีนี้บนอุปกรณ์นี้จึงหยุดซิงค์ เข้าสู่ระบบอีกครั้งเพื่อซิงค์ต่อ การเปลี่ยนแปลงที่ทำบนอุปกรณ์นี้จะยังคงอยู่",
+    "auth_problem_title": "เข้าสู่ระบบอีกครั้งเพื่อซิงค์ต่อ",
+    "problem_channel": "ปัญหาการซิงค์",
+    "sign_out_anyway": "ออกจากระบบ",
+    "sign_out_pending_message": "{count, plural, other {การเปลี่ยนแปลง # รายการที่ทำบนอุปกรณ์นี้ยังไม่ถึงเซิร์ฟเวอร์ และจะสูญหายหากคุณออกจากระบบตอนนี้}}",
+    "sign_out_pending_title": "ออกจากระบบต่อไปหรือไม่?",
+    "sign_out_unknown_message": "การเปลี่ยนแปลงที่ทำบนอุปกรณ์นี้อาจยังไม่ถึงเซิร์ฟเวอร์ และจะสูญหายหากคุณออกจากระบบตอนนี้",
+    "signed_out_text": "{account} ออกจากระบบแล้ว ผู้ติดต่อและปฏิทินของบัญชีนี้บนอุปกรณ์นี้จึงไม่ซิงค์อีก เข้าสู่ระบบอีกครั้งเพื่อซิงค์ต่อ การเปลี่ยนแปลงที่ทำบนอุปกรณ์นี้จะยังคงอยู่",
+    "signed_out_title": "เข้าสู่ระบบเพื่อซิงค์ต่อ",
+    "signing_out": "กำลังนำผู้ติดต่อและปฏิทินที่ซิงค์ไว้ออกจากอุปกรณ์นี้…"
+  },
+  "email_composer": {
+    "attach_camera": "กล้อง",
+    "attachment_reminder_body": "ข้อความของคุณมีคำว่า “{keyword}” แต่ไม่มีไฟล์แนบ ต้องการส่งต่อไปหรือไม่?",
+    "attachment_reminder_title": "ลืมแนบไฟล์หรือไม่?",
+    "attachments_too_large_total": "ไฟล์แนบจะเกิน {max} ที่เซิร์ฟเวอร์นี้อนุญาตต่อข้อความ",
+    "editor_unavailable": "ไม่สามารถอ่านเนื้อหาข้อความได้ คัดลอกข้อความของคุณไว้ แล้วปิดและเปิดหน้าต่างเขียนอีเมลใหม่",
+    "format_plain_text": "สลับเป็นข้อความธรรมดา",
+    "format_rich_text": "สลับเป็นข้อความแบบจัดรูปแบบ (HTML)",
+    "from_options": "ตัวเลือกผู้ส่ง",
+    "group_chip": "{name} ({count})",
+    "identity_unavailable": "ข้อมูลประจำตัวไม่พร้อมใช้งาน",
+    "image_load_failed": "ไม่สามารถโหลดรูปภาพได้",
+    "login_switched_attach_body": "คุณเริ่มเขียนข้อความนี้ใน {account} สลับกลับไปที่บัญชีนั้นเพื่อแนบไฟล์",
+    "login_switched_body": "คุณเริ่มเขียนข้อความนี้ใน {account} สลับกลับไปที่บัญชีนั้นเพื่อส่งข้อความ",
+    "login_switched_save_body": "คุณเริ่มเขียนข้อความนี้ใน {account} สลับกลับไปที่บัญชีนั้นเพื่อบันทึกข้อความ",
+    "login_switched_title": "สลับบัญชีแล้ว",
+    "no_recipient": "(ไม่มีผู้รับ)",
+    "no_sent_folder": "ไม่พบโฟลเดอร์ส่งแล้ว",
+    "option_encrypt": "เข้ารหัสลับ",
+    "option_encrypt_hint": "เฉพาะผู้รับ (และคุณ) เท่านั้นที่อ่านได้ ผู้รับทุกคนต้องมีคีย์",
+    "option_security": "ลายมือชื่อและการเข้ารหัส",
+    "option_sign": "ลงลายมือชื่อ",
+    "option_sign_pgp_hint": "เพิ่มลายมือชื่อ OpenPGP ด้วยคีย์ของคุณ",
+    "option_sign_smime_hint": "เพิ่มลายมือชื่อ S/MIME ด้วยใบรับรองของคุณ",
+    "permission_camera": "ต้องได้รับสิทธิ์เข้าถึงกล้องเพื่อถ่ายรูป",
+    "permission_photos": "ต้องได้รับสิทธิ์เข้าถึงคลังรูปภาพเพื่อแนบรูปภาพ",
+    "read_receipt_off": "ขอใบตอบรับการอ่าน",
+    "recipient_add_contact": "เพิ่มในรายชื่อผู้ติดต่อ",
+    "recipient_copy": "คัดลอกที่อยู่",
+    "recipients_partly_refused_title": "ส่งไม่ถึงผู้รับทุกคน",
+    "remove_attachment": "นำไฟล์แนบออก",
+    "save_draft": "บันทึกจดหมายร่าง",
+    "save_failed_no_drafts": "ไม่มีโฟลเดอร์จดหมายร่างสำหรับบันทึกจดหมายร่างนี้",
+    "save_failed_no_identity": "ไม่สามารถโหลดข้อมูลประจำตัวผู้ส่งของคุณได้ จึงบันทึกจดหมายร่างนี้ไม่ได้ ตรวจสอบการเชื่อมต่อ หรือคัดลอกข้อความไว้ก่อนปิด",
+    "schedule_custom": "เลือกวันที่และเวลา…",
+    "schedule_in_1h": "ในอีก 1 ชั่วโมง",
+    "schedule_in_3h": "ในอีก 3 ชั่วโมง",
+    "schedule_past_body": "เวลาที่กำหนดส่งต้องเป็นเวลาในอนาคต",
+    "schedule_past_title": "เลือกเวลาในอนาคต",
+    "schedule_tomorrow": "พรุ่งนี้ 08:00 น.",
+    "schedule_tomorrow_morning": "เช้าวันพรุ่งนี้",
+    "schedule_too_late_body": "เวลานี้เกินกว่าที่เซิร์ฟเวอร์นี้อนุญาต เลือกเวลาที่เร็วกว่านี้",
+    "schedule_too_late_title": "ไกลเกินไป",
+    "schedule_unsupported_body": "เซิร์ฟเวอร์อีเมลนี้ไม่รองรับการกำหนดเวลาส่ง",
+    "schedule_unsupported_title": "ไม่สามารถกำหนดเวลาส่งได้",
+    "scheduled_body": "ข้อความของคุณจะถูกส่งเวลา {time}",
+    "scheduled_title": "กำหนดเวลาส่ง",
+    "secure_failed_title": "ไม่สามารถลงลายมือชื่อหรือเข้ารหัสได้",
+    "secure_missing_keys": "ไม่มีคีย์สำหรับ {recipients} นำเข้าคีย์ได้ที่ การตั้งค่า → การเข้ารหัส",
+    "secure_no_key": "ไม่มีคีย์สำหรับ {email} บนอุปกรณ์นี้ นำเข้าคีย์ได้ที่ การตั้งค่า → การเข้ารหัส",
+    "secure_offline": "ข้อความที่ลงลายมือชื่อหรือเข้ารหัสไม่สามารถรอในกล่องจดหมายออกได้ ส่งเมื่อคุณออนไลน์",
+    "secure_unlock_reason": "คีย์ของคุณใช้ลงลายมือชื่อข้อความนี้",
+    "send_now": "ส่งทันที",
+    "send_timeout_body": "ข้อความอาจถูกส่งออกไปแล้ว กรุณาตรวจสอบโฟลเดอร์ส่งแล้วก่อนส่งซ้ำ",
+    "send_timeout_title": "ไม่มีการตอบกลับจากเซิร์ฟเวอร์",
+    "send_unconfirmed_body": "เซิร์ฟเวอร์ไม่ได้ยืนยันการส่ง กรุณาตรวจสอบโฟลเดอร์ส่งแล้วก่อนส่งซ้ำ จดหมายร่างของคุณยังคงอยู่",
+    "send_unconfirmed_title": "ไม่ได้รับการยืนยันการส่ง",
+    "toolbar": {
+      "insert_image": "แทรกรูปภาพ"
+    },
+    "undo_send_label": "กำลังส่งในอีก {seconds} วินาที…",
+    "undo_send_other_login": "ข้อความนี้ถูกส่งจากบัญชีอื่น",
+    "undo_send_other_login_body": "สลับกลับไปที่ {account} เพื่อเลิกทำหรือส่งทันที ข้อความจะถูกส่งเมื่อหมดเวลาหน่วง",
+    "upload_failed_short": "อัปโหลดไม่สำเร็จ",
+    "upload_login_switched": "ไม่ได้อัปโหลด: มีการสลับบัญชี",
+    "uploading": "กำลังอัปโหลด...",
+    "uploading_pct": "กำลังอัปโหลด {pct}%",
+    "use_template": "เทมเพลต",
+    "validation": {
+      "subject_required": "เพิ่มเรื่อง"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "การย้ายระหว่างบัญชีต้องใช้การเชื่อมต่อ",
+    "emails_archived_count": "{count, plural, other {เก็บถาวรอีเมล # ฉบับแล้ว}}",
+    "emails_moved_to": "{count, plural, other {ย้ายอีเมล # ฉบับ}}ไปที่ {mailbox} แล้ว",
+    "error": "เกิดข้อผิดพลาด",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "กรองอีเมล",
+    "folder_counts": "ทั้งหมด {total} · ยังไม่อ่าน {unread}",
+    "import": {
+      "none": "ไม่มีข้อความที่ถูกนำเข้า",
+      "partial": "นำเข้าแล้ว {imported} รายการ ล้มเหลว {failed} รายการ",
+      "success": "{count, plural, other {นำเข้าข้อความแล้ว # ฉบับ}}",
+      "title": "นำเข้า"
+    },
+    "marked_as_spam": "ทำเครื่องหมายเป็นจดหมายขยะแล้ว",
+    "marked_as_spam_count": "{count, plural, other {ทำเครื่องหมายอีเมล # ฉบับเป็นจดหมายขยะแล้ว}}",
+    "marked_not_spam": "ทำเครื่องหมายว่าไม่ใช่จดหมายขยะแล้ว",
+    "marked_not_spam_count": "{count, plural, other {ทำเครื่องหมายอีเมล # ฉบับว่าไม่ใช่จดหมายขยะแล้ว}}",
+    "move_same_account": "ย้ายข้อความได้เฉพาะภายในบัญชีเดียวกันเท่านั้น",
+    "moved_to_trash": "ย้ายอีเมลไปที่ถังขยะแล้ว",
+    "moved_to_trash_count": "{count, plural, other {ย้ายอีเมล # ฉบับไปที่ถังขยะแล้ว}}",
+    "no_archive_folder": "ไม่พบโฟลเดอร์เก็บถาวรบนเซิร์ฟเวอร์",
+    "no_emails_in": "ไม่มีอีเมลใน {folder}",
+    "no_junk_folder": "ไม่พบโฟลเดอร์จดหมายขยะบนเซิร์ฟเวอร์",
+    "no_mailboxes": "ไม่พบกล่องจดหมาย",
+    "no_mailboxes_hint": "ตรวจสอบว่าบัญชี JMAP ของคุณรองรับอีเมล",
+    "no_tags_defined": "ยังไม่มีป้ายกำกับ เพิ่มป้ายกำกับได้ในการตั้งค่า",
+    "no_trash_folder": "ไม่พบโฟลเดอร์ถังขยะบนเซิร์ฟเวอร์ กรุณาตรวจสอบการกำหนดค่ากล่องจดหมายของคุณ",
+    "offline_nothing_cached": "ไม่มีการเชื่อมต่อ และยังไม่มีอีเมลที่แคชไว้ จึงไม่มีอะไรแสดง",
+    "open_draft_failed": "ไม่สามารถเปิดจดหมายร่างได้",
+    "outbox_discard": "ละทิ้ง",
+    "outbox_failed": "ไม่สามารถบันทึกการเปลี่ยนแปลง {count} รายการไปยังเซิร์ฟเวอร์ได้",
+    "recent_searches": "การค้นหาล่าสุด",
+    "remove_filter": "นำตัวกรอง {label} ออก",
+    "scope_all_folders": "ทุกโฟลเดอร์",
+    "scope_this_folder": "โฟลเดอร์นี้",
+    "search_placeholder": "ค้นหาจดหมาย...",
+    "showing_cached": "กำลังแสดงอีเมลที่แคชไว้",
+    "sort_toggle_hint": "กลับลำดับการจัดเรียงอีเมล",
+    "swipe_move": "ย้าย",
+    "swipe_spam": "จดหมายขยะ",
+    "total": "ทั้งหมด",
+    "undo_failed": "เลิกทำไม่สำเร็จ",
+    "unknown_tag": "ไม่ได้กำหนดไว้ที่นี่"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "เพิ่มผู้ส่งลงในผู้ติดต่อ",
+    "address_actions": {
+      "add_contact": "เพิ่มในรายชื่อผู้ติดต่อ",
+      "compose": "เขียนจดหมายใหม่",
+      "copy": "คัดลอกที่อยู่",
+      "copy_failed": "ไม่สามารถคัดลอกที่อยู่ได้"
+    },
+    "attachment_actions": {
+      "open": "เปิด",
+      "preview": "แสดงตัวอย่าง",
+      "save": "บันทึก",
+      "share": "แชร์"
+    },
+    "attachment_failed": "ไม่สามารถเปิดไฟล์แนบได้",
+    "authentication": {
+      "spoof_warning": "ไม่สามารถยืนยันที่อยู่ผู้ส่งได้ - ข้อความนี้อาจถูกปลอมแปลง"
+    },
+    "body_truncated": "ข้อความนี้มีขนาดใหญ่เกินกว่าจะแสดงทั้งหมดได้",
+    "bundle_too_large": "ไฟล์แนบมีขนาดใหญ่เกินกว่าจะรวมเป็นไฟล์เดียวได้",
+    "color_tag": {
+      "blue": "น้ำเงิน",
+      "green": "เขียว",
+      "none": "ไม่มี",
+      "orange": "ส้ม",
+      "pink": "ชมพู",
+      "purple": "ม่วง",
+      "red": "แดง",
+      "title": "ป้ายกำกับสี",
+      "yellow": "เหลือง"
+    },
+    "delete_permanently_message": "ข้อความนี้จะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้",
+    "delete_permanently_title": "ลบอย่างถาวรหรือไม่?",
+    "details": {
+      "attachment_count_size": "{count, plural, other {# ไฟล์}} · {size}",
+      "received_after_delay": "{date} · ใช้เวลาส่ง {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
+    "export_failed": "ส่งออกไม่สำเร็จ",
+    "forwarded": "ส่งต่อแล้ว",
+    "load_failed": "โหลดอีเมลไม่สำเร็จ",
+    "not_spam_short": "ไม่ใช่จดหมายขยะ",
+    "preview": {
+      "archive_files": "{count, plural, other {# ไฟล์}}",
+      "archive_first_files": "{count} ไฟล์แรก",
+      "archive_protected": "ไฟล์บีบอัดนี้มีการป้องกันด้วยรหัสผ่าน เปิดในแอปอื่นเพื่อป้อนรหัสผ่าน",
+      "archive_unreadable": "ไม่สามารถเปิดไฟล์บีบอัดนี้ที่นี่ได้",
+      "media_unsupported": "ไม่สามารถเล่นไฟล์นี้ที่นี่ได้",
+      "open_external": "เปิดในแอป",
+      "pdf_external": "ไฟล์ PDF จะเปิดในโปรแกรมดู PDF บนอุปกรณ์นี้",
+      "pdf_protected": "PDF นี้มีการป้องกันด้วยรหัสผ่าน เปิดในแอปอื่นเพื่อป้อนรหัสผ่าน",
+      "pdf_unreadable": "ไม่สามารถแสดง PDF นี้ที่นี่ได้",
+      "unsupported": "ไม่มีตัวอย่างสำหรับไฟล์ประเภทนี้"
+    },
+    "quick_reply_login_switched": "ข้อความนี้อยู่ในบัญชีอื่น สลับกลับไปที่บัญชีนั้นเพื่อตอบกลับ",
+    "quick_reply_unconfirmed": "เซิร์ฟเวอร์ไม่ได้ยืนยันการส่ง กรุณาตรวจสอบโฟลเดอร์ส่งแล้วก่อนส่งซ้ำ",
+    "received_via": "ถึง {name}",
+    "remove_color": "ลบป้ายกำกับ",
+    "replied": "ตอบกลับแล้ว",
+    "sender_actions": "ผู้ส่ง…",
+    "set_color": "กำหนดป้ายกำกับ",
+    "show_all_count": "แสดงทั้งหมด ({count})",
+    "show_less": "แสดงน้อยลง",
+    "smime_unsupported": "ลงลายมือชื่อ/เข้ารหัสด้วย S/MIME - ไม่รองรับบนมือถือ",
+    "source_too_large": "ข้อความมีขนาดใหญ่เกินกว่าจะแสดงทั้งหมดได้ แชร์ซอร์สฉบับเต็มแทน",
+    "spam_short": "จดหมายขยะ",
+    "thread_loading": "กำลังโหลดการสนทนา...",
+    "undo_send_failed": "เลิกทำการส่งไม่สำเร็จ",
+    "unsubscribe_banner": {
+      "no_identity": "ไม่มีข้อมูลประจำตัวสำหรับส่ง"
+    },
+    "view_dark_mode": "แสดงผลในโหมดมืด",
+    "view_light_mode": "แสดงผลในโหมดสว่าง"
+  },
+  "encryption": {
+    "armored_key": "คีย์แบบ ASCII-armored",
+    "banner": {
+      "checking": "กำลังตรวจสอบการเข้ารหัสและลายมือชื่อ…",
+      "decrypted": "ถอดรหัสแล้ว ({kind})",
+      "failed": "ถอดรหัสไม่สำเร็จ: {reason}",
+      "invalid": "ลายมือชื่อไม่ถูกต้อง ({kind})",
+      "invalid_reason": "ลายมือชื่อไม่ถูกต้อง ({kind}): {reason}",
+      "locked": "เข้ารหัสแล้ว ({kind}) ปลดล็อกคีย์ของคุณเพื่ออ่าน",
+      "no_key": "เข้ารหัส ({kind}) ถึงคีย์ที่ไม่ได้อยู่บนอุปกรณ์นี้",
+      "self_signed": "ใบรับรองเป็นแบบ Self-signed ไม่ได้ออกโดยผู้ออกใบรับรองที่เป็นที่รู้จัก",
+      "signed": "ลายมือชื่อถูกต้อง ({kind})",
+      "signed_by": "ลายมือชื่อถูกต้อง ({kind}) จาก {signer}",
+      "signer_mismatch": "ผู้ลงลายมือชื่อไม่ใช่ผู้ส่งที่แสดงในช่อง “จาก”",
+      "unknown_key": "ลงลายมือชื่อ ({kind}) ด้วยคีย์ที่คุณยังไม่ได้นำเข้า",
+      "unsupported": "เข้ารหัสด้วย {algorithm} ซึ่งแอปไม่สามารถถอดรหัสได้"
+    },
+    "check_description": "ทดสอบทุกอัลกอริทึมที่ PGP และ S/MIME ใช้บนอุปกรณ์นี้",
+    "check_run": "เรียกใช้การตรวจสอบ",
+    "check_title": "ตรวจสอบการรองรับการเข้ารหัส",
+    "delete_private_message": "{key} และไพรเวตคีย์จะถูกนำออกจากอุปกรณ์นี้ อีเมลที่เข้ารหัสถึงคีย์นี้จะอ่านที่นี่ไม่ได้อีก เว้นแต่คุณจะนำเข้าคีย์อีกครั้ง",
+    "delete_public_message": "{key} จะถูกนำออกจากอุปกรณ์นี้",
+    "delete_title": "ลบคีย์หรือไม่?",
+    "expired": "หมดอายุเมื่อ {date}",
+    "expires": "หมดอายุ {date}",
+    "find_key": "ค้นหาคีย์บน keys.openpgp.org",
+    "import": "นำเข้า",
+    "import_cert": "นำเข้าใบรับรอง",
+    "import_p12": "นำเข้าใบรับรอง S/MIME (.p12)",
+    "import_pgp_file": "นำเข้าไฟล์คีย์ PGP",
+    "import_public_file": "นำเข้าไฟล์พับลิกคีย์",
+    "imported": "นำเข้า {key} แล้ว",
+    "lock": "ล็อก",
+    "lock_all": "ล็อกคีย์ทั้งหมด",
+    "lock_all_description": "ล้างคีย์ที่ปลดล็อกไว้จนกว่าคุณจะป้อนรหัสผ่านอีกครั้ง",
+    "locked": "ล็อกอยู่",
+    "locked_all": "ล็อกคีย์แล้ว",
+    "lookup_confirm": "เปรียบเทียบลายนิ้วมือดิจิทัลนี้กับลายนิ้วมือที่เจ้าของคีย์ให้คุณ (ด้วยตนเองหรือทางโทรศัพท์) ก่อนนำเข้า",
+    "lookup_none": "ไม่พบคีย์",
+    "lookup_placeholder": "ที่อยู่อีเมลหรือลายนิ้วมือดิจิทัล",
+    "lookup_search": "ค้นหา",
+    "lookup_verified": "คีย์นี้มีลายนิ้วมือดิจิทัลตรงกับที่คุณค้นหา",
+    "no_other_keys": "ยังไม่มี",
+    "no_own_keys": "ยังไม่มีคีย์",
+    "not_a_key": "นี่ไม่ใช่คีย์หรือใบรับรองที่แอปอ่านได้",
+    "others_description": "พับลิกคีย์และใบรับรองสำหรับเข้ารหัสถึงผู้อื่นและตรวจสอบลายมือชื่อ ระบบจะใช้คีย์จากอีเมลที่ลงลายมือชื่อและคีย์ในผู้ติดต่อของคุณด้วย",
+    "others_title": "คีย์ของผู้อื่น",
+    "own_description": "ลงลายมือชื่อและถอดรหัสอีเมลด้วย OpenPGP หรือ S/MIME ไพรเวตคีย์จะอยู่ในพื้นที่จัดเก็บที่ปลอดภัยของอุปกรณ์นี้ และปลดล็อกด้วยรหัสผ่านหนึ่งครั้งต่อเซสชันของแอป",
+    "own_title": "คีย์ของคุณ",
+    "p12_password_message": "ป้อนรหัสผ่านที่ใช้ตอนส่งออกไฟล์ .p12 คุณจะต้องใช้รหัสผ่านนี้อีกครั้งเพื่อปลดล็อกคีย์หลังจากรีสตาร์ทแอป",
+    "p12_password_title": "รหัสผ่านใบรับรอง",
+    "passphrase": "รหัสผ่าน (Passphrase)",
+    "passphrase_message": "ป้อนรหัสผ่านของคีย์นี้ ระบบจะตรวจสอบตอนนี้ และจะถามอีกหนึ่งครั้งต่อเซสชันของแอป",
+    "passphrase_title": "รหัสผ่านคีย์",
+    "password": "รหัสผ่าน",
+    "paste_pgp": "วางคีย์ PGP",
+    "paste_public": "วางพับลิกคีย์",
+    "share_cert": "แชร์ใบรับรอง",
+    "share_key": "แชร์พับลิกคีย์",
+    "tab": "การเข้ารหัส",
+    "title": "การเข้ารหัส",
+    "unlock": "ปลดล็อก",
+    "unlock_pgp_message": "ป้อนรหัสผ่านของคีย์ PGP {key} ของคุณ",
+    "unlock_read_reason": "ข้อความนี้เข้ารหัสถึงคีย์นี้",
+    "unlock_smime_message": "ป้อนรหัสผ่านของใบรับรอง S/MIME {key} ของคุณ",
+    "unlock_title": "ปลดล็อกคีย์",
+    "unlocked": "ปลดล็อกแล้ว",
+    "unlocking": "กำลังปลดล็อก…",
+    "wrong_passphrase": "รหัสผ่านไม่ถูกต้อง"
+  },
+  "files": {
+    "batch_delete_confirm_message": "คุณแน่ใจหรือไม่ว่าต้องการลบ {count, plural, other {# รายการ}}? การดำเนินการนี้ไม่สามารถเลิกทำได้",
+    "batch_delete_success": "{count, plural, other {ลบ # รายการแล้ว}}",
+    "delete_cascade_hint": "โฟลเดอร์จะถูกลบพร้อมทุกอย่างที่อยู่ภายใน การดำเนินการนี้ไม่สามารถเลิกทำได้",
+    "delete_confirm_message": "คุณแน่ใจหรือไม่ว่าต้องการลบ “{name}”? การดำเนินการนี้ไม่สามารถเลิกทำได้",
+    "delete_confirm_title": "ลบรายการ",
+    "delete_item_title": "ลบรายการนี้หรือไม่?",
+    "delete_items_title": "{count, plural, other {ลบ # รายการหรือไม่?}}",
+    "delete_success": "ลบสำเร็จ",
+    "done": "เสร็จสิ้น",
+    "download_failed_status": "ดาวน์โหลดไม่สำเร็จ (HTTP {status})",
+    "folder_empty": "ไม่มีไฟล์ในโฟลเดอร์นี้",
+    "invalid_name": "ชื่อไม่ถูกต้อง",
+    "invalid_name_slash": "ชื่อต้องไม่มีอักขระ “/”",
+    "name_trash": "“.Trash” เป็นชื่อของโฟลเดอร์ถังขยะที่ระดับบนสุดของไฟล์ของคุณ กรุณาเลือกชื่ออื่น",
+    "open_error": "ไม่สามารถเปิดไฟล์ได้",
+    "open_with": "เปิดด้วย…",
+    "preview_too_large": "ไฟล์นี้มีขนาดใหญ่เกินกว่าจะแสดงตัวอย่างได้",
+    "settings_behavior": "พฤติกรรม",
+    "settings_colored_icons": "ไอคอนสี",
+    "settings_colored_icons_desc": "ใช้ไอคอนที่มีสีสันแทนแบบสีเดียว",
+    "settings_default_sort": "การจัดเรียงเริ่มต้น",
+    "settings_default_sort_desc": "เลือกการเรียงลำดับเริ่มต้นสำหรับไฟล์",
+    "settings_default_view": "มุมมองเริ่มต้น",
+    "settings_default_view_desc": "เลือกระหว่างเค้าโครงแบบตารางกริดและแบบรายการ",
+    "settings_display": "การแสดงผล",
+    "settings_icons": "ไอคอน",
+    "settings_show_hidden": "แสดงไฟล์ที่ซ่อนอยู่",
+    "settings_show_hidden_desc": "แสดงไฟล์และโฟลเดอร์ที่ขึ้นต้นด้วยจุด",
+    "settings_show_icons": "แสดงไอคอนไฟล์",
+    "settings_show_icons_desc": "แสดงไอคอนถัดจากไฟล์และโฟลเดอร์",
+    "settings_show_thumbnails": "แสดงรูปขนาดย่อ",
+    "settings_show_thumbnails_desc": "แสดงตัวอย่างรูปภาพแทนไอคอนสำหรับไฟล์รูปภาพ",
+    "settings_sort_direction": "ทิศทางการจัดเรียง",
+    "settings_sort_direction_desc": "เลือกลำดับจากน้อยไปมากหรือมากไปน้อย",
+    "share_add_people": "เพิ่มบุคคล",
+    "share_empty": "ยังไม่ได้แชร์กับใคร",
+    "share_error": "อัปเดตการแชร์ไม่สำเร็จ",
+    "share_file_error": "แชร์ไฟล์ไม่สำเร็จ",
+    "share_folder_hint": "การแชร์โฟลเดอร์จะแชร์ทุกอย่างที่อยู่ภายในด้วย",
+    "share_no_matches": "ไม่พบรายการที่ตรงกัน",
+    "share_no_users": "ไม่พบผู้ใช้อื่น",
+    "share_remove": "นำสิทธิ์ออก",
+    "share_remove_confirm": "นำสิทธิ์ออกไหม",
+    "share_remove_for": "นำสิทธิ์ของ {name} ออก",
+    "share_role_custom": "กำหนดเอง",
+    "share_search_placeholder": "ค้นหาด้วยชื่อหรืออีเมล",
+    "share_unavailable": "การแชร์ไม่พร้อมใช้งานบนอุปกรณ์นี้",
+    "shared_with": "แชร์กับ",
+    "sharing_access": "การแชร์และสิทธิ์เข้าถึง",
+    "trash_unavailable_message": "ไม่สามารถย้าย{count, plural, other {รายการ # รายการนี้}}ไปที่ถังขยะได้ ต้องการลบถาวรแทนหรือไม่? คุณไม่สามารถเลิกทำได้",
+    "upload": "อัปโหลด",
+    "upload_unavailable": "บิลด์นี้ไม่ได้ติดตั้งตัวเลือกไฟล์ บิลด์แอปใหม่เพื่อเปิดใช้การอัปโหลด",
+    "uploading_progress": "กำลังอัปโหลด {current}/{total} · {name}"
+  },
+  "identities": {
+    "badge": {
+      "to": "ถึง {identity}",
+      "via": "ผ่าน {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "คุณลงชื่อเข้าใช้บัญชีเหล่านี้อยู่แล้ว",
+      "add_title": "เพิ่มบัญชีอื่น",
+      "camera_allow": "อนุญาตให้เข้าถึงกล้อง",
+      "camera_disabled": "การเข้าถึงกล้องถูกปิดอยู่ เปิดในการตั้งค่าเพื่อสแกนรหัส QR สำหรับลงชื่อเข้าใช้",
+      "camera_needed": "Bulwark Mail ต้องเข้าถึงกล้องเพื่อสแกนรหัส QR สำหรับลงชื่อเข้าใช้",
+      "cancel_sign_in": "ยกเลิกการลงชื่อเข้าใช้",
+      "choose_subtitle": "เลือกวิธีที่คุณต้องการลงชื่อเข้าใช้",
+      "confirm_check": "ตรวจสอบว่าข้อมูลนี้ถูกต้อง",
+      "confirm_found": "พบเมลเซิร์ฟเวอร์ของคุณแล้ว",
+      "confirm_subtitle": "ขั้นต่อไป คุณจะลงชื่อเข้าใช้บนหน้าของผู้ให้บริการของคุณเอง",
+      "connecting": "กำลังเชื่อมต่อกับ {host}",
+      "connecting_detail": "กำลังตั้งค่ากล่องจดหมายของคุณ…",
+      "continue": "ดำเนินการต่อ",
+      "different_server": "ใช้เซิร์ฟเวอร์อื่น",
+      "elsewhere_title": "บัญชีที่อื่น",
+      "email_desc": "เราจะค้นหาเมลเซิร์ฟเวอร์ของคุณให้",
+      "email_step_hint": "ใช้ได้กับ Stalwart และเมลเซิร์ฟเวอร์ JMAP อื่นๆ ทุกตัว",
+      "email_step_subtitle": "โดยปกติเราต้องการเพียงเท่านี้เพื่อค้นหาเมลเซิร์ฟเวอร์ของคุณ",
+      "email_step_title": "ที่อยู่อีเมลของคุณคืออะไร?",
+      "email_step_title_add": "ที่อยู่อีเมลอื่นคืออะไร?",
+      "email_title": "ใช้ที่อยู่อีเมลของฉัน",
+      "err_account_limit_detail": "นำบัญชีหนึ่งออกในการตั้งค่าเพื่อเพิ่มบัญชีอื่น",
+      "err_bad_detail": "ตรวจสอบอีเมลและรหัสผ่านของคุณ หากบัญชีของคุณใช้การยืนยันตัวตนแบบสองขั้นตอน ให้สร้างรหัสผ่านแอปในเว็บเมลแล้วใช้รหัสนั้นที่นี่",
+      "err_bad_title": "ไม่สำเร็จ",
+      "err_cert_detail": "ใบรับรองความปลอดภัยของเซิร์ฟเวอร์ถูกปฏิเสธ หากนี่เป็นเซิร์ฟเวอร์ของคุณเอง ให้ตรวจสอบว่าใบรับรองถูกต้องและยังไม่หมดอายุ",
+      "err_cert_title": "ไม่สามารถยืนยัน {host} ได้",
+      "err_client_rejected_detail": "เซิร์ฟเวอร์ปฏิเสธ Bulwark ในฐานะไคลเอนต์ลงชื่อเข้าใช้ ขอให้ผู้ดูแลระบบอนุญาต หรือลงชื่อเข้าใช้ด้วยรหัสผ่านแอป",
+      "err_client_rejected_title": "{host} ไม่ยอมรับแอปนี้",
+      "err_code_expired_detail": "รหัสลงชื่อเข้าใช้ใช้ได้สองนาที แสดงรหัสใหม่ในเว็บเมลแล้วสแกนอีกครั้ง",
+      "err_code_expired_or_used_detail": "แสดงรหัสใหม่ในเว็บเมลแล้วสแกนอีกครั้ง",
+      "err_code_expired_or_used_title": "รหัสนี้หมดอายุหรือถูกใช้ไปแล้ว",
+      "err_code_expired_title": "รหัสนี้หมดอายุแล้ว",
+      "err_code_invalid_detail": "แสดงรหัสใหม่ในเว็บเมล (การตั้งค่า → ความปลอดภัย → เชื่อมโยงแอปบนมือถือ) แล้วสแกน",
+      "err_code_invalid_title": "รหัสนี้ไม่ถูกต้อง",
+      "err_code_used_detail": "แต่ละรหัสใช้ได้ครั้งเดียว แสดงรหัสใหม่ในเว็บเมลแล้วสแกนอีกครั้ง",
+      "err_code_used_title": "รหัสนี้ถูกใช้ไปแล้ว",
+      "err_generic_detail": "เกิดข้อผิดพลาด ลองอีกครั้ง",
+      "err_generic_title": "ลงชื่อเข้าใช้ไม่สำเร็จ",
+      "err_handoff_expired_detail": "เบราว์เซอร์ส่งการลงชื่อเข้าใช้กลับมาหลังจากหมดอายุแล้ว ลงชื่อเข้าใช้อีกครั้ง",
+      "err_handoff_expired_title": "การลงชื่อเข้าใช้ใช้เวลานานเกินไป",
+      "err_handoff_network_detail": "เชื่อมต่อเว็บเมลไม่ได้หลังจากที่คุณลงชื่อเข้าใช้ ตรวจสอบการเชื่อมต่อแล้วลงชื่อเข้าใช้อีกครั้ง",
+      "err_handoff_network_title": "ลงชื่อเข้าใช้ให้เสร็จไม่ได้",
+      "err_handoff_rate_detail": "รอสักสองสามนาที แล้วลงชื่อเข้าใช้อีกครั้ง",
+      "err_handoff_refused_detail": "ลิงก์ลงชื่อเข้าใช้ถูกใช้ไปแล้ว หรือไม่ได้มาจากการลงชื่อเข้าใช้ครั้งนี้ ลงชื่อเข้าใช้อีกครั้ง",
+      "err_handoff_refused_title": "เว็บเมลไม่ยอมรับการลงชื่อเข้าใช้นี้",
+      "err_handoff_server_detail": "ลงชื่อเข้าใช้อีกครั้ง หากยังล้มเหลวอยู่ ให้ติดต่อผู้ดูแลระบบ",
+      "err_handoff_server_title": "เว็บเมลดำเนินการลงชื่อเข้าใช้ให้เสร็จไม่ได้",
+      "err_interrupted_detail": "การตอบกลับไม่ตรงกับคำขอที่เราเริ่มไว้ ลองลงชื่อเข้าใช้อีกครั้ง",
+      "err_interrupted_title": "การลงชื่อเข้าใช้ถูกขัดจังหวะ",
+      "err_no_server_detail": "ตรวจสอบที่อยู่อีกครั้ง หรือสแกนรหัสลงชื่อเข้าใช้จากเว็บเมลแทน",
+      "err_no_server_title": "ไม่พบเมลเซิร์ฟเวอร์ที่ {host}",
+      "err_no_webmail_detail": "เซิร์ฟเวอร์นี้ไม่มีเว็บเมล Bulwark และไม่มีการลงชื่อเข้าใช้ด้วย OAuth ใช้รหัสผ่าน (หรือรหัสผ่านแอป) แทน",
+      "err_no_webmail_title": "ไม่พบหน้าลงชื่อเข้าใช้ที่ {host}",
+      "err_pair_connect_detail": "แสดงรหัสใหม่บนคอมพิวเตอร์แล้วสแกนอีกครั้ง",
+      "err_pair_connect_title": "ลงชื่อเข้าใช้แล้ว แต่เชื่อมต่อกับ {host} ไม่ได้",
+      "err_pair_insecure_detail": "{host} ต้องการใช้การเชื่อมต่อที่ไม่ได้เข้ารหัส",
+      "err_pair_network_detail": "ตรวจสอบการเชื่อมต่อ และตรวจสอบว่าโทรศัพท์ของคุณเข้าถึงเว็บเมลได้ แล้วลองอีกครั้ง",
+      "err_pair_rate_detail": "รอสักหนึ่งนาที แล้วลองอีกครั้ง",
+      "err_pair_server_detail": "ลองอีกครั้งด้วยรหัสใหม่ หากยังล้มเหลวอยู่ ให้ติดต่อผู้ดูแลระบบ",
+      "err_pair_server_title": "เว็บเมลดำเนินการลงชื่อเข้าใช้ให้เสร็จไม่ได้",
+      "err_pair_unsupported_detail": "{host} ไม่รองรับรหัสลงชื่อเข้าใช้ อาจต้องอัปเดต หรือลิงก์ชี้ไปยังที่อยู่ที่ไม่ถูกต้อง",
+      "err_pair_unsupported_title": "เว็บเมลนี้เชื่อมโยงอุปกรณ์ไม่ได้",
+      "err_pair_untrusted_detail": "{host} ส่งข้อมูลลงชื่อเข้าใช้สำหรับเซิร์ฟเวอร์ที่แอปไม่สามารถยืนยันได้",
+      "err_pair_untrusted_title": "การลงชื่อเข้าใช้นี้ไม่น่าเชื่อถือ",
+      "err_rate_detail": "เซิร์ฟเวอร์ขอให้เรารอสักครู่ ลองอีกครั้งในอีกไม่ช้า",
+      "err_rate_detail_seconds": "เซิร์ฟเวอร์ขอให้เรารอ ลองอีกครั้งในอีกประมาณ {seconds} วินาที",
+      "err_rate_title": "พยายามหลายครั้งเกินไป",
+      "err_server_detail": "เซิร์ฟเวอร์ตอบกลับด้วยข้อผิดพลาด ลองอีกครั้งในอีกสองสามนาที",
+      "err_server_title": "{host} มีปัญหา",
+      "err_token_exchange_title": "{host} ไม่ได้เริ่มเซสชัน",
+      "err_totp_bad_detail": "ตรวจสอบรหัสผ่านและรหัสปัจจุบันจากแอปยืนยันตัวตน แล้วลองอีกครั้ง",
+      "err_totp_detail": "บัญชีนี้ได้รับการป้องกันด้วยการยืนยันตัวตนแบบสองขั้นตอน พิมพ์รหัส 6 หลักจากแอปยืนยันตัวตนของคุณ",
+      "err_totp_title": "ป้อนรหัสยืนยันตัวตนแบบสองขั้นตอน",
+      "err_unreachable_detail": "ตรวจสอบการเชื่อมต่อและที่อยู่เซิร์ฟเวอร์ แล้วลองอีกครั้ง",
+      "err_unreachable_title": "เชื่อมต่อ {host} ไม่ได้",
+      "know_server": "ฉันรู้ที่อยู่เซิร์ฟเวอร์ของฉัน",
+      "known_server_desc": "เรารู้จักเซิร์ฟเวอร์นี้แล้ว จึงไม่ต้องตั้งค่า",
+      "known_server_title": "บัญชีอื่นบน {host}",
+      "link_confirm_connect": "ลิงก์ขอให้ลงชื่อเข้าใช้บนหน้านี้ ดำเนินการต่อเฉพาะเมื่อคุณใช้ {host} สำหรับอีเมลของคุณ",
+      "link_confirm_connect_add": "ลิงก์ขอให้เพิ่มบัญชีโดยลงชื่อเข้าใช้บนหน้านี้ ดำเนินการต่อเฉพาะเมื่อคุณใช้ {host} สำหรับอีเมลของคุณ",
+      "link_confirm_connect_title": "เปิดหน้าลงชื่อเข้าใช้ของ {host} หรือไม่?",
+      "link_confirm_pair": "ลิงก์นี้จะลงชื่อเข้าใช้บัญชีจาก {host} ดำเนินการต่อเฉพาะเมื่อคุณเพิ่งแสดงรหัสลงชื่อเข้าใช้บนคอมพิวเตอร์",
+      "link_confirm_pair_add": "ลิงก์นี้จะเพิ่มบัญชีจาก {host} และสลับแอปไปใช้บัญชีนั้น ดำเนินการต่อเฉพาะเมื่อคุณเพิ่งแสดงรหัสลงชื่อเข้าใช้บนคอมพิวเตอร์",
+      "link_confirm_title": "ลงชื่อเข้าใช้ด้วยลิงก์หรือไม่?",
+      "looking_up": "กำลังค้นหาเซิร์ฟเวอร์ของคุณ…",
+      "manual": "ป้อนรายละเอียดเซิร์ฟเวอร์ด้วยตนเอง",
+      "notice_bad_qr": "รหัสนี้ไม่ใช่รหัสลงชื่อเข้าใช้ของ Bulwark",
+      "notice_bad_qr_detail": "เปิด Bulwark บนเว็บ แล้วไปที่ การตั้งค่า → ความปลอดภัย → เชื่อมโยงแอปบนมือถือ เพื่อแสดงรหัส",
+      "notice_bad_server": "ดูเหมือนไม่ใช่ที่อยู่เซิร์ฟเวอร์",
+      "notice_bad_server_detail": "ลองใช้ที่อยู่ที่คุณใช้สำหรับเว็บเมล เช่น mail.example.com",
+      "notice_full_email": "ป้อนที่อยู่อีเมลแบบเต็ม",
+      "notice_full_email_detail": "เช่น ada@example.com หากคุณลงชื่อเข้าใช้ด้วยชื่อผู้ใช้ ให้ใช้ “ฉันรู้ที่อยู่เซิร์ฟเวอร์ของฉัน”",
+      "notice_need_code": "ป้อนรหัส 6 หลักจากแอปยืนยันตัวตนของคุณ",
+      "notice_need_credentials": "ป้อนอีเมลและรหัสผ่านของคุณ",
+      "notice_need_server": "เราต้องการที่อยู่เซิร์ฟเวอร์ก่อน",
+      "open_settings": "เปิดการตั้งค่า",
+      "opening": "กำลังเปิด {host}",
+      "opening_detail": "ลงชื่อเข้าใช้ให้เสร็จบนหน้าที่เพิ่งเปิดขึ้น จากนั้นเราจะดำเนินการต่อให้",
+      "pairing": "กำลังใช้รหัสลงชื่อเข้าใช้ของคุณ",
+      "pairing_detail": "กำลังจับคู่อุปกรณ์นี้กับ {host}…",
+      "password_subtitle": "รหัสผ่านของคุณจะถูกส่งไปยังเซิร์ฟเวอร์นี้เท่านั้น และจัดเก็บไว้ในพวงกุญแจของอุปกรณ์",
+      "password_title": "ลงชื่อเข้าใช้ {host}",
+      "paste_button": "วาง",
+      "paste_clipboard_empty": "ไม่มีอะไรให้วาง คัดลอกลิงก์ในเว็บเมลก่อน",
+      "paste_hint": "ในเว็บเมล เปิด การตั้งค่า → ความปลอดภัย → เชื่อมโยงแอปบนมือถือ คัดลอกลิงก์ลงชื่อเข้าใช้แล้ววางที่นี่",
+      "paste_invalid": "นี่ไม่ใช่ลิงก์ลงชื่อเข้าใช้ของ Bulwark",
+      "paste_label": "ลิงก์ลงชื่อเข้าใช้",
+      "paste_title": "วางลิงก์ลงชื่อเข้าใช้",
+      "provider_detail": "คุณจะพิมพ์รหัสผ่านบนหน้าของผู้ให้บริการ Bulwark จัดเก็บเพียงโทเค็นการลงชื่อเข้าใช้ ซึ่งคุณเพิกถอนได้ทุกเมื่อ",
+      "provider_title": "รหัสผ่านของคุณอยู่กับผู้ให้บริการของคุณ",
+      "qr_hint": "การตั้งค่า → ความปลอดภัย → เชื่อมโยงแอปบนมือถือ จะแสดงรหัส เล็งกล้องไปที่รหัสนั้น",
+      "qr_hint_title": "เปิด Bulwark บนคอมพิวเตอร์ของคุณ",
+      "qr_title": "รหัสลงชื่อเข้าใช้",
+      "reauth_detail": "เซิร์ฟเวอร์ไม่ยอมรับการลงชื่อเข้าใช้ที่บันทึกไว้สำหรับ {account} อีกต่อไป ลงชื่อเข้าใช้อีกครั้งเพื่อใช้บัญชีนี้ต่อ",
+      "reauth_title": "ลงชื่อเข้าใช้อีกครั้ง",
+      "scan_desc": "วิธีที่เร็วที่สุดหากคุณลงชื่อเข้าใช้บนเว็บอยู่แล้ว",
+      "scan_title": "สแกนรหัสลงชื่อเข้าใช้",
+      "server_cert_active": "กำลังลงชื่อเข้าใช้ด้วยใบรับรองไคลเอนต์ \"{alias}\" แตะเพื่อเลือกใบอื่น",
+      "server_cert_clear": "ลงชื่อเข้าใช้โดยไม่ใช้ใบรับรอง",
+      "server_cert_failed": "เลือกใบรับรองไม่สำเร็จ",
+      "server_cert_hint": "เซิร์ฟเวอร์ของคุณขอใบรับรองไคลเอนต์หรือไม่? เลือกใบรับรองที่ติดตั้งไว้บนโทรศัพท์นี้",
+      "server_hint": "ที่อยู่เดียวกับที่คุณพิมพ์ในเบราว์เซอร์ เราจะเติม https:// ให้",
+      "server_label": "ที่อยู่เซิร์ฟเวอร์",
+      "server_not_found": "เราไม่พบเซิร์ฟเวอร์สำหรับ {domain} หากคุณโฮสต์เอง ที่อยู่คือที่อยู่ที่คุณใช้สำหรับเว็บเมล",
+      "server_paste_hint": "มีลิงก์ลงชื่อเข้าใช้แทนใช่ไหม? วางที่นี่",
+      "server_scan_hint": "หากไม่แน่ใจ ให้สแกนรหัสลงชื่อเข้าใช้แทน รหัสนี้มีที่อยู่เซิร์ฟเวอร์อยู่แล้ว",
+      "server_subtitle": "ป้อนที่อยู่ที่คุณใช้เข้าเว็บเมล",
+      "server_title": "ที่อยู่เซิร์ฟเวอร์ของคุณคืออะไร?",
+      "the_server": "เซิร์ฟเวอร์",
+      "unencrypted": "การเชื่อมต่อที่ไม่ได้เข้ารหัส",
+      "use_password": "ลงชื่อเข้าใช้ด้วยรหัสผ่านแทน",
+      "username_label": "อีเมลหรือชื่อผู้ใช้",
+      "your_server": "เซิร์ฟเวอร์ของคุณ"
+    }
+  },
+  "notifications": {
+    "vacation_filters_off": "บันทึกการตั้งค่าตอบกลับอัตโนมัติแล้ว แต่ตัวกรองของคุณถูกปิดอยู่ บันทึกอีกครั้งเพื่อเปิดใช้งานตัวกรอง"
+  },
+  "offline": {
+    "banner": "คุณออฟไลน์อยู่",
+    "discarded_changes": "{count, plural, other {การเปลี่ยนแปลงแบบออฟไลน์ # รายการถูกยกเลิก}} เนื่องจากเมลเซิร์ฟเวอร์เปลี่ยนไป",
+    "queued_changes": "{count, plural, other {การเปลี่ยนแปลง # รายการ}}จะซิงค์เมื่อคุณเชื่อมต่ออีกครั้ง",
+    "sync": {
+      "cached_count": "{count, plural, other {แคชข้อความใหม่ # ข้อความแล้ว}} • {size}",
+      "cancelled": "ยกเลิกการซิงค์แล้ว",
+      "failed": "ซิงค์ออฟไลน์ไม่สำเร็จ",
+      "processed": "ประมวลผลแล้ว {completed}/{total}",
+      "ready": "อีเมลออฟไลน์พร้อมแล้ว",
+      "syncing": "กำลังซิงค์อีเมลออฟไลน์",
+      "title": "ซิงค์ออฟไลน์",
+      "unable_to_download": "ดาวน์โหลดไม่ได้",
+      "up_to_date": "เป็นปัจจุบันแล้ว"
+    }
+  },
+  "outbox": {
+    "discard": "ละทิ้ง",
+    "discard_body": "ข้อความจะไม่ถูกส่ง และเนื้อหาจะหายไป",
+    "discard_title": "ทิ้งข้อความนี้หรือไม่?",
+    "failed_count": "ส่งไม่สำเร็จ {count, plural, other {# ข้อความ}}",
+    "move_failed_body": "ข้อความยังอยู่ในกล่องจดหมายออก ลองอีกครั้งเมื่อการเชื่อมต่อกลับมา",
+    "move_failed_title": "ย้ายไปยังจดหมายร่างไม่สำเร็จ",
+    "move_to_drafts": "ย้ายไปยังจดหมายร่าง",
+    "open_hint": "เปิดกล่องจดหมายออก",
+    "queued_body": "ข้อความจะถูกส่งทันทีที่คุณกลับมาออนไลน์",
+    "queued_title": "บันทึกไว้ในกล่องจดหมายออกแล้ว",
+    "retry": "ลองใหม่อีกครั้ง",
+    "send_failed": "ส่งข้อความในกล่องจดหมายออกไม่สำเร็จ",
+    "sent": "ส่งข้อความจากกล่องจดหมายออกแล้ว",
+    "status_failed": "ส่งไม่สำเร็จ",
+    "status_failed_reason": "ส่งไม่สำเร็จ: {reason}",
+    "status_offline": "กำลังรอการเชื่อมต่อ",
+    "status_retrying": "กำลังรอส่ง",
+    "status_sending": "กำลังส่ง…",
+    "title": "กล่องจดหมายออก",
+    "waiting": "มี {count, plural, other {# ข้อความ}} ในกล่องจดหมายออก"
+  },
+  "push": {
+    "ios": {
+      "more_messages": "และอีก {count} รายการ",
+      "no_subject": "(ไม่มีเรื่อง)"
+    }
+  },
+  "push_prompt": {
+    "body": "เปิดการแจ้งเตือนเบื้องหลังเพื่อรับข้อความใหม่แม้ในขณะที่แอปปิดอยู่",
+    "dismiss": "ไม่ใช่ตอนนี้",
+    "enable": "เปิดใช้งาน",
+    "title": "รับการแจ้งเตือนเมื่อมีอีเมลใหม่"
+  },
+  "scheduled": {
+    "actions": "การดำเนินการ",
+    "already_sent": "ข้อความนี้ถูกส่งออกไปแล้ว",
+    "cancel_body": "ข้อความจะไม่ถูกจัดส่ง สำเนาจะยังคงอยู่ในโฟลเดอร์ส่งแล้ว",
+    "cancel_failed": "ยกเลิกไม่สำเร็จ",
+    "cancel_to_drafts_body": "ข้อความจะไม่ถูกส่ง และจะกลับไปอยู่ในจดหมายร่าง",
+    "cancelled_not_moved": "ยกเลิกการส่งแล้ว แต่ไม่ได้ย้ายไปยังจดหมายร่าง",
+    "cancelled_not_moved_body": "ข้อความจะไม่ถูกส่ง และยังคงอยู่ในโฟลเดอร์ส่งแล้ว",
+    "edit_failed": "เปิดข้อความเพื่อแก้ไขไม่ได้",
+    "keep_scheduled": "คงกำหนดเวลาไว้",
+    "login_switched": "ข้อความที่กำหนดเวลาส่งเหล่านี้เป็นของบัญชีอื่น สลับกลับไปยังบัญชีนั้นเพื่อแก้ไข",
+    "no_longer_scheduled": "ข้อความนี้ไม่มีกำหนดเวลาส่งแล้ว",
+    "reschedule_failed": "เปลี่ยนเวลาส่งไม่สำเร็จ",
+    "reschedule_lost": "ข้อความไม่ได้กำหนดเวลาส่งแล้ว ตรวจสอบจดหมายร่างและโฟลเดอร์ส่งแล้วก่อนส่งอีกครั้ง",
+    "reschedule_lost_drafts": "ข้อความไม่ได้กำหนดเวลาส่งแล้ว และกลับไปอยู่ในจดหมายร่าง ซึ่งคุณสามารถส่งอีกครั้งได้",
+    "send_cancelled": "ยกเลิกการส่งแล้ว",
+    "send_now_failed": "ส่งทันทีไม่สำเร็จ"
+  },
+  "settings": {
+    "about": {
+      "check_now": "ตรวจสอบเดี๋ยวนี้",
+      "checked_at": "ตรวจสอบเมื่อ {when}",
+      "licences": "สัญญาอนุญาตโอเพนซอร์ส",
+      "licences_desc": "AGPL-3.0 สำหรับแอป และไลบรารีที่แอปใช้",
+      "never_checked": "ยังไม่ได้ตรวจสอบ",
+      "privacy": "ความเป็นส่วนตัว",
+      "privacy_desc": "สิ่งที่อยู่บนโทรศัพท์นี้ และสิ่งที่ส่งไปยังเซิร์ฟเวอร์ของคุณ",
+      "report_problem": "รายงานปัญหา",
+      "report_problem_desc": "เปิด issue บน GitHub พร้อมกรอกเวอร์ชันไว้ให้",
+      "server": "เซิร์ฟเวอร์",
+      "server_value": "{host} · ลงชื่อเข้าใช้เป็น {user}",
+      "source_code": "ซอร์สโค้ด",
+      "this_device": "อุปกรณ์นี้",
+      "this_device_desc": "แอปเชื่อมต่อกับอะไร และวิธีขอความช่วยเหลือ",
+      "up_to_date": "เป็นเวอร์ชันล่าสุดแล้ว",
+      "updates": "การอัปเดต"
+    },
+    "accessibility": {
+      "cvd_palette": {
+        "description_mobile": "ใช้สีของป้ายกำกับและปฏิทินที่ยังแยกออกได้สำหรับผู้ตาบอดสีแดง-เขียวหรือน้ำเงิน-เหลือง"
+      },
+      "font": {
+        "description_ios": "Atkinson Hyperlegible และ Lexend ออกแบบมาให้แยกแยะตัวอักษรได้ง่าย ส่วน OpenDyslexic ช่วยผู้ที่มีภาวะดิสเล็กเซียบางคน บนอุปกรณ์นี้ แบบอักษรจะใช้กับอีเมลแบบข้อความธรรมดา"
+      },
+      "plain_language": {
+        "description_mobile": "ใช้ถ้อยคำที่ง่ายขึ้นสำหรับการตั้งค่าและข้อความแสดงข้อผิดพลาด มีในภาษาอังกฤษและภาษาเยอรมัน"
+      },
+      "presets": {
+        "applied_mobile": "{name} เปลี่ยนการตั้งค่า {count, plural, other {# รายการ}}",
+        "apply": "ใช้",
+        "apply_named": "ใช้ {name}",
+        "dyslexia": {
+          "description_mobile": "ใช้ Atkinson Hyperlegible เป็นแบบอักษร รวมถึงในอีเมลแบบข้อความธรรมดา"
+        },
+        "low-vision": {
+          "description_mobile": "ข้อความขนาด 150% และป้ายข้อความใต้ไอคอนบนแถบเครื่องมือ"
+        },
+        "motion": {
+          "description_mobile": "ไม่มีภาพเคลื่อนไหวหรือการเปลี่ยนหน้าแบบเลื่อน"
+        },
+        "screen-reader": {
+          "description_mobile": "ไม่จัดกลุ่มเป็นการสนทนา ทุกข้อความจึงแสดงเป็นแถวของตัวเอง"
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "ปิดแผงแบบเลื่อนและการเปลี่ยนหน้า แอปจะทำเช่นนี้ด้วยเมื่อเปิดการลดการเคลื่อนไหวในการตั้งค่าโทรศัพท์ของคุณ"
+      },
+      "text_size": {
+        "description_mobile": "ปรับขนาดข้อความของแอปเพิ่มจากขนาดข้อความของโทรศัพท์ 100% คือขนาดเดียวกับโทรศัพท์"
+      },
+      "toast_duration": {
+        "automatic": "อัตโนมัติ (นานขึ้นเมื่อใช้โปรแกรมอ่านหน้าจอ)"
+      }
+    },
+    "account": {
+      "accounts": {
+        "description_mobile": "จัดลำดับบัญชีในตัวสลับบัญชี เลือกบัญชีเริ่มต้น หรือลงชื่อออกจากบัญชี",
+        "limit": "ถึงจำนวนสูงสุด {count} บัญชีแล้ว"
+      },
+      "shared_accounts": {
+        "description_manage": "บัญชีกลุ่มและบัญชีที่แชร์ที่คุณอ่านได้ผ่านบัญชีนี้ เลือกบัญชีเพื่อจัดการตัวกรองและการตอบกลับอัตโนมัติ"
+      },
+      "unknown": "ไม่ระบุผู้ส่ง"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "ต้องอัปเดต: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "อัปเดตความปลอดภัย: {version}",
+        "update_available": "อัปเดต: {version}",
+        "update_store_hint": "มีให้ใน TestFlight / App Store"
+      },
+      "export_settings": {
+        "saved_to": "บันทึกไปที่ {path} แล้ว"
+      },
+      "reset_settings": {
+        "done": "คืนค่าการตั้งค่าทั้งหมดเป็นค่าเริ่มต้นแล้ว"
+      }
+    },
+    "appearance": {
+      "accessibility_link": {
+        "description_mobile": "ขนาดตัวอักษร การลดการเคลื่อนไหว และค่าที่ตั้งไว้ล่วงหน้าสำหรับการเข้าถึงอยู่ในหน้าการเข้าถึง"
+      },
+      "cross_all": {
+        "label_mobile": "จดหมายทั้งหมด"
+      },
+      "cross_starred": {
+        "label_mobile": "ติดดาวทั้งหมด"
+      },
+      "cross_unread": {
+        "label_mobile": "ยังไม่อ่านทั้งหมด"
+      },
+      "description_mobile": "ปรับแต่งรูปลักษณ์ของแอป",
+      "language": {
+        "restart_for_direction": "รีสตาร์ตแอปเพื่อใช้ทิศทางข้อความใหม่",
+        "system_default": "ค่าเริ่มต้นของระบบ"
+      },
+      "toolbar_labels": {
+        "description_mobile": "แสดงข้อความข้างไอคอนบนแถบเครื่องมือ"
+      }
+    },
+    "backup": {
+      "description": "ย้ายการตั้งค่าของคุณไปยังโทรศัพท์เครื่องอื่นหรือเว็บเมล",
+      "export_import": "ส่งออกหรือนำเข้า",
+      "export_import_desc": "ไฟล์ JSON รูปแบบเดียวกับเว็บเมล",
+      "reset": "รีเซ็ต",
+      "reset_desc": "กลับเป็นค่าเริ่มต้น อีเมลยังคงอยู่",
+      "title": "การสำรองข้อมูลการตั้งค่า"
+    },
+    "badges": {
+      "experimental": "ฟีเจอร์ทดลอง",
+      "not_implemented": "ยังไม่รองรับ",
+      "not_on_server": "ไม่มีบนเซิร์ฟเวอร์นี้",
+      "unavailable": "ไม่พร้อมใช้งาน"
+    },
+    "composer": {
+      "autosave": {
+        "1m": "ทุกนาที",
+        "2m": "ทุก 2 นาที",
+        "30s": "ทุก 30 วินาที",
+        "5m": "ทุก 5 นาที",
+        "description": "ความถี่ในการบันทึกจดหมายร่างโดยอัตโนมัติ",
+        "label": "ช่วงเวลาบันทึกอัตโนมัติ"
+      },
+      "description": "กำหนดค่าการเขียนอีเมล",
+      "title": "การเขียนจดหมาย"
+    },
+    "contacts": {
+      "book_count": "{count, plural, other {ผู้ติดต่อ # รายการ}}",
+      "default_book": "สมุดที่อยู่เริ่มต้น",
+      "description_mobile": "การตั้งค่าการแสดงผลและเครื่องมือสมุดที่อยู่",
+      "device_sync_desc": "แสดงสมุดที่อยู่ของคุณในแอปรายชื่อติดต่อและแอปอื่นๆ บนอุปกรณ์นี้ การเปลี่ยนแปลงจะซิงค์ทั้งสองทาง",
+      "device_sync_title": "ซิงค์กับอุปกรณ์นี้",
+      "export_description_count": "{count, plural, other {ส่งออกผู้ติดต่อ # รายการเป็นไฟล์ vCard ไฟล์เดียว}}",
+      "export_empty": "ไม่มีผู้ติดต่อให้ส่งออก",
+      "import_description_mobile": "นำเข้าผู้ติดต่อจากไฟล์ vCard (.vcf) พร้อมตรวจหารายการซ้ำ",
+      "manage_description_mobile": "สร้าง เปลี่ยนชื่อ และลบสมุดที่อยู่ที่ใช้จัดระเบียบผู้ติดต่อของคุณ"
+    },
+    "device_sync": {
+      "also_synced_by": "ซิงค์สำหรับ {accounts} ด้วย จึงแสดงซ้ำสองครั้งบนอุปกรณ์นี้",
+      "android_settings": "การตั้งค่าบัญชี Android",
+      "blocked_calendar": "Android จะไม่ขอสิทธิ์เข้าถึงปฏิทินอีก อนุญาตในการตั้งค่าของแอป แล้วเปิดการซิงค์อีกครั้ง",
+      "blocked_contacts": "Android จะไม่ขอสิทธิ์เข้าถึงผู้ติดต่ออีก อนุญาตในการตั้งค่าของแอป แล้วเปิดการซิงค์อีกครั้ง",
+      "blocked_title": "การเข้าถึงถูกปิดอยู่",
+      "books_default": "สมุดที่อยู่ของคุณเองจะซิงค์ ส่วนสมุดที่อยู่ที่แชร์จะซิงค์เฉพาะเมื่อคุณเลือก",
+      "books_hint": "สมุดที่อยู่ของคุณเองจะซิงค์ เว้นแต่คุณปิดไว้ ส่วนที่แชร์จะซิงค์เฉพาะเมื่อคุณเปิด",
+      "books_label": "สมุดที่อยู่",
+      "calendars_default": "ปฏิทินของคุณเองจะซิงค์ ส่วนปฏิทินที่แชร์จะซิงค์เฉพาะเมื่อคุณเลือก",
+      "calendars_hint": "ปฏิทินของคุณเองจะซิงค์ เว้นแต่คุณปิดไว้ ส่วนที่แชร์จะซิงค์เฉพาะเมื่อคุณเปิด รายการงานจะอยู่ใน Bulwark เท่านั้น",
+      "calendars_label": "ปฏิทิน",
+      "choose": "เลือก",
+      "choose_books_title": "สมุดที่อยู่ที่จะซิงค์",
+      "choose_calendars_title": "ปฏิทินที่จะซิงค์",
+      "collections_count": "{selected, plural, other {ซิงค์ # จาก {total}}}",
+      "continue": "ดำเนินการต่อ",
+      "deletions_delete": "ลบบนเซิร์ฟเวอร์",
+      "deletions_message": "มีการลบรายการจำนวนมากบนอุปกรณ์นี้พร้อมกัน จึงยังไม่ได้ลบบนเซิร์ฟเวอร์ ลบบนเซิร์ฟเวอร์ด้วย หรือนำรายการกลับมาบนอุปกรณ์นี้",
+      "deletions_restore": "นำกลับมา",
+      "deletions_title": "ลบบนเซิร์ฟเวอร์ด้วยหรือไม่?",
+      "denied_calendar": "หากไม่มีสิทธิ์เข้าถึงปฏิทิน Bulwark จะไม่สามารถนำปฏิทินของคุณมาไว้บนอุปกรณ์นี้ได้",
+      "denied_contacts": "หากไม่มีสิทธิ์เข้าถึงผู้ติดต่อ Bulwark จะไม่สามารถนำสมุดที่อยู่ของคุณมาไว้บนอุปกรณ์นี้ได้",
+      "denied_title": "การซิงค์ยังคงปิดอยู่",
+      "failed_title": "เปิดการซิงค์ไม่สำเร็จ",
+      "grant_access": "ให้สิทธิ์เข้าถึง",
+      "interval_15m": "ทุก 15 นาที",
+      "interval_1h": "ทุก 1 ชั่วโมง",
+      "interval_30m": "ทุก 30 นาที",
+      "interval_6h": "ทุก 6 ชั่วโมง",
+      "interval_desc": "ความถี่ที่ Android ซิงค์เอง การแก้ไขใน Bulwark และการเปลี่ยนแปลงที่ถูกพุชมาจะซิงค์เร็วกว่านั้น",
+      "interval_label": "ช่วงเวลาการซิงค์",
+      "interval_manual": "ไม่ซิงค์เป็นประจำ",
+      "keep_syncing": "ซิงค์ต่อไป",
+      "list_error_auth": "เซิร์ฟเวอร์ไม่ยอมรับการลงชื่อเข้าใช้",
+      "list_error_network": "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้",
+      "list_error_server": "เซิร์ฟเวอร์แสดงรายการไม่ได้",
+      "list_error_signed_out": "บัญชีนี้ไม่ได้ลงชื่อเข้าใช้บนอุปกรณ์นี้",
+      "master_off": "การซิงค์อัตโนมัติปิดอยู่บนอุปกรณ์นี้ การซิงค์จึงทำงานเฉพาะเมื่อคุณแตะ “ซิงค์ทันที”",
+      "new_contacts_default": "สมุดที่อยู่เริ่มต้น",
+      "new_contacts_desc": "สมุดที่อยู่สำหรับผู้ติดต่อที่สร้างในแอปอื่นบนอุปกรณ์นี้",
+      "new_contacts_label": "ผู้ติดต่อใหม่จะไปที่",
+      "no_books": "บัญชีนี้ไม่มีสมุดที่อยู่",
+      "no_calendars": "บัญชีนี้ไม่มีปฏิทินให้ซิงค์",
+      "ok": "ตกลง",
+      "open_app_settings": "เปิดการตั้งค่าแอป",
+      "own_collections": "ของคุณเอง",
+      "rationale_calendar": "Bulwark ต้องเข้าถึงปฏิทินบนอุปกรณ์นี้เพื่อแสดงปฏิทินของคุณในแอปปฏิทิน โดยจะเปลี่ยนเฉพาะปฏิทินของบัญชีตัวเองเท่านั้น",
+      "rationale_contacts": "Bulwark ต้องเข้าถึงรายชื่อติดต่อบนอุปกรณ์นี้เพื่อแสดงสมุดที่อยู่ของคุณในแอปรายชื่อติดต่อ โดยจะเปลี่ยนเฉพาะผู้ติดต่อของบัญชีตัวเองเท่านั้น",
+      "rationale_title_calendar": "อนุญาตให้เข้าถึงปฏิทิน",
+      "rationale_title_contacts": "อนุญาตให้เข้าถึงผู้ติดต่อ",
+      "read_only": "อ่านอย่างเดียว",
+      "reminder_owner_bulwark": "Bulwark",
+      "reminder_owner_device": "แอปปฏิทิน",
+      "reminder_question_message": "กิจกรรมที่ซิงค์สามารถเตือนคุณได้จากแอปปฏิทินบนอุปกรณ์นี้หรือจาก Bulwark เลือกอย่างใดอย่างหนึ่งเพื่อไม่ให้ถูกเตือนซ้ำสองครั้ง คุณเปลี่ยนได้ภายหลัง",
+      "reminder_question_title": "ให้ใครเป็นผู้เตือนคุณ?",
+      "reminders_desc": "ผู้ที่เตือนคุณเกี่ยวกับกิจกรรมที่ซิงค์ อีกฝ่ายจะไม่แจ้งเตือน คุณจึงไม่ถูกเตือนซ้ำสองครั้ง",
+      "reminders_label": "การแจ้งเตือน",
+      "reminders_nobody": "การแจ้งเตือนกิจกรรมของ Bulwark ปิดอยู่ จึงไม่มีอะไรเตือนคุณเกี่ยวกับกิจกรรมที่ซิงค์",
+      "remove": "ลบออก",
+      "remove_from_device": "นำออกจากอุปกรณ์นี้",
+      "remove_message": "ผู้ติดต่อและปฏิทินของบัญชีจะถูกนำออกจากอุปกรณ์นี้ การเปลี่ยนแปลงที่ทำที่นี่ซึ่งยังไม่ถึงเซิร์ฟเวอร์จะสูญหาย",
+      "remove_title": "นำออกจากอุปกรณ์นี้หรือไม่?",
+      "review_deletions": "ตรวจสอบรายการที่ถูกลบ",
+      "shared_by": "แชร์โดย {name}",
+      "sign_in_again": "ลงชื่อเข้าใช้อีกครั้ง",
+      "status_auth": "เซิร์ฟเวอร์ไม่ยอมรับการลงชื่อเข้าใช้อีกต่อไป ลงชื่อเข้าใช้อีกครั้งเพื่อซิงค์ต่อ",
+      "status_cancelled": "การซิงค์ครั้งล่าสุดหยุดก่อนเสร็จ และจะดำเนินการต่อในครั้งถัดไป",
+      "status_failed": "การซิงค์ครั้งล่าสุดล้มเหลว: {message}",
+      "status_failed_plain": "การซิงค์ครั้งล่าสุดล้มเหลว",
+      "status_io": "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้เมื่อ {when} Android จะลองอีกครั้ง",
+      "status_item_errors": "{count, plural, other {ซิงค์ # รายการไม่สำเร็จ}}",
+      "status_off": "ปิดใช้งาน",
+      "status_paused": "หยุดชั่วคราวในการตั้งค่า Android",
+      "status_permission_calendar": "สิทธิ์เข้าถึงปฏิทินถูกปิด จึงไม่มีการซิงค์",
+      "status_permission_contacts": "สิทธิ์เข้าถึงผู้ติดต่อถูกปิด จึงไม่มีการซิงค์",
+      "status_removed": "ถูกนำออกในการตั้งค่า Android เปิดเพื่อเพิ่มบัญชีอีกครั้ง",
+      "status_safety_abort": "หยุดแล้ว: เซิร์ฟเวอร์ไม่ส่งข้อมูลใดกลับมา ขณะที่อุปกรณ์นี้ยังมีรายการอยู่ ตรวจสอบเซิร์ฟเวอร์ แล้วซิงค์อีกครั้ง",
+      "status_synced": "ซิงค์เมื่อ {when}",
+      "status_syncing": "กำลังซิงค์…",
+      "status_too_many_deletions": "มีการลบรายการจำนวนมากบนอุปกรณ์นี้ รายการเหล่านั้นจะยังไม่ถูกลบบนเซิร์ฟเวอร์จนกว่าคุณจะยืนยัน",
+      "status_unsupported_calendar": "เซิร์ฟเวอร์ไม่มีปฏิทินสำหรับบัญชีนี้",
+      "status_unsupported_contacts": "เซิร์ฟเวอร์ไม่มีสมุดที่อยู่สำหรับบัญชีนี้",
+      "status_waiting": "กำลังรอการซิงค์ครั้งแรก",
+      "status_waiting_next": "กำลังรอการซิงค์ครั้งถัดไป",
+      "suspended_desc": "ลงชื่อออกแล้ว ผู้ติดต่อและปฏิทินของบัญชีนี้ยังคงอยู่บนอุปกรณ์นี้พร้อมการเปลี่ยนแปลงที่ทำที่นี่ และจะซิงค์อีกครั้งเมื่อคุณลงชื่อเข้าใช้",
+      "switch_label": "ซิงค์ {account} กับอุปกรณ์นี้",
+      "sync_now": "ซิงค์ทันที",
+      "turn_off_anyway": "ปิด",
+      "turn_off_failed": "ไม่สามารถนำข้อมูลที่ซิงค์ออกจากอุปกรณ์นี้ได้ การซิงค์หยุดชั่วคราว ลองอีกครั้งภายหลัง",
+      "turn_off_failed_title": "ปิดการซิงค์ไม่สำเร็จ",
+      "turn_off_pending": "{count, plural, other {การเปลี่ยนแปลง # รายการที่ทำบนอุปกรณ์นี้ยังไม่ถึงเซิร์ฟเวอร์ และจะสูญหายหากคุณปิดการซิงค์ตอนนี้}}",
+      "turn_off_title": "ต้องการปิดอยู่ดีหรือไม่?",
+      "turn_off_unknown": "Bulwark ตรวจสอบไม่ได้ว่าการเปลี่ยนแปลงที่ทำบนอุปกรณ์นี้ถึงเซิร์ฟเวอร์แล้วหรือยัง การเปลี่ยนแปลงเหล่านั้นจะสูญหายหากคุณปิดการซิงค์ตอนนี้",
+      "turning_off": "กำลังอัปโหลดการเปลี่ยนแปลง แล้วนำข้อมูลออกจากอุปกรณ์นี้…",
+      "turning_on": "กำลังตั้งค่า…"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "เทมเพลตที่ใช้เมื่อบันทึกหรือแชร์ไฟล์แนบ"
+      },
+      "email_template": {
+        "description_mobile": "เทมเพลตที่ใช้เมื่อส่งออกข้อความเป็นไฟล์ .eml"
+      },
+      "strip_diacritics": {
+        "description_mobile": "แปลงตัวอักษรที่มีเครื่องหมายกำกับเสียงเป็น ASCII ธรรมดา (ä → a)"
+      },
+      "transform_description": "ใช้กับชื่อไฟล์ที่ส่งออกทุกไฟล์",
+      "transform_title": "การแปลงชื่อไฟล์"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "ไม่พบโฟลเดอร์เก็บถาวร",
+        "reorganize_result": "ย้ายแล้ว {moved} จาก {total} อีเมล",
+        "reorganizing": "กำลังจัดระเบียบใหม่…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "สิ่งที่เกิดขึ้นเมื่อคุณแตะไฟล์แนบ"
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "การตอบกลับจะส่งจากข้อมูลประจำตัวที่ข้อความถูกส่งถึงเสมอ เมื่อเปิดตัวเลือกนี้ การตอบกลับข้อความที่ส่งถึงที่อยู่อื่นบนโดเมนของคุณ (นามแฝงแบบ catch-all) จะส่งจากที่อยู่นั้นด้วย"
+      },
+      "content_senders_description_mobile": "ควบคุมวิธีจัดการทรัพยากรภายนอกและพิกเซลติดตาม",
+      "disable_threading": {
+        "description": "แสดงอีเมลเป็นข้อความแยกแต่ละฉบับ แทนการจัดกลุ่มตามการสนทนา",
+        "label": "ปิดการจัดกลุ่มการสนทนา"
+      },
+      "external_content": {
+        "allow_mobile": "อนุญาต",
+        "ask_mobile": "ถาม",
+        "block_mobile": "บล็อก"
+      },
+      "plain_text_mode": {
+        "description_mobile": "เขียนและอ่านเป็นข้อความธรรมดาเท่านั้น"
+      },
+      "recipient_mentions": {
+        "description_mobile": "การพิมพ์ @ ในข้อความจะแสดงผู้รับของข้อความ และแทรกชื่อจริงของผู้ที่เลือก"
+      },
+      "send_delay": {
+        "description_mobile": "พักอีเมลขาออกไว้สองสามวินาทีเพื่อให้คุณยกเลิกได้ ต้องได้รับการรองรับจากเซิร์ฟเวอร์"
+      },
+      "swipe_actions": {
+        "move": "ย้ายไปยังโฟลเดอร์",
+        "pin": "ปักหมุด"
+      },
+      "swipe_left_action": {
+        "description_mobile": "การดำเนินการเมื่อคุณลากแถวจากขอบขวาไปทางซ้าย",
+        "label_mobile": "ปัดไปทางซ้าย (ขวา → ซ้าย)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "การดำเนินการเมื่อคุณลากแถวจากขอบซ้ายไปทางขวา",
+        "label_mobile": "ปัดไปทางขวา (ซ้าย → ขวา)"
+      },
+      "trusted_senders": {
+        "description_mobile": "เนื้อหาภายนอกจะโหลดเสมอสำหรับผู้ส่งในรายการนี้",
+        "description_synced_mobile": "เนื้อหาภายนอกจะโหลดเสมอสำหรับผู้ส่งในรายการนี้ ซิงค์ผ่านสมุดที่อยู่ของคุณ {count} รายการ",
+        "sync_add_failed": "ซิงค์กับสมุดที่อยู่ไม่สำเร็จ",
+        "sync_remove_failed": "นำออกจากสมุดที่อยู่ไม่สำเร็จ",
+        "synced_badge": "ซิงค์ผ่านสมุดที่อยู่"
+      }
+    },
+    "experimental": {
+      "title": "ฟีเจอร์ทดลอง"
+    },
+    "filters": {
+      "sieve_editor": {
+        "confirm_save": "ยืนยันการบันทึก",
+        "line_count": "{count, plural, other {# บรรทัด}}",
+        "save_warning": "การบันทึกจะเขียนทับกฎแบบภาพทั้งหมด ไม่สามารถเลิกทำได้ กดบันทึกอีกครั้งเพื่อยืนยัน"
+      },
+      "validation_header_name": "ป้อนชื่อส่วนหัวที่ใช้เฉพาะตัวอักษร A-Z ตัวเลข เครื่องหมายขีดกลาง และขีดล่าง เช่น X-Spam-Flag"
+    },
+    "folders": {
+      "account": "บัญชี",
+      "cannot_delete": "ลบไม่ได้",
+      "description_mobile": "สร้าง เปลี่ยนชื่อ ย้าย และลบโฟลเดอร์ กดค้างที่โฟลเดอร์ในเมนูด้านข้างเพื่อดูการดำเนินการด่วน",
+      "edit_folder": "แก้ไข \"{name}\"",
+      "folder_name": "ชื่อโฟลเดอร์",
+      "move_under": "ย้ายไปไว้ใต้",
+      "name_placeholder": "ใบเสร็จ",
+      "name_required": "ต้องระบุชื่อ",
+      "new_folder": "สร้างโฟลเดอร์",
+      "not_empty_message": "\"{name}\" มีอีเมล {count} ฉบับ ต้องการลบต่อไปหรือไม่?",
+      "not_empty_title": "โฟลเดอร์ไม่ว่าง",
+      "own_account": "โฟลเดอร์ของฉัน",
+      "parent_folder": "โฟลเดอร์หลัก",
+      "role": "บทบาทพิเศษ",
+      "role_hint": "กำหนดบทบาทพิเศษ (คลังเก็บ, จดหมายขยะ, …) ให้กับโฟลเดอร์นี้ แต่ละบทบาทกำหนดให้ได้เพียงโฟลเดอร์เดียว",
+      "save_failed": "บันทึกไม่สำเร็จ",
+      "system_folder_delete": "ไม่สามารถลบโฟลเดอร์ระบบได้",
+      "system_folder_rename": "ไม่สามารถเปลี่ยนชื่อโฟลเดอร์ระบบได้",
+      "top_level": "ระดับบนสุด"
+    },
+    "identities": {
+      "cannot_delete": "ไม่สามารถลบข้อมูลประจำตัวหลักได้",
+      "cannot_delete_title": "ลบไม่ได้",
+      "count": "{count, plural, =0 {ไม่มีข้อมูลประจำตัว} other {ข้อมูลประจำตัว # รายการ}}",
+      "create": "สร้างข้อมูลประจำตัวใหม่",
+      "delete_confirm": "ลบ \"{name}\" หรือไม่?",
+      "delete_failed": "ลบไม่สำเร็จ",
+      "delete_title": "ลบข้อมูลประจำตัว",
+      "description_mobile": "จัดการชื่อผู้ส่ง ที่อยู่อีเมล และลายเซ็น แตะแถวเพื่อแก้ไข",
+      "display_name": "ชื่อที่แสดง",
+      "display_name_placeholder": "สมหญิง ใจดี",
+      "edit": "แก้ไขข้อมูลประจำตัว",
+      "email_address": "ที่อยู่อีเมล",
+      "email_locked": "JMAP ไม่อนุญาตให้เปลี่ยนอีเมลของข้อมูลประจำตัว ให้สร้างข้อมูลประจำตัวใหม่แทน",
+      "invalid_email": "ป้อนที่อยู่อีเมลที่ถูกต้องสำหรับข้อมูลประจำตัวนี้",
+      "invalid_email_title": "อีเมลไม่ถูกต้อง",
+      "new": "ใหม่",
+      "no_name": "(ไม่มีชื่อ)",
+      "primary": "หลัก",
+      "save_failed": "บันทึกไม่สำเร็จ",
+      "text_signature": "ลายเซ็นแบบข้อความธรรมดา",
+      "title": "ข้อมูลประจำตัวผู้ส่ง"
+    },
+    "keywords": {
+      "delete_confirm_title": "ลบป้ายกำกับ “{label}” หรือไม่",
+      "description_mobile": "ป้ายกำกับสีสำหรับจัดระเบียบอีเมลของคุณ",
+      "discover": {
+        "add_all": "เพิ่มทั้งหมด",
+        "found": "พบป้ายกำกับ {count} รายการที่ยังไม่ได้กำหนดไว้ที่นี่",
+        "none": "ไม่พบป้ายกำกับที่ไม่รู้จักใน {scanned} ข้อความ",
+        "partial": "(การสแกนหยุดที่ข้อความล่าสุดเท่านั้น)",
+        "progress": "สแกนแล้ว {scanned} จาก {total} ข้อความ…",
+        "scan": "ค้นหาป้ายกำกับในกล่องจดหมาย"
+      },
+      "reset_confirm": "แทนที่รายการป้ายกำกับของคุณด้วยป้ายกำกับเริ่มต้นหรือไม่? ป้ายกำกับที่ติดไว้บนข้อความแล้วจะยังคงอยู่บนเซิร์ฟเวอร์",
+      "reset_defaults": "รีเซ็ตเป็นค่าเริ่มต้น"
+    },
+    "layout": {
+      "description": "ปรับการโต้ตอบกับรายการอีเมลสำหรับมือถือ",
+      "quick_actions": {
+        "description": "ปุ่มสามปุ่มที่แสดงระหว่าง ก่อนหน้า/ถัดไป ที่ด้านล่างของอีเมลที่เปิดอยู่ ค่าเริ่มต้นคือ ตอบกลับ ตอบกลับทั้งหมด และส่งต่อ",
+        "label": "การดำเนินการด่วนในหน้าอ่าน",
+        "mark_unread": "ทำเครื่องหมายว่าอ่านแล้ว/ยังไม่อ่าน",
+        "relocated": "{count, plural, other {{actions} ถูกย้ายไปที่แถบเครื่องมือด้านบนเพื่อให้คุณยังใช้งานได้}}",
+        "slot": "ช่อง {n}",
+        "spam": "จดหมายขยะ",
+        "star": "ติดดาว",
+        "tag": "แท็ก"
+      },
+      "show_avatars_in_junk": "แสดงรูปโปรไฟล์ผู้ส่งในจดหมายขยะ",
+      "show_avatars_in_junk_description": "โหลดโลโก้ผู้ส่งสำหรับข้อความในโฟลเดอร์จดหมายขยะ การปิดไว้จะป้องกันไม่ให้มีการติดต่อไปยังผู้ส่งสแปม",
+      "show_folder_total_count": "แสดงจำนวนข้อความทั้งหมดบนโฟลเดอร์",
+      "show_folder_total_count_description": "แสดงจำนวนทั้งหมดถัดจากจำนวนที่ยังไม่อ่านในรายการโฟลเดอร์",
+      "swipe_mode": {
+        "description": "เลือกแบบทันที (ปัดเลยระยะที่กำหนดเพื่อเรียกใช้การดำเนินการ) หรือแบบแสดงก่อน (ปัดเพื่อแสดงแถบการดำเนินการ แล้วแตะเพื่อยืนยัน)",
+        "instant": "ทันที (ปัด = ดำเนินการ)",
+        "label": "ลักษณะการปัด",
+        "reveal": "แสดงก่อน (ปัด แล้วแตะ)"
+      },
+      "unified_cross_account": "มุมมองรวมจากทุกบัญชี",
+      "unified_cross_account_description": "รวมทุกบัญชีที่ลงชื่อเข้าใช้ไว้ใน “กล่องข้อความทั้งหมด” เมื่อปิดไว้ มุมมองรวมจะแสดงเฉพาะบัญชีที่ใช้งานอยู่และโฟลเดอร์ที่แชร์ของบัญชีนั้น"
+    },
+    "licences": {
+      "app_desc": "แอปนี้เป็นซอฟต์แวร์เสรีภายใต้ {licence} คุณสามารถใช้ ศึกษา แบ่งปัน และแก้ไขได้",
+      "libraries": "ไลบรารี",
+      "libraries_desc": "โค้ดโอเพนซอร์สที่ใช้สร้างแอปนี้",
+      "read_licence": "อ่านข้อความสัญญาอนุญาตฉบับเต็ม"
+    },
+    "message_list_order": {
+      "description": "ข้อความใดจะแสดงก่อนในรายการ ภายในแต่ละกลุ่มจะเรียงใหม่สุดก่อน ส่วนปุ่มสลับที่ส่วนหัวยังคงสลับเก่าสุด/ใหม่สุดได้",
+      "preset_chronological": "ใหม่สุดก่อน",
+      "preset_custom": "กำหนดเอง",
+      "preset_starred_first": "ติดดาวก่อน",
+      "preset_tagged_first": "ติดแท็กก่อน",
+      "preset_unread_first": "ยังไม่ได้อ่านก่อน",
+      "scope": "ใช้กับ",
+      "scope_all": "ทุกโฟลเดอร์",
+      "scope_inbox": "เฉพาะกล่องข้อความเข้า",
+      "tag": "แท็ก",
+      "title": "ลำดับรายการข้อความ"
+    },
+    "notifications": {
+      "calendar": {
+        "invitation_parsing": "วิเคราะห์คำเชิญจากอีเมล",
+        "invitation_parsing_desc": "ตรวจหาคำเชิญเข้าร่วมกิจกรรมในไฟล์แนบอีเมลและแสดงปุ่มการดำเนินการในปฏิทิน"
+      },
+      "email": {
+        "app_icon_badge": "จำนวนที่ยังไม่อ่านบนไอคอนแอป",
+        "app_icon_badge_desc": "แสดงจำนวนข้อความที่ยังไม่อ่านในกล่องข้อความเป็นตัวเลขบนไอคอนแอป",
+        "mute_account": "ปิดเสียงบัญชีนี้",
+        "mute_account_desc": "ไม่มีการแจ้งเตือนอีเมลใหม่สำหรับบัญชีนี้ แตะโฟลเดอร์ค้างไว้ในแถบด้านข้างเพื่อปิดหรือเปิดเสียงเฉพาะโฟลเดอร์นั้น",
+        "sound_channel_hint": "เสียงและการสั่นสำหรับการแจ้งเตือนอีเมลควบคุมโดยช่องการแจ้งเตือนของ Android: แตะการแจ้งเตือนค้างไว้ หรือเปิดการตั้งค่าแอปของระบบ"
+      },
+      "push": {
+        "accounts_desc_mobile": "การแจ้งเตือนเบื้องหลังของแต่ละบัญชีที่ลงชื่อเข้าใช้บนอุปกรณ์นี้ สลับไปยังบัญชีนั้นเพื่อเปิดหรือปิดการแจ้งเตือน",
+        "confirm_disable_message_mobile": "อุปกรณ์นี้จะหยุดรับการแจ้งเตือนอีเมลใหม่สำหรับบัญชีนี้",
+        "description_mobile": "รับการแจ้งเตือนของระบบสำหรับอีเมลใหม่เมื่อปิดแอป จัดส่งผ่าน Bulwark push relay โดยรีเลย์จะไม่เห็นเนื้อหาอีเมลของคุณ",
+        "err_account_changed": "บัญชีเปลี่ยนไประหว่างการตั้งค่าพุช ลองอีกครั้ง",
+        "err_android_only": "การแจ้งเตือนแบบพุชใช้ได้เฉพาะบน Android",
+        "err_apns_empty": "iOS ส่งโทเค็นพุชว่างกลับมา",
+        "err_apns_token": "iOS ออกโทเค็นพุชไม่ได้ ({detail})",
+        "err_fcm_empty": "Firebase ส่งโทเค็นอุปกรณ์ว่างกลับมา",
+        "err_fcm_token": "Firebase ออกโทเค็นอุปกรณ์ไม่ได้ ({detail}) พุชผ่าน FCM ต้องใช้บริการ Google Play บนอุปกรณ์นี้",
+        "err_fcm_token_up": "Firebase ออกโทเค็นอุปกรณ์ไม่ได้ ({detail}) พุชผ่าน FCM ต้องใช้บริการ Google Play บนอุปกรณ์นี้ อุปกรณ์นี้มีแอปตัวกระจาย UnifiedPush ติดตั้งอยู่ - ให้เปลี่ยนวิธีจัดส่งเป็น UnifiedPush แทน",
+        "err_forbidden": "เมลเซิร์ฟเวอร์ไม่อนุญาตการแจ้งเตือนเบื้องหลังสำหรับบัญชีนี้",
+        "err_jmap_list": "อ่านการลงทะเบียนพุชจากเมลเซิร์ฟเวอร์ไม่ได้: {detail}",
+        "err_jmap_refused": "เมลเซิร์ฟเวอร์ปฏิเสธการสมัครรับพุช: {detail}",
+        "err_no_account": "ไม่ได้โหลดบัญชี - ตั้งค่าพุชไม่ได้",
+        "err_over_quota": "บัญชีนี้มีการลงทะเบียนพุชบนเมลเซิร์ฟเวอร์มากเกินไป (ขีดจำกัดปกติคือ 15 อุปกรณ์) กรุณาเพิกถอนอุปกรณ์ที่ไม่ได้ใช้งานแล้วในการตั้งค่าการแจ้งเตือน แล้วลองใหม่อีกครั้ง",
+        "err_permission": "ไม่ได้รับสิทธิ์การแจ้งเตือน",
+        "err_relay_https": "URL ของรีเลย์ต้องใช้ https://",
+        "err_relay_no_apns": "พุชรีเลย์ที่ {url} ยังไม่รองรับการส่งไปยัง iPhone และ iPad",
+        "err_relay_rejected": "พุชรีเลย์ปฏิเสธการลงทะเบียน: {detail}",
+        "err_relay_unreachable": "ติดต่อพุชรีเลย์ที่ {url} ไม่ได้ ({detail})",
+        "err_up_android_only": "UnifiedPush ใช้ได้เฉพาะบน Android",
+        "err_url_refused": "เมลเซิร์ฟเวอร์ไม่ยอมส่งการแจ้งเตือนไปยังรีเลย์ที่ {url} โดยยอมรับเฉพาะที่อยู่ https บนชื่อโดเมนสาธารณะเท่านั้น ไม่ใช่ที่อยู่ IP ส่วนตัวหรือชื่อภายในเครือข่าย เช่น localhost, .local หรือ .lan ใช้รีเลย์ที่โฮสต์ไว้ หรือกำหนดชื่อโดเมนสาธารณะให้รีเลย์ของคุณ",
+        "err_verify_rejected": "เมลเซิร์ฟเวอร์ปฏิเสธรหัสยืนยัน: {detail}",
+        "err_verify_relay": "รีเลย์ไม่ได้รับรหัสยืนยันจากเมลเซิร์ฟเวอร์เลย (การตอบกลับล่าสุดของรีเลย์: {detail})",
+        "err_verify_timeout": "เมลเซิร์ฟเวอร์ไม่ได้ส่งรหัสยืนยันไปยังรีเลย์ภายใน 75 วินาที ตรวจสอบว่าเซิร์ฟเวอร์เข้าถึง URL ของรีเลย์ได้",
+        "phase_account": "บัญชี",
+        "phase_distributor": "ตัวกระจาย UnifiedPush",
+        "phase_jmap": "การสมัครรับบนเมลเซิร์ฟเวอร์",
+        "phase_permission": "สิทธิ์การแจ้งเตือน",
+        "phase_platform": "แพลตฟอร์ม",
+        "phase_relay": "การลงทะเบียนกับรีเลย์",
+        "phase_token": "โทเค็นอุปกรณ์",
+        "phase_verify": "การยืนยัน",
+        "relay_desc_mobile": "เซิร์ฟเวอร์ที่ทำหน้าที่จัดส่งการแจ้งเตือนของคุณ ค่าเริ่มต้นคือรีเลย์ Bulwark ที่โฮสต์ไว้ เปลี่ยนเฉพาะเมื่อคุณโฮสต์เอง ต้องใช้ https",
+        "relay_invalid": "ป้อน URL https:// ที่ถูกต้อง",
+        "setup_failed": "ตั้งค่าไม่สำเร็จ",
+        "status_android_only": "การแจ้งเตือนเบื้องหลังใช้ได้เฉพาะบน Android",
+        "transport_desc": "วิธีที่การแจ้งเตือนส่งมาถึงอุปกรณ์นี้: Firebase Cloud Messaging ของ Google หรือแอปตัวกระจาย UnifiedPush (เช่น ntfy) สำหรับการจัดส่งโดยไม่ใช้ Google",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "วิธีจัดส่ง",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "มีแอปตัวกระจาย UnifiedPush ติดตั้งอยู่หลายแอป - เลือกแอปที่จะใช้จัดส่งการแจ้งเตือน",
+        "up_distributor_label": "ตัวกระจาย",
+        "up_no_distributor": "ไม่มีแอปตัวกระจาย UnifiedPush ติดตั้งบนอุปกรณ์นี้ ติดตั้งสักแอป (เช่น ntfy) แล้วลองอีกครั้ง"
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, other {# ข้อความ}}",
+      "clear": "ล้าง",
+      "clear_cache": "ล้างแคช",
+      "clear_message": "ลบ{count, plural, other {ข้อความที่แคชไว้ # ข้อความ}} ({size}) หรือไม่?",
+      "clear_title": "ล้างอีเมลออฟไลน์",
+      "days_ago": "{count} วันที่แล้ว",
+      "description": "ดาวน์โหลดข้อความล่าสุดเพื่อให้เปิดได้ทันทีและอ่านได้แม้ไม่มีการเชื่อมต่อ เฉพาะเนื้อหาข้อความเท่านั้น — ไฟล์แนบยังคงดึงมาเมื่อต้องการ",
+      "description_short": "เก็บข้อความล่าสุดไว้บนโทรศัพท์นี้เพื่อให้เปิดได้โดยไม่ต้องเชื่อมต่อ",
+      "downloading": "กำลังดาวน์โหลด {completed}/{total}…",
+      "enabled": "แคชอีเมลล่าสุด",
+      "enabled_desc": "เมื่อเปิดไว้ แอปจะเก็บเนื้อหาข้อความในช่วงเวลาที่เลือกไว้บนอุปกรณ์นี้",
+      "hours_ago": "{count} ชม. ที่แล้ว",
+      "just_now": "เมื่อสักครู่",
+      "keep_24h": "24 ชั่วโมง",
+      "keep_days": "{count} วัน",
+      "keep_from": "เก็บอีเมลย้อนหลัง",
+      "last_sync": "ซิงค์ล่าสุด {when}",
+      "last_sync_failed": "ซิงค์ล่าสุดไม่สำเร็จ: {message}",
+      "max_size": "ขนาดสูงสุด",
+      "max_size_desc": "ข้อความที่เก่าที่สุดจะถูกลบเมื่อแคชมีขนาดเกินค่านี้",
+      "messages_offline": "{count, plural, other {# ข้อความพร้อมใช้ออฟไลน์}}",
+      "minutes_ago": "{count} นาทีที่แล้ว",
+      "never": "ไม่เคย",
+      "nothing_cached": "ยังไม่มีอะไรในแคช",
+      "queued_changes": "{count, plural, other {การเปลี่ยนแปลง # รายการ}} รอการซิงค์",
+      "scanning": "กำลังสแกนอีเมลล่าสุด…",
+      "sync_now": "ซิงค์ทันที",
+      "synced": "ซิงค์แล้ว {when}",
+      "syncing": "กำลังซิงค์…",
+      "title": "อีเมลออฟไลน์",
+      "use_at_most": "ใช้ไม่เกิน",
+      "used_of": "{used} จาก {limit} MB",
+      "window": "ช่วงเวลา",
+      "window_24h": "24 ชั่วโมงที่ผ่านมา",
+      "window_days": "{count} วันที่ผ่านมา",
+      "window_desc": "ระยะเวลาย้อนหลังที่จะแคช โดยนับจากวันที่ได้รับข้อความ"
+    },
+    "plugins": {
+      "mobile_description": "ปลั๊กอินทำงานภายในเว็บเมลและขยายความสามารถในเบราว์เซอร์",
+      "mobile_explainer": "แอปบนมือถือไม่มีระบบรันปลั๊กอิน ติดตั้งและจัดการปลั๊กอินได้จากเว็บเมลที่ การตั้งค่า → ปลั๊กอิน ธีมและตัวกรองที่ปลั๊กอินมีให้จะไม่มีผลที่นี่"
+    },
+    "privacy": {
+      "favicons": "ไอคอนผู้ส่งสำหรับอีเมลธุรกิจมาจากบริการไอคอนของ DuckDuckGo ซึ่งจะเห็นโดเมนของผู้ส่ง ปิดได้ที่ รูปลักษณ์ → ไอคอนเว็บไซต์ของผู้ส่ง",
+      "no_tracking": "แอปนี้ไม่มีระบบวิเคราะห์และไม่มีโฆษณา",
+      "other_title": "การเชื่อมต่ออื่นๆ",
+      "phone_backup": "ข้อมูลเหล่านี้จะไม่ถูกรวมในการสำรองข้อมูลบนคลาวด์ของ Android",
+      "phone_secure": "ข้อมูลการลงชื่อเข้าใช้ของคุณเก็บไว้ในที่จัดเก็บที่ปลอดภัยของระบบ ส่วนการตั้งค่า แคชอีเมลออฟไลน์ และการเปลี่ยนแปลงที่รอการซิงค์เก็บไว้ในที่จัดเก็บของแอปเอง",
+      "phone_title": "บนโทรศัพท์นี้",
+      "push": "เมื่อเปิดการแจ้งเตือน เซิร์ฟเวอร์ของคุณจะแจ้งพุชรีเลย์ ({relay}) ว่ามีบางอย่างเปลี่ยนแปลง และรีเลย์จะปลุกแอปผ่าน {service} รีเลย์เห็นเพียงโทเค็นอุปกรณ์และตัวบ่งชี้การเปลี่ยนแปลง ไม่เคยเห็นอีเมลของคุณ คุณใช้รีเลย์ของคุณเองได้ที่ การแจ้งเตือน",
+      "push_title": "การแจ้งเตือนพุช",
+      "server": "อีเมล ปฏิทิน ผู้ติดต่อ และไฟล์จะโหลดจากเซิร์ฟเวอร์ของคุณและบันทึกกลับไปที่นั่น นอกจากการเชื่อมต่อด้านล่างแล้ว แอปจะติดต่อเฉพาะเซิร์ฟเวอร์ของคุณเท่านั้น",
+      "server_title": "เมลเซิร์ฟเวอร์ของคุณ",
+      "service_apple": "บริการพุชของ Apple",
+      "service_google": "บริการพุชของ Google",
+      "updates": "แอปจะสอบถาม GitHub เพื่อหารุ่นล่าสุดและแจ้งให้คุณทราบเมื่อมีอัปเดต",
+      "updates_android": "แอปจะสอบถาม GitHub เพื่อหารุ่นล่าสุดและแจ้งให้คุณทราบเมื่อมีอัปเดต ปิดได้ที่ การอัปเดต"
+    },
+    "security": {
+      "client_cert": {
+        "active": "ใช้งานอยู่: {alias}",
+        "choose_another": "เลือกใบอื่น",
+        "clear": "ล้าง",
+        "clear_message": "คำขอใหม่จะไม่แสดงใบรับรองอีกต่อไป ใบรับรองยังคงติดตั้งอยู่ใน Android",
+        "clear_message_ios": "คำขอใหม่จะไม่แสดงใบรับรองอีกต่อไป ใบรับรองจะถูกนำออกจากแอป หากต้องการใช้อีกครั้ง ให้เลือกไฟล์อีกครั้ง",
+        "clear_title": "หยุดใช้ใบรับรองไคลเอนต์หรือไม่?",
+        "description": "เลือกใบรับรองที่ติดตั้งไว้ใน Android เพื่อยืนยันตัวตนกับเซิร์ฟเวอร์ระหว่าง TLS handshake มีประโยชน์เมื่อ reverse proxy บังคับใช้ mTLS",
+        "description_ios": "นำเข้าไฟล์ใบรับรองเพื่อยืนยันตัวตนกับเซิร์ฟเวอร์ระหว่าง TLS handshake มีประโยชน์เมื่อ reverse proxy บังคับใช้ mTLS",
+        "hint": "ติดตั้งใบรับรองผ่าน การตั้งค่า Android → ความปลอดภัย → การเข้ารหัสและข้อมูลเข้าสู่ระบบ แล้วเลือกที่นี่",
+        "hint_ios": "เลือกไฟล์ใบรับรอง (.p12 หรือ .pfx) ในแอปไฟล์ แล้วป้อนรหัสผ่านของไฟล์",
+        "not_set": "ยังไม่ได้ตั้งค่า",
+        "pick": "เลือกใบรับรอง",
+        "pick_failed": "เลือกไม่สำเร็จ",
+        "title": "ใบรับรองไคลเอนต์ TLS"
+      },
+      "credentials": {
+        "allowed_ips": "IP ที่อนุญาต (ไม่บังคับ)",
+        "allowed_ips_hint": "คั่นด้วยจุลภาคหรือช่องว่าง เว้นว่างไว้เพื่ออนุญาตทุก IP",
+        "clear_expiry": "ล้างวันหมดอายุ",
+        "copy_now": "คัดลอกตอนนี้ — จะแสดงเพียงครั้งเดียว แตะค้างไว้เพื่อเลือก",
+        "create_error": "สร้างไม่ได้",
+        "expires": "หมดอายุ (ไม่บังคับ)",
+        "expires_on": "หมดอายุ {date}",
+        "no_expiry": "ไม่มีวันหมดอายุ",
+        "none": "ยังไม่มี",
+        "remove_error": "นำออกไม่ได้",
+        "remove_message": "ไคลเอนต์ที่ใช้ข้อมูลนี้จะหยุดทำงาน",
+        "remove_title": "นำข้อมูลรับรองออกหรือไม่?"
+      },
+      "display_name": {
+        "error_title": "อัปเดตไม่สำเร็จ"
+      },
+      "encryption": {
+        "no_keys": "เพิ่มคีย์สาธารณะก่อน - การเข้ารหัสขณะจัดเก็บต้องใช้คีย์"
+      },
+      "load_error": "โหลดการตั้งค่าความปลอดภัยไม่สำเร็จ",
+      "not_supported": "การจัดการความปลอดภัยของบัญชีต้องใช้เซิร์ฟเวอร์ Stalwart ฟีเจอร์เหล่านี้ใช้ไม่ได้กับบัญชีนี้",
+      "offline": "คุณออฟไลน์อยู่ การตั้งค่าความปลอดภัยของบัญชีต้องเชื่อมต่อกับเซิร์ฟเวอร์",
+      "password": {
+        "change": "เปลี่ยนรหัสผ่าน",
+        "changed": "อัปเดตรหัสผ่านบัญชีของคุณแล้ว",
+        "changed_sign_in_again": "อัปเดตรหัสผ่านบัญชีของคุณแล้ว ลงชื่อเข้าใช้อีกครั้งด้วยรหัสผ่านใหม่",
+        "changed_title": "เปลี่ยนรหัสผ่านแล้ว",
+        "description": "เปลี่ยนรหัสผ่านสำหรับบัญชีนี้",
+        "error": "เปลี่ยนรหัสผ่านไม่สำเร็จ",
+        "mismatch": "รหัสผ่านไม่ตรงกัน",
+        "session_ended": "การเปลี่ยนรหัสผ่านทำให้เซสชันนี้สิ้นสุดลง ลงชื่อเข้าใช้อีกครั้งด้วยรหัสผ่านใหม่",
+        "session_ended_title": "ลงชื่อเข้าใช้อีกครั้ง",
+        "toggle_visibility": "แสดงหรือซ่อนรหัสผ่าน",
+        "too_short": "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 อักขระ"
+      },
+      "public_keys": {
+        "description": "ใบรับรอง S/MIME และคีย์ PGP ที่จัดเก็บบนเซิร์ฟเวอร์ ใช้สำหรับการเข้ารหัสขณะจัดเก็บ",
+        "expires": "หมดอายุ {date}",
+        "remove_message": "การเข้ารหัสขณะจัดเก็บที่ใช้คีย์นี้จะหยุดทำงาน",
+        "remove_title": "นำคีย์สาธารณะออกหรือไม่?"
+      },
+      "restricted": "เซิร์ฟเวอร์ของคุณอนุญาตให้เฉพาะแอปที่ผู้ดูแลระบบอนุมัติเปลี่ยนรหัสผ่าน การลงชื่อเข้าใช้แบบสองขั้นตอน รหัสผ่านแอป และคีย์ API ได้ Bulwark ลงชื่อเข้าใช้โดยไม่ได้รับการอนุมัตินั้น อีเมล ผู้ติดต่อ ปฏิทิน และไฟล์จึงใช้งานได้ แต่การตั้งค่าเหล่านี้ใช้ไม่ได้ เปลี่ยนการตั้งค่าเหล่านี้ได้ในเว็บอินเทอร์เฟซของเซิร์ฟเวอร์หรือในเว็บเมล Bulwark",
+      "screen_privacy": {
+        "block_screenshots": "บล็อกการจับภาพหน้าจอ",
+        "block_screenshots_description": "ป้องกันการจับภาพหน้าจอและการบันทึกหน้าจอของแอป และซ่อนเนื้อหาในมุมมองแอปล่าสุด",
+        "title": "ความเป็นส่วนตัวของหน้าจอ"
+      },
+      "two_factor": {
+        "active": "ใช้งานอยู่",
+        "code": "รหัสยืนยัน",
+        "code_required": "ป้อนรหัส 6 หลักจากแอปของคุณ",
+        "description": "ขอรหัสแบบใช้ครั้งเดียวเมื่อลงชื่อเข้าใช้",
+        "disable": "ปิดใช้งาน",
+        "disable_error": "ปิดการยืนยันตัวตนแบบสองขั้นตอนไม่สำเร็จ",
+        "disable_hint": "ป้อนรหัสผ่านของคุณเพื่อปิดการยืนยันตัวตนแบบสองขั้นตอน",
+        "disable_hint_code": "ป้อนรหัสผ่านและรหัสจากแอปยืนยันตัวตนเพื่อปิดการยืนยันตัวตนแบบสองขั้นตอน",
+        "enable_error": "เปิดการยืนยันตัวตนแบบสองขั้นตอนไม่สำเร็จ",
+        "enabled_message": "ระบบจะขอรหัสเมื่อคุณลงชื่อเข้าใช้ครั้งถัดไป",
+        "enabled_title": "เปิดการยืนยันตัวตนแบบสองขั้นตอนแล้ว",
+        "enrol_hint": "เพิ่มรหัสลับนี้ลงในแอปยืนยันตัวตนของคุณ แล้วป้อนรหัส 6 หลักเพื่อยืนยัน",
+        "inactive": "ปิดใช้งาน",
+        "label": "แอปยืนยันตัวตน",
+        "manual_secret": "หรือป้อนรหัสลับนี้ด้วยตนเอง",
+        "no_app": "เปิดแอปยืนยันตัวตนไม่ได้ เพิ่มรหัสลับด้านล่างด้วยตนเอง",
+        "no_app_title": "ไม่มีแอปยืนยันตัวตน",
+        "open_app": "เพิ่มลงในแอปยืนยันตัวตน",
+        "password_required": "ป้อนรหัสผ่านปัจจุบันของคุณ",
+        "section_title": "การยืนยันตัวตนแบบสองขั้นตอน"
+      }
+    },
+    "sidebar_apps": {
+      "add": "เพิ่มแอป",
+      "empty": "ยังไม่ได้เพิ่มแอป",
+      "form": {
+        "name": "ชื่อ",
+        "name_placeholder": "ชื่อแอป",
+        "open_mode": "รูปแบบการเปิด",
+        "show_on_mobile": "แสดงบนมือถือ",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "ให้แอปแบบฝังทำงานต่อในเบื้องหลังเมื่อสลับไปที่อื่น",
+      "open_mode": {
+        "inline": "ในหน้าต่างเดียวกัน (Inline)",
+        "new_tab": "แท็บใหม่",
+        "tab": "แท็บใหม่"
+      }
+    },
+    "smime": {
+      "mobile_description": "ลงลายมือชื่อและเข้ารหัสอีเมลด้วยใบรับรอง S/MIME",
+      "mobile_explainer": "S/MIME ยังไม่พร้อมใช้งานในแอปบนมือถือ จัดการคีย์และใบรับรองในเว็บเมล ข้อความที่ลงลายมือชื่อจะแสดงที่นี่โดยไม่มีการตรวจสอบ"
+    },
+    "summary": {
+      "accessibility": "ขนาดข้อความ การเคลื่อนไหว การยืนยัน",
+      "composing": "ลายเซ็น การหน่วงเวลาส่ง จดหมายร่าง",
+      "contacts": "สมุดที่อยู่ การเรียงลำดับ",
+      "content_senders": "รูปภาพภายนอก ผู้ส่งที่เชื่อถือได้",
+      "downloads": "ชื่อไฟล์สำหรับอีเมลที่บันทึก",
+      "events_off": "ปิดกิจกรรม",
+      "events_on": "เปิดกิจกรรม",
+      "files": "มุมมอง การเรียงลำดับ รูปขนาดย่อ",
+      "filters": "กฎสำหรับอีเมลขาเข้า",
+      "folders": "สร้าง เปลี่ยนชื่อ บทบาท",
+      "identities": "ที่อยู่ที่คุณใช้ส่ง",
+      "keywords": "ชื่อและสีของป้ายกำกับ",
+      "layout": "การดำเนินการด่วน การปัด ลำดับรายการ",
+      "mail_off": "ปิดอีเมล",
+      "mail_on": "เปิดอีเมล",
+      "offline_off": "ปิดอีเมลออฟไลน์",
+      "offline_on": "เปิดอีเมลออฟไลน์ · {days, plural, other {# วัน}}, {mb} MB",
+      "reading": "สถานะการอ่าน การลบ ไฟล์แนบ",
+      "security": "รหัสผ่าน สองขั้นตอน รหัสผ่านแอป",
+      "sidebar_apps": "เว็บแอปในเมนูด้านข้าง",
+      "templates": "ข้อความที่นำกลับมาใช้ได้",
+      "updates": "ติดตั้งเวอร์ชันใหม่",
+      "vacation": "ตอบกลับอัตโนมัติขณะไม่อยู่",
+      "version": "เวอร์ชัน {version}",
+      "week_starts": "สัปดาห์เริ่ม {day}"
+    },
+    "tab_groups": {
+      "advanced": "ขั้นสูง",
+      "appearance": "รูปลักษณ์",
+      "general": "ทั่วไป",
+      "privacy": "ความเป็นส่วนตัวและความปลอดภัย"
+    },
+    "tabs": {
+      "about": "เกี่ยวกับ",
+      "content_senders": "เนื้อหาและผู้ส่ง",
+      "downloads": "การดาวน์โหลด",
+      "identities": "ข้อมูลประจำตัว",
+      "keywords": "ป้ายกำกับ",
+      "language": "ภาษา ภูมิภาค และเวลา",
+      "layout": "เค้าโครง",
+      "plugins": "ปลั๊กอิน",
+      "sidebar_apps": "แอปในแถบด้านข้าง",
+      "storage": "พื้นที่จัดเก็บและการสำรองข้อมูล",
+      "templates": "แม่แบบข้อความ",
+      "themes": "ธีม",
+      "troubleshooting": "การแก้ไขปัญหา",
+      "updates": "การอัปเดต"
+    },
+    "templates": {
+      "delete_confirm": "ลบ “{name}” อย่างถาวรหรือไม่?",
+      "delete_title": "ลบเทมเพลต",
+      "description_mobile": "ข้อความสำเร็จรูปสำหรับการตอบกลับที่ใช้บ่อย แตะเพื่อแก้ไข แตะค้างไว้เพื่อลบ",
+      "export_failed": "ส่งออกไม่สำเร็จ",
+      "import_failed": "นำเข้าไม่สำเร็จ",
+      "import_json_label": "เทมเพลตในรูปแบบ JSON",
+      "imported": "นำเข้าแล้ว",
+      "imported_count": "เพิ่ม {count, plural, other {# เทมเพลต}} แล้ว",
+      "is_html": "เนื้อหาเป็น HTML",
+      "placeholders_hint": "ตัวแทน: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "แชร์ไม่ได้"
+    },
+    "themes": {
+      "default_description": "ชุดสีสว่างและมืดเริ่มต้น",
+      "mobile_description": "เลือกธีมสี ธีมจะเป็นไปตามการตั้งค่าสว่าง/มืดในรูปลักษณ์ แพ็กเกจธีมที่กำหนดเองจัดการในเว็บเมล"
+    },
+    "troubleshooting": {
+      "cache_desc": "เมื่อรายการดูไม่อัปเดตหรือไม่ถูกต้อง",
+      "cache_title": "ข้อมูลในแคช",
+      "row_desc": "รีเฟรชข้อมูลในแคช บันทึกการดีบัก",
+      "title": "การแก้ไขปัญหา"
+    },
+    "vacation": {
+      "date_range": {
+        "description": "จำกัดการตอบกลับอัตโนมัติให้อยู่ในช่วงเวลาที่กำหนด (ไม่บังคับ)",
+        "title": "ช่วงวันที่"
+      },
+      "message": {
+        "description": "ข้อความที่จะส่งเป็นการตอบกลับ",
+        "title": "ข้อความตอบกลับอัตโนมัติ"
+      },
+      "status": {
+        "ended": "สิ้นสุดแล้ว",
+        "scheduled": "กำหนดเวลาส่ง"
+      },
+      "warnings": {
+        "date_format": "วันที่ต้องอยู่ในรูปแบบ “YYYY-MM-DD” หรือ “YYYY-MM-DD HH:MM”"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "ต้องดำเนินการ",
+    "account_sign_in_again": "ลงชื่อเข้าใช้อีกครั้ง",
+    "remove_account_hint": "แตะค้างไว้เพื่อนำบัญชีนี้ออก",
+    "remove_account_message": "ลงชื่อออกจาก {account} บนอุปกรณ์นี้ อีเมลของคุณยังคงอยู่บนเซิร์ฟเวอร์",
+    "show_unread": "แสดงที่ยังไม่อ่าน",
+    "sign_out_all_confirm_message": "ทุกบัญชีจะถูกนำออกจากอุปกรณ์นี้ คุณลงชื่อเข้าใช้อีกครั้งได้ทุกเมื่อ",
+    "sign_out_all_confirm_title": "ลงชื่อออกจากทุกบัญชีหรือไม่?",
+    "sign_out_confirm_message": "บัญชีจะถูกนำออกจากอุปกรณ์นี้ คุณลงชื่อเข้าใช้อีกครั้งได้ทุกเมื่อ",
+    "sign_out_confirm_title": "ลงชื่อออกหรือไม่?",
+    "sign_out_confirm_title_account": "ลงชื่อออกจาก {account} หรือไม่?",
+    "tab_unavailable": "{name} (ไม่พร้อมใช้งาน)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, other {โหลดบัญชีไม่ได้ # บัญชี}}"
+  },
+  "updates": {
+    "advisory": "ประกาศด้านความปลอดภัย",
+    "advisory_desc": "รายละเอียดเกี่ยวกับปัญหาที่รุ่นนี้แก้ไข",
+    "auto_check": "ตรวจสอบอัตโนมัติ",
+    "auto_check_desc": "ตรวจหาอัปเดตทุกๆ สองสามชั่วโมงเมื่อแอปเริ่มทำงาน",
+    "available": "มีอัปเดต",
+    "available_desc": "แตะติดตั้งเพื่อดาวน์โหลด v{version} และเปิดด้วยตัวติดตั้งแพ็กเกจของ Android",
+    "banner": {
+      "advisory": "อ่านประกาศ",
+      "deprecated_subtitle": "ติดตั้ง v{version} เพื่อใช้แอปต่อ",
+      "deprecated_title": "เวอร์ชันนี้ไม่ได้รับการสนับสนุนอีกต่อไป",
+      "security_subtitle": "v{version} แก้ไขปัญหาด้านความปลอดภัย ติดตั้งโดยเร็วที่สุด",
+      "security_title": "มีอัปเดตความปลอดภัย",
+      "subtitle": "v{version} พร้อมติดตั้งแล้ว",
+      "title": "มีอัปเดต"
+    },
+    "building": "กำลังสร้างอัปเดต",
+    "building_desc": "v{version} เผยแพร่แล้ว แต่ APK ยังสร้างไม่เสร็จ หน้านี้จะตรวจสอบอีกครั้งทุก 30 วินาที",
+    "check": "ตรวจหาอัปเดต",
+    "check_again": "ตรวจสอบอีกครั้ง",
+    "check_now": "ตรวจสอบตอนนี้",
+    "checking": "กำลังตรวจสอบ…",
+    "current_version": "เวอร์ชันปัจจุบัน",
+    "description": "ตรวจหาเวอร์ชันใหม่และติดตั้ง",
+    "downloading": "กำลังดาวน์โหลด…",
+    "downloading_pct": "กำลังดาวน์โหลด {pct}%",
+    "install": "ติดตั้ง",
+    "installing": "กำลังติดตั้ง…",
+    "last_checked": "ตรวจสอบล่าสุด",
+    "last_error": "ข้อผิดพลาดล่าสุด: {message}",
+    "latest_version": "เวอร์ชันล่าสุด",
+    "never": "ไม่เคย",
+    "open": "เปิด",
+    "open_github": "เปิดบน GitHub",
+    "opening_installer": "กำลังเปิดตัวติดตั้ง…",
+    "progress_of": "{written} จาก {total}",
+    "published": "เผยแพร่เมื่อ {date}",
+    "rate_limited": "GitHub กำลังจำกัดจำนวนการตรวจหาอัปเดต จะลองอีกครั้งในภายหลัง",
+    "release_notes": "บันทึกประจำรุ่น",
+    "release_page": "หน้ารุ่น",
+    "release_page_desc": "บันทึกประจำรุ่นฉบับเต็มและไฟล์ดาวน์โหลดบน GitHub",
+    "release_page_pending_desc": "ดูความคืบหน้าการสร้าง หรือดาวน์โหลด APK ด้วยตนเอง",
+    "severity_deprecated": "จำเป็นต้องใช้",
+    "severity_security": "ความปลอดภัย",
+    "title": "การอัปเดตแอป",
+    "verifying": "กำลังตรวจสอบ…"
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "ไม่มีไฟล์แนบล่าสุด",
+      "from_mail": "จากอีเมล",
+      "title": "ไฟล์แนบ",
+      "unknown_sender": "ไม่ทราบผู้ส่ง"
+    },
+    "birthdays": {
+      "empty": "ไม่มีวันเกิดที่กำลังจะมาถึง",
+      "empty_body": "วันเกิดมาจากผู้ติดต่อของคุณ",
+      "in_days": "{count, plural, other {อีก # วัน}}",
+      "send_wishes": "ส่งคำอวยพร",
+      "title": "วันเกิด",
+      "wishes_subject": "สุขสันต์วันเกิด!"
+    },
+    "calendar": {
+      "agenda": "กำหนดการ",
+      "agenda_more": "{day}: {events}",
+      "all_day": "ตลอดทั้งวัน",
+      "join": "เข้าร่วม",
+      "join_named": "เข้าร่วม {name}",
+      "more_this_week": "{count, plural, other {อีก # รายการในสัปดาห์นี้}}",
+      "no_more_today": "ไม่มีกิจกรรมอื่นในวันนี้",
+      "nothing_planned": "ไม่มีอะไรในปฏิทิน",
+      "now": "ตอนนี้",
+      "open": "เปิด",
+      "running_late": "จะไปสาย",
+      "running_late_body": "ฉันจะไปถึง {title} สายสักสองสามนาที",
+      "running_late_subject": "จะไปสาย: {title}",
+      "today": "วันนี้",
+      "tomorrow": "พรุ่งนี้",
+      "unit_days": "{count, plural, other {วัน}}",
+      "unit_hours": "{count, plural, other {ชั่วโมง}}",
+      "unit_minutes": "{count, plural, other {นาที}}",
+      "unsupported": "เซิร์ฟเวอร์นี้ไม่รองรับปฏิทิน",
+      "untitled": "(ไม่มีชื่อ)",
+      "video_call": "วิดีโอคอล"
+    },
+    "countdown": {
+      "days": "{count, plural, other {วัน}}",
+      "empty": "ไม่มีกิจกรรมที่กำลังจะมาถึง"
+    },
+    "draft": {
+      "edited_at": "แก้ไขเมื่อ {when}",
+      "edited_minutes": "{count, plural, other {แก้ไขเมื่อ # นาทีที่แล้ว}}",
+      "edited_now": "เพิ่งแก้ไข",
+      "empty": "ไม่มีจดหมายร่าง",
+      "empty_body": "ข้อความที่คุณเริ่มเขียนแต่ยังไม่ได้ส่งจะรออยู่ที่นี่",
+      "keep_writing": "เขียนต่อ",
+      "title": "จดหมายร่าง"
+    },
+    "files": {
+      "empty": "ยังไม่มีไฟล์",
+      "recent": "เปลี่ยนแปลงล่าสุด",
+      "unsupported": "เซิร์ฟเวอร์นี้ไม่รองรับไฟล์"
+    },
+    "free": {
+      "busy_until": "ไม่ว่างถึง {time}",
+      "free_rest": "ว่างตลอดทั้งวันที่เหลือ",
+      "free_until": "ว่างถึง {time}",
+      "mail": "ส่งเวลาว่างของฉันทางอีเมล",
+      "mail_subject": "เวลาว่างของฉันในสัปดาห์นี้",
+      "no_calendar": "บัญชีนี้ไม่มีปฏิทิน",
+      "then": "จากนั้น {title}",
+      "then_free": "จากนั้นว่าง"
+    },
+    "hub": {
+      "all_clear": "คุณจัดการทุกอย่างเรียบร้อยแล้ว",
+      "mail_unread": "อีเมล · ยังไม่อ่าน {count}",
+      "next": "ถัดไป",
+      "next_on": "ถัดไป · {day}",
+      "no_events": "ไม่มีกิจกรรมที่กำลังจะมาถึง",
+      "now": "ตอนนี้",
+      "tasks_due": "งาน · ครบกำหนด {count}"
+    },
+    "invites": {
+      "accept": "ตอบรับ",
+      "decline": "ปฏิเสธ",
+      "empty": "ไม่มีคำเชิญที่รออยู่",
+      "label": "คำเชิญ · {name}",
+      "label_plain": "คำเชิญ",
+      "maybe": "อาจจะเข้าร่วม",
+      "position": "{index} จาก {count}"
+    },
+    "mail": {
+      "all_accounts": "ทุกบัญชี",
+      "all_caught_up": "อ่านครบแล้ว",
+      "archive": "เก็บถาวร",
+      "delete": "ลบ",
+      "empty_all_accounts": "กล่องข้อความทุกกล่องของคุณว่างเปล่า",
+      "empty_inbox": "กล่องข้อความของคุณว่างเปล่า",
+      "folders": "โฟลเดอร์",
+      "in_outbox": "{count, plural, other {การเปลี่ยนแปลง # รายการรออยู่}}",
+      "in_outbox_short": "รอ {count}",
+      "inbox": "กล่องข้อความ",
+      "more_unread": "ยังไม่อ่านอีก +{count}",
+      "no_folders": "ไม่มีโฟลเดอร์ที่จะแสดง",
+      "no_starred": "ไม่มีอีเมลที่ติดดาว",
+      "no_starred_body": "ติดดาวข้อความเพื่อเก็บไว้ที่นี่",
+      "no_subject": "(ไม่มีเรื่อง)",
+      "no_unread": "ไม่มีข้อความที่ยังไม่อ่านในกล่องข้อความของคุณ",
+      "position": "{index} จาก {count}",
+      "reply": "ตอบกลับ",
+      "scheduled": "กำหนดเวลาส่ง",
+      "starred": "ติดดาว",
+      "unread": "ยังไม่อ่าน"
+    },
+    "notice": {
+      "archive": "เก็บถาวรไม่ได้ แตะเพื่อลองอีกครั้ง",
+      "mark_read": "ทำเครื่องหมายว่าอ่านแล้วไม่ได้ แตะเพื่อลองอีกครั้ง",
+      "rsvp": "ส่งคำตอบของคุณไม่ได้ แตะเพื่อลองอีกครั้ง",
+      "task": "อัปเดต “{title}” ไม่ได้ แตะเพื่อลองอีกครั้ง",
+      "trash": "ลบไม่ได้ แตะเพื่อลองอีกครั้ง"
+    },
+    "people": {
+      "empty": "ยังไม่มีรายการโปรด",
+      "empty_body": "คนที่ติดต่อคุณบ่อยที่สุดจะแสดงที่นี่",
+      "favourites": "รายการโปรด"
+    },
+    "relative": {
+      "days": "{count, plural, other {อีก # วัน}}",
+      "hours": "อีก {count} ชม.",
+      "minutes": "อีก {count} นาที",
+      "now": "ตอนนี้"
+    },
+    "scheduled": {
+      "day_at": "{day} {time}",
+      "empty": "ไม่มีข้อความที่ตั้งเวลาไว้",
+      "empty_body": "ข้อความที่คุณตั้งเวลาส่งภายหลังจะแสดงที่นี่",
+      "no_recipient": "(ไม่มีผู้รับ)",
+      "sending": "กำลังส่ง",
+      "to": "ถึง: {name}",
+      "today_at": "วันนี้ {time}",
+      "tomorrow_at": "พรุ่งนี้ {time}",
+      "waiting": "กำลังรอเครือข่าย",
+      "waiting_body": "การเปลี่ยนแปลงที่คุณทำขณะออฟไลน์จะถูกส่งเมื่อคุณกลับมาออนไลน์"
+    },
+    "search": {
+      "no_recent": "การค้นหาล่าสุดของคุณจะแสดงที่นี่",
+      "placeholder": "ค้นหาอีเมล…",
+      "recent": "การค้นหาล่าสุด"
+    },
+    "shortcuts": {
+      "calendar": "ปฏิทิน",
+      "compose": "เขียนจดหมาย",
+      "contacts": "ผู้ติดต่อ",
+      "files": "ไฟล์"
+    },
+    "state": {
+      "error": "แสดงวิดเจ็ตนี้ไม่ได้",
+      "loading": "กำลังโหลด…",
+      "open_app": "เปิดแอปหนึ่งครั้งหากส่วนนี้ยังว่างอยู่",
+      "open_to_load": "เปิด Bulwark เพื่อโหลดข้อมูลนี้",
+      "signed_out": "ลงชื่อเข้าใช้ Bulwark"
+    },
+    "storage": {
+      "no_limit": "ไม่จำกัดพื้นที่จัดเก็บ",
+      "title": "พื้นที่จัดเก็บ",
+      "unavailable": "ไม่มีข้อมูลโควตา",
+      "used_of": "{used} จาก {total}"
+    },
+    "tag": {
+      "empty": "ยังไม่มีป้ายกำกับ",
+      "empty_body": "ป้ายกำกับที่คุณเพิ่มในแอปจะแสดงที่นี่",
+      "messages": "{count, plural, other {ข้อความ}}",
+      "total": "{count, plural, other {# ข้อความ}}"
+    },
+    "tasks": {
+      "all_done": "เสร็จหมดแล้ว",
+      "empty": "ไม่มีงานที่ค้างอยู่",
+      "mark_complete": "ทำเครื่องหมายว่าเสร็จแล้ว",
+      "mark_incomplete": "ทำเครื่องหมายว่ายังไม่เสร็จ",
+      "no_title": "(ไม่มีชื่อ)",
+      "off": "งานปิดอยู่",
+      "off_body": "เปิดงานในการตั้งค่าปฏิทินของแอป",
+      "open_count": "ค้างอยู่ {count}",
+      "overdue": "เกินกำหนด",
+      "still_open": "ยังค้างอยู่ {count}",
+      "title": "งาน",
+      "today": "วันนี้",
+      "tomorrow": "พรุ่งนี้"
+    },
+    "vacation": {
+      "active": "ใช้งานอยู่",
+      "inactive": "ปิดใช้งาน",
+      "subject": "เรื่อง: {subject}",
+      "title": "การตอบกลับอัตโนมัติ",
+      "unsupported": "ไม่รองรับการตอบกลับอัตโนมัติ",
+      "until": "จนถึง {date}"
+    }
+  }
+}

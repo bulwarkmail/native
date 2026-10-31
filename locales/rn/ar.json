@@ -3,7 +3,10 @@
     "after": "بعد",
     "before": "قبل",
     "no_attachment": "بدون مرفقات",
-    "not_starred": "غير مميزة بنجمة"
+    "not_starred": "غير مميزة بنجمة",
+    "advanced_filters_count": "{name}، {count} نشطة",
+    "larger_than_kb": "أكبر من {size} كيلوبايت",
+    "smaller_than_kb": "أصغر من {size} كيلوبايت"
   },
   "calendar": {
     "alerts": {
@@ -26,7 +29,8 @@
       "copy_link_short": "رابط",
       "export_ics_short": ".ics",
       "nothing_planned": "لا شيء مخطط. انقر للإنشاء.",
-      "tap_to_create": "اضغط + لإنشاء حدث"
+      "tap_to_create": "اضغط + لإنشاء حدث",
+      "copy_title_short": "العنوان"
     },
     "fab": {
       "event": "حدث",
@@ -70,7 +74,11 @@
       "trust_authentication_missing": "تعذّر التحقق من المرسل.",
       "trust_sender_mismatch": "المرسل مختلف عن منظّم الحدث.",
       "trust_sender_mismatch_unverified": "المرسل لا يطابق المنظّم والرسالة غير مصادق عليها.",
-      "trust_verified": "تم التحقق من المرسل"
+      "trust_verified": "تم التحقق من المرسل",
+      "cancel_outdated": "يحتوي تقويمك على نسخة من هذا الحدث أحدث من هذا الإلغاء.",
+      "remove_error": "تعذّرت إزالة الحدث",
+      "remove_from_calendar": "إزالة من التقويم",
+      "removed_from_calendar": "أُزيل من تقويمك."
     },
     "management": {
       "clear_confirm": "إزالة الكل",
@@ -80,7 +88,12 @@
       "delete_title": "حذف التقويم؟",
       "description_placeholder": "اختياري",
       "edit_calendar": "تعديل التقويم",
-      "new_calendar": "تقويم جديد"
+      "new_calendar": "تقويم جديد",
+      "color_invalid": "أدخل لونًا من ستة أرقام hex، مع # أو بدونها، مثل #3b82f6.",
+      "custom_color": "لون مخصص (hex)",
+      "description_field": "الوصف",
+      "fewer_colors": "ألوان أقل",
+      "more_colors": "ألوان أكثر"
     },
     "notifications": {
       "channel_name": "تذكيرات التقويم",
@@ -91,7 +104,9 @@
     },
     "occurrence_not_found_again": "لم يُحفظ التغيير: تعذّر العثور على هذا التكرار مرة أخرى على الخادم. حاول مرة أخرى.",
     "participants": {
-      "limit_warning": "أكثر من {max, plural, zero {# مشارك} one {مشارك واحد} two {مشاركَين} few {# مشاركين} many {# مشاركًا} other {# مشارك}}، بمن فيهم المنظّم: قد يرفض الخادم حفظ هذا الحدث. يمكن للمسؤول رفع هذا الحد."
+      "limit_warning": "أكثر من {max, plural, zero {# مشارك} one {مشارك واحد} two {مشاركَين} few {# مشاركين} many {# مشاركًا} other {# مشارك}}، بمن فيهم المنظّم: قد يرفض الخادم حفظ هذا الحدث. يمكن للمسؤول رفع هذا الحد.",
+      "group_members": "{count, plural, zero {# عضو} one {عضو واحد} two {عضوان} few {# أعضاء} many {# عضوًا} other {# عضو}}",
+      "remove_named": "إزالة {name}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, zero {مرة} one {مرة} two {مرات} few {مرات} many {مرة} other {مرة}}",
@@ -127,7 +142,10 @@
       "not_a_feed": "لم يُرجع هذا الرابط تغذية iCalendar",
       "not_synced": "لم تتم المزامنة بعد",
       "url_scheme_invalid": "يجب أن يبدأ الرابط بـ https:// أو http:// أو webcal:// أو webcals://",
-      "your_subscriptions": "اشتراكاتك"
+      "your_subscriptions": "اشتراكاتك",
+      "account_changed": "تغيّر الحساب أثناء مزامنة الاشتراك. ستتم مزامنته مجددًا في حسابه.",
+      "feed_truncated": "انقطعت الخلاصة قبل نهايتها. لم يتغيّر شيء.",
+      "mass_removal": "أسقطت الخلاصة {count} من أصل {total} حدثًا دفعة واحدة. احتُفظ بها تحسبًا لوجود خلل في الخلاصة."
     },
     "tasks": {
       "add_placeholder": "إضافة مهمة…",
@@ -136,15 +154,23 @@
       "delete_error": "فشل حذف المهمة",
       "not_found": "لم تعد هذه المهمة متاحة.",
       "save_error": "فشل حفظ المهمة",
-      "update_error": "فشل تحديث المهمة"
+      "update_error": "فشل تحديث المهمة",
+      "delete_confirm": "حذف هذه المهمة؟"
     },
     "views": {
       "schedule": "الجدول",
-      "three_days": "3 أيام"
+      "three_days": "3 أيام",
+      "n_days": "{count} أيام"
     },
     "detail": {
-      "delete_confirm": "حذف هذا الحدث؟"
-    }
+      "delete_confirm": "حذف هذا الحدث؟",
+      "location_hint": "يفتح الموقع؛ اضغط مطولًا لنسخه"
+    },
+    "a11y": {
+      "event_count": "{count, plural, zero {# حدث} one {حدث واحد} two {حدثان} few {# أحداث} many {# حدثًا} other {# حدث}}"
+    },
+    "account_changed": "تغيّر الحساب أثناء تحميل التقويم أو حفظه.",
+    "change_month_named": "{month}، تغيير الشهر"
   },
   "common": {
     "add": "إضافة",
@@ -255,7 +281,11 @@
       "into_address_book": "استيراد إلى دفتر العناوين",
       "into_named": "استيراد إلى {name}",
       "no_address_book": "أنشئ دفتر عناوين قبل استيراد جهات الاتصال.",
-      "picker_failed": "تعذّر فتح أداة اختيار الملفات"
+      "picker_failed": "تعذّر فتح أداة اختيار الملفات",
+      "replaces": "يستبدل {name}",
+      "unnamed": "جهة اتصال بلا اسم",
+      "update_existing": "تحديث الموجود",
+      "updated_count": "{count, plural, zero {كانت # جهة اتصال موجودة بالفعل وتم تحديثها.} one {كانت جهة اتصال واحدة موجودة بالفعل وتم تحديثها.} two {كانت جهتا اتصال موجودتين بالفعل وتم تحديثهما.} few {كانت # جهات اتصال موجودة بالفعل وتم تحديثها.} many {كانت # جهة اتصال موجودة بالفعل وتم تحديثها.} other {كانت # جهة اتصال موجودة بالفعل وتم تحديثها.}}"
     },
     "no_tags_hint": "لا توجد وسوم بعد. اكتب وسمًا في الأعلى.",
     "picker": {
@@ -265,11 +295,19 @@
     "rename_tag_hint_mobile": "اضغط مطولًا على وسم لإعادة تسميته",
     "tag_name_placeholder": "اسم الوسم الجديد",
     "unnamed": "بلا اسم",
-    "delete_confirm_title": "حذف جهة الاتصال"
+    "delete_confirm_title": "حذف جهة الاتصال",
+    "directory": {
+      "restricted_hint": "لا يعرض خادم بريدك إلا الحسابات التي تعمل معها بالفعل، مثل مجموعاتك والأشخاص الذين يشاركونك.",
+      "restricted_queries_off": "لا يعرض خادم بريدك إلا الحسابات التي تعمل معها بالفعل، مثل مجموعاتك والأشخاص الذين يشاركونك. يمكن للمسؤول تفعيل استعلامات الدليل لعرض الجميع."
+    }
   },
   "context_menu": {
     "color_tag": "وسم",
-    "remove_color": "إزالة الوسم"
+    "remove_color": "إزالة الوسم",
+    "emails_selected": "{count, plural, zero {تم تحديد # رسالة} one {تم تحديد رسالة واحدة} two {تم تحديد رسالتين} few {تم تحديد # رسائل} many {تم تحديد # رسالة} other {تم تحديد # رسالة}}",
+    "rules": {
+      "login_changed": "لم تُحفظ القاعدة لأنك بدّلت الحساب"
+    }
   },
   "device_sync": {
     "auth_problem_text": "لم يعد الخادم يقبل تسجيل الدخول إلى {account}، لذلك توقفت مزامنة جهات الاتصال والتقويمات الخاصة به على هذا الجهاز. سجّل الدخول مرة أخرى لاستئناف المزامنة. يتم الاحتفاظ بالتغييرات التي أُجريت على هذا الجهاز.",
@@ -356,7 +394,34 @@
     "uploading_pct": "جارٍ الرفع {pct}%",
     "validation": {
       "subject_required": "أضف موضوعًا"
-    }
+    },
+    "format_plain_text": "التبديل إلى نص عادي",
+    "format_rich_text": "التبديل إلى نص منسق (HTML)",
+    "login_switched_attach_body": "بدأت هذه الرسالة في {account}. عُد إلى ذلك الحساب لإرفاق الملفات.",
+    "login_switched_body": "بدأت هذه الرسالة في {account}. عُد إلى ذلك الحساب لإرسالها.",
+    "login_switched_save_body": "بدأت هذه الرسالة في {account}. عُد إلى ذلك الحساب لحفظها.",
+    "login_switched_title": "تم تبديل الحساب",
+    "option_encrypt": "تشفير",
+    "option_encrypt_hint": "لا يقرؤها إلا المستلمون (وأنت)؛ يحتاج كل مستلم إلى مفتاح",
+    "option_security": "التوقيع والتشفير",
+    "option_sign": "توقيع",
+    "option_sign_pgp_hint": "إضافة توقيع OpenPGP بمفتاحك",
+    "option_sign_smime_hint": "إضافة توقيع S/MIME بشهادتك",
+    "read_receipt_off": "طلب إشعار القراءة",
+    "secure_failed_title": "تعذّر التوقيع أو التشفير",
+    "secure_missing_keys": "لا يوجد مفتاح لـ {recipients}. استورد مفتاحًا من الإعدادات → التشفير.",
+    "secure_no_key": "لا يوجد مفتاح لـ {email} على هذا الجهاز. استورد مفتاحًا من الإعدادات → التشفير.",
+    "secure_offline": "لا يمكن للرسائل الموقّعة أو المشفّرة الانتظار في صندوق الصادر. أرسلها عندما تكون متصلًا.",
+    "secure_unlock_reason": "مفتاحك يوقّع هذه الرسالة.",
+    "send_unconfirmed_body": "لم يؤكد الخادم الإرسال. تحقق من مجلد المرسل قبل الإرسال مجددًا. تم الاحتفاظ بمسودتك.",
+    "send_unconfirmed_title": "لم يتم تأكيد الإرسال",
+    "toolbar": {
+      "insert_image": "إدراج صورة"
+    },
+    "undo_send_other_login": "أُرسلت هذه الرسالة من حساب آخر",
+    "undo_send_other_login_body": "عُد إلى {account} للتراجع عنها أو إرسالها الآن. ستُرسل عند انتهاء المهلة.",
+    "upload_login_switched": "لم يتم الرفع: تم تبديل الحساب",
+    "use_template": "قالب"
   },
   "email_list": {
     "cross_account_move_offline": "يتطلب النقل بين الحسابات اتصالًا بالإنترنت",
@@ -484,7 +549,9 @@
     "view_dark_mode": "العرض في الوضع الداكن",
     "view_light_mode": "العرض في الوضع الفاتح",
     "not_spam_short": "ليس مزعجًا",
-    "spam_short": "مزعج"
+    "spam_short": "مزعج",
+    "quick_reply_login_switched": "هذه الرسالة في حساب آخر. عُد إليه للرد.",
+    "quick_reply_unconfirmed": "لم يؤكد الخادم الإرسال. تحقق من مجلد المرسل قبل الإرسال مجددًا."
   },
   "files": {
     "delete_cascade_hint": "تُحذف المجلدات مع كل ما بداخلها. لا يمكن التراجع عن ذلك.",
@@ -527,7 +594,29 @@
     "batch_delete_success": "{count, plural, one {تم حذف عنصر واحد} other {تم حذف # عنصر}}",
     "delete_confirm_message": "هل أنت متأكد أنك تريد حذف \"{name}\"؟ لا يمكن التراجع عن هذا.",
     "delete_confirm_title": "حذف المورد",
-    "delete_success": "تم الحذف بنجاح"
+    "delete_success": "تم الحذف بنجاح",
+    "name_trash": "\".Trash\" هو اسم مجلد المهملات في أعلى ملفاتك. اختر اسمًا آخر.",
+    "settings_behavior": "السلوك",
+    "settings_colored_icons": "أيقونات ملونة",
+    "settings_colored_icons_desc": "استخدام أيقونات ملونة بدلًا من أحادية اللون",
+    "settings_default_sort": "الترتيب الافتراضي",
+    "settings_default_sort_desc": "اختر الترتيب الافتراضي للملفات",
+    "settings_default_view": "العرض الافتراضي",
+    "settings_default_view_desc": "اختر بين تخطيط الشبكة والقائمة",
+    "settings_display": "العرض",
+    "settings_icons": "الأيقونات",
+    "settings_show_hidden": "إظهار الملفات المخفية",
+    "settings_show_hidden_desc": "عرض الملفات والمجلدات التي تبدأ بنقطة",
+    "settings_show_icons": "إظهار أيقونات الملفات",
+    "settings_show_icons_desc": "عرض أيقونات بجانب الملفات والمجلدات",
+    "settings_show_thumbnails": "إظهار الصور المصغّرة",
+    "settings_show_thumbnails_desc": "عرض معاينات الصور بدلًا من الأيقونات لملفات الصور",
+    "settings_sort_direction": "اتجاه الترتيب",
+    "settings_sort_direction_desc": "اختر ترتيبًا تصاعديًا أو تنازليًا",
+    "share_remove_confirm": "إزالة الوصول؟",
+    "share_remove_for": "إزالة وصول {name}",
+    "trash_unavailable_message": "{count, plural, zero {لا يمكن نقل هذه العناصر وعددها # إلى المهملات.} one {لا يمكن نقل هذا العنصر إلى المهملات.} two {لا يمكن نقل هذين العنصرين إلى المهملات.} few {لا يمكن نقل هذه العناصر وعددها # إلى المهملات.} many {لا يمكن نقل هذه العناصر وعددها # إلى المهملات.} other {لا يمكن نقل هذه العناصر وعددها # إلى المهملات.}} هل تريد الحذف نهائيًا بدلًا من ذلك؟ لا يمكن التراجع عن هذا.",
+    "upload": "رفع"
   },
   "identities": {
     "badge": {
@@ -650,7 +739,26 @@
       "unencrypted": "اتصال غير مشفّر",
       "use_password": "تسجيل الدخول بكلمة مرور بدلًا من ذلك",
       "username_label": "البريد الإلكتروني أو اسم المستخدم",
-      "your_server": "خادمك"
+      "your_server": "خادمك",
+      "cancel_sign_in": "إلغاء تسجيل الدخول",
+      "err_client_rejected_detail": "رفض الخادم Bulwark كعميل لتسجيل الدخول. اطلب من المسؤول السماح به، أو سجّل الدخول بكلمة مرور تطبيق.",
+      "err_client_rejected_title": "لم يقبل {host} التطبيق",
+      "err_handoff_expired_detail": "أعاد المتصفح تسجيل الدخول بعد انتهاء صلاحيته. سجّل الدخول مرة أخرى.",
+      "err_handoff_expired_title": "استغرق تسجيل الدخول وقتًا طويلًا",
+      "err_handoff_network_detail": "تعذّر الوصول إلى بريد الويب بعد تسجيل دخولك. تحقق من اتصالك وسجّل الدخول مرة أخرى.",
+      "err_handoff_network_title": "تعذّر إكمال تسجيل الدخول",
+      "err_handoff_rate_detail": "انتظر بضع دقائق، ثم سجّل الدخول مرة أخرى.",
+      "err_handoff_refused_detail": "رابط تسجيل الدخول استُخدم من قبل أو لم يأتِ من عملية تسجيل الدخول هذه. سجّل الدخول مرة أخرى.",
+      "err_handoff_refused_title": "لم يقبل بريد الويب عملية تسجيل الدخول هذه",
+      "err_handoff_server_detail": "سجّل الدخول مرة أخرى. إذا استمر الفشل، فاسأل المسؤول.",
+      "err_handoff_server_title": "تعذّر على بريد الويب إكمال تسجيل الدخول",
+      "err_token_exchange_title": "لم يبدأ {host} جلسة",
+      "reauth_detail": "لم يعد الخادم يقبل بيانات تسجيل الدخول المحفوظة لـ {account}. سجّل الدخول مرة أخرى لمواصلة استخدام هذا الحساب.",
+      "reauth_title": "تسجيل الدخول مرة أخرى",
+      "server_cert_active": "يتم تسجيل الدخول بشهادة العميل \"{alias}\". اضغط لاختيار شهادة أخرى.",
+      "server_cert_clear": "تسجيل الدخول بدون الشهادة",
+      "server_cert_failed": "تعذّر اختيار شهادة",
+      "server_cert_hint": "هل يطلب خادمك شهادة عميل؟ اختر شهادة مثبّتة على هذا الهاتف."
     }
   },
   "offline": {
@@ -687,7 +795,15 @@
     "keep_scheduled": "إبقاؤها مجدولة",
     "no_longer_scheduled": "لم تعد هذه الرسالة مجدولة.",
     "reschedule_failed": "فشلت إعادة الجدولة",
-    "send_now_failed": "تعذّر الإرسال الآن"
+    "send_now_failed": "تعذّر الإرسال الآن",
+    "actions": "الإجراءات",
+    "cancel_to_drafts_body": "لن تُرسل الرسالة. ستعود إلى المسودات.",
+    "cancelled_not_moved": "أُلغي الإرسال، لكن لم تُنقل الرسالة إلى المسودات",
+    "cancelled_not_moved_body": "لن تُرسل الرسالة. ما زالت في المرسل.",
+    "login_switched": "هذه الرسائل المجدولة تخص حسابًا آخر. عُد إليه لتغييرها.",
+    "reschedule_lost": "لم تعد الرسالة مجدولة. تحقق من المسودات والمرسل قبل إرسالها مجددًا.",
+    "reschedule_lost_drafts": "لم تعد الرسالة مجدولة. عادت إلى المسودات، حيث يمكنك إرسالها مجددًا.",
+    "send_cancelled": "أُلغي الإرسال"
   },
   "settings": {
     "account": {
@@ -731,12 +847,17 @@
       },
       "toolbar_labels": {
         "description_mobile": "عرض تسميات نصية بجانب أيقونات شريط الأدوات."
-      }
+      },
+      "accessibility_link": {
+        "description_mobile": "حجم النص وتقليل الحركة والإعدادات الجاهزة لإمكانية الوصول موجودة في صفحة إمكانية الوصول."
+      },
+      "description_mobile": "خصّص مظهر التطبيق"
     },
     "badges": {
       "experimental": "تجريبي",
       "not_implemented": "غير منفّذ",
-      "unavailable": "غير متاح"
+      "unavailable": "غير متاح",
+      "not_on_server": "غير متوفر على هذا الخادم"
     },
     "contacts": {
       "book_count": "{count, plural, zero {# جهة اتصال} one {جهة اتصال واحدة} two {جهتا اتصال} few {# جهات اتصال} many {# جهة اتصال} other {# جهة اتصال}}",
@@ -909,6 +1030,9 @@
       "disable_threading": {
         "description": "إظهار الرسائل كرسائل منفردة بدلًا من تجميعها حسب المحادثة",
         "label": "تعطيل تجميع المحادثات"
+      },
+      "recipient_mentions": {
+        "description_mobile": "كتابة @ في الرسالة تعرض مستلميها وتُدرج الاسم الأول لمن تختاره."
       }
     },
     "experimental": {
@@ -942,7 +1066,8 @@
       "save_failed": "فشل الحفظ",
       "system_folder_delete": "لا يمكن إزالة مجلدات النظام.",
       "system_folder_rename": "لا يمكن إعادة تسمية مجلدات النظام.",
-      "top_level": "المستوى الأعلى"
+      "top_level": "المستوى الأعلى",
+      "parent_folder": "المجلد الأصل"
     },
     "identities": {
       "cannot_delete": "لا يمكن إزالة الهوية الأساسية.",
@@ -978,7 +1103,8 @@
         "scan": "البحث عن الوسوم في صندوق البريد"
       },
       "reset_confirm": "استبدال قائمة الوسوم بالوسوم الافتراضية؟ تبقى الوسوم المعيّنة على الرسائل على الخادم.",
-      "reset_defaults": "إعادة التعيين إلى الافتراضي"
+      "reset_defaults": "إعادة التعيين إلى الافتراضي",
+      "delete_confirm_title": "حذف الوسم \"{label}\"؟"
     },
     "layout": {
       "description": "اضبط تفاعلات قائمة الرسائل على الجوال.",
@@ -1022,7 +1148,9 @@
       "email": {
         "app_icon_badge": "عدد غير المقروءة على أيقونة التطبيق",
         "app_icon_badge_desc": "إظهار عدد الرسائل غير المقروءة في البريد الوارد كشارة على أيقونة التطبيق.",
-        "sound_channel_hint": "يتم التحكم في صوت تنبيهات البريد واهتزازها عبر قناة إشعارات Android: اضغط مطولًا على إشعار أو افتح إعدادات التطبيق في النظام."
+        "sound_channel_hint": "يتم التحكم في صوت تنبيهات البريد واهتزازها عبر قناة إشعارات Android: اضغط مطولًا على إشعار أو افتح إعدادات التطبيق في النظام.",
+        "mute_account": "كتم هذا الحساب",
+        "mute_account_desc": "لا تنبيهات للبريد الجديد في هذا الحساب. اضغط مطولًا على مجلد في الشريط الجانبي لكتمه أو إلغاء كتمه وحده."
       },
       "push": {
         "confirm_disable_message_mobile": "سيتوقف هذا الجهاز عن تلقي تنبيهات البريد الجديد لهذا الحساب.",
@@ -1063,7 +1191,13 @@
         "transport_unifiedpush": "UnifiedPush",
         "up_distributor_desc": "هناك عدة تطبيقات موزّعة لـ UnifiedPush مثبتة - اختر التطبيق الذي سيسلّم الإشعارات.",
         "up_distributor_label": "الموزّع",
-        "up_no_distributor": "لا يوجد تطبيق موزّع لـ UnifiedPush مثبت على هذا الجهاز. ثبّت واحدًا (مثل ntfy) وحاول مجددًا."
+        "up_no_distributor": "لا يوجد تطبيق موزّع لـ UnifiedPush مثبت على هذا الجهاز. ثبّت واحدًا (مثل ntfy) وحاول مجددًا.",
+        "accounts_desc_mobile": "إشعارات الخلفية لكل حساب مسجّل الدخول على هذا الجهاز. انتقل إلى حساب لتشغيلها أو إيقافها له.",
+        "err_account_changed": "تغيّر الحساب أثناء إعداد الإشعارات الفورية. حاول مرة أخرى.",
+        "err_apns_empty": "أعاد iOS رمز إشعارات فارغًا.",
+        "err_apns_token": "تعذّر على iOS إصدار رمز إشعارات ({detail}).",
+        "err_relay_no_apns": "خادم ترحيل الإشعارات على {url} لا يوصل الإشعارات إلى أجهزة iPhone وiPad بعد.",
+        "err_url_refused": "يرفض خادم البريد إرسال الإشعارات إلى خادم الترحيل على {url}. فهو لا يقبل إلا عناوين https على اسم نطاق عام، وليس عنوان IP خاصًا أو اسمًا محليًا مثل localhost أو .local أو .lan. استخدم خادم الترحيل المستضاف، أو امنح خادم الترحيل الخاص بك اسم نطاق عامًا."
       },
       "calendar": {
         "invitation_parsing": "تحليل دعوات البريد الإلكتروني",
@@ -1098,7 +1232,15 @@
       "window": "الفترة",
       "window_24h": "آخر 24 ساعة",
       "window_days": "{count, plural, zero {آخر # يوم} one {آخر يوم} two {آخر يومين} few {آخر # أيام} many {آخر # يومًا} other {آخر # يوم}}",
-      "window_desc": "المدة التي يُخزَّن بريدها مؤقتًا، بحسب تاريخ استلام الرسالة."
+      "window_desc": "المدة التي يُخزَّن بريدها مؤقتًا، بحسب تاريخ استلام الرسالة.",
+      "description_short": "احتفظ بالرسائل الأخيرة على هذا الهاتف لتُفتح دون اتصال.",
+      "keep_24h": "24 ساعة",
+      "keep_days": "{count} أيام",
+      "keep_from": "الاحتفاظ بالبريد من آخر",
+      "messages_offline": "{count, plural, zero {# رسالة متاحة دون اتصال} one {رسالة واحدة متاحة دون اتصال} two {رسالتان متاحتان دون اتصال} few {# رسائل متاحة دون اتصال} many {# رسالة متاحة دون اتصال} other {# رسالة متاحة دون اتصال}}",
+      "synced": "آخر مزامنة: {when}",
+      "use_at_most": "استخدام بحد أقصى",
+      "used_of": "{used} من {limit} ميغابايت"
     },
     "plugins": {
       "mobile_description": "تعمل الإضافات داخل بريد الويب وتوسّع إمكاناته في المتصفح.",
@@ -1116,7 +1258,10 @@
         "not_set": "غير معيّنة",
         "pick": "اختيار شهادة",
         "pick_failed": "فشل الاختيار",
-        "title": "شهادة عميل TLS"
+        "title": "شهادة عميل TLS",
+        "clear_message_ios": "لن تقدّم الطلبات الجديدة أي شهادة. تُزال الشهادة من التطبيق؛ ولاستخدامها مجددًا، اختر الملف مرة أخرى.",
+        "description_ios": "يستورد ملف شهادة للمصادقة على الخادم أثناء مصافحة TLS. مفيد عندما يفرض الوكيل العكسي mTLS.",
+        "hint_ios": "اختر ملف الشهادة (.p12 أو .pfx) في تطبيق الملفات وأدخل كلمة مروره."
       },
       "credentials": {
         "allowed_ips": "عناوين IP المسموح بها (اختياري)",
@@ -1149,7 +1294,10 @@
         "error": "فشل تغيير كلمة المرور.",
         "mismatch": "كلمتا المرور غير متطابقتين.",
         "toggle_visibility": "إظهار كلمة المرور أو إخفاؤها",
-        "too_short": "يجب أن تتكون كلمة المرور الجديدة من 8 أحرف على الأقل."
+        "too_short": "يجب أن تتكون كلمة المرور الجديدة من 8 أحرف على الأقل.",
+        "changed_sign_in_again": "تم تحديث كلمة مرور حسابك. سجّل الدخول مرة أخرى بكلمة المرور الجديدة.",
+        "session_ended": "أنهى تغيير كلمة المرور هذه الجلسة. سجّل الدخول مرة أخرى بكلمة المرور الجديدة.",
+        "session_ended_title": "تسجيل الدخول مرة أخرى"
       },
       "public_keys": {
         "add_error": "فشلت إضافة المفتاح العام",
@@ -1179,7 +1327,14 @@
         "no_app_title": "لا يوجد تطبيق مصادقة",
         "open_app": "إضافة إلى تطبيق المصادقة",
         "password_required": "أدخل كلمة المرور الحالية.",
-        "section_title": "المصادقة الثنائية"
+        "section_title": "المصادقة الثنائية",
+        "disable_hint_code": "أدخل كلمة المرور ورمزًا من تطبيق المصادقة لإيقاف المصادقة الثنائية."
+      },
+      "restricted": "لا يسمح خادمك بتغيير كلمة المرور والمصادقة الثنائية وكلمات مرور التطبيقات ومفاتيح API إلا للتطبيقات التي وافق عليها مسؤوله. سجّل Bulwark الدخول دون هذه الموافقة، لذا يعمل البريد وجهات الاتصال والتقويمات والملفات، لكن هذه الإعدادات لا تعمل. غيّرها من واجهة الويب لخادمك أو من بريد الويب Bulwark.",
+      "screen_privacy": {
+        "block_screenshots": "حظر لقطات الشاشة",
+        "block_screenshots_description": "يمنع لقطات الشاشة وتسجيلات الشاشة للتطبيق ويخفي محتواه في عرض التطبيقات الأخيرة.",
+        "title": "خصوصية الشاشة"
       }
     },
     "sidebar_apps": {
@@ -1214,7 +1369,10 @@
       "layout": "التخطيط",
       "sidebar_apps": "تطبيقات الشريط الجانبي",
       "templates": "القوالب",
-      "themes": "السمات"
+      "themes": "السمات",
+      "about": "حول",
+      "storage": "التخزين والنسخ الاحتياطي",
+      "troubleshooting": "استكشاف الأخطاء وإصلاحها"
     },
     "templates": {
       "delete_confirm": "حذف \"{name}\" نهائيًا؟",
@@ -1226,7 +1384,8 @@
       "imported_count": "{count, plural, zero {تمت إضافة # قالب.} one {تمت إضافة قالب واحد.} two {تمت إضافة قالبين.} few {تمت إضافة # قوالب.} many {تمت إضافة # قالبًا.} other {تمت إضافة # قالب.}}",
       "is_html": "النص بتنسيق HTML",
       "placeholders_hint": "المتغيرات النائبة: {{recipient_name}}، {{company}}، {{date}}، {{day_of_week}}، {{sender_name}}",
-      "share_unavailable": "تتعذّر المشاركة"
+      "share_unavailable": "تتعذّر المشاركة",
+      "import_json_label": "القوالب بصيغة JSON"
     },
     "themes": {
       "default_description": "لوحات الألوان الفاتحة والداكنة الافتراضية.",
@@ -1235,6 +1394,18 @@
     "vacation": {
       "warnings": {
         "date_format": "يجب أن تكون التواريخ بالصيغة \"YYYY-MM-DD\" أو \"YYYY-MM-DD HH:MM\""
+      },
+      "date_range": {
+        "description": "حصر الرد التلقائي في فترة محددة (اختياري)",
+        "title": "النطاق الزمني"
+      },
+      "message": {
+        "description": "الرسالة التي ستُرسل كرد",
+        "title": "رسالة الرد التلقائي"
+      },
+      "status": {
+        "ended": "انتهى",
+        "scheduled": "تمت الجدولة"
       }
     },
     "composer": {
@@ -1254,6 +1425,124 @@
       "appearance": "المظهر",
       "general": "عام",
       "privacy": "الخصوصية والأمان"
+    },
+    "about": {
+      "check_now": "التحقق الآن",
+      "checked_at": "تم التحقق {when}",
+      "licences": "تراخيص المصدر المفتوح",
+      "licences_desc": "AGPL-3.0 للتطبيق، والمكتبات التي يستخدمها",
+      "never_checked": "لم يتم التحقق بعد",
+      "privacy": "الخصوصية",
+      "privacy_desc": "ما يبقى على هذا الهاتف وما يذهب إلى خادمك",
+      "report_problem": "الإبلاغ عن مشكلة",
+      "report_problem_desc": "يفتح بلاغًا على GitHub مع تعبئة الإصدار",
+      "server": "الخادم",
+      "server_value": "{host} · تم تسجيل الدخول باسم {user}",
+      "source_code": "الشيفرة المصدرية",
+      "this_device": "هذا الجهاز",
+      "this_device_desc": "ما يتصل به التطبيق وكيفية الحصول على المساعدة.",
+      "up_to_date": "محدَّث",
+      "updates": "التحديثات"
+    },
+    "accessibility": {
+      "cvd_palette": {
+        "description_mobile": "يستخدم ألوانًا للوسوم والتقويمات تبقى مميزة مع عمى الألوان الأحمر-الأخضر أو الأزرق-الأصفر."
+      },
+      "font": {
+        "description_ios": "صُمّم خطا Atkinson Hyperlegible وLexend ليسهل التمييز بين حروفهما؛ ويساعد OpenDyslexic بعض المصابين بعسر القراءة. على هذا الجهاز يُستخدم الخط للرسائل النصية العادية."
+      },
+      "plain_language": {
+        "description_mobile": "صياغة أبسط للإعدادات ورسائل الخطأ. متاحة بالإنجليزية والألمانية."
+      },
+      "presets": {
+        "applied_mobile": "غيّر {name} {count, plural, zero {# إعداد} one {إعدادًا واحدًا} two {إعدادين} few {# إعدادات} many {# إعدادًا} other {# إعداد}}",
+        "apply": "تطبيق",
+        "apply_named": "تطبيق {name}",
+        "dyslexia": {
+          "description_mobile": "Atkinson Hyperlegible كخط، بما في ذلك للرسائل النصية العادية."
+        },
+        "low-vision": {
+          "description_mobile": "النص بحجم 150% وتسميات أسفل أيقونات شريط الأدوات."
+        },
+        "motion": {
+          "description_mobile": "بلا رسوم متحركة أو انتقالات منزلقة."
+        },
+        "screen-reader": {
+          "description_mobile": "بلا تجميع للمحادثات، فتكون كل رسالة في صف مستقل."
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "يوقف اللوحات المنزلقة والانتقالات. يفعل التطبيق ذلك أيضًا عند تفعيل تقليل الحركة في إعدادات هاتفك."
+      },
+      "text_size": {
+        "description_mobile": "يغيّر حجم نص التطبيق فوق حجم النص في هاتفك. 100% هو حجم هاتفك."
+      },
+      "toast_duration": {
+        "automatic": "تلقائي (أطول مع قارئ الشاشة)"
+      }
+    },
+    "backup": {
+      "description": "انقل إعداداتك إلى هاتف آخر أو إلى بريد الويب.",
+      "export_import": "تصدير أو استيراد",
+      "export_import_desc": "ملف JSON، بنفس صيغة بريد الويب",
+      "reset": "إعادة تعيين",
+      "reset_desc": "العودة إلى الإعدادات الافتراضية؛ يبقى البريد",
+      "title": "نسخة احتياطية من الإعدادات"
+    },
+    "licences": {
+      "app_desc": "التطبيق برنامج حر بموجب {licence}. يمكنك استخدامه ودراسته ومشاركته وتعديله.",
+      "libraries": "المكتبات",
+      "libraries_desc": "الشيفرة مفتوحة المصدر التي بُني بها التطبيق.",
+      "read_licence": "قراءة نص الترخيص كاملًا"
+    },
+    "privacy": {
+      "favicons": "تأتي أيقونات المرسلين لبريد الأعمال من خدمة الأيقونات في DuckDuckGo، التي ترى نطاق المرسل. أوقفها من المظهر → أيقونات مواقع المرسلين.",
+      "no_tracking": "لا يحتوي التطبيق على أي تحليلات أو إعلانات.",
+      "other_title": "اتصالات أخرى",
+      "phone_backup": "لا يدخل أي منها في النسخ الاحتياطي السحابي لنظام Android.",
+      "phone_secure": "تُحفظ بيانات تسجيل دخولك في التخزين الآمن للنظام. وتُحفظ الإعدادات وذاكرة البريد المؤقتة دون اتصال والتغييرات التي تنتظر المزامنة في تخزين التطبيق نفسه.",
+      "phone_title": "على هذا الهاتف",
+      "push": "عند تفعيل الإشعارات، يُبلغ خادمك خادم ترحيل الإشعارات ({relay}) بأن شيئًا ما تغيّر، فيوقظ خادم الترحيل التطبيق عبر {service}. يرى خادم الترحيل رمز جهاز وعلامة تغيير، ولا يرى بريدك أبدًا. يمكنك استخدام خادم ترحيل خاص بك من الإشعارات.",
+      "push_title": "الإشعارات الفورية",
+      "server": "يُحمَّل البريد والتقويمات وجهات الاتصال والملفات من خادمك وتُحفظ عليه. وباستثناء الاتصالات أدناه، لا يتواصل التطبيق إلا مع خادمك.",
+      "server_title": "خادم بريدك",
+      "service_apple": "خدمة الإشعارات من Apple",
+      "service_google": "خدمة الإشعارات من Google",
+      "updates": "يسأل التطبيق GitHub عن أحدث إصدار ليخبرك بالتحديثات.",
+      "updates_android": "يسأل التطبيق GitHub عن أحدث إصدار ليخبرك بالتحديثات. أوقف ذلك من التحديثات."
+    },
+    "summary": {
+      "accessibility": "حجم النص، الحركة، التأكيدات",
+      "composing": "التوقيع، تأخير الإرسال، المسودات",
+      "contacts": "دفاتر العناوين، الترتيب",
+      "content_senders": "الصور البعيدة، المرسلون الموثوقون",
+      "downloads": "أسماء ملفات البريد المحفوظ",
+      "events_off": "الأحداث متوقفة",
+      "events_on": "الأحداث مفعّلة",
+      "files": "العرض، الترتيب، الصور المصغّرة",
+      "filters": "قواعد للبريد الوارد",
+      "folders": "الإنشاء، إعادة التسمية، الأدوار",
+      "identities": "العناوين التي ترسل منها",
+      "keywords": "أسماء الوسوم وألوانها",
+      "layout": "الإجراءات السريعة، السحب، ترتيب القائمة",
+      "mail_off": "البريد متوقف",
+      "mail_on": "البريد مفعّل",
+      "offline_off": "البريد دون اتصال متوقف",
+      "offline_on": "البريد دون اتصال مفعّل · {days, plural, zero {# يوم} one {يوم واحد} two {يومان} few {# أيام} many {# يومًا} other {# يوم}}، {mb} ميغابايت",
+      "reading": "حالة القراءة، الحذف، المرفقات",
+      "security": "كلمة المرور، المصادقة الثنائية، كلمات مرور التطبيقات",
+      "sidebar_apps": "تطبيقات الويب في القائمة الجانبية",
+      "templates": "رسائل قابلة لإعادة الاستخدام",
+      "updates": "تثبيت الإصدارات الجديدة",
+      "vacation": "رد تلقائي أثناء الغياب",
+      "version": "الإصدار {version}",
+      "week_starts": "يبدأ الأسبوع {day}"
+    },
+    "troubleshooting": {
+      "cache_desc": "عندما تبدو قائمة قديمة أو خاطئة.",
+      "cache_title": "البيانات المخزنة مؤقتًا",
+      "row_desc": "تحديث البيانات المخزنة مؤقتًا، سجل التصحيح",
+      "title": "استكشاف الأخطاء وإصلاحها"
     }
   },
   "sharing": {
@@ -1268,7 +1557,13 @@
     "remove_account_message": "تسجيل الخروج من {account} على هذا الجهاز. يبقى بريدك على الخادم.",
     "remove_account_title": "إزالة الحساب؟",
     "show_unread": "إظهار غير المقروءة",
-    "tab_unavailable": "{name} (غير متاح)"
+    "tab_unavailable": "{name} (غير متاح)",
+    "account_sign_in_again": "تسجيل الدخول مرة أخرى",
+    "sign_out_all_confirm_message": "ستُزال كل الحسابات من هذا الجهاز. يمكنك تسجيل الدخول مجددًا في أي وقت.",
+    "sign_out_all_confirm_title": "تسجيل الخروج من كل الحسابات؟",
+    "sign_out_confirm_message": "سيُزال الحساب من هذا الجهاز. يمكنك تسجيل الدخول مجددًا في أي وقت.",
+    "sign_out_confirm_title": "تسجيل الخروج؟",
+    "sign_out_confirm_title_account": "تسجيل الخروج من {account}؟"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, zero {تعذّر تحميل # حساب} one {تعذّر تحميل حساب واحد} two {تعذّر تحميل حسابين} few {تعذّر تحميل # حسابات} many {تعذّر تحميل # حسابًا} other {تعذّر تحميل # حساب}}"
@@ -1319,5 +1614,303 @@
     "severity_security": "أمني",
     "title": "تحديثات التطبيق",
     "verifying": "جارٍ التحقق…"
+  },
+  "deep_link": {
+    "open_failed": "تعذّر فتح هذا"
+  },
+  "delegates": {
+    "remove_for": "إزالة وصول {name}"
+  },
+  "encryption": {
+    "armored_key": "مفتاح بترميز ASCII",
+    "banner": {
+      "checking": "جارٍ التحقق من التشفير والتوقيع…",
+      "decrypted": "تم فك التشفير ({kind})",
+      "failed": "تعذّر فك التشفير: {reason}",
+      "invalid": "توقيع غير صالح ({kind})",
+      "invalid_reason": "توقيع غير صالح ({kind}): {reason}",
+      "locked": "مشفّرة ({kind}). افتح مفتاحك لقراءتها.",
+      "no_key": "مشفّرة ({kind}) بمفتاح غير موجود على هذا الجهاز.",
+      "self_signed": "الشهادة موقّعة ذاتيًا، وليست صادرة عن جهة معروفة.",
+      "signed": "توقيع صالح ({kind})",
+      "signed_by": "توقيع صالح ({kind}) من {signer}",
+      "signer_mismatch": "الموقّع ليس هو المرسل الظاهر في حقل \"من\".",
+      "unknown_key": "موقّعة ({kind}) بمفتاح لم تستورده.",
+      "unsupported": "مشفّرة بـ {algorithm}، ولا يستطيع التطبيق فك تشفيرها."
+    },
+    "check_description": "يشغّل على هذا الجهاز كل الخوارزميات التي يستخدمها PGP وS/MIME.",
+    "check_run": "تشغيل الفحص",
+    "check_title": "فحص دعم التشفير",
+    "delete_private_message": "سيُزال {key} ومفتاحه الخاص من هذا الجهاز. لن يعود بالإمكان قراءة البريد المشفّر به هنا ما لم تستورده مجددًا.",
+    "delete_public_message": "سيُزال {key} من هذا الجهاز.",
+    "delete_title": "حذف المفتاح؟",
+    "expired": "انتهت صلاحيته في {date}",
+    "expires": "ينتهي في {date}",
+    "find_key": "البحث عن مفتاح على keys.openpgp.org",
+    "import": "استيراد",
+    "import_cert": "استيراد شهادة",
+    "import_p12": "استيراد شهادة S/MIME (.p12)",
+    "import_pgp_file": "استيراد ملف مفتاح PGP",
+    "import_public_file": "استيراد ملف مفتاح عام",
+    "imported": "تم استيراد {key}",
+    "lock": "قفل",
+    "lock_all": "قفل كل المفاتيح",
+    "lock_all_description": "نسيان المفاتيح المفتوحة حتى تُدخل عبارات مرورها مجددًا.",
+    "locked": "مقفل",
+    "locked_all": "تم قفل المفاتيح",
+    "lookup_confirm": "قارن هذه البصمة بالبصمة التي أعطاك إياها المالك (شخصيًا أو عبر الهاتف) قبل استيراد المفتاح.",
+    "lookup_none": "لم يُعثر على مفتاح.",
+    "lookup_placeholder": "عنوان البريد الإلكتروني أو البصمة",
+    "lookup_search": "بحث",
+    "lookup_verified": "يحمل المفتاح البصمة التي بحثت عنها.",
+    "no_other_keys": "لا يوجد شيء بعد.",
+    "no_own_keys": "لا توجد مفاتيح بعد.",
+    "not_a_key": "هذا ليس مفتاحًا أو شهادة يستطيع التطبيق قراءتها.",
+    "others_description": "مفاتيح عامة وشهادات للتشفير إلى أصحابها والتحقق من التوقيعات بها. تُستخدم أيضًا المفاتيح الواردة في البريد الموقّع والمفاتيح الموجودة في جهات اتصالك.",
+    "others_title": "مفاتيح الآخرين",
+    "own_description": "وقّع البريد وفك تشفيره باستخدام OpenPGP أو S/MIME. تبقى المفاتيح الخاصة في التخزين الآمن لهذا الجهاز، وتُفتح بعبارة مرورها مرة واحدة في كل جلسة للتطبيق.",
+    "own_title": "مفاتيحك",
+    "p12_password_message": "أدخل كلمة المرور التي صُدِّر بها ملف .p12. ستحتاج إليها مجددًا لفتح المفتاح بعد إعادة تشغيل التطبيق.",
+    "p12_password_title": "كلمة مرور الشهادة",
+    "passphrase": "عبارة المرور",
+    "passphrase_message": "أدخل عبارة مرور هذا المفتاح. يتم التحقق منها الآن، وستُطلب مجددًا مرة واحدة في كل جلسة للتطبيق.",
+    "passphrase_title": "عبارة مرور المفتاح",
+    "password": "كلمة المرور",
+    "paste_pgp": "لصق مفتاح PGP",
+    "paste_public": "لصق مفتاح عام",
+    "share_cert": "مشاركة الشهادة",
+    "share_key": "مشاركة المفتاح العام",
+    "tab": "التشفير",
+    "title": "التشفير",
+    "unlock": "فتح",
+    "unlock_pgp_message": "أدخل عبارة مرور مفتاح PGP الخاص بك {key}.",
+    "unlock_read_reason": "الرسالة مشفّرة بهذا المفتاح.",
+    "unlock_smime_message": "أدخل كلمة مرور شهادة S/MIME الخاصة بك {key}.",
+    "unlock_title": "فتح المفتاح",
+    "unlocked": "مفتوح",
+    "unlocking": "جارٍ الفتح…",
+    "wrong_passphrase": "عبارة المرور هذه غير صحيحة."
+  },
+  "notifications": {
+    "vacation_filters_off": "تم حفظ إعدادات الغياب، لكن المرشحات لديك معطّلة. احفظ مجددًا لإعادة تفعيلها."
+  },
+  "outbox": {
+    "discard": "تجاهل",
+    "discard_body": "لن تُرسل، وسيُفقد نصها.",
+    "discard_title": "تجاهل هذه الرسالة؟",
+    "failed_count": "{count, plural, zero {لم تُرسل # رسالة} one {لم تُرسل رسالة واحدة} two {لم تُرسل رسالتان} few {لم تُرسل # رسائل} many {لم تُرسل # رسالة} other {لم تُرسل # رسالة}}",
+    "move_failed_body": "تبقى الرسالة في صندوق الصادر. حاول مرة أخرى عند عودة الاتصال.",
+    "move_failed_title": "تعذّر النقل إلى المسودات",
+    "move_to_drafts": "نقل إلى المسودات",
+    "open_hint": "يفتح صندوق الصادر",
+    "queued_body": "ستُرسل فور عودة الاتصال.",
+    "queued_title": "حُفظت في صندوق الصادر",
+    "retry": "حاول مرة أخرى",
+    "send_failed": "تعذّر إرسال رسالة في صندوق الصادر",
+    "sent": "أُرسلت رسالة من صندوق الصادر",
+    "status_failed": "لم تُرسل",
+    "status_failed_reason": "لم تُرسل: {reason}",
+    "status_offline": "بانتظار الاتصال",
+    "status_retrying": "بانتظار الإرسال",
+    "status_sending": "جارٍ الإرسال…",
+    "title": "صندوق الصادر",
+    "waiting": "{count, plural, zero {# رسالة في صندوق الصادر} one {رسالة واحدة في صندوق الصادر} two {رسالتان في صندوق الصادر} few {# رسائل في صندوق الصادر} many {# رسالة في صندوق الصادر} other {# رسالة في صندوق الصادر}}"
+  },
+  "push": {
+    "ios": {
+      "more_messages": "و{count} أخرى",
+      "no_subject": "(بلا موضوع)"
+    }
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "لا توجد مرفقات حديثة",
+      "from_mail": "من البريد",
+      "title": "المرفقات",
+      "unknown_sender": "مرسل غير معروف"
+    },
+    "birthdays": {
+      "empty": "لا توجد أعياد ميلاد قادمة",
+      "empty_body": "تأتي أعياد الميلاد من جهات اتصالك.",
+      "in_days": "{count, plural, zero {خلال # يوم} one {خلال يوم واحد} two {خلال يومين} few {خلال # أيام} many {خلال # يومًا} other {خلال # يوم}}",
+      "send_wishes": "إرسال تهنئة",
+      "title": "أعياد الميلاد",
+      "wishes_subject": "عيد ميلاد سعيد!"
+    },
+    "calendar": {
+      "agenda": "جدول الأعمال",
+      "agenda_more": "{day}: {events}",
+      "all_day": "طوال اليوم",
+      "join": "انضمام",
+      "join_named": "الانضمام إلى {name}",
+      "more_this_week": "{count, plural, zero {# حدث آخر هذا الأسبوع} one {حدث آخر هذا الأسبوع} two {حدثان آخران هذا الأسبوع} few {# أحداث أخرى هذا الأسبوع} many {# حدثًا آخر هذا الأسبوع} other {# حدث آخر هذا الأسبوع}}",
+      "no_more_today": "لا مزيد من الأحداث اليوم",
+      "nothing_planned": "لا شيء في التقويم",
+      "now": "الآن",
+      "open": "فتح",
+      "running_late": "سأتأخر",
+      "running_late_body": "سأتأخر بضع دقائق عن {title}.",
+      "running_late_subject": "سأتأخر: {title}",
+      "today": "اليوم",
+      "tomorrow": "غدًا",
+      "unit_days": "{count, plural, zero {يوم} one {يوم} two {يومان} few {أيام} many {يومًا} other {يوم}}",
+      "unit_hours": "{count, plural, zero {ساعة} one {ساعة} two {ساعتان} few {ساعات} many {ساعة} other {ساعة}}",
+      "unit_minutes": "{count, plural, zero {دقيقة} one {دقيقة} two {دقيقتان} few {دقائق} many {دقيقة} other {دقيقة}}",
+      "unsupported": "التقويم غير متاح على هذا الخادم",
+      "untitled": "(بلا عنوان)",
+      "video_call": "مكالمة فيديو"
+    },
+    "countdown": {
+      "days": "{count, plural, zero {يوم} one {يوم} two {يومان} few {أيام} many {يومًا} other {يوم}}",
+      "empty": "لا توجد أحداث قادمة"
+    },
+    "draft": {
+      "edited_at": "عُدّلت {when}",
+      "edited_minutes": "{count, plural, zero {عُدّلت قبل # دقيقة} one {عُدّلت قبل دقيقة} two {عُدّلت قبل دقيقتين} few {عُدّلت قبل # دقائق} many {عُدّلت قبل # دقيقة} other {عُدّلت قبل # دقيقة}}",
+      "edited_now": "عُدّلت للتو",
+      "empty": "لا توجد مسودات",
+      "empty_body": "الرسائل التي تبدأها ولا ترسلها تنتظر هنا.",
+      "keep_writing": "متابعة الكتابة",
+      "title": "المسودات"
+    },
+    "files": {
+      "empty": "لا توجد ملفات بعد",
+      "recent": "تغيّرت مؤخرًا",
+      "unsupported": "الملفات غير متاحة على هذا الخادم"
+    },
+    "free": {
+      "busy_until": "مشغول حتى {time}",
+      "free_rest": "متفرغ لبقية اليوم",
+      "free_until": "متفرغ حتى {time}",
+      "mail": "إرسال أوقات فراغي بالبريد",
+      "mail_subject": "أوقات فراغي هذا الأسبوع",
+      "no_calendar": "لا يوجد تقويم في هذا الحساب",
+      "then": "ثم {title}",
+      "then_free": "ثم متفرغ"
+    },
+    "hub": {
+      "all_clear": "اطّلعت على كل شيء",
+      "mail_unread": "البريد · {count} غير مقروءة",
+      "next": "التالي",
+      "next_on": "التالي · {day}",
+      "no_events": "لا توجد أحداث قادمة",
+      "now": "الآن",
+      "tasks_due": "المهام · {count} مستحقة"
+    },
+    "invites": {
+      "accept": "قبول",
+      "decline": "رفض",
+      "empty": "لا توجد دعوات بانتظارك",
+      "label": "دعوة · {name}",
+      "label_plain": "دعوة",
+      "maybe": "ربما",
+      "position": "{index} من {count}"
+    },
+    "mail": {
+      "all_accounts": "كل الحسابات",
+      "all_caught_up": "اطّلعت على كل شيء",
+      "archive": "أرشفة",
+      "delete": "حذف",
+      "empty_all_accounts": "صناديق بريدك الوارد فارغة",
+      "empty_inbox": "بريدك الوارد فارغ",
+      "folders": "المجلدات",
+      "in_outbox": "{count, plural, zero {# تغيير بالانتظار} one {تغيير واحد بالانتظار} two {تغييران بالانتظار} few {# تغييرات بالانتظار} many {# تغييرًا بالانتظار} other {# تغيير بالانتظار}}",
+      "in_outbox_short": "{count} بالانتظار",
+      "inbox": "البريد الوارد",
+      "more_unread": "+{count} أخرى غير مقروءة",
+      "no_folders": "لا توجد مجلدات لعرضها",
+      "no_starred": "لا يوجد بريد مميز بنجمة",
+      "no_starred_body": "ميّز رسالة بنجمة لإبقائها هنا.",
+      "no_subject": "(بلا موضوع)",
+      "no_unread": "لا رسائل غير مقروءة في بريدك الوارد.",
+      "position": "{index} من {count}",
+      "reply": "رد",
+      "scheduled": "تمت الجدولة",
+      "starred": "مميزة بنجمة",
+      "unread": "غير مقروءة"
+    },
+    "notice": {
+      "archive": "تعذّرت الأرشفة. اضغط للمحاولة مجددًا.",
+      "mark_read": "تعذّر التمييز كمقروءة. اضغط للمحاولة مجددًا.",
+      "rsvp": "تعذّر إرسال ردّك. اضغط للمحاولة مجددًا.",
+      "task": "تعذّر تحديث “{title}”. اضغط للمحاولة مجددًا.",
+      "trash": "تعذّر الحذف. اضغط للمحاولة مجددًا."
+    },
+    "people": {
+      "empty": "لا توجد مفضّلة بعد",
+      "empty_body": "يظهر هنا الأشخاص الذين تتلقى منهم أكثر الرسائل.",
+      "favourites": "المفضّلة"
+    },
+    "relative": {
+      "days": "{count, plural, zero {خلال # يوم} one {خلال يوم واحد} two {خلال يومين} few {خلال # أيام} many {خلال # يومًا} other {خلال # يوم}}",
+      "hours": "خلال {count} س",
+      "minutes": "خلال {count} د",
+      "now": "الآن"
+    },
+    "scheduled": {
+      "day_at": "{day}، {time}",
+      "empty": "لا شيء مجدول",
+      "empty_body": "تظهر هنا الرسائل التي تجدولها لإرسالها لاحقًا.",
+      "no_recipient": "(بلا مستلم)",
+      "sending": "جارٍ الإرسال الآن",
+      "to": "إلى: {name}",
+      "today_at": "اليوم، {time}",
+      "tomorrow_at": "غدًا، {time}",
+      "waiting": "بانتظار الشبكة",
+      "waiting_body": "التغييرات التي أجريتها دون اتصال تُرسل عند عودة الاتصال."
+    },
+    "search": {
+      "no_recent": "تظهر هنا عمليات بحثك الأخيرة.",
+      "placeholder": "البحث في البريد…",
+      "recent": "عمليات البحث الأخيرة"
+    },
+    "shortcuts": {
+      "calendar": "التقويم",
+      "compose": "إنشاء رسالة",
+      "contacts": "جهات الاتصال",
+      "files": "الملفات"
+    },
+    "state": {
+      "error": "تعذّر عرض هذه الأداة",
+      "loading": "جارٍ التحميل…",
+      "open_app": "افتح التطبيق مرة واحدة إذا بقيت فارغة.",
+      "open_to_load": "افتح Bulwark لتحميل هذا",
+      "signed_out": "سجّل الدخول إلى Bulwark"
+    },
+    "storage": {
+      "no_limit": "لا يوجد حد للتخزين",
+      "title": "التخزين",
+      "unavailable": "لا توجد معلومات عن الحصة",
+      "used_of": "{used} من {total}"
+    },
+    "tag": {
+      "empty": "لا توجد وسوم بعد",
+      "empty_body": "تظهر هنا الوسوم التي تضيفها في التطبيق.",
+      "messages": "{count, plural, zero {رسالة} one {رسالة} two {رسالتان} few {رسائل} many {رسالة} other {رسالة}}",
+      "total": "{count, plural, zero {# رسالة} one {رسالة واحدة} two {رسالتان} few {# رسائل} many {# رسالة} other {# رسالة}}"
+    },
+    "tasks": {
+      "all_done": "تم إنجاز كل شيء",
+      "empty": "لا توجد مهام مفتوحة",
+      "mark_complete": "تمييز كمنجزة",
+      "mark_incomplete": "تمييز كغير منجزة",
+      "no_title": "(بلا عنوان)",
+      "off": "المهام متوقفة",
+      "off_body": "فعّل المهام من إعدادات التقويم في التطبيق",
+      "open_count": "{count} مفتوحة",
+      "overdue": "متأخرة",
+      "still_open": "{count} ما زالت مفتوحة",
+      "title": "المهام",
+      "today": "اليوم",
+      "tomorrow": "غدًا"
+    },
+    "vacation": {
+      "active": "مفعّلة",
+      "inactive": "غير مفعّلة",
+      "subject": "الموضوع: {subject}",
+      "title": "الرد التلقائي أثناء الغياب",
+      "unsupported": "الردود التلقائية أثناء الغياب غير متاحة",
+      "until": "حتى {date}"
+    }
   }
 }

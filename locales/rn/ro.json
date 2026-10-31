@@ -3,7 +3,10 @@
     "after": "După",
     "before": "Înainte de",
     "no_attachment": "Fără atașamente",
-    "not_starred": "Fără stea"
+    "not_starred": "Fără stea",
+    "advanced_filters_count": "{name}, active: {count}",
+    "larger_than_kb": "Mai mare de {size} KB",
+    "smaller_than_kb": "Mai mic de {size} KB"
   },
   "calendar": {
     "alerts": {
@@ -26,7 +29,8 @@
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
       "nothing_planned": "Nimic planificat. Atinge pentru a crea.",
-      "tap_to_create": "Atingeți + pentru a crea unul"
+      "tap_to_create": "Atingeți + pentru a crea unul",
+      "copy_title_short": "Titlu"
     },
     "fab": {
       "event": "Eveniment",
@@ -70,7 +74,11 @@
       "trust_authentication_missing": "Expeditorul nu a putut fi verificat.",
       "trust_sender_mismatch": "Expeditorul diferă de organizatorul evenimentului.",
       "trust_sender_mismatch_unverified": "Expeditorul nu corespunde organizatorului, iar mesajul nu este autentificat.",
-      "trust_verified": "Expeditor verificat"
+      "trust_verified": "Expeditor verificat",
+      "cancel_outdated": "Calendarul tău are o versiune a acestui eveniment mai nouă decât această anulare.",
+      "remove_error": "Evenimentul nu a putut fi eliminat",
+      "remove_from_calendar": "Elimină din calendar",
+      "removed_from_calendar": "Eliminat din calendarul tău."
     },
     "management": {
       "clear_confirm": "Eliminați tot",
@@ -80,7 +88,12 @@
       "delete_title": "Ștergeți calendarul?",
       "description_placeholder": "Opțional",
       "edit_calendar": "Editați calendarul",
-      "new_calendar": "Calendar nou"
+      "new_calendar": "Calendar nou",
+      "color_invalid": "Introduceți o culoare din șase cifre hex, cu sau fără #, de exemplu #3b82f6.",
+      "custom_color": "Culoare personalizată (hex)",
+      "description_field": "Descriere",
+      "fewer_colors": "Mai puține culori",
+      "more_colors": "Mai multe culori"
     },
     "notifications": {
       "channel_name": "Mementouri din calendar",
@@ -91,7 +104,9 @@
     },
     "occurrence_not_found_again": "Modificarea nu a fost salvată: ocurența nu a mai putut fi găsită pe server. Încercați din nou.",
     "participants": {
-      "limit_warning": "Mai mult de {max, plural, one {# participant} few {# participanți} other {# de participanți}}, inclusiv organizatorul: serverul poate refuza salvarea acestui eveniment. Un administrator poate mări limita."
+      "limit_warning": "Mai mult de {max, plural, one {# participant} few {# participanți} other {# de participanți}}, inclusiv organizatorul: serverul poate refuza salvarea acestui eveniment. Un administrator poate mări limita.",
+      "group_members": "{count, plural, one {# membru} few {# membri} other {# de membri}}",
+      "remove_named": "Elimină {name}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {ocurență} few {ocurențe} other {de ocurențe}}",
@@ -127,7 +142,10 @@
       "not_a_feed": "Adresa URL nu a returnat un flux iCalendar",
       "not_synced": "Nesincronizat încă",
       "url_scheme_invalid": "Adresa URL trebuie să înceapă cu https://, http://, webcal:// sau webcals://",
-      "your_subscriptions": "Abonamentele dvs."
+      "your_subscriptions": "Abonamentele dvs.",
+      "account_changed": "Contul s-a schimbat în timp ce abonamentul se sincroniza. Abonamentul se va sincroniza din nou în propriul cont.",
+      "feed_truncated": "Fluxul a fost întrerupt înainte de sfârșit. Nu s-a modificat nimic.",
+      "mass_removal": "Fluxul a omis dintr-odată {count} din cele {total} evenimente. Au fost păstrate, în caz că fluxul este defect."
     },
     "tasks": {
       "add_placeholder": "Adăugați o sarcină…",
@@ -136,15 +154,23 @@
       "delete_error": "Sarcina nu a putut fi ștearsă",
       "not_found": "Această sarcină nu mai este disponibilă.",
       "save_error": "Sarcina nu a putut fi salvată",
-      "update_error": "Sarcina nu a putut fi actualizată"
+      "update_error": "Sarcina nu a putut fi actualizată",
+      "delete_confirm": "Ștergeți această sarcină?"
     },
     "views": {
       "schedule": "Program",
-      "three_days": "3 zile"
+      "three_days": "3 zile",
+      "n_days": "{count} zile"
     },
     "detail": {
-      "delete_confirm": "Doriți să ștergeți acest eveniment?"
-    }
+      "delete_confirm": "Doriți să ștergeți acest eveniment?",
+      "location_hint": "Deschide locația; apăsați lung pentru a o copia"
+    },
+    "a11y": {
+      "event_count": "{count, plural, one {# eveniment} few {# evenimente} other {# de evenimente}}"
+    },
+    "account_changed": "Contul s-a schimbat în timp ce calendarul se încărca sau se salva.",
+    "change_month_named": "{month}, schimbați luna"
   },
   "common": {
     "add": "Adăugați",
@@ -255,7 +281,11 @@
       "into_address_book": "Importați în agendă",
       "into_named": "Importați în {name}",
       "no_address_book": "Creați o agendă înainte de a importa contacte.",
-      "picker_failed": "Selectorul de fișiere nu a putut fi deschis"
+      "picker_failed": "Selectorul de fișiere nu a putut fi deschis",
+      "replaces": "Înlocuiește {name}",
+      "unnamed": "Contact fără nume",
+      "update_existing": "Actualizați contactele existente",
+      "updated_count": "{count, plural, one {Un contact exista deja și a fost actualizat.} few {# contacte existau deja și au fost actualizate.} other {# de contacte existau deja și au fost actualizate.}}"
     },
     "no_tags_hint": "Nu există încă etichete. Introduceți una mai sus.",
     "picker": {
@@ -265,11 +295,19 @@
     "rename_tag_hint_mobile": "Apăsați lung o etichetă pentru a o redenumi",
     "tag_name_placeholder": "Numele noii etichete",
     "unnamed": "Fără nume",
-    "delete_confirm_title": "Șterge contactul"
+    "delete_confirm_title": "Șterge contactul",
+    "directory": {
+      "restricted_hint": "Serverul dvs. de e-mail afișează doar conturile cu care lucrați deja, cum ar fi grupurile dvs. și persoanele care partajează cu dvs.",
+      "restricted_queries_off": "Serverul dvs. de e-mail afișează doar conturile cu care lucrați deja, cum ar fi grupurile dvs. și persoanele care partajează cu dvs. Un administrator poate activa interogările de director pentru a afișa pe toată lumea."
+    }
   },
   "context_menu": {
     "color_tag": "Etichetă",
-    "remove_color": "Eliminați eticheta"
+    "remove_color": "Eliminați eticheta",
+    "emails_selected": "{count, plural, one {# e-mail selectat} few {# e-mailuri selectate} other {# de e-mailuri selectate}}",
+    "rules": {
+      "login_changed": "Ați schimbat contul, așa că regula nu a fost salvată"
+    }
   },
   "device_sync": {
     "auth_problem_text": "Serverul nu mai acceptă autentificarea pentru {account}, așa că contactele și calendarele acestui cont de pe acest dispozitiv nu se mai sincronizează. Autentificați-vă din nou pentru a relua sincronizarea. Modificările făcute pe acest dispozitiv se păstrează.",
@@ -361,7 +399,34 @@
     "uploading_pct": "Se încarcă {pct}%",
     "validation": {
       "subject_required": "Adăugați un subiect"
-    }
+    },
+    "format_plain_text": "Comutați la text simplu",
+    "format_rich_text": "Comutați la text formatat (HTML)",
+    "login_switched_attach_body": "Ați început acest mesaj în {account}. Reveniți la acel cont pentru a atașa fișiere.",
+    "login_switched_body": "Ați început acest mesaj în {account}. Reveniți la acel cont pentru a-l trimite.",
+    "login_switched_save_body": "Ați început acest mesaj în {account}. Reveniți la acel cont pentru a-l salva.",
+    "login_switched_title": "Cont schimbat",
+    "option_encrypt": "Criptați",
+    "option_encrypt_hint": "Doar destinatarii (și dvs.) îl pot citi; fiecare destinatar are nevoie de o cheie",
+    "option_security": "Semnătură și criptare",
+    "option_sign": "Semnați",
+    "option_sign_pgp_hint": "Adăugați o semnătură OpenPGP cu cheia dvs.",
+    "option_sign_smime_hint": "Adăugați o semnătură S/MIME cu certificatul dvs.",
+    "read_receipt_off": "Solicitați confirmare de citire",
+    "secure_failed_title": "Nu se poate semna sau cripta",
+    "secure_missing_keys": "Nu există cheie pentru {recipients}. Importați una din Setări → Criptare.",
+    "secure_no_key": "Pe acest dispozitiv nu există nicio cheie pentru {email}. Importați una din Setări → Criptare.",
+    "secure_offline": "Mesajele semnate sau criptate nu pot aștepta în Căsuța de ieșire. Trimiteți mesajul când sunteți online.",
+    "secure_unlock_reason": "Cheia dvs. semnează acest mesaj.",
+    "send_unconfirmed_body": "Serverul nu a confirmat trimiterea. Verificați folderul Trimise înainte de a trimite din nou. Ciorna dvs. a fost păstrată.",
+    "send_unconfirmed_title": "Trimitere neconfirmată",
+    "toolbar": {
+      "insert_image": "Inserați o imagine"
+    },
+    "undo_send_other_login": "Acest mesaj a fost trimis din alt cont",
+    "undo_send_other_login_body": "Reveniți la {account} pentru a anula trimiterea sau a-l trimite acum. Mesajul pleacă la sfârșitul întârzierii.",
+    "upload_login_switched": "Neîncărcat: contul a fost schimbat",
+    "use_template": "Șablon"
   },
   "email_list": {
     "cross_account_move_offline": "Mutarea între conturi necesită conexiune",
@@ -488,7 +553,10 @@
     },
     "view_dark_mode": "Vizualizați în modul întunecat",
     "view_light_mode": "Vizualizați în modul luminos",
-    "not_spam_short": "Nu este spam"
+    "not_spam_short": "Nu este spam",
+    "quick_reply_login_switched": "Acest mesaj este în alt cont. Reveniți la acel cont pentru a răspunde.",
+    "quick_reply_unconfirmed": "Serverul nu a confirmat trimiterea. Verificați folderul Trimise înainte de a trimite din nou.",
+    "spam_short": "Spam"
   },
   "files": {
     "delete_cascade_hint": "Folderele sunt șterse împreună cu tot conținutul lor. Această acțiune nu poate fi anulată.",
@@ -531,7 +599,29 @@
     "batch_delete_success": "{count, plural, one {1 element șters} few {# elemente șterse} other {# de elemente șterse}}",
     "delete_confirm_message": "Sunteți sigur că doriți să ștergeți „{name}”? Această acțiune nu poate fi anulată.",
     "delete_confirm_title": "Ștergeți resursa",
-    "delete_success": "Șters cu succes"
+    "delete_success": "Șters cu succes",
+    "name_trash": "„.Trash” este numele folderului coș de gunoi de la nivelul superior al fișierelor dvs. Alegeți alt nume.",
+    "settings_behavior": "Comportament",
+    "settings_colored_icons": "Pictograme colorate",
+    "settings_colored_icons_desc": "Folosiți pictograme colorate în locul celor monocrome",
+    "settings_default_sort": "Sortare implicită",
+    "settings_default_sort_desc": "Alegeți sortarea implicită pentru fișiere",
+    "settings_default_view": "Vizualizare implicită",
+    "settings_default_view_desc": "Alegeți între afișarea sub formă de grilă și cea sub formă de listă",
+    "settings_display": "Afișare",
+    "settings_icons": "Pictograme",
+    "settings_show_hidden": "Afișați fișierele ascunse",
+    "settings_show_hidden_desc": "Afișați fișierele și folderele care încep cu un punct",
+    "settings_show_icons": "Afișați pictogramele fișierelor",
+    "settings_show_icons_desc": "Afișați pictograme lângă fișiere și foldere",
+    "settings_show_thumbnails": "Afișați miniaturi",
+    "settings_show_thumbnails_desc": "Afișați previzualizări ale imaginilor în locul pictogramelor pentru fișierele imagine",
+    "settings_sort_direction": "Direcția sortării",
+    "settings_sort_direction_desc": "Alegeți ordinea crescătoare sau descrescătoare",
+    "share_remove_confirm": "Eliminați accesul?",
+    "share_remove_for": "Eliminați accesul pentru {name}",
+    "trash_unavailable_message": "{count, plural, one {Acest element nu poate fi mutat} few {Aceste # elemente nu pot fi mutate} other {Aceste # de elemente nu pot fi mutate}} în coșul de gunoi. Ștergeți definitiv în schimb? Această acțiune nu poate fi anulată.",
+    "upload": "Încărcați"
   },
   "identities": {
     "badge": {
@@ -654,7 +744,26 @@
       "unencrypted": "Conexiune necriptată",
       "use_password": "Autentificați-vă cu o parolă",
       "username_label": "E-mail sau nume de utilizator",
-      "your_server": "serverul dvs."
+      "your_server": "serverul dvs.",
+      "cancel_sign_in": "Anulați autentificarea",
+      "err_client_rejected_detail": "Serverul a refuzat Bulwark drept client de autentificare. Cereți administratorului să îl permită sau autentificați-vă cu o parolă pentru aplicații.",
+      "err_client_rejected_title": "{host} nu a acceptat aplicația",
+      "err_handoff_expired_detail": "Browserul a returnat autentificarea după ce aceasta expirase. Autentificați-vă din nou.",
+      "err_handoff_expired_title": "Autentificarea a durat prea mult",
+      "err_handoff_network_detail": "Webmailul nu a putut fi accesat după autentificare. Verificați conexiunea și autentificați-vă din nou.",
+      "err_handoff_network_title": "Autentificarea nu a putut fi finalizată",
+      "err_handoff_rate_detail": "Așteptați câteva minute, apoi autentificați-vă din nou.",
+      "err_handoff_refused_detail": "Linkul de autentificare a fost deja folosit sau nu provine din această autentificare. Autentificați-vă din nou.",
+      "err_handoff_refused_title": "Webmailul nu a acceptat această autentificare",
+      "err_handoff_server_detail": "Autentificați-vă din nou. Dacă tot nu funcționează, contactați administratorul.",
+      "err_handoff_server_title": "Webmailul nu a putut finaliza autentificarea",
+      "err_token_exchange_title": "{host} nu a pornit o sesiune",
+      "reauth_detail": "Serverul nu mai acceptă autentificarea salvată pentru {account}. Autentificați-vă din nou pentru a folosi în continuare acest cont.",
+      "reauth_title": "Autentificați-vă din nou",
+      "server_cert_active": "Autentificare cu certificatul de client „{alias}”. Atingeți pentru a alege altul.",
+      "server_cert_clear": "Autentificare fără certificat",
+      "server_cert_failed": "Nu s-a putut alege un certificat",
+      "server_cert_hint": "Serverul dvs. cere un certificat de client? Alegeți unul instalat pe acest telefon."
     }
   },
   "offline": {
@@ -691,7 +800,15 @@
     "keep_scheduled": "Păstrați programarea",
     "no_longer_scheduled": "Acest mesaj nu mai este programat.",
     "reschedule_failed": "Reprogramarea a eșuat",
-    "send_now_failed": "Nu s-a putut trimite acum"
+    "send_now_failed": "Nu s-a putut trimite acum",
+    "actions": "Acțiuni",
+    "cancel_to_drafts_body": "Mesajul nu va fi trimis. Revine în Ciorne.",
+    "cancelled_not_moved": "Trimitere anulată, dar mesajul nu a fost mutat în Ciorne",
+    "cancelled_not_moved_body": "Mesajul nu va fi trimis. Este încă în Trimise.",
+    "login_switched": "Aceste mesaje programate aparțin altui cont. Reveniți la acel cont pentru a le modifica.",
+    "reschedule_lost": "Mesajul nu mai este programat. Verificați Ciorne și Trimise înainte de a-l trimite din nou.",
+    "reschedule_lost_drafts": "Mesajul nu mai este programat. A revenit în Ciorne, de unde îl puteți trimite din nou.",
+    "send_cancelled": "Trimitere anulată"
   },
   "settings": {
     "account": {
@@ -735,12 +852,17 @@
       },
       "toolbar_labels": {
         "description_mobile": "Afișați etichete text lângă pictogramele din bara de instrumente."
-      }
+      },
+      "accessibility_link": {
+        "description_mobile": "Dimensiunea textului, mișcarea redusă și presetările de accesibilitate se află pe pagina Accesibilitate."
+      },
+      "description_mobile": "Personalizați aspectul aplicației"
     },
     "badges": {
       "experimental": "Experimental",
       "not_implemented": "Neimplementat",
-      "unavailable": "Indisponibil"
+      "unavailable": "Indisponibil",
+      "not_on_server": "Nu există pe acest server"
     },
     "contacts": {
       "book_count": "{count, plural, one {# contact} few {# contacte} other {# de contacte}}",
@@ -913,6 +1035,9 @@
       "disable_threading": {
         "description": "Afișați e-mailurile ca mesaje individuale, în loc să le grupați pe conversații",
         "label": "Dezactivați gruparea conversațiilor"
+      },
+      "recipient_mentions": {
+        "description_mobile": "Când tastați @ în mesaj, sunt propuși destinatarii acestuia, iar pentru cel ales se inserează prenumele."
       }
     },
     "experimental": {
@@ -946,7 +1071,8 @@
       "save_failed": "Salvarea a eșuat",
       "system_folder_delete": "Folderele de sistem nu pot fi eliminate.",
       "system_folder_rename": "Folderele de sistem nu pot fi redenumite.",
-      "top_level": "Nivel superior"
+      "top_level": "Nivel superior",
+      "parent_folder": "Folder părinte"
     },
     "identities": {
       "cannot_delete": "Identitatea principală nu poate fi eliminată.",
@@ -982,7 +1108,8 @@
         "scan": "Căutați etichete în căsuța poștală"
       },
       "reset_confirm": "Înlocuiți lista de etichete cu etichetele implicite? Etichetele deja aplicate mesajelor rămân pe server.",
-      "reset_defaults": "Resetați la valorile implicite"
+      "reset_defaults": "Resetați la valorile implicite",
+      "delete_confirm_title": "Ștergeți eticheta „{label}”?"
     },
     "layout": {
       "description": "Ajustați interacțiunile listei de e-mailuri pentru mobil.",
@@ -1026,7 +1153,9 @@
       "email": {
         "app_icon_badge": "Numărul de necitite pe pictograma aplicației",
         "app_icon_badge_desc": "Afișează numărul de mesaje necitite din Primite ca insignă pe pictograma aplicației.",
-        "sound_channel_hint": "Sunetul și vibrația alertelor de e-mail sunt controlate de canalul de notificări Android: apăsați lung o notificare sau deschideți setările aplicației din sistem."
+        "sound_channel_hint": "Sunetul și vibrația alertelor de e-mail sunt controlate de canalul de notificări Android: apăsați lung o notificare sau deschideți setările aplicației din sistem.",
+        "mute_account": "Dezactivați notificările pentru acest cont",
+        "mute_account_desc": "Fără alerte pentru e-mailurile noi din acest cont. Apăsați lung un folder din bara laterală pentru a-i dezactiva sau reactiva separat notificările."
       },
       "push": {
         "confirm_disable_message_mobile": "Acest dispozitiv nu va mai primi alerte pentru e-mailurile noi din acest cont.",
@@ -1067,7 +1196,13 @@
         "transport_unifiedpush": "UnifiedPush",
         "up_distributor_desc": "Sunt instalate mai multe aplicații distribuitor UnifiedPush - alegeți-o pe cea care trebuie să livreze notificările.",
         "up_distributor_label": "Distribuitor",
-        "up_no_distributor": "Pe acest dispozitiv nu este instalată nicio aplicație distribuitor UnifiedPush. Instalați una (de exemplu ntfy) și încercați din nou."
+        "up_no_distributor": "Pe acest dispozitiv nu este instalată nicio aplicație distribuitor UnifiedPush. Instalați una (de exemplu ntfy) și încercați din nou.",
+        "accounts_desc_mobile": "Notificări în fundal pentru fiecare cont conectat pe acest dispozitiv. Comutați la un cont pentru a le activa sau dezactiva pentru el.",
+        "err_account_changed": "Contul s-a schimbat în timp ce se configurau notificările push. Încercați din nou.",
+        "err_apns_empty": "iOS a returnat un token push gol.",
+        "err_apns_token": "iOS nu a putut emite un token push ({detail}).",
+        "err_relay_no_apns": "Releul push de la {url} nu livrează încă notificări pe iPhone și iPad.",
+        "err_url_refused": "Serverul de e-mail refuză să trimită notificări către releul de la {url}. Acceptă doar adrese https cu un nume de domeniu public, nu o adresă IP privată sau un nume local precum localhost, .local sau .lan. Folosiți releul găzduit sau dați releului dvs. un nume de domeniu public."
       },
       "calendar": {
         "invitation_parsing": "Analizați invitațiile prin e-mail",
@@ -1102,7 +1237,15 @@
       "window": "Perioadă",
       "window_24h": "Ultimele 24 de ore",
       "window_days": "{count, plural, one {Ultima zi} few {Ultimele # zile} other {Ultimele # de zile}}",
-      "window_desc": "Cât de departe în trecut să se păstreze în cache, după data primirii mesajului."
+      "window_desc": "Cât de departe în trecut să se păstreze în cache, după data primirii mesajului.",
+      "description_short": "Păstrați mesajele recente pe acest telefon, ca să se deschidă fără conexiune.",
+      "keep_24h": "24 de ore",
+      "keep_days": "{count} zile",
+      "keep_from": "Păstrați e-mailurile din ultimele",
+      "messages_offline": "{count, plural, one {# mesaj offline} few {# mesaje offline} other {# de mesaje offline}}",
+      "synced": "Sincronizat {when}",
+      "use_at_most": "Folosiți cel mult",
+      "used_of": "{used} din {limit} MB"
     },
     "plugins": {
       "mobile_description": "Pluginurile rulează în webmail și îl extind în browser.",
@@ -1120,7 +1263,10 @@
         "not_set": "Nesetat",
         "pick": "Alegeți certificatul",
         "pick_failed": "Selectarea a eșuat",
-        "title": "Certificat client TLS"
+        "title": "Certificat client TLS",
+        "clear_message_ios": "Cererile noi nu vor mai prezenta un certificat. Certificatul este eliminat din aplicație; pentru a-l folosi din nou, alegeți din nou fișierul.",
+        "description_ios": "Importă un fișier de certificat pentru autentificarea la server în timpul handshake-ului TLS. Util când proxy-ul invers impune mTLS.",
+        "hint_ios": "Alegeți fișierul de certificat (.p12 sau .pfx) din Fișiere și introduceți parola acestuia."
       },
       "credentials": {
         "allowed_ips": "Adresele IP permise (opțional)",
@@ -1153,7 +1299,10 @@
         "error": "Nu s-a putut schimba parola.",
         "mismatch": "Parolele nu se potrivesc.",
         "toggle_visibility": "Afișați sau ascundeți parola",
-        "too_short": "Noua parolă trebuie să conțină cel puțin 8 caractere."
+        "too_short": "Noua parolă trebuie să conțină cel puțin 8 caractere.",
+        "changed_sign_in_again": "Parola contului dvs. a fost actualizată. Autentificați-vă din nou cu noua parolă.",
+        "session_ended": "Schimbarea parolei a încheiat această sesiune. Autentificați-vă din nou cu noua parolă.",
+        "session_ended_title": "Autentificați-vă din nou"
       },
       "public_keys": {
         "add_error": "Nu s-a putut adăuga cheia publică",
@@ -1183,7 +1332,14 @@
         "no_app_title": "Nicio aplicație de autentificare",
         "open_app": "Adăugați în aplicația de autentificare",
         "password_required": "Introduceți parola curentă.",
-        "section_title": "Autentificare în doi pași"
+        "section_title": "Autentificare în doi pași",
+        "disable_hint_code": "Introduceți parola și un cod din aplicația de autentificare pentru a dezactiva autentificarea în doi pași."
+      },
+      "restricted": "Serverul dvs. permite doar aplicațiilor aprobate de administrator să schimbe parola, autentificarea în doi pași, parolele pentru aplicații și cheile API. Bulwark s-a autentificat fără această aprobare, așa că e-mailul, contactele, calendarele și fișierele funcționează, dar aceste setări nu. Modificați-le în interfața web a serverului sau în webmailul Bulwark.",
+      "screen_privacy": {
+        "block_screenshots": "Blocați capturile de ecran",
+        "block_screenshots_description": "Împiedică capturile și înregistrările de ecran ale aplicației și îi ascunde conținutul în lista aplicațiilor recente.",
+        "title": "Confidențialitatea ecranului"
       }
     },
     "sidebar_apps": {
@@ -1218,7 +1374,10 @@
       "layout": "Aspect",
       "sidebar_apps": "Aplicații din bara laterală",
       "templates": "Șabloane",
-      "themes": "Teme"
+      "themes": "Teme",
+      "about": "Despre",
+      "storage": "Stocare și copie de rezervă",
+      "troubleshooting": "Depanare"
     },
     "templates": {
       "delete_confirm": "Ștergeți definitiv „{name}”?",
@@ -1230,7 +1389,8 @@
       "imported_count": "{count, plural, one {A fost adăugat # șablon.} few {Au fost adăugate # șabloane.} other {Au fost adăugate # de șabloane.}}",
       "is_html": "Corpul este HTML",
       "placeholders_hint": "Câmpuri de substituție: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
-      "share_unavailable": "Nu se poate partaja"
+      "share_unavailable": "Nu se poate partaja",
+      "import_json_label": "Șabloane în format JSON"
     },
     "themes": {
       "default_description": "Paletele implicite, luminoasă și întunecată.",
@@ -1239,6 +1399,18 @@
     "vacation": {
       "warnings": {
         "date_format": "Datele trebuie să fie în formatul \"YYYY-MM-DD\" sau \"YYYY-MM-DD HH:MM\""
+      },
+      "date_range": {
+        "description": "Opțional, limitați răspunsul automat la o anumită perioadă",
+        "title": "Interval de date"
+      },
+      "message": {
+        "description": "Mesajul care va fi trimis ca răspuns",
+        "title": "Mesaj de răspuns automat"
+      },
+      "status": {
+        "ended": "Încheiat",
+        "scheduled": "Programat"
       }
     },
     "composer": {
@@ -1258,6 +1430,124 @@
       "appearance": "Aspect",
       "general": "Generalități",
       "privacy": "Confidențialitate și securitate"
+    },
+    "about": {
+      "check_now": "Verificați acum",
+      "checked_at": "Verificat {when}",
+      "licences": "Licențe open source",
+      "licences_desc": "AGPL-3.0 pentru aplicație și bibliotecile pe care le folosește",
+      "never_checked": "Neverificat încă",
+      "privacy": "Confidențialitate",
+      "privacy_desc": "Ce rămâne pe acest telefon și ce ajunge la serverul dvs.",
+      "report_problem": "Raportați o problemă",
+      "report_problem_desc": "Deschide o problemă pe GitHub, cu versiunea deja completată",
+      "server": "Server",
+      "server_value": "{host} · autentificat ca {user}",
+      "source_code": "Cod sursă",
+      "this_device": "Acest dispozitiv",
+      "this_device_desc": "La ce este conectată aplicația și cum obțineți ajutor.",
+      "up_to_date": "La zi",
+      "updates": "Actualizări"
+    },
+    "accessibility": {
+      "cvd_palette": {
+        "description_mobile": "Folosește pentru etichete și calendare culori care rămân distincte în cazul daltonismului roșu-verde sau albastru-galben."
+      },
+      "font": {
+        "description_ios": "Atkinson Hyperlegible și Lexend sunt concepute pentru a fi ușor de distins; OpenDyslexic ajută unele persoane cu dislexie. Pe acest dispozitiv, fontul este folosit pentru mesajele în text simplu."
+      },
+      "plain_language": {
+        "description_mobile": "Formulări mai simple pentru setări și mesaje de eroare. Disponibil în engleză și germană."
+      },
+      "presets": {
+        "applied_mobile": "{name} a modificat {count, plural, one {# setare} few {# setări} other {# de setări}}",
+        "apply": "Aplicați",
+        "apply_named": "Aplicați {name}",
+        "dyslexia": {
+          "description_mobile": "Atkinson Hyperlegible ca font, inclusiv pentru mesajele în text simplu."
+        },
+        "low-vision": {
+          "description_mobile": "Text la 150% și etichete sub pictogramele din bara de instrumente."
+        },
+        "motion": {
+          "description_mobile": "Fără animații sau tranziții glisante."
+        },
+        "screen-reader": {
+          "description_mobile": "Fără gruparea conversațiilor, astfel încât fiecare mesaj are propriul rând."
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "Dezactivează panourile glisante și tranzițiile. Aplicația face acest lucru și când mișcarea redusă este activată în setările telefonului."
+      },
+      "text_size": {
+        "description_mobile": "Scalează textul aplicației peste dimensiunea textului din telefon. 100% este dimensiunea din telefon."
+      },
+      "toast_duration": {
+        "automatic": "Automat (mai lung cu un cititor de ecran)"
+      }
+    },
+    "backup": {
+      "description": "Mutați setările pe alt telefon sau în webmail.",
+      "export_import": "Export sau import",
+      "export_import_desc": "Un fișier JSON, în același format ca în webmail",
+      "reset": "Resetare",
+      "reset_desc": "Revenire la valorile implicite; e-mailurile rămân",
+      "title": "Copie de rezervă a setărilor"
+    },
+    "licences": {
+      "app_desc": "Aplicația este software liber sub licența {licence}. O puteți folosi, studia, distribui și modifica.",
+      "libraries": "Biblioteci",
+      "libraries_desc": "Codul open source cu care este construită aplicația.",
+      "read_licence": "Citiți textul complet al licenței"
+    },
+    "privacy": {
+      "favicons": "Pictogramele expeditorilor pentru e-mailurile de la firme provin de la serviciul de pictograme DuckDuckGo, care vede domeniul expeditorului. Le puteți dezactiva din Aspect → Favicon-uri ale expeditorului.",
+      "no_tracking": "Aplicația nu are analize și nici reclame.",
+      "other_title": "Alte conexiuni",
+      "phone_backup": "Nimic din toate acestea nu ajunge în copia de rezervă în cloud a Android.",
+      "phone_secure": "Datele dvs. de autentificare sunt păstrate în spațiul de stocare securizat al sistemului. Setările, cache-ul e-mailurilor offline și modificările care așteaptă sincronizarea sunt păstrate în spațiul de stocare propriu al aplicației.",
+      "phone_title": "Pe acest telefon",
+      "push": "Când notificările sunt activate, serverul dvs. îi spune releului push ({relay}) că s-a schimbat ceva, iar releul trezește aplicația prin {service}. Releul vede un token al dispozitivului și un marcaj de modificare, niciodată e-mailurile dvs. Puteți folosi propriul releu din Notificări.",
+      "push_title": "Notificări push",
+      "server": "E-mailurile, calendarele, contactele și fișierele sunt încărcate de pe serverul dvs. și salvate înapoi pe el. În afara conexiunilor de mai jos, aplicația comunică doar cu serverul dvs.",
+      "server_title": "Serverul dvs. de e-mail",
+      "service_apple": "serviciul push al Apple",
+      "service_google": "serviciul push al Google",
+      "updates": "Aplicația verifică pe GitHub cea mai recentă versiune, ca să vă anunțe despre actualizări.",
+      "updates_android": "Aplicația verifică pe GitHub cea mai recentă versiune, ca să vă anunțe despre actualizări. Puteți dezactiva acest lucru din Actualizări."
+    },
+    "summary": {
+      "accessibility": "Dimensiunea textului, mișcare, confirmări",
+      "composing": "Semnătură, amânarea trimiterii, ciorne",
+      "contacts": "Agende de adrese, sortare",
+      "content_senders": "Imagini la distanță, expeditori de încredere",
+      "downloads": "Nume de fișiere pentru e-mailurile salvate",
+      "events_off": "evenimente dezactivate",
+      "events_on": "evenimente activate",
+      "files": "Vizualizare, sortare, miniaturi",
+      "filters": "Reguli pentru e-mailurile primite",
+      "folders": "Creare, redenumire, roluri",
+      "identities": "Adresele de pe care trimiteți",
+      "keywords": "Numele și culorile etichetelor",
+      "layout": "Acțiuni rapide, glisări, ordinea listei",
+      "mail_off": "E-mail dezactivat",
+      "mail_on": "E-mail activat",
+      "offline_off": "E-mail offline dezactivat",
+      "offline_on": "E-mail offline activat · {days, plural, one {# zi} few {# zile} other {# de zile}}, {mb} MB",
+      "reading": "Stare de citire, ștergere, atașamente",
+      "security": "Parolă, autentificare în doi pași, parole pentru aplicații",
+      "sidebar_apps": "Aplicații web în meniul lateral",
+      "templates": "Mesaje reutilizabile",
+      "updates": "Instalarea versiunilor noi",
+      "vacation": "Răspuns automat în absență",
+      "version": "Versiunea {version}",
+      "week_starts": "săptămâna începe {day}"
+    },
+    "troubleshooting": {
+      "cache_desc": "Când o listă pare învechită sau greșită.",
+      "cache_title": "Date din cache",
+      "row_desc": "Reîmprospătarea datelor din cache, jurnal de depanare",
+      "title": "Depanare"
     }
   },
   "sharing": {
@@ -1272,7 +1562,13 @@
     "remove_account_message": "Deconectați {account} de pe acest dispozitiv. E-mailurile rămân pe server.",
     "remove_account_title": "Eliminați contul?",
     "show_unread": "Afișați necitite",
-    "tab_unavailable": "{name} (indisponibil)"
+    "tab_unavailable": "{name} (indisponibil)",
+    "account_sign_in_again": "Autentificați-vă din nou",
+    "sign_out_all_confirm_message": "Toate conturile sunt eliminate de pe acest dispozitiv. Vă puteți autentifica din nou oricând.",
+    "sign_out_all_confirm_title": "Vă deconectați de la toate conturile?",
+    "sign_out_confirm_message": "Contul este eliminat de pe acest dispozitiv. Vă puteți autentifica din nou oricând.",
+    "sign_out_confirm_title": "Vă deconectați?",
+    "sign_out_confirm_title_account": "Vă deconectați de la {account}?"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, one {# cont nu a putut fi încărcat} few {# conturi nu au putut fi încărcate} other {# de conturi nu au putut fi încărcate}}"
@@ -1323,5 +1619,303 @@
     "severity_security": "Securitate",
     "title": "Actualizări aplicație",
     "verifying": "Se verifică…"
+  },
+  "deep_link": {
+    "open_failed": "Nu s-a putut deschide"
+  },
+  "delegates": {
+    "remove_for": "Eliminați accesul pentru {name}"
+  },
+  "encryption": {
+    "armored_key": "Cheie în format ASCII",
+    "banner": {
+      "checking": "Se verifică criptarea și semnătura…",
+      "decrypted": "Decriptat ({kind})",
+      "failed": "Nu s-a putut decripta: {reason}",
+      "invalid": "Semnătură nevalidă ({kind})",
+      "invalid_reason": "Semnătură nevalidă ({kind}): {reason}",
+      "locked": "Criptat ({kind}). Deblocați cheia pentru a-l citi.",
+      "no_key": "Criptat ({kind}) pentru o cheie care nu se află pe acest dispozitiv.",
+      "self_signed": "Certificatul este autosemnat, nu este emis de o autoritate cunoscută.",
+      "signed": "Semnătură validă ({kind})",
+      "signed_by": "Semnătură validă ({kind}) de la {signer}",
+      "signer_mismatch": "Semnatarul nu este expeditorul afișat în câmpul „De la”.",
+      "unknown_key": "Semnat ({kind}) cu o cheie pe care nu ați importat-o.",
+      "unsupported": "Criptat cu {algorithm}, pe care aplicația nu îl poate decripta."
+    },
+    "check_description": "Rulează pe acest dispozitiv toți algoritmii folosiți de PGP și S/MIME.",
+    "check_run": "Rulați verificarea",
+    "check_title": "Verificați suportul pentru criptare",
+    "delete_private_message": "{key} și cheia sa privată sunt eliminate de pe acest dispozitiv. E-mailurile criptate pentru ea nu mai pot fi citite aici decât dacă o importați din nou.",
+    "delete_public_message": "{key} este eliminată de pe acest dispozitiv.",
+    "delete_title": "Ștergeți cheia?",
+    "expired": "A expirat la {date}",
+    "expires": "Expiră la {date}",
+    "find_key": "Căutați o cheie pe keys.openpgp.org",
+    "import": "Import",
+    "import_cert": "Importați un certificat",
+    "import_p12": "Importați un certificat S/MIME (.p12)",
+    "import_pgp_file": "Importați un fișier de cheie PGP",
+    "import_public_file": "Importați un fișier de cheie publică",
+    "imported": "Importat: {key}",
+    "lock": "Blocați",
+    "lock_all": "Blocați toate cheile",
+    "lock_all_description": "Uitați cheile deblocate până când introduceți din nou fraza lor de acces.",
+    "locked": "Blocată",
+    "locked_all": "Chei blocate",
+    "lookup_confirm": "Înainte de import, comparați această amprentă cu cea primită de la proprietar (în persoană, la telefon).",
+    "lookup_none": "Nu s-a găsit nicio cheie.",
+    "lookup_placeholder": "Adresă de e-mail sau amprentă",
+    "lookup_search": "Căutare",
+    "lookup_verified": "Cheia are amprenta pe care ați căutat-o.",
+    "no_other_keys": "Niciuna încă.",
+    "no_own_keys": "Nicio cheie încă.",
+    "not_a_key": "Aceasta nu este o cheie sau un certificat pe care aplicația îl poate citi.",
+    "others_description": "Chei publice și certificate pentru criptare și verificarea semnăturilor. Sunt folosite și cheile din e-mailurile semnate și cele din contactele dvs.",
+    "others_title": "Cheile altor persoane",
+    "own_description": "Semnați și decriptați e-mailuri cu OpenPGP sau S/MIME. Cheile private rămân în spațiul de stocare securizat al acestui dispozitiv și se deblochează cu fraza lor de acces o dată pe sesiune a aplicației.",
+    "own_title": "Cheile dvs.",
+    "p12_password_message": "Introduceți parola cu care a fost exportat fișierul .p12. Veți avea nevoie de ea din nou pentru a debloca cheia după repornirea aplicației.",
+    "p12_password_title": "Parola certificatului",
+    "passphrase": "Frază de acces",
+    "passphrase_message": "Introduceți fraza de acces a acestei chei. Este verificată acum și cerută din nou o dată pe sesiune a aplicației.",
+    "passphrase_title": "Fraza de acces a cheii",
+    "password": "Parolă",
+    "paste_pgp": "Lipiți cheia PGP",
+    "paste_public": "Lipiți cheia publică",
+    "share_cert": "Partajați certificatul",
+    "share_key": "Partajați cheia publică",
+    "tab": "Criptare",
+    "title": "Criptare",
+    "unlock": "Deblocați",
+    "unlock_pgp_message": "Introduceți fraza de acces a cheii PGP {key}.",
+    "unlock_read_reason": "Mesajul este criptat pentru această cheie.",
+    "unlock_smime_message": "Introduceți parola certificatului S/MIME {key}.",
+    "unlock_title": "Deblocați cheia",
+    "unlocked": "Deblocată",
+    "unlocking": "Se deblochează…",
+    "wrong_passphrase": "Fraza de acces nu este corectă."
+  },
+  "notifications": {
+    "vacation_filters_off": "Setările de absență au fost salvate, dar filtrele dvs. sunt dezactivate. Salvați din nou pentru a le reactiva."
+  },
+  "outbox": {
+    "discard": "Renunțați",
+    "discard_body": "Nu va fi trimis, iar textul său se va pierde.",
+    "discard_title": "Renunțați la acest mesaj?",
+    "failed_count": "{count, plural, one {# mesaj netrimis} few {# mesaje netrimise} other {# de mesaje netrimise}}",
+    "move_failed_body": "Mesajul rămâne în Căsuța de ieșire. Încercați din nou când revine conexiunea.",
+    "move_failed_title": "Nu s-a putut muta în Ciorne",
+    "move_to_drafts": "Mutați în Ciorne",
+    "open_hint": "Deschide Căsuța de ieșire",
+    "queued_body": "Va fi trimis imediat ce reveniți online.",
+    "queued_title": "Salvat în Căsuța de ieșire",
+    "retry": "Încercați din nou",
+    "send_failed": "Un mesaj din Căsuța de ieșire nu a putut fi trimis",
+    "sent": "Mesajul din Căsuța de ieșire a fost trimis",
+    "status_failed": "Netrimis",
+    "status_failed_reason": "Netrimis: {reason}",
+    "status_offline": "Se așteaptă conexiunea",
+    "status_retrying": "Așteaptă trimiterea",
+    "status_sending": "Se trimite…",
+    "title": "Căsuța de ieșire",
+    "waiting": "{count, plural, one {# mesaj} few {# mesaje} other {# de mesaje}} în Căsuța de ieșire"
+  },
+  "push": {
+    "ios": {
+      "more_messages": "și încă {count}",
+      "no_subject": "(fără subiect)"
+    }
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "Niciun atașament recent",
+      "from_mail": "din e-mail",
+      "title": "Atașamente",
+      "unknown_sender": "Expeditor necunoscut"
+    },
+    "birthdays": {
+      "empty": "Nicio zi de naștere în curând",
+      "empty_body": "Zilele de naștere provin din contactele dvs.",
+      "in_days": "{count, plural, one {peste # zi} few {peste # zile} other {peste # de zile}}",
+      "send_wishes": "Trimiteți urări",
+      "title": "Zile de naștere",
+      "wishes_subject": "La mulți ani!"
+    },
+    "calendar": {
+      "agenda": "Agendă",
+      "agenda_more": "{day}: {events}",
+      "all_day": "Toată ziua",
+      "join": "Intrați",
+      "join_named": "Intrați în {name}",
+      "more_this_week": "{count, plural, one {Încă # săptămâna aceasta} few {Încă # săptămâna aceasta} other {Încă # săptămâna aceasta}}",
+      "no_more_today": "Niciun alt eveniment astăzi",
+      "nothing_planned": "Nimic în calendar",
+      "now": "Acum",
+      "open": "Deschide",
+      "running_late": "Întârzii",
+      "running_late_body": "Întârzii câteva minute la {title}.",
+      "running_late_subject": "Întârzii: {title}",
+      "today": "Astăzi",
+      "tomorrow": "Mâine",
+      "unit_days": "{count, plural, one {zi} few {zile} other {de zile}}",
+      "unit_hours": "{count, plural, one {oră} few {ore} other {de ore}}",
+      "unit_minutes": "{count, plural, one {min} few {min} other {de min}}",
+      "unsupported": "Calendarul nu este disponibil pe acest server",
+      "untitled": "(fără titlu)",
+      "video_call": "Apel video"
+    },
+    "countdown": {
+      "days": "{count, plural, one {zi} few {zile} other {de zile}}",
+      "empty": "Nu există evenimente viitoare"
+    },
+    "draft": {
+      "edited_at": "Editat {when}",
+      "edited_minutes": "{count, plural, one {Editat acum # min} few {Editat acum # min} other {Editat acum # de min}}",
+      "edited_now": "Editat chiar acum",
+      "empty": "Nicio ciornă",
+      "empty_body": "Mesajele începute și netrimise așteaptă aici.",
+      "keep_writing": "Continuați să scrieți",
+      "title": "Ciorne"
+    },
+    "files": {
+      "empty": "Nu există încă fișiere",
+      "recent": "Modificate recent",
+      "unsupported": "Fișierele nu sunt disponibile pe acest server"
+    },
+    "free": {
+      "busy_until": "Ocupat până la {time}",
+      "free_rest": "Liber tot restul zilei",
+      "free_until": "Liber până la {time}",
+      "mail": "Trimiteți intervalele libere",
+      "mail_subject": "Intervalele mele libere din această săptămână",
+      "no_calendar": "Niciun calendar în acest cont",
+      "then": "apoi {title}",
+      "then_free": "apoi liber"
+    },
+    "hub": {
+      "all_clear": "Sunteți la zi",
+      "mail_unread": "E-mail · {count} necitite",
+      "next": "Următorul",
+      "next_on": "Următorul · {day}",
+      "no_events": "Nu există evenimente viitoare",
+      "now": "Acum",
+      "tasks_due": "Sarcini · {count} scadente"
+    },
+    "invites": {
+      "accept": "Acceptați",
+      "decline": "Refuzați",
+      "empty": "Nicio invitație în așteptare",
+      "label": "Invitație · {name}",
+      "label_plain": "Invitație",
+      "maybe": "Poate",
+      "position": "{index} din {count}"
+    },
+    "mail": {
+      "all_accounts": "Toate conturile",
+      "all_caught_up": "Sunteți la zi",
+      "archive": "Arhivează",
+      "delete": "Șterge",
+      "empty_all_accounts": "Folderele Primite sunt goale",
+      "empty_inbox": "Folderul Primite este gol",
+      "folders": "Foldere",
+      "in_outbox": "{count, plural, one {# modificare în așteptare} few {# modificări în așteptare} other {# de modificări în așteptare}}",
+      "in_outbox_short": "{count} în așteptare",
+      "inbox": "Primite",
+      "more_unread": "+{count} necitite",
+      "no_folders": "Niciun folder de afișat",
+      "no_starred": "Niciun e-mail cu stea",
+      "no_starred_body": "Marcați un mesaj cu stea pentru a-l păstra aici.",
+      "no_subject": "(fără subiect)",
+      "no_unread": "Niciun mesaj necitit în Primite.",
+      "position": "{index} din {count}",
+      "reply": "Răspunde",
+      "scheduled": "Programat",
+      "starred": "Cu stea",
+      "unread": "necitite"
+    },
+    "notice": {
+      "archive": "Nu s-a putut arhiva. Atingeți pentru a reîncerca.",
+      "mark_read": "Nu s-a putut marca drept citit. Atingeți pentru a reîncerca.",
+      "rsvp": "Răspunsul dvs. nu a putut fi trimis. Atingeți pentru a reîncerca.",
+      "task": "„{title}” nu a putut fi actualizată. Atingeți pentru a reîncerca.",
+      "trash": "Nu s-a putut șterge. Atingeți pentru a reîncerca."
+    },
+    "people": {
+      "empty": "Niciun favorit încă",
+      "empty_body": "Aici apar persoanele de la care primiți cele mai multe mesaje.",
+      "favourites": "Favorite"
+    },
+    "relative": {
+      "days": "{count, plural, one {peste # zi} few {peste # zile} other {peste # de zile}}",
+      "hours": "peste {count} h",
+      "minutes": "peste {count} min",
+      "now": "acum"
+    },
+    "scheduled": {
+      "day_at": "{day}, {time}",
+      "empty": "Nimic programat",
+      "empty_body": "Aici apar mesajele pe care le programați pentru mai târziu.",
+      "no_recipient": "(fără destinatar)",
+      "sending": "Se trimite acum",
+      "to": "Către: {name}",
+      "today_at": "Astăzi, {time}",
+      "tomorrow_at": "Mâine, {time}",
+      "waiting": "Se așteaptă rețeaua",
+      "waiting_body": "Modificările făcute offline sunt trimise când reveniți online."
+    },
+    "search": {
+      "no_recent": "Căutările dvs. recente apar aici.",
+      "placeholder": "Căutați în e-mail…",
+      "recent": "Căutări recente"
+    },
+    "shortcuts": {
+      "calendar": "Calendar",
+      "compose": "Compune",
+      "contacts": "Contacte",
+      "files": "Fișiere"
+    },
+    "state": {
+      "error": "Acest widget nu a putut fi afișat",
+      "loading": "Se încarcă…",
+      "open_app": "Deschideți aplicația o dată dacă rămâne gol.",
+      "open_to_load": "Deschideți Bulwark pentru a încărca datele",
+      "signed_out": "Autentificați-vă în Bulwark"
+    },
+    "storage": {
+      "no_limit": "Fără limită de stocare",
+      "title": "Stocare",
+      "unavailable": "Nicio informație despre cotă",
+      "used_of": "{used} din {total}"
+    },
+    "tag": {
+      "empty": "Nicio etichetă încă",
+      "empty_body": "Etichetele adăugate în aplicație apar aici.",
+      "messages": "{count, plural, one {mesaj} few {mesaje} other {de mesaje}}",
+      "total": "{count, plural, one {# mesaj} few {# mesaje} other {# de mesaje}}"
+    },
+    "tasks": {
+      "all_done": "Totul e gata",
+      "empty": "Nicio sarcină deschisă",
+      "mark_complete": "Marcați ca finalizată",
+      "mark_incomplete": "Marcați ca nefinalizată",
+      "no_title": "(fără titlu)",
+      "off": "Sarcinile sunt dezactivate",
+      "off_body": "Activați sarcinile în setările de calendar ale aplicației",
+      "open_count": "{count} deschise",
+      "overdue": "Restante",
+      "still_open": "{count} încă deschise",
+      "title": "Sarcini",
+      "today": "Astăzi",
+      "tomorrow": "Mâine"
+    },
+    "vacation": {
+      "active": "Activ",
+      "inactive": "Inactiv",
+      "subject": "Subiect: {subject}",
+      "title": "Răspuns automat de vacanță",
+      "unsupported": "Răspunsurile de vacanță nu sunt disponibile",
+      "until": "Până la {date}"
+    }
   }
 }
