@@ -49,6 +49,7 @@ export default function EmailStep({
       </View>
 
       <Input
+        accessibilityLabel={t('login.username_label', 'Email')}
         placeholder={t('login.username_placeholder', 'user@example.com')}
         value={value}
         onChangeText={onChange}

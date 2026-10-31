@@ -318,7 +318,7 @@ export function FolderSettings() {
             </View>
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.fieldLabel}>{t('settings.folders.folder_name', 'Folder name')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('settings.folders.folder_name', 'Folder name')}
                 value={draftName}
                 onChangeText={setDraftName}
                 placeholder={t('settings.folders.name_placeholder', 'Receipts')}

@@ -2,6 +2,7 @@ import React from 'react';
 import { TextInput as RNTextInput, View, Text, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { inputAccessibility } from './input-a11y';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -48,6 +49,7 @@ export default function Input({
         <RNTextInput
           ref={ref}
           {...props}
+          {...inputAccessibility({ label, error, placeholder: props.placeholder, accessibilityLabel: props.accessibilityLabel, accessibilityHint: props.accessibilityHint })}
           style={[styles.input, style]}
           placeholderTextColor={c.mutedForeground}
           onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}

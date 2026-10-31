@@ -141,6 +141,9 @@
     "views": {
       "schedule": "日程",
       "three_days": "3 天"
+    },
+    "detail": {
+      "delete_confirm": "删除这个活动吗？"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "添加标签",
       "delete_confirm_mobile": "{count, plural, other {删除 # 位联系人？此操作无法撤销。}}",
       "move_to_address_book": "移至通讯录",
-      "tag_failed": "添加标签失败"
+      "tag_failed": "添加标签失败",
+      "delete_confirm_title": "删除联系人"
     },
     "contact": "联系人",
     "create_hint_mobile": "长按可改为创建群组",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "长按标签可重命名",
     "tag_name_placeholder": "新标签名称",
-    "unnamed": "未命名"
+    "unnamed": "未命名",
+    "delete_confirm_title": "删除联系人"
   },
   "context_menu": {
     "color_tag": "标签",
@@ -481,7 +486,9 @@
       "no_identity": "没有可用的发送身份"
     },
     "view_dark_mode": "以深色模式查看",
-    "view_light_mode": "以浅色模式查看"
+    "view_light_mode": "以浅色模式查看",
+    "not_spam_short": "非垃圾邮件",
+    "spam_short": "垃圾邮件"
   },
   "files": {
     "delete_cascade_hint": "文件夹将连同其中的所有内容一起删除。此操作无法撤销。",
@@ -519,7 +526,12 @@
     "symlink": "符号链接",
     "upload_failed": "{count, plural, one {1 个文件未能上传} other {# 个文件未能上传}}",
     "upload_unavailable": "此版本未安装文件选择器。请重新构建应用以启用上传。",
-    "uploading_progress": "正在上传 {current}/{total} · {name}"
+    "uploading_progress": "正在上传 {current}/{total} · {name}",
+    "batch_delete_confirm_message": "确定要删除{count, plural, one {1 个项目} other {# 个项目}}吗？此操作无法撤销。",
+    "batch_delete_success": "{count, plural, one {已删除 1 个项目} other {已删除 # 个项目}}",
+    "delete_confirm_message": "您确定要删除\"{name}\"吗？此操作无法撤消。",
+    "delete_confirm_title": "删除资源",
+    "delete_success": "删除成功"
   },
   "identities": {
     "badge": {
@@ -888,6 +900,10 @@
         "sync_add_failed": "无法同步到通讯录",
         "sync_remove_failed": "无法从通讯录中移除",
         "synced_badge": "已通过通讯录同步"
+      },
+      "disable_threading": {
+        "description": "将邮件显示为独立消息，而不是按会话分组",
+        "label": "禁用对话分组"
       }
     },
     "experimental": {
@@ -897,7 +913,9 @@
       "remove_action": "移除操作",
       "remove_condition": "移除条件",
       "sieve_editor": {
-        "line_count": "{count, plural, other {# 行}}"
+        "line_count": "{count, plural, other {# 行}}",
+        "confirm_save": "确认保存",
+        "save_warning": "保存将覆盖所有可视化规则，此操作无法撤销。再次点击\"保存\"以确认。"
       },
       "validation_header_name": "请输入仅包含字母 A-Z、数字、连字符和下划线的标头名称，例如 X-Spam-Flag。"
     },
@@ -941,7 +959,8 @@
       "no_name": "（无名称）",
       "primary": "主要",
       "save_failed": "保存失败",
-      "text_signature": "纯文本签名"
+      "text_signature": "纯文本签名",
+      "title": "发送身份"
     },
     "keywords": {
       "description_mobile": "用于整理邮件的彩色标签。",
@@ -1040,6 +1059,10 @@
         "up_distributor_desc": "已安装多个 UnifiedPush 分发器应用，请选择用于传送通知的应用。",
         "up_distributor_label": "分发器",
         "up_no_distributor": "此设备上未安装 UnifiedPush 分发器应用。请安装一个（例如 ntfy）后重试。"
+      },
+      "calendar": {
+        "invitation_parsing": "解析邮件邀请",
+        "invitation_parsing_desc": "检测邮件附件中的日历邀请并显示日历操作"
       }
     },
     "offline": {
@@ -1177,7 +1200,16 @@
     },
     "tabs": {
       "plugins": "插件",
-      "updates": "更新"
+      "updates": "更新",
+      "content_senders": "内容和发件人",
+      "downloads": "下载",
+      "identities": "身份",
+      "keywords": "标签",
+      "language": "语言、地区与时间",
+      "layout": "布局",
+      "sidebar_apps": "侧边栏应用",
+      "templates": "模板",
+      "themes": "主题"
     },
     "templates": {
       "delete_confirm": "永久删除“{name}”？",
@@ -1199,6 +1231,24 @@
       "warnings": {
         "date_format": "日期格式必须为“YYYY-MM-DD”或“YYYY-MM-DD HH:MM”"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "每分钟",
+        "2m": "每 2 分钟",
+        "30s": "每 30 秒",
+        "5m": "每 5 分钟",
+        "description": "自动保存草稿的频率",
+        "label": "自动保存间隔"
+      },
+      "description": "配置邮件撰写相关设置",
+      "title": "邮件撰写"
+    },
+    "tab_groups": {
+      "advanced": "高级",
+      "appearance": "外观",
+      "general": "通用",
+      "privacy": "隐私和安全"
     }
   },
   "sharing": {

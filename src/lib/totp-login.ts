@@ -19,6 +19,9 @@
 //   `consent: true`, knows only registered clients and answers
 //   `{ type: "authenticated", location }`, the redirect URI carrying the code.
 //   A body without `query` gets a 400 "JSON deserialization failed".
+//   1.0.1 may answer `{ type: "consentRequired", token }` instead (no
+//   `consent` sent and no grant yet); the app then posts `authConsent` with
+//   the token and the same query (readStalwartLoginResponse, answerConsent).
 // Neither rejects fields it doesn't know, so one body serves both.
 //
 // Token auth also survives TOTP rotation, unlike Basic auth, which would have
@@ -29,6 +32,7 @@ import { sha256Hex } from './sha256';
 import { base64UrlEncode, randomBytes, randomHex } from './random';
 import { HANDOFF_REDIRECT_URI, type OAuthTokens } from './oauth';
 import { NetworkError } from '../api/jmap-client';
+import { signalWithTimeout, throwIfCancelled } from './sign-in-abort';
 
 // Stalwart 0.16's built-in OAuth accepts any client id; the webmail's public
 // one keeps refresh behaviour identical to the browser-handoff bundle.
@@ -134,13 +138,6 @@ function rememberClient(base: string, client: LoginClient): void {
   loginClients.set(base, client);
 }
 
-function withTimeout(ms: number): { signal?: AbortSignal; done: () => void } {
-  if (typeof AbortController === 'undefined') return { done: () => undefined };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return { signal: controller.signal, done: () => clearTimeout(timer) };
-}
-
 // The password and the PKCE verifier must not follow a redirect to another
 // host. The requests go out with fetchWithoutForeignRedirect, which hands such
 // a redirect back unfollowed; where the platform followed it anyway, the
@@ -163,8 +160,12 @@ function assertSameServer(requested: string, response: Response): void {
  * names, which may be on the public address it advertises rather than the one
  * the user typed; the id is sealed with the server's key, so it serves both.
  */
-async function registerPublicClient(base: string, url = `${base}/auth/register`): Promise<LoginClient> {
-  const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
+async function registerPublicClient(
+  base: string,
+  url = `${base}/auth/register`,
+  signal?: AbortSignal,
+): Promise<LoginClient> {
+  const t = signalWithTimeout(signal, CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetchWithoutForeignRedirect(url, {
@@ -182,6 +183,7 @@ async function registerPublicClient(base: string, url = `${base}/auth/register`)
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   } finally {
     t.done();
@@ -207,6 +209,7 @@ async function checkClient(
   base: string,
   clientId: string,
   redirectUri: string,
+  signal?: AbortSignal,
 ): Promise<'known' | 'unknown' | 'none' | 'busy'> {
   const query = new URLSearchParams({
     response_type: 'code',
@@ -217,7 +220,7 @@ async function checkClient(
     code_challenge_method: 'S256',
   });
   const url = `${base}/api/auth/client?${query.toString()}`;
-  const t = withTimeout(CLIENT_CHECK_TIMEOUT_MS);
+  const t = signalWithTimeout(signal, CLIENT_CHECK_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetchWithoutForeignRedirect(url, {
@@ -226,6 +229,7 @@ async function checkClient(
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   } finally {
     t.done();
@@ -253,14 +257,15 @@ async function checkClient(
  */
 export async function resolveLoginClient(
   serverUrl: string,
-  opts?: { registrationEndpoint?: string },
+  opts?: { registrationEndpoint?: string; signal?: AbortSignal },
 ): Promise<LoginClient> {
   const base = trimBase(serverUrl);
   const cached = loginClients.get(base);
   if (cached) return cached;
   const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+  const signal = opts?.signal;
 
-  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI);
+  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, signal);
   if (own === 'busy') return fallback;
   if (own === 'known') {
     const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI };
@@ -268,11 +273,11 @@ export async function resolveLoginClient(
     return client;
   }
   if (own === 'unknown') {
-    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI);
+    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI, signal);
     if (shared === 'busy') return fallback;
     if (shared === 'unknown') {
       const endpoint = opts?.registrationEndpoint;
-      return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined);
+      return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined, signal);
     }
   }
   rememberClient(base, fallback);
@@ -329,7 +334,12 @@ export type StalwartLoginOutcome =
    * client, redirect URI not registered, scope not allowed), before looking
    * at the credentials.
    */
-  | { kind: 'rejected'; error: string; description?: string };
+  | { kind: 'rejected'; error: string; description?: string }
+  /**
+   * Stalwart 1.0.1 wants the user's consent for this client first: answered
+   * with an `authConsent` request carrying `token` (answerConsent).
+   */
+  | { kind: 'consent_required'; token: string };
 
 function locationParams(location: string): URLSearchParams | null {
   // A private-use scheme isn't something every URL parser takes apart, so
@@ -358,6 +368,11 @@ export function readStalwartLoginResponse(body: unknown, state: string): Stalwar
     }
     case 'mfaRequired':
       return { kind: 'mfa_required' };
+    case 'consentRequired':
+      // It used to fall through to "wrong password".
+      return typeof res.token === 'string' && res.token
+        ? { kind: 'consent_required', token: res.token }
+        : { kind: 'rejected', error: 'consent_required' };
     case 'invalid':
       return {
         kind: 'rejected',
@@ -379,32 +394,23 @@ export function readStalwartLoginResponse(body: unknown, state: string): Stalwar
   }
 }
 
-async function requestLoginCode(
+async function postLoginRequest(
   base: string,
-  username: string,
-  password: string,
-  totp: string | undefined,
-  client: LoginClient,
-  challenge: string,
+  payload: Record<string, unknown>,
+  state: string,
+  signal?: AbortSignal,
 ): Promise<StalwartLoginOutcome> {
-  const state = randomHex(16);
   const url = `${base}/api/auth`;
   let loginResponse: Response;
   try {
     loginResponse = await fetchWithoutForeignRedirect(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(stalwartLoginBody({
-        username,
-        password,
-        totp,
-        clientId: client.clientId,
-        redirectUri: client.redirectUri,
-        codeChallenge: challenge,
-        state,
-      })),
+      body: JSON.stringify(payload),
+      signal,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   }
   assertSameServer(url, loginResponse);
@@ -423,6 +429,47 @@ async function requestLoginCode(
 }
 
 /**
+ * Answers Stalwart 1.0.1's `consentRequired` with `authConsent` for the same
+ * authorization request (`query`). The user typed the password into the
+ * app's own sign-in form for this account, which is the consent the browser
+ * page would ask for. A second consentRequired is not answered again.
+ */
+export async function answerConsent(
+  base: string,
+  token: string,
+  query: string,
+  state: string,
+  signal?: AbortSignal,
+): Promise<StalwartLoginOutcome> {
+  const outcome = await postLoginRequest(base, { type: 'authConsent', token, query, consent: true }, state, signal);
+  return outcome.kind === 'consent_required' ? { kind: 'rejected', error: 'consent_required' } : outcome;
+}
+
+async function requestLoginCode(
+  base: string,
+  username: string,
+  password: string,
+  totp: string | undefined,
+  client: LoginClient,
+  challenge: string,
+  signal?: AbortSignal,
+): Promise<StalwartLoginOutcome> {
+  const state = randomHex(16);
+  const payload = stalwartLoginBody({
+    username,
+    password,
+    totp,
+    clientId: client.clientId,
+    redirectUri: client.redirectUri,
+    codeChallenge: challenge,
+    state,
+  });
+  const outcome = await postLoginRequest(base, payload, state, signal);
+  if (outcome.kind !== 'consent_required') return outcome;
+  return answerConsent(base, outcome.token, String(payload.query), state, signal);
+}
+
+/**
  * Exchange username + password (+ TOTP) for an OAuth token bundle. Throws
  * `LoginEndpointMissingError` when the server predates the structured
  * endpoint (404) so the caller can fall back to legacy Basic auth,
@@ -434,26 +481,28 @@ export async function exchangePasswordForTokens(
   username: string,
   password: string,
   totp?: string,
-  opts?: { clientId?: string; redirectUri?: string },
+  opts?: { clientId?: string; redirectUri?: string; signal?: AbortSignal },
 ): Promise<OAuthTokens> {
   const base = trimBase(serverUrl);
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
+  const signal = opts?.signal;
+  throwIfCancelled(signal);
 
   let client: LoginClient = opts?.clientId
     ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI }
-    : await resolveLoginClient(base);
-  let outcome = await requestLoginCode(base, username, password, totp, client, challenge);
+    : await resolveLoginClient(base, { signal });
+  let outcome = await requestLoginCode(base, username, password, totp, client, challenge, signal);
   // A remembered client the server no longer knows (another server now
   // answers at the address, or its key changed), or the default taken while
   // the client check failed: ask again, once. 1.0 checks the client before
   // the credentials, so this costs no failed sign-in.
   if (outcome.kind === 'rejected' && outcome.error === 'invalid_client' && !opts?.clientId) {
     loginClients.delete(base);
-    const fresh = await resolveLoginClient(base);
+    const fresh = await resolveLoginClient(base, { signal });
     if (fresh.clientId !== client.clientId) {
       client = fresh;
-      outcome = await requestLoginCode(base, username, password, totp, client, challenge);
+      outcome = await requestLoginCode(base, username, password, totp, client, challenge, signal);
     }
   }
 
@@ -464,6 +513,9 @@ export async function exchangePasswordForTokens(
       throw new TotpLoginError('totp_required', 'TOTP_REQUIRED');
     case 'invalid_credentials':
       throw new TotpLoginError('invalid_credentials', 'Invalid username, password or code');
+    case 'consent_required':
+      // answerConsent never hands this back; for the type checker.
+      throw new TotpLoginError('login_failed', 'Sign-in refused: consent_required');
     case 'rejected':
       throw new TotpLoginError(
         outcome.error === 'missing_code' || outcome.error === 'state_mismatch' ? 'login_failed' : 'client_rejected',
@@ -486,8 +538,10 @@ export async function exchangePasswordForTokens(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: tokenParams.toString(),
+      signal,
     });
   } catch (err) {
+    throwIfCancelled(signal);
     throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
   }
   assertSameServer(tokenUrl, tokenResponse);

@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Planning",
       "three_days": "3 jours"
+    },
+    "detail": {
+      "delete_confirm": "Supprimer cet événement ?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Ajouter une catégorie",
       "delete_confirm_mobile": "{count, plural, one {Supprimer # contact ? Cette action est irréversible.} other {Supprimer # contacts ? Cette action est irréversible.}}",
       "move_to_address_book": "Déplacer vers un carnet d'adresses",
-      "tag_failed": "Échec de l'ajout de la catégorie"
+      "tag_failed": "Échec de l'ajout de la catégorie",
+      "delete_confirm_title": "Supprimer les contacts"
     },
     "contact": "Contact",
     "create_hint_mobile": "Appuyez longuement pour créer plutôt un groupe",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Appuyez longuement sur une catégorie pour la renommer",
     "tag_name_placeholder": "Nom de la nouvelle catégorie",
-    "unnamed": "Sans nom"
+    "unnamed": "Sans nom",
+    "delete_confirm_title": "Supprimer le contact"
   },
   "context_menu": {
     "color_tag": "Étiquette",
@@ -486,7 +491,8 @@
       "no_identity": "Aucune identité d'envoi disponible"
     },
     "view_dark_mode": "Afficher en mode sombre",
-    "view_light_mode": "Afficher en mode clair"
+    "view_light_mode": "Afficher en mode clair",
+    "not_spam_short": "Non spam"
   },
   "files": {
     "delete_cascade_hint": "Les dossiers sont supprimés avec tout leur contenu. Cette action est irréversible.",
@@ -524,7 +530,12 @@
     "symlink": "Lien symbolique",
     "upload_failed": "{count, plural, one {1 fichier n'a pas pu être téléversé} other {# fichiers n'ont pas pu être téléversés}}",
     "upload_unavailable": "Le sélecteur de fichiers n'est pas installé dans cette version. Recompilez l'application pour activer le téléversement.",
-    "uploading_progress": "Téléversement {current}/{total} · {name}"
+    "uploading_progress": "Téléversement {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Êtes-vous sûr de vouloir supprimer {count, plural, one {1 élément} other {# éléments}} ? Cette action est irréversible.",
+    "batch_delete_success": "{count, plural, one {1 élément supprimé} other {# éléments supprimés}}",
+    "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer \"{name}\" ? Cette action est irréversible.",
+    "delete_confirm_title": "Supprimer la ressource",
+    "delete_success": "Supprimé avec succès"
   },
   "identities": {
     "badge": {
@@ -893,6 +904,10 @@
         "sync_add_failed": "Impossible de synchroniser avec le carnet d'adresses",
         "sync_remove_failed": "Impossible de retirer du carnet d'adresses",
         "synced_badge": "Synchronisé via le carnet d'adresses"
+      },
+      "disable_threading": {
+        "description": "Afficher les e-mails comme messages individuels plutôt que groupés par conversation",
+        "label": "Désactiver le regroupement par conversation"
       }
     },
     "experimental": {
@@ -902,7 +917,9 @@
       "remove_action": "Supprimer l'action",
       "remove_condition": "Supprimer la condition",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# ligne} other {# lignes}}"
+        "line_count": "{count, plural, one {# ligne} other {# lignes}}",
+        "confirm_save": "Confirmer l'enregistrement",
+        "save_warning": "L'enregistrement écrasera toutes les règles visuelles. Cette action est irréversible. Cliquez à nouveau sur Enregistrer pour confirmer."
       },
       "validation_header_name": "Saisissez un nom d'en-tête composé uniquement des lettres A à Z, de chiffres, de tirets et de tirets bas, par exemple X-Spam-Flag."
     },
@@ -946,7 +963,8 @@
       "no_name": "(sans nom)",
       "primary": "principale",
       "save_failed": "Échec de l'enregistrement",
-      "text_signature": "Signature en texte brut"
+      "text_signature": "Signature en texte brut",
+      "title": "Identités d'envoi"
     },
     "keywords": {
       "description_mobile": "Des étiquettes de couleur pour organiser vos e-mails.",
@@ -1045,6 +1063,10 @@
         "up_distributor_desc": "Plusieurs applications de distribution UnifiedPush sont installées - choisissez celle qui doit distribuer les notifications.",
         "up_distributor_label": "Distributeur",
         "up_no_distributor": "Aucune application de distribution UnifiedPush n'est installée sur cet appareil. Installez-en une (par exemple ntfy) et réessayez."
+      },
+      "calendar": {
+        "invitation_parsing": "Analyser les invitations par e-mail",
+        "invitation_parsing_desc": "Détecter les invitations de calendrier dans les pièces jointes et afficher les actions de calendrier"
       }
     },
     "offline": {
@@ -1182,7 +1204,16 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "updates": "Mises à jour"
+      "updates": "Mises à jour",
+      "content_senders": "Contenu et expéditeurs",
+      "downloads": "Téléchargements",
+      "identities": "Identités",
+      "keywords": "Étiquettes",
+      "language": "Langue, région et heure",
+      "layout": "Mise en page",
+      "sidebar_apps": "Apps de la barre latérale",
+      "templates": "Modèles",
+      "themes": "Thèmes"
     },
     "templates": {
       "delete_confirm": "Supprimer définitivement « {name} » ?",
@@ -1204,6 +1235,24 @@
       "warnings": {
         "date_format": "Les dates doivent être au format « YYYY-MM-DD » ou « YYYY-MM-DD HH:MM »"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Toutes les minutes",
+        "2m": "Toutes les 2 minutes",
+        "30s": "Toutes les 30 secondes",
+        "5m": "Toutes les 5 minutes",
+        "description": "Fréquence de sauvegarde automatique des brouillons",
+        "label": "Intervalle de sauvegarde automatique"
+      },
+      "description": "Configurez les paramètres de composition d'email",
+      "title": "Rédaction"
+    },
+    "tab_groups": {
+      "advanced": "Avancé",
+      "appearance": "Apparence",
+      "general": "Général",
+      "privacy": "Confidentialité et sécurité"
     }
   },
   "sharing": {

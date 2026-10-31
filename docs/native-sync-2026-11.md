@@ -60,12 +60,12 @@ Findings:
   - What RN does: .maestro/subflows/stalwart-login-page.yaml types and taps Sign in, then inbox.yaml waits for the tab bar. The app doesn't depend on the order (oauth-native.ts never sends `prompt=consent`). The iOS e2e server (`vars.E2E_SERVER`) is the 0.16 server, so CI isn't affected today.
   - Fix hint: optional `runFlow when visible "Allow"` tap at the end of the subflow.
 
-- [ ] **A `consentRequired` answer reads as a wrong password** — `P3` — `bug`
+- [x] **A `consentRequired` answer reads as a wrong password** — `P3` — `bug` — fixed in 1bef4719
   - What Stalwart does: new answer `{type:'consentRequired', token}` and request `{type:'authConsent', token, query, consent}` in 1.0.1.
   - What RN does: readStalwartLoginResponse maps it to invalid credentials (src/lib/totp-login.ts:344-380). Not reachable while `consent: true` is sent. The webmail has the same gap (lib/auth/stalwart-login-request.ts).
   - Fix hint: answer it with `authConsent` and the same query, or a clear error.
 
-- [ ] **The encrypt-on-upload copy no longer matches the server** — `P3` — `docs`
+- [x] **The encrypt-on-upload copy no longer matches the server** — `P3` — `docs` — fixed in 853cb5d0 (comment; the live compose check is not written)
   - What Stalwart does: 1.0.1 stores JMAP `$draft` messages and the Sent copy unencrypted (crates/email/src/message/ingest.rs:608-611).
   - What RN does: no workaround for encrypted drafts; the comment at src/api/account-security.ts:249-254 says sent mail is encrypted too.
   - Fix hint: fix the comment; a live check in live-stalwart-compose that a draft and the Sent copy read back as text with encryption on.
@@ -134,9 +134,9 @@ current lines is in "Webmail bugs" at the end of this file.
 
 ### UX audit deferred (docs/ux-audit-2026-10.md)
 
-- [ ] **U-133 no way out of a hung "Signing in"** — `P2` — `missing` — src/screens/LoginScreen.tsx:218 swallows Back while busy, SigningInStep has no cancel; abortable sign-in, M
+- [x] **U-133 no way out of a hung "Signing in"** — `P2` — `missing` — src/screens/LoginScreen.tsx:218 swallows Back while busy, SigningInStep has no cancel; abortable sign-in, M — fixed in 55d008a2
 - [ ] **U-069 recipient suggestions hidden in phone landscape** — `P2` — `missing` — needs a full-screen picker, M (feature)
-- [ ] **U-045 German Prev/Next read "Zurück"/"Weiter"** — `P3` — `bug` — override in locales/rn/de.json
+- [x] **U-045 German Prev/Next read "Zurück"/"Weiter"** — `P3` — `bug` — override in locales/rn/de.json — fixed in 25f9b810
 - [ ] **Plain-text mail dark background fixed at #0a0a0a** — `P3` — `partial` — src/lib/email-html.ts:963 ignores the theme
 - [ ] **U-017 system alert vs Dialog, U-136 empty all-day strip, U-124 language order** — product calls, kept deferred unless you say otherwise
 - U-016 scrim token: won't fix (no visible change). U-018 font scale resets navigation: React Native limitation. U-131: done (776447dd).

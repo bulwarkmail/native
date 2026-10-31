@@ -80,6 +80,7 @@ describe('settings search index (English catalog)', () => {
     account: 'AccountSettings.tsx',
     language: 'LanguageSettings.tsx',
     notifications: 'NotificationSettings.tsx',
+    accessibility: 'AccessibilitySettings.tsx',
     appearance: 'AppearanceSettings.tsx',
     layout: 'LayoutSettings.tsx',
     reading: 'ReadingSettings.tsx',
@@ -113,7 +114,10 @@ describe('settings search index (English catalog)', () => {
   }
 
   it('lists settings where the native app shows them', () => {
-    expect(labelsFor('appearance')).toContain('Font Size');
+    // Text size moved to Accessibility (webmail 1.19), with the presets.
+    expect(labelsFor('accessibility')).toContain('Text size');
+    expect(labelsFor('accessibility')).toContain('Low vision');
+    expect(labelsFor('appearance')).not.toContain('Font Size');
     expect(labelsFor('layout')).toContain('Message list order');
     expect(labelsFor('notifications')).toContain('Parse email invitations');
     expect(labelsFor('calendar')).toContain('Show week numbers');
@@ -142,9 +146,9 @@ describe('settings search index (English catalog)', () => {
 describe('buildSettingsSearchIndex', () => {
   it('translates labels through t() for the current locale', () => {
     const index = buildSettingsSearchIndex(en, (key) => translate('de', key));
-    const fontSize = translate('de', 'settings.appearance.font_size.label');
-    expect(index.subResults.appearance?.map((r) => r.label)).toContain(fontSize);
-    expect(index.haystacks.appearance).toContain(fontSize.toLowerCase());
+    const textSize = translate('de', 'settings.accessibility.text_size.label');
+    expect(index.subResults.accessibility?.map((r) => r.label)).toContain(textSize);
+    expect(index.haystacks.accessibility).toContain(textSize.toLowerCase());
   });
 
   it('adds extra sub-results to the pane and its haystack', () => {
@@ -178,11 +182,11 @@ describe('matching', () => {
   });
 
   it('returns the matching settings of a pane, by label or description', () => {
-    expect(subResultsForQuery(index, 'appearance', 'font')).toEqual([
-      { label: 'Font Size', description: 'Adjust text size for better readability' },
+    expect(subResultsForQuery(index, 'accessibility', 'text size')).toEqual([
+      { label: 'Text size', description: "Scales the app's text on top of your phone's text size. 100% is your phone's size." },
     ]);
-    expect(subResultsForQuery(index, 'appearance', 'readability').map((r) => r.label)).toEqual(['Font Size']);
-    expect(subResultsForQuery(index, 'appearance', '')).toEqual([]);
+    expect(subResultsForQuery(index, 'accessibility', 'archived').map((r) => r.label)).toEqual(['Confirm before archiving']);
+    expect(subResultsForQuery(index, 'accessibility', '')).toEqual([]);
   });
 
   it('caps the settings listed under one pane', () => {

@@ -53,10 +53,19 @@ import {
   DEFAULT_CLIENT_ID,
   MOBILE_CLIENT_ID,
   REGISTERED_REDIRECT_URI,
+  STALWART_LOGIN_SCOPE,
+  answerConsent,
   exchangePasswordForTokens,
+  generateCodeChallenge,
+  generateCodeVerifier,
+  readStalwartLoginResponse,
   resolveLoginClient,
   resetLoginClients,
+  stalwartLoginBody,
+  TotpLoginError,
 } from '../../lib/totp-login';
+import { describeLoginError } from '../../lib/login-errors';
+import { fetchMailQuota, serverSupportsQuota, toMailQuota } from '../quota';
 import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
 import {
   HANDOFF_REDIRECT_URI,
@@ -275,6 +284,132 @@ live('live Stalwart sign-in', () => {
         expect((await fetchAuthInfo()).otpEnabled).toBe(false);
       }
     });
+  });
+
+  it('1.0.1: a consentRequired answer is met with authConsent and signs in', async () => {
+    if (!isV1) return;
+    // A client of its own (1.0 ids are sealed, so registering stores
+    // nothing) has no grant yet, so leaving `consent` out gets the question.
+    const reg = await fetch(`${SERVER}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: `Bulwark Mobile consent check ${Date.now()}`,
+        redirect_uris: [REGISTERED_REDIRECT_URI],
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        scope: STALWART_LOGIN_SCOPE,
+      }),
+    });
+    const { client_id: clientId } = (await reg.json()) as { client_id: string };
+    const verifier = generateCodeVerifier();
+    const state = 'consent-state';
+    const body = stalwartLoginBody({
+      username: USER,
+      password: PASS,
+      clientId,
+      redirectUri: REGISTERED_REDIRECT_URI,
+      codeChallenge: generateCodeChallenge(verifier),
+      state,
+    });
+    delete body.consent;
+    const first = await fetch(`${SERVER}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const asked = readStalwartLoginResponse(await first.json(), state);
+    expect(asked.kind).toBe('consent_required');
+    if (asked.kind !== 'consent_required') return;
+
+    const answered = await answerConsent(SERVER, asked.token, String(body.query), state);
+    expect(answered.kind).toBe('code');
+    if (answered.kind !== 'code') return;
+    const tokenRes = await fetch(`${SERVER}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: answered.code,
+        client_id: clientId,
+        redirect_uri: REGISTERED_REDIRECT_URI,
+        code_verifier: verifier,
+      }).toString(),
+    });
+    const tokens = (await tokenRes.json()) as { access_token?: string; refresh_token?: string };
+    expect(tokens.access_token).toBeTruthy();
+    expect(await sessionStatus(tokens.access_token!)).toBe(200);
+    await revokeRefreshToken(SERVER, {
+      accessToken: tokens.access_token!,
+      refreshToken: tokens.refresh_token,
+      tokenEndpoint: `${SERVER}/auth/token`,
+      clientId,
+      source: 'totp',
+    });
+  }, 30_000);
+
+  it('a refused token exchange is not reported as a wrong password, on both', async () => {
+    // A code the server issued, redeemed with the wrong PKCE verifier: the
+    // token endpoint refuses it after the credentials were accepted.
+    const client = await resolveLoginClient(SERVER);
+    const state = 'exchange-state';
+    const res = await fetch(`${SERVER}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stalwartLoginBody({
+        username: USER,
+        password: PASS,
+        clientId: client.clientId,
+        redirectUri: client.redirectUri,
+        codeChallenge: generateCodeChallenge(generateCodeVerifier()),
+        state,
+      })),
+    });
+    const outcome = readStalwartLoginResponse(await res.json(), state);
+    expect(outcome.kind).toBe('code');
+    if (outcome.kind !== 'code') return;
+    const token = await fetch(`${SERVER}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: outcome.code,
+        client_id: client.clientId,
+        redirect_uri: client.redirectUri,
+        code_verifier: generateCodeVerifier(),
+      }).toString(),
+    });
+    expect(token.ok).toBe(false);
+    // What exchangePasswordForTokens throws for that answer, and what the
+    // sign-in screen makes of it.
+    const copy = describeLoginError(
+      new TotpLoginError('token_exchange_failed', `Token exchange failed: ${token.status}`),
+      { serverUrl: SERVER },
+    );
+    expect(copy.detail).toMatch(/password and code were accepted/);
+  }, 30_000);
+
+  it('reads the storage quota the way Settings shows it, on both (#1242)', async () => {
+    const client = new JMAPClient();
+    await client.connect(SERVER, USER, PASS);
+    useSingleton(client);
+    if (!serverSupportsQuota()) return;
+    const res = await client.request([['Quota/get', { accountId: client.accountId }, '0']], [
+      'urn:ietf:params:jmap:core',
+      'urn:ietf:params:jmap:quota',
+    ]);
+    const [name, body] = res.methodResponses[0] as unknown as [string, { list: Array<Record<string, number | null>> }];
+    expect(name).toBe('Quota/get');
+    const shown = await fetchMailQuota();
+    expect(shown).toEqual(toMailQuota(body.list as never));
+    if (shown) {
+      const raw = body.list.find((q) => q.resourceType === ('octets' as unknown as number))!;
+      // Never above a softLimit the server set below its hardLimit.
+      if (typeof raw.softLimit === 'number' && raw.softLimit > 0 && typeof raw.hardLimit === 'number' && raw.softLimit < raw.hardLimit) {
+        expect(shown.total).toBe(raw.softLimit);
+      }
+    }
   });
 
   it('account security with the password (Basic) works on both', async () => {

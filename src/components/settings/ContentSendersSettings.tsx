@@ -211,7 +211,7 @@ export function ContentSendersSettings() {
             </View>
 
             <View style={styles.addRow}>
-              <TextInput
+              <TextInput accessibilityLabel={t('settings.email_behavior.trusted_senders.add_placeholder', 'Enter email address')}
                 value={newSender}
                 onChangeText={setNewSender}
                 placeholder={t('settings.email_behavior.trusted_senders.add_placeholder', 'Enter email address')}

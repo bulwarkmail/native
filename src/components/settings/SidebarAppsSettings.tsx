@@ -133,7 +133,7 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
     <View style={formStyles.form}>
       <View>
         <Text style={formStyles.label}>{t('settings.sidebar_apps.form.name', "Name")}</Text>
-        <TextInput
+        <TextInput accessibilityLabel={t('settings.sidebar_apps.form.name', "Name")}
           value={name}
           onChangeText={setName}
           placeholder={t('settings.sidebar_apps.form.name_placeholder', "App name")}
@@ -144,7 +144,7 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
 
       <View>
         <Text style={formStyles.label}>{t('settings.sidebar_apps.form.url', "URL")}</Text>
-        <TextInput
+        <TextInput accessibilityLabel={t('settings.sidebar_apps.form.url', "URL")}
           value={url}
           onChangeText={setUrl}
           placeholder="https://example.com"

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLayout } from '../lib/use-layout';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import {
-  ArrowLeft, LogOut, Search, X, ChevronRight,
+  Accessibility, ArrowLeft, LogOut, Search, X, ChevronRight,
   Palette, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive,
   BookUser, PanelLeftClose, Bell, RefreshCw,
@@ -30,6 +30,7 @@ import Badge from '../components/Badge';
 import SenderAvatar from '../components/SenderAvatar';
 import { UpdatesSettings } from '../components/settings/UpdatesSettings';
 import { AppearanceSettings } from '../components/settings/AppearanceSettings';
+import { AccessibilitySettings } from '../components/settings/AccessibilitySettings';
 import { CalendarSettings } from '../components/settings/CalendarSettings';
 import { ContactsSettings } from '../components/settings/ContactsSettings';
 import { FilesSettings } from '../components/settings/FilesSettings';
@@ -99,6 +100,7 @@ const TABS: TabDef[] = [
   { id: 'account',         label: 'Account',            icon: User,           group: 'general',    implemented: true  },
   { id: 'language',        label: 'Language',           icon: Languages,      group: 'general',    implemented: true  },
   { id: 'notifications',   label: 'Notifications',      icon: Bell,           group: 'general',    implemented: true  },
+  { id: 'accessibility',   label: 'Accessibility',      icon: Accessibility,  group: 'general',    implemented: true  },
 
   // Appearance
   { id: 'appearance',      label: 'Appearance',         icon: Palette,        group: 'appearance', implemented: true  },
@@ -150,6 +152,7 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   account: AccountSettings,
   language: LanguageSettings,
   notifications: NotificationSettings,
+  accessibility: AccessibilitySettings,
   appearance: AppearanceSettings,
   layout: LayoutSettings,
   reading: ReadingSettings,

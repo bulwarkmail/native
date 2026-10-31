@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Programma",
       "three_days": "3 giorni"
+    },
+    "detail": {
+      "delete_confirm": "Eliminare questo evento?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Aggiungi etichetta",
       "delete_confirm_mobile": "{count, plural, one {Eliminare # contatto? Questa azione non può essere annullata.} other {Eliminare # contatti? Questa azione non può essere annullata.}}",
       "move_to_address_book": "Sposta nella rubrica",
-      "tag_failed": "Impossibile applicare l'etichetta"
+      "tag_failed": "Impossibile applicare l'etichetta",
+      "delete_confirm_title": "Elimina contatti"
     },
     "contact": "Contatto",
     "create_hint_mobile": "Tieni premuto per creare un gruppo",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Tieni premuta un'etichetta per rinominarla",
     "tag_name_placeholder": "Nome della nuova etichetta",
-    "unnamed": "Senza nome"
+    "unnamed": "Senza nome",
+    "delete_confirm_title": "Elimina contatto"
   },
   "context_menu": {
     "color_tag": "Etichetta",
@@ -484,7 +489,8 @@
       "no_identity": "Nessuna identità di invio disponibile"
     },
     "view_dark_mode": "Visualizza in modalità scura",
-    "view_light_mode": "Visualizza in modalità chiara"
+    "view_light_mode": "Visualizza in modalità chiara",
+    "not_spam_short": "Non spam"
   },
   "files": {
     "delete_cascade_hint": "Le cartelle vengono eliminate insieme a tutto il loro contenuto. L'operazione non può essere annullata.",
@@ -522,7 +528,12 @@
     "symlink": "Collegamento simbolico",
     "upload_failed": "{count, plural, one {Impossibile caricare 1 file} other {Impossibile caricare # file}}",
     "upload_unavailable": "Il selettore di file non è installato in questa build. Ricompila l'app per abilitare i caricamenti.",
-    "uploading_progress": "Caricamento {current}/{total} · {name}"
+    "uploading_progress": "Caricamento {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Sei sicuro di voler eliminare {count, plural, one {1 elemento} other {# elementi}}? Questa azione non può essere annullata.",
+    "batch_delete_success": "{count, plural, one {1 elemento eliminato} other {# elementi eliminati}}",
+    "delete_confirm_message": "Sei sicuro di voler eliminare \"{name}\"? Questa azione non può essere annullata.",
+    "delete_confirm_title": "Elimina risorsa",
+    "delete_success": "Eliminato con successo"
   },
   "identities": {
     "badge": {
@@ -891,6 +902,10 @@
         "sync_add_failed": "Impossibile sincronizzare con la rubrica",
         "sync_remove_failed": "Impossibile rimuovere dalla rubrica",
         "synced_badge": "Sincronizzato tramite la rubrica"
+      },
+      "disable_threading": {
+        "description": "Mostra le email come messaggi singoli anziché raggruppati per conversazione",
+        "label": "Disabilita raggruppamento conversazioni"
       }
     },
     "experimental": {
@@ -900,7 +915,9 @@
       "remove_action": "Rimuovi azione",
       "remove_condition": "Rimuovi condizione",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# riga} other {# righe}}"
+        "line_count": "{count, plural, one {# riga} other {# righe}}",
+        "confirm_save": "Conferma salvataggio",
+        "save_warning": "Il salvataggio sovrascriverà tutte le regole visuali. Questa azione non può essere annullata. Fai clic su Salva di nuovo per confermare."
       },
       "validation_header_name": "Inserisci un nome di intestazione che usi solo le lettere A-Z, cifre, trattini e trattini bassi, ad esempio X-Spam-Flag."
     },
@@ -944,7 +961,8 @@
       "no_name": "(nessun nome)",
       "primary": "principale",
       "save_failed": "Salvataggio non riuscito",
-      "text_signature": "Firma in testo normale"
+      "text_signature": "Firma in testo normale",
+      "title": "Identità di invio"
     },
     "keywords": {
       "description_mobile": "Etichette colorate per organizzare la posta.",
@@ -1043,6 +1061,10 @@
         "up_distributor_desc": "Sono installate più app distributore UnifiedPush - scegli quella che deve consegnare le notifiche.",
         "up_distributor_label": "Distributore",
         "up_no_distributor": "Nessuna app distributore UnifiedPush è installata su questo dispositivo. Installane una (ad esempio ntfy) e riprova."
+      },
+      "calendar": {
+        "invitation_parsing": "Analizza inviti via e-mail",
+        "invitation_parsing_desc": "Rileva inviti calendario negli allegati e mostra azioni calendario"
       }
     },
     "offline": {
@@ -1180,7 +1202,15 @@
     },
     "tabs": {
       "plugins": "Plugin",
-      "updates": "Aggiornamenti"
+      "updates": "Aggiornamenti",
+      "content_senders": "Contenuto e mittenti",
+      "downloads": "Download",
+      "identities": "Identità",
+      "keywords": "Etichette",
+      "language": "Lingua, regione e ora",
+      "sidebar_apps": "App nella barra laterale",
+      "templates": "Modelli",
+      "themes": "Temi"
     },
     "templates": {
       "delete_confirm": "Eliminare definitivamente \"{name}\"?",
@@ -1202,6 +1232,24 @@
       "warnings": {
         "date_format": "Le date devono essere nel formato \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Ogni minuto",
+        "2m": "Ogni 2 minuti",
+        "30s": "Ogni 30 secondi",
+        "5m": "Ogni 5 minuti",
+        "description": "Con quale frequenza salvare automaticamente le bozze",
+        "label": "Intervallo di salvataggio automatico"
+      },
+      "description": "Configura le impostazioni di composizione email",
+      "title": "Editor"
+    },
+    "tab_groups": {
+      "advanced": "Avanzate",
+      "appearance": "Aspetto",
+      "general": "Generale",
+      "privacy": "Privacy e sicurezza"
     }
   },
   "sharing": {

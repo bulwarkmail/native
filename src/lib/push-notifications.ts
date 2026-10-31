@@ -17,6 +17,7 @@ import { generateAccountId } from './account-utils';
 import {
   EMPTY_NOTIFICATION_MUTES,
   isAccountMuted,
+  isMailboxMuted,
   mailboxOverridesForAccount,
   type NotificationMutes,
 } from './notification-mutes';
@@ -349,13 +350,19 @@ function emailPushCapabilityIsExact(): boolean {
  * Muted accounts and folders (#78) are cut out of the same filter: a muted
  * folder joins Junk in the "not only in" list; a muted account only lets
  * through mail in the folders the user unmuted again, or nothing at all.
+ *
+ * `inboxOnly` (webmail #983, Settings > Notifications > Inbox only) lets
+ * through only mail that lands in each account's Inbox; a muted Inbox, or an
+ * account without one, then never pushes.
  */
 export async function buildEmailPushConfig(
   mutes: NotificationMutes = EMPTY_NOTIFICATION_MUTES,
+  inboxOnly = false,
 ): Promise<Record<string, EmailPushConfig>> {
   const primary = jmapClient.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
   const mailboxIdsByAccount = new Map<string, Set<string>>();
+  const inboxByAccount = new Map<string, string>();
   // The mail store loads the same folders at the same moment (sign-in,
   // start): reuse its list rather than a second Mailbox/get of our own.
   const username = jmapClient.username;
@@ -365,7 +372,8 @@ export async function buildEmailPushConfig(
   // and unmute everything, so let the real error surface; otherwise the
   // filter can still degrade to keyword-only on a transient miss.
   const hasMutes = mutes.accounts.length > 0 || Object.keys(mutes.mailboxes).length > 0;
-  const all = loaded ?? (hasMutes
+  // In inbox-only mode a swallowed failure would read as "no Inbox" too.
+  const all = loaded ?? (hasMutes || inboxOnly
     ? [...(await getMailboxes()), ...(await getSharedMailboxes())]
     : [
       ...(await getMailboxes().catch(() => [] as Mailbox[])),
@@ -383,6 +391,7 @@ export async function buildEmailPushConfig(
     const junk = junkByAccount.get(accountId) ?? [];
     if (m.role === 'junk') junk.push(serverId);
     junkByAccount.set(accountId, junk);
+    if (m.role === 'inbox') inboxByAccount.set(accountId, serverId);
   }
 
   const config: Record<string, EmailPushConfig> = {};
@@ -391,7 +400,15 @@ export async function buildEmailPushConfig(
     const existing = mailboxIdsByAccount.get(accountId) ?? new Set<string>();
     const overrides = mailboxOverridesForAccount(mutes, accountId);
     const conditions: Record<string, unknown>[] = [{ notKeyword: '$junk' }];
-    if (isAccountMuted(mutes, accountId)) {
+    if (inboxOnly) {
+      const inboxId = inboxByAccount.get(accountId);
+      // The own account always has an Inbox; missing it means the folder
+      // list is incomplete, and silencing the account would be worse.
+      if (!inboxId && accountId === primary) {
+        throw new Error(`No Inbox found for account ${accountId}; cannot build an inbox-only push filter`);
+      }
+      conditions.push(inboxId && !isMailboxMuted(mutes, accountId, inboxId) ? { inMailbox: inboxId } : NEVER_MATCH);
+    } else if (isAccountMuted(mutes, accountId)) {
       const allowed = overrides.unmuted
         .filter((id) => existing.has(id) && !junkIds.includes(id))
         .sort();
@@ -774,6 +791,31 @@ export async function setStoredRelayBaseUrl(url: string | null): Promise<void> {
 export async function isPushEnabledForAccount(accountId: string): Promise<boolean> {
   await migrateLegacyPushKeys();
   return (await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null;
+}
+
+/**
+ * Whether push works for the account right now: it is set up, and the
+ * system still lets the app show notifications (they can be turned off in
+ * the phone's settings while the app is in the background). A failed check
+ * reads as off (webmail #1148).
+ */
+export async function isPushActiveForAccount(accountId: string): Promise<boolean> {
+  try {
+    if (!(await isPushEnabledForAccount(accountId))) return false;
+    const permission = await Notifications.getPermissionsAsync();
+    return permission.granted !== false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether Settings > Notifications should read the push state again when
+ * the app comes back: not while an enable or disable runs, nor right after
+ * one failed, which would wipe its message (webmail #1148).
+ */
+export function shouldRecheckPushState(status: 'idle' | 'busy' | 'enabled' | 'error'): boolean {
+  return status !== 'busy' && status !== 'error';
 }
 
 export async function wasPushPromptDismissed(accountId: string): Promise<boolean> {
@@ -1357,7 +1399,10 @@ async function setupPushNotificationsInner(
   // a group out.
   const refusedBefore = emailPushCapabilityIsExact() ? [] : await readRefusedEmailPushAccounts(accountId);
   const emailPush = serverSupportsEmailPush()
-    ? withoutAccounts(await buildEmailPushConfig(useSettingsStore.getState().notificationMutes), refusedBefore)
+    ? withoutAccounts(
+      await buildEmailPushConfig(useSettingsStore.getState().notificationMutes, useSettingsStore.getState().pushNotifyInboxOnly),
+      refusedBefore,
+    )
     : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);

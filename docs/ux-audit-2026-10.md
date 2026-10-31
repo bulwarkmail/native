@@ -364,7 +364,7 @@ carries the commit that fixed it.
 - [x] **U-044 · P2 · PP (German, 1.3) · The toolbar overflows and pushes More off screen.** *(fixed in 975ed08)*
   - "Stern hinzufügen" is long (`d_de_thread`).
   - Fix: drop the toolbar labels when they don't fit; keep the a11y labels.
-- [ ] **U-045 · P3 · German · Prev/Next read "Zurück"/"Weiter".** *(deferred: the strings come from the vendored webmail catalog (locales/de/common.json); the fix belongs in the webmail's German translation)*
+- [x] **U-045 · P3 · German · Prev/Next read "Zurück"/"Weiter".** *(deferred: the strings come from the vendored webmail catalog (locales/de/common.json); the fix belongs in the webmail's German translation)* — fixed in 25f9b810
   - "Zurück" reads as Back. "Allen antworten" wraps in the bottom bar.
   - Fix: "Vorherige"/"Nächste" (locale), and a single line with shrinking text.
 - [x] **U-046 · P2 · all · The tag sheet doesn't scroll.** *(fixed in b59d00f)*
@@ -510,7 +510,7 @@ carries the commit that fixed it.
 - [x] **U-132 · P2 · all · The password step's return keys don't move on.** *(fixed in ae1ef5b)*
   - Username has no `next`. With TOTP on, the password field shows Next and does nothing.
   - Where: `PasswordStep.tsx:56,78`.
-- [ ] **U-133 · P2 · all · There is no way out while "Signing in" hangs.** *(deferred: a cancel needs an abortable sign-in in the auth flow, which is more than a UI fix; see product questions)* Hardware back is
+- [x] **U-133 · P2 · all · There is no way out while "Signing in" hangs.** — fixed in 55d008a2 *(deferred: a cancel needs an abortable sign-in in the auth flow, which is more than a UI fix; see product questions)* Hardware back is
   swallowed. Where: `SigningInStep.tsx`, `LoginScreen.tsx:165`.
 
 ### Found in the re-walk

@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Grafiks",
       "three_days": "3 dienas"
+    },
+    "detail": {
+      "delete_confirm": "Vai dzēst šo pasākumu?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Pievienot tagu",
       "delete_confirm_mobile": "{count, plural, zero {Dzēst # kontaktus? To nevar atsaukt.} one {Dzēst # kontaktu? To nevar atsaukt.} other {Dzēst # kontaktus? To nevar atsaukt.}}",
       "move_to_address_book": "Pārvietot uz adrešu grāmatu",
-      "tag_failed": "Neizdevās pievienot tagu"
+      "tag_failed": "Neizdevās pievienot tagu",
+      "delete_confirm_title": "Dzēst kontaktus"
     },
     "contact": "Kontakts",
     "create_hint_mobile": "Turiet nospiestu, lai tā vietā izveidotu grupu",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Turiet nospiestu tagu, lai to pārdēvētu",
     "tag_name_placeholder": "Jaunā taga nosaukums",
-    "unnamed": "Bez vārda"
+    "unnamed": "Bez vārda",
+    "delete_confirm_title": "Dzēst kontaktu"
   },
   "context_menu": {
     "color_tag": "Tags",
@@ -481,7 +486,9 @@
       "no_identity": "Nav pieejamas sūtīšanas identitātes"
     },
     "view_dark_mode": "Skatīt tumšajā režīmā",
-    "view_light_mode": "Skatīt gaišajā režīmā"
+    "view_light_mode": "Skatīt gaišajā režīmā",
+    "not_spam_short": "Nav spams",
+    "spam_short": "Spams"
   },
   "files": {
     "delete_cascade_hint": "Mapes tiek dzēstas kopā ar visu to saturu. To nevar atsaukt.",
@@ -519,7 +526,12 @@
     "symlink": "Simboliskā saite",
     "upload_failed": "{count, plural, one {Neizdevās augšupielādēt # failu} other {Neizdevās augšupielādēt # failus}}",
     "upload_unavailable": "Failu atlasītājs šajā būvējumā nav instalēts. Lai iespējotu augšupielādi, pārbūvējiet lietotni.",
-    "uploading_progress": "Augšupielādē {current}/{total} · {name}"
+    "uploading_progress": "Augšupielādē {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Vai tiešām vēlaties dzēst {count, plural, one {1 elementu} other {# elementus}}?",
+    "batch_delete_success": "Izdzēsts {count, plural, one {1 elements} other {# elementi}}",
+    "delete_confirm_message": "Vai tiešām vēlaties dzēst «{name}»? Šo darbību nevar atcelt.",
+    "delete_confirm_title": "Dzēst resursu",
+    "delete_success": "Sekmīgi izdzēsts"
   },
   "identities": {
     "badge": {
@@ -888,6 +900,10 @@
         "sync_add_failed": "Neizdevās sinhronizēt ar adrešu grāmatu",
         "sync_remove_failed": "Neizdevās noņemt no adrešu grāmatas",
         "synced_badge": "Sinhronizēts ar adrešu grāmatu"
+      },
+      "disable_threading": {
+        "description": "Rādīt vēstules kā atsevišķus ziņojumus, nevis sērijveidā",
+        "label": "Izslēgt sarunu grupēšanu"
       }
     },
     "experimental": {
@@ -897,7 +913,9 @@
       "remove_action": "Noņemt darbību",
       "remove_condition": "Noņemt nosacījumu",
       "sieve_editor": {
-        "line_count": "{count, plural, zero {# rindas} one {# rinda} other {# rindas}}"
+        "line_count": "{count, plural, zero {# rindas} one {# rinda} other {# rindas}}",
+        "confirm_save": "Apstiprināt saglabāšanu",
+        "save_warning": "Saglabāšana pārrakstīs vizuālos noteikumus. To nevar atcelt. Nospiediet \"Saglabāt\" vēlreiz."
       },
       "validation_header_name": "Ievadiet galvenes nosaukumu, kurā ir tikai burti A–Z, cipari, defises un pasvītras, piemēram, X-Spam-Flag."
     },
@@ -941,7 +959,8 @@
       "no_name": "(bez vārda)",
       "primary": "galvenā",
       "save_failed": "Saglabāšana neizdevās",
-      "text_signature": "Teksta paraksts"
+      "text_signature": "Teksta paraksts",
+      "title": "Sūtītāja identitātes"
     },
     "keywords": {
       "description_mobile": "Krāsaini tagi pasta kārtošanai.",
@@ -1040,6 +1059,10 @@
         "up_distributor_desc": "Ir instalētas vairākas UnifiedPush izplatītāja lietotnes – izvēlieties, kurai jāpiegādā paziņojumi.",
         "up_distributor_label": "Izplatītājs",
         "up_no_distributor": "Šajā ierīcē nav instalēta neviena UnifiedPush izplatītāja lietotne. Instalējiet kādu (piemēram, ntfy) un mēģiniet vēlreiz."
+      },
+      "calendar": {
+        "invitation_parsing": "Atpazīt uzaicinājumus e-pastā",
+        "invitation_parsing_desc": "Noteikt kalendāra uzaicinājumus pielikumos un rādīt kalendāra darbības"
       }
     },
     "offline": {
@@ -1177,7 +1200,16 @@
     },
     "tabs": {
       "plugins": "Spraudņi",
-      "updates": "Atjauninājumi"
+      "updates": "Atjauninājumi",
+      "content_senders": "Saturs un sūtītāji",
+      "downloads": "Lejupielādes",
+      "identities": "Identitātes",
+      "keywords": "Tagi",
+      "language": "Valoda, reģions un laiks",
+      "layout": "Izkārtojums",
+      "sidebar_apps": "Sānu joslas lietotnes",
+      "templates": "Veidnes",
+      "themes": "Tēmas"
     },
     "templates": {
       "delete_confirm": "Neatgriezeniski dzēst \"{name}\"?",
@@ -1199,6 +1231,24 @@
       "warnings": {
         "date_format": "Datumiem jābūt formātā \"YYYY-MM-DD\" vai \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Katru minūti",
+        "2m": "Ik pēc 2 minūtēm",
+        "30s": "Ik pēc 30 sekundēm",
+        "5m": "Ik pēc 5 minūtēm",
+        "description": "Cik bieži automātiski saglabāt melnrakstus",
+        "label": "Automātiskās saglabāšanas intervāls"
+      },
+      "description": "Pielāgojiet vēstuļu rakstīšanas parametrus",
+      "title": "Redaktors"
+    },
+    "tab_groups": {
+      "advanced": "Papildu",
+      "appearance": "Izskats",
+      "general": "Vispārīgi",
+      "privacy": "Privātums un drošība"
     }
   },
   "sharing": {

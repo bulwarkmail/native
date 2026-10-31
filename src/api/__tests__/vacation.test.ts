@@ -30,9 +30,25 @@ beforeEach(() => {
     capabilities: { [CAPABILITIES.VACATION]: {} },
     accounts: {
       own: { name: 'me', isPersonal: true, isReadOnly: false, accountCapabilities: { [CAPABILITIES.VACATION]: {} } },
-      team: { name: 'Team', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+      team: { name: 'Team', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {}, [CAPABILITIES.VACATION]: {} } },
       other: { name: 'Other', isPersonal: true, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
     },
+  });
+});
+
+describe('accountSupportsVacation on a shared account that lists its capabilities (#1239)', () => {
+  it('is false when the list leaves this one out', () => {
+    const caps = { [CAPABILITIES.VACATION]: {}, [CAPABILITIES.MAIL]: {} };
+    expect(accountSupportsVacation(
+      { name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+      caps,
+    )).toBe(false);
+    expect(accountSupportsVacation(
+      { name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.VACATION]: {} } },
+      caps,
+    )).toBe(true);
+    // An empty list says nothing: the server-wide answer stands.
+    expect(accountSupportsVacation({ name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: {} }, caps)).toBe(true);
   });
 });
 

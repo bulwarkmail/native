@@ -18,6 +18,7 @@
       "teal": "Teal"
     },
     "detail": {
+      "delete_confirm": "Delete this event?",
       "location_hint": "Opens the location; long-press to copy it"
     },
     "discard": {
@@ -204,6 +205,7 @@
     "bulk": {
       "add_tag": "Add tag",
       "delete_confirm_mobile": "{count, plural, one {Delete # contact? This cannot be undone.} other {Delete # contacts? This cannot be undone.}}",
+      "delete_confirm_title": "Delete contacts",
       "move_to_address_book": "Move to address book",
       "tag_failed": "Tagging failed"
     },
@@ -212,6 +214,7 @@
     "contact": "Contact",
     "create_hint_mobile": "Long-press to create a group instead",
     "delete_category": "Delete category",
+    "delete_confirm_title": "Delete contact",
     "detail": {
       "add_to_group_failed": "Add to group failed",
       "copy_name": "{name} (Copy)",
@@ -535,6 +538,8 @@
     "export_failed": "Export failed",
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",
+    "next": "Next",
+    "not_spam_short": "Not spam",
     "preview": {
       "archive_files": "{count, plural, one {# file} other {# files}}",
       "archive_first_files": "The first {count} files",
@@ -547,6 +552,7 @@
       "pdf_unreadable": "This PDF can't be shown here.",
       "unsupported": "No preview for this file type."
     },
+    "previous": "Prev",
     "quick_reply_login_switched": "This message is in another account. Switch back to it to reply.",
     "quick_reply_unconfirmed": "The server did not confirm the send. Check your Sent folder before sending again.",
     "received_via": "to {name}",
@@ -567,6 +573,7 @@
     "show_less": "Show less",
     "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
+    "spam_short": "Spam",
     "still_scheduled": "The message is still scheduled.",
     "still_scheduled_at": "The message is still scheduled for {date}.",
     "thread_loading": "Loading conversation...",
@@ -578,9 +585,14 @@
     "view_light_mode": "View in light mode"
   },
   "files": {
+    "batch_delete_confirm_message": "Are you sure you want to delete {count, plural, one {1 item} other {# items}}? This cannot be undone.",
+    "batch_delete_success": "{count, plural, one {1 item deleted} other {# items deleted}}",
     "delete_cascade_hint": "Folders are deleted along with everything inside them. This can't be undone.",
+    "delete_confirm_message": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
+    "delete_confirm_title": "Delete resource",
     "delete_item_title": "Delete this item?",
     "delete_items_title": "{count, plural, one {Delete # item?} other {Delete # items?}}",
+    "delete_success": "Deleted successfully",
     "done": "Done",
     "download_failed_status": "Download failed (HTTP {status})",
     "error_forbidden": "You do not have permission to do this here.",
@@ -649,6 +661,7 @@
       "camera_allow": "Allow camera access",
       "camera_disabled": "Camera access is disabled. Enable it in Settings to scan a sign-in QR code.",
       "camera_needed": "Bulwark Mail needs camera access to scan a sign-in QR code.",
+      "cancel_sign_in": "Cancel sign-in",
       "choose_subtitle": "Choose how you'd like to sign in.",
       "confirm_check": "Check this looks right",
       "confirm_found": "Found your mail server",
@@ -703,6 +716,7 @@
       "err_rate_title": "Too many attempts",
       "err_server_detail": "The server answered with an error. Try again in a few minutes.",
       "err_server_title": "{host} is having trouble",
+      "err_token_exchange_title": "{host} didn't start a session",
       "err_totp_bad_detail": "Check your password and the current code from your authenticator app, then try again.",
       "err_totp_detail": "This account is protected with two-factor sign-in. Type the 6-digit code from your authenticator app.",
       "err_totp_title": "Enter your two-factor code",
@@ -838,6 +852,31 @@
       "up_to_date": "Up to date",
       "updates": "Updates"
     },
+    "accessibility": {
+      "presets": {
+        "applied_mobile": "{name} changed {count, plural, one {# setting} other {# settings}}",
+        "apply": "Apply",
+        "apply_named": "Apply {name}",
+        "low-vision": {
+          "description_mobile": "Text at 150% and labels under the toolbar icons."
+        },
+        "motion": {
+          "description_mobile": "No animations or sliding transitions."
+        },
+        "screen-reader": {
+          "description_mobile": "No conversation grouping, so every message is a row of its own."
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "Turns off sliding panels and transitions. The app also does this when reduced motion is on in your phone's settings."
+      },
+      "text_size": {
+        "description_mobile": "Scales the app's text on top of your phone's text size. 100% is your phone's size."
+      },
+      "toast_duration": {
+        "automatic": "Automatic (longer with a screen reader)"
+      }
+    },
     "account": {
       "accounts": {
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
@@ -864,6 +903,9 @@
       }
     },
     "appearance": {
+      "accessibility_link": {
+        "description_mobile": "Text size, reduced motion and the accessibility presets are on the Accessibility page."
+      },
       "description_mobile": "Customize how the app looks",
       "language": {
         "restart_for_direction": "Restart the app to apply the new text direction.",
@@ -886,6 +928,18 @@
       "not_implemented": "Not implemented",
       "not_on_server": "Not on this server",
       "unavailable": "Unavailable"
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Every minute",
+        "2m": "Every 2 minutes",
+        "30s": "Every 30 seconds",
+        "5m": "Every 5 minutes",
+        "description": "How often to save drafts automatically",
+        "label": "Auto-save Interval"
+      },
+      "description": "Configure email composition settings",
+      "title": "Composer"
     },
     "contacts": {
       "book_count": "{count, plural, one {# contact} other {# contacts}}",
@@ -1021,6 +1075,10 @@
         "description_mobile": "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too."
       },
       "content_senders_description_mobile": "Control how external resources and tracking pixels are handled.",
+      "disable_threading": {
+        "description": "Show emails as individual messages instead of grouped by conversation",
+        "label": "Disable Conversation Grouping"
+      },
       "external_content": {
         "allow_mobile": "Allow",
         "ask_mobile": "Ask",
@@ -1063,7 +1121,9 @@
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# line} other {# lines}}"
+        "confirm_save": "Confirm Save",
+        "line_count": "{count, plural, one {# line} other {# lines}}",
+        "save_warning": "Saving will overwrite any visual rules. This cannot be undone. Click Save again to confirm."
       },
       "validation_header_name": "Enter a header name that uses only the letters A-Z, digits, hyphens and underscores, such as X-Spam-Flag."
     },
@@ -1107,7 +1167,8 @@
       "no_name": "(no name)",
       "primary": "primary",
       "save_failed": "Save failed",
-      "text_signature": "Plain-text signature"
+      "text_signature": "Plain-text signature",
+      "title": "Sending Identities"
     },
     "keywords": {
       "delete_confirm_title": "Delete tag \"{label}\"?",
@@ -1168,6 +1229,10 @@
       "title": "Message list order"
     },
     "notifications": {
+      "calendar": {
+        "invitation_parsing": "Parse email invitations",
+        "invitation_parsing_desc": "Detect calendar invitations in email attachments and show calendar actions"
+      },
       "email": {
         "app_icon_badge": "Unread count on app icon",
         "app_icon_badge_desc": "Show the inbox unread count as a badge on the app icon.",
@@ -1383,6 +1448,7 @@
       "mobile_explainer": "S/MIME is not available in the mobile app yet. Manage keys and certificates in the webmail; signed messages are shown without verification here."
     },
     "summary": {
+      "accessibility": "Text size, motion, confirmations",
       "composing": "Signature, send delay, drafts",
       "contacts": "Address books, sorting",
       "content_senders": "Remote images, trusted senders",
@@ -1408,10 +1474,25 @@
       "version": "Version {version}",
       "week_starts": "week starts {day}"
     },
+    "tab_groups": {
+      "advanced": "Advanced",
+      "appearance": "Appearance",
+      "general": "General",
+      "privacy": "Privacy & Security"
+    },
     "tabs": {
       "about": "About",
+      "content_senders": "Content & Senders",
+      "downloads": "Downloads",
+      "identities": "Identities",
+      "keywords": "Tags",
+      "language": "Language, Region & Time",
+      "layout": "Layout",
       "plugins": "Plugins",
+      "sidebar_apps": "Sidebar Apps",
       "storage": "Storage & backup",
+      "templates": "Templates",
+      "themes": "Themes",
       "troubleshooting": "Troubleshooting",
       "updates": "Updates"
     },
@@ -1421,6 +1502,7 @@
       "description_mobile": "Reusable snippets for common replies. Tap one to edit; long-press to delete.",
       "export_failed": "Export failed",
       "import_failed": "Import failed",
+      "import_json_label": "Templates as JSON",
       "imported": "Imported",
       "imported_count": "{count, plural, one {# template} other {# templates}} added.",
       "is_html": "Body is HTML",

@@ -23,6 +23,11 @@ describe('resolveLocaleTag', () => {
     expect(resolveLocaleTag({ languageCode: 'nb', languageTag: 'nb-NO' })).toBe('nb');
   });
 
+  it('takes Thai and Estonian, which the webmail has too', () => {
+    expect(resolveLocaleTag({ languageCode: 'th', languageTag: 'th-TH' })).toBe('th');
+    expect(resolveLocaleTag({ languageCode: 'et', languageTag: 'et-EE' })).toBe('et');
+  });
+
   it('returns null for unsupported languages', () => {
     expect(resolveLocaleTag({ languageCode: 'xx', languageTag: 'xx-XX' })).toBeNull();
     expect(resolveLocaleTag({})).toBeNull();
@@ -40,6 +45,11 @@ describe('getLocaleDirection', () => {
 });
 
 describe('translate', () => {
+  it('reads Thai and Estonian from their own catalogs', () => {
+    expect(translate('th', 'settings.title')).not.toBe(translate('en', 'settings.title'));
+    expect(translate('et', 'settings.title')).not.toBe(translate('en', 'settings.title'));
+  });
+
   it('falls back locale → en → fallback → key', () => {
     expect(translate('de', 'settings.title')).not.toBe('settings.title');
     expect(translate('de', 'nope.missing', 'Fallback')).toBe('Fallback');

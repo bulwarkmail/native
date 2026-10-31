@@ -141,6 +141,9 @@
     "views": {
       "schedule": "לוח זמנים",
       "three_days": "3 ימים"
+    },
+    "detail": {
+      "delete_confirm": "למחוק את האירוע הזה?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "הוסף תג",
       "delete_confirm_mobile": "{count, plural, one {למחוק איש קשר אחד? לא ניתן לבטל פעולה זו.} two {למחוק שני אנשי קשר? לא ניתן לבטל פעולה זו.} other {למחוק # אנשי קשר? לא ניתן לבטל פעולה זו.}}",
       "move_to_address_book": "העבר לספר כתובות",
-      "tag_failed": "התיוג נכשל"
+      "tag_failed": "התיוג נכשל",
+      "delete_confirm_title": "מחק אנשי קשר"
     },
     "contact": "איש קשר",
     "create_hint_mobile": "לחיצה ארוכה ליצירת קבוצה במקום זאת",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "לחיצה ארוכה על תג לשינוי שמו",
     "tag_name_placeholder": "שם התג החדש",
-    "unnamed": "ללא שם"
+    "unnamed": "ללא שם",
+    "delete_confirm_title": "מחק איש קשר"
   },
   "context_menu": {
     "color_tag": "תג",
@@ -480,7 +485,9 @@
       "no_identity": "אין זהות שליחה זמינה"
     },
     "view_dark_mode": "הצג במצב כהה",
-    "view_light_mode": "הצג במצב בהיר"
+    "view_light_mode": "הצג במצב בהיר",
+    "not_spam_short": "לא דואר זבל",
+    "spam_short": "דואר זבל"
   },
   "files": {
     "delete_cascade_hint": "תיקיות נמחקות יחד עם כל מה שבתוכן. לא ניתן לבטל פעולה זו.",
@@ -518,7 +525,12 @@
     "symlink": "קישור סמלי",
     "upload_failed": "{count, plural, one {לא ניתן היה להעלות קובץ אחד} other {לא ניתן היה להעלות # קבצים}}",
     "upload_unavailable": "בורר הקבצים אינו מותקן בגרסה זו. בנה מחדש את האפליקציה כדי לאפשר העלאות.",
-    "uploading_progress": "מעלה {current}/{total} · {name}"
+    "uploading_progress": "מעלה {current}/{total} · {name}",
+    "batch_delete_confirm_message": "האם למחוק {count, plural, one {פריט אחד} other {# פריטים}}? לא ניתן לבטל זאת.",
+    "batch_delete_success": "{count, plural, one {פריט אחד נמחק} other {# פריטים נמחקו}}",
+    "delete_confirm_message": "האם אתה בטוח שברצונך למחוק את \"{name}\"? לא ניתן לבטל זאת.",
+    "delete_confirm_title": "מחק משאב",
+    "delete_success": "נמחק בהצלחה"
   },
   "identities": {
     "badge": {
@@ -887,6 +899,10 @@
         "sync_add_failed": "לא ניתן היה לסנכרן לספר הכתובות",
         "sync_remove_failed": "לא ניתן היה להסיר מספר הכתובות",
         "synced_badge": "מסונכרן דרך ספר הכתובות"
+      },
+      "disable_threading": {
+        "description": "הצג הודעות אימייל כהודעות בודדות במקום מקובצות לפי שיחה",
+        "label": "השבת את קיבוץ השיחות"
       }
     },
     "experimental": {
@@ -896,7 +912,9 @@
       "remove_action": "הסר פעולה",
       "remove_condition": "הסר תנאי",
       "sieve_editor": {
-        "line_count": "{count, plural, one {שורה אחת} two {שתי שורות} other {# שורות}}"
+        "line_count": "{count, plural, one {שורה אחת} two {שתי שורות} other {# שורות}}",
+        "confirm_save": "אשר את השמירה",
+        "save_warning": "שמירה תחליף את כל הכללים החזותיים. לא ניתן לבטל זאת. לחץ שוב על שמור כדי לאשר."
       },
       "validation_header_name": "הזן שם כותרת שכולל רק את האותיות A-Z, ספרות, מקפים וקווים תחתונים, למשל X-Spam-Flag."
     },
@@ -940,7 +958,8 @@
       "no_name": "(ללא שם)",
       "primary": "ראשית",
       "save_failed": "השמירה נכשלה",
-      "text_signature": "חתימה בטקסט רגיל"
+      "text_signature": "חתימה בטקסט רגיל",
+      "title": "שליחת זהויות"
     },
     "keywords": {
       "description_mobile": "תגים צבעוניים לארגון הדואר שלך.",
@@ -1039,6 +1058,10 @@
         "up_distributor_desc": "מותקנות כמה אפליקציות מפיץ של UnifiedPush - בחר את זו שתמסור את ההתראות.",
         "up_distributor_label": "מפיץ",
         "up_no_distributor": "לא מותקנת במכשיר זה אפליקציית מפיץ של UnifiedPush. התקן אחת (למשל ntfy) ונסה שוב."
+      },
+      "calendar": {
+        "invitation_parsing": "נתח הזמנות באימייל",
+        "invitation_parsing_desc": "זיהוי הזמנות ליומן בקבצים מצורפים לאימייל והצג פעולות ביומן"
       }
     },
     "offline": {
@@ -1176,7 +1199,16 @@
     },
     "tabs": {
       "plugins": "תוספים",
-      "updates": "עדכונים"
+      "updates": "עדכונים",
+      "content_senders": "תוכן ושולחים",
+      "downloads": "הורדות",
+      "identities": "זהויות",
+      "keywords": "מילות מפתח",
+      "language": "שפה ואזור",
+      "layout": "פריסה",
+      "sidebar_apps": "אפליקציות בסרגל הצד",
+      "templates": "תבניות",
+      "themes": "ערכות נושא"
     },
     "templates": {
       "delete_confirm": "למחוק את \"{name}\" לצמיתות?",
@@ -1198,6 +1230,24 @@
       "warnings": {
         "date_format": "תאריכים חייבים להיות בפורמט \"YYYY-MM-DD\" או \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "כל דקה",
+        "2m": "כל 2 דקות",
+        "30s": "כל 30 שניות",
+        "5m": "כל 5 דקות",
+        "description": "באיזו תדירות לשמור טיוטות באופן אוטומטי",
+        "label": "מרווח שמירה אוטומטית"
+      },
+      "description": "הגדר את הגדרות הרכב דוא\"ל",
+      "title": "עורך"
+    },
+    "tab_groups": {
+      "advanced": "מתקדם",
+      "appearance": "הופעה",
+      "general": "כללי",
+      "privacy": "פרטיות וביטחון"
     }
   },
   "sharing": {

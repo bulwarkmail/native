@@ -3,25 +3,36 @@ import { View, Text, StyleSheet } from 'react-native';
 import { AlertTriangle, Lock } from '../../components/icons';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { announce } from '../../lib/announce';
 
 interface LoginNoticeProps {
   title: string;
   detail?: string;
   tone?: 'error' | 'info';
+  /**
+   * Read out when it appears, in either tone (a status, not a static hint):
+   * the code prompt is info now (webmail #1422) but still news.
+   */
+  live?: boolean;
 }
 
 /** Inline banner for a sign-in failure, or a reassurance about where a
  *  password ends up. Errors lead with what went wrong, then what to do. */
-export default function LoginNotice({ title, detail, tone = 'error' }: LoginNoticeProps) {
+export default function LoginNotice({ title, detail, tone = 'error', live }: LoginNoticeProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const isError = tone === 'error';
   const Icon = isError ? AlertTriangle : Lock;
+  const isLive = live ?? isError;
+  // iOS reads no live regions.
+  React.useEffect(() => {
+    if (isLive) announce([title, detail].filter(Boolean).join('. '), { assertive: isError });
+  }, [isLive, isError, title, detail]);
 
   return (
     <View
       style={[styles.banner, isError ? styles.bannerError : styles.bannerInfo]}
-      accessibilityLiveRegion={isError ? 'polite' : 'none'}
+      accessibilityLiveRegion={isLive ? 'polite' : 'none'}
     >
       <Icon size={16} color={isError ? c.error : c.textMuted} style={styles.icon} />
       <View style={styles.text}>

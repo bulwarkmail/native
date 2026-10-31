@@ -8,7 +8,9 @@ import { EMPTY_NOTIFICATION_MUTES, normalizeNotificationMutes, type Notification
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type FontSize = 'small' | 'medium' | 'large';
+// Text size, 87.5% to 200% (webmail lib/accessibility-settings.ts FONT_SIZES).
+export type FontSize = 'small' | 'medium' | 'large' | 'x-large' | 'xx-large' | 'xxx-large' | 'huge';
+export const FONT_SIZES: readonly FontSize[] = ['small', 'medium', 'large', 'x-large', 'xx-large', 'xxx-large', 'huge'];
 export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
 export type DeleteAction = 'trash' | 'trash-and-read' | 'permanent';
 export type MailAttachmentAction = 'preview' | 'download';
@@ -124,7 +126,7 @@ export interface SidebarApp {
   showOnMobile: boolean;
 }
 
-interface PersistedSettings {
+export interface PersistedSettings {
   // Privacy & content
   externalContentPolicy: ExternalContentPolicy;
   trustedSenders: string[];
@@ -313,6 +315,13 @@ interface PersistedSettings {
   // calendar: the colour of the virtual Birthdays calendar (webmail
   // birthdayCalendarColor).
   birthdayCalendarColor: string;
+  // platform: Settings > Accessibility. How long toasts with an action
+  // (Undo) and errors stay, in seconds (webmail toastDuration, 5 to 60, 0 =
+  // until closed); -1 = automatic: 5 s, or 20 s while a screen reader is
+  // on (lib/toast-duration).
+  toastDuration: number;
+  // Push only for mail that lands in the Inbox (webmail #983, same key).
+  pushNotifyInboxOnly: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -470,6 +479,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
   // calendar:
   birthdayCalendarColor: '#eab308',
+  // platform:
+  toastDuration: -1,
+  pushNotifyInboxOnly: false,
 };
 
 export interface SettingsState extends PersistedSettings {
@@ -583,7 +595,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   messageListOrderScope: oneOf(['inbox', 'all']),
   // Levels are sanitized by the consumer (lib/message-list-order sanitizeSortLevels).
   messageListOrder: (v) => Array.isArray(v),
-  fontSize: oneOf(['small', 'medium', 'large']),
+  fontSize: oneOf(FONT_SIZES),
   density: oneOf(['extra-compact', 'compact', 'regular', 'comfortable']),
   attachmentReminderKeywords: stringArray,
   // Same set the webmail accepts (stores/settings-store.ts importSettings).
@@ -619,6 +631,8 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   exportSpaceReplacement: oneOf(['keep', 'underscore', 'dash']),
   offlineCacheDays: intBetween(1, 3650),
   offlineCacheMaxMB: intBetween(1, 100000),
+  // platform:
+  toastDuration: oneOf([-1, 0, 5, 10, 20, 60]),
   sidebarApps: (v) => Array.isArray(v) && v.every((a) =>
     a && typeof a === 'object'
     && typeof (a as SidebarApp).id === 'string'

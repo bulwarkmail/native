@@ -141,6 +141,9 @@
     "views": {
       "schedule": "スケジュール",
       "three_days": "3 日"
+    },
+    "detail": {
+      "delete_confirm": "このイベントを削除しますか？"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "タグを追加",
       "delete_confirm_mobile": "{count, plural, other {#件の連絡先を削除しますか？この操作は元に戻せません。}}",
       "move_to_address_book": "アドレス帳に移動",
-      "tag_failed": "タグを設定できませんでした"
+      "tag_failed": "タグを設定できませんでした",
+      "delete_confirm_title": "連絡先を削除"
     },
     "contact": "連絡先",
     "create_hint_mobile": "長押しするとグループを作成できます",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "タグを長押しすると名前を変更できます",
     "tag_name_placeholder": "新しいタグ名",
-    "unnamed": "名前なし"
+    "unnamed": "名前なし",
+    "delete_confirm_title": "連絡先を削除"
   },
   "context_menu": {
     "color_tag": "ラベル",
@@ -482,7 +487,9 @@
       "no_identity": "利用できる送信者情報がありません"
     },
     "view_dark_mode": "ダークモードで表示",
-    "view_light_mode": "ライトモードで表示"
+    "view_light_mode": "ライトモードで表示",
+    "not_spam_short": "迷惑メールでない",
+    "spam_short": "迷惑メール"
   },
   "files": {
     "delete_cascade_hint": "フォルダーは中身ごと削除されます。この操作は元に戻せません。",
@@ -520,7 +527,12 @@
     "symlink": "シンボリックリンク",
     "upload_failed": "{count, plural, other {#件のファイルをアップロードできませんでした}}",
     "upload_unavailable": "このビルドにはファイルピッカーが含まれていません。アップロードを有効にするには、アプリを再ビルドしてください。",
-    "uploading_progress": "アップロード中 {current}/{total} · {name}"
+    "uploading_progress": "アップロード中 {current}/{total} · {name}",
+    "batch_delete_confirm_message": "{count, plural, other {#件のアイテム}}を削除してもよろしいですか？この操作は元に戻せません。",
+    "batch_delete_success": "{count, plural, other {#件のアイテムを削除しました}}",
+    "delete_confirm_message": "\"{name}\"を削除してもよろしいですか？この操作は元に戻せません。",
+    "delete_confirm_title": "リソースを削除",
+    "delete_success": "正常に削除しました"
   },
   "identities": {
     "badge": {
@@ -889,6 +901,10 @@
         "sync_add_failed": "アドレス帳と同期できませんでした",
         "sync_remove_failed": "アドレス帳から削除できませんでした",
         "synced_badge": "アドレス帳で同期済み"
+      },
+      "disable_threading": {
+        "description": "メールを会話ごとにグループ化せず、個別のメッセージとして表示します",
+        "label": "会話グループ化を無効にする"
       }
     },
     "experimental": {
@@ -898,7 +914,9 @@
       "remove_action": "アクションを削除",
       "remove_condition": "条件を削除",
       "sieve_editor": {
-        "line_count": "{count, plural, other {#行}}"
+        "line_count": "{count, plural, other {#行}}",
+        "confirm_save": "保存を確認",
+        "save_warning": "保存するとすべてのビジュアルルールが上書きされます。この操作は元に戻せません。もう一度「保存」をクリックして確認してください。"
       },
       "validation_header_name": "ヘッダー名には英字（A～Z）、数字、ハイフン、アンダースコアのみを使用してください（例: X-Spam-Flag）。"
     },
@@ -942,7 +960,8 @@
       "no_name": "（名前なし）",
       "primary": "プライマリ",
       "save_failed": "保存に失敗しました",
-      "text_signature": "プレーンテキスト署名"
+      "text_signature": "プレーンテキスト署名",
+      "title": "送信者情報"
     },
     "keywords": {
       "description_mobile": "メールを整理するためのカラーラベルです。",
@@ -1041,6 +1060,10 @@
         "up_distributor_desc": "複数の UnifiedPush ディストリビューターアプリがインストールされています。通知の配信に使用するアプリを選択してください。",
         "up_distributor_label": "ディストリビューター",
         "up_no_distributor": "このデバイスには UnifiedPush ディストリビューターアプリがインストールされていません。アプリ（ntfy など）をインストールしてから、もう一度お試しください。"
+      },
+      "calendar": {
+        "invitation_parsing": "メール招待を解析",
+        "invitation_parsing_desc": "メール添付ファイルのカレンダー招待を検出し、カレンダーアクションを表示"
       }
     },
     "offline": {
@@ -1178,7 +1201,16 @@
     },
     "tabs": {
       "plugins": "プラグイン",
-      "updates": "アップデート"
+      "updates": "アップデート",
+      "content_senders": "コンテンツと送信者",
+      "downloads": "ダウンロード",
+      "identities": "送信者情報",
+      "keywords": "ラベル",
+      "language": "言語、地域、時刻",
+      "layout": "レイアウト",
+      "sidebar_apps": "サイドバーアプリ",
+      "templates": "テンプレート",
+      "themes": "テーマ"
     },
     "templates": {
       "delete_confirm": "「{name}」を完全に削除しますか？",
@@ -1200,6 +1232,24 @@
       "warnings": {
         "date_format": "日付は「YYYY-MM-DD」または「YYYY-MM-DD HH:MM」の形式で入力してください"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "1分ごと",
+        "2m": "2分ごと",
+        "30s": "30秒ごと",
+        "5m": "5分ごと",
+        "description": "下書きを自動保存する頻度",
+        "label": "自動保存間隔"
+      },
+      "description": "メール作成の設定を構成",
+      "title": "作成"
+    },
+    "tab_groups": {
+      "advanced": "詳細",
+      "appearance": "外観",
+      "general": "一般",
+      "privacy": "プライバシーとセキュリティ"
     }
   },
   "sharing": {

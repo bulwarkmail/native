@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Хуваарь",
       "three_days": "3 өдөр"
+    },
+    "detail": {
+      "delete_confirm": "Энэ үйл явдлыг устгах уу?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Таг нэмэх",
       "delete_confirm_mobile": "{count, plural, one {# харилцагчийг устгах уу? Үүнийг буцаах боломжгүй.} other {# харилцагчийг устгах уу? Үүнийг буцаах боломжгүй.}}",
       "move_to_address_book": "Хаягийн дэвтэр рүү зөөх",
-      "tag_failed": "Таг нэмж чадсангүй"
+      "tag_failed": "Таг нэмж чадсангүй",
+      "delete_confirm_title": "Харилцагчдыг устгах"
     },
     "contact": "Харилцагч",
     "create_hint_mobile": "Оронд нь бүлэг үүсгэхийн тулд удаан дарна уу",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Тагийн нэрийг өөрчлөхийн тулд түүн дээр удаан дарна уу",
     "tag_name_placeholder": "Тагийн шинэ нэр",
-    "unnamed": "Нэргүй"
+    "unnamed": "Нэргүй",
+    "delete_confirm_title": "Харилцагчийг устгах"
   },
   "context_menu": {
     "color_tag": "Таг",
@@ -477,7 +482,9 @@
       "no_identity": "Илгээх таниулбар алга"
     },
     "view_dark_mode": "Харанхуй горимоор харах",
-    "view_light_mode": "Цайвар горимоор харах"
+    "view_light_mode": "Цайвар горимоор харах",
+    "not_spam_short": "Спам биш",
+    "spam_short": "Спам"
   },
   "files": {
     "delete_cascade_hint": "Хавтсыг доторх бүх зүйлийн хамт устгана. Үүнийг буцаах боломжгүй.",
@@ -515,7 +522,12 @@
     "symlink": "Симбол холбоос",
     "upload_failed": "{count, plural, one {1 файлыг дээш ачаалж чадсангүй} other {# файлыг дээш ачаалж чадсангүй}}",
     "upload_unavailable": "Энэ хувилбарт файл сонгогч суулгаагүй байна. Байршуулалтыг идэвхжүүлэхийн тулд аппыг дахин бүтээнэ үү.",
-    "uploading_progress": "Байршуулж байна {current}/{total} · {name}"
+    "uploading_progress": "Байршуулж байна {current}/{total} · {name}",
+    "batch_delete_confirm_message": "{count, plural, one {1 элемент} other {# элемент}} устгахыг баталгаажуулж байна уу? Энэ үйлдлийг буцаах боломжгүй.",
+    "batch_delete_success": "{count, plural, one {1 элемент устгагдлаа} other {# элемент устгагдлаа}}",
+    "delete_confirm_message": "Та \"{name}\"-г устгахдаа итгэлтэй байна уу? Үүнийг буцаах боломжгүй.",
+    "delete_confirm_title": "Нөөцийг устгах",
+    "delete_success": "Амжилттай устгасан"
   },
   "identities": {
     "badge": {
@@ -884,6 +896,10 @@
         "sync_add_failed": "Хаягийн дэвтэртэй синк хийж чадсангүй",
         "sync_remove_failed": "Хаягийн дэвтрээс хасаж чадсангүй",
         "synced_badge": "Хаягийн дэвтрээр синк хийсэн"
+      },
+      "disable_threading": {
+        "description": "Имэйлүүдийг харилцан яриагаар бүлэглэхийн оронд тус тусад нь мессеж хэлбэрээр харуулах",
+        "label": "Харилцааны бүлэглэлийг идэвхгүй болгох"
       }
     },
     "experimental": {
@@ -893,7 +909,9 @@
       "remove_action": "Үйлдлийг хасах",
       "remove_condition": "Нөхцөлийг хасах",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# мөр} other {# мөр}}"
+        "line_count": "{count, plural, one {# мөр} other {# мөр}}",
+        "confirm_save": "Хадгалахыг баталгаажуулах",
+        "save_warning": "Хадгалснаар ямар ч харааны дүрмийг дарж бичнэ. Үүнийг буцаах боломжгүй. Баталгаажуулахын тулд Save дахин дарна уу."
       },
       "validation_header_name": "Зөвхөн A-Z үсэг, тоо, зураас, доогуур зураас агуулсан толгойн нэр оруулна уу, жишээ нь X-Spam-Flag."
     },
@@ -937,7 +955,8 @@
       "no_name": "(нэргүй)",
       "primary": "үндсэн",
       "save_failed": "Хадгалж чадсангүй",
-      "text_signature": "Энгийн текст гарын үсэг"
+      "text_signature": "Энгийн текст гарын үсэг",
+      "title": "Танилцуулга илгээх"
     },
     "keywords": {
       "description_mobile": "Имэйлээ цэгцлэх өнгөт тагууд.",
@@ -1036,6 +1055,10 @@
         "up_distributor_desc": "Хэд хэдэн UnifiedPush түгээгч апп суулгасан байна - мэдэгдэл хүргэх аппыг сонгоно уу.",
         "up_distributor_label": "Түгээгч",
         "up_no_distributor": "Энэ төхөөрөмжид UnifiedPush түгээгч апп суулгаагүй байна. Нэгийг суулгаад (жишээ нь ntfy) дахин оролдоно уу."
+      },
+      "calendar": {
+        "invitation_parsing": "Имэйл урилгыг задлан шинжлэх",
+        "invitation_parsing_desc": "Имэйл хавсралтаас хуанлийн урилгыг илрүүлж, календарийн үйлдлийг харуулах"
       }
     },
     "offline": {
@@ -1173,7 +1196,16 @@
     },
     "tabs": {
       "plugins": "Плагинууд",
-      "updates": "Шинэчлэлт"
+      "updates": "Шинэчлэлт",
+      "content_senders": "Агуулга ба Илгээгчид",
+      "downloads": "Татаж авах",
+      "identities": "Тэмдэгтүүд",
+      "keywords": "Тагууд",
+      "language": "Хэл, бүс, цаг",
+      "layout": "Байршил",
+      "sidebar_apps": "Хажуугийн аппууд",
+      "templates": "Загварууд",
+      "themes": "Сэдэв"
     },
     "templates": {
       "delete_confirm": "\"{name}\"-г бүрмөсөн устгах уу?",
@@ -1195,6 +1227,24 @@
       "warnings": {
         "date_format": "Огноо \"YYYY-MM-DD\" эсвэл \"YYYY-MM-DD HH:MM\" хэлбэртэй байх ёстой"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Минут тутам",
+        "2m": "2 минут тутамд",
+        "30s": "30 секунд тутамд",
+        "5m": "5 минут тутамд",
+        "description": "Ноорог автоматаар хэр олон удаа хадгалах вэ",
+        "label": "Автоматаар хадгалах интервал"
+      },
+      "description": "Имэйл бичих тохиргоог тохируулах",
+      "title": "Бичих цонх"
+    },
+    "tab_groups": {
+      "advanced": "Дэвшилтэт",
+      "appearance": "Гадаад төрх",
+      "general": "Ерөнхий",
+      "privacy": "Нууцлал ба Аюулгүй байдал"
     }
   },
   "sharing": {

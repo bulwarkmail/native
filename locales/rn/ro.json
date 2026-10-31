@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Program",
       "three_days": "3 zile"
+    },
+    "detail": {
+      "delete_confirm": "Doriți să ștergeți acest eveniment?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Adăugați etichetă",
       "delete_confirm_mobile": "{count, plural, one {Ștergeți # contact? Această acțiune nu poate fi anulată.} few {Ștergeți # contacte? Această acțiune nu poate fi anulată.} other {Ștergeți # de contacte? Această acțiune nu poate fi anulată.}}",
       "move_to_address_book": "Mutați în agendă",
-      "tag_failed": "Etichetarea a eșuat"
+      "tag_failed": "Etichetarea a eșuat",
+      "delete_confirm_title": "Ștergeți contactele"
     },
     "contact": "Contact",
     "create_hint_mobile": "Apăsați lung pentru a crea un grup",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Apăsați lung o etichetă pentru a o redenumi",
     "tag_name_placeholder": "Numele noii etichete",
-    "unnamed": "Fără nume"
+    "unnamed": "Fără nume",
+    "delete_confirm_title": "Șterge contactul"
   },
   "context_menu": {
     "color_tag": "Etichetă",
@@ -482,7 +487,8 @@
       "no_identity": "Nu există nicio identitate de trimitere disponibilă"
     },
     "view_dark_mode": "Vizualizați în modul întunecat",
-    "view_light_mode": "Vizualizați în modul luminos"
+    "view_light_mode": "Vizualizați în modul luminos",
+    "not_spam_short": "Nu este spam"
   },
   "files": {
     "delete_cascade_hint": "Folderele sunt șterse împreună cu tot conținutul lor. Această acțiune nu poate fi anulată.",
@@ -520,7 +526,12 @@
     "symlink": "Legătură simbolică",
     "upload_failed": "{count, plural, one {1 fișier nu a putut fi încărcat} few {# fișiere nu au putut fi încărcate} other {# de fișiere nu au putut fi încărcate}}",
     "upload_unavailable": "Selectorul de fișiere nu este instalat în această versiune. Recompilați aplicația pentru a activa încărcările.",
-    "uploading_progress": "Se încarcă {current}/{total} · {name}"
+    "uploading_progress": "Se încarcă {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Sunteți sigur că doriți să ștergeți {count, plural, one {1 element} few {# elemente} other {# de elemente}}? Această acțiune nu poate fi anulată.",
+    "batch_delete_success": "{count, plural, one {1 element șters} few {# elemente șterse} other {# de elemente șterse}}",
+    "delete_confirm_message": "Sunteți sigur că doriți să ștergeți „{name}”? Această acțiune nu poate fi anulată.",
+    "delete_confirm_title": "Ștergeți resursa",
+    "delete_success": "Șters cu succes"
   },
   "identities": {
     "badge": {
@@ -889,6 +900,10 @@
         "sync_add_failed": "Nu s-a putut sincroniza cu agenda",
         "sync_remove_failed": "Nu s-a putut elimina din agendă",
         "synced_badge": "Sincronizat prin agendă"
+      },
+      "disable_threading": {
+        "description": "Afișați e-mailurile ca mesaje individuale, în loc să le grupați pe conversații",
+        "label": "Dezactivați gruparea conversațiilor"
       }
     },
     "experimental": {
@@ -898,7 +913,9 @@
       "remove_action": "Eliminați acțiunea",
       "remove_condition": "Eliminați condiția",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# linie} few {# linii} other {# de linii}}"
+        "line_count": "{count, plural, one {# linie} few {# linii} other {# de linii}}",
+        "confirm_save": "Confirmare Salvare",
+        "save_warning": "Salvarea va suprascrie orice reguli vizuale. Această acțiune nu poate fi anulată. Faceți clic din nou pe Salvare pentru a confirma."
       },
       "validation_header_name": "Introduceți un nume de antet care folosește doar literele A–Z, cifre, cratime și liniuțe de subliniere, de exemplu X-Spam-Flag."
     },
@@ -942,7 +959,8 @@
       "no_name": "(fără nume)",
       "primary": "principală",
       "save_failed": "Salvarea a eșuat",
-      "text_signature": "Semnătură în text simplu"
+      "text_signature": "Semnătură în text simplu",
+      "title": "Identități de expediere"
     },
     "keywords": {
       "description_mobile": "Etichete colorate pentru organizarea e-mailurilor.",
@@ -1041,6 +1059,10 @@
         "up_distributor_desc": "Sunt instalate mai multe aplicații distribuitor UnifiedPush - alegeți-o pe cea care trebuie să livreze notificările.",
         "up_distributor_label": "Distribuitor",
         "up_no_distributor": "Pe acest dispozitiv nu este instalată nicio aplicație distribuitor UnifiedPush. Instalați una (de exemplu ntfy) și încercați din nou."
+      },
+      "calendar": {
+        "invitation_parsing": "Analizați invitațiile prin e-mail",
+        "invitation_parsing_desc": "Detectați invitațiile din calendar din atașamentele de e-mail și afișați acțiunile din calendar"
       }
     },
     "offline": {
@@ -1178,7 +1200,16 @@
     },
     "tabs": {
       "plugins": "Pluginuri",
-      "updates": "Actualizări"
+      "updates": "Actualizări",
+      "content_senders": "Conținut și expeditori",
+      "downloads": "Descărcări",
+      "identities": "Identități",
+      "keywords": "Etichete",
+      "language": "Limba, regiunea și ora",
+      "layout": "Aspect",
+      "sidebar_apps": "Aplicații din bara laterală",
+      "templates": "Șabloane",
+      "themes": "Teme"
     },
     "templates": {
       "delete_confirm": "Ștergeți definitiv „{name}”?",
@@ -1200,6 +1231,24 @@
       "warnings": {
         "date_format": "Datele trebuie să fie în formatul \"YYYY-MM-DD\" sau \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "În fiecare minut",
+        "2m": "La fiecare 2 minute",
+        "30s": "La fiecare 30 de secunde",
+        "5m": "La fiecare 5 minute",
+        "description": "Cât de des să se salveze automat schițele",
+        "label": "Interval de salvare automată"
+      },
+      "description": "Configurați setările de redactare a e-mailurilor",
+      "title": "Redactare"
+    },
+    "tab_groups": {
+      "advanced": "Nivel avansat",
+      "appearance": "Aspect",
+      "general": "Generalități",
+      "privacy": "Confidențialitate și securitate"
     }
   },
   "sharing": {

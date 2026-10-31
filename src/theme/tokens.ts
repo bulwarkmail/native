@@ -136,8 +136,10 @@ export const DARK_COLORS: ThemePalette = {
   cardForeground: '#fafafa',
 
   text: '#fafafa',
-  textSecondary: '#a3a3a3',
-  textMuted: '#737373',
+  // The webmail's dark muted-foreground (9f6c7b99c): 4.5:1 or more on the
+  // background and on the #262626 surfaces. #737373 was 3.2:1 on those.
+  textSecondary: '#adadad',
+  textMuted: '#adadad',
   textInverse: '#0a0a0a',
   // Links stay blue (webmail: info) so they read as links on a white-primary
   // theme.
@@ -161,7 +163,7 @@ export const DARK_COLORS: ThemePalette = {
   infoForeground: '#ffffff',
 
   unread: '#60a5fa',
-  read: '#a3a3a3',
+  read: '#adadad',
   starred: '#fbbf24',
   flagged: '#ef4444',
   draft: '#a78bfa',
@@ -179,13 +181,13 @@ export const DARK_COLORS: ThemePalette = {
   tags: TAGS,
 
   navActive: '#fafafa',
-  navInactive: '#a3a3a3',
+  navInactive: '#adadad',
   navBadge: '#ef4444',
 
   secondary: '#262626',
   secondaryForeground: '#fafafa',
   muted: '#262626',
-  mutedForeground: '#a3a3a3',
+  mutedForeground: '#adadad',
   accent: '#1e3a8a',
   accentForeground: '#dbeafe',
 
@@ -232,8 +234,10 @@ export const LIGHT_COLORS: ThemePalette = {
   cardForeground: '#0f172a',
 
   text: '#0f172a',
-  textSecondary: '#64748b',
-  textMuted: '#94a3b8',
+  // The webmail's light muted-foreground (9f6c7b99c): 4.5:1 or more on white
+  // and on the slate fills. #94a3b8 was 2.6:1 on white.
+  textSecondary: '#59687c',
+  textMuted: '#59687c',
   textInverse: '#ffffff',
   textLink: '#1d4ed8',
 
@@ -255,7 +259,7 @@ export const LIGHT_COLORS: ThemePalette = {
   infoForeground: '#ffffff',
 
   unread: '#3b82f6',
-  read: '#64748b',
+  read: '#59687c',
   starred: '#eab308',
   flagged: '#ef4444',
   draft: '#a855f7',
@@ -273,13 +277,13 @@ export const LIGHT_COLORS: ThemePalette = {
   tags: LIGHT_TAGS,
 
   navActive: '#3b82f6',
-  navInactive: '#64748b',
+  navInactive: '#59687c',
   navBadge: '#ef4444',
 
   secondary: '#f8fafc',
   secondaryForeground: '#0f172a',
   muted: '#f1f5f9',
-  mutedForeground: '#64748b',
+  mutedForeground: '#59687c',
   accent: '#dbeafe',
   accentForeground: '#1e40af',
 

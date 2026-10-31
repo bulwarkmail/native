@@ -92,6 +92,34 @@ describe('push filter folders', () => {
   });
 });
 
+describe('push filter for the Inbox only (bulwarkmail/webmail#983)', () => {
+  it("lets through only mail that lands in each account's Inbox", async () => {
+    provideLoadedMailboxes(async () => [
+      { id: 'inbox', role: 'inbox', accountId: 'jmap-primary' },
+      { id: 'junk', role: 'junk', accountId: 'jmap-primary' },
+      { id: 'team:in', originalId: 'in', role: 'inbox', accountId: 'team', isShared: true },
+    ] as never);
+
+    const config = await buildEmailPushConfig(EMPTY_NOTIFICATION_MUTES, true);
+
+    expect(config['jmap-primary'].filter).toEqual({
+      operator: 'AND',
+      conditions: [{ notKeyword: '$junk' }, { inMailbox: 'inbox' }],
+    });
+    expect(config.team.filter).toEqual({ operator: 'AND', conditions: [{ notKeyword: '$junk' }, { inMailbox: 'in' }] });
+  });
+
+  it('silences an account whose Inbox is muted, and refuses to build without the own Inbox', async () => {
+    provideLoadedMailboxes(async () => [{ id: 'inbox', role: 'inbox', accountId: 'jmap-primary' }] as never);
+    const muted: NotificationMutes = { accounts: [], mailboxes: { 'jmap-primary/inbox': true } };
+    const config = await buildEmailPushConfig(muted, true);
+    expect(config['jmap-primary'].filter).toEqual({ operator: 'AND', conditions: [{ notKeyword: '$junk' }, { hasKeyword: '$junk' }] });
+
+    provideLoadedMailboxes(async () => [{ id: 'junk', role: 'junk', accountId: 'jmap-primary' }] as never);
+    await expect(buildEmailPushConfig(EMPTY_NOTIFICATION_MUTES, true)).rejects.toThrow(/No Inbox/);
+  });
+});
+
 // Muted accounts and folders (#78) are left out by the server-side filter.
 describe('push filter with muted folders and accounts (#78)', () => {
   const folders = [

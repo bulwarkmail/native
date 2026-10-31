@@ -141,6 +141,9 @@
     "views": {
       "schedule": "일정",
       "three_days": "3일"
+    },
+    "detail": {
+      "delete_confirm": "이 일정을 삭제할까요?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "태그 추가",
       "delete_confirm_mobile": "{count, plural, other {연락처 #개를 삭제할까요? 이 작업은 되돌릴 수 없어요.}}",
       "move_to_address_book": "주소록으로 이동",
-      "tag_failed": "태그를 지정하지 못했어요"
+      "tag_failed": "태그를 지정하지 못했어요",
+      "delete_confirm_title": "연락처 삭제"
     },
     "contact": "연락처",
     "create_hint_mobile": "길게 누르면 대신 그룹을 만들 수 있어요",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "태그를 길게 누르면 이름을 바꿀 수 있어요",
     "tag_name_placeholder": "새 태그 이름",
-    "unnamed": "이름 없음"
+    "unnamed": "이름 없음",
+    "delete_confirm_title": "연락처 삭제"
   },
   "context_menu": {
     "color_tag": "태그",
@@ -480,7 +485,9 @@
       "no_identity": "사용할 수 있는 보내는 사람 주소가 없어요"
     },
     "view_dark_mode": "다크 모드로 보기",
-    "view_light_mode": "라이트 모드로 보기"
+    "view_light_mode": "라이트 모드로 보기",
+    "not_spam_short": "스팸 아님",
+    "spam_short": "스팸"
   },
   "files": {
     "delete_cascade_hint": "폴더를 삭제하면 안에 있는 모든 항목도 함께 삭제돼요. 이 작업은 되돌릴 수 없어요.",
@@ -518,7 +525,12 @@
     "symlink": "심볼릭 링크",
     "upload_failed": "{count}개의 파일을 업로드하지 못했습니다",
     "upload_unavailable": "이 빌드에는 파일 선택기가 설치되어 있지 않아요. 업로드를 사용하려면 앱을 다시 빌드해 주세요.",
-    "uploading_progress": "업로드 중 {current}/{total} · {name}"
+    "uploading_progress": "업로드 중 {current}/{total} · {name}",
+    "batch_delete_confirm_message": "선택한 {count}개의 항목을 정말 삭제할까요? 이 작업은 되돌릴 수 없어요.",
+    "batch_delete_success": "{count}개의 항목이 삭제되었어요",
+    "delete_confirm_message": "정말 \"{name}\"을(를) 삭제할까요? 이 작업은 되돌릴 수 없어요.",
+    "delete_confirm_title": "항목 삭제",
+    "delete_success": "성공적으로 삭제되었어요"
   },
   "identities": {
     "badge": {
@@ -887,6 +899,10 @@
         "sync_add_failed": "주소록에 동기화할 수 없어요",
         "sync_remove_failed": "주소록에서 삭제할 수 없어요",
         "synced_badge": "주소록으로 동기화됨"
+      },
+      "disable_threading": {
+        "description": "관련된 메일을 그룹으로 묶지 않고 개별 메시지로 보여줘요",
+        "label": "대화형 보기 끄기"
       }
     },
     "experimental": {
@@ -896,7 +912,9 @@
       "remove_action": "동작 제거",
       "remove_condition": "조건 제거",
       "sieve_editor": {
-        "line_count": "{count, plural, other {#줄}}"
+        "line_count": "{count, plural, other {#줄}}",
+        "confirm_save": "저장 확인",
+        "save_warning": "저장하면 시각적 규칙이 덮어쓰기 되며, 이 작업은 되돌릴 수 없어요. 확인을 위해 한 번 더 저장을 눌러주세요."
       },
       "validation_header_name": "헤더 이름은 영문자(A-Z), 숫자, 하이픈, 밑줄만 사용해 입력해 주세요(예: X-Spam-Flag)."
     },
@@ -940,7 +958,8 @@
       "no_name": "(이름 없음)",
       "primary": "기본",
       "save_failed": "저장에 실패했어요",
-      "text_signature": "일반 텍스트 서명"
+      "text_signature": "일반 텍스트 서명",
+      "title": "보내는 사람"
     },
     "keywords": {
       "description_mobile": "메일을 정리하는 색상 태그예요.",
@@ -1039,6 +1058,10 @@
         "up_distributor_desc": "여러 UnifiedPush 배포자 앱이 설치되어 있어요. 알림을 전달할 앱을 선택해 주세요.",
         "up_distributor_label": "배포자",
         "up_no_distributor": "이 기기에 UnifiedPush 배포자 앱이 설치되어 있지 않아요. 앱(예: ntfy)을 설치한 후 다시 시도해 주세요."
+      },
+      "calendar": {
+        "invitation_parsing": "이메일 초대장 분석",
+        "invitation_parsing_desc": "이메일 첨부파일에서 캘린더 초대장을 감지하고 캘린더에 표시해요"
       }
     },
     "offline": {
@@ -1176,7 +1199,16 @@
     },
     "tabs": {
       "plugins": "플러그인",
-      "updates": "업데이트"
+      "updates": "업데이트",
+      "content_senders": "콘텐츠 및 발신자",
+      "downloads": "다운로드",
+      "identities": "보내는 사람",
+      "keywords": "태그",
+      "language": "언어, 지역 및 시간",
+      "layout": "레이아웃",
+      "sidebar_apps": "사이드바 앱",
+      "templates": "템플릿",
+      "themes": "테마"
     },
     "templates": {
       "delete_confirm": "\"{name}\"을(를) 영구 삭제할까요?",
@@ -1198,6 +1230,24 @@
       "warnings": {
         "date_format": "날짜는 \"YYYY-MM-DD\" 또는 \"YYYY-MM-DD HH:MM\" 형식이어야 해요"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "1분마다",
+        "2m": "2분마다",
+        "30s": "30초마다",
+        "5m": "5분마다",
+        "description": "작성 중인 메일을 임시보관함에 자동으로 저장하는 간격이에요",
+        "label": "자동 저장 간격"
+      },
+      "description": "메일 작성과 관련된 설정을 확인해 보세요",
+      "title": "메일 쓰기"
+    },
+    "tab_groups": {
+      "advanced": "고급",
+      "appearance": "모양",
+      "general": "일반",
+      "privacy": "개인정보 및 보안"
     }
   },
   "sharing": {

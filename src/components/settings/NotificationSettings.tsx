@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   StyleSheet,
   Text,
@@ -22,7 +23,8 @@ import {
   DEFAULT_RELAY_BASE_URL,
   disablePushForAccount,
   getStoredRelayBaseUrl,
-  isPushEnabledForAccount,
+  isPushActiveForAccount,
+  shouldRecheckPushState,
   isPushSupported,
   isValidRelayUrl,
   listPushDevices,
@@ -94,11 +96,14 @@ export function NotificationSettings() {
   try { ownJmapAccountId = jmapClient.accountId; } catch { ownJmapAccountId = null; }
   const canMuteAccount = ownJmapAccountId !== null && serverSupportsEmailPush();
   const accountMuted = ownJmapAccountId !== null && isAccountMuted(notificationMutes, ownJmapAccountId);
+  // The Inbox-only filter needs the server's emailPush filter too (webmail #983).
+  const inboxOnly = useSettingsStore((s) => s.pushNotifyInboxOnly);
   const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const appIconBadge = useSettingsStore((s) => s.appIconUnreadBadge);
 
   const supported = isPushSupported();
+  const inboxOnlyAvailable = supported && !!client && serverSupportsEmailPush();
   const upSupported = isUnifiedPushSupported();
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_BASE_URL);
   const [transport, setTransport] = useState<PushTransport>('fcm');
@@ -115,11 +120,25 @@ export function NotificationSettings() {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
 
+  // Read again when the app comes back to the front: notifications may have
+  // been turned off in the phone's settings meanwhile (webmail #1148).
+  const [recheck, setRecheck] = useState(0);
+  const pushStatusKind = React.useRef(pushStatus.kind);
+  pushStatusKind.current = pushStatus.kind;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && shouldRecheckPushState(pushStatusKind.current)) setRecheck((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const stored = await getStoredRelayBaseUrl();
-      const enabled = activeAccountId ? await isPushEnabledForAccount(activeAccountId) : false;
+      const enabled = activeAccountId ? await isPushActiveForAccount(activeAccountId) : false;
+      // An enable or disable that started meanwhile has the final word.
+      if (!shouldRecheckPushState(pushStatusKind.current)) return;
       if (cancelled) return;
       if (stored) setRelayUrl(stored);
       setPushEnabled(enabled);
@@ -134,7 +153,7 @@ export function NotificationSettings() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAccountId]);
+  }, [activeAccountId, recheck]);
 
   const trimmed = relayUrl.trim().replace(/\/+$/, '');
   const relayValid = isValidRelayUrl(trimmed);
@@ -557,6 +576,18 @@ export function NotificationSettings() {
         >
           <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
         </SettingItem>
+        {inboxOnlyAvailable && (
+          <SettingItem
+            label={t('settings.notifications.email.inbox_only', 'Inbox only')}
+            description={t('settings.notifications.email.inbox_only_desc', 'Only notify for mail that lands in the Inbox; skip mail a filter files into another folder')}
+          >
+            <ToggleSwitch
+              checked={inboxOnly}
+              onChange={(v) => update('pushNotifyInboxOnly', v)}
+              accessibilityLabel={t('settings.notifications.email.inbox_only', 'Inbox only')}
+            />
+          </SettingItem>
+        )}
         {canMuteAccount && (
           <SettingItem
             label={t('settings.notifications.email.mute_account', 'Mute this account')}

@@ -11,7 +11,11 @@ import { useEmailStore } from '../stores/email-store';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import type { RootStackParamList } from '../navigation/types';
+import { announce } from '../lib/announce';
+import { lastingToastDuration } from '../lib/toast-duration';
 
+// At least this long; the "Notification duration" setting can make it
+// longer, or keep the bar until it is replaced (lib/toast-duration).
 const VISIBLE_MS = 5000;
 
 interface Shown {
@@ -48,7 +52,7 @@ export function UndoSnackbar() {
   // the bar; the newer one wins.
   const current = React.useMemo<Shown | null>(() => {
     const list: Shown | null = entry
-      ? { label: entry.label, createdAt: entry.createdAt, visibleMs: VISIBLE_MS }
+      ? { label: entry.label, createdAt: entry.createdAt, visibleMs: lastingToastDuration(VISIBLE_MS) }
       : null;
     const send: Shown | null = pendingSend
       ? {
@@ -70,6 +74,14 @@ export function UndoSnackbar() {
     if (current) setShown(current);
   }, [current]);
 
+  // Read the bar out on iOS, which has no live regions; Android reads the
+  // bar's live region. Once per entry, not on every countdown re-render.
+  const undoLabel = t('common.undo', 'Undo');
+  React.useEffect(() => {
+    if (!current) return;
+    announce(current.label);
+  }, [current?.createdAt, current?.label]);
+
   // Drive the auto-dismiss off the entry's createdAt so re-renders during
   // animation don't reset the timer, and so consecutive actions reset it.
   React.useEffect(() => {
@@ -88,6 +100,8 @@ export function UndoSnackbar() {
       Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
     ]).start();
 
+    // Kept until replaced or used ("Until I close them").
+    if (current.visibleMs <= 0) return undefined;
     const elapsed = Date.now() - current.createdAt;
     const remaining = Math.max(0, current.visibleMs - elapsed);
     const id = setTimeout(() => {
@@ -133,13 +147,15 @@ export function UndoSnackbar() {
         { left: frame.left, right: frame.right, bottom: insets.bottom + frame.bottom, opacity, transform: [{ translateY: slideY }] },
       ]}
     >
-      <View style={styles.bar}>
+      <View style={styles.bar} accessibilityLiveRegion="polite">
         <Text style={styles.label} numberOfLines={1}>{shown.label}</Text>
         {shown.send && (
           <Pressable
             onPress={onSendNow}
             hitSlop={8}
             disabled={sendBusy}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_composer.send_now', 'Send now')}
             style={({ pressed }) => [styles.undoBtn, pressed && styles.undoBtnPressed]}
           >
             <Text style={styles.sendNowText}>{t('email_composer.send_now', 'Send now').toUpperCase()}</Text>
@@ -149,6 +165,8 @@ export function UndoSnackbar() {
           onPress={() => { void onUndo(); }}
           hitSlop={8}
           disabled={sendBusy}
+          accessibilityRole="button"
+          accessibilityLabel={undoLabel}
           style={({ pressed }) => [styles.undoBtn, pressed && styles.undoBtnPressed]}
         >
           <Text style={styles.undoText}>{t('common.undo', 'Undo').toUpperCase()}</Text>

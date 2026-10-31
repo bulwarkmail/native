@@ -279,11 +279,13 @@ export class JMAPClient {
     username: string,
     password: string,
     totp?: string,
+    /** Cancels the token requests of a TOTP sign-in (the sign-in screen's Cancel). */
+    signal?: AbortSignal,
   ): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
     const epoch = this.detachSession();
     if (totp) {
-      return this.connectWithTotp(baseUrl, username, password, totp, epoch);
+      return this.connectWithTotp(baseUrl, username, password, totp, epoch, signal);
     }
     const credentials: StoredCredentials = { serverUrl: baseUrl, username, password };
     this.credentials = credentials;
@@ -314,11 +316,12 @@ export class JMAPClient {
     password: string,
     totp: string,
     epoch: number,
+    signal?: AbortSignal,
   ): Promise<JMAPSession> {
     const { exchangePasswordForTokens, LoginEndpointMissingError } = await import('../lib/totp-login');
     let tokens: OAuthTokens;
     try {
-      tokens = await exchangePasswordForTokens(baseUrl, username, password, totp);
+      tokens = await exchangePasswordForTokens(baseUrl, username, password, totp, { signal });
     } catch (err) {
       if (err instanceof LoginEndpointMissingError) {
         this.assertCurrentSession(epoch);

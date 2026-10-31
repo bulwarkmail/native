@@ -30,6 +30,7 @@ export const SUPPORTED_LOCALES = [
   { code: 'da', label: 'Dansk' },
   { code: 'de', label: 'Deutsch' },
   { code: 'en', label: 'English' },
+  { code: 'et', label: 'Eesti' },
   { code: 'fa', label: 'فارسی' },
   { code: 'es', label: 'Español' },
   { code: 'fr', label: 'Français' },
@@ -42,6 +43,7 @@ export const SUPPORTED_LOCALES = [
   { code: 'pl', label: 'Polski' },
   { code: 'pt', label: 'Português' },
   { code: 'ro', label: 'Română' },
+  { code: 'th', label: 'ไทย' },
   { code: 'tr', label: 'Türkçe' },
   { code: 'ru', label: 'Русский' },
   { code: 'uk', label: 'Українська' },
@@ -74,7 +76,7 @@ function deepMerge(base: Dictionary, overlay: Dictionary): Dictionary {
 
 // A catalog is a few hundred KB of JSON. Metro only evaluates a module when it
 // is first required, so keeping each require inside its loader means startup
-// builds English plus the active language instead of all 27, and switching
+// builds English plus the active language instead of all 29, and switching
 // language loads the new catalog synchronously on the next t() call. The
 // require paths must stay string literals for Metro to bundle them.
 const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
@@ -84,6 +86,7 @@ const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
   da: () => require('../../locales/da/common.json'),
   de: () => require('../../locales/de/common.json'),
   en: () => en as Dictionary,
+  et: () => require('../../locales/et/common.json'),
   es: () => require('../../locales/es/common.json'),
   fa: () => require('../../locales/fa/common.json'),
   fr: () => require('../../locales/fr/common.json'),
@@ -100,6 +103,7 @@ const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
   pt: () => require('../../locales/pt/common.json'),
   ro: () => require('../../locales/ro/common.json'),
   ru: () => require('../../locales/ru/common.json'),
+  th: () => require('../../locales/th/common.json'),
   sk: () => require('../../locales/sk/common.json'),
   tr: () => require('../../locales/tr/common.json'),
   uk: () => require('../../locales/uk/common.json'),
@@ -115,6 +119,7 @@ const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
   da: () => require('../../locales/rn/da.json'),
   de: () => require('../../locales/rn/de.json'),
   en: () => rnEn as Dictionary,
+  et: () => require('../../locales/rn/et.json'),
   es: () => require('../../locales/rn/es.json'),
   fa: () => require('../../locales/rn/fa.json'),
   fr: () => require('../../locales/rn/fr.json'),
@@ -131,6 +136,7 @@ const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
   pt: () => require('../../locales/rn/pt.json'),
   ro: () => require('../../locales/rn/ro.json'),
   ru: () => require('../../locales/rn/ru.json'),
+  th: () => require('../../locales/rn/th.json'),
   sk: () => require('../../locales/rn/sk.json'),
   tr: () => require('../../locales/rn/tr.json'),
   uk: () => require('../../locales/rn/uk.json'),

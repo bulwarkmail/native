@@ -6,6 +6,7 @@ import { useColors } from '../../theme/colors';
 import { Button, Input } from '../../components';
 import LoginNotice from './LoginNotice';
 import { useLocaleStore } from '../../stores/locale-store';
+import { toUnicodeDomain } from '../../lib/idn';
 
 interface ServerStepProps {
   value: string;
@@ -53,7 +54,7 @@ export default function ServerStep({
         <Text style={styles.title}>{t('login.mobile.server_title', "What's your server address?")}</Text>
         <Text style={styles.subtitle}>
           {failedDomain
-            ? t('login.mobile.server_not_found', "We couldn't find a server for {domain}. If you self-host, the address is the one you use for webmail.", { domain: failedDomain })
+            ? t('login.mobile.server_not_found', "We couldn't find a server for {domain}. If you self-host, the address is the one you use for webmail.", { domain: toUnicodeDomain(failedDomain) })
             : t('login.mobile.server_subtitle', 'Enter the address you use to reach your webmail.')}
         </Text>
       </View>

@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Agenda",
       "three_days": "3 días"
+    },
+    "detail": {
+      "delete_confirm": "¿Eliminar este evento?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Añadir etiqueta",
       "delete_confirm_mobile": "{count, plural, one {¿Eliminar # contacto? Esta acción no se puede deshacer.} other {¿Eliminar # contactos? Esta acción no se puede deshacer.}}",
       "move_to_address_book": "Mover a libreta de direcciones",
-      "tag_failed": "No se pudo etiquetar"
+      "tag_failed": "No se pudo etiquetar",
+      "delete_confirm_title": "Eliminar contactos"
     },
     "contact": "Contacto",
     "create_hint_mobile": "Mantén pulsado para crear un grupo",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Mantén pulsada una etiqueta para cambiarle el nombre",
     "tag_name_placeholder": "Nombre de la nueva etiqueta",
-    "unnamed": "Sin nombre"
+    "unnamed": "Sin nombre",
+    "delete_confirm_title": "Eliminar contacto"
   },
   "context_menu": {
     "color_tag": "Etiqueta",
@@ -488,7 +493,8 @@
       "no_identity": "No hay ninguna identidad de envío disponible"
     },
     "view_dark_mode": "Ver en modo oscuro",
-    "view_light_mode": "Ver en modo claro"
+    "view_light_mode": "Ver en modo claro",
+    "not_spam_short": "No spam"
   },
   "files": {
     "delete_cascade_hint": "Las carpetas se eliminan junto con todo su contenido. Esta acción no se puede deshacer.",
@@ -526,7 +532,12 @@
     "symlink": "Enlace simbólico",
     "upload_failed": "{count, plural, one {No se pudo subir 1 archivo} other {No se pudieron subir # archivos}}",
     "upload_unavailable": "El selector de archivos no está incluido en esta compilación. Vuelve a compilar la app para habilitar las subidas.",
-    "uploading_progress": "Subiendo {current}/{total} · {name}"
+    "uploading_progress": "Subiendo {current}/{total} · {name}",
+    "batch_delete_confirm_message": "¿Está seguro de que desea eliminar {count, plural, one {1 elemento} other {# elementos}}? Esta acción no se puede deshacer.",
+    "batch_delete_success": "{count, plural, one {1 elemento eliminado} other {# elementos eliminados}}",
+    "delete_confirm_message": "¿Está seguro de que desea eliminar \"{name}\"? Esta acción no se puede deshacer.",
+    "delete_confirm_title": "Eliminar recurso",
+    "delete_success": "Eliminado correctamente"
   },
   "identities": {
     "badge": {
@@ -895,6 +906,10 @@
         "sync_add_failed": "No se pudo sincronizar con la libreta de direcciones",
         "sync_remove_failed": "No se pudo quitar de la libreta de direcciones",
         "synced_badge": "Sincronizado mediante la libreta de direcciones"
+      },
+      "disable_threading": {
+        "description": "Mostrar correos como mensajes individuales en lugar de agruparlos por conversación",
+        "label": "Desactivar agrupación de conversaciones"
       }
     },
     "experimental": {
@@ -904,7 +919,9 @@
       "remove_action": "Eliminar acción",
       "remove_condition": "Eliminar condición",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# línea} other {# líneas}}"
+        "line_count": "{count, plural, one {# línea} other {# líneas}}",
+        "confirm_save": "Confirmar guardado",
+        "save_warning": "Guardar sobrescribirá todas las reglas visuales. Esta acción no se puede deshacer. Haga clic en Guardar de nuevo para confirmar."
       },
       "validation_header_name": "Escribe un nombre de encabezado que solo use las letras A-Z, números, guiones y guiones bajos, por ejemplo X-Spam-Flag."
     },
@@ -948,7 +965,8 @@
       "no_name": "(sin nombre)",
       "primary": "principal",
       "save_failed": "No se pudo guardar",
-      "text_signature": "Firma en texto sin formato"
+      "text_signature": "Firma en texto sin formato",
+      "title": "Identidades de Envío"
     },
     "keywords": {
       "description_mobile": "Etiquetas de colores para organizar tu correo.",
@@ -1047,6 +1065,10 @@
         "up_distributor_desc": "Hay varias apps distribuidoras de UnifiedPush instaladas: elige la que debe entregar las notificaciones.",
         "up_distributor_label": "Distribuidor",
         "up_no_distributor": "No hay ninguna app distribuidora de UnifiedPush instalada en este dispositivo. Instala una (por ejemplo, ntfy) e inténtalo de nuevo."
+      },
+      "calendar": {
+        "invitation_parsing": "Analizar invitaciones por correo",
+        "invitation_parsing_desc": "Detectar invitaciones de calendario en archivos adjuntos y mostrar acciones de calendario"
       }
     },
     "offline": {
@@ -1184,7 +1206,16 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "updates": "Actualizaciones"
+      "updates": "Actualizaciones",
+      "content_senders": "Contenido y remitentes",
+      "downloads": "Descargas",
+      "identities": "Identidades",
+      "keywords": "Etiquetas",
+      "language": "Idioma, Región y Hora",
+      "layout": "Diseño",
+      "sidebar_apps": "Apps de barra lateral",
+      "templates": "Plantillas",
+      "themes": "Temas"
     },
     "templates": {
       "delete_confirm": "¿Eliminar \"{name}\" de forma permanente?",
@@ -1206,6 +1237,23 @@
       "warnings": {
         "date_format": "Las fechas deben tener el formato \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Cada minuto",
+        "2m": "Cada 2 minutos",
+        "30s": "Cada 30 segundos",
+        "5m": "Cada 5 minutos",
+        "description": "Con qué frecuencia guardar borradores automáticamente",
+        "label": "Intervalo de Guardado Automático"
+      },
+      "description": "Configure los ajustes de redacción de correos",
+      "title": "Editor"
+    },
+    "tab_groups": {
+      "advanced": "Avanzado",
+      "appearance": "Apariencia",
+      "privacy": "Privacidad y seguridad"
     }
   },
   "sharing": {

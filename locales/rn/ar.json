@@ -141,6 +141,9 @@
     "views": {
       "schedule": "الجدول",
       "three_days": "3 أيام"
+    },
+    "detail": {
+      "delete_confirm": "حذف هذا الحدث؟"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "إضافة وسم",
       "delete_confirm_mobile": "{count, plural, zero {حذف # جهة اتصال؟ لا يمكن التراجع عن ذلك.} one {حذف جهة اتصال واحدة؟ لا يمكن التراجع عن ذلك.} two {حذف جهتي اتصال؟ لا يمكن التراجع عن ذلك.} few {حذف # جهات اتصال؟ لا يمكن التراجع عن ذلك.} many {حذف # جهة اتصال؟ لا يمكن التراجع عن ذلك.} other {حذف # جهة اتصال؟ لا يمكن التراجع عن ذلك.}}",
       "move_to_address_book": "نقل إلى دفتر عناوين",
-      "tag_failed": "فشل إضافة الوسم"
+      "tag_failed": "فشل إضافة الوسم",
+      "delete_confirm_title": "حذف جهات الاتصال"
     },
     "contact": "جهة اتصال",
     "create_hint_mobile": "اضغط مطولًا لإنشاء مجموعة بدلًا من ذلك",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "اضغط مطولًا على وسم لإعادة تسميته",
     "tag_name_placeholder": "اسم الوسم الجديد",
-    "unnamed": "بلا اسم"
+    "unnamed": "بلا اسم",
+    "delete_confirm_title": "حذف جهة الاتصال"
   },
   "context_menu": {
     "color_tag": "وسم",
@@ -477,7 +482,9 @@
       "no_identity": "لا توجد هوية إرسال متاحة"
     },
     "view_dark_mode": "العرض في الوضع الداكن",
-    "view_light_mode": "العرض في الوضع الفاتح"
+    "view_light_mode": "العرض في الوضع الفاتح",
+    "not_spam_short": "ليس مزعجًا",
+    "spam_short": "مزعج"
   },
   "files": {
     "delete_cascade_hint": "تُحذف المجلدات مع كل ما بداخلها. لا يمكن التراجع عن ذلك.",
@@ -515,7 +522,12 @@
     "symlink": "رابط رمزي",
     "upload_failed": "{count, plural, one {تعذّر رفع ملف واحد} two {تعذّر رفع ملفين} few {تعذّر رفع # ملفات} other {تعذّر رفع # ملف}}",
     "upload_unavailable": "أداة اختيار الملفات غير مثبتة في هذا الإصدار. أعد بناء التطبيق لتفعيل الرفع.",
-    "uploading_progress": "جارٍ الرفع {current}/{total} · {name}"
+    "uploading_progress": "جارٍ الرفع {current}/{total} · {name}",
+    "batch_delete_confirm_message": "هل أنت متأكد أنك تريد حذف {count, plural, one {عنصر واحد} other {# عنصر}}؟ لا يمكن التراجع عن هذا.",
+    "batch_delete_success": "{count, plural, one {تم حذف عنصر واحد} other {تم حذف # عنصر}}",
+    "delete_confirm_message": "هل أنت متأكد أنك تريد حذف \"{name}\"؟ لا يمكن التراجع عن هذا.",
+    "delete_confirm_title": "حذف المورد",
+    "delete_success": "تم الحذف بنجاح"
   },
   "identities": {
     "badge": {
@@ -884,6 +896,10 @@
         "sync_add_failed": "تعذّرت المزامنة مع دفتر العناوين",
         "sync_remove_failed": "تعذّرت الإزالة من دفتر العناوين",
         "synced_badge": "متزامن عبر دفتر العناوين"
+      },
+      "disable_threading": {
+        "description": "إظهار الرسائل كرسائل منفردة بدلًا من تجميعها حسب المحادثة",
+        "label": "تعطيل تجميع المحادثات"
       }
     },
     "experimental": {
@@ -893,7 +909,9 @@
       "remove_action": "إزالة الإجراء",
       "remove_condition": "إزالة الشرط",
       "sieve_editor": {
-        "line_count": "{count, plural, zero {# سطر} one {سطر واحد} two {سطران} few {# أسطر} many {# سطرًا} other {# سطر}}"
+        "line_count": "{count, plural, zero {# سطر} one {سطر واحد} two {سطران} few {# أسطر} many {# سطرًا} other {# سطر}}",
+        "confirm_save": "تأكيد الحفظ",
+        "save_warning": "سيؤدي الحفظ إلى استبدال أي قواعد مرئية. لا يمكن التراجع عن هذا. انقر على حفظ مرة أخرى للتأكيد."
       },
       "validation_header_name": "أدخل اسم ترويسة لا يحتوي إلا على الأحرف A-Z والأرقام والشرطات والشرطات السفلية، مثل X-Spam-Flag."
     },
@@ -937,7 +955,8 @@
       "no_name": "(بلا اسم)",
       "primary": "أساسية",
       "save_failed": "فشل الحفظ",
-      "text_signature": "توقيع بنص عادي"
+      "text_signature": "توقيع بنص عادي",
+      "title": "هويات الإرسال"
     },
     "keywords": {
       "description_mobile": "وسوم ملوّنة لتنظيم بريدك.",
@@ -1036,6 +1055,10 @@
         "up_distributor_desc": "هناك عدة تطبيقات موزّعة لـ UnifiedPush مثبتة - اختر التطبيق الذي سيسلّم الإشعارات.",
         "up_distributor_label": "الموزّع",
         "up_no_distributor": "لا يوجد تطبيق موزّع لـ UnifiedPush مثبت على هذا الجهاز. ثبّت واحدًا (مثل ntfy) وحاول مجددًا."
+      },
+      "calendar": {
+        "invitation_parsing": "تحليل دعوات البريد الإلكتروني",
+        "invitation_parsing_desc": "اكتشاف دعوات التقويم في مرفقات البريد وإظهار إجراءات التقويم"
       }
     },
     "offline": {
@@ -1173,7 +1196,16 @@
     },
     "tabs": {
       "plugins": "الإضافات",
-      "updates": "التحديثات"
+      "updates": "التحديثات",
+      "content_senders": "المحتوى والمرسلون",
+      "downloads": "التنزيلات",
+      "identities": "الهويات",
+      "keywords": "الوسوم",
+      "language": "اللغة والمنطقة والوقت",
+      "layout": "التخطيط",
+      "sidebar_apps": "تطبيقات الشريط الجانبي",
+      "templates": "القوالب",
+      "themes": "السمات"
     },
     "templates": {
       "delete_confirm": "حذف \"{name}\" نهائيًا؟",
@@ -1195,6 +1227,24 @@
       "warnings": {
         "date_format": "يجب أن تكون التواريخ بالصيغة \"YYYY-MM-DD\" أو \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "كل دقيقة",
+        "2m": "كل دقيقتين",
+        "30s": "كل 30 ثانية",
+        "5m": "كل 5 دقائق",
+        "description": "عدد مرات حفظ المسودات تلقائيًا",
+        "label": "فاصل الحفظ التلقائي"
+      },
+      "description": "إعداد خيارات كتابة البريد الإلكتروني",
+      "title": "محرر الرسائل"
+    },
+    "tab_groups": {
+      "advanced": "متقدم",
+      "appearance": "المظهر",
+      "general": "عام",
+      "privacy": "الخصوصية والأمان"
     }
   },
   "sharing": {

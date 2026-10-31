@@ -6,6 +6,7 @@ import { useOutboxStore } from '../stores/outbox-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { announceConnectivity } from '../lib/announce';
 
 interface OfflineBannerProps {
   /** Optional extra notice (e.g. "Showing cached mail"). */
@@ -19,6 +20,11 @@ export function OfflineBanner({ hint }: OfflineBannerProps) {
   const t = useLocaleStore((s) => s.t);
   // Pending offline mutations that will replay once we're back online.
   const queued = useOutboxStore((s) => s.entries.length);
+  const offlineLabel = t('offline.banner', 'You are offline');
+  // VoiceOver hears the drop too (Android reads the live region below).
+  React.useEffect(() => {
+    announceConnectivity(online, offlineLabel);
+  }, [online, offlineLabel]);
   if (online) return null;
   const queuedHint = queued > 0
     ? t(
@@ -28,7 +34,7 @@ export function OfflineBanner({ hint }: OfflineBannerProps) {
     )
     : null;
   const suffix = [hint, queuedHint].filter(Boolean).join(' · ');
-  const label = t('offline.banner', 'You are offline');
+  const label = offlineLabel;
   return (
     <View style={styles.bar} accessibilityRole="alert" accessibilityLiveRegion="polite">
       <CloudOff size={14} color={c.warningForeground} />

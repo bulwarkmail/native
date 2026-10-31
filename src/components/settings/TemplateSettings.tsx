@@ -224,7 +224,7 @@ export function TemplateSettings() {
             </View>
             <ScrollView contentContainerStyle={styles.modalBody}>
               <Text style={styles.fieldLabel}>{tr('settings.templates.name', 'Template Name')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={tr('settings.templates.name', 'Template Name')}
                 value={draftName}
                 onChangeText={setDraftName}
                 placeholder={tr('settings.templates.name_placeholder', 'e.g., Follow-up email')}
@@ -232,7 +232,7 @@ export function TemplateSettings() {
                 style={styles.input}
               />
               <Text style={styles.fieldLabel}>{tr('settings.templates.subject', 'Subject')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={tr('settings.templates.subject', 'Subject')}
                 value={draftSubject}
                 onChangeText={setDraftSubject}
                 placeholder={tr('settings.templates.subject_placeholder', 'Email subject line')}
@@ -240,7 +240,7 @@ export function TemplateSettings() {
                 style={styles.input}
               />
               <Text style={styles.fieldLabel}>{tr('settings.templates.category', 'Category')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={tr('settings.templates.category', 'Category')}
                 value={draftCategory}
                 onChangeText={setDraftCategory}
                 placeholder={tr('settings.templates.category_placeholder', 'e.g., Work, Personal')}
@@ -248,7 +248,7 @@ export function TemplateSettings() {
                 style={styles.input}
               />
               <Text style={styles.fieldLabel}>{tr('settings.templates.body', 'Body')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={tr('settings.templates.body', 'Body')}
                 value={draftBody}
                 onChangeText={setDraftBody}
                 placeholder={tr('settings.templates.body_placeholder', 'Email body content...')}
@@ -297,6 +297,7 @@ export function TemplateSettings() {
             <ScrollView contentContainerStyle={styles.modalBody}>
               <Text style={styles.fieldLabel}>JSON</Text>
               <TextInput
+                accessibilityLabel={tr('settings.templates.import_json_label', 'Templates as JSON')}
                 value={importText}
                 onChangeText={setImportText}
                 placeholder='{"templates": [...]}'

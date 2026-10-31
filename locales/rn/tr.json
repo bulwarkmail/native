@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Program",
       "three_days": "3 gün"
+    },
+    "detail": {
+      "delete_confirm": "Bu etkinlik silinsin mi?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Etiket ekle",
       "delete_confirm_mobile": "{count, plural, one {# kişi silinsin mi? Bu geri alınamaz.} other {# kişi silinsin mi? Bu geri alınamaz.}}",
       "move_to_address_book": "Adres defterine taşı",
-      "tag_failed": "Etiketleme başarısız oldu"
+      "tag_failed": "Etiketleme başarısız oldu",
+      "delete_confirm_title": "Kişileri sil"
     },
     "contact": "Kişi",
     "create_hint_mobile": "Bunun yerine grup oluşturmak için uzun basın",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Yeniden adlandırmak için bir etikete uzun basın",
     "tag_name_placeholder": "Yeni etiket adı",
-    "unnamed": "Adsız"
+    "unnamed": "Adsız",
+    "delete_confirm_title": "Kişiyi sil"
   },
   "context_menu": {
     "color_tag": "Etiket",
@@ -483,7 +488,8 @@
       "no_identity": "Kullanılabilir gönderim kimliği yok"
     },
     "view_dark_mode": "Koyu modda görüntüle",
-    "view_light_mode": "Açık modda görüntüle"
+    "view_light_mode": "Açık modda görüntüle",
+    "not_spam_short": "Spam değil"
   },
   "files": {
     "delete_cascade_hint": "Klasörler, içindeki her şeyle birlikte silinir. Bu işlem geri alınamaz.",
@@ -521,7 +527,12 @@
     "symlink": "Sembolik bağlantı",
     "upload_failed": "{count, plural, one {1 dosya yüklenemedi} other {# dosya yüklenemedi}}",
     "upload_unavailable": "Bu derlemede dosya seçici yüklü değil. Yüklemeleri etkinleştirmek için uygulamayı yeniden derleyin.",
-    "uploading_progress": "Yükleniyor {current}/{total} · {name}"
+    "uploading_progress": "Yükleniyor {current}/{total} · {name}",
+    "batch_delete_confirm_message": "{count, plural, one {1 öge} other {# öge}} silinsin mi? Bu geri alınamaz.",
+    "batch_delete_success": "{count, plural, one {1 öge silindi} other {# öge silindi}}",
+    "delete_confirm_message": "\"{name}\" silinsin mi? Bu geri alınamaz.",
+    "delete_confirm_title": "Kaynağı sil",
+    "delete_success": "Başarıyla silindi"
   },
   "identities": {
     "badge": {
@@ -890,6 +901,10 @@
         "sync_add_failed": "Adres defteriyle senkronize edilemedi",
         "sync_remove_failed": "Adres defterinden kaldırılamadı",
         "synced_badge": "Adres defteri aracılığıyla senkronize edildi"
+      },
+      "disable_threading": {
+        "description": "E-postaları konuşmaya göre gruplamak yerine ayrı iletiler olarak göster",
+        "label": "Konuşma Gruplamamayı Devre Dışı Bırak"
       }
     },
     "experimental": {
@@ -899,7 +914,9 @@
       "remove_action": "İşlemi kaldır",
       "remove_condition": "Koşulu kaldır",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# satır} other {# satır}}"
+        "line_count": "{count, plural, one {# satır} other {# satır}}",
+        "confirm_save": "Kaydetmeyi Onayla",
+        "save_warning": "Kaydetme işlemi tüm görsel kuralların üzerine yazacak. Bu geri alınamaz. Onaylamak için Kaydet'e tekrar tıklayın."
       },
       "validation_header_name": "Yalnızca A-Z harfleri, rakamlar, kısa çizgiler ve alt çizgiler içeren bir başlık adı girin; örneğin X-Spam-Flag."
     },
@@ -943,7 +960,8 @@
       "no_name": "(ad yok)",
       "primary": "birincil",
       "save_failed": "Kaydetme başarısız",
-      "text_signature": "Düz metin imzası"
+      "text_signature": "Düz metin imzası",
+      "title": "Gönderme Kimlikleri"
     },
     "keywords": {
       "description_mobile": "Postanızı düzenlemek için renkli etiketler.",
@@ -1042,6 +1060,10 @@
         "up_distributor_desc": "Birden fazla UnifiedPush dağıtıcı uygulaması yüklü - bildirimleri hangisinin ileteceğini seçin.",
         "up_distributor_label": "Dağıtıcı",
         "up_no_distributor": "Bu cihazda UnifiedPush dağıtıcı uygulaması yüklü değil. Bir tane yükleyin (ör. ntfy) ve tekrar deneyin."
+      },
+      "calendar": {
+        "invitation_parsing": "E-posta davetlerini ayrıştır",
+        "invitation_parsing_desc": "E-posta eklerindeki takvim davetlerini algıla ve takvim işlemlerini göster"
       }
     },
     "offline": {
@@ -1179,7 +1201,16 @@
     },
     "tabs": {
       "plugins": "Eklentiler",
-      "updates": "Güncellemeler"
+      "updates": "Güncellemeler",
+      "content_senders": "İçerik ve Göndericiler",
+      "downloads": "İndirilenler",
+      "identities": "Kimlikler",
+      "keywords": "Etiketler",
+      "language": "Dil, Bölge ve Saat",
+      "layout": "Düzen",
+      "sidebar_apps": "Kenar Çubuğu Uygulamaları",
+      "templates": "Şablonlar",
+      "themes": "Temalar"
     },
     "templates": {
       "delete_confirm": "\"{name}\" kalıcı olarak silinsin mi?",
@@ -1201,6 +1232,24 @@
       "warnings": {
         "date_format": "Tarihler \"YYYY-MM-DD\" veya \"YYYY-MM-DD HH:MM\" biçiminde olmalıdır"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Her dakika",
+        "2m": "Her 2 dakikada bir",
+        "30s": "Her 30 saniyede bir",
+        "5m": "Her 5 dakikada bir",
+        "description": "Taslakların otomatik kaydedilme sıklığı",
+        "label": "Otomatik Kaydetme Aralığı"
+      },
+      "description": "E-posta yazma ayarlarını yapılandırın",
+      "title": "İleti düzenleyici"
+    },
+    "tab_groups": {
+      "advanced": "Gelişmiş",
+      "appearance": "Görünüm",
+      "general": "Genel",
+      "privacy": "Gizlilik ve Güvenlik"
     }
   },
   "sharing": {

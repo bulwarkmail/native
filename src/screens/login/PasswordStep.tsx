@@ -18,7 +18,7 @@ interface PasswordStepProps {
   totpRequired?: boolean;
   onChangeTotp?: (value: string) => void;
   onSubmit: () => void;
-  notice?: { title: string; detail?: string } | null;
+  notice?: { title: string; detail?: string; tone?: 'error' | 'info' } | null;
   /** Access-token sign-in in place of username and password. */
   tokenMode?: boolean;
   token?: string;
@@ -148,7 +148,7 @@ export default function PasswordStep({
         </>
       )}
 
-      {notice ? <LoginNotice title={notice.title} detail={notice.detail} /> : null}
+      {notice ? <LoginNotice title={notice.title} detail={notice.detail} tone={notice.tone} live /> : null}
 
       <Button variant="default" size="md" onPress={onSubmit}>
         {t('login.sign_in', 'Sign in')}

@@ -226,7 +226,7 @@ export function ComposingSettings() {
           </View>
 
           <View style={styles.addRow}>
-            <TextInput
+            <TextInput accessibilityLabel={t('settings.email_behavior.attachment_reminder.add_placeholder', "Add keyword...")}
               value={newKeyword}
               onChangeText={setNewKeyword}
               placeholder={t('settings.email_behavior.attachment_reminder.add_placeholder', "Add keyword...")}

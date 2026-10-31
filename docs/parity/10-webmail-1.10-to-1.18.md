@@ -70,15 +70,15 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: clearAllFeatureStores (`src/stores/auth-store.ts:126-134`) never clears `src/stores/search-history-store.ts:44`.
   - Fix hint: clear it, and check the other persisted stores in the same pass.
 
-- [ ] **Internationalized domains** — `P3` — `missing`
+- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows; the composer's recipient check goes with the compose branch)
   - What WEB does: `lib/idn.ts:25` (#1100). What RN does: ASCII-only checks (`src/lib/recipients.ts:31`, `src/lib/server-discovery.ts:78`).
   - Fix hint: toASCII on the wire, Unicode on screen.
 
-- [ ] **Sign-out doesn't end the identity provider session** — `P3` — `missing`
+- [ ] **Sign-out doesn't end the identity provider session** — `P3` — `missing` — not done: needs a decision; the app keeps the shared browser session for a first sign-in on purpose, an ephemeral session helps on iOS only, and end_session needs the id_token the app does not keep plus a registered post-logout redirect
   - What WEB does: `app/api/auth/token/route.ts:90` (#905). What RN does: `src/lib/oauth.ts:219`, `src/lib/oauth-native.ts:158`.
   - Fix hint: open end_session_endpoint, or use an ephemeral browser session.
 
-- [ ] **Explain a refused token exchange on TOTP sign-in** — `P3` — `partial`
+- [x] **Explain a refused token exchange on TOTP sign-in** — `P3` — `partial` — fixed in 37e72c12
   - What WEB does: `stores/auth-store.ts:153`, `:1432`. What RN does: `src/lib/totp-login.ts:148`, `:156` throw token_exchange_failed; `src/lib/login-errors.ts:129` has no copy.
 
 - [ ] **Shared account settings scope for calendar and contacts** — `P3` — `missing` (old 01 item)
@@ -419,16 +419,16 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: Mailbox/AddressBook/Calendar shareWith in one batch (`lib/delegation/delegation.ts:96`).
   - What RN does: no mailbox sharing (`src/components/settings/FolderSettings.tsx`).
 
-- [ ] **Shared accounts treated as capable when their capabilities say otherwise (#1239)** — `P3` — `bug`
+- [x] **Shared accounts treated as capable when their capabilities say otherwise (#1239)** — `P3` — `bug` — fixed in 67732348 (filters and auto-reply; contacts and files go with the calendar branch)
   - What WEB does: `lib/jmap/client.ts:6431`. What RN does: `src/api/contacts.ts:76`, `src/api/files.ts:98`, `src/api/sieve.ts:43`, `src/api/vacation.ts:77`.
 
-- [ ] **Storage quota ignores softLimit (#1242)** — `P3` — `bug`
+- [x] **Storage quota ignores softLimit (#1242)** — `P3` — `bug` — fixed in af86339b
   - What WEB does: `lib/quota.ts:32`. What RN does: `src/api/quota.ts:50`.
 
-- [ ] **Push extras: Inbox-only switch (#983), one ring per message (#1141), generic notification when the lookup fails (#1041), re-check on return (#1148)** — `P3` — `missing`/`partial`
+- [ ] **Push extras: Inbox-only switch (#983), one ring per message (#1141), generic notification when the lookup fails (#1041), re-check on return (#1148)** — `P3` — `missing`/`partial` — Inbox-only done in 1821fda7, generic notification in f6e6f8f5, re-check on return in 327b2cae; not done: one ring per message (#1141) needs a change in the Android notification builder (BulwarkFcmModule.kt) and a device
   - What RN does: `src/lib/notification-mutes.ts`, `src/lib/push-background-task.ts:468-488`, `:518`, `src/components/settings/NotificationSettings.tsx:115-134`.
 
-- [ ] **Settings extras: language search, date locale override, font size everywhere, nav-bar icon style, sidebar apps never rendered, screenshot protection, Flat fields theme** — `P3` — `missing`/`partial` (old 08/09 items)
+- [ ] **Settings extras: language search, date locale override, font size everywhere, nav-bar icon style, sidebar apps never rendered, screenshot protection, Flat fields theme** — `P3` — `missing`/`partial` (old 08/09 items) — screenshot protection not done: needs a new native module (expo-screen-capture); text size widened in c9b3bdfe
   - What RN does: `src/components/settings/LanguageSettings.tsx:87`, `src/theme/dynamic.ts:48`, `src/lib/sidebar-apps.ts:10`, `src/theme/builtin-themes.ts:18`.
 
 - [ ] **Search snippets, size filter, mail folder sharing, global search (1.10.0)** — `P3` — `missing`

@@ -30,6 +30,7 @@ import { sanitizeSignatureHtml } from '../../lib/signature-utils';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import Badge from '../Badge';
+import { identityDraftChanged } from './identity-draft';
 
 type DraftIdentity = {
   id: string;
@@ -117,9 +118,35 @@ export function IdentitySettings() {
     void fetchIdentities();
   }, [fetchIdentities]);
 
-  const openCreate = () => setEditing(emptyDraft());
-  const openEdit = (i: Identity) => setEditing(toDraft(i));
-  const closeEditor = () => setEditing(null);
+  // The draft as it was opened, to tell whether closing would drop changes.
+  const [initialDraft, setInitialDraft] = useState<DraftIdentity | null>(null);
+  const openDraft = (draft: DraftIdentity) => {
+    setEditing(draft);
+    setInitialDraft(draft);
+  };
+  const openCreate = () => openDraft(emptyDraft());
+  const openEdit = (i: Identity) => openDraft(toDraft(i));
+  const closeEditor = () => {
+    setEditing(null);
+    setInitialDraft(null);
+  };
+  // Close, Cancel and Android Back ask first when something was typed.
+  const requestClose = () => {
+    if (saving) return;
+    if (!identityDraftChanged(initialDraft, editing)) {
+      closeEditor();
+      return;
+    }
+    Alert.alert(
+      t('settings.discard_changes', 'Discard changes?'),
+      undefined,
+      [
+        { text: t('settings.keep_editing', 'Keep editing'), style: 'cancel' },
+        { text: t('settings.discard', 'Discard'), style: 'destructive', onPress: closeEditor },
+      ],
+      { cancelable: true },
+    );
+  };
 
   const setAsDefault = (identity: Identity) => {
     if (!accountId) return;
@@ -301,20 +328,20 @@ export function IdentitySettings() {
         </Pressable>
       ))}
 
-      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={closeEditor}>
+      <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={requestClose}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editing?.id ? t('settings.identities.edit', "Edit identity") : t('settings.identities.create', "New identity")}
               </Text>
-              <Pressable onPress={closeEditor} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close', "Close")}>
+              <Pressable onPress={requestClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close', "Close")}>
                 <X size={20} color={c.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.fieldLabel}>{t('settings.identities.display_name', "Display name")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('settings.identities.display_name', "Display name")}
                 value={editing?.name ?? ''}
                 onChangeText={(name) => setEditing((d) => (d ? { ...d, name } : d))}
                 placeholder={t('settings.identities.display_name_placeholder', 'Jane Doe')}
@@ -322,7 +349,7 @@ export function IdentitySettings() {
                 style={styles.input}
               />
               <Text style={styles.fieldLabel}>{t('settings.identities.email_address', "Email address")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('settings.identities.email_address', "Email address")}
                 value={editing?.email ?? ''}
                 onChangeText={(email) => setEditing((d) => (d ? { ...d, email } : d))}
                 placeholder={t('identities.form.email_placeholder', 'your.email@example.com')}
@@ -337,7 +364,7 @@ export function IdentitySettings() {
                 <Text style={styles.hint}>{t('settings.identities.email_locked', "JMAP does not allow changing an identity's email; create a new one instead.")}</Text>
               )}
               <Text style={styles.fieldLabel}>{t('identities.form.reply_to_label', 'Reply-To (optional)')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.reply_to_label', 'Reply-To (optional)')}
                 value={editing?.replyTo ?? ''}
                 onChangeText={(replyTo) => setEditing((d) => (d ? { ...d, replyTo } : d))}
                 placeholder={t('identities.form.reply_to_placeholder', 'different@example.com')}
@@ -348,7 +375,7 @@ export function IdentitySettings() {
                 keyboardType="email-address"
               />
               <Text style={styles.fieldLabel}>{t('identities.form.bcc_label', 'Auto BCC (optional)')}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.bcc_label', 'Auto BCC (optional)')}
                 value={editing?.bcc ?? ''}
                 onChangeText={(bcc) => setEditing((d) => (d ? { ...d, bcc } : d))}
                 placeholder={t('identities.form.bcc_placeholder', 'archive@example.com')}
@@ -359,7 +386,7 @@ export function IdentitySettings() {
                 keyboardType="email-address"
               />
               <Text style={styles.fieldLabel}>{t('identities.form.text_signature_label', "Text Signature")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.text_signature_label', "Text Signature")}
                 value={editing?.textSignature ?? ''}
                 onChangeText={(textSignature) => setEditing((d) => (d ? { ...d, textSignature } : d))}
                 placeholder="--&#10;Jane Doe&#10;Bulwark Mail"
@@ -371,7 +398,7 @@ export function IdentitySettings() {
                 {t('identities.form.signature_byte_counter', '{bytes} / {max} bytes', { bytes: textBytes, max: SIGNATURE_MAX_BYTES })}
               </Text>
               <Text style={styles.fieldLabel}>{t('identities.form.html_signature_label', "HTML Signature")}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t('identities.form.html_signature_label', "HTML Signature")}
                 value={editing?.htmlSignature ?? ''}
                 onChangeText={(htmlSignature) => setEditing((d) => (d ? { ...d, htmlSignature } : d))}
                 placeholder="<p><b>Jane Doe</b><br>Bulwark Mail</p>"
@@ -386,7 +413,7 @@ export function IdentitySettings() {
               </Text>
             </ScrollView>
             <View style={styles.modalActions}>
-              <Button variant="outline" size="sm" onPress={closeEditor} disabled={saving}>{t('common.cancel', "Cancel")}</Button>
+              <Button variant="outline" size="sm" onPress={requestClose} disabled={saving}>{t('common.cancel', "Cancel")}</Button>
               <Button
                 variant="default"
                 size="sm"

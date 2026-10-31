@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Program",
       "three_days": "3 dny"
+    },
+    "detail": {
+      "delete_confirm": "Odstranit tuto událost?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Přidat štítek",
       "delete_confirm_mobile": "{count, plural, one {Smazat # kontakt? Tuto akci nelze vrátit zpět.} few {Smazat # kontakty? Tuto akci nelze vrátit zpět.} many {Smazat # kontaktu? Tuto akci nelze vrátit zpět.} other {Smazat # kontaktů? Tuto akci nelze vrátit zpět.}}",
       "move_to_address_book": "Přesunout do adresáře",
-      "tag_failed": "Štítek se nepodařilo přidat"
+      "tag_failed": "Štítek se nepodařilo přidat",
+      "delete_confirm_title": "Odstranit kontakty"
     },
     "contact": "Kontakt",
     "create_hint_mobile": "Dlouhým stisknutím vytvoříte skupinu",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Štítek přejmenujete dlouhým stisknutím",
     "tag_name_placeholder": "Název nového štítku",
-    "unnamed": "Bez jména"
+    "unnamed": "Bez jména",
+    "delete_confirm_title": "Odstranit kontakt"
   },
   "context_menu": {
     "color_tag": "Štítek",
@@ -482,7 +487,8 @@
       "no_identity": "Není k dispozici žádná identita pro odesílání"
     },
     "view_dark_mode": "Zobrazit v tmavém režimu",
-    "view_light_mode": "Zobrazit ve světlém režimu"
+    "view_light_mode": "Zobrazit ve světlém režimu",
+    "not_spam_short": "Není spam"
   },
   "files": {
     "delete_cascade_hint": "Složky se smažou včetně veškerého obsahu. Tuto akci nelze vrátit zpět.",
@@ -520,7 +526,12 @@
     "symlink": "Symbolický odkaz",
     "upload_failed": "{count, plural, one {1 soubor se nepodařilo nahrát} few {# soubory se nepodařilo nahrát} other {# souborů se nepodařilo nahrát}}",
     "upload_unavailable": "Výběr souborů není v tomto sestavení nainstalován. Pro povolení nahrávání aplikaci znovu sestavte.",
-    "uploading_progress": "Nahrávání {current}/{total} · {name}"
+    "uploading_progress": "Nahrávání {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Opravdu chcete odstranit {count, plural, one {1 položku} few {# položky} other {# položek}}? Tuto akci nelze vrátit zpět.",
+    "batch_delete_success": "{count, plural, one {Odstraněna 1 položka} few {Odstraněny # položky} other {Odstraněno # položek}}",
+    "delete_confirm_message": "Opravdu chcete odstranit \"{name}\"? Tuto akci nelze vrátit zpět.",
+    "delete_confirm_title": "Odstranit položku",
+    "delete_success": "Úspěšně odstraněno"
   },
   "identities": {
     "badge": {
@@ -889,6 +900,10 @@
         "sync_add_failed": "Synchronizace do adresáře selhala",
         "sync_remove_failed": "Odebrání z adresáře selhalo",
         "synced_badge": "Synchronizováno přes adresář"
+      },
+      "disable_threading": {
+        "description": "Zobrazovat e-maily jako jednotlivé zprávy namísto seskupování do vláken",
+        "label": "Zakázat seskupování konverzací"
       }
     },
     "experimental": {
@@ -898,7 +913,9 @@
       "remove_action": "Odebrat akci",
       "remove_condition": "Odebrat podmínku",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# řádek} few {# řádky} many {# řádku} other {# řádků}}"
+        "line_count": "{count, plural, one {# řádek} few {# řádky} many {# řádku} other {# řádků}}",
+        "confirm_save": "Potvrdit uložení",
+        "save_warning": "Uložení přepíše všechna vizuální pravidla. Tuto akci nelze vrátit zpět. Potvrďte opětovným kliknutím na Uložit."
       },
       "validation_header_name": "Zadejte název hlavičky, který obsahuje jen písmena A–Z, číslice, pomlčky a podtržítka, například X-Spam-Flag."
     },
@@ -942,7 +959,8 @@
       "no_name": "(bez jména)",
       "primary": "hlavní",
       "save_failed": "Uložení selhalo",
-      "text_signature": "Textový podpis"
+      "text_signature": "Textový podpis",
+      "title": "Identity odesílatele"
     },
     "keywords": {
       "description_mobile": "Barevné štítky pro organizaci pošty.",
@@ -1041,6 +1059,10 @@
         "up_distributor_desc": "Je nainstalováno několik aplikací distributora UnifiedPush – vyberte tu, která má doručovat oznámení.",
         "up_distributor_label": "Distributor",
         "up_no_distributor": "V tomto zařízení není nainstalována žádná aplikace distributora UnifiedPush. Nainstalujte si ji (například ntfy) a zkuste to znovu."
+      },
+      "calendar": {
+        "invitation_parsing": "Rozpoznávat e-mailové pozvánky",
+        "invitation_parsing_desc": "Rozpoznávat pozvánky kalendáře v přílohách e-mailů a zobrazovat akce kalendáře"
       }
     },
     "offline": {
@@ -1178,7 +1200,16 @@
     },
     "tabs": {
       "plugins": "Pluginy",
-      "updates": "Aktualizace"
+      "updates": "Aktualizace",
+      "content_senders": "Obsah a odesílatelé",
+      "downloads": "Stažené",
+      "identities": "Identity",
+      "keywords": "Štítky",
+      "language": "Jazyk, region a čas",
+      "layout": "Vzhled",
+      "sidebar_apps": "Aplikace postranního panelu",
+      "templates": "Šablony",
+      "themes": "Motivy"
     },
     "templates": {
       "delete_confirm": "Trvale smazat „{name}“?",
@@ -1200,6 +1231,24 @@
       "warnings": {
         "date_format": "Data musí být ve formátu „YYYY-MM-DD“ nebo „YYYY-MM-DD HH:MM“"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Každou minutu",
+        "2m": "Každé 2 minuty",
+        "30s": "Každých 30 sekund",
+        "5m": "Každých 5 minut",
+        "description": "Jak často se mají koncepty automaticky ukládat",
+        "label": "Interval automatického ukládání"
+      },
+      "description": "Nakonfigurujte nastavení pro psaní e-mailů",
+      "title": "Psaní zpráv"
+    },
+    "tab_groups": {
+      "advanced": "Pokročilé",
+      "appearance": "Vzhled",
+      "general": "Obecné",
+      "privacy": "Soukromí a zabezpečení"
     }
   },
   "sharing": {

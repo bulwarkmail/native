@@ -101,6 +101,23 @@ describe('exchangePasswordForTokens', () => {
     expect(calls.some((c) => c.url.endsWith('/auth/register'))).toBe(false);
   });
 
+  it('cancels the client check and the login requests with the sign-in screen (U-133)', async () => {
+    const signals: Array<AbortSignal | undefined> = [];
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      signals.push(init?.signal ?? undefined);
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new TypeError('Aborted')));
+      });
+    });
+    const controller = new AbortController();
+    const pending = exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456', { signal: controller.signal });
+    await vi.waitFor(() => expect(signals.length).toBe(1));
+    controller.abort();
+    // A cancel, not "server unreachable".
+    await expect(pending).rejects.toMatchObject({ name: 'SignInCancelledError' });
+    expect(signals[0]?.aborted).toBe(true);
+  });
+
   it('registers its own client on Stalwart 1.0 and signs in with it', async () => {
     const calls = fakeServer('1.0');
     const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
@@ -164,6 +181,31 @@ describe('exchangePasswordForTokens', () => {
 
     expect(err.code).toBe('client_rejected');
     expect(describeLoginError(err, { serverUrl: BASE }).title).toBe("mail.example.com didn't accept the app");
+  });
+
+  it('answers a consentRequired with authConsent for the same request, instead of calling the password wrong', async () => {
+    let asked = 0;
+    const calls = fakeServer('1.0', (q) => {
+      asked += 1;
+      return asked === 1
+        ? { type: 'consentRequired', token: 'consent-token' }
+        : { type: 'authenticated', location: `${q.get('redirect_uri')}?code=code-consent&state=${q.get('state')}` };
+    });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.accessToken).toBe('at');
+    const [first, second] = authCalls(calls).map((c) => JSON.parse(c.body!));
+    expect(second).toEqual({ type: 'authConsent', token: 'consent-token', query: first.query, consent: true });
+    expect(tokenCall(calls).get('code')).toBe('code-consent');
+  });
+
+  it('does not answer a second consentRequired, and does not call it a wrong password', async () => {
+    const calls = fakeServer('1.0', () => ({ type: 'consentRequired', token: 't' }));
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e);
+
+    expect(err).toBeInstanceOf(TotpLoginError);
+    expect(err.code).not.toBe('invalid_credentials');
+    expect(authCalls(calls)).toHaveLength(2);
   });
 
   it('maps the credential verdicts of 1.0', async () => {

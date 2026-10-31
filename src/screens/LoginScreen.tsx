@@ -33,6 +33,8 @@ import ServerStep from './login/ServerStep';
 import ConfirmStep from './login/ConfirmStep';
 import PasswordStep from './login/PasswordStep';
 import SigningInStep, { type SigningInPhase } from './login/SigningInStep';
+import { loginBackAction } from './login/login-back';
+import { isSignInCancelled } from '../lib/sign-in-abort';
 
 interface LoginScreenProps {
   onLogin?: () => void;
@@ -116,6 +118,33 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // The webmail a sign-in code is being redeemed at, for the waiting screen
   // (in add mode the server fields still name the signed-in account's host).
   const [pairingWebmailUrl, setPairingWebmailUrl] = React.useState<string | null>(null);
+
+  // One controller per sign-in or server search (U-133). Cancel and Back
+  // abort it; a flow whose controller is no longer the current one drops
+  // whatever its awaits bring back, so a late answer neither signs in nor
+  // shows an error over the form the user went back to.
+  const attemptRef = React.useRef<AbortController | null>(null);
+  const beginAttempt = React.useCallback((): AbortController => {
+    attemptRef.current?.abort();
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    return controller;
+  }, []);
+  const isLive = (attempt: AbortController) => attemptRef.current === attempt && !attempt.signal.aborted;
+  const endAttempt = React.useCallback((attempt: AbortController): boolean => {
+    if (attemptRef.current !== attempt) return false;
+    attemptRef.current = null;
+    return true;
+  }, []);
+  const cancelSignIn = React.useCallback(() => {
+    attemptRef.current?.abort();
+    attemptRef.current = null;
+    setBusy(null);
+    setSearching(false);
+    setPairingWebmailUrl(null);
+    setNotice(null);
+  }, []);
+  React.useEffect(() => () => attemptRef.current?.abort(), []);
 
   // Addresses typed before on this device (last 5) plus the registry's, so a
   // returning user taps instead of retyping. Never contains passwords.
@@ -216,27 +245,36 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // out of the flow entirely from the first step.
   React.useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (busy || searching) return true;
-      if (scannerVisible) {
-        setScannerVisible(false);
-        return true;
+      const action = loginBackAction({
+        busy: !!busy,
+        searching,
+        scannerVisible,
+        pasteVisible,
+        historyLength: history.length,
+        canLeave: isAddMode && !!onCancel,
+      });
+      switch (action) {
+        case 'cancel':
+          cancelSignIn();
+          return true;
+        case 'close-scanner':
+          setScannerVisible(false);
+          return true;
+        case 'close-paste':
+          setPasteVisible(false);
+          return true;
+        case 'step-back':
+          goBack();
+          return true;
+        case 'leave':
+          onCancel?.();
+          return true;
+        default:
+          return false;
       }
-      if (pasteVisible) {
-        setPasteVisible(false);
-        return true;
-      }
-      if (history.length > 0) {
-        goBack();
-        return true;
-      }
-      if (isAddMode && onCancel) {
-        onCancel();
-        return true;
-      }
-      return false;
     });
     return () => subscription.remove();
-  }, [busy, searching, scannerVisible, pasteVisible, history.length, goBack, isAddMode, onCancel]);
+  }, [busy, searching, scannerVisible, pasteVisible, history.length, goBack, isAddMode, onCancel, cancelSignIn]);
 
   // ── flows ──────────────────────────────────────────────
 
@@ -279,21 +317,24 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   const runHandoff = React.useCallback(
     async (target: string) => {
       setNotice(null);
+      const attempt = beginAttempt();
       setBusy('browser');
       const wasAuthenticated = useAuthStore.getState().isAuthenticated;
       try {
-        await loginViaWebmail(target, { addAccount: isAddMode });
+        await loginViaWebmail(target, { addAccount: isAddMode, signal: attempt.signal });
+        if (!isLive(attempt)) return;
         // loginViaWebmail resolves quietly when the user closes the browser —
         // that's a cancellation, not a failure, so leave them where they were.
         finishIfSignedIn(wasAuthenticated);
       } catch (err) {
+        if (!isLive(attempt) || isSignInCancelled(err)) return;
         if (continueWithSecondFactor(err, target)) return;
         setNotice(describeLoginError(err, { serverUrl: target, t }));
       } finally {
-        setBusy(null);
+        if (endAttempt(attempt)) setBusy(null);
       }
     },
-    [continueWithSecondFactor, finishIfSignedIn, isAddMode, loginViaWebmail, t],
+    [beginAttempt, continueWithSecondFactor, endAttempt, finishIfSignedIn, isAddMode, loginViaWebmail, t],
   );
 
   const handleEmailContinue = React.useCallback(async () => {
@@ -307,10 +348,12 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     }
 
     setNotice(null);
+    const attempt = beginAttempt();
     setSearching(true);
     rememberEmail(value);
     try {
-      const found = await discoverServerForEmail(value, { knownServerUrls });
+      const found = await discoverServerForEmail(value, { knownServerUrls, signal: attempt.signal });
+      if (!isLive(attempt)) return;
       if (found) {
         setServerUrl(found);
         setServerInput(found);
@@ -322,9 +365,9 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
         goTo('server');
       }
     } finally {
-      setSearching(false);
+      if (endAttempt(attempt)) setSearching(false);
     }
-  }, [email, goTo, knownServerUrls, rememberEmail, t]);
+  }, [beginAttempt, email, endAttempt, goTo, knownServerUrls, rememberEmail, t]);
 
   const handleServerContinue = React.useCallback(() => {
     const normalized = normalizeServerUrl(serverInput);
@@ -353,15 +396,18 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
         return;
       }
       setNotice(null);
+      const attempt = beginAttempt();
       setBusy('connecting');
       const wasAuthenticated = useAuthStore.getState().isAuthenticated;
       try {
-        await loginWithToken(target, accessToken, { addAccount: isAddMode });
+        await loginWithToken(target, accessToken, { addAccount: isAddMode, signal: attempt.signal });
+        if (!isLive(attempt)) return;
         finishIfSignedIn(wasAuthenticated);
       } catch (err) {
+        if (!isLive(attempt) || isSignInCancelled(err)) return;
         setNotice(describeLoginError(err, { serverUrl: target, t }));
       } finally {
-        setBusy(null);
+        if (endAttempt(attempt)) setBusy(null);
       }
       return;
     }
@@ -377,15 +423,19 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     }
 
     setNotice(null);
+    const attempt = beginAttempt();
     setBusy('connecting');
     const wasAuthenticated = useAuthStore.getState().isAuthenticated;
     try {
       await login(target, email.trim(), password, {
         addAccount: isAddMode,
         totp: totpRequired ? totp.trim() : undefined,
+        signal: attempt.signal,
       });
+      if (!isLive(attempt)) return;
       finishIfSignedIn(wasAuthenticated);
     } catch (err) {
+      if (!isLive(attempt) || isSignInCancelled(err)) return;
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         setTotpRequired(true);
         setNotice(describeLoginError(err, { serverUrl: target, t }));
@@ -393,9 +443,9 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       }
       setNotice(describeLoginError(err, { serverUrl: target, t }));
     } finally {
-      setBusy(null);
+      if (endAttempt(attempt)) setBusy(null);
     }
-  }, [accessToken, email, finishIfSignedIn, isAddMode, login, loginWithToken, password, serverInput, serverUrl, tokenMode, totp, totpRequired, t]);
+  }, [accessToken, beginAttempt, email, endAttempt, finishIfSignedIn, isAddMode, login, loginWithToken, password, serverInput, serverUrl, tokenMode, totp, totpRequired, t]);
 
   // A sign-in code, however it arrived: scanned, pasted, or a tapped
   // `bulwarkmail://` link.
@@ -415,23 +465,28 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
 
       // Cross-device pairing code: redeem it, no browser needed.
       setNotice(null);
+      const attempt = beginAttempt();
       setPairingWebmailUrl(payload.webmailUrl);
       setBusy('pairing');
       const wasAuthenticated = useAuthStore.getState().isAuthenticated;
       try {
-        await loginViaPairing(payload.webmailUrl, payload.code, { addAccount: isAddMode });
+        await loginViaPairing(payload.webmailUrl, payload.code, { addAccount: isAddMode, signal: attempt.signal });
+        if (!isLive(attempt)) return;
         finishIfSignedIn(wasAuthenticated);
       } catch (err) {
+        if (!isLive(attempt) || isSignInCancelled(err)) return;
         if (continueWithSecondFactor(err, payload.webmailUrl)) return;
         // The error names its own host: the webmail for a failed redeem, the
         // mail server when connecting afterwards failed.
         setNotice(describeLoginError(err, { serverUrl: payload.webmailUrl, t }));
       } finally {
-        setBusy(null);
-        setPairingWebmailUrl(null);
+        if (endAttempt(attempt)) {
+          setBusy(null);
+          setPairingWebmailUrl(null);
+        }
       }
     },
-    [continueWithSecondFactor, finishIfSignedIn, isAddMode, loginViaPairing, runHandoff, t],
+    [beginAttempt, continueWithSecondFactor, endAttempt, finishIfSignedIn, isAddMode, loginViaPairing, runHandoff, t],
   );
 
   const handleScanned = React.useCallback(
@@ -544,6 +599,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
         phase={busy}
         serverUrl={pairing ? pairingWebmailUrl : serverUrl || knownServerUrl}
         email={pairing || tokenMode ? null : email.trim() || null}
+        onCancel={cancelSignIn}
       />
     );
   }
@@ -565,7 +621,11 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
 
   const canGoBack = history.length > 0;
   const shellProps = {
-    onBack: canGoBack ? goBack : undefined,
+    // Back during the server search stops it as well (U-133).
+    onBack: canGoBack ? () => {
+      if (searching) cancelSignIn();
+      goBack();
+    } : undefined,
     onClose: isAddMode && onCancel ? onCancel : undefined,
   };
 

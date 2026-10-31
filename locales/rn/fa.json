@@ -141,6 +141,9 @@
     "views": {
       "schedule": "برنامه",
       "three_days": "۳ روز"
+    },
+    "detail": {
+      "delete_confirm": "این رویداد حذف شود؟"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "افزودن برچسب",
       "delete_confirm_mobile": "{count, plural, one {# مخاطب حذف شود؟ این کار قابل بازگشت نیست.} other {# مخاطب حذف شوند؟ این کار قابل بازگشت نیست.}}",
       "move_to_address_book": "انتقال به دفترچه آدرس",
-      "tag_failed": "برچسب‌گذاری ناموفق بود"
+      "tag_failed": "برچسب‌گذاری ناموفق بود",
+      "delete_confirm_title": "حذف مخاطبین"
     },
     "contact": "مخاطب",
     "create_hint_mobile": "برای ساختن گروه به‌جای آن، انگشت خود را نگه دارید",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "برای تغییر نام برچسب، انگشت خود را روی آن نگه دارید",
     "tag_name_placeholder": "نام جدید برچسب",
-    "unnamed": "بدون نام"
+    "unnamed": "بدون نام",
+    "delete_confirm_title": "حذف مخاطب"
   },
   "context_menu": {
     "color_tag": "برچسب",
@@ -476,7 +481,9 @@
       "no_identity": "هیچ هویت ارسالی در دسترس نیست"
     },
     "view_dark_mode": "مشاهده در حالت تاریک",
-    "view_light_mode": "مشاهده در حالت روشن"
+    "view_light_mode": "مشاهده در حالت روشن",
+    "not_spam_short": "هرزنامه نیست",
+    "spam_short": "هرزنامه"
   },
   "files": {
     "delete_cascade_hint": "پوشه‌ها همراه با همه محتوایشان حذف می‌شوند. این کار قابل بازگشت نیست.",
@@ -514,7 +521,12 @@
     "symlink": "پیوند نمادین",
     "upload_failed": "{count, plural, one {۱ فایل بارگذاری نشد} other {# فایل بارگذاری نشد}}",
     "upload_unavailable": "انتخابگر فایل در این نسخه نصب نشده است. برای فعال کردن بارگذاری، برنامه را دوباره بسازید.",
-    "uploading_progress": "در حال بارگذاری {current}/{total} · {name}"
+    "uploading_progress": "در حال بارگذاری {current}/{total} · {name}",
+    "batch_delete_confirm_message": "آیا از حذف {count, plural, one {۱ مورد} other {# مورد}} اطمینان دارید؟",
+    "batch_delete_success": "{count, plural, one {۱ مورد حذف شد} other {# مورد حذف شد}}",
+    "delete_confirm_message": "آیا از حذف \"{name}\" اطمینان دارید؟ این عملیات قابل بازگشت نیست.",
+    "delete_confirm_title": "حذف منبع",
+    "delete_success": "با موفقیت حذف شد"
   },
   "identities": {
     "badge": {
@@ -883,6 +895,10 @@
         "sync_add_failed": "همگام‌سازی با دفترچه آدرس ممکن نشد",
         "sync_remove_failed": "حذف از دفترچه آدرس ممکن نشد",
         "synced_badge": "همگام‌شده از طریق دفترچه آدرس"
+      },
+      "disable_threading": {
+        "description": "پیام‌های جداگانه",
+        "label": "غیرفعال کردن گروه‌بندی"
       }
     },
     "experimental": {
@@ -892,7 +908,9 @@
       "remove_action": "حذف اقدام",
       "remove_condition": "حذف شرط",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# خط} other {# خط}}"
+        "line_count": "{count, plural, one {# خط} other {# خط}}",
+        "confirm_save": "تأیید ذخیره",
+        "save_warning": "ذخیره قوانین بصری را بازنویسی می‌کند. این عملیات قابل بازگشت نیست. برای تأیید دوباره ذخیره را کلیک کنید."
       },
       "validation_header_name": "نام هدری وارد کنید که فقط از حروف A-Z، رقم، خط تیره و زیرخط تشکیل شده باشد، مانند X-Spam-Flag."
     },
@@ -936,7 +954,8 @@
       "no_name": "(بدون نام)",
       "primary": "اصلی",
       "save_failed": "ذخیره ناموفق بود",
-      "text_signature": "امضای متن ساده"
+      "text_signature": "امضای متن ساده",
+      "title": "هویت‌های ارسال"
     },
     "keywords": {
       "description_mobile": "برچسب‌های رنگی برای سازمان‌دهی ایمیل‌ها.",
@@ -1035,6 +1054,10 @@
         "up_distributor_desc": "چند برنامه توزیع‌کننده UnifiedPush نصب است - برنامه‌ای را که باید اعلان‌ها را تحویل دهد انتخاب کنید.",
         "up_distributor_label": "توزیع‌کننده",
         "up_no_distributor": "هیچ برنامه توزیع‌کننده UnifiedPush روی این دستگاه نصب نیست. یکی (مثلاً ntfy) نصب کنید و دوباره امتحان کنید."
+      },
+      "calendar": {
+        "invitation_parsing": "پردازش دعوت‌نامه‌های ایمیل",
+        "invitation_parsing_desc": "تشخیص دعوت‌نامه در پیوست ایمیل"
       }
     },
     "offline": {
@@ -1172,7 +1195,16 @@
     },
     "tabs": {
       "plugins": "افزونه‌ها",
-      "updates": "به‌روزرسانی‌ها"
+      "updates": "به‌روزرسانی‌ها",
+      "content_senders": "محتوا و فرستندگان",
+      "downloads": "دانلودها",
+      "identities": "هویت‌ها",
+      "keywords": "برچسب‌ها",
+      "language": "زبان، منطقه و زمان",
+      "layout": "چیدمان",
+      "sidebar_apps": "برنامه‌های نوار کناری",
+      "templates": "قالب‌ها",
+      "themes": "پوسته‌ها"
     },
     "templates": {
       "delete_confirm": "«{name}» برای همیشه حذف شود؟",
@@ -1194,6 +1226,24 @@
       "warnings": {
         "date_format": "تاریخ‌ها باید به‌صورت \"YYYY-MM-DD\" یا \"YYYY-MM-DD HH:MM\" باشند"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "هر دقیقه",
+        "2m": "هر ۲ دقیقه",
+        "30s": "هر ۳۰ ثانیه",
+        "5m": "هر ۵ دقیقه",
+        "description": "فاصله ذخیره پیش‌نویس",
+        "label": "ذخیره خودکار"
+      },
+      "description": "تنظیمات نوشتن ایمیل",
+      "title": "ویرایشگر"
+    },
+    "tab_groups": {
+      "advanced": "پیشرفته",
+      "appearance": "ظاهر",
+      "general": "عمومی",
+      "privacy": "حریم خصوصی و امنیت"
     }
   },
   "sharing": {
