@@ -317,6 +317,7 @@
   },
   "context_menu": {
     "color_tag": "Tag",
+    "emails_selected": "{count, plural, one {# email selected} other {# emails selected}}",
     "remove_color": "Remove tag",
     "rules": {
       "login_changed": "You switched accounts, so the rule was not saved"

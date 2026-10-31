@@ -273,6 +273,7 @@
   },
   "context_menu": {
     "color_tag": "Label",
+    "emails_selected": "{count, plural, one {# E-Mail ausgewählt} other {# E-Mails ausgewählt}}",
     "remove_color": "Label entfernen",
     "rules": {
       "login_changed": "Sie haben das Konto gewechselt, daher wurde die Regel nicht gespeichert"

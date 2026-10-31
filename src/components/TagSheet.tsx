@@ -87,7 +87,9 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
           </View>
           <View style={styles.header}>
             <Text style={styles.title}>
-              {t('context_menu.items_selected', `${selectedEmails.length} emails selected`, { count: selectedEmails.length })}
+              {/* Not context_menu.items_selected: "{count} emails selected" has no
+                  singular, and the sheet opens for one email too. */}
+              {t('context_menu.emails_selected', '{count, plural, one {# email selected} other {# emails selected}}', { count: selectedEmails.length })}
             </Text>
             <Pressable onPress={onClose} hitSlop={10} style={styles.close}
               accessibilityRole="button"
