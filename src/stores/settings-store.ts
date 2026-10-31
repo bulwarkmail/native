@@ -169,6 +169,9 @@ export interface PersistedSettings {
   // Tag and calendar colours drawn in the colour-blind-safe palette
   // (lib/cvd-palette, theme/colors).
   colorBlindPalette: boolean;
+  // Simpler wording in English and German (locales/<code>/plain.json,
+  // i18n/index, stores/locale-store).
+  plainLanguage: boolean;
 
   // Composing
   autoSelectReplyIdentity: boolean;
@@ -373,6 +376,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   // a11y-reading:
   appFont: 'default',
   colorBlindPalette: false,
+  plainLanguage: false,
 
   autoSelectReplyIdentity: false,
   replyIdentityMatch: 'domain',

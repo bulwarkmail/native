@@ -77,6 +77,7 @@ export function AccessibilitySettings() {
   const fontSize = useSettingsStore((s) => s.fontSize);
   const appFont = useSettingsStore((s) => s.appFont);
   const colorBlindPalette = useSettingsStore((s) => s.colorBlindPalette);
+  const plainLanguage = useSettingsStore((s) => s.plainLanguage);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const toastDuration = useSettingsStore((s) => s.toastDuration);
   const sendConfirmation = useSettingsStore((s) => s.sendConfirmation);
@@ -158,7 +159,6 @@ export function AccessibilitySettings() {
           description={uiFontsBundled(Platform.OS)
             ? t('settings.accessibility.font.description', 'Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. They cover Latin script.')
             : t('settings.accessibility.font.description_ios', 'Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages.')}
-          noBorder
         >
           <Select
             value={appFont}
@@ -167,6 +167,17 @@ export function AccessibilitySettings() {
               value: font,
               label: font === 'default' ? t('settings.accessibility.font.default', 'Theme font') : FONT_NAMES[font],
             }))}
+          />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.accessibility.plain_language.label', 'Plain language')}
+          description={t('settings.accessibility.plain_language.description_mobile', 'Simpler wording for settings and error messages. Available in English and German.')}
+          noBorder
+        >
+          <ToggleSwitch
+            checked={plainLanguage}
+            onChange={(v) => update('plainLanguage', v)}
+            accessibilityLabel={t('settings.accessibility.plain_language.label', 'Plain language')}
           />
         </SettingItem>
       </SettingsSection>

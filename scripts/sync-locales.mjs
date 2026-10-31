@@ -1,4 +1,6 @@
-// Vendor the webmail locale catalogs into ./locales/<lang>/common.json.
+// Vendor the webmail locale catalogs into ./locales/<lang>/common.json, and
+// the plain-language strings (./locales/<lang>/plain.json, English and German
+// only; src/i18n/index.ts lays them over the catalog when Plain language is on).
 // Run from the RN repo root: `node scripts/sync-locales.mjs [--check]`.
 //
 // The webmail catalog is the source of truth and is copied verbatim. Keys the
@@ -66,6 +68,21 @@ for (const lang of langs) {
     await mkdir(destDir, { recursive: true });
     await copyFile(src, dest);
     copied++;
+  }
+
+  const plainSrc = join(WEBMAIL_LOCALES, lang, 'plain.json');
+  const plainDest = join(destDir, 'plain.json');
+  if (existsSync(plainSrc)) {
+    if (CHECK_ONLY) {
+      const same = existsSync(plainDest)
+        && (await readFile(plainSrc, 'utf8')) === (await readFile(plainDest, 'utf8'));
+      if (!same) {
+        console.log(`stale: locales/${lang}/plain.json differs from the webmail`);
+        problems++;
+      }
+    } else {
+      await copyFile(plainSrc, plainDest);
+    }
   }
 
   // Report overlay keys the webmail now ships (safe to delete from the overlay)

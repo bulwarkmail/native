@@ -1396,6 +1396,9 @@
       },
       "cvd_palette": {
         "description_mobile": "Verwendet Farben für Tags und Kalender, die bei Rot-Grün- oder Blau-Gelb-Schwäche unterscheidbar bleiben."
+      },
+      "plain_language": {
+        "description_mobile": "Einfachere Formulierungen in Einstellungen und Fehlermeldungen. Auf Deutsch und Englisch verfügbar."
       }
     }
   },

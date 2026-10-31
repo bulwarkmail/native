@@ -1,0 +1,793 @@
+{
+  "login": {
+    "jmap_endpoint_cors_hint": "The mail server must allow sign-ins from this website. Your administrator can set this up.",
+    "reconnecting": "The connection is lost. We are trying to connect again…",
+    "error": {
+      "invalid_credentials": "The email address or password is wrong. Check both and try again.",
+      "invalid_token": "The server did not accept this access token. Maybe it is not complete, or it is no longer valid. Copy it again or create a new one.",
+      "connection_failed": "We can't reach the mail server. Check your internet connection and try again.",
+      "cors_blocked": "The mail server works, but it does not allow sign-ins from this website. Ask your administrator to allow this website on the server.",
+      "server_error": "The mail server has a problem right now. Try again in a few minutes.",
+      "generic": "Something went wrong. Try again. If it keeps happening, ask your administrator for help.",
+      "totp_required": "Your account needs a second code to sign in. Open your authenticator app and type the 6-digit code below.",
+      "totp_invalid": "This code is wrong or too old. Type the code your authenticator app shows right now.",
+      "oauth_discovery_failed": "Sign-in through your organisation does not work right now. Try again later or ask your administrator.",
+      "token_exchange_failed": "Your password and code are correct, but the mail server did not let this app in. Ask your administrator to check the sign-in settings for this app."
+    },
+    "totp_toggle": "I have a code from my authenticator app",
+    "token_hint": "Some mail providers give you a token instead of a password. Create one in your mail provider's settings, copy it, and paste it here.",
+    "config_error": {
+      "title": "The webmail is not set up correctly",
+      "fetch_failed": "The webmail could not load its settings. Try again in a few minutes.",
+      "server_not_configured": "No mail server is set up yet. Ask your administrator to set one up."
+    },
+    "session_expired": "You were signed out. Sign in again to continue.",
+    "oauth_error": {
+      "title": "Sign-in did not work",
+      "invalid_state": "The sign-in was interrupted. Start again.",
+      "missing_params": "Some sign-in data is missing. Start again.",
+      "token_exchange_failed": "We could not finish signing you in. Try again.",
+      "access_denied": "You are not allowed to sign in here. Ask your administrator for access."
+    }
+  },
+  "session_limits": {
+    "idle_message": "You haven't done anything for a while. You will be signed out in {seconds, plural, one {# second} other {# seconds}}. Messages you are writing are saved as drafts.",
+    "max_message": "Your organisation signs you out {hours, plural, one {# hour} other {# hours}} after you sign in. You will be signed out in {seconds, plural, one {# second} other {# seconds}}. Messages you are writing are saved as drafts.",
+    "reason_max": "You were signed out because you were signed in for {hours, plural, one {# hour} other {# hours}}. That is the longest time your organisation allows.",
+    "drafts_not_saved": "Some messages you were writing could not be saved as drafts."
+  },
+  "totp_reauth": {
+    "title": "Enter a new code",
+    "description": "Your last code is no longer valid. Open your authenticator app and type the new code to continue.",
+    "oauth_hint": "This question comes back from time to time. Your administrator can stop it by turning on a different way to sign in (OAuth).",
+    "code_label": "Code from your authenticator app"
+  },
+  "email_list": {
+    "permanent_delete_confirm_message": "This message will be deleted for good. You can't get it back.",
+    "permanent_delete_confirm_batch_message": "{count, plural, one {This message} other {These # messages}} will be deleted for good. You can't get {count, plural, one {it} other {them}} back.",
+    "empty_folder": {
+      "confirm_message": "All messages in this folder will be deleted for good. You can't get them back."
+    }
+  },
+  "email_viewer": {
+    "read_receipt": {
+      "send_failed": "The read receipt could not be sent"
+    },
+    "archive_mailbox_not_found": "There is no Archive folder, so the message can't be archived",
+    "source_load_failed": "The raw message could not be loaded. Try again, or save the message as a file (.eml).",
+    "spam": {
+      "error": "The message could not be marked as spam. Try again.",
+      "error_not_spam": "The message could not be moved back. Try again."
+    },
+    "unsubscribe_banner": {
+      "error": "Unsubscribing did not work. Try again later."
+    },
+    "calendar_invitation": {
+      "parse_error": "This invitation can't be read",
+      "action_failed": "That did not work in your calendar. Try again."
+    },
+    "undo_send_failed": "Sending could not be stopped. The message may already be sent.",
+    "undo_send_signed_out": "Sending could not be stopped, because you are no longer signed in to the account that sends it.",
+    "send_cancelled_restore_failed": "Sending was stopped. But the message could not be put back into Drafts. It is still in Sent.",
+    "send_cancelled_remove_failed": "Sending was stopped. But the message could not be removed from Sent.",
+    "cancel_scheduled_failed": "The planned sending could not be stopped. Try again.",
+    "save_to_files": {
+      "failed": "The file could not be saved in Files. Try again."
+    }
+  },
+  "email_composer": {
+    "files_picker": {
+      "load_failed": "Your files could not be loaded. Try again."
+    },
+    "save_failed": "The draft could not be saved. Try again.",
+    "validation": {
+      "invalid_recipients": "Not sent. These addresses are not correct: {addresses}",
+      "attachment_upload_failed": "Not sent. An attachment could not be uploaded. Remove it and try again."
+    },
+    "upload_failed": "{filename} could not be uploaded. Try again.",
+    "send_failed": "Your message was not sent. Try again.",
+    "send_offline": "You are not connected to the internet. Your message is still here. Send it again when you are back online.",
+    "send_timeout": "The server stopped answering. Your message may have been sent anyway. Look in your Sent folder before you send it again.",
+    "submission_limit": "The server did not send the message because you reached a limit: {reason}",
+    "send_plugin_failed": "Not sent. An add-on that sends the message did not work or took too long. Look in your Sent folder before you send it again.",
+    "schedule_send_invalid": "Enter a date and a time.",
+    "schedule_send_cleanup_warning": "The message will be sent at the chosen time. But the draft could not be removed, so it is still in Drafts.",
+    "invalid_recipient": "This is not a correct email address",
+    "send_filing_warning": "Sent. But an old draft of this message may still be in Drafts.",
+    "send_guard_failed": "Not sent. An add-on that checks messages before sending did not work or did not answer.",
+    "attachment_upload_failed": "Could not upload"
+  },
+  "common": {
+    "reconnecting": "The connection is lost. We are trying to connect again…"
+  },
+  "notifications": {
+    "error_archiving": "The message could not be archived. Try again.",
+    "error_updating": "The message could not be changed. Try again.",
+    "error_sending": "Your message was not sent. Try again.",
+    "error_deleting": "The message could not be deleted. Try again.",
+    "error_loading": "Your messages could not be loaded. Try again.",
+    "move_failed": "Could not move. Try again.",
+    "undo_failed": "Could not undo. Try again.",
+    "copy_failed": "Could not copy. Try again.",
+    "move_error": "The messages could not be moved to this folder. Try again.",
+    "tag_failed": "The label could not be added. Try again.",
+    "identity_create_failed": "The sender address could not be added: {error}",
+    "identity_update_failed": "The sender address could not be changed: {error}",
+    "identity_delete_failed": "The sender address could not be deleted: {error}",
+    "identity_unauthorized": "You are not allowed to send from this email address. Ask your administrator if you need it.",
+    "vacation_save_failed": "Your automatic reply could not be saved. Try again.",
+    "filters_save_failed": "Your filter rules could not be saved. Try again.",
+    "export_email_error": "The message could not be saved as a file. Try again.",
+    "import_email_error": "The message could not be added from the file. Check the file and try again.",
+    "rule_apply_failed": "The rule could not be used for the messages that are already here",
+    "rule_folder_failed": "The folder could not be created. Try again.",
+    "vacation_filters_save_failed": "Your automatic reply is saved. But the forwarding and the reply list could not be saved. Try again."
+  },
+  "settings": {
+    "reset_confirm": "Put all settings back to how they were at the start?",
+    "themes": {
+      "description": "Choose a look. Your administrator may add more themes.",
+      "locked": "Your administrator chose the theme. You can't change it.",
+      "forced": "Your administrator chose the theme \"{name}\". You can't change it."
+    },
+    "appearance": {
+      "message_list_order": {
+        "description": "The order of the messages in the list. The server sorts the whole folder, not only the messages you can see.",
+        "tiebreak_note": "You can choose up to three steps. A later step only counts when the earlier steps are the same. At the end, the newest messages always come first.",
+        "scope": {
+          "description": "When this is off, the order is only used in the Inbox. Other folders show the newest messages first."
+        },
+        "unsupported_note": "Your mail server can't sort by read or unread, star or tag. Those steps are left out, and the newest messages come first."
+      },
+      "description": "Change how the webmail looks",
+      "theme": {
+        "description": "Choose light or dark colours"
+      },
+      "font_size": {
+        "description": "Make the text bigger or smaller"
+      },
+      "list_density": {
+        "description": "How much space there is between items"
+      },
+      "animations": {
+        "description": "Let things move softly when they open or close"
+      },
+      "toolbar_position": {
+        "description": "Where the buttons for a message are, like Reply, Archive or Delete"
+      },
+      "toolbar_labels": {
+        "description": "Show words next to the button icons. Turn this off to save space when you know the icons."
+      },
+      "hide_account_switcher": {
+        "description": "Hide the account list at the top of the folder list. You can still change accounts at the bottom of the left bar."
+      },
+      "show_rail_account_list": {
+        "label": "Show your accounts in the left bar",
+        "description": "Show a circle for each account at the bottom of the left bar, so you can change accounts quickly. A button to sign out is below them."
+      },
+      "unified_mailbox": {
+        "description": "Show folders that combine the mail of several accounts, like one Inbox for all. You need more than one account (or a group inbox below) to see them.",
+        "cross_account": {
+          "description": "Combine the mail of all your accounts, not only the account you use now."
+        },
+        "include_group": {
+          "description": "Also add the inboxes you share with a group."
+        }
+      },
+      "all_mail": {
+        "folders_description": "Choose which folders of this account are part of the lists All mail, Unread and Starred."
+      },
+      "colorful_sidebar_icons": {
+        "description": "Give folder and tag icons colours (blue Inbox, red Spam, green Sent and so on). Turn this off for grey icons."
+      },
+      "tint_list_rows": {
+        "description": "Colour each message in the list with the colour of its first tag. The tag colour still shows in the small dots when this is off."
+      },
+      "show_folder_total_count": {
+        "description": "Show how many messages a folder or tag has in total, next to the number of unread ones."
+      },
+      "favicon_unread_badge": {
+        "description": "Show the number of unread messages on the browser tab and on the app icon. Then you see new mail even when you use another tab."
+      },
+      "show_shared_mail_accounts": {
+        "description": "Show the folders of mailboxes that others share with you, under Shared in the folder list. Turn this off to hide them all, or hide single accounts below. Their calendars and contacts stay."
+      },
+      "pro_interface": {
+        "description": "A layout for large screens with many tabs and several accounts at once. You can go back to the normal layout at any time."
+      },
+      "account_marker": {
+        "description": "In the combined folders, mark each message with the colour of its account."
+      }
+    },
+    "keywords": {
+      "description": "Make tags to sort your messages. The tags are saved with your messages on the server.",
+      "migration_error": "The tag could not be changed on your messages. Try again.",
+      "filters_migration_error": "Some filter rules still use the old tag. Change them yourself.",
+      "nesting": {
+        "description": "Put tags inside other tags, like folders. The sidebar shows them as a tree."
+      },
+      "has_children_locked": "Other tags are inside this tag. So you can't rename or move it. First move or delete the tags inside it.",
+      "has_children_delete": "First delete the tags inside this tag",
+      "unrecognized": {
+        "description": "This browser keeps the names and colours of your tags. The tags themselves are saved on your messages. Search your mail for tags that are missing here and add them again.",
+        "partial": "Only your {scanned} newest messages out of {total} were searched. Tags that are only on older mail may be missing.",
+        "error": "Your mail could not be searched for tags. Try again."
+      }
+    },
+    "notifications": {
+      "push": {
+        "description": "Get a message on your screen about new mail, even when this website is closed. The service that passes on the message never sees your mail.",
+        "relay_label": "Notification service",
+        "relay_desc": "The service that passes notifications on to your device. Your administrator decides which ones you can choose.",
+        "relay_locked_desc": "Your administrator chose the notification service. You can't change it.",
+        "status_unsupported": "This browser can't show notifications when the website is closed",
+        "status_lite": "This version of the webmail can't send notifications when it is closed.",
+        "reenable": "Turn on again",
+        "ios_hint": "On iPhone and iPad, first add this website to your home screen. Safari only sends notifications for websites on the home screen.",
+        "devices_title": "Devices that get notifications",
+        "devices_desc": "All devices that get notifications for this account. If you remove a device, it stops getting them at once.",
+        "devices_error": "The list of devices could not be loaded. Try again.",
+        "device_status_unknown": "The notification service does not know this device",
+        "revoke": "Remove",
+        "confirm_revoke_title": "Remove this device?",
+        "confirm_revoke_message": "It stops getting notifications at once. To get them again, turn notifications on again on that device.",
+        "confirm_revoke_message_this": "This device stops getting notifications at once.",
+        "shared_mailboxes_no_push": "You don't get notifications for mailboxes that others share with you.",
+        "error_forbidden": "The mail server does not allow notifications for this account.",
+        "error_over_quota": "Too many devices get notifications for this account (the limit is usually 15). Remove devices you don't use any more, then try again."
+      },
+      "push_all": {
+        "description": "Turn notifications on or off for several accounts at once.",
+        "result_partial": "Turned on for {enabled} accounts. For {failed} accounts, it did not work."
+      },
+      "sound_selection": {
+        "choose_desc": "Choose a sound. Click the speaker to hear it."
+      },
+      "email": {
+        "description": "Choose how you hear about new mail",
+        "inbox_only_desc": "Only tell me about mail in the Inbox, not about mail that a filter puts into another folder"
+      },
+      "calendar": {
+        "description": "Choose how you hear about your appointments"
+      }
+    },
+    "language_region": {
+      "description": "Language, how dates and times look, and other things for your country",
+      "date_locale": {
+        "description": "The order of day, month and year in dates"
+      },
+      "time_format": {
+        "description": "Show times like 3:00 PM (12 hours) or like 15:00 (24 hours)"
+      },
+      "time_zone": {
+        "description": "Show the times of mail and appointments in this time zone. If you don't choose one, the time zone of your browser is used."
+      }
+    },
+    "email_behavior": {
+      "inbox_type": {
+        "description": "With \"Unread first\", your 25 newest unread messages are shown at the top of the inbox"
+      },
+      "clear_search_on_folder_change": {
+        "description": "When you open another folder, your search ends and you see the whole folder. When this is off, the search continues in the new folder."
+      },
+      "request_read_receipt": {
+        "label": "Always ask for a read receipt",
+        "description": "New messages ask the recipient to tell you when they have opened the message. You can turn this off for each message."
+      },
+      "read_receipt_response": {
+        "label": "When someone asks for a read receipt",
+        "description": "Some senders ask to be told when you open their message. Choose what to do then."
+      },
+      "description": "Choose what happens with your messages",
+      "mark_read": {
+        "description": "When an opened message counts as read"
+      },
+      "delete_action": {
+        "description": "What happens when you delete a message",
+        "warning": "Deleted messages are gone for good. You can't get them back."
+      },
+      "message_spacing": {
+        "description": "The space around the text of an open message"
+      },
+      "archive_mode": {
+        "description": "How archived messages are put into folders"
+      },
+      "permanently_delete_junk": {
+        "label": "Delete spam for good",
+        "description": "When you delete a message in the Spam folder, it is gone for good. It does not go to the Trash first."
+      },
+      "confirm_bulk_delete": {
+        "description": "Ask before several selected messages go to the Trash. Deleting for good always asks."
+      },
+      "mail_layout": {
+        "description": "Choose how the message list and the open message are placed on the screen.",
+        "split_description": "The message list and the open message are side by side.",
+        "focus_description": "Each message takes one line. An open message fills the whole width. The folder list stays visible.",
+        "horizontal_description": "The message list is at the top. The open message is shown below it."
+      },
+      "list_columns": {
+        "description": "Show the list as a table with the columns From, Subject, Date and Size."
+      },
+      "show_verification_codes": {
+        "description": "When a message contains a sign-in or confirmation code, show a button to copy it. In the list, the button stays for one day."
+      },
+      "plain_text_mode": {
+        "description": "Write all messages as plain text, without bold, colours or pictures. This also applies to replies and forwards."
+      },
+      "auto_select_reply_identity": {
+        "description": "When you reply, the reply is sent from the address the message was sent to. This works for all your own addresses. Below, you can choose if other addresses on your domain count too."
+      },
+      "reply_identity_match": {
+        "label": "Which addresses count as yours",
+        "description": "\"Exact address only\" uses only the addresses you set up. \"Any address on my domains\" also replies from other addresses on your domains. Choose the exact address if those other addresses are group lists."
+      },
+      "signature_position": {
+        "description": "Where your signature goes when you reply or forward. Above the quoted text, it ends your reply. Below, the old message stays in one piece."
+      },
+      "signature_separator": {
+        "label": "Line before the signature",
+        "description": "Put the usual \"-- \" line before your signature. Many mail apps use it to recognise the signature."
+      },
+      "sub_address_delimiter": {
+        "label": "Character before the address tag",
+        "description": "The character between your name and the tag in an address, like user{delimiter}tag@domain.com. Use the same character as your mail server."
+      },
+      "attachment_click_action": {
+        "label": "When you click an attachment",
+        "description": "Choose if a click on an attachment shows it or saves it to your device"
+      },
+      "attachment_position": {
+        "description": "Where attachments are shown in an open message"
+      },
+      "always_light_mode": {
+        "description": "Show messages with a light background even when the app is dark. Some messages look wrong when they are made dark."
+      },
+      "external_content": {
+        "label": "Pictures from the internet",
+        "description": "Choose if pictures that a message loads from the internet are shown. Loading them can tell the sender that you opened the message."
+      },
+      "trusted_senders": {
+        "description": "Senders whose pictures are always shown",
+        "empty_description": "When a message has blocked pictures, click \"Always trust this sender\" to add the sender here.",
+        "save_error": "The list could not be saved. Try again.",
+        "use_address_book_label": "Keep the list in your address book",
+        "use_address_book_description": "Save trusted senders in their own address book. Then the list is the same on all your devices."
+      },
+      "hover_actions": {
+        "description": "The buttons you see when you move the mouse over a message in the list"
+      },
+      "default_mail_program": {
+        "description": "Open email links on websites (mailto: links) in {appName}",
+        "error": "Your browser can't do this"
+      },
+      "attachment_reminder": {
+        "description": "If your message talks about an attachment but nothing is attached, you get a warning before it is sent",
+        "keywords_label": "Words that start the reminder",
+        "keywords_description": "If your message contains one of these words, you get the reminder"
+      },
+      "placeholder_warning": {
+        "description": "Ask before sending if the message still has gaps to fill in, like [TIME] or [Your Name], empty template fields, or notes like TODO."
+      },
+      "recipient_mentions": {
+        "description": "Type @ in your message to pick one of its recipients. Their first name is put into the text. Press Enter or Tab to pick the marked name."
+      },
+      "mention_adds_recipient": {
+        "description": "When you type @, you can also pick people from your contacts. If they are not a recipient yet, they are added to the message."
+      },
+      "hide_inline_image_attachments": {
+        "label": "Don't list pictures in the text as attachments",
+        "description": "Pictures that are part of the message text are not shown again in the list of attachments"
+      },
+      "attachment_image_previews": {
+        "description": "Show small pictures of attached images instead of a file icon"
+      },
+      "send_delay": {
+        "description": "Your messages wait a few seconds before they are sent. In that time, you can still stop them.",
+        "unsupported": "This account's mail server can't wait before sending. The setting is still saved for your other accounts."
+      },
+      "swipe_right_action": {
+        "description": "On a touch screen: what happens when you swipe a message to the right."
+      },
+      "swipe_left_action": {
+        "description": "On a touch screen: what happens when you swipe a message to the left."
+      },
+      "rtl_editing": {
+        "label": "Writing from right to left",
+        "description": "Adds a button to the editor. With it, you can write a paragraph from left to right or from right to left."
+      }
+    },
+    "account": {
+      "description": "See the details of your account",
+      "auth_method_label": "How you sign in",
+      "auth_method_oauth": "Sign-in page of your organisation",
+      "server": {
+        "label": "Mail server address"
+      },
+      "accounts": {
+        "description": "Drag the accounts to change their order in the account list"
+      },
+      "backup": {
+        "description": "Save the list of your accounts on the server and get it back on another device. A password that only you know protects the list. Mailbox passwords are not saved, so you sign in to each account again.",
+        "description_passwords": "Save the list of your accounts on the server and get it back on another device. A password that only you know protects the list. You can also save the mailbox passwords. Then the accounts sign in by themselves.",
+        "password_hint": "Use at least 10 characters. Nobody can reset this password. If you forget it, save the list again with a new password.",
+        "restore_hint": "The password you chose when you saved the list.",
+        "include_passwords_hint": "After you get the list back, these accounts sign in by themselves. But be careful: anyone who knows the backup password can open every mailbox in the list.",
+        "skipped": "{count, plural, one {# account was} other {# accounts were}} not added because you already have the most accounts allowed.",
+        "sign_in_failed": "{count, plural, one {# saved password did not work} other {# saved passwords did not work}}. Sign in to these accounts yourself from the account list.",
+        "errors": {
+          "unlock_failed": "The password is wrong, or this list belongs to a different account.",
+          "owner_signin_required": "Sign in to this account again. Then try once more.",
+          "https_required": "This only works on a secure connection (the address starts with https).",
+          "storage_failed": "The server could not save or open the list. Try again later."
+        }
+      },
+      "shared_accounts": {
+        "description": "Accounts that you share with others and may manage. Choose one to change its filters, its automatic replies, its calendars and its contacts."
+      }
+    },
+    "security": {
+      "description": "Change your password and protect your account",
+      "not_available": "You can't change the security settings for this mail server here. Your server may not allow it. The <a href=\"https://bulwarkmail.org/docs/guides/account-security\" class=\"underline hover:opacity-80\" target=\"_blank\">documentation</a> explains more.",
+      "password": {
+        "error_title": "Your password was not changed",
+        "error_mismatch": "The two new passwords are not the same. Type them again.",
+        "error_min_length": "Your password needs at least 8 characters",
+        "error_generic": "Your password could not be changed. Try again."
+      },
+      "display_name": {
+        "description": "The name the mail server shows for you",
+        "error": "Your name could not be changed. Try again."
+      },
+      "totp": {
+        "label": "Code from an authenticator app",
+        "description": "Protect your account better: when you sign in, you also type a code from an app on your phone",
+        "enable_error": "Two-factor authentication could not be turned on. Try again.",
+        "disable_error": "Two-factor authentication could not be turned off. Try again.",
+        "setup_instructions": "Open your authenticator app (for example Google Authenticator or Authy) and add this link to it:",
+        "verification_code": "Code from the app",
+        "disable_confirm_prompt": "To turn off two-factor authentication, type your password.",
+        "password_required": "Type your password",
+        "code_required": "Type the code from the app",
+        "code_invalid": "This code is wrong or too old. Type the code the app shows right now."
+      },
+      "app_passwords": {
+        "description": "Extra passwords for mail apps that can't ask for a second code, like some phone mail apps",
+        "allowed_ips_label": "Only from these internet addresses (optional)",
+        "allowed_ips_hint": "Put a comma or a space between addresses. Leave it empty to allow every address.",
+        "copy_now_warning": "Copy this password now. You won't see it again.",
+        "add_error": "The app password could not be created. Try again.",
+        "remove_error": "The app password could not be deleted. Try again.",
+        "delete_message": "Apps that use {name} will not be able to sign in any more."
+      },
+      "api_keys": {
+        "description": "Keys for programs and scripts that work with your mailbox without you, for example a backup",
+        "copy_now_warning": "Copy this key now. You won't see it again.",
+        "add_error": "The key could not be created. Try again.",
+        "remove_error": "The key could not be deleted. Try again.",
+        "delete_message": "Programs and scripts that use {name} will stop working."
+      },
+      "encryption": {
+        "label": "Store mail encrypted",
+        "description": "The server stores your mail in a locked form. Only your key can unlock it.",
+        "error": "The encryption setting could not be changed. Try again.",
+        "algorithm_label": "Type of encryption",
+        "encrypt_on_append": "Also encrypt mail that apps add to your mailbox",
+        "allow_spam_training": "Let the spam filter learn from new mail before it is encrypted",
+        "disable_message": "From now on, the server stores new mail without encryption."
+      },
+      "public_keys": {
+        "key_label": "Public key (S/MIME or PGP, as text)",
+        "add_error": "The public key could not be added. Check that you pasted all of it.",
+        "remove_error": "The public key could not be deleted. Try again."
+      },
+      "email_client": {
+        "description": "Use these details to set up mail on your computer or phone, for example in Thunderbird, Apple Mail or Outlook",
+        "jmap_username_label": "User name for mail apps",
+        "password_instructions": "In your mail app, use the user name above and an app password. You can create an app password further down on this page."
+      },
+      "link_device": {
+        "description": "Sign in to the Bulwark Mail app on your phone without typing your password. Your phone gets its own sign-in. If you sign out here, your phone stays signed in.",
+        "error": "The code could not be created. Try again.",
+        "password_prompt": "Type your password to show it's you. Your password is not sent to the phone.",
+        "error_not_signed_in": "You were signed out. Sign in again, then link your phone.",
+        "error_impersonation": "You are looking at someone else's mailbox right now. You can't link a phone from here.",
+        "error_too_many_attempts": "You tried too often. Wait a moment, then try again.",
+        "error_session_secret": "Linking a phone is not set up on this server. Ask your administrator.",
+        "error_server_unreachable": "We can't reach your mail server. Try again.",
+        "error_pairing_unavailable": "Your mail server does not allow linking a phone this way. Ask your administrator.",
+        "error_insecure_server": "The phone app needs a secure connection to the mail server (https). This server does not have one."
+      },
+      "sections": {
+        "devices_description": "Read your mail in other apps and on other devices."
+      }
+    },
+    "identities": {
+      "description": "The email addresses you can send from",
+      "identities_count": {
+        "label": "Your sender addresses",
+        "description": "Addresses you can send mail from"
+      },
+      "sub_addressing": {
+        "label": "Addresses with a tag",
+        "description": "Add a tag to your address, like user+shop@domain.com. Mail to it still reaches you, and you can sort it by the tag."
+      }
+    },
+    "vacation": {
+      "description": "Answer new mail by yourself while you are away",
+      "not_supported": "Your mail server can't send automatic replies.",
+      "fetch_error": "Your automatic reply could not be loaded. Try again.",
+      "status": {
+        "description": "Everyone who writes to you gets an automatic reply"
+      },
+      "date_range": {
+        "start_description": "Leave it empty to start right away"
+      },
+      "message": {
+        "subject_description": "The subject of the automatic reply",
+        "html_description": "Add a version with links and formatting. People whose mail app can't show it get the plain text above."
+      },
+      "warnings": {
+        "end_before_start": "The end date must come after the start date",
+        "invalid_date": "Enter a start and end date with a time, or leave the field empty",
+        "empty_body": "The message is empty. People would get a reply with no text.",
+        "subject_too_long": "The subject is too long for the server. Make it shorter (at most {max} bytes).",
+        "body_too_long": "The message is too long for the server. Make it shorter (at most {max} bytes, with formatting).",
+        "forward_address": "Enter the email address to forward to",
+        "not_running": "Forwarding and the reply list are saved, but they are off right now. Click Save to turn them on again."
+      },
+      "forward": {
+        "description": "Send new mail on to another address during the time above, with or without the automatic reply. Without an end date, this goes on until you turn it off. Spam is not forwarded.",
+        "keep_description": "If this is off, the message is only forwarded. It is not kept in this mailbox, and your filter rules don't run on it."
+      }
+    },
+    "folders": {
+      "description": "Manage your folders and choose which folder is used for what",
+      "folder_list_description": "Click the icon of a folder to change it",
+      "standard_roles_description": "Choose which folder is your Inbox, Sent, Trash and so on.",
+      "reorder": "Drag up or down to change the order. Drag left or right to put the folder in another folder.",
+      "move_partial_error": "{count, plural, one {# folder} other {# folders}} could not be moved. Try again.",
+      "confirm_delete": "Delete \"{name}\"? The messages in this folder go to the Trash.",
+      "cannot_delete_role": "This folder has a special job, like Inbox or Trash. Remove the job first, then you can delete it.",
+      "error_delete_has_children": "The folder was not deleted because there are other folders inside it. Delete or move them first.",
+      "error_delete_has_email": "The folder was not deleted because there are still messages in it. Move or delete them first.",
+      "error_role": "The job of the folder could not be changed. Try again."
+    },
+    "advanced": {
+      "debug_mode": {
+        "description": "Record more details about what the app does. This helps to find problems."
+      },
+      "settings_sync": {
+        "label": "Same settings on all devices",
+        "description": "Save your settings on the server, so all your browsers and devices use them"
+      },
+      "sender_favicons": {
+        "description": "For companies, show the icon of their website as the sender's picture",
+        "refresh_description": "Load the website icons again, for example when a company has a new one"
+      },
+      "show_avatars_in_junk": {
+        "label": "Show sender pictures in the Spam folder",
+        "description": "Show the sender's picture or website icon in the Spam folder too. This is off at first, because fake messages can look more real with a picture."
+      },
+      "keyboard_shortcuts": {
+        "description": "See all keys you can use instead of the mouse"
+      },
+      "refresh_cache": {
+        "label": "Load data from the server again",
+        "description": "Load your contacts, calendars and folders from the server again. Use this when something looks old or wrong. You stay signed in.",
+        "confirm_title": "Load data from the server again?"
+      },
+      "reset_settings": {
+        "description": "Put all settings back to how they were at the start"
+      },
+      "export_settings": {
+        "description": "Save your settings as a file on your device"
+      },
+      "import_settings": {
+        "description": "Load your settings from a file you saved before"
+      },
+      "sections": {
+        "backup_description": "Use the same settings in other browsers and on other devices.",
+        "fix_description": "When something looks old or wrong, or you want to start again."
+      }
+    },
+    "sidebar_apps": {
+      "description": "Add your own apps and links to the left bar",
+      "keep_loaded_description": "Keep apps open in the background when you switch, so they don't have to load again",
+      "managed_description": "Your administrator set up these apps for everyone. You can't change them."
+    },
+    "contacts": {
+      "group_by_letter_description": "Put a letter above each group of names in the contact list",
+      "sort_by_last_name_description": "Sort contacts by family name, so families are next to each other",
+      "import_description": "Add contacts from a contacts file (.vcf)",
+      "export_description": "Save all contacts in a contacts file (.vcf)"
+    },
+    "downloads": {
+      "description": "Choose the file names for messages and attachments you save.",
+      "email_template": {
+        "description": "The file name when you save a message or drag it to a folder on your computer. The ending .eml is added for you."
+      },
+      "attachment_template": {
+        "description": "The file name when you save an attachment or drag it out. If you leave out '{filename}' and '{ext}', the file keeps its ending."
+      },
+      "bundle_template": {
+        "description": "The file name when you save several messages together in one .zip file. The ending .zip is added for you."
+      },
+      "spaces": {
+        "description": "Use another character instead of spaces in the file name."
+      },
+      "lowercase": {
+        "description": "Write the whole file name in small letters."
+      },
+      "strip_diacritics": {
+        "description": "Change letters with accents into plain letters (ä → a, é → e). Some programs can't handle letters with accents."
+      },
+      "collapse_separators": {
+        "description": "When there are several spaces, _ or - in a row, keep only one."
+      },
+      "after_export": {
+        "description": "You can move the message to another folder after you save it as a file."
+      }
+    },
+    "filters": {
+      "description": "Rules that sort new mail by themselves, for example into a folder",
+      "no_rules_description": "Make a rule, and new mail is sorted by itself",
+      "vacation_active_description": "New mail gets an automatic reply",
+      "delete_confirm": "Delete this rule?",
+      "raw_editor": "Edit rules as code (Sieve)",
+      "raw_editor_warning": "If you change the code, you may not be able to edit the rules here with the normal editor any more. Your changes in the code replace the normal rules.",
+      "not_supported": "Your mail server can't use filter rules.",
+      "match_all": "All conditions must be true",
+      "match_any": "One condition is enough",
+      "stop_processing": "Don't check the rules below this one",
+      "value_placeholder_multi": "Value (put commas between several)",
+      "condition_fields": {
+        "header": "Other header line",
+        "body": "Message text"
+      },
+      "comparators": {
+        "matches": "matches the pattern (* = any text)"
+      },
+      "forward_limit": "This server forwards a message to at most {count} addresses. Other forwards are left out.",
+      "forward_unavailable": "This server does not allow forwarding. Rules that forward mail do nothing.",
+      "header_name": "Name of the header line",
+      "opaque_warning": "These rules were changed in another app. You can only edit them here as code.",
+      "open_sieve_editor": "Edit rules as code (Sieve)",
+      "expanded_view_description": "Show each rule with all its conditions and actions",
+      "reset_warning": "This deletes all your current rules and starts again with none.",
+      "validation_empty_conditions": "Add at least one condition and fill in its value",
+      "validation_empty_actions": "Add at least one action",
+      "validation_header_name": "Use only the letters A to Z, numbers, - and _ in the name of the header line",
+      "sieve_editor": {
+        "title": "Filter rules as code (Sieve)",
+        "warning": "If you change the code, you may not be able to edit the rules here with the normal editor any more. Your changes in the code replace the normal rules.",
+        "script_content": "Rules as code",
+        "valid": "The code has no mistakes",
+        "invalid": "The code has mistakes",
+        "validating": "Checking…",
+        "validate": "Check",
+        "overwrite_message": "This code no longer contains the rules you made with the normal editor. If you save, it replaces them. You can't undo this.",
+        "validation_failed": "The code could not be checked. Try again."
+      },
+      "managed_by_tooltip": "{source} manages this. Change it in that app, or edit the rules as code.",
+      "apply_existing_unsupported": "Only some rules can also run on messages that are already here: rules that check the sender, recipients, subject or header lines, and that move, copy, mark as read, star or tag.",
+      "validation_period_order": "The end date must come after the start date",
+      "period_hint": "The rule works for messages that arrive in this time. Leave a field empty if there is no start or no end.",
+      "validation_period_invalid": "Enter a date with a time, or leave the field empty",
+      "apply_existing_period": "A rule with a time period only works for messages that arrive in that time. So it can't run on messages that are already here."
+    },
+    "templates": {
+      "description": "Save messages you write often and use them again. They can have gaps that you fill in each time.",
+      "export_import_description": "Save your templates as a file, or move them to another device",
+      "validation": {
+        "too_long": "The name can have at most 200 characters"
+      }
+    },
+    "files": {
+      "sort_direction": {
+        "description": "From A to Z or from Z to A"
+      },
+      "show_thumbnails": {
+        "description": "Show a small picture of each image instead of an icon"
+      },
+      "show_hidden": {
+        "description": "Show hidden files and folders (their names start with a dot)"
+      }
+    },
+    "reading_page": {
+      "sections": {
+        "images_description": "Pictures from the internet can tell the sender that you opened the message."
+      }
+    }
+  },
+  "errors": {
+    "page_error_description": "This page stopped working. Try again, or go back to your inbox.",
+    "sidebar_error": "Your folders could not be loaded",
+    "email_list_error": "Your messages could not be loaded",
+    "viewer_error_title": "This message can't be shown",
+    "viewer_error_description": "Something in this message stops it from being shown here. It may use a format we don't support.",
+    "composer_error": "The editor for new messages could not be opened",
+    "settings_error_title": "Settings could not be opened",
+    "settings_error_description": "Your settings could not be loaded. Changes you make now may not be saved."
+  },
+  "identities": {
+    "delete_confirm": "Delete this sender address? You can't undo this.",
+    "cannot_delete": "You can't delete this sender address",
+    "validation_errors": {
+      "invalid_emails": "These email addresses are not correct: {emails}"
+    },
+    "form": {
+      "email_invalid": "Enter a correct email address",
+      "email_immutable": "You can't change the email address after you add it",
+      "signature_byte_limit_reached": "The signature is too long for the server"
+    },
+    "sub_address": {
+      "invalid_tag": "Use only letters, numbers and dashes (-) in the tag"
+    }
+  },
+  "calendar": {
+    "import": {
+      "url_description": "Enter the web address of a calendar file (.ics) to add its events."
+    },
+    "management": {
+      "description": "Make new calendars, rename them and change their colour. You can also right-click a calendar in the side bar to change its colour.",
+      "description_touch": "Make new calendars, rename them and change their colour.",
+      "confirm_delete": "Delete \"{name}\"? All appointments in this calendar are deleted too.",
+      "confirm_clear": "Delete all appointments in \"{name}\"? You can't undo this.",
+      "kind_hint": "This decides which apps on your other devices show this calendar. You can't change it later.",
+      "default_alerts_hint": "New appointments in this calendar get these reminders, unless you change them in the appointment. A change here does not change appointments you already have. The mail server sends reminders by email."
+    },
+    "subscription": {
+      "description": "Follow a calendar from the internet, for example public holidays. Its appointments are updated by themselves and shown in their own calendar. The address starts with https:// or webcal://.",
+      "confirm_delete": "Stop following \"{name}\"? The calendar and all its appointments are removed."
+    }
+  },
+  "sharing": {
+    "description": "Let other people or groups on this server use this. The change works at once.",
+    "directory_restricted": "Your server does not show a list of all its users. So you only see your groups and people who share something with you. Your administrator can change this.",
+    "directory_not_browsable": "Your server does not show a list of all its users.",
+    "directory_failed": "The list of people and groups could not be loaded. Try again.",
+    "share_failed": "Sharing could not be changed. Try again."
+  },
+  "delegates": {
+    "description": "Let someone use your mail, calendars and contacts, all in one step. See who can use what.",
+    "read_failed": "Some of your sharing could not be loaded. You can change or remove access when it has loaded.",
+    "remove_message": "{name} can no longer use anything you shared from your account: mail, calendars, contacts and files.",
+    "not_found": "There is nobody with the address {address} on this server.",
+    "lookup_failed": "This address could not be found. Check it and try again.",
+    "known_only": "You only see your groups and people who shared something with you.",
+    "directory_off_note": "To add someone new, your administrator first has to allow searching for users on the server.",
+    "directory_failed": "The list of people and groups could not be loaded. Try again.",
+    "nothing_to_change": "Nothing has changed. Choose what the person should get, or click Remove access.",
+    "change_note": "Folders, calendars and address books that you don't choose are no longer shared. Shared files stay shared. Remove access takes them away too.",
+    "rights_keep_hint": "What they already have stays the same. Anything new gets the same rights as the rest of its kind, or read only.",
+    "send_note": "People you give access can read and sort your mail and calendar. They can't send mail as you or for you. If several people need one address, ask your administrator for a shared mailbox.",
+    "partial_title": "Some things could not be changed. Everything else is done."
+  },
+  "smime": {
+    "your_certificates_desc": "Add and manage your certificates. You need one to sign or encrypt mail with S/MIME.",
+    "recipient_certificates_desc": "Certificates of other people. With them, you can send encrypted mail to these people.",
+    "identity_bindings_desc": "Choose which certificate belongs to which of your sender addresses",
+    "defaults_desc": "Choose if new messages are signed or encrypted from the start",
+    "encrypt_by_default_desc": "Encrypt a message by itself when you have a certificate for every recipient",
+    "remember_unlocked_desc": "Keep your keys unlocked until you close this browser",
+    "p12_passphrase_desc": "Enter the password of this certificate file",
+    "storage_passphrase_desc": "Choose a password. It protects this key while it is saved in your browser.",
+    "unlock_key_desc": "Enter the password of this key to sign or open messages",
+    "cert_expired": "This certificate is no longer valid",
+    "status_encrypted_no_key": "This message is encrypted, but you don't have the key to open it",
+    "status_encrypted_failed": "This message is locked, and it could not be unlocked. You may not have the right key.",
+    "status_signed_invalid": "The signature is not valid. The message may have been changed.",
+    "status_signed_expired_cert": "Signed with a certificate that is no longer valid",
+    "status_signed_self_signed": "The signature is valid. But the sender made the certificate themselves, so nobody has checked who they are.",
+    "status_signed_mismatch": "The signature is valid, but it belongs to someone other than the sender",
+    "auto_import_signer_certs_desc": "When a signed message is checked, save the sender's certificate. Then you can send them encrypted mail later.",
+    "export_passphrase_desc": "Choose a password to protect the file you save",
+    "export_storage_desc": "Enter the password of this key to save it as a file"
+  },
+  "recover_deleted": {
+    "load_failed": "Deleted mail could not be loaded. Try again."
+  },
+  "global_search": {
+    "account_error": "{account} could not be searched"
+  }
+}
