@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet, type StyleProp, type ViewStyle } from 'r
 import { useShallow } from 'zustand/react/shallow';
 import {
   avatarContent,
+  initialsColor,
   generateEmailAvatarColor,
   getContactPhotoForEmail,
   getEmailInitials,
@@ -141,7 +142,7 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
 
   return (
     <View style={containerStyle}>
-      <Text style={[styles.initials, { fontSize }]}>{initials}</Text>
+      <Text style={[styles.initials, { fontSize, color: initialsColor(bgColor) }]}>{initials}</Text>
     </View>
   );
 }
