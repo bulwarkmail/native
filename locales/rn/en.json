@@ -411,6 +411,17 @@
     }
   },
   "email_list": {
+    "batch_actions": {
+      "select_row": "Select {sender}: {subject}"
+    },
+    "confirm_remove": {
+      "archive": "Archive",
+      "archive_message": "{count, plural, one {It moves to your archive.} other {They move to your archive.}}",
+      "archive_title": "{count, plural, one {Archive this email?} other {Archive # emails?}}",
+      "delete": "Delete",
+      "delete_message": "{count, plural, one {It moves to the trash.} other {They move to the trash.}}",
+      "delete_title": "{count, plural, one {Delete this email?} other {Delete # emails?}}"
+    },
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
@@ -448,6 +459,10 @@
     "scope_this_folder": "This folder",
     "search_placeholder": "Search mail...",
     "showing_cached": "Showing cached mail",
+    "sort": {
+      "custom": "Custom order (in Settings)",
+      "title": "Sort"
+    },
     "sort_toggle_hint": "Reverses the mail sort order",
     "swipe_move": "Move",
     "swipe_spam": "Spam",
@@ -496,6 +511,10 @@
     "export_failed": "Export failed",
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",
+    "new_tag": "New tag",
+    "new_tag_placeholder": "Tag name",
+    "pause_animation": "Pause animation",
+    "play_animation": "Play animation",
     "preview": {
       "archive_files": "{count, plural, one {# file} other {# files}}",
       "archive_first_files": "The first {count} files",
@@ -525,11 +544,16 @@
     "sender_actions": "Sender…",
     "set_color": "Set tag",
     "show_all_count": "Show all ({count})",
+    "show_as_plain_text": "Show as plain text",
+    "show_formatted": "Show formatted",
     "show_less": "Show less",
+    "shown_as_plain_text": "This message is shown as plain text.",
     "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
     "still_scheduled": "The message is still scheduled.",
     "still_scheduled_at": "The message is still scheduled for {date}.",
+    "tag_exists": "A tag with this name already exists",
+    "tag_name_invalid": "Choose a shorter name",
     "thread_loading": "Loading conversation...",
     "undo_send_failed": "Undo send failed",
     "unsubscribe_banner": {
@@ -728,6 +752,9 @@
     }
   },
   "notifications": {
+    "emails_marked_read": "{count, plural, one {# email marked as read} other {# emails marked as read}}",
+    "emails_marked_unread": "{count, plural, one {# email marked as unread} other {# emails marked as unread}}",
+    "tag_removed_count": "{count, plural, one {Tag removed from # email} other {Tag removed from # emails}}",
     "vacation_filters_off": "Out of office settings saved, but your filters are switched off. Save again to turn them back on."
   },
   "offline": {
@@ -1425,6 +1452,9 @@
     "directory_restricted": "Your server doesn't allow browsing its user directory, so only your groups and people who have shared with you are listed. An administrator can turn on directory queries in Stalwart's sharing settings.",
     "unknown_user": "Unknown user"
   },
+  "shell": {
+    "name_unread": "{name}, {count} unread"
+  },
   "sidebar": {
     "account_error": "Needs attention",
     "remove_account_hint": "Long-press to remove this account",
@@ -1436,7 +1466,8 @@
     "sign_out_confirm_message": "The account is removed from this device. You can sign in again at any time.",
     "sign_out_confirm_title": "Sign out?",
     "sign_out_confirm_title_account": "Sign out of {account}?",
-    "tab_unavailable": "{name} (unavailable)"
+    "tab_unavailable": "{name} (unavailable)",
+    "unread_filter": "Show unread only ({count})"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, one {# account could not be loaded} other {# accounts could not be loaded}}"
