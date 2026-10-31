@@ -81,7 +81,7 @@ function describePairingError(reason: string | undefined, host: string, t: Trans
     case 'network':
       return {
         title: t('login.mobile.err_unreachable_title', "Can't reach {host}", { host }),
-        detail: t('login.mobile.err_pair_network_detail', 'Check your connection and that your phone can reach the webmail, then try again.'),
+        detail: t('login.mobile.err_pair_network_detail', 'Check your connection and that this device can reach the webmail, then try again.'),
       };
     case 'rate_limited':
       return {

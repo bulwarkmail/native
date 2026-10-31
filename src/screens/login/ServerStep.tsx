@@ -108,7 +108,7 @@ export default function ServerStep({
             <Text style={styles.scanText}>
               {clientCert.alias
                 ? t('login.mobile.server_cert_active', 'Signing in with the client certificate "{alias}". Tap to choose another.', { alias: clientCert.alias })
-                : t('login.mobile.server_cert_hint', 'Does your server ask for a client certificate? Pick one installed on this phone.')}
+                : t('login.mobile.server_cert_hint', 'Does your server ask for a client certificate? Pick one installed on this device.')}
             </Text>
           </Pressable>
         ) : null}
