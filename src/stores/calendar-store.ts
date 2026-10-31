@@ -263,7 +263,7 @@ export interface CalendarState {
     changes: Partial<CalendarEvent> | Record<string, unknown>,
     options?: { sendSchedulingMessages?: boolean },
   ) => Promise<void>;
-  deleteEvent: (id: string) => Promise<void>;
+  deleteEvent: (id: string, options?: { sendSchedulingMessages?: boolean }) => Promise<void>;
   // Resolve an expanded occurrence (or a master) to its master event, read
   // from the server: a copy the app holds may be older.
   getMasterEvent: (event: CalendarEvent) => Promise<CalendarEvent | null>;
@@ -1210,7 +1210,7 @@ export const useCalendarStore = create<CalendarState>()(
     }
   },
 
-  deleteEvent: async (id) => {
+  deleteEvent: async (id, options) => {
     // Deleting an occurrence removes just that one: through its synthetic
     // id, or by excluding it on the base event it was expanded from.
     const scope = writeScope();
@@ -1218,7 +1218,8 @@ export const useCalendarStore = create<CalendarState>()(
     const { storeEvent, realId, accountId } = target;
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
-    const schedule = hasSchedulingParticipants(storeEvent) ? true : undefined;
+    const schedule = options?.sendSchedulingMessages
+      ?? (hasSchedulingParticipants(storeEvent) ? true : undefined);
     if (target.isOccurrence && storeEvent) {
       await destroyOccurrence(storeEvent, realId, schedule, writeAccount(scope, accountId), scope);
       assertInScope(scope);

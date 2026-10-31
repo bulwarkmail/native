@@ -669,6 +669,22 @@ describe('calendar-store', () => {
       expect(useCalendarStore.getState().events[0].id).toBe('ev2');
     });
 
+    it('sends no scheduling message for a meeting with attendees when asked not to (a cancelled one)', async () => {
+      const participants = {
+        o: { roles: { owner: true }, calendarAddress: 'mailto:boss@example.com' },
+        me: { roles: { attendee: true }, calendarAddress: 'mailto:me@example.com' },
+      };
+      useCalendarStore.setState({ events: [{ id: 'ev1', participants } as any] });
+      mockDeleteEvents.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().deleteEvent('ev1', { sendSchedulingMessages: false });
+      expect(mockDeleteEvents).toHaveBeenLastCalledWith(['ev1'], false, 'acc-1');
+
+      useCalendarStore.setState({ events: [{ id: 'ev2', participants } as any] });
+      await useCalendarStore.getState().deleteEvent('ev2');
+      expect(mockDeleteEvents).toHaveBeenLastCalledWith(['ev2'], true, 'acc-1');
+    });
+
     it('should drop every expanded occurrence of a destroyed master and refetch', async () => {
       useCalendarStore.setState({
         calendars: [{ id: 'cal-1', name: 'Personal' } as any],
