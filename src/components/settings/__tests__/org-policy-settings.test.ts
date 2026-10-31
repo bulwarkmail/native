@@ -16,4 +16,14 @@ describe('organisation policy on the settings pages', () => {
     expect(page).toContain("const themeLocked = useSettingLocked('theme');");
     expect(page).toMatch(/label=\{t\('settings\.appearance\.theme\.label', "Theme"\)\}[^>]*locked=\{themeLocked\}>/);
   });
+
+  it('hides the themes the policy turns off and keeps the grid still while the theme is locked', () => {
+    const page = settings('ThemesSettings');
+    expect(page).toContain('const policy = usePolicyStore((s) => s.effective);');
+    expect(page).toMatch(/visibleThemeCards\(\[[\s\S]*\], policy\), \[t, policy\]\)/);
+    expect(page).toContain('{cards.map((card) => {');
+    expect(page).toContain("const themeLocked = useSettingLocked('activeThemeId');");
+    expect(page).toContain('disabled={themeLocked}');
+    expect(page).toContain("{themeLocked && (");
+  });
 });
