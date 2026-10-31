@@ -48,9 +48,11 @@ tags:
 - extendedWaitUntil:
     visible: "Keep scheduled"
     timeout: 10000
+# The dialog's button (below its message), not its title or the button
+# behind it. Cancelling now moves the message back to Drafts.
 - tapOn:
     text: "Cancel send"
-    below: "Keep scheduled|.*will not be delivered.*"
+    below: ".*will not be (sent|delivered).*"
 - extendedWaitUntil:
     notVisible: ".*${output.subject}.*"
     timeout: 30000
