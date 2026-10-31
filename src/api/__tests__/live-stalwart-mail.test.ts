@@ -582,3 +582,83 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
     }, 60_000);
   });
 });
+
+// Recover deleted items (#1319): x:ArchivedItem. Stalwart keeps mail deleted
+// for good only with an Enterprise license and `archiveDeletedItemsFor` set
+// for the account; without them the case says why and skips.
+live('live Stalwart: recover deleted items (x:ArchivedItem)', () => {
+  const tag = `bulwark-archive-${RUN}`;
+  let scratch = '';
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    scratch = await createMailbox({ name: `live-archive-${RUN}` });
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+    if (scratch) {
+      await emptyMailbox(scratch).catch(() => undefined);
+      await deleteMailbox(scratch).catch(() => undefined);
+    }
+  }, 60_000);
+
+  it('lists mail deleted for good and puts it back in the Inbox, or reports the feature unsupported', async (ctx) => {
+    const { advertisesArchivedItems, listArchivedEmails, queryArchivedItemIds, restoreArchivedItems } = await import('../archived-items');
+    const { classifyArchiveError } = await import('../../lib/recovery/archived-items');
+    const accountId = client.accountId;
+
+    // What the detection store would decide.
+    let probe: 'supported' | 'unsupported' | 'error' = 'unsupported';
+    let refusal = '';
+    if (advertisesArchivedItems(accountId)) {
+      try {
+        await queryArchivedItemIds(accountId, { limit: 1 });
+        probe = 'supported';
+      } catch (err) {
+        probe = classifyArchiveError(err);
+        refusal = err instanceof Error ? err.message : String(err);
+      }
+    }
+    if (!is10()) {
+      // 0.16: Settings hides the page.
+      expect(probe).toBe('unsupported');
+      return;
+    }
+    expect(advertisesArchivedItems(accountId)).toBe(true);
+    expect(probe).not.toBe('error');
+    if (probe === 'unsupported') {
+      ctx.skip(`x:ArchivedItem refused on this 1.0 server (${refusal}): it needs an Enterprise license`);
+      return;
+    }
+
+    const emailId = await importMessage(scratch, `${tag} restore me`, 'Deleted for good, then restored.');
+    await destroyEmails([emailId]);
+
+    const findArchived = async () => (await listArchivedEmails(accountId, { days: 1 })).items.find((i) => i.subject.includes(tag));
+    const archived = await eventually(findArchived, (item) => !!item, 20_000);
+    if (!archived) {
+      ctx.skip('Nothing was archived: the account needs "archiveDeletedItemsFor" (Data retention > Archive deleted items) set on the server');
+      return;
+    }
+    expect(archived.accountId).toBe(accountId);
+    expect(archived.fromEmail).toBe('partner@example.net');
+
+    const results = await restoreArchivedItems([archived.id], accountId);
+    expect(results).toEqual([{ id: archived.id, ok: true }]);
+
+    // The server restores in the background, into the Inbox.
+    const inbox = (await getMailboxes()).find((b) => b.role === 'inbox')!.id;
+    const back = await eventually(() => messagesWith(tag), (ids) => ids.length > 0, 30_000);
+    expect(back).toHaveLength(1);
+    const [restored] = await getFullEmails([back[0]]);
+    expect(Object.keys(restored.mailboxIds ?? {})).toContain(inbox);
+    expect(await findArchived()).toBeUndefined();
+  }, 120_000);
+});

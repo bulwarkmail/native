@@ -9,7 +9,7 @@ import {
   Filter, FileText, FolderOpen, Tags, HardDrive,
   BookUser, PanelLeftClose, Bell, RefreshCw,
   LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Download,
-  Database, Bug, Scale,
+  Database, Bug, Scale, Users, RotateCcw,
   type AppIcon,
 } from '../components/icons';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -45,6 +45,10 @@ import { LanguageSettings } from '../components/settings/LanguageSettings';
 import { ComposingSettings } from '../components/settings/ComposingSettings';
 import { LayoutSettings } from '../components/settings/LayoutSettings';
 import { DownloadsSettings } from '../components/settings/DownloadsSettings';
+import { DelegateSettings } from '../components/settings/DelegateSettings';
+import { RecoverDeletedSettings } from '../components/settings/RecoverDeletedSettings';
+import { useDeletedItemsRecovery } from '../lib/recovery/use-deleted-items-recovery';
+import { useDelegationAvailable } from '../lib/delegation/use-delegation-available';
 import { useLocaleStore } from '../stores/locale-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useManagedAccountStore } from '../stores/managed-account-store';
@@ -98,6 +102,7 @@ const GROUP_ORDER: TabGroup[] = ['general', 'appearance', 'mail', 'privacy', 'ap
 const TABS: TabDef[] = [
   // General
   { id: 'account',         label: 'Account',            icon: User,           group: 'general',    implemented: true  },
+  { id: 'sharing',         label: 'Sharing',            icon: Users,          group: 'general',    implemented: true  },
   { id: 'language',        label: 'Language',           icon: Languages,      group: 'general',    implemented: true  },
   { id: 'notifications',   label: 'Notifications',      icon: Bell,           group: 'general',    implemented: true  },
   { id: 'accessibility',   label: 'Accessibility',      icon: Accessibility,  group: 'general',    implemented: true  },
@@ -112,6 +117,7 @@ const TABS: TabDef[] = [
   { id: 'identities',      label: 'Identities',         icon: UserPen,        group: 'mail',       implemented: true  },
   { id: 'vacation',        label: 'Vacation Responder', icon: Palmtree,       group: 'mail',       implemented: true  },
   { id: 'filters',         label: 'Filters & Rules',    icon: Filter,         group: 'mail',       implemented: true  },
+  { id: 'recovery',        label: 'Recover deleted items', icon: RotateCcw,   group: 'mail',       implemented: true  },
   { id: 'templates',       label: 'Templates',          icon: FileText,       group: 'mail',       implemented: true  },
   { id: 'folders',         label: 'Folders',            icon: FolderOpen,     group: 'mail',       implemented: true  },
   { id: 'keywords',        label: 'Keywords & Labels',  icon: Tags,           group: 'mail',       implemented: true  },
@@ -145,6 +151,8 @@ const TAB_LABEL_KEYS: Partial<Record<Tab, string>> = {
   debug: 'settings.tabs.troubleshooting',
   licences: 'settings.about.licences',
   privacy: 'settings.about.privacy',
+  sharing: 'delegates.tab',
+  recovery: 'recover_deleted.tab',
 };
 const tabLabelKey = (id: Tab) => TAB_LABEL_KEYS[id] ?? `settings.tabs.${id}`;
 
@@ -164,6 +172,8 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   folders: FolderSettings,
   keywords: KeywordSettings,
   downloads: DownloadsSettings,
+  sharing: DelegateSettings,
+  recovery: RecoverDeletedSettings,
   security: AccountSecuritySettings,
   content_senders: ContentSendersSettings,
   calendar: CalendarSettings,
@@ -185,11 +195,11 @@ const AVAILABLE_TABS: TabDef[] = TABS.filter(
   (t) => !t.hidden && t.id !== 'account' && (t.id !== 'updates' || supportsSideloadUpdates),
 );
 
-function groupTabs(only: ReadonlySet<Tab> | null) {
+function groupTabs(only: ReadonlySet<Tab> | null, hidden: ReadonlySet<Tab>) {
   return GROUP_ORDER.map(group => ({
     group,
     label: GROUP_LABELS[group],
-    items: AVAILABLE_TABS.filter(t => t.group === group && (!only || only.has(t.id))),
+    items: AVAILABLE_TABS.filter(t => t.group === group && (!only || only.has(t.id)) && !hidden.has(t.id)),
   })).filter(g => g.items.length > 0);
 }
 
@@ -217,6 +227,16 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const hasFiles = useHasFiles();
   const hasSieve = useHasSieve();
   const hasVacation = useHasVacation();
+  // Webmail 1.19: Delegates and Recover deleted items are left out of the
+  // list, not shown as "Not on this server", where the server lacks them.
+  const recoveryAvailable = useDeletedItemsRecovery().available;
+  const delegationAvailable = useDelegationAvailable();
+  const hiddenTabs = React.useMemo(() => {
+    const set = new Set<Tab>();
+    if (!recoveryAvailable) set.add('recovery');
+    if (!delegationAvailable) set.add('sharing');
+    return set;
+  }, [recoveryAvailable, delegationAvailable]);
 
   // A shared/group account picked under "Shared with me" scopes Settings to
   // the panes that account can be managed in (webmail: scoped settings).
@@ -259,7 +279,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   }, [pendingTab, clearManagedAccount]);
   const groupedTabs = React.useMemo(() => {
     void locale; // dependency: re-translate on locale change
-    return groupTabs(scopedTabs).map((g) => ({
+    return groupTabs(scopedTabs, hiddenTabs).map((g) => ({
       ...g,
       label: t(`settings.tab_groups.${g.group}`, g.label),
       items: g.items.map((tab) => ({
@@ -267,7 +287,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         label: t(tabLabelKey(tab.id), tab.label),
       })),
     }));
-  }, [locale, t, scopedTabs]);
+  }, [locale, t, scopedTabs, hiddenTabs]);
 
   // The second line of each row: the pane's current value.
   const settings = useSettingsStore();
@@ -324,6 +344,12 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         .map((g) => ({ ...g, items: g.items.filter((tab) => tabMatchesQuery(searchIndex, tab.id, tab.label, query)) }))
         .filter((g) => g.items.length > 0)
     : groupedTabs;
+
+  // A page whose feature went away (the license ran out, another account)
+  // closes instead of staying open empty.
+  useEffect(() => {
+    if (selectedTab && hiddenTabs.has(selectedTab)) setSelectedTab(null);
+  }, [selectedTab, hiddenTabs]);
 
   // Back from a page opened inside another one returns to that page.
   const closePane = React.useCallback(() => {

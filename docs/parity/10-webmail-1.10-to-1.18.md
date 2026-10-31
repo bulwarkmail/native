@@ -411,11 +411,11 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: retries read-only batches only (`lib/jmap/client.ts:245`).
   - What RN does: blocks the retry only for EmailSubmission/set, Email/import, Blob/upload (`src/api/jmap-client.ts:102-109`, `:853-857`).
 
-- [ ] **Recover deleted items (#1319)** — `P3` — `missing`
+- [x] **Recover deleted items (#1319)** — `P3` — `missing` — fixed in 113e96bd (Settings page only; the admin day limit and hiding wait for the org policy and plug in at `src/lib/recovery/policy.ts`; the Trash folder's "Recover deleted items" link is not ported, the store's `checkRecent` is ready for it)
   - What WEB does: `x:ArchivedItem/query` (`lib/recovery/archived-items.ts:139`, `lib/jmap/client.ts:12119`, `components/settings/recover-deleted-settings.tsx`).
   - What RN does: nothing (`src/screens/SettingsScreen.tsx:112`). The day limit and hiding need the policy.
 
-- [ ] **Delegates** — `P3` — `missing`
+- [x] **Delegates** — `P3` — `missing` — fixed in 8a5bb728 (Settings > Sharing; the admin hiding, rights limit and app gates wait for the org policy and plug in at `src/lib/delegation/policy.ts`)
   - What WEB does: Mailbox/AddressBook/Calendar shareWith in one batch (`lib/delegation/delegation.ts:96`).
   - What RN does: no mailbox sharing (`src/components/settings/FolderSettings.tsx`).
 

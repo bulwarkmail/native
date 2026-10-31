@@ -14,10 +14,10 @@
 import { supportsDeviceSync } from './platform-capabilities';
 
 export type SettingsTabId =
-  | 'account' | 'language' | 'notifications' | 'accessibility'
+  | 'account' | 'sharing' | 'language' | 'notifications' | 'accessibility'
   | 'appearance' | 'layout'
   | 'reading' | 'composing' | 'identities' | 'vacation'
-  | 'filters' | 'templates' | 'folders' | 'keywords' | 'downloads'
+  | 'filters' | 'recovery' | 'templates' | 'folders' | 'keywords' | 'downloads'
   | 'security' | 'content_senders'
   | 'calendar' | 'contacts' | 'files' | 'sidebar_apps'
   // about_data is Storage & backup (the id predates the split from About);
@@ -38,6 +38,9 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.account.accounts',
     'settings.account.shared_accounts',
   ],
+  // Delegates and Recover deleted items show only where the server has them.
+  sharing: ['delegates.title'],
+  recovery: ['recover_deleted.title'],
   language: [
     'settings.appearance.language',
     'settings.language_region.date_format',
@@ -256,6 +259,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
 // translation doesn't contain the literal word.
 export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   account: 'profile email password user signin signout reorder switch default multi-account shared storage quota',
+  sharing: 'delegate delegation share access assistant permissions revoke folders calendars contacts colleague',
+  recovery: 'recover restore undelete deleted trash emptied lost messages',
   language: 'locale region date time format translation',
   notifications: 'alert push badge unifiedpush relay device reminder',
   accessibility: 'a11y screen reader talkback voiceover low vision text size font bigger larger motion animation preset undo timeout duration confirm',
