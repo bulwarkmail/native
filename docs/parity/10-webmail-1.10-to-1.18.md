@@ -70,7 +70,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: clearAllFeatureStores (`src/stores/auth-store.ts:126-134`) never clears `src/stores/search-history-store.ts:44`.
   - Fix hint: clear it, and check the other persisted stores in the same pass.
 
-- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows) and 4932764a (the composer takes recipients on Unicode domains and sends them in ASCII form; the From identity and a sender on one of your own domains show as written in the composer and the reader; unit tests only, the test servers have no IDN domain); left: the sender in the mail list rows (EmailListScreen, UnifiedInboxScreen) still shows the xn-- form on your own domains
+- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows) and 4932764a (the composer takes recipients on Unicode domains and sends them in ASCII form; the From identity and a sender on one of your own domains show as written in the composer and the reader; unit tests only, the test servers have no IDN domain); left: the sender in the mail list rows (EmailListScreen, UnifiedInboxScreen) still shows the xn-- form on your own domains — list rows in b35d15ca
   - What WEB does: `lib/idn.ts:25` (#1100). What RN does: ASCII-only checks (`src/lib/recipients.ts:31`, `src/lib/server-discovery.ts:78`).
   - Fix hint: toASCII on the wire, Unicode on screen.
 
@@ -411,7 +411,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: retries read-only batches only (`lib/jmap/client.ts:245`).
   - What RN does: blocks the retry only for EmailSubmission/set, Email/import, Blob/upload (`src/api/jmap-client.ts:102-109`, `:853-857`).
 
-- [x] **Recover deleted items (#1319)** — `P3` — `missing` — fixed in 113e96bd (Settings page only; the admin day limit and hiding wait for the org policy and plug in at `src/lib/recovery/policy.ts`; the Trash folder's "Recover deleted items" link is not ported, the store's `checkRecent` is ready for it)
+- [x] **Recover deleted items (#1319)** — `P3` — `missing` — fixed in 113e96bd (Settings page only; the admin day limit and hiding wait for the org policy and plug in at `src/lib/recovery/policy.ts`; the Trash folder's "Recover deleted items" link is not ported, the store's `checkRecent` is ready for it) — Trash link in 7467764e
   - What WEB does: `x:ArchivedItem/query` (`lib/recovery/archived-items.ts:139`, `lib/jmap/client.ts:12119`, `components/settings/recover-deleted-settings.tsx`).
   - What RN does: nothing (`src/screens/SettingsScreen.tsx:112`). The day limit and hiding need the policy.
 
