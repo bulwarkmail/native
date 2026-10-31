@@ -43,8 +43,25 @@ beforeEach(() => {
     accounts: {
       own: { name: 'me', isPersonal: true, isReadOnly: false, accountCapabilities: { [CAPABILITIES.SIEVE]: SIEVE_CAPS } },
       team: { name: 'Team', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+      crew: { name: 'Crew', isPersonal: false, isReadOnly: false },
       other: { name: 'Other', isPersonal: true, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
     },
+  });
+});
+
+describe('accountSupportsSieve on a shared account that lists its capabilities (#1239)', () => {
+  it('is false when the list leaves this one out', () => {
+    const caps = { [CAPABILITIES.SIEVE]: {}, [CAPABILITIES.MAIL]: {} };
+    expect(accountSupportsSieve(
+      { name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+      caps,
+    )).toBe(false);
+    expect(accountSupportsSieve(
+      { name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.SIEVE]: {} } },
+      caps,
+    )).toBe(true);
+    // An empty list says nothing: the server-wide answer stands.
+    expect(accountSupportsSieve({ name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: {} }, caps)).toBe(true);
   });
 });
 
@@ -76,7 +93,9 @@ describe('accountSupportsSieve', () => {
 describe('isSieveSupported', () => {
   it('checks the own Sieve account by default and a named account on request', () => {
     expect(isSieveSupported()).toBe(true);
-    expect(isSieveSupported('team')).toBe(true);
+    // Team lists its capabilities and Sieve isn't one (#1239); Crew lists none.
+    expect(isSieveSupported('team')).toBe(false);
+    expect(isSieveSupported('crew')).toBe(true);
     expect(isSieveSupported('other')).toBe(false);
     expect(isSieveSupported('missing')).toBe(false);
   });

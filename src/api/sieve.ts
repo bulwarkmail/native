@@ -2,6 +2,7 @@ import { jmapClient } from './jmap-client';
 import { CAPABILITIES, type JMAPAccountInfo } from './types';
 import { secureFetch } from '../lib/client-cert';
 import type { SieveScript, SieveCapabilities } from '../lib/sieve/types';
+import { accountSupports } from '../lib/account-capability';
 
 // JMAP Sieve (RFC 9661) bindings. Mirrors the webmail JMAPClient Sieve methods
 // but follows the mobile convention of a functional api/* module driving the
@@ -30,18 +31,14 @@ export function getSieveAccountId(): string {
 
 // Gate on the ACCOUNT capability, not only the server-wide session capability:
 // RFC 9661 advertises Sieve per account, and an account without Sieve rights
-// fails every SieveScript call. Stalwart doesn't always advertise capabilities
-// on shared/group accounts, so treat non-personal accounts as capable - the
-// rule the webmail's getSharedAccounts() applies. A server that populates no
-// accountCapabilities at all keeps the session-wide answer.
+// fails every SieveScript call. A shared account that lists no capabilities
+// at all, and a server that populates none, keep the session-wide answer
+// (lib/account-capability, webmail #1239).
 export function accountSupportsSieve(
   account: JMAPAccountInfo | undefined,
   sessionCapabilities: Record<string, unknown> | undefined,
 ): boolean {
-  if (!sessionCapabilities || !(CAPABILITIES.SIEVE in sessionCapabilities)) return false;
-  if (!account) return false;
-  if (!account.isPersonal || !account.accountCapabilities) return true;
-  return CAPABILITIES.SIEVE in account.accountCapabilities;
+  return accountSupports(account, sessionCapabilities, CAPABILITIES.SIEVE);
 }
 
 export function isSieveSupported(accountId?: string): boolean {

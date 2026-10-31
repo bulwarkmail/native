@@ -1,5 +1,6 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES, type JMAPAccountInfo } from './types';
+import { accountSupports } from '../lib/account-capability';
 
 export interface VacationResponse {
   id: string;
@@ -65,17 +66,14 @@ export async function setVacationResponse(
 
 // Gate on the ACCOUNT capability: RFC 8621 advertises VacationResponse per
 // account, so the session can list it while a given account lacks it.
-// Stalwart doesn't always advertise capabilities on shared/group accounts, so
-// treat non-personal accounts as capable, as the webmail does. A server that
-// populates no accountCapabilities at all keeps the session-wide answer.
+// A shared account that lists no capabilities at all, and a server that
+// populates none, keep the session-wide answer (lib/account-capability,
+// webmail #1239).
 export function accountSupportsVacation(
   account: JMAPAccountInfo | undefined,
   sessionCapabilities: Record<string, unknown> | undefined,
 ): boolean {
-  if (!sessionCapabilities || !(CAPABILITIES.VACATION in sessionCapabilities)) return false;
-  if (!account) return false;
-  if (!account.isPersonal || !account.accountCapabilities) return true;
-  return CAPABILITIES.VACATION in account.accountCapabilities;
+  return accountSupports(account, sessionCapabilities, CAPABILITIES.VACATION);
 }
 
 export function isVacationSupported(accountId?: string): boolean {
