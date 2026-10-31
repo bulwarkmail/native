@@ -466,11 +466,11 @@
       "pdf_external": "PDFs werden in Ihrem PDF-Viewer auf diesem Gerät geöffnet.",
       "unsupported": "Keine Vorschau für diesen Dateityp.",
       "media_unsupported": "Diese Datei kann hier nicht abgespielt werden.",
-      "pdf_protected": "Diese PDF ist passwortgeschützt. Öffne sie in einer anderen App, um das Passwort einzugeben.",
+      "pdf_protected": "Diese PDF ist passwortgeschützt. Öffnen Sie sie in einer anderen App, um das Passwort einzugeben.",
       "pdf_unreadable": "Diese PDF kann hier nicht angezeigt werden.",
       "archive_files": "{count, plural, one {# Datei} other {# Dateien}}",
       "archive_first_files": "Die ersten {count} Dateien",
-      "archive_protected": "Dieses Archiv ist passwortgeschützt. Öffne es in einer anderen App, um das Passwort einzugeben.",
+      "archive_protected": "Dieses Archiv ist passwortgeschützt. Öffnen Sie es in einer anderen App, um das Passwort einzugeben.",
       "archive_unreadable": "Dieses Archiv kann hier nicht geöffnet werden."
     },
     "received_via": "an {name}",
@@ -500,7 +500,9 @@
     },
     "view_dark_mode": "Im dunklen Modus anzeigen",
     "view_light_mode": "Im hellen Modus anzeigen",
-    "not_spam_short": "Kein Spam"
+    "not_spam_short": "Kein Spam",
+    "previous": "Vorherige",
+    "next": "Nächste"
   },
   "files": {
     "delete_cascade_hint": "Ordner werden samt ihrem gesamten Inhalt gelöscht. Dies kann nicht rückgängig gemacht werden.",
@@ -1269,19 +1271,19 @@
       "licences_desc": "AGPL-3.0 für die App und die Bibliotheken, die sie nutzt",
       "never_checked": "Noch nicht geprüft",
       "privacy": "Datenschutz",
-      "privacy_desc": "Was auf diesem Telefon bleibt und was an deinen Server geht",
+      "privacy_desc": "Was auf diesem Telefon bleibt und was an Ihren Server geht",
       "report_problem": "Problem melden",
       "report_problem_desc": "Öffnet ein Issue auf GitHub mit eingetragener Version",
       "server": "Server",
       "server_value": "{host} · angemeldet als {user}",
       "source_code": "Quellcode",
       "this_device": "Dieses Gerät",
-      "this_device_desc": "Womit die App verbunden ist und wo du Hilfe bekommst.",
+      "this_device_desc": "Womit die App verbunden ist und wo Sie Hilfe bekommen.",
       "up_to_date": "Aktuell",
       "updates": "Updates"
     },
     "backup": {
-      "description": "Übertrage deine Einstellungen auf ein anderes Telefon oder ins Webmail.",
+      "description": "Übertragen Sie Ihre Einstellungen auf ein anderes Telefon oder ins Webmail.",
       "export_import": "Exportieren oder importieren",
       "export_import_desc": "Eine JSON-Datei im selben Format wie im Webmail",
       "reset": "Zurücksetzen",
@@ -1289,26 +1291,26 @@
       "title": "Einstellungen sichern"
     },
     "licences": {
-      "app_desc": "Die App ist freie Software unter der {licence}. Du darfst sie nutzen, untersuchen, weitergeben und ändern.",
+      "app_desc": "Die App ist freie Software unter der {licence}. Sie dürfen sie nutzen, untersuchen, weitergeben und ändern.",
       "libraries": "Bibliotheken",
       "libraries_desc": "Open-Source-Code, mit dem die App gebaut ist.",
       "read_licence": "Den vollständigen Lizenztext lesen"
     },
     "privacy": {
-      "favicons": "Absendersymbole für geschäftliche Mails kommen vom Symboldienst von DuckDuckGo, der dabei die Domain des Absenders sieht. Ausschalten kannst du sie unter Darstellung → Absender-Favicons.",
+      "favicons": "Absendersymbole für geschäftliche Mails kommen vom Symboldienst von DuckDuckGo, der dabei die Domain des Absenders sieht. Ausschalten können Sie sie unter Darstellung → Absender-Favicons.",
       "no_tracking": "Die App hat keine Analyse und keine Werbung.",
       "other_title": "Weitere Verbindungen",
       "phone_backup": "Nichts davon landet in der Cloud-Sicherung von Android.",
-      "phone_secure": "Deine Anmeldedaten liegen im sicheren Speicher des Systems. Einstellungen, der Offline-Cache und noch nicht synchronisierte Änderungen liegen im Speicher der App.",
+      "phone_secure": "Ihre Anmeldedaten liegen im sicheren Speicher des Systems. Einstellungen, der Offline-Cache und noch nicht synchronisierte Änderungen liegen im Speicher der App.",
       "phone_title": "Auf diesem Telefon",
-      "push": "Wenn Benachrichtigungen an sind, meldet dein Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über {service}. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie deine Mails. Unter Benachrichtigungen kannst du ein eigenes Relay eintragen.",
+      "push": "Wenn Benachrichtigungen an sind, meldet Ihr Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über {service}. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie Ihre Mails. Unter Benachrichtigungen können Sie ein eigenes Relay eintragen.",
       "push_title": "Push-Benachrichtigungen",
-      "server": "Mails, Kalender, Kontakte und Dateien werden von deinem Server geladen und dort gespeichert. Außer den Verbindungen unten spricht die App nur mit deinem Server.",
-      "server_title": "Dein Mailserver",
+      "server": "Mails, Kalender, Kontakte und Dateien werden von Ihrem Server geladen und dort gespeichert. Außer den Verbindungen unten spricht die App nur mit Ihrem Server.",
+      "server_title": "Ihr Mailserver",
       "service_apple": "den Push-Dienst von Apple",
       "service_google": "den Push-Dienst von Google",
-      "updates": "Die App fragt bei GitHub nach der neuesten Version, um dir Updates anzuzeigen.",
-      "updates_android": "Die App fragt bei GitHub nach der neuesten Version, um dir Updates anzuzeigen. Ausschalten kannst du das unter Updates."
+      "updates": "Die App fragt bei GitHub nach der neuesten Version, um Ihnen Updates anzuzeigen.",
+      "updates_android": "Die App fragt bei GitHub nach der neuesten Version, um Ihnen Updates anzuzeigen. Ausschalten können Sie das unter Updates."
     },
     "summary": {
       "events_off": "Termine aus",
@@ -1322,7 +1324,7 @@
       "layout": "Schnellaktionen, Wischen, Reihenfolge",
       "reading": "Gelesen-Status, Löschen, Anhänge",
       "composing": "Signatur, Sendeverzögerung, Entwürfe",
-      "identities": "Adressen, von denen du sendest",
+      "identities": "Adressen, von denen Sie senden",
       "vacation": "Automatische Antwort bei Abwesenheit",
       "filters": "Regeln für eingehende Mails",
       "templates": "Wiederverwendbare Nachrichten",

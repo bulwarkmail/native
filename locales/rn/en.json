@@ -499,6 +499,7 @@
     "export_failed": "Export failed",
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",
+    "next": "Next",
     "not_spam_short": "Not spam",
     "preview": {
       "archive_files": "{count, plural, one {# file} other {# files}}",
@@ -512,6 +513,7 @@
       "pdf_unreadable": "This PDF can't be shown here.",
       "unsupported": "No preview for this file type."
     },
+    "previous": "Prev",
     "quick_reply_login_switched": "This message is in another account. Switch back to it to reply.",
     "quick_reply_unconfirmed": "The server did not confirm the send. Check your Sent folder before sending again.",
     "received_via": "to {name}",
