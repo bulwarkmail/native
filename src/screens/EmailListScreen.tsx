@@ -7,8 +7,11 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check,
 } from '../components/icons';
+import { ActionSheet } from '../components/email/ActionSheet';
+import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor } from '../lib/sort-choices';
+import { orderForMailbox, sanitizeSortLevels } from '../lib/message-list-order';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { spacing, radius, typography, componentSizes, mix, type ThemePalette } from '../theme/tokens';
@@ -102,6 +105,16 @@ function isStarred(email: Email): boolean {
 function isPinned(email: Email): boolean {
   return !!email.keywords?.$pinned;
 }
+
+const SORT_FALLBACKS: Record<string, string> = {
+  newest: 'Newest first',
+  oldest: 'Oldest first',
+  unread: 'Unread first',
+  starred: 'Starred first',
+  sender: 'Sender (A–Z)',
+  subject: 'Subject (A–Z)',
+  largest: 'Largest first',
+};
 
 // Height of the sender line when the avatar is hidden (extra-compact density),
 // used to anchor the unread dot on that first line.
@@ -446,7 +459,7 @@ export default function EmailListScreen({
   const moveEmailsToMailbox = useEmailStore((s) => s.moveEmailsToMailbox);
   const deleteEmailsBatch = useEmailStore((s) => s.deleteEmailsBatch);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
-  const setSortAscending = useEmailStore((s) => s.setSortAscending);
+  const invalidateListOrder = useEmailStore((s) => s.invalidateListOrder);
   const markSpam = useEmailStore((s) => s.markSpam);
   const unmarkSpam = useEmailStore((s) => s.unmarkSpam);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -481,6 +494,15 @@ export default function EmailListScreen({
     [mailboxes, currentMailboxId],
   );
   const currentRole = currentMailbox?.role ?? null;
+  // The Sort menu of the header (webmail e3f1ccce7): the order presets of
+  // Settings > Layout, one tap away.
+  const [sortMenuOpen, setSortMenuOpen] = React.useState(false);
+  const messageListOrder = useSettingsStore((s) => s.messageListOrder);
+  const messageListOrderScope = useSettingsStore((s) => s.messageListOrderScope);
+  const currentSortChoice = sortChoiceFor(
+    orderForMailbox(sanitizeSortLevels(messageListOrder), messageListOrderScope, currentRole),
+    sortAscending,
+  );
   // The JMAP account behind the open folder (undefined = the user's own).
   const currentOwnerAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
 
@@ -1215,17 +1237,17 @@ export default function EmailListScreen({
       </View>
       <Pressable
         style={styles.filterButton}
-        onPress={() => setSortAscending(!sortAscending)}
+        onPress={() => setSortMenuOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel={sortAscending
-          ? t('settings.appearance.message_list_order.direction.oldest_first', 'Oldest first')
-          : t('settings.appearance.message_list_order.direction.newest_first', 'Newest first')}
-        accessibilityHint={t('email_list.sort_toggle_hint', 'Reverses the mail sort order')}
+        accessibilityLabel={t('email_list.sort.title', 'Sort')}
+        accessibilityValue={currentSortChoice ? { text: t(`email_list.sort.${currentSortChoice}`, currentSortChoice) } : undefined}
       >
-        {sortAscending ? (
+        {currentSortChoice === 'newest' ? (
+          <ArrowDownWideNarrow size={18} color={c.textMuted} />
+        ) : currentSortChoice === 'oldest' ? (
           <ArrowUpNarrowWide size={18} color={c.primary} />
         ) : (
-          <ArrowDownWideNarrow size={18} color={c.textMuted} />
+          <ArrowUpDown size={18} color={c.primary} />
         )}
       </Pressable>
       <Pressable
@@ -1940,6 +1962,35 @@ export default function EmailListScreen({
             else reportFailure(moveToMailboxAction(id, currentMailboxId, toId));
           }
         }}
+      />
+
+      <ActionSheet
+        visible={sortMenuOpen}
+        title={t('email_list.sort.title', 'Sort')}
+        onClose={() => setSortMenuOpen(false)}
+        items={[
+          ...SORT_CHOICES.map((choice) => ({
+            key: choice.key,
+            label: t(`email_list.sort.${choice.key}`, SORT_FALLBACKS[choice.key]),
+            trailing: currentSortChoice === choice.key ? <Check size={16} color={c.primary} /> : undefined,
+            onPress: () => {
+              setSortMenuOpen(false);
+              const changes = sortChoiceChanges(choice.key, messageListOrderScope, currentRole);
+              if (!changes) return;
+              const { updateSetting } = useSettingsStore.getState();
+              updateSetting('messageListOrder', changes.messageListOrder);
+              updateSetting('mailSortAscending', changes.mailSortAscending);
+              if (changes.messageListOrderScope) updateSetting('messageListOrderScope', changes.messageListOrderScope);
+              invalidateListOrder();
+            },
+          })),
+          ...(currentSortChoice === null ? [{
+            key: 'custom',
+            label: t('email_list.sort.custom', 'Custom order (in Settings)'),
+            trailing: <Check size={16} color={c.primary} />,
+            onPress: () => setSortMenuOpen(false),
+          }] : []),
+        ]}
       />
 
       <MoveSheet
