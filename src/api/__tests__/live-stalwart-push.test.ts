@@ -234,6 +234,16 @@ live('live Stalwart push subscriptions', () => {
     }
   }, 60_000);
 
+  it('answers a lookup it cannot serve with an error response, not an empty list (bulwarkmail/webmail#1041)', async () => {
+    // The background task's Email/get for a push names the account the push
+    // came for; one the login can't read must read as a failed lookup (which
+    // shows a generic notification), not as "nothing new".
+    const res = await client.request([['Email/get', { accountId: 'zzzz', ids: ['x'], properties: ['id'] }, '0']]);
+    const [name, body] = res.methodResponses[0] as unknown as [string, { type?: string }];
+    expect(name).toBe('error');
+    expect(typeof body.type).toBe('string');
+  });
+
   it('takes the Inbox-only filter and echoes it so it compares equal (bulwarkmail/webmail#983)', async () => {
     const me = client.accountId;
     const emailPush = await buildEmailPushConfig(undefined, true);
