@@ -6,6 +6,7 @@ import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
 import { secureFetch } from './client-cert';
 import { setKnownAccounts, type KnownAccount } from './account-utils';
+import { ambiguousPushLabel, pushAccountLabel } from './account-labels';
 import { freshStoredCredentials } from './stored-token-refresh';
 import {
   generateEmailAvatarColor,
@@ -477,7 +478,7 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
     setKnownAccounts(registry.filter((a): a is KnownAccount => !!a.username && !!a.serverUrl));
     const jmapAccountIds = await readPushJmapAccountIds();
     const match = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
-    if (match.ambiguous) await showPlainNotification(payload);
+    if (match.ambiguous) await showPlainNotification(payload, match.accountIds, registry);
 
     for (const accountId of match.accountIds) {
       try {
@@ -489,7 +490,7 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
           err instanceof Error ? err.message : err,
         );
         // Something arrived; say so even though the lookup couldn't say what.
-        if (!match.ambiguous) await showLookupFailedNotification(accountId, payload).catch(() => undefined);
+        if (!match.ambiguous) await showLookupFailedNotification(accountId, payload, registry).catch(() => undefined);
       }
     }
   } catch (error) {
@@ -590,7 +591,12 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
   if (!native?.showNotification) return;
 
   const groupKey = `bulwark-mail:${accountId}`;
-  const groupTitle = payload.accountLabel ?? accountId.split('@')[0] ?? accountId;
+  // With the server when another login has the same username.
+  const groupTitle = pushAccountLabel(
+    accountId,
+    payload.accountLabel ?? accountId.split('@')[0] ?? accountId,
+    await readAccountRegistry(),
+  );
   const favicons = await senderFaviconsAllowed();
   const locale = await notificationLocale();
 
@@ -646,11 +652,16 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
  * tap opens the app as it is; empty ids, which the tap handler refuses, keep
  * it from opening anything (NotificationTapStore).
  */
-async function showPlainNotification(payload: RelayPushData): Promise<void> {
+async function showPlainNotification(
+  payload: RelayPushData,
+  candidateIds: readonly string[],
+  registry: RegistryAccount[],
+): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
   const locale = await notificationLocale();
-  const label = payload.accountLabel ?? '';
+  // The same username on two servers: name the servers it may be from.
+  const label = ambiguousPushLabel(candidateIds, payload.accountLabel ?? '', registry);
   await native.showNotification({
     notificationId: `mail-plain:${payload.jmapAccountId ?? ''}:${payload.emailIds[0] ?? ''}`,
     title: translate(locale, 'notifications.new_email', 'New email'),
@@ -669,11 +680,15 @@ async function showPlainNotification(payload: RelayPushData): Promise<void> {
  * account's name and no message, so a tap opens the app as it is. One per
  * account; the next failure replaces it rather than stacking up.
  */
-async function showLookupFailedNotification(accountId: string, payload: RelayPushData): Promise<void> {
+async function showLookupFailedNotification(
+  accountId: string,
+  payload: RelayPushData,
+  registry: RegistryAccount[],
+): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
   const locale = await notificationLocale();
-  const label = payload.accountLabel ?? accountId.split('@')[0] ?? accountId;
+  const label = pushAccountLabel(accountId, payload.accountLabel ?? accountId.split('@')[0] ?? accountId, registry);
   await native.showNotification({
     notificationId: `mail-unknown:${accountId}`,
     title: translate(locale, 'notifications.new_email', 'New email'),

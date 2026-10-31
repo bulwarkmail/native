@@ -9,6 +9,7 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useAccountStore } from '../../stores/account-store';
+import { distinctAccountLabels } from '../../lib/account-labels';
 import { useSearchHistoryStore } from '../../stores/search-history-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { GLOBAL_SEARCH_PROVIDERS, getSearchAccounts } from '../../api/global-search';
@@ -60,6 +61,9 @@ export function GlobalSearchSheet({ visible, initialQuery = '', onClose, navigat
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const accounts = useAccountStore((s) => s.accounts);
+  // One address on two servers reads the same: those get the server added.
+  const accountLabels = React.useMemo(() => distinctAccountLabels(accounts), [accounts]);
+  const accountLabelOf = (localAccountId: string, fallback: string) => accountLabels.get(localAccountId) ?? fallback;
   const recentSearches = useSearchHistoryStore((s) => s.recentSearches);
   const addRecentSearch = useSearchHistoryStore((s) => s.addRecentSearch);
 
@@ -131,7 +135,7 @@ export function GlobalSearchSheet({ visible, initialQuery = '', onClose, navigat
 
   const renderRow = (hit: GlobalSearchHit) => {
     const title = hit.title || (hit.kind === 'mail' ? t('global_search.no_subject', '(no subject)') : hit.id);
-    const subtitle = [hit.accountLabel, hit.subtitle].filter(Boolean).join(' · ');
+    const subtitle = [accountLabelOf(hit.localAccountId, hit.accountLabel), hit.subtitle].filter(Boolean).join(' · ');
     const snippet = hit.kind === 'mail' && hit.snippet?.preview ? hit.snippet.preview : null;
     return (
       <Pressable
@@ -241,13 +245,22 @@ export function GlobalSearchSheet({ visible, initialQuery = '', onClose, navigat
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+        {/* Its own height only: a horizontal ScrollView grows like flex: 1
+            in a column, which put the chips mid-screen with empty bands
+            above and below and pushed the results down. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipsScroll}
+          contentContainerStyle={styles.chips}
+          keyboardShouldPersistTaps="handled"
+        >
           {scopes.map((s) => chip(s.key, s.label, scope === s.key, () => setScope(s.key)))}
           {accounts.length > 1 ? (
             <>
               <View style={styles.chipDivider} />
               {chip('all-accounts', t('global_search.all_accounts', 'All accounts'), accountId === null, () => setAccountId(null))}
-              {accounts.map((a) => chip(a.id, a.displayName || a.email || a.username, accountId === a.id, () => setAccountId(a.id)))}
+              {accounts.map((a) => chip(a.id, accountLabelOf(a.id, a.displayName || a.email || a.username), accountId === a.id, () => setAccountId(a.id)))}
             </>
           ) : null}
         </ScrollView>
@@ -270,7 +283,7 @@ export function GlobalSearchSheet({ visible, initialQuery = '', onClose, navigat
           {errors.map((error) => (
             <View key={`${error.localAccountId}:${error.message}`} style={styles.errorRow}>
               <AlertTriangle size={14} color={c.warning} />
-              <Text style={styles.rowSub}>{t('global_search.account_error', "Couldn't search {account}", { account: error.accountLabel })}</Text>
+              <Text style={styles.rowSub}>{t('global_search.account_error', "Couldn't search {account}", { account: accountLabelOf(error.localAccountId, error.accountLabel) })}</Text>
             </View>
           ))}
           {!trimmed && !showRecent ? (
@@ -305,6 +318,7 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1, borderColor: c.border,
     },
     input: { flex: 1, ...typography.body, color: c.text, paddingVertical: spacing.sm },
+    chipsScroll: { flexGrow: 0, flexShrink: 0 },
     chips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
     chip: {
       paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.full,

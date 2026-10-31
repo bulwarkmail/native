@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing,
 } from 'react-native';
 import { X, Check, Tag } from './icons';
+import { tagCheckedState, tagRowAccessibility } from '../lib/tag-row-a11y';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
@@ -120,6 +121,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
                 <Pressable
                   key={kw.id}
                   onPress={() => onToggle(token, !applied)}
+                  {...tagRowAccessibility(tagCheckedState(selectedEmails, token))}
                   style={({ pressed }) => [styles.row, tagRowIndent(kw.depth), pressed && styles.rowPressed]}
                 >
                   <Tag size={16} color={dot} fill={dot} />
@@ -136,6 +138,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
               <Pressable
                 key={`unknown:${id}`}
                 onPress={() => onToggle(token, !applied)}
+                {...tagRowAccessibility(tagCheckedState(selectedEmails, token))}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
                 <Tag size={16} color={c.tags.gray.dot} fill={c.tags.gray.dot} />

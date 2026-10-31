@@ -37,6 +37,7 @@ import SigningInStep, { type SigningInPhase } from './login/SigningInStep';
 import { loginBackAction } from './login/login-back';
 import { reauthStart, type LoginStepName } from './login/reauth-start';
 import { isSignInCancelled } from '../lib/sign-in-abort';
+import { distinctServerUrls } from '../lib/account-labels';
 
 interface LoginScreenProps {
   onLogin?: () => void;
@@ -236,10 +237,13 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       setCertBusy(false);
     }
   }, [certBusy]);
-  const knownServerUrl = React.useMemo(() => {
-    const active = accounts.find((a) => a.id === activeAccountId);
-    return active?.serverUrl ?? accounts[0]?.serverUrl ?? null;
-  }, [accounts, activeAccountId]);
+  // Every server an account is on, the active one's first: two servers on
+  // one host (another port) are both offered.
+  const addServerUrls = React.useMemo(
+    () => distinctServerUrls(accounts, activeAccountId),
+    [accounts, activeAccountId],
+  );
+  const knownServerUrl = addServerUrls[0] ?? null;
 
   const goTo = React.useCallback(
     (next: StepName) => {
@@ -659,15 +663,14 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
           <ChooseStep
             isAddMode={isAddMode}
             accounts={accounts}
-            knownServerUrl={isAddMode ? knownServerUrl : null}
+            knownServerUrls={isAddMode ? addServerUrls : []}
             notice={chooseNotice}
             onScan={() => setScannerVisible(true)}
             onPaste={() => setPasteVisible(true)}
             onUseEmail={() => goTo('email')}
-            onUseKnownServer={() => {
-              if (!knownServerUrl) return;
-              setServerUrl(knownServerUrl);
-              setServerInput(knownServerUrl);
+            onUseKnownServer={(url) => {
+              setServerUrl(url);
+              setServerInput(url);
               setServerDiscovered(false);
               goTo('confirm');
             }}

@@ -1,10 +1,11 @@
 import React from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import { StyleSheet, View, Platform, TextInput } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
 import { perfEndAfterPaint } from '../lib/perf-marks';
 import { buildEditorHtml, isEditorNavigationAllowed, MIN_EDITOR_HEIGHT } from '../lib/editor-html';
+import { focusEditorWithKeyboard } from '../lib/editor-keyboard-handoff';
 
 export type RichTextCommand =
   | 'bold'
@@ -149,17 +150,24 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   const readyRef = React.useRef(false);
   const queuedRef = React.useRef<string[]>([]);
   // Focusing the editor in the page only moves the caret there. Android
-  // opens the keyboard, and takes key focus off the composer's first button
-  // (Close: a hardware Space shut the composer), only for a WebView that holds
-  // native focus. iOS has keyboardDisplayRequiresUserAction for this.
-  const wantsNativeFocusRef = React.useRef(false);
-  const requestNativeFocus = React.useCallback(() => {
-    if (Platform.OS !== 'android') return;
+  // takes key focus off the composer's first button (Close: a hardware Space
+  // shut the composer) only for a WebView that holds native focus, and opens
+  // the keyboard only through the hidden field below (see
+  // lib/editor-keyboard-handoff). iOS has keyboardDisplayRequiresUserAction.
+  const handoffInputRef = React.useRef<TextInput>(null);
+  // A focus asked for before the page was up (a reply opening): its script.
+  const pendingFocusRef = React.useRef<string | null>(null);
+  const focusWithKeyboard = React.useCallback((script: string) => {
     if (!readyRef.current) {
-      wantsNativeFocusRef.current = true;
+      pendingFocusRef.current = script;
       return;
     }
-    webViewRef.current?.requestFocus();
+    focusEditorWithKeyboard(Platform.OS, script, {
+      focusHandoffInput: () => handoffInputRef.current?.focus(),
+      focusWebView: () => webViewRef.current?.requestFocus(),
+      runInPage: (s) => webViewRef.current?.injectJavaScript(`${s}; true;`),
+      schedule: (fn, ms) => { setTimeout(fn, ms); },
+    });
   }, []);
   const call = React.useCallback((script: string) => {
     if (!readyRef.current) {
@@ -230,17 +238,15 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         call(`window.__rne && window.__rne.getHtml(${id})`);
       }),
     focusEnd: () => {
-      requestNativeFocus();
-      call(`window.__rne && window.__rne.focusEnd()`);
+      focusWithKeyboard(`window.__rne && window.__rne.focusEnd()`);
     },
     focus: () => {
-      requestNativeFocus();
-      call(`window.__rne && window.__rne.focus()`);
+      focusWithKeyboard(`window.__rne && window.__rne.focus()`);
     },
     blur: () => {
       call(`document.activeElement && document.activeElement.blur()`);
     },
-  }), [call, requestNativeFocus]);
+  }), [call, focusWithKeyboard]);
 
   const onMessage = (event: WebViewMessageEvent) => {
     let data: { type: string; payload: unknown };
@@ -254,13 +260,12 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       perfEndAfterPaint('compose-open');
       const queued = queuedRef.current;
       queuedRef.current = [];
-      // A focus asked for before the page was up (a reply opening) gets the
-      // view's native focus first, then the caret from the queued script.
-      if (wantsNativeFocusRef.current) {
-        wantsNativeFocusRef.current = false;
-        webViewRef.current?.requestFocus();
-      }
       for (const script of queued) webViewRef.current?.injectJavaScript(`${script}; true;`);
+      // A focus asked for before the page was up (a reply opening) runs
+      // after the content it lands in, with the keyboard.
+      const pendingFocus = pendingFocusRef.current;
+      pendingFocusRef.current = null;
+      if (pendingFocus) focusWithKeyboard(pendingFocus);
     }
     switch (data.type) {
       case 'change':
@@ -330,6 +335,20 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         containerStyle={styles.webviewContainer}
         onShouldStartLoadWithRequest={(request) => isEditorNavigationAllowed(request.url)}
       />
+      {Platform.OS === 'android' ? (
+        // Opens the keyboard for the editor (focusEditorWithKeyboard); never
+        // typed in, and hidden from screen readers.
+        <TextInput
+          ref={handoffInputRef}
+          style={styles.handoffInput}
+          caretHidden
+          contextMenuHidden
+          autoCorrect={false}
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+          pointerEvents="none"
+        />
+      ) : null}
     </View>
   );
 });
@@ -348,6 +367,16 @@ function makeStyles(c: ThemePalette) {
     },
     webviewContainer: {
       backgroundColor: 'transparent',
+    },
+    // Laid out (a view of no size can't take focus) but out of sight.
+    handoffInput: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      width: 1,
+      height: 1,
+      opacity: 0,
+      padding: 0,
     },
   });
 }

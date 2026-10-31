@@ -16,6 +16,7 @@ import { useSecureMessage } from './use-secure-message';
 import { SecureMessageBanner } from './SecureMessageBanner';
 import { deriveHeaderInfo } from '../../lib/email-headers';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
+import { hidesPgpMimeControlParts, pgpMimeControlParts } from '../../lib/pgp-mime-parts';
 
 export interface MessageContentProps {
   email: Email;
@@ -82,6 +83,11 @@ export function MessageContent({
     () => (secure.result?.status.encrypted && secure.result.attachments.length ? [...secure.result.attachments, ...unwrap.extracted] : unwrap.extracted),
     [secure.result, unwrap.extracted],
   );
+  // A PGP/MIME message's version part and encrypted payload are no
+  // attachments of the decrypted message (nor of a locked one).
+  const hideControlParts = hidesPgpMimeControlParts({ loading: secure.loading, status: secure.result?.status ?? null });
+  const controlPart = React.useMemo(() => pgpMimeControlParts(email), [email]);
+  const hidePart = hideControlParts ? controlPart : undefined;
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);
   const from = email.from?.[0];
 
@@ -92,6 +98,7 @@ export function MessageContent({
       calendarBannerShown={calendarBannerShown}
       tnefUnpacked={unwrap.tnefUnpacked}
       extracted={extracted}
+      hidePart={hidePart}
     />
   );
 
