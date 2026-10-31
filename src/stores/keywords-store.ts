@@ -67,6 +67,8 @@ interface KeywordsState {
   add: (kw: KeywordDef) => void;
   update: (id: string, patch: Partial<Omit<KeywordDef, 'id'>>) => void;
   remove: (id: string) => void;
+  /** Puts a tag back at `index` (the Undo after deleting it). */
+  insert: (kw: KeywordDef, index: number) => void;
   resetDefaults: () => void;
 }
 
@@ -163,6 +165,13 @@ export const useKeywordsStore = create<KeywordsState>((set, get) => ({
 
   remove: (id) => {
     const next = get().keywords.filter((k) => k.id !== id);
+    set({ keywords: next });
+    persist(next);
+  },
+
+  insert: (kw, index) => {
+    const next = [...get().keywords];
+    next.splice(Math.min(Math.max(index, 0), next.length), 0, kw);
     set({ keywords: next });
     persist(next);
   },

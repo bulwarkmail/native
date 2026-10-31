@@ -45,6 +45,8 @@ import {
 import { updateAccountFilters } from '../sieve-rules';
 import { useContactsStore } from '../../stores/contacts-store';
 import { readVacationFilters, useFilterStore } from '../../stores/filter-store';
+import { useToastStore } from '../../stores/toast-store';
+import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import { generateVCard, parseVCard } from '../../lib/vcard';
 import { generateScript } from '../../lib/sieve/generator';
 import { parseScript } from '../../lib/sieve/parser';
@@ -335,6 +337,34 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
         expect(content).toContain(fixture.slice(fixture.indexOf(chain)).trim());
         expect({ file, ...(await validateSieveScript(content)) }).toEqual({ file, isValid: true });
       }
+    }, 60_000);
+
+    // Settings deletes a rule at once and offers Undo (webmail R3).
+    it('deletes a rule on the server at once and the toast Undo saves it back', async () => {
+      const rule = (id: string, name: string) => ({
+        id, name, enabled: true, matchType: 'all' as const,
+        conditions: [{ field: 'from' as const, comparator: 'contains' as const, value: `${id}-${RUN}@example.com` }],
+        actions: [{ type: 'mark_read' as const, value: '' }],
+        stopProcessing: false,
+      });
+      await updateSieveScript(created!, generateScript([rule('keep', `Keep ${RUN}`), rule('gone', `Gone ${RUN}`)]), true);
+      await useFilterStore.getState().selectAccount(null);
+      const gone = useFilterStore.getState().rules.find((r) => r.name === `Gone ${RUN}`)!;
+      expect(gone).toBeTruthy();
+      useToastStore.getState().clearToasts();
+      const serverContent = async () =>
+        getSieveScriptContent((await getSieveScripts()).find((x) => x.id === created)!.blobId);
+
+      await deleteFilterRuleWithUndo(gone.id, t);
+      expect(await serverContent()).not.toContain(`gone-${RUN}@example.com`);
+      expect(await serverContent()).toContain(`keep-${RUN}@example.com`);
+      const toast = useToastStore.getState().toasts.at(-1)!;
+      expect(toast.title).toBe('Filter rule deleted');
+
+      toast.action!.onPress();
+      await expect.poll(async () => serverContent(), { timeout: 15_000 }).toContain(`gone-${RUN}@example.com`);
+      expect(useFilterStore.getState().rules.map((r) => r.name)).toEqual([`Keep ${RUN}`, `Gone ${RUN}`]);
+      expect(useToastStore.getState().toasts.some((x) => x.type === 'error')).toBe(false);
     }, 60_000);
   });
 });

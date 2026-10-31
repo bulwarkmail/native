@@ -22,6 +22,8 @@ import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
 import { periodStatus, supportsPeriods } from '../../lib/sieve/period';
+import { rulesForwardLimit } from '../../lib/sieve/forward-limit';
+import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import Badge from '../Badge';
 
 type Translate = (key: string, fallback?: string) => string;
@@ -157,7 +159,8 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
 
   const {
     rules, isLoading, isSaving, error, isSupported, isOpaque, rawScript, vacationSettings, includeVacation,
-    selectAccount, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
+    vacationForward, sieveCapabilities,
+    selectAccount, saveFilters, addRule, updateRule, reorderRules, toggleRule,
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
   const periodsSupported = useFilterStore((s) => supportsPeriods(s.sieveCapabilities?.sieveExtensions));
@@ -200,23 +203,18 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     void persist(() => toggleRule(ruleId));
   }, [toggleRule, persist]);
 
+  // A rule can be put back as it was, so it goes at once with an Undo
+  // (webmail R3).
   const handleDelete = useCallback((rule: FilterRule) => {
-    Alert.alert(
-      t('settings.filters.delete_rule', 'Delete Rule'),
-      t('settings.filters.delete_confirm', 'Are you sure you want to delete this rule?'),
-      [
-        { text: t('settings.filters.cancel', 'Cancel'), style: 'cancel' },
-        {
-          text: t('settings.filters.confirm_delete', 'Delete'),
-          style: 'destructive',
-          onPress: () => {
-            deleteRule(rule.id);
-            void persist(() => addRule(rule));
-          },
-        },
-      ],
-    );
-  }, [deleteRule, addRule, persist, t]);
+    void deleteFilterRuleWithUndo(rule.id, t);
+  }, [t]);
+
+  // A message can collect only so many forwards on this server; the rules
+  // run behind the out of office forwarding (#1155, #1208).
+  const forwardLimit = useMemo(
+    () => rulesForwardLimit(rules, vacationForward, sieveCapabilities?.maxNumberRedirects),
+    [rules, vacationForward, sieveCapabilities],
+  );
 
   const handleSaveRule = useCallback((rule: FilterRule) => {
     const previous = useFilterStore.getState().rules;
@@ -360,6 +358,18 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
             <Filter size={40} color={c.mutedForeground} style={{ opacity: 0.4 }} />
             <Text style={styles.emptyText}>{t('settings.filters.no_rules', 'No filter rules')}</Text>
           </View>
+        )}
+
+        {!isOpaque && forwardLimit.ignored && (
+          <Text style={styles.forwardWarning}>
+            {t('settings.filters.forward_unavailable', 'This server does not allow forwarding. Forward actions in filter rules have no effect.')}
+          </Text>
+        )}
+
+        {!isOpaque && forwardLimit.tooMany && (
+          <Text style={styles.forwardWarning}>
+            {t('settings.filters.forward_limit', 'Forward limit per message on this server: {count}. Extra forwards are skipped.', { count: sieveCapabilities?.maxNumberRedirects ?? 0 })}
+          </Text>
         )}
 
         {!isOpaque && rules.length > 0 && (
@@ -567,6 +577,7 @@ function makeStyles(c: ThemePalette) {
 
     emptyState: { alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md },
     emptyText: { ...typography.body, color: c.mutedForeground },
+    forwardWarning: { ...typography.caption, color: c.warning },
 
     ruleRow: {
       flexDirection: 'row',
