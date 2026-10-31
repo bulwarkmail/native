@@ -6,6 +6,7 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useLocaleStore } from '../../stores/locale-store';
 import { getEmailInitials } from '../../lib/avatar-utils';
 import { SUGGESTION_ROW_HEIGHT } from '../../lib/recipient-picker';
+import { recipientRemoveAccessibilityLabel } from '../../lib/recipient-chip-a11y';
 import type { RecipientSuggestion } from '../../stores/contacts-store';
 
 /** A recipient chip's data. Group chips carry their resolved members and no email. */
@@ -43,7 +44,7 @@ export function RecipientChip({
         // A 12 px icon: the touch area reaches about 40 dp around it.
         hitSlop={14}
         accessibilityRole="button"
-        accessibilityLabel={t('email_composer.recipient_remove', 'Remove')}
+        accessibilityLabel={recipientRemoveAccessibilityLabel(recipient, t)}
       >
         <X size={12} color={invalid ? c.error : c.textMuted} />
       </Pressable>
