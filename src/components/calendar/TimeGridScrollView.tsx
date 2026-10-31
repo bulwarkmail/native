@@ -18,7 +18,7 @@ import {
 import { differenceInCalendarDays, format, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { dayNumberLabel } from '../../lib/calendar-system';
@@ -125,6 +125,7 @@ function TimeGridScrollViewInner({
   draftResetKey = 0,
 }: TimeGridScrollViewProps) {
   const c = useColors();
+  const paint = useCvdColor();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -455,7 +456,7 @@ function TimeGridScrollViewInner({
                 key={`${segment.event.id}:${segment.startIndex}:${segment.row}`}
                 title={segment.event.title || t('calendar.events.no_title', '(No title)')}
                 colors={eventBlockColors(
-                  getEventColor(segment.event, calendars),
+                  paint(getEventColor(segment.event, calendars)),
                   isInactiveEvent(segment.event, currentUserEmails),
                   c,
                   tinted,
@@ -620,6 +621,7 @@ const DayColumn = React.memo(function DayColumn({
   const { locale, t } = useCalendarLocale();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
+  const paint = useCvdColor();
   const handleLongPress = React.useCallback(
     (e: GestureResponderEvent) => {
       onLongPressAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
@@ -650,7 +652,7 @@ const DayColumn = React.memo(function DayColumn({
               ? minutesToTimeLabel(startMinutes, timeFormat)
               : null}
             colors={eventBlockColors(
-              getEventColor(event, calendars),
+              paint(getEventColor(event, calendars)),
               isInactiveEvent(event, currentUserEmails),
               colors,
                   tinted,

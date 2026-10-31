@@ -10,11 +10,23 @@ const STORAGE_KEY = 'webmail:keywords:v1';
 
 export type KeywordColor = keyof typeof colors.tags;
 
+/**
+ * Whether a tag shows in the sidebar always, only while it has unread mail,
+ * or never (webmail KeywordVisibility).
+ */
+export type KeywordVisibility = 'show' | 'hide' | 'unread';
+
 export interface KeywordDef {
+  /** JMAP keyword suffix, `$label:<id>`; `parent/child` when nested. */
   id: string;
   label: string;
   color: KeywordColor;
+  /** Absent on tags stored before this was configurable: shown. */
+  visibility?: KeywordVisibility;
 }
+
+/** "Nested tags" (webmail nestedTags): a slash in a tag id is a level. */
+const NESTED_STORAGE_KEY = 'webmail:keywords:nested:v1';
 
 // Same ids/labels/colours as the webmail's DEFAULT_KEYWORDS
 // (stores/settings-store.ts): the default tags are named after their colour,
@@ -55,6 +67,12 @@ export const SHARED_TAGS_STALE_MS = 2 * 60_000;
 interface KeywordsState {
   keywords: KeywordDef[];
   hydrated: boolean;
+  /**
+   * Nested tags on: `work/clients` is drawn under `work` in the sidebar,
+   * the tag sheet and Settings. Off by default, as in the webmail.
+   */
+  nested: boolean;
+  setNested: (nested: boolean) => void;
   /** Shared tag definitions of the group accounts, by JMAP account id. */
   sharedTags: Record<string, SharedTagsEntry>;
   /**
@@ -86,7 +104,7 @@ const sharedReadAt = new Map<string, number>();
 
 function sameTags(a: KeywordDef[], b: KeywordDef[]): boolean {
   return a.length === b.length
-    && a.every((t, i) => t.id === b[i].id && t.label === b[i].label && t.color === b[i].color);
+    && a.every((t, i) => t.id === b[i].id && t.label === b[i].label && t.color === b[i].color && t.visibility === b[i].visibility);
 }
 
 function persist(keywords: KeywordDef[]): void {
@@ -98,7 +116,15 @@ function persist(keywords: KeywordDef[]): void {
 export const useKeywordsStore = create<KeywordsState>((set, get) => ({
   keywords: DEFAULT_KEYWORDS,
   hydrated: false,
+  nested: false,
   sharedTags: {},
+
+  setNested: (nested) => {
+    set({ nested });
+    void AsyncStorage.setItem(NESTED_STORAGE_KEY, nested ? 'true' : 'false').catch((err) => {
+      console.warn('[keywords-store] persist nested failed', err);
+    });
+  },
 
   loadSharedTags: (accountId, options) => {
     const login = currentTagsLogin();
@@ -137,14 +163,19 @@ export const useKeywordsStore = create<KeywordsState>((set, get) => ({
   hydrate: async () => {
     if (get().hydrated) return;
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const [raw, rawNested] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEY),
+        AsyncStorage.getItem(NESTED_STORAGE_KEY),
+      ]);
+      const nested = rawNested === 'true';
       if (raw) {
         const parsed = JSON.parse(raw) as KeywordDef[];
         if (Array.isArray(parsed)) {
-          set({ keywords: parsed, hydrated: true });
+          set({ keywords: parsed, nested, hydrated: true });
           return;
         }
       }
+      set({ nested });
     } catch (err) {
       console.warn('[keywords-store] hydrate failed', err);
     }

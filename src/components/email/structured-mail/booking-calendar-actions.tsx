@@ -11,7 +11,7 @@ import { getCalendarColor } from '../../../lib/calendar-utils';
 import type { StructuredCard } from '../../../lib/structured-mail';
 import type { RootStackParamList } from '../../../navigation/types';
 import { useLocaleStore } from '../../../stores/locale-store';
-import { useColors } from '../../../theme/colors';
+import { useColors, useCvdColor } from '../../../theme/colors';
 import { radius, spacing, typography, type ThemePalette } from '../../../theme/tokens';
 import { ArrowRight, CalendarCheck, CalendarDays, CalendarPlus, CalendarX, ChevronDown } from '../../icons';
 import { useBookingCalendar } from './use-booking-calendar';
@@ -27,6 +27,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
  */
 export function BookingCalendarActions({ booking, email }: { booking: StructuredCard; email: Pick<Email, 'from' | 'subject'> }) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<Nav>();
@@ -144,7 +145,7 @@ export function BookingCalendarActions({ booking, email }: { booking: Structured
               accessibilityLabel={cal.name}
               testID="booking-calendar-choice"
             >
-              <View style={[styles.swatch, { backgroundColor: getCalendarColor(cal) }]} />
+              <View style={[styles.swatch, { backgroundColor: paint(getCalendarColor(cal)) }]} />
               <Text style={styles.pickerText} numberOfLines={1}>{cal.name}</Text>
             </Pressable>
           ))}

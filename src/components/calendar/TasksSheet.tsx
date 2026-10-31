@@ -27,7 +27,7 @@ import {
 import { format, isBefore, startOfDay } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { getCalendarColor, getTaskDueDisplayDate, timePattern, type TimeFormat } from '../../lib/calendar-utils';
 import { displayNow, isDisplayToday } from '../../lib/calendar-timezone';
 import {
@@ -109,6 +109,7 @@ export function TasksSheet({
   onDelete,
 }: TasksSheetProps) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
@@ -373,7 +374,7 @@ export function TasksSheet({
                       onPress={() => setEditor((e) => ({ ...e, calendarId: cal.id }))}
                       style={[styles.calChip, cal.id === editor.calendarId && styles.calChipActive]}
                     >
-                      <View style={[styles.calSwatch, { backgroundColor: getCalendarColor(cal) }]} />
+                      <View style={[styles.calSwatch, { backgroundColor: paint(getCalendarColor(cal)) }]} />
                       <Text style={styles.calChipText} numberOfLines={1}>{cal.name}</Text>
                     </Pressable>
                   ))}

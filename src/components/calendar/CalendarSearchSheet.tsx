@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, MapPin, Repeat, Search, X } from '../icons';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { useCalendarStore, searchCalendarEvents } from '../../stores/calendar-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { formatCalendarDay } from '../../lib/calendar-system';
@@ -62,6 +62,7 @@ export function CalendarSearchSheet({
   onClose,
 }: CalendarSearchSheetProps) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t, system } = useCalendarLocale();
   const loaded = useCalendarStore((s) => s.events);
@@ -134,7 +135,7 @@ export function CalendarSearchSheet({
     const start = getEventStartDate(event);
     const end = getEventEndDate(event);
     const calendar = calendars.find((cal) => cal.id === getPrimaryCalendarId(event));
-    const color = getEventColor(event, calendars);
+    const color = paint(getEventColor(event, calendars));
     const inactive = isInactiveEvent(event, currentUserEmails);
     const place = event.locations ? Object.values(event.locations)[0]?.name : undefined;
     const meta = [place, calendar?.name].filter(Boolean).join(' · ');

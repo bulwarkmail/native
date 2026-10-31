@@ -10,7 +10,7 @@ import { uploadBlob } from '../../api/blob';
 import { parseCalendarBlob } from '../../api/calendar';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { getCalendarColor } from '../../lib/calendar-utils';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { ImportRefusedError, type ImportResult } from '../../stores/calendar-store';
@@ -58,6 +58,7 @@ function eventDateLabel(event: Partial<CalendarEvent>, locale: Locale): string |
 
 export function ICalImportSheet({ visible, onClose, calendars, onImport, onImported }: Props) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const t = useLocaleStore((s) => s.t);
@@ -308,7 +309,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                       onPress={() => setCalendarId(cal.id)}
                       style={[styles.calChip, cal.id === calendarId && styles.calChipActive]}
                     >
-                      <View style={[styles.calSwatch, { backgroundColor: getCalendarColor(cal) }]} />
+                      <View style={[styles.calSwatch, { backgroundColor: paint(getCalendarColor(cal)) }]} />
                       <Text style={styles.calChipText} numberOfLines={1}>{cal.name}</Text>
                     </Pressable>
                   ))}

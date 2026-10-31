@@ -7,7 +7,7 @@ import { X, Plus, RefreshCw, Trash2, Rss, AlertTriangle } from '../icons';
 import { formatDistanceToNow } from 'date-fns';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-utils';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
@@ -37,6 +37,7 @@ interface Props {
 
 export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const { locale, t } = useCalendarLocale();
@@ -257,7 +258,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                   const busy = !!syncing[sub.id];
                   return (
                     <View key={sub.id} style={styles.subRow}>
-                      <View style={[styles.subSwatch, { backgroundColor: sub.color || c.primary }]} />
+                      <View style={[styles.subSwatch, { backgroundColor: sub.color ? paint(sub.color) : c.primary }]} />
                       <Pressable style={{ flex: 1, minWidth: 0 }} onPress={() => startEdit(sub)}>
                         <Text style={styles.subName} numberOfLines={1}>{sub.name}</Text>
                         <Text style={styles.subMeta} numberOfLines={1}>

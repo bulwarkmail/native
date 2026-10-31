@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
-  Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
+  Clock, Layers, Users, Tag, Mails, MoreHorizontal, Share2, MailOpen, StickyNote, AlarmClock, Flag,
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Bell, BellOff, RotateCcw,
   type AppIcon,
 } from './icons';
@@ -34,6 +34,11 @@ import {
   markMailboxesAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
 import { useTagCountsStore } from '../stores/tag-counts-store';
+import { sidebarTagRows } from '../lib/keyword-nesting';
+import { supportsMailboxSharing } from '../api/delegation';
+import { MailboxShareSheet } from './sharing/MailboxShareSheet';
+import { canShareMailbox } from '../lib/mailbox-share';
+import { tagIdFromKeyword } from '../lib/thread-utils';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -59,6 +64,7 @@ const STORAGE_KEYS = {
   expanded: 'sidebar:expandedMailboxes',
   foldersExpanded: 'sidebar:foldersExpanded',
   tagsExpanded: 'sidebar:tagsExpanded',
+  collapsedTags: 'sidebar:collapsedTags',
   unifiedExpanded: 'sidebar:unifiedExpanded',
 };
 
@@ -360,18 +366,26 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
+  const nestedTags = useKeywordsStore((s) => s.nested);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [foldersExpanded, setFoldersExpanded] = React.useState(true);
   const [tagsExpanded, setTagsExpanded] = React.useState(true);
   const [unifiedExpanded, setUnifiedExpanded] = React.useState(false);
   const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(() => new Set());
+  // Parent tags the user folded; every other parent shows its children, as
+  // the webmail opens all of them until the user folds one.
+  const [collapsedTags, setCollapsedTags] = React.useState<Set<string>>(() => new Set());
+  // "Show all (N)": the tags the visibility settings hide, for now.
+  const [showAllTags, setShowAllTags] = React.useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
   const [sheet, setSheet] = React.useState<{ title: string; actions: SheetAction[] } | null>(null);
   const [prompt, setPrompt] = React.useState<{
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // The folder whose "Share" sheet is open (webmail MailboxShareDialog).
+  const [sharing, setSharing] = React.useState<{ mailbox: Mailbox; name: string } | null>(null);
   const tagCounts = useTagCountsStore((s) => s.counts);
   const tagCountsGeneration = useTagCountsStore((s) => s.generation);
   const ensureTagCounts = useTagCountsStore((s) => s.ensure);
@@ -381,12 +395,19 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   React.useEffect(() => {
     void (async () => {
       try {
-        const [rawExp, rawFld, rawTags, rawUnified] = await Promise.all([
+        const [rawExp, rawFld, rawTags, rawUnified, rawCollapsedTags] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.expanded),
           AsyncStorage.getItem(STORAGE_KEYS.foldersExpanded),
           AsyncStorage.getItem(STORAGE_KEYS.tagsExpanded),
           AsyncStorage.getItem(STORAGE_KEYS.unifiedExpanded),
+          AsyncStorage.getItem(STORAGE_KEYS.collapsedTags),
         ]);
+        if (rawCollapsedTags) {
+          try {
+            const ids = JSON.parse(rawCollapsedTags) as string[];
+            if (Array.isArray(ids)) setCollapsedTags(new Set(ids));
+          } catch { /* ignore */ }
+        }
         if (rawExp) {
           try {
             const ids = JSON.parse(rawExp) as string[];
@@ -459,6 +480,15 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     onClose();
   }, [selectMailbox, setFilters, onClose]);
 
+  const toggleTagExpand = React.useCallback((id: string) => {
+    setCollapsedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      void AsyncStorage.setItem(STORAGE_KEYS.collapsedTags, JSON.stringify(Array.from(next))).catch(() => {});
+      return next;
+    });
+  }, []);
+
   // Tag view (#175): every folder, messages carrying the tag.
   const selectTag = React.useCallback((id: string) => {
     setFilters({ keyword: keywordToken(id) });
@@ -478,6 +508,16 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     const excluded = Object.fromEntries(accounts.map((id) => [id ?? '', trashAndJunkIds(mailboxes, id)]));
     void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts, excluded);
   }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, mailboxes, activeAccountId, tagCountsGeneration, ensureTagCounts]);
+
+  // The tag rows: nested under their parents with "Nested tags" on, and
+  // without the tags whose visibility hides them (webmail sidebar).
+  const selectedTagId = filters.keyword ? tagIdFromKeyword(filters.keyword) : null;
+  const tagRows = React.useMemo(
+    () => sidebarTagRows(keywordDefs, nestedTags, tagCounts, {
+      showAll: showAllTags, selectedId: selectedTagId, collapsed: collapsedTags,
+    }),
+    [keywordDefs, nestedTags, tagCounts, showAllTags, selectedTagId, collapsedTags],
+  );
 
   // ── Folder actions (long-press) ───────────────────────────────────────
   const refFor = (mb: Mailbox) => ({
@@ -627,6 +667,14 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             false,
           ),
         }),
+      });
+    }
+    if (canShareMailbox(mb, supportsMailboxSharing())) {
+      actions.push({
+        key: 'share',
+        label: t('mailbox_context_menu.share', 'Share…'),
+        icon: Share2,
+        onPress: () => setSharing({ mailbox: mb, name }),
       });
     }
     if (!mb.role && mb.myRights?.mayRename !== false) {
@@ -1221,27 +1269,44 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                 )}
                 <Text style={styles.sectionHeaderText}>{t('sidebar.tags', 'Tags')}</Text>
               </Pressable>
-              {tagsExpanded && keywordDefs.map((kw) => {
-                const counts = tagCounts[kw.id];
-                const isSelected = filters.keyword === keywordToken(kw.id);
-                const dot = c.tags[kw.color]?.dot ?? c.textMuted;
+              {tagsExpanded && tagRows.rows.map(({ node, label, hasChildren, expanded }) => {
+                const counts = tagCounts[node.id];
+                const isSelected = filters.keyword === keywordToken(node.id);
+                const dot = c.tags[node.color]?.dot ?? c.textMuted;
                 return (
                   <SidebarRow
-                    key={kw.id}
+                    key={node.id}
                     icon={<Tag size={16} color={dot} fill={dot} />}
-                    label={kw.label}
-                    depth={0}
+                    label={label}
+                    depth={node.depth}
                     isSelected={isSelected}
                     unread={counts?.unread ?? 0}
                     total={counts?.total ?? 0}
                     showTotal={showFolderTotalCount}
-                    hasChildren={false}
-                    isExpanded={false}
-                    onPress={() => selectTag(kw.id)}
-                    onToggleExpand={() => {}}
+                    hasChildren={hasChildren}
+                    isExpanded={expanded}
+                    onPress={() => selectTag(node.id)}
+                    onToggleExpand={() => toggleTagExpand(node.id)}
                   />
                 );
               })}
+              {tagsExpanded && (tagRows.hiddenCount > 0 || showAllTags) && (
+                <SidebarRow
+                  icon={<MoreHorizontal size={16} color={c.textMuted} />}
+                  label={showAllTags
+                    ? t('sidebar.show_fewer_tags', 'Show less')
+                    : t('sidebar.show_all_tags', 'Show all ({count})', { count: tagRows.hiddenCount })}
+                  depth={0}
+                  isSelected={false}
+                  unread={0}
+                  total={0}
+                  showTotal={false}
+                  hasChildren={false}
+                  isExpanded={false}
+                  onPress={() => setShowAllTags((prev) => !prev)}
+                  onToggleExpand={() => {}}
+                />
+              )}
             </>
           )}
         </ScrollView>
@@ -1264,6 +1329,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             onClose={() => setPrompt(null)}
           />
         )}
+        <MailboxShareSheet mailbox={sharing?.mailbox ?? null} name={sharing?.name} onClose={() => setSharing(null)} />
       </View>
     );
   }
@@ -1299,6 +1365,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
           onClose={() => setPrompt(null)}
         />
       )}
+      <MailboxShareSheet mailbox={sharing?.mailbox ?? null} name={sharing?.name} onClose={() => setSharing(null)} />
     </SafeAreaModal>
   );
 }

@@ -7,8 +7,9 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe,
 } from '../components/icons';
+import { GlobalSearchSheet } from '../components/search/GlobalSearchSheet';
 import { ActionSheet } from '../components/email/ActionSheet';
 import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor, type SortChoiceKey } from '../lib/sort-choices';
 import { orderForMailbox, sanitizeSortLevels } from '../lib/message-list-order';
@@ -41,6 +42,7 @@ import {
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/keywords-store';
+import { formatKeyword } from '../lib/keyword-nesting';
 import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
@@ -196,17 +198,19 @@ const EmailRow = React.memo(function EmailRow({
   const unread = isUnread(item);
   const starred = isStarred(item);
   const pinned = isPinned(item);
+  // A nested tag is named by its path, "Work/Clients" (webmail tag badge).
+  const nestedTags = useKeywordsStore((s) => s.nested);
   const tags = React.useMemo(() => {
     if (!tagIds) return [];
     return tagIds.split(',').map((id) => {
       const def = keywordDefs.find((k) => k.id === id);
       return def
-        ? { id, label: def.label, dot: c.tags[def.color]?.dot ?? c.textMuted, text: c.tags[def.color]?.text ?? c.textSecondary, bg: c.tags[def.color]?.bg ?? c.muted }
+        ? { id, label: formatKeyword(id, keywordDefs, nestedTags), dot: c.tags[def.color]?.dot ?? c.textMuted, text: c.tags[def.color]?.text ?? c.textSecondary, bg: c.tags[def.color]?.bg ?? c.muted }
         // A tag no local definition explains (set by another client): grey,
         // with the raw id so it is at least visible and removable.
-        : { id, label: id, dot: c.tags.gray.dot, text: c.tags.gray.text, bg: c.tags.gray.bg };
+        : { id, label: formatKeyword(id, keywordDefs, nestedTags), dot: c.tags.gray.dot, text: c.tags.gray.text, bg: c.tags.gray.bg };
     });
-  }, [tagIds, keywordDefs, c]);
+  }, [tagIds, keywordDefs, nestedTags, c]);
 
   // The row's key (`rowKeyOf`): ids repeat across the accounts of a list
   // spanning accounts (#1082).
@@ -1060,6 +1064,9 @@ export default function EmailListScreen({
   // Stalwart 1.0).
   const [searchInput, setSearchInput] = React.useState(storeSearchQuery);
   const [searchFocused, setSearchFocused] = React.useState(false);
+  // "Search everything": mail, contacts, events and files of every account
+  // (webmail global search palette).
+  const [globalSearchOpen, setGlobalSearchOpen] = React.useState(false);
   React.useEffect(() => {
     // Keep local input in sync when the store is cleared externally
     // (e.g. clearing the search from the chips row).
@@ -1552,8 +1559,21 @@ export default function EmailListScreen({
       {/* Search bar (always visible; inside the header in a short window) */}
       {!shortHeight && renderSearchBar(false)}
 
-      {searchFocused && ((!searchInput.trim() && recentSearches.length > 0) || contactSuggestions.length > 0) && (
+      {searchFocused && (
         <View style={styles.recentSearches}>
+          <Pressable
+            style={[styles.recentSearchRow, styles.recentSearchMain]}
+            onPress={() => {
+              setSearchFocused(false);
+              searchInputRef.current?.blur();
+              setGlobalSearchOpen(true);
+            }}
+            accessibilityRole="button"
+            testID="search-everything"
+          >
+            <Globe size={12} color={c.textMuted} />
+            <Text style={styles.recentSearchText} numberOfLines={1}>{t('global_search.title', 'Search everything')}</Text>
+          </Pressable>
           {!searchInput.trim() && recentSearches.length > 0 && (
             <>
               <Text style={styles.recentSearchesTitle}>{t('advanced_search.suggestions_recent', 'Recent searches')}</Text>
@@ -1858,6 +1878,12 @@ export default function EmailListScreen({
       </Pressable>
 
       {!sidebarDocked && <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
+      <GlobalSearchSheet
+        visible={globalSearchOpen}
+        initialQuery={searchInput}
+        onClose={() => setGlobalSearchOpen(false)}
+        navigation={navigation}
+      />
       <ListAttachmentOpener ref={attachmentOpenerRef} />
 
       <Modal supportedOrientations={MODAL_ORIENTATIONS}

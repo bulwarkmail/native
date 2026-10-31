@@ -55,13 +55,18 @@ interface ShareCollectionSheetProps<R extends object> {
   addRights: R;
   onShare: (collectionId: string, principalId: string, rights: R | null) => Promise<void>;
   onClose: () => void;
+  /**
+   * Names the preset a stored grant amounts to, when the server stores
+   * something other than what was sent (a folder on Stalwart 1.0).
+   */
+  detectPreset?: (rights: R) => string;
 }
 
 // JMAP sharing for an owned collection: pick a principal, choose a role
 // (webmail ShareCollectionDialog). The principal list comes from the same
 // Principal/query the Files share sheet uses.
 export function ShareCollectionSheet<R extends object>({
-  collection, presets, addRights, onShare, onClose,
+  collection, presets, addRights, onShare, onClose, detectPreset,
 }: ShareCollectionSheetProps<R>) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -224,7 +229,7 @@ export function ShareCollectionSheet<R extends object>({
                   <View style={styles.section}>
                     <Text style={styles.sectionLabel}>{t('calendar.share.shared_with', 'Shared with')}</Text>
                     {sharedEntries.map(([principalId, rights]) => {
-                      const preset = detectSharePreset(rights, presets);
+                      const preset = detectPreset ? detectPreset(rights) : detectSharePreset(rights, presets);
                       const busy = savingId === principalId;
                       return (
                         <View key={principalId} style={styles.shareRow}>

@@ -4,7 +4,7 @@ import { Clock, MapPin, Users } from '../icons';
 import { format } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import {
   eventTimeRange,
   getEventColor,
@@ -38,9 +38,10 @@ function participantCount(event: CalendarEvent): number {
  */
 export function EventCard({ event, calendars, timeFormat, currentUserEmails, onPress, onLongPress, day }: EventCardProps) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
-  const color = getEventColor(event, calendars);
+  const color = paint(getEventColor(event, calendars));
   const range = eventTimeRange(event);
   const { start, end } = range;
   const allDay = range.allDay || (!!day && isTimedEventFullDayOnDate(event, day));

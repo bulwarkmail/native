@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Plus, Pencil, Trash2, Check, X, RotateCcw, ScanSearch } from '../icons';
-import { SettingsSection } from './settings-section';
+import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../../stores/keywords-store';
+import { useKeywordsStore, currentTagsLogin, type KeywordDef, type KeywordVisibility } from '../../stores/keywords-store';
 import { useEmailStore } from '../../stores/email-store';
 import { supportsBulwarkMetadata } from '../../api/bulwark-metadata';
 import { DARK_COLORS } from '../../theme/tokens';
@@ -13,6 +13,10 @@ import { discoverKeywords } from '../../api/keyword-discovery';
 import { findUnrecognizedKeywords, type UnrecognizedKeyword } from '../../lib/keyword-discovery';
 import { jmapClient } from '../../api/jmap-client';
 import { deleteKeywordWithUndo } from '../../lib/settings-undo';
+import { composeKeywordId, MAX_KEYWORD_ID_LENGTH } from '../../lib/new-tag';
+import {
+  formatKeyword, getKeywordVisibility, getParentKeywordId, hasChildKeywords, parentKeywordOptions,
+} from '../../lib/keyword-nesting';
 
 type Keyword = KeywordDef;
 
@@ -30,6 +34,8 @@ export function KeywordSettings() {
   const resetDefaults = useKeywordsStore((s) => s.resetDefaults);
   const hydrated = useKeywordsStore((s) => s.hydrated);
   const hydrate = useKeywordsStore((s) => s.hydrate);
+  const nested = useKeywordsStore((s) => s.nested);
+  const setNested = useKeywordsStore((s) => s.setNested);
 
   useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
 
@@ -38,8 +44,9 @@ export function KeywordSettings() {
 
   const saveKeyword = (kw: Keyword, editing: boolean) => {
     if (editing && editingId) {
-      const { id, ...patch } = kw;
-      updateKeyword(editingId, patch);
+      // The id stays: it is on the messages, and this app does not move
+      // them to a new keyword (webmail migrateKeyword).
+      updateKeyword(editingId, { label: kw.label, color: kw.color });
       setEditingId(null);
     } else {
       addKeyword(kw);
@@ -98,8 +105,25 @@ export function KeywordSettings() {
     setScan((s) => ({ ...s, found: s.found.filter((f) => f.id !== kw.id) }));
   };
 
+  // Sidebar visibility (webmail keyword-settings.tsx).
+  const visibilityOptions = [
+    { value: 'show', label: t('settings.keywords.visibility.show', 'Show') },
+    { value: 'unread', label: t('settings.keywords.visibility.unread', 'Show if unread') },
+    { value: 'hide', label: t('settings.keywords.visibility.hide', 'Hide') },
+  ];
+
   return (
     <SettingsSection title={t('settings.keywords.title', "Email Tags")} description={t('settings.keywords.description_mobile', "Colored tags to organize your mail.")}>
+      <SettingItem
+        label={t('settings.keywords.nesting.label', 'Nested tags')}
+        description={t('settings.keywords.nesting.description', 'Nest tags underneath other tags and show them as a tree in the sidebar.')}
+      >
+        <ToggleSwitch
+          checked={nested}
+          onChange={setNested}
+          accessibilityLabel={t('settings.keywords.nesting.label', 'Nested tags')}
+        />
+      </SettingItem>
       <View style={{ gap: spacing.sm }}>
         {keywords.map((kw) => {
           if (editingId === kw.id) {
@@ -108,24 +132,47 @@ export function KeywordSettings() {
                 key={kw.id}
                 initial={kw}
                 existingIds={keywords.filter((k) => k.id !== kw.id).map((k) => k.id)}
+                keywords={keywords}
+                nested={nested}
                 onSave={(k) => saveKeyword(k, true)}
                 onCancel={() => setEditingId(null)}
               />
             );
           }
           const palette = (c.tagsAsPicked ?? c.tags)[kw.color];
+          // A tag with tags nested under it can't go first (webmail
+          // has_children_delete): its children would lose their parent.
+          const hasChildren = hasChildKeywords(kw.id, keywords);
           return (
-            <View key={kw.id} style={styles.kwRow}>
-              <View style={[styles.kwDot, { backgroundColor: palette.dot }]} />
-              <Text style={styles.kwLabel}>{kw.label}</Text>
-              <Text style={styles.kwId}>$label:{kw.id}</Text>
-              <View style={{ flexDirection: 'row', gap: 2 }}>
-                <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.edit_tag', 'Edit {name}', { name: kw.label })}>
-                  <Pencil size={14} color={c.mutedForeground} />
-                </Pressable>
-                <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.delete_tag', 'Delete {name}', { name: kw.label })}>
-                  <Trash2 size={14} color={c.mutedForeground} />
-                </Pressable>
+            <View key={kw.id} style={styles.kwCard}>
+              <View style={styles.kwCardTop}>
+                <View style={[styles.kwDot, { backgroundColor: palette.dot }]} />
+                <Text style={styles.kwLabel}>{formatKeyword(kw.id, keywords, nested)}</Text>
+                <View style={{ flexDirection: 'row', gap: 2 }}>
+                  <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)} accessibilityRole="button" accessibilityLabel={t('settings.keywords.edit_tag', 'Edit {name}', { name: kw.label })}>
+                    <Pencil size={14} color={c.mutedForeground} />
+                  </Pressable>
+                  <Pressable
+                    style={[styles.iconBtn, hasChildren && { opacity: 0.4 }]}
+                    onPress={() => deleteKeyword(kw.id)}
+                    disabled={hasChildren}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: hasChildren }}
+                    accessibilityLabel={t('settings.keywords.delete_tag', 'Delete {name}', { name: kw.label })}
+                    accessibilityHint={hasChildren ? t('settings.keywords.has_children_delete', 'Remove the tags nested under this one first') : undefined}
+                  >
+                    <Trash2 size={14} color={c.mutedForeground} />
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.kwCardBottom}>
+                <Text style={[styles.kwId, { flex: 1 }]} numberOfLines={1}>$label:{kw.id}</Text>
+                <Text style={styles.kwVisibilityLabel}>{t('settings.keywords.visibility_field', 'Sidebar visibility')}</Text>
+                <Select
+                  value={getKeywordVisibility(kw)}
+                  onChange={(value) => updateKeyword(kw.id, { visibility: value as KeywordVisibility })}
+                  options={visibilityOptions}
+                />
               </View>
             </View>
           );
@@ -134,6 +181,8 @@ export function KeywordSettings() {
         {isAdding && (
           <KeywordForm
             existingIds={keywords.map((k) => k.id)}
+            keywords={keywords}
+            nested={nested}
             onSave={(k) => saveKeyword(k, false)}
             onCancel={() => setIsAdding(false)}
           />
@@ -267,34 +316,53 @@ function SharedTagsSection() {
 interface KeywordFormProps {
   initial?: Keyword;
   existingIds: string[];
+  /** Every tag, for the parent picker. */
+  keywords: Keyword[];
+  /** "Nested tags" is on: a new tag can go under another one. */
+  nested: boolean;
   onSave: (kw: Keyword) => void;
   onCancel: () => void;
 }
 
-function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProps) {
+function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel }: KeywordFormProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const [label, setLabel] = useState(initial?.label ?? '');
   const [color, setColor] = useState<keyof typeof DARK_COLORS.tags>(initial?.color ?? 'blue');
+  const [parentId, setParentId] = useState('');
 
-  const normalizedId = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  const isDuplicate = normalizedId.length > 0 && existingIds.includes(normalizedId);
-  const isValid = normalizedId.length > 0 && label.trim().length > 0 && !isDuplicate;
+  // A new tag takes the id of its name under its parent (webmail
+  // KeywordEditForm). An edited tag keeps its id, which is on the messages.
+  const normalizedId = initial ? initial.id : composeKeywordId(parentId || null, label);
+  const isDuplicate = !initial && normalizedId.length > 0 && existingIds.includes(normalizedId);
+  const isTooLong = !initial && normalizedId.length > MAX_KEYWORD_ID_LENGTH;
+  const isValid = normalizedId.length > 0 && label.trim().length > 0 && !isDuplicate && !isTooLong;
+  const parentOptions = [
+    { value: '', label: t('settings.keywords.no_parent', 'No parent') },
+    ...parentKeywordOptions(keywords).map((o) => ({ value: o.id, label: o.label })),
+  ];
+  const initialParent = initial ? getParentKeywordId(initial.id) : null;
 
   const handleSave = () => {
     if (!isValid) return;
-    onSave({ id: normalizedId, label: label.trim(), color });
+    onSave({ ...(initial ?? {}), id: normalizedId, label: label.trim(), color });
   };
 
   return (
     <View style={styles.form}>
+      {nested && !initial && keywords.length > 0 && (
+        <View>
+          <Text style={styles.formLabel}>{t('settings.keywords.parent_field', 'Parent tag')}</Text>
+          <Select value={parentId} onChange={setParentId} options={parentOptions} />
+        </View>
+      )}
+      {nested && initial && initialParent && (
+        <View>
+          <Text style={styles.formLabel}>{t('settings.keywords.parent_field', 'Parent tag')}</Text>
+          <Text style={styles.kwLabel}>{formatKeyword(initialParent, keywords, true)}</Text>
+        </View>
+      )}
       <View>
         <Text style={styles.formLabel}>{t('settings.keywords.label_field', "Display Name")}</Text>
         <TextInput accessibilityLabel={t('settings.keywords.label_field', "Display Name")}
@@ -306,7 +374,13 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
           maxLength={30}
           autoFocus
         />
+        {nested && normalizedId.length > 0 && <Text style={[styles.kwId, { marginTop: 4 }]}>$label:{normalizedId}</Text>}
         {isDuplicate && <Text style={styles.errorText}>{t('settings.keywords.id_exists', "This tag ID already exists")}</Text>}
+        {isTooLong && (
+          <Text style={styles.errorText}>
+            {t('settings.keywords.too_long', 'This tag path is too long (at most {max} characters)', { max: MAX_KEYWORD_ID_LENGTH })}
+          </Text>
+        )}
       </View>
 
       <View>
@@ -364,6 +438,17 @@ function makeStyles(c: ThemePalette) {
     borderColor: c.border,
     backgroundColor: c.background,
   },
+  kwCard: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.background,
+  },
+  kwCardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  kwCardBottom: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  kwVisibilityLabel: { ...typography.caption, color: c.mutedForeground },
   kwDot: { width: 20, height: 20, borderRadius: 10 },
   kwLabel: { ...typography.bodyMedium, color: c.text, flex: 1 },
   kwId: { fontSize: 10, color: c.mutedForeground, fontFamily: 'monospace' },

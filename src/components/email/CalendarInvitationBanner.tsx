@@ -8,7 +8,7 @@ import {
 import { format, isSameDay } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import { fetchCalendarBlobText, findEventsByUid, parseCalendarBlob } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -72,6 +72,7 @@ function trustReasonText(
 
 export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
@@ -390,7 +391,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
       {state !== 'done' && !existing && targetCalendar && candidates.length > 1 && (
         <View>
           <Pressable style={styles.calendarPicker} onPress={() => setPickerOpen((v) => !v)}>
-            <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(targetCalendar) }]} />
+            <View style={[styles.calendarSwatch, { backgroundColor: paint(getCalendarColor(targetCalendar)) }]} />
             <Text style={styles.calendarPickerText} numberOfLines={1}>{targetCalendar.name}</Text>
             <ChevronDown size={14} color={c.textMuted} />
           </Pressable>
@@ -402,7 +403,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
                   style={[styles.calendarRow, cal.id === targetCalendar.id && styles.calendarRowActive]}
                   onPress={() => { setCalendarId(cal.id); setPickerOpen(false); }}
                 >
-                  <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(cal) }]} />
+                  <View style={[styles.calendarSwatch, { backgroundColor: paint(getCalendarColor(cal)) }]} />
                   <Text style={styles.calendarPickerText} numberOfLines={1}>{cal.name}</Text>
                 </Pressable>
               ))}

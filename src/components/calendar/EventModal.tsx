@@ -36,7 +36,7 @@ import type {
   VirtualLocation,
 } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
-import { useColors } from '../../theme/colors';
+import { useColors, useCvdColor } from '../../theme/colors';
 import {
   getCalendarColor,
   getPrimaryCalendarId,
@@ -189,6 +189,7 @@ export function EventModal({
   onClose,
 }: EventModalProps) {
   const c = useColors();
+  const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
@@ -588,7 +589,7 @@ export function EventModal({
                   <View
                     style={[
                       styles.calendarSwatch,
-                      { backgroundColor: getCalendarColor(selectedCalendar) },
+                      { backgroundColor: paint(getCalendarColor(selectedCalendar)) },
                     ]}
                   />
                 )}
@@ -614,7 +615,7 @@ export function EventModal({
                     <View
                       style={[
                         styles.calendarSwatch,
-                        { backgroundColor: getCalendarColor(c) },
+                        { backgroundColor: paint(getCalendarColor(c)) },
                       ]}
                     />
                     <Text style={styles.popoverRowText}>{c.name}</Text>
