@@ -912,6 +912,16 @@ function snapshotFromActive(state: EmailState): AccountSnapshot {
   };
 }
 
+/**
+ * A cold start opens the Inbox, not the folder the app was last left in
+ * (webmail 64b39c504); its cached rows still show at once. Snapshots of the
+ * other accounts keep their folder for an account switch.
+ */
+export function coldStartView(snap: AccountSnapshot): AccountSnapshot {
+  const inbox = snap.mailboxes?.find((m) => m.role === 'inbox' && !m.isShared);
+  return { ...snap, currentMailboxId: inbox?.id ?? null };
+}
+
 function viewFromSnapshot(snap: AccountSnapshot | null): {
   mailboxes: Mailbox[];
   mailboxState?: string;
@@ -2416,7 +2426,7 @@ export const useEmailStore = create<EmailState>()(
       merge: (persisted, current) => {
         if (!persisted) return current;
         const cache = persisted as PersistedEmailCache;
-        return { ...current, ...cache, ...viewFromSnapshot(cache) };
+        return { ...current, ...cache, ...viewFromSnapshot(coldStartView(cache)) };
       },
     },
   ),
