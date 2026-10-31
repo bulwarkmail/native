@@ -12,6 +12,7 @@ import {
   filterHasSnippetTerms, snippetFilterFor, type SearchSnippetResult, type SnippetBatch,
 } from '../lib/search-snippet';
 import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
+import { generateAccountId } from '../lib/account-utils';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
 // Unread / Starred). Because the JMAP client is a single-account singleton
@@ -208,10 +209,9 @@ function isLiveAccount(accountId: string): boolean {
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
   if (!username || !serverUrl) return false;
-  // Same rule as generateAccountId(username, serverUrl) in lib/account-utils.
-  let host = serverUrl;
-  try { host = new URL(serverUrl).hostname; } catch { host = serverUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, ''); }
-  return `${username}@${host}` === accountId;
+  // With the port, and the registry's host-only id where the account kept
+  // one: a client on :8016 is not an old host-only account on :8120.
+  return generateAccountId(username, serverUrl) === accountId;
 }
 
 async function entryFor(accountId: string): Promise<AccountEntry> {
