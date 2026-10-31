@@ -59,6 +59,9 @@ export interface StoredCredentials {
   tokenEndpoint?: string;
   clientId?: string;
   tokenSource?: OAuthTokenSource;
+  // The OIDC id token of a browser sign-in, for ending the provider's
+  // session at sign-out (lib/oauth-native endProviderSession).
+  idToken?: string;
 }
 
 /**
@@ -404,6 +407,7 @@ export class JMAPClient {
       tokenEndpoint: tokens.tokenEndpoint,
       clientId: tokens.clientId,
       tokenSource: tokens.source,
+      ...(tokens.idToken ? { idToken: tokens.idToken } : {}),
     };
 
     const fetched = await this.fetchSession(baseUrl);
@@ -460,6 +464,7 @@ export class JMAPClient {
       expiresAt: next.expiresAt,
       tokenEndpoint: next.tokenEndpoint,
       clientId: next.clientId,
+      idToken: next.idToken ?? base.idToken,
     };
     if (inUse) this.credentials = updated;
     await writeSharedSecret(credentialsKey(accountId), JSON.stringify(updated));
@@ -529,6 +534,7 @@ export class JMAPClient {
       tokenEndpoint: creds.tokenEndpoint,
       clientId: creds.clientId,
       source: creds.tokenSource,
+      ...(creds.idToken ? { idToken: creds.idToken } : {}),
     };
   }
 

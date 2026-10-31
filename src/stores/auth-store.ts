@@ -33,7 +33,7 @@ import {
   forgetRefreshRotations,
   type HandoffResult,
 } from '../lib/oauth';
-import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
+import { discoverOAuthMetadata, endProviderSession, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
@@ -501,7 +501,9 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: Si
 // desktop's own refresh token, and newer ones hand out a separate grant whose
 // refresh token only the webmail's token proxy understands. The account's
 // chain also leaves the in-process rotation memory either way, so a stale copy
-// refreshed after the sign-out can't pick up its tokens from there.
+// refreshed after the sign-out can't pick up its tokens from there. A browser
+// sign-in's provider session is ended too, in the background: the sign-out
+// never waits for the logout page (see endProviderSession).
 async function revokeStoredRefreshToken(accountId: string): Promise<void> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
@@ -509,6 +511,7 @@ async function revokeStoredRefreshToken(accountId: string): Promise<void> {
     forgetRefreshRotations(tokens?.refreshToken);
     if (!entry || !tokens || tokens.source === 'pairing') return;
     await revokeRefreshToken(entry.serverUrl, tokens);
+    void endProviderSession(entry.serverUrl, tokens);
   } catch {
     // never block sign-out
   }

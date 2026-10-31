@@ -26,6 +26,9 @@ export interface OAuthTokens {
   // the desktop's token, so sign-out leaves `pairing` bundles alone instead
   // of revoking them at the mail server; every other source is revoked.
   source?: OAuthTokenSource;
+  // The OIDC id token of the sign-in, kept for ending the provider's
+  // session at sign-out (id_token_hint). A refresh may hand out a new one.
+  idToken?: string;
 }
 
 export type HandoffResult =
@@ -681,6 +684,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           access_token?: string;
           refresh_token?: string;
           expires_in?: number;
+          id_token?: string;
         };
         try {
           data = (await response.json()) as typeof data;
@@ -702,6 +706,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           tokenEndpoint: tokens.tokenEndpoint,
           clientId: tokens.clientId,
           source: tokens.source,
+          idToken: typeof data.id_token === 'string' && data.id_token ? data.id_token : tokens.idToken,
         };
         rememberRotation(cacheKey, next);
         return next;
