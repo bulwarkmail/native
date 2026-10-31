@@ -117,6 +117,10 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="email-address"
+        // The app's own suggestions only: system autofill would cover them.
+        autoComplete="off"
+        importantForAutofill="no"
+        textContentType="none"
         onSubmitEditing={handleSubmit}
         onBlur={handleSubmit}
         returnKeyType="done"
