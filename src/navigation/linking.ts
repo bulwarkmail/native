@@ -8,6 +8,12 @@ import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
 import { setPendingCalendarOpen } from './pending-calendar-open';
+import {
+  CALENDAR_LINK_VIEWS,
+  parseCalendarLinkDate,
+  setPendingCalendarDate,
+  type CalendarLinkView,
+} from './pending-calendar-date';
 import { setPendingMailSearch } from './pending-mail-search';
 import { setPendingMailFolder } from './pending-mail-folder';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
@@ -38,8 +44,9 @@ export type DeepLink =
   | { kind: 'search'; query: string }
   // `jmapAccountId`: the JMAP account owning the event (`?account=`), for
   // one on a calendar shared with the user; `accountId`: the signed-in
-  // account it belongs to (`?appAccount=`, from widgets).
-  | { kind: 'calendar'; eventId?: string; date?: string; jmapAccountId?: string; accountId?: string }
+  // account it belongs to (`?appAccount=`, from widgets). `view` and `date`
+  // (`YYYY-MM-DD`): the view and day a `/calendar/<view>/<date>` link shows.
+  | { kind: 'calendar'; eventId?: string; view?: CalendarLinkView; date?: string; jmapAccountId?: string; accountId?: string }
   | { kind: 'contact'; contactId: string }
   | { kind: 'contacts' }
   | { kind: 'files' }
@@ -149,8 +156,16 @@ export function parseDeepLink(url: string): DeepLink | null {
           ...(appAccountId ? { accountId: appAccountId } : {}),
         };
       }
-      const date = [kind, value].find((s) => s && /^\d{4}-\d{2}-\d{2}$/.test(s));
-      return { kind: 'calendar', date };
+      // `/calendar/<view>[/<date>]`, or a bare `/calendar/<date>` that keeps
+      // the view on screen (webmail parseCalendarPath).
+      if (kind && (CALENDAR_LINK_VIEWS as readonly string[]).includes(kind)) {
+        return {
+          kind: 'calendar',
+          view: kind as CalendarLinkView,
+          ...(parseCalendarLinkDate(value) ? { date: value } : {}),
+        };
+      }
+      return { kind: 'calendar', ...(parseCalendarLinkDate(kind) ? { date: kind } : {}) };
     }
     case 'contacts': {
       if (kind && kind !== 'new') return { kind: 'contact', contactId: decodeSegment(kind) };
@@ -297,6 +312,12 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
           eventId: link.jmapAccountId ? `${link.jmapAccountId}:${link.eventId}` : link.eventId,
           serverId: link.eventId,
           accountId: link.jmapAccountId,
+        });
+      } else if (link.view || link.date) {
+        // The Calendar tab moves to the view and day.
+        setPendingCalendarDate({
+          ...(link.view ? { view: link.view } : {}),
+          ...(link.date ? { date: link.date } : {}),
         });
       }
       navigation.navigate('MainTabs', { screen: 'Calendar' } as never);

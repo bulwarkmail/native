@@ -107,6 +107,11 @@ import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
 import { useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
+import {
+  parseCalendarLinkDate,
+  usePendingCalendarDate,
+  type CalendarDateLink,
+} from '../navigation/pending-calendar-date';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent } from '../api/types';
@@ -515,6 +520,42 @@ export default function CalendarScreen() {
     },
     [viewMode, visibleDate, focus.date],
   );
+
+  // A `/calendar/<view>/<date>` link (webmail applyCalendarDeepLink): the
+  // view it names, on the day it names. Without a view the view on screen
+  // stays; `tasks`, a view the phone has as a sheet, opens the task list.
+  const applyDateLink = React.useCallback(
+    (link: CalendarDateLink) => {
+      if (link.view === 'tasks') {
+        if (enableCalendarTasks) {
+          setTasksInitialId(null);
+          setTasksVisible(true);
+        }
+      }
+      const mode: ViewMode = link.view && link.view !== 'tasks' ? link.view : viewMode;
+      const date = parseCalendarLinkDate(link.date);
+      if (!date) {
+        changeViewMode(mode);
+        return;
+      }
+      setSelectedDate(date);
+      setVisibleDate(null);
+      setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+      setWindowState((prev) =>
+        mode === viewMode
+          ? windowStateForJump(prev, windowMode(mode), date, windowOptions)
+          : freshScrollWindowState(windowMode(mode), date),
+      );
+      setViewMode(mode);
+    },
+    [enableCalendarTasks, viewMode, changeViewMode, windowOptions],
+  );
+  const pendingDateLink = usePendingCalendarDate((s) => s.link);
+  React.useEffect(() => {
+    if (!pendingDateLink) return;
+    const link = usePendingCalendarDate.getState().consume();
+    if (link) applyDateLink(link);
+  }, [pendingDateLink, applyDateLink]);
 
   // The views, listed at the top of the drawer.
   const viewOptions = React.useMemo<DrawerViewOption[]>(

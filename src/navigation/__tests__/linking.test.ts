@@ -22,7 +22,7 @@ describe('parseDeepLink', () => {
 
   it('parses calendar, contacts, files and settings links', () => {
     expect(parseDeepLink('bulwarkmobile://calendar/event/E1')).toEqual({ kind: 'calendar', eventId: 'E1' });
-    expect(parseDeepLink('bulwarkmobile://calendar/week/2026-08-29')).toEqual({ kind: 'calendar', date: '2026-08-29' });
+    expect(parseDeepLink('bulwarkmobile://calendar/week/2026-08-29')).toEqual({ kind: 'calendar', view: 'week', date: '2026-08-29' });
     expect(parseDeepLink('bulwarkmobile://contacts')).toEqual({ kind: 'contacts' });
     expect(parseDeepLink('bulwarkmobile://files')).toEqual({ kind: 'files' });
     expect(parseDeepLink('bulwarkmobile://settings/notifications')).toEqual({ kind: 'settings', tab: 'notifications' });
@@ -145,7 +145,7 @@ describe('handleDeepLink', () => {
     });
     expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Calendar' });
 
-    // A date or view link just opens the tab.
+    // A date or view link opens no event (calendar-date-link.test.ts).
     await handleDeepLink(
       { kind: 'calendar', date: '2026-08-29' },
       { navigation: navigation as never, resolveThreadId: async () => null },
