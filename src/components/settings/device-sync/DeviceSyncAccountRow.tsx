@@ -15,7 +15,7 @@ import { spacing, typography, type ThemePalette } from '../../../theme/tokens';
 import { useColors } from '../../../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../../../stores/locale-store';
 import { useSettingsStore } from '../../../stores/settings-store';
-import type { AccountEntry } from '../../../stores/account-store';
+import { useAccountStore, type AccountEntry } from '../../../stores/account-store';
 import {
   effectiveSelection,
   emptyAccountDeviceSync,
@@ -41,6 +41,7 @@ import { describeSyncStatus, type StatusAction } from './status';
 import { useAndroidSync } from './use-android-sync';
 import { useSyncCollections } from './use-sync-collections';
 import { nameWithAccount } from '../../../lib/address-book-label';
+import { deviceSyncAccountLabel } from './account-label';
 
 interface Props {
   account: AccountEntry;
@@ -117,7 +118,8 @@ export function DeviceSyncAccountRow({ account, authority }: Props) {
     [collections, entry, authority],
   );
 
-  const accountLabel = account.email || account.username;
+  const accounts = useAccountStore((s) => s.accounts);
+  const accountLabel = React.useMemo(() => deviceSyncAccountLabel(account, accounts), [account, accounts]);
   const status = describeSyncStatus(
     {
       authority,
