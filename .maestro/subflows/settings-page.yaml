@@ -18,10 +18,12 @@ appId: org.bulwarkmail.mobile
       - inputText: ${Q}
       - waitForAnimationToEnd:
           timeout: 3000
-      # Now and then a typed character goes missing: type it again.
-      - runFlow:
-          when:
+      # Now and then the simulator drops or garbles a typed character
+      # (seen: "Storagew,"): type it again, a few times if need be.
+      - repeat:
+          while:
             notVisible: ${ROW}
+          times: 3
           commands:
             - tapOn: "Search settings"
             - eraseText: 40
