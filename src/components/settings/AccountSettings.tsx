@@ -15,7 +15,7 @@ import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
 import { fetchMailQuota, type MailQuota } from '../../api/quota';
-import { MAX_ACCOUNTS } from '../../lib/account-utils';
+import { MAX_ACCOUNTS, accountRowText } from '../../lib/account-utils';
 import type { RootStackParamList } from '../../navigation/types';
 
 function formatFileSize(bytes: number): string {
@@ -168,7 +168,8 @@ export function AccountSettings() {
           {accounts.map((a, index) => {
             const isActive = a.id === activeAccountId;
             const isDefault = a.id === defaultAccountId;
-            const label = a.email || a.username;
+            // The address leads when another account has the same name.
+            const rowText = accountRowText(a, accounts);
             return (
               <View key={a.id} style={[styles.row, index > 0 && styles.rowBorder]}>
                 <View style={[styles.avatar, { backgroundColor: a.avatarColor }]}>
@@ -183,10 +184,10 @@ export function AccountSettings() {
                     : t('settings.account.accounts.switch_to', 'Switch to this account')}
                 >
                   <View style={styles.rowTitle}>
-                    <Text style={styles.rowName} numberOfLines={1}>{a.displayName || a.username}</Text>
+                    <Text style={styles.rowName} numberOfLines={1}>{rowText.title}</Text>
                     {isActive && <Check size={14} color={c.success} />}
                   </View>
-                  <Text style={styles.rowSub} numberOfLines={1}>{label}</Text>
+                  {rowText.subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{rowText.subtitle}</Text> : null}
                   {isDefault && (
                     <Text style={styles.defaultBadge}>
                       {t('settings.account.accounts.default_badge', 'Default account')}
@@ -226,7 +227,7 @@ export function AccountSettings() {
                   </Pressable>
                   <Pressable
                     style={styles.iconBtn}
-                    onPress={() => confirmRemove(a.id, label)}
+                    onPress={() => confirmRemove(a.id, a.email || a.username)}
                     disabled={busyId !== null}
                     accessibilityRole="button"
                     accessibilityLabel={t('common.remove', 'Remove')}
