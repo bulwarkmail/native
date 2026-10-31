@@ -8,7 +8,7 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { undoSnackbarColors } from './undo-snackbar-colors';
 import { useEmailStore } from '../stores/email-store';
-import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../stores/send-undo-store';
+import { useSendUndoStore, restoreUndoneSend, undoSendLabel, type PendingUndoSend } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import type { RootStackParamList } from '../navigation/types';
 import { announce } from '../lib/announce';
@@ -56,7 +56,8 @@ export function UndoSnackbar() {
       : null;
     const send: Shown | null = pendingSend
       ? {
-          label: t('email_composer.undo_send_label', 'Sending in {seconds}s…', { seconds: pendingSend.delaySeconds }),
+          // The text at the start; the bar counts down from it (below).
+          label: undoSendLabel(pendingSend, pendingSend.createdAt),
           createdAt: pendingSend.createdAt,
           visibleMs: Math.max(1000, pendingSend.delaySeconds * 1000 - 1000),
           send: pendingSend,
@@ -73,6 +74,16 @@ export function UndoSnackbar() {
   React.useEffect(() => {
     if (current) setShown(current);
   }, [current]);
+
+  // A held send counts down: "Sending in 10s…", "Sending in 9s…".
+  const [now, setNow] = React.useState(() => Date.now());
+  const counting = current?.send;
+  React.useEffect(() => {
+    if (!counting) return undefined;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [counting]);
 
   // Read the bar out on iOS, which has no live regions; Android reads the
   // bar's live region. Once per entry, not on every countdown re-render.
@@ -148,7 +159,11 @@ export function UndoSnackbar() {
       ]}
     >
       <View style={styles.bar} accessibilityLiveRegion="polite">
-        <Text style={styles.label} numberOfLines={1}>{shown.label}</Text>
+        {/* The spoken label stays the first one, so the live region is not
+            read out again every second of the countdown. */}
+        <Text style={styles.label} numberOfLines={1} accessibilityLabel={shown.label}>
+          {shown.send ? undoSendLabel(shown.send, now) : shown.label}
+        </Text>
         {shown.send && (
           <Pressable
             onPress={onSendNow}

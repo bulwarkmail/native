@@ -77,6 +77,22 @@ function refuseOtherLogin(entry: PendingUndoSend): void {
   );
 }
 
+/**
+ * Whole seconds until a held send goes out, counted on this device's clock
+ * from when the delay started: the bar counts down "Sending in 10s…",
+ * "Sending in 9s…" and so on. Never below 1, since the bar closes a second
+ * before the release.
+ */
+export function undoSendSecondsLeft(entry: Pick<PendingUndoSend, 'createdAt' | 'delaySeconds'>, now: number): number {
+  const left = Math.ceil((entry.createdAt + entry.delaySeconds * 1000 - now) / 1000);
+  return Math.max(1, Math.min(entry.delaySeconds, left));
+}
+
+/** The undo bar's text for a held send at `now`. */
+export function undoSendLabel(entry: Pick<PendingUndoSend, 'createdAt' | 'delaySeconds'>, now: number): string {
+  return t('email_composer.undo_send_label', 'Sending in {seconds}s…', { seconds: undoSendSecondsLeft(entry, now) });
+}
+
 interface SendUndoState {
   pending: PendingUndoSend | null;
   busy: boolean;
