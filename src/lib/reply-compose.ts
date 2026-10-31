@@ -1,8 +1,24 @@
 import type { Attachment, Email } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
+import { isReportPart } from './attachment-display';
 import { pickEmailBody, plainTextBody } from './email-body';
 import { extractCidRefs } from './email-html';
 import { stripMessageIdBrackets } from './email-threading';
+
+// Bounce and read-receipt reports (RFC 3464, RFC 8098) and their
+// internationalised forms (RFC 6533). They describe the message they came
+// with and mean nothing attached to another (webmail
+// lib/attachment-visibility.ts, 8a09ba573).
+const REPORT_TYPES = new Set([
+  'message/delivery-status',
+  'message/disposition-notification',
+  'message/global-delivery-status',
+  'message/global-disposition-notification',
+]);
+
+function isReport(type?: string | null): boolean {
+  return isReportPart(type) || REPORT_TYPES.has((type || '').split(';')[0].trim().toLowerCase());
+}
 
 /**
  * The parts a reply or forward hands the composer. The inline images the
@@ -15,7 +31,7 @@ function carriedParts(mode: 'reply' | 'replyAll' | 'forward', source: Email, quo
   const quoted = new Set(quoteHtml ? extractCidRefs(quoteHtml) : []);
   const isQuoted = (a: Attachment) => !!a.cid && quoted.has(stripMessageIdBrackets(a.cid));
   const parts = (source.attachments ?? []).filter((a) =>
-    isQuoted(a) || (mode === 'forward' && !(a.disposition === 'inline' && a.cid)));
+    !isReport(a.type) && (isQuoted(a) || (mode === 'forward' && !(a.disposition === 'inline' && a.cid))));
   return parts.length > 0 || mode === 'forward' ? parts : undefined;
 }
 

@@ -68,3 +68,18 @@ describe('replyComposeParams: quoted inline images', () => {
     expect(replyComposeParams('forward', withImage)?.replyTo?.attachments).toEqual([quotedImage, file]);
   });
 });
+
+describe('replyComposeParams: report parts', () => {
+  const file = { blobId: 'b-pdf', type: 'application/pdf', name: 'report.pdf', disposition: 'attachment' };
+  const reports = [
+    { blobId: 'r1', type: 'message/delivery-status', name: null, disposition: 'attachment' },
+    { blobId: 'r2', type: 'message/disposition-notification', name: null, disposition: 'attachment' },
+    { blobId: 'r3', type: 'message/global-delivery-status', name: null, disposition: 'attachment' },
+    { blobId: 'r4', type: 'Message/Global-Disposition-Notification; charset=utf-8', name: null, disposition: 'attachment' },
+  ];
+  const bounce = { ...source, attachments: [...reports, file] } as unknown as Email;
+
+  it('leaves bounce and receipt reports, the global forms too, out of a forward', () => {
+    expect(replyComposeParams('forward', bounce)?.replyTo?.attachments).toEqual([file]);
+  });
+});
