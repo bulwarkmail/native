@@ -44,7 +44,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: none. The app reads reduce motion (`src/theme/dynamic.ts:92`) but doesn't pass it into mail.
   - Fix hint: pass reduce motion into the body CSS (animation off, GIFs paused) first; read aloud and reader view are left to the OS.
 
-- [ ] **No BIMI sender logos or verified-mark check** — `P3` — `missing`
+- [ ] **No BIMI sender logos or verified-mark check** — `P3` — `missing` — partly: BIMI logos from the webmail in 83ddd137 (list, unified inbox and reader in 6b7e752c); no check mark for a verified mark
   - What WEB does: when DMARC passes for the exact From domain the avatar shows the domain's BIMI logo before the favicon, with a check mark when a VMC/CMC backs it; DNS and certificate checks run on the webmail server (`lib/email-headers.ts:175`, `components/ui/avatar.tsx:292`, `app/api/bimi/route.ts:49`). cf0eb03c4.
   - What RN does: contact photo, DuckDuckGo favicon, initials (`src/components/SenderAvatar.tsx:38`, `:62-65`; `src/lib/avatar-utils.ts:149`).
   - Fix hint: use the paired webmail's `/api/bimi` once the app keeps the webmail URL (same blocker as the org policy, file 10).
@@ -155,12 +155,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: month day cells read only the number and the dots are silent (`src/components/calendar/MonthView.tsx:199-240`); event blocks have no role, label or date (`src/components/calendar/EventBlock.tsx:72-104`).
   - Fix hint: label day cells with date and event count; event blocks get a button role and a label with title, date and time.
 
-- [ ] **No reading fonts, text spacing, more contrast or underlined links** — `P3` — `missing` — not done: own feature, not in this run
+- [ ] **No reading fonts, text spacing, more contrast or underlined links** — `P3` — `missing` — partly: reading fonts in 4724c28f (iOS in cfca6b9c, untested on a device); text spacing, more contrast and underlined links not done
   - What WEB does: Atkinson Hyperlegible Next, Lexend, OpenDyslexic, spacing settings, more contrast, underlined links (`lib/accessibility-settings.ts:53-68`; 8008393e5, da215b8c0).
   - What RN does: none of these settings (`src/stores/settings-store.ts`).
   - Fix hint: the dyslexia font and line spacing first.
 
-- [ ] **No colour-blind palette and no names next to colours** — `P3` — `missing` — not done: own feature, not in this run
+- [ ] **No colour-blind palette and no names next to colours** — `P3` — `missing` — partly: colour-blind-safe palette for tags in c6501ec8 and calendars in 21dd5a24; no names next to colours
   - What WEB does: a colour-blind-safe palette, a tag's letter in its dot, the calendar's name on events (cf4d02b49, d5d7d39ef, 396290003).
   - What RN does: colours only (`src/components/calendar/EventBlock.tsx:72-104`, `src/components/calendar/MonthView.tsx:233-240`).
 
@@ -169,11 +169,11 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: 5 s, errors 10 s (`src/stores/toast-store.ts:44`), Undo 5 s (`src/components/UndoSnackbar.tsx:15`).
   - Fix hint: a duration setting and a longer default while a screen reader is on.
 
-- [ ] **No plain language and no explanations for technical terms** — `P3` — `missing` — not done: own feature, not in this run
+- [ ] **No plain language and no explanations for technical terms** — `P3` — `missing` — partly: plain language in 97b71e22; no explanations for technical terms
   - What WEB does: simpler English and German wording (`i18n/plain-language.ts`; bb739c744, 9861af6be, 5ffecf692) and term explanations (`components/ui/term.tsx`; 724c45d6e).
   - What RN does: none (`src/i18n/index.ts:79-140`).
 
-- [ ] **Accessibility statement, help and sign-language links aren't shown** — `P3` — `missing`
+- [x] **Accessibility statement, help and sign-language links aren't shown** — `P3` — `missing` — fixed in 9d977773
   - What WEB does: shows the operator's links from the public `/api/config` (`app/api/config/route.ts:104`; 315e29270, 623c9e179).
   - What RN does: About has only the app's own links (`src/lib/about-links.ts:5-28`); the webmail URL isn't kept (`src/lib/oauth-native.ts:93-108`).
   - Fix hint: keep the paired webmail URL (also needed for the org policy) and read `/api/config`.
@@ -224,7 +224,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Notifications
 
-- [ ] **New mail can't play the Involved sound** — `P3` — `missing`
+- [x] **New mail can't play the Involved sound** — `P3` — `missing` — fixed in 6a27c596 (calendar reminders in b4f10829)
   - What WEB does: Involved by default (`stores/settings-store.ts:949`, `lib/notification-sound.ts:11`). 5eabdd890.
   - What RN does: the OS channel owns the sound (`src/stores/settings-store.ts:266-267`).
   - Fix hint: optional; needs a new Android channel id and a bundled iOS sound.

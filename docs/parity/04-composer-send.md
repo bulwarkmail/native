@@ -260,7 +260,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 
 ### Security / crypto
 
-- [ ] **S/MIME sign/encrypt on send is a stub** — `P3` — `missing` — deferred: no raw-MIME send path in RN; certificates are stored only
+- [x] **S/MIME sign/encrypt on send is a stub** — `P3` — `missing` — deferred: no raw-MIME send path in RN; certificates are stored only — fixed in b0997c0a
   - What WEB does: crypto plugins hook `onComposeSend` (`email-composer.tsx:2180-2216`) and the store has `sendRawEmail` (`stores/email-store.ts:1724`).
   - What RN does: `src/components/settings/SmimeSettings.tsx` lists imported certificates ("Your Certificates", "Recipient Certificates") but `ComposeScreen.tsx` has no sign/encrypt control (`grep -i smime|sign|encrypt` → none) and `sendEmail` has no raw-MIME path.
   - Fix hint: out of scope for parity right now; document as a known gap in the settings pane ("certificates are stored but not yet used for sending").
@@ -272,7 +272,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - What RN does: `settings-store.ts:105-106` has `trustedSenders`, but `ComposeScreen.tsx` never touches it (`grep -i trusted` → none).
   - Fix hint: after a successful reply push `finalTo`/`finalCc` emails into `trustedSenders` (dedupe).
 
-- [ ] **Offline send is not queued** — `P3` — `missing` (RN-only opportunity) — deferred: needs a new outbox op kind carrying the whole Email/set + submission payload; drafts now autosave to the server instead — not done: offline queue is its own project; the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows
+- [x] **Offline send is not queued** — `P3` — `missing` (RN-only opportunity) — deferred: needs a new outbox op kind carrying the whole Email/set + submission payload; drafts now autosave to the server instead — the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows — fixed in 0ec809eb
   - What RN does: `outbox-store.ts:40-43` only knows `keywords|mailboxes|destroy` ops; `performSend` fails with a network error when offline (`ComposeScreen.tsx:975-979`) and the composed text is lost unless the user keeps the screen open. WEB has no offline outbox either, so this is not a parity item, but once drafts exist the natural mobile behaviour is "save draft locally, submit when online".
   - Fix hint: add a `send` op kind carrying the Email/set create + submission payload, flushed by `outbox-store.flush`.
 

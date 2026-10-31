@@ -114,15 +114,15 @@ parses it, nothing stores it), the global locks need no webmail change.
 
 ### Report "Open" (2026-10-29)
 
-- [ ] **iOS: reader CSP, composer nonce, `target=_blank` taps, #81 keyboard** — `P2` — `partial` — needs an iOS run (e2e-ios.yml in testing step 4)
-- [ ] **iOS push lapses after 7 days without opening the app** — `P2` — `bug` — the extension has no expiry handling (plugins/ios-push/NotificationService.swift), no BGTask; needs a device to verify
-- [ ] **Login switch from a deep link or notification keeps the old navigation stack** — `P2` — `bug` — App.tsx:118-122, :141-145, :181-186 switch and navigate on top; question 7
+- [ ] **iOS: reader CSP, composer nonce, `target=_blank` taps, #81 keyboard** — `P2` — `partial` — needs an iOS run (e2e-ios.yml in testing step 4) — partly: the iOS build and the tablet sign-in leg pass at 05bc0f56 (run 41216860380); the full run 41220976434 is RESULT PENDING
+- [x] **iOS push lapses after 7 days without opening the app** — `P2` — `bug` — the extension has no expiry handling (plugins/ios-push/NotificationService.swift), no BGTask; needs a device to verify — fixed in c704c7e6 (compiled in CI, not run on a device)
+- [x] **Login switch from a deep link or notification keeps the old navigation stack** — `P2` — `bug` — App.tsx:118-122, :141-145, :181-186 switch and navigate on top; question 7 — fixed in f9a36b28
 - [x] **Sieve editor loses typed text (#1162)** — `P3` — `bug` — src/components/filters/SieveEditorSheet.tsx:35-41 re-seeds on every content change — fixed in 6c3046c8
 - [x] **No forward limit (#1155, #1208), no vacation length warning** — `P3` — `missing` — FilterRuleModal.tsx:443-459, VacationSettings.tsx:140-142 — fixed in dcbfc907
 - [x] **Other-zone daily series keeps a wrong recurrenceId on the device's DST day** — `P3` — `bug` — src/lib/recurrence-expansion.ts:526-536 builds candidates from device-local fields — fixed in 6e697baa
-- [ ] **New strings English-only** — `P3` — `partial` — 331 overlay keys missing in 25 locales, 86 in de; question 6
-- [ ] **Org policy, hand-off password** — blocked on the webmail (above)
-- [ ] **`C:\ns` junction and the native-sync worktree still exist** — chore — C:\ns points at C:\Users\info\worktrees\native-sync (e6e5e521, on main)
+- [x] **New strings English-only** — `P3` — `partial` — 331 overlay keys missing in 25 locales, 86 in de; question 6 — fixed in 3c0d7ad5 (German by hand in 8345be43, the other locales in six commits after it)
+- [ ] **Org policy, hand-off password** — blocked on the webmail (above) — partly: hand-off code in ab2e5a60, organisation policy in 9d977773; group-identity scopes, session limits, the external sender chip and recipient confirm, and the org signature's user details are not done
+- [ ] **`C:\ns` junction and the native-sync worktree still exist** — chore — C:\ns points at C:\Users\info\worktrees\native-sync (e6e5e521, on main) — kept on purpose (decision 14)
 
 ### Webmail bugs from the 2026-10-29 report
 
@@ -135,16 +135,16 @@ current lines is in "Webmail bugs" at the end of this file.
 ### UX audit deferred (docs/ux-audit-2026-10.md)
 
 - [x] **U-133 no way out of a hung "Signing in"** — `P2` — `missing` — src/screens/LoginScreen.tsx:218 swallows Back while busy, SigningInStep has no cancel; abortable sign-in, M — fixed in 55d008a2
-- [ ] **U-069 recipient suggestions hidden in phone landscape** — `P2` — `missing` — needs a full-screen picker, M (feature)
+- [x] **U-069 recipient suggestions hidden in phone landscape** — `P2` — `missing` — needs a full-screen picker, M (feature) — fixed in e1ad5c09
 - [x] **U-045 German Prev/Next read "Zurück"/"Weiter"** — `P3` — `bug` — override in locales/rn/de.json — fixed in 25f9b810
 - [x] **Plain-text mail dark background fixed at #0a0a0a** — `P3` — `partial` — src/lib/email-html.ts:963 ignores the theme — fixed in 43973608
-- [ ] **U-017 system alert vs Dialog, U-136 empty all-day strip, U-124 language order** — product calls, kept deferred unless you say otherwise
+- [ ] **U-017 system alert vs Dialog, U-136 empty all-day strip, U-124 language order** — product calls, kept deferred unless you say otherwise — kept (decision 12)
 - U-016 scrim token: won't fix (no visible change). U-018 font scale resets navigation: React Native limitation. U-131: done (776447dd).
 
 ### iOS test deferred (docs/ios-test-2026-10.md)
 
-- [ ] **Sign-in and features matrices empty; the last three release runs of e2e-ios failed** — `P2` — most failures miss seeded mail, so a reset and seed of stw-v016 comes first (testing step 4)
-- [ ] **ios-perf branch never merged** (d13769a9, measured -18% to first inbox) — not part of this run unless you want it
+- [ ] **Sign-in and features matrices empty; the last three release runs of e2e-ios failed** — `P2` — most failures miss seeded mail, so a reset and seed of stw-v016 comes first (testing step 4) — partly: stw-v016 reset and seeded, 11 outdated flows fixed in d9d7a466, pod install fixed in 05bc0f56; the full run is RESULT PENDING
+- [x] **ios-perf branch never merged** (d13769a9, measured -18% to first inbox) — not part of this run unless you want it — fixed in 36cc49b7
 - Blocked on a device or setup: real APNs path through the extension, QR scan with the camera, SSO pairing (needs an external IdP), discovery success (needs DNS records), iOS widgets (WidgetKit extension, L).
 - Done: the six app bugs from the test (on main), the webmail hand-off fix 310f910a6.
 
@@ -153,10 +153,10 @@ current lines is in "Webmail bugs" at the end of this file.
 - Fixed on main, unreleased (close after 0.1.87 ships): #80, #82, #83, #84, #86, #87, #89. #81 is fixed in code (01983a38), unchecked on iOS.
 - [x] **#91 multi-select without long press** — `P3` — `missing` — EmailListScreen.tsx:190-218; tap on the avatar toggles selection — fixed in 6715df7f
 - [x] **#90 custom calendar colours** — `P3` — `missing` — CalendarEditSheet.tsx:222 offers the palette only — fixed in d3f6d6ae
-- [ ] **#85 keep the shade open on Delete** — question 1
-- [ ] **#58 PGP / S/MIME** — `P3` — L, not in this run
-- [ ] **#3 TLS client certificates** — Android done in 0.1.83; iOS has none (L)
-- [ ] **PR #66 unified views for a single account** (lucletoffe) — conflicts, no review, the author's question unanswered
+- [x] **#85 keep the shade open on Delete** — question 1 — fixed in 2fe83669 (the Android side in 9669e07e)
+- [x] **#58 PGP / S/MIME** — `P3` — L, not in this run — fixed in e5027c45 (reading 8aa1d8e0, sending b0997c0a; no Argon2 keys, WKD or legacy S/MIME ciphers)
+- [x] **#3 TLS client certificates** — Android done in 0.1.83; iOS has none (L) — fixed in ba150060 (compiled in CI, not run on a device)
+- [x] **PR #66 unified views for a single account** (lucletoffe) — conflicts, no review, the author's question unanswered — fixed in 5ecf6f32 (the author's 45b4feeb)
 
 ## Dependencies
 

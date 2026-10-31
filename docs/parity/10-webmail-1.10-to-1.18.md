@@ -38,7 +38,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: trusts the count (up to 2^32) and loops on non-advancing reads (`src/lib/tnef.ts:201`, `:211`).
   - Fix hint: clamp to remaining/4, break on a null or non-advancing read.
 
-- [ ] **Webmail hand-off returns the password in the `bulwarkmobile://` fragment** — `P2` — `bug` (cross-repo)
+- [x] **Webmail hand-off returns the password in the `bulwarkmobile://` fragment** — `P2` — `bug` (cross-repo) — fixed in ab2e5a60 (webmail side fb3ba0275)
   - What WEB does: `app/(main)/[locale]/login/page.tsx:426`, `lib/auth/mobile-handoff.ts:31` put the password in the redirect.
   - What RN does: reads it from the fragment (`src/lib/oauth.ts:247`); any app can claim a custom scheme.
   - Fix hint: hand back a one-time code and redeem it like QR pairing (`src/lib/oauth.ts:435`, `/api/auth/pair/redeem`). Needs the webmail side first.
@@ -50,7 +50,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 
 ### Accounts and sign-in
 
-- [ ] **Org user policy and "Set by your organisation"** — `P2` — `missing` (blocked)
+- [ ] **Org user policy and "Set by your organisation"** — `P2` — `missing` (blocked) — partly: applied in 9d977773, locked and hidden settings in f27e2ceb, colour mode in b7b3dd4c, archiving off in efb92593 and 13dcbdc0, delegates and recovery in bc47c6a1; not yet: share rights for mail folder presets, group-identity scopes, Archive on the Android widget
   - What WEB does: locks or hides settings per domain or group (`stores/policy-store.ts:110`, `hooks/use-restriction.ts:22`, `components/settings/org-locked-note.tsx:14`), incl. colour mode #1280, archiving off #1257, tags above shared mailboxes #1334, share rights, hiding delegates or recovery.
   - What RN does: nothing (`src/stores/settings-store.ts:453`); the paired webmail is forgotten (`src/lib/oauth.ts:292`).
   - Fix hint: keep the webmail URL at hand-off/pairing and fetch the policy with a bearer token. Needs a webmail route that accepts a JMAP bearer token. See "Needs a decision".
@@ -74,7 +74,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: `lib/idn.ts:25` (#1100). What RN does: ASCII-only checks (`src/lib/recipients.ts:31`, `src/lib/server-discovery.ts:78`).
   - Fix hint: toASCII on the wire, Unicode on screen.
 
-- [ ] **Sign-out doesn't end the identity provider session** — `P3` — `missing` — not done: needs a decision; the app keeps the shared browser session for a first sign-in on purpose, an ephemeral session helps on iOS only, and end_session needs the id_token the app does not keep plus a registered post-logout redirect
+- [x] **Sign-out doesn't end the identity provider session** — `P3` — `missing` — fixed in 5a301d62
   - What WEB does: `app/api/auth/token/route.ts:90` (#905). What RN does: `src/lib/oauth.ts:219`, `src/lib/oauth-native.ts:158`.
   - Fix hint: open end_session_endpoint, or use an ephemeral browser session.
 
@@ -155,7 +155,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Search folder picker is flat and capped at 12** — `P3` — `partial` — fixed in e5c9433a
   - What WEB does: `lib/search-scope-folders.ts`. What RN does: `src/screens/EmailListScreen.tsx:1729-1740` (`slice(0, 12)`).
 
-- [ ] **Tags without a definition are grey; no account tint (#1052); tag visibility, nesting, order** — `P3` — `partial`
+- [ ] **Tags without a definition are grey; no account tint (#1052); tag visibility, nesting, order** — `P3` — `partial` — partly: nesting and visibility in 585c70a5; grey undefined tags, account tint and order still open
   - What WEB does: `hooks/use-keyword-format.ts`, `stores/settings-store.ts:391`. What RN does: `src/screens/EmailListScreen.tsx:164`, `src/stores/keywords-store.ts:9`.
 
 - [ ] **Today/yesterday follow the time zone setting (#1259); .eml import and cross-account moves keep the date (#891)** — `P3` — `partial`
@@ -198,7 +198,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Part names that are paths (#1371, #1373)** — `P3` — `bug` — fixed in 4d545f8f
   - What WEB does: `lib/jmap/download-name.ts:11`. What RN does: `src/api/jmap-client.ts:1350` puts `%2F` into the download URL.
 
-- [ ] **Dark mode recolours instead of inverting** — `P3` — `missing`
+- [x] **Dark mode recolours instead of inverting** — `P3` — `missing` — fixed in 23b2bf97
   - What WEB does: `lib/email-dark-mode.ts:48`, `:71`. What RN does: `filter: invert(1) hue-rotate(180deg)` (`src/lib/email-html.ts:500`); mail's own dark styles follow the system scheme (`:640`).
 
 - [x] **"via" badge repeats the sender's address** — `P3` — `bug` — fixed in fac54b41
@@ -249,7 +249,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: `lib/outgoing/external-recipients.ts:53`, `:107`, `components/email/external-recipient-confirm.tsx`.
   - What RN does: nothing (`src/screens/ComposeScreen.tsx:2151`, `src/components/email/QuickReplyBox.tsx`, `src/components/calendar/EventModal.tsx`).
 
-- [ ] **Org signature with user details; legal disclaimer on every sent message** — `P2` — `missing` (blocked on the policy)
+- [ ] **Org signature with user details; legal disclaimer on every sent message** — `P2` — `missing` (blocked on the policy) — partly: org signature and disclaimer in fe3f860e; the user details (title, department, phone) stay empty without settings sync
   - What WEB does: added in the client before sending (`lib/org/outgoing.ts:73`, `:99`, `lib/org-signature.ts:311`, 0154e24ff).
   - What RN does: mail from the phone goes out without the disclaimer (`src/screens/ComposeScreen.tsx:2151`, `src/lib/signature-utils.ts`).
 
@@ -267,7 +267,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Composer prompts: missing-subject asks again, autosaved draft says "unsaved", no Discard for a reopened draft** — `P3` — `bug` — fixed in 1cc4ccca
   - What WEB does: `components/email/email-composer.tsx:3251`, `:3770`, `:3758`. What RN does: `src/screens/ComposeScreen.tsx:1983`, `:2135`, `:1501`, `:1454-1471`.
 
-- [ ] **Offline send shows a raw network error; no offline send queue** — `P3` — `partial` (old 04/09 item) — not done: offline queue is its own project; the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows
+- [x] **Offline send shows a raw network error; no offline send queue** — `P3` — `partial` (old 04/09 item) — the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows — fixed in 0ec809eb
   - What WEB does: says offline and keeps the message (`components/email/email-composer.tsx:3661`). What RN does: `src/screens/ComposeScreen.tsx:2236`, `src/lib/send-failure-message.ts:57`, `src/stores/outbox-store.ts:53`.
 
 - [x] **Scheduled time shows a minute early; presets (tomorrow 13:00, next Monday 08:00)** — `P3` — `bug`/`partial` — fixed in 8fe5798b
@@ -276,7 +276,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Reply puts no cursor in the body; autofill offered in address fields** — `P3` — `missing` — fixed in 8bb7b607 (composer; ParticipantInput in the event editor is the calendar pass)
   - What WEB does: `components/email/email-composer.tsx:2885`. What RN does: `src/screens/ComposeScreen.tsx:2466`, `:2316`, `:2946`, `src/components/calendar/ParticipantInput.tsx:119`.
 
-- [ ] **Composer extras: priority (#970), numeric date placeholders (#1284), @mentions (#1134), directory lookup (#1253), font size, pasted lists, DSN/REQUIRETLS** — `P3` — `missing`
+- [ ] **Composer extras: priority (#970), numeric date placeholders (#1284), @mentions (#1134), directory lookup (#1253), font size, pasted lists, DSN/REQUIRETLS** — `P3` — `missing` — partly: priority and DSN/REQUIRETLS in 649d3adc, @mentions in 8389db8f, directory lookup in a7a37573; numeric date placeholders, font size and pasted lists still missing
   - What WEB does: `lib/recipient-mentions.ts`, `components/email/plain-text-paste.ts`, `components/email/rich-text-editor.tsx:445`, `lib/jmap/client.ts:1392-1413`. What RN does: `src/lib/template-utils.ts:9-15`, `src/components/RichTextEditor.tsx:26`, `src/lib/editor-html.ts`.
 
 - [x] **The recipient splitter treats an escaped quote as closing** — `P3` — `bug` — fixed in ae2eb46b
@@ -323,10 +323,10 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Moving a task into or within a shared calendar (#1204)** — `P3` — `partial` — fixed in b6995bb6
   - What WEB does: `lib/jmap/client.ts:9473`. What RN does: updateTask sends unmapped calendarIds (`src/stores/calendar-store.ts:1311-1315`).
 
-- [x] **Working hours (#1164); week all-day area (#1122); light tinted colours; Jalali; birthday colour; copy title/append note; component set on new calendars (#760); date deep links; background reminder refresh without device sync** — `P3` — `missing`/`partial` — birthday colour fixed in 574db426, copy title/append note in baa3ff59 (duplicate and .ics export were there), week all-day area in 90ce7c1b (sized from the days in view, tasks under their day's events, three rows with +N), light tinted colours in 01578ac2 (Settings > Calendar "Light event colors"), date deep links in fe455370 (`/calendar/<view>/<date>`, a bare date keeps the view, `tasks` opens the task list); left: background reminder refresh without device sync: left, it needs native work: the push subscription would have to carry `CalendarEvent`/`Calendar` for every account (src/lib/push-notifications.ts), PushRouting.kt would have to start a headless JS task for a calendar-only push (today it starts nothing without device sync), and that task would need a reminder scheduler that runs without the restored session and stores the in-app one (src/lib/calendar-notifications.ts) depends on; Android only, and not testable without a device. While the app runs, reminders are rescheduled on every calendar change already; working hours and Jalali: own feature, not in this run; component set (#760): needs a CalDAV client (05 row)
+- [x] **Working hours (#1164); week all-day area (#1122); light tinted colours; Jalali; birthday colour; copy title/append note; component set on new calendars (#760); date deep links; background reminder refresh without device sync** — `P3` — `missing`/`partial` — birthday colour fixed in 574db426, copy title/append note in baa3ff59 (duplicate and .ics export were there), week all-day area in 90ce7c1b (sized from the days in view, tasks under their day's events, three rows with +N), light tinted colours in 01578ac2 (Settings > Calendar "Light event colors"), date deep links in fe455370 (`/calendar/<view>/<date>`, a bare date keeps the view, `tasks` opens the task list); left: background reminder refresh without device sync: left, it needs native work: the push subscription would have to carry `CalendarEvent`/`Calendar` for every account (src/lib/push-notifications.ts), PushRouting.kt would have to start a headless JS task for a calendar-only push (today it starts nothing without device sync), and that task would need a reminder scheduler that runs without the restored session and stores the in-app one (src/lib/calendar-notifications.ts) depends on; Android only, and not testable without a device. While the app runs, reminders are rescheduled on every calendar change already; Jalali in f1297b6b; working hours: own feature, not in this run; component set (#760): needs a CalDAV client (05 row)
   - What RN does: `src/components/calendar/WeekView.tsx`, `src/components/calendar/TimeGridScrollView.tsx:177-185`, `src/lib/birthday-calendar.ts:6`, `src/components/calendar/EventDetailSheet.tsx:422`, `src/api/calendar.ts:1150`, `src/navigation/linking.ts:151`, `:288-299`, `src/lib/push-notifications.ts:243`.
 
-- [ ] **Free/busy, CalendarEventNotification, organizer from ParticipantIdentity (1.10.0)** — `P3` — `missing` — not done: own feature, not in this run
+- [ ] **Free/busy, CalendarEventNotification, organizer from ParticipantIdentity (1.10.0)** — `P3` — `missing` — partly: free/busy in e6a89ad0, CalendarEventNotification in d663a5e2; the organizer from ParticipantIdentity is not ported
   - What WEB does: `lib/jmap/client.ts:1198`.
 
 ### Contacts
@@ -428,10 +428,10 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [ ] **Push extras: Inbox-only switch (#983), one ring per message (#1141), generic notification when the lookup fails (#1041), re-check on return (#1148)** — `P3` — `missing`/`partial` — Inbox-only done in 1821fda7, generic notification in f6e6f8f5, re-check on return in 327b2cae; not done: one ring per message (#1141) needs a change in the Android notification builder (BulwarkFcmModule.kt) and a device
   - What RN does: `src/lib/notification-mutes.ts`, `src/lib/push-background-task.ts:468-488`, `:518`, `src/components/settings/NotificationSettings.tsx:115-134`.
 
-- [ ] **Settings extras: language search, date locale override, font size everywhere, nav-bar icon style, sidebar apps never rendered, screenshot protection, Flat fields theme** — `P3` — `missing`/`partial` (old 08/09 items) — screenshot protection not done: needs a new native module (expo-screen-capture); text size widened in c9b3bdfe
+- [ ] **Settings extras: language search, date locale override, font size everywhere, nav-bar icon style, sidebar apps never rendered, screenshot protection, Flat fields theme** — `P3` — `missing`/`partial` (old 08/09 items) — screenshot protection in 0ae33f3a; text size widened in c9b3bdfe
   - What RN does: `src/components/settings/LanguageSettings.tsx:87`, `src/theme/dynamic.ts:48`, `src/lib/sidebar-apps.ts:10`, `src/theme/builtin-themes.ts:18`.
 
-- [x] **Search snippets, size filter, mail folder sharing, global search (1.10.0)** — `P3` — `missing` — search snippets fixed in 1342e2a0, size filter in aac8a403 (live checks on 0.16 and 1.0 in 12b798c0); not done: mail folder sharing and global search, own feature, not in this run
+- [x] **Search snippets, size filter, mail folder sharing, global search (1.10.0)** — `P3` — `missing` — search snippets fixed in 1342e2a0, size filter in aac8a403 (live checks on 0.16 and 1.0 in 12b798c0); mail folder sharing in 417f1843 (the admin's share rights don't hide the write presets yet), global search in f15b7bb3 (other logins' file listing capped at about 500 items; the Pro search tab and saved searches not ported)
 
 ## Old open items (docs/parity 01-09, audit-2026-09)
 Of 42 open boxes and "Missing vs webmail" items, 8 are done (84fef142 calendar UI strings, f62849d1 iOS push, 75299244 Tabler icons, 26a34d59 autocomplete groups, 5802cae contact deep link, status bar theming, birthday time zone, folder colours 548b647), 9 are no longer relevant (identity and template sync, settings sync, S/MIME is a plugin, #379 migration, stability banner, admin relay list, Android badge is iOS-only by design), and 25 are still open; those are folded into the rows above.

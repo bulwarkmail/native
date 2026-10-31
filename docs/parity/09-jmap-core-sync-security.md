@@ -181,7 +181,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `android:allowBackup="true"` with `@xml/secure_store_backup_rules` from the expo-secure-store plugin, which only excludes SecureStore's own prefs (`android/app/src/main/AndroidManifest.xml:16`); the AsyncStorage SQLite DB (full cached bodies `webmail:offline-cache:entry:v2:*`, outbox, settings, account registry) is backed up to the user's Google account.
   - Fix hint: add an app-owned `fullBackupContent`/`dataExtractionRules` excluding `databases/RKStorage` (AsyncStorage) or set `allowBackup=false` via an Expo config plugin.
 
-- [ ] **Send has no offline path and no draft fallback** — `P2` — `missing` — partly: drafts autosave to the server since 5b72c4d, and since 92b42e4 the close dialog no longer drops the text when the draft can't be saved; an offline send is still not queued, and a draft can't be saved offline — not done: offline queue is its own project; the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows
+- [x] **Send has no offline path and no draft fallback** — `P2` — `missing` — partly: drafts autosave to the server since 5b72c4d, and since 92b42e4 the close dialog no longer drops the text when the draft can't be saved; a draft can't be saved offline — the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows — fixed in 0ec809eb
   - What WEB does: no offline queue either, but send failures leave the composer open with the draft autosaved (composer agent's area); send itself has a deadline (#702).
   - What RN does: `ComposeScreen` shows `Alert('Send failed')` and keeps the modal (`src/screens/ComposeScreen.tsx:975-979`); there is no draft API in `src/api/email.ts` (`grep -n '[Dd]raft' src/api/email.ts` only finds the send create id), so the body is lost if the user leaves, and an offline send is not queued although the outbox exists.
   - Fix hint: either add an `outbox` `send` op kind (blob uploads must already be done) or at minimum persist the composer state locally on failure.
@@ -231,7 +231,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `onShouldStartLoadWithRequest` returns `true` for any `data:` URL (`src/components/EmailBodyView.tsx:715-718`), so `<a href="data:text/html,...">` replaces the message with attacker HTML rendered inside the app chrome (phishing form); the WebView is otherwise well hardened (`originWhitelist=['about:blank']`, file access off, `mixedContentMode="never"`, `setSupportMultipleWindows={false}`, `incognito`, `domStorageEnabled={false}`, `EmailBodyView.tsx:675-712`).
   - Fix hint: allow `data:` only for `request.isTopFrame === false` or block it entirely (the body is loaded via `source={{html}}`, not a data: URL).
 
-- [ ] **No screenshot / recent-apps protection option** — `P3` — `missing` — not done: needs a new native module (expo-screen-capture)
+- [x] **No screenshot / recent-apps protection option** — `P3` — `missing` — fixed in 0ae33f3a (the Android 14 launch crash it caused in d2d44e0d)
   - What WEB does: N/A.
   - What RN does: no `FLAG_SECURE`/`expo-screen-capture` anywhere; mail content appears in the Android recents thumbnail.
   - Fix hint: optional "Hide content in app switcher" setting using `expo-screen-capture` `preventScreenCaptureAsync`.

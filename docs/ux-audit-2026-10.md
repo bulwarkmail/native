@@ -407,7 +407,7 @@ carries the commit that fixed it.
   with the usual "-- " delimiter and the composer adds its own separator above it (screenshot
   `t_compose_panel`).
   - Fix: don't add a separator to a signature that already starts with one.
-- [ ] **U-069 · P2 · PL · Recipient suggestions can't show in phone landscape.** *(deferred: with the keyboard up a phone in landscape has about 100 dp left; suggestions need a different design (a full-screen picker), which is a feature)* With the keyboard
+- [x] **U-069 · P2 · PL · Recipient suggestions can't show in phone landscape.** *(deferred: with the keyboard up a phone in landscape has about 100 dp left; suggestions need a different design (a full-screen picker), which is a feature)* With the keyboard — fixed in e1ad5c09
   up, about 50 dp are left under the To field, so the suggestion list is hidden behind the
   keyboard. Typing a full address still works.
 ### Calendar
