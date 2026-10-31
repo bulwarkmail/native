@@ -11,6 +11,7 @@ import { onStateChangeType } from './state-change-bus';
 import { getUpcomingAlerts, type ScheduledAlert } from './calendar-alert-scheduler';
 import type { CalendarReminderTarget } from '../navigation/pending-calendar-open';
 import { onDeviceRemindersChange, remindedOnDevice } from '../device-sync/app/reminders';
+import { startCalendarEventNotificationSync } from './calendar-event-notifications';
 
 // Local reminders for calendar events and tasks. The webmail polls
 // `getPendingAlerts` every minute while a tab is open; a phone is mostly
@@ -369,6 +370,8 @@ export function startCalendarNotificationSync(options?: { askPermission?: boolea
   if (syncStarted) return;
   syncStarted = true;
   installForegroundHandler();
+  // Invitations, changes and cancellations others made (CalendarEventNotification).
+  startCalendarEventNotificationSync();
   // Edits in the app, a refresh after a push, tasks loading. Moving the
   // calendar to another window changes no reminder.
   useCalendarStore.subscribe((state, prev) => {
