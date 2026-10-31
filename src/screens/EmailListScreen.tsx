@@ -53,6 +53,7 @@ import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import { cleanPreview } from '../lib/preview-text';
+import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import {
   findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
 } from '../lib/mailbox-tree';
@@ -299,8 +300,11 @@ const EmailRow = React.memo(function EmailRow({
 
         {/* Row 2: Subject + tag pills */}
         <View style={styles.subjectRow}>
+          {/* A search hit shows the server's excerpt with the matched terms marked. */}
           <Text style={[styles.emailSubject, dyn.body, unread && styles.textBold]} numberOfLines={1}>
-            {singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
+            {item.searchSnippet?.subject
+              ? <SearchSnippetText snippet={item.searchSnippet.subject} />
+              : singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
           </Text>
           {tags.slice(0, 3).map((tag) => (
             <View key={tag.id} style={[styles.tagPill, { backgroundColor: tag.bg }]}>
@@ -316,7 +320,9 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
         {showPreview && density.showPreview && (
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
-            {singleLine(cleanPreview(item.preview))}
+            {item.searchSnippet?.preview
+              ? <SearchSnippetText snippet={item.searchSnippet.preview} />
+              : singleLine(cleanPreview(item.preview))}
           </Text>
         )}
         {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} inList />}

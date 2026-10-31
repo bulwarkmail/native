@@ -1,7 +1,9 @@
 // A small in-memory JMAP server for store tests that assert the wire: it
-// answers Email/query (text / inMailbox / hasKeyword / notKeyword filters,
-// newest first, position + limit), Email/get and Thread/get (including
-// result references), and applies Email/set updates and destroys. Every
+// answers Email/query (text / inMailbox / hasKeyword / notKeyword / minSize /
+// maxSize filters, newest first, position + limit), Email/get, Thread/get
+// (including result references) and SearchSnippet/get (every word of the
+// filter's text/subject/body terms wrapped in <mark>), and applies Email/set
+// updates and destroys. Every
 // request is recorded so a test can check which method calls went out, and
 // in how many requests. Text conditions are matched the way Stalwart's
 // built-in index does (see lib/__tests__/stalwart-text-model), 1.0 unless
@@ -23,8 +25,38 @@ function matches(email: FakeEmail, filter: Filter | undefined, textModel: Stalwa
     if (key === 'inMailboxOtherThan') return !(value as string[]).some((id) => email.mailboxIds[id]);
     if (key === 'hasKeyword') return !!email.keywords[value as string];
     if (key === 'notKeyword') return !email.keywords[value as string];
+    if (key === 'minSize') return (email.size ?? 0) >= (value as number);
+    if (key === 'maxSize') return (email.size ?? 0) < (value as number);
     throw new Error(`fake server: unsupported filter ${key}`);
   });
+}
+
+// The words of a filter's highlightable terms, lower-cased.
+function snippetWords(filter: Filter | undefined, out = new Set<string>()): Set<string> {
+  if (!filter) return out;
+  if (Array.isArray(filter.conditions)) {
+    for (const c of filter.conditions as Filter[]) snippetWords(c, out);
+    return out;
+  }
+  for (const key of ['text', 'subject', 'body']) {
+    const value = filter[key];
+    if (typeof value !== 'string') continue;
+    for (const w of value.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) out.add(w);
+  }
+  return out;
+}
+
+// `text` HTML-escaped, with every word in `words` wrapped in <mark>; null
+// when nothing matched (as Stalwart answers for a field without a hit).
+function markWords(text: string, words: Set<string>): string | null {
+  let hit = false;
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const marked = escaped.replace(/[\p{L}\p{N}]+/gu, (w) => {
+    if (!words.has(w.toLowerCase())) return w;
+    hit = true;
+    return `<mark>${w}</mark>`;
+  });
+  return hit ? marked : null;
 }
 
 function unescapePointer(segment: string): string {
@@ -41,9 +73,18 @@ export function createFakeJmap(
   const failing = new Map<string, string>();
   /** JMAP account id → messages whose Email/set updates it refuses as `forbidden`. */
   const refusing = new Map<string, Set<string>>();
+  /** While set, requests carrying a SearchSnippet/get wait for it. */
+  let snippetGate: Promise<void> | null = null;
+  /** Hold every SearchSnippet/get answer until the returned function is called. */
+  const holdSnippets = () => {
+    let release!: () => void;
+    snippetGate = new Promise<void>((resolve) => { release = resolve; });
+    return () => { snippetGate = null; release(); };
+  };
 
   const request = async (calls: JMAPMethodCall[]) => {
     requests.push(calls);
+    if (snippetGate && calls.some(([name]) => name === 'SearchSnippet/get')) await snippetGate;
     const responses: Array<[string, Record<string, any>, string]> = [];
     const byCallId = new Map<string, [string, Record<string, any>, string]>();
     for (const [name, args, callId] of calls) {
@@ -91,6 +132,14 @@ export function createFakeJmap(
             emailIds: store.filter((e) => e.threadId === id).map((e) => e.id),
           }));
           response = ['Thread/get', { accountId, list, state: 't', notFound: [] }, callId];
+        } else if (name === 'SearchSnippet/get') {
+          const words = snippetWords(args.filter as Filter);
+          const list = ((args.emailIds ?? []) as string[]).flatMap((id) => {
+            const email = store.find((e) => e.id === id);
+            if (!email) return [];
+            return [{ emailId: id, subject: markWords(email.subject ?? '', words), preview: markWords(email.preview ?? '', words) }];
+          });
+          response = ['SearchSnippet/get', { accountId, list, notFound: [] }, callId];
         } else if (name === 'Email/set') {
           const updated: Record<string, null> = {};
           const notUpdated: Record<string, { type: string }> = {};
@@ -137,5 +186,5 @@ export function createFakeJmap(
   /** The calls of `name` sent so far. */
   const callsOf = (name: string) => calls().filter(([n]) => n === name);
 
-  return { request, requests, calls, callsOf, failing, refusing, accounts };
+  return { request, requests, calls, callsOf, failing, refusing, accounts, holdSnippets };
 }

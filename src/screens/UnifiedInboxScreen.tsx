@@ -15,8 +15,10 @@ import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import {
   fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash,
-  type UnifiedEmail, type UnifiedRole, type CrossView,
+  unifiedSnippetStamp, type UnifiedEmail, type UnifiedRole, type CrossView, type UnifiedInboxResult,
 } from '../api/unified-inbox';
+import { withSearchSnippets } from '../lib/search-snippet';
+import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
@@ -103,6 +105,15 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     [includeGroup, query, role, view],
   );
 
+  // A search page's highlights, once they land, while that search is still
+  // the one on screen (a new load bumps `loadSeq`).
+  const highlight = React.useCallback((result: UnifiedInboxResult, seq: number) => {
+    void result.snippets?.then((batches) => {
+      if (seq !== loadSeq.current) return;
+      setEmails((prev) => withSearchSnippets(prev, batches, unifiedSnippetStamp));
+    });
+  }, []);
+
   const load = React.useCallback(async () => {
     const seq = ++loadSeq.current;
     const active = useAuthStore.getState().activeAccountId;
@@ -115,10 +126,11 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
       hasMoreRef.current = result.hasMore;
       setEmails(result.emails);
       setErrors(result.errors);
+      highlight(result, seq);
     } finally {
       if (seq === loadSeq.current) setLoading(false);
     }
-  }, [accountIds, fetchOpts, reloadTracker]);
+  }, [accountIds, fetchOpts, reloadTracker, highlight]);
 
   const loadMore = React.useCallback(async () => {
     if (loading || loadingMore || !hasMoreRef.current) return;
@@ -138,10 +150,11 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         for (const e of result.emails) if (!seen.has(rowKey(e))) merged.push(e);
         return merged.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
       });
+      highlight(result, seq);
     } finally {
       setLoadingMore(false);
     }
-  }, [accountIds, fetchOpts, loading, loadingMore]);
+  }, [accountIds, fetchOpts, loading, loadingMore, highlight]);
 
   // Reload whenever the inputs change, and on coming back into focus only
   // when something may have changed meanwhile (a message read or deleted in
@@ -373,7 +386,9 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               <Text style={[styles.time, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
             </View>
             <Text style={[styles.subject, dyn.body, unread && styles.bold]} numberOfLines={1}>
-              {singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}
+              {item.searchSnippet?.subject
+                ? <SearchSnippetText snippet={item.searchSnippet.subject} />
+                : singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}
             </Text>
             <View style={styles.line}>
               {acc && accountIds.length > 1 && (
@@ -396,8 +411,12 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               )}
             </View>
             {/* Same settings as the folder list: preview on/off, density, text size. */}
-            {item.preview && showPreview && density.showPreview ? (
-              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>{singleLine(cleanPreview(item.preview))}</Text>
+            {(item.searchSnippet?.preview || item.preview) && showPreview && density.showPreview ? (
+              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>
+                {item.searchSnippet?.preview
+                  ? <SearchSnippetText snippet={item.searchSnippet.preview} />
+                  : singleLine(cleanPreview(item.preview))}
+              </Text>
             ) : null}
           </View>
         </Pressable>

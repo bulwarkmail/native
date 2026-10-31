@@ -19,6 +19,7 @@ import {
   getThreads,
   getFullEmail,
   importEmailBlob,
+  getSearchSnippets,
   patchKeywordsForEmails,
   patchKeywordsPerEmail,
   moveEmail,
@@ -43,6 +44,7 @@ import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
 import { textConditions } from '../lib/search-utils';
+import { filterHasSnippetTerms, withSearchSnippets, type SnippetBatch } from '../lib/search-snippet';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
@@ -727,6 +729,56 @@ function listComparator(state: EmailState): (a: Email, b: Email) => number {
 }
 
 /**
+ * Highlights the rows of a search page once their SearchSnippet/get lands
+ * (webmail highlightWhenSnippetsArrive, 2d67442a2). The page is listed
+ * first and the excerpts follow in a request of their own, one call per
+ * account of the page: chained onto the query they held the whole page back
+ * while the server excerpted every hit. They are applied only while the same
+ * search is still on screen in the same account; matching ids would not do,
+ * since a folder opened meanwhile can hold the same messages and must not
+ * show search excerpts. Rows of a list spanning accounts are stamped with
+ * their account and get that account's snippets only; the rows of one folder
+ * are asked in `accountId` (undefined = the user's own).
+ */
+function highlightSearchHits(
+  view: Pick<EmailState, 'searchQuery' | 'filters'>,
+  filter: Record<string, unknown> | undefined,
+  rows: Email[],
+  accountId: string | undefined,
+): void {
+  if (!filter || rows.length === 0 || !filterHasSnippetTerms(filter)) return;
+  const { activeAccountId, currentMailboxId, searchQuery, filters } = useEmailStore.getState();
+  // The page was asked for another search than the one now on screen.
+  if (searchQuery !== view.searchQuery || filters !== view.filters) return;
+  const groups = new Map<string, { accountId?: string; stamp?: string; emailIds: string[] }>();
+  for (const e of rows) {
+    const key = e.jmapAccountId ?? '';
+    let group = groups.get(key);
+    if (!group) {
+      group = { accountId: e.jmapAccountId ?? accountId, stamp: e.jmapAccountId, emailIds: [] };
+      groups.set(key, group);
+    }
+    group.emailIds.push(e.id);
+  }
+  const list = [...groups.values()];
+  void getSearchSnippets(filter, list).then((results) => {
+    const state = useEmailStore.getState();
+    if (
+      state.activeAccountId !== activeAccountId || state.currentMailboxId !== currentMailboxId ||
+      state.searchQuery !== searchQuery || state.filters !== filters ||
+      !jmapClientServesActiveAccount(activeAccountId)
+    ) return;
+    const batches: SnippetBatch[] = [];
+    list.forEach((group, i) => {
+      const found = results[i];
+      if (found) batches.push({ accountId: group.stamp, list: found });
+    });
+    const emails = withSearchSnippets(state.emails, batches);
+    if (emails !== state.emails) useEmailStore.setState({ emails });
+  }).catch(() => { /* the rows keep their plain subject and preview */ });
+}
+
+/**
  * The total that drives load-more. RFC 8620 makes Email/query's `total`
  * optional and some servers leave it out (#1364); the API layer reads a
  * missing one as 0, which stopped the list after its first page. A total
@@ -1256,9 +1308,9 @@ export const useEmailStore = create<EmailState>()(
           now.searchQuery !== searchQuery || now.filters !== filters
         ) return;
         const shown = new Set(now.emails.map(rowKeyOf));
+        const added = page.list.filter((e) => !shown.has(rowKeyOf(e)));
         set({
-          emails: [...now.emails, ...page.list.filter((e) => !shown.has(rowKeyOf(e)))]
-            .sort(listComparator(now)),
+          emails: [...now.emails, ...added].sort(listComparator(now)),
           // An account that failed this time keeps counting what it showed,
           // so load-more doesn't keep asking for it.
           totalEmails: page.total + Object.keys(page.errors).reduce((n, id) => n + (loaded[id] ?? 0), 0),
@@ -1266,6 +1318,7 @@ export const useEmailStore = create<EmailState>()(
           accountErrors: page.errors,
           loading: false,
         });
+        highlightSearchHits({ searchQuery, filters }, filter, added, undefined);
         return;
       }
       const { list, total: serverTotal, ids, threads } = await queryEmailPage(scope.mailboxId, {
@@ -1303,6 +1356,7 @@ export const useEmailStore = create<EmailState>()(
         };
       }
       set(updates);
+      highlightSearchHits({ searchQuery, filters }, filter, newEmails, scope.accountId);
     } catch (err) {
       if (get().activeAccountId !== activeAccountId) return;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load more' });
@@ -3153,6 +3207,7 @@ async function refreshEmailsImpl(): Promise<void> {
           accountErrors: page.errors,
           loading: false,
         });
+        highlightSearchHits({ searchQuery, filters }, filter, page.list, undefined);
         return;
       }
       const threads = !useSettingsStore.getState().disableThreading;
@@ -3197,6 +3252,7 @@ async function refreshEmailsImpl(): Promise<void> {
         };
       }
       set(updates);
+      if (!baseView) highlightSearchHits({ searchQuery, filters }, filter, queryRes.list, scope.accountId);
     } catch (err) {
       console.warn('[email-store] refreshEmails failed:', err);
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;

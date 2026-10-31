@@ -8,6 +8,9 @@ import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { secureFetch } from '../lib/client-cert';
 import { freshStoredCredentials } from '../lib/stored-token-refresh';
 import { textConditions } from '../lib/search-utils';
+import {
+  filterHasSnippetTerms, snippetFilterFor, type SearchSnippetResult, type SnippetBatch,
+} from '../lib/search-snippet';
 import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
@@ -66,6 +69,13 @@ export interface UnifiedInboxResult {
   /** Per-target paging cursors to pass back as `positions` for the next page. */
   positions: Record<string, number>;
   hasMore: boolean;
+  /**
+   * With a search, the SearchSnippet/get excerpts of this page, already in
+   * flight: one batch per account, keyed by `unifiedSnippetStamp`, for
+   * `withSearchSnippets(emails, batches, unifiedSnippetStamp)`. The page is
+   * listed without waiting for them (webmail 2d67442a2). Never rejects.
+   */
+  snippets?: Promise<SnippetBatch[]>;
 }
 
 export interface UnifiedFetchOptions {
@@ -344,13 +354,21 @@ function targetKey(accountId: string, jmapAccountId: string): string {
   return `${accountId}|${jmapAccountId}`;
 }
 
+/**
+ * The account a unified row's search snippets are keyed by: ids repeat
+ * across logins and their shared accounts.
+ */
+export function unifiedSnippetStamp(email: UnifiedEmail): string {
+  return targetKey(email.sourceAccountId, email.jmapAccountId);
+}
+
 async function fetchTarget(
   entry: AccountEntry,
   target: { jmapId: string; isShared: boolean; label?: string },
   opts: UnifiedFetchOptions,
   position: number,
   limit: number,
-): Promise<{ emails: UnifiedEmail[]; hasMore: boolean }> {
+): Promise<{ emails: UnifiedEmail[]; hasMore: boolean; snippets?: Promise<SearchSnippetResult[] | undefined> }> {
   const mailboxes = await mailboxesFor(entry, target.jmapId);
   const filter = buildFilter(mailboxes, opts);
   if (!filter) return { emails: [], hasMore: false };
@@ -391,7 +409,20 @@ async function fetchTarget(
     } as UnifiedEmail];
   });
   const hasMore = total !== undefined ? position + ids.length < total : ids.length === limit;
-  return { emails, hasMore };
+  // The highlights of a search, in a request of their own so the page
+  // doesn't wait for the server to excerpt every hit.
+  if (emails.length === 0 || !filterHasSnippetTerms(filter)) return { emails, hasMore };
+  const snippets = entry.transport.post([
+    ['SearchSnippet/get', {
+      accountId: target.jmapId,
+      filter: snippetFilterFor(filter),
+      emailIds: emails.map((e) => e.id),
+    }, 's'],
+  ]).then((sres) => {
+    const [name, body] = sres[0] ?? [];
+    return name === 'SearchSnippet/get' ? ((body?.list as SearchSnippetResult[]) ?? []) : undefined;
+  }).catch(() => undefined);
+  return { emails, hasMore, snippets };
 }
 
 /**
@@ -410,6 +441,7 @@ export async function fetchUnifiedInbox(
   const errors: Record<string, string> = {};
   const positions: Record<string, number> = { ...(opts.positions ?? {}) };
   let hasMore = false;
+  const snippetBatches: Array<Promise<SnippetBatch | null>> = [];
 
   const settled = await Promise.all(
     accountIds.map(async (accountId) => {
@@ -428,6 +460,9 @@ export async function fetchUnifiedInbox(
             const page = await fetchTarget(entry, target, opts, position, perAccountLimit);
             positions[key] = position + page.emails.length;
             if (page.hasMore) hasMore = true;
+            if (page.snippets) {
+              snippetBatches.push(page.snippets.then((list) => (list ? { accountId: key, list } : null)));
+            }
             return page.emails;
           } catch (err) {
             // A single inaccessible shared account shouldn't sink the whole
@@ -447,7 +482,12 @@ export async function fetchUnifiedInbox(
   const emails = settled
     .flat()
     .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-  return { emails, errors, positions, hasMore };
+  const result: UnifiedInboxResult = { emails, errors, positions, hasMore };
+  if (snippetBatches.length > 0) {
+    result.snippets = Promise.all(snippetBatches)
+      .then((batches) => batches.filter((b): b is SnippetBatch => b !== null));
+  }
+  return result;
 }
 
 // ── Actions routed to the owning account ────────────────────────────────

@@ -12,6 +12,7 @@ import {
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
 import { textFilter } from '../lib/search-utils';
+import { snippetFilterFor, type SearchSnippetResult } from '../lib/search-snippet';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
@@ -1492,6 +1493,47 @@ export async function searchEmails(
     }, '0'],
   ]);
   return (requireMethodResult(res, '0', 'Email/query').ids as string[]) ?? [];
+}
+
+/**
+ * The SearchSnippet/get excerpts (RFC 8621 §5) of the rows of a result
+ * page, per group of rows that live in one JMAP account (undefined = the
+ * user's own). One call per account in as few requests as the server's
+ * `maxCallsInRequest` allows. The search filter's terms are loosened first
+ * (see snippetFilterFor). The highlights only decorate the rows, so this
+ * never rejects: an account whose call fails, or a server without the
+ * method, yields `undefined` for that group and the rows keep their plain
+ * subject and preview (webmail `deferredSnippets`).
+ */
+export async function getSearchSnippets(
+  filter: Record<string, unknown>,
+  groups: Array<{ accountId?: string; emailIds: string[] }>,
+): Promise<Array<SearchSnippetResult[] | undefined>> {
+  const out: Array<SearchSnippetResult[] | undefined> = groups.map(() => undefined);
+  const snippetFilter = snippetFilterFor(filter);
+  const calls: Array<{ index: number; call: JMAPMethodCall }> = [];
+  groups.forEach((group, index) => {
+    const accountId = group.accountId ?? jmapClient.accountId;
+    batched(group.emailIds, maxInGet()).forEach((emailIds, part) => {
+      calls.push({ index, call: ['SearchSnippet/get', { accountId, filter: snippetFilter, emailIds }, `${index}:${part}`] });
+    });
+  });
+  const perRequest = Math.max(1, typeof jmapClient.getMaxCallsInRequest === 'function' ? jmapClient.getMaxCallsInRequest() : 16);
+  await Promise.all(batched(calls, perRequest).map(async (chunk) => {
+    let res: Awaited<ReturnType<typeof jmapClient.request>>;
+    try {
+      res = await jmapClient.request(chunk.map((c) => c.call));
+    } catch {
+      return;
+    }
+    for (const { index, call } of chunk) {
+      try {
+        const list = (requireMethodResult(res, call[2], 'SearchSnippet/get').list as SearchSnippetResult[]) ?? [];
+        out[index] = [...(out[index] ?? []), ...list];
+      } catch { /* this account's rows stay without highlights */ }
+    }
+  }));
+  return out;
 }
 
 // Cross-mailbox query with an arbitrary JMAP filter (used by contact activity

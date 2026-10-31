@@ -154,6 +154,9 @@ function seed() {
 }
 
 const ids = () => useEmailStore.getState().emails.map((e) => e.id);
+// The requests that load the list: a search's highlights follow in a request
+// of their own (SearchSnippet/get), which these tests don't count.
+const listRequests = () => server.current!.requests.filter((r) => !r.every(([n]) => n === 'SearchSnippet/get'));
 
 // "All folders" picked explicitly, unless a test picked a folder: the default
 // scope also leaves Trash and Junk out (see "the default search scope").
@@ -199,7 +202,7 @@ describe('the default search scope', () => {
     await searchDefault('zephyr');
 
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
-    expect(server.current!.requests).toHaveLength(1);
+    expect(listRequests()).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, args]) => [args.accountId, args.filter])).toEqual([
       ['c', { operator: 'AND', conditions: [{ text: 'zephyr' }, { inMailboxOtherThan: ['trash', 'junk'] }] }],
@@ -229,7 +232,7 @@ describe('"All folders" search across the own and the team account (#1082)', () 
 
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3', 'm5']);
     expect(useEmailStore.getState().totalEmails).toBe(8);
-    expect(server.current!.requests).toHaveLength(1);
+    expect(listRequests()).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, args]) => args.accountId)).toEqual(['c', 'team']);
     for (const [, args] of queries) expect(args.filter).toEqual({ text: 'zephyr' });
@@ -272,18 +275,18 @@ describe('"All folders" search across the own and the team account (#1082)', () 
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
 
     await useEmailStore.getState().loadMoreEmails();
-    const page2 = server.current!.requests[1].filter(([n]) => n === 'Email/query');
+    const page2 = listRequests()[1].filter(([n]) => n === 'Email/query');
     expect(page2.map(([, a]) => [a.accountId, a.position])).toEqual([['c', 2], ['team', 2]]);
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
 
     await useEmailStore.getState().loadMoreEmails();
-    const page3 = server.current!.requests[2].filter(([n]) => n === 'Email/query');
+    const page3 = listRequests()[2].filter(([n]) => n === 'Email/query');
     expect(page3.map(([, a]) => [a.accountId, a.position])).toEqual([['c', 3], ['team', 4]]);
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3', 'm5']);
 
     // Everything is loaded: no further request.
     await useEmailStore.getState().loadMoreEmails();
-    expect(server.current!.requests).toHaveLength(3);
+    expect(listRequests()).toHaveLength(3);
   });
 
   it('shows the reachable account\'s hits when the other one fails', async () => {
@@ -647,7 +650,7 @@ describe('tag view across the own and the team account (#1038)', () => {
     await openTag('team:t-inbox');
 
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
-    expect(server.current!.requests).toHaveLength(1);
+    expect(listRequests()).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
     // Each account leaves its own Trash and Junk out (webmail #1156).
     expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
@@ -670,7 +673,7 @@ describe('tag view across the own and the team account (#1038)', () => {
     // one prefix containing a space and found nothing (P1-7).
     await vi.waitFor(() => expect(ids()).toEqual(['m2', 'o2']));
 
-    const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
+    const last = listRequests().at(-1)!.filter(([n]) => n === 'Email/query');
     expect(last.map(([, a]) => a.filter)).toEqual([
       { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }, { inMailboxOtherThan: ['trash', 'junk'] }] },
       { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }, { inMailboxOtherThan: ['t-trash', 't-junk'] }] },
@@ -689,7 +692,7 @@ describe('tag view across the own and the team account (#1038)', () => {
       await openTag('inbox');
       useEmailStore.getState().setSearchQuery('"red 2" notes');
       await vi.waitFor(() => {
-        const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
+        const last = listRequests().at(-1)!.filter(([n]) => n === 'Email/query');
         expect(last[0][1].filter).toEqual({
           operator: 'AND',
           conditions: [{ text: '"red 2"' }, { text: 'notes' }, { hasKeyword: RED }, { inMailboxOtherThan: ['trash', 'junk'] }],
@@ -719,7 +722,7 @@ describe('tag view across the own and the team account (#1038)', () => {
 
     await useEmailStore.getState().loadMoreEmails();
 
-    const page2 = server.current!.requests[1].filter(([n]) => n === 'Email/query');
+    const page2 = listRequests()[1].filter(([n]) => n === 'Email/query');
     expect(page2.map(([, a]) => [a.accountId, a.position])).toEqual([['c', 1], ['team', 1]]);
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
   });

@@ -99,6 +99,13 @@ export interface Email {
    * belong to the folder's account.
    */
   jmapAccountId?: string;
+  /**
+   * Client-side, never sent by the server: a search hit's SearchSnippet/get
+   * excerpts (RFC 8621 §5) with the matched terms in `<mark>`, HTML-escaped
+   * otherwise. Set only when at least one of them marks something; the row
+   * shows them in place of the subject and preview (src/lib/search-snippet).
+   */
+  searchSnippet?: { subject: string | null; preview: string | null };
 }
 
 export interface MailboxRights {
