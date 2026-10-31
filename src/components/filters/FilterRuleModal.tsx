@@ -45,6 +45,7 @@ import { SafeAreaModal } from '../SafeAreaModal';
 import { useFilterStore } from '../../stores/filter-store';
 import { forwardsOfEditedRule, ruleForwardLimit } from '../../lib/sieve/forward-limit';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { folderOptionLabel, mailboxesByTargetId } from './folder-option-label';
 import { useModalKeyboardPadding } from '../../lib/sheet-bottom-inset';
 
 const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment', 'all'];
@@ -131,6 +132,7 @@ export function FilterRuleModal({
   const periodProblem = periodOn ? periodError(activeFrom, activeUntil) : null;
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
+  const mailboxById = useMemo(() => mailboxesByTargetId(mailboxes), [mailboxes]);
 
   // A message can collect only so many forwards on the server (#1155, #1208).
   const listedRules = useFilterStore((s) => s.rules);
@@ -216,7 +218,10 @@ export function FilterRuleModal({
   // listed (deleted, or its account's folders not loaded) stays selectable
   // under its path, so saving doesn't silently retarget the rule.
   const folderOptions = (action: FilterAction) => {
-    const options = mailboxTargets.map((target) => ({ value: target.id, label: target.label }));
+    const options = mailboxTargets.map((target) => ({
+      value: target.id,
+      label: folderOptionLabel(target, mailboxById.get(target.id), t),
+    }));
     const selected = mailboxIdFor(action, mailboxTargets);
     if (!options.some((o) => o.value === selected) && (selected || action.value)) {
       options.unshift({ value: selected, label: action.value || selected });
