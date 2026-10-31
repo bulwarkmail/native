@@ -2,7 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Paperclip, Reply, ReplyAll, Forward, Star } from '../icons';
 import type { Email } from '../../api/types';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, typography as tokenTypography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { useTypography } from '../../theme/dynamic';
+// The user's text size (Settings > Accessibility), as the list has it.
+type ScaledTypography = ReturnType<typeof useTypography>;
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -42,7 +45,8 @@ export function ThreadMessageCard({
 }: Props) {
   const { email, onToggleStar } = content;
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
@@ -113,7 +117,8 @@ export function ThreadMessageCard({
  */
 export function ThreadCardPlaceholder() {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   return (
     <View style={styles.collapsed}>
       <View style={styles.placeholderAvatar} />
@@ -125,7 +130,7 @@ export function ThreadCardPlaceholder() {
   );
 }
 
-function makeStyles(c: ThemePalette) {
+function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypography) {
   return StyleSheet.create({
     collapsed: {
       flexDirection: 'row',

@@ -20,7 +20,10 @@ import { cardReplyActions } from '../lib/thread-card-actions';
 import { NewTagRow } from '../components/NewTagRow';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, typography as tokenTypography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useTypography } from '../theme/dynamic';
+// The user's text size (Settings > Accessibility), as the list has it.
+type ScaledTypography = ReturnType<typeof useTypography>;
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
 import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
@@ -97,7 +100,8 @@ export default function EmailThreadScreen(props: Props) {
 
 function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Props) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const { t } = useLocaleStore();
   // The JMAP account the message lives in, as the screen that opened it named
   // it (undefined = the user's own). Never the open folder's: that may be
@@ -1398,7 +1402,8 @@ function MoreMenuSheet({
   onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(600)).current;
@@ -1564,7 +1569,8 @@ interface TagMenuSheetProps {
 
 function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: TagMenuSheetProps) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
@@ -1649,7 +1655,8 @@ function MoreMenuItem({
   icon, label, onPress, trailing,
 }: { icon: React.ReactNode; label: string; onPress?: () => void; trailing?: React.ReactNode }) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   return (
     <Pressable
       onPress={onPress}
@@ -1666,7 +1673,8 @@ function ToolbarButton({
   icon, label, onPress,
 }: { icon: React.ReactNode; label: string; onPress?: () => void }) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   // Icons only in a short (landscape) window, which leaves room for the message.
   const labelsSetting = useSettingsStore((s) => s.showToolbarLabels);
   const { shortHeight } = useLayout();
@@ -1688,7 +1696,8 @@ function BottomBarButton({
   icon, label, onPress, disabled,
 }: { icon: React.ReactNode; label: string; onPress?: () => void; disabled?: boolean }) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   // Icons only in a short (landscape) window, which leaves room for the message.
   const labelsSetting = useSettingsStore((s) => s.showToolbarLabels);
   const { shortHeight } = useLayout();
@@ -1710,7 +1719,7 @@ function BottomBarButton({
   );
 }
 
-function makeStyles(c: ThemePalette) {
+function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypography) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
 
@@ -1786,9 +1795,10 @@ function makeStyles(c: ThemePalette) {
   // Webmail viewer on a phone: text-lg font-bold tracking-tight.
   subjectText: {
     flex: 1,
-    fontSize: 18,
+    // 18 / 26 at the default text size, scaled with it.
+    fontSize: typography.h3.fontSize,
     fontWeight: '700',
-    lineHeight: 26,
+    lineHeight: Math.round((26 * typography.h3.fontSize) / 18),
     color: c.text,
     letterSpacing: -0.2,
   },

@@ -4,7 +4,10 @@ import {
   Star, ChevronDown, ChevronUp, Reply, Forward, ShieldCheck, ShieldAlert, ShieldQuestion, Lock,
 } from '../icons';
 import type { Email, EmailAddress, Identity } from '../../api/types';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, typography, typography as tokenTypography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { useTypography } from '../../theme/dynamic';
+// The user's text size (Settings > Accessibility), as the list has it.
+type ScaledTypography = ReturnType<typeof useTypography>;
 import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -99,7 +102,8 @@ function DetailRow({ label, value, styles, mono }: { label: string; value?: stri
  */
 export function MessageHeader({ email, identities, headerInfo, onToggleStar, onAddressPress, compact, jmapAccountId }: Props) {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const scaledType = useTypography();
+  const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
@@ -372,7 +376,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   );
 }
 
-function makeStyles(c: ThemePalette) {
+function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypography) {
   return StyleSheet.create({
     block: {
       backgroundColor: c.background,
@@ -430,7 +434,7 @@ function makeStyles(c: ThemePalette) {
     detailRow: { flexDirection: 'row', gap: spacing.sm },
     detailLabel: { ...typography.caption, color: c.textMuted, width: 92 },
     detailValue: { ...typography.caption, color: c.text, flex: 1 },
-    detailMono: { fontFamily: 'monospace', fontSize: 11 },
+    detailMono: { fontFamily: 'monospace', fontSize: Math.round((11 * typography.caption.fontSize) / 12) },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs },
     chip: {
       flexDirection: 'row',
