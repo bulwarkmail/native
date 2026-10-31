@@ -44,6 +44,7 @@ import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
+import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import {
   sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, SendUnconfirmedError,
   type OutgoingAttachment, type OutgoingEmail,
@@ -96,6 +97,7 @@ import { RecipientPicker } from '../components/compose/RecipientPicker';
 import { isPickerReopenTooSoon, needsRecipientPicker } from '../lib/recipient-picker';
 import { useOutboxStore } from '../stores/outbox-store';
 import { useNetworkStore } from '../stores/network-store';
+import { useAuthStore } from '../stores/auth-store';
 import { isTransientNetworkError } from '../lib/network-error';
 import { classifySendFailure, shouldQueueFailedSend } from '../lib/send-queue';
 import {
@@ -811,20 +813,37 @@ export default function ComposeScreen({ route, navigation }: Props) {
     inputSetterFor(field)('');
   };
 
+  // The identities last read for this login stand in while the server can't
+  // be asked (offline, or the session not up yet), so From and Send work and
+  // the message waits in the Outbox. Read again once back online, or once
+  // the session is up.
+  const online = useNetworkStore((s) => s.online);
+  const sessionUp = useAuthStore((s) => !!s.session);
+  const [identitiesFresh, setIdentitiesFresh] = React.useState(false);
   React.useEffect(() => {
+    if (identitiesFresh) return;
     let cancelled = false;
+    const login = useAccountStore.getState().activeAccountId;
     void (async () => {
-      try {
-        const list = await getIdentities();
-        if (!cancelled) setIdentities(list);
-      } catch (e) {
-        if (!cancelled) {
-          setIdentityError(e instanceof Error ? e.message : 'Failed to load identities');
+      if (!online) {
+        const cached = await readCachedIdentities(login);
+        if (!cancelled && cached.length > 0) {
+          setIdentities((prev) => (prev.length > 0 ? prev : cached));
+          setIdentityError(null);
         }
       }
+      const result = await loadComposerIdentities(login, () => getIdentities());
+      if (cancelled) return;
+      if (result.identities.length > 0 || result.fresh) {
+        setIdentities(result.identities);
+        setIdentityError(null);
+      } else if (result.error) {
+        setIdentityError(result.error);
+      }
+      setIdentitiesFresh(result.fresh);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [online, sessionUp, identitiesFresh]);
 
   // Once the identities are known, recompute the reply recipients so every
   // own alias is dropped from a reply-all (the initial seed only knew the
