@@ -69,6 +69,7 @@ import { filesGridLayout } from '../lib/files-grid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatListDate } from '../lib/date-format';
 import { useLayout, useSheetInsets } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import { driveChange, type DriveScope } from '../lib/files-drive';
@@ -1807,6 +1808,7 @@ function ActionsSheet({
 }: ActionsSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const formatModified = useFormatModified();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
@@ -1828,7 +1830,7 @@ function ActionsSheet({
         <TouchableWithoutFeedback accessible={false} onPress={onClose}>
           <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
             <TouchableWithoutFeedback accessible={false}>
-              <View style={styles.sheet}>
+              <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
                 <Text style={styles.sheetTitle} numberOfLines={1}>
                   {target.displayName}
                 </Text>
@@ -1871,7 +1873,7 @@ function ActionsSheet({
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {target.displayName}
               </Text>
@@ -1961,6 +1963,7 @@ interface FolderPickerSheetProps {
 function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: FolderPickerSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   const options = useMemo(() => {
@@ -2003,7 +2006,7 @@ function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: 
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {t('files.move_to', 'Move to…')} · {target.displayName}
               </Text>
@@ -2051,6 +2054,7 @@ interface SortSheetProps {
 function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChangeDir }: SortSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!visible) return null;
@@ -2060,7 +2064,7 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Sort')}</Text>
               {keys.map((k) => (
                 <Pressable key={k} style={styles.action} onPress={() => { onChangeKey(k); onClose(); }}>

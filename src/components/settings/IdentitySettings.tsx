@@ -29,6 +29,7 @@ import { sanitizeDisplayName } from '../../lib/rfc5322-mailbox';
 import { sanitizeSignatureHtml } from '../../lib/signature-utils';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import Badge from '../Badge';
 import { identityDraftChanged } from './identity-draft';
 
@@ -98,6 +99,7 @@ function parseAddressList(value: string): { list: EmailAddress[]; invalid: strin
 export function IdentitySettings() {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const identities = useSettingsStore((s) => s.identities);
@@ -330,7 +332,7 @@ export function IdentitySettings() {
 
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editing} animationType="slide" transparent onRequestClose={requestClose}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: bottomInset }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editing?.id ? t('settings.identities.edit', "Edit identity") : t('settings.identities.create', "New identity")}

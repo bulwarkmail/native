@@ -27,6 +27,7 @@ import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import Badge from '../Badge';
 
 const ROLE_ICON: Record<string, any> = {
@@ -68,6 +69,7 @@ function pathOf(all: Mailbox[], mb: Mailbox, t: (k: string, f?: string) => strin
 export function FolderSettings() {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -300,7 +302,7 @@ export function FolderSettings() {
 
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
         <View style={[styles.modalOverlay, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: bottomInset }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editor?.kind === 'edit'

@@ -22,6 +22,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 
 type RolePreset = 'read' | 'readWrite' | 'manager';
 
@@ -71,6 +72,7 @@ interface ShareSheetProps {
 export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset();
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -189,7 +191,7 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <View style={styles.titleRow}>
                 <Icon size={18} color={c.textMuted} />
                 <Text style={styles.title} numberOfLines={1}>
