@@ -211,6 +211,36 @@ Upgrades:
   works on stw-v016 and stw-rel, and stw-rel seeds cleanly.
 - stw-v016 is on 0.16.27, the newest 0.16. Not reset yet.
 
+## Decisions (2026-10-31)
+
+1. #85: Delete from the notification skips the unlock only when the account
+   has a Trash; without one the unlock stays.
+2. Org policy: store the webmail URL from pairing or hand-off and apply the
+   global policy now.
+3. Webmail changes: yes. The hand-off one-time code and a policy route that
+   takes the app's token get built in the webmail repo too.
+4. MIG-02: keep the account and ask to sign in again; same for an expired
+   pasted token.
+5. TOTP password change on 0.16: show a clear "sign in again" message.
+6. Translations: German by hand, the other 25 locales by an agent.
+7. Notification or deep link switching the account resets the navigation.
+8. The four small behaviours stay as they are.
+9. Port in the account switcher: always when it isn't the default.
+10. Dependencies: the SDK 54 updates now (postal-mime 4.2, React Navigation
+    7.5.1, patch updates, SDK 54 patch line, lockfile). SDK 58 is separate.
+11. The large items formerly under "Not in this run": all of them, by agents,
+    on this branch after the fixes.
+12. U-017, U-124, U-136, U-018 stay as they are.
+13. PR #66 and the ios-perf branch: take both.
+14. C:\ns and the native-sync worktree stay on disk.
+15. Screenshot protection: yes, with the dependency install.
+16. End the identity provider session at sign-out: yes.
+17. CI: push to main.
+
+The shared userc@example.org test password showed up once in an emulator
+agent's output (a missed tap typed it into the visible username field). It
+was rotated on stw-v016, stw-v1 and stw-rel and in the vault on 2026-10-31.
+
 ## Plan
 
 Wave 1 runs four agents with disjoint files. Wave 2 takes the larger
