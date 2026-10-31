@@ -135,7 +135,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: no page (`src/screens/SettingsScreen.tsx:150-174`); text size 0.92/1/1.12 (`src/theme/dynamic.ts:14-18`). Text follows the system font scale; reduce motion follows the system (`src/theme/dynamic.ts:88-120`).
   - Fix hint: a page that groups the existing switches, widens the text size range and takes the presets that make sense on a phone.
 
-- [x] **Form fields have no name for screen readers** — `P2` — `bug` — fixed in ff5a8c91 (settings and sign-in; contact form and event editor are listed for their branches)
+- [x] **Form fields have no name for screen readers** — `P2` — `bug` — fixed in ff5a8c91 (settings and sign-in), 98b962a8 (composer, quick reply, folder name prompt, template search); contact form, event editor, Files, the mail list search and the auto-reply editor are listed for their branches
   - What WEB does: every field has a label tied to it (`components/ui/field.tsx:42`; ef13556a0, 0e2a05e0e, dcc21acd0, 4e2affe40, f73643bbb).
   - What RN does: the shared Input draws its label as separate Text (`src/components/Input.tsx:40-55`); the Security password and code fields have no label at all (`src/components/settings/AccountSecuritySettings.tsx:181`, `:191`, `:198`); contact fields rely on placeholders (`src/screens/ContactFormScreen.tsx:823-834`); the reminder field's only name is "30" (`src/components/calendar/EventModal.tsx:772`, `:817`).
   - Fix hint: Input passes its label as accessibilityLabel; every bare TextInput gets one.
@@ -185,7 +185,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: TotpRequiredError sets a notice (`src/screens/LoginScreen.tsx:389-391`) shown in the error tone (`src/screens/login/PasswordStep.tsx:151`, `src/screens/login/LoginNotice.tsx:15-24`).
   - Fix hint: `tone="info"` for the TOTP step.
 
-- [x] **Two accounts with the same name look alike in the switcher** — `P3` — `bug` — fixed in 505fbc59 (Settings > Account and the shared accountRowText; the switcher row in SidebarDrawer goes with the reader branch; the port waits for question 9)
+- [x] **Two accounts with the same name look alike in the switcher** — `P3` — `bug` — fixed in 505fbc59 (Settings > Account and the shared accountRowText) and 97173d4a (the switcher rows in SidebarDrawer); the port waits for question 9
   - What WEB does: the address becomes the title when another account shares the name (`lib/account-utils.ts:159`; 3bb9f7df8).
   - What RN does: name as title, address below (`src/components/SidebarDrawer.tsx:884-891`, `src/components/settings/AccountSettings.tsx:186`). Report question 9 (port in the label) is the same area.
   - Fix hint: port accountRowText.

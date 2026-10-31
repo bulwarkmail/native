@@ -70,7 +70,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: clearAllFeatureStores (`src/stores/auth-store.ts:126-134`) never clears `src/stores/search-history-store.ts:44`.
   - Fix hint: clear it, and check the other persisted stores in the same pass.
 
-- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows; the composer's recipient check goes with the compose branch)
+- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows) and 4932764a (the composer takes recipients on Unicode domains and sends them in ASCII form; the From identity and a sender on one of your own domains show as written in the composer and the reader; unit tests only, the test servers have no IDN domain); left: the sender in the mail list rows (EmailListScreen, UnifiedInboxScreen) still shows the xn-- form on your own domains
   - What WEB does: `lib/idn.ts:25` (#1100). What RN does: ASCII-only checks (`src/lib/recipients.ts:31`, `src/lib/server-discovery.ts:78`).
   - Fix hint: toASCII on the wire, Unicode on screen.
 
@@ -394,7 +394,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Create rules from a message** — `P2` — `missing` — fixed in d546d509, 7b7236f0
   - What WEB does: `components/email/rules-menu.tsx`, `lib/filters/quick-rules.ts:187`. What RN does: `src/components/email/ActionSheet.tsx`, `src/components/filters/FilterRuleModal.tsx`.
 
-- [ ] **Forward limit (#1155, #1208); vacation length warning; run a rule on a folder (#1166); Sieve editor loses typed text (#1162); size value raw into Sieve; undo after deleting tags/rules/trusted senders** — `P3` — `missing`/`bug` — forward limit and vacation length fixed in dcbfc907, Sieve editor text in 6c3046c8, size value in 2167a9d7 (before this pass); undo after deleting rules: store side in b95f2c29, FilterSettings (platform agent's file) still has to call deleteRuleNow; not done: undo after deleting tags and trusted senders (KeywordSettings and the trusted-senders list are not the calendar agent's files); run a rule on a folder: needs server-side run, its own feature
+- [ ] **Forward limit (#1155, #1208); vacation length warning; run a rule on a folder (#1166); Sieve editor loses typed text (#1162); size value raw into Sieve; undo after deleting tags/rules/trusted senders** — `P3` — `missing`/`bug` — forward limit and vacation length fixed in dcbfc907, Sieve editor text in 6c3046c8, size value in 2167a9d7 (before this pass); undo after deleting rules (store side b95f2c29), tags and trusted senders, and the forward limit notes in the rule list, in 8ac19971; not done: run a rule on a folder, which needs a server-side run and is its own feature
   - What WEB does: `lib/filters/forward-limit.ts:16`, `components/settings/vacation-settings.tsx:253`, `lib/filters/quick-rule-flow.ts:221`, `lib/sieve/generator.ts:63`. What RN does: `src/components/filters/FilterRuleModal.tsx:63`, `:413`, `src/components/settings/VacationSettings.tsx:106`, `src/components/filters/SieveEditorSheet.tsx:35-41`, `src/lib/sieve/generator.ts:69-74`, `src/components/settings/KeywordSettings.tsx:50-56`.
 
 ### Push, settings and core
