@@ -137,7 +137,7 @@ describe('describeLoginError for sign-in codes', () => {
     });
     expect(pairing('network', 'webmail.example.org')).toEqual({
       title: "Can't reach webmail.example.org",
-      detail: 'Check your connection and that your phone can reach the webmail, then try again.',
+      detail: 'Check your connection and that this device can reach the webmail, then try again.',
     });
     // Without a host on the error, the screen's address is used.
     expect(pairing('network').title).toBe("Can't reach webmail.example.org");
