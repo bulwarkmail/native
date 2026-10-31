@@ -245,7 +245,16 @@ export function GlobalSearchSheet({ visible, initialQuery = '', onClose, navigat
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+        {/* Its own height only: a horizontal ScrollView grows like flex: 1
+            in a column, which put the chips mid-screen with empty bands
+            above and below and pushed the results down. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipsScroll}
+          contentContainerStyle={styles.chips}
+          keyboardShouldPersistTaps="handled"
+        >
           {scopes.map((s) => chip(s.key, s.label, scope === s.key, () => setScope(s.key)))}
           {accounts.length > 1 ? (
             <>
@@ -309,6 +318,7 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1, borderColor: c.border,
     },
     input: { flex: 1, ...typography.body, color: c.text, paddingVertical: spacing.sm },
+    chipsScroll: { flexGrow: 0, flexShrink: 0 },
     chips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
     chip: {
       paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.full,
