@@ -104,6 +104,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.clear_search_on_folder_change',
   ],
   composing: [
+    'settings.email_behavior.quick_reply',
     'settings.email_behavior.auto_select_reply_identity',
     'settings.email_behavior.reply_identity_match',
     'settings.email_behavior.plain_text_mode',
