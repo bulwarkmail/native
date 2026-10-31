@@ -18,6 +18,17 @@ export function principalDisplay(principal: Pick<Principal, 'id' | 'name' | 'ema
 }
 
 /**
+ * The row for someone with access: the principal's name and address, or
+ * "Unknown person" with nothing under it. Stalwart 1.0 with directory
+ * queries off names nobody the user merely shares with; its ids are a
+ * letter or two ("e"), which read as a broken address when shown.
+ */
+export function principalRowDisplay(principal: Principal | null, t: Translate): { name: string; detail: string | null } {
+  if (principal) return principalDisplay(principal);
+  return { name: t('delegates.unknown_person', 'Unknown person'), detail: null };
+}
+
+/**
  * The principal behind an id: from the directory, the names kept on this
  * device, or, as a last way to name someone the directory won't (Stalwart
  * 1.0 with directory queries off), the account they shared with the user,

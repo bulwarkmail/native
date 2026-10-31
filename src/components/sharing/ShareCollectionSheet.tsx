@@ -164,8 +164,10 @@ export function ShareCollectionSheet<R extends object>({
         <Text style={styles.principalName} numberOfLines={1}>
           {p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId)}
         </Text>
-        {p?.email || unresolved ? (
-          <Text style={styles.principalEmail} numberOfLines={1}>{p?.email || principalId}</Text>
+        {/* Never the id in its place: Stalwart 1.0's are a letter or two
+            ("e") and read as a broken address. */}
+        {p?.email ? (
+          <Text style={styles.principalEmail} numberOfLines={1}>{p.email}</Text>
         ) : null}
       </View>
     );

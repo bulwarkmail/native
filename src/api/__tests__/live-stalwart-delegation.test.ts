@@ -22,6 +22,10 @@ import { JMAPClient } from '../jmap-client';
 import { CAPABILITIES } from '../types';
 import { applyShareChanges, getShareTargets, supportsDelegation, supportsMailboxSharing } from '../delegation';
 import { buildGrantChanges, buildRevokeChanges, summarizeDelegates } from '../../lib/delegation/delegation';
+import { principalRowDisplay, resolvePrincipal } from '../../lib/delegation/display';
+import { listPrincipals } from '../files';
+
+const t = (_key: string, fallback?: string) => fallback ?? '';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -119,5 +123,33 @@ live('live Stalwart: delegates', () => {
     expect(gone.mailboxes).toEqual([]);
     expect(gone.calendars.filter((id) => changes.some((c) => c.id === id))).toEqual([]);
     expect(gone.addressBooks.filter((id) => changes.some((c) => c.id === id))).toEqual([]);
+  }, 120_000);
+
+  // Stalwart 1.0 with directory queries off (VM 106's 1.0.1) names nobody
+  // the owner merely shares with: Principal/get answers notFound for the
+  // delegate's id, a letter or two. The row reads "Unknown person" then, not
+  // "Unknown person / e"; 0.16 names them.
+  it('names who has access where the server lets it, and shows no id where it does not', async () => {
+    const { targets } = await getShareTargets();
+    const principalId = delegate.accountId;
+    const results = await applyShareChanges(buildGrantChanges(targets, principalId, { mail: 'none', calendars: 'none', addressBooks: 'default' }, 'read'));
+    expect(results.filter((r) => !r.ok)).toEqual([]);
+    try {
+      const listing = await listPrincipals();
+      const sessionAccounts = new Map(Object.entries(owner.currentSession?.accounts ?? {})
+        .filter(([id]) => id !== owner.accountId)
+        .map(([id, info]) => [id, info.name]));
+      const principal = resolvePrincipal(principalId, { directory: listing.principals, remembered: new Map(), sessionAccounts });
+      const row = principalRowDisplay(principal, t);
+      if (listing.directoryQueriesOff) {
+        expect(principal).toBeNull();
+        expect(row).toEqual({ name: 'Unknown person', detail: null });
+      } else {
+        expect(principal?.email?.toLowerCase()).toBe(USER2!.toLowerCase());
+        expect(row.name).not.toBe('Unknown person');
+      }
+    } finally {
+      expect(await revokeAll()).toBe(true);
+    }
   }, 120_000);
 });
