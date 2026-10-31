@@ -3,7 +3,7 @@ import type { Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../api/types';
 import { getEventDisplayEndDate, getEventStartDate, getPrimaryCalendarId, timePattern } from './calendar-utils';
 import { isDeclinedByUser } from './calendar-participants';
-import { formatCalendarDay } from './calendar-system';
+import { formatCalendarDay, monthTitle, type CalendarSystem } from './calendar-system';
 
 type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 
@@ -14,10 +14,11 @@ type Translate = (key: string, fallback?: string, params?: Record<string, string
 /**
  * "October 2026, change month" for the header button that opens the month
  * panel: the month shown first, then what the button does. Not the
- * webmail's "Click to change month" (calendar.mini_calendar_change).
+ * webmail's "Click to change month" (calendar.mini_calendar_change). The
+ * year is always read, also where the header leaves it out (this year).
  */
-export function monthButtonAccessibilityLabel(title: string, t: Translate): string {
-  return t('calendar.change_month_named', '{month}, change month', { month: title });
+export function monthButtonAccessibilityLabel(date: Date, system: CalendarSystem, locale: Locale, t: Translate): string {
+  return t('calendar.change_month_named', '{month}, change month', { month: monthTitle(date, system, locale, true) });
 }
 
 /** "Remove Ana" for the cross on an invited participant's chip (webmail recipient_remove_named). */
