@@ -60,6 +60,6 @@ describe('ComposeScreen wiring', () => {
 
   it('writes the text part of a rich message with mail markup', () => {
     const build = source.slice(source.indexOf('const buildOutgoing'), source.indexOf('// Save one draft version'));
-    expect(build).toMatch(/textBody = htmlToPlainText\(safeHtml, \{ mailMarkup: true \}\);/);
+    expect(build).toMatch(/textBody = htmlToPlainText\(safeHtml, \{\s+mailMarkup: true,/);
   });
 });
