@@ -76,8 +76,10 @@ export function MessageContent({
     ? secure.result.body ?? (secure.result.status.encrypted ? { html: null, text: '' } : null)
     : null;
   const bodyOverride = secureBody ?? unwrap.override;
+  // Only an encrypted message hides its attachments from the server; a
+  // signed one has them listed already.
   const extracted = React.useMemo(
-    () => (secure.result?.attachments.length ? [...secure.result.attachments, ...unwrap.extracted] : unwrap.extracted),
+    () => (secure.result?.status.encrypted && secure.result.attachments.length ? [...secure.result.attachments, ...unwrap.extracted] : unwrap.extracted),
     [secure.result, unwrap.extracted],
   );
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);

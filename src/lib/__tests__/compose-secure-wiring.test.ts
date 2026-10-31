@@ -31,5 +31,7 @@ describe('reader wiring', () => {
     expect(reader).toMatch(/const secure = useSecureMessage\(email, jmapAccountId\);/);
     expect(reader).toMatch(/bodyOverride=\{bodyOverride\}/);
     expect(reader).toMatch(/<SecureMessageBanner status=/);
+    // A signed message's attachments are already listed by the server.
+    expect(reader).toMatch(/secure\.result\?\.status\.encrypted && secure\.result\.attachments\.length/);
   });
 });
