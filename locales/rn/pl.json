@@ -3,7 +3,10 @@
     "after": "Po",
     "before": "Przed",
     "no_attachment": "Bez załącznika",
-    "not_starred": "Bez gwiazdki"
+    "not_starred": "Bez gwiazdki",
+    "advanced_filters_count": "{name}, aktywne: {count}",
+    "larger_than_kb": "Większe niż {size} KB",
+    "smaller_than_kb": "Mniejsze niż {size} KB"
   },
   "calendar": {
     "alerts": {
@@ -26,7 +29,8 @@
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
       "nothing_planned": "Nic nie zaplanowano. Dotknij, aby utworzyć.",
-      "tap_to_create": "Stuknij +, aby utworzyć wydarzenie"
+      "tap_to_create": "Stuknij +, aby utworzyć wydarzenie",
+      "copy_title_short": "Tytuł"
     },
     "fab": {
       "event": "Wydarzenie",
@@ -70,7 +74,11 @@
       "trust_authentication_missing": "Nie udało się zweryfikować nadawcy.",
       "trust_sender_mismatch": "Nadawca różni się od organizatora wydarzenia.",
       "trust_sender_mismatch_unverified": "Nadawca nie jest organizatorem, a wiadomość nie jest uwierzytelniona.",
-      "trust_verified": "Nadawca zweryfikowany"
+      "trust_verified": "Nadawca zweryfikowany",
+      "cancel_outdated": "Twój kalendarz zawiera nowszą wersję tego wydarzenia niż to odwołanie.",
+      "remove_error": "Nie udało się usunąć wydarzenia",
+      "remove_from_calendar": "Usuń z kalendarza",
+      "removed_from_calendar": "Usunięto z Twojego kalendarza."
     },
     "management": {
       "clear_confirm": "Usuń wszystkie",
@@ -80,7 +88,12 @@
       "delete_title": "Usunąć kalendarz?",
       "description_placeholder": "Opcjonalnie",
       "edit_calendar": "Edytuj kalendarz",
-      "new_calendar": "Nowy kalendarz"
+      "new_calendar": "Nowy kalendarz",
+      "color_invalid": "Wpisz kolor jako sześć cyfr szesnastkowych, z # lub bez, np. #3b82f6.",
+      "custom_color": "Własny kolor (hex)",
+      "description_field": "Opis",
+      "fewer_colors": "Mniej kolorów",
+      "more_colors": "Więcej kolorów"
     },
     "notifications": {
       "channel_name": "Przypomnienia kalendarza",
@@ -91,7 +104,9 @@
     },
     "occurrence_not_found_again": "Zmiana nie została zapisana: nie udało się ponownie znaleźć wystąpienia na serwerze. Spróbuj ponownie.",
     "participants": {
-      "limit_warning": "Ponad {max, plural, one {# uczestnika} few {# uczestników} many {# uczestników} other {# uczestnika}} łącznie z organizatorem: serwer może odmówić zapisania tego wydarzenia. Administrator może zwiększyć limit."
+      "limit_warning": "Ponad {max, plural, one {# uczestnika} few {# uczestników} many {# uczestników} other {# uczestnika}} łącznie z organizatorem: serwer może odmówić zapisania tego wydarzenia. Administrator może zwiększyć limit.",
+      "group_members": "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}}",
+      "remove_named": "Usuń {name}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {wystąpieniu} few {wystąpieniach} many {wystąpieniach} other {wystąpienia}}",
@@ -127,7 +142,10 @@
       "not_a_feed": "Ten adres URL nie zwrócił kanału iCalendar",
       "not_synced": "Jeszcze nie zsynchronizowano",
       "url_scheme_invalid": "Adres URL musi zaczynać się od https://, http://, webcal:// lub webcals://",
-      "your_subscriptions": "Twoje subskrypcje"
+      "your_subscriptions": "Twoje subskrypcje",
+      "account_changed": "Konto zmieniło się podczas synchronizacji subskrypcji. Zostanie ona ponownie zsynchronizowana na swoim koncie.",
+      "feed_truncated": "Kanał został ucięty przed końcem. Niczego nie zmieniono.",
+      "mass_removal": "W kanale nagle zabrakło {count} z {total} wydarzeń. Zachowano je na wypadek, gdyby kanał był uszkodzony."
     },
     "tasks": {
       "add_placeholder": "Dodaj zadanie…",
@@ -136,15 +154,23 @@
       "delete_error": "Nie udało się usunąć zadania",
       "not_found": "To zadanie nie jest już dostępne.",
       "save_error": "Nie udało się zapisać zadania",
-      "update_error": "Nie udało się zaktualizować zadania"
+      "update_error": "Nie udało się zaktualizować zadania",
+      "delete_confirm": "Usunąć to zadanie?"
     },
     "views": {
       "schedule": "Harmonogram",
-      "three_days": "3 dni"
+      "three_days": "3 dni",
+      "n_days": "{count} dni"
     },
     "detail": {
-      "delete_confirm": "Usunąć to wydarzenie?"
-    }
+      "delete_confirm": "Usunąć to wydarzenie?",
+      "location_hint": "Otwiera lokalizację; przytrzymaj, aby ją skopiować"
+    },
+    "a11y": {
+      "event_count": "{count, plural, one {# wydarzenie} few {# wydarzenia} many {# wydarzeń} other {# wydarzenia}}"
+    },
+    "account_changed": "Konto zmieniło się podczas wczytywania lub zapisywania kalendarza.",
+    "change_month_named": "{month}, zmień miesiąc"
   },
   "common": {
     "add": "Dodaj",
@@ -255,7 +281,11 @@
       "into_address_book": "Importuj do książki adresowej",
       "into_named": "Importuj do: {name}",
       "no_address_book": "Utwórz książkę adresową przed zaimportowaniem kontaktów.",
-      "picker_failed": "Nie udało się otworzyć selektora plików"
+      "picker_failed": "Nie udało się otworzyć selektora plików",
+      "replaces": "Zastępuje: {name}",
+      "unnamed": "Kontakt bez nazwy",
+      "update_existing": "Zaktualizuj istniejące",
+      "updated_count": "{count, plural, one {1 kontakt już istniał i został zaktualizowany.} few {# kontakty już istniały i zostały zaktualizowane.} many {# kontaktów już istniało i zostało zaktualizowanych.} other {# kontaktu już istniało i zostało zaktualizowane.}}"
     },
     "no_tags_hint": "Brak etykiet. Wpisz nową powyżej.",
     "picker": {
@@ -265,11 +295,19 @@
     "rename_tag_hint_mobile": "Przytrzymaj etykietę, aby zmienić jej nazwę",
     "tag_name_placeholder": "Nazwa nowej etykiety",
     "unnamed": "Bez nazwy",
-    "delete_confirm_title": "Usuń kontakt"
+    "delete_confirm_title": "Usuń kontakt",
+    "directory": {
+      "restricted_hint": "Twój serwer poczty pokazuje tylko konta, z którymi już współpracujesz, np. Twoje grupy i osoby, które coś Ci udostępniają.",
+      "restricted_queries_off": "Twój serwer poczty pokazuje tylko konta, z którymi już współpracujesz, np. Twoje grupy i osoby, które coś Ci udostępniają. Administrator może włączyć zapytania do katalogu, aby pokazać wszystkich."
+    }
   },
   "context_menu": {
     "color_tag": "Etykieta",
-    "remove_color": "Usuń etykietę"
+    "remove_color": "Usuń etykietę",
+    "emails_selected": "{count, plural, one {Zaznaczono # wiadomość} few {Zaznaczono # wiadomości} many {Zaznaczono # wiadomości} other {Zaznaczono # wiadomości}}",
+    "rules": {
+      "login_changed": "Przełączono konto, więc reguła nie została zapisana"
+    }
   },
   "device_sync": {
     "auth_problem_text": "Serwer nie akceptuje już logowania konta {account}, więc jego kontakty i kalendarze na tym urządzeniu przestały się synchronizować. Zaloguj się ponownie, aby wznowić synchronizację. Zmiany wprowadzone na tym urządzeniu zostaną zachowane.",
@@ -361,7 +399,34 @@
     "uploading_pct": "Przesyłanie {pct}%",
     "validation": {
       "subject_required": "Dodaj temat"
-    }
+    },
+    "format_plain_text": "Przełącz na zwykły tekst",
+    "format_rich_text": "Przełącz na tekst sformatowany (HTML)",
+    "login_switched_attach_body": "Ta wiadomość została rozpoczęta na koncie {account}. Przełącz się z powrotem na to konto, aby załączyć pliki.",
+    "login_switched_body": "Ta wiadomość została rozpoczęta na koncie {account}. Przełącz się z powrotem na to konto, aby ją wysłać.",
+    "login_switched_save_body": "Ta wiadomość została rozpoczęta na koncie {account}. Przełącz się z powrotem na to konto, aby ją zapisać.",
+    "login_switched_title": "Przełączono konto",
+    "option_encrypt": "Szyfruj",
+    "option_encrypt_hint": "Tylko odbiorcy (i Ty) mogą ją przeczytać; każdy odbiorca potrzebuje klucza",
+    "option_security": "Podpis i szyfrowanie",
+    "option_sign": "Podpisz",
+    "option_sign_pgp_hint": "Dodaj podpis OpenPGP swoim kluczem",
+    "option_sign_smime_hint": "Dodaj podpis S/MIME swoim certyfikatem",
+    "read_receipt_off": "Poproś o potwierdzenie przeczytania",
+    "secure_failed_title": "Nie można podpisać ani zaszyfrować",
+    "secure_missing_keys": "Brak klucza dla: {recipients}. Zaimportuj go w Ustawienia → Szyfrowanie.",
+    "secure_no_key": "Na tym urządzeniu nie ma klucza dla {email}. Zaimportuj go w Ustawienia → Szyfrowanie.",
+    "secure_offline": "Podpisane lub zaszyfrowane wiadomości nie mogą czekać w Skrzynce nadawczej. Wyślij ją, gdy będziesz online.",
+    "secure_unlock_reason": "Twój klucz podpisuje tę wiadomość.",
+    "send_unconfirmed_body": "Serwer nie potwierdził wysłania. Sprawdź folder Wysłane, zanim wyślesz ponownie. Szkic został zachowany.",
+    "send_unconfirmed_title": "Wysłanie niepotwierdzone",
+    "toolbar": {
+      "insert_image": "Wstaw obraz"
+    },
+    "undo_send_other_login": "Ta wiadomość została wysłana z innego konta",
+    "undo_send_other_login_body": "Przełącz się z powrotem na {account}, aby cofnąć wysłanie lub wysłać ją teraz. Zostanie wysłana po upływie opóźnienia.",
+    "upload_login_switched": "Nie przesłano: przełączono konto",
+    "use_template": "Szablon"
   },
   "email_list": {
     "cross_account_move_offline": "Przenoszenie między kontami wymaga połączenia",
@@ -488,7 +553,10 @@
     },
     "view_dark_mode": "Wyświetl w trybie ciemnym",
     "view_light_mode": "Wyświetl w trybie jasnym",
-    "not_spam_short": "Nie spam"
+    "not_spam_short": "Nie spam",
+    "quick_reply_login_switched": "Ta wiadomość jest na innym koncie. Przełącz się na nie, aby odpowiedzieć.",
+    "quick_reply_unconfirmed": "Serwer nie potwierdził wysłania. Sprawdź folder Wysłane, zanim wyślesz ponownie.",
+    "spam_short": "Spam"
   },
   "files": {
     "delete_cascade_hint": "Foldery są usuwane wraz z całą zawartością. Tej operacji nie można cofnąć.",
@@ -531,7 +599,29 @@
     "batch_delete_success": "{count, plural, one {Usunięto 1 element} other {Usunięto # elementów}}",
     "delete_confirm_message": "Czy na pewno chcesz usunąć \"{name}\"? Tej operacji nie można cofnąć.",
     "delete_confirm_title": "Usuń zasób",
-    "delete_success": "Usunięto pomyślnie"
+    "delete_success": "Usunięto pomyślnie",
+    "name_trash": "„.Trash” to nazwa folderu kosza na najwyższym poziomie Twoich plików. Wybierz inną nazwę.",
+    "settings_behavior": "Zachowanie",
+    "settings_colored_icons": "Kolorowe ikony",
+    "settings_colored_icons_desc": "Używaj kolorowych ikon zamiast monochromatycznych",
+    "settings_default_sort": "Domyślne sortowanie",
+    "settings_default_sort_desc": "Wybierz domyślne sortowanie plików",
+    "settings_default_view": "Domyślny widok",
+    "settings_default_view_desc": "Wybierz układ siatki lub listy",
+    "settings_display": "Wyświetlanie",
+    "settings_icons": "Ikony",
+    "settings_show_hidden": "Pokazuj ukryte pliki",
+    "settings_show_hidden_desc": "Wyświetlaj pliki i foldery zaczynające się od kropki",
+    "settings_show_icons": "Pokazuj ikony plików",
+    "settings_show_icons_desc": "Wyświetlaj ikony obok plików i folderów",
+    "settings_show_thumbnails": "Pokazuj miniatury",
+    "settings_show_thumbnails_desc": "Wyświetlaj podglądy obrazów zamiast ikon dla plików graficznych",
+    "settings_sort_direction": "Kierunek sortowania",
+    "settings_sort_direction_desc": "Wybierz kolejność rosnącą lub malejącą",
+    "share_remove_confirm": "Usunąć dostęp?",
+    "share_remove_for": "Usuń dostęp dla {name}",
+    "trash_unavailable_message": "{count, plural, one {Tego elementu} few {Tych # elementów} many {Tych # elementów} other {Tych # elementu}} nie można przenieść do kosza. Usunąć trwale? Tej operacji nie można cofnąć.",
+    "upload": "Prześlij"
   },
   "identities": {
     "badge": {
@@ -654,7 +744,26 @@
       "unencrypted": "Połączenie nieszyfrowane",
       "use_password": "Zaloguj się hasłem",
       "username_label": "E-mail lub nazwa użytkownika",
-      "your_server": "Twój serwer"
+      "your_server": "Twój serwer",
+      "cancel_sign_in": "Anuluj logowanie",
+      "err_client_rejected_detail": "Serwer odrzucił Bulwark jako klienta logowania. Poproś administratora o zezwolenie lub zaloguj się hasłem aplikacji.",
+      "err_client_rejected_title": "{host} nie zaakceptował aplikacji",
+      "err_handoff_expired_detail": "Przeglądarka zwróciła logowanie po jego wygaśnięciu. Zaloguj się ponownie.",
+      "err_handoff_expired_title": "Logowanie trwało zbyt długo",
+      "err_handoff_network_detail": "Po zalogowaniu nie udało się połączyć z webmailem. Sprawdź połączenie i zaloguj się ponownie.",
+      "err_handoff_network_title": "Nie udało się dokończyć logowania",
+      "err_handoff_rate_detail": "Poczekaj kilka minut i zaloguj się ponownie.",
+      "err_handoff_refused_detail": "Link logowania został już użyty lub nie pochodzi z tego logowania. Zaloguj się ponownie.",
+      "err_handoff_refused_title": "Webmail nie zaakceptował tego logowania",
+      "err_handoff_server_detail": "Zaloguj się ponownie. Jeśli nadal się nie udaje, skontaktuj się z administratorem.",
+      "err_handoff_server_title": "Webmail nie mógł dokończyć logowania",
+      "err_token_exchange_title": "{host} nie rozpoczął sesji",
+      "reauth_detail": "Serwer nie akceptuje już zapisanego logowania dla {account}. Zaloguj się ponownie, aby dalej korzystać z tego konta.",
+      "reauth_title": "Zaloguj się ponownie",
+      "server_cert_active": "Logowanie z certyfikatem klienta „{alias}”. Stuknij, aby wybrać inny.",
+      "server_cert_clear": "Zaloguj się bez certyfikatu",
+      "server_cert_failed": "Nie udało się wybrać certyfikatu",
+      "server_cert_hint": "Czy Twój serwer wymaga certyfikatu klienta? Wybierz jeden z zainstalowanych na tym telefonie."
     }
   },
   "offline": {
@@ -691,7 +800,15 @@
     "keep_scheduled": "Zostaw zaplanowaną",
     "no_longer_scheduled": "Ta wiadomość nie jest już zaplanowana.",
     "reschedule_failed": "Nie udało się zmienić terminu",
-    "send_now_failed": "Nie udało się wysłać teraz"
+    "send_now_failed": "Nie udało się wysłać teraz",
+    "actions": "Działania",
+    "cancel_to_drafts_body": "Wiadomość nie zostanie wysłana. Wróci do folderu Szkice.",
+    "cancelled_not_moved": "Wysyłanie anulowane, ale nie przeniesiono do Szkiców",
+    "cancelled_not_moved_body": "Wiadomość nie zostanie wysłana. Nadal jest w folderze Wysłane.",
+    "login_switched": "Te zaplanowane wiadomości należą do innego konta. Przełącz się na nie, aby je zmienić.",
+    "reschedule_lost": "Wiadomość nie jest już zaplanowana. Sprawdź foldery Szkice i Wysłane, zanim wyślesz ją ponownie.",
+    "reschedule_lost_drafts": "Wiadomość nie jest już zaplanowana. Wróciła do folderu Szkice, skąd możesz wysłać ją ponownie.",
+    "send_cancelled": "Wysyłanie anulowane"
   },
   "settings": {
     "account": {
@@ -735,12 +852,17 @@
       },
       "toolbar_labels": {
         "description_mobile": "Wyświetlaj etykiety tekstowe obok ikon paska narzędzi."
-      }
+      },
+      "accessibility_link": {
+        "description_mobile": "Rozmiar tekstu, ograniczony ruch i gotowe zestawy dostępności znajdziesz na stronie Dostępność."
+      },
+      "description_mobile": "Dostosuj wygląd aplikacji"
     },
     "badges": {
       "experimental": "Eksperymentalne",
       "not_implemented": "Niezaimplementowane",
-      "unavailable": "Niedostępne"
+      "unavailable": "Niedostępne",
+      "not_on_server": "Brak na tym serwerze"
     },
     "contacts": {
       "book_count": "{count, plural, one {# kontakt} few {# kontakty} many {# kontaktów} other {# kontaktu}}",
@@ -913,6 +1035,9 @@
       "disable_threading": {
         "description": "Pokazuj wiadomości e-mail jako pojedyncze wiadomości zamiast grupowania według konwersacji",
         "label": "Wyłącz grupowanie konwersacji"
+      },
+      "recipient_mentions": {
+        "description_mobile": "Po wpisaniu @ w wiadomości podpowiadani są jej odbiorcy, a po wyborze wstawiane jest imię wybranej osoby."
       }
     },
     "experimental": {
@@ -946,7 +1071,8 @@
       "save_failed": "Zapisywanie nie powiodło się",
       "system_folder_delete": "Nie można usuwać folderów systemowych.",
       "system_folder_rename": "Nie można zmieniać nazw folderów systemowych.",
-      "top_level": "Najwyższy poziom"
+      "top_level": "Najwyższy poziom",
+      "parent_folder": "Folder nadrzędny"
     },
     "identities": {
       "cannot_delete": "Nie można usunąć głównej tożsamości.",
@@ -982,7 +1108,8 @@
         "scan": "Znajdź etykiety w skrzynce"
       },
       "reset_confirm": "Zastąpić listę etykiet domyślnymi? Etykiety już przypisane do wiadomości pozostaną na serwerze.",
-      "reset_defaults": "Przywróć domyślne"
+      "reset_defaults": "Przywróć domyślne",
+      "delete_confirm_title": "Usunąć etykietę „{label}”?"
     },
     "layout": {
       "description": "Dostosuj interakcje z listą wiadomości na urządzeniu mobilnym.",
@@ -1026,7 +1153,9 @@
       "email": {
         "app_icon_badge": "Liczba nieprzeczytanych na ikonie aplikacji",
         "app_icon_badge_desc": "Pokazuj liczbę nieprzeczytanych w Odebranych jako plakietkę na ikonie aplikacji.",
-        "sound_channel_hint": "Dźwięk i wibracje powiadomień o poczcie ustawia się w kanale powiadomień Androida: przytrzymaj powiadomienie lub otwórz systemowe ustawienia aplikacji."
+        "sound_channel_hint": "Dźwięk i wibracje powiadomień o poczcie ustawia się w kanale powiadomień Androida: przytrzymaj powiadomienie lub otwórz systemowe ustawienia aplikacji.",
+        "mute_account": "Wycisz to konto",
+        "mute_account_desc": "Brak powiadomień o nowej poczcie na tym koncie. Przytrzymaj folder na pasku bocznym, aby osobno go wyciszyć lub ponownie włączyć."
       },
       "push": {
         "confirm_disable_message_mobile": "To urządzenie przestanie otrzymywać powiadomienia o nowej poczcie dla tego konta.",
@@ -1067,7 +1196,13 @@
         "transport_unifiedpush": "UnifiedPush",
         "up_distributor_desc": "Zainstalowano kilka aplikacji dystrybutora UnifiedPush – wybierz tę, która ma dostarczać powiadomienia.",
         "up_distributor_label": "Dystrybutor",
-        "up_no_distributor": "Na tym urządzeniu nie zainstalowano aplikacji dystrybutora UnifiedPush. Zainstaluj ją (np. ntfy) i spróbuj ponownie."
+        "up_no_distributor": "Na tym urządzeniu nie zainstalowano aplikacji dystrybutora UnifiedPush. Zainstaluj ją (np. ntfy) i spróbuj ponownie.",
+        "accounts_desc_mobile": "Powiadomienia w tle dla każdego zalogowanego konta na tym urządzeniu. Przełącz się na konto, aby je dla niego włączyć lub wyłączyć.",
+        "err_account_changed": "Konto zmieniło się podczas konfigurowania push. Spróbuj ponownie.",
+        "err_apns_empty": "iOS zwrócił pusty token push.",
+        "err_apns_token": "iOS nie mógł wydać tokenu push ({detail}).",
+        "err_relay_no_apns": "Przekaźnik push pod adresem {url} nie dostarcza jeszcze powiadomień na urządzenia iPhone i iPad.",
+        "err_url_refused": "Serwer poczty odmawia wysyłania powiadomień do przekaźnika pod adresem {url}. Akceptuje tylko adresy https w publicznej domenie, a nie prywatny adres IP ani nazwę lokalną, taką jak localhost, .local lub .lan. Użyj hostowanego przekaźnika albo nadaj swojemu przekaźnikowi publiczną nazwę domeny."
       },
       "calendar": {
         "invitation_parsing": "Rozpoznawaj zaproszenia e-mail",
@@ -1102,7 +1237,15 @@
       "window": "Okres",
       "window_24h": "Ostatnie 24 godziny",
       "window_days": "Ostatnie {count} dni",
-      "window_desc": "Jak daleko wstecz zapisywać pocztę, według daty otrzymania wiadomości."
+      "window_desc": "Jak daleko wstecz zapisywać pocztę, według daty otrzymania wiadomości.",
+      "description_short": "Przechowuj najnowsze wiadomości na tym telefonie, aby otwierały się bez połączenia.",
+      "keep_24h": "24 godziny",
+      "keep_days": "{count} dni",
+      "keep_from": "Zachowuj pocztę z ostatnich",
+      "messages_offline": "{count, plural, one {# wiadomość offline} few {# wiadomości offline} many {# wiadomości offline} other {# wiadomości offline}}",
+      "synced": "Zsynchronizowano {when}",
+      "use_at_most": "Użyj maksymalnie",
+      "used_of": "{used} z {limit} MB"
     },
     "plugins": {
       "mobile_description": "Wtyczki działają w webmailu i rozszerzają go w przeglądarce.",
@@ -1120,7 +1263,10 @@
         "not_set": "Nie ustawiono",
         "pick": "Wybierz certyfikat",
         "pick_failed": "Wybór nie powiódł się",
-        "title": "Certyfikat klienta TLS"
+        "title": "Certyfikat klienta TLS",
+        "clear_message_ios": "Nowe żądania nie będą już przedstawiać certyfikatu. Certyfikat zostanie usunięty z aplikacji; aby użyć go ponownie, wybierz plik jeszcze raz.",
+        "description_ios": "Importuje plik certyfikatu do uwierzytelniania na serwerze podczas uzgadniania TLS. Przydatne, gdy reverse proxy wymusza mTLS.",
+        "hint_ios": "Wybierz plik certyfikatu (.p12 lub .pfx) w aplikacji Pliki i wpisz jego hasło."
       },
       "credentials": {
         "allowed_ips": "Dozwolone adresy IP (opcjonalnie)",
@@ -1153,7 +1299,10 @@
         "error": "Nie udało się zmienić hasła.",
         "mismatch": "Hasła nie są zgodne.",
         "toggle_visibility": "Pokaż lub ukryj hasło",
-        "too_short": "Nowe hasło musi mieć co najmniej 8 znaków."
+        "too_short": "Nowe hasło musi mieć co najmniej 8 znaków.",
+        "changed_sign_in_again": "Hasło do konta zostało zmienione. Zaloguj się ponownie nowym hasłem.",
+        "session_ended": "Zmiana hasła zakończyła tę sesję. Zaloguj się ponownie nowym hasłem.",
+        "session_ended_title": "Zaloguj się ponownie"
       },
       "public_keys": {
         "add_error": "Nie udało się dodać klucza publicznego",
@@ -1183,7 +1332,14 @@
         "no_app_title": "Brak aplikacji uwierzytelniającej",
         "open_app": "Dodaj do aplikacji uwierzytelniającej",
         "password_required": "Wpisz obecne hasło.",
-        "section_title": "Uwierzytelnianie dwuskładnikowe"
+        "section_title": "Uwierzytelnianie dwuskładnikowe",
+        "disable_hint_code": "Wpisz hasło i kod z aplikacji uwierzytelniającej, aby wyłączyć uwierzytelnianie dwuskładnikowe."
+      },
+      "restricted": "Twój serwer pozwala zmieniać hasło, logowanie dwuskładnikowe, hasła aplikacji i klucze API tylko aplikacjom zatwierdzonym przez administratora. Bulwark zalogował się bez tego zatwierdzenia, więc poczta, kontakty, kalendarze i pliki działają, ale te ustawienia nie. Zmień je w interfejsie webowym serwera lub w webmailu Bulwark.",
+      "screen_privacy": {
+        "block_screenshots": "Blokuj zrzuty ekranu",
+        "block_screenshots_description": "Blokuje zrzuty i nagrania ekranu aplikacji oraz ukrywa jej zawartość w widoku ostatnich aplikacji.",
+        "title": "Prywatność ekranu"
       }
     },
     "sidebar_apps": {
@@ -1218,7 +1374,10 @@
       "layout": "Układ",
       "sidebar_apps": "Aplikacje paska bocznego",
       "templates": "Szablony",
-      "themes": "Motywy"
+      "themes": "Motywy",
+      "about": "O aplikacji",
+      "storage": "Pamięć i kopia zapasowa",
+      "troubleshooting": "Rozwiązywanie problemów"
     },
     "templates": {
       "delete_confirm": "Trwale usunąć „{name}”?",
@@ -1230,7 +1389,8 @@
       "imported_count": "{count, plural, one {Dodano # szablon.} few {Dodano # szablony.} many {Dodano # szablonów.} other {Dodano # szablonu.}}",
       "is_html": "Treść w HTML",
       "placeholders_hint": "Zmienne: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
-      "share_unavailable": "Nie można udostępnić"
+      "share_unavailable": "Nie można udostępnić",
+      "import_json_label": "Szablony w formacie JSON"
     },
     "themes": {
       "default_description": "Domyślne jasne i ciemne palety kolorów.",
@@ -1239,6 +1399,18 @@
     "vacation": {
       "warnings": {
         "date_format": "Daty muszą mieć format „YYYY-MM-DD” lub „YYYY-MM-DD HH:MM”"
+      },
+      "date_range": {
+        "description": "Opcjonalnie ogranicz automatyczną odpowiedź do określonego okresu",
+        "title": "Zakres dat"
+      },
+      "message": {
+        "description": "Wiadomość, która zostanie wysłana jako odpowiedź",
+        "title": "Treść automatycznej odpowiedzi"
+      },
+      "status": {
+        "ended": "Zakończono",
+        "scheduled": "Zaplanowano"
       }
     },
     "composer": {
@@ -1258,6 +1430,124 @@
       "appearance": "Wygląd",
       "general": "Ogólne",
       "privacy": "Prywatność i bezpieczeństwo"
+    },
+    "about": {
+      "check_now": "Sprawdź teraz",
+      "checked_at": "Sprawdzono {when}",
+      "licences": "Licencje open source",
+      "licences_desc": "AGPL-3.0 dla aplikacji i używanych przez nią bibliotek",
+      "never_checked": "Jeszcze nie sprawdzono",
+      "privacy": "Prywatność",
+      "privacy_desc": "Co zostaje na tym telefonie, a co trafia na Twój serwer",
+      "report_problem": "Zgłoś problem",
+      "report_problem_desc": "Otwiera zgłoszenie na GitHubie z wypełnioną wersją",
+      "server": "Serwer",
+      "server_value": "{host} · zalogowano jako {user}",
+      "source_code": "Kod źródłowy",
+      "this_device": "To urządzenie",
+      "this_device_desc": "Z czym aplikacja jest połączona i gdzie szukać pomocy.",
+      "up_to_date": "Aktualna",
+      "updates": "Aktualizacje"
+    },
+    "accessibility": {
+      "cvd_palette": {
+        "description_mobile": "Używa kolorów tagów i kalendarzy, które pozostają rozróżnialne przy daltonizmie czerwono-zielonym lub niebiesko-żółtym."
+      },
+      "font": {
+        "description_ios": "Atkinson Hyperlegible i Lexend zaprojektowano tak, by litery łatwo było odróżnić; OpenDyslexic pomaga niektórym osobom z dysleksją. Na tym urządzeniu czcionka jest używana w wiadomościach w formacie zwykłego tekstu."
+      },
+      "plain_language": {
+        "description_mobile": "Prostsze sformułowania w ustawieniach i komunikatach o błędach. Dostępne po angielsku i niemiecku."
+      },
+      "presets": {
+        "applied_mobile": "{name} zmienia {count, plural, one {# ustawienie} few {# ustawienia} many {# ustawień} other {# ustawienia}}",
+        "apply": "Zastosuj",
+        "apply_named": "Zastosuj {name}",
+        "dyslexia": {
+          "description_mobile": "Atkinson Hyperlegible jako czcionka, także w wiadomościach w formacie zwykłego tekstu."
+        },
+        "low-vision": {
+          "description_mobile": "Tekst w rozmiarze 150% i podpisy pod ikonami paska narzędzi."
+        },
+        "motion": {
+          "description_mobile": "Bez animacji i przejść z przesuwaniem."
+        },
+        "screen-reader": {
+          "description_mobile": "Bez grupowania w konwersacje, więc każda wiadomość ma własny wiersz."
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "Wyłącza wysuwane panele i przejścia. Aplikacja robi to też, gdy w ustawieniach telefonu włączone jest ograniczenie ruchu."
+      },
+      "text_size": {
+        "description_mobile": "Skaluje tekst aplikacji względem rozmiaru tekstu w telefonie. 100% to rozmiar ustawiony w telefonie."
+      },
+      "toast_duration": {
+        "automatic": "Automatycznie (dłużej z czytnikiem ekranu)"
+      }
+    },
+    "backup": {
+      "description": "Przenieś ustawienia na inny telefon lub do webmaila.",
+      "export_import": "Eksport lub import",
+      "export_import_desc": "Plik JSON w tym samym formacie co w webmailu",
+      "reset": "Resetuj",
+      "reset_desc": "Przywraca ustawienia domyślne; poczta zostaje",
+      "title": "Kopia zapasowa ustawień"
+    },
+    "licences": {
+      "app_desc": "Aplikacja jest wolnym oprogramowaniem na licencji {licence}. Możesz z niej korzystać, analizować ją, udostępniać i zmieniać.",
+      "libraries": "Biblioteki",
+      "libraries_desc": "Kod open source, z którego zbudowano aplikację.",
+      "read_licence": "Przeczytaj pełny tekst licencji"
+    },
+    "privacy": {
+      "favicons": "Ikony nadawców poczty firmowej pochodzą z usługi ikon DuckDuckGo, która widzi domenę nadawcy. Wyłączysz je w Wygląd → Favikony nadawców.",
+      "no_tracking": "Aplikacja nie ma analityki ani reklam.",
+      "other_title": "Inne połączenia",
+      "phone_backup": "Nic z tego nie trafia do kopii zapasowej Androida w chmurze.",
+      "phone_secure": "Twoje dane logowania są przechowywane w bezpiecznym magazynie systemu. Ustawienia, pamięć podręczna poczty offline i zmiany czekające na synchronizację są przechowywane we własnej pamięci aplikacji.",
+      "phone_title": "Na tym telefonie",
+      "push": "Gdy powiadomienia są włączone, Twój serwer informuje przekaźnik push ({relay}), że coś się zmieniło, a przekaźnik budzi aplikację przez {service}. Przekaźnik widzi token urządzenia i znacznik zmiany, nigdy Twoją pocztę. W ustawieniach Powiadomienia możesz użyć własnego przekaźnika.",
+      "push_title": "Powiadomienia push",
+      "server": "Poczta, kalendarze, kontakty i pliki są wczytywane z Twojego serwera i na nim zapisywane. Poza połączeniami wymienionymi poniżej aplikacja komunikuje się tylko z Twoim serwerem.",
+      "server_title": "Twój serwer poczty",
+      "service_apple": "usługę push Apple",
+      "service_google": "usługę push Google",
+      "updates": "Aplikacja pyta GitHub o najnowsze wydanie, aby informować Cię o aktualizacjach.",
+      "updates_android": "Aplikacja pyta GitHub o najnowsze wydanie, aby informować Cię o aktualizacjach. Wyłączysz to w ustawieniach Aktualizacje."
+    },
+    "summary": {
+      "accessibility": "Rozmiar tekstu, ruch, potwierdzenia",
+      "composing": "Podpis, opóźnienie wysyłania, szkice",
+      "contacts": "Książki adresowe, sortowanie",
+      "content_senders": "Zdalne obrazy, zaufani nadawcy",
+      "downloads": "Nazwy plików zapisanej poczty",
+      "events_off": "wydarzenia wyłączone",
+      "events_on": "wydarzenia włączone",
+      "files": "Widok, sortowanie, miniatury",
+      "filters": "Reguły dla poczty przychodzącej",
+      "folders": "Tworzenie, zmiana nazw, role",
+      "identities": "Adresy, z których wysyłasz",
+      "keywords": "Nazwy i kolory etykiet",
+      "layout": "Szybkie akcje, przesunięcia, kolejność listy",
+      "mail_off": "Poczta wyłączona",
+      "mail_on": "Poczta włączona",
+      "offline_off": "Poczta offline wyłączona",
+      "offline_on": "Poczta offline włączona · {days, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}}, {mb} MB",
+      "reading": "Stan przeczytania, usuwanie, załączniki",
+      "security": "Hasło, logowanie dwuskładnikowe, hasła aplikacji",
+      "sidebar_apps": "Aplikacje webowe w menu bocznym",
+      "templates": "Wiadomości wielokrotnego użytku",
+      "updates": "Instalowanie nowych wersji",
+      "vacation": "Automatyczna odpowiedź podczas nieobecności",
+      "version": "Wersja {version}",
+      "week_starts": "początek tygodnia: {day}"
+    },
+    "troubleshooting": {
+      "cache_desc": "Gdy lista wygląda na nieaktualną lub błędną.",
+      "cache_title": "Dane w pamięci podręcznej",
+      "row_desc": "Odświeżanie pamięci podręcznej, logowanie debugowania",
+      "title": "Rozwiązywanie problemów"
     }
   },
   "sharing": {
@@ -1272,7 +1562,13 @@
     "remove_account_message": "Wyloguj konto {account} na tym urządzeniu. Twoja poczta pozostanie na serwerze.",
     "remove_account_title": "Usunąć konto?",
     "show_unread": "Pokaż nieprzeczytane",
-    "tab_unavailable": "{name} (niedostępne)"
+    "tab_unavailable": "{name} (niedostępne)",
+    "account_sign_in_again": "Zaloguj się ponownie",
+    "sign_out_all_confirm_message": "Wszystkie konta zostaną usunięte z tego urządzenia. Możesz zalogować się ponownie w dowolnym momencie.",
+    "sign_out_all_confirm_title": "Wylogować się ze wszystkich kont?",
+    "sign_out_confirm_message": "Konto zostanie usunięte z tego urządzenia. Możesz zalogować się ponownie w dowolnym momencie.",
+    "sign_out_confirm_title": "Wylogować się?",
+    "sign_out_confirm_title_account": "Wylogować się z {account}?"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, one {Nie udało się wczytać # konta} few {Nie udało się wczytać # kont} many {Nie udało się wczytać # kont} other {Nie udało się wczytać # konta}}"
@@ -1323,5 +1619,303 @@
     "severity_security": "Bezpieczeństwo",
     "title": "Aktualizacje aplikacji",
     "verifying": "Weryfikowanie…"
+  },
+  "deep_link": {
+    "open_failed": "Nie udało się tego otworzyć"
+  },
+  "delegates": {
+    "remove_for": "Usuń dostęp dla {name}"
+  },
+  "encryption": {
+    "armored_key": "Klucz w formacie ASCII",
+    "banner": {
+      "checking": "Sprawdzanie szyfrowania i podpisu…",
+      "decrypted": "Odszyfrowano ({kind})",
+      "failed": "Nie udało się odszyfrować: {reason}",
+      "invalid": "Nieprawidłowy podpis ({kind})",
+      "invalid_reason": "Nieprawidłowy podpis ({kind}): {reason}",
+      "locked": "Zaszyfrowano ({kind}). Odblokuj klucz, aby przeczytać.",
+      "no_key": "Zaszyfrowano ({kind}) kluczem, którego nie ma na tym urządzeniu.",
+      "self_signed": "Certyfikat jest samopodpisany, a nie wystawiony przez znany urząd certyfikacji.",
+      "signed": "Prawidłowy podpis ({kind})",
+      "signed_by": "Prawidłowy podpis ({kind}) od {signer}",
+      "signer_mismatch": "Podpisujący nie jest nadawcą widocznym w polu Od.",
+      "unknown_key": "Podpisano ({kind}) kluczem, którego nie zaimportowano.",
+      "unsupported": "Zaszyfrowano algorytmem {algorithm}, którego aplikacja nie potrafi odszyfrować."
+    },
+    "check_description": "Uruchamia na tym urządzeniu wszystkie algorytmy używane przez PGP i S/MIME.",
+    "check_run": "Uruchom test",
+    "check_title": "Sprawdź obsługę szyfrowania",
+    "delete_private_message": "{key} wraz z kluczem prywatnym zostanie usunięty z tego urządzenia. Poczty zaszyfrowanej tym kluczem nie będzie można tu odczytać, chyba że zaimportujesz go ponownie.",
+    "delete_public_message": "{key} zostanie usunięty z tego urządzenia.",
+    "delete_title": "Usunąć klucz?",
+    "expired": "Wygasł {date}",
+    "expires": "Wygasa {date}",
+    "find_key": "Znajdź klucz na keys.openpgp.org",
+    "import": "Importuj",
+    "import_cert": "Importuj certyfikat",
+    "import_p12": "Importuj certyfikat S/MIME (.p12)",
+    "import_pgp_file": "Importuj plik klucza PGP",
+    "import_public_file": "Importuj plik klucza publicznego",
+    "imported": "Zaimportowano {key}",
+    "lock": "Zablokuj",
+    "lock_all": "Zablokuj wszystkie klucze",
+    "lock_all_description": "Zapomnij odblokowane klucze, dopóki nie wpiszesz ponownie ich haseł.",
+    "locked": "Zablokowany",
+    "locked_all": "Klucze zablokowane",
+    "lookup_confirm": "Zanim go zaimportujesz, porównaj ten odcisk z tym, który podał Ci właściciel (osobiście, telefonicznie).",
+    "lookup_none": "Nie znaleziono klucza.",
+    "lookup_placeholder": "Adres e-mail lub odcisk",
+    "lookup_search": "Szukaj",
+    "lookup_verified": "Klucz ma wyszukiwany odcisk.",
+    "no_other_keys": "Jeszcze brak.",
+    "no_own_keys": "Jeszcze brak kluczy.",
+    "not_a_key": "To nie jest klucz ani certyfikat, który aplikacja potrafi odczytać.",
+    "others_description": "Klucze publiczne i certyfikaty do szyfrowania dla innych osób i sprawdzania podpisów. Używane są też klucze z podpisanej poczty i z Twoich kontaktów.",
+    "others_title": "Klucze innych osób",
+    "own_description": "Podpisuj i odszyfrowuj pocztę za pomocą OpenPGP lub S/MIME. Klucze prywatne pozostają w bezpiecznym magazynie tego urządzenia i są odblokowywane hasłem raz na sesję aplikacji.",
+    "own_title": "Twoje klucze",
+    "p12_password_message": "Wpisz hasło, z którym wyeksportowano plik .p12. Będzie ono znowu potrzebne do odblokowania klucza po ponownym uruchomieniu aplikacji.",
+    "p12_password_title": "Hasło certyfikatu",
+    "passphrase": "Hasło",
+    "passphrase_message": "Wpisz hasło tego klucza. Zostanie sprawdzone teraz, a potem będzie wymagane raz na sesję aplikacji.",
+    "passphrase_title": "Hasło klucza",
+    "password": "Hasło",
+    "paste_pgp": "Wklej klucz PGP",
+    "paste_public": "Wklej klucz publiczny",
+    "share_cert": "Udostępnij certyfikat",
+    "share_key": "Udostępnij klucz publiczny",
+    "tab": "Szyfrowanie",
+    "title": "Szyfrowanie",
+    "unlock": "Odblokuj",
+    "unlock_pgp_message": "Wpisz hasło swojego klucza PGP {key}.",
+    "unlock_read_reason": "Wiadomość jest zaszyfrowana tym kluczem.",
+    "unlock_smime_message": "Wpisz hasło swojego certyfikatu S/MIME {key}.",
+    "unlock_title": "Odblokuj klucz",
+    "unlocked": "Odblokowany",
+    "unlocking": "Odblokowywanie…",
+    "wrong_passphrase": "To hasło jest nieprawidłowe."
+  },
+  "notifications": {
+    "vacation_filters_off": "Ustawienia nieobecności zapisane, ale Twoje filtry są wyłączone. Zapisz ponownie, aby je włączyć."
+  },
+  "outbox": {
+    "discard": "Odrzuć",
+    "discard_body": "Nie zostanie wysłana, a jej treść przepadnie.",
+    "discard_title": "Odrzucić tę wiadomość?",
+    "failed_count": "{count, plural, one {# wiadomość niewysłana} few {# wiadomości niewysłane} many {# wiadomości niewysłanych} other {# wiadomości niewysłanej}}",
+    "move_failed_body": "Wiadomość pozostaje w Skrzynce nadawczej. Spróbuj ponownie po przywróceniu połączenia.",
+    "move_failed_title": "Nie udało się przenieść do Szkiców",
+    "move_to_drafts": "Przenieś do Szkiców",
+    "open_hint": "Otwiera Skrzynkę nadawczą",
+    "queued_body": "Zostanie wysłana, gdy tylko wrócisz do sieci.",
+    "queued_title": "Zapisano w Skrzynce nadawczej",
+    "retry": "Spróbuj ponownie",
+    "send_failed": "Nie udało się wysłać wiadomości ze Skrzynki nadawczej",
+    "sent": "Wysłano wiadomość ze Skrzynki nadawczej",
+    "status_failed": "Nie wysłano",
+    "status_failed_reason": "Nie wysłano: {reason}",
+    "status_offline": "Oczekiwanie na połączenie",
+    "status_retrying": "Oczekuje na wysłanie",
+    "status_sending": "Wysyłanie…",
+    "title": "Skrzynka nadawcza",
+    "waiting": "{count, plural, one {# wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}} w Skrzynce nadawczej"
+  },
+  "push": {
+    "ios": {
+      "more_messages": "i jeszcze {count}",
+      "no_subject": "(brak tematu)"
+    }
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "Brak ostatnich załączników",
+      "from_mail": "z poczty",
+      "title": "Załączniki",
+      "unknown_sender": "Nieznany nadawca"
+    },
+    "birthdays": {
+      "empty": "Brak nadchodzących urodzin",
+      "empty_body": "Urodziny pochodzą z Twoich kontaktów.",
+      "in_days": "{count, plural, one {za # dzień} few {za # dni} many {za # dni} other {za # dnia}}",
+      "send_wishes": "Wyślij życzenia",
+      "title": "Urodziny",
+      "wishes_subject": "Wszystkiego najlepszego!"
+    },
+    "calendar": {
+      "agenda": "Agenda",
+      "agenda_more": "{day}: {events}",
+      "all_day": "Cały dzień",
+      "join": "Dołącz",
+      "join_named": "Dołącz do {name}",
+      "more_this_week": "{count, plural, one {jeszcze # w tym tygodniu} few {jeszcze # w tym tygodniu} many {jeszcze # w tym tygodniu} other {jeszcze # w tym tygodniu}}",
+      "no_more_today": "Dziś już nic więcej",
+      "nothing_planned": "Nic w kalendarzu",
+      "now": "Teraz",
+      "open": "Otwórz",
+      "running_late": "Spóźnię się",
+      "running_late_body": "Spóźnię się kilka minut na {title}.",
+      "running_late_subject": "Spóźnię się: {title}",
+      "today": "Dzisiaj",
+      "tomorrow": "Jutro",
+      "unit_days": "{count, plural, one {dzień} few {dni} many {dni} other {dnia}}",
+      "unit_hours": "{count, plural, one {godzina} few {godziny} many {godzin} other {godziny}}",
+      "unit_minutes": "{count, plural, one {min} few {min} many {min} other {min}}",
+      "unsupported": "Kalendarz nie jest dostępny na tym serwerze",
+      "untitled": "(bez tytułu)",
+      "video_call": "Rozmowa wideo"
+    },
+    "countdown": {
+      "days": "{count, plural, one {dzień} few {dni} many {dni} other {dnia}}",
+      "empty": "Brak nadchodzących wydarzeń"
+    },
+    "draft": {
+      "edited_at": "Edytowano {when}",
+      "edited_minutes": "{count, plural, one {Edytowano # min temu} few {Edytowano # min temu} many {Edytowano # min temu} other {Edytowano # min temu}}",
+      "edited_now": "Edytowano przed chwilą",
+      "empty": "Brak szkiców",
+      "empty_body": "Tu czekają wiadomości, które zaczniesz pisać, ale nie wyślesz.",
+      "keep_writing": "Pisz dalej",
+      "title": "Szkice"
+    },
+    "files": {
+      "empty": "Brak plików",
+      "recent": "Ostatnio zmienione",
+      "unsupported": "Pliki nie są dostępne na tym serwerze"
+    },
+    "free": {
+      "busy_until": "Zajęte do {time}",
+      "free_rest": "Wolne do końca dnia",
+      "free_until": "Wolne do {time}",
+      "mail": "Wyślij moje wolne terminy",
+      "mail_subject": "Moje wolne terminy w tym tygodniu",
+      "no_calendar": "Brak kalendarza na tym koncie",
+      "then": "potem {title}",
+      "then_free": "potem wolne"
+    },
+    "hub": {
+      "all_clear": "Wszystko na bieżąco",
+      "mail_unread": "Poczta · nieprzeczytane: {count}",
+      "next": "Następne",
+      "next_on": "Następne · {day}",
+      "no_events": "Brak nadchodzących wydarzeń",
+      "now": "Teraz",
+      "tasks_due": "Zadania · do wykonania: {count}"
+    },
+    "invites": {
+      "accept": "Akceptuj",
+      "decline": "Odrzuć",
+      "empty": "Brak oczekujących zaproszeń",
+      "label": "Zaproszenie · {name}",
+      "label_plain": "Zaproszenie",
+      "maybe": "Może",
+      "position": "{index} z {count}"
+    },
+    "mail": {
+      "all_accounts": "Wszystkie konta",
+      "all_caught_up": "Wszystko przeczytane",
+      "archive": "Archiwizuj",
+      "delete": "Usuń",
+      "empty_all_accounts": "Twoje skrzynki odbiorcze są puste",
+      "empty_inbox": "Twoja skrzynka odbiorcza jest pusta",
+      "folders": "Foldery",
+      "in_outbox": "{count, plural, one {# zmiana czeka} few {# zmiany czekają} many {# zmian czeka} other {# zmiany czeka}}",
+      "in_outbox_short": "Oczekujące: {count}",
+      "inbox": "Odebrane",
+      "more_unread": "+{count} więcej nieprzeczytanych",
+      "no_folders": "Brak folderów do wyświetlenia",
+      "no_starred": "Brak wiadomości oznaczonych gwiazdką",
+      "no_starred_body": "Oznacz wiadomość gwiazdką, aby ją tu zachować.",
+      "no_subject": "(brak tematu)",
+      "no_unread": "Brak nieprzeczytanych wiadomości w folderze Odebrane.",
+      "position": "{index} z {count}",
+      "reply": "Odpowiedz",
+      "scheduled": "Zaplanowano",
+      "starred": "Oznaczone gwiazdką",
+      "unread": "nieprzeczytane"
+    },
+    "notice": {
+      "archive": "Nie udało się zarchiwizować. Stuknij, aby spróbować ponownie.",
+      "mark_read": "Nie udało się oznaczyć jako przeczytane. Stuknij, aby spróbować ponownie.",
+      "rsvp": "Nie udało się wysłać odpowiedzi. Stuknij, aby spróbować ponownie.",
+      "task": "Nie udało się zaktualizować „{title}”. Stuknij, aby spróbować ponownie.",
+      "trash": "Nie udało się usunąć. Stuknij, aby spróbować ponownie."
+    },
+    "people": {
+      "empty": "Brak ulubionych",
+      "empty_body": "Tu pojawią się osoby, od których najczęściej dostajesz wiadomości.",
+      "favourites": "Ulubione"
+    },
+    "relative": {
+      "days": "{count, plural, one {za # dzień} few {za # dni} many {za # dni} other {za # dnia}}",
+      "hours": "za {count} godz.",
+      "minutes": "za {count} min",
+      "now": "teraz"
+    },
+    "scheduled": {
+      "day_at": "{day}, {time}",
+      "empty": "Nic nie zaplanowano",
+      "empty_body": "Tu pojawią się wiadomości zaplanowane do późniejszego wysłania.",
+      "no_recipient": "(brak odbiorcy)",
+      "sending": "Wysyłanie",
+      "to": "Do: {name}",
+      "today_at": "Dzisiaj, {time}",
+      "tomorrow_at": "Jutro, {time}",
+      "waiting": "Oczekiwanie na sieć",
+      "waiting_body": "Zmiany wprowadzone offline zostaną wysłane, gdy wrócisz do sieci."
+    },
+    "search": {
+      "no_recent": "Tu pojawią się Twoje ostatnie wyszukiwania.",
+      "placeholder": "Szukaj w poczcie…",
+      "recent": "Ostatnie wyszukiwania"
+    },
+    "shortcuts": {
+      "calendar": "Kalendarz",
+      "compose": "Napisz",
+      "contacts": "Kontakty",
+      "files": "Pliki"
+    },
+    "state": {
+      "error": "Nie udało się wyświetlić tego widżetu",
+      "loading": "Ładowanie…",
+      "open_app": "Jeśli widżet pozostaje pusty, otwórz raz aplikację.",
+      "open_to_load": "Otwórz Bulwark, aby to wczytać",
+      "signed_out": "Zaloguj się do Bulwark"
+    },
+    "storage": {
+      "no_limit": "Bez limitu miejsca",
+      "title": "Przestrzeń dyskowa",
+      "unavailable": "Brak informacji o limicie",
+      "used_of": "{used} z {total}"
+    },
+    "tag": {
+      "empty": "Brak etykiet",
+      "empty_body": "Tu pojawią się etykiety dodane w aplikacji.",
+      "messages": "{count, plural, one {wiadomość} few {wiadomości} many {wiadomości} other {wiadomości}}",
+      "total": "{count, plural, one {# wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}}"
+    },
+    "tasks": {
+      "all_done": "Wszystko zrobione",
+      "empty": "Brak otwartych zadań",
+      "mark_complete": "Oznacz jako wykonane",
+      "mark_incomplete": "Oznacz jako niewykonane",
+      "no_title": "(bez tytułu)",
+      "off": "Zadania są wyłączone",
+      "off_body": "Włącz zadania w ustawieniach kalendarza w aplikacji",
+      "open_count": "Otwarte: {count}",
+      "overdue": "Zaległe",
+      "still_open": "Nadal otwarte: {count}",
+      "title": "Zadania",
+      "today": "Dzisiaj",
+      "tomorrow": "Jutro"
+    },
+    "vacation": {
+      "active": "Aktywne",
+      "inactive": "Nieaktywne",
+      "subject": "Temat: {subject}",
+      "title": "Autoresponder",
+      "unsupported": "Automatyczne odpowiedzi są niedostępne",
+      "until": "Do {date}"
+    }
   }
 }
