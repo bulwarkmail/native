@@ -517,6 +517,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           // and the text around the field.
           disableFullscreenUI
           style={styles.searchInput}
+          accessibilityLabel={t('advanced_search.search', 'Search')}
           placeholder={t('email_list.search_placeholder', 'Search mail...')}
           placeholderTextColor={c.textMuted}
           value={searchInput}

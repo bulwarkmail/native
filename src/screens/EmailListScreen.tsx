@@ -393,10 +393,13 @@ const EmailListItem = React.memo(function EmailListItem({
 function DebouncedFilterInput({
   value,
   onCommit,
+  accessibilityLabel,
   ...props
-}: Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText'> & {
+}: Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText' | 'accessibilityLabel'> & {
   value: string;
   onCommit: (value: string) => void;
+  /** The field's name for screen readers: its label sits beside it as separate Text. */
+  accessibilityLabel: string;
 }) {
   const [text, setText] = React.useState(value);
   React.useEffect(() => { setText(value); }, [value]);
@@ -410,6 +413,7 @@ function DebouncedFilterInput({
   return (
     <TextInput
       {...props}
+      accessibilityLabel={accessibilityLabel}
       value={text}
       onChangeText={setText}
       returnKeyType="search"
@@ -1280,6 +1284,7 @@ export default function EmailListScreen({
           disableFullscreenUI
           ref={searchInputRef}
           style={styles.searchInput}
+          accessibilityLabel={t('advanced_search.search', 'Search')}
           placeholder={t('email_list.search_placeholder', 'Search mail...')}
           placeholderTextColor={c.textMuted}
           value={searchInput}
@@ -1831,6 +1836,7 @@ export default function EmailListScreen({
                       <DebouncedFilterInput
                         value={filters.from ?? ''}
                         onCommit={(v) => setFilterField('from', v)}
+                        accessibilityLabel={t('advanced_search.from', 'From')}
                         placeholder={t('advanced_search.from_placeholder', 'Sender email or name')}
                         placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
@@ -1843,6 +1849,7 @@ export default function EmailListScreen({
                       <DebouncedFilterInput
                         value={filters.to ?? ''}
                         onCommit={(v) => setFilterField('to', v)}
+                        accessibilityLabel={t('advanced_search.to', 'To')}
                         placeholder={t('advanced_search.to_placeholder', 'Recipient email or name')}
                         placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
@@ -1857,6 +1864,7 @@ export default function EmailListScreen({
                     <DebouncedFilterInput
                       value={filters.subject ?? ''}
                       onCommit={(v) => setFilterField('subject', v)}
+                      accessibilityLabel={t('advanced_search.subject', 'Subject')}
                       placeholder={t('advanced_search.subject_placeholder', 'Subject contains...')}
                       placeholderTextColor={c.textMuted}
                       style={styles.filterFieldInput}
@@ -1868,6 +1876,7 @@ export default function EmailListScreen({
                     <DebouncedFilterInput
                       value={filters.body ?? ''}
                       onCommit={(v) => setFilterField('body', v)}
+                      accessibilityLabel={t('advanced_search.body', 'Body')}
                       placeholder={t('advanced_search.body_placeholder', 'Body contains...')}
                       placeholderTextColor={c.textMuted}
                       style={styles.filterFieldInput}
