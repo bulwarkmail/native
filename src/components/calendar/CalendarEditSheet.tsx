@@ -33,6 +33,7 @@ const CUSTOM_COLOR_GRID = customColorGrid();
 import Button from '../Button';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 
 export interface CalendarEditValues {
   name: string;
@@ -147,6 +148,8 @@ interface CalendarEditSheetProps {
 export function CalendarEditSheet({ visible, calendar, onSave, onClose }: CalendarEditSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
+  // Create above a tablet's taskbar, the hex field above the keyboard.
+  const bottomInset = useSheetBottomInset(visible);
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -216,7 +219,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
       <TouchableWithoutFeedback accessible={false} onPress={onClose}>
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
-            <View style={styles.sheet}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
               <Text style={styles.title}>
                 {calendar
                   ? t('calendar.management.edit_calendar', 'Edit calendar')

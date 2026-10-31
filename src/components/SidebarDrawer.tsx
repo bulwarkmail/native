@@ -48,6 +48,7 @@ import {
 } from '../lib/notification-mutes';
 import { serverSupportsEmailPush } from '../lib/push-notifications';
 import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -242,10 +243,12 @@ interface SheetAction {
 function ActionSheet({ title, actions, onClose }: { title: string; actions: SheetAction[]; onClose: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // The Modal reaches under a tablet's taskbar: keep the last action above it.
+  const bottomInset = useSheetBottomInset();
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.sheetOverlay} onPress={onClose} />
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: spacing.xl + bottomInset }]}>
         <Text style={styles.sheetTitle} numberOfLines={1}>{title}</Text>
         {actions.map((a) => {
           const Icon = a.icon;
@@ -278,6 +281,8 @@ function NamePrompt({ title, message, initial, confirmLabel, onSubmit, onClose }
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const [value, setValue] = React.useState(initial ?? '');
+  // Centred above the keyboard (the field autofocuses) and the taskbar.
+  const bottomInset = useSheetBottomInset();
   const submit = () => {
     const name = value.trim();
     if (!name) return;
@@ -287,27 +292,29 @@ function NamePrompt({ title, message, initial, confirmLabel, onSubmit, onClose }
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.sheetOverlay} onPress={onClose} />
-      <View style={styles.promptCard}>
-        <Text style={styles.sheetTitle}>{title}</Text>
-        {message ? <Text style={styles.promptMessage}>{message}</Text> : null}
-        <TextInput
-          accessibilityLabel={t('mailbox_context_menu.placeholder_folder_name', 'Folder name')}
-          value={value}
-          onChangeText={setValue}
-          placeholder={t('mailbox_context_menu.placeholder_folder_name', 'Folder name')}
-          placeholderTextColor={c.textMuted}
-          style={styles.promptInput}
-          autoFocus
-          onSubmitEditing={submit}
-          returnKeyType="done"
-        />
-        <View style={styles.promptActions}>
-          <Pressable onPress={onClose} style={styles.promptButton} hitSlop={6}>
-            <Text style={styles.promptButtonText}>{t('common.cancel', 'Cancel')}</Text>
-          </Pressable>
-          <Pressable onPress={submit} style={styles.promptButton} hitSlop={6} disabled={!value.trim()}>
-            <Text style={[styles.promptButtonText, { color: c.primary }, !value.trim() && { opacity: 0.5 }]}>{confirmLabel}</Text>
-          </Pressable>
+      <View style={[styles.promptCenter, { paddingBottom: bottomInset }]} pointerEvents="box-none">
+        <View style={styles.promptCard}>
+          <Text style={styles.sheetTitle}>{title}</Text>
+          {message ? <Text style={styles.promptMessage}>{message}</Text> : null}
+          <TextInput
+            accessibilityLabel={t('mailbox_context_menu.placeholder_folder_name', 'Folder name')}
+            value={value}
+            onChangeText={setValue}
+            placeholder={t('mailbox_context_menu.placeholder_folder_name', 'Folder name')}
+            placeholderTextColor={c.textMuted}
+            style={styles.promptInput}
+            autoFocus
+            onSubmitEditing={submit}
+            returnKeyType="done"
+          />
+          <View style={styles.promptActions}>
+            <Pressable onPress={onClose} style={styles.promptButton} hitSlop={6}>
+              <Text style={styles.promptButtonText}>{t('common.cancel', 'Cancel')}</Text>
+            </Pressable>
+            <Pressable onPress={submit} style={styles.promptButton} hitSlop={6} disabled={!value.trim()}>
+              <Text style={[styles.promptButtonText, { color: c.primary }, !value.trim() && { opacity: 0.5 }]}>{confirmLabel}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -1610,10 +1617,13 @@ function makeStyles(c: ThemePalette) {
     minHeight: 44,
   },
   sheetRowText: { ...typography.body, color: c.text },
+  // Centres the prompt in the space above the keyboard and the navigation bar.
+  promptCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
   promptCard: {
-    position: 'absolute',
-    left: spacing.lg, right: spacing.lg,
-    top: '30%',
     backgroundColor: c.popover,
     borderRadius: radius.md,
     borderWidth: 1,

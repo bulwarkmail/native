@@ -32,6 +32,7 @@ import { getEmailInitials } from '../lib/avatar-utils';
 import { useContactsStore, type RecipientSuggestion } from '../stores/contacts-store';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { useLayout } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -2084,6 +2085,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // readers skip it; Skip leaves it undescribed.
   const [altQueue, setAltQueue] = React.useState<Array<{ cid: string; src: string }>>([]);
   const altTarget = altQueue[0] ?? null;
+  // The field autofocuses: the card centres above the keyboard and the taskbar.
+  const altInset = useSheetBottomInset(!!altTarget);
   const [altText, setAltText] = React.useState('');
   const [altDecorative, setAltDecorative] = React.useState(false);
   React.useEffect(() => {
@@ -2102,6 +2105,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // ── Link prompt (Modal) ──────────────────────────────────────────────
   const [linkPromptVisible, setLinkPromptVisible] = React.useState(false);
   const [linkPromptValue, setLinkPromptValue] = React.useState('');
+  const linkInset = useSheetBottomInset(linkPromptVisible);
 
   const openLinkPrompt = () => {
     setLinkPromptValue('https://');
@@ -3092,7 +3096,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         animationType="fade"
         onRequestClose={() => setLinkPromptVisible(false)}
       >
-        <View style={styles.modalBackdrop}>
+        <View style={[styles.modalBackdrop, { paddingBottom: spacing.lg + linkInset }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
               {t('email_composer.add_link', 'Add link')}
@@ -3143,7 +3147,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         animationType="fade"
         onRequestClose={closeAltPrompt}
       >
-        <View style={styles.modalBackdrop}>
+        <View style={[styles.modalBackdrop, { paddingBottom: spacing.lg + altInset }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('email_composer.image_alt.title', 'Describe this image')}</Text>
             <Text style={styles.modalLabel}>

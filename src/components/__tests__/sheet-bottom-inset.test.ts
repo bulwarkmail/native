@@ -13,11 +13,7 @@ import path from 'node:path';
 const SRC = path.resolve(__dirname, '../..');
 
 // Sheets in files other agents own; their fix is reported, not made here.
-const OWNED_ELSEWHERE = new Set([
-  'components/SidebarDrawer.tsx',
-  'components/calendar/CalendarEditSheet.tsx',
-  'components/sharing/ShareCollectionSheet.tsx',
-]);
+const OWNED_ELSEWHERE = new Set<string>([]);
 
 function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -48,6 +44,16 @@ function padsBottom(body: string): boolean {
   return /bottomInset|insets\.bottom/.test(body);
 }
 
+/** A body with a text field that opens the keyboard as the Modal opens. */
+function autoFocuses(body: string): boolean {
+  return /\bautoFocus\b/.test(body);
+}
+
+/** Padded by useSheetBottomInset under any name (bottomInset, altInset, ...). */
+function padsForKeyboard(body: string): boolean {
+  return /[a-zA-Z]*Inset\b|insets\.bottom/.test(body.replace(/\bsheetInsets\b/g, ''));
+}
+
 describe('bottom sheets in a Modal', () => {
   it('pad their content above the navigation bar or taskbar', () => {
     const offenders = sourceFiles(SRC).flatMap((file) => {
@@ -61,8 +67,32 @@ describe('bottom sheets in a Modal', () => {
     expect(offenders).toEqual([]);
   });
 
+  // A dialog whose field autofocuses opens with the keyboard up. The Modal
+  // window doesn't shrink for it, so a card at a fixed spot (the folder name
+  // prompt at top 30%) or centred in the full screen (Compose's image
+  // description) had its field or buttons under the keyboard.
+  it('keep a dialog with an autofocused field above the keyboard', () => {
+    const offenders = sourceFiles(SRC).flatMap((file) => {
+      const rel = path.relative(SRC, file).split(path.sep).join('/');
+      if (OWNED_ELSEWHERE.has(rel)) return [];
+      const source = fs.readFileSync(file, 'utf8');
+      return modalBodies(source)
+        .filter((body) => autoFocuses(body) && !padsForKeyboard(body))
+        .map(() => rel);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it('centres the folder name prompt instead of pinning it at 30 %', () => {
+    const source = fs.readFileSync(path.join(SRC, 'components/SidebarDrawer.tsx'), 'utf8');
+    expect(source).not.toMatch(/top:\s*'30%'/);
+  });
+
   it('covers the sheets the tablet walkthrough found', () => {
-    for (const rel of ['components/settings/FolderSettings.tsx', 'screens/FilesScreen.tsx', 'components/files/ShareSheet.tsx']) {
+    for (const rel of [
+      'components/settings/FolderSettings.tsx', 'screens/FilesScreen.tsx', 'components/files/ShareSheet.tsx',
+      'components/SidebarDrawer.tsx', 'components/calendar/CalendarEditSheet.tsx', 'components/sharing/ShareCollectionSheet.tsx',
+    ]) {
       const bodies = modalBodies(fs.readFileSync(path.join(SRC, rel), 'utf8')).filter(rendersSheet);
       expect(bodies.length, rel).toBeGreaterThan(0);
     }
@@ -75,5 +105,7 @@ describe('bottom sheets in a Modal', () => {
     expect(rendersSheet(bodies[0])).toBe(true);
     expect(padsBottom(bodies[0])).toBe(true);
     expect(padsBottom('<Modal><View style={styles.sheet} /></Modal>')).toBe(false);
+    expect(padsForKeyboard('<View style={[styles.backdrop, { paddingBottom: spacing.lg + altInset }]}>')).toBe(true);
+    expect(padsForKeyboard('<View style={[styles.backdrop, { paddingLeft: sheetInsets.left }]}>')).toBe(false);
   });
 });
