@@ -60,8 +60,12 @@ const mockMaxObjectsInGet = jmapClient.getMaxObjectsInGet as ReturnType<typeof v
 const mockMaxCallsInRequest = jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>;
 const mockMaxObjectsInSet = jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>;
 
+// A session advertises FileNode unless the test says otherwise.
 function setSession(session: unknown) {
-  (jmapClient as { currentSession: unknown }).currentSession = session;
+  (jmapClient as { currentSession: unknown }).currentSession =
+    session && typeof session === 'object'
+      ? { capabilities: { [CAPABILITIES.FILES]: {} }, ...session }
+      : session;
 }
 
 beforeEach(() => {
@@ -268,12 +272,15 @@ describe('getAllFileNodesAcrossAccounts', () => {
     expect(child.parentId).toBe('acc-2:s1');
   });
 
-  it('skips personal accounts without the filenode capability', async () => {
+  it('skips accounts that list their capabilities without filenode (bulwarkmail/webmail#1239)', async () => {
     setSession({
+      capabilities: { [CAPABILITIES.FILES]: {}, [CAPABILITIES.MAIL]: {} },
       primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
       accounts: {
         'acc-1': { name: 'me@example.com', isPersonal: true },
-        'acc-3': { name: 'other personal', isPersonal: true },
+        'acc-3': { name: 'other personal', isPersonal: true, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+        // A shared account used to count as capable whatever it listed.
+        'acc-4': { name: 'Team', isPersonal: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
       },
     });
     mockRequest.mockResolvedValue({
@@ -1177,7 +1184,10 @@ describe('FileNode/set refused by the server', () => {
 describe('accountSupportsFiles (#563)', () => {
   const caps = { [CAPABILITIES.FILES]: {} };
   it('requires the account capability on personal accounts', () => {
-    expect(accountSupportsFiles({ name: 'me', isPersonal: true, isReadOnly: false }, caps)).toBe(false);
+    expect(accountSupportsFiles(
+      { name: 'me', isPersonal: true, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+      caps,
+    )).toBe(false);
     expect(accountSupportsFiles(
       { name: 'me', isPersonal: true, isReadOnly: false, accountCapabilities: { [CAPABILITIES.FILES]: {} } },
       caps,
@@ -1188,6 +1198,17 @@ describe('accountSupportsFiles (#563)', () => {
     expect(accountSupportsFiles({ name: 'grp', isPersonal: false, isReadOnly: false }, caps)).toBe(true);
     expect(accountSupportsFiles({ name: 'grp', isPersonal: false, isReadOnly: false }, {})).toBe(false);
     expect(accountSupportsFiles(undefined, caps)).toBe(false);
+  });
+
+  it('leaves out a shared account that lists its capabilities without filenode (bulwarkmail/webmail#1239)', () => {
+    expect(accountSupportsFiles(
+      { name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: { [CAPABILITIES.MAIL]: {} } },
+      caps,
+    )).toBe(false);
+    expect(accountSupportsFiles(
+      { name: 'grp', isPersonal: false, isReadOnly: false, accountCapabilities: {} },
+      caps,
+    )).toBe(true);
   });
 });
 

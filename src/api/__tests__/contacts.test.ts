@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const session = {
+  capabilities: { 'urn:ietf:params:jmap:contacts': {} } as Record<string, unknown>,
   primaryAccounts: {} as Record<string, string>,
   accounts: {} as Record<string, { name: string; isPersonal: boolean; accountCapabilities?: Record<string, unknown> }>,
 };
@@ -59,6 +60,15 @@ describe('contacts operations', () => {
         'acc-ct': { name: 'Ct', isPersonal: true, accountCapabilities: { 'urn:ietf:params:jmap:contacts': {} } },
       };
       expect(getContactCapableAccountIds()).toEqual(['acc-1', 'acc-team', 'acc-ct']);
+    });
+
+    it('leaves out a shared account that lists its capabilities without contacts (bulwarkmail/webmail#1239)', () => {
+      session.accounts = {
+        'acc-1': { name: 'me', isPersonal: true },
+        'acc-mail': { name: 'Mail only', isPersonal: false, accountCapabilities: { 'urn:ietf:params:jmap:mail': {} } },
+        'acc-team': { name: 'Team', isPersonal: false, accountCapabilities: { 'urn:ietf:params:jmap:contacts': {} } },
+      };
+      expect(getContactCapableAccountIds()).toEqual(['acc-1', 'acc-team']);
     });
   });
 
