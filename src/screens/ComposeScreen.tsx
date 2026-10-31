@@ -68,6 +68,7 @@ import {
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
 import { sendTargetFor } from '../lib/compose-send-account';
+import { findAttachmentKeyword } from '../lib/compose-send-checks';
 import { inlineImageType } from '../lib/compose-inline-type';
 import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
@@ -2084,13 +2085,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       plainTextMode,
       forwardedSeparator: quoteLabels.forwardedSeparator,
     });
-    const haystack = `${subject}\n${authored}`.toLowerCase();
-    const matchedKeyword = attachmentReminderKeywords.find((kw) => {
-      const k = kw.trim().toLowerCase();
-      if (!k) return false;
-      // Word-boundary match so 'attach' doesn't fire on 'detached'.
-      return new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(haystack);
-    });
+    const matchedKeyword = findAttachmentKeyword(`${subject}\n${authored}`, attachmentReminderKeywords);
     if (!matchedKeyword) return true;
     return new Promise<boolean>((resolve) => {
       Alert.alert(
@@ -2171,6 +2166,25 @@ export default function ComposeScreen({ route, navigation }: Props) {
             },
           },
         ],
+      );
+    });
+  };
+
+  // "Send this message?" when "Confirm before sending" is on (webmail
+  // 4d91d9b29). Asked after every other check, so a warning answered first
+  // doesn't ask it twice.
+  const passesSendConfirmation = (): Promise<boolean> => {
+    if (!useSettingsStore.getState().sendConfirmation) return Promise.resolve(true);
+    const count = [finalTo, finalCc, finalBcc].reduce((n, list) => n + expandRecipients(list).length, 0);
+    return new Promise<boolean>((resolve) => {
+      Alert.alert(
+        t('email_composer.send_confirm.title', 'Send this message?'),
+        t('email_composer.send_confirm.message', 'It goes to {count, plural, one {# recipient} other {# recipients}}.', { count }),
+        [
+          { text: t('email_composer.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('email_composer.send', 'Send'), onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
       );
     });
   };
@@ -2326,6 +2340,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (!(await passesEmptySubjectCheck())) return;
     if (!(await passesPlaceholderCheck(plainTextMode ? plainBody : liveBodyHtml))) return;
     if (!(await passesAttachmentReminder(plainTextMode ? plainBody : liveBodyHtml))) return;
+    if (!(await passesSendConfirmation())) return;
 
     // Autosave must not race the send: cancel a scheduled save and let an
     // in-flight one finish so its version can be destroyed after the send.

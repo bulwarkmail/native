@@ -25,6 +25,8 @@ import { htmlToPlainText } from '../../lib/compose-html';
 import { sendTargetFor } from '../../lib/compose-send-account';
 import { emailDisplayDate } from '../../lib/email-date';
 import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
+import { passesQuickReplyChecks, type SendQuestion } from '../../lib/compose-send-checks';
+import { placeholderWordsFor } from '../../lib/placeholder-check';
 
 interface Props {
   email: Email;
@@ -63,6 +65,9 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
   const ownerLoginRef = React.useRef(useAccountStore.getState().activeAccountId);
   React.useEffect(() => { ownerLoginRef.current = useAccountStore.getState().activeAccountId; }, [email.id]);
 
+  // Taps while a send question is open do nothing.
+  const checkingRef = React.useRef(false);
+
   const from = email.from?.[0];
   if (!from?.email || email.keywords?.$draft) return null;
 
@@ -75,7 +80,58 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
     return true;
   };
 
+  // Asked as the composer asks, with "Back to editing" to stop the send.
+  const askBeforeSend = (question: SendQuestion) => new Promise<boolean>((resolve) => {
+    const back = { text: t('email_composer.placeholder_warning.back', 'Back to editing'), style: 'cancel' as const, onPress: () => resolve(false) };
+    const opts = { cancelable: true, onDismiss: () => resolve(false) };
+    switch (question.kind) {
+      case 'placeholders':
+        Alert.alert(
+          t('email_composer.placeholder_warning.title', 'Check placeholders?'),
+          `${t(
+            'email_composer.placeholder_warning.message',
+            'Your message has placeholder text that recipients will see. Do you want to edit it before sending?',
+          )}\n\n${t('email_composer.placeholder_warning.found', 'Placeholders found')}: ${question.found.join(', ')}`,
+          [back, { text: t('email_composer.placeholder_warning.send_anyway', 'Send anyway'), onPress: () => resolve(true) }],
+          opts,
+        );
+        return;
+      case 'attachment':
+        Alert.alert(
+          t('email_composer.attachment_reminder_title', 'Forgot an attachment?'),
+          t(
+            'email_composer.attachment_reminder_body',
+            'Your message mentions "{keyword}" but no file is attached. Send anyway?',
+            { keyword: question.keyword },
+          ),
+          [back, { text: t('email_composer.send', 'Send'), onPress: () => resolve(true) }],
+          opts,
+        );
+        return;
+      case 'send':
+        Alert.alert(
+          t('email_composer.send_confirm.title', 'Send this message?'),
+          t('email_composer.send_confirm.message', 'It goes to {count, plural, one {# recipient} other {# recipients}}.', { count: question.count }),
+          [
+            { text: t('email_composer.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
+            { text: t('email_composer.send', 'Send'), onPress: () => resolve(true) },
+          ],
+          opts,
+        );
+    }
+  });
+
   const send = async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    try {
+      await sendInner();
+    } finally {
+      checkingRef.current = false;
+    }
+  };
+
+  const sendInner = async () => {
     const body = text.trim();
     if (!body || sending) return;
     if (refuseAfterSwitch()) return;
@@ -91,6 +147,25 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       Alert.alert(t('common.error', 'Error'), t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
       return;
     }
+    const recipients = buildReplyRecipients(
+      { from: email.from, replyToAddresses: email.replyTo, to: email.to, cc: email.cc },
+      'reply',
+      ownEmails,
+    );
+    // The composer's placeholder warning, attachment reminder and "Confirm
+    // before sending" (webmail 534049952): a quick reply is no way around them.
+    const settings = useSettingsStore.getState();
+    const passed = await passesQuickReplyChecks({
+      body,
+      placeholderWords: settings.placeholderWarningEnabled ? placeholderWordsFor(locale) : null,
+      attachmentKeywords: settings.attachmentReminderEnabled ? settings.attachmentReminderKeywords : null,
+      confirmSend: settings.sendConfirmation,
+      recipientCount: [...recipients.to, ...recipients.cc].filter((r) => !!r.email).length,
+      ask: askBeforeSend,
+    });
+    if (!passed) return;
+    // The questions wait for the user, long enough for a switch of logins.
+    if (refuseAfterSwitch()) return;
     setSending(true);
     try {
       // The account, identity and folders the reply goes out through, as the
@@ -105,11 +180,6 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       }
       // The lookup may have outlasted a switch of logins.
       if (refuseAfterSwitch()) return;
-      const recipients = buildReplyRecipients(
-        { from: email.from, replyToAddresses: email.replyTo, to: email.to, cc: email.cc },
-        'reply',
-        ownEmails,
-      );
       const picked = pickEmailBody(email);
       const original = picked.text ?? (picked.html ? htmlToPlainText(picked.html) : plainTextBody(email));
       const quoted = original.split('\n').map((l) => `> ${l}`).join('\n');
