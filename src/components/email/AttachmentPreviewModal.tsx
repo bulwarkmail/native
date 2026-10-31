@@ -57,6 +57,8 @@ interface Props {
   onDownload?: () => void;
   /** Render in place (a split view's side pane) instead of a full-screen modal. */
   docked?: boolean;
+  /** Extra header buttons, after the title (Files: previous / next file). */
+  headerActions?: React.ReactNode;
 }
 
 interface ViewerWebViewProps {
@@ -148,7 +150,7 @@ function PdfPagesView({ fileUri, viewerUri, background, onFailed }: {
  * place that opens a file.
  */
 export function AttachmentPreviewModal({
-  item, loading, title, onClose, onOpenExternal, onShare, onDownload, docked = false,
+  item, loading, title, onClose, onOpenExternal, onShare, onDownload, docked = false, headerActions,
 }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -393,6 +395,7 @@ export function AttachmentPreviewModal({
             <X size={22} color={c.text} />
           </Pressable>
           <Text style={styles.title} numberOfLines={1}>{item?.name ?? title ?? ''}</Text>
+          {headerActions}
           {item && !showsFallback ? (
             <Pressable
               onPress={onOpenExternal}

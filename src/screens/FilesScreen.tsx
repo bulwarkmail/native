@@ -84,6 +84,7 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
+import { previewNeighbours } from '../lib/files-preview-neighbours';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 // A file row carries the display name alongside the rest of the node.
@@ -464,12 +465,17 @@ export default function FilesScreen() {
     }
   }, [t]);
 
+  // Every way into the preview: a tap, the row's actions, previous / next.
+  const openPreview = useCallback((row: FileRow) => {
+    setPreviewTarget(row);
+  }, []);
+
   // Tap on a file: the in-app preview for the types it shows (lib/file-preview),
   // the other app for the rest.
   const openFile = useCallback((row: FileRow) => {
-    if (canPreviewInApp(row)) setPreviewTarget(row);
+    if (canPreviewInApp(row)) openPreview(row);
     else void openFileWith(row);
-  }, [openFileWith]);
+  }, [openFileWith, openPreview]);
 
   const downloadFile = useCallback(async (row: FileRow) => {
     if (!row.blobId) return;
@@ -552,7 +558,7 @@ export default function FilesScreen() {
       // In the trash a file can be looked at; a folder is restored before
       // it is opened. Everything else is in the row's actions.
       if (row.trash) {
-        if (!isFolder(row) && !isSymlink(row) && canPreviewInApp(row)) setPreviewTarget(row);
+        if (!isFolder(row) && !isSymlink(row) && canPreviewInApp(row)) openPreview(row);
         else setActionsTarget(row);
         return;
       }
@@ -566,7 +572,7 @@ export default function FilesScreen() {
       if (isSymlink(row)) return;
       openFile(row);
     },
-    [selectionMode, toggleSelect, openFile],
+    [selectionMode, toggleSelect, openFile, openPreview],
   );
 
   const handleRowLongPress = useCallback((row: FileRow) => {
@@ -1296,6 +1302,16 @@ export default function FilesScreen() {
     );
   }
 
+  // The preview steps through the folder's other files it can show, in the
+  // order of the list (webmail previewNeighbours).
+  const previewable = useMemo(
+    () => visibleFiles.filter((r) => !isFolder(r) && !isSymlink(r) && canPreviewInApp(r)),
+    [visibleFiles],
+  );
+  const { previous: previousFile, next: nextFile } = previewNeighbours(previewable, previewTarget);
+  const showPrevious = previousFile ? () => openPreview(previousFile) : undefined;
+  const showNext = nextFile ? () => openPreview(nextFile) : undefined;
+
   // On a wide window an open file shows beside the list instead of covering it.
   const previewDocked = isSplit && previewTarget != null;
   return (
@@ -1306,7 +1322,13 @@ export default function FilesScreen() {
       </View>
       {previewDocked && (
         <View style={styles.previewPane}>
-          <FilePreviewModal docked file={previewTarget} onClose={() => setPreviewTarget(null)} />
+          <FilePreviewModal
+            docked
+            file={previewTarget}
+            onClose={() => setPreviewTarget(null)}
+            onPrevious={showPrevious}
+            onNext={showNext}
+          />
         </View>
       )}
 
@@ -1348,7 +1370,7 @@ export default function FilesScreen() {
         onClose={() => setActionsTarget(null)}
         onPreview={(r) => {
           setActionsTarget(null);
-          setPreviewTarget(r);
+          openPreview(r);
         }}
         onOpenWith={(r) => {
           setActionsTarget(null);
@@ -1404,7 +1426,14 @@ export default function FilesScreen() {
         onChangeDir={(d) => setSetting('filesDefaultSortDir', d)}
       />
 
-      {!isSplit && <FilePreviewModal file={previewTarget} onClose={() => setPreviewTarget(null)} />}
+      {!isSplit && (
+        <FilePreviewModal
+          file={previewTarget}
+          onClose={() => setPreviewTarget(null)}
+          onPrevious={showPrevious}
+          onNext={showNext}
+        />
+      )}
 
       <ShareSheet
         node={shareTarget}
