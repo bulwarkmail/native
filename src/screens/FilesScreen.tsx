@@ -71,6 +71,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatListDate } from '../lib/date-format';
 import { useLayout, useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import { filesListWidth } from '../lib/files-split';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import { driveChange, type DriveScope } from '../lib/files-drive';
@@ -258,6 +259,8 @@ export default function FilesScreen() {
   const [actionsTarget, setActionsTarget] = useState<FileRow | null>(null);
   // The menu of a starred folder or a recent file.
   const [placeMenu, setPlaceMenu] = useState<PlaceMenu | null>(null);
+  // Width inside the side insets, for the list next to a docked preview.
+  const [contentWidth, setContentWidth] = useState(0);
   const [shareTarget, setShareTarget] = useState<FileRow | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileRow | null>(null);
   const [previewTarget, setPreviewTarget] = useState<FileRow | null>(null);
@@ -1563,8 +1566,11 @@ export default function FilesScreen() {
   // On a wide window an open file shows beside the list instead of covering it.
   const previewDocked = isSplit && previewTarget != null;
   return (
-    <View style={[styles.container, previewDocked && styles.splitRow, { paddingLeft: insets.left, paddingRight: insets.right }]}>
-      <View style={styles.listColumn}>
+    <View
+      style={[styles.container, previewDocked && styles.splitRow, { paddingLeft: insets.left, paddingRight: insets.right }]}
+      onLayout={(e) => setContentWidth(e.nativeEvent.layout.width - insets.left - insets.right)}
+    >
+      <View style={[styles.listColumn, previewDocked && { flex: 0, width: filesListWidth(contentWidth) }]}>
         {renderHeader()}
         {body}
       </View>
@@ -2177,7 +2183,8 @@ function makeStyles(c: ThemePalette) {
     },
     splitRow: { flexDirection: 'row' },
     listColumn: { flex: 1 },
-    previewPane: { width: '45%', borderLeftWidth: 1, borderLeftColor: c.border },
+    // The rest of the row; the list column gets filesListWidth.
+    previewPane: { flex: 1, borderLeftWidth: 1, borderLeftColor: c.border },
     header: {
       paddingBottom: spacing.sm,
       borderBottomWidth: 1,
