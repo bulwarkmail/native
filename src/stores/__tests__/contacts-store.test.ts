@@ -150,6 +150,24 @@ describe('contacts-store', () => {
       expect(useContactsStore.getState().contacts).toHaveLength(2);
     });
 
+    it('loads the address books with the cards when it has none, as after an account switch', async () => {
+      const order: string[] = [];
+      useContactsStore.setState({ addressBooks: [{ id: 'old', name: 'Other account' } as AddressBook] });
+      useContactsStore.getState().reset();
+      mockGetAllAddressBooks.mockImplementation(async () => { order.push('books'); return [{ id: 'ab-1', name: 'Personal' }]; });
+      mockGetAllContacts.mockImplementation(async () => { order.push('contacts'); return [card('c1')]; });
+
+      await useContactsStore.getState().fetchContacts();
+
+      expect(useContactsStore.getState().addressBooks).toEqual([{ id: 'ab-1', name: 'Personal' }]);
+      // Books first: AddressBook/get makes Stalwart mint the default book.
+      expect(order).toEqual(['books', 'contacts']);
+
+      // With books loaded, a reload of the cards leaves them alone.
+      await useContactsStore.getState().fetchContacts();
+      expect(mockGetAllAddressBooks).toHaveBeenCalledTimes(1);
+    });
+
     it('waits for an in-flight address book load before querying', async () => {
       const order: string[] = [];
       let resolveBooks: (v: unknown) => void = () => {};
@@ -787,6 +805,8 @@ describe('an account switch while contacts load or save', () => {
   it('drops the previous account\'s cards that arrive after the switch', async () => {
     const old = deferred<ContactCard[]>();
     mockGetAllContacts.mockReturnValueOnce(old.promise);
+    // The old account has its books, so its card load starts at once.
+    useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'Personal' } as AddressBook] });
     const oldLoad = useContactsStore.getState().fetchContacts();
 
     useContactsStore.getState().reset();

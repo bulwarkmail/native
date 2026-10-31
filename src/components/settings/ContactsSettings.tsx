@@ -23,6 +23,7 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../../theme/colors';
 import type { AddressBook } from '../../api/types';
 import { addressBookLabel } from '../../lib/address-book-label';
+import { showsDefaultBadge } from './address-book-rows';
 
 export function ContactsSettings() {
   const c = useColors();
@@ -65,6 +66,8 @@ export function ContactsSettings() {
   const [shareTarget, setShareTarget] = React.useState<AddressBook | null>(null);
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
+  // The books as they are now, also after an account switch.
+  React.useEffect(() => { void fetchAddressBooks(); }, [fetchAddressBooks]);
 
   const exportable = React.useMemo(() => contacts.filter((cc) => !isGroup(cc)), [contacts]);
   const exportLabel =
@@ -266,7 +269,7 @@ export function ContactsSettings() {
                   </Text>
                   <Text style={styles.bookCount}>
                     {t('settings.contacts.book_count', '{count, plural, one {# contact} other {# contacts}}', { count: book.count })}
-                    {book.isDefault ? ` · ${t('contacts.address_books.default', 'Default')}` : ''}
+                    {showsDefaultBadge(book) ? ` · ${t('contacts.address_books.default', 'Default')}` : ''}
                   </Text>
                 </View>
                 {/* Own books the user may share (webmail address-book settings). */}
