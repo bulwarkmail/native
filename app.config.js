@@ -110,6 +110,26 @@ module.exports = {
       './plugins/ios-client-cert',
       // The iOS inbox widget (WidgetKit); src/widgets/ios.ts feeds it.
       ['./plugins/ios-widget', { teamId: APPLE_TEAM_ID }],
+      // The reading fonts (Settings > Accessibility > Font) for the app's
+      // text on iOS, found by the family names in the files
+      // (src/theme/reading-fonts.ts). iOS only: Android reads the same files
+      // from its hand-maintained assets/fonts, where the plugin would copy
+      // them onto themselves.
+      [
+        'expo-font',
+        {
+          ios: {
+            fonts: [
+              'AtkinsonHyperlegibleNext.ttf',
+              'AtkinsonHyperlegibleNext_bold.ttf',
+              'Lexend.ttf',
+              'Lexend_bold.ttf',
+              'OpenDyslexic.ttf',
+              'OpenDyslexic_bold.ttf',
+            ].map((file) => `./android/app/src/main/assets/fonts/${file}`),
+          },
+        },
+      ],
       // Bundles the Involved sound calendar reminders (src/lib/calendar-
       // notifications.ts) and new mail (plugins/ios-push) play on iOS.
       // Android has it in res/raw.

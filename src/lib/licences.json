@@ -83,6 +83,12 @@
       "url": "https://docs.expo.dev/versions/latest/sdk/filesystem/"
     },
     {
+      "name": "expo-font",
+      "version": "14.0.12",
+      "license": "MIT",
+      "url": "https://docs.expo.dev/versions/latest/sdk/font/"
+    },
+    {
       "name": "expo-haptics",
       "version": "15.0.8",
       "license": "MIT",

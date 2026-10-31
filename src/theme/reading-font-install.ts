@@ -1,7 +1,7 @@
 // Installs the reading font for the app's text (./reading-font-text). Imported
 // first thing by index.ts, before any screen module copies `Text` out of
-// react-native. Android only: iOS has no bundled reading fonts yet
-// (./reading-fonts). The settings store is required after the wrapping, so
+// react-native. Android and iOS bundle the fonts (./reading-fonts); on other
+// platforms nothing is wrapped. The settings store is required after the wrapping, so
 // nothing it loads can copy the plain Text first.
 
 /* eslint-disable @typescript-eslint/no-require-imports */

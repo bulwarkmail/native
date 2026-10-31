@@ -8,7 +8,9 @@ all under the SIL Open Font License. The webmail ships them as woff2 subsets
 - Android draws UI text with fonts from android/app/src/main/assets/fonts,
   looked up by family name, with a `_bold` file for bold text. Android can't
   read woff2 or variable weights there, so each family becomes a static
-  Regular (400) and Bold (700) TTF, latin and latin-ext merged.
+  Regular (400) and Bold (700) TTF, latin and latin-ext merged. iOS bundles
+  the same TTFs (expo-font in app.config.js) and finds them by the family
+  name in their name table.
 - A plain-text mail body renders in a WebView, which reads the woff2 files
   directly; they go into src/theme/reading-fonts-data.ts as base64 so the
   sandboxed page (CSP font-src data:) can load them without file access.
@@ -85,6 +87,41 @@ def merge(fonts, out_path):
         os.remove(p)
 
 
+def name_static_style(path, weight):
+    """Name a static instance of a variable font after its weight.
+
+    The instance keeps the variable font's default names, so the bold file
+    said "Regular" and carried the regular file's PostScript name. Android
+    picks the file by its name and doesn't care, but iOS registers the fonts
+    by their names (expo-font, UIAppFonts) and would see the same font twice.
+    """
+    font = TTFont(path)
+    style = 'Bold' if weight >= 700 else 'Regular'
+    name = font['name']
+    family = name.getDebugName(1)
+    old_ps = name.getDebugName(6)
+    ps = f"{old_ps.split('-')[0]}-{style}"
+    for rec in name.names:
+        if rec.nameID == 2:
+            rec.string = style
+        elif rec.nameID == 3:
+            rec.string = rec.toUnicode().replace(old_ps, ps)
+        elif rec.nameID == 4:
+            rec.string = f'{family} {style}'
+        elif rec.nameID == 6:
+            rec.string = ps
+    # Only the typographic names the static font has left: drop the
+    # variable font's preferred family/subfamily if the instancer kept them.
+    name.removeNames(nameID=16)
+    name.removeNames(nameID=17)
+    os2 = font['OS/2']
+    os2.usWeightClass = weight
+    # fsSelection: bit 5 BOLD, bit 6 REGULAR; the other bits stay.
+    os2.fsSelection = (os2.fsSelection & ~0x60) | (0x20 if style == 'Bold' else 0x40)
+    font['head'].macStyle = (font['head'].macStyle & ~0x1) | (0x1 if style == 'Bold' else 0)
+    font.save(path)
+
+
 def build_assets():
     os.makedirs(ASSETS, exist_ok=True)
     for family, spec in FAMILIES.items():
@@ -93,6 +130,8 @@ def build_assets():
             fonts = [static_instance(f, weight) for f in files]
             out = os.path.join(ASSETS, family + suffix + '.ttf')
             merge(fonts, out)
+            if spec.get('variable'):
+                name_static_style(out, weight)
             print('wrote', os.path.relpath(out, ROOT), os.path.getsize(out))
 
 

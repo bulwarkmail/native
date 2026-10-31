@@ -6,10 +6,10 @@
 // too; HTML mail keeps the sender's fonts.
 //
 // The app's text: Android finds the fonts in android/app/src/main/assets/
-// fonts by family name (scripts/build-reading-fonts.py), and the Text patch in
-// ./reading-font-text applies the family. iOS needs them registered in the
-// app bundle (expo-font's config plugin), which the app doesn't have yet, so
-// there the setting only reaches mail bodies.
+// fonts by the file name (scripts/build-reading-fonts.py), and the Text patch
+// in ./reading-font-text applies the family. iOS bundles the same files
+// (expo-font's config plugin in app.config.js) and finds them by the family
+// name in their name table, so there the family is the font's real name.
 //
 // A mail body renders in a sandboxed WebView, which gets the woff2 files as
 // data: URIs (./reading-fonts-data: a few hundred KB of base64 string
@@ -43,15 +43,18 @@ export function appFontAssetFamily(font: AppFont | null | undefined): string | n
 
 /** Whether the platform has the fonts for the app's own text. */
 export function uiFontsBundled(platform: string): boolean {
-  return platform === 'android';
+  return platform === 'android' || platform === 'ios';
 }
 
 /**
  * The fontFamily the app's text is drawn in: null for the theme font, and
  * where the fonts aren't bundled (an unknown family is an error on iOS).
+ * Android looks the family up by asset file name, iOS by the family name
+ * the font registers under.
  */
 export function uiFontFamily(font: AppFont | null | undefined, platform: string): string | null {
-  return uiFontsBundled(platform) ? appFontAssetFamily(font) : null;
+  if (!uiFontsBundled(platform)) return null;
+  return platform === 'ios' ? appFontFamilyName(font) : appFontAssetFamily(font);
 }
 
 /** The mail body's own font stack (lib/email-html). */
