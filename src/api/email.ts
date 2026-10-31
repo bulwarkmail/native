@@ -21,6 +21,8 @@ import { withInlineBodyParts } from '../lib/email-inline-parts';
 import { stalwartStateWentBack } from './stalwart-state';
 import { isTransientNetworkError } from '../lib/network-error';
 import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
+import { messagePriorityHeaders, type MessagePriority } from '../lib/message-priority';
+import { submissionEnvelopeParameters } from '../lib/submission-options';
 
 const EMAIL_SUMMARY_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -1581,6 +1583,8 @@ export interface OutgoingEmail {
   // Pre-assigned Message-ID (e.g. when re-sending a draft); generated when absent.
   messageId?: string;
   requestReadReceipt?: boolean;
+  /** Importance / X-Priority headers (webmail #970); normal writes none. */
+  priority?: MessagePriority;
   /**
    * SMTP MAIL FROM when it must differ from the header From - a catch-all
    * alias on an owned domain is sent through the identity's envelope while
@@ -1691,6 +1695,9 @@ function buildEmailCreate(email: OutgoingEmail): Record<string, unknown> {
     emailCreate['header:Disposition-Notification-To:asText'] = from[0].email;
   }
 
+  // Drafts carry it too, so a re-opened draft reads its priority back.
+  Object.assign(emailCreate, messagePriorityHeaders(email.priority));
+
   return emailCreate;
 }
 
@@ -1740,6 +1747,13 @@ export interface SendEmailOptions {
   draftAccountId?: string;
   /** Submitting account (shared/group account); defaults to the primary. */
   accountId?: string;
+  /**
+   * Ask for delivery status notifications (RFC 3461 RET/NOTIFY); only when
+   * the account lists the DSN submission extension.
+   */
+  requestDsn?: boolean;
+  /** Refuse delivery over an unencrypted hop (RFC 8689 REQUIRETLS). */
+  requireTls?: boolean;
 }
 
 export async function sendEmail(
@@ -1766,18 +1780,26 @@ export async function sendEmail(
   const submissionCreate: Record<string, unknown> = { emailId: '#draft', identityId };
   // For a deferred send the envelope must be set explicitly so the HOLDFOR
   // mail-from parameter rides along (JMAP §7.3: an omitted envelope makes the
-  // server derive mailFrom from the Identity, dropping our parameter). An
-  // explicit envelope sender (catch-all From override) needs it as well.
+  // server derive mailFrom from the Identity, dropping our parameter). The
+  // DSN and REQUIRETLS parameters ride the same way (webmail
+  // submissionEnvelopeParameters), and an explicit envelope sender
+  // (catch-all From override) needs it as well.
   const holdFor = holdForSeconds && holdForSeconds > 0 ? Math.ceil(holdForSeconds) : 0;
-  if (holdFor > 0 || email.envelopeMailFrom) {
+  const parameters = submissionEnvelopeParameters(
+    { requestDsn: opts?.requestDsn, requireTls: opts?.requireTls },
+    holdFor,
+  );
+  const hasMailFromParams = Object.keys(parameters.mailFrom).length > 0;
+  const hasRcptToParams = Object.keys(parameters.rcptTo).length > 0;
+  if (hasMailFromParams || hasRcptToParams || email.envelopeMailFrom) {
     const rcptTo = [...email.to, ...(email.cc ?? []), ...(email.bcc ?? [])]
       .map((r) => r.email.trim())
       .filter(Boolean)
-      .map((address) => ({ email: address }));
+      .map((address) => (hasRcptToParams ? { email: address, parameters: parameters.rcptTo } : { email: address }));
     const mailFrom: Record<string, unknown> = {
       email: email.envelopeMailFrom || email.from[0]?.email,
     };
-    if (holdFor > 0) mailFrom.parameters = { HOLDFOR: String(holdFor) };
+    if (hasMailFromParams) mailFrom.parameters = parameters.mailFrom;
     submissionCreate.envelope = { mailFrom, rcptTo };
   }
 

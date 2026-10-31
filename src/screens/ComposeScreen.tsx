@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Tag, Type, Highlighter, Trash2, Search,
+  Users, Tag, Type, Highlighter, Trash2, Search, Settings,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -77,6 +77,9 @@ import { inlineImageType } from '../lib/compose-inline-type';
 import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
+import { ComposerOptionsSheet, activeComposerOptionCount, type ComposerOptions } from '../components/compose/ComposerOptionsSheet';
+import type { MessagePriority } from '../lib/message-priority';
+import { supportsSubmissionExtension } from '../lib/submission-options';
 import {
   assertComposerLogin, ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../lib/compose-login';
@@ -722,6 +725,27 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [activeField, setActiveField] = React.useState<Field | null>(null);
   const [attachments, setAttachments] = React.useState<AttachmentEntry[]>(initialAttachments);
   const [requestReadReceipt, setRequestReadReceipt] = React.useState(requestReadReceiptDefault);
+  // Per-message submission options and priority (webmail composer options
+  // menu): DSN and REQUIRETLS ride on the envelope, priority on the headers.
+  const [requestDsn, setRequestDsn] = React.useState(false);
+  const [requireTls, setRequireTls] = React.useState(false);
+  const initialPriority: MessagePriority = draft?.priority ?? 'normal';
+  const [priority, setPriority] = React.useState<MessagePriority>(initialPriority);
+  const [optionsSheetOpen, setOptionsSheetOpen] = React.useState(false);
+  const composerOptions = React.useMemo<ComposerOptions>(
+    () => ({ requestReadReceipt, requestDsn, requireTls, priority }),
+    [requestReadReceipt, requestDsn, requireTls, priority],
+  );
+  // Read when the sheet opens: the session may have arrived since the
+  // composer did.
+  const dsnAvailable = optionsSheetOpen && supportsSubmissionExtension('DSN');
+  const requireTlsAvailable = optionsSheetOpen && supportsSubmissionExtension('REQUIRETLS');
+  const onComposerOptionsChange = React.useCallback((next: Partial<ComposerOptions>) => {
+    if (next.requestReadReceipt !== undefined) setRequestReadReceipt(next.requestReadReceipt);
+    if (next.requestDsn !== undefined) setRequestDsn(next.requestDsn);
+    if (next.requireTls !== undefined) setRequireTls(next.requireTls);
+    if (next.priority !== undefined) setPriority(next.priority);
+  }, []);
   const [subAddressTag, setSubAddressTag] = React.useState('');
   const [fromOverride, setFromOverride] = React.useState<{ name: string; email: string } | null>(null);
   const [selState, setSelState] = React.useState<RichTextSelectionState>({
@@ -1187,6 +1211,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const snapshotOf = (s: {
     to: Recipient[]; cc: Recipient[]; bcc: Recipient[]; subject: string; body: string;
     attachments: AttachmentEntry[];
+    /** A priority change alone is an edit worth saving (webmail #970). */
+    priority?: MessagePriority;
   }) => JSON.stringify({
     to: s.to.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
     cc: s.cc.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
@@ -1194,18 +1220,20 @@ export default function ComposeScreen({ route, navigation }: Props) {
     subject: s.subject,
     body: s.body,
     att: s.attachments.filter((a) => !a.inline).map((a) => a.blobId ?? a.localId),
+    pri: s.priority ?? 'normal',
   });
 
   // Memoized: the snapshot copies the whole body, and the screen re-renders
   // for plenty that doesn't touch it (PF8).
   const currentSnapshot = React.useMemo(() => snapshotOf({
     to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-    body: plainTextMode ? plainBody : bodyHtml, attachments,
+    body: plainTextMode ? plainBody : bodyHtml, attachments, priority,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments]);
+  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority]);
   const baselineRef = React.useRef(snapshotOf({
     to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
     body: plainTextMode ? initialPlainBody : initialBodyHtml, attachments: initialAttachments,
+    priority: initialPriority,
   }));
   // Snapshot at the last successful draft save (null = never saved).
   const lastSavedRef = React.useRef<string | null>(draft ? baselineRef.current : null);
@@ -1464,9 +1492,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       references: threading?.references,
       messageId: messageIdRef.current,
       requestReadReceipt,
+      priority: priority !== 'normal' ? priority : undefined,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, t]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -1485,7 +1514,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? plainBody : html, attachments,
+      body: plainTextMode ? plainBody : html, attachments, priority,
     });
     if (snapshot === lastSavedRef.current) return draftIdRef.current;
     if (snapshot === baselineRef.current && !draftIdRef.current) return null;
@@ -1682,7 +1711,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? latestRef.current.plainBody : html, attachments,
+      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority,
     });
     return snapshot === lastSavedRef.current;
   };
@@ -2562,6 +2591,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
           draftId: draftIdRef.current ?? undefined,
           draftAccountId: draftIdRef.current ? draftAccount() : undefined,
           accountId: target.accountId,
+          // Only what the submitting account offers (webmail: the menu
+          // hides the toggles the account's submission extensions lack).
+          requestDsn: requestDsn && supportsSubmissionExtension('DSN', target.accountId),
+          requireTls: requireTls && supportsSubmissionExtension('REQUIRETLS', target.accountId),
         },
       );
       draftIdRef.current = null;
@@ -2997,6 +3030,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
               label={t('email_composer.read_receipt_off', 'Request a read receipt')}
               icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
+            <ToolbarButton active={activeComposerOptionCount(composerOptions) > 0} onPress={() => setOptionsSheetOpen(true)}
+              label={t('email_composer.options', 'Options')}
+              icon={<Settings size={18} color={activeComposerOptionCount(composerOptions) > 0 ? c.primary : c.textSecondary} />} />
             <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
               label={plainTextMode
                 ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
@@ -3478,6 +3514,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <ComposerOptionsSheet
+        visible={optionsSheetOpen}
+        options={composerOptions}
+        dsnAvailable={dsnAvailable}
+        requireTlsAvailable={requireTlsAvailable}
+        onChange={onComposerOptionsChange}
+        onClose={() => setOptionsSheetOpen(false)}
+      />
 
       <FilesPickerSheet
         visible={filesPickerOpen}
