@@ -1641,7 +1641,10 @@
       "signed_by": "Platný podpis ({kind}) od {signer}",
       "signer_mismatch": "Podepisující není odesílatel uvedený v poli Od.",
       "unknown_key": "Podepsáno ({kind}) klíčem, který jste neimportovali.",
-      "unsupported": "Zašifrováno algoritmem {algorithm}, který aplikace neumí dešifrovat."
+      "unsupported": "Zašifrováno algoritmem {algorithm}, který aplikace neumí dešifrovat.",
+      "key_offered": "Zpráva obsahuje veřejný klíč pro {email}. Otisk: {fingerprint}",
+      "save_key": "Uložit klíč pro {email}",
+      "save_key_failed": "Klíč se nepodařilo uložit"
     },
     "check_description": "Spustí v tomto zařízení všechny algoritmy, které používají PGP a S/MIME.",
     "check_run": "Spustit kontrolu",
@@ -1719,7 +1722,8 @@
     "status_retrying": "Čeká na odeslání",
     "status_sending": "Odesílání…",
     "title": "K odeslání",
-    "waiting": "{count, plural, one {# zpráva} few {# zprávy} many {# zprávy} other {# zpráv}} ve složce K odeslání"
+    "waiting": "{count, plural, one {# zpráva} few {# zprávy} many {# zprávy} other {# zpráv}} ve složce K odeslání",
+    "already_sent": "Tato zpráva už byla odeslána"
   },
   "push": {
     "ios": {

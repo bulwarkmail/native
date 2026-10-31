@@ -1644,7 +1644,10 @@
       "signed_by": "Assinatura válida ({kind}) de {signer}",
       "signer_mismatch": "Quem assinou não é o remetente mostrado em De.",
       "unknown_key": "Assinada ({kind}) com uma chave que você não importou.",
-      "unsupported": "Criptografada com {algorithm}, que o aplicativo não consegue descriptografar."
+      "unsupported": "Criptografada com {algorithm}, que o aplicativo não consegue descriptografar.",
+      "key_offered": "A mensagem contém uma chave pública para {email}. Impressão digital: {fingerprint}",
+      "save_key": "Guardar a chave para {email}",
+      "save_key_failed": "Não foi possível guardar a chave"
     },
     "check_description": "Executa neste dispositivo todos os algoritmos que PGP e S/MIME usam.",
     "check_run": "Executar verificação",
@@ -1722,7 +1725,8 @@
     "status_retrying": "Aguardando envio",
     "status_sending": "Enviando…",
     "title": "Caixa de saída",
-    "waiting": "{count, plural, one {# mensagem} other {# mensagens}} na Caixa de saída"
+    "waiting": "{count, plural, one {# mensagem} other {# mensagens}} na Caixa de saída",
+    "already_sent": "Esta mensagem já foi enviada"
   },
   "push": {
     "ios": {

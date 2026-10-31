@@ -1839,7 +1839,10 @@
       "signed_by": "Gültige Signatur ({kind}) von {signer}",
       "signer_mismatch": "Der Unterzeichner ist nicht der unter „Von“ angezeigte Absender.",
       "unknown_key": "Signiert ({kind}) mit einem Schlüssel, den Sie nicht importiert haben.",
-      "unsupported": "Verschlüsselt mit {algorithm}, das die App nicht entschlüsseln kann."
+      "unsupported": "Verschlüsselt mit {algorithm}, das die App nicht entschlüsseln kann.",
+      "key_offered": "Die Nachricht enthält einen öffentlichen Schlüssel für {email}. Fingerabdruck: {fingerprint}",
+      "save_key": "Schlüssel für {email} speichern",
+      "save_key_failed": "Der Schlüssel konnte nicht gespeichert werden"
     },
     "check_description": "Führt jeden Algorithmus, den PGP und S/MIME verwenden, auf diesem Gerät aus.",
     "check_run": "Prüfung starten",
@@ -1914,7 +1917,8 @@
     "status_retrying": "Wartet auf das Senden",
     "status_sending": "Wird gesendet…",
     "title": "Postausgang",
-    "waiting": "{count, plural, one {# Nachricht} other {# Nachrichten}} im Postausgang"
+    "waiting": "{count, plural, one {# Nachricht} other {# Nachrichten}} im Postausgang",
+    "already_sent": "Diese Nachricht wurde bereits gesendet"
   },
   "push": {
     "ios": {

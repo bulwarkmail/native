@@ -1314,7 +1314,10 @@
       "signed_by": "Kehtiv allkiri ({kind}), allkirjastaja {signer}",
       "signer_mismatch": "Allkirjastaja ei ole väljal Saatja näidatud saatja.",
       "unknown_key": "Allkirjastatud ({kind}) võtmega, mida sa pole importinud.",
-      "unsupported": "Krüpteeritud algoritmiga {algorithm}, mida rakendus ei suuda dekrüpteerida."
+      "unsupported": "Krüpteeritud algoritmiga {algorithm}, mida rakendus ei suuda dekrüpteerida.",
+      "key_offered": "Kiri sisaldab avalikku võtit aadressile {email}. Sõrmejälg: {fingerprint}",
+      "save_key": "Salvesta võti aadressile {email}",
+      "save_key_failed": "Võtit ei õnnestunud salvestada"
     },
     "check_description": "Käivitab selles seadmes kõik algoritmid, mida PGP ja S/MIME kasutavad.",
     "check_run": "Käivita kontroll",
@@ -1551,7 +1554,8 @@
     "status_retrying": "Saatmise ootamine",
     "status_sending": "Saatmine…",
     "title": "Väljuvad",
-    "waiting": "{count, plural, one {# kiri} other {# kirja}} kaustas Väljuvad"
+    "waiting": "{count, plural, one {# kiri} other {# kirja}} kaustas Väljuvad",
+    "already_sent": "See kiri on juba saadetud"
   },
   "push": {
     "ios": {

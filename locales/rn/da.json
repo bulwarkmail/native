@@ -1638,7 +1638,10 @@
       "signed_by": "Gyldig signatur ({kind}) fra {signer}",
       "signer_mismatch": "Underskriveren er ikke den afsender, der vises i Fra.",
       "unknown_key": "Signeret ({kind}) med en nøgle, du ikke har importeret.",
-      "unsupported": "Krypteret med {algorithm}, som appen ikke kan dekryptere."
+      "unsupported": "Krypteret med {algorithm}, som appen ikke kan dekryptere.",
+      "key_offered": "Beskeden indeholder en offentlig nøgle til {email}. Fingeraftryk: {fingerprint}",
+      "save_key": "Gem nøgle til {email}",
+      "save_key_failed": "Nøglen kunne ikke gemmes"
     },
     "check_description": "Kører alle de algoritmer, PGP og S/MIME bruger, på denne enhed.",
     "check_run": "Kør kontrol",
@@ -1716,7 +1719,8 @@
     "status_retrying": "Venter på at blive sendt",
     "status_sending": "Sender…",
     "title": "Udbakke",
-    "waiting": "{count, plural, one {# besked} other {# beskeder}} i Udbakke"
+    "waiting": "{count, plural, one {# besked} other {# beskeder}} i Udbakke",
+    "already_sent": "Denne besked er allerede sendt"
   },
   "push": {
     "ios": {

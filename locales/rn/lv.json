@@ -1640,7 +1640,10 @@
       "signed_by": "Derīgs paraksts ({kind}), parakstītājs: {signer}",
       "signer_mismatch": "Parakstītājs nav laukā No norādītais sūtītājs.",
       "unknown_key": "Parakstīts ({kind}) ar atslēgu, kuru neesat importējis.",
-      "unsupported": "Šifrēts ar {algorithm}, ko lietotne nevar atšifrēt."
+      "unsupported": "Šifrēts ar {algorithm}, ko lietotne nevar atšifrēt.",
+      "key_offered": "Ziņojumā ir publiskā atslēga adresei {email}. Pirkstu nospiedums: {fingerprint}",
+      "save_key": "Saglabāt atslēgu adresei {email}",
+      "save_key_failed": "Atslēgu neizdevās saglabāt"
     },
     "check_description": "Šajā ierīcē palaiž visus algoritmus, ko izmanto PGP un S/MIME.",
     "check_run": "Palaist pārbaudi",
@@ -1718,7 +1721,8 @@
     "status_retrying": "Gaida nosūtīšanu",
     "status_sending": "Sūta…",
     "title": "Izsūtne",
-    "waiting": "{count, plural, zero {# vēstules} one {# vēstule} other {# vēstules}} mapē Izsūtne"
+    "waiting": "{count, plural, zero {# vēstules} one {# vēstule} other {# vēstules}} mapē Izsūtne",
+    "already_sent": "Šis ziņojums jau ir nosūtīts"
   },
   "push": {
     "ios": {

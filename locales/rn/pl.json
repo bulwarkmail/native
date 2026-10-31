@@ -1641,7 +1641,10 @@
       "signed_by": "Prawidłowy podpis ({kind}) od {signer}",
       "signer_mismatch": "Podpisujący nie jest nadawcą widocznym w polu Od.",
       "unknown_key": "Podpisano ({kind}) kluczem, którego nie zaimportowano.",
-      "unsupported": "Zaszyfrowano algorytmem {algorithm}, którego aplikacja nie potrafi odszyfrować."
+      "unsupported": "Zaszyfrowano algorytmem {algorithm}, którego aplikacja nie potrafi odszyfrować.",
+      "key_offered": "Wiadomość zawiera klucz publiczny dla {email}. Odcisk: {fingerprint}",
+      "save_key": "Zapisz klucz dla {email}",
+      "save_key_failed": "Nie udało się zapisać klucza"
     },
     "check_description": "Uruchamia na tym urządzeniu wszystkie algorytmy używane przez PGP i S/MIME.",
     "check_run": "Uruchom test",
@@ -1719,7 +1722,8 @@
     "status_retrying": "Oczekuje na wysłanie",
     "status_sending": "Wysyłanie…",
     "title": "Skrzynka nadawcza",
-    "waiting": "{count, plural, one {# wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}} w Skrzynce nadawczej"
+    "waiting": "{count, plural, one {# wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}} w Skrzynce nadawczej",
+    "already_sent": "Ta wiadomość została już wysłana"
   },
   "push": {
     "ios": {

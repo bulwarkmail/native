@@ -1639,7 +1639,10 @@
       "signed_by": "חתימה תקפה ({kind}) מאת {signer}",
       "signer_mismatch": "החותם אינו השולח שמוצג בשדה \"מאת\".",
       "unknown_key": "חתום ({kind}) במפתח שלא ייבאת.",
-      "unsupported": "מוצפן באמצעות {algorithm}, שהאפליקציה לא יכולה לפענח."
+      "unsupported": "מוצפן באמצעות {algorithm}, שהאפליקציה לא יכולה לפענח.",
+      "key_offered": "ההודעה מכילה מפתח ציבורי עבור {email}. טביעת אצבע: {fingerprint}",
+      "save_key": "שמירת מפתח עבור {email}",
+      "save_key_failed": "לא ניתן היה לשמור את המפתח"
     },
     "check_description": "מריץ במכשיר זה את כל האלגוריתמים שבהם משתמשים PGP ו-S/MIME.",
     "check_run": "הפעל בדיקה",
@@ -1717,7 +1720,8 @@
     "status_retrying": "ממתין לשליחה",
     "status_sending": "שולח…",
     "title": "דואר יוצא",
-    "waiting": "{count, plural, one {הודעה אחת בדואר היוצא} two {שתי הודעות בדואר היוצא} other {# הודעות בדואר היוצא}}"
+    "waiting": "{count, plural, one {הודעה אחת בדואר היוצא} two {שתי הודעות בדואר היוצא} other {# הודעות בדואר היוצא}}",
+    "already_sent": "ההודעה הזו כבר נשלחה"
   },
   "push": {
     "ios": {

@@ -1641,7 +1641,10 @@
       "signed_by": "{signer} による有効な署名（{kind}）",
       "signer_mismatch": "署名者が差出人欄の送信者と一致しません。",
       "unknown_key": "インポートしていない鍵で署名されています（{kind}）。",
-      "unsupported": "{algorithm} で暗号化されています。このアプリでは復号できません。"
+      "unsupported": "{algorithm} で暗号化されています。このアプリでは復号できません。",
+      "key_offered": "このメッセージには {email} の公開鍵が含まれています。フィンガープリント: {fingerprint}",
+      "save_key": "{email} の鍵を保存",
+      "save_key_failed": "鍵を保存できませんでした"
     },
     "check_description": "PGP と S/MIME が使用するすべてのアルゴリズムをこのデバイスで実行します。",
     "check_run": "チェックを実行",
@@ -1719,7 +1722,8 @@
     "status_retrying": "送信待ち",
     "status_sending": "送信中…",
     "title": "送信トレイ",
-    "waiting": "送信トレイに{count, plural, other {#件のメッセージ}}"
+    "waiting": "送信トレイに{count, plural, other {#件のメッセージ}}",
+    "already_sent": "このメッセージはすでに送信されています"
   },
   "push": {
     "ios": {

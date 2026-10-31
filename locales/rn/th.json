@@ -529,7 +529,10 @@
       "signed_by": "ลายมือชื่อถูกต้อง ({kind}) จาก {signer}",
       "signer_mismatch": "ผู้ลงลายมือชื่อไม่ใช่ผู้ส่งที่แสดงในช่อง “จาก”",
       "unknown_key": "ลงลายมือชื่อ ({kind}) ด้วยคีย์ที่คุณยังไม่ได้นำเข้า",
-      "unsupported": "เข้ารหัสด้วย {algorithm} ซึ่งแอปไม่สามารถถอดรหัสได้"
+      "unsupported": "เข้ารหัสด้วย {algorithm} ซึ่งแอปไม่สามารถถอดรหัสได้",
+      "key_offered": "ข้อความนี้มีกุญแจสาธารณะของ {email} ลายนิ้วมือ: {fingerprint}",
+      "save_key": "บันทึกกุญแจของ {email}",
+      "save_key_failed": "บันทึกกุญแจไม่สำเร็จ"
     },
     "check_description": "ทดสอบทุกอัลกอริทึมที่ PGP และ S/MIME ใช้บนอุปกรณ์นี้",
     "check_run": "เรียกใช้การตรวจสอบ",
@@ -821,7 +824,8 @@
     "status_retrying": "กำลังรอส่ง",
     "status_sending": "กำลังส่ง…",
     "title": "กล่องจดหมายออก",
-    "waiting": "มี {count, plural, other {# ข้อความ}} ในกล่องจดหมายออก"
+    "waiting": "มี {count, plural, other {# ข้อความ}} ในกล่องจดหมายออก",
+    "already_sent": "ข้อความนี้ส่งไปแล้ว"
   },
   "push": {
     "ios": {

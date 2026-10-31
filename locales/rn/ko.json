@@ -1639,7 +1639,10 @@
       "signed_by": "{signer}의 유효한 서명({kind})",
       "signer_mismatch": "서명한 사람이 보낸 사람 항목에 표시된 사람과 달라요.",
       "unknown_key": "가져오지 않은 키로 서명되었어요({kind}).",
-      "unsupported": "{algorithm}(으)로 암호화되어 있어 앱에서 암호를 풀 수 없어요."
+      "unsupported": "{algorithm}(으)로 암호화되어 있어 앱에서 암호를 풀 수 없어요.",
+      "key_offered": "이 메시지에는 {email}의 공개 키가 들어 있습니다. 지문: {fingerprint}",
+      "save_key": "{email}의 키 저장",
+      "save_key_failed": "키를 저장하지 못했습니다"
     },
     "check_description": "PGP와 S/MIME에서 사용하는 모든 알고리즘을 이 기기에서 실행해요.",
     "check_run": "검사 실행",
@@ -1717,7 +1720,8 @@
     "status_retrying": "전송 대기 중",
     "status_sending": "보내는 중…",
     "title": "보낼편지함",
-    "waiting": "보낼편지함에 {count, plural, other {메시지 #개}}"
+    "waiting": "보낼편지함에 {count, plural, other {메시지 #개}}",
+    "already_sent": "이 메시지는 이미 보냈습니다"
   },
   "push": {
     "ios": {

@@ -1642,7 +1642,10 @@
       "signed_by": "Geçerli imza ({kind}), imzalayan: {signer}",
       "signer_mismatch": "İmzalayan, Kimden alanında gösterilen gönderici değil.",
       "unknown_key": "İçe aktarmadığınız bir anahtarla imzalanmış ({kind}).",
-      "unsupported": "Uygulamanın çözemediği {algorithm} ile şifrelenmiş."
+      "unsupported": "Uygulamanın çözemediği {algorithm} ile şifrelenmiş.",
+      "key_offered": "İleti, {email} için bir ortak anahtar içeriyor. Parmak izi: {fingerprint}",
+      "save_key": "{email} için anahtarı kaydet",
+      "save_key_failed": "Anahtar kaydedilemedi"
     },
     "check_description": "PGP ve S/MIME'ın kullandığı tüm algoritmaları bu cihazda çalıştırır.",
     "check_run": "Kontrolü çalıştır",
@@ -1720,7 +1723,8 @@
     "status_retrying": "Gönderim bekleniyor",
     "status_sending": "Gönderiliyor…",
     "title": "Giden Kutusu",
-    "waiting": "Giden Kutusu'nda {count, plural, one {# ileti} other {# ileti}}"
+    "waiting": "Giden Kutusu'nda {count, plural, one {# ileti} other {# ileti}}",
+    "already_sent": "Bu ileti zaten gönderildi"
   },
   "push": {
     "ios": {

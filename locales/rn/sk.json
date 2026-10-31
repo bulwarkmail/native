@@ -1640,7 +1640,10 @@
       "signed_by": "Platný podpis ({kind}) od {signer}",
       "signer_mismatch": "Podpisovateľ nie je odosielateľ uvedený v poli Od.",
       "unknown_key": "Podpísané ({kind}) kľúčom, ktorý ste neimportovali.",
-      "unsupported": "Zašifrované algoritmom {algorithm}, ktorý aplikácia nedokáže dešifrovať."
+      "unsupported": "Zašifrované algoritmom {algorithm}, ktorý aplikácia nedokáže dešifrovať.",
+      "key_offered": "Správa obsahuje verejný kľúč pre {email}. Odtlačok: {fingerprint}",
+      "save_key": "Uložiť kľúč pre {email}",
+      "save_key_failed": "Kľúč sa nepodarilo uložiť"
     },
     "check_description": "Spustí v tomto zariadení všetky algoritmy, ktoré používajú PGP a S/MIME.",
     "check_run": "Spustiť kontrolu",
@@ -1718,7 +1721,8 @@
     "status_retrying": "Čaká na odoslanie",
     "status_sending": "Odosiela sa…",
     "title": "Pošta na odoslanie",
-    "waiting": "{count, plural, one {# správa} few {# správy} many {# správy} other {# správ}} v priečinku Pošta na odoslanie"
+    "waiting": "{count, plural, one {# správa} few {# správy} many {# správy} other {# správ}} v priečinku Pošta na odoslanie",
+    "already_sent": "Táto správa už bola odoslaná"
   },
   "push": {
     "ios": {

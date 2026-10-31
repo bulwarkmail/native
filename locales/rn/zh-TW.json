@@ -1640,7 +1640,10 @@
       "signed_by": "簽章有效（{kind}），簽署者：{signer}",
       "signer_mismatch": "簽署者不是「寄件者」欄位中顯示的人。",
       "unknown_key": "已簽章（{kind}），但使用的金鑰您尚未匯入。",
-      "unsupported": "以 {algorithm} 加密，應用程式無法解密。"
+      "unsupported": "以 {algorithm} 加密，應用程式無法解密。",
+      "key_offered": "此郵件包含 {email} 的公開金鑰。指紋：{fingerprint}",
+      "save_key": "儲存 {email} 的金鑰",
+      "save_key_failed": "無法儲存金鑰"
     },
     "check_description": "在此裝置上執行 PGP 與 S/MIME 使用的所有演算法。",
     "check_run": "執行檢查",
@@ -1718,7 +1721,8 @@
     "status_retrying": "等待寄出",
     "status_sending": "正在寄出…",
     "title": "寄件匣",
-    "waiting": "寄件匣中有 {count, plural, other {# 封郵件}}"
+    "waiting": "寄件匣中有 {count, plural, other {# 封郵件}}",
+    "already_sent": "此郵件已寄出"
   },
   "push": {
     "ios": {

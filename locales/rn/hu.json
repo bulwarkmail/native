@@ -1637,7 +1637,10 @@
       "signed_by": "Érvényes aláírás ({kind}), aláíró: {signer}",
       "signer_mismatch": "Az aláíró nem azonos a Feladó mezőben látható feladóval.",
       "unknown_key": "Aláírva ({kind}) egy olyan kulccsal, amelyet nem importáltál.",
-      "unsupported": "Titkosítva ezzel: {algorithm}. Ezt az alkalmazás nem tudja visszafejteni."
+      "unsupported": "Titkosítva ezzel: {algorithm}. Ezt az alkalmazás nem tudja visszafejteni.",
+      "key_offered": "Az üzenet nyilvános kulcsot tartalmaz ehhez: {email}. Ujjlenyomat: {fingerprint}",
+      "save_key": "Kulcs mentése ehhez: {email}",
+      "save_key_failed": "A kulcsot nem sikerült menteni"
     },
     "check_description": "Lefuttatja ezen az eszközön az összes algoritmust, amelyet a PGP és az S/MIME használ.",
     "check_run": "Ellenőrzés indítása",
@@ -1715,7 +1718,8 @@
     "status_retrying": "Küldésre vár",
     "status_sending": "Küldés…",
     "title": "Postázandó",
-    "waiting": "{count, plural, one {# üzenet} other {# üzenet}} a Postázandó mappában"
+    "waiting": "{count, plural, one {# üzenet} other {# üzenet}} a Postázandó mappában",
+    "already_sent": "Ez az üzenet már el lett küldve"
   },
   "push": {
     "ios": {

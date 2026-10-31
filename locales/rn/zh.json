@@ -1640,7 +1640,10 @@
       "signed_by": "签名有效（{kind}），签名者：{signer}",
       "signer_mismatch": "签名者不是“发件人”中显示的人。",
       "unknown_key": "已签名（{kind}），但所用密钥您尚未导入。",
-      "unsupported": "使用 {algorithm} 加密，应用无法解密。"
+      "unsupported": "使用 {algorithm} 加密，应用无法解密。",
+      "key_offered": "此邮件包含 {email} 的公钥。指纹：{fingerprint}",
+      "save_key": "保存 {email} 的密钥",
+      "save_key_failed": "无法保存密钥"
     },
     "check_description": "在此设备上运行 PGP 和 S/MIME 用到的所有算法。",
     "check_run": "运行检查",
@@ -1718,7 +1721,8 @@
     "status_retrying": "等待发送",
     "status_sending": "正在发送…",
     "title": "发件箱",
-    "waiting": "发件箱中有 {count, plural, other {# 封邮件}}"
+    "waiting": "发件箱中有 {count, plural, other {# 封邮件}}",
+    "already_sent": "此邮件已发送"
   },
   "push": {
     "ios": {

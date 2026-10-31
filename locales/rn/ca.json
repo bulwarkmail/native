@@ -1641,7 +1641,10 @@
       "signed_by": "Signatura vàlida ({kind}) de {signer}",
       "signer_mismatch": "El signant no és el remitent que es mostra a De.",
       "unknown_key": "Signat ({kind}) amb una clau que no heu importat.",
-      "unsupported": "Xifrat amb {algorithm}, que l'aplicació no pot desxifrar."
+      "unsupported": "Xifrat amb {algorithm}, que l'aplicació no pot desxifrar.",
+      "key_offered": "El missatge conté una clau pública per a {email}. Empremta: {fingerprint}",
+      "save_key": "Desa la clau per a {email}",
+      "save_key_failed": "No s'ha pogut desar la clau"
     },
     "check_description": "Prova en aquest dispositiu tots els algorismes que fan servir PGP i S/MIME.",
     "check_run": "Executa la comprovació",
@@ -1719,7 +1722,8 @@
     "status_retrying": "Pendent d'enviar",
     "status_sending": "S'està enviant…",
     "title": "Safata de sortida",
-    "waiting": "{count, plural, one {# missatge} other {# missatges}} a la Safata de sortida"
+    "waiting": "{count, plural, one {# missatge} other {# missatges}} a la Safata de sortida",
+    "already_sent": "Aquest missatge ja s'ha enviat"
   },
   "push": {
     "ios": {

@@ -1647,7 +1647,10 @@
       "signed_by": "Firma válida ({kind}) de {signer}",
       "signer_mismatch": "El firmante no es el remitente que aparece en De.",
       "unknown_key": "Firmado ({kind}) con una clave que no has importado.",
-      "unsupported": "Cifrado con {algorithm}, que la app no puede descifrar."
+      "unsupported": "Cifrado con {algorithm}, que la app no puede descifrar.",
+      "key_offered": "El mensaje contiene una clave pública para {email}. Huella: {fingerprint}",
+      "save_key": "Guardar la clave para {email}",
+      "save_key_failed": "No se pudo guardar la clave"
     },
     "check_description": "Ejecuta en este dispositivo todos los algoritmos que usan PGP y S/MIME.",
     "check_run": "Ejecutar comprobación",
@@ -1725,7 +1728,8 @@
     "status_retrying": "Esperando para enviar",
     "status_sending": "Enviando…",
     "title": "Bandeja de salida",
-    "waiting": "{count, plural, one {# mensaje} other {# mensajes}} en la Bandeja de salida"
+    "waiting": "{count, plural, one {# mensaje} other {# mensajes}} en la Bandeja de salida",
+    "already_sent": "Este mensaje ya se envió"
   },
   "push": {
     "ios": {

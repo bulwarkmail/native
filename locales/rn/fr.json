@@ -1645,7 +1645,10 @@
       "signed_by": "Signature valide ({kind}) de {signer}",
       "signer_mismatch": "Le signataire n'est pas l'expéditeur indiqué dans De.",
       "unknown_key": "Signé ({kind}) avec une clé que vous n'avez pas importée.",
-      "unsupported": "Chiffré avec {algorithm}, que l'application ne peut pas déchiffrer."
+      "unsupported": "Chiffré avec {algorithm}, que l'application ne peut pas déchiffrer.",
+      "key_offered": "Le message contient une clé publique pour {email}. Empreinte : {fingerprint}",
+      "save_key": "Enregistrer la clé pour {email}",
+      "save_key_failed": "Impossible d'enregistrer la clé"
     },
     "check_description": "Exécute sur cet appareil tous les algorithmes utilisés par PGP et S/MIME.",
     "check_run": "Lancer la vérification",
@@ -1723,7 +1726,8 @@
     "status_retrying": "En attente d'envoi",
     "status_sending": "Envoi…",
     "title": "Boîte d'envoi",
-    "waiting": "{count, plural, one {# message} other {# messages}} dans la Boîte d'envoi"
+    "waiting": "{count, plural, one {# message} other {# messages}} dans la Boîte d'envoi",
+    "already_sent": "Ce message a déjà été envoyé"
   },
   "push": {
     "ios": {

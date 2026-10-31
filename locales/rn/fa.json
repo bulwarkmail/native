@@ -1635,7 +1635,10 @@
       "signed_by": "امضای معتبر ({kind}) از {signer}",
       "signer_mismatch": "امضاکننده همان فرستنده‌ای نیست که در «از» نمایش داده شده است.",
       "unknown_key": "امضاشده ({kind}) با کلیدی که وارد نکرده‌اید.",
-      "unsupported": "با {algorithm} رمزگذاری شده که برنامه نمی‌تواند آن را رمزگشایی کند."
+      "unsupported": "با {algorithm} رمزگذاری شده که برنامه نمی‌تواند آن را رمزگشایی کند.",
+      "key_offered": "این پیام یک کلید عمومی برای {email} دارد. اثر انگشت: {fingerprint}",
+      "save_key": "ذخیرهٔ کلید برای {email}",
+      "save_key_failed": "ذخیرهٔ کلید ممکن نشد"
     },
     "check_description": "همهٔ الگوریتم‌هایی را که PGP و S/MIME به کار می‌برند روی این دستگاه اجرا می‌کند.",
     "check_run": "اجرای بررسی",
@@ -1713,7 +1716,8 @@
     "status_retrying": "در انتظار ارسال",
     "status_sending": "در حال ارسال…",
     "title": "صندوق خروجی",
-    "waiting": "{count, plural, one {# پیام} other {# پیام}} در صندوق خروجی"
+    "waiting": "{count, plural, one {# پیام} other {# پیام}} در صندوق خروجی",
+    "already_sent": "این پیام قبلاً ارسال شده است"
   },
   "push": {
     "ios": {

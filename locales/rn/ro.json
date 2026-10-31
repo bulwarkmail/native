@@ -1641,7 +1641,10 @@
       "signed_by": "Semnătură validă ({kind}) de la {signer}",
       "signer_mismatch": "Semnatarul nu este expeditorul afișat în câmpul „De la”.",
       "unknown_key": "Semnat ({kind}) cu o cheie pe care nu ați importat-o.",
-      "unsupported": "Criptat cu {algorithm}, pe care aplicația nu îl poate decripta."
+      "unsupported": "Criptat cu {algorithm}, pe care aplicația nu îl poate decripta.",
+      "key_offered": "Mesajul conține o cheie publică pentru {email}. Amprentă: {fingerprint}",
+      "save_key": "Salvează cheia pentru {email}",
+      "save_key_failed": "Cheia nu a putut fi salvată"
     },
     "check_description": "Rulează pe acest dispozitiv toți algoritmii folosiți de PGP și S/MIME.",
     "check_run": "Rulați verificarea",
@@ -1719,7 +1722,8 @@
     "status_retrying": "Așteaptă trimiterea",
     "status_sending": "Se trimite…",
     "title": "Căsuța de ieșire",
-    "waiting": "{count, plural, one {# mesaj} few {# mesaje} other {# de mesaje}} în Căsuța de ieșire"
+    "waiting": "{count, plural, one {# mesaj} few {# mesaje} other {# de mesaje}} în Căsuța de ieșire",
+    "already_sent": "Acest mesaj a fost deja trimis"
   },
   "push": {
     "ios": {

@@ -1638,7 +1638,10 @@
       "signed_by": "Gyldig signatur ({kind}) fra {signer}",
       "signer_mismatch": "Den som har signert, er ikke avsenderen som vises i Fra.",
       "unknown_key": "Signert ({kind}) med en nøkkel du ikke har importert.",
-      "unsupported": "Kryptert med {algorithm}, som appen ikke kan dekryptere."
+      "unsupported": "Kryptert med {algorithm}, som appen ikke kan dekryptere.",
+      "key_offered": "Meldingen inneholder en offentlig nøkkel for {email}. Fingeravtrykk: {fingerprint}",
+      "save_key": "Lagre nøkkel for {email}",
+      "save_key_failed": "Kunne ikke lagre nøkkelen"
     },
     "check_description": "Kjører alle algoritmene PGP og S/MIME bruker, på denne enheten.",
     "check_run": "Kjør sjekk",
@@ -1716,7 +1719,8 @@
     "status_retrying": "Venter på å sende",
     "status_sending": "Sender…",
     "title": "Utboks",
-    "waiting": "{count, plural, one {# melding} other {# meldinger}} i Utboks"
+    "waiting": "{count, plural, one {# melding} other {# meldinger}} i Utboks",
+    "already_sent": "Denne meldingen er allerede sendt"
   },
   "push": {
     "ios": {

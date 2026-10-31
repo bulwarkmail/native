@@ -1643,7 +1643,10 @@
       "signed_by": "Firma valida ({kind}) di {signer}",
       "signer_mismatch": "Il firmatario non è il mittente indicato in Da.",
       "unknown_key": "Firmato ({kind}) con una chiave che non hai importato.",
-      "unsupported": "Cifrato con {algorithm}, che l'app non riesce a decifrare."
+      "unsupported": "Cifrato con {algorithm}, che l'app non riesce a decifrare.",
+      "key_offered": "Il messaggio contiene una chiave pubblica per {email}. Impronta: {fingerprint}",
+      "save_key": "Salva la chiave per {email}",
+      "save_key_failed": "Impossibile salvare la chiave"
     },
     "check_description": "Esegue su questo dispositivo tutti gli algoritmi usati da PGP e S/MIME.",
     "check_run": "Avvia verifica",
@@ -1721,7 +1724,8 @@
     "status_retrying": "In attesa di invio",
     "status_sending": "Invio…",
     "title": "Posta in uscita",
-    "waiting": "{count, plural, one {# messaggio} other {# messaggi}} in Posta in uscita"
+    "waiting": "{count, plural, one {# messaggio} other {# messaggi}} in Posta in uscita",
+    "already_sent": "Questo messaggio è già stato inviato"
   },
   "push": {
     "ios": {

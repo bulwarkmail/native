@@ -1641,7 +1641,10 @@
       "signed_by": "Geldige handtekening ({kind}) van {signer}",
       "signer_mismatch": "De ondertekenaar is niet de afzender die bij Van staat.",
       "unknown_key": "Ondertekend ({kind}) met een sleutel die je niet hebt geïmporteerd.",
-      "unsupported": "Versleuteld met {algorithm}, dat de app niet kan ontsleutelen."
+      "unsupported": "Versleuteld met {algorithm}, dat de app niet kan ontsleutelen.",
+      "key_offered": "Het bericht bevat een openbare sleutel voor {email}. Vingerafdruk: {fingerprint}",
+      "save_key": "Sleutel voor {email} opslaan",
+      "save_key_failed": "Kan de sleutel niet opslaan"
     },
     "check_description": "Test op dit apparaat elk algoritme dat PGP en S/MIME gebruiken.",
     "check_run": "Controle starten",
@@ -1719,7 +1722,8 @@
     "status_retrying": "Wacht op verzenden",
     "status_sending": "Verzenden…",
     "title": "Postvak UIT",
-    "waiting": "{count, plural, one {# bericht} other {# berichten}} in Postvak UIT"
+    "waiting": "{count, plural, one {# bericht} other {# berichten}} in Postvak UIT",
+    "already_sent": "Dit bericht is al verzonden"
   },
   "push": {
     "ios": {
