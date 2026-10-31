@@ -250,8 +250,11 @@ export async function fetchCryptoInfo(): Promise<CryptoInfo> {
  * Configure Stalwart's encryption at rest (`x:AccountSettings/set`
  * `encryptionAtRest`). `Aes128`/`Aes256` need a public key id from
  * {@link fetchPublicKeys}; `encryptOnAppend` also encrypts mail the user
- * files (sent/imported), `allowSpamTraining` lets the classifier read a
- * message before it is encrypted.
+ * files (imported or appended over IMAP), `allowSpamTraining` lets the
+ * classifier read a message before it is encrypted. Since Stalwart 1.0.1
+ * JMAP drafts (`$draft`) and the Sent copy of a JMAP submission are stored
+ * unencrypted, so they stay editable and go out readable; 0.16 and 1.0.0
+ * encrypted those too.
  */
 export async function updateEncryptionAtRest(input: {
   type: EncryptionType;
