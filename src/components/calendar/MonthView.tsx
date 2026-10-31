@@ -2,12 +2,9 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import {
   addDays,
-  endOfMonth,
-  endOfWeek,
   format,
   getISOWeek,
   getWeek,
-  startOfMonth,
   startOfWeek,
   type Locale,
 } from 'date-fns';
@@ -31,6 +28,7 @@ import { TINTED_BAR_WIDTH, eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { dayCellAccessibilityLabel } from '../../lib/calendar-a11y';
 import { displayNow } from '../../lib/calendar-timezone';
+import { dayNumberLabel, isFirstOfMonth, monthGridRows, monthStartLabel } from '../../lib/calendar-system';
 
 type WeekStart = 0 | 1 | 6;
 
@@ -155,7 +153,7 @@ function MonthWeekRowInner({
   onLongPressDate,
 }: MonthWeekRowProps) {
   const c = useColors();
-  const { t } = useCalendarLocale();
+  const { t, system } = useCalendarLocale();
   const { width } = useWindowDimensions();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
@@ -198,7 +196,7 @@ function MonthWeekRowInner({
         const maxVisible = showTimeInMonthView ? MAX_CHIPS : MAX_DOTS;
         const visible = dayEvents.slice(0, maxVisible);
         const overflow = Math.max(0, dayEvents.length - maxVisible);
-        const monthLabel = labelMonths && d.getDate() === 1 ? format(d, 'MMM', { locale }) : null;
+        const monthLabel = labelMonths && isFirstOfMonth(d, system) ? monthStartLabel(d, system, locale, false) : null;
 
         return (
           <Pressable
@@ -235,7 +233,7 @@ function MonthWeekRowInner({
                 today && styles.todayText,
                 selected && !today && styles.selectedText,
               ]}>
-                {format(d, 'd')}
+                {dayNumberLabel(d, system)}
               </Text>
             </View>
             {dayEvents.length > 0 && !showTimeInMonthView && (
@@ -330,7 +328,7 @@ function FullWeekRow({
   colors: ThemePalette;
 }) {
   const { width } = useWindowDimensions();
-  const { t } = useCalendarLocale();
+  const { t, system } = useCalendarLocale();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const showTime = monthChipShowsTime(showTimeInMonthView, width / 7);
@@ -345,7 +343,9 @@ function FullWeekRow({
         const dayEvents = eventsOnDayFromIndex(index, d);
         const shown = fullCellChipCount(height, dayEvents.length);
         const overflow = dayEvents.length - shown;
-        const label = labelMonths && d.getDate() === 1 ? format(d, 'MMM d', { locale }) : format(d, 'd');
+        const label = labelMonths && isFirstOfMonth(d, system)
+          ? monthStartLabel(d, system, locale, true)
+          : dayNumberLabel(d, system);
         return (
           <Pressable
             key={i}
@@ -421,25 +421,18 @@ function MonthViewInner({
 }: MonthViewProps) {
   const styles = useMonthStyles();
   const [gridHeight, setGridHeight] = React.useState(0);
-  const { locale } = useCalendarLocale();
+  const { locale, system } = useCalendarLocale();
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
     [eventsByDay, events],
   );
 
-  // The month grid as rows of 7 days.
-  const rows = React.useMemo(() => {
-    const calStart = startOfWeek(startOfMonth(currentDate), { weekStartsOn });
-    const calEnd = endOfWeek(endOfMonth(currentDate), { weekStartsOn });
-    const out: Date[][] = [];
-    let day = calStart;
-    while (day <= calEnd) {
-      out.push(Array.from({ length: 7 }, (_, i) => addDays(day, i)));
-      day = addDays(day, 7);
-    }
-    return out;
-  }, [currentDate, weekStartsOn]);
-  const activeMonth = monthKeyOf(currentDate);
+  // The month grid as rows of 7 days, in the calendar system's months.
+  const rows = React.useMemo(
+    () => monthGridRows(currentDate, weekStartsOn, system),
+    [currentDate, weekStartsOn, system],
+  );
+  const activeMonth = monthKeyOf(currentDate, system);
   // Today on a clock in the calendar's time zone.
   const today = displayNow();
 
@@ -463,7 +456,7 @@ function MonthViewInner({
           variant={fill ? 'full' : 'compact'}
           height={fullRowHeight}
           days={days}
-          activeMask={monthMask(days, activeMonth)}
+          activeMask={monthMask(days, activeMonth, system)}
           selectedIndex={dayIndexIn(days, selectedDate)}
           todayIndex={dayIndexIn(days, today)}
           index={index}

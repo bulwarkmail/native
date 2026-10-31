@@ -57,7 +57,7 @@ import {
 import { getEventEditability } from '../../lib/calendar-editability';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { useCalendarLocale } from '../../lib/calendar-locale';
-import { formatCalendarDate } from '../../lib/date-format';
+import { formatCalendarDay } from '../../lib/calendar-system';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { recurrenceEndLabel, recurrenceIntervalLabel } from '../../lib/recurrence';
 import type { TranslateFn } from '../../stores/locale-store';
@@ -99,9 +99,9 @@ function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, l
       start.getMonth() === end.getMonth() &&
       start.getDate() === end.getDate()
     ) {
-      return formatCalendarDate(start, locale.code, 'longWeekdayMonthDayYear');
+      return formatCalendarDay(start, locale, 'longWeekdayMonthDayYear');
     }
-    return `${formatCalendarDate(start, locale.code, 'monthDay')} – ${formatCalendarDate(end, locale.code, 'monthDayYear')}`;
+    return `${formatCalendarDay(start, locale, 'monthDay')} – ${formatCalendarDay(end, locale, 'monthDayYear')}`;
   }
   const tp = timePattern(timeFormat);
   const sameDay =
@@ -109,9 +109,9 @@ function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, l
     start.getMonth() === end.getMonth() &&
     start.getDate() === end.getDate();
   if (sameDay) {
-    return `${formatCalendarDate(start, locale.code, 'weekdayMonthDay')} · ${format(start, tp, opts)} – ${format(end, tp, opts)}`;
+    return `${formatCalendarDay(start, locale, 'weekdayMonthDay')} · ${format(start, tp, opts)} – ${format(end, tp, opts)}`;
   }
-  return `${formatCalendarDate(start, locale.code, 'monthDay')}, ${format(start, tp, opts)} – ${formatCalendarDate(end, locale.code, 'monthDay')}, ${format(end, tp, opts)}`;
+  return `${formatCalendarDay(start, locale, 'monthDay')}, ${format(start, tp, opts)} – ${formatCalendarDay(end, locale, 'monthDay')}, ${format(end, tp, opts)}`;
 }
 
 function recurrenceLabel(event: CalendarEvent, t: TranslateFn, locale: Locale): string | null {

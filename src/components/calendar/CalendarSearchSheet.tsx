@@ -17,6 +17,7 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useCalendarStore, searchCalendarEvents } from '../../stores/calendar-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { formatCalendarDay } from '../../lib/calendar-system';
 import { displayNow } from '../../lib/calendar-timezone';
 import { eventMatches, orderSearchResults, searchTerms } from '../../lib/calendar-search';
 import {
@@ -62,7 +63,7 @@ export function CalendarSearchSheet({
 }: CalendarSearchSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { locale, t } = useCalendarLocale();
+  const { locale, t, system } = useCalendarLocale();
   const loaded = useCalendarStore((s) => s.events);
   const [query, setQuery] = React.useState('');
   const [remote, setRemote] = React.useState<{ query: string; events: CalendarEvent[] } | null>(null);
@@ -149,7 +150,9 @@ export function CalendarSearchSheet({
       >
         <View style={styles.when}>
           <Text style={styles.whenDay}>
-            {format(start, start.getFullYear() === thisYear ? 'EEE, MMM d' : 'MMM d, yyyy', { locale })}
+            {system.jalali
+              ? formatCalendarDay(start, locale, system.year(start) === system.year(new Date()) ? 'weekdayMonthDay' : 'monthDayYear')
+              : format(start, start.getFullYear() === thisYear ? 'EEE, MMM d' : 'MMM d, yyyy', { locale })}
           </Text>
           <Text style={styles.whenTime}>
             {event.showWithoutTime

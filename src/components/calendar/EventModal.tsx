@@ -48,7 +48,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { CalendarAccountChangedError } from '../../stores/calendar-store';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
-import { formatCalendarDate } from '../../lib/date-format';
+import { formatCalendarDay } from '../../lib/calendar-system';
 import {
   alertsToReminders,
   calendarDefaultAlerts,
@@ -641,7 +641,7 @@ export function EventModal({
                   style={styles.dateBtn}
                   onPress={() => setShowStartDate(true)}
                 >
-                  <Text style={styles.dateText}>{formatCalendarDate(start, locale.code, 'weekdayMonthDay')}</Text>
+                  <Text style={styles.dateText}>{formatCalendarDay(start, locale, 'weekdayMonthDay')}</Text>
                 </Pressable>
                 {!allDay && (
                   <Pressable
@@ -661,7 +661,7 @@ export function EventModal({
                   style={styles.dateBtn}
                   onPress={() => setShowEndDate(true)}
                 >
-                  <Text style={styles.dateText}>{formatCalendarDate(end, locale.code, 'weekdayMonthDay')}</Text>
+                  <Text style={styles.dateText}>{formatCalendarDay(end, locale, 'weekdayMonthDay')}</Text>
                 </Pressable>
                 {!allDay && (
                   <Pressable
