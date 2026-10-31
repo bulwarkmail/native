@@ -58,10 +58,10 @@ module.exports = {
       bundleIdentifier: 'org.bulwarkmail.mobile',
       buildNumber: IOS_BUILD_NUMBER,
       config: {
-        // The app only speaks HTTPS/TLS and uses platform crypto, which is
-        // exempt. Declaring it here skips the manual export-compliance
-        // questionnaire that otherwise blocks every TestFlight build.
-        usesNonExemptEncryption: false,
+        // PGP and S/MIME (#58) add end-to-end encryption beyond HTTPS/TLS,
+        // so the app declares non-exempt encryption; App Store Connect asks
+        // for the export compliance documentation on upload.
+        usesNonExemptEncryption: true,
       },
     },
     android: {
