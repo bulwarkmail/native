@@ -43,7 +43,7 @@ import { isTransientNetworkError } from '../lib/network-error';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
-import { textConditions } from '../lib/search-utils';
+import { sizeFilterBytes, textConditions } from '../lib/search-utils';
 import { filterHasSnippetTerms, withSearchSnippets, type SnippetBatch } from '../lib/search-snippet';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
@@ -256,6 +256,12 @@ export interface EmailFilters {
   hasAttachment?: boolean; // undefined = unset, true = with, false = without
   isStarred?: boolean;
   isUnread?: boolean;
+  /**
+   * Message size bounds in KB, as typed (RFC 8621 §4.4.1 minSize / maxSize);
+   * a value that is not a positive number counts as unset.
+   */
+  minSizeKb?: string;
+  maxSizeKb?: string;
   /**
    * Folder scope. Unset means "all folders" while a text query is active
    * (#788) and "the open folder" otherwise; explicit values come from the
@@ -551,6 +557,12 @@ function buildJmapFilter(
   if (filters.isStarred === true) conditions.push({ hasKeyword: '$flagged' });
   else if (filters.isStarred === false) conditions.push({ notKeyword: '$flagged' });
 
+  // minSize is inclusive, maxSize exclusive (RFC 8621 §4.4.1).
+  const minSize = sizeFilterBytes(filters.minSizeKb);
+  if (minSize !== null) conditions.push({ minSize });
+  const maxSize = sizeFilterBytes(filters.maxSizeKb);
+  if (maxSize !== null) conditions.push({ maxSize });
+
   if (conditions.length === 0) return undefined;
   if (conditions.length === 1) return conditions[0];
   return { operator: 'AND', conditions };
@@ -573,6 +585,8 @@ function activeFilterKeys(filters: EmailFilters): string[] {
     const v = (filters as Record<string, unknown>)[k];
     if (v === undefined || v === '') return false;
     if (k === 'folder' && v === 'current') return false;
+    // A size still being typed ("0", "-") narrows nothing (webmail isFilterEmpty).
+    if ((k === 'minSizeKb' || k === 'maxSizeKb') && sizeFilterBytes(v as string) === null) return false;
     return true;
   });
 }

@@ -66,6 +66,7 @@ import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { moveSheetCurrentId } from '../lib/move-targets';
 import { listViewKey } from '../lib/list-view-key';
 import { searchScopeFolders } from '../lib/search-scope-folders';
+import { SIZE_PRESETS_MB, sizeFilterBytes, sizePresetOf } from '../lib/search-utils';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -1091,6 +1092,8 @@ export default function EmailListScreen({
     (filters.hasAttachment !== undefined ? 1 : 0) +
     (filters.isStarred !== undefined ? 1 : 0) +
     (filters.isUnread !== undefined ? 1 : 0) +
+    (sizeFilterBytes(filters.minSizeKb) !== null ? 1 : 0) +
+    (sizeFilterBytes(filters.maxSizeKb) !== null ? 1 : 0) +
     (filters.keyword ? 1 : 0) +
     (filters.folder && filters.folder !== 'current' ? 1 : 0);
   const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
@@ -1160,6 +1163,20 @@ export default function EmailListScreen({
   };
 
   const [datePickerField, setDatePickerField] = React.useState<'dateAfter' | 'dateBefore' | null>(null);
+  // "Custom size" with nothing typed yet has no value to tell it from "Any
+  // size" (webmail search-filter-panel).
+  const [customSize, setCustomSize] = React.useState(false);
+  const sizePreset = customSize ? 'custom' : sizePresetOf(filters.minSizeKb, filters.maxSizeKb);
+  const pickSizePreset = (key: string) => {
+    setCustomSize(key === 'custom');
+    if (key === 'custom') return;
+    const mb = SIZE_PRESETS_MB.find((m) => `mb${m}` === key);
+    const updated: EmailFilters = { ...filters };
+    delete updated.maxSizeKb;
+    if (mb) updated.minSizeKb = String(mb * 1024);
+    else delete updated.minSizeKb;
+    setFilters(updated);
+  };
 
   const headerTitle = React.useMemo(() => {
     if (!currentMailbox) return t('sidebar.mailboxes.inbox', 'Inbox');
@@ -1610,9 +1627,22 @@ export default function EmailListScreen({
               onRemove={() => cycleTriStateTo('hasAttachment', undefined)}
             />
           )}
+          {sizeFilterBytes(filters.minSizeKb) !== null ? (
+            <FilterChip
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} KB` })}
+              onRemove={() => setFilterField('minSizeKb', undefined)}
+            />
+          ) : null}
+          {sizeFilterBytes(filters.maxSizeKb) !== null ? (
+            <FilterChip
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} KB` })}
+              onRemove={() => setFilterField('maxSizeKb', undefined)}
+            />
+          ) : null}
           <Pressable
             onPress={() => {
               setSearchInput('');
+              setCustomSize(false);
               clearSearchAndFilters();
             }}
             style={styles.clearAllButton}
@@ -1774,7 +1804,7 @@ export default function EmailListScreen({
                   <Text style={styles.filterMenuTitle}>{t('email_list.filter_title', 'Filter emails')}</Text>
                   <View style={styles.filterMenuHeaderActions}>
                     <Pressable
-                      onPress={() => setFilters({})}
+                      onPress={() => { setCustomSize(false); setFilters({}); }}
                       style={styles.filterMenuHeaderBtn}
                       hitSlop={6}
                       accessibilityRole="button"
@@ -1924,6 +1954,60 @@ export default function EmailListScreen({
                         ) : null}
                       </Pressable>
                     </View>
+                  </View>
+
+                  {/* Size (webmail 1.19 filter panel): the usual "larger than"
+                      steps, or a custom range in KB. */}
+                  <View>
+                    <Text style={styles.filterFieldLabel}>{t('advanced_search.size', 'Size')}</Text>
+                    <View style={styles.filterToggleGroup}>
+                      <ScopeChip
+                        label={t('advanced_search.any_size', 'Any size')}
+                        active={sizePreset === 'any'}
+                        onPress={() => pickSizePreset('any')}
+                      />
+                      {SIZE_PRESETS_MB.map((mb) => (
+                        <ScopeChip
+                          key={mb}
+                          label={t('advanced_search.larger_than_mb', 'Larger than {size} MB', { size: mb })}
+                          active={sizePreset === `mb${mb}`}
+                          onPress={() => pickSizePreset(`mb${mb}`)}
+                        />
+                      ))}
+                      <ScopeChip
+                        label={t('advanced_search.custom_size', 'Custom size')}
+                        active={sizePreset === 'custom'}
+                        onPress={() => pickSizePreset('custom')}
+                      />
+                    </View>
+                    {sizePreset === 'custom' && (
+                      <View style={[styles.filterFieldRow, styles.filterSizeRow]}>
+                        <View style={styles.filterFieldHalf}>
+                          <DebouncedFilterInput
+                            value={filters.minSizeKb ?? ''}
+                            onCommit={(v) => setFilterField('minSizeKb', v.trim())}
+                            placeholder={t('advanced_search.size_min', 'Larger than (KB)')}
+                            accessibilityLabel={t('advanced_search.size_min', 'Larger than (KB)')}
+                            placeholderTextColor={c.textMuted}
+                            keyboardType="number-pad"
+                            style={styles.filterFieldInput}
+                            testID="advanced-search-min-size"
+                          />
+                        </View>
+                        <View style={styles.filterFieldHalf}>
+                          <DebouncedFilterInput
+                            value={filters.maxSizeKb ?? ''}
+                            onCommit={(v) => setFilterField('maxSizeKb', v.trim())}
+                            placeholder={t('advanced_search.size_max', 'Smaller than (KB)')}
+                            accessibilityLabel={t('advanced_search.size_max', 'Smaller than (KB)')}
+                            placeholderTextColor={c.textMuted}
+                            keyboardType="number-pad"
+                            style={styles.filterFieldInput}
+                            testID="advanced-search-max-size"
+                          />
+                        </View>
+                      </View>
+                    )}
                   </View>
 
                   <View style={styles.filterToggleGroup}>
@@ -2396,6 +2480,7 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
   },
   filterFieldHalf: { flex: 1 },
+  filterSizeRow: { marginTop: spacing.sm },
   filterFieldLabel: {
     ...typography.caption,
     color: c.textMuted,

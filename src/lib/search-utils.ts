@@ -1,6 +1,33 @@
 // Free-text search conditions for Email/query, ported from the webmail's
 // lib/jmap/search-utils.ts (5967a1c4) so both clients send the same filters.
 
+/**
+ * A KB size field (the filter panel's custom size) as a positive byte count
+ * for Email/query's minSize / maxSize (RFC 8621 §4.4.1), or null when unset
+ * or not a positive number (webmail lib/jmap/search-utils.ts, 720e14622).
+ */
+export function sizeFilterBytes(value: string | undefined): number | null {
+  const kb = Number(value);
+  if (!value || !Number.isFinite(kb) || kb <= 0) return null;
+  return Math.round(kb * 1024);
+}
+
+/** The size presets of the filter panel, in MB: "Larger than 1 MB" and so on. */
+export const SIZE_PRESETS_MB = [1, 5, 10, 25] as const;
+
+/**
+ * Which size choice the filter panel shows for the KB bounds: none set, a
+ * "Larger than N MB" preset, or a custom range.
+ */
+export function sizePresetOf(minSizeKb: string | undefined, maxSizeKb: string | undefined): string {
+  if (!minSizeKb && !maxSizeKb) return 'any';
+  if (!maxSizeKb) {
+    const mb = SIZE_PRESETS_MB.find((m) => String(m * 1024) === minSizeKb);
+    if (mb) return `mb${mb}`;
+  }
+  return 'custom';
+}
+
 /** Filter properties whose value the server reads as free text. */
 export type SearchTextProperty = 'text' | 'from' | 'to' | 'subject' | 'body';
 

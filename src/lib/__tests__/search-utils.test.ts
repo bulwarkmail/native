@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitSearchText, textConditions, textFilter } from '../search-utils';
+import { sizeFilterBytes, sizePresetOf, splitSearchText, textConditions, textFilter } from '../search-utils';
 import { textFilterMatches, type StalwartTextVersion } from './stalwart-text-model';
 
 type Filter = Record<string, unknown>;
@@ -123,5 +123,31 @@ describe('text search results (P1-7)', () => {
     expect(hits('1.0', { text: 'project budg*' })).toEqual([]);
     expect(hits('1.0', textFilter('project budg*'))).toEqual(['budget']);
     expect(hits('0.16', textFilter('project budg*'))).toEqual([]);
+  });
+});
+
+// The size filter (webmail 720e14622): KB bounds as typed, sent in bytes.
+describe('sizeFilterBytes', () => {
+  it('turns a KB value into bytes', () => {
+    expect(sizeFilterBytes('1024')).toBe(1024 * 1024);
+    expect(sizeFilterBytes('1.5')).toBe(1536);
+  });
+
+  it('reads an empty, zero, negative or non-numeric value as unset', () => {
+    for (const value of [undefined, '', '0', '-5', 'abc', 'Infinity']) {
+      expect(sizeFilterBytes(value)).toBeNull();
+    }
+  });
+});
+
+describe('sizePresetOf', () => {
+  it('names the panel choice for the bounds', () => {
+    expect(sizePresetOf(undefined, undefined)).toBe('any');
+    expect(sizePresetOf('', '')).toBe('any');
+    expect(sizePresetOf('1024', undefined)).toBe('mb1');
+    expect(sizePresetOf('25600', '')).toBe('mb25');
+    expect(sizePresetOf('2048', undefined)).toBe('custom');
+    expect(sizePresetOf('1024', '4096')).toBe('custom');
+    expect(sizePresetOf(undefined, '100')).toBe('custom');
   });
 });
