@@ -26,6 +26,9 @@ import {
   parseLocalInput,
   utcIsoToLocalInput,
 } from '../../lib/vacation-dates';
+import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-limits';
+import { jmapClient } from '../../api/jmap-client';
+import { getSieveCapabilities } from '../../api/sieve';
 
 // Ported from the webmail's components/settings/vacation-settings.tsx. Dates
 // are typed as local wall-clock time and sent as RFC 8621 UTCDate strings;
@@ -122,6 +125,11 @@ export function VacationSettings() {
   // Only what was changed here is sent: the rest stays as the server has it,
   // which another device may have changed since this one loaded.
   const forwardChanged = forwardSettings !== undefined && !sameForward(forwardSettings, store.forward);
+  // Kept here, the message goes on through the filter rules, whose forwards
+  // share the server's limit with this one (#1208).
+  const forwardLimit = getSieveCapabilities(managedAccountId ?? undefined)?.maxNumberRedirects;
+  const forwardOverLimit = store.forwardAvailable && forwardEnabled && forwardKeep
+    && typeof forwardLimit === 'number' && forwardLimit > 0 && 1 + store.otherForwards > forwardLimit;
 
   const fromParsed = parseLocalInput(fromDate);
   const toParsed = parseLocalInput(toDate);
@@ -136,6 +144,22 @@ export function VacationSettings() {
     todayStart.setHours(0, 0, 0, 0);
     return fromParsed < todayStart;
   }, [fromParsed]);
+
+  // What a save sends, measured against the server's limits as you type.
+  const sizeLimits = jmapClient.hasAccountCapability('urn:stalwart:jmap', managedAccountId ?? undefined)
+    ? STALWART_VACATION_LIMITS
+    : null;
+  const oversize = useMemo(() => {
+    const sanitizedHtml = hasHtmlContent ? stripDangerousTags(htmlBody) : null;
+    const textBody = body.trim() || !sanitizedHtml ? body : htmlToPlainText(sanitizedHtml);
+    return vacationOversize({ subject: subject.trim(), textBody, htmlBody: sanitizedHtml }, sizeLimits);
+  }, [hasHtmlContent, htmlBody, body, subject, sizeLimits]);
+  const subjectTooLong = oversize.subject && sizeLimits
+    ? t('settings.vacation.warnings.subject_too_long', 'The subject is too long for the server (at most {max} bytes).', { max: sizeLimits.subject })
+    : null;
+  const bodyTooLong = oversize.body && sizeLimits
+    ? t('settings.vacation.warnings.body_too_long', 'The message is too long for the server (at most {max} bytes, formatting included).', { max: sizeLimits.body })
+    : null;
 
   const warnings: string[] = [];
   if (endBeforeStart) warnings.push(t('settings.vacation.warnings.end_before_start', 'End date must be after start date'));
@@ -155,7 +179,8 @@ export function VacationSettings() {
     forwardChanged ||
     audienceChanged;
 
-  const canSave = hasChanges && !endBeforeStart && !formatError && !forwardInvalid && !store.isSaving;
+  const canSave = hasChanges && !endBeforeStart && !formatError && !forwardInvalid
+    && !oversize.subject && !oversize.body && !store.isSaving;
 
   const handleSave = useCallback(async () => {
     // Read the live editor DOM rather than trusting onChange state (issue #9).
@@ -342,8 +367,9 @@ export function VacationSettings() {
             placeholder={t('settings.vacation.message.subject_placeholder', 'Out of Office')}
             placeholderTextColor={c.mutedForeground}
             accessibilityLabel={t('settings.vacation.message.subject_label', 'Subject')}
-            style={styles.subjectInput}
+            style={[styles.subjectInput, oversize.subject && styles.inputInvalid]}
           />
+          {subjectTooLong && <Text style={styles.fieldError}>{subjectTooLong}</Text>}
         </View>
         <View style={styles.bodyBlock}>
           <Text style={styles.bodyLabel}>{t('settings.vacation.message.body_label', 'Message Body')}</Text>
@@ -353,11 +379,12 @@ export function VacationSettings() {
             onChangeText={setBody}
             placeholder={t('settings.vacation.message.body_placeholder', 'Thank you for your email. I am currently out of the office and will respond when I return.')}
             placeholderTextColor={c.mutedForeground}
-            style={styles.bodyInput}
+            style={[styles.bodyInput, oversize.body && styles.inputInvalid]}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
           />
+          {bodyTooLong && <Text style={styles.fieldError}>{bodyTooLong}</Text>}
         </View>
         <SettingItem
           label={t('settings.vacation.message.html_label', 'Formatted message (HTML)')}
@@ -466,6 +493,11 @@ export function VacationSettings() {
                   accessibilityLabel={t('settings.vacation.forward.keep_label', 'Keep in inbox')}
                 />
               </SettingItem>
+              {forwardOverLimit && (
+                <Text style={styles.forwardWarning}>
+                  {t('settings.filters.forward_limit', 'Forward limit per message on this server: {count}. Extra forwards are skipped.', { count: forwardLimit })}
+                </Text>
+              )}
             </>
           )}
         </SettingsSection>
@@ -570,6 +602,8 @@ function makeStyles(c: ThemePalette) {
     ...typography.body,
   },
   inputInvalid: { borderColor: c.error },
+  fieldError: { ...typography.caption, color: c.error, marginTop: spacing.xs },
+  forwardWarning: { ...typography.caption, color: c.warning, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   subjectInput: {
     paddingHorizontal: spacing.md,
     paddingVertical: 6,

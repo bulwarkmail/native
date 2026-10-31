@@ -5,7 +5,8 @@ import { MoveSheet } from '../MoveSheet';
 import { FilterRuleModal } from './FilterRuleModal';
 import type { Email, Mailbox } from '../../api/types';
 import { getSieveAccountId, getSieveCapabilities } from '../../api/sieve';
-import { FiltersLoginChangedError, OpaqueFiltersError, updateAccountFilters } from '../../api/sieve-rules';
+import { FiltersLoginChangedError, OpaqueFiltersError, readAccountFilters, updateAccountFilters } from '../../api/sieve-rules';
+import { forwardsAround, inRunOrder } from '../../lib/sieve/forward-limit';
 import { jmapClient } from '../../api/jmap-client';
 import { servedLoginOf } from '../../lib/draft-login';
 import { supportsPeriods } from '../../lib/sieve/period';
@@ -86,6 +87,26 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
   const targets = React.useMemo(() => ruleTargetMailboxes(mailboxes), [mailboxes]);
   const junk = React.useMemo(() => findJunkMailbox(mailboxes), [mailboxes]);
   const periodsSupported = supportsPeriods(getSieveCapabilities()?.sieveExtensions);
+
+  // Where the new rule runs among the account's rules, for the server's
+  // redirect limit: at the top, behind the out of office forwarding
+  // (webmail quick-rule-host.tsx; lib/sieve/forward-limit.ts).
+  const editorOpen = visible && step.kind === 'editor';
+  const [forwards, setForwards] = React.useState({ before: 0, after: 0 });
+  React.useEffect(() => {
+    setForwards({ before: 0, after: 0 });
+    if (!editorOpen) return;
+    let current = true;
+    const accountId = openedIn.current.accountId ?? undefined;
+    readAccountFilters(accountId)
+      .then((parsed) => {
+        if (!current || parsed.isOpaque) return;
+        const runOrder = inRunOrder(parsed.rules, parsed.vacationForward);
+        setForwards(forwardsAround(runOrder, runOrder.length - parsed.rules.length, false));
+      })
+      .catch(() => undefined);
+    return () => { current = false; };
+  }, [editorOpen]);
 
   const [sender] = subject.senders;
   const senderLabel = subject.senders.length === 1
@@ -248,6 +269,10 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
         initialRule={step.kind === 'editor' ? step.rule : undefined}
         mailboxes={mailboxes}
         periodsSupported={periodsSupported}
+        forwardContext={{
+          maxRedirects: getSieveCapabilities(openedIn.current.accountId ?? undefined)?.maxNumberRedirects,
+          ...forwards,
+        }}
         onSave={(rule) => void saveEditorRule(rule)}
         onClose={finish}
       />

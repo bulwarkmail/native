@@ -52,6 +52,8 @@ export interface VacationState {
   audienceAvailable: boolean;
   /** Stored forwarding or recipients do not run until the card is saved (see readVacationFilters). */
   notRunning: boolean;
+  /** The most forwards the filter rules let one message collect (see readVacationFilters). */
+  otherForwards: number;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
@@ -80,6 +82,7 @@ const NO_FILTERS = {
   audience: null,
   audienceAvailable: false,
   notRunning: false,
+  otherForwards: 0,
 };
 
 const INITIAL = {
@@ -106,6 +109,7 @@ function fromFilters(filters: VacationFilters) {
     audience: filters.audience,
     audienceAvailable: filters.audienceAvailable,
     notRunning: filters.notRunning,
+    otherForwards: filters.otherForwards,
   };
 }
 

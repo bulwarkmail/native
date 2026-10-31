@@ -346,6 +346,17 @@ describe('readVacationFilters', () => {
     });
   });
 
+  it('counts the most forwards the filter rules give one message, for the limit of the forwarding', async () => {
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
+    const forward = { type: 'forward' as const, value: 'x@example.org' };
+    api.getSieveScriptContent.mockResolvedValue(generateScript([
+      makeRule({ id: 'a', actions: [forward] }),
+      makeRule({ id: 'b', actions: [forward] }),
+    ]));
+    expect((await readVacationFilters()).otherForwards).toBe(2);
+  });
+
   it('sets up forwarding in the vacation period, creating the script when there is none', async () => {
     api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
     api.getSieveScripts.mockResolvedValue([{ id: 'v1', name: 'vacation', blobId: 'bv', isActive: true }]);

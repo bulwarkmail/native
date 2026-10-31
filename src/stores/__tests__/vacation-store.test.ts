@@ -18,7 +18,7 @@ vi.mock('../../api/sieve', () => ({ isSieveSupported: vi.fn(() => false) }));
 
 const NO_FILTERS = {
   includesVacation: false, forward: null, forwardAvailable: false,
-  audience: null, audienceAvailable: false, notRunning: false,
+  audience: null, audienceAvailable: false, notRunning: false, otherForwards: 0,
 };
 
 vi.mock('../filter-store', () => ({

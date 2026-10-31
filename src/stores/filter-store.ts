@@ -7,6 +7,7 @@ import { generateScript, supportsSpamGuard, VACATION_SCRIPT_NAME } from '../lib/
 import { supportsPeriods } from '../lib/sieve/period';
 import { isValidVacationForward, withVacationPeriod } from '../lib/sieve/vacation-forward';
 import { isValidVacationAudience, normalizeVacationAudience } from '../lib/sieve/vacation-audience';
+import { worstCaseForwards } from '../lib/sieve/forward-limit';
 import {
   createSieveScript,
   getSieveAccountId,
@@ -344,6 +345,12 @@ export interface VacationFilters {
    * client), or no script runs at all. Saving the card sets it right.
    */
   notRunning: boolean;
+  /**
+   * The most forwards the filter rules let one message collect (see
+   * worstCaseForwards). Forwarding that keeps a copy runs ahead of them, so
+   * it shares the server's redirect limit with these.
+   */
+  otherForwards: number;
 }
 
 /** See VacationFilters.notRunning. */
@@ -381,6 +388,7 @@ export async function readVacationFilters(accountId?: string): Promise<VacationF
     // Told apart by the envelope sender, which the auto-reply goes to.
     audienceAvailable: filtersUsable && !!capabilities?.sieveExtensions?.includes('envelope'),
     notRunning: storedButIdle(!!target?.isActive, !!vacationScript?.isActive, forward, audience),
+    otherForwards: worstCaseForwards(parsed?.rules ?? []),
   };
 }
 
