@@ -13,6 +13,7 @@
     "alerts": {
       "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}"
     },
+    "change_month_named": "{month}, change month",
     "colors": {
       "indigo": "Indigo",
       "teal": "Teal"
@@ -116,7 +117,8 @@
     "occurrence_not_found_again": "The change was not saved: the occurrence could not be found again on the server. Please try again.",
     "participants": {
       "group_members": "{count, plural, one {# member} other {# members}}",
-      "limit_warning": "More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit."
+      "limit_warning": "More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit.",
+      "remove_named": "Remove {name}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",

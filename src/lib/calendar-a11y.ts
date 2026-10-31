@@ -11,6 +11,20 @@ type Translate = (key: string, fallback?: string, params?: Record<string, string
 // 19e0acde9): a day cell by its full date and how many events it has, an
 // event by its title, date, time, calendar and state.
 
+/**
+ * "October 2026, change month" for the header button that opens the month
+ * panel: the month shown first, then what the button does. Not the
+ * webmail's "Click to change month" (calendar.mini_calendar_change).
+ */
+export function monthButtonAccessibilityLabel(title: string, t: Translate): string {
+  return t('calendar.change_month_named', '{month}, change month', { month: title });
+}
+
+/** "Remove Ana" for the cross on an invited participant's chip (webmail recipient_remove_named). */
+export function participantRemoveAccessibilityLabel(attendee: { name?: string; email: string }, t: Translate): string {
+  return t('calendar.participants.remove_named', 'Remove {name}', { name: attendee.name?.trim() || attendee.email });
+}
+
 /** "Monday, November 2, 2026, 3 events" for a month day cell. */
 export function dayCellAccessibilityLabel(day: Date, eventCount: number, t: Translate, locale: Locale): string {
   const date = formatCalendarDate(day, locale.code, 'longWeekdayMonthDayYear');

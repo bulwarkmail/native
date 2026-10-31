@@ -93,7 +93,8 @@
     },
     "occurrence_not_found_again": "Die Änderung wurde nicht gespeichert: Der Termin konnte auf dem Server nicht wiedergefunden werden. Versuchen Sie es erneut.",
     "participants": {
-      "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen."
+      "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen.",
+      "remove_named": "{name} entfernen"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {Termin} other {Terminen}}",
@@ -148,7 +149,8 @@
     },
     "detail": {
       "delete_confirm": "Dieses Ereignis löschen?"
-    }
+    },
+    "change_month_named": "{month}, Monat wechseln"
   },
   "common": {
     "add": "Hinzufügen",

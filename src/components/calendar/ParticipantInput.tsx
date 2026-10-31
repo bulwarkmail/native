@@ -14,6 +14,7 @@ import { useContactsStore, type RecipientSuggestion } from '../../stores/contact
 import { useLocaleStore } from '../../stores/locale-store';
 import type { Attendee } from '../../lib/calendar-participants';
 import { participantSuggestions, participantsFromSuggestion } from '../../lib/calendar-participant-suggestions';
+import { participantRemoveAccessibilityLabel } from '../../lib/calendar-a11y';
 
 interface ParticipantInputProps {
   attendees: Attendee[];
@@ -92,7 +93,7 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
                 onPress={() => onRemove(a.email)}
                 hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel={t('calendar.participants.remove', 'Remove')}
+                accessibilityLabel={participantRemoveAccessibilityLabel(a, t)}
               >
                 <X size={12} color={c.textMuted} />
               </Pressable>

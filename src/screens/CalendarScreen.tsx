@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { monthButtonAccessibilityLabel } from '../lib/calendar-a11y';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
   Calendar as CalendarIcon,
@@ -1037,7 +1038,7 @@ export default function CalendarScreen() {
           style={styles.titleBtn}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel={t('calendar.mini_calendar_change', 'Change month')}
+          accessibilityLabel={monthButtonAccessibilityLabel(headerTitle(titleDate, locale), t)}
           accessibilityState={{ expanded: monthPanelOpen }}
         >
           <Text style={styles.headerTitle} numberOfLines={1}>
