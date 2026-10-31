@@ -185,6 +185,11 @@ describe('htmlToPlainText links', () => {
   it('drops the mailto: prefix when the text is the address', () => {
     expect(htmlToPlainText('<a href="mailto:a@b.c">a@b.c</a>')).toBe('a@b.c');
   });
+
+  it('writes an @mention as the name alone, as the webmail does', () => {
+    expect(htmlToPlainText('<p>Hi <a href="mailto:max@x.de" class="mention">@Max</a>&nbsp;how</p>', { mailMarkup: true }))
+      .toBe('Hi @Max how');
+  });
 });
 
 describe('extractUserAuthoredText', () => {
