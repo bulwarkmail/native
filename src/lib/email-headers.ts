@@ -98,6 +98,21 @@ const SPF_SEVERITY: Record<SpfResult, number> = {
 };
 
 /**
+ * Whether "via <identity>" on a message sent as one of the user's identities
+ * tells the reader anything: only when the identity's name differs from its
+ * address, the From address and the name already shown as the sender, so it
+ * no longer reads "ann@x via ann@x" (webmail email-identity-badge.tsx).
+ */
+export function viaIdentityNameShown(
+  identity: Pick<Identity, 'name' | 'email'>,
+  from: { name?: string | null; email?: string | null } | undefined,
+): boolean {
+  const name = identity.name?.trim();
+  if (!name) return false;
+  return name !== identity.email && name !== from?.email && name !== from?.name;
+}
+
+/**
  * Whether the authentication results indicate the visible From identity can't
  * be trusted (i.e. the message is likely spoofed). Used to suppress UI that
  * would otherwise imply the message legitimately came from one of the user's
