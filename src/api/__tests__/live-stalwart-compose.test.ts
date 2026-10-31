@@ -16,7 +16,8 @@
  * Everything it creates is removed again. Mail goes to the user's own
  * address and nothing depends on delivery (SMTP is down on the test VM).
  *
- * Verified against stalwartlabs/stalwart:v0.16.27 and v1.0.0 (2026-10-29).
+ * Verified against stalwartlabs/stalwart:v0.16.27 and v1.0.0 (2026-10-29), and
+ * v0.16.27 and v1.0.1 with the composed-body and preset cases (2026-10-31).
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
@@ -32,6 +33,9 @@ import {
 } from '../bulwark-metadata';
 import { CAPABILITIES } from '../types';
 import { cancelScheduledToDrafts } from '../../lib/compose-scheduled';
+import { formatScheduledSendAt, schedulePresets } from '../../lib/compose-schedule';
+import { htmlToPlainText } from '../../lib/compose-html';
+import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature-utils';
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
 import { useAccountStore } from '../../stores/account-store';
@@ -308,6 +312,66 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       } finally {
         if (!hadMarker) await setBulwarkMetadata(singleton.accountId, 'templates', null).catch(() => undefined);
       }
+    }, 60_000);
+  });
+
+  describe('the body of a composed message (compose pass 2026-11)', () => {
+    it('keeps the quote marks, numbered list, signature delimiter and image text of the text part, and one signature', async () => {
+      // The composer's body after a From switch with text typed under the
+      // old signature: the new signature, the typed line kept after it.
+      const oldSig = buildEmbeddedSignatureHtml({ textSignature: 'Old Sig' }, { separator: true })
+        .replace('data-signature-block="end"><br></p>', 'data-signature-block="end">PS: call me</p>');
+      const newSig = buildEmbeddedSignatureHtml({ textSignature: 'New Sig' }, { separator: true });
+      const editorHtml = '<p>My reply</p><ol><li>one</li><li>two</li></ol>'
+        + '<p><img src="cid:pic@bulwark.local" alt="a red bike"><img src="cid:deco@bulwark.local" alt=""></p>'
+        + oldSig
+        + '<div data-quoted-html="true"><div>On Monday, Ann wrote:<br></div><blockquote>Hello<br>there</blockquote></div>';
+      const html = spliceSignature(editorHtml, newSig);
+      const textBody = htmlToPlainText(html, { mailMarkup: true, imageAlt: (alt) => `[Image: ${alt}]` });
+      const saved = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `body ${tag}`, htmlBody: `<div>${html}</div>`, textBody,
+      }, drafts);
+      createdEmails.push(saved.id);
+      const [stored] = await getFullEmails([saved.id]);
+      const text = stored.bodyValues?.[stored.textBody?.[0]?.partId ?? '']?.value ?? '';
+      const lines = text.replace(/\r\n/g, '\n').split('\n');
+      expect(lines).toContain('1. one');
+      expect(lines).toContain('2. two');
+      expect(lines).toContain('> Hello');
+      expect(lines).toContain('> there');
+      // RFC 3676: the delimiter keeps its space on the server too.
+      expect(lines).toContain('-- ');
+      expect(text).toContain('[Image: a red bike]');
+      expect(text).not.toContain('[Image: ]');
+      const storedHtml = stored.bodyValues?.[stored.htmlBody?.[0]?.partId ?? '']?.value ?? '';
+      expect(storedHtml).toContain('New Sig');
+      expect(storedHtml).not.toContain('Old Sig');
+      expect(storedHtml).toContain('PS: call me');
+    }, 60_000);
+  });
+
+  describe('scheduled send times', () => {
+    it('shows a preset time as picked, though the server may hold it to a second before', async () => {
+      const max = singleton.getMaxDelayedSend();
+      const now = new Date();
+      // The first preset the server can hold, else a whole minute an hour ahead.
+      const preset = schedulePresets(now).find((p) => p.date.getTime() - now.getTime() <= max * 1000);
+      const target = preset?.date ?? new Date(Math.ceil((now.getTime() + 3_600_000) / 60_000) * 60_000);
+      // As the composer turns the picked time into HOLDFOR seconds.
+      const holdFor = Math.ceil((target.getTime() - Date.now()) / 1000);
+      const [identity] = await getIdentities();
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `preset ${tag}`, textBody: 'live' },
+        identity.id, sent, holdFor, { draftsMailboxId: drafts },
+      );
+      createdEmails.push(result.emailId!);
+      const listed = (await listScheduledEmails()).find((s) => s.emailSubmissionId === result.emailSubmissionId)!;
+      expect(listed).toBeTruthy();
+      // Within a few seconds of the minute picked, on either side.
+      expect(Math.abs(new Date(listed.sendAt).getTime() - target.getTime())).toBeLessThan(5_000);
+      expect(formatScheduledSendAt(listed.sendAt, '24h', 'en'))
+        .toBe(formatScheduledSendAt(target.toISOString(), '24h', 'en'));
+      await cancelScheduledSend(listed.emailSubmissionId);
     }, 60_000);
   });
 });
