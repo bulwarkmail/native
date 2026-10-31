@@ -21,7 +21,7 @@ describe('ComposeScreen mention wiring', () => {
     expect(items).toMatch(/\.\.\.bccRecipients/);
     expect(items).toMatch(/primaryIdentity\?\.bcc/);
     expect(items).toMatch(/!onMessage\.has\(s\.email\.trim\(\)\.toLowerCase\(\)\)/);
-    expect(items).toMatch(/mentionSuggestions\(mentionCandidates, contacts, mentionQuery, 'to'\)/);
+    expect(items).toMatch(/mentionSuggestions\(mentionCandidates, contacts, mentionQuery, mentionAddsRecipientTo === 'cc' \? 'cc' : 'to'\)/);
   });
 
   it('inserts the picked mention as a mailto link and adds a contact to To', () => {
