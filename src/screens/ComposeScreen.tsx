@@ -452,8 +452,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const prefillAttachments = route.params?.prefillAttachments;
   const isReplyLike = !!replyTo && !draft;
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  // Always the user's own Sent — composing on behalf of a shared account
-  // isn't supported, so a group account's Sent must never be picked up here.
+  // The login's own Sent and Drafts. A From that belongs to a group or
+  // shared account is created, submitted and filed in that account instead
+  // (sendTargetFor, #1090); a group's folders must never be picked up here.
   const sentMailbox = React.useMemo(
     () => ownMailboxes(mailboxes).find((m) => m.role === 'sent'),
     [mailboxes],
