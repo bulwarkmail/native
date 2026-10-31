@@ -21,6 +21,13 @@ describe('someone with access the server does not name', () => {
     expect(principalRowDisplay(principal, tEn)).toEqual({ name: 'userb@example.org', detail: 'User B' });
   });
 
+  it('is the row the Delegates settings list shows', () => {
+    // On Stalwart 1.0.1 the row read "Unknown person" over "e".
+    const settings = fs.readFileSync(path.resolve(__dirname, '../../../components/settings/DelegateSettings.tsx'), 'utf8');
+    expect(settings).toMatch(/const display = principalRowDisplay\(principal, t\);/);
+    expect(settings).not.toMatch(/detail: summary\.principalId/);
+  });
+
   it('gets no id for an address line in the calendar and address book share sheet', () => {
     const sheet = fs.readFileSync(path.resolve(__dirname, '../../../components/sharing/ShareCollectionSheet.tsx'), 'utf8');
     const label = sheet.slice(sheet.indexOf('const renderPrincipalLabel'), sheet.indexOf('return (', sheet.indexOf('const renderPrincipalLabel')) + 900);

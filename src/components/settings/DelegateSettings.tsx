@@ -27,7 +27,7 @@ import {
   summarizeDelegates,
   type DelegateSummary,
 } from '../../lib/delegation/delegation';
-import { describeSummary, principalDisplay, resolvePrincipal } from '../../lib/delegation/display';
+import { describeSummary, principalDisplay, principalRowDisplay, resolvePrincipal } from '../../lib/delegation/display';
 import {
   pruneRememberedPrincipals,
   rememberPrincipals,
@@ -223,9 +223,7 @@ export function DelegateSettings() {
           <View style={styles.list}>
             {summaries.map((summary, index) => {
               const principal = principalFor(summary.principalId);
-              const display = principal
-                ? principalDisplay(principal)
-                : { name: t('delegates.unknown_person', 'Unknown person'), detail: summary.principalId };
+              const display = principalRowDisplay(principal, t);
               const busy = removingId === summary.principalId;
               return (
                 <View key={summary.principalId} style={[styles.row, index > 0 && styles.rowBorder]}>
