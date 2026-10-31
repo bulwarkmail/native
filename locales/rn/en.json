@@ -461,7 +461,14 @@
     "showing_cached": "Showing cached mail",
     "sort": {
       "custom": "Custom order (in Settings)",
-      "title": "Sort"
+      "largest": "Largest first",
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "sender": "Sender (A–Z)",
+      "starred": "Starred first",
+      "subject": "Subject (A–Z)",
+      "title": "Sort",
+      "unread": "Unread first"
     },
     "sort_toggle_hint": "Reverses the mail sort order",
     "swipe_move": "Move",
