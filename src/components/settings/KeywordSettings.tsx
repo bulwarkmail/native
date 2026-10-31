@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Plus, Pencil, Trash2, Check, X, RotateCcw, ScanSearch } from '../icons';
 import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
+import { SettingsKeyboardContext } from './keyboard-reveal';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useKeywordsStore, currentTagsLogin, type KeywordDef, type KeywordVisibility } from '../../stores/keywords-store';
@@ -343,6 +344,9 @@ function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel 
     ...parentKeywordOptions(keywords).map((o) => ({ value: o.id, label: o.label })),
   ];
   const initialParent = initial ? getParentKeywordId(initial.id) : null;
+  // The whole form goes above the keyboard, the parent picker included.
+  const revealOnKeyboard = React.useContext(SettingsKeyboardContext);
+  const formRef = React.useRef<View>(null);
 
   const handleSave = () => {
     if (!isValid) return;
@@ -350,7 +354,7 @@ function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel 
   };
 
   return (
-    <View style={styles.form}>
+    <View ref={formRef} style={styles.form}>
       {nested && !initial && keywords.length > 0 && (
         <View>
           <Text style={styles.formLabel}>{t('settings.keywords.parent_field', 'Parent tag')}</Text>
@@ -368,6 +372,7 @@ function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel 
         <TextInput accessibilityLabel={t('settings.keywords.label_field', "Display Name")}
           value={label}
           onChangeText={setLabel}
+          onFocus={() => revealOnKeyboard?.(formRef.current)}
           placeholder={t('settings.keywords.label_placeholder', "e.g. Work, Personal, Urgent")}
           placeholderTextColor={c.mutedForeground}
           style={styles.input}
