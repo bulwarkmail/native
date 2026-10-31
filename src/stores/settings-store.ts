@@ -163,6 +163,11 @@ interface PersistedSettings {
   attachmentReminderEnabled: boolean;
   attachmentReminderKeywords: string[];
   plainTextMode: boolean;
+  // Optional confirms before sending, deleting and archiving (webmail
+  // 1.19 accessibility settings, lib/accessibility-settings.ts).
+  sendConfirmation: boolean;
+  confirmDelete: boolean;
+  confirmArchive: boolean;
   // Undo-send window: every send is deferred by this many seconds (via the
   // server's FUTURERELEASE support) so it can be cancelled. 0 = send instantly.
   sendDelaySeconds: number;
@@ -362,6 +367,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
     'pielikumā',
   ],
   plainTextMode: false,
+  sendConfirmation: false,
+  confirmDelete: false,
+  confirmArchive: false,
   sendDelaySeconds: 0,
   signaturePosition: 'below_quote',
   signatureSeparatorEnabled: true,
