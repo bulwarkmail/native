@@ -80,6 +80,11 @@ function ToastCard({ toast }: { toast: Toast }) {
   // screen change remounts the card). The countdown line runs out with it;
   // with animations off it stays full instead of moving.
   React.useEffect(() => {
+    // "Until I close them": no timer, and the line stays full.
+    if (toast.duration <= 0) {
+      remainingShare.setValue(1);
+      return undefined;
+    }
     const remaining = Math.max(0, toast.duration - (Date.now() - toast.createdAt));
     const timer = setTimeout(() => removeToast(toast.id), remaining);
     if (!animate) {

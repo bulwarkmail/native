@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { announce, toastAnnouncement } from '../lib/announce';
+import { effectiveToastDuration } from '../lib/toast-duration';
 
 // Lightweight port of the webmail's stores/toast-store.ts: a queue of typed
 // toasts with an optional action, rendered by components/ToastHost. Use it
@@ -20,6 +21,8 @@ export interface Toast {
   message?: string;
   action?: ToastAction;
   // ms; errors default to 10 s like the webmail, everything else to 5 s.
+  // Errors and toasts with an action follow the "Notification duration"
+  // setting (lib/toast-duration). 0 stays until it is swiped away.
   duration: number;
   createdAt: number;
 }
@@ -42,7 +45,7 @@ export const useToastStore = create<ToastState>((set) => ({
       ...toast,
       id,
       createdAt: Date.now(),
-      duration: toast.duration ?? (toast.type === 'error' ? 10_000 : 5_000),
+      duration: effectiveToastDuration(toast),
     };
     // Keep the queue short: a burst of errors should not stack up forever.
     set((state) => ({ toasts: [...state.toasts.slice(-2), entry] }));

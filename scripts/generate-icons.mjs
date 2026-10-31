@@ -21,6 +21,7 @@ const SOURCE = process.argv[2]
 // App name -> Tabler outline name. Where the webmail (components/icons) maps
 // the same name, this uses its choice.
 const MAP = {
+  Accessibility: 'accessible',
   AlarmClock: 'alarm',
   AlertCircle: 'alert-circle',
   AlertTriangle: 'alert-triangle',

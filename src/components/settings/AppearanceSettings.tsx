@@ -3,8 +3,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useSettingsStore, type ThemeMode, type FontSize, type Density } from '../../stores/settings-store';
+import { useSettingsStore, type ThemeMode, type Density } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 
 type Theme = ThemeMode;
 
@@ -85,14 +86,10 @@ export function AppearanceSettings() {
   const theme = useSettingsStore((s) => s.theme);
   const t = useLocaleStore((s) => s.t);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const fontSize = useSettingsStore((s) => s.fontSize);
-  const setFontSize = useSettingsStore((s) => s.setFontSize);
   const density = useSettingsStore((s) => s.density);
   const setDensity = useSettingsStore((s) => s.setDensity);
   const showToolbarLabels = useSettingsStore((s) => s.showToolbarLabels);
   const setShowToolbarLabels = useSettingsStore((s) => s.setShowToolbarLabels);
-  const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
-  const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
   const senderFavicons = useSettingsStore((s) => s.senderFavicons);
   const setSenderFavicons = useSettingsStore((s) => s.setSenderFavicons);
   const hydrated = useSettingsStore((s) => s.hydrated);
@@ -119,17 +116,13 @@ export function AppearanceSettings() {
         />
       </SettingItem>
 
-      <SettingItem label={t('settings.appearance.font_size.label', "Font Size")} description={t('settings.appearance.font_size.description', "Adjust text size for better readability")}>
-        <RadioGroup
-          value={fontSize}
-          onChange={(v) => setFontSize(v as FontSize)}
-          options={[
-            { value: 'small', label: t('settings.appearance.font_size.small', "Small") },
-            { value: 'medium', label: t('settings.appearance.font_size.medium', "Medium") },
-            { value: 'large', label: t('settings.appearance.font_size.large', "Large") },
-          ]}
-        />
-      </SettingItem>
+      {/* Text size and motion moved to Settings > Accessibility. */}
+      <SettingItem
+        label={t('settings.appearance.accessibility_link.label', 'Text size and motion')}
+        description={t('settings.appearance.accessibility_link.description_mobile', 'Text size, reduced motion and the accessibility presets are on the Accessibility page.')}
+        onPress={() => setPendingSettingsTab('accessibility')}
+        link="page"
+      />
 
       <View>
         <SettingItem label={t('settings.appearance.list_density.label', "Density")} description={t('settings.appearance.list_density.description', "Control spacing and padding across the UI")} noBorder />
@@ -149,10 +142,6 @@ export function AppearanceSettings() {
 
       <SettingItem label={t('settings.appearance.toolbar_labels.label', "Show Toolbar Labels")} description={t('settings.appearance.toolbar_labels.description_mobile', "Display text labels next to toolbar icons.")}>
         <ToggleSwitch checked={showToolbarLabels} onChange={setShowToolbarLabels} />
-      </SettingItem>
-
-      <SettingItem label={t('settings.appearance.animations.label', "Enable Animations")} description={t('settings.appearance.animations.description', "Show smooth transitions and effects")}>
-        <ToggleSwitch checked={animationsEnabled} onChange={setAnimationsEnabled} />
       </SettingItem>
 
       <SettingItem

@@ -33,6 +33,7 @@ const WEEKDAY: Record<0 | 1 | 6, [string, string]> = {
 };
 
 const STATIC: Partial<Record<SettingsTabId, [string, string]>> = {
+  accessibility: ['settings.summary.accessibility', 'Text size, motion, confirmations'],
   layout: ['settings.summary.layout', 'Quick actions, swipes, list order'],
   reading: ['settings.summary.reading', 'Read status, delete, attachments'],
   composing: ['settings.summary.composing', 'Signature, send delay, drafts'],

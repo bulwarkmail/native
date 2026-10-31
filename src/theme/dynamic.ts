@@ -5,16 +5,22 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
-import { useSettingsStore } from '../stores/settings-store';
+import { useSettingsStore, type FontSize } from '../stores/settings-store';
 import { typography as baseTypography, spacing as baseSpacing } from './tokens';
 
-export type FontScale = 'small' | 'medium' | 'large';
+export type FontScale = FontSize;
 export type DensityKind = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
 
-const FONT_SCALE: Record<FontScale, number> = {
-  small: 0.92,
+// The webmail's text sizes (lib/accessibility-settings.ts FONT_SIZE_SCALE),
+// 87.5% to 200%, on top of the system font scale RN applies to Text anyway.
+export const FONT_SCALE: Record<FontScale, number> = {
+  small: 0.875,
   medium: 1,
-  large: 1.12,
+  large: 1.125,
+  'x-large': 1.25,
+  'xx-large': 1.5,
+  'xxx-large': 1.75,
+  huge: 2,
 };
 
 // How tall an email-list-style row should be. Mirrors the webmail

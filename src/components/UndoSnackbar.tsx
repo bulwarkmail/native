@@ -12,7 +12,10 @@ import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../st
 import { useLocaleStore } from '../stores/locale-store';
 import type { RootStackParamList } from '../navigation/types';
 import { announce } from '../lib/announce';
+import { lastingToastDuration } from '../lib/toast-duration';
 
+// At least this long; the "Notification duration" setting can make it
+// longer, or keep the bar until it is replaced (lib/toast-duration).
 const VISIBLE_MS = 5000;
 
 interface Shown {
@@ -49,7 +52,7 @@ export function UndoSnackbar() {
   // the bar; the newer one wins.
   const current = React.useMemo<Shown | null>(() => {
     const list: Shown | null = entry
-      ? { label: entry.label, createdAt: entry.createdAt, visibleMs: VISIBLE_MS }
+      ? { label: entry.label, createdAt: entry.createdAt, visibleMs: lastingToastDuration(VISIBLE_MS) }
       : null;
     const send: Shown | null = pendingSend
       ? {
@@ -97,6 +100,8 @@ export function UndoSnackbar() {
       Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
     ]).start();
 
+    // Kept until replaced or used ("Until I close them").
+    if (current.visibleMs <= 0) return undefined;
     const elapsed = Date.now() - current.createdAt;
     const remaining = Math.max(0, current.visibleMs - elapsed);
     const id = setTimeout(() => {

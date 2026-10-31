@@ -6,6 +6,7 @@ import { makeIcon } from './icon';
 export type { AppIcon, IconProps } from './icon';
 
 const G = {
+  'accessible': ["M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0","M10 16.5l2 -3l2 3m-2 -3v-2l3 -1m-6 0l3 1","M11.5 7.5a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0"],
   'address-book': ["M20 6v12a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2","M10 16h6","M11 11a2 2 0 1 0 4 0a2 2 0 1 0 -4 0","M4 8h3","M4 12h3","M4 16h3"],
   'alarm': ["M5 13a7 7 0 1 0 14 0a7 7 0 1 0 -14 0","M12 10l0 3l2 0","M7 4l-2.75 2","M17 4l2.75 2"],
   'alert-circle': ["M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0","M12 8v4","M12 16h.01"],
@@ -176,6 +177,7 @@ const G = {
   'zoom-scan': ["M8 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0","M16 16l-2.5 -2.5","M3 7v-2a2 2 0 0 1 2 -2h2","M3 17v2a2 2 0 0 0 2 2h2","M17 3h2a2 2 0 0 1 2 2v2","M17 21h2a2 2 0 0 0 2 -2v-2"],
 } as const;
 
+export const Accessibility = makeIcon('Accessibility', G['accessible']);
 export const AlarmClock = makeIcon('AlarmClock', G['alarm']);
 export const AlertCircle = makeIcon('AlertCircle', G['alert-circle']);
 export const AlertTriangle = makeIcon('AlertTriangle', G['alert-triangle']);

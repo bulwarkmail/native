@@ -14,7 +14,7 @@
 import { supportsDeviceSync } from './platform-capabilities';
 
 export type SettingsTabId =
-  | 'account' | 'language' | 'notifications'
+  | 'account' | 'language' | 'notifications' | 'accessibility'
   | 'appearance' | 'layout'
   | 'reading' | 'composing' | 'identities' | 'vacation'
   | 'filters' | 'templates' | 'folders' | 'keywords' | 'downloads'
@@ -57,12 +57,22 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.notifications.calendar.enabled',
     'settings.notifications.calendar.invitation_parsing',
   ],
+  accessibility: [
+    'settings.accessibility.presets.screen-reader',
+    'settings.accessibility.presets.low-vision',
+    'settings.accessibility.presets.motion',
+    'settings.accessibility.text_size',
+    'settings.accessibility.reduce_motion',
+    'settings.accessibility.toast_duration',
+    'settings.accessibility.confirm_send',
+    'settings.accessibility.confirm_delete',
+    'settings.accessibility.confirm_archive',
+  ],
   appearance: [
     'settings.appearance.theme',
-    'settings.appearance.font_size',
+    'settings.appearance.accessibility_link',
     'settings.appearance.list_density',
     'settings.appearance.toolbar_labels',
-    'settings.appearance.animations',
     // The leaf: the catalog's subtree also has the webmail's refresh button.
     'settings.advanced.sender_favicons.label',
   ],
@@ -248,6 +258,7 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   account: 'profile email password user signin signout reorder switch default multi-account shared storage quota',
   language: 'locale region date time format translation',
   notifications: 'alert push badge unifiedpush relay device reminder',
+  accessibility: 'a11y screen reader talkback voiceover low vision text size font bigger larger motion animation preset undo timeout duration confirm',
   appearance: 'theme dark light font size text color animation density',
   layout: 'swipe gesture quick actions toolbar order sort unified folder count avatar',
   reading: 'mark read preview thread conversation archive delete attachment open monospace mono font plain text receipt',
