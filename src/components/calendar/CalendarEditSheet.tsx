@@ -264,7 +264,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                     autoCapitalize="none"
                     autoCorrect={false}
                     maxLength={7}
-                    accessibilityLabel={t('calendar.management.custom_color', 'Custom colour (hex)')}
+                    accessibilityLabel={t('calendar.management.custom_color', 'Custom color (hex)')}
                     style={[styles.input, styles.hexInput, hexInvalid && styles.inputInvalid]}
                   />
                   <Pressable
@@ -275,14 +275,14 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                   >
                     <Text style={styles.moreColorsText}>
                       {moreColors
-                        ? t('calendar.management.fewer_colors', 'Fewer colours')
-                        : t('calendar.management.more_colors', 'More colours')}
+                        ? t('calendar.management.fewer_colors', 'Fewer colors')
+                        : t('calendar.management.more_colors', 'More colors')}
                     </Text>
                   </Pressable>
                 </View>
                 {hexInvalid && (
                   <Text style={styles.error}>
-                    {t('calendar.management.color_invalid', 'Enter a colour as # and six hex digits, such as #3b82f6.')}
+                    {t('calendar.management.color_invalid', 'Enter a color as # and six hex digits, such as #3b82f6.')}
                   </Text>
                 )}
                 {moreColors && (
