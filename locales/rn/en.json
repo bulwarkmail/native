@@ -622,6 +622,7 @@
       "camera_allow": "Allow camera access",
       "camera_disabled": "Camera access is disabled. Enable it in Settings to scan a sign-in QR code.",
       "camera_needed": "Bulwark Mail needs camera access to scan a sign-in QR code.",
+      "cancel_sign_in": "Cancel sign-in",
       "choose_subtitle": "Choose how you'd like to sign in.",
       "confirm_check": "Check this looks right",
       "confirm_found": "Found your mail server",
@@ -811,6 +812,31 @@
       "up_to_date": "Up to date",
       "updates": "Updates"
     },
+    "accessibility": {
+      "presets": {
+        "applied_mobile": "{name} changed {count, plural, one {# setting} other {# settings}}",
+        "apply": "Apply",
+        "apply_named": "Apply {name}",
+        "low-vision": {
+          "description_mobile": "Text at 150% and labels under the toolbar icons."
+        },
+        "motion": {
+          "description_mobile": "No animations or sliding transitions."
+        },
+        "screen-reader": {
+          "description_mobile": "No conversation grouping, so every message is a row of its own."
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "Turns off sliding panels and transitions. The app also does this when reduced motion is on in your phone's settings."
+      },
+      "text_size": {
+        "description_mobile": "Scales the app's text on top of your phone's text size. 100% is your phone's size."
+      },
+      "toast_duration": {
+        "automatic": "Automatic (longer with a screen reader)"
+      }
+    },
     "account": {
       "accounts": {
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
@@ -837,6 +863,9 @@
       }
     },
     "appearance": {
+      "accessibility_link": {
+        "description_mobile": "Text size, reduced motion and the accessibility presets are on the Accessibility page."
+      },
       "description_mobile": "Customize how the app looks",
       "language": {
         "restart_for_direction": "Restart the app to apply the new text direction.",
@@ -1379,6 +1408,7 @@
       "mobile_explainer": "S/MIME is not available in the mobile app yet. Manage keys and certificates in the webmail; signed messages are shown without verification here."
     },
     "summary": {
+      "accessibility": "Text size, motion, confirmations",
       "composing": "Signature, send delay, drafts",
       "contacts": "Address books, sorting",
       "content_senders": "Remote images, trusted senders",
@@ -1432,6 +1462,7 @@
       "description_mobile": "Reusable snippets for common replies. Tap one to edit; long-press to delete.",
       "export_failed": "Export failed",
       "import_failed": "Import failed",
+      "import_json_label": "Templates as JSON",
       "imported": "Imported",
       "imported_count": "{count, plural, one {# template} other {# templates}} added.",
       "is_html": "Body is HTML",
