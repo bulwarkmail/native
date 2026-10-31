@@ -1393,6 +1393,9 @@
       },
       "font": {
         "description_ios": "Atkinson Hyperlegible und Lexend sind so gestaltet, dass sich die Buchstaben gut unterscheiden; OpenDyslexic hilft manchen Menschen mit Legasthenie. Auf diesem Gerät gilt die Schrift für Nachrichten als reiner Text."
+      },
+      "cvd_palette": {
+        "description_mobile": "Verwendet Farben für Tags und Kalender, die bei Rot-Grün- oder Blau-Gelb-Schwäche unterscheidbar bleiben."
       }
     }
   },

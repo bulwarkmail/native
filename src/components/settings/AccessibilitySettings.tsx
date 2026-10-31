@@ -76,6 +76,7 @@ export function AccessibilitySettings() {
   const update = useSettingsStore((s) => s.updateSetting);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const appFont = useSettingsStore((s) => s.appFont);
+  const colorBlindPalette = useSettingsStore((s) => s.colorBlindPalette);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const toastDuration = useSettingsStore((s) => s.toastDuration);
   const sendConfirmation = useSettingsStore((s) => s.sendConfirmation);
@@ -166,6 +167,20 @@ export function AccessibilitySettings() {
               value: font,
               label: font === 'default' ? t('settings.accessibility.font.default', 'Theme font') : FONT_NAMES[font],
             }))}
+          />
+        </SettingItem>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.accessibility.sections.contrast', 'Colour and contrast')}>
+        <SettingItem
+          label={t('settings.accessibility.cvd_palette.label', 'Colour-blind-safe colours')}
+          description={t('settings.accessibility.cvd_palette.description_mobile', 'Uses tag and calendar colours that stay distinct with red-green or blue-yellow colour blindness.')}
+          noBorder
+        >
+          <ToggleSwitch
+            checked={colorBlindPalette}
+            onChange={(v) => update('colorBlindPalette', v)}
+            accessibilityLabel={t('settings.accessibility.cvd_palette.label', 'Colour-blind-safe colours')}
           />
         </SettingItem>
       </SettingsSection>

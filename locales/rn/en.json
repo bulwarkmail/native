@@ -963,6 +963,9 @@
       "updates": "Updates"
     },
     "accessibility": {
+      "cvd_palette": {
+        "description_mobile": "Uses tag and calendar colours that stay distinct with red-green or blue-yellow colour blindness."
+      },
       "font": {
         "description_ios": "Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages."
       },

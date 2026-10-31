@@ -166,6 +166,9 @@ export interface PersistedSettings {
   // settings.ts, same keys for export/import). The reading font for the
   // app's text and plain-text mail (theme/reading-fonts).
   appFont: AppFont;
+  // Tag and calendar colours drawn in the colour-blind-safe palette
+  // (lib/cvd-palette, theme/colors).
+  colorBlindPalette: boolean;
 
   // Composing
   autoSelectReplyIdentity: boolean;
@@ -369,6 +372,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   activeThemeId: null,
   // a11y-reading:
   appFont: 'default',
+  colorBlindPalette: false,
 
   autoSelectReplyIdentity: false,
   replyIdentityMatch: 'domain',

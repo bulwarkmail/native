@@ -74,6 +74,12 @@ export interface ThemePalette {
 
   // Tags
   tags: TagColors;
+  /**
+   * The tag colours as the user picks them, set while tags are drawn in the
+   * colour-blind-safe palette (theme/colors): the colour picker and the tag
+   * settings show the colours themselves, as in the webmail.
+   */
+  tagsAsPicked?: TagColors;
 
   // Navigation
   navActive: string;
