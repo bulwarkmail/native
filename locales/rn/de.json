@@ -78,6 +78,7 @@
       "clear_title": "Alle Termine entfernen?",
       "delete_description": "Der Kalender und alle seine Termine werden gelöscht. Dies kann nicht rückgängig gemacht werden.",
       "delete_title": "Kalender löschen?",
+      "description_field": "Beschreibung",
       "description_placeholder": "Optional",
       "edit_calendar": "Kalender bearbeiten",
       "new_calendar": "Neuer Kalender"

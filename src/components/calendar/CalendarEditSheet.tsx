@@ -307,9 +307,11 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                     ))}
                   </View>
                 )}
-                <Text style={styles.label}>{t('calendar.management.description', 'Description')}</Text>
+                {/* Not calendar.management.description: in the webmail's
+                    catalog that is the management page's desktop help text. */}
+                <Text style={styles.label}>{t('calendar.management.description_field', 'Description')}</Text>
                 <TextInput
-                  accessibilityLabel={t('calendar.management.description', 'Description')}
+                  accessibilityLabel={t('calendar.management.description_field', 'Description')}
                   value={description}
                   onChangeText={setDescription}
                   placeholder={t('calendar.management.description_placeholder', 'Optional')}

@@ -99,6 +99,7 @@
       "custom_color": "Custom color (hex)",
       "delete_description": "The calendar and all of its events will be deleted. This cannot be undone.",
       "delete_title": "Delete calendar?",
+      "description_field": "Description",
       "description_placeholder": "Optional",
       "edit_calendar": "Edit calendar",
       "fewer_colors": "Fewer colors",
