@@ -325,6 +325,10 @@ export interface PersistedSettings {
   // reader: the quick reply box under a conversation can be turned off
   // (webmail #1370, same key as the webmail's for export/import).
   quickReplyEnabled: boolean;
+  // calendar2: events as a light tint of their calendar colour with a
+  // coloured bar at the start, instead of solid blocks (webmail
+  // calendarTintedEvents, same key).
+  calendarTintedEvents: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -487,6 +491,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   pushNotifyInboxOnly: false,
   // reader:
   quickReplyEnabled: true,
+  // calendar2:
+  calendarTintedEvents: false,
 };
 
 export interface SettingsState extends PersistedSettings {

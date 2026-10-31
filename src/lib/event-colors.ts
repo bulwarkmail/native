@@ -149,17 +149,28 @@ export interface EventBlockColors {
   text: string;
   /** Inset border in the calendar colour, for declined and cancelled events only. */
   border: string | null;
+  /** The light style's bar along the start edge, in the calendar colour; null without it. */
+  bar?: string | null;
 }
+
+/** Share of the calendar colour in the light style's fill (webmail color-mix 20%). */
+export const TINTED_FILL_MIX = 0.2;
+/** Width of the light style's bar (webmail --start-bar-width). */
+export const TINTED_BAR_WIDTH = 3;
 
 /**
  * Fill, label and border of an event block, bar or chip. Active events are
- * solid calendar colour with a computed label colour; declined and cancelled
- * ones sit on the page ground inside a calendar-coloured border.
+ * solid calendar colour with a computed label colour, or with "Light event
+ * colors" (`tinted`) a 20% tint of it on the page ground with the text
+ * colour and a calendar-coloured bar at the start (webmail eventFillStyle);
+ * declined and cancelled ones sit on the page ground inside a
+ * calendar-coloured border either way.
  */
 export function eventBlockColors(
   calendarColor: string,
   inactive: boolean,
   page: { background: string; text: string },
+  tinted = false,
 ): EventBlockColors {
   if (inactive) {
     return {
@@ -167,6 +178,10 @@ export function eventBlockColors(
       text: inactiveEventTextColor(calendarColor, page.text),
       border: calendarColor,
     };
+  }
+  if (tinted) {
+    const fill = mixColors(calendarColor, page.background, TINTED_FILL_MIX);
+    if (fill) return { fill, text: page.text, border: null, bar: calendarColor };
   }
   return { fill: calendarColor, text: readableTextOn(calendarColor), border: null };
 }

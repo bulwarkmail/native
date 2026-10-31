@@ -19,6 +19,7 @@ import { differenceInCalendarDays, format, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
@@ -120,6 +121,8 @@ function TimeGridScrollViewInner({
   onCreateAtTime,
 }: TimeGridScrollViewProps) {
   const c = useColors();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const index = React.useMemo(
@@ -448,6 +451,7 @@ function TimeGridScrollViewInner({
                   getEventColor(segment.event, calendars),
                   isInactiveEvent(segment.event, currentUserEmails),
                   c,
+                  tinted,
                 )}
                 continuesBefore={segment.continuesBefore}
                 continuesAfter={segment.continuesAfter}
@@ -606,6 +610,8 @@ const DayColumn = React.memo(function DayColumn({
   draftHour: number;
 }) {
   const { locale, t } = useCalendarLocale();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const handleLongPress = React.useCallback(
     (e: GestureResponderEvent) => {
       onLongPressAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
@@ -639,6 +645,7 @@ const DayColumn = React.memo(function DayColumn({
               getEventColor(event, calendars),
               isInactiveEvent(event, currentUserEmails),
               colors,
+                  tinted,
             )}
             ringColor={colors.background}
             continuesBefore={continuesBefore}

@@ -44,6 +44,7 @@ export function CalendarSettings() {
   const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   const showTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
+  const tintedEvents = useSettingsStore((s) => s.calendarTintedEvents);
   const freeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
@@ -132,6 +133,19 @@ export function CalendarSettings() {
           <ToggleSwitch
             checked={showTimeInMonth}
             onChange={(v) => update('calendarShowTimeInMonth', v)}
+          />
+        </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.tinted_events', 'Light event colors')}
+          description={t(
+            'calendar.settings.tinted_events_desc',
+            'Show events as a light tint of their calendar color with a colored bar at the start, as in Outlook and on printouts, instead of solid blocks.',
+          )}
+        >
+          <ToggleSwitch
+            checked={tintedEvents}
+            onChange={(v) => update('calendarTintedEvents', v)}
           />
         </SettingItem>
 

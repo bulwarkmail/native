@@ -11,6 +11,7 @@ import { displayNow, displayNowMinutes, isDisplayToday } from '../../lib/calenda
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
@@ -66,6 +67,8 @@ function WeekViewInner({
   currentUserEmails,
 }: WeekViewProps) {
   const c = useColors();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const scrollRef = React.useRef<ScrollView>(null);
@@ -212,6 +215,7 @@ function WeekViewInner({
                       getEventColor(segment.event, calendars),
                       isInactiveEvent(segment.event, currentUserEmails),
                       c,
+                      tinted,
                     )}
                     continuesBefore={segment.continuesBefore}
                     continuesAfter={segment.continuesAfter}
@@ -287,6 +291,7 @@ function WeekViewInner({
                             getEventColor(event, calendars),
                             isInactiveEvent(event, currentUserEmails),
                             c,
+                      tinted,
                           )}
                           ringColor={c.background}
                           continuesBefore={continuesBefore}
