@@ -15,6 +15,7 @@
       "teal": "Teal"
     },
     "detail": {
+      "delete_confirm": "Delete this event?",
       "location_hint": "Opens the location; long-press to copy it"
     },
     "drawer": {
@@ -185,11 +186,13 @@
     "bulk": {
       "add_tag": "Add tag",
       "delete_confirm_mobile": "{count, plural, one {Delete # contact? This cannot be undone.} other {Delete # contacts? This cannot be undone.}}",
+      "delete_confirm_title": "Delete contacts",
       "move_to_address_book": "Move to address book",
       "tag_failed": "Tagging failed"
     },
     "contact": "Contact",
     "create_hint_mobile": "Long-press to create a group instead",
+    "delete_confirm_title": "Delete contact",
     "detail": {
       "add_to_group_failed": "Add to group failed",
       "copy_name": "{name} (Copy)",
@@ -496,6 +499,7 @@
     "export_failed": "Export failed",
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",
+    "not_spam_short": "Not spam",
     "preview": {
       "archive_files": "{count, plural, one {# file} other {# files}}",
       "archive_first_files": "The first {count} files",
@@ -528,6 +532,7 @@
     "show_less": "Show less",
     "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
+    "spam_short": "Spam",
     "still_scheduled": "The message is still scheduled.",
     "still_scheduled_at": "The message is still scheduled for {date}.",
     "thread_loading": "Loading conversation...",
@@ -539,9 +544,14 @@
     "view_light_mode": "View in light mode"
   },
   "files": {
+    "batch_delete_confirm_message": "Are you sure you want to delete {count, plural, one {1 item} other {# items}}? This cannot be undone.",
+    "batch_delete_success": "{count, plural, one {1 item deleted} other {# items deleted}}",
     "delete_cascade_hint": "Folders are deleted along with everything inside them. This can't be undone.",
+    "delete_confirm_message": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
+    "delete_confirm_title": "Delete resource",
     "delete_item_title": "Delete this item?",
     "delete_items_title": "{count, plural, one {Delete # item?} other {Delete # items?}}",
+    "delete_success": "Deleted successfully",
     "done": "Done",
     "download_failed_status": "Download failed (HTTP {status})",
     "error_forbidden": "You do not have permission to do this here.",
@@ -848,6 +858,18 @@
       "not_on_server": "Not on this server",
       "unavailable": "Unavailable"
     },
+    "composer": {
+      "autosave": {
+        "1m": "Every minute",
+        "2m": "Every 2 minutes",
+        "30s": "Every 30 seconds",
+        "5m": "Every 5 minutes",
+        "description": "How often to save drafts automatically",
+        "label": "Auto-save Interval"
+      },
+      "description": "Configure email composition settings",
+      "title": "Composer"
+    },
     "contacts": {
       "book_count": "{count, plural, one {# contact} other {# contacts}}",
       "default_book": "Default address book",
@@ -982,6 +1004,10 @@
         "description_mobile": "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too."
       },
       "content_senders_description_mobile": "Control how external resources and tracking pixels are handled.",
+      "disable_threading": {
+        "description": "Show emails as individual messages instead of grouped by conversation",
+        "label": "Disable Conversation Grouping"
+      },
       "external_content": {
         "allow_mobile": "Allow",
         "ask_mobile": "Ask",
@@ -1024,7 +1050,9 @@
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# line} other {# lines}}"
+        "confirm_save": "Confirm Save",
+        "line_count": "{count, plural, one {# line} other {# lines}}",
+        "save_warning": "Saving will overwrite any visual rules. This cannot be undone. Click Save again to confirm."
       },
       "validation_header_name": "Enter a header name that uses only the letters A-Z, digits, hyphens and underscores, such as X-Spam-Flag."
     },
@@ -1068,7 +1096,8 @@
       "no_name": "(no name)",
       "primary": "primary",
       "save_failed": "Save failed",
-      "text_signature": "Plain-text signature"
+      "text_signature": "Plain-text signature",
+      "title": "Sending Identities"
     },
     "keywords": {
       "delete_confirm_title": "Delete tag \"{label}\"?",
@@ -1129,6 +1158,10 @@
       "title": "Message list order"
     },
     "notifications": {
+      "calendar": {
+        "invitation_parsing": "Parse email invitations",
+        "invitation_parsing_desc": "Detect calendar invitations in email attachments and show calendar actions"
+      },
       "email": {
         "app_icon_badge": "Unread count on app icon",
         "app_icon_badge_desc": "Show the inbox unread count as a badge on the app icon.",
@@ -1369,10 +1402,25 @@
       "version": "Version {version}",
       "week_starts": "week starts {day}"
     },
+    "tab_groups": {
+      "advanced": "Advanced",
+      "appearance": "Appearance",
+      "general": "General",
+      "privacy": "Privacy & Security"
+    },
     "tabs": {
       "about": "About",
+      "content_senders": "Content & Senders",
+      "downloads": "Downloads",
+      "identities": "Identities",
+      "keywords": "Tags",
+      "language": "Language, Region & Time",
+      "layout": "Layout",
       "plugins": "Plugins",
+      "sidebar_apps": "Sidebar Apps",
       "storage": "Storage & backup",
+      "templates": "Templates",
+      "themes": "Themes",
       "troubleshooting": "Troubleshooting",
       "updates": "Updates"
     },

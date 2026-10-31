@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Harmonogram",
       "three_days": "3 dni"
+    },
+    "detail": {
+      "delete_confirm": "Usunąć to wydarzenie?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Dodaj etykietę",
       "delete_confirm_mobile": "{count, plural, one {Usunąć # kontakt? Tej operacji nie można cofnąć.} few {Usunąć # kontakty? Tej operacji nie można cofnąć.} many {Usunąć # kontaktów? Tej operacji nie można cofnąć.} other {Usunąć # kontaktu? Tej operacji nie można cofnąć.}}",
       "move_to_address_book": "Przenieś do książki adresowej",
-      "tag_failed": "Nie udało się dodać etykiety"
+      "tag_failed": "Nie udało się dodać etykiety",
+      "delete_confirm_title": "Usuń kontakty"
     },
     "contact": "Kontakt",
     "create_hint_mobile": "Przytrzymaj, aby zamiast tego utworzyć grupę",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Przytrzymaj etykietę, aby zmienić jej nazwę",
     "tag_name_placeholder": "Nazwa nowej etykiety",
-    "unnamed": "Bez nazwy"
+    "unnamed": "Bez nazwy",
+    "delete_confirm_title": "Usuń kontakt"
   },
   "context_menu": {
     "color_tag": "Etykieta",
@@ -482,7 +487,8 @@
       "no_identity": "Brak tożsamości do wysyłki"
     },
     "view_dark_mode": "Wyświetl w trybie ciemnym",
-    "view_light_mode": "Wyświetl w trybie jasnym"
+    "view_light_mode": "Wyświetl w trybie jasnym",
+    "not_spam_short": "Nie spam"
   },
   "files": {
     "delete_cascade_hint": "Foldery są usuwane wraz z całą zawartością. Tej operacji nie można cofnąć.",
@@ -520,7 +526,12 @@
     "symlink": "Dowiązanie symboliczne",
     "upload_failed": "{count, plural, one {Nie udało się przesłać 1 pliku} few {Nie udało się przesłać # plików} many {Nie udało się przesłać # plików} other {Nie udało się przesłać # pliku}}",
     "upload_unavailable": "Selektor plików nie jest zainstalowany w tej wersji aplikacji. Przebuduj aplikację, aby włączyć przesyłanie.",
-    "uploading_progress": "Przesyłanie {current}/{total} · {name}"
+    "uploading_progress": "Przesyłanie {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Czy na pewno chcesz usunąć {count, plural, one {1 element} other {# elementów}}? Tej operacji nie można cofnąć.",
+    "batch_delete_success": "{count, plural, one {Usunięto 1 element} other {Usunięto # elementów}}",
+    "delete_confirm_message": "Czy na pewno chcesz usunąć \"{name}\"? Tej operacji nie można cofnąć.",
+    "delete_confirm_title": "Usuń zasób",
+    "delete_success": "Usunięto pomyślnie"
   },
   "identities": {
     "badge": {
@@ -889,6 +900,10 @@
         "sync_add_failed": "Nie udało się zsynchronizować z książką adresową",
         "sync_remove_failed": "Nie udało się usunąć z książki adresowej",
         "synced_badge": "Synchronizowany przez książkę adresową"
+      },
+      "disable_threading": {
+        "description": "Pokazuj wiadomości e-mail jako pojedyncze wiadomości zamiast grupowania według konwersacji",
+        "label": "Wyłącz grupowanie konwersacji"
       }
     },
     "experimental": {
@@ -898,7 +913,9 @@
       "remove_action": "Usuń akcję",
       "remove_condition": "Usuń warunek",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}}"
+        "line_count": "{count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}}",
+        "confirm_save": "Potwierdź zapis",
+        "save_warning": "Zapisanie nadpisze wszystkie reguły wizualne. Nie można tego cofnąć. Kliknij Zapisz ponownie, aby potwierdzić."
       },
       "validation_header_name": "Wpisz nazwę nagłówka, która zawiera tylko litery A–Z, cyfry, łączniki i podkreślenia, na przykład X-Spam-Flag."
     },
@@ -942,7 +959,8 @@
       "no_name": "(bez nazwy)",
       "primary": "główna",
       "save_failed": "Zapisywanie nie powiodło się",
-      "text_signature": "Podpis tekstowy"
+      "text_signature": "Podpis tekstowy",
+      "title": "Tożsamości nadawcy"
     },
     "keywords": {
       "description_mobile": "Kolorowe etykiety do porządkowania poczty.",
@@ -1041,6 +1059,10 @@
         "up_distributor_desc": "Zainstalowano kilka aplikacji dystrybutora UnifiedPush – wybierz tę, która ma dostarczać powiadomienia.",
         "up_distributor_label": "Dystrybutor",
         "up_no_distributor": "Na tym urządzeniu nie zainstalowano aplikacji dystrybutora UnifiedPush. Zainstaluj ją (np. ntfy) i spróbuj ponownie."
+      },
+      "calendar": {
+        "invitation_parsing": "Rozpoznawaj zaproszenia e-mail",
+        "invitation_parsing_desc": "Wykrywaj zaproszenia kalendarzowe w załącznikach wiadomości e-mail i pokazuj akcje kalendarza"
       }
     },
     "offline": {
@@ -1178,7 +1200,16 @@
     },
     "tabs": {
       "plugins": "Wtyczki",
-      "updates": "Aktualizacje"
+      "updates": "Aktualizacje",
+      "content_senders": "Treść i nadawcy",
+      "downloads": "Pobrane",
+      "identities": "Tożsamości",
+      "keywords": "Etykiety",
+      "language": "Język, region i czas",
+      "layout": "Układ",
+      "sidebar_apps": "Aplikacje paska bocznego",
+      "templates": "Szablony",
+      "themes": "Motywy"
     },
     "templates": {
       "delete_confirm": "Trwale usunąć „{name}”?",
@@ -1200,6 +1231,24 @@
       "warnings": {
         "date_format": "Daty muszą mieć format „YYYY-MM-DD” lub „YYYY-MM-DD HH:MM”"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Co minutę",
+        "2m": "Co 2 minuty",
+        "30s": "Co 30 sekund",
+        "5m": "Co 5 minut",
+        "description": "Jak często automatycznie zapisywać szkice",
+        "label": "Interwał autozapisu"
+      },
+      "description": "Skonfiguruj ustawienia tworzenia wiadomości e-mail",
+      "title": "Redagowanie"
+    },
+    "tab_groups": {
+      "advanced": "Zaawansowane",
+      "appearance": "Wygląd",
+      "general": "Ogólne",
+      "privacy": "Prywatność i bezpieczeństwo"
     }
   },
   "sharing": {

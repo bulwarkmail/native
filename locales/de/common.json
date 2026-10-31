@@ -50,6 +50,18 @@
     "sign_in_sso": "Mit SSO anmelden",
     "add_account_title": "Konto hinzufügen",
     "add_account_subtitle": "Mit einem anderen Konto anmelden",
+    "subtitle": "Melden Sie sich bei Ihrem Konto an",
+    "version": {
+      "details": "Versionsdetails",
+      "version_line": "Version: {value}",
+      "build_line": "Build: {value}",
+      "latest_line": "Neueste: {value}",
+      "copy": "Versionsinfo kopieren",
+      "security_update": "Sicherheitsupdate verfügbar",
+      "unsupported": "Version wird nicht mehr unterstützt",
+      "new_version": "Neue Version verfügbar",
+      "release_notes": "Versionshinweise"
+    },
     "cancel": "Abbrechen",
     "website": "Webseite",
     "imprint": "Impressum",
@@ -61,10 +73,10 @@
     "demo_tagline": "Erleben Sie einen voll ausgestatteten E-Mail-Client. Kein Konto erforderlich.",
     "demo_no_signup": "Keine Registrierung nötig - erkunden Sie frei mit Beispieldaten",
     "mobile_handoff": {
-      "title": "Open the Bulwark mobile app?",
-      "description": "This sign-in page was opened by an app on this device. Your sign-in for {username} will be handed to the app that registered the Bulwark link. Continue only if you started this from the Bulwark mobile app.",
-      "confirm": "Hand over to the app",
-      "cancel": "Stay in the webmail"
+      "title": "Bulwark Mail App öffnen?",
+      "description": "Diese Anmeldeseite wurde von einer App auf diesem Gerät geöffnet. Ihre Anmeldung für {username} wird an die App übergeben, die den Bulwark-Link registriert hat. Fahren Sie nur fort, wenn Sie die Anmeldung in der Bulwark Mail App gestartet haben.",
+      "confirm": "An die App übergeben",
+      "cancel": "Im Webmail bleiben"
     },
     "oauth_completing": "Anmeldung wird abgeschlossen...",
     "oauth_error": {
@@ -74,14 +86,38 @@
       "token_exchange_failed": "Authentifizierung konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
       "access_denied": "Zugriff verweigert. Bitte kontaktieren Sie Ihren Administrator.",
       "back_to_login": "Zurück zur Anmeldung"
-    }
+    },
+    "recent_accounts": "Zuletzt verwendete Konten",
+    "recent_accounts_hint": "Wählen Sie mit den Pfeiltasten nach oben und unten ein zuletzt verwendetes Konto. Mit Entf entfernen Sie das markierte Konto aus dieser Liste.",
+    "remove_account_from_list": "{username} aus dieser Liste entfernen"
+  },
+  "session_limits": {
+    "idle_title": "Sind Sie noch da?",
+    "idle_message": "Sie werden in {seconds, plural, one {# Sekunde} other {# Sekunden}} abgemeldet, weil es keine Aktivität gab. Geöffnete Nachrichten werden als Entwurf gespeichert.",
+    "stay": "Angemeldet bleiben",
+    "sign_out_now": "Jetzt abmelden",
+    "max_title": "Ihre Sitzung endet",
+    "max_message": "Ihre Organisation beendet Sitzungen {hours, plural, one {# Stunde} other {# Stunden}} nach der Anmeldung. Sie werden in {seconds, plural, one {# Sekunde} other {# Sekunden}} abgemeldet. Geöffnete Nachrichten werden als Entwurf gespeichert.",
+    "dismiss": "OK",
+    "signing_out": "Entwürfe werden gespeichert und Sie werden abgemeldet …",
+    "reason_idle": "Sie wurden nach {minutes, plural, one {# Minute} other {# Minuten}} ohne Aktivität abgemeldet.",
+    "reason_max": "Sie wurden abgemeldet, weil Ihre Sitzung die Höchstdauer von {hours, plural, one {# Stunde} other {# Stunden}} erreicht hat.",
+    "drafts_not_saved": "Mindestens eine geöffnete Nachricht konnte nicht als Entwurf gespeichert werden.",
+    "seconds_left": "Noch {seconds, plural, one {# Sekunde} other {# Sekunden}}"
+  },
+  "totp_reauth": {
+    "title": "Sitzung abgelaufen",
+    "description": "Ihr Zwei-Faktor-Code hat sich geändert. Geben Sie einen neuen Code aus Ihrer Authenticator-App ein, um fortzufahren.",
+    "oauth_hint": "Damit diese Abfrage nicht wiederkommt, bitten Sie Ihre Administration, die Anmeldung über OAuth einzuschalten (das integrierte OAuth von Stalwart oder einen externen Identitätsanbieter).",
+    "code_label": "Authentifizierungscode",
+    "verify": "Bestätigen"
   },
   "sidebar": {
     "close": "Schließen",
     "compose": "Verfassen",
     "compose_hint": "Verfassen (c)",
-    "search_placeholder": "E-Mails durchsuchen...",
-    "search_placeholder_hint": "E-Mails suchen... (drücke /)",
+    "search_placeholder": "Suchen...",
+    "search_placeholder_hint": "E-Mails suchen... (drücken Sie /)",
     "storage": "Speicher",
     "storage_used": "Belegt",
     "storage_free": "Frei",
@@ -158,11 +194,14 @@
     "shared": "Geteilt",
     "shared_account_hidden": "In der Seitenleiste ausgeblendet. Unter Einstellungen › Layout wieder einblenden.",
     "notifications_muted": "Benachrichtigungen stummgeschaltet",
+    "folder_options": "Optionen für {name}",
+    "unread_filter": "Nur ungelesene anzeigen ({count})",
     "scheduled": "Geplant",
     "unified_all_unread": "Alle ungelesenen",
     "unified_all_starred": "Alle markierten",
     "unified_all_mail": "Alle Mails",
     "remove_account": "Konto entfernen",
+    "remove_account_title": "Konto entfernen?",
     "remove_account_confirm": "{account} von diesem Gerät entfernen? Sie können das Konto später wieder hinzufügen.",
     "labels": "Labels",
     "create_label": "Neues Label erstellen",
@@ -173,22 +212,23 @@
     "mv_next_day": "Nächster Tag",
     "mv_add_another_account": "Weiteres Konto hinzufügen",
     "mv_manage_account": "Konto verwalten",
-    "mv_storage_used": "{percent} % von {total} belegt"
+    "mv_storage_used": "{percent} % von {total} belegt",
+    "accessibility": "Barrierefreiheit"
   },
   "protocol_handlers": {
     "title": "Standard-Apps",
-    "description": "Legen Sie fest, ob E-Mail- und Kalender-Links in Bulwark geöffnet werden. Technisch registriert sich Bulwark dafür als Protokoll-Handler für mailto: und webcal:.",
+    "description": "Legen Sie fest, ob E-Mail- und Kalender-Links in {appName} geöffnet werden. Technisch registriert sich {appName} dafür als Protokoll-Handler für mailto: und webcal:.",
     "unsupported": "Dieser Browser oder diese Verbindung unterstützt die manuelle Registrierung von Protokoll-Handlern nicht. Möglicherweise können Sie die installierte PWA trotzdem über Browser- oder Systemeinstellungen verwenden.",
     "mailto_label": "E-Mail-Links",
-    "mailto_description": "Öffnet mailto:-Links in Bulwark mit vorausgefülltem Editor.",
+    "mailto_description": "Öffnet mailto:-Links in {appName} mit vorausgefülltem Editor.",
     "protocol_open_mode_label": "Beim Öffnen von Protokoll-Links",
-    "protocol_open_mode_description": "Legen Sie fest, ob Bulwark mailto:- und webcal:-Links immer in einem neuen Tab öffnet oder eine offene Sitzung wiederverwendet. Für die aktive Sitzung benötigt Bulwark Benachrichtigungen, damit Sie das Fenster per Klick in den Vordergrund holen können, falls der Browser den Fokus blockiert.",
+    "protocol_open_mode_description": "Legen Sie fest, ob {appName} mailto:- und webcal:-Links immer in einem neuen Tab öffnet oder eine offene Sitzung wiederverwendet. Für die aktive Sitzung benötigt {appName} Benachrichtigungen, damit Sie das Fenster per Klick in den Vordergrund holen können, falls der Browser den Fokus blockiert.",
     "protocol_open_mode_active_session": "Wenn möglich in aktiver Sitzung öffnen",
     "protocol_open_mode_new_tab": "Immer neuen Tab öffnen",
-    "focus_notification_title": "Bulwark öffnen",
-    "focus_notification_body": "Der Link wurde in Bulwark geöffnet. Klicke hier, um das Fenster in den Vordergrund zu holen.",
+    "focus_notification_title": "{appName} öffnen",
+    "focus_notification_body": "Der Link wurde in {appName} geöffnet. Klicken Sie hier, um das Fenster in den Vordergrund zu holen.",
     "webcal_label": "Kalender-Links",
-    "webcal_description": "Öffnet webcal:-Links in Bulwark mit vorausgefülltem Kalender-Abo-Dialog.",
+    "webcal_description": "Öffnet webcal:-Links in {appName} mit vorausgefülltem Kalender-Abo-Dialog.",
     "register_mailto": "Als E-Mail-App registrieren",
     "register_webcal": "Als Kalender-App registrieren",
     "mailto_registered": "Registrierung als E-Mail-Handler angefordert",
@@ -196,7 +236,7 @@
     "registration_failed": "Protokoll-Handler konnte nicht registriert werden",
     "opening_mailto": "Editor wird geöffnet...",
     "opening_webcal": "Kalender wird geöffnet...",
-    "browser_note": "Ihr Browser oder Betriebssystem kann eine Bestätigung verlangen. Eventuell muss Bulwark installiert sein, bevor es als Standard-App ausgewählt werden kann.",
+    "browser_note": "Ihr Browser oder Betriebssystem kann eine Bestätigung verlangen. Eventuell muss {appName} installiert sein, bevor es als Standard-App ausgewählt werden kann.",
     "select_account_title": "Account auswählen",
     "select_mailto_account": "Wählen Sie aus, mit welchem Account dieser E-Mail-Link geöffnet werden soll.",
     "select_webcal_account": "Wählen Sie aus, mit welchem Account dieser Kalender-Link geöffnet werden soll.",
@@ -244,6 +284,11 @@
     "show_on_mobile": "Auf Mobilgerät anzeigen"
   },
   "email_list": {
+    "sections": {
+      "unread": "Ungelesen",
+      "everything_else": "Alles andere",
+      "unread_empty": "Sie haben alle Nachrichten im Posteingang gelesen."
+    },
     "columns": {
       "from": "Von",
       "to": "An",
@@ -255,6 +300,7 @@
     "no_emails_description": "Dieses Postfach ist leer",
     "no_search_results": "Keine Ergebnisse gefunden",
     "no_search_results_description": "Passen Sie Ihre Suche oder Filter an",
+    "more_results_searching": "Weitere Treffer werden gesucht…",
     "loading": "E-Mails werden geladen...",
     "unread": "ungelesen",
     "to_me": "An mich",
@@ -275,17 +321,33 @@
     "no_more_emails": "Keine weiteren E-Mails zum Laden",
     "batch_actions": {
       "select": "E-Mails auswählen",
+      "select_row": "{sender} auswählen: {subject}",
       "select_all": "Alle auswählen",
       "selected_messages": "{count, plural, one {1 E-Mail} other {# E-Mails}} ausgewählt",
       "mark_read": "Als gelesen markieren",
       "mark_unread": "Als ungelesen markieren",
       "delete": "Löschen",
-      "delete_confirm_title": "E-Mails löschen",
+      "delete_confirm_title": "Diese E-Mails löschen?",
       "delete_confirm_message": "Möchten Sie {count, plural, one {1 E-Mail} other {# E-Mails}} wirklich löschen?",
-      "clear_selection": "Auswahl aufheben"
+      "clear_selection": "Auswahl aufheben",
+      "more": "Weitere Aktionen für die Auswahl"
+    },
+    "skip_to_list": "Zur Nachrichtenliste springen",
+    "folder_actions": "Ordneraktionen",
+    "sort": {
+      "title": "Sortieren",
+      "newest": "Neueste zuerst",
+      "oldest": "Älteste zuerst",
+      "unread": "Ungelesene zuerst",
+      "starred": "Markierte zuerst",
+      "sender": "Absender (A–Z)",
+      "subject": "Betreff (A–Z)",
+      "largest": "Größte zuerst",
+      "custom": "Eigene Reihenfolge (in den Einstellungen)"
     },
     "permanent_delete": "Endgültig löschen",
-    "permanent_delete_confirm_title": "Endgültig löschen",
+    "permanent_delete_confirm_title": "Diese E-Mail endgültig löschen?",
+    "permanent_delete_confirm_batch_title": "Diese E-Mails endgültig löschen?",
     "permanent_delete_confirm_message": "Diese E-Mail wird endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
     "permanent_delete_confirm_batch_message": "Diese {count, plural, one {1 E-Mail} other {# E-Mails}} werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
     "empty_folder": {
@@ -305,7 +367,55 @@
     "reschedule_send": "Neu planen",
     "cancel_and_edit": "Abbrechen und bearbeiten",
     "cancel_and_compose_again": "Abbrechen und neu verfassen",
-    "reschedule_prompt": "Neues Datum/Uhrzeit eingeben, z. B. 2026-05-04T15:30"
+    "confirm_remove": {
+      "delete_title": "{count, plural, one {Diese E-Mail löschen?} other {# E-Mails löschen?}}",
+      "delete_message": "{count, plural, one {Sie wird in den Papierkorb verschoben.} other {Sie werden in den Papierkorb verschoben.}}",
+      "archive_title": "{count, plural, one {Diese E-Mail archivieren?} other {# E-Mails archivieren?}}",
+      "archive_message": "{count, plural, one {Sie wird in Ihr Archiv verschoben.} other {Sie werden in Ihr Archiv verschoben.}}",
+      "delete": "Löschen",
+      "archive": "Archivieren"
+    },
+    "status": {
+      "folder_loaded": "{folder}: {count, plural, =0 {keine Nachrichten} one {# Nachricht} other {# Nachrichten}}",
+      "search_results": "{count, plural, =0 {Keine Ergebnisse} one {# Ergebnis} other {# Ergebnisse}}"
+    },
+    "category_tabs": "Posteingangskategorien",
+    "listbox_label": "Nachrichten",
+    "row_actions": "Aktionen",
+    "pages": {
+      "label": "Seiten der Nachrichtenliste",
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "position": "{more, select, yes {Seite {page} von {pages} oder mehr} other {Seite {page} von {pages}}}"
+    }
+  },
+  "shared_tags": {
+    "title": "Geteilte Labels",
+    "description": "Labels Ihrer Gruppenpostfächer. Alle in der Gruppe sehen dieselben Namen und Farben an ihren Nachrichten.",
+    "picker_heading": "Mit allen in diesem Postfach geteilt",
+    "sidebar_heading": "Labels",
+    "edit": "Geteilte Labels bearbeiten",
+    "edit_tag": "{name} bearbeiten",
+    "delete_tag": "{name} löschen",
+    "name_it": "{name} benennen",
+    "add": "Geteiltes Label hinzufügen",
+    "name": "Name",
+    "color": "Farbe",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "delete_confirm": "Für alle löschen? Das Label bleibt an seinen Nachrichten.",
+    "found_on_messages": "An Nachrichten, noch ohne Namen",
+    "empty": "Noch keine geteilten Labels.",
+    "exists": "Dieses Postfach hat dieses Label schon.",
+    "too_long": "Dieser Name ist zu lang.",
+    "loading": "Wird geladen…",
+    "unsupported": "Dieser Mailserver kann keine geteilten Labels speichern, daher zeigt dieses Postfach Ihre eigenen Labels.",
+    "unavailable": "Die geteilten Labels dieses Postfachs konnten nicht geladen werden, daher zeigt es Ihre eigenen Labels. Bulwark versucht es später erneut.",
+    "no_rights": "Sie können diese Labels verwenden, aber in diesem Postfach nicht ändern.",
+    "too_many": "Es gibt zu viele geteilte Labels. Löschen Sie einige, bevor Sie weitere hinzufügen.",
+    "save_failed": "Die geteilten Labels konnten nicht gespeichert werden. Bulwark versucht es erneut, sobald der Server antwortet.",
+    "save_pending": "Noch nicht gespeichert. Bulwark versucht es erneut, sobald der Server antwortet."
   },
   "email_viewer": {
     "read_receipt": {
@@ -342,8 +452,6 @@
     "mark_read": "Als gelesen markieren",
     "unread": "Ungelesen",
     "read": "Gelesen",
-    "spam_short": "Spam",
-    "not_spam_short": "Kein Spam",
     "move": "Verschieben",
     "print": "Drucken",
     "view_source": "Quelltext anzeigen",
@@ -353,17 +461,22 @@
     "view_in_light_mode": "Im hellen Modus anzeigen",
     "export_email": "Als .eml exportieren",
     "forward_as_attachment": "Als Anhang weiterleiten",
-    "import_email": ".eml oder .zip importieren",
-    "keyboard_shortcuts": "Tastaturkürzel (?)",
+    "import_email": ".eml oder .zip importieren…",
+    "keyboard_shortcuts": "Tastaturkürzel",
     "email_source": "E-Mail-Quelltext",
     "draft_banner": "Diese Nachricht ist ein Entwurf",
     "edit_draft": "Bearbeiten",
     "copy_source": "In Zwischenablage kopieren",
+    "source_loading": "Quelltext wird geladen",
+    "source_load_failed": "Der Quelltext der Nachricht konnte nicht geladen werden. Versuchen Sie es erneut oder exportieren Sie sie als .eml.",
+    "source_copy_failed": "Quelltext konnte nicht kopiert werden",
+    "source_truncated": "Angezeigt werden die ersten {size}. Exportieren Sie die Nachricht für den Rest.",
     "source_copied": "Quelltext in Zwischenablage kopiert",
     "attachments": "Anhänge",
     "important": "Wichtig",
     "download": "Herunterladen",
     "download_all": "Alle herunterladen",
+    "download_all_partial": "{count, plural, one {# Anhang wurde im ZIP-Archiv ausgelassen.} other {# Anhänge wurden im ZIP-Archiv ausgelassen.}}",
     "from": "Von",
     "to": "An",
     "cc": "CC",
@@ -384,6 +497,11 @@
       "failed_sent_from": "Diese Nachricht gibt vor, von {domain} zu kommen, wurde aber von {host} verschickt und hat die Absenderprüfung von {domain} nicht bestanden. Sie ist möglicherweise gefälscht.",
       "caution": "Seien Sie vorsichtig mit Links, Anhängen und Fragen nach Passwörtern oder Zahlungsdaten."
     },
+    "brand_logo": {
+      "verified_label": "Verifiziertes Logo",
+      "verified": "Dieses Logo ist als Logo von {organization} verifiziert.",
+      "verified_by": "{issuer} hat bestätigt, dass dieses Logo zu {organization} gehört."
+    },
     "back_to_list": "Zurück zur Liste",
     "view_contact": "Kontakt anzeigen",
     "message_details": "Nachrichtendetails",
@@ -391,10 +509,14 @@
     "set_tag": "Label setzen",
     "tag": "Label",
     "more_actions": "Weitere Aktionen",
-    "move_to": "Verschieben nach...",
+    "move_to": "Verschieben nach",
     "remove_tag": "Label entfernen",
     "tag_filter_placeholder": "Labels filtern",
     "tag_no_matches": "Keine passenden Labels",
+    "new_tag": "Neues Schlagwort",
+    "new_tag_placeholder": "Name des Schlagworts",
+    "tag_exists": "Ein Schlagwort mit diesem Namen gibt es bereits",
+    "tag_name_invalid": "Wählen Sie einen kürzeren Namen",
     "more_count": "+{count} weitere",
     "characters_count": "{count} Zeichen",
     "quick_reply_placeholder": "Eine kurze Antwort schreiben...",
@@ -535,6 +657,8 @@
       "authentication_missing_info": "Diese Einladung enthält keine verifizierte Mail-Authentifizierung. Bestätigen Sie die Details mit dem Organisator, wenn etwas ungewöhnlich wirkt.",
       "sender_mismatch_info": "Diese Einladung wurde von {sender} gesendet, während der in den Kalenderdaten angegebene Organisator {organizer} ist.",
       "sender_mismatch_unverified_info": "Diese Einladung wurde von {sender} gesendet, während der in den Kalenderdaten angegebene Organisator {organizer} ist, und die Nachricht konnte nicht verifiziert werden.",
+      "attendee_mismatch_info": "Diese Antwort wurde von {sender} gesendet, während der antwortende Teilnehmer in den Kalenderdaten {attendee} ist.",
+      "attendee_mismatch_unverified_info": "Diese Antwort wurde von {sender} gesendet, während der antwortende Teilnehmer in den Kalenderdaten {attendee} ist, und die Nachricht konnte nicht verifiziert werden.",
       "organizer_role": "Sie organisieren dieses Ereignis",
       "your_response": "Ihre Antwort: {status}",
       "response_needed": "Antwort ausstehend",
@@ -565,6 +689,9 @@
       "already_in_calendar": "Bereits in Ihrem Kalender",
       "request_info": "Sie wurden zu diesem Termin eingeladen. Antworten Sie, um dem Organisator Ihre Verfügbarkeit mitzuteilen.",
       "cancel_info": "Der Organisator hat diesen Termin abgesagt.",
+      "remove_from_calendar": "Aus Kalender entfernen",
+      "removed_from_calendar": "Aus Ihrem Kalender entfernt.",
+      "cancel_outdated": "Ihr Kalender enthält eine neuere Version dieses Termins als diese Absage.",
       "event_updated": "Aktualisierung #{sequence}",
       "event_status_tentative": "Vorläufig",
       "event_status_cancelled": "Abgesagt",
@@ -604,14 +731,24 @@
     "scheduled_send_created": "E-Mail wurde zum Senden geplant",
     "sending_in": "Wird in {seconds} s gesendet",
     "undo_send_failed": "Rückgängig machen nicht möglich. Die Nachricht ist vielleicht schon gesendet.",
+    "undo_send_signed_out": "Rückgängig machen nicht möglich: Das Konto, von dem die Nachricht gesendet wurde, ist nicht mehr angemeldet.",
     "cancel_scheduled_send": "Senden abbrechen",
     "reschedule_send": "Neu planen",
     "cancel_and_edit": "Abbrechen und bearbeiten",
     "cancel_and_compose_again": "Abbrechen und neu verfassen",
-    "reschedule_prompt": "Neues Datum/Uhrzeit eingeben, z. B. 2026-05-04T15:30",
     "scheduled_actions_only": "Die Geplant-Ansicht unterstützt nur Planungsaktionen",
     "undo_send_scheduled": "Nachricht ist zum Senden geplant",
     "undo_send": "Senden rückgängig",
+    "send_cancelled_restore_failed": "Das Senden wurde abgebrochen, aber die Nachricht konnte nicht zurück in die Entwürfe gelegt werden. Sie liegt noch im Ordner „Gesendet“.",
+    "send_cancelled_remove_failed": "Das Senden wurde abgebrochen, aber die nicht gesendete Nachricht konnte nicht aus dem Ordner „Gesendet“ entfernt werden.",
+    "cancel_scheduled_failed": "Das geplante Senden konnte nicht abgebrochen werden",
+    "send_cancelled": "Senden abgebrochen",
+    "still_scheduled_at": "Die Nachricht ist weiterhin für {date} geplant.",
+    "still_scheduled": "Die Nachricht ist weiterhin geplant.",
+    "already_sent": "Diese Nachricht wurde bereits gesendet.",
+    "no_longer_scheduled": "Diese Nachricht ist nicht mehr geplant.",
+    "reschedule_recipients_refused": "Nichts wurde geändert: Der Server hat {recipients} abgelehnt.",
+    "rescheduled_for": "Neu geplant für {date}",
     "contact_sidebar": {
       "title": "Kontakt",
       "close": "Seitenleiste schließen",
@@ -638,9 +775,110 @@
       "copied": "Code kopiert",
       "copy_failed": "Code konnte nicht kopiert werden"
     },
+    "structured_mail": {
+      "kind_flight": "Flug",
+      "kind_train": "Zug",
+      "kind_bus": "Bus",
+      "kind_lodging": "Hotel",
+      "kind_rentalcar": "Mietwagen",
+      "kind_event": "Veranstaltung",
+      "kind_restaurant": "Restaurant",
+      "kind_order": "Bestellung",
+      "kind_parcel": "Paket",
+      "region_flight": "Flugbuchung",
+      "region_train": "Zugbuchung",
+      "region_bus": "Busbuchung",
+      "region_lodging": "Hotelbuchung",
+      "region_rentalcar": "Mietwagenbuchung",
+      "region_event": "Veranstaltungsbuchung",
+      "region_restaurant": "Tischreservierung",
+      "region_shipment": "Bestellung und Lieferung",
+      "status_cancelled": "Storniert",
+      "status_pending": "Ausstehend",
+      "status_hold": "Vorgemerkt",
+      "order_status_payment_due": "Zahlung ausstehend",
+      "order_status_processing": "In Bearbeitung",
+      "order_status_problem": "Problem",
+      "order_status_in_transit": "Versandt",
+      "order_status_pickup_available": "Abholbereit",
+      "order_status_returned": "Zurückgesendet",
+      "order_status_delivered": "Zugestellt",
+      "order_status_cancelled": "Storniert",
+      "reference": "Buchungsnummer",
+      "order_number": "Bestellnummer",
+      "tracking_number": "Sendungsnummer",
+      "copy_reference": "Buchungsnummer {value} kopieren",
+      "copy_order_number": "Bestellnummer {value} kopieren",
+      "copy_tracking_number": "Sendungsnummer {value} kopieren",
+      "copied_reference": "Buchungsnummer kopiert",
+      "copied_order_number": "Bestellnummer kopiert",
+      "copied_tracking_number": "Sendungsnummer kopiert",
+      "copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen",
+      "passengers": "Reisende",
+      "seats": "Sitzplätze",
+      "tickets": "Tickets",
+      "link_check_in": "Einchecken",
+      "link_manage": "Buchung verwalten",
+      "link_ticket": "Ticket",
+      "link_track": "Verfolgen",
+      "link_view_order": "Bestellung ansehen",
+      "check_in_label": "Check-in",
+      "check_out_label": "Check-out",
+      "from_time": "ab {time}",
+      "until_time": "bis {time}",
+      "nights": "{count, plural, one {# Nacht} other {# Nächte}}",
+      "pickup": "Abholung",
+      "dropoff": "Rückgabe",
+      "party_size": "{count, plural, one {Tisch für # Person} other {Tisch für # Personen}}",
+      "items_more": "und {count} weitere",
+      "items_count": "{count, plural, one {# Artikel} other {# Artikel}}",
+      "total": "Gesamt {total}",
+      "expected_by": "Ankunft bis {date}",
+      "local_time": "Ortszeit",
+      "local_time_title": "Uhrzeit vor Ort, nicht in Ihrer Zeitzone",
+      "route": "{from} nach {to}"
+    },
     "mv_position": "{index} von {total}",
     "plugin_panel_show": "Plugin-Bereich einblenden",
-    "plugin_panel_hide": "Plugin-Bereich ausblenden"
+    "plugin_panel_hide": "Plugin-Bereich ausblenden",
+    "copy": "Kopieren",
+    "contact_added": "Kontakt hinzugefügt",
+    "save_to_files": {
+      "title": "In Dateien speichern",
+      "save_here": "Hier speichern",
+      "saved": "In Dateien gespeichert",
+      "saved_to": "In {folder}",
+      "failed": "Konnte nicht in Dateien gespeichert werden",
+      "load_failed": "Ihre Ordner konnten nicht geladen werden. Versuchen Sie es erneut."
+    },
+    "frame_title": "Nachricht: {subject}",
+    "frame_title_from": "Nachricht von {sender}",
+    "download_named": "{name} herunterladen",
+    "preview_named": "Vorschau von {name}",
+    "show_as_plain_text": "Als reinen Text anzeigen",
+    "show_formatted": "Formatiert anzeigen",
+    "shown_as_plain_text": "Diese Nachricht wird als reiner Text angezeigt.",
+    "play_animation": "Animation abspielen",
+    "pause_animation": "Animation anhalten",
+    "read_aloud": "Vorlesen",
+    "read_aloud_reading": "Wird vorgelesen",
+    "read_aloud_paused": "Vorlesen angehalten",
+    "read_aloud_pause": "Anhalten",
+    "read_aloud_resume": "Fortsetzen",
+    "read_aloud_stop": "Vorlesen beenden",
+    "reader_view": "Leseansicht"
+  },
+  "external_mail": {
+    "sender_label": "Extern",
+    "sender_tooltip": "Von {domain}, außerhalb Ihrer Organisation",
+    "sender_tooltip_no_domain": "Von einer Adresse ohne Domain, außerhalb Ihrer Organisation",
+    "confirm_title": "Außerhalb Ihrer Organisation senden?",
+    "confirm_message": "{count, plural, one {Dieser Empfänger ist} other {Diese # Empfänger sind}} außerhalb Ihrer Organisation. Senden Sie nur, wenn das so gewollt ist.",
+    "field_to": "An",
+    "field_cc": "Cc",
+    "field_bcc": "Bcc",
+    "send_anyway": "Trotzdem senden",
+    "back": "Zurück"
   },
   "email_composer": {
     "select_from_directory": "Aus Verzeichnis auswählen",
@@ -679,6 +917,7 @@
     "saving": "Wird gespeichert...",
     "draft_saved": "Entwurf gespeichert",
     "save_failed": "Speichern fehlgeschlagen",
+    "discard_signed_out": "Der Entwurf wurde nicht gelöscht: Das Konto, in dem er gespeichert ist, ist nicht mehr angemeldet. Er bleibt in dessen Entwürfen.",
     "to_placeholder": "E-Mail-Adressen der Empfänger",
     "cc_placeholder": "CC-Empfänger",
     "bcc_placeholder": "BCC-Empfänger",
@@ -753,6 +992,10 @@
     "smime_unlock_button": "Entsperren",
     "smime_passphrase_placeholder": "S/MIME-Passphrase",
     "send_timeout": "Der Server antwortet nicht mehr. Prüfen Sie den Ordner „Gesendet“, bevor Sie erneut senden – die Nachricht wurde möglicherweise bereits verschickt.",
+    "submission_quota": "Der Server hat für dieses Konto zu viele Einträge zu gesendeten Nachrichten. Bulwark hat entfernt, was möglich war; wenn das weiterhin vorkommt, bitten Sie Ihren Administrator, das Limit für E-Mail-Übermittlungen zu erhöhen.",
+    "submission_limit": "Der Server hat das Senden abgelehnt, weil ein Limit erreicht ist: {reason}",
+    "recipients_refused": "Nicht gesendet: Der Server hat {recipients} abgelehnt.",
+    "recipients_partly_refused": "Der Server hat {recipients} abgelehnt. Die anderen Empfänger erhalten die Nachricht.",
     "send_offline": "Sie scheinen offline zu sein. Die Nachricht ist noch da, senden Sie sie erneut, sobald Sie wieder online sind.",
     "formatting": "Formatierung",
     "send_recipients_rejected": "Nicht gesendet – der Server hat alle Empfänger abgelehnt.",
@@ -776,12 +1019,28 @@
       "send_anyway": "Trotzdem senden",
       "back": "Zurück zur Bearbeitung"
     },
+    "placeholder_warning": {
+      "title": "Platzhalter prüfen?",
+      "message": "Die Nachricht enthält Platzhaltertext, den die Empfänger sehen. Vor dem Senden bearbeiten?",
+      "found": "Gefundene Platzhalter",
+      "more": "und {count} weitere",
+      "dont_ask_again": "Nicht mehr fragen",
+      "send_anyway": "Trotzdem senden",
+      "back": "Zurück zur Bearbeitung"
+    },
+    "placeholder_words": {
+      "before": ["ihr", "ihre", "ihren", "dein", "deine", "deinen"],
+      "after": ["einfügen", "eintragen", "ergänzen"],
+      "unfinished": []
+    },
     "add_link": "Link hinzufügen",
     "link_url_prompt": "URL eingeben",
     "sending": "Wird gesendet...",
     "schedule_send": "Senden planen",
     "schedule_send_description": "Wählen Sie, wann der Server diese Nachricht freigeben soll.",
     "schedule_preset": {
+      "this_morning": "Heute früh",
+      "this_afternoon": "Heute Nachmittag",
       "tomorrow_morning": "Morgen früh",
       "tomorrow_afternoon": "Morgen Nachmittag",
       "monday_morning": "Montag früh"
@@ -794,8 +1053,10 @@
     "schedule_send_cleanup_warning": "Geplantes Senden wurde erstellt, aber das Bereinigen des Entwurfs ist fehlgeschlagen.",
     "send_delay_unsupported": "Sendeverzögerung wird für dieses Konto nicht unterstützt.",
     "send_delay_unsupported_confirm": "Dieses Konto unterstützt keine Sendeverzögerung. Stattdessen sofort senden?",
+    "send_delay_unsupported_title": "Ohne Verzögerung senden?",
     "recipient_edit_email": "E-Mail-Adresse bearbeiten",
     "recipient_edit_name": "Anzeigenamen bearbeiten",
+    "recipient_remove": "Entfernen",
     "recipient_email_placeholder": "E-Mail-Adresse",
     "recipient_name_placeholder": "Anzeigename",
     "invalid_recipient": "Keine gültige E-Mail-Adresse",
@@ -823,6 +1084,11 @@
       "align_right": "Rechtsbündig",
       "text_direction": "Schreibrichtung (RTL/LTR)",
       "link": "Link",
+      "insert_link": "Link einfügen",
+      "edit_link": "Link bearbeiten",
+      "remove_link": "Link entfernen",
+      "link_address": "Linkadresse",
+      "link_invalid": "Die Adresse darf keine Leerzeichen enthalten",
       "table": "Tabelle",
       "clear_formatting": "Formatierung löschen",
       "undo": "Rückgängig",
@@ -839,17 +1105,65 @@
       "font_size": "Schriftgröße",
       "font_size_default": "Standard",
       "background_color": "Hintergrundfarbe",
-      "remove_background_color": "Hintergrundfarbe entfernen"
+      "remove_background_color": "Hintergrundfarbe entfernen",
+      "table_size": "Tabelle mit {rows} × {cols} Zellen",
+      "colors": {
+        "black": "Schwarz",
+        "dark_gray": "Dunkelgrau",
+        "gray": "Grau",
+        "dark_red": "Dunkelrot",
+        "orange": "Orange",
+        "yellow": "Gelb",
+        "green": "Grün",
+        "blue": "Blau",
+        "purple": "Lila",
+        "dark_pink": "Dunkelrosa",
+        "brown": "Braun",
+        "red": "Rot",
+        "light_orange": "Hellorange",
+        "light_green": "Hellgrün",
+        "light_blue": "Hellblau",
+        "pink": "Rosa"
+      }
     },
     "send_filing_warning": "Gesendet - aber das Aufräumen danach schlug fehl, evtl. bleibt ein alter Entwurf sichtbar.",
     "pop_out": "Antwort in eigenem Fenster öffnen",
-    "send_guard_failed": "Nicht gesendet - ein Plugin, das Nachrichten vor dem Senden prüft, ist fehlgeschlagen oder hat nicht geantwortet."
+    "send_guard_failed": "Nicht gesendet - ein Plugin, das Nachrichten vor dem Senden prüft, ist fehlgeschlagen oder hat nicht geantwortet.",
+    "cut": "Ausschneiden",
+    "copy": "Kopieren",
+    "recipient_remove_named": "{name} entfernen",
+    "recipient_chip_hint": "Entf entfernt den Empfänger, Eingabe öffnet weitere Optionen",
+    "recipient_move_to": "Nach {field} verschieben",
+    "recipient_added": "{name} zu {field} hinzugefügt",
+    "recipient_removed": "{name} aus {field} entfernt",
+    "recipient_moved": "{name} nach {field} verschoben",
+    "recipients_added_count": "{count, plural, one {# Empfänger} other {# Empfänger}} zu {field} hinzugefügt",
+    "recipients_removed_count": "{count, plural, one {# Empfänger} other {# Empfänger}} aus {field} entfernt",
+    "recipients_moved_count": "{count, plural, one {# Empfänger} other {# Empfänger}} nach {field} verschoben",
+    "body_label": "Nachricht",
+    "attachment_uploading": "Wird hochgeladen",
+    "attachment_upload_failed": "Hochladen fehlgeschlagen",
+    "attachment_progress": "{percent} % hochgeladen",
+    "send_confirm": {
+      "title": "Diese Nachricht senden?",
+      "message": "Sie geht an {count, plural, one {# Empfänger} other {# Empfänger}}."
+    },
+    "image_alt": {
+      "title": "Bild beschreiben",
+      "hint": "Beschreiben Sie, was das Bild zeigt, für Menschen, die es nicht sehen können.",
+      "label": "Bildbeschreibung",
+      "decorative": "Dekoratives Bild (keine Beschreibung)",
+      "skip": "Überspringen",
+      "edit": "Bildbeschreibung bearbeiten",
+      "plain_text": "[Bild: {alt}]"
+    }
   },
   "confirm_dialog": {
     "confirm": "Bestätigen",
     "cancel": "Abbrechen"
   },
   "common": {
+    "print": "Drucken",
     "loading": "Lädt...",
     "error": "Fehler",
     "success": "Erfolg",
@@ -869,15 +1183,17 @@
     "app_title": "Webmail",
     "reconnecting": "Verbindung verloren. Verbindung wird wiederhergestellt…",
     "rate_limited_title": "Die Serverauthentifizierung ist vorübergehend begrenzt.",
-    "rate_limited_detail": "Bulwark hat Hintergrundanfragen pausiert, um eine Sperre zu vermeiden. Neuer Versuch in {seconds}s.",
+    "rate_limited_detail": "{appName} hat Hintergrundanfragen pausiert, um eine Sperre zu vermeiden. Neuer Versuch in {seconds}s.",
     "rate_limited_action_title": "Anfrage pausiert, um eine Sperre zu vermeiden.",
-    "rate_limited_action_detail": "Bulwark wartet, bis die Serverabklingzeit endet, bevor weitere authentifizierte Anfragen gesendet werden. Versuchen Sie es in {seconds}s erneut.",
+    "rate_limited_action_detail": "{appName} wartet, bis die Serverabklingzeit endet, bevor weitere authentifizierte Anfragen gesendet werden. Versuchen Sie es in {seconds}s erneut.",
     "pull_to_refresh": "Zum Aktualisieren ziehen",
     "release_to_refresh": "Zum Aktualisieren loslassen",
-    "refreshing": "Wird aktualisiert…"
+    "refreshing": "Wird aktualisiert…",
+    "move_item_up": "{name} nach oben verschieben",
+    "move_item_down": "{name} nach unten verschieben"
   },
   "notifications": {
-    "email_sent": "E-Mail erfolgreich gesendet",
+    "email_sent": "E-Mail gesendet",
     "email_deleted": "E-Mail gelöscht",
     "email_archived": "E-Mail archiviert",
     "emails_deleted": "{count, plural, one {# E-Mail gelöscht} other {# E-Mails gelöscht}}",
@@ -902,14 +1218,19 @@
     "move_failed": "Verschieben fehlgeschlagen",
     "removed_from_folder": "Aus {mailbox} entfernt",
     "remove_from_folder_failed": "Konnte nicht aus diesem Ordner entfernt werden",
+    "undo": "Rückgängig",
+    "undo_done": "Zurückverschoben",
+    "undo_failed": "Konnte nicht rückgängig gemacht werden",
+    "not_connected": "Dieses Konto ist nicht verbunden. Melden Sie sich erneut an.",
+    "trash_not_found": "Dieses Konto hat keinen Papierkorb, daher wurde nichts gelöscht.",
     "emails_copied": "{count} E-Mails kopiert",
     "copy_failed": "Kopieren fehlgeschlagen",
     "move_error": "E-Mails konnten nicht in den ausgewählten Ordner verschoben werden",
     "email_tagged": "E-Mail markiert",
     "emails_tagged": "{count} E-Mails markiert",
     "tag_failed": "Markierung fehlgeschlagen",
-    "identity_created": "Identität erfolgreich erstellt",
-    "identity_updated": "Identität erfolgreich aktualisiert",
+    "identity_created": "Identität erstellt",
+    "identity_updated": "Identität aktualisiert",
     "identity_deleted": "Identität gelöscht",
     "identity_set_primary": "Primäre Identität aktualisiert",
     "identity_create_failed": "Identität erstellen fehlgeschlagen: {error}",
@@ -919,10 +1240,10 @@
     "identity_not_found": "Identität nicht gefunden",
     "vacation_saved": "Abwesenheits-Einstellungen gespeichert",
     "vacation_save_failed": "Fehler beim Speichern der Abwesenheits-Einstellungen",
-    "filters_saved": "Filter erfolgreich gespeichert",
+    "filters_saved": "Filter gespeichert",
     "filters_save_failed": "Fehler beim Speichern der Filter",
     "filters_deleted": "Filterregel gelöscht",
-    "templates_exported": "Vorlagen erfolgreich exportiert",
+    "templates_exported": "Vorlagen exportiert",
     "templates_imported": "{count, plural, one {# Vorlage importiert} other {# Vorlagen importiert}}",
     "templates_import_errors": "Einige Vorlagen konnten nicht importiert werden",
     "templates_import_empty": "Keine Vorlagen in der Datei gefunden",
@@ -941,7 +1262,22 @@
     "rule_undo_failed": "Die Regeländerung konnte nicht rückgängig gemacht werden",
     "rule_undo_conflict": "Ihre Filter wurden inzwischen geändert. Machen Sie die Änderung in den Filter-Einstellungen rückgängig.",
     "rule_folder_failed": "Der Ordner konnte nicht erstellt werden",
-    "vacation_filters_save_failed": "Abwesenheits-Einstellungen gespeichert, Weiterleitung und Antwortempfänger konnten aber nicht gespeichert werden"
+    "vacation_filters_save_failed": "Abwesenheits-Einstellungen gespeichert, Weiterleitung und Antwortempfänger konnten aber nicht gespeichert werden",
+    "nothing_to_undo": "Nichts rückgängig zu machen",
+    "undo_hint": "Mit {keys} machen Sie das rückgängig.",
+    "undone": "Rückgängig gemacht",
+    "emails_marked_read": "{count, plural, one {# E-Mail als gelesen markiert} other {# E-Mails als gelesen markiert}}",
+    "emails_marked_unread": "{count, plural, one {# E-Mail als ungelesen markiert} other {# E-Mails als ungelesen markiert}}",
+    "tag_removed": "Markierung entfernt",
+    "tag_removed_count": "{count, plural, one {Markierung von # E-Mail entfernt} other {Markierung von # E-Mails entfernt}}",
+    "new_mail_count": "{count, plural, one {# neue Nachricht} other {# neue Nachrichten}}"
+  },
+  "third_party": {
+    "push_needs_relay": "Push-Benachrichtigungen brauchen ein Push-Relay Ihrer Organisation, und es ist keines eingerichtet. Neue E-Mails werden weiterhin angezeigt, solange die App geöffnet ist.",
+    "relay_desc": "Es werden nur die eigenen Relays Ihrer Organisation angeboten, weil dieser Server keine externen Dienste kontaktiert.",
+    "relay_none": "Keines eingerichtet",
+    "plugin_refused": "Nicht gestartet: Dieses Plugin verbindet sich mit externen Diensten, die Ihre Organisation abgeschaltet hat.",
+    "remote_content_blocked": "Ihre Organisation blockiert Inhalte von anderen Servern, daher werden externe Bilder in dieser Nachricht nicht angezeigt."
   },
   "date": {
     "today": "Heute",
@@ -1009,45 +1345,36 @@
   },
   "settings": {
     "title": "Einstellungen",
+    "org_locked": "Von Ihrer Organisation festgelegt",
     "back_to_mail": "Zurück zu E-Mails",
+    "back_to_settings": "Zurück zu den Einstellungen",
     "save_success": "Einstellungen erfolgreich gespeichert",
     "import_success": "Einstellungen erfolgreich importiert",
     "import_error": "Import der Einstellungen fehlgeschlagen",
     "reset_confirm": "Sind Sie sicher, dass Sie alle Einstellungen auf die Standardwerte zurücksetzen möchten?",
-    "unsaved_changes": "Sie haben ungespeicherte Änderungen",
+    "unsaved_changes": "Ihre Änderungen wurden noch nicht gespeichert.",
     "discard_changes": "Änderungen verwerfen?",
     "discard": "Verwerfen",
     "keep_editing": "Weiter bearbeiten",
     "tabs": {
       "appearance": "Darstellung",
-      "language": "Sprache, Region & Zeit",
-      "email": "E-Mail-Verhalten",
-      "composer": "Editor",
-      "privacy": "Datenschutz & Sicherheit",
       "account": "Konto",
-      "identities": "Identitäten",
       "vacation": "Abwesenheit",
-      "advanced": "Erweitert",
       "calendar": "Kalender",
       "filters": "Filter",
-      "templates": "Vorlagen",
       "folders": "Ordner",
-      "keywords": "Labels",
       "security": "Sicherheit",
-      "encryption": "Verschlüsselung",
       "files": "Dateien",
       "contacts": "Kontakte",
-      "protocol_handlers": "Standard-Apps",
-      "sidebar_apps": "Sidebar-Apps",
       "notifications": "Benachrichtigungen",
-      "layout": "Layout",
-      "themes": "Designs",
       "reading": "Lesen",
       "composing": "Verfassen",
-      "downloads": "Downloads",
-      "content_senders": "Inhalte & Absender",
-      "about_data": "Über & Daten",
-      "debug": "Debug"
+      "message_list": "Nachrichtenliste",
+      "general": "Allgemein",
+      "organize": "Ordner & Tags",
+      "addons": "Erweiterungen",
+      "backup": "Sicherung & Zurücksetzen",
+      "accessibility": "Barrierefreiheit"
     },
     "themes": {
       "title": "Designs",
@@ -1059,18 +1386,13 @@
       "default_restored": "Standarddesign wiederhergestellt",
       "default_name": "Standard",
       "default_badge": "Standard",
-      "admin_enforced": "Vom Administrator erzwungen"
+      "admin_enforced": "Vom Administrator erzwungen",
+      "show_all": "Alle {count} Themes anzeigen",
+      "show_fewer": "Weniger anzeigen"
     },
     "tab_groups": {
-      "general": "Allgemein",
-      "account": "Konto & Identität",
-      "organization": "E-Mail-Organisation",
       "apps": "Apps",
-      "system": "System",
-      "appearance": "Darstellung",
-      "mail": "E-Mail",
-      "privacy": "Datenschutz & Sicherheit",
-      "advanced": "Erweitert"
+      "mail": "E-Mail"
     },
     "appearance": {
       "message_list_order": {
@@ -1121,7 +1443,7 @@
           "label": "Auf alle Ordner anwenden",
           "description": "Wenn ausgeschaltet, gilt die Reihenfolge nur für den Posteingang; andere Ordner bleiben chronologisch."
         },
-        "unsupported_note": "Dein Mailserver unterstützt keine Sortierung nach Lesestatus, Markierung oder Tags. Diese Ebenen werden ignoriert und die Liste bleibt chronologisch."
+        "unsupported_note": "Ihr Mailserver unterstützt keine Sortierung nach Lesestatus, Markierung oder Tags. Diese Ebenen werden ignoriert und die Liste bleibt chronologisch."
       },
       "title": "Darstellung",
       "description": "Passen Sie das Aussehen Ihres Webmails an",
@@ -1205,14 +1527,6 @@
         "label": "Nachrichtenzeilen mit Tag-Farbe einfärben",
         "description": "Die einzelnen Nachrichtenzeilen mit der Farbe ihres ersten Tags einfärben. Deaktivieren Sie diese Option, um die Zeilen neutral zu halten; Tag-Punkte und -Markierungen zeigen die Farbe weiterhin an."
       },
-      "show_account_dot": {
-        "label": "Konto-Punkt anzeigen",
-        "description": "Zeigt in der gemeinsamen Ansicht einen Punkt in der Kontofarbe neben dem Absender, damit Sie sehen, aus welchem Konto eine Nachricht kommt. Wirkt nicht, solange Zeilen nach Kontofarbe eingefärbt werden."
-      },
-      "tint_list_rows_by_account": {
-        "label": "Nachrichtenzeilen mit Kontofarbe einfärben",
-        "description": "In der gemeinsamen Ansicht jede Nachrichtenzeile in der Farbe ihres Kontos einfärben, statt den Konto-Punkt anzuzeigen. Hat Vorrang vor der Tag-Farbe; Tags behalten ihre Farbe auf ihren Markierungen."
-      },
       "show_folder_total_count": {
         "label": "Gesamtzahl der Nachrichten anzeigen",
         "description": "Zeigt neben Ordnern und Tags die Gesamtzahl der Nachrichten zusätzlich zur Anzahl ungelesener Nachrichten an. Deaktivieren, um nur ungelesene Nachrichten anzuzeigen."
@@ -1242,6 +1556,26 @@
       "cross_all": {
         "label": "Alle Konten: Alle Mails",
         "description": "Zeigt in der Sektion „All accounts“ einen Eintrag mit allen Mails über alle Konten, über alle Ordner außer Junk, Gesendet, Archiv, Papierkorb und Entwürfe."
+      },
+      "sections": {
+        "text": "Text & Animation",
+        "layout": "Layout",
+        "sidebar": "Seitenleiste",
+        "accounts": "Mehrere Konten",
+        "accounts_description": "Wie Ihre Konten und freigegebenen Postfächer gemeinsam erscheinen.",
+        "experimental": "Experimentell"
+      },
+      "account_marker": {
+        "label": "Konten unterscheiden",
+        "description": "In den vereinten Ansichten jede Nachricht mit der Farbe ihres Kontos kennzeichnen.",
+        "dot": "Farbpunkt",
+        "tint": "Eingefärbte Zeile",
+        "none": "Nichts"
+      },
+      "accessibility_link": {
+        "label": "Schriftgröße und Bewegung",
+        "description": "Schriftgröße, Schriftarten, Abstände und reduzierte Bewegung finden Sie unter Barrierefreiheit.",
+        "button": "Barrierefreiheit"
       }
     },
     "keywords": {
@@ -1256,6 +1590,9 @@
       "id_exists": "Diese Label-ID existiert bereits",
       "edit": "Label bearbeiten",
       "delete": "Label löschen",
+      "edit_tag": "{name} bearbeiten",
+      "delete_tag": "{name} löschen",
+      "deleted": "Label gelöscht",
       "save": "Speichern",
       "add": "Hinzufügen",
       "cancel": "Abbrechen",
@@ -1293,7 +1630,7 @@
     "notifications": {
       "test_sound": "Benachrichtigungston testen",
       "sounds": {
-        "default": "Standard (Piepton)",
+        "default": "Piepton",
         "cheerful": "Fröhlich",
         "involved": "Aufwendig",
         "swift": "Schnelle Geste",
@@ -1333,9 +1670,7 @@
         "enabled": "Terminbenachrichtigungen",
         "enabled_desc": "Erinnerungen für bevorstehende Kalendertermine anzeigen",
         "sound": "Benachrichtigungston",
-        "sound_desc": "Einen Ton für Kalendererinnerungen abspielen",
-        "invitation_parsing": "E-Mail-Einladungen erkennen",
-        "invitation_parsing_desc": "Kalendereinladungen in E-Mail-Anhängen erkennen und Kalenderaktionen anzeigen"
+        "sound_desc": "Einen Ton für Kalendererinnerungen abspielen"
       },
       "push": {
         "confirm_disable_message": "Dieses Gerät erhält keine Benachrichtigungen mehr, wenn die Seite geschlossen ist.",
@@ -1371,7 +1706,10 @@
         "revoke": "Widerrufen",
         "confirm_revoke_title": "Dieses Gerät widerrufen?",
         "confirm_revoke_message": "Es empfängt sofort keine Hintergrundbenachrichtigungen mehr. Wird Push auf diesem Gerät erneut aktiviert, wird es neu registriert.",
-        "confirm_revoke_message_this": "Dieses Gerät empfängt sofort keine Hintergrundbenachrichtigungen mehr."
+        "confirm_revoke_message_this": "Dieses Gerät empfängt sofort keine Hintergrundbenachrichtigungen mehr.",
+        "shared_mailboxes_no_push": "Postfächer, die andere mit Ihnen teilen, senden keine Hintergrundbenachrichtigungen.",
+        "error_forbidden": "Der Mailserver erlaubt für dieses Konto keine Hintergrundbenachrichtigungen.",
+        "error_over_quota": "Für dieses Konto gibt es auf dem Mailserver zu viele Push-Registrierungen (meist sind 15 erlaubt). Widerrufen Sie Geräte, die Sie nicht mehr nutzen, in den Benachrichtigungseinstellungen und versuchen Sie es erneut."
       }
     },
     "language_region": {
@@ -1421,6 +1759,12 @@
       }
     },
     "email_behavior": {
+      "inbox_type": {
+        "label": "Posteingangstyp",
+        "description": "„Ungelesene zuerst“ zeigt Ihre 25 neuesten ungelesenen Nachrichten in einem eigenen Abschnitt über dem restlichen Posteingang",
+        "default": "Standard",
+        "unread_first": "Ungelesene zuerst"
+      },
       "clear_search_on_folder_change": {
         "label": "Suche beim Ordnerwechsel löschen",
         "description": "Ein Klick auf einen Ordner (Posteingang, Gesendet …) löscht die aktive Suche und zeigt den Ordner. Ist die Option aus, bleibt die Suche bestehen und wird im neuen Ordner erneut ausgeführt."
@@ -1508,13 +1852,13 @@
         "label": "Bestätigungscodes anzeigen",
         "description": "Code aus Anmelde- und Bestätigungs-E-Mails zum Kopieren mit einem Klick anbieten, in der Liste einen Tag lang und in der Nachricht"
       },
-      "disable_threading": {
-        "label": "Konversationsgruppierung deaktivieren",
-        "description": "E-Mails als einzelne Nachrichten statt nach Konversation gruppiert anzeigen"
-      },
       "plain_text_mode": {
         "label": "Nur Klartext",
         "description": "Rich-Text-Editor deaktivieren und alle E-Mails nur als Klartext senden, einschließlich Antworten und Weiterleitungen"
+      },
+      "quick_reply": {
+        "label": "Schnellantwort",
+        "description": "Das Feld für die Schnellantwort unter Nachrichten anzeigen."
       },
       "auto_select_reply_identity": {
         "label": "Antwortadresse automatisch wählen",
@@ -1589,6 +1933,8 @@
         "search_placeholder": "Absender suchen...",
         "no_results": "Keine Absender entsprechen Ihrer Suche",
         "remove": "Entfernen",
+        "removed": "Aus vertrauenswürdigen Absendern entfernt",
+        "remove_error": "Absender konnte nicht entfernt werden",
         "close": "Schließen",
         "invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
         "already_added": "Dieser Absender ist bereits vertrauenswürdig",
@@ -1636,13 +1982,17 @@
         "label": "Warnung bei leerem Betreff",
         "description": "Vor dem Senden einer Nachricht ohne Betreff nachfragen."
       },
+      "placeholder_warning": {
+        "label": "Warnung bei Platzhaltern",
+        "description": "Vor dem Senden einer Nachricht nachfragen, die noch Platzhalter wie [TIME] oder [Ihr Name], leere Vorlagenfelder oder unfertigen Text wie TODO oder TBD enthält."
+      },
       "recipient_mentions": {
         "label": "Empfänger mit @ erwähnen",
         "description": "@ in der Nachricht bietet ihre Empfänger an und fügt den Vornamen des gewählten ein. Enter oder Tab übernimmt den markierten Namen."
       },
       "mention_adds_recipient": {
         "label": "Kontakte bei @-Erwähnungen",
-        "description": "Beim Tippen von @ werden auch deine Kontakte und Personen aus dem Verzeichnis angeboten. Wer noch kein Empfänger ist, wird beim Auswählen zur Nachricht hinzugefügt.",
+        "description": "Beim Tippen von @ werden auch Ihre Kontakte und Personen aus dem Verzeichnis angeboten. Wer noch kein Empfänger ist, wird beim Auswählen zur Nachricht hinzugefügt.",
         "to": "Zu An hinzufügen",
         "cc": "Zu CC hinzufügen",
         "off": "Nur Empfänger anbieten"
@@ -1663,8 +2013,8 @@
         "unsupported": "Das aktuelle Konto meldet keine Unterstützung für verzögertes Senden. Die Einstellung bleibt für andere Konten gespeichert."
       },
       "return_to_list_after_action": {
-        "label": "Nach Löschen oder Ungelesen-Markieren zur Liste zurückkehren",
-        "description": "Nach dem Löschen oder Als-ungelesen-Markieren der geöffneten E-Mail zurück zur Liste, statt die nächste E-Mail zu öffnen."
+        "label": "Nach Löschen, Archivieren, Verschieben oder Ungelesen-Markieren zur Liste zurückkehren",
+        "description": "Nach dem Löschen, Archivieren, Verschieben, Als-Spam-Melden oder Als-ungelesen-Markieren der geöffneten E-Mail zurück zur Liste, statt die nächste E-Mail zu öffnen."
       },
       "swipe_right_action": {
         "label": "Aktion beim Wischen nach rechts (mobil)",
@@ -1685,51 +2035,15 @@
       "rtl_editing": {
         "label": "Unterstützung für Rechts-nach-links-Bearbeitung",
         "description": "Fügt der Editor-Symbolleiste eine Schreibrichtungs-Schaltfläche hinzu, mit der Absätze auf links-nach-rechts oder rechts-nach-links gestellt werden können"
-      }
-    },
-    "composer": {
-      "title": "Editor",
-      "description": "Konfigurieren Sie die E-Mail-Erstellungseinstellungen",
-      "autosave": {
-        "label": "Automatisches Speichern",
-        "description": "Wie oft Entwürfe automatisch gespeichert werden",
-        "30s": "Alle 30 Sekunden",
-        "1m": "Jede Minute",
-        "2m": "Alle 2 Minuten",
-        "5m": "Alle 5 Minuten"
       },
-      "send_confirmation": {
-        "label": "Sendebestätigung",
-        "description": "Vor dem Senden von E-Mails um Bestätigung bitten"
+      "group_conversations": {
+        "label": "Nachrichten nach Unterhaltung gruppieren",
+        "description": "Antworten als eine Unterhaltung zusammenfassen statt als einzelne Nachrichten anzeigen."
       },
-      "default_reply": {
-        "label": "Standard-Antwortmodus",
-        "description": "Standardaktion beim Klicken auf Antworten",
-        "reply": "Antworten",
-        "reply_all": "Allen antworten"
-      }
-    },
-    "privacy": {
-      "title": "Datenschutz & Sicherheit",
-      "description": "Verwalten Sie Ihre Datenschutz- und Sicherheitseinstellungen",
-      "external_images": {
-        "label": "Externe Bilder blockieren",
-        "description": "Verhindern Sie Tracking durch externe Bilder"
-      },
-      "session_timeout": {
-        "label": "Sitzungszeitüberschreitung",
-        "description": "Automatisch abmelden nach Inaktivität",
-        "never": "Nie",
-        "30m": "30 Minuten",
-        "1h": "1 Stunde",
-        "4h": "4 Stunden"
-      },
-      "clear_cache": {
-        "label": "Cache leeren",
-        "description": "Zwischengespeicherte Daten und temporäre Dateien entfernen",
-        "button": "Cache leeren",
-        "confirm": "Sind Sie sicher, dass Sie den Cache leeren möchten?",
-        "success": "Cache erfolgreich geleert"
+      "signatures_link": {
+        "label": "Signaturen",
+        "description": "Jede E-Mail-Adresse hat ihre eigene Signatur. Bearbeiten Sie sie zusammen mit Ihren Adressen.",
+        "button": "E-Mail-Adressen"
       }
     },
     "account": {
@@ -1783,6 +2097,7 @@
         "delete": "Gespeicherte Liste löschen",
         "cancel": "Abbrechen",
         "delete_confirm": "Die gespeicherte Kontoliste vom Server löschen?",
+        "delete_message": "Andere Geräte können die Konten danach nicht mehr daraus wiederherstellen.",
         "password": "Sicherungspasswort",
         "password_hint": "Mindestens 10 Zeichen. Es kann nicht wiederhergestellt werden: Wenn Sie es vergessen, speichern Sie die Liste erneut mit einem neuen.",
         "restore_hint": "Das Passwort, das beim Speichern der Liste gewählt wurde.",
@@ -1797,6 +2112,10 @@
         "signed_in": "Bei {count, plural, one {# Konto} other {# Konten}} mit dem gespeicherten Passwort angemeldet.",
         "sign_in_failed": "{count, plural, one {# gespeichertes Passwort wurde} other {# gespeicherte Passwörter wurden}} abgelehnt: Melden Sie sich bei diesen Konten über die Kontoliste an.",
         "deleted": "Gespeicherte Liste gelöscht.",
+        "prompt_title": "Weitere Konten wiederherstellen?",
+        "prompt_description": "Für {account} ist eine Kontenliste gespeichert. Geben Sie das Backup-Passwort ein, um die Konten in diesem Browser hinzuzufügen, oder tun Sie es später in den Einstellungen.",
+        "prompt_not_now": "Nicht jetzt",
+        "prompt_done": "Fertig",
         "errors": {
           "mismatch": "Die Passwörter stimmen nicht überein.",
           "password_length": "Verwenden Sie mindestens 10 Zeichen.",
@@ -1810,13 +2129,16 @@
         "title": "Mit mir geteilt",
         "description": "Gruppen- und freigegebene Konten, die Sie verwalten können. Wählen Sie eines aus, um dessen Filter, Abwesenheitsnotiz, Kalender und Kontakte zu bearbeiten.",
         "shared_label": "Freigegebenes Konto"
+      },
+      "sections": {
+        "addresses": "E-Mail-Adressen"
       }
     },
     "security": {
       "title": "Kontosicherheit",
       "description": "Verwalten Sie Ihr Passwort, Zwei-Faktor-Authentifizierung und Sicherheitseinstellungen",
       "detecting": "Serverfunktionen werden erkannt...",
-      "not_available": "Kontosicherheitsverwaltung ist für diesen Mailserver nicht verfügbar. Erforderliche Berechtigungen könnten deaktiviert sein. Siehe die <a href=\"/docs/guides/account-security\" class=\"underline hover:opacity-80\" target=\"_blank\">Dokumentation</a> für Details.",
+      "not_available": "Kontosicherheitsverwaltung ist für diesen Mailserver nicht verfügbar. Erforderliche Berechtigungen könnten deaktiviert sein. Siehe die <a href=\"https://bulwarkmail.org/docs/guides/account-security\" class=\"underline hover:opacity-80\" target=\"_blank\">Dokumentation</a> für Details.",
       "password": {
         "title": "Passwort ändern",
         "current": "Aktuelles Passwort",
@@ -1824,6 +2146,7 @@
         "confirm": "Neues Passwort bestätigen",
         "submit": "Passwort ändern",
         "success": "Passwort erfolgreich geändert",
+        "sign_in_again": "Melden Sie sich mit Ihrem neuen Passwort erneut an.",
         "error_title": "Passwortänderung fehlgeschlagen",
         "error_mismatch": "Neue Passwörter stimmen nicht überein",
         "error_min_length": "Das Passwort muss mindestens 8 Zeichen lang sein",
@@ -1859,7 +2182,7 @@
       "app_passwords": {
         "title": "App-Passwörter",
         "description": "Erstellen Sie Passwörter für Apps, die keine Zwei-Faktor-Authentifizierung unterstützen",
-        "add": "Hinzufügen",
+        "new": "Neues App-Passwort",
         "create": "Erstellen",
         "cancel": "Abbrechen",
         "generate": "Generieren",
@@ -1871,6 +2194,8 @@
         "removed": "App-Passwort entfernt",
         "add_error": "App-Passwort konnte nicht erstellt werden",
         "remove_error": "App-Passwort konnte nicht entfernt werden",
+        "delete_title": "App-Passwort löschen?",
+        "delete_message": "Apps, die sich mit {name} anmelden, können sich danach nicht mehr anmelden.",
         "none": "Keine App-Passwörter konfiguriert",
         "done": "Fertig",
         "expires_label": "Läuft ab (optional)",
@@ -1882,6 +2207,7 @@
       "api_keys": {
         "title": "API-Schlüssel",
         "description": "Erstellen Sie API-Schlüssel für Skripte und Integrationen, die direkt mit dem Server kommunizieren",
+        "new": "Neuer API-Schlüssel",
         "name_label": "Schlüsselname",
         "name_placeholder": "z.B. Backup-Skript, CI-Runner",
         "copy_now_warning": "Kopieren Sie diesen API-Schlüssel jetzt - er wird nicht erneut angezeigt.",
@@ -1889,6 +2215,8 @@
         "removed": "API-Schlüssel entfernt",
         "add_error": "API-Schlüssel konnte nicht erstellt werden",
         "remove_error": "API-Schlüssel konnte nicht entfernt werden",
+        "delete_title": "API-Schlüssel löschen?",
+        "delete_message": "Skripte und Integrationen, die {name} verwenden, verlieren den Zugriff.",
         "none": "Keine API-Schlüssel konfiguriert"
       },
       "encryption": {
@@ -1908,6 +2236,9 @@
         "configure_title": "Verschlüsselung mit diesem Schlüssel aktivieren",
         "enable_button": "Aktivieren",
         "disable_tooltip": "Verschlüsselung deaktivieren",
+        "disable_title": "Verschlüsselung ruhender Daten ausschalten?",
+        "disable_message": "Neue E-Mails werden ab jetzt unverschlüsselt gespeichert.",
+        "disable_button": "Ausschalten",
         "enabled_success": "Verschlüsselung im Ruhezustand aktiviert"
       },
       "email_client": {
@@ -1916,7 +2247,7 @@
         "jmap_username_label": "JMAP-Benutzername",
         "copy": "Kopieren",
         "copied": "Kopiert",
-        "password_instructions": "Verwenden Sie Ihren oben angezeigten JMAP-Benutzernamen zusammen mit einem App-Passwort, um sich bei Ihrem E-Mail-Client anzumelden. Erstellen Sie im obigen Abschnitt ein App-Passwort, falls Sie noch keines haben."
+        "password_instructions": "Verwenden Sie Ihren oben angezeigten JMAP-Benutzernamen zusammen mit einem App-Passwort, um sich bei Ihrem E-Mail-Client anzumelden. Erstellen Sie im Abschnitt unten ein App-Passwort, falls Sie noch keines haben."
       },
       "link_device": {
         "title": "Mobile App verknüpfen",
@@ -1956,11 +2287,24 @@
         "name_placeholder": "z.B. Mein Schlüssel",
         "key_label": "Öffentlicher Schlüssel (S/MIME oder PGP im ASCII-Format)",
         "key_placeholder": "Fügen Sie hier Ihren öffentlichen Schlüssel ein",
-        "none": "Keine öffentlichen Schlüssel konfiguriert"
+        "none": "Keine öffentlichen Schlüssel konfiguriert",
+        "title": "Öffentliche Schlüssel",
+        "add": "Öffentlichen Schlüssel hinzufügen",
+        "add_submit": "Hinzufügen",
+        "added": "Öffentlicher Schlüssel hinzugefügt",
+        "removed": "Öffentlicher Schlüssel gelöscht",
+        "add_error": "Öffentlicher Schlüssel konnte nicht hinzugefügt werden",
+        "remove_error": "Öffentlicher Schlüssel konnte nicht gelöscht werden",
+        "delete_title": "Öffentlichen Schlüssel löschen?",
+        "delete_message": "{name} wird vom Server entfernt."
+      },
+      "sections": {
+        "devices": "Andere Apps und Geräte",
+        "devices_description": "Ihre E-Mails außerhalb dieses Browsers nutzen.",
+        "encryption": "Verschlüsselung"
       }
     },
     "identities": {
-      "title": "Sendeidentitäten",
       "description": "Verwalten Sie E-Mail-Adressen, von denen Sie senden können",
       "identities_count": {
         "label": "Ihre Identitäten",
@@ -2012,6 +2356,7 @@
       },
       "save": "Änderungen speichern",
       "saving": "Speichern...",
+      "saved": "Gespeichert",
       "warnings": {
         "end_before_start": "Das Enddatum muss nach dem Startdatum liegen",
         "invalid_date": "Bitte ein gültiges Start- und Enddatum mit Uhrzeit angeben oder das Feld leer lassen",
@@ -2078,12 +2423,17 @@
       "new_folder_name": "Ordnername",
       "rename": "Umbenennen",
       "change_icon": "Symbol ändern",
+      "actions": "Aktionen für {name}",
+      "expand": "{name} aufklappen",
+      "collapse": "{name} zuklappen",
+      "counter": "Zähler",
       "count_mode": "Zähler für {name}",
       "count_mode_default": "Zähler: Standard",
       "count_mode_unread": "Nur ungelesene",
       "count_mode_all": "Ungelesene und gesamt",
       "count_mode_none": "Kein Zähler",
       "delete": "Löschen",
+      "delete_title": "Ordner löschen?",
       "confirm_delete": "Möchten Sie \"{name}\" wirklich löschen? E-Mails in diesem Ordner werden in den Papierkorb verschoben.",
       "create": "Erstellen",
       "cancel": "Abbrechen",
@@ -2101,11 +2451,10 @@
       "error_role": "Ordnerrolle konnte nicht aktualisiert werden"
     },
     "advanced": {
-      "title": "Erweitert",
-      "description": "Erweiterte Optionen und Entwicklereinstellungen",
       "debug_mode": {
         "label": "Debug-Modus",
-        "description": "Detaillierte Protokollierung zur Fehlerbehebung aktivieren"
+        "description": "Detaillierte Protokollierung zur Fehlerbehebung aktivieren",
+        "toggle": "Ausführliche Protokollierung"
       },
       "debug_categories": {
         "description": "Wählen Sie aus, welche Kategorien protokolliert werden sollen. Deaktivieren Sie nicht benötigte Kategorien, um die Konsolenausgabe zu reduzieren.",
@@ -2150,12 +2499,15 @@
       "refresh_cache": {
         "label": "Zwischengespeicherte Daten aktualisieren",
         "description": "Kontakte, Kalender und Ordner vom Server neu laden. Konten und Sitzungen bleiben erhalten; veraltete oder fehlerhafte Ansichten werden korrigiert, ohne dass Sie sich abmelden müssen.",
-        "button": "Aktualisieren"
+        "button": "Aktualisieren",
+        "confirm_title": "Zwischengespeicherte Daten aktualisieren?"
       },
       "reset_settings": {
         "label": "Einstellungen zurücksetzen",
         "description": "Alle Einstellungen auf Standardwerte zurücksetzen",
-        "button": "Auf Standard zurücksetzen"
+        "button": "Auf Standard zurücksetzen",
+        "confirm_title": "Alle Einstellungen zurücksetzen?",
+        "done": "Einstellungen zurückgesetzt"
       },
       "export_settings": {
         "label": "Einstellungen exportieren",
@@ -2196,6 +2548,12 @@
           "delivered": "Zugestellt",
           "mistakes": "Fehler"
         }
+      },
+      "sections": {
+        "backup": "Einstellungen sichern",
+        "backup_description": "Ihre Einstellungen über Browser und Geräte hinweg behalten.",
+        "fix": "Probleme beheben",
+        "fix_description": "Wenn eine Ansicht veraltet oder falsch aussieht oder Sie neu anfangen möchten."
       }
     },
     "sidebar_apps": {
@@ -2216,19 +2574,24 @@
       "export_label": "Kontakte exportieren",
       "export_description": "Alle Kontakte als vCard-Datei (.vcf) exportieren",
       "manage_title": "Adressbücher",
-      "manage_description": "Adressbücher umbenennen",
+      "manage_description": "Adressbücher umbenennen oder löschen",
       "no_address_books": "Keine Adressbücher gefunden",
       "categories_title": "Kategorien",
-      "categories_description": "Kontaktkategorien umbenennen",
+      "categories_description": "Kontaktkategorien umbenennen oder löschen",
       "no_categories": "Keine Kategorien gefunden",
       "group_by_letter_description": "Alphabetische Abschnittsüberschriften in der Kontaktliste anzeigen",
       "group_by_letter_label": "Nach Anfangsbuchstaben gruppieren",
       "sort_by_last_name_label": "Nach Nachname sortieren",
       "sort_by_last_name_description": "Kontaktliste nach Nachnamen ordnen, damit Familienmitglieder zusammenstehen"
     },
+    "calendar_management": {
+      "delete_title": "Kalender löschen?",
+      "clear_title": "Alle Termine entfernen?",
+      "unsubscribe_title": "Dieses Kalenderabo beenden?"
+    },
     "downloads": {
       "title": "Downloads",
-      "description": "Lege fest, wie heruntergeladene E-Mails und Anhänge benannt werden.",
+      "description": "Legen Sie fest, wie heruntergeladene E-Mails und Anhänge benannt werden.",
       "reset": "Standard wiederherstellen",
       "preview": "Vorschau:",
       "email_template": {
@@ -2290,9 +2653,9 @@
       "validate": "Validieren",
       "validation_success": "Das Skript ist gültig",
       "validation_error": "Das Skript enthält Fehler",
-      "save": "Regeln speichern",
+      "save": "Speichern",
       "saving": "Wird gespeichert...",
-      "saved": "Filter erfolgreich gespeichert",
+      "saved": "Filter gespeichert",
       "save_failed": "Fehler beim Speichern der Filter",
       "loading": "Filter werden geladen...",
       "not_supported": "Ihr Mailserver unterstützt keine E-Mail-Filter.",
@@ -2304,6 +2667,8 @@
       "add_condition": "Bedingung hinzufügen",
       "actions": "Aktionen",
       "add_action": "Aktion hinzufügen",
+      "remove_condition": "Bedingung entfernen",
+      "remove_action": "Aktion entfernen",
       "stop_processing": "Verarbeitung nachfolgender Regeln stoppen",
       "include_spam": "Auch als Spam markierte Nachrichten verschieben",
       "attachment_type_placeholder": "z.B. pdf, doc, jpg",
@@ -2358,6 +2723,7 @@
       "label_name": "Label-Name",
       "label_placeholder": "Label auswählen",
       "header_name": "Header-Name",
+      "condition_value": "Wert der Bedingung",
       "header_placeholder": "z.B. X-Mailing-List",
       "size_bytes": "Größe in Bytes",
       "size_placeholder": "z.B. 1000000",
@@ -2380,10 +2746,16 @@
       "match_type": "Übereinstimmungstyp",
       "reset_to_visual": "Zum visuellen Builder zurücksetzen",
       "reset_warning": "Dies verwirft das aktuelle Skript und beginnt von vorne.",
+      "reset_title": "Auf den visuellen Editor zurücksetzen?",
       "confirm_reset": "Zurücksetzen",
       "validation_empty_name": "Regelname ist erforderlich",
       "validation_empty_conditions": "Mindestens eine Bedingung mit einem Wert ist erforderlich",
       "validation_empty_actions": "Mindestens eine Aktion ist erforderlich",
+      "validation_action_folder": "Wählen Sie einen Ordner für diese Aktion",
+      "validation_action_tag": "Wählen Sie ein Label für diese Aktion",
+      "validation_action_forward": "Geben Sie eine Adresse zum Weiterleiten ein",
+      "validation_action_reject": "Geben Sie die Ablehnungsnachricht ein",
+      "validation_header_name": "Header-Namen dürfen nur die Buchstaben A-Z, Ziffern, Bindestriche und Unterstriche enthalten",
       "templates_section": "Von Vorlage starten",
       "template_newsletters": "Newsletter in Ordner verschieben",
       "template_receipts": "Quittungen automatisch archivieren",
@@ -2395,12 +2767,12 @@
         "script_content": "Sieve-Skript",
         "valid": "Skript ist gültig",
         "invalid": "Skript enthält Fehler",
-        "save_warning": "Das Speichern überschreibt alle visuellen Regeln. Dies kann nicht rückgängig gemacht werden. Klicken Sie erneut auf Speichern zur Bestätigung.",
         "validating": "Wird validiert...",
         "validate": "Validieren",
         "cancel": "Abbrechen",
         "save": "Speichern",
-        "confirm_save": "Speichern bestätigen",
+        "overwrite_title": "Visuelle Regeln ersetzen?",
+        "overwrite_message": "Dieses Skript enthält die im visuellen Editor erstellten Regeln nicht mehr. Wenn Sie es speichern, ersetzt es diese Regeln. Das lässt sich nicht rückgängig machen.",
         "validation_failed": "Validierungsanfrage fehlgeschlagen"
       },
       "rule_summary": {
@@ -2532,6 +2904,563 @@
     "scoped": {
       "back": "Zurück zu meinem Konto",
       "managing": "Verwaltung: {name}"
+    },
+    "advanced_switch": {
+      "label": "Erweiterte Einstellungen anzeigen",
+      "show": "Erweiterte Einstellungen anzeigen",
+      "badge": "Erweitert",
+      "hidden_count": "{count, plural, one {1 erweiterte Einstellung ist auf dieser Seite ausgeblendet.} other {# erweiterte Einstellungen sind auf dieser Seite ausgeblendet.}}"
+    },
+    "message_list": {
+      "title": "Nachrichtenliste",
+      "description": "Was die Liste zeigt und was ein Klick oder Wischen bewirkt.",
+      "sections": {
+        "senders": "Absenderbilder",
+        "actions": "Schnellaktionen",
+        "delete": "Löschen & Archivieren",
+        "loading": "Laden & Suche"
+      }
+    },
+    "reading_page": {
+      "title": "Lesen",
+      "description": "Die geöffnete Nachricht.",
+      "sections": {
+        "display": "Nachrichtenanzeige",
+        "images": "Bilder & externe Inhalte",
+        "images_description": "Externe Bilder können dem Absender verraten, dass Sie die Mail geöffnet haben.",
+        "attachments": "Anhänge"
+      },
+      "plain_text_font_link": {
+        "label": "Schrift für Nur-Text-Nachrichten",
+        "description": "Wird zusammen mit den anderen Schriften unter Barrierefreiheit eingestellt.",
+        "button": "Barrierefreiheit"
+      }
+    },
+    "composing_page": {
+      "title": "Schreiben",
+      "description": "Schreiben, Antworten und Senden.",
+      "sections": {
+        "replying": "Antworten",
+        "sending": "Vor dem Senden",
+        "receipts": "Lesebestätigungen"
+      }
+    },
+    "accessibility": {
+      "system": "System",
+      "on": "An",
+      "off": "Aus",
+      "presets": {
+        "title": "Voreinstellungen",
+        "description": "Jede Voreinstellung ändert mehrere Einstellungen auf einmal. Danach sind es normale Einstellungen, die Sie einzeln ändern können, und Sie können Voreinstellungen kombinieren.",
+        "applied": "{name} hat {count, plural, one {# Einstellung} other {# Einstellungen}} geändert:",
+        "nothing_changed": "{name}: Ihre Einstellungen passen bereits.",
+        "undo": "Rückgängig",
+        "show_button": "Barrierefreiheits-Schaltfläche in der Navigationsleiste zeigen",
+        "screen-reader": {
+          "label": "Screenreader",
+          "description": "Kein Lesebereich neben der Liste, keine Gruppierung nach Konversation, die Vorschau wird mit jeder Nachricht vorgelesen."
+        },
+        "low-vision": {
+          "label": "Sehbehinderung",
+          "description": "Größere Schrift, mehr Kontrast, ein dickerer Fokusrahmen, unterstrichene Links und ein großer Mauszeiger."
+        },
+        "dyslexia": {
+          "label": "Legasthenie",
+          "description": "Eine besser lesbare Schrift, mehr Abstand zwischen Zeilen, Buchstaben und Wörtern und eine schmalere Lesespalte."
+        },
+        "focus": {
+          "label": "Konzentration",
+          "description": "Einfaches Layout, keine Vorschau und keine Absenderbilder, ein Punkt statt Ungelesen-Zahlen, keine Bewegung."
+        },
+        "motor": {
+          "label": "Tastatur und Motorik",
+          "description": "Größere Schaltflächen, Menüs öffnen per Klick, eine Aktionen-Schaltfläche an jeder Nachricht, länger sichtbare Hinweise."
+        },
+        "motion": {
+          "label": "Bewegung und Anfälle",
+          "description": "Keine Animationen, animierte Bilder angehalten, keine durchscheinenden Flächen, keine blinkenden Hinweise."
+        },
+        "hearing": {
+          "label": "Gehörlos und schwerhörig",
+          "description": "Sichtbare Hinweise statt Töne und Benachrichtigungen, die bleiben, bis Sie sie schließen."
+        }
+      },
+      "quick_button": {
+        "label": "Barrierefreiheits-Schaltfläche in der Navigationsleiste",
+        "description": "Fügt eine Schaltfläche hinzu, die Schriftgröße, Kontrast, Bewegung und die Voreinstellungen von überall öffnet. Alt+Umschalt+A öffnet dasselbe Fenster, mit oder ohne Schaltfläche."
+      },
+      "sections": {
+        "text": "Text und Lesen",
+        "contrast": "Farbe und Kontrast",
+        "motion": "Bewegung",
+        "keyboard": "Tastatur und Fokus",
+        "pointer": "Zeiger und Touch",
+        "mail": "E-Mail",
+        "timing": "Zeit und Fehler",
+        "alerts": "Hinweise und Ablenkungen",
+        "screen_readers": "Screenreader"
+      },
+      "text_size": {
+        "label": "Schriftgröße",
+        "description": "Skaliert die Schriftgröße, die Sie im Browser eingestellt haben. 100 % ist die Größe Ihres Browsers.",
+        "small": "87,5 %",
+        "medium": "100 %",
+        "large": "112,5 %",
+        "x-large": "125 %",
+        "xx-large": "150 %",
+        "xxx-large": "175 %",
+        "huge": "200 %"
+      },
+      "font": {
+        "label": "Schriftart",
+        "description": "Atkinson Hyperlegible und Lexend sind so gestaltet, dass sich die Buchstaben gut unterscheiden; OpenDyslexic hilft manchen Menschen mit Legasthenie. Sie decken lateinische Schrift ab.",
+        "default": "Schrift des Designs"
+      },
+      "plain_text_font": {
+        "label": "Schrift für Nur-Text-Nachrichten",
+        "description": "Für Nachrichten ohne Formatierung.",
+        "sans": "Wie oben",
+        "mono": "Festbreitenschrift"
+      },
+      "spacing": {
+        "normal": "Normal",
+        "relaxed": "Mehr",
+        "loose": "Am meisten",
+        "wide": "Weit",
+        "wider": "Weiter"
+      },
+      "line_spacing": {
+        "label": "Zeilenabstand",
+        "description": "Abstand zwischen Textzeilen."
+      },
+      "letter_spacing": {
+        "label": "Buchstabenabstand",
+        "description": "Abstand zwischen Buchstaben."
+      },
+      "word_spacing": {
+        "label": "Wortabstand",
+        "description": "Abstand zwischen Wörtern."
+      },
+      "paragraph_spacing": {
+        "label": "Absatzabstand",
+        "description": "Abstand nach jedem Absatz."
+      },
+      "reading_width": {
+        "label": "Lesebreite",
+        "description": "Begrenzt Zeilen in Nachrichten auf etwa 80 Zeichen, damit die Augen keine weiten Wege gehen müssen.",
+        "full": "Volle Breite",
+        "comfortable": "Etwa 80 Zeichen"
+      },
+      "reading_mask": {
+        "label": "Lesemaske",
+        "description": "Blendet in einer Nachricht alles außer ein paar Zeilen um den Zeiger ab, damit Sie die Stelle nicht verlieren."
+      },
+      "plain_language": {
+        "label": "Einfache Sprache",
+        "description": "Einfachere Formulierungen in Einstellungen und Fehlermeldungen und kurze Erklärungen zu Fachbegriffen. Auf Deutsch und Englisch verfügbar."
+      },
+      "contrast": {
+        "label": "Kontrast",
+        "description": "Mehr Kontrast macht Text, Rahmen und den Fokusrahmen bei jedem Design dunkler oder heller und unterstreicht Links. System folgt Ihrem Gerät.",
+        "more": "Mehr",
+        "normal": "Normal"
+      },
+      "transparency": {
+        "label": "Transparenz reduzieren",
+        "description": "Feste Hintergründe statt durchscheinender und unscharfer Flächen."
+      },
+      "underline_links": {
+        "label": "Links unterstreichen",
+        "description": "Unterstreicht Links in der App und in Nachrichten, damit sie nicht nur an der Farbe erkennbar sind."
+      },
+      "color_names": {
+        "label": "Namen neben Farben zeigen",
+        "description": "Zeigt Tag-Namen an Nachrichten und Kalendernamen an Terminen statt nur farbiger Punkte."
+      },
+      "cvd_palette": {
+        "label": "Farben für Farbenblindheit",
+        "description": "Verwendet Farben für Tags, Ordner und Kalender, die bei Rot-Grün- oder Blau-Gelb-Schwäche unterscheidbar bleiben."
+      },
+      "theme_link": {
+        "label": "Design und Farbmodus",
+        "description": "Hell, dunkel und die Designs finden Sie unter Darstellung.",
+        "button": "Darstellung"
+      },
+      "reduce_motion": {
+        "label": "Bewegung reduzieren",
+        "description": "Schaltet gleitende Bereiche, Übergänge und weiches Scrollen aus, auch in Nachrichten. System folgt Ihrem Gerät."
+      },
+      "pause_images": {
+        "label": "Animierte Bilder anhalten",
+        "description": "Zeigt bei animierten GIFs in Nachrichten das erste Bild mit einer Schaltfläche zum Abspielen. System hält sie an, wenn Ihr Gerät weniger Bewegung wünscht."
+      },
+      "single_key_shortcuts": {
+        "label": "Tastenkürzel mit einer Taste",
+        "description": "Kürzel wie j, k, e und #, die nur eine Taste nutzen. Schalten Sie sie aus, wenn Sie Spracheingabe nutzen oder versehentlich Tasten drücken. Kürzel mit Strg oder Alt funktionieren weiter."
+      },
+      "shortcut_list": {
+        "label": "Tastenkürzel",
+        "description": "Alle Kürzel für die App, in der Sie gerade sind.",
+        "button": "Kürzel anzeigen"
+      },
+      "focus_ring": {
+        "label": "Fokusrahmen",
+        "description": "Der Rahmen um die Schaltfläche, den Link oder das Feld, auf dem die Tastatur gerade ist.",
+        "normal": "Normal",
+        "thick": "Dick",
+        "extra": "Extra dick"
+      },
+      "focus_always": {
+        "label": "Fokus immer zeigen",
+        "description": "Zeigt den Rahmen auch nach Klicks, nicht nur bei Tastaturbedienung."
+      },
+      "large_targets": {
+        "label": "Große Bedienelemente",
+        "description": "Macht Schaltflächen, Kontrollkästchen und andere Elemente mindestens 44 Pixel groß. System schaltet das bei Touchscreens ein."
+      },
+      "large_cursor": {
+        "label": "Großer Mauszeiger",
+        "description": "Ein größerer Zeiger in der App."
+      },
+      "open_on_hover": {
+        "label": "Beim Darüberfahren öffnen",
+        "description": "Menüs, Vorschauen und Karten öffnen sich, wenn der Zeiger darauf ruht. Ausschalten, damit sie sich nur per Klick öffnen."
+      },
+      "row_action_button": {
+        "label": "Aktionen-Schaltfläche an jeder Nachricht",
+        "description": "Zeigt in jeder Zeile eine Schaltfläche mit den Aktionen der Nachricht, damit Sie weder darüberfahren noch rechtsklicken müssen."
+      },
+      "native_scrollbars": {
+        "label": "Breitere Bildlaufleisten",
+        "description": "Verwendet die Bildlaufleisten Ihres Browsers, die breiter und leichter zu greifen sind."
+      },
+      "row_actions_link": {
+        "label": "Aktionen beim Darüberfahren und Wischen",
+        "description": "Welche Aktionen an Nachrichtenzeilen erscheinen.",
+        "button": "Nachrichtenliste"
+      },
+      "mail_view": {
+        "label": "Nachrichten anzeigen als",
+        "description": "Nur-Text entfernt Layout, Farben und Bilder einer Nachricht. Sie können jede Nachricht im Lesebereich umschalten.",
+        "html": "Formatiert",
+        "plain": "Nur Text"
+      },
+      "mail_text_size": {
+        "label": "Schriftgröße in Nachrichten",
+        "description": "Schriftgröße innerhalb von Nachrichten. Sie bleibt für jede Nachricht gleich.",
+        "follow": "Wie in der App"
+      },
+      "mail_min_font_size": {
+        "label": "Kleinste Schrift in Nachrichten",
+        "description": "Vergrößert Text, den eine Nachricht kleiner setzt.",
+        "none": "Kein Minimum",
+        "px": "{size} px"
+      },
+      "mail_override": {
+        "label": "Meine Schrift und Farben in Nachrichten",
+        "description": "Ersetzt Schrift, Größe und Farben des Absenders durch Ihre. Newsletter können dadurch anders aussehen.",
+        "never": "Nie",
+        "high_contrast": "Bei mehr Kontrast",
+        "always": "Immer"
+      },
+      "mail_fit_width": {
+        "label": "Breite Nachrichten einpassen",
+        "description": "Verkleinert Nachrichten, die breiter als der Lesebereich sind, statt seitlich zu scrollen."
+      },
+      "read_aloud_rate": {
+        "label": "Vorlesegeschwindigkeit",
+        "description": "Wie schnell Vorlesen eine Nachricht spricht."
+      },
+      "compose_font": {
+        "label": "Schrift für neue Nachrichten",
+        "description": "Die Schrift, mit der neue Nachrichten beginnen. Empfänger sehen sie, wenn ihr E-Mail-Programm sie hat.",
+        "default": "Standard",
+        "sans": "Serifenlos",
+        "serif": "Serif",
+        "mono": "Festbreitenschrift"
+      },
+      "compose_size": {
+        "label": "Schriftgröße für neue Nachrichten",
+        "description": "Die Größe, mit der neue Nachrichten beginnen.",
+        "default": "Standard"
+      },
+      "toast_duration": {
+        "label": "Anzeigedauer von Hinweisen",
+        "description": "Wie lange Hinweise wie „In Archiv verschoben“ mit ihrer Schaltfläche Rückgängig sichtbar bleiben.",
+        "until_closed": "Bis ich sie schließe",
+        "seconds": "{seconds} Sekunden"
+      },
+      "confirm_send": {
+        "label": "Vor dem Senden bestätigen",
+        "description": "Fragt nach, bevor eine Nachricht gesendet wird."
+      },
+      "confirm_delete": {
+        "label": "Vor dem Löschen bestätigen",
+        "description": "Fragt nach, bevor eine Nachricht gelöscht wird, auch bei einzelnen Nachrichten."
+      },
+      "confirm_archive": {
+        "label": "Vor dem Archivieren bestätigen",
+        "description": "Fragt nach, bevor eine Nachricht archiviert wird."
+      },
+      "send_warnings_link": {
+        "label": "Warnungen vor dem Senden",
+        "description": "Fehlender Betreff, vergessener Anhang und Platzhaltertext.",
+        "button": "Verfassen"
+      },
+      "visual_alerts": {
+        "label": "Sichtbare Hinweise",
+        "description": "Lässt den Tab-Titel langsam blinken, wenn neue E-Mails oder Erinnerungen eintreffen, und lässt Erinnerungen stehen, bis Sie sie schließen."
+      },
+      "unread_counts": {
+        "label": "Ungelesen-Zähler",
+        "description": "Wie Ordner und die Navigationsleiste ungelesene E-Mails zeigen.",
+        "count": "Zahl",
+        "dot": "Punkt",
+        "hidden": "Aus"
+      },
+      "do_not_disturb": {
+        "label": "Nicht stören",
+        "description": "Keine Töne, Benachrichtigungen oder Ansagen für neue E-Mails, bis Sie das wieder ausschalten."
+      },
+      "announce_new_mail": {
+        "label": "Neue E-Mails ansagen",
+        "description": "Screenreader sagen, wie viele neue Nachrichten angekommen sind, ohne sie vorzulesen."
+      },
+      "announce_preview": {
+        "label": "Vorschau in der Liste vorlesen",
+        "description": "Screenreader lesen die erste Zeile jeder Nachricht zusammen mit Absender und Betreff."
+      },
+      "simple_mode": {
+        "label": "Einfacher Modus",
+        "description": "Eine Spalte, weniger Schaltflächen und keine Seitenbereiche."
+      },
+      "simple_mode_paged": {
+        "label": "Nachrichtenliste seitenweise",
+        "description": "Zeigt die Liste in Seiten zu 50 mit Weiter und Zurück statt endlosem Scrollen. Mit Screenreader einfacher."
+      },
+      "reset": {
+        "title": "Zurücksetzen",
+        "label": "Barrierefreiheit zurücksetzen",
+        "description": "Setzt alle Einstellungen auf dieser Seite auf den Standard zurück, oder auf den Wert, den Ihre Organisation festgelegt hat. Gemeinsame Einstellungen wie die Konversationsansicht bleiben, wie sie sind.",
+        "button": "Zurücksetzen",
+        "done": "Barrierefreiheit zurückgesetzt."
+      },
+      "read_aloud_voice": {
+        "label": "Vorlesestimme",
+        "description": "Die Stimme, die Nachrichten vorliest. Die Liste zeigt die Stimmen, die Ihr Browser für die Sprache der Oberfläche hat.",
+        "default": "Standard des Browsers"
+      }
+    }
+  },
+  "setup": {
+    "title": "Einrichtung von Bulwark Webmail",
+    "subtitle": "Richten Sie Ihre Webmail-Instanz im Browser ein.",
+    "loading": "Wird geladen…",
+    "back": "Zurück",
+    "next": "Weiter",
+    "saving": "Wird gespeichert…",
+    "show": "Anzeigen",
+    "hide": "Ausblenden",
+    "remove": "Entfernen",
+    "on": "An",
+    "off": "Aus",
+    "dismiss": "Schließen",
+    "unknown_error": "Unbekannter Fehler",
+    "steps": {
+      "welcome": "Willkommen",
+      "server": "Server",
+      "auth": "Anmeldung",
+      "security": "Sicherheit",
+      "logging": "Protokoll",
+      "branding": "Branding",
+      "review": "Prüfen"
+    },
+    "read_only": {
+      "title": "Die Konfiguration ist schreibgeschützt",
+      "body": "Das Konfigurations-Volume ist schreibgeschützt eingebunden oder <code>{variable}</code> ist gesetzt. Binden Sie es beschreibbar ein oder entfernen Sie die Variable und starten Sie den Container neu."
+    },
+    "done": {
+      "title": "Alles bereit",
+      "body": "{appName} ist eingerichtet und einsatzbereit.",
+      "admin_sign_in": "Im Admin-Dashboard anmelden",
+      "webmail_login": "Webmail-Anmeldung öffnen",
+      "redirecting": "Sie werden zum Admin-Dashboard weitergeleitet…"
+    },
+    "already": {
+      "title": "Die Einrichtung ist bereits abgeschlossen",
+      "body": "{appName} ist eingerichtet. Melden Sie sich an, um fortzufahren."
+    },
+    "insecure": {
+      "title": "Sie führen die Einrichtung über unverschlüsseltes HTTP aus",
+      "body": "Das Einrichtungstoken und das Admin-Passwort, die Sie hier eingeben, werden im Klartext übertragen. Verwenden Sie nach Möglichkeit HTTPS: Terminieren Sie TLS im Container oder in einem vorgeschalteten Reverse Proxy.",
+      "try_https": "HTTPS versuchen",
+      "continue_http": "Über HTTP fortfahren"
+    },
+    "errors": {
+      "token_expired": "Dieses Einrichtungstoken ist nicht mehr gültig. Starten Sie den Container neu, um ein neues aus den Logs zu erhalten.",
+      "session_expired": "Ihre Einrichtungssitzung ist abgelaufen. Fügen Sie das Einrichtungstoken erneut ein, um fortzufahren.",
+      "token_required": "Fügen Sie das Einrichtungstoken aus den Container-Logs ein, um fortzufahren.",
+      "already_finished": "Die Einrichtung ist bereits abgeschlossen. Laden Sie die Seite neu, um sich anzumelden.",
+      "token_rejected": "Token abgelehnt (HTTP {status})",
+      "step_failed": "Dieser Schritt konnte nicht gespeichert werden (HTTP {status})",
+      "upload_failed": "Hochladen fehlgeschlagen (HTTP {status})",
+      "finish_failed": "Die Einrichtung konnte nicht abgeschlossen werden (HTTP {status})"
+    },
+    "welcome": {
+      "title": "Willkommen",
+      "body": "Fügen Sie das Einrichtungstoken aus den Container-Logs ein, um fortzufahren. Das Token läuft nach einer Stunde ab.",
+      "token_label": "Einrichtungstoken",
+      "token_placeholder": "32-Byte-Hex-Token",
+      "verifying": "Wird geprüft…",
+      "continue": "Fortfahren"
+    },
+    "server": {
+      "title": "Server",
+      "subtitle": "Wo Ihre E-Mails liegen.",
+      "app_name": "Name der Anwendung",
+      "url_label": "JMAP-Server-URL",
+      "url_hint": "Der Standardserver, mit dem sich Benutzer verbinden. Beispiel: https://mail.example.com",
+      "test": "Testen",
+      "testing": "Wird getestet…",
+      "probe_ok": "Verbunden: Das sieht nach einem JMAP-Server aus.",
+      "probe_not_jmap": "Der Server ist erreichbar, scheint aber kein JMAP-Endpunkt zu sein.",
+      "probe_invalid": "Diese URL ist ungültig. Sie muss mit http:// oder https:// beginnen.",
+      "probe_unreachable": "Keine Verbindung zu dieser Adresse. Prüfen Sie die URL und ob der Server erreichbar ist.",
+      "not_jmap_hint": "Das kann vorkommen, wenn ein Reverse Proxy JMAP auf derselben Domain gesondert weiterleitet. Sonst ist die URL meist falsch.",
+      "not_jmap_confirm": "Ich bin sicher, dass die URL stimmt, trotzdem fortfahren.",
+      "http_title": "Diese URL verwendet unverschlüsseltes HTTP.",
+      "http_body": "Passwörter und E-Mail-Inhalte werden unverschlüsselt zwischen den Benutzern und Ihrem Server übertragen. Verwenden Sie im Betrieb <code>{https}</code>: Terminieren Sie TLS auf dem Mailserver oder in einem vorgeschalteten Reverse Proxy.",
+      "local_title": "Diese URL ist nur lokal erreichbar.",
+      "local_body": "E-Mails werden direkt vom Browser der Benutzer abgerufen, daher muss die JMAP-URL von überall erreichbar sein, wo sich Benutzer anmelden, nicht nur von diesem Rechner oder LAN. Verwenden Sie im Betrieb einen öffentlichen Hostnamen (z. B. <code>{example}</code>).",
+      "additional_title": "Weitere JMAP-Server",
+      "additional_hint": "Optional. Mehrere Server in der Auswahl bei der Anmeldung anbieten, nützlich für Hosts mit mehreren Stalwart-Instanzen.",
+      "additional_show": "Anzeigen ({count})",
+      "add": "Hinzufügen",
+      "row_title": "Server #{index}",
+      "id_label": "ID",
+      "id_hint": "Eindeutiger Kurzname, z. B. eu-1",
+      "label_label": "Bezeichnung",
+      "label_hint": "Für Benutzer sichtbar",
+      "row_url": "URL",
+      "domains_label": "Domains",
+      "domains_hint": "Durch Kommas getrennt. Damit wird dieser Server bei der Anmeldung anhand der E-Mail-Domain gewählt.",
+      "add_server": "Server hinzufügen",
+      "auto_pick": "Server anhand der E-Mail-Domain wählen",
+      "auto_pick_hint": "Wenn ein Benutzer seine E-Mail-Adresse eingibt, wird der passende Server aus der Liste oben gewählt.",
+      "row_id_required": "Server #{index}: Die ID ist erforderlich",
+      "row_id_invalid": "Server #{index}: Die ID darf nur Buchstaben, Ziffern, - und _ enthalten und muss mit einem Buchstaben oder einer Ziffer beginnen",
+      "row_id_duplicate": "Server #{index}: Die ID „{id}“ kommt doppelt vor",
+      "row_url_required": "Server #{index}: Die URL ist erforderlich",
+      "row_url_scheme": "Server #{index}: Die URL muss mit http:// oder https:// beginnen",
+      "stalwart": "Stalwart-spezifische Funktionen aktivieren",
+      "stalwart_hint": "Fügt Passwortänderung und die Verwaltung von Sieve-Filtern hinzu. Kann auch bei anderen Servern bedenkenlos aktiviert werden."
+    },
+    "auth": {
+      "title": "Anmeldung",
+      "subtitle": "Anmeldung mit Passwort ist immer möglich. OAuth/OIDC ist optional.",
+      "oauth": "OAuth2 / OpenID Connect aktivieren",
+      "oauth_only": "Nur OAuth (Passwortformular ausblenden)",
+      "client_id": "OAuth-Client-ID",
+      "client_secret": "OAuth-Client-Secret",
+      "client_secret_hint": "Für öffentliche Clients, die nur PKCE nutzen, leer lassen.",
+      "client_secret_placeholder": "Secret einfügen",
+      "issuer": "OAuth-Issuer-URL",
+      "issuer_hint": "Für externe Identitätsanbieter (Keycloak, Authentik, Entra ID usw.)."
+    },
+    "security": {
+      "title": "Sicherheit und Sitzungen",
+      "subtitle": "Das Sitzungsgeheimnis ermöglicht „Angemeldet bleiben“ und die Synchronisierung der Einstellungen.",
+      "generated": "Sitzungsgeheimnis erzeugt",
+      "customize": "Anpassen",
+      "generated_hint": "Ein 32-Byte-Geheimnis wurde für Sie erzeugt. Ändern Sie es nur, wenn Sie einen bestimmten Grund haben.",
+      "secret_label": "Sitzungsgeheimnis",
+      "secret_hint": "Fügen Sie einen eigenen Wert ein oder erzeugen Sie einen neuen.",
+      "regenerate": "Neu erzeugen",
+      "sync": "Benutzereinstellungen geräteübergreifend synchronisieren",
+      "sync_hint": "Speichert die Einstellungen der Benutzer auf dem Server, verschlüsselt mit dem Sitzungsgeheimnis.",
+      "telemetry": "Anonyme Nutzungsstatistiken senden, um Bulwark zu verbessern",
+      "telemetry_hint": "Standardmäßig aus. Ein anonymes Lebenszeichen pro Tag mit Version, Plattform und den aktivierten Funktionen; niemals E-Mail-Adressen, Hostnamen oder IP-Adressen. Sie können das jederzeit in den Admin-Einstellungen ändern."
+    },
+    "logging": {
+      "title": "Protokoll",
+      "subtitle": "Format und Ausführlichkeit der Anwendungsprotokolle.",
+      "format": "Format",
+      "format_text": "text: farbig, gut lesbar",
+      "format_json": "json: strukturiert, für die Protokollauswertung",
+      "level": "Stufe",
+      "level_info": "info (empfohlen)"
+    },
+    "branding": {
+      "title": "Branding",
+      "subtitle": "Alle Felder sind optional. Laden Sie eine Datei hoch oder fügen Sie eine URL ein; für alles, was Sie auslassen, gelten die Standardwerte.",
+      "company": "Name des Unternehmens oder der Organisation",
+      "favicon": "Favicon",
+      "favicon_hint": "Symbol im Browser-Tab. SVG empfohlen.",
+      "login_light": "Logo der Anmeldung (heller Modus)",
+      "login_light_hint": "Auf der Anmeldeseite, auf hellem Hintergrund.",
+      "login_dark": "Logo der Anmeldung (dunkler Modus)",
+      "login_dark_hint": "Auf der Anmeldeseite, auf dunklem Hintergrund.",
+      "sidebar_light": "Logo der Seitenleiste (heller Modus)",
+      "sidebar_light_hint": "Nach der Anmeldung sichtbar. Leer lassen für keins.",
+      "sidebar_dark": "Logo der Seitenleiste (dunkler Modus)",
+      "sidebar_dark_hint": "Version des Seitenleisten-Logos für den dunklen Modus.",
+      "website": "Website-URL",
+      "imprint": "Impressum-URL",
+      "privacy": "URL der Datenschutzerklärung",
+      "drop": "Klicken oder ablegen",
+      "uploading": "Wird hochgeladen…",
+      "uploaded": "Hochgeladene Datei",
+      "formats": "SVG, PNG, JPEG, WebP oder ICO · max. 2 MB",
+      "use_url": "URL verwenden",
+      "hide_url": "URL ausblenden",
+      "url_placeholder": "https://… oder /branding/datei.svg"
+    },
+    "review": {
+      "title": "Fast geschafft",
+      "subtitle": "Prüfen Sie Ihre Einstellungen, wählen Sie ein Admin-Passwort und übernehmen Sie.",
+      "server": "Server",
+      "app_name": "Name der App",
+      "jmap_server": "JMAP-Server",
+      "additional": "Weitere Server",
+      "additional_count": "{count} eingerichtet",
+      "additional_auto_pick": "{count} eingerichtet · Auswahl nach Domain",
+      "stalwart": "Stalwart-Funktionen",
+      "auth": "Anmeldung",
+      "method": "Methode",
+      "oauth_only": "Nur OAuth",
+      "password_oauth": "Passwort + OAuth",
+      "password_only": "Nur Passwort",
+      "client_id": "OAuth-Client-ID",
+      "security": "Sicherheit",
+      "secret": "Sitzungsgeheimnis",
+      "configured": "Eingerichtet",
+      "not_set": "Nicht gesetzt",
+      "remember_me": "Angemeldet bleiben",
+      "available": "Verfügbar",
+      "disabled": "Deaktiviert",
+      "sync": "Synchronisierung der Einstellungen",
+      "needs_secret": "Benötigt ein Sitzungsgeheimnis",
+      "telemetry": "Anonyme Telemetrie",
+      "logging": "Protokoll",
+      "format": "Format",
+      "level": "Stufe",
+      "branding": "Branding",
+      "customizations": "Anpassungen",
+      "custom_assets": "Eigene Dateien eingerichtet",
+      "defaults": "Standardwerte",
+      "company": "Name des Unternehmens",
+      "password_title": "Admin-Passwort wählen",
+      "password_hint": "Damit melden Sie sich unter <code>{path}</code> an. Mindestens 8 Zeichen.",
+      "new_password": "Neues Passwort",
+      "confirm": "Bestätigen",
+      "too_short": "Mindestens 8 Zeichen.",
+      "mismatch": "Die Passwörter stimmen nicht überein.",
+      "looks_good": "Sieht gut aus.",
+      "advanced": "Erweitert",
+      "lock": "Konfiguration nach der Einrichtung sperren",
+      "lock_hint": "Legt eine Markierungsdatei an. Binden Sie das Konfigurations-Volume nach der Einrichtung schreibgeschützt ein; die App lehnt dann weitere Änderungen der Konfiguration ab. Audit-Logs und Anmeldestatus bleiben im State-Volume beschreibbar.",
+      "applying": "Wird übernommen…",
+      "finish": "Übernehmen und abschließen"
     }
   },
   "errors": {
@@ -2551,6 +3480,10 @@
     "retry": "Wiederholen",
     "go_home": "Zum Posteingang"
   },
+  "not_found": {
+    "title": "Seite nicht gefunden",
+    "description": "Diese Seite gibt es nicht oder sie wurde verschoben. Prüfen Sie die Adresse oder kehren Sie zu Ihrem Posteingang zurück."
+  },
   "context_menu": {
     "reply": "Antworten",
     "reply_all": "Allen antworten",
@@ -2561,8 +3494,10 @@
     "unstar": "Stern entfernen",
     "pin": "Anheften",
     "unpin": "Lösen",
-    "move_to": "Verschieben nach...",
-    "copy_to_account": "In Konto kopieren...",
+    "move_to": "Verschieben nach",
+    "move_to_dialog": "Verschieben nach…",
+    "go_to_folder": "Zu {folder} wechseln",
+    "copy_to_account": "In Konto kopieren",
     "remove_from_folder": "Aus diesem Ordner entfernen",
     "archive": "Archivieren",
     "delete": "Löschen",
@@ -2602,11 +3537,11 @@
     "mark_folder_read": "Ordner als gelesen markieren",
     "mark_folder_tree_read": "Ordner & Unterordner als gelesen markieren",
     "mark_all_folders_read": "Alle Ordner als gelesen markieren",
-    "new_subfolder": "Neuer Unterordner...",
-    "new_folder": "Neuer Ordner...",
-    "rename": "Umbenennen...",
-    "share": "Freigeben...",
-    "import_email": ".eml oder .zip importieren...",
+    "new_subfolder": "Neuer Unterordner…",
+    "new_folder": "Neuer Ordner…",
+    "rename": "Umbenennen…",
+    "share": "Freigeben…",
+    "import_email": ".eml oder .zip importieren…",
     "empty_folder": "Ordner leeren",
     "empty_folder_generic": "Ordner leeren",
     "delete_folder": "Ordner löschen",
@@ -2618,7 +3553,7 @@
     "unmute_account_notifications": "Benachrichtigungen für dieses Konto einschalten",
     "reset_folder_notifications": "Ordner-Benachrichtigungen zurücksetzen",
     "mark_all_confirm_title": "Alle Ordner als gelesen markieren",
-    "mark_all_confirm_message": "Jede ungelesene Nachricht in deinem persönlichen Konto als gelesen markieren?",
+    "mark_all_confirm_message": "Jede ungelesene Nachricht in Ihrem persönlichen Konto als gelesen markieren?",
     "delete_confirm_title": "Ordner löschen",
     "delete_confirm_message": "Den Ordner \"{name}\" dauerhaft löschen? Dies kann nicht rückgängig gemacht werden.",
     "prompt_new_subfolder": "Gib einen Namen für den neuen Unterordner ein.",
@@ -2640,7 +3575,7 @@
     "toast_error_create": "Ordner konnte nicht erstellt werden",
     "toast_error_rename": "Ordner konnte nicht umbenannt werden",
     "toast_error_delete": "Ordner konnte nicht gelöscht werden",
-    "toast_error_delete_has_children": "Ordner enthält Unterordner. Entferne diese zuerst.",
+    "toast_error_delete_has_children": "Ordner enthält Unterordner. Entfernen Sie diese zuerst.",
     "toast_error_delete_has_email": "Ordner ist nicht leer. Leere ihn zuerst.",
     "delete_with_contents_title": "Ordner ist nicht leer",
     "delete_with_contents_message": "Der Ordner „{name}“ enthält noch {count, plural, one {1 Nachricht} other {# Nachrichten}}. Ordner samt allen Nachrichten löschen? Das kann nicht rückgängig gemacht werden.",
@@ -2649,6 +3584,7 @@
   "shortcuts": {
     "title": "Tastaturkürzel",
     "tip": "Drücken Sie ? jederzeit, um diese Hilfe anzuzeigen",
+    "or": "oder",
     "sections": {
       "navigation": "Navigation",
       "actions": "E-Mail-Aktionen",
@@ -2674,7 +3610,8 @@
       "delete": "Löschen",
       "mark_unread": "Als ungelesen markieren",
       "mark_read": "Als gelesen markieren",
-      "toggle_spam": "Spam melden / Kein Spam"
+      "toggle_spam": "Spam melden / Kein Spam",
+      "undo": "Letzte Aktion rückgängig machen"
     },
     "global": {
       "compose": "Neue E-Mail verfassen",
@@ -2683,7 +3620,9 @@
       "refresh": "E-Mails aktualisieren",
       "select_all": "Alle auswählen",
       "global_search": "Alles durchsuchen",
-      "extend_selection": "Auswahl nach unten / oben erweitern"
+      "extend_selection": "Auswahl nach unten / oben erweitern",
+      "accessibility_panel": "Optionen zur Barrierefreiheit öffnen",
+      "focus_notification": "Zur neuesten Benachrichtigung springen"
     },
     "threads": {
       "expand_collapse": "Unterhaltung erweitern/einklappen",
@@ -2693,11 +3632,11 @@
       "send": "E-Mail senden",
       "schedule_send": "Senden planen",
       "template_picker": "Vorlagenauswahl öffnen"
-    }
+    },
+    "single_keys_off": "Tastenkürzel mit einer Taste sind ausgeschaltet. Kürzel mit Strg, Alt oder ⌘ funktionieren weiter, ebenso Entf, Eingabe, Esc und die Pfeiltasten.",
+    "tip_single_keys_off": "Sie können sie unter Einstellungen > Barrierefreiheit wieder einschalten."
   },
   "threads": {
-    "messages_one": "{count} Nachricht",
-    "messages_other": "{count} Nachrichten",
     "messages_tooltip": "{count, plural, one {# Nachricht in dieser Unterhaltung} other {# Nachrichten in dieser Unterhaltung}}",
     "expand": "Unterhaltung erweitern",
     "collapse": "Unterhaltung einklappen",
@@ -2708,7 +3647,10 @@
     "delete": "Unterhaltung löschen",
     "star": "Unterhaltung mit Stern markieren",
     "unstar": "Stern von Unterhaltung entfernen",
-    "toggle_thread": "Unterhaltung ein-/ausklappen"
+    "toggle_thread": "Unterhaltung ein-/ausklappen",
+    "messages_count": "{count, plural, one {# Nachricht} other {# Nachrichten}}",
+    "expand_named": "Konversation aufklappen: {subject}",
+    "collapse_named": "Konversation zuklappen: {subject}"
   },
   "identities": {
     "modal_title": "Sendeidentitäten verwalten",
@@ -2778,8 +3720,26 @@
     "delete_button": "Löschen",
     "delete_confirm_title": "Identität löschen"
   },
+  "org_signature": {
+    "disclaimer_added_on_send": "Wird beim Senden angefügt",
+    "identity_signature_label": "Signatur",
+    "identity_no_signature": "Keine Signatur",
+    "identity_default": "Lassen Sie beide Signaturen leer, um von dieser Adresse die Signatur Ihrer Organisation zu senden.",
+    "details": {
+      "title": "Ihre Angaben",
+      "description": "Die Signatur Ihrer Organisation zeigt diese Angaben. Sie füllen sie einmal aus, und jede Adresse, von der Sie senden, verwendet sie.",
+      "preview": "Ihre Signatur",
+      "fields": {
+        "title": "Position",
+        "department": "Abteilung",
+        "phone": "Telefon",
+        "mobile": "Mobil"
+      }
+    }
+  },
   "templates": {
     "picker_title": "Vorlage wählen",
+    "manage": "Vorlagen verwalten",
     "search_placeholder": "Vorlagen suchen...",
     "section_favorites": "Favoriten",
     "section_recent": "Zuletzt verwendet",
@@ -2792,16 +3752,63 @@
     "insert_with_values": "Mit Werten einfügen",
     "insert_raw": "Unverändert einfügen",
     "copy_suffix": "(Kopie)",
+    "duplicate": "Duplizieren",
+    "delete_title": "Vorlage löschen?",
+    "delete_message": "Die Vorlage „{name}“ wird endgültig gelöscht.",
     "placeholder": "Variable",
     "placeholders": {
       "recipient_name": "Name des Empfängers",
       "company": "Firmenname",
       "date": "Heutiges Datum",
+      "short_date": "Datum in Ziffern",
+      "day": "Tag (zweistellig)",
+      "month": "Monat (zweistellig)",
+      "year": "Jahr",
       "day_of_week": "Wochentag",
       "sender_name": "Ihr Name"
+    },
+    "section_examples": "Beispiele",
+    "builtin": {
+      "accessible": {
+        "name": "Barrierefreie Nachricht",
+        "heading": "Worum es in dieser Nachricht geht",
+        "intro": "Beginnen Sie mit dem Wichtigsten in ein oder zwei kurzen Sätzen.",
+        "details_heading": "Details",
+        "tip_structure": "Verwenden Sie die Überschriften und Listen aus der Symbolleiste, nicht Fettschrift oder Leerzeilen.",
+        "tip_links": "Schreiben Sie Linktexte, die sagen, wohin der Link führt, nicht „hier klicken“.",
+        "tip_images": "Beschreiben Sie jedes Bild oder markieren Sie es als dekorativ.",
+        "next_heading": "Nächste Schritte",
+        "next": "Sagen Sie, was Sie vom Leser brauchen und bis wann."
+      }
     }
   },
+  "org_templates": {
+    "section_personal": "Meine Vorlagen",
+    "section_organisation": "Organisation",
+    "sources_label": "Vorlagenlisten",
+    "organisation_note": "Von Ihrer Organisation. Sie können diese Vorlagen nicht ändern, aber in Ihre eigenen kopieren.",
+    "copy_to_personal": "In meine Vorlagen kopieren",
+    "duplicate": "Duplizieren",
+    "save_failed": "Die Vorlage konnte nicht gespeichert werden. Versuchen Sie es erneut.",
+    "save_failed_forbidden": "Sie können diese Vorlagen nicht ändern.",
+    "save_failed_too_large": "Diese Vorlage ist größer als die 8 KB, die der Server pro Vorlage speichert. Kürzen Sie sie und speichern Sie erneut.",
+    "save_failed_no_room": "Im Postfach ist kein Platz für weitere Vorlagen. Löschen Sie eine und versuchen Sie es erneut.",
+    "local_only_too_large": "Nur in diesem Browser: größer als die 8 KB, die der Server pro Vorlage speichert.",
+    "local_only_no_room": "Nur in diesem Browser: In Ihrem Konto ist kein Platz für weitere Vorlagen.",
+    "personal_in_account": "Ihre Vorlagen werden in Ihrem Konto gespeichert, Sie haben sie also auf jedem Gerät, auf dem Sie sich anmelden. Alle, für die Sie Ihren Posteingang freigeben, können sie lesen.",
+    "team_note": "Alle Mitglieder von {name} sehen diese Vorlagen und können sie ändern.",
+    "team_read_only": "Sie können diese Vorlagen verwenden, aber nicht ändern.",
+    "save_failed_conflict": "Von jemand anderem geändert. Laden Sie neu und versuchen Sie es erneut.",
+    "preview_to": "An: {list}",
+    "preview_cc": "Cc: {list}"
+  },
   "contacts": {
+    "print": {
+      "name": "Name",
+      "count": "{count, plural, one {# Kontakt} other {# Kontakte}}",
+      "entries": "{count, plural, one {# Eintrag} other {# Einträge}}",
+      "search": "Suche: {query}"
+    },
     "directory": {
       "title": "Verzeichnis",
       "search_placeholder": "Name oder E-Mail-Adresse suchen",
@@ -2809,14 +3816,14 @@
       "retry": "Erneut versuchen",
       "loading": "Verzeichnis wird geladen…",
       "unavailable_title": "Kein Verzeichnis",
-      "unavailable_hint": "Dein Mailserver bietet kein Verzeichnis der Konten an.",
+      "unavailable_hint": "Ihr Mailserver bietet kein Verzeichnis der Konten an.",
       "forbidden_title": "Verzeichnis nicht verfügbar",
-      "forbidden_hint": "Dein Mailserver erlaubt diesem Konto nicht, das Verzeichnis zu durchsuchen. Frag deine Administration.",
+      "forbidden_hint": "Ihr Mailserver erlaubt diesem Konto nicht, das Verzeichnis zu durchsuchen. Fragen Sie Ihre Administration.",
       "error_title": "Verzeichnis konnte nicht geladen werden",
-      "error_hint": "Prüfe deine Verbindung und versuche es erneut.",
+      "error_hint": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "empty_title": "Das Verzeichnis ist leer",
-      "empty_hint": "Dein Mailserver listet keine Konten mit E-Mail-Adresse.",
-      "no_match": "Niemand im Verzeichnis passt zu deiner Suche",
+      "empty_hint": "Ihr Mailserver listet keine Konten mit E-Mail-Adresse.",
+      "no_match": "Niemand im Verzeichnis passt zu Ihrer Suche",
       "refresh_failed": "Verzeichnis konnte nicht aktualisiert werden. Angezeigt wird die zuletzt geladene Liste.",
       "select_page": "Alle auf dieser Seite auswählen",
       "deselect_page": "Auswahl auf dieser Seite aufheben",
@@ -2831,11 +3838,11 @@
       "add_to": "Zu An",
       "add_cc": "Zu Cc",
       "add_bcc": "Zu Bcc",
-      "select_hint": "Wähle jemanden aus, um die Details zu sehen",
-      "write_email": "E-Mail schreiben",
+      "select_hint": "Wählen Sie jemanden aus, um die Details zu sehen",
+      "write_email": "E-Mail senden",
       "add_to_contacts": "Zu Kontakten hinzufügen",
       "email": "E-Mail",
-      "read_only_note": "Verzeichniseinträge kommen von deinem Mailserver und können hier nicht bearbeitet werden.",
+      "read_only_note": "Verzeichniseinträge kommen von Ihrem Mailserver und können hier nicht bearbeitet werden.",
       "type": {
         "individual": "Person",
         "group": "Gruppe",
@@ -2845,6 +3852,11 @@
       }
     },
     "title": "Kontakte",
+    "disabled_title": "Kontakte wurden von Ihrem Administrator deaktiviert",
+    "disabled_description": "Wenden Sie sich an Ihren Administrator, wenn Sie Zugriff benötigen.",
+    "drag_count": "{count, plural, one {1 Kontakt} other {# Kontakte}}",
+    "select_contact": "{name} auswählen",
+    "new": "Neu",
     "search_placeholder": "Kontakte suchen...",
     "create_new": "Neuer Kontakt",
     "no_category": "Ohne Kategorie",
@@ -2852,19 +3864,25 @@
     "category_name_label": "Kategoriename",
     "category_renamed": "Kategorie umbenannt",
     "category_rename_failed": "Kategorie konnte nicht umbenannt werden",
+    "delete_category": "Kategorie löschen",
+    "category_deleted": "Kategorie „{name}“ gelöscht",
+    "category_delete_failed": "Kategorie konnte nicht gelöscht werden",
+    "undo": "Rückgängig",
     "category_added": "Kontakt zu {name} hinzugefügt",
     "category_added_plural": "{count} Kontakte zu {name} hinzugefügt",
     "empty_state": "Keine Kontakte",
     "empty_state_title": "Keine Kontakte",
     "empty_state_subtitle": "Erstellen Sie Ihren ersten Kontakt oder importieren Sie aus einer vCard-Datei",
+    "empty_view_title": "Hier sind keine Kontakte",
+    "empty_view_hint": "Fügen Sie einen Kontakt hinzu oder importieren Sie eine vCard-Datei.",
     "empty_search": "Keine Kontakte gefunden",
     "empty_search_hint": "Versuchen Sie einen anderen Suchbegriff",
     "empty_filtered": "Keine Kontakte entsprechen Ihren Filtern",
     "empty_filtered_hint": "Passen Sie die Filter an oder entfernen Sie sie",
     "clear_search": "Suche löschen",
     "import_vcard": "vCard importieren",
-    "delete_confirm_title": "Kontakt löschen",
-    "delete_confirm": "Möchten Sie diesen Kontakt wirklich löschen?",
+    "delete_named_title": "{name} löschen?",
+    "delete_details_message": "E-Mail-Adressen, Telefonnummern, Notizen und alle weiteren Angaben werden gelöscht. Das lässt sich nicht rückgängig machen.",
     "local_mode": "Kontakte werden lokal gespeichert (Server unterstützt kein JMAP Contacts)",
     "back_to_contacts": "Zurück zu Kontakten",
     "back_to_email": "Zurück zur E-Mail",
@@ -2877,6 +3895,7 @@
     },
     "address_books": {
       "create": "Neues Adressbuch",
+      "create_confirm": "Erstellen",
       "created": "Adressbuch erstellt",
       "create_failed": "Adressbuch konnte nicht erstellt werden",
       "title": "Meine Adressbücher",
@@ -2897,9 +3916,13 @@
       "share": "Adressbuch freigeben",
       "new_contact_in_book": "Neuer Kontakt in diesem Adressbuch",
       "delete": "Adressbuch löschen",
+      "delete_title": "Adressbuch löschen?",
       "confirm_delete": "„{name}\" löschen? Alle Kontakte in diesem Adressbuch werden entfernt.",
       "deleted": "Adressbuch gelöscht",
-      "delete_failed": "Adressbuch konnte nicht gelöscht werden"
+      "delete_failed": "Adressbuch konnte nicht gelöscht werden",
+      "move_to": "Verschieben nach…",
+      "move_title": "In Adressbuch verschieben",
+      "move_here": "Hierher verschieben"
     },
     "detail": {
       "emails": "E-Mail-Adressen",
@@ -2916,7 +3939,7 @@
       "related_contacts": "Verwandte Kontakte",
       "crypto_keys": "Kryptografische Schlüssel",
       "no_contact_selected": "Kontakt auswählen, um Details anzuzeigen",
-      "compose_email": "E-Mail schreiben",
+      "compose_email": "E-Mail senden",
       "copy_email": "E-Mail kopieren",
       "copy_phone": "Telefonnummer kopieren",
       "copy_url": "URL kopieren",
@@ -2982,8 +4005,8 @@
     "form": {
       "create_title": "Neuer Kontakt",
       "edit_title": "Kontakt bearbeiten",
-      "section_address_book": "Verzeichnis",
-      "select_address_book": "Verzeichnis auswählen...",
+      "section_address_book": "Adressbuch",
+      "select_address_book": "Adressbuch",
       "section_identity": "Name & Identität",
       "contact_type": "Kontakttyp",
       "type_person": "Person",
@@ -3070,6 +4093,13 @@
       "add_phone": "Telefon hinzufügen",
       "save": "Speichern",
       "cancel": "Abbrechen",
+      "discard_title": "Änderungen verwerfen?",
+      "discard_message": "Ihre Änderungen wurden noch nicht gespeichert.",
+      "discard": "Verwerfen",
+      "keep_editing": "Weiter bearbeiten",
+      "remove_entry": "Entfernen",
+      "close": "Schließen",
+      "remove_category": "{name} entfernen",
       "creating": "Wird erstellt...",
       "updating": "Wird aktualisiert...",
       "name_required": "Bitte Vorname, Nachname oder Organisation angeben",
@@ -3082,14 +4112,21 @@
       "photo_hint": "JPG oder PNG, bis zu 10 MB. Wird verkleinert.",
       "photo_too_large": "Bild ist zu groß (max. 10 MB)",
       "photo_invalid": "Ungültige Bilddatei",
-      "change_photo": "Ändern"
+      "change_photo": "Ändern",
+      "context_label": "Beruflich oder privat",
+      "online_service_url": "Adresse",
+      "anniversary_date": "Datum",
+      "anniversary_kind": "Anlass",
+      "personal_info_kind": "Art"
     },
     "groups": {
       "create": "Neue Gruppe",
+      "delete": "Gruppe löschen",
+      "remove_member": "{name} aus der Gruppe entfernen",
       "edit": "Gruppe bearbeiten",
       "empty": "Keine Gruppen",
       "delete_confirm_title": "Gruppe löschen",
-      "delete_confirm": "Möchten Sie diese Gruppe wirklich löschen?",
+      "delete_message": "Die Gruppe wird gelöscht. Die Kontakte darin bleiben erhalten.",
       "name_label": "Gruppenname",
       "name_placeholder": "z.B. Team, Familie",
       "name_required": "Gruppenname ist erforderlich",
@@ -3098,7 +4135,7 @@
       "search_members": "Kontakte zum Hinzufügen suchen...",
       "no_members": "Keine Mitglieder in dieser Gruppe",
       "member_count": "{count, plural, =0 {Keine Mitglieder} one {1 Mitglied} other {# Mitglieder}}",
-      "send_email": "E-Mail an Gruppe senden",
+      "send_email": "E-Mail senden",
       "send_email_to": "An",
       "send_email_cc": "Cc",
       "send_email_bcc": "Bcc",
@@ -3124,18 +4161,20 @@
     },
     "export": {
       "title": "Kontakte exportieren",
-      "success": "{count, plural, one {1 Kontakt exportiert} other {# Kontakte exportiert}}"
+      "success": "{count, plural, one {1 Kontakt exportiert} other {# Kontakte exportiert}}",
+      "exporting": "Wird exportiert..."
     },
     "bulk": {
       "selected": "{count, plural, one {1 ausgewählt} other {# ausgewählt}}",
       "select_all": "Alle auswählen",
       "delete": "Löschen",
-      "delete_confirm_title": "Kontakte löschen",
       "delete_confirm": "{count, plural, one {1 Kontakt} other {# Kontakte}} löschen?",
       "deleted": "{count, plural, one {1 Kontakt gelöscht} other {# Kontakte gelöscht}}",
       "add_to_group": "Zur Gruppe hinzufügen",
       "choose_group": "Gruppe wählen",
+      "new_group": "Neue Gruppe…",
       "adding_contacts": "{count, plural, one {1 Kontakt} other {# Kontakte}} hinzufügen",
+      "moving_contacts": "{count, plural, one {1 Kontakt} other {# Kontakte}} verschieben",
       "added_to_group": "Kontakte zur Gruppe hinzugefügt",
       "export": "Exportieren",
       "clear": "Auswahl aufheben"
@@ -3182,15 +4221,45 @@
       "sort_first_name": "Vorname",
       "sort_last_name": "Nachname"
     },
-    "open_categories": "Kategorien öffnen"
+    "shortcuts": {
+      "list": "Liste",
+      "actions": "Aktionen",
+      "first_last": "Erstes oder letztes",
+      "extend": "Auswahl erweitern",
+      "toggle": "Auswählen oder abwählen",
+      "select_all": "Alle auswählen",
+      "clear": "Auswahl oder Suche aufheben",
+      "delete": "Löschen",
+      "search": "Suchen",
+      "move": "Nächster oder vorheriger Kontakt",
+      "open": "Kontakt öffnen",
+      "menu": "Kontaktmenü öffnen"
+    },
+    "open_categories": "Kategorien öffnen",
+    "row_actions": "Aktionen für {name}"
   },
   "calendar": {
+    "print": {
+      "calendars": "Kalender: {names}",
+      "time_zone": "Zeitzone: {zone}",
+      "time_zone_label": "Zeitzone",
+      "search": "Suche: {query}",
+      "when": "Wann",
+      "meeting": "Online-Besprechung",
+      "repeats": "Wiederholung"
+    },
     "title": "Kalender",
     "back_to_email": "Zurück zu E-Mails",
     "back_to_month": "Zurück zur Monatsansicht",
     "my_calendars": "Meine Kalender",
     "birthday_calendar": "Geburtstage",
     "mini_calendar_change": "Klicken, um den Monat zu wechseln",
+    "mini_prev_month": "Vorheriger Monat",
+    "mini_next_month": "Nächster Monat",
+    "mini_prev_year": "Vorheriges Jahr",
+    "mini_next_year": "Nächstes Jahr",
+    "mini_prev_years": "Frühere Jahre",
+    "mini_next_years": "Spätere Jahre",
     "views": {
       "month": "Monat",
       "week": "Woche",
@@ -3220,6 +4289,7 @@
       "show_less": "Weniger anzeigen",
       "no_title": "(Kein Titel)",
       "resize": "Termingröße ändern",
+      "draggable_role": "verschiebbarer Termin",
       "duplicate": "Duplizieren",
       "today_header": "Heute",
       "tomorrow_header": "Morgen",
@@ -3243,8 +4313,7 @@
       "copy_location": "Ort kopieren",
       "meeting_link": "Besprechungslink",
       "tentative": "Vorläufig",
-      "cancelled": "Abgesagt",
-      "delete_confirm": "Dieses Ereignis löschen?"
+      "cancelled": "Abgesagt"
     },
     "form": {
       "title": "Titel",
@@ -3259,7 +4328,6 @@
       "calendar_select": "Kalender",
       "save": "Speichern",
       "cancel": "Abbrechen",
-      "delete_confirm": "Sind Sie sicher, dass Sie diesen Termin löschen möchten?",
       "color": "Farbe"
     },
     "participants": {
@@ -3268,15 +4336,22 @@
         "free": "Verfügbar",
         "busy": "Beschäftigt",
         "tentative": "Vorläufig",
+        "no_busy_times": "Keine belegten Zeiten freigegeben",
         "unknown": "Kein Benutzer auf diesem Server",
-        "checking": "Wird geprüft…"
+        "error": "Konnte nicht geprüft werden",
+        "checking": "Wird geprüft…",
+        "unavailable_on_server": "Frei/Belegt-Informationen sind auf diesem Server nicht verfügbar"
       },
       "title": "Teilnehmer",
       "add": "Teilnehmer hinzufügen",
       "organizer": "Organisator",
+      "organizer_role": "Organisator",
       "attendee": "Teilnehmer",
       "accepted": "Zugesagt",
       "declined": "Abgelehnt",
+      "accept": "Zusagen",
+      "maybe": "Vielleicht",
+      "decline": "Absagen",
       "tentative": "Vorläufig",
       "needs_action": "Antwort ausstehend",
       "remove": "Entfernen",
@@ -3291,6 +4366,7 @@
       "you_organizer": "Sie sind der Organisator",
       "you_attendee": "Sie sind ein Teilnehmer",
       "no_participants": "Keine Teilnehmer",
+      "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen.",
       "count": "{count, plural, one {# Teilnehmer} other {# Teilnehmer}}"
     },
     "recurrence": {
@@ -3339,6 +4415,10 @@
     "recurrence_scope": {
       "edit_title": "Wiederkehrendes Ereignis bearbeiten",
       "delete_title": "Wiederkehrendes Ereignis löschen",
+      "delete_question": "Wiederkehrenden Termin löschen?",
+      "delete_this_message": "Nur dieser Termin von „{title}“ wird gelöscht. Das kann nicht rückgängig gemacht werden.",
+      "delete_following_message": "Dieser und alle folgenden Termine von „{title}“ werden gelöscht. Das kann nicht rückgängig gemacht werden.",
+      "delete_all_message": "Alle Termine von „{title}“ werden gelöscht. Das kann nicht rückgängig gemacht werden.",
       "description": "Dies ist ein wiederkehrendes Ereignis. Welche Ereignisse möchten Sie ändern?",
       "this_event": "Nur dieses Ereignis",
       "this_and_future": "Dieses und folgende Ereignisse",
@@ -3349,6 +4429,21 @@
       "rsvp_title": "Auf wiederkehrendes Ereignis antworten",
       "rsvp_description": "Dies ist ein wiederkehrendes Ereignis. Für welche Ereignisse gilt Ihre Antwort?",
       "respond": "Antworten"
+    },
+    "discard": {
+      "title": "Änderungen verwerfen?",
+      "message": "Ihre Änderungen wurden noch nicht gespeichert.",
+      "keep": "Weiter bearbeiten",
+      "confirm": "Verwerfen"
+    },
+    "delete_dialog": {
+      "event_title": "Termin löschen?",
+      "event_message": "„{title}“ wird gelöscht. Das kann nicht rückgängig gemacht werden.",
+      "event_message_attendees": "„{title}“ wird gelöscht, und die Teilnehmer erhalten eine Absage.",
+      "task_title": "Aufgabe löschen?",
+      "task_message": "„{title}“ wird gelöscht. Das kann nicht rückgängig gemacht werden.",
+      "subscription_title": "Kalender abbestellen?",
+      "confirm": "Löschen"
     },
     "alerts": {
       "title": "Erinnerung",
@@ -3383,7 +4478,7 @@
       "visible_hours_start": "Beginn der sichtbaren Stunden",
       "visible_hours_end": "Ende der sichtbaren Stunden",
       "hide_non_working_days": "Arbeitsfreie Tage ausblenden",
-      "hide_non_working_days_desc": "Tage, an denen du nicht arbeitest, in der Wochenansicht weglassen. Ihre Termine erscheinen weiterhin in der Monats-, Tages- und Agendaansicht.",
+      "hide_non_working_days_desc": "Tage, an denen Sie nicht arbeiten, in der Wochenansicht weglassen. Ihre Termine erscheinen weiterhin in der Monats-, Tages- und Agendaansicht.",
       "working_days": "Arbeitstage",
       "title": "Kalendereinstellungen",
       "default_view": "Standardansicht",
@@ -3401,6 +4496,8 @@
       "invitation_parsing_desc": "Kalendereinladungen in E-Mail-Anhängen erkennen und Kalenderaktionen anzeigen",
       "show_time_in_month_view": "Zeit in Monatsansicht anzeigen",
       "show_time_in_month_view_desc": "Ereigniszeiten in der Monatskalenderansicht anzeigen",
+      "tinted_events": "Helle Terminfarben",
+      "tinted_events_desc": "Termine als helle Tönung ihrer Kalenderfarbe mit farbigem Balken am Anfang anzeigen, wie in Outlook und im Ausdruck, statt als volle Farbflächen.",
       "show_week_numbers": "Kalenderwochen anzeigen",
       "show_week_numbers_desc": "Kalenderwochen im Minikalender anzeigen",
       "calendar_free_scroll": "Freies Scrollen",
@@ -3417,10 +4514,10 @@
       "hover_preview_delay_2s": "2 Sekunden Verzögerung",
       "hover_preview_off": "Deaktiviert",
       "organizer_identity": "Einladungen organisieren als",
-      "organizer_identity_desc": "Die Kalenderadresse, die als Organisator verwendet wird, wenn du Personen zu Terminen einlädst.",
+      "organizer_identity_desc": "Die Kalenderadresse, die als Organisator verwendet wird, wenn Sie Personen zu Terminen einladen.",
       "organizer_identity_failed": "Organisatoradresse konnte nicht geändert werden",
       "show_birthday_calendar": "Geburtstags-Kalender",
-      "show_birthday_calendar_desc": "Zeigt einen virtuellen Kalender mit Geburtstagen aus deinen Kontakten"
+      "show_birthday_calendar_desc": "Zeigt einen virtuellen Kalender mit Geburtstagen aus Ihren Kontakten"
     },
     "days": {
       "monday": "Montag",
@@ -3441,7 +4538,16 @@
     "notifications": {
       "event_created": "Termin erstellt",
       "event_updated": "Termin aktualisiert",
+      "event_moved": "Termin verschoben",
+      "undo": "Rückgängig",
       "event_deleted": "Termin gelöscht",
+      "event_delete_error": "Termin konnte nicht gelöscht werden",
+      "task_deleted": "Aufgabe gelöscht",
+      "task_delete_error": "Aufgabe konnte nicht gelöscht werden",
+      "task_created": "Aufgabe erstellt",
+      "task_updated": "Aufgabe aktualisiert",
+      "task_save_error": "Aufgabe konnte nicht gespeichert werden",
+      "task_update_error": "Aufgabe konnte nicht aktualisiert werden",
       "calendar_created": "Kalender erstellt",
       "calendar_deleted": "Kalender gelöscht",
       "event_move_error": "Termin konnte nicht verschoben werden",
@@ -3455,16 +4561,21 @@
       "save_without_invitations": "Ohne Einladungen speichern",
       "rsvp_updated": "Antwort aktualisiert",
       "rsvp_error": "Antwort konnte nicht aktualisiert werden",
+      "participant_limit": "Der Server erlaubt höchstens {max, plural, one {# Teilnehmer} other {# Teilnehmer}} pro Termin, den Organisator mitgezählt, und hat die Änderung deshalb abgelehnt. Ihr Administrator kann das Limit erhöhen.",
       "event_duplicated": "Termin dupliziert",
       "event_error": "Termin konnte nicht gespeichert werden",
       "task_due": "Aufgabe fällig",
       "event_exported": "Termin exportiert",
       "title_copied": "Titel kopiert",
-      "link_copied": "Link kopiert"
+      "link_copied": "Link kopiert",
+      "title_alert": "Erinnerung: {title}"
     },
     "status": {
       "loading_calendars": "Kalender werden geladen...",
-      "loading_events": "Termine werden geladen..."
+      "loading_events": "Termine werden geladen...",
+      "events_load_failed": "Termine konnten nicht geladen werden. Der Kalender ist möglicherweise nicht aktuell.",
+      "tasks_load_failed": "Aufgaben konnten nicht geladen werden. Die Liste ist möglicherweise nicht aktuell.",
+      "retry": "Erneut versuchen"
     },
     "quick_create": {
       "placeholder": "Titel des neuen Termins",
@@ -3488,14 +4599,14 @@
       "invalid_url": "Bitte geben Sie eine gültige URL ein",
       "url_fetch_failed": "Kalender konnte nicht von der URL abgerufen werden",
       "parsing": "Kalenderdatei wird analysiert...",
-      "parsed_events": "{count} Termine gefunden",
+      "parsed_events": "{count, plural, one {# Termin gefunden} other {# Termine gefunden}}",
       "no_events": "Keine Termine in der Datei gefunden",
       "select_all": "Alle auswählen",
       "deselect_all": "Alle abwählen",
       "target_calendar": "In Kalender importieren",
       "import_button": "Auswahl importieren",
       "importing": "Termine werden importiert...",
-      "success": "{count} Termine erfolgreich importiert",
+      "success": "{count, plural, one {# Termin importiert} other {# Termine importiert}}",
       "error": "Kalender konnte nicht importiert werden",
       "file_too_large": "Datei überschreitet das 10-MB-Limit",
       "invalid_format": "Ungültiges Kalenderdateiformat"
@@ -3512,18 +4623,21 @@
     "management": {
       "title": "Kalenderverwaltung",
       "description": "Erstellen, umbenennen und anpassen Ihrer Kalender. Rechtsklick auf einen Kalender in der Seitenleiste, um die Farbe schnell zu ändern.",
+      "description_touch": "Erstellen, benennen und gestalten Sie Ihre Kalender.",
       "name": "Name",
       "name_placeholder": "Kalendername",
       "color": "Farbe",
       "change_color": "Farbe ändern",
       "random_color": "Neue zufällige Farbe",
-      "add_calendar": "Kalender hinzufügen",
+      "reset_color": "Farbe zurücksetzen",
+      "add_calendar": "Neuer Kalender",
       "edit": "Bearbeiten",
       "delete": "Löschen",
       "save": "Speichern",
       "create": "Erstellen",
       "cancel": "Abbrechen",
       "default": "Standard",
+      "row_actions": "Aktionen für {name}",
       "confirm_delete": "\"{name}\" löschen? Alle Termine in diesem Kalender werden entfernt.",
       "calendar_created": "Kalender erstellt",
       "calendar_updated": "Kalender aktualisiert",
@@ -3540,9 +4654,9 @@
       "default_updated": "Standardkalender aktualisiert",
       "error_default": "Standardkalender konnte nicht festgelegt werden",
       "clear_events": "Ereignisse löschen",
-      "events_cleared": "{count} Ereignisse gelöscht",
+      "events_cleared": "{count, plural, one {# Termin gelöscht} other {# Termine gelöscht}}",
       "error_clear": "Kalenderereignisse konnten nicht gelöscht werden",
-      "share": "Kalender freigeben",
+      "share": "Kalender freigeben…",
       "new_event_in_calendar": "Neuer Termin in diesem Kalender",
       "shared_with": "Geteilt mit {names}",
       "shared_with_count": "{count, plural, one {Mit 1 Person geteilt} other {Mit # Personen geteilt}}",
@@ -3605,7 +4719,6 @@
       "filter_pending": "Ausstehend",
       "filter_completed": "Erledigt",
       "filter_overdue": "Überfällig",
-      "show_completed": "Erledigte anzeigen",
       "create": "Neue Aufgabe",
       "edit": "Aufgabe bearbeiten",
       "title_placeholder": "Aufgabentitel",
@@ -3666,12 +4779,44 @@
       "esf": "Esfand"
     },
     "nav_open_menu": "Menü öffnen",
+    "nav_hide_sidebar": "Seitenleiste ausblenden",
+    "nav_show_sidebar": "Seitenleiste einblenden",
     "toolbar": {
       "more": "Weitere Aktionen",
-      "select_view": "Ansicht wechseln, aktuell {view}"
+      "select_view": "Ansicht wechseln, aktuell {view}",
+      "import": "Kalender importieren…",
+      "subscribe": "Kalender abonnieren…"
+    },
+    "commands": {
+      "day": "Tagesansicht",
+      "week": "Wochenansicht",
+      "month": "Monatsansicht",
+      "agenda": "Agendaansicht",
+      "tasks": "Aufgabenliste"
+    },
+    "shortcuts": {
+      "views": "Ansichten",
+      "actions": "Aktionen",
+      "previous": "Zurück um einen Tag, eine Woche oder einen Monat",
+      "next": "Weiter um einen Tag, eine Woche oder einen Monat",
+      "new_item": "Neuer Termin, in Aufgaben eine neue Aufgabe",
+      "move_in_grid": "Im Raster zwischen Tagen und Stunden wechseln"
     },
     "other_calendars": "Weitere Kalender",
-    "calendar_options": "Optionen für {name}"
+    "calendar_options": "Optionen für {name}",
+    "search": {
+      "title": "Termine durchsuchen",
+      "clear": "Suche löschen",
+      "close": "Suche schließen",
+      "upcoming": "Demnächst",
+      "past": "Vergangen",
+      "no_results": "Keine Termine zu „{query}“",
+      "no_results_hint": "Gesucht wird in Titeln, Orten, Beschreibungen und Gästen.",
+      "repeats": "Wiederholt sich",
+      "results": "{count, plural, one {# Termin gefunden} other {# Termine gefunden}}"
+    },
+    "mini_has_events": "hat Termine",
+    "mini_week_number": "Woche {week}"
   },
   "advanced_search": {
     "title": "Erweiterte Suche",
@@ -3715,7 +4860,18 @@
     "date_within": "Datum",
     "search_in": "Suchen in",
     "has_attachment_check": "Mit Anhang",
-    "search": "Suchen"
+    "search": "Suchen",
+    "not_starred": "Nicht markiert",
+    "no_attachment": "Ohne Anhänge",
+    "any_time": "Beliebig",
+    "past_week": "Letzte Woche",
+    "past_month": "Letzter Monat",
+    "past_year": "Letztes Jahr",
+    "custom_range": "Eigener Zeitraum",
+    "any_size": "Beliebig",
+    "larger_than_mb": "Größer als {size} MB",
+    "custom_size": "Eigene Größe",
+    "name_or_address": "Name oder Adresse"
   },
   "welcome": {
     "title": "Willkommen in Ihrem Postfach",
@@ -3756,9 +4912,9 @@
     "new_name": "Neuer Name",
     "name_forbidden_chars": "Diese Zeichen sind in Namen auf dem Server nicht erlaubt: {chars}",
     "name_reserved": "Dieser Name ist auf dem Server reserviert.",
+    "name_control_chars": "Namen dürfen keine Steuerzeichen enthalten.",
+    "name_too_long": "Dieser Name ist für den Server zu lang.",
     "delete": "Löschen",
-    "delete_confirm_title": "Ressource löschen",
-    "delete_confirm_message": "Möchten Sie \"{name}\" wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
     "download": "Herunterladen",
     "name": "Name",
     "size": "Größe",
@@ -3766,25 +4922,74 @@
     "type": "Typ",
     "folder": "Ordner",
     "file": "Datei",
+    "symlink": "Symbolischer Link",
+    "parent_directory": "Übergeordnetes Verzeichnis",
+    "breadcrumb_root": "Startseite",
     "uploading": "Wird hochgeladen...",
     "upload_success": "{count, plural, one {1 Datei hochgeladen} other {# Dateien hochgeladen}}",
     "upload_canceled": "Hochladen abgebrochen",
     "upload_canceled_partial": "{count, plural, one {1 Datei wurde} other {# Dateien wurden}} vor dem Abbrechen hochgeladen",
     "upload_error": "Datei konnte nicht hochgeladen werden",
+    "upload_failed": "{count, plural, one {1 Datei konnte nicht hochgeladen werden} other {# Dateien konnten nicht hochgeladen werden}}",
+    "error_over_quota": "Die Höchstzahl an Dateien oder Ordnern ist erreicht. Löschen Sie einige und versuchen Sie es erneut.",
+    "error_too_deep": "Ordner lassen sich nicht so tief verschachteln.",
+    "error_invalid_name": "Der Server akzeptiert diesen Namen nicht.",
+    "error_forbidden": "Dazu fehlt Ihnen hier die Berechtigung.",
+    "error_too_large": "Diese Datei ist für den Server zu groß.",
+    "error_partial_copy": "Ein Teil der Kopie wurde nicht entfernt.",
     "create_folder_success": "Ordner erstellt",
     "create_folder_error": "Ordner konnte nicht erstellt werden",
-    "delete_success": "Erfolgreich gelöscht",
     "delete_error": "Löschen fehlgeschlagen",
+    "trash": "Papierkorb",
+    "restore": "Wiederherstellen",
+    "restored": "{count, plural, one {Element wiederhergestellt} other {# Elemente wiederhergestellt}}",
+    "restore_error": "Wiederherstellen fehlgeschlagen",
+    "moved_to_trash": "{count, plural, one {In den Papierkorb verschoben} other {# Elemente in den Papierkorb verschoben}}",
+    "delete_forever": "Endgültig löschen",
+    "delete_forever_title": "{count, plural, one {Endgültig löschen?} other {# Elemente endgültig löschen?}}",
+    "delete_forever_message": "„{name}“ wird gelöscht. Das lässt sich nicht rückgängig machen.",
+    "delete_forever_message_count": "{count, plural, one {1 Element wird gelöscht} other {# Elemente werden gelöscht}}. Das lässt sich nicht rückgängig machen.",
+    "deleted_forever": "{count, plural, one {Endgültig gelöscht} other {# Elemente endgültig gelöscht}}",
+    "empty_trash": "Papierkorb leeren",
+    "empty_trash_title": "Papierkorb leeren?",
+    "empty_trash_message": "{count, plural, one {Das Element im Papierkorb wird} other {Alle # Elemente im Papierkorb werden}} endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
+    "trash_emptied": "Papierkorb geleert",
+    "empty_trash_error": "Papierkorb konnte nicht geleert werden",
+    "trash_empty_title": "Der Papierkorb ist leer",
+    "trash_empty_hint": "Gelöschte Dateien bleiben hier, bis Sie den Papierkorb leeren.",
+    "deleted": "Gelöscht",
+    "deleted_from": "Gelöscht aus {folder}",
+    "shortcuts": {
+      "list": "Liste",
+      "actions": "Aktionen",
+      "first_last": "Erstes oder letztes",
+      "extend": "Auswahl erweitern",
+      "toggle": "Auswählen oder abwählen",
+      "select_all": "Alle auswählen",
+      "clear": "Auswahl oder Suche aufheben",
+      "delete": "Löschen",
+      "search": "Suchen",
+      "move": "Nächstes oder vorheriges Element",
+      "move_grid": "Element daneben im Raster",
+      "open": "Öffnen",
+      "up": "Einen Ordner nach oben",
+      "rename": "Umbenennen",
+      "copy": "Kopieren",
+      "cut": "Ausschneiden",
+      "paste": "Einfügen"
+    },
     "rename_success": "Erfolgreich umbenannt",
     "rename_error": "Umbenennen fehlgeschlagen",
     "download_error": "Herunterladen fehlgeschlagen",
+    "download_zip": "Als ZIP herunterladen",
+    "zipping": "{name} wird vorbereitet",
+    "download_canceled": "Download abgebrochen",
+    "zip_error": "{name} konnte nicht heruntergeladen werden",
     "not_available": "Dateispeicher ist auf diesem Server nicht verfügbar",
     "cancel": "Abbrechen",
     "create": "Erstellen",
     "save": "Speichern",
     "no_results": "Keine Dateien entsprechen Ihrer Suche",
-    "batch_delete_confirm_message": "Möchten Sie wirklich {count, plural, one {1 Element} other {# Elemente}} löschen? Dies kann nicht rückgängig gemacht werden.",
-    "batch_delete_success": "{count, plural, one {1 Element gelöscht} other {# Elemente gelöscht}}",
     "grid_view": "Rasteransicht",
     "list_view": "Listenansicht",
     "details": "Details",
@@ -3796,9 +5001,19 @@
     "paste": "Einfügen",
     "move_success": "{count, plural, one {1 Element verschoben} other {# Elemente verschoben}}",
     "move_error": "Verschieben fehlgeschlagen",
+    "move_to": "Verschieben nach…",
+    "move_to_title": "Verschieben nach",
+    "move_here": "Hierher verschieben",
     "paste_success": "Erfolgreich eingefügt",
     "paste_error": "Einfügen fehlgeschlagen",
     "new_text_file": "Neue Textdatei",
+    "new_file": "Neue Datei",
+    "file_format": "Format",
+    "format_text": "Textdatei",
+    "format_document": "Dokument",
+    "format_spreadsheet": "Tabelle",
+    "format_presentation": "Präsentation",
+    "format_pdf": "PDF",
     "file_name": "Dateiname",
     "retry": "Wiederholen",
     "refresh": "Aktualisieren",
@@ -3809,6 +5024,7 @@
     "shared": "Geteilt",
     "shared_with_me": "Mit mir geteilt",
     "shared_by": "Von {name} geteilt",
+    "shared_files_from": "Dateien von {name}",
     "create_file_success": "Datei erstellt",
     "create_file_error": "Datei konnte nicht erstellt werden",
     "favorites": "Favoriten",
@@ -3876,25 +5092,9 @@
     "zoom_reset": "An Bildschirm anpassen",
     "rotate": "Drehen",
     "close_preview": "Schließen",
-    "trash": "Papierkorb",
-    "restore": "Wiederherstellen",
-    "restored": "{count, plural, one {Element wiederhergestellt} other {# Elemente wiederhergestellt}}",
-    "restore_error": "Wiederherstellen fehlgeschlagen",
-    "moved_to_trash": "{count, plural, one {In den Papierkorb verschoben} other {# Elemente in den Papierkorb verschoben}}",
-    "delete_forever": "Endgültig löschen",
-    "delete_forever_title": "{count, plural, one {Endgültig löschen?} other {# Elemente endgültig löschen?}}",
-    "delete_forever_message": "„{name}“ wird gelöscht. Das lässt sich nicht rückgängig machen.",
-    "delete_forever_message_count": "{count, plural, one {1 Element wird gelöscht} other {# Elemente werden gelöscht}}. Das lässt sich nicht rückgängig machen.",
-    "deleted_forever": "{count, plural, one {Endgültig gelöscht} other {# Elemente endgültig gelöscht}}",
-    "empty_trash": "Papierkorb leeren",
-    "empty_trash_title": "Papierkorb leeren?",
-    "empty_trash_message": "{count, plural, one {Das Element im Papierkorb wird} other {Alle # Elemente im Papierkorb werden}} endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
-    "trash_emptied": "Papierkorb geleert",
-    "empty_trash_error": "Papierkorb konnte nicht geleert werden",
-    "trash_empty_title": "Der Papierkorb ist leer",
-    "trash_empty_hint": "Gelöschte Dateien bleiben hier, bis Sie den Papierkorb leeren.",
-    "deleted": "Gelöscht",
-    "deleted_from": "Gelöscht aus {folder}"
+    "previous_file": "Vorherige Datei",
+    "next_file": "Nächste Datei",
+    "loading": "Wird geladen…"
   },
   "smime": {
     "your_certificates": "Ihre Zertifikate",
@@ -3985,7 +5185,7 @@
     "restart_desc": "Geführte Tour durch die Oberfläche erneut abspielen",
     "restart_button": "Tour neu starten",
     "show_on_new_devices_title": "Auf neuen Geräten anzeigen",
-    "show_on_new_devices_desc": "Zeige das Willkommensbanner und die Tour beim ersten Anmelden auf einem neuen Gerät erneut, auch wenn du sie bereits anderswo abgeschlossen hast",
+    "show_on_new_devices_desc": "Das Willkommensbanner und die Tour beim ersten Anmelden auf einem neuen Gerät erneut zeigen, auch wenn Sie sie bereits anderswo abgeschlossen haben",
     "sidebar_title": "Ihre Postfächer",
     "sidebar_desc": "Dies ist Ihre Ordner-Seitenleiste. Klicken Sie auf ein Postfach, um seine E-Mails anzuzeigen. Sie können Ordner erstellen, E-Mails zwischen ihnen verschieben und ungelesene Zähler auf einen Blick sehen.",
     "compose_title": "E-Mail verfassen",
@@ -4023,23 +5223,52 @@
     "demo_banner_title": "Demo-Steuerung",
     "demo_banner_desc": "Sie sind im Demo-Modus - alles bleibt in Ihrem Browser. Klicken Sie jederzeit auf 'Demo zurücksetzen'.",
     "quota_title": "Speichernutzung",
-    "quota_desc": "Verfolgen Sie Ihre Postfachgröße hier. Der Kreis füllt sich mit zunehmendem Verbrauch."
+    "quota_desc": "Verfolgen Sie Ihre Postfachgröße hier. Der Kreis füllt sich mit zunehmendem Verbrauch.",
+    "settings_section": "Erste Schritte",
+    "email_list_desc_phone": "Hier erscheinen Ihre E-Mails. Tippen Sie auf eine, um sie zu lesen, oder halten Sie sie gedrückt für weitere Aktionen.",
+    "contacts_list_desc_phone": "Hier sind Ihre Kontakte. Tippen Sie auf einen Kontakt, um alle Details zu sehen. Sie können auch neue Kontakte anlegen, vCards importieren oder Kontakte in Gruppen ordnen."
   },
   "unified_mailbox": {
     "search_unavailable": "Die Suche ist in der vereinheitlichten Ansicht nicht verfügbar"
   },
+  "recover_deleted": {
+    "tab": "Gelöschte E-Mails",
+    "title": "Gelöschte Elemente wiederherstellen",
+    "description": "E-Mails, die Sie endgültig gelöscht haben, zum Beispiel durch Leeren des Papierkorbs, und die der Server noch aufbewahrt. Wählen Sie Nachrichten aus und stellen Sie sie wieder her.",
+    "range_days": "Angezeigt werden E-Mails, die {days, plural, one {am letzten Tag} other {in den letzten # Tagen}} gelöscht wurden.",
+    "range_all": "Angezeigt werden alle gelöschten E-Mails, die der Server noch aufbewahrt.",
+    "loading": "Gelöschte E-Mails werden geladen…",
+    "load_failed": "Die gelöschten E-Mails konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "empty": "Es gibt keine gelöschten E-Mails zum Wiederherstellen.",
+    "select_all": "Alle auswählen",
+    "selected": "{count} ausgewählt",
+    "refresh": "Aktualisieren",
+    "restore": "Wiederherstellen",
+    "restored": "{count, plural, one {# Nachricht wird} other {# Nachrichten werden}} in Ihren Posteingang zurückgelegt.",
+    "restore_partial": "{count, plural, one {# Nachricht konnte nicht wiederhergestellt werden. Sie bleibt ausgewählt, damit Sie es erneut versuchen können.} other {# Nachrichten konnten nicht wiederhergestellt werden. Sie bleiben ausgewählt, damit Sie es erneut versuchen können.}}",
+    "restore_hint": "Wiederhergestellte E-Mails kommen ungelesen in Ihren Posteingang und stehen dort nach ihrem ursprünglichen Datum, also möglicherweise weit unten. Der Server stellt sie im Hintergrund wieder her. Schlägt das dort fehl, ist die Nachricht verloren, und Bulwark kann das nicht erkennen.",
+    "unknown_sender": "Unbekannter Absender",
+    "no_subject": "(kein Betreff)",
+    "deleted_on": "Gelöscht am {date}",
+    "trash_hint": "Versehentlich endgültig gelöscht?",
+    "trash_link": "Gelöschte Elemente wiederherstellen",
+    "empty_hint": "Gelöschte E-Mails erscheinen hier nur, wenn Ihre Administration in Stalwart die Archivierung gelöschter Elemente eingeschaltet hat.",
+    "restore_gone": "{count, plural, one {# Nachricht war nicht mehr im Archiv: Sie wurde anderswo wiederhergestellt oder der Server bewahrt sie nicht mehr auf.} other {# Nachrichten waren nicht mehr im Archiv: Sie wurden anderswo wiederhergestellt oder der Server bewahrt sie nicht mehr auf.}}",
+    "show_older": "Ältere anzeigen"
+  },
   "calendar_event_notifications": {
     "someone": "Jemand",
-    "invited": "{name} hat dich zu „{title}“ eingeladen",
+    "invited": "{name} hat Sie zu „{title}“ eingeladen",
     "updated": "{name} hat „{title}“ aktualisiert",
     "cancelled": "{name} hat „{title}“ abgesagt",
     "untitled": "Unbenannter Termin"
   },
   "share_notifications": {
     "someone": "Jemand",
-    "shared": "{name} hat {kind} „{object}“ mit dir geteilt",
-    "changed": "{name} hat deinen Zugriff auf {kind} „{object}“ geändert",
-    "revoked": "{name} hat deinen Zugriff auf {kind} „{object}“ entfernt",
+    "shared": "{name} hat {kind} „{object}“ mit Ihnen geteilt",
+    "changed": "{name} hat Ihren Zugriff auf {kind} „{object}“ geändert",
+    "revoked": "{name} hat Ihren Zugriff auf {kind} „{object}“ entfernt",
     "object": {
       "folder": "den Ordner",
       "calendar": "den Kalender",
@@ -4056,8 +5285,12 @@
     "loading_principals": "Benutzer werden geladen…",
     "no_principals": "Keine weiteren Benutzer oder Gruppen gefunden.",
     "no_match": "Keine Treffer.",
+    "directory_restricted": "Ihr Server erlaubt kein Durchsuchen seines Benutzerverzeichnisses, daher werden nur Ihre Gruppen und Personen aufgeführt, die etwas mit Ihnen geteilt haben. Ein Administrator kann Verzeichnisabfragen in den Freigabeeinstellungen von Stalwart aktivieren.",
+    "directory_not_browsable": "Ihr Server erlaubt Ihnen nicht, sein Benutzerverzeichnis zu durchsuchen.",
+    "directory_failed": "Die Liste der Benutzer und Gruppen konnte nicht geladen werden.",
     "remove": "Zugriff entfernen",
     "group": "Gruppe",
+    "unknown_user": "Unbekannter Benutzer",
     "share_added": "Zugriff erteilt",
     "share_updated": "Zugriff aktualisiert",
     "share_removed": "Zugriff entfernt",
@@ -4068,6 +5301,90 @@
       "readWrite": "Lesen & schreiben",
       "manager": "Verwalten",
       "custom": "Benutzerdefiniert"
+    },
+    "access_for": "Zugriff für {name}"
+  },
+  "delegates": {
+    "tab": "Freigaben",
+    "title": "Stellvertretungen",
+    "description": "Geben Sie einer Person in einem Schritt Zugriff auf Ihre E-Mails, Kalender und Kontakte, und sehen Sie, wer worauf Zugriff hat.",
+    "give_access": "Zugriff geben",
+    "who_has_access": "Wer Zugriff hat",
+    "nobody": "Niemand hat Zugriff auf Ihre E-Mails, Kalender, Kontakte oder Dateien.",
+    "loading": "Wird geladen…",
+    "read_failed": "Ein Teil Ihrer Freigaben konnte nicht gelesen werden. „Ändern“ und „Zugriff entfernen“ gehen erst wieder, wenn das klappt.",
+    "change": "Ändern",
+    "remove": "Zugriff entfernen",
+    "remove_title": "Zugriff für {name} entfernen?",
+    "remove_message": "{name} verliert den Zugriff auf alles, was Sie aus Ihrem eigenen Konto freigegeben haben: E-Mails, Kalender, Kontakte und Dateien.",
+    "removed": "Zugriff entfernt",
+    "remove_partial": "Hier besteht noch Zugriff: {items}",
+    "applied": "{name} hat jetzt Zugriff",
+    "updated": "Zugriff geändert",
+    "unknown_person": "Unbekannte Person",
+    "group": "Gruppe",
+    "has_access": "Hat Zugriff",
+    "summary": {
+      "mail_all": "Alle E-Mail-Ordner",
+      "mail_inbox": "Posteingang",
+      "mail_some": "{count, plural, one {# E-Mail-Ordner} other {# E-Mail-Ordner}}",
+      "calendars": "{count, plural, one {# Kalender} other {# Kalender}}",
+      "address_books": "{count, plural, one {# Adressbuch} other {# Adressbücher}}",
+      "files": "{count, plural, one {# Datei oder Ordner} other {# Dateien oder Ordner}}"
+    },
+    "level": {
+      "read": "Lesen",
+      "write": "Lesen und schreiben",
+      "mixed": "Unterschiedliche Rechte",
+      "none": "Nur frei/belegt"
+    },
+    "dialog_title_add": "Zugriff geben",
+    "dialog_title_change": "Zugriff für {name} ändern",
+    "person": "Person",
+    "search_placeholder": "Name oder E-Mail-Adresse",
+    "change_person": "Ändern",
+    "no_match": "Niemand gefunden.",
+    "use_address": "{address} verwenden",
+    "looking_up": "Wird gesucht…",
+    "not_found": "Auf diesem Server hat niemand die Adresse {address}.",
+    "lookup_failed": "Die Adresse konnte nicht gesucht werden.",
+    "is_you": "Das sind Sie.",
+    "known_only": "Aufgeführt sind nur Ihre Gruppen und Personen, die etwas mit Ihnen geteilt haben.",
+    "directory_off_note": "Ihre Administration muss in Stalwart die Verzeichnissuche einschalten, bevor Sie eine neue Person hinzufügen können.",
+    "directory_failed": "Die Liste der Personen und Gruppen konnte nicht geladen werden.",
+    "what": "Was",
+    "mail": "E-Mail",
+    "mail_all": "Alle Ordner",
+    "mail_inbox": "Nur Posteingang",
+    "calendars": "Kalender",
+    "calendars_default": "Standardkalender",
+    "calendars_all": "Alle Kalender",
+    "address_books": "Kontakte",
+    "address_books_default": "Standard-Adressbuch",
+    "address_books_all": "Alle Adressbücher",
+    "none": "Nichts",
+    "keep": "Unverändert lassen",
+    "empty_scope": "Wählen Sie E-Mail, Kalender oder Kontakte.",
+    "nothing_to_change": "Nichts zu ändern. Wählen Sie, was die Person bekommen soll, oder nutzen Sie „Zugriff entfernen“.",
+    "change_note": "Ordner, Kalender und Adressbücher, die Sie weglassen, verlieren den Zugriff. Freigegebene Dateien bleiben, wie sie sind; „Zugriff entfernen“ nimmt auch diese weg.",
+    "rights": "Rechte",
+    "rights_read": "Lesen",
+    "rights_read_hint": "Ihre E-Mails, Termine und Kontakte sehen.",
+    "rights_read_hint_flags": "Ihre E-Mails, Termine und Kontakte sehen. Auf diesem Server können sie E-Mails außerdem markieren und als gelesen kennzeichnen.",
+    "rights_write": "Lesen und schreiben",
+    "rights_write_hint": "Außerdem E-Mails ablegen, markieren und löschen sowie Termine und Kontakte ändern.",
+    "rights_keep": "Unverändert lassen",
+    "rights_keep_hint": "Was die Person hat, behält seine Rechte; Neues bekommt die Rechte, die der Rest dieser Art hat, sonst Lesen.",
+    "send_note": "Stellvertretungen können Ihre E-Mails und Ihren Kalender lesen und ordnen. Stalwart erlaubt ihnen nicht, als Sie oder in Ihrem Auftrag zu senden. Wenn sich mehrere Personen eine Adresse teilen sollen, bitten Sie Ihre Administration um ein gemeinsames Postfach.",
+    "apply_add": "Zugriff geben",
+    "apply_change": "Speichern",
+    "partial_title": "Diese Einträge konnten nicht geändert werden. Der Rest ist erledigt.",
+    "retry": "Erneut versuchen",
+    "kind": {
+      "mailbox": "E-Mail-Ordner",
+      "calendar": "Kalender",
+      "addressBook": "Adressbuch",
+      "file": "Datei"
     }
   },
   "quote_header": {
@@ -4091,12 +5408,20 @@
     "folder_not_found": "Dieser Ordner ist nicht mehr verfügbar.",
     "event_not_found": "Dieser Termin ist nicht mehr verfügbar.",
     "file_not_found": "Diese Datei ist nicht mehr verfügbar.",
-    "account_unavailable": "Melde dich bei diesem Konto an, um den Link zu öffnen.",
+    "account_unavailable": "Melden Sie sich bei diesem Konto an, um den Link zu öffnen.",
     "copy_message": "Link zur Nachricht kopieren",
     "copy_conversation": "Link zur Unterhaltung kopieren",
     "copy_event": "Link zum Termin kopieren",
     "copied": "Link kopiert",
     "copy_failed": "Link konnte nicht kopiert werden"
+  },
+  "connector_link": {
+    "opening": "Wird geöffnet…",
+    "unknown_title": "Dieser Link ist neuer als dieses {name}",
+    "unknown_body": "Er öffnet etwas, das Version {version} nicht kennt. Nach einem Update von {name} sollte es funktionieren.",
+    "malformed_title": "Dieser Link stimmt nicht ganz",
+    "malformed_body": "Er verlangt {label}, aber sein Parameter {param} fehlt oder ist ungültig. Es wurde nichts geöffnet.",
+    "open_app": "{name} öffnen"
   },
   "plugins": {
     "oauth_callback": {
@@ -4159,6 +5484,10 @@
       "accounts_heading": "Verbundene Konten",
       "account_on": "{label} auf {host}",
       "account_waiting": "{label} auf {host} (Anmeldung nicht abgeschlossen)",
+      "forward_heading": "Leitet E-Mails weiter an",
+      "forward_hint": "Adressen, an die dieses Plugin ohne Nachfrage Nachrichten weiterleiten darf.",
+      "forward_remove": "Entfernen",
+      "forward_remove_label": "Weiterleitung an {address} beenden",
       "disconnect": "Trennen",
       "disconnect_failed": "{label} konnte nicht getrennt werden"
     },
@@ -4179,7 +5508,7 @@
       },
       "email_write": {
         "title": "Ihre E-Mails ändern und ordnen",
-        "body": "Labels, Markierungen und andere Schlüsselwörter an Ihren Nachrichten hinzufügen oder entfernen, Nachrichten zwischen Ihren Ordnern und ins Archiv verschieben und Entwürfe speichern."
+        "body": "Labels, Markierungen und andere Schlüsselwörter an Ihren Nachrichten hinzufügen oder entfernen, Nachrichten zwischen Ihren Ordnern und ins Archiv verschieben und Entwürfe speichern. Außerdem kann es einen kleinen Wert speichern, den jedes Mitglied eines Team-Postfachs lesen kann."
       },
       "email_send": {
         "title": "E-Mails vor dem Senden ändern",
@@ -4295,7 +5624,11 @@
       },
       "account_read": {
         "title": "Ihre Konten sehen",
-        "body": "Die von Ihnen hinzugefügten Konten mit ihren Adressen und Servern sehen."
+        "body": "Die von Ihnen hinzugefügten Konten mit ihren Adressen und Servern sehen und erkennen, welche Postfächer Team-Postfächer sind."
+      },
+      "directory_read": {
+        "title": "Personen nachschlagen",
+        "body": "Personen im Verzeichnis Ihrer Organisation nachschlagen."
       },
       "http_post": {
         "title": "Den Webmail-Server für Sie nutzen",
@@ -4397,6 +5730,10 @@
         "title": "Die Nachricht ändern, die Sie schreiben",
         "body": "Text in einer Nachricht ersetzen oder ergänzen, während Sie sie schreiben, wenn Sie das Plugin im Editor benutzen. Jede Änderung lässt sich rückgängig machen, und Sie entscheiden weiterhin, ob Sie senden."
       },
+      "email_forward": {
+        "title": "E-Mails weiterleiten",
+        "body": "Nachrichten aus Ihrem Konto samt Anhängen weiterleiten, ohne den Editor zu öffnen. Vor der ersten Weiterleitung an eine Adresse werden Sie gefragt."
+      },
       "ui_notifications": {
         "title": "Benachrichtigungen anzeigen",
         "body": "Benachrichtigungen auf Ihrem Gerät anzeigen oder in der App, wenn Sie sie nicht erlaubt haben. Jede nennt den Namen des Plugins."
@@ -4427,8 +5764,13 @@
       },
       "http_proxy": {
         "title": "Von Ihnen verbundene Konten nutzen",
-        "body": "Anfragen über den Server von Bulwark senden, mit einem Konto oder Schlüssel, das Sie oder Ihr Administrator eingerichtet haben. Das Plugin sieht das Passwort nie, kann auf dem zugehörigen Server aber alles tun, was dieses Konto darf."
+        "body": "Anfragen über den Server von {appName} senden, mit einem Konto oder Schlüssel, das Sie oder Ihr Administrator eingerichtet haben. Das Plugin sieht das Passwort nie, kann auf dem zugehörigen Server aber alles tun, was dieses Konto darf."
       }
+    },
+    "forward_approval": {
+      "title": "{plugin} erlauben, E-Mails an {addresses} weiterzuleiten?",
+      "message": "{plugin} möchte „{subject}“ samt Anhängen an {addresses} weiterleiten. Wenn Sie das erlauben, kann es künftig ohne Nachfrage E-Mails an diese Adresse weiterleiten. Unter Einstellungen > Erweiterungen können Sie das zurücknehmen.",
+      "allow": "Erlauben und weiterleiten"
     },
     "dialog": {
       "from_plugin": "Vom Plugin {name}",
@@ -4444,9 +5786,9 @@
     },
     "connect": {
       "title": "{label} verbinden",
-      "intro_password": "{name} möchte Ihr Konto bei {label} verwenden. Bulwark speichert das Passwort auf seinem Server und sendet es nur an {host}. Das Plugin sieht es nie.",
-      "intro_password_any": "{name} möchte Ihr Konto bei {label} verwenden. Bulwark speichert das Passwort auf seinem Server und sendet es nur an den Server, den Sie hier eingeben. Das Plugin sieht es nie.",
-      "intro_signin": "{name} möchte sich bei Ihrem Konto bei {label} anmelden. Geben Sie hier den Server ein und melden Sie sich dann auf dessen eigener Seite an. Bulwark speichert den erhaltenen Zugang auf seinem Server; das Plugin sieht ihn nie.",
+      "intro_password": "{name} möchte Ihr Konto bei {label} verwenden. {appName} speichert das Passwort auf seinem Server und sendet es nur an {host}. Das Plugin sieht es nie.",
+      "intro_password_any": "{name} möchte Ihr Konto bei {label} verwenden. {appName} speichert das Passwort auf seinem Server und sendet es nur an den Server, den Sie hier eingeben. Das Plugin sieht es nie.",
+      "intro_signin": "{name} möchte sich bei Ihrem Konto bei {label} anmelden. Geben Sie hier den Server ein und melden Sie sich dann auf dessen eigener Seite an. {appName} speichert den erhaltenen Zugang auf seinem Server; das Plugin sieht ihn nie.",
       "server": "Serveradresse",
       "server_hint": "cloud.example.com",
       "username": "Benutzername",
@@ -4458,6 +5800,10 @@
       "error_server": "Geben Sie die Adresse des Servers ein, zum Beispiel https://cloud.example.com",
       "error_save": "Speichern fehlgeschlagen: {error}"
     }
+  },
+  "plugin_list": {
+    "filters": "Filter",
+    "remove_filter": "Filter {label} entfernen"
   },
   "global_search": {
     "title": "Alles durchsuchen",
@@ -4489,12 +5835,32 @@
   "top_bar": {
     "more": "Weitere Optionen"
   },
+  "shell": {
+    "resize": "Größe ändern",
+    "update_available": "Update verfügbar",
+    "update_important": "Wichtiges Update verfügbar",
+    "folder_unread": "{count} ungelesen",
+    "folder_counts": "{unread} ungelesen, {total} insgesamt",
+    "skip_to_content": "Zum Inhalt springen",
+    "heading": "{place} – {app}",
+    "message_list": "Nachrichtenliste",
+    "reading_pane": "Lesebereich",
+    "name_unread": "{name}, {count} ungelesen",
+    "expand_folder": "{name} aufklappen",
+    "collapse_folder": "{name} zuklappen",
+    "resize_sidebar": "Größe der Seitenleiste ändern",
+    "resize_message_list": "Größe der Nachrichtenliste ändern",
+    "resize_contact_list": "Größe der Kontaktliste ändern",
+    "resize_side_panel": "Größe des Seitenbereichs ändern",
+    "admin_pages": "Admin-Seiten",
+    "admin_search": "Admin-Seiten durchsuchen",
+    "back": "Zurück"
+  },
   "plugin_pages": {
     "loading": "Seite wird geladen",
     "not_available_title": "Diese Seite ist nicht verfügbar",
     "not_available_description": "Das Plugin, das sie hinzugefügt hat, ist ausgeschaltet oder nicht mehr installiert.",
-    "back_to_mail": "Zurück zu E-Mail",
-    "settings_group": "Plugins"
+    "back_to_mail": "Zurück zu E-Mails"
   },
   "command_palette": {
     "title": "Befehlspalette",
@@ -4502,14 +5868,17 @@
     "placeholder": "Befehl eingeben",
     "no_results": "Keine passenden Befehle",
     "go_to": "Zu {name} wechseln",
-    "compose": "Neue Nachricht",
+    "go_to_settings_page": "Zu den Einstellungen für {name} wechseln",
+    "compose": "Verfassen",
     "search": "E-Mails durchsuchen",
     "theme_dark": "Dunkles Design verwenden",
     "theme_light": "Helles Design verwenden",
     "shortcuts": "Tastaturkürzel anzeigen",
     "group_navigation": "Wechseln zu",
     "group_actions": "Aktionen",
-    "group_plugins": "Plugins"
+    "group_plugins": "Plugins",
+    "group_account": "Konto",
+    "switch_to": "Zu {account} wechseln"
   },
   "notification_center": {
     "title": "Benachrichtigungen",
@@ -4521,5 +5890,159 @@
     "unread_count": "{count} ungelesen",
     "level_error": "Fehler",
     "level_warning": "Warnung"
+  },
+  "accessibility_panel": {
+    "title": "Barrierefreiheit",
+    "description": "Schriftgröße, Kontrast und Bewegung. Alt+Umschalt+A öffnet dies von überall.",
+    "button": "Barrierefreiheit",
+    "all_settings": "Alle Einstellungen zur Barrierefreiheit",
+    "preset_applied": "{name} hat {count, plural, one {# Einstellung} other {# Einstellungen}} geändert.",
+    "command": "Optionen zur Barrierefreiheit",
+    "command_keywords": "a11y Schriftgröße Kontrast Bewegung Zoom Barrierefreiheit"
+  },
+  "glossary": {
+    "what_is": "Was bedeutet „{term}“?",
+    "terms": {
+      "jmap": {
+        "term": "JMAP",
+        "text": "JMAP ist die moderne Art, wie dieses Webmail mit Ihrem Mailserver spricht. Darüber lädt es Ihre E-Mails, Kalender und Kontakte."
+      },
+      "imap": {
+        "term": "IMAP",
+        "text": "IMAP ist der übliche Weg, auf dem Mail-Apps wie Thunderbird oder Apple Mail Ihre E-Mails vom Server lesen. Die E-Mails bleiben auf dem Server."
+      },
+      "smtp": {
+        "term": "SMTP",
+        "text": "SMTP ist der übliche Weg, auf dem Mail-Apps Ihre E-Mails über den Mailserver versenden."
+      },
+      "caldav": {
+        "term": "CalDAV",
+        "text": "Mit CalDAV können andere Apps, etwa der Kalender auf Ihrem Handy, die Kalender auf Ihrem Mailserver anzeigen und ändern."
+      },
+      "carddav": {
+        "term": "CardDAV",
+        "text": "Mit CardDAV können andere Apps, etwa die Kontakte auf Ihrem Handy, die Adressbücher auf Ihrem Mailserver anzeigen und ändern."
+      },
+      "webdav": {
+        "term": "WebDAV",
+        "text": "Mit WebDAV können andere Apps und der Dateimanager Ihres Computers die Dateien auf Ihrem Mailserver öffnen."
+      },
+      "sieve": {
+        "term": "Sieve",
+        "text": "Sieve ist die Sprache, in der Ihr Mailserver Filterregeln speichert. Der Server wendet die Regeln an, sobald neue E-Mails ankommen, auch wenn dieses Webmail geschlossen ist."
+      },
+      "smime": {
+        "term": "S/MIME",
+        "text": "S/MIME nutzt ein Zertifikat, um Ihre E-Mails zu signieren, damit andere sehen, dass sie wirklich von Ihnen sind, und um sie zu verschlüsseln, damit nur der Empfänger sie lesen kann."
+      },
+      "pgp": {
+        "term": "PGP",
+        "text": "PGP (OpenPGP) ist eine andere Art, E-Mails zu signieren und zu verschlüsseln. Es nutzt ein Schlüsselpaar, das Sie selbst erstellen, statt eines Zertifikats."
+      },
+      "public_key": {
+        "term": "Öffentlicher Schlüssel",
+        "text": "Ein öffentlicher Schlüssel ist der Teil Ihres Schlüssels, den Sie weitergeben. Andere verschlüsseln damit E-Mails an Sie und prüfen Ihre Signatur. Ihr privater Schlüssel bleibt geheim."
+      },
+      "two_factor": {
+        "term": "Zwei-Faktor-Authentifizierung",
+        "text": "Bei der Zwei-Faktor-Authentifizierung brauchen Sie zur Anmeldung einen zweiten Nachweis, meist einen Code aus einer App auf Ihrem Handy. Wer nur Ihr Passwort kennt, kommt nicht hinein."
+      },
+      "totp": {
+        "term": "TOTP",
+        "text": "Ein TOTP-Code ist ein 6-stelliger Code aus einer Authenticator-App auf Ihrem Handy. Er ändert sich alle 30 Sekunden."
+      },
+      "app_password": {
+        "term": "App-Passwort",
+        "text": "Ein App-Passwort ist ein zusätzliches Passwort für eine einzelne Mail-App, etwa Thunderbird oder die Mail-App auf Ihrem Handy. Sie können es jederzeit löschen, ohne Ihr Hauptpasswort zu ändern."
+      },
+      "access_token": {
+        "term": "Zugriffstoken",
+        "text": "Ein Zugriffstoken ist ein langer Code, mit dem eine App statt Ihres Passworts in Ihr Konto kommt. Sie erstellen es in den Einstellungen Ihres Mailanbieters."
+      },
+      "oauth": {
+        "term": "OAuth",
+        "text": "Bei OAuth (Single Sign-On) melden Sie sich auf der Anmeldeseite Ihrer Organisation an. Dieses Webmail sieht Ihr Passwort nie."
+      },
+      "identity": {
+        "term": "Identität",
+        "text": "Eine Identität ist ein Name mit Adresse, von der Sie E-Mails senden können. Jede Identität kann eine eigene Signatur haben."
+      },
+      "delegation": {
+        "term": "Stellvertretung",
+        "text": "Mit einer Stellvertretung kann eine andere Person Ihre E-Mails oder Ihren Kalender für Sie lesen und ordnen, zum Beispiel eine Assistenz."
+      },
+      "push": {
+        "term": "Push-Benachrichtigungen",
+        "text": "Push-Benachrichtigungen melden neue E-Mails, auch wenn diese Website geschlossen ist. Ein Push-Relay leitet die Meldung an Ihren Browser oder Ihr Handy weiter. Es sieht Ihre E-Mails nie."
+      },
+      "sync": {
+        "term": "Synchronisierung",
+        "text": "Die Synchronisierung hält auf allen Ihren Geräten dieselben Daten. Eine Änderung auf einem Gerät erscheint auch auf den anderen."
+      },
+      "cache": {
+        "term": "Cache",
+        "text": "Der Cache ist eine Kopie Ihrer Daten in diesem Browser, damit das Webmail schneller lädt. Beim Aktualisieren werden die Daten neu vom Server geladen. Auf dem Server wird nichts gelöscht."
+      },
+      "sub_addressing": {
+        "term": "Sub-Adressierung",
+        "text": "Bei der Sub-Adressierung hängen Sie ein Stichwort an Ihre Adresse, etwa name+shop@example.com. E-Mails an diese Adresse kommen trotzdem bei Ihnen an, und Sie können sie nach dem Stichwort sortieren."
+      },
+      "encryption_at_rest": {
+        "term": "Verschlüsselung im Ruhezustand",
+        "text": "Verschlüsselung im Ruhezustand heißt, dass der Server Ihre E-Mails verschlüsselt speichert. Wer die Festplatten des Servers kopiert, kann sie nicht lesen."
+      },
+      "vcard": {
+        "term": "vCard",
+        "text": "vCard (.vcf) ist das übliche Dateiformat für Kontakte. Die meisten Adressbücher können es importieren und exportieren."
+      },
+      "icalendar": {
+        "term": "iCalendar",
+        "text": "iCalendar (.ics) ist das übliche Dateiformat für Kalender und Termine. Die meisten Kalender-Apps können es importieren oder abonnieren."
+      },
+      "cors": {
+        "term": "CORS",
+        "text": "CORS ist eine Regel im Browser. Ein Server muss eine Website erst erlauben, bevor der Browser diese Website mit dem Server sprechen lässt."
+      }
+    }
+  },
+  "help_links": {
+    "label": "Barrierefreiheit und Hilfe",
+    "statement": "Erklärung zur Barrierefreiheit",
+    "feedback": "Barriere melden",
+    "help": "Hilfe",
+    "easy_read": "Leichte Sprache",
+    "sign_language": "Gebärdensprache",
+    "new_tab": "öffnet in einem neuen Tab"
+  },
+  "structured_mail_calendar": {
+    "add_to_calendar": "Zum Kalender hinzufügen",
+    "update_in_calendar": "Im Kalender aktualisieren",
+    "remove_from_calendar": "Aus Kalender entfernen",
+    "in_calendar": "In Ihrem Kalender",
+    "view_in_calendar": "Im Kalender anzeigen",
+    "select_calendar": "Kalender auswählen",
+    "added": "Zu Ihrem Kalender hinzugefügt",
+    "updated": "Kalender aktualisiert",
+    "removed": "Aus Ihrem Kalender entfernt",
+    "action_failed": "Ihr Kalender konnte nicht geändert werden. Bitte versuchen Sie es erneut.",
+    "blocked": "Ein Plugin hat diese Kalenderänderung verhindert.",
+    "title": {
+      "rental_car": "Mietwagen",
+      "rental_car_company": "Mietwagen: {company}"
+    },
+    "description": {
+      "reference": "Buchungsnummer: {reference}",
+      "passengers": "Reisende: {names}",
+      "seats": "Sitzplätze: {seats}",
+      "checkin": "Check-in: {url}",
+      "manage": "Buchung verwalten: {url}",
+      "ticket": "Ticket: {url}",
+      "phone": "Telefon: {phone}",
+      "car": "Fahrzeug: {car}",
+      "tickets": "Tickets: {numbers}",
+      "party_size": "Personen: {count}",
+      "added_from": "Hinzugefügt aus einer E-Mail von {domain}",
+      "added_from_subject": "Hinzugefügt aus der E-Mail „{subject}“ von {domain}"
+    }
   }
 }

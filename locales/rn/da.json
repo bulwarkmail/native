@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Tidsplan",
       "three_days": "3 dage"
+    },
+    "detail": {
+      "delete_confirm": "Slet denne begivenhed?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Tilføj kategori",
       "delete_confirm_mobile": "{count, plural, one {Slet # kontakt? Dette kan ikke fortrydes.} other {Slet # kontakter? Dette kan ikke fortrydes.}}",
       "move_to_address_book": "Flyt til adressebog",
-      "tag_failed": "Kunne ikke tildele kategori"
+      "tag_failed": "Kunne ikke tildele kategori",
+      "delete_confirm_title": "Slet kontakter"
     },
     "contact": "Kontakt",
     "create_hint_mobile": "Tryk længe for at oprette en gruppe i stedet",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Tryk længe på en kategori for at omdøbe den",
     "tag_name_placeholder": "Navn på ny kategori",
-    "unnamed": "Unavngivet"
+    "unnamed": "Unavngivet",
+    "delete_confirm_title": "Slet kontakt"
   },
   "context_menu": {
     "color_tag": "Tag",
@@ -479,7 +484,8 @@
       "no_identity": "Ingen afsenderidentitet tilgængelig"
     },
     "view_dark_mode": "Vis i mørk tilstand",
-    "view_light_mode": "Vis i lys tilstand"
+    "view_light_mode": "Vis i lys tilstand",
+    "not_spam_short": "Ikke spam"
   },
   "files": {
     "delete_cascade_hint": "Mapper slettes sammen med alt deres indhold. Dette kan ikke fortrydes.",
@@ -517,7 +523,12 @@
     "symlink": "Symbolsk link",
     "upload_failed": "{count, plural, one {1 fil kunne ikke uploades} other {# filer kunne ikke uploades}}",
     "upload_unavailable": "Filvælgeren er ikke installeret i denne build. Byg appen igen for at aktivere upload.",
-    "uploading_progress": "Uploader {current}/{total} · {name}"
+    "uploading_progress": "Uploader {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Er du sikker på, at du vil slette {count, plural, one {1 element} other {# elementer}}? Dette kan ikke fortrydes.",
+    "batch_delete_success": "{count, plural, one {1 element slettet} other {# elementer slettet}}",
+    "delete_confirm_message": "Er du sikker på, at du vil slette \"{name}\"? Dette kan ikke fortrydes.",
+    "delete_confirm_title": "Slet ressource",
+    "delete_success": "Slettet"
   },
   "identities": {
     "badge": {
@@ -886,6 +897,10 @@
         "sync_add_failed": "Kunne ikke synkronisere til adressebogen",
         "sync_remove_failed": "Kunne ikke fjerne fra adressebogen",
         "synced_badge": "Synkroniseret via adressebog"
+      },
+      "disable_threading": {
+        "description": "Vis e-mails som individuelle beskeder i stedet for grupperet efter samtale",
+        "label": "Deaktivér samtale-gruppering"
       }
     },
     "experimental": {
@@ -895,7 +910,9 @@
       "remove_action": "Fjern handling",
       "remove_condition": "Fjern betingelse",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# linje} other {# linjer}}"
+        "line_count": "{count, plural, one {# linje} other {# linjer}}",
+        "confirm_save": "Bekræft gem",
+        "save_warning": "Lagring vil overskrive eventuelle visuelle regler. Dette kan ikke fortrydes. Klik Gem igen for at bekræfte."
       },
       "validation_header_name": "Angiv et headernavn, der kun bruger bogstaverne A-Z, tal, bindestreger og understregninger, f.eks. X-Spam-Flag."
     },
@@ -939,7 +956,8 @@
       "no_name": "(intet navn)",
       "primary": "primær",
       "save_failed": "Kunne ikke gemme",
-      "text_signature": "Signatur i ren tekst"
+      "text_signature": "Signatur i ren tekst",
+      "title": "Afsenderidentiteter"
     },
     "keywords": {
       "description_mobile": "Farvede tags til at organisere din mail.",
@@ -1038,6 +1056,10 @@
         "up_distributor_desc": "Der er installeret flere UnifiedPush-distributørapps - vælg den, der skal levere notifikationer.",
         "up_distributor_label": "Distributør",
         "up_no_distributor": "Der er ingen UnifiedPush-distributørapp installeret på denne enhed. Installer en (f.eks. ntfy), og prøv igen."
+      },
+      "calendar": {
+        "invitation_parsing": "Pars e-mail-invitationer",
+        "invitation_parsing_desc": "Registrér kalenderinvitationer i e-mail-vedhæftninger og vis kalenderhandlinger"
       }
     },
     "offline": {
@@ -1175,7 +1197,13 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "updates": "Opdateringer"
+      "updates": "Opdateringer",
+      "content_senders": "Indhold & afsendere",
+      "identities": "Identiteter",
+      "language": "Sprog, region & tid",
+      "sidebar_apps": "Sidepanel-apps",
+      "templates": "Skabeloner",
+      "themes": "Temaer"
     },
     "templates": {
       "delete_confirm": "Slet \"{name}\" permanent?",
@@ -1197,6 +1225,24 @@
       "warnings": {
         "date_format": "Datoer skal have formatet \"YYYY-MM-DD\" eller \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Hvert minut",
+        "2m": "Hvert 2. minut",
+        "30s": "Hvert 30. sekund",
+        "5m": "Hvert 5. minut",
+        "description": "Hvor ofte kladder gemmes automatisk",
+        "label": "Auto-gem interval"
+      },
+      "description": "Konfigurér indstillinger for e-mail-komposition",
+      "title": "Skrivevindue"
+    },
+    "tab_groups": {
+      "advanced": "Avanceret",
+      "appearance": "Udseende",
+      "general": "Generelt",
+      "privacy": "Privatliv & sikkerhed"
     }
   },
   "sharing": {

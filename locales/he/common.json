@@ -47,6 +47,18 @@
     "sign_in_sso": "היכנס באמצעות SSO",
     "add_account_title": "הוסף חשבון",
     "add_account_subtitle": "היכנס עם חשבון אחר",
+    "subtitle": "התחברו לחשבון שלכם",
+    "version": {
+      "details": "פרטי הגרסה",
+      "version_line": "גרסה: {value}",
+      "build_line": "בנייה: {value}",
+      "latest_line": "העדכנית ביותר: {value}",
+      "copy": "העתקת פרטי הגרסה",
+      "security_update": "יש עדכון אבטחה",
+      "unsupported": "הגרסה הזו כבר לא נתמכת",
+      "new_version": "יש גרסה חדשה",
+      "release_notes": "הערות שחרור"
+    },
     "cancel": "ביטול",
     "website": "אתר",
     "imprint": "פרטי מוציא לאור",
@@ -73,7 +85,31 @@
       "back_to_login": "חזרה לכניסה"
     },
     "jmap_server_label": "שרת",
-    "jmap_server_auto_picked": "שרת שנבחר מדומיין הדוא״ל שלך."
+    "jmap_server_auto_picked": "שרת שנבחר מדומיין הדוא״ל שלך.",
+    "recent_accounts": "חשבונות אחרונים",
+    "recent_accounts_hint": "השתמשו במקשי החצים למעלה ולמטה כדי לבחור חשבון אחרון. הקישו Delete כדי להסיר את החשבון המסומן מהרשימה.",
+    "remove_account_from_list": "הסרת {username} מהרשימה"
+  },
+  "session_limits": {
+    "idle_title": "עדיין כאן?",
+    "idle_message": "תנותק בעוד {seconds, plural, one {שנייה אחת} two {שתי שניות} other {# שניות}} כי לא הייתה פעילות. הודעות פתוחות נשמרות כטיוטות.",
+    "stay": "הישאר מחובר",
+    "sign_out_now": "צא עכשיו",
+    "max_title": "ההפעלה שלך מסתיימת",
+    "max_message": "הארגון שלך מסיים הפעלות {hours, plural, one {שעה אחת} two {שעתיים} other {# שעות}} אחרי הכניסה. תנותק בעוד {seconds, plural, one {שנייה אחת} two {שתי שניות} other {# שניות}}. הודעות פתוחות נשמרות כטיוטות.",
+    "dismiss": "אישור",
+    "signing_out": "שומר טיוטות ומתנתק…",
+    "reason_idle": "נותקת אחרי {minutes, plural, one {דקה אחת} two {שתי דקות} other {# דקות}} ללא פעילות.",
+    "reason_max": "נותקת כי ההפעלה הגיעה לאורך המרבי של {hours, plural, one {שעה אחת} two {שעתיים} other {# שעות}}.",
+    "drafts_not_saved": "לא ניתן היה לשמור הודעה פתוחה אחת או יותר כטיוטה.",
+    "seconds_left": "{seconds, plural, one {נותרה שנייה אחת} two {נותרו שתי שניות} other {נותרו # שניות}}"
+  },
+  "totp_reauth": {
+    "title": "פג תוקף ההפעלה",
+    "description": "קוד האימות הדו-שלבי השתנה. כדי להמשיך, הזינו קוד חדש מאפליקציית האימות.",
+    "oauth_hint": "כדי שהבקשה הזו לא תחזור, בקשו מהמנהל להפעיל כניסה עם OAuth (ה-OAuth המובנה של Stalwart או ספק זהויות חיצוני).",
+    "code_label": "קוד אימות",
+    "verify": "אימות"
   },
   "sidebar": {
     "unified_mailbox": "תיבת דואר מאוחדת",
@@ -157,11 +193,14 @@
     "shared": "משותף",
     "shared_account_hidden": "הוסתר מסרגל הצד. אפשר להציג שוב בהגדרות › פריסה.",
     "notifications_muted": "ההתראות מושתקות",
+    "folder_options": "אפשרויות עבור {name}",
+    "unread_filter": "הצגת שלא נקראו בלבד ({count})",
     "scheduled": "מתוכננים",
     "unified_all_unread": "הכל שלא נקראו",
     "unified_all_starred": "הכל מסומנים",
     "unified_all_mail": "הכל דוא״ל",
     "remove_account": "הסרת חשבון",
+    "remove_account_title": "להסיר את החשבון?",
     "remove_account_confirm": "להסיר את {account} מהמכשיר הזה? ניתן להוסיף אותו שוב מאוחר יותר.",
     "labels": "תוויות",
     "create_label": "יצירת תווית חדשה",
@@ -172,7 +211,8 @@
     "mv_next_day": "היום הבא",
     "mv_add_another_account": "הוספת חשבון נוסף",
     "mv_manage_account": "ניהול החשבון",
-    "mv_storage_used": "נוצלו {percent}% מתוך {total}"
+    "mv_storage_used": "נוצלו {percent}% מתוך {total}",
+    "accessibility": "נגישות"
   },
   "sidebar_apps": {
     "modal_title": "אפליקציות בסרגל הצד",
@@ -209,6 +249,11 @@
     "show_on_mobile": "הצג בנייד"
   },
   "email_list": {
+    "sections": {
+      "unread": "לא נקראו",
+      "everything_else": "כל השאר",
+      "unread_empty": "קראת את כל ההודעות בתיבת הדואר הנכנס."
+    },
     "columns": {
       "from": "מאת",
       "to": "אל",
@@ -220,6 +265,7 @@
     "no_emails_description": "תיבת הדואר הזו ריקה",
     "no_search_results": "לא נמצאו תוצאות",
     "no_search_results_description": "נסה להתאים את החיפוש או המסננים שלך",
+    "more_results_searching": "מחפש תוצאות נוספות…",
     "loading": "טוען אימיילים...",
     "unread": "לא נקרא",
     "to_me": "לִי",
@@ -240,17 +286,33 @@
     "no_more_emails": "אין יותר מיילים לטעינה",
     "batch_actions": {
       "select": "בחר אימיילים",
+      "select_row": "בחירת {sender}: {subject}",
       "select_all": "בחר הכל",
       "mark_read": "סמן כנקרא",
       "mark_unread": "סמן כלא נקרא",
       "delete": "לִמְחוֹק",
-      "delete_confirm_title": "מחק מיילים",
+      "delete_confirm_title": "למחוק את ההודעות האלה?",
       "delete_confirm_message": "האם למחוק {count, plural, one {הודעת דוא״ל אחת} other {# הודעות דוא״ל}}?",
       "clear_selection": "נקה בחירה",
+      "more": "פעולות נוספות לבחירה",
       "selected_messages": "{count, plural, one {דוא״ל 1} other {# דוא״ל}} שנבחרו"
     },
+    "skip_to_list": "דילוג לרשימת ההודעות",
+    "folder_actions": "פעולות תיקייה",
+    "sort": {
+      "title": "מיון",
+      "newest": "החדשות ביותר קודם",
+      "oldest": "הישנות ביותר קודם",
+      "unread": "שלא נקראו קודם",
+      "starred": "מסומנות בכוכב קודם",
+      "sender": "שולח (א–ת)",
+      "subject": "נושא (א–ת)",
+      "largest": "הגדולות ביותר קודם",
+      "custom": "סדר מותאם (בהגדרות)"
+    },
     "permanent_delete": "מחק לצמיתות",
-    "permanent_delete_confirm_title": "מחק לצמיתות",
+    "permanent_delete_confirm_title": "למחוק את ההודעה הזו לצמיתות?",
+    "permanent_delete_confirm_batch_title": "למחוק את ההודעות האלה לצמיתות?",
     "permanent_delete_confirm_message": "אימייל זה יימחק לצמיתות. לא ניתן לבטל פעולה זו.",
     "permanent_delete_confirm_batch_message": "{count, plural, one {הודעת דוא״ל אחת תימחק לצמיתות} other {# הודעות דוא״ל יימחקו לצמיתות}}. לא ניתן לבטל פעולה זו.",
     "empty_folder": {
@@ -270,7 +332,55 @@
     "reschedule_send": "תזמן מחדש",
     "cancel_and_edit": "בטל וערוך",
     "cancel_and_compose_again": "בטל והרכיב שוב",
-    "reschedule_prompt": "הזן תאריך/שעה חדש, למשל 2026-05-04T15:30"
+    "confirm_remove": {
+      "delete_title": "{count, plural, one {למחוק את ההודעה הזו?} other {למחוק # הודעות?}}",
+      "delete_message": "{count, plural, one {היא תועבר לאשפה.} other {הן יועברו לאשפה.}}",
+      "archive_title": "{count, plural, one {להעביר את ההודעה הזו לארכיון?} other {להעביר # הודעות לארכיון?}}",
+      "archive_message": "{count, plural, one {היא תועבר לארכיון שלך.} other {הן יועברו לארכיון שלך.}}",
+      "delete": "מחק",
+      "archive": "העבר לארכיון"
+    },
+    "status": {
+      "folder_loaded": "{folder}: {count, plural, =0 {אין הודעות} one {הודעה אחת} other {# הודעות}}",
+      "search_results": "{count, plural, =0 {אין תוצאות} one {תוצאה אחת} other {# תוצאות}}"
+    },
+    "category_tabs": "קטגוריות של תיבת הדואר הנכנס",
+    "listbox_label": "הודעות",
+    "row_actions": "פעולות",
+    "pages": {
+      "label": "עמודי רשימת ההודעות",
+      "previous": "העמוד הקודם",
+      "next": "העמוד הבא",
+      "position": "{more, select, yes {עמוד {page} מתוך {pages} או יותר} other {עמוד {page} מתוך {pages}}}"
+    }
+  },
+  "shared_tags": {
+    "title": "תגים משותפים",
+    "description": "התגים של תיבות הדואר הקבוצתיות שלך. כל חברי הקבוצה רואים את אותם שמות וצבעים בדואר שלה.",
+    "picker_heading": "משותפים עם כל מי שבתיבת הדואר הזו",
+    "sidebar_heading": "תגים",
+    "edit": "ערוך תגים משותפים",
+    "edit_tag": "ערוך את {name}",
+    "delete_tag": "מחק את {name}",
+    "name_it": "תן שם ל־{name}",
+    "add": "הוסף תג משותף",
+    "name": "שם",
+    "color": "צבע",
+    "save": "שמור",
+    "cancel": "ביטול",
+    "delete": "מחק",
+    "delete_confirm": "למחוק עבור כולם? התג יישאר על ההודעות שלו.",
+    "found_on_messages": "על הודעות, עדיין בלי שם",
+    "empty": "אין עדיין תגים משותפים.",
+    "exists": "לתיבת הדואר הזו כבר יש את התג הזה.",
+    "too_long": "השם ארוך מדי.",
+    "loading": "טוען…",
+    "unsupported": "שרת הדואר הזה לא יכול לשמור תגים משותפים, ולכן תיבת הדואר הזו מציגה את התגים שלך.",
+    "unavailable": "לא ניתן היה לטעון את התגים המשותפים של תיבת הדואר הזו, ולכן היא מציגה את התגים שלך. Bulwark ינסה שוב מאוחר יותר.",
+    "no_rights": "אפשר להשתמש בתגים האלה, אבל אי אפשר לשנות אותם בתיבת הדואר הזו.",
+    "too_many": "יש יותר מדי תגים משותפים. מחק כמה לפני שתוסיף עוד.",
+    "save_failed": "לא ניתן היה לשמור את התגים המשותפים. Bulwark ינסה שוב כשהשרת יענה.",
+    "save_pending": "עדיין לא נשמר. Bulwark ינסה שוב כשהשרת יענה."
   },
   "email_viewer": {
     "no_email_selected": "לא נבחר אימייל",
@@ -300,17 +410,22 @@
     "view_in_light_mode": "הצגה במצב בהיר",
     "export_email": "ייצא כ-.eml",
     "forward_as_attachment": "העבר כקובץ מצורף",
-    "import_email": "ייבוא .eml",
-    "keyboard_shortcuts": "קיצורי מקשים (?)",
+    "import_email": "ייבא .eml או .zip…",
+    "keyboard_shortcuts": "קיצורי מקשים",
     "email_source": "מקור דוא\"ל",
     "draft_banner": "הודעה זו היא טיוטה",
     "edit_draft": "ערוך",
     "copy_source": "העתק ללוח",
+    "source_loading": "טוען את המקור",
+    "source_load_failed": "לא ניתן היה לטעון את מקור ההודעה. נסו שוב או ייצאו אותה כ‑.eml.",
+    "source_copy_failed": "לא ניתן היה להעתיק את המקור",
+    "source_truncated": "מוצגים {size} הראשונים. ייצאו את ההודעה כדי לראות את השאר.",
     "source_copied": "המקור הועתק ללוח",
     "attachments": "קבצים מצורפים",
     "important": "חָשׁוּב",
     "download": "הורד",
     "download_all": "הורד הכל",
+    "download_all_partial": "{count, plural, one {# קובץ מצורף הושמט מקובץ ה-ZIP.} two {# קבצים מצורפים הושמטו מקובץ ה-ZIP.} other {# קבצים מצורפים הושמטו מקובץ ה-ZIP.}}",
     "from": "מאת",
     "to": "אל",
     "cc": "עותק",
@@ -331,6 +446,11 @@
       "failed_sent_from": "ההודעה הזו טוענת שהיא מהדומיין {domain}, אבל היא נשלחה מהדומיין {host} ונכשלה בבדיקות השולח של {domain}. ייתכן שהיא מזויפת.",
       "caution": "היזהר מקישורים, מקבצים מצורפים ומבקשות לסיסמאות או לפרטי תשלום."
     },
+    "brand_logo": {
+      "verified_label": "לוגו מאומת",
+      "verified": "הלוגו הזה מאומת כשייך ל-{organization}.",
+      "verified_by": "{issuer} אימת שהלוגו הזה שייך ל-{organization}."
+    },
     "back_to_list": "חזרה לרשימה",
     "view_contact": "הצג איש קשר",
     "message_details": "פרטי הודעה",
@@ -340,10 +460,14 @@
     "more_actions": "עוד פעולות",
     "previous": "הקודם",
     "next": "הבא",
-    "move_to": "העבר ל...",
+    "move_to": "העבר ל",
     "remove_tag": "הסר תג",
     "tag_filter_placeholder": "סינון תגים",
     "tag_no_matches": "אין תגים תואמים",
+    "new_tag": "תגית חדשה",
+    "new_tag_placeholder": "שם התגית",
+    "tag_exists": "כבר קיימת תגית בשם הזה",
+    "tag_name_invalid": "בחרו שם קצר יותר",
     "more_count": "+{count}נוספים",
     "characters_count": "{count} תווים",
     "quick_reply_placeholder": "תשובה מהירה",
@@ -428,8 +552,8 @@
     "spam": {
       "button_title": "דווח על ספאם",
       "not_spam_title": "סמן כלגיטימי",
-      "toast_success": "עבר לזבל",
-      "toast_batch": "הודעות דוא\"ל{count}הועברו ל-Junk",
+      "toast_success": "הועבר לספאם",
+      "toast_batch": "{count} הודעות הועברו לספאם",
       "toast_undo": "בטל",
       "toast_not_spam_success": "הועבר לתיבת הדואר הנכנס",
       "toast_not_spam_batch": "הודעות דוא\"ל{count}הועברו ל-Inbox",
@@ -483,6 +607,8 @@
       "authentication_missing_info": "הזמנה זו אינה כוללת אימות דואר מאומת. אשר את הפרטים עם המארגן אם משהו נראה חריג.",
       "sender_mismatch_info": "הזמנה זו נשלחה מ-{sender}, בעוד שהמארגן הרשום בנתוני היומן הוא{organizer}.",
       "sender_mismatch_unverified_info": "הזמנה זו נשלחה מ-{sender}, בעוד שהמארגן הרשום בנתוני היומן הוא{organizer}, ולא ניתן לאמת את ההודעה.",
+      "attendee_mismatch_info": "תגובה זו נשלחה מ-{sender}, בעוד שהמשתתף המשיב בנתוני היומן הוא {attendee}.",
+      "attendee_mismatch_unverified_info": "תגובה זו נשלחה מ-{sender}, בעוד שהמשתתף המשיב בנתוני היומן הוא {attendee}, ולא ניתן לאמת את ההודעה.",
       "organizer_role": "אתה מארגן את האירוע הזה",
       "your_response": "תגובתך:{status}",
       "response_needed": "צריך תגובה",
@@ -513,6 +639,9 @@
       "already_in_calendar": "כבר בלוח השנה שלך",
       "request_info": "הוזמנת לאירוע זה. השב כדי ליידע את המארגן על זמינותך.",
       "cancel_info": "המארגן ביטל את האירוע הזה.",
+      "remove_from_calendar": "הסרה מהיומן",
+      "removed_from_calendar": "הוסר מהיומן שלך.",
+      "cancel_outdated": "ביומן שלך יש גרסה חדשה יותר של האירוע הזה מאשר הביטול הזה.",
       "event_updated": "עדכון #{sequence}",
       "event_status_tentative": "טנטטיבי",
       "event_status_cancelled": "בוטל",
@@ -537,8 +666,6 @@
     "hide_quoted_text": "הסתר טקסט מצוטט",
     "unread": "סמן כלא נקרא",
     "read": "קרא",
-    "spam_short": "דואר זבל",
-    "not_spam_short": "לא דואר זבל",
     "move": "העברה",
     "details": {
       "recipients_routing": "נמענים ו־ניתוב",
@@ -569,14 +696,24 @@
     "scheduled_send_created": "דוא״ל תוכנן לשליחה",
     "sending_in": "שליחה בעוד {seconds} שנ'",
     "undo_send_failed": "לא ניתן לבטל. ייתכן שההודעה כבר נשלחה.",
+    "undo_send_signed_out": "לא ניתן לבטל: החשבון שממנו נשלחה ההודעה כבר אינו מחובר.",
     "cancel_scheduled_send": "ביטול שליחה",
     "reschedule_send": "תזמן מחדש",
     "cancel_and_edit": "בטל וערוך",
     "cancel_and_compose_again": "בטל והרכיב שוב",
-    "reschedule_prompt": "הזן תאריך/שעה חדש, למשל 2026-05-04T15:30",
     "scheduled_actions_only": "תצוגה מתוכננת תומכת בפעולות מתוכננות בלבד",
     "undo_send_scheduled": "הודעה תוכננת לשליחה",
     "undo_send": "בטל שליחה",
+    "send_cancelled_restore_failed": "השליחה בוטלה, אך לא ניתן היה להחזיר את ההודעה לטיוטות. היא עדיין בנשלח.",
+    "send_cancelled_remove_failed": "השליחה בוטלה, אך לא ניתן היה להסיר את ההודעה שלא נשלחה מנשלח.",
+    "cancel_scheduled_failed": "לא ניתן היה לבטל את השליחה המתוזמנת",
+    "send_cancelled": "השליחה בוטלה",
+    "still_scheduled_at": "ההודעה עדיין מתוזמנת ל־{date}.",
+    "still_scheduled": "ההודעה עדיין מתוזמנת.",
+    "already_sent": "ההודעה הזו כבר נשלחה.",
+    "no_longer_scheduled": "ההודעה הזו כבר אינה מתוזמנת.",
+    "reschedule_recipients_refused": "דבר לא השתנה: השרת דחה את {recipients}.",
+    "rescheduled_for": "התזמון שונה ל-{date}",
     "contact_sidebar": {
       "title": "איש קשר",
       "close": "סגור סרגל צד",
@@ -603,9 +740,110 @@
       "copied": "הקוד הועתק",
       "copy_failed": "לא ניתן להעתיק את הקוד"
     },
+    "structured_mail": {
+      "kind_flight": "טיסה",
+      "kind_train": "רכבת",
+      "kind_bus": "אוטובוס",
+      "kind_lodging": "מלון",
+      "kind_rentalcar": "רכב שכור",
+      "kind_event": "אירוע",
+      "kind_restaurant": "מסעדה",
+      "kind_order": "הזמנה",
+      "kind_parcel": "חבילה",
+      "region_flight": "הזמנת טיסה",
+      "region_train": "הזמנת רכבת",
+      "region_bus": "הזמנת אוטובוס",
+      "region_lodging": "הזמנת מלון",
+      "region_rentalcar": "הזמנת רכב שכור",
+      "region_event": "הזמנה לאירוע",
+      "region_restaurant": "הזמנת מקום במסעדה",
+      "region_shipment": "הזמנה ומשלוח",
+      "status_cancelled": "בוטלה",
+      "status_pending": "ממתינה",
+      "status_hold": "בהמתנה",
+      "order_status_payment_due": "ממתינה לתשלום",
+      "order_status_processing": "בטיפול",
+      "order_status_problem": "בעיה",
+      "order_status_in_transit": "נשלחה",
+      "order_status_pickup_available": "מוכנה לאיסוף",
+      "order_status_returned": "הוחזרה",
+      "order_status_delivered": "נמסרה",
+      "order_status_cancelled": "בוטלה",
+      "reference": "מספר הזמנה",
+      "order_number": "מספר הזמנה",
+      "tracking_number": "מספר מעקב",
+      "copy_reference": "העתקת מספר ההזמנה {value}",
+      "copy_order_number": "העתקת מספר ההזמנה {value}",
+      "copy_tracking_number": "העתקת מספר המעקב {value}",
+      "copied_reference": "מספר ההזמנה הועתק",
+      "copied_order_number": "מספר ההזמנה הועתק",
+      "copied_tracking_number": "מספר המעקב הועתק",
+      "copy_failed": "לא ניתן להעתיק ללוח",
+      "passengers": "נוסעים",
+      "seats": "מושבים",
+      "tickets": "כרטיסים",
+      "link_check_in": "צ'ק-אין",
+      "link_manage": "ניהול ההזמנה",
+      "link_ticket": "כרטיס",
+      "link_track": "מעקב",
+      "link_view_order": "הצגת ההזמנה",
+      "check_in_label": "צ'ק-אין",
+      "check_out_label": "צ'ק-אאוט",
+      "from_time": "החל מ-{time}",
+      "until_time": "עד {time}",
+      "nights": "{count, plural, one {לילה אחד} two {שני לילות} other {# לילות}}",
+      "pickup": "איסוף",
+      "dropoff": "החזרה",
+      "party_size": "{count, plural, one {שולחן לאדם אחד} other {שולחן ל-# אנשים}}",
+      "items_more": "ועוד {count}",
+      "items_count": "{count, plural, one {פריט אחד} other {# פריטים}}",
+      "total": "סה\"כ {total}",
+      "expected_by": "יגיע עד {date}",
+      "local_time": "שעון מקומי",
+      "local_time_title": "השעה המקומית במקום, לא באזור הזמן שלך",
+      "route": "{from} – {to}"
+    },
     "mv_position": "{index} מתוך {total}",
     "plugin_panel_show": "הצגת חלונית התוסף",
-    "plugin_panel_hide": "הסתרת חלונית התוסף"
+    "plugin_panel_hide": "הסתרת חלונית התוסף",
+    "copy": "העתק",
+    "contact_added": "איש הקשר נוסף",
+    "save_to_files": {
+      "title": "שמירה בקבצים",
+      "save_here": "שמירה כאן",
+      "saved": "נשמר בקבצים",
+      "saved_to": "ב{folder}",
+      "failed": "לא ניתן היה לשמור בקבצים",
+      "load_failed": "לא ניתן היה לטעון את התיקיות. נסו שוב."
+    },
+    "frame_title": "הודעה: {subject}",
+    "frame_title_from": "הודעה מאת {sender}",
+    "download_named": "הורדת {name}",
+    "preview_named": "תצוגה מקדימה של {name}",
+    "show_as_plain_text": "הצגה כטקסט פשוט",
+    "show_formatted": "הצגה מעוצבת",
+    "shown_as_plain_text": "הודעה זו מוצגת כטקסט פשוט.",
+    "play_animation": "הפעלת האנימציה",
+    "pause_animation": "השהיית האנימציה",
+    "read_aloud": "הקראה",
+    "read_aloud_reading": "מקריא",
+    "read_aloud_paused": "ההקראה מושהית",
+    "read_aloud_pause": "השהיה",
+    "read_aloud_resume": "המשך",
+    "read_aloud_stop": "עצירת ההקראה",
+    "reader_view": "תצוגת קריאה"
+  },
+  "external_mail": {
+    "sender_label": "חיצוני",
+    "sender_tooltip": "מ־{domain}, מחוץ לארגון שלך",
+    "sender_tooltip_no_domain": "מכתובת בלי דומיין, מחוץ לארגון שלך",
+    "confirm_title": "לשלוח אל מחוץ לארגון?",
+    "confirm_message": "{count, plural, one {הנמען הזה נמצא} two {שני הנמענים האלה נמצאים} other {# הנמענים האלה נמצאים}} מחוץ לארגון שלך. שלח רק אם זו הכוונה.",
+    "field_to": "אל",
+    "field_cc": "עותק",
+    "field_bcc": "עותק מוסתר",
+    "send_anyway": "שלח בכל זאת",
+    "back": "חזרה"
   },
   "email_composer": {
     "select_from_directory": "בחירה מהספרייה",
@@ -636,6 +874,7 @@
     "saving": "שומר...",
     "draft_saved": "הטיוטה נשמרה",
     "save_failed": "השמירה נכשלה",
+    "discard_signed_out": "הטיוטה לא נמחקה: החשבון שבו נשמרה כבר אינו מחובר. היא נשארת בטיוטות של אותו חשבון.",
     "to_placeholder": "כתובות אימייל של נמענים",
     "cc_placeholder": "נמענים עותק",
     "bcc_placeholder": "נמעני עותק מוסתר",
@@ -693,6 +932,10 @@
     "show_less": "הצג פחות",
     "send_failed": "שליחת האימייל נכשלה",
     "send_timeout": "השרת הפסיק להגיב. בדקו את תיקיית הנשלחים לפני שליחה חוזרת — ייתכן שההודעה כבר נשלחה.",
+    "submission_quota": "בשרת יש יותר מדי רשומות של הודעות שנשלחו עבור החשבון הזה. Bulwark הסיר את אלה שיכול היה; אם זה ממשיך לקרות, בקשו ממנהל המערכת להגדיל את מגבלת שליחת הדואר.",
+    "submission_limit": "השרת סירב לשלוח את ההודעה כי הושגה מגבלה: {reason}",
+    "recipients_refused": "לא נשלח: השרת דחה את {recipients}.",
+    "recipients_partly_refused": "השרת דחה את {recipients}. שאר הנמענים יקבלו את ההודעה.",
     "send_offline": "נראה שאין חיבור לרשת. ההודעה עדיין כאן, שלחו אותה שוב כשתחזרו לרשת.",
     "formatting": "עיצוב",
     "send_recipients_rejected": "לא נשלח - השרת דחה את כל הנמענים.",
@@ -744,9 +987,25 @@
       "send_anyway": "שלח בכל זאת",
       "back": "חזור לעריכה"
     },
+    "placeholder_warning": {
+      "title": "לבדוק מצייני מיקום?",
+      "message": "ההודעה מכילה טקסט מציין מיקום שהנמענים יראו. לערוך אותה לפני השליחה?",
+      "found": "מצייני מיקום שנמצאו",
+      "more": "ועוד {count}",
+      "dont_ask_again": "אל תשאל שוב",
+      "send_anyway": "שלח בכל זאת",
+      "back": "חזור לעריכה"
+    },
+    "placeholder_words": {
+      "before": ["הכנס", "הכניסו", "הזן", "הוסף"],
+      "after": ["שלך", "שלכם"],
+      "unfinished": []
+    },
     "schedule_send": "תזמן שליחה",
     "schedule_send_description": "בחר מתי השרת צריך לשחרר הודעה זו.",
     "schedule_preset": {
+      "this_morning": "הבוקר",
+      "this_afternoon": "היום אחר הצהריים",
       "tomorrow_morning": "מחר בבוקר",
       "tomorrow_afternoon": "מחר אחר הצהריים",
       "monday_morning": "יום שני בבוקר"
@@ -759,8 +1018,10 @@
     "schedule_send_cleanup_warning": "תזמון שליחה נוצר, אך ניקוי טיוטה נכשל.",
     "send_delay_unsupported": "השהיית שליחה אינה נתמכת עבור חשבון זה.",
     "send_delay_unsupported_confirm": "חשבון זה אינו תומך בהשהיית שליחה. שלח מיד במקום זאת?",
+    "send_delay_unsupported_title": "לשלוח ללא השהיה?",
     "recipient_edit_email": "ערוך כתובת דוא״ל",
     "recipient_edit_name": "ערוך שם תצוגה",
+    "recipient_remove": "הסרה",
     "recipient_email_placeholder": "כתובת דוא״ל",
     "recipient_name_placeholder": "שם תצוגה",
     "invalid_recipient": "כתובת דוא\"ל לא תקינה",
@@ -788,6 +1049,11 @@
       "align_right": "יישור לימין",
       "text_direction": "כיוון טקסט (RTL/LTR)",
       "link": "קישור",
+      "insert_link": "הוספת קישור",
+      "edit_link": "עריכת קישור",
+      "remove_link": "הסרת קישור",
+      "link_address": "כתובת הקישור",
+      "link_invalid": "הכתובת לא יכולה להכיל רווחים",
       "table": "טבלה",
       "clear_formatting": "ניקוי עיצוב",
       "undo": "ביטול",
@@ -804,17 +1070,65 @@
       "font_size": "גודל גופן",
       "font_size_default": "ברירת מחדל",
       "background_color": "צבע רקע",
-      "remove_background_color": "הסר צבע רקע"
+      "remove_background_color": "הסר צבע רקע",
+      "table_size": "טבלה {rows} × {cols}",
+      "colors": {
+        "black": "שחור",
+        "dark_gray": "אפור כהה",
+        "gray": "אפור",
+        "dark_red": "אדום כהה",
+        "orange": "כתום",
+        "yellow": "צהוב",
+        "green": "ירוק",
+        "blue": "כחול",
+        "purple": "סגול",
+        "dark_pink": "ורוד כהה",
+        "brown": "חום",
+        "red": "אדום",
+        "light_orange": "כתום בהיר",
+        "light_green": "ירוק בהיר",
+        "light_blue": "כחול בהיר",
+        "pink": "ורוד"
+      }
     },
     "send_filing_warning": "נשלח - אך הניקוי שלאחר השליחה נכשל, ייתכן שתישאר טיוטה ישנה.",
     "pop_out": "פתיחת התשובה בחלון נפרד",
-    "send_guard_failed": "לא נשלח - תוסף שבודק הודעות לפני השליחה נכשל או לא הגיב."
+    "send_guard_failed": "לא נשלח - תוסף שבודק הודעות לפני השליחה נכשל או לא הגיב.",
+    "cut": "גזור",
+    "copy": "העתק",
+    "recipient_remove_named": "הסרת {name}",
+    "recipient_chip_hint": "Delete מסיר את הנמען, Enter פותח אפשרויות נוספות",
+    "recipient_move_to": "העברה אל {field}",
+    "recipient_added": "{name} נוסף אל {field}",
+    "recipient_removed": "{name} הוסר מ{field}",
+    "recipient_moved": "{name} הועבר אל {field}",
+    "recipients_added_count": "{count, plural, one {נמען אחד נוסף} two {שני נמענים נוספו} other {# נמענים נוספו}} אל {field}",
+    "recipients_removed_count": "{count, plural, one {נמען אחד הוסר} two {שני נמענים הוסרו} other {# נמענים הוסרו}} מ{field}",
+    "recipients_moved_count": "{count, plural, one {נמען אחד הועבר} two {שני נמענים הועברו} other {# נמענים הועברו}} אל {field}",
+    "body_label": "הודעה",
+    "attachment_uploading": "מעלה",
+    "attachment_upload_failed": "ההעלאה נכשלה",
+    "attachment_progress": "{percent}% הועלו",
+    "send_confirm": {
+      "title": "לשלוח את ההודעה?",
+      "message": "היא תישלח אל {count, plural, one {נמען אחד} two {שני נמענים} other {# נמענים}}."
+    },
+    "image_alt": {
+      "title": "תיאור התמונה",
+      "hint": "כתבו מה רואים בתמונה, עבור מי שאינו יכול לראות אותה.",
+      "label": "תיאור התמונה",
+      "decorative": "תמונה דקורטיבית (ללא תיאור)",
+      "skip": "דילוג",
+      "edit": "עריכת תיאור התמונה",
+      "plain_text": "[תמונה: {alt}]"
+    }
   },
   "confirm_dialog": {
     "confirm": "אשר",
     "cancel": "לְבַטֵל"
   },
   "common": {
+    "print": "הדפס",
     "loading": "טוען...",
     "error": "שגיאה",
     "success": "הצלחה",
@@ -834,15 +1148,17 @@
     "app_title": "Webmail",
     "reconnecting": "החיבור אבד. מנסה להתחבר מחדש...",
     "rate_limited_title": "אימות השרת מוגבל באופן זמני בקצב.",
-    "rate_limited_detail": "Bulwark השהתה בקשות ברקע כדי למנוע נעילה. מנסה שוב ב-{seconds}s.",
+    "rate_limited_detail": "{appName} השהתה בקשות ברקע כדי למנוע נעילה. מנסה שוב ב-{seconds}s.",
     "rate_limited_action_title": "הבקשה הושהתה כדי למנוע נעילה.",
-    "rate_limited_action_detail": "Bulwark ממתין עד שקירור השרת יסתיים לפני שליחת בקשות מאומתות יותר. נסה שוב ב-{seconds}s.",
+    "rate_limited_action_detail": "{appName} ממתין עד שקירור השרת יסתיים לפני שליחת בקשות מאומתות יותר. נסה שוב ב-{seconds}s.",
     "pull_to_refresh": "משוך לרענון",
     "release_to_refresh": "שחרר לרענון",
-    "refreshing": "מרענן…"
+    "refreshing": "מרענן…",
+    "move_item_up": "הזזת {name} למעלה",
+    "move_item_down": "הזזת {name} למטה"
   },
   "notifications": {
-    "email_sent": "האימייל נשלח בהצלחה",
+    "email_sent": "האימייל נשלח",
     "email_deleted": "האימייל נמחק",
     "email_archived": "האימייל הועבר לארכיון",
     "emails_deleted": "{count, plural, one {הודעה אחת נמחקה} other {# הודעות נמחקו}}",
@@ -867,14 +1183,19 @@
     "move_failed": "המהלך נכשל",
     "removed_from_folder": "הוסר מ-{mailbox}",
     "remove_from_folder_failed": "לא ניתן להסיר מתיקייה זו",
+    "undo": "בטל",
+    "undo_done": "הוחזר למקומו",
+    "undo_failed": "לא ניתן היה לבטל",
+    "not_connected": "החשבון לא מחובר. התחברו שוב.",
+    "trash_not_found": "לחשבון אין תיקיית אשפה, ולכן דבר לא נמחק.",
     "emails_copied": "{count} הודעות הועתקו",
     "copy_failed": "ההעתקה נכשלה",
     "move_error": "לא ניתן היה להעביר הודעות דוא\"ל לתיקיה שנבחרה",
     "email_tagged": "אימייל מתויג",
     "emails_tagged": "דוא\"ל{count}מתויג",
     "tag_failed": "התיוג נכשל",
-    "identity_created": "הזהות נוצרה בהצלחה",
-    "identity_updated": "הזהות עודכנה בהצלחה",
+    "identity_created": "הזהות נוצרה",
+    "identity_updated": "הזהות עודכנה",
     "identity_deleted": "הזהות נמחקה",
     "identity_set_primary": "הזהות הראשית עודכנה",
     "identity_create_failed": "יצירת זהות נכשלה:{error}",
@@ -884,10 +1205,10 @@
     "identity_not_found": "זהות לא נמצאה",
     "vacation_saved": "הגדרות ההיעדרות נשמרו",
     "vacation_save_failed": "שמירת הגדרות ההיעדרות נכשלה",
-    "filters_saved": "המסננים נשמרו בהצלחה",
+    "filters_saved": "המסננים נשמרו",
     "filters_save_failed": "שמירת המסננים נכשלה",
     "filters_deleted": "כלל הסינון נמחק",
-    "templates_exported": "תבניות יוצאו בהצלחה",
+    "templates_exported": "התבניות יוצאו",
     "templates_imported": "יובאו {count, plural, one {תבנית אחת} other {# תבניות}}",
     "templates_import_errors": "לא ניתן לייבא חלק מהתבניות",
     "templates_import_empty": "לא נמצאו תבניות בקובץ",
@@ -906,7 +1227,22 @@
     "rule_undo_failed": "לא ניתן היה לבטל את שינוי הכלל",
     "rule_undo_conflict": "המסננים שלך השתנו מאז. בטל את השינוי בהגדרות המסננים.",
     "rule_folder_failed": "לא ניתן היה ליצור את התיקייה",
-    "vacation_filters_save_failed": "הגדרות ההיעדרות נשמרו, אך שמירת ההעברה ונמעני המענה נכשלה"
+    "vacation_filters_save_failed": "הגדרות ההיעדרות נשמרו, אך שמירת ההעברה ונמעני המענה נכשלה",
+    "nothing_to_undo": "אין מה לבטל",
+    "undo_hint": "הקישו {keys} כדי לבטל.",
+    "undone": "בוטל",
+    "emails_marked_read": "{count, plural, one {הודעה אחת סומנה כנקראה} other {# הודעות סומנו כנקראו}}",
+    "emails_marked_unread": "{count, plural, one {הודעה אחת סומנה כלא נקראה} other {# הודעות סומנו כלא נקראו}}",
+    "tag_removed": "התגית הוסרה",
+    "tag_removed_count": "{count, plural, one {התגית הוסרה מהודעה אחת} other {התגית הוסרה מ-# הודעות}}",
+    "new_mail_count": "{count, plural, one {הודעה חדשה אחת} other {# הודעות חדשות}}"
+  },
+  "third_party": {
+    "push_needs_relay": "התראות Push דורשות ממסר Push שהארגון שלך מפעיל, ולא הוגדר אף אחד. דואר חדש עדיין מוצג כל עוד האפליקציה פתוחה.",
+    "relay_desc": "מוצעים רק הממסרים של הארגון שלך, כי השרת הזה לא פונה לשירותים חיצוניים.",
+    "relay_none": "לא הוגדר אף אחד",
+    "plugin_refused": "לא הופעל: התוסף הזה מתחבר לשירותים חיצוניים, שהארגון שלך כיבה.",
+    "remote_content_blocked": "הארגון שלך חוסם תוכן משרתים אחרים, ולכן תמונות מרוחקות בהודעה הזו לא מוצגות."
   },
   "date": {
     "today": "היום",
@@ -974,45 +1310,36 @@
   },
   "settings": {
     "title": "הגדרות",
+    "org_locked": "נקבע על ידי הארגון שלך",
     "back_to_mail": "חזרה לדואר",
+    "back_to_settings": "חזרה להגדרות",
     "save_success": "ההגדרות נשמרו בהצלחה",
     "import_success": "ההגדרות יובאו בהצלחה",
     "import_error": "ייבוא ההגדרות נכשל",
     "reset_confirm": "האם אתה בטוח שברצונך לאפס את כל ההגדרות לברירות מחדל?",
-    "unsaved_changes": "יש לך שינויים שלא נשמרו",
-    "discard_changes": "למחוק שינויים שלא נשמרו?",
-    "discard": "לזרוק",
-    "keep_editing": "תמשיך לערוך",
+    "unsaved_changes": "השינויים שלך לא נשמרו.",
+    "discard_changes": "לבטל את השינויים?",
+    "discard": "לבטל שינויים",
+    "keep_editing": "להמשיך לערוך",
     "tabs": {
       "appearance": "מראה",
-      "language": "שפה ואזור",
-      "email": "התנהגות אימייל",
-      "composer": "עורך",
-      "privacy": "פרטיות ואבטחה",
       "account": "חשבון",
-      "identities": "זהויות",
       "vacation": "היעדרות",
-      "advanced": "מתקדם",
       "calendar": "לוּחַ שָׁנָה",
       "filters": "מסננים",
-      "templates": "תבניות",
       "folders": "תיקיות",
-      "keywords": "מילות מפתח",
       "security": "אבטחה",
       "files": "קבצים",
       "contacts": "אנשי קשר",
-      "encryption": "הצפנה",
-      "sidebar_apps": "אפליקציות בסרגל הצד",
       "notifications": "התראות",
-      "protocol_handlers": "יישומים ברירת מחדל",
-      "layout": "פריסה",
-      "themes": "ערכות נושא",
       "reading": "קריאה",
       "composing": "הרכבה",
-      "downloads": "הורדות",
-      "content_senders": "תוכן ושולחים",
-      "about_data": "בערך וגדול",
-      "debug": "ניפוי שגיאות"
+      "message_list": "רשימת הודעות",
+      "general": "כללי",
+      "organize": "תיקיות ותגיות",
+      "addons": "תוספים",
+      "backup": "גיבוי ואיפוס",
+      "accessibility": "נגישות"
     },
     "themes": {
       "title": "ערכות נושא",
@@ -1024,18 +1351,13 @@
       "default_restored": "ערכת הנושא המוגדרת כברירת מחדל שוחזרה",
       "default_name": "ברירת מחדל",
       "default_badge": "ברירת מחדל",
-      "admin_enforced": "נאכף על ידי המנהל"
+      "admin_enforced": "נאכף על ידי המנהל",
+      "show_all": "הצגת כל {count} ערכות הנושא",
+      "show_fewer": "הצגת פחות"
     },
     "tab_groups": {
-      "general": "כללי",
-      "account": "חשבון וזהות",
-      "organization": "ארגון דואר",
       "apps": "אפליקציות",
-      "system": "מערכת",
-      "appearance": "הופעה",
-      "mail": "דוא״ל",
-      "privacy": "פרטיות וביטחון",
-      "advanced": "מתקדם"
+      "mail": "דוא״ל"
     },
     "appearance": {
       "message_list_order": {
@@ -1170,14 +1492,6 @@
         "label": "צביעת שורות הרשימה לפי צבע התגית",
         "description": "צובע כל שורת הודעה בצבע התגית הראשונה שלה. כבו כדי להשאיר את השורות ללא צבע; נקודות ותוויות התגיות עדיין יציגו את הצבע."
       },
-      "show_account_dot": {
-        "label": "Show Account Dot",
-        "description": "In the unified view, show a dot in the account color next to the sender, so you can tell which account a message came from. Has no effect while rows are tinted by account color."
-      },
-      "tint_list_rows_by_account": {
-        "label": "Tint List Rows by Account Color",
-        "description": "In the unified view, shade each row with its account color instead of showing the account dot. Takes precedence over the tag tint; tags keep their color on their chips."
-      },
       "show_folder_total_count": {
         "label": "הצגת מספר ההודעות הכולל",
         "description": "מציג את מספר ההודעות הכולל לצד תיקיות ותגיות, לצד מספר ההודעות שלא נקראו. כבו כדי להציג רק את מספר ההודעות שלא נקראו."
@@ -1207,6 +1521,26 @@
       "cross_all": {
         "label": "כל החשבונות: כל הדוא״ל",
         "description": "הצג ערך בסעיף כל החשבונות המפרט את כל הדוא״ל בכל חשבון, המשתרע על כל התיקיות למעט זבל, נשלח, ארכיון, אשפה וטיוטות."
+      },
+      "sections": {
+        "text": "טקסט ותנועה",
+        "layout": "פריסה",
+        "sidebar": "סרגל צד",
+        "accounts": "כמה חשבונות",
+        "accounts_description": "איך החשבונות ותיבות הדואר המשותפות שלך מוצגים יחד.",
+        "experimental": "ניסיוני"
+      },
+      "account_marker": {
+        "label": "הבחנה בין חשבונות",
+        "description": "בתצוגות המאוחדות, לסמן כל הודעה בצבע החשבון שממנו הגיעה.",
+        "dot": "נקודה צבעונית",
+        "tint": "שורה צבועה",
+        "none": "ללא"
+      },
+      "accessibility_link": {
+        "label": "גודל טקסט ותנועה",
+        "description": "גודל טקסט, גופנים, מרווחים והפחתת תנועה נמצאים בעמוד נגישות.",
+        "button": "נגישות"
       }
     },
     "keywords": {
@@ -1221,6 +1555,9 @@
       "id_exists": "מזהה מילת מפתח זה כבר קיים",
       "edit": "ערוך מילת מפתח",
       "delete": "מחק מילת מפתח",
+      "edit_tag": "עריכת {name}",
+      "delete_tag": "מחיקת {name}",
+      "deleted": "מילת המפתח נמחקה",
       "save": "שמור",
       "add": "לְהוֹסִיף",
       "cancel": "לְבַטֵל",
@@ -1258,7 +1595,7 @@
     "notifications": {
       "test_sound": "צליל הודעת בדיקה",
       "sounds": {
-        "default": "ברירת מחדל (ביפ)",
+        "default": "ביפ",
         "cheerful": "עליז",
         "involved": "מעורב",
         "swift": "מחווה מהירה",
@@ -1298,9 +1635,7 @@
         "enabled": "התראות על אירועים",
         "enabled_desc": "הצג התראות עבור אירועי לוח שנה קרובים",
         "sound": "צליל התראה",
-        "sound_desc": "הפעל התראה קולית עבור תזכורות יומן",
-        "invitation_parsing": "נתח הזמנות באימייל",
-        "invitation_parsing_desc": "זיהוי הזמנות ליומן בקבצים מצורפים לאימייל והצג פעולות ביומן"
+        "sound_desc": "הפעל התראה קולית עבור תזכורות יומן"
       },
       "push": {
         "title": "התראות בדפדפן",
@@ -1336,7 +1671,10 @@
         "revoke": "ביטול",
         "confirm_revoke_title": "לבטל את המכשיר הזה?",
         "confirm_revoke_message": "הוא יפסיק לקבל התראות ברקע מיד. הפעלה מחדש של פוש באותו מכשיר תרשום אותו מחדש.",
-        "confirm_revoke_message_this": "מכשיר זה יפסיק לקבל התראות ברקע מיד."
+        "confirm_revoke_message_this": "מכשיר זה יפסיק לקבל התראות ברקע מיד.",
+        "shared_mailboxes_no_push": "תיבות דואר שאחרים משתפים איתך אינן שולחות התראות ברקע.",
+        "error_forbidden": "שרת הדואר אינו מאפשר התראות ברקע עבור חשבון זה.",
+        "error_over_quota": "לחשבון זה יש יותר מדי רישומי פוש בשרת הדואר (המגבלה היא בדרך כלל 15). בטל בהגדרות ההתראות מכשירים שאינך משתמש בהם עוד, ונסה שוב."
       }
     },
     "language_region": {
@@ -1386,6 +1724,12 @@
       }
     },
     "email_behavior": {
+      "inbox_type": {
+        "label": "סוג תיבת הדואר הנכנס",
+        "description": "\"לא נקראו תחילה\" מציג את 25 ההודעות החדשות ביותר שלא נקראו במקטע מעל שאר התיבה",
+        "default": "ברירת מחדל",
+        "unread_first": "לא נקראו תחילה"
+      },
       "clear_search_on_folder_change": {
         "label": "נקה את החיפוש בעת מעבר בין תיקיות",
         "description": "לחיצה על תיקייה (דואר נכנס, נשלח…) מנקה את החיפוש הפעיל ומציגה את התיקייה. כשהאפשרות כבויה, החיפוש נשאר ומופעל מחדש בתיקייה שאליה עברת."
@@ -1462,13 +1806,13 @@
         "label": "הצגת קודי אימות",
         "description": "הצעת הקוד מהודעות כניסה ואישור להעתקה בלחיצה אחת, ברשימה למשך יום ובהודעה"
       },
-      "disable_threading": {
-        "label": "השבת את קיבוץ השיחות",
-        "description": "הצג הודעות אימייל כהודעות בודדות במקום מקובצות לפי שיחה"
-      },
       "plain_text_mode": {
         "label": "טקסט רגיל בלבד",
         "description": "השבת את עורך הטקסט העשיר ושלח את כל המיילים כטקסט רגיל בלבד, כולל תשובות והעברה"
+      },
+      "quick_reply": {
+        "label": "תשובה מהירה",
+        "description": "הצגת תיבת התשובה המהירה מתחת להודעות."
       },
       "auto_select_reply_identity": {
         "label": "בחירה אוטומטית בכתובת תשובה",
@@ -1526,6 +1870,8 @@
         "search_placeholder": "חפש שולחים...",
         "no_results": "אין שולחים שתואמים לחיפוש שלך",
         "remove": "הסר",
+        "removed": "הוסר מהשולחים המהימנים",
+        "remove_error": "לא ניתן היה להסיר את השולח",
         "close": "לִסְגוֹר",
         "invalid_email": "נא להזין כתובת אימייל חוקית",
         "already_added": "השולח הזה כבר מהימן",
@@ -1601,6 +1947,10 @@
         "label": "אזהרה על נושא ריק",
         "description": "בקש אישור לפני שליחת הודעה ללא נושא."
       },
+      "placeholder_warning": {
+        "label": "אזהרה על מצייני מיקום",
+        "description": "בקש אישור לפני שליחת הודעה שעדיין יש בה מצייני מיקום כמו [TIME] או [השם שלך], שדות תבנית ריקים או טקסט לא גמור כמו TODO או TBD."
+      },
       "recipient_mentions": {
         "label": "אזכור נמענים עם @",
         "description": "הקלדת @ בהודעה מציעה את הנמענים ומכניסה את השם הפרטי של הנמען שנבחר. Enter או Tab בוחרים את השם המסומן."
@@ -1628,8 +1978,8 @@
         "unsupported": "החשבון הנוכחי אינו פרסום תמיכה בשליחה מעוכבת. ההגדרה עדיין שמורה לחשבונות אחרים."
       },
       "return_to_list_after_action": {
-        "label": "חזור לרשימה לאחר מחיקה או סימון שלא נקראו",
-        "description": "לאחר מחיקה או סימון ההודעה הפתוחה כלא קרויה, חזור לרשימת ההודעות במקום לפתוח את ההודעה הבאה."
+        "label": "חזור לרשימה לאחר מחיקה, העברה לארכיון, העברה לתיקייה או סימון שלא נקראו",
+        "description": "לאחר מחיקה, העברה לארכיון, העברה לתיקייה, דיווח כספאם או סימון ההודעה הפתוחה כלא קרויה, חזור לרשימת ההודעות במקום לפתוח את ההודעה הבאה."
       },
       "swipe_right_action": {
         "label": "פעולת החלקה ימינה (נייד)",
@@ -1650,51 +2000,15 @@
       "rtl_editing": {
         "label": "תמיכה בעריכה מימין לשמאל",
         "description": "מוסיף כפתור כיווניות לסרגל הכלים של העורך כדי להגדיר פסקאות משמאל לימין או מימין לשמאל"
-      }
-    },
-    "composer": {
-      "title": "עורך",
-      "description": "הגדר את הגדרות הרכב דוא\"ל",
-      "autosave": {
-        "label": "מרווח שמירה אוטומטית",
-        "description": "באיזו תדירות לשמור טיוטות באופן אוטומטי",
-        "30s": "כל 30 שניות",
-        "1m": "כל דקה",
-        "2m": "כל 2 דקות",
-        "5m": "כל 5 דקות"
       },
-      "send_confirmation": {
-        "label": "שלח אישור",
-        "description": "בקשו אישור לפני שליחת מיילים"
+      "group_conversations": {
+        "label": "קיבוץ הודעות לפי שיחה",
+        "description": "הצגת תשובות יחד כשיחה אחת במקום כהודעות נפרדות."
       },
-      "default_reply": {
-        "label": "מצב תגובה ברירת מחדל",
-        "description": "פעולת ברירת מחדל בעת לחיצה על השב",
-        "reply": "השב",
-        "reply_all": "השב לכולם"
-      }
-    },
-    "privacy": {
-      "title": "פרטיות ואבטחה",
-      "description": "נהל את הגדרות הפרטיות והאבטחה שלך",
-      "external_images": {
-        "label": "חסום תמונות חיצוניות",
-        "description": "מנע מעקב דרך תמונות חיצוניות"
-      },
-      "session_timeout": {
-        "label": "זמן קצוב להפעלה",
-        "description": "התנתק אוטומטית לאחר חוסר פעילות",
-        "never": "לעולם לא",
-        "30m": "30 דקות",
-        "1h": "שעה אחת",
-        "4h": "4 שעות"
-      },
-      "clear_cache": {
-        "label": "נקה את המטמון",
-        "description": "הסר נתונים בקובץ שמור וקבצים זמניים",
-        "button": "נקה את המטמון",
-        "confirm": "האם אתה בטוח שברצונך לנקות את המטמון?",
-        "success": "המטמון נוקה בהצלחה"
+      "signatures_link": {
+        "label": "חתימות",
+        "description": "לכל כתובת אימייל יש חתימה משלה. ניתן לערוך אותן יחד עם הכתובות.",
+        "button": "כתובות אימייל"
       }
     },
     "account": {
@@ -1748,6 +2062,7 @@
         "delete": "Delete saved list",
         "cancel": "Cancel",
         "delete_confirm": "Delete the saved account list from the server?",
+        "delete_message": "מכשירים אחרים לא יוכלו עוד לשחזר ממנה את החשבונות.",
         "password": "Backup password",
         "password_hint": "At least 10 characters. It cannot be recovered: if you forget it, save the list again with a new one.",
         "restore_hint": "The password chosen when the list was saved.",
@@ -1762,6 +2077,10 @@
         "signed_in": "Signed in to {count, plural, one {# account} other {# accounts}} with the saved password.",
         "sign_in_failed": "{count, plural, one {# saved password was} other {# saved passwords were}} refused: sign in to those accounts from the account list.",
         "deleted": "Saved list deleted.",
+        "prompt_title": "Restore your other accounts?",
+        "prompt_description": "A list of accounts is saved for {account}. Enter its backup password to add them to this browser, or do it later from Settings.",
+        "prompt_not_now": "Not now",
+        "prompt_done": "Done",
         "errors": {
           "mismatch": "The passwords do not match.",
           "password_length": "Use at least 10 characters.",
@@ -1775,13 +2094,16 @@
         "title": "משותף איתי",
         "description": "חשבונות קבוצתיים ומשותפים שאתה יכול לנהל. בחר אחד כדי לערוך את המסננים, המגיב לחופשה, לוחות השנה והאנשים שלו.",
         "shared_label": "חשבון משותף"
+      },
+      "sections": {
+        "addresses": "כתובות אימייל"
       }
     },
     "security": {
       "title": "אבטחת חשבון",
       "description": "נהל את הסיסמה שלך, אימות דו-שלבי והגדרות אבטחה",
       "detecting": "מזהה יכולות שרת...",
-      "not_available": "ניהול אבטחת חשבון אינו זמין עבור שרת דואר זה. הרשאות נדרשות עשויות להיות מושבתות. עיין בתיעוד<a href=\"/docs/guides/account-security\" class=\"underline hover:opacity-80\" target=\"_blank\"></a>לפרטים.",
+      "not_available": "ניהול אבטחת חשבון אינו זמין עבור שרת דואר זה. הרשאות נדרשות עשויות להיות מושבתות. עיין בתיעוד<a href=\"https://bulwarkmail.org/docs/guides/account-security\" class=\"underline hover:opacity-80\" target=\"_blank\"></a>לפרטים.",
       "password": {
         "title": "שנה סיסמה",
         "current": "סיסמה נוכחית",
@@ -1789,6 +2111,7 @@
         "confirm": "אשר סיסמה חדשה",
         "submit": "שנה סיסמה",
         "success": "הסיסמה שונתה בהצלחה",
+        "sign_in_again": "יש להתחבר שוב עם הסיסמה החדשה.",
         "error_title": "שינוי הסיסמה נכשל",
         "error_mismatch": "סיסמאות חדשות אינן תואמות",
         "error_min_length": "הסיסמה חייבת להיות לפחות 8 תווים",
@@ -1824,7 +2147,7 @@
       "app_passwords": {
         "title": "סיסמאות לאפליקציה",
         "description": "צור סיסמאות לאפליקציות שאינן תומכות באימות דו-שלבי",
-        "add": "לְהוֹסִיף",
+        "new": "סיסמת אפליקציה חדשה",
         "create": "צור",
         "cancel": "לְבַטֵל",
         "generate": "צור",
@@ -1836,6 +2159,8 @@
         "removed": "סיסמת האפליקציה הוסרה",
         "add_error": "יצירת סיסמת האפליקציה נכשלה",
         "remove_error": "הסרת סיסמת האפליקציה נכשלה",
+        "delete_title": "למחוק את סיסמת האפליקציה?",
+        "delete_message": "אפליקציות שמתחברות עם {name} לא יוכלו להתחבר יותר.",
         "none": "לא הוגדרו סיסמאות לאפליקציה",
         "done": "בוצע",
         "expires_label": "פג תוקף (אופציונלי)",
@@ -1861,6 +2186,9 @@
         "configure_title": "הפעל הצפנה עם מפתח זה",
         "enable_button": "הפעל",
         "disable_tooltip": "השבת הצפנה",
+        "disable_title": "לכבות את ההצפנה במנוחה?",
+        "disable_message": "דואר חדש יישמר מעכשיו ללא הצפנה.",
+        "disable_button": "כיבוי",
         "enabled_success": "הצפנה במנוחה מופעלת"
       },
       "email_client": {
@@ -1869,11 +2197,12 @@
         "jmap_username_label": "שם משתמש JMAP",
         "copy": "העתק",
         "copied": "הועתק",
-        "password_instructions": "השתמש בשם המשתמש שלך ב-JMAP למעלה יחד עם סיסמת אפליקציה כדי להיכנס ללקוח הדוא\"ל שלך. צור סיסמת אפליקציה בסעיף למעלה אם עדיין לא עשית זאת."
+        "password_instructions": "השתמש בשם המשתמש שלך ב-JMAP למעלה יחד עם סיסמת אפליקציה כדי להיכנס ללקוח הדוא\"ל שלך. צור סיסמת אפליקציה בסעיף למטה אם עדיין לא עשית זאת."
       },
       "api_keys": {
         "title": "מפתחות API",
         "description": "צור מפתחות API עבור סקריפטים ואינטגרציות המדברות ישירות לשרת",
+        "new": "מפתח API חדש",
         "name_label": "שם מפתח",
         "name_placeholder": "למשל סקריפט גיבוי, פעיל CI",
         "copy_now_warning": "העתק מפתח API זה כעת - הוא לא יוצג שוב.",
@@ -1881,6 +2210,8 @@
         "removed": "מפתח API הוסר",
         "add_error": "נכשל ביצירת מפתח API",
         "remove_error": "נכשל בהסרת מפתח API",
+        "delete_title": "למחוק את מפתח ה-API?",
+        "delete_message": "סקריפטים ושילובים שמשתמשים ב-{name} יאבדו את הגישה.",
         "none": "אין מפתחות API מוגדרים"
       },
       "link_device": {
@@ -1921,11 +2252,24 @@
         "name_placeholder": "לדוגמה: המפתח שלי",
         "key_label": "מפתח ציבורי (S/MIME או PGP בפורמט ASCII)",
         "key_placeholder": "הדבק כאן את המפתח הציבורי שלך",
-        "none": "לא הוגדרו מפתחות ציבוריים"
+        "none": "לא הוגדרו מפתחות ציבוריים",
+        "title": "מפתחות ציבוריים",
+        "add": "הוספת מפתח ציבורי",
+        "add_submit": "הוסף",
+        "added": "המפתח הציבורי נוסף",
+        "removed": "המפתח הציבורי נמחק",
+        "add_error": "לא ניתן היה להוסיף את המפתח הציבורי",
+        "remove_error": "לא ניתן היה למחוק את המפתח הציבורי",
+        "delete_title": "למחוק את המפתח הציבורי?",
+        "delete_message": "{name} יוסר מהשרת."
+      },
+      "sections": {
+        "devices": "אפליקציות ומכשירים אחרים",
+        "devices_description": "שימוש בדואר שלך מחוץ לדפדפן זה.",
+        "encryption": "הצפנה"
       }
     },
     "identities": {
-      "title": "שליחת זהויות",
       "description": "נהל כתובות דוא\"ל שמהן תוכל לשלוח",
       "identities_count": {
         "label": "הזהויות שלך",
@@ -1977,6 +2321,7 @@
       },
       "save": "שמור שינויים",
       "saving": "שומר...",
+      "saved": "נשמר",
       "warnings": {
         "end_before_start": "תאריך הסיום חייב להיות אחרי תאריך ההתחלה",
         "invalid_date": "יש להזין תאריך התחלה וסיום תקינים עם שעה, או להשאיר את השדה ריק",
@@ -2042,12 +2387,17 @@
       "new_folder_name": "שם התיקיה",
       "rename": "שנה שם",
       "change_icon": "שנה סמל",
+      "actions": "פעולות עבור {name}",
+      "expand": "הרחבת {name}",
+      "collapse": "כיווץ {name}",
+      "counter": "מונה",
       "count_mode": "מונה עבור {name}",
       "count_mode_default": "מונה: ברירת מחדל",
       "count_mode_unread": "רק שלא נקראו",
       "count_mode_all": "שלא נקראו וסך הכול",
       "count_mode_none": "ללא מונה",
       "delete": "לִמְחוֹק",
+      "delete_title": "למחוק את התיקיה?",
       "confirm_delete": "האם אתה בטוח שברצונך למחוק את \"{name}\"? הודעות אימייל בתיקייה זו יועברו לאשפה.",
       "create": "צור",
       "cancel": "לְבַטֵל",
@@ -2066,11 +2416,10 @@
       "role_memos": "הערות"
     },
     "advanced": {
-      "title": "מתקדם",
-      "description": "אפשרויות מתקדמות והגדרות מפתח",
       "debug_mode": {
         "label": "מצב ניפוי באגים",
-        "description": "אפשר רישום מפורט לצורך פתרון בעיות"
+        "description": "אפשר רישום מפורט לצורך פתרון בעיות",
+        "toggle": "רישום מפורט"
       },
       "debug_categories": {
         "description": "בחר אילו קטגוריות לרשום. השבת קטגוריות שאינך צריך כדי להפחית את רעש המסוף.",
@@ -2112,12 +2461,15 @@
       "refresh_cache": {
         "label": "רענון נתונים שמורים",
         "description": "טעינה מחדש של אנשי קשר, לוחות שנה ותיקיות מהשרת. שומר על החשבונות וההתחברויות שלך — מתקן תצוגה מיושנת או שגויה ללא התנתקות.",
-        "button": "רענון"
+        "button": "רענון",
+        "confirm_title": "לרענן את הנתונים השמורים במטמון?"
       },
       "reset_settings": {
         "label": "אפס את ההגדרות",
         "description": "שחזר את כל ההגדרות לערכי ברירת המחדל",
-        "button": "אפס לברירות מחדל"
+        "button": "אפס לברירות מחדל",
+        "confirm_title": "לאפס את כל ההגדרות?",
+        "done": "ההגדרות אופסו"
       },
       "export_settings": {
         "label": "ייצוא הגדרות",
@@ -2162,6 +2514,12 @@
       "show_avatars_in_junk": {
         "label": "הצג אווטרים בתיקייה זבל",
         "description": "הצג תמונות פרופיל וייקוני אתרים עבור שולחים בתיקייה זבל. מושבת כברירת מחדל כדי להימנע מהענקת לגיטימציה חזותית לניסיונות דיוג."
+      },
+      "sections": {
+        "backup": "גיבוי הגדרות",
+        "backup_description": "שמירת ההגדרות שלך בין דפדפנים ומכשירים.",
+        "fix": "פתרון בעיות",
+        "fix_description": "כשתצוגה נראית מיושנת או שגויה, או כשרוצים להתחיל מחדש."
       }
     },
     "sidebar_apps": {
@@ -2182,15 +2540,20 @@
       "export_label": "ייצוא אנשי קשר",
       "export_description": "ייצא את כל אנשי הקשר כקובץ vCard (.vcf).",
       "manage_title": "ספרי כתובות",
-      "manage_description": "שנה את שם פנקסי הכתובות שלך",
+      "manage_description": "שנה את השם של פנקסי הכתובות שלך או מחק אותם",
       "no_address_books": "לא נמצאו פנקסי כתובות",
       "categories_title": "קטגוריות",
-      "categories_description": "שנה שם של קטגוריות אנשי קשר",
+      "categories_description": "שנה שם של קטגוריות אנשי קשר או מחק אותן",
       "no_categories": "לא נמצאו קטגוריות",
       "group_by_letter_label": "קבוצה לפי אות ראשונה",
       "sort_by_last_name_label": "מיון לפי שם משפחה",
       "sort_by_last_name_description": "סידור רשימת אנשי הקשר לפי שם משפחה כך שבני אותה משפחה יופיעו יחד",
       "group_by_letter_description": "הצג כותרות חלקים אלפביתיים ברשימת אנשי הקשר"
+    },
+    "calendar_management": {
+      "delete_title": "למחוק את היומן?",
+      "clear_title": "לנקות את כל האירועים?",
+      "unsubscribe_title": "לבטל את המינוי ליומן הזה?"
     },
     "filters": {
       "title": "מסנני דואר אלקטרוני",
@@ -2212,9 +2575,9 @@
       "validate": "אימות",
       "validation_success": "הסקריפט תקף",
       "validation_error": "בסקריפט יש שגיאות",
-      "save": "שמור כללים",
+      "save": "שמירה",
       "saving": "שומר...",
-      "saved": "המסננים נשמרו בהצלחה",
+      "saved": "המסננים נשמרו",
       "save_failed": "שמירת המסננים נכשלה",
       "loading": "טוען מסננים...",
       "not_supported": "שרת הדואר שלך אינו תומך במסנני דואר אלקטרוני.",
@@ -2226,6 +2589,8 @@
       "add_condition": "הוסף מצב",
       "actions": "פעולות",
       "add_action": "הוסף פעולה",
+      "remove_condition": "הסרת תנאי",
+      "remove_action": "הסרת פעולה",
       "stop_processing": "הפסק לעבד את הכללים הבאים",
       "include_spam": "להעביר גם הודעות שסומנו כדואר זבל",
       "condition_fields": {
@@ -2278,6 +2643,7 @@
       "label_name": "שם התווית",
       "label_placeholder": "למשל, חשוב",
       "header_name": "שם הכותרת",
+      "condition_value": "ערך התנאי",
       "header_placeholder": "למשל, X-Mailing-list",
       "size_bytes": "גודל בבתים",
       "size_placeholder": "למשל, 1000000",
@@ -2300,10 +2666,16 @@
       "match_type": "סוג התאמה",
       "reset_to_visual": "איפוס לבונה חזותי",
       "reset_warning": "פעולה זו תמחק את הסקריפט הנוכחי ויתחיל מחדש.",
+      "reset_title": "לאפס לעורך החזותי?",
       "confirm_reset": "אִתחוּל",
       "validation_empty_name": "נדרש שם כלל",
       "validation_empty_conditions": "נדרש לפחות תנאי אחד עם ערך",
       "validation_empty_actions": "נדרשת לפחות פעולה אחת",
+      "validation_action_folder": "בחר תיקייה לפעולה הזו",
+      "validation_action_tag": "בחר תגית לפעולה הזו",
+      "validation_action_forward": "הזן כתובת להעברה",
+      "validation_action_reject": "הזן את הודעת הדחייה",
+      "validation_header_name": "שמות כותרות יכולים להכיל רק את האותיות A-Z, ספרות, מקפים וקווים תחתונים",
       "templates_section": "התחל מהתבנית",
       "template_newsletters": "העבר ניוזלטרים לתיקיה",
       "template_receipts": "העבר קבלות לארכיון אוטומטי",
@@ -2315,12 +2687,12 @@
         "script_content": "תסריט מסננת",
         "valid": "הסקריפט תקף",
         "invalid": "בסקריפט יש שגיאות",
-        "save_warning": "שמירה תחליף את כל הכללים החזותיים. לא ניתן לבטל זאת. לחץ שוב על שמור כדי לאשר.",
         "validating": "מאמת...",
         "validate": "אימות",
         "cancel": "לְבַטֵל",
         "save": "שמור",
-        "confirm_save": "אשר את השמירה",
+        "overwrite_title": "להחליף את הכללים החזותיים?",
+        "overwrite_message": "הסקריפט הזה כבר לא מכיל את הכללים שיצרת בעורך החזותי. שמירה תחליף אותם, ואי אפשר לבטל זאת.",
         "validation_failed": "בקשת האימות נכשלה"
       },
       "rule_summary": {
@@ -2498,6 +2870,563 @@
         "archive": "העבר לארכיון",
         "trash": "העבר לאשפה"
       }
+    },
+    "advanced_switch": {
+      "label": "הצגת הגדרות מתקדמות",
+      "show": "הצגת הגדרות מתקדמות",
+      "badge": "מתקדם",
+      "hidden_count": "{count, plural, one {הגדרה מתקדמת אחת מוסתרת בדף זה.} two {שתי הגדרות מתקדמות מוסתרות בדף זה.} other {# הגדרות מתקדמות מוסתרות בדף זה.}}"
+    },
+    "message_list": {
+      "title": "רשימת הודעות",
+      "description": "מה הרשימה מציגה ומה לחיצה או החלקה עושות.",
+      "sections": {
+        "senders": "תמונות שולחים",
+        "actions": "פעולות מהירות",
+        "delete": "מחיקה וארכיון",
+        "loading": "טעינה וחיפוש"
+      }
+    },
+    "reading_page": {
+      "title": "קריאה",
+      "description": "ההודעה הפתוחה.",
+      "sections": {
+        "display": "תצוגת ההודעה",
+        "images": "תמונות ותוכן חיצוני",
+        "images_description": "תמונות מרוחקות עלולות לגלות לשולח שפתחת את ההודעה.",
+        "attachments": "קבצים מצורפים"
+      },
+      "plain_text_font_link": {
+        "label": "גופן להודעות טקסט פשוט",
+        "description": "מוגדר יחד עם שאר הגופנים בעמוד נגישות.",
+        "button": "נגישות"
+      }
+    },
+    "composing_page": {
+      "title": "כתיבה",
+      "description": "כתיבה, מענה ושליחה.",
+      "sections": {
+        "replying": "מענה",
+        "sending": "לפני השליחה",
+        "receipts": "אישורי קריאה"
+      }
+    },
+    "accessibility": {
+      "system": "מערכת",
+      "on": "מופעל",
+      "off": "כבוי",
+      "presets": {
+        "title": "הגדרות מוכנות",
+        "description": "כל הגדרה מוכנה משנה כמה הגדרות בבת אחת. אחר כך אלה הגדרות רגילות שאפשר לשנות אחת אחת, ואפשר לשלב כמה הגדרות מוכנות.",
+        "applied": "{name}: שונו {count, plural, one {הגדרה אחת} two {שתי הגדרות} other {# הגדרות}}:",
+        "nothing_changed": "{name}: ההגדרות שלכם כבר תואמות.",
+        "undo": "ביטול",
+        "show_button": "הצגת כפתור הנגישות בסרגל הניווט",
+        "screen-reader": {
+          "label": "קורא מסך",
+          "description": "בלי חלונית קריאה לצד הרשימה, בלי קיבוץ לשיחות, והתצוגה המקדימה מוקראת עם כל הודעה."
+        },
+        "low-vision": {
+          "label": "ראייה לקויה",
+          "description": "טקסט גדול יותר, ניגודיות גבוהה יותר, מסגרת מיקוד עבה יותר, קישורים עם קו תחתון ומצביע גדול."
+        },
+        "dyslexia": {
+          "label": "דיסלקסיה",
+          "description": "גופן קריא יותר, יותר רווח בין שורות, אותיות ומילים, ועמודת קריאה צרה יותר."
+        },
+        "focus": {
+          "label": "ריכוז",
+          "description": "פריסה פשוטה, בלי תצוגות מקדימות ותמונות שולחים, נקודה במקום מספר ההודעות שלא נקראו, ובלי תנועה."
+        },
+        "motor": {
+          "label": "מקלדת ומוטוריקה",
+          "description": "רכיבים גדולים יותר, תפריטים שנפתחים בלחיצה, כפתור פעולות בכל הודעה והתראות שנשארות זמן רב יותר."
+        },
+        "motion": {
+          "label": "בלי תנועה ובטוח לאפילפסיה",
+          "description": "בלי הנפשות, תמונות מונפשות מושהות, בלי לוחות שקופים ובלי התראות מהבהבות."
+        },
+        "hearing": {
+          "label": "חירשים וכבדי שמיעה",
+          "description": "התראות חזותיות במקום צלילים, והתראות שנשארות עד שסוגרים אותן."
+        }
+      },
+      "quick_button": {
+        "label": "כפתור נגישות בסרגל הניווט",
+        "description": "מוסיף כפתור שפותח מכל מקום את גודל הטקסט, הניגודיות, התנועה וההגדרות המוכנות. Alt+Shift+A פותח את אותו לוח, עם הכפתור או בלעדיו."
+      },
+      "sections": {
+        "text": "טקסט וקריאה",
+        "contrast": "צבע וניגודיות",
+        "motion": "תנועה",
+        "keyboard": "מקלדת ומיקוד",
+        "pointer": "מצביע ומגע",
+        "mail": "דואר",
+        "timing": "זמנים וטעויות",
+        "alerts": "התראות והסחות דעת",
+        "screen_readers": "קוראי מסך"
+      },
+      "text_size": {
+        "label": "גודל טקסט",
+        "description": "משנה את קנה המידה של הטקסט שהגדרתם בדפדפן. 100% הוא הגודל של הדפדפן שלכם.",
+        "small": "87.5%",
+        "medium": "100%",
+        "large": "112.5%",
+        "x-large": "125%",
+        "xx-large": "150%",
+        "xxx-large": "175%",
+        "huge": "200%"
+      },
+      "font": {
+        "label": "גופן",
+        "description": "Atkinson Hyperlegible ו-Lexend תוכננו כך שקל להבדיל בין האותיות; OpenDyslexic עוזר לחלק מהאנשים עם דיסלקסיה. הם מכסים כתב לטיני.",
+        "default": "גופן ערכת הנושא"
+      },
+      "plain_text_font": {
+        "label": "גופן להודעות טקסט פשוט",
+        "description": "להודעות שנשלחו בלי עיצוב.",
+        "sans": "כמו למעלה",
+        "mono": "גופן ברוחב קבוע"
+      },
+      "spacing": {
+        "normal": "רגיל",
+        "relaxed": "יותר",
+        "loose": "הכי הרבה",
+        "wide": "רחב",
+        "wider": "רחב יותר"
+      },
+      "line_spacing": {
+        "label": "מרווח שורות",
+        "description": "הרווח בין שורות הטקסט."
+      },
+      "letter_spacing": {
+        "label": "מרווח אותיות",
+        "description": "הרווח בין האותיות."
+      },
+      "word_spacing": {
+        "label": "מרווח מילים",
+        "description": "הרווח בין המילים."
+      },
+      "paragraph_spacing": {
+        "label": "מרווח פסקאות",
+        "description": "הרווח אחרי כל פסקה."
+      },
+      "reading_width": {
+        "label": "רוחב קריאה",
+        "description": "מגביל את השורות בהודעות לכ-80 תווים, כדי שהעיניים לא יצטרכו לנוע רחוק.",
+        "full": "רוחב מלא",
+        "comfortable": "כ-80 תווים"
+      },
+      "reading_mask": {
+        "label": "מסכת קריאה",
+        "description": "מחשיך הכול בהודעה מלבד כמה שורות סביב המצביע, כדי שלא תאבדו את המקום."
+      },
+      "plain_language": {
+        "label": "שפה פשוטה",
+        "description": "ניסוח פשוט יותר בהגדרות ובהודעות שגיאה, והסברים קצרים למונחים טכניים. זמין באנגלית ובגרמנית."
+      },
+      "contrast": {
+        "label": "ניגודיות",
+        "description": "ניגודיות גבוהה מכהה או מבהיר את הטקסט, הגבולות ומסגרת המיקוד בכל ערכת נושא, ומוסיפה קו תחתון לקישורים. האפשרות מערכת עוקבת אחרי המכשיר שלכם.",
+        "more": "גבוהה",
+        "normal": "רגילה"
+      },
+      "transparency": {
+        "label": "הפחתת שקיפות",
+        "description": "רקעים אטומים במקום לוחות שקופים ומטושטשים."
+      },
+      "underline_links": {
+        "label": "קו תחתון לקישורים",
+        "description": "מוסיף קו תחתון לקישורים באפליקציה ובהודעות, כך שלא יהיה צורך להסתמך על צבע."
+      },
+      "color_names": {
+        "label": "הצגת שמות ליד צבעים",
+        "description": "מציג שמות תגיות בהודעות ושמות לוחות שנה באירועים, ולא רק נקודות צבע."
+      },
+      "cvd_palette": {
+        "label": "צבעים מותאמים לעיוורון צבעים",
+        "description": "משתמש בצבעים לתגיות, לתיקיות וללוחות שנה שנשארים ברורים גם בעיוורון צבעים אדום-ירוק או כחול-צהוב."
+      },
+      "theme_link": {
+        "label": "ערכת נושא ומצב צבעים",
+        "description": "מצב בהיר, מצב כהה וערכות הנושא נמצאים בעמוד מראה.",
+        "button": "מראה"
+      },
+      "reduce_motion": {
+        "label": "הפחתת תנועה",
+        "description": "מבטל לוחות נגללים, מעברים וגלילה חלקה, גם בתוך הודעות. האפשרות מערכת עוקבת אחרי המכשיר שלכם."
+      },
+      "pause_images": {
+        "label": "השהיית תמונות מונפשות",
+        "description": "מציג את הפריים הראשון של קובצי GIF מונפשים בהודעות, עם כפתור להפעלה. האפשרות מערכת משהה אותם כשהמכשיר מבקש פחות תנועה."
+      },
+      "single_key_shortcuts": {
+        "label": "קיצורי מקש יחיד",
+        "description": "קיצורים כמו j, k, e ו-# שמשתמשים במקש אחד. כדאי לכבות אותם אם אתם משתמשים בקלט קולי או לוחצים על מקשים בטעות. קיצורים עם Ctrl או Alt ממשיכים לעבוד."
+      },
+      "shortcut_list": {
+        "label": "קיצורי מקלדת",
+        "description": "כל הקיצורים של האפליקציה שאתם נמצאים בה.",
+        "button": "הצגת קיצורים"
+      },
+      "focus_ring": {
+        "label": "מסגרת מיקוד",
+        "description": "המסגרת סביב הכפתור, הקישור או השדה שהמקלדת נמצאת עליו.",
+        "normal": "רגילה",
+        "thick": "עבה",
+        "extra": "עבה במיוחד"
+      },
+      "focus_always": {
+        "label": "הצגת מיקוד תמיד",
+        "description": "מציג את המסגרת גם אחרי לחיצות, ולא רק כשמשתמשים במקלדת."
+      },
+      "large_targets": {
+        "label": "רכיבים גדולים",
+        "description": "מגדיל כפתורים, תיבות סימון ופקדים אחרים לפחות ל-44 פיקסלים. האפשרות מערכת מפעילה זאת במסכי מגע."
+      },
+      "large_cursor": {
+        "label": "מצביע עכבר גדול",
+        "description": "מצביע גדול יותר בתוך האפליקציה."
+      },
+      "open_on_hover": {
+        "label": "פתיחה בריחוף",
+        "description": "תפריטים, תצוגות מקדימות וכרטיסים נפתחים כשהמצביע נח עליהם. כבו כדי לפתוח אותם רק בלחיצה."
+      },
+      "row_action_button": {
+        "label": "כפתור פעולות בכל הודעה",
+        "description": "מציג בכל שורה כפתור שפותח את פעולות ההודעה, כך שאין צורך לרחף או ללחוץ לחיצה ימנית."
+      },
+      "native_scrollbars": {
+        "label": "פסי גלילה רחבים יותר",
+        "description": "משתמש בפסי הגלילה של הדפדפן עצמו, שהם רחבים יותר וקל יותר לתפוס אותם."
+      },
+      "row_actions_link": {
+        "label": "פעולות ריחוף והחלקה",
+        "description": "אילו פעולות מופיעות בשורות ההודעות.",
+        "button": "רשימת הודעות"
+      },
+      "mail_view": {
+        "label": "הצגת הודעות כ",
+        "description": "טקסט פשוט מסיר את הפריסה, הצבעים והתמונות של ההודעה. אפשר להחליף לכל הודעה בנפרד בקורא.",
+        "html": "מעוצב",
+        "plain": "טקסט פשוט"
+      },
+      "mail_text_size": {
+        "label": "גודל טקסט בהודעות",
+        "description": "גודל הטקסט בתוך הודעות. הוא נשאר זהה בכל ההודעות.",
+        "follow": "כמו באפליקציה"
+      },
+      "mail_min_font_size": {
+        "label": "הטקסט הקטן ביותר בהודעות",
+        "description": "מגדיל טקסט שהודעה מגדירה קטן מערך זה.",
+        "none": "ללא מינימום",
+        "px": "{size} px"
+      },
+      "mail_override": {
+        "label": "שימוש בגופן ובצבעים שלי בהודעות",
+        "description": "מחליף את הגופן, הגודל והצבעים של השולח בשלכם. זה עשוי לשנות את מראה הניוזלטרים.",
+        "never": "אף פעם",
+        "high_contrast": "עם ניגודיות גבוהה",
+        "always": "תמיד"
+      },
+      "mail_fit_width": {
+        "label": "התאמת הודעות רחבות לחלון",
+        "description": "מקטין הודעות רחבות יותר מחלונית הקריאה במקום לגלול הצידה."
+      },
+      "read_aloud_rate": {
+        "label": "מהירות הקראה",
+        "description": "באיזו מהירות ההקראה מקריאה הודעה."
+      },
+      "compose_font": {
+        "label": "גופן להודעות חדשות",
+        "description": "הגופן שבו מתחילות הודעות חדשות. הנמענים יראו אותו אם יש להם אותו באפליקציית הדואר.",
+        "default": "ברירת מחדל",
+        "sans": "ללא עיטורים",
+        "serif": "עם עיטורים",
+        "mono": "גופן ברוחב קבוע"
+      },
+      "compose_size": {
+        "label": "גודל טקסט להודעות חדשות",
+        "description": "הגודל שבו מתחילות הודעות חדשות.",
+        "default": "ברירת מחדל"
+      },
+      "toast_duration": {
+        "label": "משך הצגת התראות",
+        "description": "כמה זמן התראות כמו “הועבר לארכיון” עם כפתור הביטול שלהן נשארות על המסך.",
+        "until_closed": "עד שאסגור אותן",
+        "seconds": "{seconds} שניות"
+      },
+      "confirm_send": {
+        "label": "אישור לפני שליחה",
+        "description": "שואל לפני שליחת הודעה."
+      },
+      "confirm_delete": {
+        "label": "אישור לפני מחיקה",
+        "description": "שואל לפני מחיקת הודעה, גם כשמדובר בהודעה בודדת."
+      },
+      "confirm_archive": {
+        "label": "אישור לפני העברה לארכיון",
+        "description": "שואל לפני העברת הודעה לארכיון."
+      },
+      "send_warnings_link": {
+        "label": "אזהרות לפני שליחה",
+        "description": "נושא חסר, קובץ מצורף שנשכח וטקסט מציין מיקום.",
+        "button": "הרכבה"
+      },
+      "visual_alerts": {
+        "label": "התראות חזותיות",
+        "description": "מהבהב לאט בכותרת הלשונית כשמגיע דואר חדש או תזכורת, ומשאיר תזכורות על המסך עד שסוגרים אותן."
+      },
+      "unread_counts": {
+        "label": "מספר הודעות שלא נקראו",
+        "description": "איך תיקיות וסרגל הניווט מציגים דואר שלא נקרא.",
+        "count": "מספר",
+        "dot": "נקודה",
+        "hidden": "מוסתר"
+      },
+      "do_not_disturb": {
+        "label": "נא לא להפריע",
+        "description": "בלי צלילים, התראות קופצות או הכרזות קוליות על דואר חדש, עד שמכבים את האפשרות."
+      },
+      "announce_new_mail": {
+        "label": "הכרזה על דואר חדש",
+        "description": "קוראי מסך אומרים כמה הודעות חדשות הגיעו, בלי להקריא אותן."
+      },
+      "announce_preview": {
+        "label": "הקראת התצוגה המקדימה ברשימה",
+        "description": "קוראי מסך מקריאים את השורה הראשונה של כל הודעה יחד עם השולח והנושא."
+      },
+      "simple_mode": {
+        "label": "מצב פשוט",
+        "description": "עמודה אחת, פחות כפתורים ובלי לוחות צד."
+      },
+      "simple_mode_paged": {
+        "label": "דפדוף ברשימת ההודעות",
+        "description": "מציג את הרשימה בדפים של 50 הודעות עם הבא וקודם, במקום גלילה אינסופית. קל יותר עם קורא מסך."
+      },
+      "reset": {
+        "title": "איפוס",
+        "label": "איפוס הגדרות הנגישות",
+        "description": "מחזיר את כל ההגדרות בעמוד זה לברירת המחדל, או לערך שהארגון שלכם קבע. הגדרות משותפות, כמו תצוגת שיחות, נשארות כמו שהן.",
+        "button": "איפוס",
+        "done": "הגדרות הנגישות אופסו."
+      },
+      "read_aloud_voice": {
+        "label": "קול ההקראה",
+        "description": "הקול שמקריא הודעות. הרשימה מציגה את הקולות שיש לדפדפן שלך לשפת הממשק.",
+        "default": "ברירת המחדל של הדפדפן"
+      }
+    }
+  },
+  "setup": {
+    "title": "הגדרת Bulwark Webmail",
+    "subtitle": "הגדירו את מופע דואר הרשת שלכם מהדפדפן.",
+    "loading": "טוען…",
+    "back": "חזרה",
+    "next": "הבא",
+    "saving": "שומר…",
+    "show": "הצגה",
+    "hide": "הסתרה",
+    "remove": "הסרה",
+    "on": "פעיל",
+    "off": "כבוי",
+    "dismiss": "סגירה",
+    "unknown_error": "שגיאה לא ידועה",
+    "steps": {
+      "welcome": "ברוכים הבאים",
+      "server": "שרת",
+      "auth": "התחברות",
+      "security": "אבטחה",
+      "logging": "יומנים",
+      "branding": "מיתוג",
+      "review": "סקירה"
+    },
+    "read_only": {
+      "title": "התצורה לקריאה בלבד",
+      "body": "אמצעי האחסון של התצורה מחובר לקריאה בלבד או שהמשתנה <code>{variable}</code> מוגדר. חברו אותו מחדש עם הרשאת כתיבה או הסירו את המשתנה, ואז הפעילו מחדש את הקונטיינר."
+    },
+    "done": {
+      "title": "הכול מוכן",
+      "body": "{appName} מוגדר ומוכן לשימוש.",
+      "admin_sign_in": "התחברות ללוח הניהול",
+      "webmail_login": "פתיחת ההתחברות לדואר הרשת",
+      "redirecting": "מעבירים אתכם ללוח הניהול…"
+    },
+    "already": {
+      "title": "ההגדרה כבר הושלמה",
+      "body": "{appName} מוגדר. התחברו כדי להמשיך."
+    },
+    "insecure": {
+      "title": "אתם מריצים את ההגדרה דרך HTTP לא מוצפן",
+      "body": "אסימון ההגדרה וסיסמת המנהל שתזינו כאן יישלחו כטקסט גלוי. השתמשו ב-HTTPS אם אפשר: סיימו את TLS בקונטיינר או בשרת proxy הפוך שלפניו.",
+      "try_https": "לנסות HTTPS",
+      "continue_http": "להמשיך דרך HTTP"
+    },
+    "errors": {
+      "token_expired": "אסימון ההגדרה הזה כבר אינו תקף. הפעילו מחדש את הקונטיינר כדי לקבל אסימון חדש מהיומנים.",
+      "session_expired": "הפעלת ההגדרה פגה. הדביקו שוב את אסימון ההגדרה כדי להמשיך.",
+      "token_required": "הדביקו את אסימון ההגדרה שמופיע ביומני הקונטיינר כדי להמשיך.",
+      "already_finished": "ההגדרה כבר הסתיימה. טענו מחדש כדי להתחבר.",
+      "token_rejected": "האסימון נדחה (HTTP {status})",
+      "step_failed": "לא ניתן היה לשמור את השלב הזה (HTTP {status})",
+      "upload_failed": "ההעלאה נכשלה (HTTP {status})",
+      "finish_failed": "לא ניתן היה להשלים את ההגדרה (HTTP {status})"
+    },
+    "welcome": {
+      "title": "ברוכים הבאים",
+      "body": "הדביקו את אסימון ההגדרה שמופיע ביומני הקונטיינר כדי להמשיך. תוקף האסימון פג אחרי שעה.",
+      "token_label": "אסימון הגדרה",
+      "token_placeholder": "אסימון הקסדצימלי של 32 בתים",
+      "verifying": "מאמת…",
+      "continue": "המשך"
+    },
+    "server": {
+      "title": "שרת",
+      "subtitle": "איפה הדואר שלכם נמצא.",
+      "app_name": "שם היישום",
+      "url_label": "כתובת URL של שרת JMAP",
+      "url_hint": "שרת ברירת המחדל שאליו המשתמשים מתחברים. לדוגמה: https://mail.example.com",
+      "test": "בדיקה",
+      "testing": "בודק…",
+      "probe_ok": "מחובר: נראה שזה שרת JMAP.",
+      "probe_not_jmap": "השרת עונה, אבל לא נראה כמו נקודת קצה של JMAP.",
+      "probe_invalid": "כתובת ה-URL הזו אינה תקינה. היא צריכה להתחיל ב-http:// או ב-https://.",
+      "probe_unreachable": "לא ניתן היה להתחבר לכתובת הזו. בדקו את כתובת ה-URL ושהשרת מחובר.",
+      "not_jmap_hint": "זה יכול לקרות כששרת proxy הפוך מנתב את JMAP בנפרד באותו דומיין. אחרת, בדרך כלל כתובת ה-URL שגויה.",
+      "not_jmap_confirm": "אני בטוח שכתובת ה-URL נכונה, להמשיך בכל זאת.",
+      "http_title": "כתובת ה-URL הזו משתמשת ב-HTTP לא מוצפן.",
+      "http_body": "סיסמאות ותוכן הודעות יעברו ללא הצפנה בין המשתמשים לשרת שלכם. בסביבת ייצור השתמשו ב-<code>{https}</code>: סיימו את TLS בשרת הדואר או בשרת proxy הפוך שלפניו.",
+      "local_title": "כתובת ה-URL הזו פועלת רק מקומית.",
+      "local_body": "הדואר נטען ישירות מהדפדפן של המשתמש, ולכן כתובת ה-JMAP חייבת להיות נגישה מכל מקום שבו המשתמשים מתחברים, לא רק מהמחשב הזה או מהרשת המקומית. בסביבת ייצור השתמשו בשם מארח ציבורי (למשל <code>{example}</code>).",
+      "additional_title": "שרתי JMAP נוספים",
+      "additional_hint": "אופציונלי. הציעו כמה שרתים ברשימת ההתחברות, שימושי למארחים שמריצים כמה מופעי Stalwart.",
+      "additional_show": "הצגה ({count})",
+      "add": "הוספה",
+      "row_title": "שרת מס׳ {index}",
+      "id_label": "מזהה",
+      "id_hint": "שם קצר ייחודי, למשל eu-1",
+      "label_label": "תווית",
+      "label_hint": "מוצגת למשתמשים",
+      "row_url": "URL",
+      "domains_label": "דומיינים",
+      "domains_hint": "מופרדים בפסיקים. משמשים לבחירת השרת הזה לפי הדומיין של הדוא״ל בעת ההתחברות.",
+      "add_server": "הוספת שרת",
+      "auto_pick": "לבחור את השרת לפי הדומיין של הדוא״ל",
+      "auto_pick_hint": "כשמשתמש מקליד את כתובת הדוא״ל שלו, נבחר השרת המתאים מהרשימה שלמעלה.",
+      "row_id_required": "שרת מס׳ {index}: המזהה הוא שדה חובה",
+      "row_id_invalid": "שרת מס׳ {index}: המזהה יכול להכיל רק אותיות, ספרות, - ו-_ ועליו להתחיל באות או בספרה",
+      "row_id_duplicate": "שרת מס׳ {index}: המזהה „{id}” מופיע פעמיים",
+      "row_url_required": "שרת מס׳ {index}: כתובת ה-URL היא שדה חובה",
+      "row_url_scheme": "שרת מס׳ {index}: כתובת ה-URL צריכה להתחיל ב-http:// או ב-https://",
+      "stalwart": "הפעלת תכונות ייעודיות ל-Stalwart",
+      "stalwart_hint": "מוסיף שינוי סיסמה וניהול מסנני Sieve. בטוח להפעלה גם בשרתים אחרים."
+    },
+    "auth": {
+      "title": "אימות",
+      "subtitle": "התחברות עם סיסמה זמינה תמיד. OAuth/OIDC הוא אופציונלי.",
+      "oauth": "הפעלת OAuth2 / OpenID Connect",
+      "oauth_only": "OAuth בלבד (הסתרת טופס הסיסמה)",
+      "client_id": "מזהה לקוח OAuth",
+      "client_secret": "סוד לקוח OAuth",
+      "client_secret_hint": "השאירו ריק עבור לקוחות ציבוריים שמשתמשים ב-PKCE בלבד.",
+      "client_secret_placeholder": "הדביקו את הסוד",
+      "issuer": "כתובת URL של מנפיק OAuth",
+      "issuer_hint": "עבור ספקי זהות חיצוניים (Keycloak,‏ Authentik,‏ Entra ID ועוד)."
+    },
+    "security": {
+      "title": "אבטחה והפעלות",
+      "subtitle": "סוד ההפעלה מאפשר את „זכור אותי” ואת סנכרון ההגדרות.",
+      "generated": "סוד ההפעלה נוצר",
+      "customize": "התאמה אישית",
+      "generated_hint": "נוצר עבורכם סוד של 32 בתים. שנו אותו רק אם יש לכם סיבה מסוימת.",
+      "secret_label": "סוד ההפעלה",
+      "secret_hint": "הדביקו ערך משלכם או צרו חדש.",
+      "regenerate": "יצירה מחדש",
+      "sync": "סנכרון הגדרות המשתמשים בין מכשירים",
+      "sync_hint": "שומר את העדפות המשתמשים בשרת, מוצפנות בסוד ההפעלה.",
+      "telemetry": "שליחת נתוני שימוש אנונימיים כדי לעזור לשפר את Bulwark",
+      "telemetry_hint": "כבוי כברירת מחדל. אות אנונימי אחד ביום עם הגרסה, הפלטפורמה והתכונות הפעילות; אף פעם לא כתובות דוא״ל, שמות מארחים או כתובות IP. אפשר לשנות זאת בכל עת בהגדרות הניהול."
+    },
+    "logging": {
+      "title": "יומנים",
+      "subtitle": "תבנית ורמת הפירוט של יומני היישום.",
+      "format": "תבנית",
+      "format_text": "text: צבעוני, קריא",
+      "format_json": "json: מובנה, לאיסוף יומנים",
+      "level": "רמה",
+      "level_info": "info (מומלץ)"
+    },
+    "branding": {
+      "title": "מיתוג",
+      "subtitle": "כל השדות אופציונליים. העלו קובץ או הדביקו כתובת URL; לכל מה שתדלגו עליו ישמשו ערכי ברירת המחדל.",
+      "company": "שם החברה או הארגון",
+      "favicon": "סמל אתר",
+      "favicon_hint": "הסמל בלשונית הדפדפן. מומלץ SVG.",
+      "login_light": "לוגו ההתחברות (מצב בהיר)",
+      "login_light_hint": "מוצג בדף ההתחברות, על רקע בהיר.",
+      "login_dark": "לוגו ההתחברות (מצב כהה)",
+      "login_dark_hint": "מוצג בדף ההתחברות, על רקע כהה.",
+      "sidebar_light": "לוגו סרגל הצד (מצב בהיר)",
+      "sidebar_light_hint": "מוצג אחרי ההתחברות. השאירו ריק אם אין צורך.",
+      "sidebar_dark": "לוגו סרגל הצד (מצב כהה)",
+      "sidebar_dark_hint": "גרסת המצב הכהה של לוגו סרגל הצד.",
+      "website": "כתובת URL של האתר",
+      "imprint": "כתובת URL של פרטי המפעיל",
+      "privacy": "כתובת URL של מדיניות הפרטיות",
+      "drop": "לחצו או שחררו כאן",
+      "uploading": "מעלה…",
+      "uploaded": "קובץ שהועלה",
+      "formats": "SVG,‏ PNG,‏ JPEG,‏ WebP או ICO · עד 2 MB",
+      "use_url": "שימוש בכתובת URL",
+      "hide_url": "הסתרת כתובת ה-URL",
+      "url_placeholder": "https://… או /branding/file.svg"
+    },
+    "review": {
+      "title": "כמעט סיימנו",
+      "subtitle": "בדקו את ההגדרות, בחרו סיסמת מנהל והחילו.",
+      "server": "שרת",
+      "app_name": "שם היישום",
+      "jmap_server": "שרת JMAP",
+      "additional": "שרתים נוספים",
+      "additional_count": "הוגדרו: {count}",
+      "additional_auto_pick": "הוגדרו: {count} · נבחרים לפי דומיין",
+      "stalwart": "תכונות Stalwart",
+      "auth": "אימות",
+      "method": "שיטה",
+      "oauth_only": "OAuth בלבד",
+      "password_oauth": "סיסמה + OAuth",
+      "password_only": "סיסמה בלבד",
+      "client_id": "מזהה לקוח OAuth",
+      "security": "אבטחה",
+      "secret": "סוד ההפעלה",
+      "configured": "מוגדר",
+      "not_set": "לא הוגדר",
+      "remember_me": "זכור אותי",
+      "available": "זמין",
+      "disabled": "מושבת",
+      "sync": "סנכרון הגדרות",
+      "needs_secret": "נדרש סוד הפעלה",
+      "telemetry": "טלמטריה אנונימית",
+      "logging": "יומנים",
+      "format": "תבנית",
+      "level": "רמה",
+      "branding": "מיתוג",
+      "customizations": "התאמות",
+      "custom_assets": "הוגדרו קבצים משלכם",
+      "defaults": "ערכי ברירת מחדל",
+      "company": "שם החברה",
+      "password_title": "בחרו סיסמת מנהל",
+      "password_hint": "תשתמשו בה כדי להתחבר בכתובת <code>{path}</code>. לפחות 8 תווים.",
+      "new_password": "סיסמה חדשה",
+      "confirm": "אישור",
+      "too_short": "לפחות 8 תווים.",
+      "mismatch": "הסיסמאות אינן תואמות.",
+      "looks_good": "נראה טוב.",
+      "advanced": "מתקדם",
+      "lock": "נעילת התצורה אחרי ההגדרה",
+      "lock_hint": "יוצר קובץ סימון. אחר כך חברו את אמצעי האחסון של התצורה לקריאה בלבד, והיישום יסרב לשינויי תצורה נוספים. יומני הביקורת ומצב ההתחברות נשארים ניתנים לכתיבה באמצעי האחסון של המצב.",
+      "applying": "מחיל…",
+      "finish": "החלה וסיום"
     }
   },
   "errors": {
@@ -2517,6 +3446,10 @@
     "retry": "נסה שוב",
     "go_home": "עבור לתיבת הדואר הנכנס"
   },
+  "not_found": {
+    "title": "הדף לא נמצא",
+    "description": "הדף הזה לא קיים או שהועבר. בדקו את הכתובת או חזרו לתיבת הדואר הנכנס."
+  },
   "context_menu": {
     "reply": "השב",
     "reply_all": "השב לכולם",
@@ -2527,8 +3460,10 @@
     "unstar": "הסר כוכב",
     "pin": "הצמד",
     "unpin": "בטל הצמדה",
-    "move_to": "העבר ל...",
-    "copy_to_account": "העתק לחשבון...",
+    "move_to": "העבר ל",
+    "move_to_dialog": "העברה אל…",
+    "go_to_folder": "מעבר אל {folder}",
+    "copy_to_account": "העתק לחשבון",
     "remove_from_folder": "הסרה מתיקייה זו",
     "archive": "ארכיון",
     "delete": "לִמְחוֹק",
@@ -2567,6 +3502,7 @@
   "shortcuts": {
     "title": "קיצורי מקלדת",
     "tip": "לחץ על? בכל עת כדי להראות את העזרה הזו",
+    "or": "או",
     "sections": {
       "navigation": "ניווט",
       "actions": "פעולות אימייל",
@@ -2592,7 +3528,8 @@
       "delete": "לִמְחוֹק",
       "mark_unread": "סמן כלא נקרא",
       "mark_read": "סמן כנקרא",
-      "toggle_spam": "דווח על ספאם / לא ספאם"
+      "toggle_spam": "דווח על ספאם / לא ספאם",
+      "undo": "ביטול הפעולה האחרונה"
     },
     "global": {
       "compose": "כתוב אימייל חדש",
@@ -2601,7 +3538,9 @@
       "refresh": "רענן מיילים",
       "select_all": "בחר הכל",
       "global_search": "חיפוש בכל מקום",
-      "extend_selection": "הרחבת הבחירה למטה / למעלה"
+      "extend_selection": "הרחבת הבחירה למטה / למעלה",
+      "accessibility_panel": "פתיחת אפשרויות הנגישות",
+      "focus_notification": "מעבר להתראה האחרונה"
     },
     "threads": {
       "expand_collapse": "הרחב/כווץ את השרשור",
@@ -2611,12 +3550,12 @@
       "template_picker": "פתח את בוחר התבניות",
       "send": "שלח דוא״ל",
       "schedule_send": "תזמן שליחה"
-    }
+    },
+    "single_keys_off": "קיצורי מקש יחיד כבויים. קיצורים עם Ctrl,‏ Alt או ⌘ עדיין עובדים, וכך גם Delete,‏ Enter,‏ Escape ומקשי החיצים.",
+    "tip_single_keys_off": "אפשר להפעיל אותם שוב בהגדרות > נגישות."
   },
   "threads": {
-    "messages_one": "הודעת{count}",
-    "messages_other": "הודעות{count}",
-    "messages_tooltip": "{count, plural, one {הודעה אחת בשיחה זו} other {# הודעות בשיחה זו}}",
+    "messages_tooltip": "{count, plural, one {הודעה אחת בשיחה זו} two {שתי הודעות בשיחה זו} other {# הודעות בשיחה זו}}",
     "expand": "הרחב את השיחה",
     "collapse": "כווץ השיחה",
     "loading": "טוען שיחה...",
@@ -2626,7 +3565,10 @@
     "delete": "מחק את השיחה",
     "star": "שיחת כוכב",
     "unstar": "הסר שיחה בכוכב",
-    "toggle_thread": "החלף חוט"
+    "toggle_thread": "החלף חוט",
+    "messages_count": "{count, plural, one {הודעה אחת} two {שתי הודעות} other {# הודעות}}",
+    "expand_named": "הרחב את השיחה: {subject}",
+    "collapse_named": "כווץ את השיחה: {subject}"
   },
   "identities": {
     "modal_title": "ניהול זהויות שליחה",
@@ -2696,8 +3638,26 @@
     "delete_button": "לִמְחוֹק",
     "delete_confirm_title": "מחק זהות"
   },
+  "org_signature": {
+    "disclaimer_added_on_send": "מתווסף בעת השליחה",
+    "identity_signature_label": "חתימה",
+    "identity_no_signature": "ללא חתימה",
+    "identity_default": "השאר את שתי החתימות ריקות כדי לשלוח מהכתובת הזו את החתימה של הארגון שלך.",
+    "details": {
+      "title": "הפרטים שלך",
+      "description": "החתימה של הארגון שלך מציגה את הפרטים האלה. מלא אותם פעם אחת; כל כתובת שאתה שולח ממנה משתמשת בהם.",
+      "preview": "החתימה שלך",
+      "fields": {
+        "title": "תפקיד",
+        "department": "מחלקה",
+        "phone": "טלפון",
+        "mobile": "נייד"
+      }
+    }
+  },
   "templates": {
     "picker_title": "בחר תבנית",
+    "manage": "ניהול תבניות",
     "search_placeholder": "חפש תבניות...",
     "section_favorites": "מועדפים",
     "section_recent": "לאחרונה",
@@ -2710,16 +3670,63 @@
     "insert_with_values": "הוסף עם ערכים",
     "insert_raw": "הכנס Raw",
     "copy_suffix": "(העתק)",
+    "duplicate": "שכפול",
+    "delete_title": "למחוק את התבנית?",
+    "delete_message": "התבנית \"{name}\" תימחק לצמיתות.",
     "placeholder": "משתנה",
     "placeholders": {
       "recipient_name": "שם הנמען",
       "company": "שם החברה",
       "date": "תאריך נוכחי",
+      "short_date": "תאריך במספרים",
+      "day": "יום (שתי ספרות)",
+      "month": "חודש (שתי ספרות)",
+      "year": "שנה",
       "day_of_week": "יום בשבוע",
       "sender_name": "השם שלך"
+    },
+    "section_examples": "דוגמאות",
+    "builtin": {
+      "accessible": {
+        "name": "הודעה נגישה",
+        "heading": "על מה ההודעה הזאת",
+        "intro": "התחילו בעיקר במשפט אחד או שניים קצרים.",
+        "details_heading": "פרטים",
+        "tip_structure": "השתמשו בכותרות וברשימות מסרגל הכלים, לא בהדגשה או בשורות ריקות.",
+        "tip_links": "כתבו טקסט קישור שאומר לאן הקישור מוביל, לא „לחצו כאן”.",
+        "tip_images": "תארו כל תמונה, או סמנו אותה כדקורטיבית.",
+        "next_heading": "השלבים הבאים",
+        "next": "כתבו מה אתם צריכים מהקורא ועד מתי."
+      }
     }
   },
+  "org_templates": {
+    "section_personal": "התבניות שלי",
+    "section_organisation": "ארגון",
+    "sources_label": "רשימות תבניות",
+    "organisation_note": "מהארגון שלך. אי אפשר לשנות אותן, אבל אפשר להעתיק אחת לתבניות שלך.",
+    "copy_to_personal": "העתק לתבניות שלי",
+    "duplicate": "שכפול",
+    "save_failed": "לא ניתן היה לשמור את התבנית. נסה שוב.",
+    "save_failed_forbidden": "אין לך אפשרות לשנות את התבניות האלה.",
+    "save_failed_too_large": "התבנית הזו גדולה מ־8 KB שהשרת שומר לכל תבנית. קצר אותה ושמור שוב.",
+    "save_failed_no_room": "אין מקום בתיבת הדואר לתבניות נוספות. מחק אחת ונסה שוב.",
+    "local_only_too_large": "רק בדפדפן הזה: גדולה מ־8 KB שהשרת שומר לכל תבנית.",
+    "local_only_no_room": "רק בדפדפן הזה: אין בחשבון שלך מקום לתבניות נוספות.",
+    "personal_in_account": "התבניות שלך נשמרות בחשבון שלך, כך שהן זמינות בכל מכשיר שאתה מתחבר ממנו. כל מי ששיתפת איתו את הדואר הנכנס יכול לקרוא אותן.",
+    "team_note": "כל החברים ב־{name} רואים את התבניות האלה ויכולים לשנות אותן.",
+    "team_read_only": "אפשר להשתמש בתבניות האלה, אבל לא לשנות אותן.",
+    "save_failed_conflict": "מישהו אחר שינה את זה. טען מחדש ונסה שוב.",
+    "preview_to": "אל: {list}",
+    "preview_cc": "עותק: {list}"
+  },
   "contacts": {
+    "print": {
+      "name": "שם",
+      "count": "{count, plural, one {איש קשר אחד} two {# אנשי קשר} other {# אנשי קשר}}",
+      "entries": "{count, plural, one {רשומה אחת} two {# רשומות} other {# רשומות}}",
+      "search": "חיפוש: {query}"
+    },
     "directory": {
       "title": "ספרייה",
       "search_placeholder": "חיפוש שם או כתובת דוא״ל",
@@ -2750,7 +3757,7 @@
       "add_cc": "הוספה לעותק",
       "add_bcc": "הוספה לעותק מוסתר",
       "select_hint": "בחר אדם כדי לראות את פרטיו",
-      "write_email": "כתיבת הודעה",
+      "write_email": "שלח דוא״ל",
       "add_to_contacts": "הוספה לאנשי קשר",
       "email": "דוא״ל",
       "read_only_note": "רשומות הספרייה מגיעות משרת הדואר ואי אפשר לערוך אותן כאן.",
@@ -2763,6 +3770,11 @@
       }
     },
     "title": "אנשי קשר",
+    "disabled_title": "מנהל המערכת השבית את אנשי הקשר",
+    "disabled_description": "פנה למנהל המערכת אם אתה צריך אותם.",
+    "drag_count": "{count, plural, one {איש קשר אחד} other {# אנשי קשר}}",
+    "select_contact": "בחר את {name}",
+    "new": "חדש",
     "search_placeholder": "חפש אנשי קשר...",
     "create_new": "איש קשר חדש",
     "no_category": "אין קטגוריה",
@@ -2770,17 +3782,23 @@
     "category_name_label": "שם קטגוריה",
     "category_renamed": "שם קטגוריה שונה",
     "category_rename_failed": "שינוי שם הקטגוריה נכשל",
+    "delete_category": "מחק קטגוריה",
+    "category_deleted": "הקטגוריה \"{name}\" נמחקה",
+    "category_delete_failed": "לא ניתן היה למחוק את הקטגוריה",
+    "undo": "בטל",
     "category_added": "איש קשר נוסף ל-{name}",
     "category_added_plural": "אנשי הקשר{count}נוספו ל-{name}",
     "empty_state": "עדיין אין אנשי קשר",
     "empty_state_title": "עדיין אין אנשי קשר",
     "empty_state_subtitle": "צור את איש הקשר הראשון שלך או ייבא מקובץ vCard",
+    "empty_view_title": "אין כאן אנשי קשר",
+    "empty_view_hint": "הוסף איש קשר או ייבא קובץ vCard.",
     "empty_search": "אין אנשי קשר שתואמים לחיפוש שלך",
     "empty_search_hint": "נסה מונח חיפוש אחר",
     "clear_search": "נקה חיפוש",
     "import_vcard": "ייבוא vCard",
-    "delete_confirm_title": "מחק איש קשר",
-    "delete_confirm": "האם אתה בטוח שברצונך למחוק איש קשר זה?",
+    "delete_named_title": "למחוק את {name}?",
+    "delete_details_message": "כתובות הדוא״ל, מספרי הטלפון, ההערות וכל שאר הפרטים יימחקו. לא ניתן לבטל פעולה זו.",
     "local_mode": "אנשי הקשר מאוחסנים באופן מקומי (שרת אינו תומך באנשי קשר ב-JMAP)",
     "back_to_contacts": "חזור לאנשי קשר",
     "tabs": {
@@ -2807,14 +3825,19 @@
       "set_default_failed": "נכשל בהגדרת פנקס כתובות ברירת מחדל",
       "manage": "ניהול פנקסי כתובות",
       "create": "ספר כתובות חדש",
+      "create_confirm": "צור",
       "created": "ספר כתובות נוצר",
       "create_failed": "נכשל ביצירת ספר כתובות",
       "share": "שתף ספר כתובות",
       "new_contact_in_book": "איש קשר חדש בספר כתובות זה",
       "delete": "מחק ספר כתובות",
+      "delete_title": "למחוק את ספר הכתובות?",
       "confirm_delete": "מחק \"{name}\"? כל אנשי הקשר בספר כתובות זה יוסרו.",
       "deleted": "ספר כתובות נמחק",
-      "delete_failed": "נכשל במחיקת ספר כתובות"
+      "delete_failed": "נכשל במחיקת ספר כתובות",
+      "move_to": "העבר אל…",
+      "move_title": "העבר לפנקס כתובות",
+      "move_here": "העבר לכאן"
     },
     "detail": {
       "emails": "כתובות אימייל",
@@ -2840,7 +3863,7 @@
       "cert_imported": "אישור מיובא לחנות S/MIME",
       "cert_import_failed": "ייבוא האישור נכשל",
       "no_contact_selected": "בחר איש קשר כדי להציג פרטים",
-      "compose_email": "כתוב אימייל",
+      "compose_email": "שלח דוא״ל",
       "copy_email": "העתק אימייל",
       "copy_phone": "העתק את מספר הטלפון",
       "copy_url": "העתק כתובת URL",
@@ -2886,8 +3909,8 @@
     "form": {
       "create_title": "איש קשר חדש",
       "edit_title": "ערוך איש קשר",
-      "section_address_book": "ספרייה",
-      "select_address_book": "בחר ספרייה...",
+      "section_address_book": "ספר כתובות",
+      "select_address_book": "ספר כתובות",
       "section_identity": "שם וזהות",
       "contact_type": "סוג איש קשר",
       "type_person": "אדם",
@@ -2974,6 +3997,13 @@
       "add_phone": "הוסף טלפון",
       "save": "שמור",
       "cancel": "לְבַטֵל",
+      "discard_title": "לבטל את השינויים?",
+      "discard_message": "השינויים שלך לא נשמרו.",
+      "discard": "לבטל שינויים",
+      "keep_editing": "להמשיך לערוך",
+      "remove_entry": "הסר",
+      "close": "סגור",
+      "remove_category": "הסר את {name}",
       "creating": "יוצר...",
       "updating": "מעדכן...",
       "name_required": "יש להזין שם פרטי, שם משפחה או ארגון",
@@ -2986,14 +4016,21 @@
       "photo_hint": "JPG או PNG, עד 10 MB. יוגדל מחדש.",
       "photo_too_large": "התמונה גדולה מדי (מקס 10 MB)",
       "photo_invalid": "קובץ תמונה לא חוקי",
-      "change_photo": "שנה"
+      "change_photo": "שנה",
+      "context_label": "עבודה או פרטי",
+      "online_service_url": "כתובת",
+      "anniversary_date": "תאריך",
+      "anniversary_kind": "אירוע",
+      "personal_info_kind": "סוג"
     },
     "groups": {
       "create": "קבוצה חדשה",
+      "delete": "מחק קבוצה",
+      "remove_member": "הסר את {name} מהקבוצה",
       "edit": "ערוך קבוצה",
       "empty": "עדיין אין קבוצות",
       "delete_confirm_title": "מחק את הקבוצה",
-      "delete_confirm": "האם אתה בטוח שברצונך למחוק את הקבוצה הזו?",
+      "delete_message": "הקבוצה תימחק. אנשי הקשר שבה יישמרו.",
       "name_label": "שם הקבוצה",
       "name_placeholder": "למשל, צוות, משפחה",
       "name_required": "נדרש שם הקבוצה",
@@ -3002,7 +4039,7 @@
       "search_members": "חפש אנשי קשר להוספה...",
       "no_members": "אין חברים בקבוצה זו",
       "member_count": "{count, plural, =0 {אין חברים} one {חבר אחד} other {# חברים}}",
-      "send_email": "שלח דוא״ל לקבוצה",
+      "send_email": "שלח דוא״ל",
       "send_email_to": "אל",
       "send_email_cc": "עותק",
       "send_email_bcc": "עותק נסתר",
@@ -3028,18 +4065,20 @@
     },
     "export": {
       "title": "ייצוא אנשי קשר",
-      "success": "{count, plural, one {יוצא איש קשר אחד} other {יוצאו # אנשי קשר}}"
+      "success": "{count, plural, one {יוצא איש קשר אחד} other {יוצאו # אנשי קשר}}",
+      "exporting": "מייצא..."
     },
     "bulk": {
       "selected": "{count, plural, one {נבחר אחד} other {נבחרו #}}",
       "select_all": "בחר הכל",
       "delete": "לִמְחוֹק",
-      "delete_confirm_title": "מחק אנשי קשר",
       "delete_confirm": "למחוק {count, plural, one {איש קשר אחד} other {# אנשי קשר}}?",
       "deleted": "{count, plural, one {נמחק איש קשר אחד} other {נמחקו # אנשי קשר}}",
       "add_to_group": "הוסף לקבוצה",
       "choose_group": "בחר קבוצה",
+      "new_group": "קבוצה חדשה…",
       "adding_contacts": "מוסיף {count, plural, one {איש קשר אחד} other {# אנשי קשר}}",
+      "moving_contacts": "מעביר {count, plural, one {איש קשר אחד} other {# אנשי קשר}}",
       "added_to_group": "אנשי קשר נוספו לקבוצה",
       "export": "ייצוא",
       "clear": "נקה בחירה"
@@ -3056,6 +4095,7 @@
     "empty_filtered_hint": "נסה להתאים או להביא סננים",
     "back_to_email": "חזור לדוא״ל",
     "open_categories": "קטגוריות פתוחות",
+    "row_actions": "פעולות עבור {name}",
     "activity": {
       "recent_emails": "דוא״ל אחרונים",
       "upcoming_events": "אירועים קרובים",
@@ -3100,15 +4140,44 @@
       "sort_by": "מיון לפי",
       "sort_first_name": "שם פרטי",
       "sort_last_name": "שם משפחה"
+    },
+    "shortcuts": {
+      "list": "רשימה",
+      "actions": "פעולות",
+      "first_last": "הראשון או האחרון",
+      "extend": "הרחב את הבחירה",
+      "toggle": "בחר או בטל בחירה",
+      "select_all": "בחר הכול",
+      "clear": "נקה את הבחירה או החיפוש",
+      "delete": "מחק",
+      "search": "חיפוש",
+      "move": "איש הקשר הבא או הקודם",
+      "open": "פתח את איש הקשר",
+      "menu": "פתח את התפריט של איש הקשר"
     }
   },
   "calendar": {
+    "print": {
+      "calendars": "יומנים: {names}",
+      "time_zone": "אזור זמן: {zone}",
+      "time_zone_label": "אזור זמן",
+      "search": "חיפוש: {query}",
+      "when": "מתי",
+      "meeting": "פגישה מקוונת",
+      "repeats": "חזרה"
+    },
     "title": "לוח שנה",
     "back_to_email": "חזור לדוא״ל",
     "back_to_month": "חזרה לחודש",
     "my_calendars": "לוחות שנה",
     "birthday_calendar": "ימי הולדת",
     "mini_calendar_change": "לחץ כדי לשנות חודש",
+    "mini_prev_month": "החודש הקודם",
+    "mini_next_month": "החודש הבא",
+    "mini_prev_year": "השנה הקודמת",
+    "mini_next_year": "השנה הבאה",
+    "mini_prev_years": "שנים קודמות",
+    "mini_next_years": "השנים הבאות",
     "views": {
       "month": "חודש",
       "week": "שבוע",
@@ -3138,6 +4207,7 @@
       "show_less": "הצג פחות",
       "no_title": "(ללא כותרת)",
       "resize": "שנה את גודל האירוע",
+      "draggable_role": "אירוע שניתן להזיז",
       "duplicate": "שכפול",
       "today_header": "היום",
       "tomorrow_header": "מחר",
@@ -3161,8 +4231,7 @@
       "copy_location": "העתק מיקום",
       "meeting_link": "קישור לפגישה",
       "tentative": "טנטטיבי",
-      "cancelled": "בוטל",
-      "delete_confirm": "למחוק את האירוע הזה?"
+      "cancelled": "בוטל"
     },
     "form": {
       "title": "כותרת",
@@ -3177,7 +4246,6 @@
       "calendar_select": "לוּחַ שָׁנָה",
       "save": "שמור",
       "cancel": "לְבַטֵל",
-      "delete_confirm": "האם אתה בטוח שברצונך למחוק את האירוע הזה?",
       "color": "צבע"
     },
     "participants": {
@@ -3186,15 +4254,22 @@
         "free": "פנוי",
         "busy": "עסוק",
         "tentative": "טנטטיבי",
+        "no_busy_times": "לא שותפו זמנים תפוסים",
         "unknown": "לא משתמש בשרת זה",
-        "checking": "בודק…"
+        "error": "לא ניתן היה לבדוק",
+        "checking": "בודק…",
+        "unavailable_on_server": "מידע פנוי/תפוס אינו זמין בשרת זה"
       },
       "title": "משתתפים",
       "add": "הוסף משתתף",
       "organizer": "מארגן",
+      "organizer_role": "מארגן",
       "attendee": "משתתף",
       "accepted": "התקבל",
       "declined": "נדחה",
+      "accept": "אישור",
+      "maybe": "אולי",
+      "decline": "דחייה",
       "tentative": "טנטטיבי",
       "needs_action": "צריך פעולה",
       "remove": "הסר",
@@ -3208,6 +4283,7 @@
       "you_organizer": "אתה המארגן",
       "you_attendee": "אתה משתתף",
       "no_participants": "אין משתתפים",
+      "limit_warning": "יותר מ-{max, plural, one {# משתתף} other {# משתתפים}}, כולל המארגן: ייתכן שהשרת יסרב לשמור את האירוע. מנהל המערכת יכול להגדיל את המגבלה.",
       "count": "{count, plural, one {משתתף אחד} other {# משתתפים}}",
       "edit": "ערוך"
     },
@@ -3257,6 +4333,10 @@
     "recurrence_scope": {
       "edit_title": "ערוך אירוע חוזר",
       "delete_title": "מחק אירוע חוזר",
+      "delete_question": "למחוק את האירוע החוזר?",
+      "delete_this_message": "רק המופע הזה של \"{title}\" יימחק. לא ניתן לבטל פעולה זו.",
+      "delete_following_message": "המופע הזה וכל המופעים הבאים של \"{title}\" יימחקו. לא ניתן לבטל פעולה זו.",
+      "delete_all_message": "כל המופעים של \"{title}\" יימחקו. לא ניתן לבטל פעולה זו.",
       "description": "זהו אירוע שחוזר על עצמו. אילו אירועים תרצה לשנות?",
       "this_event": "אירוע זה בלבד",
       "this_and_future": "זה והאירועים הבאים",
@@ -3267,6 +4347,21 @@
       "rsvp_title": "השב לאירוע חוזר",
       "rsvp_description": "זהו אירוע שחוזר על עצמו. על אילו אירועים חלה התשובה שלך?",
       "respond": "השב"
+    },
+    "discard": {
+      "title": "לבטל את השינויים?",
+      "message": "השינויים שלך לא נשמרו.",
+      "keep": "להמשיך לערוך",
+      "confirm": "לבטל שינויים"
+    },
+    "delete_dialog": {
+      "event_title": "למחוק את האירוע?",
+      "event_message": "\"{title}\" יימחק. לא ניתן לבטל פעולה זו.",
+      "event_message_attendees": "\"{title}\" יימחק והמשתתפים יקבלו הודעת ביטול.",
+      "task_title": "למחוק את המשימה?",
+      "task_message": "\"{title}\" תימחק. לא ניתן לבטל פעולה זו.",
+      "subscription_title": "לבטל את המנוי ללוח השנה?",
+      "confirm": "מחיקה"
     },
     "alerts": {
       "title": "תזכורת",
@@ -3319,6 +4414,8 @@
       "invitation_parsing_desc": "זיהוי הזמנות ליומן בקבצים מצורפים לאימייל והצג פעולות ביומן",
       "show_time_in_month_view": "הצג זמן בתצוגת חודש",
       "show_time_in_month_view_desc": "הצג זמני אירועים בתצוגת לוח השנה של החודש",
+      "tinted_events": "צבעי אירועים בהירים",
+      "tinted_events_desc": "הצגת אירועים בגוון בהיר של צבע היומן עם פס צבעוני בהתחלה, כמו ב-Outlook ובהדפסה, במקום בלוקים מלאים.",
       "show_week_numbers": "הצג מספרי שבוע",
       "show_week_numbers_desc": "הצג מספרי שבוע במיני-לוח שנה",
       "calendar_free_scroll": "גלילה חופשית",
@@ -3359,7 +4456,16 @@
     "notifications": {
       "event_created": "האירוע נוצר",
       "event_updated": "האירוע עודכן",
+      "event_moved": "האירוע הועבר",
+      "undo": "בטל",
       "event_deleted": "האירוע נמחק",
+      "event_delete_error": "לא ניתן היה למחוק את האירוע",
+      "task_deleted": "המשימה נמחקה",
+      "task_delete_error": "לא ניתן היה למחוק את המשימה",
+      "task_created": "המשימה נוצרה",
+      "task_updated": "המשימה עודכנה",
+      "task_save_error": "לא ניתן היה לשמור את המשימה",
+      "task_update_error": "לא ניתן היה לעדכן את המשימה",
       "calendar_created": "יומן נוצר",
       "calendar_deleted": "לוח השנה נמחק",
       "event_move_error": "העברת האירוע נכשלה",
@@ -3373,16 +4479,21 @@
       "save_without_invitations": "שמור בלי הזמנות",
       "rsvp_updated": "התגובה עודכנה",
       "rsvp_error": "עדכון התגובה נכשל",
+      "participant_limit": "השרת מאפשר עד {max, plural, one {# משתתף} other {# משתתפים}} לאירוע, כולל המארגן, ולכן דחה את השינוי. מנהל המערכת יכול להגדיל את המגבלה.",
       "event_duplicated": "האירוע שוכפל",
       "event_error": "שמירת האירוע נכשלה",
       "task_due": "משימה בשל",
       "event_exported": "אירוע ייצא",
       "title_copied": "כותרת הועתקה",
-      "link_copied": "קישור הועתק"
+      "link_copied": "קישור הועתק",
+      "title_alert": "תזכורת: {title}"
     },
     "status": {
       "loading_calendars": "טוען יומנים...",
-      "loading_events": "טוען אירועים..."
+      "loading_events": "טוען אירועים...",
+      "events_load_failed": "לא ניתן לטעון את האירועים. ייתכן שהיומן אינו מעודכן.",
+      "tasks_load_failed": "לא ניתן לטעון את המשימות. ייתכן שהרשימה אינה מעודכנת.",
+      "retry": "נסה שוב"
     },
     "quick_create": {
       "placeholder": "כותרת אירוע חדשה",
@@ -3406,14 +4517,14 @@
       "invalid_url": "אנא הזן כתובת אתר חוקית",
       "url_fetch_failed": "אחזור היומן מ-URL נכשל",
       "parsing": "מנתח קובץ לוח שנה...",
-      "parsed_events": "נמצאו אירועים של{count}",
+      "parsed_events": "{count, plural, one {נמצא אירוע אחד} other {נמצאו # אירועים}}",
       "no_events": "לא נמצאו אירועים בקובץ",
       "select_all": "בחר הכל",
       "deselect_all": "בטל את הבחירה בכולם",
       "target_calendar": "ייבא ליומן",
       "import_button": "ייבא נבחר",
       "importing": "מייבא אירועים...",
-      "success": "אירועי{count}יובאו בהצלחה",
+      "success": "{count, plural, one {אירוע אחד יובא} other {# אירועים יובאו}}",
       "error": "ייבוא היומן נכשל",
       "file_too_large": "הקובץ חורג ממגבלת 10MB",
       "invalid_format": "פורמט קובץ לוח שנה לא חוקי"
@@ -3421,21 +4532,23 @@
     "management": {
       "title": "ניהול לוח שנה",
       "description": "צור, שנה שם והתאם אישית את היומנים שלך. לחץ לחיצה ימנית על לוח שנה בסרגל הצד כדי לשנות במהירות את צבעו.",
+      "description_touch": "צור, שנה שם והתאם אישית את היומנים שלך.",
       "name": "שֵׁם",
       "name_placeholder": "שם לוח שנה",
       "color": "צבע",
       "change_color": "שנה צבע",
-      "add_calendar": "הוסף לוח שנה",
+      "add_calendar": "לוח שנה חדש",
       "edit": "ערוך",
       "delete": "לִמְחוֹק",
       "save": "שמור",
       "create": "צור",
       "cancel": "לְבַטֵל",
       "default": "ברירת מחדל",
+      "row_actions": "פעולות עבור {name}",
       "confirm_delete": "למחוק את \"{name}\"? כל האירועים בלוח השנה הזה יוסרו.",
       "confirm_clear": "לנקות את כל האירועים מ-\"{name}\"? לא ניתן לבטל זאת.",
       "clear_events": "נקה אירועים",
-      "events_cleared": "אירועי{count}נוקו",
+      "events_cleared": "{count, plural, one {אירוע אחד נוקה} other {# אירועים נוקו}}",
       "error_clear": "נכשל ניקוי אירועים ביומן",
       "calendar_created": "יומן נוצר",
       "calendar_updated": "לוח השנה עודכן",
@@ -3448,10 +4561,11 @@
       "copy_url": "העתק כתובת URL של CalDAV",
       "url_copied": "כתובת האתר של CalDAV הועתקה ללוח",
       "random_color": "צבע אקראי חדש",
+      "reset_color": "איפוס צבע",
       "set_default": "הגדר כברירת מחדל",
       "default_updated": "לוח שנה ברירת המחדל עודכן",
       "error_default": "נכשל בהגדרת לוח שנה ברירת מחדל",
-      "share": "שתף לוח שנה",
+      "share": "שתף לוח שנה…",
       "new_event_in_calendar": "אירוע חדש בלוח שנה זה",
       "shared_with": "משותף עם {names}",
       "shared_with_count": "{count, plural, one {משותף עם אדם אחד} two {משותף עם שני אנשים} other {משותף עם # אנשים}}",
@@ -3514,7 +4628,6 @@
       "filter_pending": "בהמתנה",
       "filter_completed": "הושלם",
       "filter_overdue": "באיחור",
-      "show_completed": "ההצגה הושלמה",
       "create": "משימה חדשה",
       "edit": "ערוך משימה",
       "title_placeholder": "כותרת המשימה",
@@ -3575,6 +4688,8 @@
       "esf": "Esfand"
     },
     "nav_open_menu": "פתח תפריט",
+    "nav_hide_sidebar": "הסתרת סרגל הצד",
+    "nav_show_sidebar": "הצגת סרגל הצד",
     "webcal_action": {
       "title": "פתח קישור לוח שנה",
       "description": "כיצד היית רוצה להשתמש ב־\"{name}\"?",
@@ -3586,10 +4701,40 @@
     },
     "toolbar": {
       "more": "פעולות נוספות",
-      "select_view": "החלפת תצוגה, כעת {view}"
+      "select_view": "החלפת תצוגה, כעת {view}",
+      "import": "ייבוא לוח שנה…",
+      "subscribe": "הרשמה ללוח שנה…"
+    },
+    "commands": {
+      "day": "תצוגת יום",
+      "week": "תצוגת שבוע",
+      "month": "תצוגת חודש",
+      "agenda": "תצוגת סדר יום",
+      "tasks": "רשימת משימות"
+    },
+    "shortcuts": {
+      "views": "תצוגות",
+      "actions": "פעולות",
+      "previous": "היום, השבוע או החודש הקודם",
+      "next": "היום, השבוע או החודש הבא",
+      "new_item": "אירוע חדש, או משימה חדשה במשימות",
+      "move_in_grid": "מעבר בין ימים ושעות ברשת"
     },
     "other_calendars": "יומנים אחרים",
-    "calendar_options": "אפשרויות עבור {name}"
+    "calendar_options": "אפשרויות עבור {name}",
+    "search": {
+      "title": "חיפוש אירועים",
+      "clear": "ניקוי החיפוש",
+      "close": "סגירת החיפוש",
+      "upcoming": "קרובים",
+      "past": "קודמים",
+      "no_results": "אין אירועים שתואמים ל„{query}”",
+      "no_results_hint": "החיפוש בודק כותרות, מקומות, תיאורים ומוזמנים.",
+      "repeats": "חוזר",
+      "results": "{count, plural, one {נמצא אירוע אחד} two {נמצאו שני אירועים} other {נמצאו # אירועים}}"
+    },
+    "mini_has_events": "יש אירועים",
+    "mini_week_number": "שבוע {week}"
   },
   "advanced_search": {
     "title": "חיפוש מתקדם",
@@ -3618,7 +4763,7 @@
     "clear_all": "נקה הכל",
     "filters_active": "מסנן{count}",
     "filters_active_plural": "מסנני{count}",
-    "toggle_filters": "עוד",
+    "toggle_filters": "מסננים",
     "search_hint": "השתמש במסננים מתקדמים לחיפוש מדויק",
     "advanced_filters_tooltip": "מסנני חיפוש מתקדמים",
     "results_found": "{count, plural, =0 {לא נמצאו תוצאות} one {נמצאה תוצאה אחת} other {נמצאו # תוצאות}}",
@@ -3633,7 +4778,18 @@
     "date_within": "תאריך",
     "search_in": "חיפוש ב",
     "has_attachment_check": "יש קובץ מצורף",
-    "search": "חיפוש"
+    "search": "חיפוש",
+    "not_starred": "ללא כוכב",
+    "no_attachment": "ללא קבצים מצורפים",
+    "any_time": "בכל זמן",
+    "past_week": "השבוע האחרון",
+    "past_month": "החודש האחרון",
+    "past_year": "השנה האחרונה",
+    "custom_range": "טווח מותאם",
+    "any_size": "כל גודל",
+    "larger_than_mb": "גדול מ-{size} MB",
+    "custom_size": "גודל מותאם",
+    "name_or_address": "שם או כתובת"
   },
   "welcome": {
     "title": "ברוך הבא לתיבת הדואר שלך",
@@ -3673,9 +4829,9 @@
     "new_name": "שם חדש",
     "name_forbidden_chars": "השרת אינו מתיר את התווים האלה בשמות: {chars}",
     "name_reserved": "השם הזה שמור בשרת.",
+    "name_control_chars": "שמות אינם יכולים להכיל תווי בקרה.",
+    "name_too_long": "השם הזה ארוך מדי עבור השרת.",
     "delete": "לִמְחוֹק",
-    "delete_confirm_title": "מחק משאב",
-    "delete_confirm_message": "האם אתה בטוח שברצונך למחוק את \"{name}\"? לא ניתן לבטל זאת.",
     "download": "הורד",
     "name": "שֵׁם",
     "size": "גודל",
@@ -3683,25 +4839,74 @@
     "type": "הקלד",
     "folder": "תיקיה",
     "file": "קובץ",
+    "symlink": "קישור סמלי",
+    "parent_directory": "ספריית הורים",
+    "breadcrumb_root": "בית",
     "uploading": "מעלה...",
     "upload_success": "{count, plural, one {קובץ אחד הועלה} other {# קבצים הועלו}}",
     "upload_canceled": "ההעלאה בוטלה",
     "upload_canceled_partial": "{count, plural, one {קובץ אחד הועלה} two {שני קבצים הועלו} other {# קבצים הועלו}} לפני הביטול",
     "upload_error": "העלאת הקובץ נכשלה",
+    "upload_failed": "{count, plural, one {לא ניתן היה להעלות קובץ אחד} other {לא ניתן היה להעלות # קבצים}}",
+    "error_over_quota": "הגעת למגבלת הקבצים או התיקיות. יש למחוק חלק מהם ולנסות שוב.",
+    "error_too_deep": "לא ניתן לקנן תיקיות לעומק כזה.",
+    "error_invalid_name": "השרת אינו מקבל את השם הזה.",
+    "error_forbidden": "אין לך הרשאה לבצע פעולה זו כאן.",
+    "error_too_large": "הקובץ הזה גדול מדי עבור השרת.",
+    "error_partial_copy": "חלק מההעתק נשאר במקומו.",
     "create_folder_success": "התיקיה נוצרה",
     "create_folder_error": "יצירת התיקיה נכשלה",
-    "delete_success": "נמחק בהצלחה",
     "delete_error": "המחיקה נכשלה",
+    "trash": "אשפה",
+    "restore": "שחזר",
+    "restored": "{count, plural, one {הפריט שוחזר} other {# פריטים שוחזרו}}",
+    "restore_error": "לא ניתן היה לשחזר",
+    "moved_to_trash": "{count, plural, one {הועבר לאשפה} other {# פריטים הועברו לאשפה}}",
+    "delete_forever": "מחק לצמיתות",
+    "delete_forever_title": "{count, plural, one {למחוק לצמיתות?} other {למחוק # פריטים לצמיתות?}}",
+    "delete_forever_message": "\"{name}\" יימחק. לא ניתן לבטל פעולה זו.",
+    "delete_forever_message_count": "{count, plural, one {פריט אחד יימחק} other {# פריטים יימחקו}}. לא ניתן לבטל פעולה זו.",
+    "deleted_forever": "{count, plural, one {נמחק לצמיתות} other {# פריטים נמחקו לצמיתות}}",
+    "empty_trash": "רוקן את האשפה",
+    "empty_trash_title": "לרוקן את האשפה?",
+    "empty_trash_message": "{count, plural, one {הפריט באשפה יימחק} other {כל # הפריטים באשפה יימחקו}} לצמיתות. לא ניתן לבטל פעולה זו.",
+    "trash_emptied": "האשפה רוקנה",
+    "empty_trash_error": "לא ניתן היה לרוקן את האשפה",
+    "trash_empty_title": "האשפה ריקה",
+    "trash_empty_hint": "קבצים שנמחקו נשארים כאן עד שתרוקן את האשפה.",
+    "deleted": "נמחק",
+    "deleted_from": "נמחק מ-{folder}",
+    "shortcuts": {
+      "list": "רשימה",
+      "actions": "פעולות",
+      "first_last": "הראשון או האחרון",
+      "extend": "הרחב את הבחירה",
+      "toggle": "בחר או בטל בחירה",
+      "select_all": "בחר הכול",
+      "clear": "נקה את הבחירה או החיפוש",
+      "delete": "מחק",
+      "search": "חיפוש",
+      "move": "הפריט הבא או הקודם",
+      "move_grid": "הפריט הסמוך ברשת",
+      "open": "פתח",
+      "up": "תיקייה אחת למעלה",
+      "rename": "שנה שם",
+      "copy": "העתק",
+      "cut": "גזור",
+      "paste": "הדבק"
+    },
     "rename_success": "השם שונה בהצלחה",
     "rename_error": "שינוי השם נכשל",
     "download_error": "ההורדה נכשלה",
+    "download_zip": "הורד כקובץ ZIP",
+    "zipping": "מכין את {name}",
+    "download_canceled": "ההורדה בוטלה",
+    "zip_error": "לא ניתן היה להוריד את {name}",
     "not_available": "אחסון קבצים אינו זמין בשרת זה",
     "cancel": "לְבַטֵל",
     "create": "צור",
     "save": "שמור",
     "no_results": "אין קבצים שתואמים לחיפוש שלך",
-    "batch_delete_confirm_message": "האם למחוק {count, plural, one {פריט אחד} other {# פריטים}}? לא ניתן לבטל זאת.",
-    "batch_delete_success": "{count, plural, one {פריט אחד נמחק} other {# פריטים נמחקו}}",
     "grid_view": "תצוגת רשת",
     "list_view": "תצוגת רשימה",
     "details": "פרטים",
@@ -3713,9 +4918,19 @@
     "paste": "הדבק",
     "move_success": "{count, plural, one {פריט אחד הועבר} other {# פריטים הועברו}}",
     "move_error": "לא הצליח לזוז",
+    "move_to": "העבר אל…",
+    "move_to_title": "העבר אל",
+    "move_here": "העבר לכאן",
     "paste_success": "הודבק בהצלחה",
     "paste_error": "ההדבקה נכשלה",
     "new_text_file": "קובץ טקסט חדש",
+    "new_file": "קובץ חדש",
+    "file_format": "פורמט",
+    "format_text": "קובץ טקסט",
+    "format_document": "מסמך",
+    "format_spreadsheet": "גיליון אלקטרוני",
+    "format_presentation": "מצגת",
+    "format_pdf": "PDF",
     "file_name": "שם הקובץ",
     "retry": "נסה שוב",
     "refresh": "רענן",
@@ -3746,6 +4961,7 @@
     "shared": "משותף",
     "shared_with_me": "משותף איתי",
     "shared_by": "משותף על ידי {name}",
+    "shared_files_from": "קבצים מאת {name}",
     "open_folder_tree": "פתח עץ תיקייה",
     "migration_title": "עדכון הקבצים שלך…",
     "migration_description": "ארגון תיקיות וקבצים לתוך המבנה הנכון שלהם. זה קורה רק פעם אחת.",
@@ -3794,25 +5010,9 @@
     "zoom_reset": "התאם למסך",
     "rotate": "סובב",
     "close_preview": "סגור",
-    "trash": "אשפה",
-    "restore": "שחזר",
-    "restored": "{count, plural, one {הפריט שוחזר} other {# פריטים שוחזרו}}",
-    "restore_error": "לא ניתן היה לשחזר",
-    "moved_to_trash": "{count, plural, one {הועבר לאשפה} other {# פריטים הועברו לאשפה}}",
-    "delete_forever": "מחק לצמיתות",
-    "delete_forever_title": "{count, plural, one {למחוק לצמיתות?} other {למחוק # פריטים לצמיתות?}}",
-    "delete_forever_message": "\"{name}\" יימחק. לא ניתן לבטל פעולה זו.",
-    "delete_forever_message_count": "{count, plural, one {פריט אחד יימחק} other {# פריטים יימחקו}}. לא ניתן לבטל פעולה זו.",
-    "deleted_forever": "{count, plural, one {נמחק לצמיתות} other {# פריטים נמחקו לצמיתות}}",
-    "empty_trash": "רוקן את האשפה",
-    "empty_trash_title": "לרוקן את האשפה?",
-    "empty_trash_message": "{count, plural, one {הפריט באשפה יימחק} other {כל # הפריטים באשפה יימחקו}} לצמיתות. לא ניתן לבטל פעולה זו.",
-    "trash_emptied": "האשפה רוקנה",
-    "empty_trash_error": "לא ניתן היה לרוקן את האשפה",
-    "trash_empty_title": "האשפה ריקה",
-    "trash_empty_hint": "קבצים שנמחקו נשארים כאן עד שתרוקן את האשפה.",
-    "deleted": "נמחק",
-    "deleted_from": "נמחק מ-{folder}"
+    "previous_file": "הקובץ הקודם",
+    "next_file": "הקובץ הבא",
+    "loading": "טוען…"
   },
   "smime": {
     "your_certificates": "התעודות שלך",
@@ -3941,23 +5141,26 @@
     "quota_title": "שימוש באחסון",
     "quota_desc": "עקוב אחר גודל תיבת הדואר שלך כאן. העיגול מתמלא ככל שאתה מנצל יותר מקום.",
     "show_on_new_devices_title": "הצג בהתקנים חדשים",
-    "show_on_new_devices_desc": "הפעל מחדש את בר הברכה ושיוך את הסיור בפעם הראשונה שאתה נכנס בהתקן חדש, גם אם כבר השלמת אותו במקום אחר"
+    "show_on_new_devices_desc": "הפעל מחדש את בר הברכה ושיוך את הסיור בפעם הראשונה שאתה נכנס בהתקן חדש, גם אם כבר השלמת אותו במקום אחר",
+    "settings_section": "צעדים ראשונים",
+    "email_list_desc_phone": "ההודעות שלך מופיעות כאן. הקש על הודעה כדי לקרוא אותה, או לחץ עליה לחיצה ארוכה לפעולות נוספות.",
+    "contacts_list_desc_phone": "אלה אנשי הקשר שלך. הקש על איש קשר כדי לראות את כל הפרטים שלו. אפשר גם ליצור אנשי קשר חדשים, לייבא vCard או לארגן אנשי קשר בקבוצות."
   },
   "meta_description": "לקוח webmail מינימליסטי באמצעות פרוטוקול JMAP",
   "protocol_handlers": {
     "title": "יישומים ברירת מחדל",
-    "description": "בחר אם קישורי דוא״ל ולוח שנה ייפתחו ב־Bulwark. מבחינה טכנית, Bulwark רשום כטיפול בפרוטוקול עבור קישורי mailto: ו־webcal:.",
+    "description": "בחר אם קישורי דוא״ל ולוח שנה ייפתחו ב־{appName}. מבחינה טכנית, {appName} רשום כטיפול בפרוטוקול עבור קישורי mailto: ו־webcal:.",
     "unsupported": "דפדפן זה או חיבור זה לא תומך בהרשמה ידנית של טיפול בפרוטוקול. ייתכן שעדיין תוכל להשתמש ב־PWA המותקנת דרך הדפדפן או הגדרות מערכת ההפעלה.",
     "mailto_label": "קישורי דוא״ל",
-    "mailto_description": "פתח קישורי mailto: ב־Bulwark עם מחבר שמלא מראש.",
+    "mailto_description": "פתח קישורי mailto: ב־{appName} עם מחבר שמלא מראש.",
     "protocol_open_mode_label": "בעת פתיחת קישורי פרוטוקול",
-    "protocol_open_mode_description": "בחר אם Bulwark יפתח קישורי mailto: ו־webcal: בלשונית חדשה או ישתמש בחיבור פתוח. אפשרות הישיבה הפעילה דורשת הרשאת עדכון כדי שתוכל ללחוץ על עדכון נופל כדי להביא את Bulwark לחזית אם הדפדפן חוסם מיקוד.",
+    "protocol_open_mode_description": "בחר אם {appName} יפתח קישורי mailto: ו־webcal: בלשונית חדשה או ישתמש בחיבור פתוח. אפשרות הישיבה הפעילה דורשת הרשאת עדכון כדי שתוכל ללחוץ על עדכון נופל כדי להביא את {appName} לחזית אם הדפדפן חוסם מיקוד.",
     "protocol_open_mode_active_session": "פתח בישיבה פעילה אם אפשר",
     "protocol_open_mode_new_tab": "פתח תמיד לשונית חדשה",
-    "focus_notification_title": "פתח את Bulwark",
-    "focus_notification_body": "הקישור נפתח ב־Bulwark. לחץ כדי להביא את החלון לחזית.",
+    "focus_notification_title": "פתח את {appName}",
+    "focus_notification_body": "הקישור נפתח ב־{appName}. לחץ כדי להביא את החלון לחזית.",
     "webcal_label": "קישורי לוח שנה",
-    "webcal_description": "פתח קישורי webcal: ב־Bulwark עם תיבת דו־שיח מלא מראש להרשמה ללוח שנה.",
+    "webcal_description": "פתח קישורי webcal: ב־{appName} עם תיבת דו־שיח מלא מראש להרשמה ללוח שנה.",
     "register_mailto": "רשום יישום דוא״ל",
     "register_webcal": "רשום יישום לוח שנה",
     "mailto_registered": "בקש הרשמה של מטפל דוא״ל",
@@ -3965,7 +5168,7 @@
     "registration_failed": "הרשמת טיפול בפרוטוקול נכשלה",
     "opening_mailto": "פתיחת מחבר…",
     "opening_webcal": "פתיחת לוח שנה…",
-    "browser_note": "הדפדפן או מערכת ההפעלה שלך עשויים לבקש ממך לאשר זאת ועשויים לדרוש שBulwark יותקן לפני שניתן לבחור אותו כיישום ברירת המחדל.",
+    "browser_note": "הדפדפן או מערכת ההפעלה שלך עשויים לבקש ממך לאשר זאת ועשויים לדרוש ש{appName} יותקן לפני שניתן לבחור אותו כיישום ברירת המחדל.",
     "select_account_title": "בחר חשבון",
     "select_mailto_account": "בחר איזה חשבון צריך לפתוח קישור דוא״ל זה.",
     "select_webcal_account": "בחר איזה חשבון צריך לפתוח קישור לוח שנה זה.",
@@ -3985,7 +5188,7 @@
     "new_subfolder": "תת־תיקייה חדשה…",
     "new_folder": "תיקייה חדשה…",
     "rename": "שנה שם…",
-    "share": "שיתוף...",
+    "share": "שיתוף…",
     "import_email": "ייבא .eml או .zip…",
     "empty_folder": "תיקייה ריקה",
     "empty_folder_generic": "תיקייה ריקה",
@@ -4054,8 +5257,12 @@
     "loading_principals": "טעינת משתמשים…",
     "no_principals": "לא נמצאו משתמשים או קבוצות אחרים.",
     "no_match": "אין התאמות.",
+    "directory_restricted": "השרת שלך אינו מאפשר לעיין בספריית המשתמשים שלו, ולכן מוצגות רק הקבוצות שלך ואנשים ששיתפו איתך משהו. מנהל מערכת יכול להפעיל שאילתות ספרייה בהגדרות השיתוף של Stalwart.",
+    "directory_not_browsable": "השרת שלך אינו מאפשר לך לעיין בספריית המשתמשים שלו.",
+    "directory_failed": "לא ניתן היה לטעון את רשימת המשתמשים והקבוצות.",
     "remove": "הסר גישה",
     "group": "קבוצה",
+    "unknown_user": "משתמש לא ידוע",
     "share_added": "גישה ניתנה",
     "share_updated": "גישה עודכנה",
     "share_removed": "גישה הוסרה",
@@ -4066,10 +5273,120 @@
       "readWrite": "קרא וכתוב",
       "manager": "מנהל",
       "custom": "מותאם אישית"
+    },
+    "access_for": "גישה עבור {name}"
+  },
+  "delegates": {
+    "tab": "שיתוף",
+    "title": "נציגים",
+    "description": "תן למישהו גישה לדואר, ללוחות השנה ולאנשי הקשר שלך בצעד אחד, וראה למי יש גישה למה.",
+    "give_access": "תן גישה",
+    "who_has_access": "למי יש גישה",
+    "nobody": "לאף אחד אין גישה לדואר, ללוחות השנה, לאנשי הקשר או לקבצים שלך.",
+    "loading": "טוען…",
+    "read_failed": "לא ניתן היה לקרוא חלק מהשיתופים שלך, ולכן „שנה” ו„הסר גישה” ממתינים עד שזה יתאפשר.",
+    "change": "שנה",
+    "remove": "הסר גישה",
+    "remove_title": "להסיר את הגישה של {name}?",
+    "remove_message": "{name} יאבד גישה לכל מה ששיתפת מהחשבון שלך: דואר, לוחות שנה, אנשי קשר וקבצים.",
+    "removed": "גישה הוסרה",
+    "remove_partial": "לאלה עדיין יש גישה: {items}",
+    "applied": "ל־{name} יש עכשיו גישה",
+    "updated": "גישה עודכנה",
+    "unknown_person": "אדם לא ידוע",
+    "group": "קבוצה",
+    "has_access": "יש גישה",
+    "summary": {
+      "mail_all": "כל תיקיות הדואר",
+      "mail_inbox": "דואר נכנס",
+      "mail_some": "{count, plural, one {תיקיית דואר אחת} two {שתי תיקיות דואר} other {# תיקיות דואר}}",
+      "calendars": "{count, plural, one {לוח שנה אחד} two {שני לוחות שנה} other {# לוחות שנה}}",
+      "address_books": "{count, plural, one {פנקס כתובות אחד} two {שני פנקסי כתובות} other {# פנקסי כתובות}}",
+      "files": "{count, plural, one {קובץ או תיקייה אחת} two {שני קבצים או תיקיות} other {# קבצים או תיקיות}}"
+    },
+    "level": {
+      "read": "קריאה",
+      "write": "קריאה וכתיבה",
+      "mixed": "הרשאות שונות",
+      "none": "חופשי/תפוס בלבד"
+    },
+    "dialog_title_add": "תן גישה",
+    "dialog_title_change": "שנה גישה עבור {name}",
+    "person": "אדם",
+    "search_placeholder": "שם או כתובת אימייל",
+    "change_person": "שנה",
+    "no_match": "לא נמצא אף אחד.",
+    "use_address": "השתמש ב־{address}",
+    "looking_up": "מחפש…",
+    "not_found": "לאף אחד בשרת הזה אין את הכתובת {address}.",
+    "lookup_failed": "לא ניתן היה לחפש את הכתובת הזו.",
+    "is_you": "זה אתה.",
+    "known_only": "מוצגות רק הקבוצות שלך ואנשים ששיתפו איתך משהו.",
+    "directory_off_note": "מנהל המערכת צריך להפעיל שאילתות ספרייה ב־Stalwart לפני שתוכל להוסיף מישהו חדש.",
+    "directory_failed": "לא ניתן היה לטעון את רשימת האנשים והקבוצות.",
+    "what": "מה",
+    "mail": "דואר",
+    "mail_all": "כל התיקיות",
+    "mail_inbox": "דואר נכנס בלבד",
+    "calendars": "לוחות שנה",
+    "calendars_default": "לוח השנה המוגדר כברירת מחדל",
+    "calendars_all": "כל לוחות השנה",
+    "address_books": "אנשי קשר",
+    "address_books_default": "פנקס הכתובות המוגדר כברירת מחדל",
+    "address_books_all": "כל פנקסי הכתובות",
+    "none": "כלום",
+    "keep": "השאר כמו שהוא",
+    "empty_scope": "בחר דואר, לוחות שנה או אנשי קשר.",
+    "nothing_to_change": "אין מה לשנות. בחר מה האדם יקבל, או השתמש ב„הסר גישה”.",
+    "change_note": "תיקיות, לוחות שנה ופנקסי כתובות שלא תבחר יאבדו את הגישה. קבצים משותפים נשארים כמו שהם; „הסר גישה” מסיר גם אותם.",
+    "rights": "הרשאות",
+    "rights_read": "קריאה",
+    "rights_read_hint": "לראות את הדואר, האירועים ואנשי הקשר שלך.",
+    "rights_read_hint_flags": "לראות את הדואר, האירועים ואנשי הקשר שלך. השרת הזה גם מאפשר להם לסמן דואר בדגל ולסמן אותו כנקרא.",
+    "rights_write": "קריאה וכתיבה",
+    "rights_write_hint": "גם לתייק, לסמן ולמחוק דואר, ולשנות אירועים ואנשי קשר.",
+    "rights_keep": "השאר כמו שהוא",
+    "rights_keep_hint": "מה שכבר יש לו שומר על ההרשאות שלו; מה שנוסף מקבל את ההרשאות של שאר הפריטים מאותו סוג, או קריאה.",
+    "send_note": "נציגים יכולים לקרוא ולארגן את הדואר ואת לוח השנה שלך. Stalwart לא מאפשר להם לשלוח בשמך או מטעמך. כדי לשתף כתובת אחת בין כמה אנשים, בקש ממנהל המערכת תיבת דואר משותפת.",
+    "apply_add": "תן גישה",
+    "apply_change": "שמור",
+    "partial_title": "לא ניתן היה לשנות את אלה. השאר בוצע.",
+    "retry": "נסה שוב",
+    "kind": {
+      "mailbox": "תיקיית דואר",
+      "calendar": "לוח שנה",
+      "addressBook": "פנקס כתובות",
+      "file": "קובץ"
     }
   },
   "unified_mailbox": {
     "search_unavailable": "חיפוש אינו זמין בתצוגה המאוחדת"
+  },
+  "recover_deleted": {
+    "tab": "שחזור פריטים שנמחקו",
+    "title": "שחזור פריטים שנמחקו",
+    "description": "דואר שמחקת לצמיתות, למשל כשרוקנת את האשפה, ושהשרת עדיין שומר. בחר הודעות ושחזר אותן.",
+    "range_days": "מוצג דואר שנמחק {days, plural, one {ביום האחרון} two {ביומיים האחרונים} other {ב־# הימים האחרונים}}.",
+    "range_all": "מוצג כל הדואר שנמחק שהשרת עדיין שומר.",
+    "loading": "טוען דואר שנמחק…",
+    "load_failed": "לא ניתן היה לטעון את הדואר שנמחק.",
+    "retry": "נסה שוב",
+    "empty": "אין דואר שנמחק לשחזור.",
+    "select_all": "בחר הכול",
+    "selected": "{count} נבחרו",
+    "refresh": "רענון",
+    "restore": "שחזור",
+    "restored": "{count, plural, one {הודעה אחת חוזרת} two {שתי הודעות חוזרות} other {# הודעות חוזרות}} לדואר הנכנס שלך.",
+    "restore_partial": "{count, plural, one {לא ניתן היה לשחזר הודעה אחת. היא נשארת מסומנת כדי שתוכל לנסות שוב.} two {לא ניתן היה לשחזר שתי הודעות. הן נשארות מסומנות כדי שתוכל לנסות שוב.} other {לא ניתן היה לשחזר # הודעות. הן נשארות מסומנות כדי שתוכל לנסות שוב.}}",
+    "restore_hint": "דואר משוחזר חוזר לדואר הנכנס כלא נקרא, ממוין לפי התאריך המקורי שלו, כך שהוא עשוי להיות רחוק למטה ברשימה. השרת משחזר אותו ברקע. אם זה נכשל שם, ההודעה אובדת ו־Bulwark לא יכול לדעת על כך.",
+    "unknown_sender": "שולח לא ידוע",
+    "no_subject": "(ללא נושא)",
+    "deleted_on": "נמחק ב־{date}",
+    "trash_hint": "מחקת לצמיתות בטעות?",
+    "trash_link": "שחזור פריטים שנמחקו",
+    "empty_hint": "דואר שנמחק מופיע כאן רק אם מנהל המערכת הפעיל ב־Stalwart ארכוב של פריטים שנמחקו.",
+    "restore_gone": "{count, plural, one {הודעה אחת כבר לא הייתה בארכיון: היא שוחזרה במקום אחר או שהשרת הפסיק לשמור אותה.} two {שתי הודעות כבר לא היו בארכיון: הן שוחזרו במקום אחר או שהשרת הפסיק לשמור אותן.} other {# הודעות כבר לא היו בארכיון: הן שוחזרו במקום אחר או שהשרת הפסיק לשמור אותן.}}",
+    "show_older": "הצג ישנות יותר"
   },
   "quote_header": {
     "reply_line": "ב־{date}, {from} כתב:",
@@ -4098,6 +5415,14 @@
     "copy_event": "העתק קישור לאירוע",
     "copied": "הקישור הועתק",
     "copy_failed": "לא ניתן להעתיק את הקישור"
+  },
+  "connector_link": {
+    "opening": "פותח…",
+    "unknown_title": "הקישור הזה חדש יותר מ-{name} הזה",
+    "unknown_body": "הוא פותח משהו שגרסה {version} לא מכירה. עדכון של {name} אמור לפתור את זה.",
+    "malformed_title": "הקישור הזה לא לגמרי תקין",
+    "malformed_body": "הוא מבקש {label}, אבל הפרמטר {param} חסר או שגוי. לא נפתח דבר.",
+    "open_app": "פתיחת {name}"
   },
   "plugins": {
     "oauth_callback": {
@@ -4160,6 +5485,10 @@
       "accounts_heading": "חשבונות מחוברים",
       "account_on": "{label} בשרת {host}",
       "account_waiting": "{label} בשרת {host} (ההתחברות לא הושלמה)",
+      "forward_heading": "מעביר דואר אל",
+      "forward_hint": "כתובות שהתוסף הזה רשאי להעביר אליהן הודעות בלי לשאול.",
+      "forward_remove": "הסרה",
+      "forward_remove_label": "הפסקת ההעברה אל {address}",
       "disconnect": "ניתוק",
       "disconnect_failed": "לא ניתן לנתק את {label}"
     },
@@ -4180,7 +5509,7 @@
       },
       "email_write": {
         "title": "שינוי וארגון הדואר שלכם",
-        "body": "הוספה או הסרה של תגים, סימונים ומילות מפתח אחרות בהודעות שלכם, העברתן בין התיקיות שלכם ולארכיון, ושמירת טיוטות."
+        "body": "הוספה או הסרה של תגים, סימונים ומילות מפתח אחרות בהודעות שלכם, העברתן בין התיקיות שלכם ולארכיון, ושמירת טיוטות. הוא יכול גם לשמור ערך קטן שכל חבר בתיבת דואר של צוות יכול לקרוא."
       },
       "email_send": {
         "title": "שינוי דואר לפני שליחתו",
@@ -4296,7 +5625,11 @@
       },
       "account_read": {
         "title": "צפייה בחשבונות שלכם",
-        "body": "צפייה בחשבונות שהוספתם, עם הכתובות והשרתים שלהם."
+        "body": "צפייה בחשבונות שהוספתם, עם הכתובות והשרתים שלהם, ובאילו חשבונות דואר הם תיבות דואר של צוות."
+      },
+      "directory_read": {
+        "title": "חיפוש אנשים",
+        "body": "חיפוש אנשים בספרייה של הארגון שלך."
       },
       "http_post": {
         "title": "שימוש בשרת ה-Webmail בשמכם",
@@ -4398,6 +5731,10 @@
         "title": "שינוי ההודעה שאתם כותבים",
         "body": "החלפה או הוספה של טקסט בהודעה בזמן הכתיבה, כשמשתמשים בתוסף בעורך. אפשר לבטל כל שינוי, וההחלטה אם לשלוח נשארת שלכם."
       },
+      "email_forward": {
+        "title": "העברת הדואר שלכם",
+        "body": "העברת הודעות מהחשבון שלכם יחד עם הקבצים המצורפים, בלי לפתוח את חלון הכתיבה. לפני ההעברה הראשונה לכל כתובת תתבקשו לאשר."
+      },
       "ui_notifications": {
         "title": "הצגת התראות",
         "body": "הצגת התראות במכשיר שלכם, או בתוך האפליקציה אם לא אישרתם התראות. כל התראה מציינת את שם התוסף."
@@ -4428,8 +5765,13 @@
       },
       "http_proxy": {
         "title": "שימוש בחשבונות שאתם מחברים",
-        "body": "שליחת בקשות דרך השרת של Bulwark עם חשבון או מפתח שהוגדרו על ידיכם או על ידי מנהל המערכת. התוסף אף פעם לא רואה את הסיסמה, אבל הוא יכול לעשות כל מה שהחשבון הזה יכול לעשות בשרת שלו."
+        "body": "שליחת בקשות דרך השרת של {appName} עם חשבון או מפתח שהוגדרו על ידיכם או על ידי מנהל המערכת. התוסף אף פעם לא רואה את הסיסמה, אבל הוא יכול לעשות כל מה שהחשבון הזה יכול לעשות בשרת שלו."
       }
+    },
+    "forward_approval": {
+      "title": "לאפשר ל-{plugin} להעביר דואר אל {addresses}?",
+      "message": "{plugin} רוצה להעביר את „{subject}“ יחד עם הקבצים המצורפים אל {addresses}. אם תאשרו, מעכשיו הוא יוכל להעביר דואר לכתובת זו בלי לשאול. אפשר לבטל זאת בהגדרות > תוספים.",
+      "allow": "לאשר ולהעביר"
     },
     "dialog": {
       "from_plugin": "מהתוסף {name}",
@@ -4445,9 +5787,9 @@
     },
     "connect": {
       "title": "חיבור {label}",
-      "intro_password": "{name} רוצה להשתמש בחשבון {label} שלכם. Bulwark שומר את הסיסמה בשרת שלו ושולח אותה רק אל {host}. התוסף אף פעם לא רואה אותה.",
-      "intro_password_any": "{name} רוצה להשתמש בחשבון {label} שלכם. Bulwark שומר את הסיסמה בשרת שלו ושולח אותה רק לשרת שתזינו כאן. התוסף אף פעם לא רואה אותה.",
-      "intro_signin": "{name} רוצה להתחבר לחשבון {label} שלכם. הזינו כאן את השרת, ואז התחברו בדף של השרת עצמו. Bulwark שומר בשרת שלו את הגישה שהוא מקבל; התוסף אף פעם לא רואה אותה.",
+      "intro_password": "{name} רוצה להשתמש בחשבון {label} שלכם. {appName} שומר את הסיסמה בשרת שלו ושולח אותה רק אל {host}. התוסף אף פעם לא רואה אותה.",
+      "intro_password_any": "{name} רוצה להשתמש בחשבון {label} שלכם. {appName} שומר את הסיסמה בשרת שלו ושולח אותה רק לשרת שתזינו כאן. התוסף אף פעם לא רואה אותה.",
+      "intro_signin": "{name} רוצה להתחבר לחשבון {label} שלכם. הזינו כאן את השרת, ואז התחברו בדף של השרת עצמו. {appName} שומר בשרת שלו את הגישה שהוא מקבל; התוסף אף פעם לא רואה אותה.",
       "server": "כתובת השרת",
       "server_hint": "cloud.example.com",
       "username": "שם משתמש",
@@ -4459,6 +5801,10 @@
       "error_server": "הזינו את כתובת השרת, למשל https://cloud.example.com",
       "error_save": "השמירה נכשלה: {error}"
     }
+  },
+  "plugin_list": {
+    "filters": "מסננים",
+    "remove_filter": "הסר את המסנן {label}"
   },
   "global_search": {
     "title": "חיפוש בכל מקום",
@@ -4490,12 +5836,32 @@
   "top_bar": {
     "more": "אפשרויות נוספות"
   },
+  "shell": {
+    "resize": "שינוי גודל",
+    "update_available": "יש עדכון",
+    "update_important": "יש עדכון חשוב",
+    "folder_unread": "{count} שלא נקראו",
+    "folder_counts": "{unread} שלא נקראו, {total} בסך הכול",
+    "skip_to_content": "דילוג לתוכן",
+    "heading": "{place} – {app}",
+    "message_list": "רשימת הודעות",
+    "reading_pane": "חלונית קריאה",
+    "name_unread": "{name}, {count} שלא נקראו",
+    "expand_folder": "הרחב את {name}",
+    "collapse_folder": "כווץ את {name}",
+    "resize_sidebar": "שינוי גודל סרגל הצד",
+    "resize_message_list": "שינוי גודל רשימת ההודעות",
+    "resize_contact_list": "שינוי גודל רשימת אנשי הקשר",
+    "resize_side_panel": "שינוי גודל החלונית הצדדית",
+    "admin_pages": "דפי ניהול",
+    "admin_search": "חיפוש בדפי הניהול",
+    "back": "חזרה"
+  },
   "plugin_pages": {
     "loading": "טוען את הדף",
     "not_available_title": "הדף הזה אינו זמין",
     "not_available_description": "התוסף שהוסיף אותו כבוי או שאינו מותקן עוד.",
-    "back_to_mail": "חזרה לדואר",
-    "settings_group": "תוספים"
+    "back_to_mail": "חזרה לדואר"
   },
   "command_palette": {
     "title": "לוח פקודות",
@@ -4503,14 +5869,17 @@
     "placeholder": "הקלידו פקודה",
     "no_results": "אין פקודות תואמות",
     "go_to": "מעבר אל {name}",
-    "compose": "הודעה חדשה",
+    "go_to_settings_page": "מעבר להגדרות {name}",
+    "compose": "כתיבה",
     "search": "חיפוש בדואר",
     "theme_dark": "מעבר לערכת נושא כהה",
     "theme_light": "מעבר לערכת נושא בהירה",
     "shortcuts": "הצגת קיצורי מקשים",
     "group_navigation": "מעבר אל",
     "group_actions": "פעולות",
-    "group_plugins": "תוספים"
+    "group_plugins": "תוספים",
+    "group_account": "חשבון",
+    "switch_to": "מעבר אל {account}"
   },
   "notification_center": {
     "title": "התראות",
@@ -4522,5 +5891,159 @@
     "unread_count": "לא נקראו: {count}",
     "level_error": "שגיאה",
     "level_warning": "אזהרה"
+  },
+  "accessibility_panel": {
+    "title": "נגישות",
+    "description": "גודל טקסט, ניגודיות ותנועה. Alt+Shift+A פותח את זה מכל מקום.",
+    "button": "נגישות",
+    "all_settings": "כל הגדרות הנגישות",
+    "preset_applied": "{name}: שונו {count, plural, one {הגדרה אחת} two {שתי הגדרות} other {# הגדרות}}.",
+    "command": "אפשרויות נגישות",
+    "command_keywords": "a11y נגישות גודל טקסט ניגודיות תנועה זום"
+  },
+  "glossary": {
+    "what_is": "מה פירוש “{term}”?",
+    "terms": {
+      "jmap": {
+        "term": "JMAP",
+        "text": "JMAP היא הדרך המודרנית שבה הדואר האינטרנטי הזה מדבר עם שרת הדואר שלך. דרכה נטענים הדואר, היומנים ואנשי הקשר שלך."
+      },
+      "imap": {
+        "term": "IMAP",
+        "text": "IMAP היא הדרך הרגילה שבה אפליקציות דואר כמו Thunderbird או Apple Mail קוראות את הדואר שלך מהשרת. ההודעות נשארות בשרת."
+      },
+      "smtp": {
+        "term": "SMTP",
+        "text": "SMTP היא הדרך הרגילה שבה אפליקציות דואר שולחות את ההודעות שלך דרך שרת הדואר."
+      },
+      "caldav": {
+        "term": "CalDAV",
+        "text": "CalDAV מאפשר לאפליקציות אחרות, כמו היומן בטלפון שלך, להציג ולשנות את היומנים בשרת הדואר שלך."
+      },
+      "carddav": {
+        "term": "CardDAV",
+        "text": "CardDAV מאפשר לאפליקציות אחרות, כמו אנשי הקשר בטלפון שלך, להציג ולשנות את פנקסי הכתובות בשרת הדואר שלך."
+      },
+      "webdav": {
+        "term": "WebDAV",
+        "text": "WebDAV מאפשר לאפליקציות אחרות ולמנהל הקבצים במחשב שלך לפתוח את הקבצים בשרת הדואר שלך."
+      },
+      "sieve": {
+        "term": "Sieve",
+        "text": "Sieve היא השפה ששרת הדואר שלך משתמש בה לכללי סינון. השרת מפעיל את הכללים כשמגיע דואר חדש, גם כשהדואר האינטרנטי הזה סגור."
+      },
+      "smime": {
+        "term": "S/MIME",
+        "text": "S/MIME משתמש בתעודה כדי לחתום על ההודעות שלך, כך שאחרים יראו שהן באמת ממך, וכדי להצפין אותן, כך שרק הנמען יוכל לקרוא אותן."
+      },
+      "pgp": {
+        "term": "PGP",
+        "text": "PGP (OpenPGP) היא דרך נוספת לחתום על דואר ולהצפין אותו. במקום תעודה, היא משתמשת בזוג מפתחות שאתה יוצר בעצמך."
+      },
+      "public_key": {
+        "term": "מפתח ציבורי",
+        "text": "מפתח ציבורי הוא החלק במפתח שלך שאתה משתף. אחרים משתמשים בו כדי לשלוח לך דואר מוצפן וכדי לבדוק את החתימה שלך. המפתח הפרטי שלך נשאר סודי."
+      },
+      "two_factor": {
+        "term": "אימות דו-גורמי",
+        "text": "אימות דו-גורמי מבקש הוכחה נוספת בזמן הכניסה, בדרך כלל קוד מאפליקציה בטלפון שלך. מי שיודע רק את הסיסמה שלך לא יכול להיכנס."
+      },
+      "totp": {
+        "term": "TOTP",
+        "text": "קוד TOTP הוא קוד בן 6 ספרות מאפליקציית אימות בטלפון שלך. הוא מתחלף כל 30 שניות."
+      },
+      "app_password": {
+        "term": "סיסמה לאפליקציה",
+        "text": "סיסמה לאפליקציה היא סיסמה נוספת לאפליקציית דואר אחת, כמו Thunderbird או אפליקציית הדואר בטלפון שלך. אפשר למחוק אותה בכל רגע בלי לשנות את הסיסמה הראשית שלך."
+      },
+      "access_token": {
+        "term": "אסימון גישה",
+        "text": "אסימון גישה הוא קוד ארוך שמאפשר לאפליקציה להיכנס לחשבון שלך במקום הסיסמה. יוצרים אותו בהגדרות של ספק הדואר שלך."
+      },
+      "oauth": {
+        "term": "OAuth",
+        "text": "עם OAuth (כניסה אחידה) נכנסים בדף הכניסה של הארגון שלך. הדואר האינטרנטי הזה אף פעם לא רואה את הסיסמה שלך."
+      },
+      "identity": {
+        "term": "זהות",
+        "text": "זהות היא שם וכתובת שאפשר לשלוח מהם דואר. לכל זהות יכולה להיות חתימה משלה."
+      },
+      "delegation": {
+        "term": "נציגים",
+        "text": "נציג הוא אדם אחר שיכול לקרוא ולסדר את הדואר או היומן שלך במקומך, למשל עוזר אישי."
+      },
+      "push": {
+        "term": "התראות דחיפה",
+        "text": "התראות דחיפה מודיעות לך על דואר חדש גם כשהאתר הזה סגור. ממסר דחיפה מעביר את ההתראה לדפדפן או לטלפון שלך. הוא אף פעם לא רואה את הדואר שלך."
+      },
+      "sync": {
+        "term": "סנכרון",
+        "text": "סנכרון שומר על אותם נתונים בכל המכשירים שלך. שינוי במכשיר אחד מופיע גם באחרים."
+      },
+      "cache": {
+        "term": "מטמון",
+        "text": "המטמון הוא עותק של הנתונים שלך בדפדפן הזה, כדי שהדואר האינטרנטי ייטען מהר יותר. רענון המטמון טוען את הנתונים מחדש מהשרת. שום דבר לא נמחק בשרת."
+      },
+      "sub_addressing": {
+        "term": "כתובת משנה",
+        "text": "כתובת משנה פירושה הוספת תגית לכתובת שלך, כמו name+shop@example.com. דואר לכתובת הזו עדיין מגיע אליך, ואפשר למיין אותו לפי התגית."
+      },
+      "encryption_at_rest": {
+        "term": "הצפנה במנוחה",
+        "text": "הצפנה במנוחה פירושה שהשרת שומר את הדואר שלך מוצפן. מי שמעתיק את הדיסקים של השרת לא יכול לקרוא אותו."
+      },
+      "vcard": {
+        "term": "vCard",
+        "text": "vCard (.vcf) הוא פורמט הקבצים הנפוץ לאנשי קשר. רוב פנקסי הכתובות יכולים לייבא ולייצא אותו."
+      },
+      "icalendar": {
+        "term": "iCalendar",
+        "text": "iCalendar (.ics) הוא פורמט הקבצים הנפוץ ליומנים ולאירועים. רוב אפליקציות היומן יכולות לייבא אותו או להירשם אליו."
+      },
+      "cors": {
+        "term": "CORS",
+        "text": "CORS הוא כלל של הדפדפן. שרת צריך לאשר אתר קודם, ורק אז הדפדפן מאפשר לאתר הזה לדבר עם השרת."
+      }
+    }
+  },
+  "help_links": {
+    "label": "נגישות ועזרה",
+    "statement": "הצהרת נגישות",
+    "feedback": "דיווח על מכשול",
+    "help": "עזרה",
+    "easy_read": "שפה פשוטה",
+    "sign_language": "שפת סימנים",
+    "new_tab": "נפתח בכרטיסייה חדשה"
+  },
+  "structured_mail_calendar": {
+    "add_to_calendar": "הוסף ליומן",
+    "update_in_calendar": "עדכן ביומן",
+    "remove_from_calendar": "הסרה מהיומן",
+    "in_calendar": "ביומן שלך",
+    "view_in_calendar": "הצג בלוח שנה",
+    "select_calendar": "בחר יומן",
+    "added": "נוסף ליומן שלך",
+    "updated": "היומן עודכן",
+    "removed": "הוסר מהיומן שלך",
+    "action_failed": "לא ניתן היה לשנות את היומן. נסה שוב.",
+    "blocked": "תוסף עצר את השינוי הזה ביומן.",
+    "title": {
+      "rental_car": "רכב שכור",
+      "rental_car_company": "רכב שכור: {company}"
+    },
+    "description": {
+      "reference": "מספר הזמנה: {reference}",
+      "passengers": "נוסעים: {names}",
+      "seats": "מושבים: {seats}",
+      "checkin": "צ׳ק-אין: {url}",
+      "manage": "ניהול ההזמנה: {url}",
+      "ticket": "כרטיס: {url}",
+      "phone": "טלפון: {phone}",
+      "car": "רכב: {car}",
+      "tickets": "כרטיסים: {numbers}",
+      "party_size": "מספר אנשים: {count}",
+      "added_from": "נוסף מהודעה מ-{domain}",
+      "added_from_subject": "נוסף מההודעה ״{subject}״ מ-{domain}"
+    }
   }
 }

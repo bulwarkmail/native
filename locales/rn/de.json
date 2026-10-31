@@ -143,6 +143,9 @@
       "n_days": "{count} Tage",
       "schedule": "Terminübersicht",
       "three_days": "3 Tage"
+    },
+    "detail": {
+      "delete_confirm": "Dieses Ereignis löschen?"
     }
   },
   "common": {
@@ -169,7 +172,8 @@
       "add_tag": "Kategorie hinzufügen",
       "delete_confirm_mobile": "{count, plural, one {# Kontakt löschen? Dies kann nicht rückgängig gemacht werden.} other {# Kontakte löschen? Dies kann nicht rückgängig gemacht werden.}}",
       "move_to_address_book": "In Adressbuch verschieben",
-      "tag_failed": "Kategorie konnte nicht zugewiesen werden"
+      "tag_failed": "Kategorie konnte nicht zugewiesen werden",
+      "delete_confirm_title": "Kontakte löschen"
     },
     "contact": "Kontakt",
     "create_hint_mobile": "Lange drücken, um stattdessen eine Gruppe zu erstellen",
@@ -264,7 +268,8 @@
     },
     "rename_tag_hint_mobile": "Tippen Sie lange auf eine Kategorie, um sie umzubenennen",
     "tag_name_placeholder": "Name der neuen Kategorie",
-    "unnamed": "Unbenannt"
+    "unnamed": "Unbenannt",
+    "delete_confirm_title": "Kontakt löschen"
   },
   "context_menu": {
     "color_tag": "Label",
@@ -494,7 +499,8 @@
       "no_identity": "Keine Absenderidentität verfügbar"
     },
     "view_dark_mode": "Im dunklen Modus anzeigen",
-    "view_light_mode": "Im hellen Modus anzeigen"
+    "view_light_mode": "Im hellen Modus anzeigen",
+    "not_spam_short": "Kein Spam"
   },
   "files": {
     "delete_cascade_hint": "Ordner werden samt ihrem gesamten Inhalt gelöscht. Dies kann nicht rückgängig gemacht werden.",
@@ -533,7 +539,12 @@
     "symlink": "Symbolischer Link",
     "upload_failed": "{count, plural, one {1 Datei konnte nicht hochgeladen werden} other {# Dateien konnten nicht hochgeladen werden}}",
     "upload_unavailable": "Die Dateiauswahl ist in diesem Build nicht installiert. Erstellen Sie die App neu, um Uploads zu aktivieren.",
-    "uploading_progress": "Hochladen {current}/{total} · {name}"
+    "uploading_progress": "Hochladen {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Möchten Sie wirklich {count, plural, one {1 Element} other {# Elemente}} löschen? Dies kann nicht rückgängig gemacht werden.",
+    "batch_delete_success": "{count, plural, one {1 Element gelöscht} other {# Elemente gelöscht}}",
+    "delete_confirm_message": "Möchten Sie \"{name}\" wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
+    "delete_confirm_title": "Ressource löschen",
+    "delete_success": "Erfolgreich gelöscht"
   },
   "identities": {
     "badge": {
@@ -907,6 +918,10 @@
         "sync_add_failed": "Synchronisierung mit dem Adressbuch fehlgeschlagen",
         "sync_remove_failed": "Entfernen aus dem Adressbuch fehlgeschlagen",
         "synced_badge": "Über Adressbuch synchronisiert"
+      },
+      "disable_threading": {
+        "description": "E-Mails als einzelne Nachrichten statt nach Konversation gruppiert anzeigen",
+        "label": "Konversationsgruppierung deaktivieren"
       }
     },
     "experimental": {
@@ -916,7 +931,9 @@
       "remove_action": "Aktion entfernen",
       "remove_condition": "Bedingung entfernen",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# Zeile} other {# Zeilen}}"
+        "line_count": "{count, plural, one {# Zeile} other {# Zeilen}}",
+        "confirm_save": "Speichern bestätigen",
+        "save_warning": "Das Speichern überschreibt alle visuellen Regeln. Dies kann nicht rückgängig gemacht werden. Klicken Sie erneut auf Speichern zur Bestätigung."
       },
       "validation_header_name": "Geben Sie einen Header-Namen ein, der nur die Buchstaben A–Z, Ziffern, Bindestriche und Unterstriche enthält, zum Beispiel X-Spam-Flag."
     },
@@ -960,7 +977,8 @@
       "no_name": "(kein Name)",
       "primary": "primär",
       "save_failed": "Speichern fehlgeschlagen",
-      "text_signature": "Klartext-Signatur"
+      "text_signature": "Klartext-Signatur",
+      "title": "Sendeidentitäten"
     },
     "keywords": {
       "delete_confirm_title": "Tag „{label}“ löschen?",
@@ -1060,6 +1078,10 @@
         "up_distributor_desc": "Mehrere UnifiedPush-Distributor-Apps sind installiert - wählen Sie die aus, die Benachrichtigungen zustellen soll.",
         "up_distributor_label": "Distributor",
         "up_no_distributor": "Auf diesem Gerät ist keine UnifiedPush-Distributor-App installiert. Installieren Sie eine (z. B. ntfy) und versuchen Sie es erneut."
+      },
+      "calendar": {
+        "invitation_parsing": "E-Mail-Einladungen erkennen",
+        "invitation_parsing_desc": "Kalendereinladungen in E-Mail-Anhängen erkennen und Kalenderaktionen anzeigen"
       }
     },
     "offline": {
@@ -1210,7 +1232,14 @@
       "updates": "Updates",
       "storage": "Speicher & Sicherung",
       "about": "Über",
-      "troubleshooting": "Fehlerbehebung"
+      "troubleshooting": "Fehlerbehebung",
+      "content_senders": "Inhalte & Absender",
+      "identities": "Identitäten",
+      "keywords": "Labels",
+      "language": "Sprache, Region & Zeit",
+      "sidebar_apps": "Sidebar-Apps",
+      "templates": "Vorlagen",
+      "themes": "Designs"
     },
     "templates": {
       "delete_confirm": "\"{name}\" endgültig löschen?",
@@ -1312,6 +1341,24 @@
       "cache_title": "Zwischengespeicherte Daten",
       "row_desc": "Daten neu laden, Debug-Protokoll",
       "title": "Fehlerbehebung"
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Jede Minute",
+        "2m": "Alle 2 Minuten",
+        "30s": "Alle 30 Sekunden",
+        "5m": "Alle 5 Minuten",
+        "description": "Wie oft Entwürfe automatisch gespeichert werden",
+        "label": "Automatisches Speichern"
+      },
+      "description": "Konfigurieren Sie die E-Mail-Erstellungseinstellungen",
+      "title": "Editor"
+    },
+    "tab_groups": {
+      "advanced": "Erweitert",
+      "appearance": "Darstellung",
+      "general": "Allgemein",
+      "privacy": "Datenschutz & Sicherheit"
     }
   },
   "sharing": {

@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Timeplan",
       "three_days": "3 dager"
+    },
+    "detail": {
+      "delete_confirm": "Vil du slette denne hendelsen?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Legg til kategori",
       "delete_confirm_mobile": "{count, plural, one {Vil du slette # kontakt? Dette kan ikke angres.} other {Vil du slette # kontakter? Dette kan ikke angres.}}",
       "move_to_address_book": "Flytt til adressebok",
-      "tag_failed": "Kunne ikke legge til kategorien"
+      "tag_failed": "Kunne ikke legge til kategorien",
+      "delete_confirm_title": "Slett kontakter"
     },
     "contact": "Kontakt",
     "create_hint_mobile": "Trykk lenge for å opprette en gruppe i stedet",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Trykk lenge på en kategori for å gi den nytt navn",
     "tag_name_placeholder": "Navn på ny kategori",
-    "unnamed": "Uten navn"
+    "unnamed": "Uten navn",
+    "delete_confirm_title": "Slett kontakt"
   },
   "context_menu": {
     "color_tag": "Etikett",
@@ -479,7 +484,9 @@
       "no_identity": "Ingen avsenderidentitet er tilgjengelig"
     },
     "view_dark_mode": "Vis i mørk modus",
-    "view_light_mode": "Vis i lys modus"
+    "view_light_mode": "Vis i lys modus",
+    "not_spam_short": "Ikke søppelpost",
+    "spam_short": "Søppelpost"
   },
   "files": {
     "delete_cascade_hint": "Mapper slettes sammen med alt innholdet. Dette kan ikke angres.",
@@ -517,7 +524,12 @@
     "symlink": "Symbolsk lenke",
     "upload_failed": "{count, plural, one {1 fil kunne ikke lastes opp} other {# filer kunne ikke lastes opp}}",
     "upload_unavailable": "Filvelgeren er ikke installert i denne versjonen. Bygg appen på nytt for å aktivere opplasting.",
-    "uploading_progress": "Laster opp {current}/{total} · {name}"
+    "uploading_progress": "Laster opp {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Er du sikker på at du vil slette {count, plural, one {1 element} other {# elementer}}? Dette kan ikke angres.",
+    "batch_delete_success": "{count, plural, one {1 element slettet} other {# elementer slettet}}",
+    "delete_confirm_message": "Er du sikker på at du vil slette «{name}»? Dette kan ikke angres.",
+    "delete_confirm_title": "Slett fil eller mappe",
+    "delete_success": "Elementet er slettet"
   },
   "identities": {
     "badge": {
@@ -886,6 +898,10 @@
         "sync_add_failed": "Kunne ikke synkronisere til adresseboken",
         "sync_remove_failed": "Kunne ikke fjerne fra adresseboken",
         "synced_badge": "Synkronisert via adresseboken"
+      },
+      "disable_threading": {
+        "description": "Vis e-poster som individuelle meldinger i stedet for gruppert etter samtale",
+        "label": "Deaktiver samtalegruppering"
       }
     },
     "experimental": {
@@ -895,7 +911,9 @@
       "remove_action": "Fjern handling",
       "remove_condition": "Fjern vilkår",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# linje} other {# linjer}}"
+        "line_count": "{count, plural, one {# linje} other {# linjer}}",
+        "confirm_save": "Bekreft lagring",
+        "save_warning": "Lagring overskriver eventuelle visuelle regler. Dette kan ikke angres. Klikk på «Lagre» igjen for å bekrefte."
       },
       "validation_header_name": "Skriv inn et navn på meldingshode som bare bruker bokstavene A–Z, sifre, bindestreker og understreker, for eksempel X-Spam-Flag."
     },
@@ -939,7 +957,8 @@
       "no_name": "(uten navn)",
       "primary": "hovedidentitet",
       "save_failed": "Kunne ikke lagre",
-      "text_signature": "Signatur i ren tekst"
+      "text_signature": "Signatur i ren tekst",
+      "title": "Avsenderidentiteter"
     },
     "keywords": {
       "description_mobile": "Fargede etiketter for å organisere e-posten din.",
@@ -1038,6 +1057,10 @@
         "up_distributor_desc": "Flere UnifiedPush-distributørapper er installert – velg den som skal levere varsler.",
         "up_distributor_label": "Distributør",
         "up_no_distributor": "Ingen UnifiedPush-distributørapp er installert på denne enheten. Installer en (for eksempel ntfy), og prøv igjen."
+      },
+      "calendar": {
+        "invitation_parsing": "Les kalenderinvitasjoner i e-post",
+        "invitation_parsing_desc": "Finn kalenderinvitasjoner i e-postvedlegg og vis tilgjengelige kalenderhandlinger"
       }
     },
     "offline": {
@@ -1175,7 +1198,16 @@
     },
     "tabs": {
       "plugins": "Programtillegg",
-      "updates": "Oppdateringer"
+      "updates": "Oppdateringer",
+      "content_senders": "Innhold og avsendere",
+      "downloads": "Nedlastinger",
+      "identities": "Identiteter",
+      "keywords": "Etiketter",
+      "language": "Språk, region og tid",
+      "layout": "Oppsett",
+      "sidebar_apps": "Apper i sidefeltet",
+      "templates": "Maler",
+      "themes": "Temaer"
     },
     "templates": {
       "delete_confirm": "Vil du slette «{name}» permanent?",
@@ -1197,6 +1229,24 @@
       "warnings": {
         "date_format": "Datoer må ha formatet «YYYY-MM-DD» eller «YYYY-MM-DD HH:MM»"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Hvert minutt",
+        "2m": "Hvert 2. minutt",
+        "30s": "Hvert 30. sekund",
+        "5m": "Hvert 5. minutt",
+        "description": "Hvor ofte utkast skal lagres automatisk",
+        "label": "Intervall for automatisk lagring"
+      },
+      "description": "Velg innstillinger for skriving av e-post",
+      "title": "Skriving"
+    },
+    "tab_groups": {
+      "advanced": "Avansert",
+      "appearance": "Utseende",
+      "general": "Generelt",
+      "privacy": "Personvern og sikkerhet"
     }
   },
   "sharing": {

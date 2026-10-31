@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Agenda",
       "three_days": "3 dies"
+    },
+    "detail": {
+      "delete_confirm": "Voleu suprimir aquest esdeveniment?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Afegeix una etiqueta",
       "delete_confirm_mobile": "{count, plural, one {Voleu suprimir # contacte? Això no es pot desfer.} other {Voleu suprimir # contactes? Això no es pot desfer.}}",
       "move_to_address_book": "Mou a una llibreta d'adreces",
-      "tag_failed": "No s'ha pogut etiquetar"
+      "tag_failed": "No s'ha pogut etiquetar",
+      "delete_confirm_title": "Suprimeix els contactes"
     },
     "contact": "Contacte",
     "create_hint_mobile": "Manteniu premut per crear un grup",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Manteniu premuda una etiqueta per canviar-ne el nom",
     "tag_name_placeholder": "Nom de l'etiqueta nova",
-    "unnamed": "Sense nom"
+    "unnamed": "Sense nom",
+    "delete_confirm_title": "Suprimeix el contacte"
   },
   "context_menu": {
     "color_tag": "Etiqueta",
@@ -482,7 +487,9 @@
       "no_identity": "No hi ha cap identitat d'enviament disponible"
     },
     "view_dark_mode": "Mostra en mode fosc",
-    "view_light_mode": "Mostra en mode clar"
+    "view_light_mode": "Mostra en mode clar",
+    "not_spam_short": "No és brossa",
+    "spam_short": "Brossa"
   },
   "files": {
     "delete_cascade_hint": "Les carpetes se suprimeixen amb tot el que contenen. Això no es pot desfer.",
@@ -520,7 +527,12 @@
     "symlink": "Enllaç simbòlic",
     "upload_failed": "{count, plural, one {No s'ha pogut pujar 1 fitxer} other {No s'han pogut pujar # fitxers}}",
     "upload_unavailable": "El selector de fitxers no està inclòs en aquesta compilació. Torneu a compilar l'aplicació per activar les pujades.",
-    "uploading_progress": "S'està pujant {current}/{total} · {name}"
+    "uploading_progress": "S'està pujant {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Segur que voleu suprimir {count, plural, one {1 element} other {# elements}}? Això no es pot desfer.",
+    "batch_delete_success": "{count, plural, one {1 element suprimit} other {# elements suprimits}}",
+    "delete_confirm_message": "Segur que voleu suprimir «{name}»? Això no es pot desfer.",
+    "delete_confirm_title": "Suprimeix el recurs",
+    "delete_success": "Suprimit correctament"
   },
   "identities": {
     "badge": {
@@ -889,6 +901,10 @@
         "sync_add_failed": "No s'ha pogut sincronitzar amb la llibreta d'adreces",
         "sync_remove_failed": "No s'ha pogut eliminar de la llibreta d'adreces",
         "synced_badge": "Sincronitzat mitjançant la llibreta d'adreces"
+      },
+      "disable_threading": {
+        "description": "Mostra els correus com a missatges individuals en lloc d'agrupar-los per conversa",
+        "label": "Desactiva l'agrupació en converses"
       }
     },
     "experimental": {
@@ -898,7 +914,9 @@
       "remove_action": "Elimina l'acció",
       "remove_condition": "Elimina la condició",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# línia} other {# línies}}"
+        "line_count": "{count, plural, one {# línia} other {# línies}}",
+        "confirm_save": "Confirma el desament",
+        "save_warning": "En desar se sobreescriuran totes les regles visuals. Això no es pot desfer. Torneu a fer clic a Desa per confirmar-ho."
       },
       "validation_header_name": "Introduïu un nom de capçalera que només contingui les lletres A-Z, xifres, guions i guions baixos, com ara X-Spam-Flag."
     },
@@ -942,7 +960,8 @@
       "no_name": "(sense nom)",
       "primary": "principal",
       "save_failed": "No s'ha pogut desar",
-      "text_signature": "Signatura en text sense format"
+      "text_signature": "Signatura en text sense format",
+      "title": "Identitats d'enviament"
     },
     "keywords": {
       "description_mobile": "Etiquetes de colors per organitzar el correu.",
@@ -1041,6 +1060,10 @@
         "up_distributor_desc": "Hi ha diverses aplicacions distribuïdores d'UnifiedPush instal·lades: trieu la que ha d'entregar les notificacions.",
         "up_distributor_label": "Distribuïdor",
         "up_no_distributor": "No hi ha cap aplicació distribuïdora d'UnifiedPush instal·lada en aquest dispositiu. Instal·leu-ne una (per exemple, ntfy) i torneu-ho a provar."
+      },
+      "calendar": {
+        "invitation_parsing": "Analitza les invitacions per correu",
+        "invitation_parsing_desc": "Detecta les invitacions de calendari als fitxers adjunts del correu i mostra les accions del calendari"
       }
     },
     "offline": {
@@ -1178,7 +1201,16 @@
     },
     "tabs": {
       "plugins": "Connectors",
-      "updates": "Actualitzacions"
+      "updates": "Actualitzacions",
+      "content_senders": "Contingut i remitents",
+      "downloads": "Baixades",
+      "identities": "Identitats",
+      "keywords": "Etiquetes",
+      "language": "Idioma, regió i hora",
+      "layout": "Disposició",
+      "sidebar_apps": "Aplicacions de la barra lateral",
+      "templates": "Plantilles",
+      "themes": "Temes"
     },
     "templates": {
       "delete_confirm": "Voleu suprimir «{name}» permanentment?",
@@ -1200,6 +1232,23 @@
       "warnings": {
         "date_format": "Les dates han de tenir el format \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Cada minut",
+        "2m": "Cada 2 minuts",
+        "30s": "Cada 30 segons",
+        "5m": "Cada 5 minuts",
+        "description": "Amb quina freqüència es desen automàticament els esborranys",
+        "label": "Interval de desat automàtic"
+      },
+      "description": "Configureu les opcions de redacció de correu",
+      "title": "Redactor"
+    },
+    "tab_groups": {
+      "advanced": "Avançat",
+      "appearance": "Aparença",
+      "privacy": "Privadesa i seguretat"
     }
   },
   "sharing": {

@@ -141,6 +141,9 @@
     "views": {
       "schedule": "行程",
       "three_days": "3 天"
+    },
+    "detail": {
+      "delete_confirm": "刪除這個活動嗎？"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "新增標籤",
       "delete_confirm_mobile": "{count, plural, other {要刪除 # 位聯絡人嗎？此動作無法復原。}}",
       "move_to_address_book": "移至通訊錄",
-      "tag_failed": "新增標籤失敗"
+      "tag_failed": "新增標籤失敗",
+      "delete_confirm_title": "刪除聯絡人"
     },
     "contact": "聯絡人",
     "create_hint_mobile": "長按即可改為建立群組",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "長按標籤即可重新命名",
     "tag_name_placeholder": "新標籤名稱",
-    "unnamed": "未命名"
+    "unnamed": "未命名",
+    "delete_confirm_title": "刪除聯絡人"
   },
   "context_menu": {
     "color_tag": "標籤",
@@ -481,7 +486,9 @@
       "no_identity": "沒有可用的寄件身分"
     },
     "view_dark_mode": "以深色模式檢視",
-    "view_light_mode": "以淺色模式檢視"
+    "view_light_mode": "以淺色模式檢視",
+    "not_spam_short": "非垃圾郵件",
+    "spam_short": "垃圾郵件"
   },
   "files": {
     "delete_cascade_hint": "資料夾會連同其中的所有內容一併刪除。此動作無法復原。",
@@ -519,7 +526,12 @@
     "symlink": "符號連結",
     "upload_failed": "{count, plural, one {1 個檔案無法上傳} other {# 個檔案無法上傳}}",
     "upload_unavailable": "此版本未安裝檔案選擇器。請重新建置應用程式以啟用上傳功能。",
-    "uploading_progress": "正在上傳 {current}/{total} · {name}"
+    "uploading_progress": "正在上傳 {current}/{total} · {name}",
+    "batch_delete_confirm_message": "您確定要刪除{count, plural, one {1 個項目} other {# 個項目}}嗎？此動作無法復原。",
+    "batch_delete_success": "{count, plural, one {已刪除 1 個項目} other {已刪除 # 個項目}}",
+    "delete_confirm_message": "您確定要刪除「{name}」嗎？此動作無法復原。",
+    "delete_confirm_title": "刪除項目",
+    "delete_success": "刪除成功"
   },
   "identities": {
     "badge": {
@@ -888,6 +900,10 @@
         "sync_add_failed": "無法同步至通訊錄",
         "sync_remove_failed": "無法從通訊錄移除",
         "synced_badge": "已透過通訊錄同步"
+      },
+      "disable_threading": {
+        "description": "將郵件個別顯示，而不是依對話串分組",
+        "label": "停用對話串群組"
       }
     },
     "experimental": {
@@ -897,7 +913,9 @@
       "remove_action": "移除動作",
       "remove_condition": "移除條件",
       "sieve_editor": {
-        "line_count": "{count, plural, other {# 行}}"
+        "line_count": "{count, plural, other {# 行}}",
+        "confirm_save": "確認儲存",
+        "save_warning": "儲存會覆寫所有視覺化規則，且無法復原。請再次點擊「儲存」以確認。"
       },
       "validation_header_name": "請輸入僅包含字母 A-Z、數字、連字號和底線的標頭名稱，例如 X-Spam-Flag。"
     },
@@ -941,7 +959,8 @@
       "no_name": "（無名稱）",
       "primary": "主要",
       "save_failed": "儲存失敗",
-      "text_signature": "純文字簽名檔"
+      "text_signature": "純文字簽名檔",
+      "title": "寄件身分"
     },
     "keywords": {
       "description_mobile": "用來整理郵件的彩色標籤。",
@@ -1040,6 +1059,10 @@
         "up_distributor_desc": "已安裝多個 UnifiedPush 分發器應用程式，請選擇要用來傳送通知的應用程式。",
         "up_distributor_label": "分發器",
         "up_no_distributor": "此裝置上未安裝 UnifiedPush 分發器應用程式。請安裝一個（例如 ntfy）後再試一次。"
+      },
+      "calendar": {
+        "invitation_parsing": "解析郵件邀請",
+        "invitation_parsing_desc": "偵測郵件附件中的行事曆邀請，並顯示行事曆動作"
       }
     },
     "offline": {
@@ -1177,7 +1200,16 @@
     },
     "tabs": {
       "plugins": "外掛程式",
-      "updates": "更新"
+      "updates": "更新",
+      "content_senders": "內容與寄件者",
+      "downloads": "下載",
+      "identities": "寄件身分",
+      "keywords": "標籤",
+      "language": "語言、地區與時間",
+      "layout": "版面配置",
+      "sidebar_apps": "側邊欄應用程式",
+      "templates": "範本",
+      "themes": "主題"
     },
     "templates": {
       "delete_confirm": "要永久刪除「{name}」嗎？",
@@ -1199,6 +1231,24 @@
       "warnings": {
         "date_format": "日期格式必須為「YYYY-MM-DD」或「YYYY-MM-DD HH:MM」"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "每分鐘",
+        "2m": "每 2 分鐘",
+        "30s": "每 30 秒",
+        "5m": "每 5 分鐘",
+        "description": "自動儲存草稿的頻率",
+        "label": "自動儲存間隔"
+      },
+      "description": "設定郵件撰寫偏好",
+      "title": "郵件撰寫"
+    },
+    "tab_groups": {
+      "advanced": "進階",
+      "appearance": "外觀",
+      "general": "一般",
+      "privacy": "隱私權與安全"
     }
   },
   "sharing": {

@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Ütemezés",
       "three_days": "3 nap"
+    },
+    "detail": {
+      "delete_confirm": "Törlöd ezt az eseményt?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Címke hozzáadása",
       "delete_confirm_mobile": "{count, plural, one {Törlöd a kijelölt # névjegyet? Ez nem vonható vissza.} other {Törlöd a kijelölt # névjegyet? Ez nem vonható vissza.}}",
       "move_to_address_book": "Áthelyezés címjegyzékbe",
-      "tag_failed": "Nem sikerült a címkézés"
+      "tag_failed": "Nem sikerült a címkézés",
+      "delete_confirm_title": "Névjegyek törlése"
     },
     "contact": "Névjegy",
     "create_hint_mobile": "Nyomd hosszan, ha inkább csoportot hoznál létre",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Átnevezéshez nyomj hosszan egy címkét",
     "tag_name_placeholder": "Új címke neve",
-    "unnamed": "Névtelen"
+    "unnamed": "Névtelen",
+    "delete_confirm_title": "Névjegy törlése"
   },
   "context_menu": {
     "color_tag": "Címke",
@@ -478,7 +483,8 @@
       "no_identity": "Nincs elérhető küldő azonosság"
     },
     "view_dark_mode": "Megtekintés sötét módban",
-    "view_light_mode": "Megtekintés világos módban"
+    "view_light_mode": "Megtekintés világos módban",
+    "not_spam_short": "Nem spam"
   },
   "files": {
     "delete_cascade_hint": "A mappák a teljes tartalmukkal együtt törlődnek. Ez nem vonható vissza.",
@@ -516,7 +522,12 @@
     "symlink": "Szimbolikus hivatkozás",
     "upload_failed": "{count, plural, one {1 fájlt nem sikerült feltölteni} other {# fájlt nem sikerült feltölteni}}",
     "upload_unavailable": "A fájlválasztó nincs telepítve ebben a buildben. A feltöltés engedélyezéséhez fordítsd újra az alkalmazást.",
-    "uploading_progress": "Feltöltés: {current}/{total} · {name}"
+    "uploading_progress": "Feltöltés: {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Biztosan törölni szeretnéd {count, plural, one {az 1 elemet} other {a # elemet}}? Ez nem vonható vissza.",
+    "batch_delete_success": "{count, plural, one {1 elem törölve} other {# elem törölve}}",
+    "delete_confirm_message": "Biztosan törölni szeretnéd a \"{name}\" elemet? Ez nem vonható vissza.",
+    "delete_confirm_title": "Erőforrás törlése",
+    "delete_success": "Sikeresen törölve"
   },
   "identities": {
     "badge": {
@@ -885,6 +896,10 @@
         "sync_add_failed": "Nem sikerült szinkronizálni a címjegyzékkel",
         "sync_remove_failed": "Nem sikerült eltávolítani a címjegyzékből",
         "synced_badge": "A címjegyzéken keresztül szinkronizálva"
+      },
+      "disable_threading": {
+        "description": "E-mailek megjelenítése egyedi üzenetként ahelyett, hogy beszélgetésekbe lennének csoportosítva",
+        "label": "Beszélgetéscsoportosítás letiltása"
       }
     },
     "experimental": {
@@ -894,7 +909,9 @@
       "remove_action": "Művelet eltávolítása",
       "remove_condition": "Feltétel eltávolítása",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# sor} other {# sor}}"
+        "line_count": "{count, plural, one {# sor} other {# sor}}",
+        "confirm_save": "Mentés megerősítése",
+        "save_warning": "A mentés felülír minden vizuális szabályt. Ez nem vonható vissza. Kattints újra a Mentés gombra a megerősítéshez."
       },
       "validation_header_name": "Adj meg egy fejlécnevet, amely csak az A–Z betűket, számjegyeket, kötőjeleket és aláhúzásjeleket tartalmazza, például X-Spam-Flag."
     },
@@ -938,7 +955,8 @@
       "no_name": "(nincs név)",
       "primary": "elsődleges",
       "save_failed": "A mentés sikertelen",
-      "text_signature": "Szöveges aláírás"
+      "text_signature": "Szöveges aláírás",
+      "title": "Küldő azonosságok"
     },
     "keywords": {
       "description_mobile": "Színes címkék a levelek rendszerezéséhez.",
@@ -1037,6 +1055,10 @@
         "up_distributor_desc": "Több UnifiedPush-disztribútor alkalmazás is telepítve van – válaszd ki, melyik kézbesítse az értesítéseket.",
         "up_distributor_label": "Disztribútor",
         "up_no_distributor": "Ezen az eszközön nincs telepítve UnifiedPush-disztribútor alkalmazás. Telepíts egyet (például ntfy), és próbáld újra."
+      },
+      "calendar": {
+        "invitation_parsing": "E-mail meghívók feldolgozása",
+        "invitation_parsing_desc": "Naptármeghívók észlelése az e-mail csatolmányokban és naptár műveletek megjelenítése"
       }
     },
     "offline": {
@@ -1174,7 +1196,16 @@
     },
     "tabs": {
       "plugins": "Bővítmények",
-      "updates": "Frissítések"
+      "updates": "Frissítések",
+      "content_senders": "Tartalom és feladók",
+      "downloads": "Letöltések",
+      "identities": "Azonosságok",
+      "keywords": "Címkék",
+      "language": "Nyelv, régió és idő",
+      "layout": "Elrendezés",
+      "sidebar_apps": "Oldalsáv alkalmazások",
+      "templates": "Sablonok",
+      "themes": "Témák"
     },
     "templates": {
       "delete_confirm": "Véglegesen törlöd ezt: „{name}”?",
@@ -1196,6 +1227,24 @@
       "warnings": {
         "date_format": "A dátumok formátuma „YYYY-MM-DD” vagy „YYYY-MM-DD HH:MM” legyen"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Percre",
+        "2m": "2 percenként",
+        "30s": "30 másodpercenként",
+        "5m": "5 percenként",
+        "description": "Milyen gyakran mentse a piszkozatokat automatikusan",
+        "label": "Automatikus mentés időköze"
+      },
+      "description": "E-mail írási beállítások konfigurálása",
+      "title": "Szerkesztő"
+    },
+    "tab_groups": {
+      "advanced": "Speciális",
+      "appearance": "Megjelenés",
+      "general": "Általános",
+      "privacy": "Adatvédelem és biztonság"
     }
   },
   "sharing": {

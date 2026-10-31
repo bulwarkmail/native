@@ -141,6 +141,9 @@
     "views": {
       "schedule": "Planning",
       "three_days": "3 dagen"
+    },
+    "detail": {
+      "delete_confirm": "Dit evenement verwijderen?"
     }
   },
   "common": {
@@ -167,7 +170,8 @@
       "add_tag": "Categorie toevoegen",
       "delete_confirm_mobile": "{count, plural, one {# contact verwijderen? Dit kan niet ongedaan worden gemaakt.} other {# contacten verwijderen? Dit kan niet ongedaan worden gemaakt.}}",
       "move_to_address_book": "Verplaatsen naar adresboek",
-      "tag_failed": "Categorie toewijzen mislukt"
+      "tag_failed": "Categorie toewijzen mislukt",
+      "delete_confirm_title": "Contacten verwijderen"
     },
     "contact": "Contact",
     "create_hint_mobile": "Lang drukken om in plaats daarvan een groep te maken",
@@ -260,7 +264,8 @@
     },
     "rename_tag_hint_mobile": "Druk lang op een categorie om deze te hernoemen",
     "tag_name_placeholder": "Naam nieuwe categorie",
-    "unnamed": "Naamloos"
+    "unnamed": "Naamloos",
+    "delete_confirm_title": "Contact verwijderen"
   },
   "context_menu": {
     "color_tag": "Label",
@@ -482,7 +487,8 @@
       "no_identity": "Geen verzendidentiteit beschikbaar"
     },
     "view_dark_mode": "Weergeven in donkere modus",
-    "view_light_mode": "Weergeven in lichte modus"
+    "view_light_mode": "Weergeven in lichte modus",
+    "not_spam_short": "Geen spam"
   },
   "files": {
     "delete_cascade_hint": "Mappen worden samen met alles erin verwijderd. Dit kan niet ongedaan worden gemaakt.",
@@ -520,7 +526,12 @@
     "symlink": "Symbolische koppeling",
     "upload_failed": "{count, plural, one {1 bestand kon niet worden geüpload} other {# bestanden konden niet worden geüpload}}",
     "upload_unavailable": "De bestandskiezer is niet geïnstalleerd in deze build. Bouw de app opnieuw om uploaden mogelijk te maken.",
-    "uploading_progress": "Uploaden {current}/{total} · {name}"
+    "uploading_progress": "Uploaden {current}/{total} · {name}",
+    "batch_delete_confirm_message": "Weet u zeker dat u {count, plural, one {1 item} other {# items}} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "batch_delete_success": "{count, plural, one {1 item verwijderd} other {# items verwijderd}}",
+    "delete_confirm_message": "Weet u zeker dat u \"{name}\" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "delete_confirm_title": "Bron verwijderen",
+    "delete_success": "Succesvol verwijderd"
   },
   "identities": {
     "badge": {
@@ -889,6 +900,10 @@
         "sync_add_failed": "Kon niet synchroniseren met het adresboek",
         "sync_remove_failed": "Kon niet verwijderen uit het adresboek",
         "synced_badge": "Gesynchroniseerd via adresboek"
+      },
+      "disable_threading": {
+        "description": "Toon e-mails als afzonderlijke berichten in plaats van gegroepeerd op gesprek",
+        "label": "Conversatiegroepering uitschakelen"
       }
     },
     "experimental": {
@@ -898,7 +913,9 @@
       "remove_action": "Actie verwijderen",
       "remove_condition": "Voorwaarde verwijderen",
       "sieve_editor": {
-        "line_count": "{count, plural, one {# regel} other {# regels}}"
+        "line_count": "{count, plural, one {# regel} other {# regels}}",
+        "confirm_save": "Opslaan bevestigen",
+        "save_warning": "Opslaan overschrijft alle visuele regels. Dit kan niet ongedaan worden gemaakt. Klik nogmaals op Opslaan om te bevestigen."
       },
       "validation_header_name": "Voer een headernaam in met alleen de letters A-Z, cijfers, koppeltekens en underscores, zoals X-Spam-Flag."
     },
@@ -942,7 +959,8 @@
       "no_name": "(geen naam)",
       "primary": "primair",
       "save_failed": "Opslaan mislukt",
-      "text_signature": "Handtekening in platte tekst"
+      "text_signature": "Handtekening in platte tekst",
+      "title": "Verzendidentiteiten"
     },
     "keywords": {
       "description_mobile": "Gekleurde labels om uw e-mail te organiseren.",
@@ -1041,6 +1059,10 @@
         "up_distributor_desc": "Er zijn meerdere UnifiedPush-distributor-apps geïnstalleerd - kies de app die meldingen moet bezorgen.",
         "up_distributor_label": "Distributor",
         "up_no_distributor": "Er is geen UnifiedPush-distributor-app geïnstalleerd op dit apparaat. Installeer er een (bijvoorbeeld ntfy) en probeer het opnieuw."
+      },
+      "calendar": {
+        "invitation_parsing": "E-mailuitnodigingen herkennen",
+        "invitation_parsing_desc": "Agenda-uitnodigingen in e-mailbijlagen detecteren en agendaacties tonen"
       }
     },
     "offline": {
@@ -1178,7 +1200,15 @@
     },
     "tabs": {
       "plugins": "Plug-ins",
-      "updates": "Updates"
+      "updates": "Updates",
+      "content_senders": "Inhoud en afzenders",
+      "identities": "Identiteiten",
+      "keywords": "Labels",
+      "language": "Taal, Regio & Tijd",
+      "layout": "Indeling",
+      "sidebar_apps": "Zijbalk-apps",
+      "templates": "Sjablonen",
+      "themes": "Thema's"
     },
     "templates": {
       "delete_confirm": "\"{name}\" definitief verwijderen?",
@@ -1200,6 +1230,24 @@
       "warnings": {
         "date_format": "Datums moeten de vorm \"YYYY-MM-DD\" of \"YYYY-MM-DD HH:MM\" hebben"
       }
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Elke minuut",
+        "2m": "Elke 2 minuten",
+        "30s": "Elke 30 seconden",
+        "5m": "Elke 5 minuten",
+        "description": "Hoe vaak concepten automatisch worden opgeslagen",
+        "label": "Automatisch opslaan interval"
+      },
+      "description": "Configureer instellingen voor het opstellen van e-mails",
+      "title": "Opstellen"
+    },
+    "tab_groups": {
+      "advanced": "Geavanceerd",
+      "appearance": "Weergave",
+      "general": "Algemeen",
+      "privacy": "Privacy en beveiliging"
     }
   },
   "sharing": {
