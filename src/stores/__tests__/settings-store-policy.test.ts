@@ -44,6 +44,54 @@ describe('explicitSettings', () => {
   });
 });
 
+describe('settings saved before a default changed', () => {
+  // Older versions saved the full snapshot, so senderFavicons: true (the old
+  // default) sits in it whether or not the user ever turned it on.
+  it('does not count an old default as chosen', () => {
+    expect(legacyExplicitSettings({ senderFavicons: true, showBirthdayCalendar: true, density: 'compact' })).toEqual(['density']);
+  });
+
+  it('moves an old default to the new one on upgrade, and lets a policy default apply', async () => {
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({
+      senderFavicons: true,
+      includeGroupInUnified: false,
+      autoSelectReplyIdentity: true,
+      showBirthdayCalendar: true,
+      density: 'compact',
+    }));
+    await useSettingsStore.getState().hydrate();
+    expect(useSettingsStore.getState()).toMatchObject({
+      senderFavicons: false,
+      includeGroupInUnified: true,
+      autoSelectReplyIdentity: false,
+      showBirthdayCalendar: false,
+      density: 'compact',
+      explicitSettings: ['density'],
+    });
+
+    resetPolicyRulesForTests();
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ senderFavicons: true, density: 'compact' }));
+    useSettingsStore.setState({ hydrated: false });
+    useSettingsStore.getState().applyPolicyRules(rules({ defaults: { senderFavicons: true, density: 'comfortable' } }));
+    await useSettingsStore.getState().hydrate();
+    // The organisation's default reaches the setting nobody chose.
+    expect(useSettingsStore.getState()).toMatchObject({ senderFavicons: true, density: 'compact', explicitSettings: ['density'] });
+  });
+
+  it('keeps settings saved with explicitSettings as they are', async () => {
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ senderFavicons: true, explicitSettings: ['senderFavicons'] }));
+    await useSettingsStore.getState().hydrate();
+    expect(useSettingsStore.getState()).toMatchObject({ senderFavicons: true, explicitSettings: ['senderFavicons'] });
+  });
+
+  it('treats an old default in an imported file the same way', () => {
+    useSettingsStore.setState({ hydrated: true });
+    expect(useSettingsStore.getState().importSettings(JSON.stringify({ senderFavicons: true, dateFormat: 'full' }))).toBe(true);
+    expect(useSettingsStore.getState()).toMatchObject({ senderFavicons: false, dateFormat: 'full' });
+    expect(useSettingsStore.getState().explicitSettings).not.toContain('senderFavicons');
+  });
+});
+
 describe('applyPolicyRules', () => {
   it('does not write the defaults over stored settings it has not read yet', async () => {
     await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ theme: 'dark', explicitSettings: ['theme'] }));
