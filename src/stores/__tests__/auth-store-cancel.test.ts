@@ -99,3 +99,13 @@ describe('cancelling a sign-in', () => {
     expect(useAuthStore.getState().error).toBeNull();
   });
 });
+
+describe('internationalized domains (#1100)', () => {
+  it('signs in with the ASCII form of the domain, keeping the local part', async () => {
+    const pending = useAuthStore.getState().login(SERVER, 'Jörg@Bücher.de', 'pw').catch(() => undefined);
+    await connectStarted();
+    expect(jmapClient.connect).toHaveBeenCalledWith(SERVER, 'Jörg@xn--bcher-kva.de', 'pw', undefined, undefined);
+    finishConnect!({ apiUrl: `${SERVER}/jmap/` });
+    await pending;
+  });
+});

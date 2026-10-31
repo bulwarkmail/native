@@ -42,6 +42,7 @@ import { reconcileServerFingerprint } from '../lib/server-change';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
 import { perfMark } from '../lib/perf-marks';
 import { abortable, isSignInCancelled, throwIfCancelled } from '../lib/sign-in-abort';
+import { toAsciiEmail } from '../lib/idn';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -553,8 +554,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   client: null,
   pendingTotpLogin: null,
 
-  login: async (serverUrl, username, password, opts) => {
+  login: async (serverUrl, typedUsername, password, opts) => {
     set({ isLoading: true, error: null });
+    // An address on an internationalized domain signs in with the domain's
+    // ASCII form, the one Stalwart stores (#1100); the local part stays.
+    const username = toAsciiEmail(typedUsername);
     try {
       // A new account with no room left fails here, before connect swaps
       // the live client over or stores credentials for it.

@@ -197,6 +197,14 @@ describe('discoverServerForEmail', () => {
     expect(mockSecureFetch).not.toHaveBeenCalled();
   });
 
+  it('probes an internationalized domain in its ASCII form (#1100)', async () => {
+    respondFor({ 'https://xn--bcher-kva.de': 401 });
+    await expect(discoverServerForEmail('jörg@Bücher.de')).resolves.toBe('https://xn--bcher-kva.de');
+    expect(emailDomain('jörg@bücher.de')).toBe('xn--bcher-kva.de');
+    expect(normalizeServerUrl('mail.bücher.de/jmap/session')).toBe('https://mail.xn--bcher-kva.de');
+    expect(normalizeServerUrl('https://Mail.Bücher.de:8443')).toBe('https://mail.xn--bcher-kva.de:8443');
+  });
+
   it('stops searching as soon as the sign-in is cancelled (U-133)', async () => {
     // Every host hangs; only the cancel can end the search before the deadline.
     mockSecureFetch.mockImplementation(() => new Promise(() => undefined));

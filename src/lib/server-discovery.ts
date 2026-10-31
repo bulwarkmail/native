@@ -9,6 +9,7 @@
 
 import { secureFetch } from './client-cert';
 import { signalWithTimeout } from './sign-in-abort';
+import { toAsciiDomain } from './idn';
 
 export const DISCOVERY_TIMEOUT_MS = 2500;
 
@@ -69,16 +70,30 @@ export function normalizeServerUrl(input: string): string | null {
   const host = value.slice(value.indexOf('://') + 3).split('/')[0];
   if (!host || /[\s@]/.test(host)) return null;
 
-  const hostname = host.split(':')[0].toLowerCase();
+  let hostname = host.split(':')[0].toLowerCase();
   if (!hostname) return null;
+  // An internationalized host goes on the wire in its ASCII form (#1100).
+  if (/[^\x00-\x7f]/.test(hostname)) {
+    const ascii = toAsciiDomain(hostname);
+    if (!ascii) return null;
+    const schemeEnd = value.indexOf('://') + 3;
+    value = value.slice(0, schemeEnd) + ascii + value.slice(schemeEnd + hostname.length);
+    hostname = ascii;
+  }
   if (!hostname.includes('.') && hostname !== 'localhost') return null;
 
   return value;
 }
 
+/**
+ * The domain of an address in its ASCII form (`jörg@bücher.de` ->
+ * `xn--bcher-kva.de`), which is what discovery probes and the server knows.
+ * Show it with toUnicodeDomain.
+ */
 export function emailDomain(email: string): string | null {
   const match = EMAIL_RE.exec(email.trim());
-  return match ? match[1].toLowerCase() : null;
+  if (!match) return null;
+  return toAsciiDomain(match[1]) ?? match[1].toLowerCase();
 }
 
 export function isEmailAddress(value: string): boolean {

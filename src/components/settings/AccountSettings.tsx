@@ -16,6 +16,7 @@ import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
 import { fetchMailQuota, type MailQuota } from '../../api/quota';
 import { MAX_ACCOUNTS, accountRowText } from '../../lib/account-utils';
+import { toUnicodeEmail } from '../../lib/idn';
 import type { RootStackParamList } from '../../navigation/types';
 
 function formatFileSize(bytes: number): string {
@@ -184,10 +185,10 @@ export function AccountSettings() {
                     : t('settings.account.accounts.switch_to', 'Switch to this account')}
                 >
                   <View style={styles.rowTitle}>
-                    <Text style={styles.rowName} numberOfLines={1}>{rowText.title}</Text>
+                    <Text style={styles.rowName} numberOfLines={1}>{toUnicodeEmail(rowText.title)}</Text>
                     {isActive && <Check size={14} color={c.success} />}
                   </View>
-                  {rowText.subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{rowText.subtitle}</Text> : null}
+                  {rowText.subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{toUnicodeEmail(rowText.subtitle)}</Text> : null}
                   {isDefault && (
                     <Text style={styles.defaultBadge}>
                       {t('settings.account.accounts.default_badge', 'Default account')}
