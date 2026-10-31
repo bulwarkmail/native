@@ -63,6 +63,7 @@ import {
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { moveSheetCurrentId } from '../lib/move-targets';
+import { listViewKey } from '../lib/list-view-key';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -458,6 +459,13 @@ export default function EmailListScreen({
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const storeSearchQuery = useEmailStore((s) => s.searchQuery);
   const filters = useEmailStore((s) => s.filters);
+  // Another folder, tag or search starts at the top of its list, not at the
+  // offset the last one was scrolled to (webmail #1138).
+  const listRef = React.useRef<FlatList<Email>>(null);
+  const viewKey = listViewKey(currentMailboxId, storeSearchQuery, filters);
+  React.useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [viewKey]);
   const accountErrors = useEmailStore((s) => s.accountErrors);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const ensureMailboxes = useEmailStore((s) => s.ensureMailboxes);
@@ -1688,6 +1696,7 @@ export default function EmailListScreen({
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={visibleEmails}
           keyExtractor={emailKeyExtractor}
           renderItem={renderEmailRow}
