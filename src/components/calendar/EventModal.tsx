@@ -80,6 +80,7 @@ import { useKeyboardObstruction } from '../../lib/use-keyboard-obstruction';
 import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
 import { askBeforeDiscard, editorFormChanged, editorFormSnapshot } from '../../lib/calendar-editor-discard';
+import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-denied';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -435,14 +436,18 @@ export function EventModal({
       for (const key of Object.keys(data) as (keyof CalendarEvent)[]) {
         if (data[key] === undefined) delete data[key];
       }
-      await onSave(data, calendarId, {
-        // Only the organizer sends: on an invitation someone else sent, a
-        // save would reach the organizer as a reply.
-        sendSchedulingMessages: organizes && attendees.length > 0 && sendInvitations,
+      // Only the organizer sends: on an invitation someone else sent, a
+      // save would reach the organizer as a reply.
+      const send = organizes && attendees.length > 0 && sendInvitations;
+      // A server that refuses to send the invitations refuses the whole
+      // save: offer to keep the event without them.
+      const saved = await saveOfferingWithoutInvitations((sendSchedulingMessages) => onSave(data, calendarId, {
+        sendSchedulingMessages,
         // The dates as shown: a series moves by the occurrence's move, on
         // its own clock (lib/recurrence-scope-edit).
         edit: { attendees, when: { allDay, start, end }, ruleChanged },
-      });
+      }), send, t);
+      if (!saved) return;
       onClose();
     } catch (err) {
       // The account changed under the save: the event is the previous
