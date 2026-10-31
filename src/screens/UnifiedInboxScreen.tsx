@@ -23,9 +23,12 @@ import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { cleanPreview } from '../lib/preview-text';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
+import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
+import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -243,9 +246,12 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     patchRows(targets, { $flagged: starred ? true : null });
     patchUnifiedKeywords(targets, { $flagged: starred ? true : null }).catch(fail);
   };
-  const archive = (targets: UnifiedEmail[]) => {
+  // Resolve whether the messages went: a confirm can say no.
+  const archive = async (targets: UnifiedEmail[]): Promise<boolean> => {
+    if (!(await confirmMailRemoval('archive', targets.length, t))) return false;
     removeRows(targets);
     moveUnifiedEmails(targets, 'archive').catch(fail);
+    return true;
   };
   const spam = (targets: UnifiedEmail[]) => {
     removeRows(targets);
@@ -253,24 +259,29 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
       markRead: role !== 'junk' && deleteAction === 'trash-and-read',
     }).catch(fail);
   };
-  const remove = async (targets: UnifiedEmail[]) => {
+  const remove = async (targets: UnifiedEmail[]): Promise<boolean> => {
     const permanent = targets.some((e) => isPermanentDelete({
       inTrash: role === 'trash' || isInUnifiedTrash(e),
       inJunk: role === 'junk',
       deleteAction,
       permanentlyDeleteJunk,
     }));
-    if (permanent && !(await confirmPermanentDelete(targets.length, t))) return;
+    if (permanent) {
+      if (!(await confirmPermanentDelete(targets.length, t))) return false;
+    } else if (!(await confirmMailRemoval('delete', targets.length, t))) {
+      return false;
+    }
     removeRows(targets);
     deleteUnifiedEmails(targets, {
       permanent: deleteAction === 'permanent' || (permanentlyDeleteJunk && role === 'junk'),
       markRead: deleteAction === 'trash-and-read',
     }).catch(fail);
+    return true;
   };
 
   const handleSwipe = (email: UnifiedEmail, action: SwipeAction) => {
     switch (action) {
-      case 'archive': if (role !== 'archive') archive([email]); break;
+      case 'archive': if (role !== 'archive') void archive([email]); break;
       case 'delete': void remove([email]); break;
       case 'spam': if (role !== 'sent' && role !== 'drafts') spam([email]); break;
       case 'read': setRead([email], !email.keywords?.$seen); break;
@@ -313,6 +324,8 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     const unread = !item.keywords?.$seen;
     const starred = !!item.keywords?.$flagged;
     const isSelected = selected.has(rowKey(item));
+    // Sent and Drafts rows show the recipient: the check says nothing about them.
+    const verification = showRecipient ? null : senderWarningOf(item);
     return (
       <SwipeableRow
         leftAction={selectionMode ? 'none' : swipeLeftAction}
@@ -344,6 +357,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
+              senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
             />
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
@@ -383,7 +397,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             </View>
             {/* Same settings as the folder list: preview on/off, density, text size. */}
             {item.preview && showPreview && density.showPreview ? (
-              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>{singleLine(item.preview)}</Text>
+              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>{singleLine(cleanPreview(item.preview))}</Text>
             ) : null}
           </View>
         </Pressable>
@@ -440,7 +454,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           )}
           {role !== 'archive' && (
             <Pressable
-              onPress={() => { archive(selectedEmails); clearSelection(); }}
+              onPress={() => { void archive(selectedEmails).then((done) => { if (done) clearSelection(); }); }}
               style={styles.headerBtn}
               hitSlop={6}
               accessibilityRole="button"
@@ -450,7 +464,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             </Pressable>
           )}
           <Pressable
-            onPress={() => { void remove(selectedEmails).then(clearSelection); }}
+            onPress={() => { void remove(selectedEmails).then((done) => { if (done) clearSelection(); }); }}
             style={styles.headerBtn}
             hitSlop={6}
             accessibilityRole="button"

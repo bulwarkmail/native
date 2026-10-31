@@ -19,19 +19,32 @@ import { hasTruncatedDisplayedBody } from '../lib/email-body';
 import { withInlineBodyParts } from '../lib/email-inline-parts';
 import { stalwartStateWentBack } from './stalwart-state';
 import { isTransientNetworkError } from '../lib/network-error';
+import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 
-export const EMAIL_LIST_PROPERTIES = [
+const EMAIL_SUMMARY_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
   'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment',
+  // Sorting by "Date sent" compares it on the device for a list merged from
+  // several accounts; without it the order fell back to receivedAt (#1219).
+  'sentAt',
+];
+
+export const EMAIL_LIST_PROPERTIES = [
+  ...EMAIL_SUMMARY_PROPERTIES,
+  // The sender check, so a list row shows a warning shield instead of the
+  // favicon or photo of a forged From (webmail #1439).
+  LIST_AUTH_RESULTS_PROPERTY,
 ];
 
 // The viewer derives reply threading (In-Reply-To/References), Reply-To
 // handling, SPF/DKIM/DMARC chips, List-Unsubscribe and read-receipt requests
-// from these; without `messageId`/`headers` none of that can work.
+// from these; without `messageId`/`headers` none of that can work. The full
+// `headers` carry Authentication-Results, so the list's header property is
+// left out.
 export const EMAIL_FULL_PROPERTIES = [
-  ...EMAIL_LIST_PROPERTIES,
+  ...EMAIL_SUMMARY_PROPERTIES,
   'bodyStructure', 'textBody', 'htmlBody', 'bodyValues',
-  'attachments', 'blobId', 'bcc', 'replyTo', 'sentAt',
+  'attachments', 'blobId', 'bcc', 'replyTo',
   'messageId', 'inReplyTo', 'references', 'headers',
 ];
 
@@ -1014,7 +1027,7 @@ export async function getEmailFlags(
 }
 
 // What a collapsed conversation card shows; `sentAt` is the date it prints.
-export const THREAD_HEADER_PROPERTIES = [...EMAIL_LIST_PROPERTIES, 'sentAt'];
+export const THREAD_HEADER_PROPERTIES = EMAIL_LIST_PROPERTIES;
 
 /** A conversation's members, oldest first, without bodies. */
 export interface ThreadHeaders {

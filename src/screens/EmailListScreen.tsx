@@ -7,8 +7,11 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check,
 } from '../components/icons';
+import { ActionSheet } from '../components/email/ActionSheet';
+import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor, type SortChoiceKey } from '../lib/sort-choices';
+import { orderForMailbox, sanitizeSortLevels } from '../lib/message-list-order';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { spacing, radius, typography, componentSizes, mix, type ThemePalette } from '../theme/tokens';
@@ -21,9 +24,11 @@ import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
 import {
-  ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
+  ListAttachmentChips, ListAttachmentOpener, useListAttachments, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { showsPaperclip } from '../lib/list-attachments';
 import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
+import { useSenderWarning } from '../components/email/use-sender-warning';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -47,6 +52,7 @@ import { toast } from '../stores/toast-store';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { cleanPreview } from '../lib/preview-text';
 import {
   findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
 } from '../lib/mailbox-tree';
@@ -55,10 +61,16 @@ import {
   collapseThreads, groupByThread, expandThreadSelection, getThreadTagIds, threadKeyOf, accountScopedId, rowKeyOf,
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
+import { confirmMailRemoval } from '../lib/mail-removal-confirm';
+import { moveSheetCurrentId } from '../lib/move-targets';
+import { listViewKey } from '../lib/list-view-key';
+import { searchScopeFolders } from '../lib/search-scope-folders';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
+import { usePendingMailFolder } from '../navigation/pending-mail-folder';
+import { resolveFolderRef } from '../lib/folder-ref';
 import type { Attachment, Email } from '../api/types';
 import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/perf-marks';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -98,6 +110,19 @@ function isStarred(email: Email): boolean {
 
 function isPinned(email: Email): boolean {
   return !!email.keywords?.$pinned;
+}
+
+// Written out so the string harvest finds every key.
+function sortChoiceLabel(key: SortChoiceKey, t: (key: string, fallback?: string) => string): string {
+  switch (key) {
+    case 'newest': return t('email_list.sort.newest', 'Newest first');
+    case 'oldest': return t('email_list.sort.oldest', 'Oldest first');
+    case 'unread': return t('email_list.sort.unread', 'Unread first');
+    case 'starred': return t('email_list.sort.starred', 'Starred first');
+    case 'sender': return t('email_list.sort.sender', 'Sender (A–Z)');
+    case 'subject': return t('email_list.sort.subject', 'Subject (A–Z)');
+    case 'largest': return t('email_list.sort.largest', 'Largest first');
+  }
 }
 
 // Height of the sender line when the avatar is hidden (extra-compact density),
@@ -176,6 +201,11 @@ const EmailRow = React.memo(function EmailRow({
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
   const verificationCode = useListVerificationCode(item);
+  // The row's parts, loaded once it is on screen: the chips show them and
+  // the paperclip goes when they are only inline images.
+  const attachments = useListAttachments(item, onOpenAttachment ? loadAttachments : undefined);
+  // Sent and Drafts rows show the recipient: the check says nothing about them.
+  const senderWarning = useSenderWarning(showRecipient ? undefined : item);
 
   return (
     <Pressable
@@ -210,12 +240,27 @@ const EmailRow = React.memo(function EmailRow({
         </View>
       )}
       {density.showAvatar && (
-        <SenderAvatar
-          name={senderName}
-          email={senderEmail}
-          size={componentSizes.avatarMd}
-          disableImages={disableAvatarImages}
-        />
+        // A tap on the avatar picks the row and starts selection mode, like
+        // a long press (#91).
+        <Pressable
+          onPress={handleLongPress}
+          hitSlop={4}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          accessibilityLabel={tr('email_list.batch_actions.select_row', 'Select {sender}: {subject}', {
+            sender: senderName,
+            subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
+          })}
+          testID="email-row-avatar"
+        >
+          <SenderAvatar
+            name={senderName}
+            email={senderEmail}
+            size={componentSizes.avatarMd}
+            disableImages={disableAvatarImages}
+            senderWarning={senderWarning}
+          />
+        </Pressable>
       )}
 
       {/* Content */}
@@ -238,7 +283,7 @@ const EmailRow = React.memo(function EmailRow({
             {forwarded && (
               <Forward size={componentSizes.statusIcon} color={c.textMuted} />
             )}
-            {item.hasAttachment && (
+            {showsPaperclip(item.hasAttachment, attachments) && (
               <Paperclip size={componentSizes.statusIcon} color={c.textMuted} />
             )}
           </View>
@@ -271,14 +316,15 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
         {showPreview && density.showPreview && (
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
-            {singleLine(item.preview)}
+            {singleLine(cleanPreview(item.preview))}
           </Text>
         )}
         {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} inList />}
         {onOpenAttachment && (
           <ListAttachmentChips
             email={item}
-            load={loadAttachments}
+            attachments={attachments}
+            pending={!!loadAttachments && item.hasAttachment && !item.attachments}
             onOpen={onOpenAttachment}
             disabled={selectionMode}
           />
@@ -419,6 +465,13 @@ export default function EmailListScreen({
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const storeSearchQuery = useEmailStore((s) => s.searchQuery);
   const filters = useEmailStore((s) => s.filters);
+  // Another folder, tag or search starts at the top of its list, not at the
+  // offset the last one was scrolled to (webmail #1138).
+  const listRef = React.useRef<FlatList<Email>>(null);
+  const viewKey = listViewKey(currentMailboxId, storeSearchQuery, filters);
+  React.useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [viewKey]);
   const accountErrors = useEmailStore((s) => s.accountErrors);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const ensureMailboxes = useEmailStore((s) => s.ensureMailboxes);
@@ -440,7 +493,7 @@ export default function EmailListScreen({
   const moveEmailsToMailbox = useEmailStore((s) => s.moveEmailsToMailbox);
   const deleteEmailsBatch = useEmailStore((s) => s.deleteEmailsBatch);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
-  const setSortAscending = useEmailStore((s) => s.setSortAscending);
+  const invalidateListOrder = useEmailStore((s) => s.invalidateListOrder);
   const markSpam = useEmailStore((s) => s.markSpam);
   const unmarkSpam = useEmailStore((s) => s.unmarkSpam);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -475,6 +528,15 @@ export default function EmailListScreen({
     [mailboxes, currentMailboxId],
   );
   const currentRole = currentMailbox?.role ?? null;
+  // The Sort menu of the header (webmail e3f1ccce7): the order presets of
+  // Settings > Layout, one tap away.
+  const [sortMenuOpen, setSortMenuOpen] = React.useState(false);
+  const messageListOrder = useSettingsStore((s) => s.messageListOrder);
+  const messageListOrderScope = useSettingsStore((s) => s.messageListOrderScope);
+  const currentSortChoice = sortChoiceFor(
+    orderForMailbox(sanitizeSortLevels(messageListOrder), messageListOrderScope, currentRole),
+    sortAscending,
+  );
   // The JMAP account behind the open folder (undefined = the user's own).
   const currentOwnerAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
 
@@ -721,7 +783,11 @@ export default function EmailListScreen({
       deleteAction,
       permanentlyDeleteJunk,
     });
-    if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
+    if (permanent) {
+      if (!(await confirmPermanentDelete(ids.length, t))) return;
+    } else if (!(await confirmMailRemoval('delete', ids.length, t))) {
+      return;
+    }
     if (ids.length === 1) await deleteEmailAction(ids[0], trashMailboxId, currentMailboxId);
     else await deleteEmailsBatch(ids, trashMailboxId, currentMailboxId);
   }, [currentMailboxId, trashMailboxId, inJunk, deleteAction, permanentlyDeleteJunk, deleteEmailAction, deleteEmailsBatch, t]);
@@ -734,8 +800,10 @@ export default function EmailListScreen({
       case 'archive':
         if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
-          if (ids.length > 1) reportFailure(archiveEmailsBatch(ids));
-          else reportFailure(archiveEmailAction(id));
+          reportFailure(confirmMailRemoval('archive', ids.length, t).then((ok) => {
+            if (!ok) return undefined;
+            return ids.length > 1 ? archiveEmailsBatch(ids) : archiveEmailAction(id);
+          }));
         } else if (!archiveMailboxId) {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -857,6 +925,14 @@ export default function EmailListScreen({
     () => expandThreadSelection(selectedIds, emails, disableThreading),
     [selectedIds, emails, disableThreading],
   );
+  // The open folder can't be picked in the move sheets only when the rows
+  // being moved are all in it: search hits from other folders can move into
+  // it (#1452).
+  const pendingMoveCurrentId = React.useMemo(() => {
+    if (!pendingMoveId) return currentMailboxId;
+    const wanted = new Set(expandThreadSelection([pendingMoveId], emails, disableThreading));
+    return moveSheetCurrentId(mailboxes, currentMailboxId, emails.filter((e) => wanted.has(rowKeyOf(e))));
+  }, [pendingMoveId, emails, disableThreading, mailboxes, currentMailboxId]);
   const selectedEmails = React.useMemo(() => {
     const wanted = new Set(selectedMessageIds);
     return emails.filter((e) => wanted.has(rowKeyOf(e)));
@@ -900,12 +976,17 @@ export default function EmailListScreen({
       deleteAction,
       permanentlyDeleteJunk,
     });
-    if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
+    if (permanent) {
+      if (!(await confirmPermanentDelete(ids.length, t))) return;
+    } else if (!(await confirmMailRemoval('delete', ids.length, t))) {
+      return;
+    }
     await deleteEmailsBatch(ids, trash.id, currentMailboxId);
     clearSelection();
   };
 
   const handleBulkArchive = async () => {
+    if (!(await confirmMailRemoval('archive', selectedMessageIds.length, t))) return;
     await archiveEmailsBatch(selectedMessageIds);
     clearSelection();
   };
@@ -1127,6 +1208,18 @@ export default function EmailListScreen({
     }
   }, [ensureMailboxes, mailboxes.length]);
 
+  // A `mail/folder/<ref>` link opens its folder once the folders are here;
+  // one that names no folder of this account leaves the list as it is.
+  const pendingFolder = usePendingMailFolder((s) => s.ref);
+  React.useEffect(() => {
+    if (pendingFolder === null || mailboxes.length === 0) return;
+    const ref = usePendingMailFolder.getState().consume();
+    const id = ref === null ? null : resolveFolderRef(ref, mailboxes);
+    if (!id) return;
+    clearSearchAndFilters();
+    if (id !== currentMailboxId) void selectMailbox(id);
+  }, [pendingFolder, mailboxes, currentMailboxId, selectMailbox, clearSearchAndFilters]);
+
   React.useEffect(() => {
     if (mailboxes.length > 0 && !currentMailboxId) {
       const own = ownMailboxes(mailboxes);
@@ -1190,17 +1283,17 @@ export default function EmailListScreen({
       </View>
       <Pressable
         style={styles.filterButton}
-        onPress={() => setSortAscending(!sortAscending)}
+        onPress={() => setSortMenuOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel={sortAscending
-          ? t('settings.appearance.message_list_order.direction.oldest_first', 'Oldest first')
-          : t('settings.appearance.message_list_order.direction.newest_first', 'Newest first')}
-        accessibilityHint={t('email_list.sort_toggle_hint', 'Reverses the mail sort order')}
+        accessibilityLabel={t('email_list.sort.title', 'Sort')}
+        accessibilityValue={currentSortChoice ? { text: sortChoiceLabel(currentSortChoice, t) } : undefined}
       >
-        {sortAscending ? (
+        {currentSortChoice === 'newest' ? (
+          <ArrowDownWideNarrow size={18} color={c.textMuted} />
+        ) : currentSortChoice === 'oldest' ? (
           <ArrowUpNarrowWide size={18} color={c.primary} />
         ) : (
-          <ArrowDownWideNarrow size={18} color={c.textMuted} />
+          <ArrowUpDown size={18} color={c.primary} />
         )}
       </Pressable>
       <Pressable
@@ -1621,6 +1714,7 @@ export default function EmailListScreen({
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={visibleEmails}
           keyExtractor={emailKeyExtractor}
           renderItem={renderEmailRow}
@@ -1764,17 +1858,18 @@ export default function EmailListScreen({
                         active={folderScope === 'current'}
                         onPress={() => setFolderScope('current')}
                       />
-                      {scopedMailboxes
-                        .filter((m) => m.id !== currentMailboxId)
-                        .slice(0, 12)
-                        .map((m) => (
+                    </View>
+                    {/* Every folder, as a tree (it was a flat list cut at 12). */}
+                    <View style={styles.scopeFolderList}>
+                      {searchScopeFolders(scopedMailboxes, currentMailboxId).map((m) => (
+                        <View key={m.id} style={{ marginLeft: m.depth * spacing.lg }}>
                           <ScopeChip
-                            key={m.id}
                             label={localizeMailboxName(m.role, m.name, t)}
                             active={folderScope === m.id}
                             onPress={() => setFolderScope(m.id)}
                           />
-                        ))}
+                        </View>
+                      ))}
                     </View>
                   </View>
 
@@ -1905,11 +2000,11 @@ export default function EmailListScreen({
         visible={pendingMoveId !== null}
         onClose={() => setPendingMoveId(null)}
         mailboxes={mailboxes}
-        currentMailboxId={currentMailboxId}
+        currentMailboxId={pendingMoveCurrentId}
         onPick={(toId) => {
           const id = pendingMoveId;
           setPendingMoveId(null);
-          if (id && currentMailboxId && toId !== currentMailboxId) {
+          if (id && currentMailboxId && toId !== pendingMoveCurrentId) {
             const ids = idsForRow(id);
             if (ids.length > 1) reportFailure(moveEmailsToMailbox(ids, toId));
             else reportFailure(moveToMailboxAction(id, currentMailboxId, toId));
@@ -1917,11 +2012,40 @@ export default function EmailListScreen({
         }}
       />
 
+      <ActionSheet
+        visible={sortMenuOpen}
+        title={t('email_list.sort.title', 'Sort')}
+        onClose={() => setSortMenuOpen(false)}
+        items={[
+          ...SORT_CHOICES.map((choice) => ({
+            key: choice.key,
+            label: sortChoiceLabel(choice.key, t),
+            trailing: currentSortChoice === choice.key ? <Check size={16} color={c.primary} /> : undefined,
+            onPress: () => {
+              setSortMenuOpen(false);
+              const changes = sortChoiceChanges(choice.key, messageListOrderScope, currentRole);
+              if (!changes) return;
+              const { updateSetting } = useSettingsStore.getState();
+              updateSetting('messageListOrder', changes.messageListOrder);
+              updateSetting('mailSortAscending', changes.mailSortAscending);
+              if (changes.messageListOrderScope) updateSetting('messageListOrderScope', changes.messageListOrderScope);
+              invalidateListOrder();
+            },
+          })),
+          ...(currentSortChoice === null ? [{
+            key: 'custom',
+            label: t('email_list.sort.custom', 'Custom order (in Settings)'),
+            trailing: <Check size={16} color={c.primary} />,
+            onPress: () => setSortMenuOpen(false),
+          }] : []),
+        ]}
+      />
+
       <MoveSheet
         visible={batchMoveOpen}
         onClose={() => setBatchMoveOpen(false)}
         mailboxes={mailboxes}
-        currentMailboxId={currentMailboxId}
+        currentMailboxId={moveSheetCurrentId(mailboxes, currentMailboxId, selectedEmails)}
         onPick={handleBatchMovePick}
       />
 
@@ -2308,6 +2432,7 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
     marginTop: 4,
   },
+  scopeFolderList: { alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
   triToggle: {
     flexDirection: 'row',
     alignItems: 'center',

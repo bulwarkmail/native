@@ -7,6 +7,7 @@ import type { Attachment, Email } from '../api/types';
 import { findCalendarAttachment } from './calendar-invitation';
 import { pickEmailBody, selectRenderableHtml } from './email-body';
 import { extractCidRefs } from './email-html';
+import { stripBidiControls } from './bidi';
 
 const MIME_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'Document.pdf',
@@ -31,7 +32,10 @@ const MIME_TYPE_LABELS: Record<string, string> = {
 };
 
 export function getAttachmentDisplayName(name: string | null | undefined, mimeType?: string): string {
-  if (name) return name;
+  // A direction override in a sender-chosen name can fake the file type
+  // (`report<U+202E>fdp.exe` shows as `reportexe.pdf`).
+  const shown = name ? stripBidiControls(name) : '';
+  if (shown) return shown;
   if (mimeType) {
     const base = mimeType.split(';')[0].trim().toLowerCase();
     const label = MIME_TYPE_LABELS[base];
@@ -52,10 +56,22 @@ export function isCalendarMimeType(type?: string | null): boolean {
   return CAL_MIME.has(type.split(';')[0].trim().toLowerCase());
 }
 
-/** Machine-readable report parts (MDN receipts, DSN bounces) - never real attachments. */
+/**
+ * Machine-readable report parts: the delivery status of a bounce (RFC 3464),
+ * the disposition of a read receipt (RFC 8098) and their RFC 6533 UTF-8
+ * forms. A multipart/report needs them, but they are not files anyone
+ * attached, so no view lists them and a forward leaves them out (webmail
+ * lib/attachment-visibility.ts).
+ */
+const REPORT_PART_TYPES: ReadonlySet<string> = new Set([
+  'message/delivery-status',
+  'message/disposition-notification',
+  'message/global-delivery-status',
+  'message/global-disposition-notification',
+]);
+
 export function isReportPart(type?: string | null): boolean {
-  const base = (type || '').split(';')[0].trim().toLowerCase();
-  return base === 'message/disposition-notification' || base === 'message/delivery-status';
+  return REPORT_PART_TYPES.has((type || '').split(';')[0].trim().toLowerCase());
 }
 
 export function isRfc822Attachment(att: Pick<Attachment, 'name' | 'type'>): boolean {

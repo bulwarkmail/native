@@ -11,8 +11,11 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter,
+  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter, FileText, Type,
 } from '../components/icons';
+import { pickEmailBody } from '../lib/email-body';
+import { confirmMailRemoval } from '../lib/mail-removal-confirm';
+import { NewTagRow } from '../components/NewTagRow';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -47,7 +50,8 @@ import { replyComposeParams } from '../lib/reply-compose';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
-import { accountScopedId } from '../lib/thread-utils';
+import { accountScopedId, isReplyableMember, quickReplyTarget } from '../lib/thread-utils';
+import { scheduledEmailIdsInThread } from '../api/thread-scheduled';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -177,6 +181,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
   const [themeOverrides, setThemeOverrides] = React.useState<Record<string, 'light' | 'dark'>>({});
+  // Per-message "Show as plain text" (More sheet); unset follows "Plain Text Only".
+  const [plainOverrides, setPlainOverrides] = React.useState<Record<string, boolean>>({});
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  const showFormatted = React.useCallback(
+    (m: Email) => setPlainOverrides((prev) => ({ ...prev, [m.id]: false })),
+    [],
+  );
 
   // Message details and conversations come from the shared cache
   // (lib/email-detail-cache): every rendered pane, the active one and its
@@ -537,14 +548,18 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       );
       return;
     }
-    performDelete();
+    // "Confirm before deleting" (webmail lib/mail-removal-confirm.ts).
+    void confirmMailRemoval('delete', 1, t).then((ok) => { if (ok) performDelete(); });
   };
 
   const onArchive = () => {
     if (!email || !canArchive) return;
-    archiveEmailAction(email.id, { email, accountId: ownerAccountId })
-      .catch((err) => toastFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
-    navigation.goBack();
+    void confirmMailRemoval('archive', 1, t).then((ok) => {
+      if (!ok) return;
+      archiveEmailAction(email.id, { email, accountId: ownerAccountId })
+        .catch((err) => toastFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
+      navigation.goBack();
+    });
   };
 
   // The same store path as the list and swipe actions: files into the
@@ -679,7 +694,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       label: t('email_viewer.tag', 'Tag'),
       icon: (s, col) => <Tag size={s} color={col} />,
       onPress: () => setTagMenuOpen(true),
-      available: keywordDefs.length > 0,
+      // Always: the tag sheet can make a new tag.
+      available: true,
     },
   };
 
@@ -692,6 +708,10 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   // Drop optional toolbar buttons on narrow screens.
   const showMarkUnread = windowWidth >= 340;
   const showArchive = windowWidth >= 400 && canArchive;
+
+  // The active message read as plain text, and whether it has HTML to switch from.
+  const activePlainView = email ? plainOverrides[email.id] ?? plainTextMode : false;
+  const activeHasHtml = !!email && !!pickEmailBody(email).html;
 
   // Current rendering mode of the active message, for the More sheet label.
   const activeRenderDark = email
@@ -817,6 +837,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
                   currentMailboxRole={currentMailboxRole}
                   identities={identities}
                   themeOverrides={themeOverrides}
+                  plainOverrides={plainOverrides}
+                  onShowFormatted={showFormatted}
                   ensureDetail={ensureDetail}
                   ensureDetails={ensureDetails}
                   ensureThread={ensureThread}
@@ -878,8 +900,14 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         isInJunk={isInJunk}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
-        canTag={keywordDefs.length > 0}
+        canTag
         renderDark={activeRenderDark}
+        plainView={activeHasHtml ? activePlainView : null}
+        onTogglePlainView={() => {
+          setMoreMenuOpen(false);
+          if (!email) return;
+          setPlainOverrides((prev) => ({ ...prev, [email.id]: !activePlainView }));
+        }}
         hasSender={!!email?.from?.[0]?.email}
         onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
         onToggleUnread={() => { setMoreMenuOpen(false); onToggleUnread(); }}
@@ -971,6 +999,8 @@ interface EmailPaneProps {
   currentMailboxRole: string | null;
   identities: Identity[];
   themeOverrides: Record<string, 'light' | 'dark'>;
+  plainOverrides: Record<string, boolean>;
+  onShowFormatted: (email: Email) => void;
   ensureDetail: (id: string) => Promise<Email | null>;
   ensureDetails: (ids: string[]) => void;
   ensureThread: (threadId: string) => void;
@@ -986,6 +1016,8 @@ interface EmailPaneProps {
   onZoomChange: (zoom: { pinching: boolean; zoomed: boolean }) => void;
 }
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 // One swipeable page: the subject plus either a single message or the whole
 // conversation as collapsible cards (newest + unread expanded, mark-read on
 // expand). The pager keeps three of these mounted (prev, current, next) so a
@@ -993,12 +1025,15 @@ interface EmailPaneProps {
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
   id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
-  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
+  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, plainOverrides, onShowFormatted,
+  ensureDetail, ensureDetails,
   ensureThread, scheduleMarkRead, styles, bottomBarHeight, kbObstruction, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
   const c = useColors();
   const t = useLocaleStore((s) => s.t);
+  // The quick reply box can be turned off (webmail #1370).
+  const quickReplyEnabled = useSettingsStore((s) => s.quickReplyEnabled);
   // Freeze the pane's vertical scroll while a pinch is in flight so a two-
   // finger zoom can't fling the page.
   const [pinching, setPinching] = React.useState(false);
@@ -1041,6 +1076,19 @@ function EmailPane({
   }, [bodyEnabled, expanded, threadIds, ensureDetails]);
 
   React.useEffect(() => () => { readTimers.forEach((cancel) => cancel()); readTimers.clear(); }, [readTimers]);
+
+  // Members waiting for a scheduled send: no Reply on them, and the quick
+  // reply answers the newest message that is neither one nor a draft (#1404).
+  const [scheduledIds, setScheduledIds] = React.useState<ReadonlySet<string>>(NO_IDS);
+  const isConversation = !!threadIds && threadIds.length > 1;
+  React.useEffect(() => {
+    if (!active || !threading || !threadId || !isConversation) return undefined;
+    let cancelled = false;
+    void scheduledEmailIdsInThread(threadId, jmapAccountId).then((ids) => {
+      if (!cancelled) setScheduledIds(ids.size > 0 ? ids : NO_IDS);
+    });
+    return () => { cancelled = true; };
+  }, [active, threading, threadId, isConversation, jmapAccountId]);
 
   // Keeps the quick reply in view while the keyboard opens. Above the
   // skeleton's early return: a page opened by id alone (a notification)
@@ -1121,7 +1169,7 @@ function EmailPane({
   // and WebView stay mounted when a conversation arrives around it.
   const members = conversation ?? [shown];
   const firstOpenId = conversation?.find((m) => expanded?.has(m.id) ?? m.id === id)?.id;
-  const newest = conversation ? conversation[conversation.length - 1] : email;
+  const newest = quickReplyTarget(conversation ?? (email ? [email] : []), scheduledIds);
   // The quick reply quotes the message, so it waits for the newest one's body.
   const newestLoaded = !!newest && !!peekDetail(newest.id, jmapAccountId);
   const onPaneZoom = (z: { pinching: boolean; zoomed: boolean }) => {
@@ -1209,7 +1257,7 @@ function EmailPane({
               fill={!asConversation}
               email={full ?? m}
               expanded={open}
-              replyable={!!full}
+              replyable={!!full && isReplyableMember(m, scheduledIds)}
               deferBody={!full || !bodyEnabled}
               onBodySettled={onBodySettled}
               onToggleExpanded={() => toggleCard(m.id)}
@@ -1219,6 +1267,8 @@ function EmailPane({
               currentMailboxRole={currentMailboxRole}
               active={active}
               themeOverride={themeOverrides[m.id] ?? null}
+              plainView={plainOverrides[m.id] ?? null}
+              onShowFormatted={onShowFormatted}
               onSwipe={onSwipe}
               onZoomChange={onPaneZoom}
               onToggleStar={onToggleStar}
@@ -1238,7 +1288,7 @@ function EmailPane({
       </View>
 
       <View style={styles.quickReplySlot}>
-        {newest && newestLoaded && (
+        {quickReplyEnabled && newest && newestLoaded && (
           <QuickReplyBox
             email={newest}
             jmapAccountId={jmapAccountId}
@@ -1307,6 +1357,9 @@ interface MoreMenuSheetProps {
   canViewSource: boolean;
   canExport: boolean;
   renderDark: boolean;
+  /** The active message read as plain text; null when it has no HTML to switch from. */
+  plainView: boolean | null;
+  onTogglePlainView: () => void;
   hasSender: boolean;
   onArchive: () => void;
   onToggleUnread: () => void;
@@ -1324,7 +1377,7 @@ interface MoreMenuSheetProps {
 
 function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
-  showSpam, isInJunk, canViewSource, canExport, renderDark, hasSender,
+  showSpam, isInJunk, canViewSource, canExport, renderDark, plainView, onTogglePlainView, hasSender,
   onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onToggleTheme, onSenderActions,
   onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
@@ -1428,6 +1481,13 @@ function MoreMenuSheet({
               }
               label={isInJunk ? t('email_viewer.not_spam_short', 'Not spam') : t('email_viewer.spam.button_title', 'Report spam')}
               onPress={onToggleSpam}
+            />
+          )}
+          {plainView !== null && (
+            <MoreMenuItem
+              icon={plainView ? <Type size={18} color={c.textSecondary} /> : <FileText size={18} color={c.textSecondary} />}
+              label={plainView ? t('email_viewer.show_formatted', 'Show formatted') : t('email_viewer.show_as_plain_text', 'Show as plain text')}
+              onPress={onTogglePlainView}
             />
           )}
           <MoreMenuItem
@@ -1539,14 +1599,14 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
             </Pressable>
           </View>
         </View>
-        {keywords.length === 0 ? (
-          <Text style={{ ...typography.body, color: c.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
-            {t('email_viewer.tag_no_matches', 'No matching tags')}
-          </Text>
-        ) : (
-          // Scrolls like the More sheet: a long tag list (or a landscape
-          // window) ran past the screen with no way to reach the last tags.
-          <ScrollView style={styles.sheetScroll} bounces={false}>
+        {/* Scrolls like the More sheet: a long tag list (or a landscape
+            window) ran past the screen with no way to reach the last tags. */}
+        <ScrollView style={styles.sheetScroll} bounces={false} keyboardShouldPersistTaps="handled">
+          {keywords.length === 0 && (
+            <Text style={{ ...typography.body, color: c.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
+              {t('email_viewer.tag_no_matches', 'No matching tags')}
+            </Text>
+          )}
           {keywords.map((kw) => {
             const token = keywordToken(kw.id);
             const active = !!activeKeywords[token];
@@ -1561,8 +1621,9 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
               />
             );
           })}
-          </ScrollView>
-        )}
+          {/* "New tag" (webmail 19676a14f): made, saved and put on the message. */}
+          <NewTagRow keywords={keywords} onCreated={onToggle} />
+        </ScrollView>
       </Animated.View>
     </Modal>
   );

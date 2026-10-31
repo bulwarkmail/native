@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Linking, Platform, Text, Pressable, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Linking, Platform, Text, Pressable, PixelRatio, useWindowDimensions } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,11 +14,15 @@ import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { senderVerificationOf } from '../lib/email-headers';
+import { plainTextReading } from '../lib/html-to-readable-text';
+import { buildMailTextSizeScript, mailTextFactor } from '../lib/mail-reading';
+import { buildPauseAnimatedImagesScript, withReducedMotion } from '../lib/mail-motion';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
+import { useShouldAnimate, useTypography } from '../theme/dynamic';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { perfEndAfterPaint, perfLap } from '../lib/perf-marks';
 import type { RootStackParamList } from '../navigation/types';
@@ -54,6 +58,13 @@ interface EmailBodyViewProps {
    * page below the header) rather than a guessed height.
    */
   fill?: boolean;
+  /**
+   * Per-message "Show as plain text" from the More sheet; null or undefined
+   * follows the "Plain Text Only" setting.
+   */
+  plainView?: boolean | null;
+  /** "Show formatted" in the plain-text note: turn the per-message view off. */
+  onShowFormatted?: () => void;
 }
 
 // Dark-mode re-inversion, mirroring the webmail's handleIframeLoad pass. The
@@ -521,6 +532,7 @@ const PINCH_ZOOM = `
 
 export default function EmailBodyView({
   email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  plainView: plainViewOverride, onShowFormatted,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -535,6 +547,16 @@ export default function EmailBodyView({
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  // Body text follows the app's text size and the system font scale (webmail
+  // c07ba1a37); it was fixed at 14 px. The app's factor is read off its
+  // scaled body style, so it follows whatever steps the text size setting has.
+  const dyn = useTypography();
+  const textFactor = mailTextFactor(dyn.body.fontSize / typography.body.fontSize, PixelRatio.getFontScale());
+  // Reduce motion (the system setting, or the app's animations switch) holds
+  // inside mail too: CSS animations stop and animated images pause behind a
+  // Play button (webmail 24a13cc1f, bb7869798).
+  const reduceMotion = !useShouldAnimate();
   const trustedSenderEmails = useContactsStore((s) => s.trustedSenderEmails);
   const trustedSendersLoaded = useContactsStore((s) => s.trustedSendersLoaded);
   const loadTrustedSendersBook = useContactsStore((s) => s.loadTrustedSendersBook);
@@ -562,8 +584,19 @@ export default function EmailBodyView({
     if (bodyOverride) return { html: bodyOverride.html ?? null, text: bodyOverride.text ?? null };
     return pickEmailBody(email);
   }, [email, bodyOverride]);
-  const rawHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
-  const text = picked.text;
+  const formattedHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
+  // HTML mail as plain text: "Plain Text Only" for every message, or the More
+  // sheet's per-message switch. The message's own text part when it has one,
+  // else a readable conversion that keeps link targets and image alt text
+  // (webmail 1e929b0a9). A plain-text view loads nothing remote, so the
+  // external-content banner goes too.
+  const plainView = plainViewOverride ?? plainTextMode;
+  const plainText = React.useMemo(
+    () => (plainView ? plainTextReading({ html: formattedHtml, text: picked.text }) : null),
+    [plainView, formattedHtml, picked.text],
+  );
+  const rawHtml = plainText !== null ? null : formattedHtml;
+  const text = plainText ?? picked.text;
   // A From address the server's checks don't back may be forged: neither
   // honour an earlier "Always trust" for it nor offer one, or a forgery of a
   // trusted sender would load remote content (and trusting it would let the
@@ -660,6 +693,13 @@ export default function EmailBodyView({
   // Sanitised and wrapped once per message, body and settings, and reused
   // when the same body mounts again (lib/email-body-document).
   const emptyLabel = t('email_viewer.no_body_content', '(No body content available)');
+  // A plain-text body in a dark app theme takes the theme's colours, not a
+  // fixed #0a0a0a. Only while the app itself is dark: a single message
+  // switched to dark in a light app has no dark palette to borrow.
+  const plainDarkColors = React.useMemo(
+    () => (resolvedTheme === 'dark' ? { background: c.background, text: c.text, link: c.textLink } : undefined),
+    [resolvedTheme, c.background, c.text, c.textLink],
+  );
   const prepared = React.useMemo(() => bodyDocument({
     key: `${jmapAccountId ?? ''}|${email.id}`,
     rawHtml,
@@ -671,12 +711,21 @@ export default function EmailBodyView({
     messageSpacing,
     plainTextFont,
     quoteLabels,
+    textFactor,
+    plainDarkColors,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
-    messageSpacing, plainTextFont, quoteLabels,
+    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors,
   ]);
 
-  const source = React.useMemo(() => ({ html: prepared.html }), [prepared.html]);
+  const source = React.useMemo(
+    () => ({ html: reduceMotion && prepared.isHtml ? withReducedMotion(prepared.html) : prepared.html }),
+    [prepared.html, prepared.isHtml, reduceMotion],
+  );
+  const pauseLabels = React.useMemo(() => ({
+    play: t('email_viewer.play_animation', 'Play animation'),
+    pause: t('email_viewer.pause_animation', 'Pause animation'),
+  }), [t]);
   const showBanner = shouldBlock && prepared.blockedExternal;
   // Still cut off after the API's larger refetch (or the refetch failed).
   const showTruncated = !bodyOverride && hasTruncatedDisplayedBody(email);
@@ -686,11 +735,13 @@ export default function EmailBodyView({
   // input the CSS was built from, so the DOM pass and the stylesheet agree.
   const injectedJs = React.useMemo(
     () =>
-      (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
+      (prepared.isHtml ? buildMailTextSizeScript(textFactor) : '')
+      + (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
       + (prepared.applyInversion ? DARK_REINVERT_SCRIPT : '')
       + (prepared.isHtml ? IMG_FIXUP_SCRIPT : '')
+      + (prepared.isHtml && reduceMotion ? buildPauseAnimatedImagesScript(pauseLabels) : '')
       + HEIGHT_REPORTER + SWIPE_DETECTOR + PINCH_ZOOM,
-    [prepared.isHtml, prepared.applyInversion, quoteLabels],
+    [prepared.isHtml, prepared.applyInversion, quoteLabels, textFactor, reduceMotion, pauseLabels],
   );
 
   // Performance harness: how much of opening a message is the WebView.
@@ -765,6 +816,18 @@ export default function EmailBodyView({
 
   return (
     <View style={[styles.wrapper, fill && styles.wrapperFill]}>
+      {plainText !== null && (
+        <View style={styles.plainNote}>
+          <Text style={styles.bannerText}>
+            {t('email_viewer.shown_as_plain_text', 'This message is shown as plain text.')}
+          </Text>
+          {onShowFormatted && (
+            <Pressable onPress={onShowFormatted} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.plainNoteLink}>{t('email_viewer.show_formatted', 'Show formatted')}</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
       {showBanner && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -821,6 +884,9 @@ export default function EmailBodyView({
           // Native Android zoom would scale the viewport inside the fixed-size
           // container; pinch zoom is implemented in the page instead.
           setBuiltInZoomControls={false}
+          // The system font size is part of textFactor; Android's WebView
+          // would scale the text by it a second time.
+          textZoom={100}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
           setSupportMultipleWindows={false}
@@ -894,6 +960,19 @@ function makeStyles(c: ThemePalette) {
   bannerButtonText: {
     ...typography.caption,
     color: c.textSecondary,
+  },
+  plainNote: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  plainNoteLink: {
+    ...typography.caption,
+    color: c.primary,
+    textDecorationLine: 'underline',
   },
   webContainer: {
     width: '100%',

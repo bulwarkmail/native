@@ -363,7 +363,7 @@ const LETTER_ENTITIES: Record<string, string> = {
   upsih: 'ϒ', upsilon: 'υ', uuml: 'ü', xi: 'ξ', yacute: 'ý', yuml: 'ÿ', zeta: 'ζ',
 };
 
-function decodeEntities(text: string): string {
+export function decodeEntities(text: string): string {
   return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (m, ref: string) => {
     if (ref[0] === '#') {
       const cp = ref[1] === 'x' || ref[1] === 'X' ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);

@@ -626,6 +626,8 @@ describe('tag view across the own and the team account (#1038)', () => {
         mail('o1', 'inbox', 20, 'own red 1', { keywords: { [RED]: true } }),
         mail('o2', 'archive', 10, 'own red 2', { keywords: { [RED]: true, $seen: true } }),
         mail('o3', 'inbox', 21, 'own plain'),
+        // Deleted, but it keeps its keywords: not listed under the tag (#1156).
+        mail('o4', 'trash', 24, 'own red deleted', { keywords: { [RED]: true } }),
       ],
       team: [
         mail('m1', 't-inbox', 22, 'team red 1', { keywords: { [RED]: true } }),
@@ -647,9 +649,10 @@ describe('tag view across the own and the team account (#1038)', () => {
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
     expect(server.current!.requests).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
+    // Each account leaves its own Trash and Junk out (webmail #1156).
     expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
-      ['c', { hasKeyword: RED }],
-      ['team', { hasKeyword: RED }],
+      ['c', { operator: 'AND', conditions: [{ hasKeyword: RED }, { inMailboxOtherThan: ['trash', 'junk'] }] }],
+      ['team', { operator: 'AND', conditions: [{ hasKeyword: RED }, { inMailboxOtherThan: ['t-trash', 't-junk'] }] }],
     ]);
   });
 
@@ -669,8 +672,8 @@ describe('tag view across the own and the team account (#1038)', () => {
 
     const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
     expect(last.map(([, a]) => a.filter)).toEqual([
-      { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }] },
-      { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }] },
+      { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }, { inMailboxOtherThan: ['trash', 'junk'] }] },
+      { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }, { inMailboxOtherThan: ['t-trash', 't-junk'] }] },
     ]);
   });
 
@@ -689,7 +692,7 @@ describe('tag view across the own and the team account (#1038)', () => {
         const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
         expect(last[0][1].filter).toEqual({
           operator: 'AND',
-          conditions: [{ text: '"red 2"' }, { text: 'notes' }, { hasKeyword: RED }],
+          conditions: [{ text: '"red 2"' }, { text: 'notes' }, { hasKeyword: RED }, { inMailboxOtherThan: ['trash', 'junk'] }],
         });
       });
       await vi.waitFor(() => expect(useEmailStore.getState().loading).toBe(false));

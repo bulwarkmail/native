@@ -303,9 +303,12 @@ export function searchSkipsTrashAndJunk(
   filters: EmailFilters,
   openRole?: string | null,
 ): boolean {
-  if (filters.keyword) return false;
   if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return true;
   if (filters.folder) return false;
+  // A tag view leaves Trash and Junk out, as Gmail's label views do: a
+  // deleted message keeps its keywords and stayed listed under the tag
+  // (webmail #1156). It is still in the Trash folder itself.
+  if (filters.keyword) return true;
   return effectiveFolderScope(searchQuery, filters, openRole) === 'all';
 }
 
@@ -315,11 +318,34 @@ function openRoleOf(state: Partial<Pick<EmailState, 'mailboxes' | 'currentMailbo
   return state.mailboxes.find((m) => m.id === state.currentMailboxId)?.role ?? undefined;
 }
 
+/**
+ * The undo bar's label after a read, star or tag change from the list (webmail
+ * lib/email-action-toast.ts, ee17c0dba). Null for other keywords, which get
+ * no Undo.
+ */
+export function keywordUndoLabel(token: string, on: boolean, count: number): string | null {
+  if (token === '$seen') {
+    return on
+      ? t('notifications.emails_marked_read', '{count, plural, one {# email marked as read} other {# emails marked as read}}', { count })
+      : t('notifications.emails_marked_unread', '{count, plural, one {# email marked as unread} other {# emails marked as unread}}', { count });
+  }
+  if (token === '$flagged') {
+    return on ? t('notifications.email_starred', 'Email starred') : t('notifications.email_unstarred', 'Email unstarred');
+  }
+  if (token.startsWith('$label:')) {
+    return on
+      ? t('notifications.email_tagged', 'Email tagged')
+      : t('notifications.tag_removed_count', '{count, plural, one {Tag removed from # email} other {Tag removed from # emails}}', { count });
+  }
+  return null;
+}
+
 // Snapshot of an action that can still be reversed via the undo snackbar.
 // We store the full email object so undo can re-insert it into the visible list
 // optimistically without waiting for a refetch.
 export interface UndoEntry {
-  kind: 'archive' | 'delete' | 'move' | 'spam';
+  /** `keywords`: a read, star or tag change; undo puts back only `keywordPatch`'s keywords. */
+  kind: 'archive' | 'delete' | 'move' | 'spam' | 'keywords';
   /** Human-readable label shown in the snackbar (e.g. "Email archived"). */
   label: string;
   /** Time the entry was created - the snackbar uses this to drive its timer. */
@@ -603,7 +629,7 @@ export function spansAccounts(
 }
 
 // The raw JMAP ids of one account's Trash and Junk (undefined = the user's own).
-function trashAndJunkIds(mailboxes: Mailbox[], accountId: string | undefined): string[] {
+export function trashAndJunkIds(mailboxes: Mailbox[], accountId: string | undefined): string[] {
   return accountMailboxes(mailboxes, accountId)
     .filter((m) => isTrashOrJunkRole(m.role))
     .map((m) => m.originalId ?? m.id);
@@ -884,6 +910,16 @@ function snapshotFromActive(state: EmailState): AccountSnapshot {
     currentMailboxId: state.currentMailboxId,
     mailboxSnapshots,
   };
+}
+
+/**
+ * A cold start opens the Inbox, not the folder the app was last left in
+ * (webmail 64b39c504); its cached rows still show at once. Snapshots of the
+ * other accounts keep their folder for an account switch.
+ */
+export function coldStartView(snap: AccountSnapshot): AccountSnapshot {
+  const inbox = snap.mailboxes?.find((m) => m.role === 'inbox' && !m.isShared);
+  return { ...snap, currentMailboxId: inbox?.id ?? null };
 }
 
 function viewFromSnapshot(snap: AccountSnapshot | null): {
@@ -2106,6 +2142,26 @@ export const useEmailStore = create<EmailState>()(
     for (const { accountId, emails } of written) {
       for (const e of emails) patchCache(e.id, { keywords: patch }, accountId);
     }
+    // Undo for a read, star or tag change from the list: each message gets
+    // back the keyword it had (the reader's own toggles get no bar).
+    const changed = written.flatMap(({ accountId, emails }) => emails.map((email) => ({ email, accountId })));
+    const label = !viewed && changed.length > 0 ? keywordUndoLabel(token, on, changed.length) : null;
+    if (label) {
+      set({
+        pendingUndo: {
+          kind: 'keywords',
+          label,
+          createdAt: Date.now(),
+          keywordPatch: patch,
+          items: changed.map(({ email, accountId }) => ({
+            email,
+            originalMailboxIds: { ...email.mailboxIds },
+            originalKeywords: { ...email.keywords },
+            accountId,
+          })),
+        },
+      });
+    }
     if (refusal) throw refusal;
   },
 
@@ -2113,6 +2169,44 @@ export const useEmailStore = create<EmailState>()(
     const entry = get().pendingUndo;
     if (!entry) return;
     set({ pendingUndo: null });
+
+    // A read, star or tag change: only those keywords go back; the messages
+    // stay in whatever folder they are in now.
+    if (entry.kind === 'keywords') {
+      const keywordPatch = entry.keywordPatch ?? {};
+      const undo = entry.items.map((it) => ({
+        id: it.email.id,
+        key: rowKeyOf(it.email),
+        accountId: it.accountId ?? entry.accountId,
+        patch: revertKeywordPatch(keywordPatch, it.originalKeywords),
+      }));
+      const accounts = new Set(undo.map((u) => u.accountId ?? ''));
+      try {
+        await applyOrQueueBatch(
+          undo.map((u): OutboxOp => ({ kind: 'keywords', emailId: u.id, accountId: u.accountId, patch: u.patch })),
+          async () => {
+            for (const account of accounts) {
+              await patchKeywordsPerEmail(
+                undo.filter((u) => (u.accountId ?? '') === account).map(({ id, patch }) => ({ id, patch })),
+                account || undefined,
+              );
+            }
+          },
+        );
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed') });
+        return;
+      }
+      const byKey = new Map(undo.map((u) => [u.key, u.patch]));
+      set({
+        emails: get().emails.map((e) => {
+          const patch = byKey.get(rowKeyOf(e));
+          return patch ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e;
+        }),
+      });
+      for (const u of undo) patchCache(u.id, { keywords: u.patch }, u.accountId);
+      return;
+    }
 
     // An action on a list spanning accounts is undone in each item's account.
     const accountOf = (it: UndoEntry['items'][number]) => it.accountId ?? entry.accountId;
@@ -2332,7 +2426,7 @@ export const useEmailStore = create<EmailState>()(
       merge: (persisted, current) => {
         if (!persisted) return current;
         const cache = persisted as PersistedEmailCache;
-        return { ...current, ...cache, ...viewFromSnapshot(cache) };
+        return { ...current, ...cache, ...viewFromSnapshot(coldStartView(cache)) };
       },
     },
   ),

@@ -15,7 +15,7 @@ import {
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
-import { useEmailStore, spannedAccounts } from '../stores/email-store';
+import { useEmailStore, spannedAccounts, trashAndJunkIds } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -128,7 +128,7 @@ function RowCounts({ unread, total, showTotal, onPressUnread }: {
           disabled={!onPressUnread}
           hitSlop={8}
           accessibilityRole={onPressUnread ? 'button' : undefined}
-          accessibilityLabel={onPressUnread ? t('sidebar.show_unread', 'Show unread') : undefined}
+          accessibilityLabel={onPressUnread ? t('sidebar.unread_filter', 'Show unread only ({count})', { count: unread }) : undefined}
         >
           <Text style={styles.countUnread}>{unread}</Text>
         </Pressable>
@@ -167,11 +167,19 @@ function SidebarRow({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
+  // Which folder is open, and the unread count with the folder's name
+  // ("Inbox, 3 unread"), for screen readers (webmail 7c282f1f4).
+  const accessibleName = unread > 0 && !isAccountHeader
+    ? t('shell.name_unread', '{name}, {count} unread', { name: label, count: unread })
+    : label;
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={350}
+      accessibilityRole={isAccountHeader ? 'header' : 'button'}
+      accessibilityLabel={accessibleName}
+      accessibilityState={isAccountHeader ? undefined : { selected: isSelected }}
       style={({ pressed }) => [
         styles.row,
         isSelected && styles.rowSelected,
@@ -454,8 +462,10 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   React.useEffect(() => {
     if (!visible || !tagsExpanded || keywordDefs.length === 0 || !activeAccountId || !jmapClient.isConnected) return;
     const accounts = tagAccountsKey.split('|').map((id) => id || undefined);
-    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts);
-  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, activeAccountId, tagCountsGeneration, ensureTagCounts]);
+    // Trash and Junk stay out of the counts as they do of the tag view (#1156).
+    const excluded = Object.fromEntries(accounts.map((id) => [id ?? '', trashAndJunkIds(mailboxes, id)]));
+    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts, excluded);
+  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, mailboxes, activeAccountId, tagCountsGeneration, ensureTagCounts]);
 
   // ── Folder actions (long-press) ───────────────────────────────────────
   const refFor = (mb: Mailbox) => ({

@@ -10,6 +10,8 @@ import SenderAvatar from '../SenderAvatar';
 import { MessageContent, type MessageContentProps } from './MessageContent';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime } from '../../lib/email-date';
 import { singleLine } from '../../lib/single-line';
+import { cleanPreview } from '../../lib/preview-text';
+import { useSenderWarning } from './use-sender-warning';
 
 interface Props extends MessageContentProps {
   expanded: boolean;
@@ -43,11 +45,12 @@ export function ThreadMessageCard({
   const unread = !email.keywords?.$seen;
   const starred = !!email.keywords?.$flagged;
   const date = emailDisplayDate(email);
+  const senderWarning = useSenderWarning(expanded ? undefined : email);
 
   if (!expanded) {
     return (
       <Pressable onPress={onToggleExpanded} style={({ pressed }) => [styles.collapsed, pressed && styles.pressed]}>
-        <SenderAvatar name={from?.name} email={from?.email} size={componentSizes.avatarSm} />
+        <SenderAvatar name={from?.name} email={from?.email} size={componentSizes.avatarSm} senderWarning={senderWarning} />
         <View style={styles.collapsedInfo}>
           <View style={styles.collapsedTop}>
             <Text style={[styles.collapsedName, unread && styles.unread]} numberOfLines={1}>
@@ -56,7 +59,7 @@ export function ThreadMessageCard({
             {email.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
             <Text style={styles.collapsedDate}>{formatHeaderDate(date, locale)} {formatHeaderTime(date, timeFormat, locale)}</Text>
           </View>
-          <Text style={styles.collapsedPreview} numberOfLines={1}>{singleLine(email.preview)}</Text>
+          <Text style={styles.collapsedPreview} numberOfLines={1}>{singleLine(cleanPreview(email.preview))}</Text>
         </View>
         {starred && <Star size={14} color={c.starred} fill={c.starred} />}
       </Pressable>

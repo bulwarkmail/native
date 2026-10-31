@@ -98,6 +98,21 @@ const SPF_SEVERITY: Record<SpfResult, number> = {
 };
 
 /**
+ * Whether "via <identity>" on a message sent as one of the user's identities
+ * tells the reader anything: only when the identity's name differs from its
+ * address, the From address and the name already shown as the sender, so it
+ * no longer reads "ann@x via ann@x" (webmail email-identity-badge.tsx).
+ */
+export function viaIdentityNameShown(
+  identity: Pick<Identity, 'name' | 'email'>,
+  from: { name?: string | null; email?: string | null } | undefined,
+): boolean {
+  const name = identity.name?.trim();
+  if (!name) return false;
+  return name !== identity.email && name !== from?.email && name !== from?.name;
+}
+
+/**
  * Whether the authentication results indicate the visible From identity can't
  * be trusted (i.e. the message is likely spoofed). Used to suppress UI that
  * would otherwise imply the message legitimately came from one of the user's
@@ -244,6 +259,28 @@ export function senderVerificationOf(email: Pick<Email, 'headers' | 'from'>): Se
   return getSenderVerification(parseAuthenticationResults(values), email.from?.[0]?.email);
 }
 
+/**
+ * The list fetch asks for the Authentication-Results headers by this
+ * property, so list rows and collapsed conversation cards can judge the
+ * sender too (webmail 605a3983b, #1439). Stalwart answers header properties
+ * from the stored headers, not the message blob.
+ */
+export const LIST_AUTH_RESULTS_PROPERTY = 'header:Authentication-Results:all';
+
+/**
+ * The sender check for a message as the list or the reader holds it: from
+ * the full headers when they are there, else from the list property. Null
+ * when the checks back the From or there is nothing to judge by.
+ */
+export function senderWarningOf(email: Pick<Email, 'headers' | 'from'>): SenderVerification | null {
+  if (email.headers) return senderVerificationOf(email);
+  const raw = (email as { [LIST_AUTH_RESULTS_PROPERTY]?: unknown })[LIST_AUTH_RESULTS_PROPERTY];
+  if (!Array.isArray(raw)) return null;
+  const values = raw.filter((value): value is string => typeof value === 'string');
+  if (values.length === 0) return null;
+  return getSenderVerification(parseAuthenticationResults(values), email.from?.[0]?.email);
+}
+
 interface ResInfo {
   method: string;
   result: string;
@@ -323,6 +360,12 @@ function parseResinfos(header: string): ResInfo[] {
     .filter((info): info is ResInfo => info !== null);
 }
 
+/** The domain of a DKIM identity (`header.i`): `@domain` or `user@domain`. */
+function identityDomain(identity: string | undefined): string | undefined {
+  const at = identity?.lastIndexOf('@') ?? -1;
+  return identity && at >= 0 && at < identity.length - 1 ? identity.slice(at + 1) : undefined;
+}
+
 const DMARC_SEVERITY: Record<string, number> = {
   fail: 3,
   permerror: 2,
@@ -394,7 +437,9 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     .filter((info) => info.method === 'dkim')
     .map((info) => ({
       result: info.result as DkimResult,
-      domain: info.props['header.d'],
+      // Some receivers name the signature only by its identity (`header.i`,
+      // `@domain` or `user@domain`, RFC 8601 2.7.1); its domain is the signer's.
+      domain: info.props['header.d'] ?? identityDomain(info.props['header.i']),
       selector: info.props['header.s'],
     }));
   if (dkimResults.length > 0) {

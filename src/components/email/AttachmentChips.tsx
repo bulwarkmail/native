@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { Paperclip, Download, Eye, ExternalLink, Save, Share2, FolderArchive, FolderOpen } from '../icons';
+import { Download, Eye, ExternalLink, Save, Share2, FolderArchive, FolderOpen } from '../icons';
 import type { Attachment, Email } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -13,6 +13,8 @@ import {
   getAttachmentDisplayName, visibleAttachments, formatSize,
 } from '../../lib/attachment-display';
 import { emailExportFilename } from '../../lib/download-filename';
+import { attachmentKind } from '../../lib/list-attachments';
+import { ATTACHMENT_ICONS, attachmentIconColor } from './attachment-icons';
 import { ActionSheet, type ActionSheetItem } from './ActionSheet';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
 import type { ExtractedAttachment } from './use-body-override';
@@ -232,6 +234,9 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
       <View style={styles.row}>
         {visible.map((item) => {
           const busy = busyKey === item.key;
+          // Typed and coloured like the list's chips (webmail a78d03a18).
+          const kind = attachmentKind(item.type, item.name);
+          const Icon = ATTACHMENT_ICONS[kind];
           return (
             <Pressable
               key={item.key}
@@ -241,7 +246,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
               disabled={!!busyKey}
               accessibilityLabel={item.name}
             >
-              {busy ? <ActivityIndicator size="small" color={c.textMuted} /> : <Paperclip size={14} color={c.textMuted} />}
+              {busy ? <ActivityIndicator size="small" color={c.textMuted} /> : <Icon size={14} color={attachmentIconColor(kind, c)} />}
               <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.size}>{formatSize(item.size)}</Text>
               <Download size={14} color={c.textMuted} />

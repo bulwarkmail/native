@@ -37,7 +37,11 @@ import {
   searchEmails,
   sendEmail,
   MAILBOX_PROPERTIES,
+  queryEmailPage,
 } from '../email';
+import { senderWarningOf } from '../../lib/email-headers';
+import { scheduledEmailIdsInThread } from '../thread-scheduled';
+import { fetchTagCounts, KEYWORDS_CAPABILITY } from '../tag-counts';
 import { uploadBytes } from '../blob';
 import { getIdentities, updateIdentity } from '../identity';
 import { isJMAPSetError } from '../jmap-result';
@@ -458,6 +462,77 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       } finally {
         await updateIdentity(identity.id, before);
       }
+    }, 60_000);
+  });
+
+  describe('mail list (reader pass)', () => {
+    it('lists the Authentication-Results headers so a forged From gets the warning shield (bulwarkmail/webmail#1439)', async () => {
+      const subject = `forged ${mailTag}`;
+      const raw = [
+        'Authentication-Results: mx.example.org; spf=fail smtp.mailfrom=evil.example; dkim=none; dmarc=fail header.from=bank.example',
+        'From: Bank <ceo@bank.example>',
+        `To: ${USER}`,
+        `Subject: ${subject}`,
+        `Date: ${new Date().toUTCString()}`,
+        `Message-ID: <forged-${RUN}@live.test>`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        'hello',
+        '',
+      ].join('\r\n');
+      const { blobId } = await uploadBytes(new TextEncoder().encode(raw), 'message/rfc822');
+      const id = await importEmailBlob(blobId, scratch, {});
+      const page = await queryEmailPage(scratch, { limit: 10 });
+      const row = page.list.find((e) => e.id === id);
+      expect(row).toBeDefined();
+      expect(senderWarningOf(row!)?.status).toBe('failed');
+      // The Date header, for sorting by date sent in merged lists (bulwarkmail/webmail#1219).
+      expect(typeof row!.sentAt).toBe('string');
+      // The full fetch reads the same verdict from `headers`.
+      const [full] = await getFullEmails([id]);
+      expect(senderWarningOf(full)?.status).toBe('failed');
+    }, 60_000);
+
+    it("finds a conversation's message that waits for a scheduled send (bulwarkmail/webmail#1404)", async () => {
+      const [identity] = await getIdentities();
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `scheduled reply ${mailTag}`, textBody: 'live' },
+        identity.id, sent, 3600, { draftsMailboxId: drafts },
+      );
+      try {
+        const [filed] = await getFullEmails([result.emailId!]);
+        const ids = await scheduledEmailIdsInThread(filed.threadId);
+        expect([...ids]).toEqual([result.emailId]);
+      } finally {
+        await cancelScheduledSend(result.emailSubmissionId!).catch(() => undefined);
+      }
+      // Once cancelled it can be replied to again.
+      const [filed] = await getFullEmails([result.emailId!]);
+      expect((await scheduledEmailIdsInThread(filed.threadId)).size).toBe(0);
+    }, 90_000);
+
+    it('leaves Trash out of the tag counts (bulwarkmail/webmail#1156)', async (ctx) => {
+      const boxes = await getMailboxes();
+      const trash = boxes.find((b) => b.role === 'trash')!.id;
+      const tag = 'readerpass';
+      const keyword = `$label:${tag}`;
+      const live = await importMessage(scratch, `tag live ${mailTag}`, 'a');
+      const gone = await importMessage(trash, `tag deleted ${mailTag}`, 'b', { $seen: true });
+      // Set afterwards: 0.16 drops the keywords Email/import is given.
+      await patchKeywordsForEmails([live, gone], { [keyword]: true });
+      const flags = await getEmailFlags([live]);
+      if (!flags.list[0]?.keywords?.[keyword]) {
+        // Seen on the 0.16.27 test server: Email/set answers "updated" but
+        // keeps only system keywords for this account. Nothing to count.
+        ctx.skip('the server did not keep the tag keyword');
+        return;
+      }
+      const all = await eventually(() => fetchTagCounts([tag]), ([c]) => c.total === 2);
+      expect(all).toEqual([{ id: tag, total: 2, unread: 1 }]);
+      expect(await fetchTagCounts([tag], [undefined], { '': [trash] })).toEqual([{ id: tag, total: 1, unread: 1 }]);
+      // Stalwart answers Keyword/get for no keyword counters (no capability).
+      expect(client.currentSession?.capabilities?.[KEYWORDS_CAPABILITY]).toBeUndefined();
     }, 60_000);
   });
 });

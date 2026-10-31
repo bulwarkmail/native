@@ -14,6 +14,7 @@ import {
 } from './download-filename';
 import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
+import { stripBidiControls } from './bidi';
 import { handoffMimeType } from './file-preview';
 
 const RFC822 = 'message/rfc822';
@@ -55,7 +56,7 @@ export function attachmentSaveName(email: Email, name: string | undefined, type:
 
 function safeAttachmentName(name: string | undefined, type: string | undefined): string {
   const fallbackExt = type?.split('/')[1]?.replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
-  const cleaned = (name ?? '').replace(/[\\/:*?"<>|]/g, '_').trim();
+  const cleaned = stripBidiControls(name ?? '').replace(/[\\/:*?"<>|]/g, '_').trim();
   if (cleaned) return cleaned.slice(0, 120);
   return `attachment.${fallbackExt}`;
 }

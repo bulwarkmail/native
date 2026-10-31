@@ -322,6 +322,9 @@ export interface PersistedSettings {
   toastDuration: number;
   // Push only for mail that lands in the Inbox (webmail #983, same key).
   pushNotifyInboxOnly: boolean;
+  // reader: the quick reply box under a conversation can be turned off
+  // (webmail #1370, same key as the webmail's for export/import).
+  quickReplyEnabled: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -332,7 +335,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   externalContentPolicy: 'ask',
   trustedSenders: [],
   trustedSendersAddressBook: null,
-  senderFavicons: true,
+  senderFavicons: false,
   hideInlineImageAttachments: true,
 
   groupContactsByLetter: true,
@@ -482,6 +485,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   // platform:
   toastDuration: -1,
   pushNotifyInboxOnly: false,
+  // reader:
+  quickReplyEnabled: true,
 };
 
 export interface SettingsState extends PersistedSettings {

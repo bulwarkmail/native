@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Email } from '../../api/types';
+import type { Email, Mailbox } from '../../api/types';
 import {
   boundEmailCache,
   PERSISTED_ROWS_PER_FOLDER,
@@ -102,6 +102,8 @@ describe('boundEmailCache', () => {
   });
 });
 
+const INBOX = { id: 'inbox', name: 'Inbox', role: 'inbox', isShared: false } as unknown as Mailbox;
+
 describe('email-store persistence', () => {
   const { partialize, merge } = useEmailStore.persist.getOptions();
 
@@ -149,6 +151,7 @@ describe('email-store persistence', () => {
   it('restores the open folder into the list on hydration', () => {
     const live = rows('live', 3);
     const persisted = JSON.parse(JSON.stringify(partialize!(viewState({
+      mailboxes: [INBOX],
       emails: live,
       totalEmails: 42,
       queryState: 'q2',
@@ -170,7 +173,7 @@ describe('email-store persistence', () => {
     const legacy = {
       accountSnapshots: {},
       activeAccountId: 'me',
-      mailboxes: [],
+      mailboxes: [INBOX],
       emailStates: {},
       currentMailboxId: 'inbox',
       mailboxSnapshots: { inbox: snap },
@@ -189,5 +192,25 @@ describe('email-store persistence', () => {
   it('keeps the initial state when nothing was stored', () => {
     const initial = useEmailStore.getInitialState();
     expect(merge!(undefined, initial)).toBe(initial);
+  });
+
+  // A cold start reopened the folder (or the search) the app was left in;
+  // the webmail opens the Inbox (64b39c504).
+  it('opens the Inbox on a cold start, with its cached rows', () => {
+    const work = { id: 'work', name: 'Work', role: null, isShared: false } as unknown as Mailbox;
+    const persisted = JSON.parse(JSON.stringify(partialize!(viewState({
+      mailboxes: [INBOX, work],
+      currentMailboxId: 'work',
+      emails: rows('work', 2),
+      totalEmails: 2,
+      mailboxSnapshots: { inbox: { emails: rows('in', 3), total: 3, queryState: 'qi' } },
+    }))));
+
+    const restored = merge!(persisted, useEmailStore.getInitialState());
+
+    expect(restored.currentMailboxId).toBe('inbox');
+    expect(restored.emails.map((e) => e.id)).toEqual(['in0', 'in1', 'in2']);
+    // The folder's own rows are still cached for when it is opened.
+    expect(restored.mailboxSnapshots.work.emails).toHaveLength(2);
   });
 });

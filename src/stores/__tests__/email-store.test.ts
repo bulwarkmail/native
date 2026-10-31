@@ -1566,6 +1566,44 @@ describe('email-store', () => {
       useSettingsStore.getState().updateSetting('deleteAction', 'trash');
     });
 
+    // Read, star and tag changes from the list had no Undo (webmail
+    // ee17c0dba, lib/email-action-toast.ts): now each message gets back the
+    // keyword it had, and nothing else moves.
+    it('offers an undo for a read, star or tag change that puts back only that keyword', async () => {
+      const mockRestore = emailApi.restoreEmailMailboxes as ReturnType<typeof vi.fn>;
+      const mockPatchPerEmail = emailApi.patchKeywordsPerEmail as ReturnType<typeof vi.fn>;
+      useEmailStore.setState({
+        mailboxes: [inbox, junk],
+        currentMailboxId: 'mb-1',
+        emails: [
+          { id: 'e1', keywords: {}, mailboxIds: { 'mb-1': true } } as any,
+          { id: 'e2', keywords: { $seen: true }, mailboxIds: { 'mb-1': true } } as any,
+        ],
+      });
+
+      await useEmailStore.getState().setKeywordForEmails(['e1', 'e2'], '$seen', true);
+      const undo = useEmailStore.getState().pendingUndo!;
+      expect(undo.kind).toBe('keywords');
+      expect(undo.label).toContain('marked as read');
+
+      await useEmailStore.getState().undoLast();
+      expect(mockRestore).not.toHaveBeenCalled();
+      expect(mockPatchPerEmail).toHaveBeenCalledWith(
+        [{ id: 'e1', patch: { $seen: null } }, { id: 'e2', patch: { $seen: true } }],
+        undefined,
+      );
+      const byId = Object.fromEntries(useEmailStore.getState().emails.map((e) => [e.id, e.keywords]));
+      expect(byId.e1.$seen).toBeUndefined();
+      expect(byId.e2.$seen).toBe(true);
+
+      // Tags and stars too; the reader's own toggles get no bar.
+      await useEmailStore.getState().setKeywordForEmails(['e1'], '$label:work', true);
+      expect(useEmailStore.getState().pendingUndo?.kind).toBe('keywords');
+      useEmailStore.getState().clearUndo();
+      await useEmailStore.getState().setKeywordForEmails(['e1'], '$flagged', true, { email: useEmailStore.getState().emails[0] });
+      expect(useEmailStore.getState().pendingUndo).toBeNull();
+    });
+
     it('unmarkSpam moves back to Inbox with $notjunk', async () => {
       const mockUndoSpam = emailApi.undoSpam as ReturnType<typeof vi.fn>;
       useEmailStore.setState({

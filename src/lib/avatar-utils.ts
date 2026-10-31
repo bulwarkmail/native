@@ -12,6 +12,7 @@
 
 import type { ContactCard } from '../api/types';
 import { getContactPhotoRef, type ContactPhotoRef } from './contact-utils';
+import { parseColor, relativeLuminance } from './event-colors';
 
 // --- Account avatar -------------------------------------------------------
 
@@ -46,6 +47,44 @@ export function generateEmailAvatarColor(name: string, email?: string): string {
   }
   const hue = Math.abs(hash) % 360;
   return `hsl(${hue}, 70%, 50%)`;
+}
+
+/** `hsl(h, s%, l%)` as RGB; null for anything else. */
+function hslToRgb(color: string): { r: number; g: number; b: number; a: number } | null {
+  const m = /^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/i.exec(color.trim());
+  if (!m) return null;
+  const h = (Number(m[1]) % 360) / 360;
+  const s = Number(m[2]) / 100;
+  const l = Number(m[3]) / 100;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return {
+    r: Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    g: Math.round(hue2rgb(p, q, h) * 255),
+    b: Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+    a: 1,
+  };
+}
+
+/**
+ * White or black initials, whichever contrasts more with the background.
+ * One of the two always reaches 4.58:1, so the initials pass 4.5:1 on every
+ * generated colour; white alone failed on yellows, greens and cyans
+ * (webmail components/ui/avatar.tsx initialsColor, 2e13accad).
+ */
+export function initialsColor(background: string): string {
+  const rgb = hslToRgb(background) ?? parseColor(background);
+  if (!rgb) return '#ffffff';
+  const l = relativeLuminance(rgb);
+  return 1.05 / (l + 0.05) >= (l + 0.05) / 0.05 ? '#ffffff' : '#000000';
 }
 
 /**
@@ -195,4 +234,25 @@ export function getContactPhotoForEmail(
 ): ContactPhotoRef | undefined {
   const key = email?.trim().toLowerCase();
   return key ? getContactPhotoIndex(contacts).get(key) : undefined;
+}
+
+// --- What the avatar shows --------------------------------------------------
+
+export type AvatarContent = 'warning' | 'photo' | 'favicon' | 'initials';
+
+/**
+ * What a sender avatar shows, in the webmail `Avatar`'s order. A failed or
+ * unverified sender check comes first: a warning shield instead of any photo,
+ * favicon or initials, so a forged From doesn't get the real sender's logo or
+ * contact photo (webmail 605a3983b, #1439).
+ */
+export function avatarContent(options: {
+  senderWarning?: string | null;
+  hasPhoto: boolean;
+  showFavicon: boolean;
+}): AvatarContent {
+  if (options.senderWarning) return 'warning';
+  if (options.hasPhoto) return 'photo';
+  if (options.showFavicon) return 'favicon';
+  return 'initials';
 }

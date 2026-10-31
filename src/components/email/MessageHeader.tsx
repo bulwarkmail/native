@@ -12,7 +12,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useAccountKeywordDefs } from '../../stores/keywords-store';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import {
-  deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
+  deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity, viaIdentityNameShown,
   getSenderVerification, describeSenderVerification,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
@@ -138,7 +138,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
     if (spoofed || identities.length === 0) return null;
     const fromEmail = from?.email?.toLowerCase();
     const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
-    if (sentAs) return { identity: sentAs, direction: 'from' as const };
+    if (sentAs) return viaIdentityNameShown(sentAs, from) ? { identity: sentAs, direction: 'from' as const } : null;
     const received = findReceivingIdentity(identities, email);
     if (received && identities.length > 1 && received.id !== identities[0].id) {
       return { identity: received, direction: 'to' as const };
@@ -172,7 +172,12 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           accessibilityRole="button"
           accessibilityLabel={from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
         >
-          <SenderAvatar name={from?.name} email={from?.email} size={compact ? componentSizes.avatarSm : componentSizes.avatarMd} />
+          <SenderAvatar
+            name={from?.name}
+            email={from?.email}
+            size={compact ? componentSizes.avatarSm : componentSizes.avatarMd}
+            senderWarning={verificationText?.label}
+          />
         </Pressable>
         <View style={styles.info}>
           <Pressable onPress={from ? () => onAddressPress(from) : undefined}>
@@ -253,7 +258,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
             <View style={[styles.badge, { backgroundColor: c.primaryBg }]}>
               <Text style={[styles.badgeText, { color: c.primary }]}>
                 {viaIdentity.direction === 'from'
-                  ? t('identities.badge.identity_short', 'via {name}', { name: viaIdentity.identity.email })
+                  ? t('identities.badge.identity_short', 'via {name}', { name: viaIdentity.identity.name })
                   : t('email_viewer.received_via', 'to {name}', { name: viaIdentity.identity.email })}
               </Text>
             </View>

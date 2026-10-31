@@ -8,6 +8,7 @@ import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { secureFetch } from '../lib/client-cert';
 import { freshStoredCredentials } from '../lib/stored-token-refresh';
 import { textConditions } from '../lib/search-utils';
+import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
 // Unread / Starred). Because the JMAP client is a single-account singleton
@@ -20,7 +21,9 @@ import { textConditions } from '../lib/search-utils';
 
 const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
-  'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment',
+  'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment', 'sentAt',
+  // The sender check, for the warning shield on a forged From (#1439).
+  LIST_AUTH_RESULTS_PROPERTY,
 ];
 
 const SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -29,9 +32,13 @@ const MAILBOX_CACHE_TTL_MS = 60 * 1000;
 export type UnifiedRole = 'inbox' | 'sent' | 'drafts' | 'junk' | 'archive' | 'trash';
 export type CrossView = 'all' | 'unread' | 'starred';
 
-/** Roles left out of the cross-account All mail / Unread / Starred views. */
+/**
+ * Roles left out of the cross-account All mail / Unread / Starred views. A
+ * server's own "all" mailbox holds every message again, so listing it beside
+ * the real folders doubled them (webmail lib/jmap/types.ts, #1241).
+ */
 export const CROSS_EXCLUDED_ROLES: ReadonlySet<string> = new Set([
-  'junk', 'spam', 'sent', 'archive', 'trash', 'drafts',
+  'junk', 'spam', 'sent', 'archive', 'trash', 'drafts', 'all',
 ]);
 
 export interface UnifiedEmail extends Email {

@@ -85,6 +85,16 @@ describe('getSenderVerification', () => {
     expect(getSenderVerification(undefined, 'a@bank.example')).toBeNull();
   });
 
+  it('takes the signing domain from header.i when the receiver writes no header.d (bulwarkmail/webmail#1420)', () => {
+    const from = 'noreply@example.org';
+    expect(getSenderVerification(parseAuthenticationResults('mx.example.net; dkim=pass header.i=@example.org'), from)).toBeNull();
+    expect(getSenderVerification(parseAuthenticationResults('mx; dkim=pass header.i=bounce@mail.example.org'), from)).toBeNull();
+    expect(getSenderVerification(parseAuthenticationResults('mx; dkim=pass header.i=@other.example'), from))
+      .toEqual({ status: 'unverified', domain: 'example.org' });
+    // header.d still wins when both are there.
+    expect(parseAuthenticationResults('mx; dkim=pass header.d=a.example header.i=@b.example').dkim?.domain).toBe('a.example');
+  });
+
   it('does not count a HELO pass', () => {
     const auth = parseAuthenticationResults('mx; spf=pass smtp.helo=bank.example; spf=none smtp.mailfrom=bank.example');
     expect(getSenderVerification(auth, 'a@bank.example')?.status).toBe('unverified');

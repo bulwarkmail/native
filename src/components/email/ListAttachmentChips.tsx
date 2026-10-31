@@ -1,6 +1,5 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText } from '../icons';
 import type { Attachment, Email, Mailbox } from '../../api/types';
 import { getEmailAttachments } from '../../api/email';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -13,8 +12,9 @@ import { accountIdOfRow } from '../../stores/email-store';
 import { accountScopedId } from '../../lib/thread-utils';
 import {
   attachmentKind, realAttachments, requestListAttachments, shortAttachmentName,
-  type AttachmentKind, type LoadListAttachments,
+  type LoadListAttachments,
 } from '../../lib/list-attachments';
+import { ATTACHMENT_ICONS, attachmentIconColor } from './attachment-icons';
 import { getAttachmentDisplayName } from '../../lib/attachment-display';
 import { attachmentSaveName, downloadAttachment } from '../../lib/email-export';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
@@ -23,31 +23,11 @@ import { useFilePreview } from './use-file-preview';
 /** How many chips a row shows before collapsing the rest into a count. */
 const MAX_CHIPS = 2;
 
-const ICONS: Record<AttachmentKind, typeof FileIcon> = {
-  image: FileImage,
-  pdf: FileText,
-  sheet: FileSpreadsheet,
-  archive: FileArchive,
-  document: FileText,
-  other: FileIcon,
-};
-
-function iconColor(kind: AttachmentKind, c: ThemePalette): string {
-  switch (kind) {
-    case 'image': return c.tags.purple.dot;
-    case 'pdf': return c.tags.red.dot;
-    case 'sheet': return c.tags.green.dot;
-    case 'archive': return c.tags.amber.dot;
-    case 'document': return c.tags.blue.dot;
-    default: return c.textMuted;
-  }
-}
-
 /**
  * The row's attachment parts: the ones the email already carries (a message
  * opened before), else loaded lazily when it has a paperclip.
  */
-function useListAttachments(email: Email, load?: LoadListAttachments): Attachment[] | undefined {
+export function useListAttachments(email: Email, load?: LoadListAttachments): Attachment[] | undefined {
   const [loaded, setLoaded] = React.useState<{ key: string; attachments: Attachment[] } | null>(null);
   const needsLoad = !!load && !!email.hasAttachment && !email.attachments;
   // Rows of a list spanning accounts can share an id (#1082).
@@ -67,7 +47,10 @@ function useListAttachments(email: Email, load?: LoadListAttachments): Attachmen
 
 interface ChipsProps {
   email: Email;
-  load?: LoadListAttachments;
+  /** The row's parts (useListAttachments); undefined while they load. */
+  attachments: Attachment[] | undefined;
+  /** The parts are being loaded: hold the chips' line so the row doesn't grow. */
+  pending?: boolean;
   onOpen: (email: Email, attachment: Attachment) => void;
   /** Selection mode: taps belong to the row. */
   disabled?: boolean;
@@ -79,13 +62,23 @@ interface ChipsProps {
  * that file directly.
  */
 export const ListAttachmentChips = React.memo(function ListAttachmentChips({
-  email, load, onOpen, disabled,
+  email, attachments, pending, onOpen, disabled,
 }: ChipsProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const dyn = useTypography();
-  const attachments = useListAttachments(email, load);
   const real = React.useMemo(() => realAttachments(attachments), [attachments]);
+  // The line the chips will take, held while they load (webmail 7b25d3a95):
+  // the row grew under the finger when they arrived.
+  if (pending && attachments === undefined) {
+    return (
+      <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="list-chips-placeholder">
+        <View style={[styles.chip, styles.placeholderChip]}>
+          <Text style={[styles.name, dyn.caption]}> </Text>
+        </View>
+      </View>
+    );
+  }
   if (real.length === 0) return null;
 
   const shown = real.slice(0, MAX_CHIPS);
@@ -94,7 +87,7 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
     <View style={styles.row}>
       {shown.map((a, i) => {
         const kind = attachmentKind(a.type, a.name);
-        const Icon = ICONS[kind];
+        const Icon = ATTACHMENT_ICONS[kind];
         return (
           <Pressable
             key={`${a.blobId}-${i}`}
@@ -106,7 +99,7 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
             accessibilityRole="button"
             accessibilityLabel={a.name}
           >
-            <Icon size={12} color={iconColor(kind, c)} />
+            <Icon size={12} color={attachmentIconColor(kind, c)} />
             <Text style={[styles.name, dyn.caption]} numberOfLines={1}>{shortAttachmentName(a.name ?? '')}</Text>
           </Pressable>
         );
@@ -234,6 +227,8 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.surface,
     },
     chipPressed: { backgroundColor: c.surfaceHover },
+    // Empty space of a chip's height; a failed load leaves no grey stub behind.
+    placeholderChip: { width: 96, opacity: 0 },
     name: { ...typography.caption, color: c.textSecondary, flexShrink: 1 },
     more: {
       paddingHorizontal: 6,

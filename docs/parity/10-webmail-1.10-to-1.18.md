@@ -43,7 +43,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: reads it from the fragment (`src/lib/oauth.ts:247`); any app can claim a custom scheme.
   - Fix hint: hand back a one-time code and redeem it like QR pairing (`src/lib/oauth.ts:435`, `/api/auth/pair/redeem`). Needs the webmail side first.
 
-- [ ] **Sender favicons are fetched from icons.duckduckgo.com on the device** — `P3` — `partial` (privacy)
+- [x] **Sender favicons are fetched from icons.duckduckgo.com on the device** — `P3` — `partial` (privacy) — fixed in 8e10e73e (off by default; the push background task keeps its own default, see the reader report)
   - What WEB does: proxies favicons on the server (`app/api/favicon/route.ts:484`).
   - What RN does: fetches directly, on by default (`src/lib/avatar-utils.ts:149`, `src/stores/settings-store.ts:312`), leaking sender domains and the device IP.
   - Fix hint: default off, or use the paired webmail's proxy.
@@ -116,31 +116,31 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: creates Archive and reuses year/month folders (`stores/email-store.ts:1332`, `:2561`).
   - What RN does: returns silently (`src/stores/email-store.ts:1594`, `:1729`) or throws (`src/api/unified-inbox.ts:546`).
 
-- [ ] **A server's own "all" mailbox is included in All mail/Unread (#1241)** — `P3` — `bug`
+- [x] **A server's own "all" mailbox is included in All mail/Unread (#1241)** — `P3` — `bug` — fixed in 43bb5e47
   - What WEB does: role `all` excluded (`lib/jmap/types.ts:1158`). What RN does: `src/api/unified-inbox.ts:34`, `:354`.
 
-- [ ] **Tag views and counts include Trash and Spam (#1156)** — `P3` — `bug`
+- [x] **Tag views and counts include Trash and Spam (#1156)** — `P3` — `bug` — fixed in eb6bf6d3
   - What WEB does: `lib/unified-mailbox.ts:104`, `:577`. What RN does: `src/api/tag-counts.ts:37-48`, `src/stores/email-store.ts:455`.
 
 - [x] **User folders named like system folders get system icons (#1235, native #80)** — `P3` — `bug` — fixed in 96c7c045
   - What WEB does: icons by role only (`components/layout/sidebar.tsx:168`). What RN does: name matching fallback (`src/components/SidebarDrawer.tsx:92`).
 
-- [ ] **Sort by "Date sent" falls back to received date in merged lists (#1219)** — `P3` — `bug`
+- [x] **Sort by "Date sent" falls back to received date in merged lists (#1219)** — `P3` — `bug` — fixed in 04a962a6
   - What WEB does: lists fetch sentAt (`lib/jmap/client.ts:443`). What RN does: EMAIL_LIST_PROPERTIES lacks it (`src/api/email.ts:22`; comparator `src/lib/message-list-order.ts:225`).
 
-- [ ] **Previews start with a style sheet (#1136)** — `P3` — `bug`
+- [x] **Previews start with a style sheet (#1136)** — `P3` — `bug` — fixed in 219aef04 (list, unified list, conversation cards; notifications: platform)
   - What WEB does: cleanPreview (`lib/utils.ts:320`, `:363`). What RN does: `src/screens/EmailListScreen.tsx:270`, `src/lib/push-background-task.ts:513`.
 
-- [ ] **Paperclip on messages with only inline images** — `P3` — `bug`
+- [x] **Paperclip on messages with only inline images** — `P3` — `bug` — fixed in 4470a4ba (folder list)
   - What WEB does: `components/email/attachment-chips.tsx:165`. What RN does: `src/screens/EmailListScreen.tsx:237`, `src/screens/UnifiedInboxScreen.tsx:358` use hasAttachment.
 
-- [ ] **List row grows when its attachment chips arrive** — `P3` — `bug`
+- [x] **List row grows when its attachment chips arrive** — `P3` — `bug` — fixed in 4470a4ba
   - What WEB does: reserves the row (7b25d3a95). What RN does: `src/components/email/ListAttachmentChips.tsx:89`.
 
-- [ ] **Cold start reopens the last folder or search instead of the inbox** — `P3` — `bug`
+- [x] **Cold start reopens the last folder or search instead of the inbox** — `P3` — `bug` — fixed in 9067908f
   - What WEB does: 64b39c504. What RN does: `src/stores/email-store.ts:2195`, `:829`.
 
-- [ ] **List keeps its scroll position on folder, tag or search switch (#1138)** — `P3` — `bug` (from the code, not seen on a device)
+- [x] **List keeps its scroll position on folder, tag or search switch (#1138)** — `P3` — `bug` (from the code, not seen on a device) — fixed in aa25d08d
   - What RN does: `src/screens/EmailListScreen.tsx:1590`.
 
 - [ ] **Unified inbox live updates for other logins (#1350)** — `P3` — `partial`
@@ -152,7 +152,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [ ] **Hide shared mail accounts (#1228); remove from this folder (#615); folder name on all-folder results (#1172); own folders section (#1205); per-folder counter (#982); hide account dot (#912)** — `P3` — `missing`
   - What WEB does: `lib/shared-mail-visibility.ts:19`, `hooks/use-remove-from-folder.ts:15`, `stores/settings-store.ts:695`. What RN does: `src/components/SidebarDrawer.tsx:124-150`, `:672`; `src/screens/EmailListScreen.tsx:103`.
 
-- [ ] **Search folder picker is flat and capped at 12** — `P3` — `partial`
+- [x] **Search folder picker is flat and capped at 12** — `P3` — `partial` — fixed in e5c9433a
   - What WEB does: `lib/search-scope-folders.ts`. What RN does: `src/screens/EmailListScreen.tsx:1729-1740` (`slice(0, 12)`).
 
 - [ ] **Tags without a definition are grey; no account tint (#1052); tag visibility, nesting, order** — `P3` — `partial`
@@ -167,7 +167,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [ ] **RTL swipe sides** — `P3` — `partial` (old 08 item; web doesn't swap either)
   - What RN does: `src/components/SwipeableRow.tsx:353`.
 
-- [ ] **`/mail/folder/<ref>` deep link opens only the tab** — `P3` — `bug`
+- [x] **`/mail/folder/<ref>` deep link opens only the tab** — `P3` — `bug` — fixed in ed490b71 (folder of the active account; `?account=` switches first as before)
   - What RN does: `src/navigation/linking.ts:134` parses it, `:285-287` drops it.
 
 ### Reading mail
@@ -189,10 +189,10 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: `lib/verification-code.ts:275`, `components/email/email-viewer.tsx:1378`, setting at `stores/settings-store.ts:540`.
   - What RN does: nothing (`src/components/email/MessageHeader.tsx`, `src/screens/EmailListScreen.tsx`).
 
-- [ ] **A mail full of blockquotes freezes the reader** — `P3` — `bug`
+- [x] **A mail full of blockquotes freezes the reader** — `P3` — `bug` — fixed in 3243714d
   - What WEB does: single walk (`lib/quote-collapse.ts:92`). What RN does: quadratic walk (`src/lib/quote-collapse.ts:95-112`).
 
-- [ ] **Attachment names keep direction-override characters** — `P3` — `bug`
+- [x] **Attachment names keep direction-override characters** — `P3` — `bug` — fixed in a930d177
   - What WEB does: `lib/bidi.ts:10`. What RN does: `src/lib/attachment-display.ts:34`, `src/lib/email-export.ts:56`.
 
 - [x] **Part names that are paths (#1371, #1373)** — `P3` — `bug` — fixed in 4d545f8f
@@ -201,7 +201,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [ ] **Dark mode recolours instead of inverting** — `P3` — `missing`
   - What WEB does: `lib/email-dark-mode.ts:48`, `:71`. What RN does: `filter: invert(1) hue-rotate(180deg)` (`src/lib/email-html.ts:500`); mail's own dark styles follow the system scheme (`:640`).
 
-- [ ] **"via" badge repeats the sender's address** — `P3` — `bug`
+- [x] **"via" badge repeats the sender's address** — `P3` — `bug` — fixed in fac54b41
   - What WEB does: `components/email/email-identity-badge.tsx:69`. What RN does: `src/components/email/MessageHeader.tsx:116-117`, `:223`.
 
 - [ ] **Fixed-width tables don't reflow (#1020)** — `P3` — `partial`
@@ -210,7 +210,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [ ] **Invitation banner: View in calendar, collapse, counter-proposal review** — `P3` — `missing` (old 03 item)
   - What WEB does: `components/email/calendar-invitation-banner.tsx:727`, `:463`, `:245`. What RN does: `src/components/email/CalendarInvitationBanner.tsx:153`.
 
-- [ ] **Quick reply can be turned off (#1370)** — `P3` — `missing`
+- [x] **Quick reply can be turned off (#1370)** — `P3` — `missing` — fixed in 56e4a1e0 (setting `quickReplyEnabled`; the switch is the platform agent's)
   - What WEB does: `stores/settings-store.ts:560`. What RN does: always rendered (`src/screens/EmailThreadScreen.tsx:1233`).
 
 ### Composer and sending
