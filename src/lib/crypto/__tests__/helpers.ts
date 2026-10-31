@@ -11,9 +11,24 @@ import * as openpgp from 'openpgp';
 import { setNodeStyleCrypto, type NodeStyleCrypto } from '../provider';
 import { resetSmimeEngine } from '../smime/engine';
 
-/** Node's crypto stands in for react-native-quick-crypto. */
+/**
+ * Node's crypto stands in for react-native-quick-crypto. Newer Node releases
+ * refuse RSA PKCS#1 v1.5 private decryption (CVE-2023-46809) while OpenSSL
+ * under quick-crypto still does it, so the stand-in decrypts raw and strips
+ * the type 2 padding itself.
+ */
 export function useNodeCrypto(): void {
-  setNodeStyleCrypto(() => nodeCrypto as unknown as NodeStyleCrypto);
+  const standIn = {
+    ...nodeCrypto,
+    privateDecrypt(key: nodeCrypto.PrivateKeyInput & { padding?: number }, buffer: Uint8Array): Uint8Array {
+      if (key.padding !== nodeCrypto.constants.RSA_PKCS1_PADDING) return nodeCrypto.privateDecrypt(key, buffer);
+      const em = nodeCrypto.privateDecrypt({ ...key, padding: nodeCrypto.constants.RSA_NO_PADDING }, buffer);
+      const sep = em.indexOf(0, 2);
+      if (em[0] !== 0 || em[1] !== 2 || sep < 10) throw new Error('decryption error');
+      return em.subarray(sep + 1);
+    },
+  };
+  setNodeStyleCrypto(() => standIn as unknown as NodeStyleCrypto);
   resetSmimeEngine();
 }
 
