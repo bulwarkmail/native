@@ -228,13 +228,27 @@ const EmailRow = React.memo(function EmailRow({
         </View>
       )}
       {density.showAvatar && (
-        <SenderAvatar
-          name={senderName}
-          email={senderEmail}
-          size={componentSizes.avatarMd}
-          disableImages={disableAvatarImages}
-          senderWarning={senderWarning}
-        />
+        // A tap on the avatar picks the row and starts selection mode, like
+        // a long press (#91).
+        <Pressable
+          onPress={handleLongPress}
+          hitSlop={4}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          accessibilityLabel={tr('email_list.batch_actions.select_row', 'Select {sender}: {subject}', {
+            sender: senderName,
+            subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
+          })}
+          testID="email-row-avatar"
+        >
+          <SenderAvatar
+            name={senderName}
+            email={senderEmail}
+            size={componentSizes.avatarMd}
+            disableImages={disableAvatarImages}
+            senderWarning={senderWarning}
+          />
+        </Pressable>
       )}
 
       {/* Content */}
