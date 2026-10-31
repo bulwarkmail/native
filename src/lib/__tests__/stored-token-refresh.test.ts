@@ -67,6 +67,21 @@ describe('freshStoredCredentials', () => {
     expect((store.get(ID) as StoredCredentials).refreshToken).toBe('r2');
   });
 
+  it('keeps a new id_token from the refresh', async () => {
+    // A headless refresh dropped it, so the stored bundle kept the old one
+    // for the sign-out's id_token_hint.
+    mockSecureFetch.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: 'a2', refresh_token: 'r2', expires_in: 3600, id_token: 'id2' }),
+    } as Response));
+    store.set(ID, { ...bundle(1), idToken: 'id1' });
+    const next = await freshStoredCredentials(ID, { ...bundle(1), idToken: 'id1' });
+
+    expect(next.idToken).toBe('id2');
+    expect((store.get(ID) as StoredCredentials).idToken).toBe('id2');
+  });
+
   it('takes the newer stored bundle instead of spending a replaced refresh token', async () => {
     // The live client refreshed meanwhile and stored r2.
     store.set(ID, bundle(2, Date.now() + 3_600_000));

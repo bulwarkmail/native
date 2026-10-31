@@ -75,6 +75,7 @@ export async function freshStoredCredentials(
       expiresAt: next.expiresAt,
       tokenEndpoint: next.tokenEndpoint,
       clientId: next.clientId,
+      ...(next.idToken ? { idToken: next.idToken } : {}),
     };
     const current = await jmapClient.getStoredCredentials(accountId);
     if (!current) {
