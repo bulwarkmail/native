@@ -10,8 +10,11 @@ tags:
     env:
       CAMERA: deny
 - tapOn: "Scan a sign-in code.*"
+# Denied for good: "Camera access is disabled..."; not asked yet (the
+# simulator doesn't always apply the denial up front): "Bulwark Mail needs
+# camera access..." (English catalog) or the built-in fallback wording.
 - extendedWaitUntil:
-    visible: "Camera access is.*|Scanning a sign-in QR code uses the camera.*"
+    visible: "Camera access is.*|.*needs camera access.*|Scanning a sign-in QR code uses the camera.*"
     timeout: 15000
 - takeScreenshot: scanner-01-denied
 - tapOn: "Close"
