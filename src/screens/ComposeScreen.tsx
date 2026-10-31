@@ -69,6 +69,7 @@ import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import { placeholderWordsFor, unfilledPlaceholdersInMessage } from '../lib/placeholder-check';
 import { sendTargetFor } from '../lib/compose-send-account';
 import { findAttachmentKeyword } from '../lib/compose-send-checks';
+import { formatScheduledSendAt, schedulePresetLabel, schedulePresets as webmailSchedulePresets } from '../lib/compose-schedule';
 import { inlineImageType } from '../lib/compose-inline-type';
 import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
@@ -2298,15 +2299,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const schedulePresets = React.useMemo(() => {
     const now = new Date();
     const inHours = (h: number) => new Date(now.getTime() + h * 3600 * 1000);
-    const tomorrowMorning = new Date(now);
-    tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
-    tomorrowMorning.setHours(8, 0, 0, 0);
     // Only offer times within the server's hold limit.
     const maxMs = jmapClient.getMaxDelayedSend() * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
-      { label: t('email_composer.schedule_tomorrow_morning', 'Tomorrow morning'), date: tomorrowMorning },
+      // The webmail's: this morning and afternoon while still ahead (#1390),
+      // tomorrow at 8:00 and 13:00, next Monday at 8:00.
+      ...webmailSchedulePresets(now).map((preset) => ({ label: schedulePresetLabel(preset.key, t), date: preset.date })),
     ].filter((preset) => preset.date.getTime() - now.getTime() <= maxMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t, scheduleSheetOpen]);
@@ -2480,7 +2480,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const when = result.sendAt ? new Date(result.sendAt) : scheduledAt;
         Alert.alert(
           t('email_composer.scheduled_title', 'Scheduled'),
-          t('email_composer.scheduled_body', 'Your message will be sent at {time}.', { time: formatWhen(when) }),
+          t('email_composer.scheduled_body', 'Your message will be sent at {time}.', {
+            // The server can land a second early: 08:00 read 07:59.
+            time: formatScheduledSendAt(when.toISOString(), timeFormat, locale),
+          }),
         );
       } else if (result.scheduled) {
         // Undo-send window: the undo bar offers Undo / Send now.

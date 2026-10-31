@@ -22,7 +22,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { draftContextFromEmail } from '../lib/draft-context';
-import { formatQuoteDate } from '../lib/quote-header';
+import { formatScheduledSendAt, schedulePresetLabel, schedulePresets } from '../lib/compose-schedule';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -93,8 +93,10 @@ export default function ScheduledScreen({ navigation }: Props) {
   }, []);
   useBackWhileFocused(!!viewing, closeView);
 
+  // Rounded to the minute (the server can land a second early: 08:00 read
+  // 07:59), with the date when it is not today (webmail scheduled-send-label).
   const formatWhen = React.useCallback(
-    (iso: string) => formatQuoteDate(iso, timeFormat, locale),
+    (iso: string) => formatScheduledSendAt(iso, timeFormat, locale),
     [timeFormat, locale],
   );
 
@@ -325,15 +327,13 @@ export default function ScheduledScreen({ navigation }: Props) {
   const reschedulePresets = React.useMemo(() => {
     const now = new Date();
     const inHours = (h: number) => new Date(now.getTime() + h * 3600 * 1000);
-    const tomorrowMorning = new Date(now);
-    tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
-    tomorrowMorning.setHours(8, 0, 0, 0);
     // Only offer times within the server's hold limit.
     const maxMs = jmapClient.getMaxDelayedSend(rescheduleFor?.accountId) * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
-      { label: t('email_composer.schedule_tomorrow_morning', 'Tomorrow morning'), date: tomorrowMorning },
+      // The composer's presets, the webmail's (lib/compose-schedule).
+      ...schedulePresets(now).map((preset) => ({ label: schedulePresetLabel(preset.key, t), date: preset.date })),
     ].filter((preset) => preset.date.getTime() - now.getTime() <= maxMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t, rescheduleFor]);
