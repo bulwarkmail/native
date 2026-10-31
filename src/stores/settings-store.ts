@@ -309,6 +309,10 @@ interface PersistedSettings {
   // Hard cap on the on-disk body cache, in megabytes. When a sync pushes the
   // cache past this, the oldest messages are evicted to fit.
   offlineCacheMaxMB: number;
+
+  // reader: the quick reply box under a conversation can be turned off
+  // (webmail #1370, same key as the webmail's for export/import).
+  quickReplyEnabled: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -463,6 +467,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   offlineCacheEnabled: false,
   offlineCacheDays: 7,
   offlineCacheMaxMB: 50,
+
+  // reader:
+  quickReplyEnabled: true,
 };
 
 export interface SettingsState extends PersistedSettings {

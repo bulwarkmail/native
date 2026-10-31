@@ -1032,6 +1032,8 @@ function EmailPane({
 }: EmailPaneProps) {
   const c = useColors();
   const t = useLocaleStore((s) => s.t);
+  // The quick reply box can be turned off (webmail #1370).
+  const quickReplyEnabled = useSettingsStore((s) => s.quickReplyEnabled);
   // Freeze the pane's vertical scroll while a pinch is in flight so a two-
   // finger zoom can't fling the page.
   const [pinching, setPinching] = React.useState(false);
@@ -1286,7 +1288,7 @@ function EmailPane({
       </View>
 
       <View style={styles.quickReplySlot}>
-        {newest && newestLoaded && (
+        {quickReplyEnabled && newest && newestLoaded && (
           <QuickReplyBox
             email={newest}
             jmapAccountId={jmapAccountId}
