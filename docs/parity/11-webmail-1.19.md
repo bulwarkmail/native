@@ -130,22 +130,22 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Accessibility
 
-- [ ] **No Accessibility page or presets** — `P2` — `missing`
+- [x] **No Accessibility page or presets** — `P2` — `missing` — fixed in c9b3bdfe
   - What WEB does: Settings > Accessibility with presets (screen reader, low vision, dyslexia, focus, motor, motion, hearing) and text size 87.5% to 200% (`components/settings/accessibility-settings.tsx`, `lib/accessibility-presets.ts:23`, `lib/accessibility-settings.ts:13-22`; 8008393e5, 0731d24f6).
   - What RN does: no page (`src/screens/SettingsScreen.tsx:150-174`); text size 0.92/1/1.12 (`src/theme/dynamic.ts:14-18`). Text follows the system font scale; reduce motion follows the system (`src/theme/dynamic.ts:88-120`).
   - Fix hint: a page that groups the existing switches, widens the text size range and takes the presets that make sense on a phone.
 
-- [ ] **Form fields have no name for screen readers** — `P2` — `bug`
+- [x] **Form fields have no name for screen readers** — `P2` — `bug` — fixed in ff5a8c91 (settings and sign-in; contact form and event editor are listed for their branches)
   - What WEB does: every field has a label tied to it (`components/ui/field.tsx:42`; ef13556a0, 0e2a05e0e, dcc21acd0, 4e2affe40, f73643bbb).
   - What RN does: the shared Input draws its label as separate Text (`src/components/Input.tsx:40-55`); the Security password and code fields have no label at all (`src/components/settings/AccountSecuritySettings.tsx:181`, `:191`, `:198`); contact fields rely on placeholders (`src/screens/ContactFormScreen.tsx:823-834`); the reminder field's only name is "30" (`src/components/calendar/EventModal.tsx:772`, `:817`).
   - Fix hint: Input passes its label as accessibilityLabel; every bare TextInput gets one.
 
-- [ ] **Toasts and Undo are not read out on iOS; the Undo bar isn't read out anywhere** — `P2` — `bug`
+- [x] **Toasts and Undo are not read out on iOS; the Undo bar isn't read out anywhere** — `P2` — `bug` — fixed in d812caf0, 01dd7461
   - What WEB does: live regions and announcements for toasts, loads, new mail, saved drafts and offline (`lib/announce.ts:124`, `components/ui/toast.tsx:471`; 36d13b76b, e2fc2c750, 23813be9b, d713d31af, 4c1f24947).
   - What RN does: no `announceForAccessibility` call in src; ToastHost and OfflineBanner use accessibilityLiveRegion, which only Android honours (`src/components/ToastHost.tsx:194`, `src/components/OfflineBanner.tsx:33`); the Undo bar has neither (`src/components/UndoSnackbar.tsx:129-160`).
   - Fix hint: announce through AccessibilityInfo on iOS, live region on the Undo bar.
 
-- [ ] **Grey text is below 4.5:1 contrast** — `P2` — `bug`
+- [x] **Grey text is below 4.5:1 contrast** — `P2` — `bug` — fixed in 11522995
   - What WEB does: every built-in theme at 4.5:1 or more, with a contrast test (`lib/builtin-themes.ts:16`, `lib/__tests__/theme-contrast.test.ts`; 9f6c7b99c).
   - What RN does: textMuted is `#94a3b8` on white in the light theme (2.56:1) and `#737373` in dark (4.18:1 on the background, 3.19:1 on surfaces) (`src/theme/tokens.ts:236`, `:140`); used in 456 places, also as placeholder colour.
   - Fix hint: adjust both, add a contrast test over tokens.ts and builtin-themes.ts.
@@ -155,21 +155,21 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: month day cells read only the number and the dots are silent (`src/components/calendar/MonthView.tsx:199-240`); event blocks have no role, label or date (`src/components/calendar/EventBlock.tsx:72-104`).
   - Fix hint: label day cells with date and event count; event blocks get a button role and a label with title, date and time.
 
-- [ ] **No reading fonts, text spacing, more contrast or underlined links** — `P3` — `missing`
+- [ ] **No reading fonts, text spacing, more contrast or underlined links** — `P3` — `missing` — not done: own feature, not in this run
   - What WEB does: Atkinson Hyperlegible Next, Lexend, OpenDyslexic, spacing settings, more contrast, underlined links (`lib/accessibility-settings.ts:53-68`; 8008393e5, da215b8c0).
   - What RN does: none of these settings (`src/stores/settings-store.ts`).
   - Fix hint: the dyslexia font and line spacing first.
 
-- [ ] **No colour-blind palette and no names next to colours** — `P3` — `missing`
+- [ ] **No colour-blind palette and no names next to colours** — `P3` — `missing` — not done: own feature, not in this run
   - What WEB does: a colour-blind-safe palette, a tag's letter in its dot, the calendar's name on events (cf4d02b49, d5d7d39ef, 396290003).
   - What RN does: colours only (`src/components/calendar/EventBlock.tsx:72-104`, `src/components/calendar/MonthView.tsx:233-240`).
 
-- [ ] **Toast and Undo times are fixed and short** — `P3` — `missing`
+- [x] **Toast and Undo times are fixed and short** — `P3` — `missing` — fixed in c9b3bdfe
   - What WEB does: one duration setting, 5 to 60 s or until closed (`lib/toast-duration.ts:7-15`; 8d2ebccf0, be5e2dbc5).
   - What RN does: 5 s, errors 10 s (`src/stores/toast-store.ts:44`), Undo 5 s (`src/components/UndoSnackbar.tsx:15`).
   - Fix hint: a duration setting and a longer default while a screen reader is on.
 
-- [ ] **No plain language and no explanations for technical terms** — `P3` — `missing`
+- [ ] **No plain language and no explanations for technical terms** — `P3` — `missing` — not done: own feature, not in this run
   - What WEB does: simpler English and German wording (`i18n/plain-language.ts`; bb739c744, 9861af6be, 5ffecf692) and term explanations (`components/ui/term.tsx`; 724c45d6e).
   - What RN does: none (`src/i18n/index.ts:79-140`).
 
@@ -180,12 +180,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Accounts and sign-in
 
-- [ ] **The two-factor prompt shows as a red error (#1422)** — `P3` — `bug`
+- [x] **The two-factor prompt shows as a red error (#1422)** — `P3` — `bug` — fixed in b205c13a
   - What WEB does: an info box with role status, no shake (`app/(main)/[locale]/login/page.tsx:1393`; 141190708).
   - What RN does: TotpRequiredError sets a notice (`src/screens/LoginScreen.tsx:389-391`) shown in the error tone (`src/screens/login/PasswordStep.tsx:151`, `src/screens/login/LoginNotice.tsx:15-24`).
   - Fix hint: `tone="info"` for the TOTP step.
 
-- [ ] **Two accounts with the same name look alike in the switcher** — `P3` — `bug`
+- [x] **Two accounts with the same name look alike in the switcher** — `P3` — `bug` — fixed in 505fbc59 (Settings > Account and the shared accountRowText; the switcher row in SidebarDrawer goes with the reader branch; the port waits for question 9)
   - What WEB does: the address becomes the title when another account shares the name (`lib/account-utils.ts:159`; 3bb9f7df8).
   - What RN does: name as title, address below (`src/components/SidebarDrawer.tsx:884-891`, `src/components/settings/AccountSettings.tsx:186`). Report question 9 (port in the label) is the same area.
   - Fix hint: port accountRowText.
@@ -197,11 +197,11 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Settings
 
-- [ ] **The density sample shows previews while "Show preview text" is off** — `P3` — `bug`
+- [x] **The density sample shows previews while "Show preview text" is off** — `P3` — `bug` — fixed in c8f417dd
   - What WEB does: c166651d1 (`components/settings/appearance-settings.tsx:14-16`).
   - What RN does: showPreview comes from the density only (`src/components/settings/AppearanceSettings.tsx:11-15`, `:24-27`).
 
-- [ ] **The identity editor closes without asking about unsaved changes** — `P3` — `bug`
+- [x] **The identity editor closes without asking about unsaved changes** — `P3` — `bug` — fixed in 7ecac4ab
   - What WEB does: identity, rule and Sieve editors ask (`components/settings/use-discard-changes.tsx`; 9d3ae2203).
   - What RN does: Close, Cancel and Back call closeEditor (`src/components/settings/IdentitySettings.tsx:122`, `:304`, `:311`, `:389`). FilterRuleModal already asks.
 
@@ -231,12 +231,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### i18n
 
-- [ ] **No Thai or Estonian, and the vendored catalogs are stale** — `P3` — `missing`
+- [x] **No Thai or Estonian, and the vendored catalogs are stale** — `P3` — `missing` — fixed in d23af55e, e8bc54eb
   - What WEB does: 29 languages, Thai new in 1.19.0 (#1379, be52744a5; `i18n/routing.ts:15`).
   - What RN does: 27 (`src/i18n/index.ts:25-53`); `locales/et/common.json` is vendored but not registered; no `th`. German lacks 1283 of the webmail's keys (last sync 7c914183).
   - Fix hint: `node scripts/sync-locales.mjs`, register th and et, add overlays.
 
-- [ ] **Some German phone strings still say "du"** — `P3` — `bug`
+- [x] **Some German phone strings still say "du"** — `P3` — `bug` — fixed in 25f9b810
   - What WEB does: formal everywhere (7b720dd22).
   - What RN does: 12 overlay strings (`locales/rn/de.json`, e.g. settings.privacy.*, settings.backup.description); 18 more in the stale vendored catalog, which the sync fixes.
   - Fix hint: rewrite with "Sie".

@@ -231,7 +231,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `onShouldStartLoadWithRequest` returns `true` for any `data:` URL (`src/components/EmailBodyView.tsx:715-718`), so `<a href="data:text/html,...">` replaces the message with attacker HTML rendered inside the app chrome (phishing form); the WebView is otherwise well hardened (`originWhitelist=['about:blank']`, file access off, `mixedContentMode="never"`, `setSupportMultipleWindows={false}`, `incognito`, `domStorageEnabled={false}`, `EmailBodyView.tsx:675-712`).
   - Fix hint: allow `data:` only for `request.isTopFrame === false` or block it entirely (the body is loaded via `source={{html}}`, not a data: URL).
 
-- [ ] **No screenshot / recent-apps protection option** — `P3` — `missing`
+- [ ] **No screenshot / recent-apps protection option** — `P3` — `missing` — not done: needs a new native module (expo-screen-capture)
   - What WEB does: N/A.
   - What RN does: no `FLAG_SECURE`/`expo-screen-capture` anywhere; mail content appears in the Android recents thumbnail.
   - Fix hint: optional "Hide content in app switcher" setting using `expo-screen-capture` `preventScreenCaptureAsync`.
