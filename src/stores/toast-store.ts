@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { announce, toastAnnouncement } from '../lib/announce';
 
 // Lightweight port of the webmail's stores/toast-store.ts: a queue of typed
 // toasts with an optional action, rendered by components/ToastHost. Use it
@@ -45,6 +46,11 @@ export const useToastStore = create<ToastState>((set) => ({
     };
     // Keep the queue short: a burst of errors should not stack up forever.
     set((state) => ({ toasts: [...state.toasts.slice(-2), entry] }));
+    // iOS reads no live regions; the card's own one covers Android.
+    announce(
+      toastAnnouncement({ title: entry.title, message: entry.message, actionLabel: entry.action?.label }),
+      { assertive: entry.type === 'error' },
+    );
     return id;
   },
 

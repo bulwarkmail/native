@@ -11,6 +11,7 @@ import { useEmailStore } from '../stores/email-store';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import type { RootStackParamList } from '../navigation/types';
+import { announce } from '../lib/announce';
 
 const VISIBLE_MS = 5000;
 
@@ -69,6 +70,14 @@ export function UndoSnackbar() {
   React.useEffect(() => {
     if (current) setShown(current);
   }, [current]);
+
+  // Read the bar out on iOS, which has no live regions; Android reads the
+  // bar's live region. Once per entry, not on every countdown re-render.
+  const undoLabel = t('common.undo', 'Undo');
+  React.useEffect(() => {
+    if (!current) return;
+    announce(current.label);
+  }, [current?.createdAt, current?.label]);
 
   // Drive the auto-dismiss off the entry's createdAt so re-renders during
   // animation don't reset the timer, and so consecutive actions reset it.
@@ -133,13 +142,15 @@ export function UndoSnackbar() {
         { left: frame.left, right: frame.right, bottom: insets.bottom + frame.bottom, opacity, transform: [{ translateY: slideY }] },
       ]}
     >
-      <View style={styles.bar}>
+      <View style={styles.bar} accessibilityLiveRegion="polite">
         <Text style={styles.label} numberOfLines={1}>{shown.label}</Text>
         {shown.send && (
           <Pressable
             onPress={onSendNow}
             hitSlop={8}
             disabled={sendBusy}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_composer.send_now', 'Send now')}
             style={({ pressed }) => [styles.undoBtn, pressed && styles.undoBtnPressed]}
           >
             <Text style={styles.sendNowText}>{t('email_composer.send_now', 'Send now').toUpperCase()}</Text>
@@ -149,6 +160,8 @@ export function UndoSnackbar() {
           onPress={() => { void onUndo(); }}
           hitSlop={8}
           disabled={sendBusy}
+          accessibilityRole="button"
+          accessibilityLabel={undoLabel}
           style={({ pressed }) => [styles.undoBtn, pressed && styles.undoBtnPressed]}
         >
           <Text style={styles.undoText}>{t('common.undo', 'Undo').toUpperCase()}</Text>
