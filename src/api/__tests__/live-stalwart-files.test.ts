@@ -34,6 +34,7 @@ import { CAPABILITIES } from '../types';
 import type { FileNode } from '../types';
 import {
   copyFileNode,
+  copyFileTree,
   createFolder,
   deleteFileNodes,
   destroyEmptyFolders,
@@ -159,6 +160,30 @@ live('live Stalwart files', () => {
     all = await nodes();
     // The folder's children went with it.
     expect(all.filter((n) => [copy.id, box.id, file.id, inner.id].includes(n.id))).toEqual([]);
+  }, 90_000);
+
+  it('copies a folder with the folders and files in it', async () => {
+    const source = await createFolder('Copy me', scratch);
+    const sub = await createFolder('Inside', source.id);
+    await uploadFileBatch([pick('top.txt', 'top')], source.id, []);
+    await uploadFileBatch([pick('deep.txt', 'deeper')], sub.id, []);
+    const all = await nodes();
+
+    const copy = await copyFileTree(all.find((n) => n.id === source.id)!, all, scratch, 'Copy me (1)');
+    const after = await nodes();
+    const copied = after.find((n) => n.id === copy.id)!;
+    expect(copied).toMatchObject({ name: 'Copy me (1)', parentId: scratch });
+    expect(fileNodeKind(copied)).toBe('directory');
+    const inCopy = after.filter((n) => n.parentId === copy.id);
+    expect(inCopy.map((n) => n.name).sort()).toEqual(['Inside', 'top.txt']);
+    const copiedSub = inCopy.find((n) => n.name === 'Inside')!;
+    expect(fileNodeKind(copiedSub)).toBe('directory');
+    const deep = after.find((n) => n.parentId === copiedSub.id)!;
+    expect(deep).toMatchObject({ name: 'deep.txt', size: 6 });
+    const res = await fetch(getFileNodeDownloadUrl(deep), { headers: { Authorization: client.authHeader } });
+    expect(await res.text()).toBe('deeper');
+    // The source is untouched.
+    expect(after.filter((n) => n.parentId === source.id).map((n) => n.name).sort()).toEqual(['Inside', 'top.txt']);
   }, 90_000);
 
   it('moves a node to the drive root and back', async () => {

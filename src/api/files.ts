@@ -723,6 +723,66 @@ export async function copyFileNode(
   return createFileNodeFromBlob(newName, node.blobId, node.type, parentId);
 }
 
+/**
+ * Copy a file, or a folder with everything in it, into `parentId` (webmail
+ * copyFileNode). A folder node carries no content, so the subtree is made
+ * again level by level from `tree`, the listing the ids of `node` and
+ * `parentId` come from; the files in it point at the same blobs. A copy that
+ * fails part-way is taken back, the deepest level first, without
+ * onDestroyRemoveChildren: whatever someone else put into its folders
+ * meanwhile stays.
+ */
+export async function copyFileTree(
+  node: FileNode,
+  tree: FileNode[],
+  parentId: string | null,
+  newName: string = node.name,
+): Promise<FileNode> {
+  const kind = fileNodeKind(node);
+  if (kind === 'symlink') throw new Error('Symbolic links cannot be copied');
+  if (kind === 'file') return copyFileNode(node, parentId, newName);
+
+  const childrenOf = new Map<string, FileNode[]>();
+  for (const entry of tree) {
+    if (entry.parentId == null) continue;
+    const siblings = childrenOf.get(entry.parentId);
+    if (siblings) siblings.push(entry);
+    else childrenOf.set(entry.parentId, [entry]);
+  }
+  // The ids this copy creates, by level below the copy (0 is the copy itself).
+  const made: string[][] = [];
+  const seen = new Set<string>([node.id]);
+  const create = async (source: FileNode, name: string, parent: string | null, level: number): Promise<FileNode> => {
+    const created = fileNodeKind(source) === 'directory'
+      ? await createFolder(name, parent)
+      : await createFileNodeFromBlob(name, source.blobId!, source.type, parent);
+    (made[level] ??= []).push(created.id);
+    return created;
+  };
+  const copyChildren = async (folderId: string, copyId: string, level: number): Promise<void> => {
+    for (const child of childrenOf.get(folderId) ?? []) {
+      // Symlinks have nothing to copy; a copy inside the source is not copied again.
+      if (seen.has(child.id) || fileNodeKind(child) === 'symlink') continue;
+      if (fileNodeKind(child) === 'file' && !child.blobId) continue;
+      seen.add(child.id);
+      const created = await create(child, child.name, copyId, level);
+      if (fileNodeKind(child) === 'directory') await copyChildren(child.id, created.id, level + 1);
+    }
+  };
+
+  const root = await create(node, newName, parentId, 0);
+  seen.add(root.id);
+  try {
+    await copyChildren(node.id, root.id, 1);
+  } catch (err) {
+    for (let level = made.length - 1; level >= 0; level--) {
+      await destroyEmptyFolders(made[level] ?? []).catch(() => []);
+    }
+    throw err;
+  }
+  return root;
+}
+
 // ── Sharing (RFC 9670) ────────────────────────────────────
 
 // Add, update, or remove a principal's rights on an owned FileNode (file or
