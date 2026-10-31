@@ -60,6 +60,11 @@ export interface RichTextEditorHandle {
   setImageAlt(cid: string, alt: string): void;
   /** Insert an HTML fragment at the caret (template bodies, tables). */
   insertHtml(html: string): void;
+  /**
+   * Replace the "@..." being typed with a mention link to `href` reading
+   * "@label" (needs `mentions`).
+   */
+  insertMention(label: string, href: string): void;
   setHtml(html: string): void;
   /**
    * Read the live editor DOM content. Resolves with the current innerHTML or
@@ -94,12 +99,16 @@ interface Props {
   collapseQuote?: boolean;
   /** The quote toggle's accessible names. */
   quoteToggleLabels?: { show: string; hide: string };
+  /** Report "@" mentions being typed (read once, on mount). */
+  mentions?: boolean;
+  /** What follows the "@" being typed, or null once there is none. */
+  onMentionQuery?: (query: string | null) => void;
 }
 
 const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function RichTextEditor(
   {
     initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur, onViewportShift,
-    collapseQuote = false, quoteToggleLabels,
+    collapseQuote = false, quoteToggleLabels, mentions = false, onMentionQuery,
   },
   ref,
 ) {
@@ -113,6 +122,8 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   const onBlurRef = React.useRef(onBlur);
   const onViewportShiftRef = React.useRef(onViewportShift);
   onViewportShiftRef.current = onViewportShift;
+  const onMentionQueryRef = React.useRef(onMentionQuery);
+  onMentionQueryRef.current = onMentionQuery;
   onChangeRef.current = onChange;
   onSelectionRef.current = onSelectionChange;
   onFocusRef.current = onFocus;
@@ -123,7 +134,7 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   const html = React.useMemo(
     () => buildEditorHtml({
       initialHtml, placeholder, c, blockRemoteImages, pinVisualViewport: Platform.OS === 'android',
-      collapseQuote, quoteToggleLabels,
+      collapseQuote, quoteToggleLabels, mentions,
     }),
     // c reference changes per theme switch but we don't want to lose user
     // edits on a theme change. Bake in the initial colors only.
@@ -202,6 +213,9 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     insertHtml: (html) => {
       call(`window.__rne && window.__rne.insertHtml(${JSON.stringify(html)})`);
     },
+    insertMention: (label, href) => {
+      call(`window.__rne && window.__rne.insertMention(${JSON.stringify(label)}, ${JSON.stringify(href)})`);
+    },
     setHtml: (next) => {
       call(`window.__rne && window.__rne.setHtml(${JSON.stringify(next)})`);
     },
@@ -275,6 +289,9 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         break;
       case 'blur':
         onBlurRef.current?.();
+        break;
+      case 'mention':
+        onMentionQueryRef.current?.(typeof data.payload === 'string' ? data.payload : null);
         break;
       case 'viewportShift': {
         const dy = typeof data.payload === 'number' ? data.payload : Number(data.payload);

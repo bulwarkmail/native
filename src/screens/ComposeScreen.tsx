@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Tag, Type, Highlighter, Trash2, Search,
+  Tag, Type, Highlighter, Trash2, Settings,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,7 +28,6 @@ import RichTextEditor, {
 } from '../components/RichTextEditor';
 import { useEmailStore } from '../stores/email-store';
 import { ownMailboxes } from '../lib/mailbox-tree';
-import { getEmailInitials } from '../lib/avatar-utils';
 import { useContactsStore, type RecipientSuggestion } from '../stores/contacts-store';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { useLayout } from '../lib/use-layout';
@@ -77,6 +76,20 @@ import { inlineImageType } from '../lib/compose-inline-type';
 import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
+import { ComposerOptionsSheet, activeComposerOptionCount, type ComposerOptions } from '../components/compose/ComposerOptionsSheet';
+import type { MessagePriority } from '../lib/message-priority';
+import { supportsSubmissionExtension } from '../lib/submission-options';
+import {
+  addMentionedRecipient, buildMentionCandidates, mentionHref, mentionSuggestions, type MentionCandidate,
+} from '../lib/recipient-mentions';
+import { MentionSuggestionList } from '../components/compose/MentionSuggestionList';
+import { RecipientChip, RecipientSuggestionList } from '../components/compose/RecipientSuggestionList';
+import { RecipientPicker } from '../components/compose/RecipientPicker';
+import { isPickerReopenTooSoon, needsRecipientPicker } from '../lib/recipient-picker';
+import { useOutboxStore } from '../stores/outbox-store';
+import { useNetworkStore } from '../stores/network-store';
+import { isTransientNetworkError } from '../lib/network-error';
+import { classifySendFailure, shouldQueueFailedSend } from '../lib/send-queue';
 import {
   assertComposerLogin, ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../lib/compose-login';
@@ -209,118 +222,6 @@ function stripEditorMarkers(html: string): string {
 
 function quoteLines(text: string): string {
   return text.split('\n').map((l) => `> ${l}`).join('\n');
-}
-
-function RecipientChip({
-  recipient, invalid, onRemove, onLongPress,
-}: {
-  recipient: Recipient;
-  invalid?: boolean;
-  onRemove: () => void;
-  onLongPress?: () => void;
-}) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const t = useLocaleStore((s) => s.t);
-  const label = recipient.group
-    ? t('email_composer.group_chip', '{name} ({count})', {
-      name: recipient.name || t('contacts.group', 'Group'),
-      count: recipient.group.members.length,
-    })
-    : recipient.name || recipient.email;
-  return (
-    <Pressable onLongPress={onLongPress} delayLongPress={350} style={[styles.chip, invalid && styles.chipInvalid]}>
-      {recipient.group && <Users size={12} color={c.textSecondary} />}
-      <Text style={[styles.chipText, invalid && styles.chipTextInvalid]} numberOfLines={1}>
-        {label}
-      </Text>
-      <Pressable
-        onPress={onRemove}
-        // A 12 px icon: the touch area reaches about 40 dp around it.
-        hitSlop={14}
-        accessibilityRole="button"
-        accessibilityLabel={t('email_composer.recipient_remove', 'Remove')}
-      >
-        <X size={12} color={invalid ? c.error : c.textMuted} />
-      </Pressable>
-    </Pressable>
-  );
-}
-
-function initialsOf(name: string, email: string): string {
-  return getEmailInitials(name.trim(), email);
-}
-
-function SuggestionList({
-  suggestions, onPick, onPressIn, onSearchServer, searchingServer,
-}: {
-  suggestions: RecipientSuggestion[];
-  onPick: (s: RecipientSuggestion) => void;
-  onPressIn?: () => void;
-  /** Search the Sent folder on the server for more (webmail: "Search the server"). */
-  onSearchServer?: () => void;
-  searchingServer?: boolean;
-}) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const t = useLocaleStore((s) => s.t);
-  return (
-    <View style={styles.suggestionBox}>
-      <ScrollView style={styles.suggestionScroll} keyboardShouldPersistTaps="always" nestedScrollEnabled>
-      {suggestions.map((s, i) => (
-        <Pressable
-          key={`${s.group?.id ?? s.email}-${i}`}
-          onPressIn={onPressIn}
-          onPress={() => onPick(s)}
-          style={({ pressed }) => [styles.suggestionRow, pressed && styles.suggestionRowPressed]}
-        >
-          <View style={styles.suggestionAvatar}>
-            {s.group
-              ? <Users size={14} color={c.primary} />
-              : <Text style={styles.suggestionAvatarText}>{initialsOf(s.name, s.email)}</Text>}
-          </View>
-          <View style={styles.suggestionText}>
-            <Text style={styles.suggestionName} numberOfLines={1}>
-              {s.name || s.email}
-            </Text>
-            {s.group ? (
-              <Text style={styles.suggestionEmail} numberOfLines={1}>
-                {t('contacts.groups.member_count', '{count, plural, =0 {No members} one {1 member} other {# members}}', { count: s.group.memberCount })}
-              </Text>
-            ) : !!s.name && (
-              <Text style={styles.suggestionEmail} numberOfLines={1}>{s.email}</Text>
-            )}
-          </View>
-        </Pressable>
-      ))}
-      {onSearchServer && (
-        <Pressable
-          onPressIn={onPressIn}
-          onPress={() => { if (!searchingServer) onSearchServer(); }}
-          disabled={searchingServer}
-          accessibilityRole="button"
-          accessibilityState={{ busy: !!searchingServer, disabled: !!searchingServer }}
-          style={({ pressed }) => [
-            styles.suggestionRow,
-            suggestions.length > 0 && styles.suggestionSearchRowDivided,
-            pressed && styles.suggestionRowPressed,
-          ]}
-        >
-          <View style={styles.suggestionSearchIcon}>
-            {searchingServer
-              ? <ActivityIndicator size="small" color={c.textSecondary} />
-              : <Search size={16} color={c.textSecondary} />}
-          </View>
-          <Text style={styles.suggestionSearchText} numberOfLines={1}>
-            {searchingServer
-              ? t('email_composer.autocomplete_searching', 'Searching...')
-              : t('email_composer.autocomplete_search_server', 'Search the server')}
-          </Text>
-        </Pressable>
-      )}
-      </ScrollView>
-    </View>
-  );
 }
 
 function AttachmentChip({
@@ -722,6 +623,27 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [activeField, setActiveField] = React.useState<Field | null>(null);
   const [attachments, setAttachments] = React.useState<AttachmentEntry[]>(initialAttachments);
   const [requestReadReceipt, setRequestReadReceipt] = React.useState(requestReadReceiptDefault);
+  // Per-message submission options and priority (webmail composer options
+  // menu): DSN and REQUIRETLS ride on the envelope, priority on the headers.
+  const [requestDsn, setRequestDsn] = React.useState(false);
+  const [requireTls, setRequireTls] = React.useState(false);
+  const initialPriority: MessagePriority = draft?.priority ?? 'normal';
+  const [priority, setPriority] = React.useState<MessagePriority>(initialPriority);
+  const [optionsSheetOpen, setOptionsSheetOpen] = React.useState(false);
+  const composerOptions = React.useMemo<ComposerOptions>(
+    () => ({ requestReadReceipt, requestDsn, requireTls, priority }),
+    [requestReadReceipt, requestDsn, requireTls, priority],
+  );
+  // Read when the sheet opens: the session may have arrived since the
+  // composer did.
+  const dsnAvailable = optionsSheetOpen && supportsSubmissionExtension('DSN');
+  const requireTlsAvailable = optionsSheetOpen && supportsSubmissionExtension('REQUIRETLS');
+  const onComposerOptionsChange = React.useCallback((next: Partial<ComposerOptions>) => {
+    if (next.requestReadReceipt !== undefined) setRequestReadReceipt(next.requestReadReceipt);
+    if (next.requestDsn !== undefined) setRequestDsn(next.requestDsn);
+    if (next.requireTls !== undefined) setRequireTls(next.requireTls);
+    if (next.priority !== undefined) setPriority(next.priority);
+  }, []);
   const [subAddressTag, setSubAddressTag] = React.useState('');
   const [fromOverride, setFromOverride] = React.useState<{ name: string; email: string } | null>(null);
   const [selState, setSelState] = React.useState<RichTextSelectionState>({
@@ -738,7 +660,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }), [t]);
   // The label column grows with the system font size: at 1.3 "Betreff"
   // wrapped into "Betref" / "f" in a fixed 56 dp column.
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, height: windowHeight } = useWindowDimensions();
   const fieldLabelWidth = React.useMemo(() => ({ width: Math.round(56 * Math.max(1, fontScale)) }), [fontScale]);
   const subjectRef = React.useRef<TextInput>(null);
   const plainBodyRef = React.useRef<TextInput>(null);
@@ -795,7 +717,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const inputFor = (field: Field | null) =>
     field === 'to' ? toInput : field === 'cc' ? ccInput : field === 'bcc' ? bccInput : '';
-  const suggestionQuery = inputFor(activeField);
+  // The full-screen recipient picker (U-069) for a field whose inline
+  // suggestions would have no room; it owns the suggestions while open.
+  const [pickerField, setPickerField] = React.useState<Field | null>(null);
+  const pickerClosedAtRef = React.useRef<number | null>(null);
+  // The bottom edge of each address row in window coordinates, measured
+  // while it has the focus, to tell whether the list fits under it.
+  const fieldRowRefs = React.useRef<Partial<Record<Field, View | null>>>({});
+  const [activeFieldBottom, setActiveFieldBottom] = React.useState<number | null>(null);
+  const suggestField = pickerField ?? activeField;
+  const suggestionQuery = inputFor(suggestField);
   const alreadySelected = React.useMemo(
     () => new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
@@ -841,7 +772,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const pickSuggestion = (s: RecipientSuggestion) => {
     isPickingSuggestion.current = true;
-    const field = activeField ?? 'to';
+    const field = suggestField ?? 'to';
     let recipient: Recipient;
     if (s.group) {
       const members = getGroupRecipients(s.group.id)
@@ -1062,6 +993,47 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return identities.find((i) => i.id === selectedIdentityId) ?? defaultIdentity;
   }, [identities, selectedIdentityId]);
 
+  // ── "@" mentions in the body (webmail #1134) ──────────────────────────
+  // What follows the "@" being typed in the editor, null when none is.
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+  // Who an "@" offers: To and Cc. Never Bcc - naming a blind-copied
+  // recipient in the text would disclose them to everyone else.
+  const mentionCandidates = React.useMemo(
+    () => buildMentionCandidates(toRecipients, ccRecipients),
+    [toRecipients, ccRecipients],
+  );
+  // Contacts come after the recipients; anyone already on the message is
+  // left out, Bcc and the identity's own Bcc included.
+  const mentionItems = React.useMemo<MentionCandidate[]>(() => {
+    if (mentionQuery === null) return [];
+    const onMessage = new Set(
+      [...toRecipients, ...ccRecipients, ...bccRecipients]
+        .flatMap((r) => (r.group ? r.group.members.map((m) => m.email) : [r.email]))
+        .concat((primaryIdentity?.bcc ?? []).map((r) => r.email))
+        .map((e) => e.trim().toLowerCase()),
+    );
+    const contacts = mentionQuery
+      ? getAutocomplete(mentionQuery, 16)
+        .filter((s) => !s.group && !!s.email && !onMessage.has(s.email.trim().toLowerCase()))
+        .map((s) => ({ name: s.name || undefined, email: s.email }))
+      : [];
+    return mentionSuggestions(mentionCandidates, contacts, mentionQuery, 'to');
+    // contactsVersion/recentVersion re-run the lookup when the store loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mentionQuery, mentionCandidates, toRecipients, ccRecipients, bccRecipients, primaryIdentity, getAutocomplete, contactsVersion, recentVersion]);
+  const pickMention = (candidate: MentionCandidate) => {
+    editorRef.current?.insertMention(candidate.label, mentionHref(candidate.email));
+    // A contact who isn't on the message yet joins To (webmail default).
+    if (candidate.addsTo === 'cc') {
+      setCcRecipients((prev) => addMentionedRecipient(prev, candidate, (c) => ({ name: c.name ?? '', email: c.email })));
+      setCcVisible(true);
+    } else if (candidate.addsTo) {
+      setToRecipients((prev) => addMentionedRecipient(prev, candidate, (c) => ({ name: c.name ?? '', email: c.email })));
+    }
+    setMentionQuery(null);
+  };
+
+
   // Set once the user picks From by hand: their pick then brings its own
   // signature, also when it has none (webmail identityPickedByUser).
   const [identityPickedByUser, setIdentityPickedByUser] = React.useState(false);
@@ -1187,6 +1159,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const snapshotOf = (s: {
     to: Recipient[]; cc: Recipient[]; bcc: Recipient[]; subject: string; body: string;
     attachments: AttachmentEntry[];
+    /** A priority change alone is an edit worth saving (webmail #970). */
+    priority?: MessagePriority;
   }) => JSON.stringify({
     to: s.to.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
     cc: s.cc.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
@@ -1194,18 +1168,20 @@ export default function ComposeScreen({ route, navigation }: Props) {
     subject: s.subject,
     body: s.body,
     att: s.attachments.filter((a) => !a.inline).map((a) => a.blobId ?? a.localId),
+    pri: s.priority ?? 'normal',
   });
 
   // Memoized: the snapshot copies the whole body, and the screen re-renders
   // for plenty that doesn't touch it (PF8).
   const currentSnapshot = React.useMemo(() => snapshotOf({
     to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-    body: plainTextMode ? plainBody : bodyHtml, attachments,
+    body: plainTextMode ? plainBody : bodyHtml, attachments, priority,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments]);
+  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority]);
   const baselineRef = React.useRef(snapshotOf({
     to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
     body: plainTextMode ? initialPlainBody : initialBodyHtml, attachments: initialAttachments,
+    priority: initialPriority,
   }));
   // Snapshot at the last successful draft save (null = never saved).
   const lastSavedRef = React.useRef<string | null>(draft ? baselineRef.current : null);
@@ -1464,9 +1440,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       references: threading?.references,
       messageId: messageIdRef.current,
       requestReadReceipt,
+      priority: priority !== 'normal' ? priority : undefined,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, t]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -1485,7 +1462,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? plainBody : html, attachments,
+      body: plainTextMode ? plainBody : html, attachments, priority,
     });
     if (snapshot === lastSavedRef.current) return draftIdRef.current;
     if (snapshot === baselineRef.current && !draftIdRef.current) return null;
@@ -1682,7 +1659,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? latestRef.current.plainBody : html, attachments,
+      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority,
     });
     return snapshot === lastSavedRef.current;
   };
@@ -2542,9 +2519,48 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // notification tap to switch logins.
     if (refuseSendAfterSwitch()) return;
 
+    // Offline, or the connection fails on the way: the message waits in the
+    // Outbox and goes out once the app is back online (parity 04/09/10
+    // "offline send"). The Outbox takes over the autosaved draft, which it
+    // removes once the message is sent.
+    let queuedOutgoing: OutgoingEmail | null = null;
+    const queueForLater = (outgoing: OutgoingEmail, maybeSent: boolean): boolean => {
+      if (!primaryIdentity || !sentMailbox || loginMoved()) return false;
+      const outbox = useOutboxStore.getState();
+      // Only into the queue of the login the message was written in.
+      if (outbox.activeAccountId !== ownerLoginRef.current) return false;
+      const queuedId = outbox.enqueueSend({
+        outgoing,
+        identity: primaryIdentity,
+        fromEmail: outgoing.from[0]?.email ?? primaryIdentity.email,
+        sentMailboxId: sentMailbox.id,
+        draftsMailboxId: draftsMailbox?.id,
+        draftId: draftIdRef.current ?? undefined,
+        draftAccountId: draftIdRef.current ? draftAccount() : undefined,
+        requestDsn,
+        requireTls,
+        scheduledAt: scheduledAt?.toISOString(),
+        original: replyTo?.originalEmailId
+          ? { emailId: replyTo.originalEmailId, accountId: replyTo.jmapAccountId, keyword: mode === 'forward' ? '$forwarded' : '$answered' }
+          : undefined,
+      }, { maybeSent });
+      if (!queuedId) return false;
+      draftIdRef.current = null;
+      lastSavedRef.current = null;
+      toast.info(
+        t('outbox.queued_title', 'Saved to the Outbox'),
+        { message: t('outbox.queued_body', 'It goes out as soon as you are back online.') },
+      );
+      allowLeaveRef.current = true;
+      navigation.goBack();
+      return true;
+    };
+
     setSending(true);
     try {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
+      queuedOutgoing = outgoing;
+      if (!useNetworkStore.getState().online && queueForLater(outgoing, false)) return;
       // The account the submission is held in, for Undo (read before the
       // request: a switch may land while it is out).
       // A group or shared identity sends from its own account, and its Sent
@@ -2562,6 +2578,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
           draftId: draftIdRef.current ?? undefined,
           draftAccountId: draftIdRef.current ? draftAccount() : undefined,
           accountId: target.accountId,
+          // Only what the submitting account offers (webmail: the menu
+          // hides the toggles the account's submission extensions lack).
+          requestDsn: requestDsn && supportsSubmissionExtension('DSN', target.accountId),
+          requireTls: requireTls && supportsSubmissionExtension('REQUIRETLS', target.accountId),
         },
       );
       draftIdRef.current = null;
@@ -2631,6 +2651,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       allowLeaveRef.current = true;
       navigation.goBack();
     } catch (e) {
+      // The connection failed: the request may have got through, so the
+      // Outbox looks for the message before it sends it again.
+      if (queuedOutgoing && shouldQueueFailedSend(classifySendFailure(e, isTransientNetworkError))
+        && queueForLater(queuedOutgoing, true)) {
+        return;
+      }
       if (e instanceof RequestTimeoutError) {
         // The request may have reached the server; a blind retry would send
         // the message twice (#702).
@@ -2690,13 +2716,68 @@ export default function ComposeScreen({ route, navigation }: Props) {
     : draftStatus === 'failed' ? t('email_composer.save_failed', 'Failed to save')
     : '';
 
+  // Typing in an address field, inline or in the picker. A separator ends
+  // the entry: commit immediately so a pasted list turns into chips as it
+  // lands.
+  const changeFieldInput = (field: Field, text: string) => {
+    const setInput = inputSetterFor(field);
+    setInput(text);
+    if (/[,;\n]$/.test(text) && text.trim().length > 1) {
+      const { valid, invalid } = splitPastedRecipients(text, Array.from(alreadySelected));
+      if (valid.length) {
+        setterFor(field)((prev) => [...prev, ...valid.map(fromParsed)]);
+        setInput(invalid.join(' '));
+      }
+    }
+  };
+
+  const measureFieldRow = (field: Field) => {
+    fieldRowRefs.current[field]?.measureInWindow((_x, y, _w, h) => {
+      if (Number.isFinite(y) && Number.isFinite(h)) setActiveFieldBottom(y + h);
+    });
+  };
+
+  const openRecipientPicker = (field: Field) => {
+    if (pickerField) return;
+    if (isPickerReopenTooSoon(pickerClosedAtRef.current, Date.now())) return;
+    // The picker takes over the field; the inline blur must not commit
+    // half-typed text behind it.
+    isPickingSuggestion.current = true;
+    setPickerField(field);
+  };
+
+  const closeRecipientPicker = () => {
+    const field = pickerField;
+    if (!field) return;
+    if (inputFor(field).trim()) addTyped(field);
+    pickerClosedAtRef.current = Date.now();
+    isPickingSuggestion.current = false;
+    setPickerField(null);
+    setActiveField(null);
+  };
+
+  // Typing inline where the list has no room under the field (a small
+  // split-screen window) hands over to the picker too.
+  React.useEffect(() => {
+    if (!activeField || pickerField) return;
+    if (!inputFor(activeField).trim() || suggestions.length === 0) return;
+    if (needsRecipientPicker({
+      shortHeight: false, windowHeight, keyboardObstruction: kbObstruction, fieldBottom: activeFieldBottom,
+    })) {
+      openRecipientPicker(activeField);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeField, pickerField, suggestions.length, windowHeight, kbObstruction, activeFieldBottom]);
+
   const renderRecipientField = (field: Field, label: string, placeholder: string, zIndex: number) => {
     const list = field === 'to' ? toRecipients : field === 'cc' ? ccRecipients : bccRecipients;
     const input = inputFor(field);
-    const setInput = inputSetterFor(field);
     const invalidInput = typedRecipients[field].invalid.length > 0 && !typedRecipients[field].valid.length && input.trim().length > 0 && activeField !== field;
     return (
-      <View style={[styles.fieldRow, { zIndex }]}>
+      <View
+        style={[styles.fieldRow, { zIndex }]}
+        ref={(view) => { fieldRowRefs.current[field] = view; }}
+      >
         <Text style={[styles.fieldLabel, fieldLabelWidth]} numberOfLines={1}>{label}</Text>
         <View style={styles.recipientField}>
           {list.map((r, i) => (
@@ -2718,18 +2799,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
             placeholderTextColor={c.textMuted}
             value={input}
             onChangeText={(text) => {
-              // A separator ends the entry: commit immediately so a pasted
-              // list turns into chips as it lands.
-              setInput(text);
-              if (/[,;\n]$/.test(text) && text.trim().length > 1) {
-                const { valid, invalid } = splitPastedRecipients(text, Array.from(alreadySelected));
-                if (valid.length) {
-                  setterFor(field)((prev) => [...prev, ...valid.map(fromParsed)]);
-                  setInput(invalid.join(' '));
-                }
+              changeFieldInput(field, text);
+              measureFieldRow(field);
+            }}
+            onFocus={() => {
+              setActiveField(field);
+              // A phone in landscape: no room for suggestions above the
+              // keyboard, so the full-screen picker takes the typing (U-069).
+              if (needsRecipientPicker({ shortHeight, windowHeight, keyboardObstruction: kbObstruction, fieldBottom: null })) {
+                openRecipientPicker(field);
+              } else {
+                measureFieldRow(field);
               }
             }}
-            onFocus={() => setActiveField(field)}
             onBlur={() => {
               setTimeout(() => {
                 if (!isPickingSuggestion.current) {
@@ -2757,8 +2839,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
             textContentType="none"
           />
         </View>
-        {activeField === field && (suggestions.length > 0 || (canSearchServer && !!input.trim())) && (
-          <SuggestionList
+        {activeField === field && !pickerField && (suggestions.length > 0 || (canSearchServer && !!input.trim())) && (
+          <RecipientSuggestionList
             suggestions={suggestions}
             onPick={pickSuggestion}
             onPressIn={() => {
@@ -2967,6 +3049,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
               onViewportShift={onEditorViewportShift}
+              mentions
+              onMentionQuery={setMentionQuery}
             />
           )}
           {/* The empty space under the body looks like part of it (on a
@@ -2980,6 +3064,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
             }}
           />
         </ScrollView>
+
+        {!plainTextMode && (
+          <MentionSuggestionList items={mentionItems} onPick={pickMention} shortWindow={typingInShortWindow} />
+        )}
 
         {/* A phone in landscape with the keyboard up has room for a few lines
             of text only; the format bar comes back with the keyboard down. */}
@@ -2997,6 +3085,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
               label={t('email_composer.read_receipt_off', 'Request a read receipt')}
               icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
+            <ToolbarButton active={activeComposerOptionCount(composerOptions) > 0} onPress={() => setOptionsSheetOpen(true)}
+              label={t('email_composer.options', 'Options')}
+              icon={<Settings size={18} color={activeComposerOptionCount(composerOptions) > 0 ? c.primary : c.textSecondary} />} />
             <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
               label={plainTextMode
                 ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
@@ -3479,6 +3570,38 @@ export default function ComposeScreen({ route, navigation }: Props) {
         </View>
       </Modal>
 
+      {pickerField && (
+        <RecipientPicker
+          visible
+          label={pickerField === 'to' ? t('email_composer.to', 'To') : pickerField === 'cc' ? t('email_composer.cc', 'Cc') : t('email_composer.bcc', 'Bcc')}
+          placeholder={pickerField === 'to'
+            ? t('email_composer.to_placeholder', 'Recipient email addresses')
+            : pickerField === 'cc'
+              ? t('email_composer.cc_placeholder', 'Cc recipients')
+              : t('email_composer.bcc_placeholder', 'Bcc recipients')}
+          recipients={pickerField === 'to' ? toRecipients : pickerField === 'cc' ? ccRecipients : bccRecipients}
+          isValid={chipIsValid}
+          input={inputFor(pickerField)}
+          onChangeInput={(text) => changeFieldInput(pickerField, text)}
+          onSubmitInput={() => addTyped(pickerField)}
+          suggestions={suggestions}
+          onPick={pickSuggestion}
+          onSearchServer={canSearchServer ? () => { void searchServer(); } : undefined}
+          searchingServer={searchingServer}
+          onRemove={(index) => removeChip(pickerField, index)}
+          onDone={closeRecipientPicker}
+        />
+      )}
+
+      <ComposerOptionsSheet
+        visible={optionsSheetOpen}
+        options={composerOptions}
+        dsnAvailable={dsnAvailable}
+        requireTlsAvailable={requireTlsAvailable}
+        onChange={onComposerOptionsChange}
+        onClose={() => setOptionsSheetOpen(false)}
+      />
+
       <FilesPickerSheet
         visible={filesPickerOpen}
         mode="files"
@@ -3597,19 +3720,6 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.xs,
     paddingVertical: 4,
   },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.full,
-    backgroundColor: c.surfaceActive,
-    maxWidth: 220,
-  },
-  chipInvalid: { backgroundColor: c.errorBg, borderWidth: 1, borderColor: c.error },
-  chipText: { ...typography.caption, color: c.text, flexShrink: 1 },
-  chipTextInvalid: { color: c.error },
   recipientInput: {
     flexGrow: 1,
     minWidth: 100,
@@ -3618,42 +3728,6 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: 6,
   },
   recipientInputInvalid: { color: c.error },
-  suggestionBox: {
-    position: 'absolute',
-    top: '100%',
-    left: spacing.lg + 56 + spacing.md,
-    right: spacing.lg,
-    borderWidth: 1,
-    borderColor: c.borderLight,
-    borderRadius: radius.sm,
-    backgroundColor: c.card,
-    zIndex: 20,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-  },
-  suggestionRowPressed: { backgroundColor: c.surfaceHover },
-  suggestionScroll: { maxHeight: 320 },
-  suggestionSearchRowDivided: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.borderLight },
-  suggestionSearchIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  suggestionSearchText: { ...typography.body, color: c.textSecondary, flex: 1 },
-  suggestionAvatar: {
-    width: 32, height: 32,
-    borderRadius: 16,
-    backgroundColor: c.primaryBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  suggestionAvatarText: { ...typography.captionMedium, color: c.primary },
-  suggestionText: { flex: 1 },
-  suggestionName: { ...typography.bodyMedium, color: c.text },
-  suggestionEmail: { ...typography.caption, color: c.textSecondary },
   ccToggle: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,

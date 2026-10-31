@@ -922,6 +922,28 @@
     "personal_in_account": "Your templates are kept in your account, so you have them on every device you sign in on. Anyone you share your Inbox with can read them.",
     "section_personal": "My templates"
   },
+  "outbox": {
+    "discard": "Discard",
+    "discard_body": "It will not be sent, and its text is lost.",
+    "discard_title": "Discard this message?",
+    "failed_count": "{count, plural, one {# message} other {# messages}} not sent",
+    "move_failed_body": "The message stays in the Outbox. Try again when the connection is back.",
+    "move_failed_title": "Could not move to Drafts",
+    "move_to_drafts": "Move to Drafts",
+    "open_hint": "Opens the Outbox",
+    "queued_body": "It goes out as soon as you are back online.",
+    "queued_title": "Saved to the Outbox",
+    "retry": "Try again",
+    "send_failed": "A message in the Outbox could not be sent",
+    "sent": "Message from the Outbox sent",
+    "status_failed": "Not sent",
+    "status_failed_reason": "Not sent: {reason}",
+    "status_offline": "Waiting for a connection",
+    "status_retrying": "Waiting to send",
+    "status_sending": "Sending…",
+    "title": "Outbox",
+    "waiting": "{count, plural, one {# message} other {# messages}} in the Outbox"
+  },
   "push": {
     "ios": {
       "more_messages": "and {count} more",

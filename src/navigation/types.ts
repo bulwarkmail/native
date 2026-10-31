@@ -1,4 +1,5 @@
 import type { Attachment, EmailAddress } from '../api/types';
+import type { MessagePriority } from '../lib/message-priority';
 
 /** The message a reply / forward / draft edit starts from. */
 export interface ComposeReplyContext {
@@ -47,6 +48,8 @@ export interface ComposeDraftContext {
   messageId?: string[] | null;
   inReplyTo?: string[] | null;
   references?: string[] | null;
+  /** Read back from the draft's X-Priority / Importance headers (webmail #970). */
+  priority?: MessagePriority;
 }
 
 export type RootStackParamList = {

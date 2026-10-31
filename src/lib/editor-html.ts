@@ -101,6 +101,31 @@ export const FOCUS_END_SOURCE = `function focusEnd(editor) {
   }`;
 
 /**
+ * Page-script function for "@" mentions (webmail #1134): given the text of
+ * the caret's text node up to the caret, where the "@" being typed starts
+ * and what follows it, or null. Like the webmail's suggestion it only
+ * starts at the beginning of a word, so info@example.com never triggers,
+ * and the query ends at the first space. A string, embedded in the page
+ * script and run by the unit test. No regex: see the template-cooking
+ * warning at the top.
+ */
+export const MENTION_QUERY_SOURCE = `function mentionQueryIn(text) {
+    var at = text.lastIndexOf('@');
+    if (at < 0) return null;
+    if (at > 0) {
+      var before = text.charCodeAt(at - 1);
+      if (before !== 32 && before !== 160) return null;
+    }
+    var query = text.slice(at + 1);
+    if (query.length > 64) return null;
+    for (var i = 0; i < query.length; i++) {
+      var code = query.charCodeAt(i);
+      if (code === 32 || code === 160 || code === 10 || code === 9 || code === 64) return null;
+    }
+    return { at: at, query: query };
+  }`;
+
+/**
  * Whether the editor WebView may load `url`: only its initial about:blank
  * document (`source={{ html }}` loads as about:blank on both platforms, as
  * in the reader). Every other URL, `about:srcdoc` and `data:` included, is
@@ -150,8 +175,14 @@ export function buildEditorHtml(opts: {
   collapseQuote?: boolean;
   /** The toggle's accessible names. */
   quoteToggleLabels?: { show: string; hide: string };
+  /**
+   * Report an "@" being typed at the start of a word as `mention` messages
+   * (the query, or null once it ends) and accept `insertMention` (webmail
+   * recipient mentions, #1134). Off for editors that aren't a message.
+   */
+  mentions?: boolean;
 }): string {
-  const { initialHtml, placeholder, c, blockRemoteImages = false, pinVisualViewport = false, collapseQuote = false } = opts;
+  const { initialHtml, placeholder, c, blockRemoteImages = false, pinVisualViewport = false, collapseQuote = false, mentions = false } = opts;
   const quoteLabels = opts.quoteToggleLabels ?? { show: 'Show quoted text', hide: 'Hide quoted text' };
   // Inject initial content as a JSON-encoded string so any HTML/quotes inside
   // are safely embedded (no template literal collision with the script body,
@@ -202,6 +233,7 @@ export function buildEditorHtml(opts: {
     color: ${c.textSecondary};
   }
   #editor a { color: ${c.primary}; text-decoration: underline; }
+  #editor a.mention { text-decoration: none; font-weight: 600; }
   #editor img { max-width: 100%; height: auto; border-radius: 4px; }
   #editor pre, #editor code {
     background: ${c.surfaceActive};
@@ -417,12 +449,46 @@ export function buildEditorHtml(opts: {
     setQuoteCollapsed(true);
   }
 
+  // ── "@" mentions ───────────────────────────────────────────────────
+  var MENTIONS = ${mentions ? 'true' : 'false'};
+  var lastMention = null;
+  ${MENTION_QUERY_SOURCE}
+
+  // The "@..." being typed at the caret: its text node and range, or null.
+  // Never inside a link (a mention already made) or code.
+  function currentMention() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+    var node = sel.anchorNode;
+    if (!node || node.nodeType !== 3) return null;
+    var parent = node.parentNode;
+    while (parent && parent !== editor) {
+      if (parent.nodeType === 1 && (parent.tagName === 'A' || parent.tagName === 'CODE' || parent.tagName === 'PRE')) return null;
+      parent = parent.parentNode;
+    }
+    if (parent !== editor) return null;
+    var hit = mentionQueryIn(node.data.slice(0, sel.anchorOffset));
+    if (!hit) return null;
+    return { node: node, start: hit.at, end: sel.anchorOffset, query: hit.query };
+  }
+
+  function reportMention(force) {
+    if (!MENTIONS) return;
+    var m = force === null ? null : currentMention();
+    var query = m ? m.query : null;
+    if (query === lastMention) return;
+    lastMention = query;
+    post('mention', query);
+  }
+
   editor.addEventListener('input', function () {
     scheduleChange();
     reportHeight();
+    reportMention();
   });
   editor.addEventListener('blur', function () {
     flushChange();
+    reportMention(null);
     post('blur', null);
   });
   editor.addEventListener('focus', function () { post('focus', null); });
@@ -430,6 +496,7 @@ export function buildEditorHtml(opts: {
     if (document.activeElement === editor) {
       revealQuoteAtCaret();
       reportSelection();
+      reportMention();
     }
   });
 
@@ -541,6 +608,37 @@ export function buildEditorHtml(opts: {
     },
     focus: function () { editor.focus(); },
     focusEnd: function () { focusEnd(editor); },
+    // Replace the "@..." being typed with a mention link and a space, the
+    // caret after it (webmail insertMention). The label and href go in as
+    // text and attribute, never as markup: a label comes from a display
+    // name, which a reply-all takes from the incoming message.
+    insertMention: function (label, href) {
+      if (!MENTIONS) return;
+      var m = currentMention();
+      if (!m) return;
+      var range = document.createRange();
+      range.setStart(m.node, m.start);
+      range.setEnd(m.node, m.end);
+      range.deleteContents();
+      var link = document.createElement('a');
+      link.setAttribute('href', href);
+      link.setAttribute('class', 'mention');
+      link.textContent = '@' + label;
+      var space = document.createTextNode(String.fromCharCode(160));
+      range.insertNode(space);
+      range.insertNode(link);
+      var sel = window.getSelection();
+      var caret = document.createRange();
+      caret.setStartAfter(space);
+      caret.collapse(true);
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(caret);
+      }
+      reportChange();
+      reportHeight();
+      reportMention();
+    },
     // The description of the inline image with this cid; "" is decorative.
     setImageAlt: function (cid, alt) {
       var images = editor.getElementsByTagName('img');

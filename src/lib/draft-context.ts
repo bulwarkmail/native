@@ -3,6 +3,7 @@
 
 import type { Email } from '../api/types';
 import type { ComposeDraftContext } from '../navigation/types';
+import { messagePriorityFromHeaders } from './message-priority';
 
 /**
  * Pick the draft's bodies by MIME type. A plain-text-only message lists its
@@ -37,6 +38,8 @@ export function draftContextFromEmail(email: Email, jmapAccountId?: string): Com
     messageId: email.messageId ?? undefined,
     inReplyTo: email.inReplyTo ?? undefined,
     references: email.references ?? undefined,
+    // Read back from the headers it was saved with (webmail #970).
+    priority: messagePriorityFromHeaders(email.headers),
   };
 }
 

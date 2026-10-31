@@ -19,6 +19,11 @@
 // replayed by flush() once connectivity returns, and not before the auth store
 // has resumed the account (see `resumed`). Storage is keyed per account,
 // mirroring offline-cache-store, so queues never leak between logins.
+//
+// Messages sent while offline wait here too (`sends`, see lib/send-queue.ts):
+// the same flush sends them after the mutation ops, once each, looking for
+// a copy of the message first whenever an earlier attempt may have got
+// through.
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,9 +37,14 @@ import {
 } from '../api/email';
 import type { KeywordPatch } from '../lib/keyword-patch';
 import type { ArchiveMode } from './settings-store';
+import {
+  afterFailure, canCancel, classifySendFailure, newQueuedSend, restoreAfterRestart, startAttempt,
+  type QueuedSend, type QueuedSendPayload,
+} from '../lib/send-queue';
 
 const KEY_PREFIX = 'webmail:outbox:v1:';
 const FAILED_SUFFIX = ':failed';
+const SENDS_SUFFIX = ':sends';
 // Give up on an op that the server keeps rejecting (a non-transient failure)
 // after this many attempts so one poison entry can't wedge the whole queue.
 const MAX_ATTEMPTS = 5;
@@ -86,6 +96,12 @@ interface OutboxState {
    * op lands here so the optimistic edit is reverted.
    */
   failed: OutboxEntry[];
+  /**
+   * Messages sent while offline, oldest first: waiting, on their way, or
+   * failed (kept until the user retries, moves them to Drafts or discards
+   * them).
+   */
+  sends: QueuedSend[];
   hydrated: boolean;
   flushing: boolean;
   /** Set after an authentication failure; cleared by setAccount()/resume(). */
@@ -120,6 +136,20 @@ interface OutboxState {
   flush: () => Promise<void>;
   /** Move every failed op back into the queue and flush. */
   retryFailed: () => Promise<void>;
+  /**
+   * Queue a message to send once online. `maybeSent`: an attempt already
+   * went out without an answer. Returns the entry id, or null with no
+   * account attached.
+   */
+  enqueueSend: (payload: QueuedSendPayload, opts?: { maybeSent?: boolean }) => string | null;
+  /** Try a failed message again. */
+  retrySend: (id: string) => Promise<void>;
+  /**
+   * Take a message out of the queue, not while it is on its way. With
+   * `keepAsDraft` it is saved to Drafts first (needs the server); it stays
+   * queued, as failed, when that fails. Resolves to whether it went.
+   */
+  cancelSend: (id: string, opts?: { keepAsDraft?: boolean }) => Promise<boolean>;
   discardFailed: () => void;
   clear: () => Promise<void>;
   /**
@@ -134,6 +164,23 @@ function persist(accountId: string, entries: OutboxEntry[]): void {
   void AsyncStorage.setItem(storageKey(accountId), JSON.stringify(entries)).catch((err) => {
     console.warn('[outbox] persist failed', err);
   });
+}
+
+function persistSends(accountId: string, sends: QueuedSend[]): void {
+  void AsyncStorage.setItem(storageKey(accountId) + SENDS_SUFFIX, JSON.stringify(sends)).catch((err) => {
+    console.warn('[outbox] persist sends failed', err);
+  });
+}
+
+async function loadSends(accountId: string): Promise<QueuedSend[]> {
+  try {
+    const raw = await AsyncStorage.getItem(storageKey(accountId) + SENDS_SUFFIX);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? restoreAfterRestart(parsed as QueuedSend[]) : [];
+  } catch (err) {
+    console.warn('[outbox] hydrate sends failed', err);
+    return [];
+  }
 }
 
 function persistFailed(accountId: string, failed: OutboxEntry[]): void {
@@ -264,7 +311,9 @@ function loadBucket(accountId: string): Promise<void> {
   }
   const epoch = ++loadEpoch;
   const promise = (async () => {
-    const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
+    const [entries, failed, sends] = await Promise.all([
+      load(accountId), load(accountId, FAILED_SUFFIX), loadSends(accountId),
+    ]);
     const store = useOutboxStore.getState();
     if (epoch !== loadEpoch || store.activeAccountId !== accountId) return;
     // Ops the user made while the bucket was loading go after the stored
@@ -272,8 +321,11 @@ function loadBucket(accountId: string): Promise<void> {
     // replaced it with only the new ops.
     const early = store.entries;
     const merged = early.length > 0 ? [...entries, ...early] : entries;
-    useOutboxStore.setState({ entries: merged, failed, hydrated: true });
+    const earlySends = store.sends;
+    const mergedSends = earlySends.length > 0 ? [...sends, ...earlySends] : sends;
+    useOutboxStore.setState({ entries: merged, failed, sends: mergedSends, hydrated: true });
     if (early.length > 0) persist(accountId, merged);
+    if (earlySends.length > 0) persistSends(accountId, mergedSends);
   })().finally(() => {
     if (bucketLoad?.promise === promise) bucketLoad = null;
   });
@@ -285,6 +337,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   activeAccountId: null,
   entries: [],
   failed: [],
+  sends: [],
   hydrated: false,
   flushing: false,
   paused: false,
@@ -301,7 +354,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     retryAttempt = 0;
     // Each attach reads the bucket afresh; a read from before is dropped.
     loadEpoch += 1;
-    set({ activeAccountId: accountId, entries: [], failed: [], hydrated: false, paused: false, resumed: false });
+    set({ activeAccountId: accountId, entries: [], failed: [], sends: [], hydrated: false, paused: false, resumed: false });
     if (accountId) {
       await loadBucket(accountId);
     } else {
@@ -386,7 +439,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (get().flushing || get().paused || !get().resumed || !get().hydrated) return;
     const accountId = get().activeAccountId;
     if (!accountId) return;
-    if (get().entries.length === 0) return;
+    if (get().entries.length === 0 && !hasWaitingSends()) return;
     // Need a live client that's actually serving this account, and a network.
     if (!clientServes(accountId)) return;
     if (!useNetworkStore.getState().online) return;
@@ -446,10 +499,16 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
           }
         }
       }
+      // Queued messages go after the mutation ops, and only while the
+      // connection holds.
+      if (!brokeTransient && !get().paused && hasWaitingSends()) {
+        const result = await flushSends(accountId);
+        if (result === 'transient') brokeTransient = true;
+      }
     } finally {
       set({ flushing: false });
     }
-    if (brokeTransient && get().entries.length > 0) scheduleRetry();
+    if (brokeTransient && (get().entries.length > 0 || hasWaitingSends())) scheduleRetry();
     else if (changedInFlight) void get().flush();
     if (dropped) void refreshAfterDrop();
   },
@@ -469,6 +528,56 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     await get().flush();
   },
 
+  enqueueSend: (payload, opts) => {
+    const accountId = get().activeAccountId;
+    if (!accountId) {
+      console.warn('[outbox] enqueueSend with no active account');
+      return null;
+    }
+    const send = newQueuedSend(generateUUID(), payload, Date.now(), !!opts?.maybeSent);
+    const sends = [...get().sends, send];
+    set({ sends });
+    persistSends(accountId, sends);
+    void get().flush();
+    return send.id;
+  },
+
+  retrySend: async (id) => {
+    const accountId = get().activeAccountId;
+    const send = get().sends.find((s) => s.id === id);
+    if (!accountId || !send || send.status !== 'failed') return;
+    // The attempts start over; an unconfirmed one keeps its mark, so the
+    // message is looked for first.
+    updateSend(accountId, { ...send, status: 'queued', attempts: 0, lastError: undefined });
+    set({ paused: false });
+    await get().flush();
+  },
+
+  cancelSend: async (id, opts) => {
+    const accountId = get().activeAccountId;
+    const send = get().sends.find((s) => s.id === id);
+    if (!accountId || !send || !canCancel(send)) return false;
+    // Out of the queue first, so a flush can't send it while it is saved.
+    removeSend(accountId, id);
+    if (!opts?.keepAsDraft) return true;
+    const p = send.payload;
+    try {
+      if (!p.draftsMailboxId) throw new Error('No Drafts folder');
+      const { saveDraftVersion } = await import('../api/email');
+      await saveDraftVersion(p.outgoing, p.draftsMailboxId, p.draftId, undefined, p.draftAccountId);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (get().activeAccountId === accountId) {
+        const sends = [...get().sends, { ...send, status: 'failed' as const, lastError: message }]
+          .sort((a, b) => a.createdAt - b.createdAt);
+        set({ sends });
+        persistSends(accountId, sends);
+      }
+      return false;
+    }
+  },
+
   discardFailed: () => {
     const accountId = get().activeAccountId;
     set({ failed: [] });
@@ -478,29 +587,33 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   clear: async () => {
     const accountId = get().activeAccountId;
     clearRetry();
-    set({ entries: [], failed: [] });
+    set({ entries: [], failed: [], sends: [] });
     if (accountId) {
       await AsyncStorage.removeItem(storageKey(accountId)).catch(() => undefined);
       await AsyncStorage.removeItem(storageKey(accountId) + FAILED_SUFFIX).catch(() => undefined);
+      await AsyncStorage.removeItem(storageKey(accountId) + SENDS_SUFFIX).catch(() => undefined);
     }
   },
 
   clearAccount: async (accountId) => {
     const state = get();
     const loaded = state.activeAccountId === accountId && state.hydrated;
-    let dropped = loaded ? state.entries.length + state.failed.length : 0;
+    let dropped = loaded ? state.entries.length + state.failed.length + state.sends.length : 0;
     if (state.activeAccountId === accountId) {
       clearRetry();
       // A read of the bucket still under way must not bring the ops back.
       loadEpoch += 1;
-      set({ entries: [], failed: [], hydrated: true });
+      set({ entries: [], failed: [], sends: [], hydrated: true });
     }
     if (!loaded) {
-      const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
-      dropped = entries.length + failed.length;
+      const [entries, failed, sends] = await Promise.all([
+        load(accountId), load(accountId, FAILED_SUFFIX), loadSends(accountId),
+      ]);
+      dropped = entries.length + failed.length + sends.length;
     }
     await AsyncStorage.removeItem(storageKey(accountId)).catch(() => undefined);
     await AsyncStorage.removeItem(storageKey(accountId) + FAILED_SUFFIX).catch(() => undefined);
+    await AsyncStorage.removeItem(storageKey(accountId) + SENDS_SUFFIX).catch(() => undefined);
     return dropped;
   },
 }));
@@ -521,6 +634,111 @@ function removeEntry(accountId: string, id: string, sent?: OutboxOp): boolean {
   useOutboxStore.setState({ entries });
   persist(accountId, entries);
   return true;
+}
+
+// ── Queued messages ─────────────────────────────────────────────────────────
+
+function hasWaitingSends(): boolean {
+  return useOutboxStore.getState().sends.some((s) => s.status === 'queued');
+}
+
+function updateSend(accountId: string, next: QueuedSend): void {
+  const store = useOutboxStore.getState();
+  if (store.activeAccountId !== accountId) return;
+  if (!store.sends.some((s) => s.id === next.id)) return;
+  const sends = store.sends.map((s) => (s.id === next.id ? next : s));
+  useOutboxStore.setState({ sends });
+  persistSends(accountId, sends);
+}
+
+function removeSend(accountId: string, id: string): void {
+  const store = useOutboxStore.getState();
+  if (store.activeAccountId !== accountId) return;
+  const sends = store.sends.filter((s) => s.id !== id);
+  useOutboxStore.setState({ sends });
+  persistSends(accountId, sends);
+}
+
+/**
+ * Send the waiting messages, oldest first. 'transient' when the connection
+ * broke (or an answer never came), so the flush retries with back-off.
+ */
+async function flushSends(accountId: string): Promise<'done' | 'transient'> {
+  const waiting = useOutboxStore.getState().sends
+    .filter((s) => s.status === 'queued')
+    .sort((a, b) => a.createdAt - b.createdAt);
+  if (waiting.length === 0) return 'done';
+  const [{ runQueuedSend }, { useEmailStore }] = await Promise.all([
+    import('../api/queued-send'),
+    import('./email-store'),
+  ]);
+  for (const snapshot of waiting) {
+    const store = useOutboxStore.getState();
+    if (store.activeAccountId !== accountId || !store.resumed || store.paused) break;
+    if (!useNetworkStore.getState().online || !clientServes(accountId)) break;
+    const current = store.sends.find((s) => s.id === snapshot.id);
+    if (!current || current.status !== 'queued') continue;     // cancelled or retried meanwhile
+
+    // Marked before the request leaves: from here on it may reach the server.
+    const started = startAttempt(current);
+    updateSend(accountId, started);
+    try {
+      const outcome = await runQueuedSend(started, useEmailStore.getState().mailboxes);
+      removeSend(accountId, current.id);
+      retryAttempt = 0;
+      void afterQueuedSend(started, outcome);
+    } catch (err) {
+      const kind = classifySendFailure(err, isTransientNetworkError);
+      const message = err instanceof Error ? err.message : String(err);
+      updateSend(accountId, afterFailure(started, kind, message));
+      if (kind === 'auth') {
+        useOutboxStore.setState({ paused: true });
+        break;
+      }
+      if (kind === 'offline' || kind === 'unconfirmed') return 'transient';
+      // Refused: this one waits for the user; the others go on.
+      void notifyQueuedSendFailed(started, message);
+    }
+  }
+  return 'done';
+}
+
+type QueuedSendOutcomeLike = { kind: 'sent'; result: { refusedRecipients?: Array<{ email: string }> } } | { kind: 'alreadySent' };
+
+// Flag the original and say the message went. Lazy imports: these pull in
+// the UI stores, which the queue itself doesn't need.
+async function afterQueuedSend(send: QueuedSend, outcome: QueuedSendOutcomeLike): Promise<void> {
+  const original = send.payload.original;
+  if (original) {
+    patchKeywordsForEmails([original.emailId], { [original.keyword]: true }, original.accountId).catch(() => undefined);
+  }
+  try {
+    const [{ toast }, { useLocaleStore }, { partlyRefusedWarning }] = await Promise.all([
+      import('./toast-store'), import('./locale-store'), import('../lib/send-failure-message'),
+    ]);
+    const t = useLocaleStore.getState().t;
+    const refused = outcome.kind === 'sent' ? outcome.result.refusedRecipients ?? [] : [];
+    if (refused.length > 0) {
+      const { title, message } = partlyRefusedWarning(refused as Parameters<typeof partlyRefusedWarning>[0], t);
+      toast.warning(title, { message, duration: 10_000 });
+    } else {
+      toast.success(t('outbox.sent', 'Message from the Outbox sent'), { message: send.payload.outgoing.subject || undefined });
+    }
+  } catch (err) {
+    console.warn('[outbox] could not report a queued send', err);
+  }
+}
+
+async function notifyQueuedSendFailed(send: QueuedSend, message: string): Promise<void> {
+  try {
+    const [{ toast }, { useLocaleStore }] = await Promise.all([import('./toast-store'), import('./locale-store')]);
+    const t = useLocaleStore.getState().t;
+    toast.error(t('outbox.send_failed', 'A message in the Outbox could not be sent'), {
+      message: [send.payload.outgoing.subject, message].filter(Boolean).join(': '),
+    });
+  } catch (err) {
+    console.warn('[outbox] could not report a failed queued send', err);
+  }
 }
 
 function moveToFailed(accountId: string, id: string, err: unknown): void {

@@ -154,6 +154,9 @@ function blocksToPlainText(html: string, mailMarkup: boolean): string {
     if (!href) return inner;
     const normalizedHref = href.replace(/^mailto:/i, '');
     if (!text || text === href || text === normalizedHref) return text || href;
+    // A mention: a mailto: link reading "@Name" is "@Name" in the text part,
+    // as the webmail's mention chip writes it (renderText, #1134).
+    if (/^mailto:/i.test(href) && text.startsWith('@') && text.length > 1) return text;
     // Angle brackets are restored after the tag strip below.
     return `${text} \u0001${href}\u0002`;
   });
