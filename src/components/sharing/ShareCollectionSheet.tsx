@@ -21,6 +21,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { unknownPersonLabel } from './unknown-person';
 import { useSheetInsets } from '../../lib/use-layout';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 
@@ -200,7 +201,7 @@ export function ShareCollectionSheet<R extends object>({
     return (
       <View style={styles.principalInfo}>
         <Text style={styles.principalName} numberOfLines={1}>
-          {p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId)}
+          {p?.description || p?.name || (unresolved ? unknownPersonLabel(t) : principalId)}
         </Text>
         {/* Never the id in its place: Stalwart 1.0's are a letter or two
             ("e") and read as a broken address. */}

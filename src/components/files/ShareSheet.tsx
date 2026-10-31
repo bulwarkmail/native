@@ -21,6 +21,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { unknownPersonLabel } from '../sharing/unknown-person';
 import { useSheetInsets } from '../../lib/use-layout';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 
@@ -172,7 +173,7 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
     // Stalwart 1.0 with directory queries off hides every principal the user
     // has no relationship with, so a sharee may have no name.
     const unresolved = !p && !loadingPrincipals;
-    return p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId);
+    return p?.description || p?.name || (unresolved ? unknownPersonLabel(t) : principalId);
   };
 
   const renderPrincipalLabel = (principalId: string) => {
