@@ -11,8 +11,12 @@ tags:
     direction: DOWN
     centerElement: true
     timeout: 20000
+# Swipe the row itself: the avatar checkbox's label has the subject too, and
+# a swipe that starts on it only selects the row (#91).
 - swipe:
-    from: ".*Grüße aus München.*"
+    from:
+      id: email-row
+      text: ".*Grüße aus München.*"
     direction: LEFT
     duration: 400
 # The undo bar shows for 5 s; when it goes, the Compose button slides into
@@ -27,14 +31,18 @@ tags:
 - takeScreenshot: swipe-02-undone
 
 - swipe:
-    from: ".*Grüße aus München.*"
+    from:
+      id: email-row
+      text: ".*Grüße aus München.*"
     direction: RIGHT
     duration: 400
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: swipe-03-read-toggled
 - swipe:
-    from: ".*Grüße aus München.*"
+    from:
+      id: email-row
+      text: ".*Grüße aus München.*"
     direction: RIGHT
     duration: 400
 - waitForAnimationToEnd:
