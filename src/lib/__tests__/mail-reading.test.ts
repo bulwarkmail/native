@@ -9,7 +9,7 @@ import { buildBodyDocument } from '../email-body-document';
 
 const base = {
   key: 'k', emptyLabel: '-', blockRemoteImages: false, cidMap: {}, isDark: false,
-  messageSpacing: 'normal' as const, plainTextFont: 'sans' as const, quoteLabels: { show: 's', hide: 'h' },
+  messageSpacing: 'auto' as const, plainTextFont: 'sans' as const, quoteLabels: { show: 's', hide: 'h' },
 };
 
 describe('mail text size', () => {
