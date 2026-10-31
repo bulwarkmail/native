@@ -79,7 +79,7 @@ tags:
     when:
       notVisible: "Star|Unstar"
     commands:
-      - tapOn: "More actions"
+      - tapOn: "More actions.*"
 - tapOn: "Star|Unstar"
 # A bulk action ends selection mode by itself.
 - runFlow:
@@ -94,7 +94,7 @@ tags:
     when:
       notVisible: "Unstar|Star"
     commands:
-      - tapOn: "More actions"
+      - tapOn: "More actions.*"
 - tapOn: "Unstar|Star"
 - runFlow:
     when:
