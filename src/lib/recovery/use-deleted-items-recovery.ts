@@ -38,7 +38,9 @@ export interface DeletedItemsRecovery {
 export function useDeletedItemsRecovery(): DeletedItemsRecovery {
   const session = useAuthStore((s) => s.session);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
-  const accountId = session ? jmapClient.accountId || null : null;
+  // connectedAccountId, not accountId: the client is between sessions while an
+  // account switch reconnects, and accountId throws then (a crash in render).
+  const accountId = session ? jmapClient.connectedAccountId : null;
   const off = recoveryPolicy().hidden;
   const key = accountId ? recoveryKey(activeAccountId, accountId) : null;
   const check = useRecoveryStore((s) => (key ? s.checks[key] : undefined));
