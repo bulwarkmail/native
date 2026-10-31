@@ -10,9 +10,10 @@ import {
 import { X } from '../icons';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useContactsStore } from '../../stores/contacts-store';
+import { useContactsStore, type RecipientSuggestion } from '../../stores/contacts-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import type { Attendee } from '../../lib/calendar-participants';
+import { participantSuggestions, participantsFromSuggestion } from '../../lib/calendar-participant-suggestions';
 
 interface ParticipantInputProps {
   attendees: Attendee[];
@@ -20,26 +21,8 @@ interface ParticipantInputProps {
   onRemove: (email: string) => void;
 }
 
-interface Suggestion {
-  email: string;
-  name?: string;
-}
-
 function emailRegex(): RegExp {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-}
-
-function flattenContactEmails(): Suggestion[] {
-  const contacts = useContactsStore.getState().contacts;
-  const out: Suggestion[] = [];
-  for (const c of contacts) {
-    const name = c.name?.full || undefined;
-    if (!c.emails) continue;
-    for (const e of Object.values(c.emails)) {
-      if (e.address) out.push({ email: e.address, name });
-    }
-  }
-  return out;
 }
 
 // Attendee rows only: the organizer participant is added by
@@ -49,25 +32,29 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const [draft, setDraft] = React.useState('');
-  const [allSuggestions] = React.useState(() => flattenContactEmails());
+  // Contacts, groups and recent Sent recipients, as the composer offers them.
+  const getAutocomplete = useContactsStore((s) => s.getAutocomplete);
+  const getGroupRecipients = useContactsStore((s) => s.getGroupRecipients);
+  const contactsVersion = useContactsStore((s) => s.contacts);
+  const recentVersion = useContactsStore((s) => s.recentRecipients);
 
   const existingEmails = React.useMemo(() => {
     return new Set(attendees.map((a) => a.email.toLowerCase()));
   }, [attendees]);
 
-  const filteredSuggestions = React.useMemo(() => {
-    const q = draft.trim().toLowerCase();
-    if (!q || q.length < 2) return [];
-    return allSuggestions
-      .filter((s) => {
-        if (existingEmails.has(s.email.toLowerCase())) return false;
-        return (
-          s.email.toLowerCase().includes(q) ||
-          s.name?.toLowerCase().includes(q)
-        );
-      })
-      .slice(0, 6);
-  }, [draft, allSuggestions, existingEmails]);
+  const filteredSuggestions = React.useMemo(
+    () => participantSuggestions(draft, existingEmails, getAutocomplete, getGroupRecipients),
+    // contactsVersion/recentVersion re-run the lookup when the store loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, existingEmails, getAutocomplete, getGroupRecipients, contactsVersion, recentVersion],
+  );
+
+  const pickSuggestion = (s: RecipientSuggestion) => {
+    for (const person of participantsFromSuggestion(s, existingEmails, getGroupRecipients)) {
+      if (emailRegex().test(person.email.trim())) onAdd({ name: person.name, email: person.email.trim() });
+    }
+    setDraft('');
+  };
 
   const addParticipant = (email: string, name?: string) => {
     const trimmed = email.trim();
@@ -135,15 +122,19 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
         >
           {filteredSuggestions.map((s) => (
             <Pressable
-              key={s.email}
+              key={s.group ? `group:${s.group.id}` : s.email}
               style={({ pressed }) => [
                 styles.suggestionRow,
                 pressed && styles.suggestionRowPressed,
               ]}
-              onPress={() => addParticipant(s.email, s.name)}
+              onPress={() => pickSuggestion(s)}
             >
-              {s.name && <Text style={styles.suggestionName}>{s.name}</Text>}
-              <Text style={styles.suggestionEmail}>{s.email}</Text>
+              {!!s.name && <Text style={styles.suggestionName}>{s.name}</Text>}
+              <Text style={styles.suggestionEmail}>
+                {s.group
+                  ? t('calendar.participants.group_members', '{count, plural, one {# member} other {# members}}', { count: s.group.memberCount })
+                  : s.email}
+              </Text>
             </Pressable>
           ))}
         </ScrollView>
