@@ -51,6 +51,7 @@ import { toast } from '../stores/toast-store';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { cleanPreview } from '../lib/preview-text';
 import {
   findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
 } from '../lib/mailbox-tree';
@@ -304,7 +305,7 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
         {showPreview && density.showPreview && (
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
-            {singleLine(item.preview)}
+            {singleLine(cleanPreview(item.preview))}
           </Text>
         )}
         {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} inList />}

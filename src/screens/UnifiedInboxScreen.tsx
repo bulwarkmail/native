@@ -23,6 +23,7 @@ import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { cleanPreview } from '../lib/preview-text';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
@@ -396,7 +397,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             </View>
             {/* Same settings as the folder list: preview on/off, density, text size. */}
             {item.preview && showPreview && density.showPreview ? (
-              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>{singleLine(item.preview)}</Text>
+              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>{singleLine(cleanPreview(item.preview))}</Text>
             ) : null}
           </View>
         </Pressable>
