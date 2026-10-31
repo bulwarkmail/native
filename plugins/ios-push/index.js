@@ -33,6 +33,7 @@ const {
   withDangerousMod,
   createRunOncePlugin,
 } = require('@expo/config-plugins');
+const { addTargetFiles, hasTarget } = require('../ios-target-files');
 
 const TARGET = 'NotificationService';
 const DEPLOYMENT_TARGET = '15.1';
@@ -222,25 +223,23 @@ function withExtensionTarget(config, { teamId, appProfile, extensionProfile }) {
 
 function addExtensionTarget(cfg, { teamId }) {
     const project = cfg.modResults;
-    if (project.pbxTargetByName(TARGET)) return;
+    if (hasTarget(project, TARGET)) return;
 
     // addTarget expects these sections; a fresh Expo project may not have them.
     const objects = project.hash.project.objects;
     objects.PBXTargetDependency = objects.PBXTargetDependency || {};
     objects.PBXContainerItemProxy = objects.PBXContainerItemProxy || {};
 
-    const group = project.addPbxGroup(
-      [...SOURCE_FILES, `${TARGET}-Info.plist`, `${TARGET}.entitlements`],
-      TARGET,
-      TARGET,
-    );
-    // Hang the group off the project's main group.
-    const mainGroupId = project.getFirstProject().firstProject.mainGroup;
-    project.addToPbxGroup(group.uuid, mainGroupId);
-
     const bundleId = `${cfg.ios.bundleIdentifier}.${TARGET}`;
     const target = project.addTarget(TARGET, 'app_extension', TARGET, bundleId);
-    project.addBuildPhase(SOURCE_FILES, 'PBXSourcesBuildPhase', 'Sources', target.uuid);
+    // Its own group and file references: the app and the widget compile
+    // copies of some of these files (plugins/ios-target-files.js).
+    addTargetFiles(project, {
+      name: TARGET,
+      targetUuid: target.uuid,
+      sources: SOURCE_FILES,
+      files: [`${TARGET}-Info.plist`, `${TARGET}.entitlements`],
+    });
     project.addBuildPhase([], 'PBXResourcesBuildPhase', 'Resources', target.uuid);
     project.addBuildPhase([], 'PBXFrameworksBuildPhase', 'Frameworks', target.uuid);
 

@@ -17,6 +17,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { withDangerousMod, withXcodeProject, createRunOncePlugin } = require('@expo/config-plugins');
 const { withAppSources } = require('../ios-app-sources');
+const { addTargetFiles, hasTarget } = require('../ios-target-files');
 
 const TARGET = 'BulwarkWidget';
 const DEPLOYMENT_TARGET = '15.1';
@@ -101,23 +102,22 @@ function withWidgetFiles(config) {
 
 function addWidgetTarget(cfg, { teamId, widgetProfile }) {
   const project = cfg.modResults;
-  if (project.pbxTargetByName(TARGET)) return;
+  if (hasTarget(project, TARGET)) return;
 
   const objects = project.hash.project.objects;
   objects.PBXTargetDependency = objects.PBXTargetDependency || {};
   objects.PBXContainerItemProxy = objects.PBXContainerItemProxy || {};
 
-  const group = project.addPbxGroup(
-    [...SOURCE_FILES, `${TARGET}-Info.plist`, `${TARGET}.entitlements`],
-    TARGET,
-    TARGET,
-  );
-  const mainGroupId = project.getFirstProject().firstProject.mainGroup;
-  project.addToPbxGroup(group.uuid, mainGroupId);
-
   const bundleId = `${cfg.ios.bundleIdentifier}.Widget`;
   const target = project.addTarget(TARGET, 'app_extension', TARGET, bundleId);
-  project.addBuildPhase(SOURCE_FILES, 'PBXSourcesBuildPhase', 'Sources', target.uuid);
+  // Its own group and file references: SharedKeychain.swift is also in the
+  // app and the notification extension (plugins/ios-target-files.js).
+  addTargetFiles(project, {
+    name: TARGET,
+    targetUuid: target.uuid,
+    sources: SOURCE_FILES,
+    files: [`${TARGET}-Info.plist`, `${TARGET}.entitlements`],
+  });
   project.addBuildPhase([], 'PBXResourcesBuildPhase', 'Resources', target.uuid);
   project.addBuildPhase([], 'PBXFrameworksBuildPhase', 'Frameworks', target.uuid);
 
