@@ -7,6 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('react-native', async () => (await import('./render-native')).reactNativeMock());
 vi.mock('react-native-svg', () => ({ default: 'Svg', Path: 'Path' }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
+// The calendar row has its own tests (use-booking-calendar.test.ts); here only
+// whether each booking gets one.
+vi.mock('../booking-calendar-actions', async () => {
+  const { createElement: h } = await import('react');
+  return { BookingCalendarActions: ({ booking }: { booking: { kind: string } }) => h('Text', { testID: 'calendar-actions' }, booking.kind) };
+});
 
 import type { Email } from '../../../../api/types';
 import { useSettingsStore } from '../../../../stores/settings-store';
@@ -44,6 +50,20 @@ describe('StructuredMailBanner', () => {
   it('shows nothing for an unverified sender or a forward', () => {
     expect(render(createElement(StructuredMailBanner, { email: mail(null) })).children).toEqual([]);
     expect(render(createElement(StructuredMailBanner, { email: mail(PASS, 'Fwd: Your order') })).children).toEqual([]);
+  });
+
+  it('gives a booking card the calendar row, and an order none', () => {
+    const train = {
+      '@context': 'http://schema.org', '@type': 'TrainReservation', reservationNumber: 'ZUG1',
+      reservationFor: {
+        '@type': 'TrainTrip', trainNumber: 'ICE 1', departureStation: { name: 'Hamburg Hbf' }, departureTime: '2026-12-05T08:46:00+01:00',
+        arrivalStation: { name: 'Berlin Hbf' }, arrivalTime: '2026-12-05T10:50:00+01:00',
+      },
+    };
+    const email = mail(PASS);
+    email.bodyValues = { '1': { value: `<script type="application/ld+json">${JSON.stringify(train)}</script>` } };
+    expect(byTestId(render(createElement(StructuredMailBanner, { email })), 'calendar-actions').map(textOf)).toEqual(['train']);
+    expect(byTestId(render(createElement(StructuredMailBanner, { email: mail(PASS) })), 'calendar-actions')).toHaveLength(0);
   });
 
   it('loads product images only when remote content would load', () => {

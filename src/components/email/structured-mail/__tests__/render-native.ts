@@ -307,7 +307,8 @@ export function renderHook<T>(hook: () => T): HookResult<T> {
 
 /** Wait until `check` passes (it throws until then), flushing promises and timers in between. */
 export async function waitFor(check: () => void, { timeout = 2000 } = {}): Promise<void> {
-  const started = Date.now();
+  // performance.now: tests fake Date.
+  const started = performance.now();
   let last: unknown;
   for (;;) {
     try {
@@ -316,7 +317,7 @@ export async function waitFor(check: () => void, { timeout = 2000 } = {}): Promi
     } catch (err) {
       last = err;
     }
-    if (Date.now() - started > timeout) throw last;
+    if (performance.now() - started > timeout) throw last;
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }

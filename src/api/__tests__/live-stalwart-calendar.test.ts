@@ -961,4 +961,120 @@ live('live Stalwart calendar', () => {
       }
     }, 60_000);
   });
+
+  describe('a booking mail in the calendar: added, moved by a later mail, removed by a cancellation', () => {
+    // A train booking 2.5 months ahead (within what the cards accept), from a
+    // sender whose Authentication-Results pass. Imported, the headers stay
+    // as written, which is enough for the trust gate (see receipt.ts).
+    const reference = `R${RUN.slice(-8).toUpperCase()}`;
+    const imported: string[] = [];
+    let uid = '';
+
+    function bookingMail(departure: string, arrival: string, status = 'ReservationConfirmed'): string {
+      const markup = {
+        '@context': 'http://schema.org', '@type': 'TrainReservation', reservationNumber: reference,
+        reservationStatus: `http://schema.org/${status}`, underName: { '@type': 'Person', name: 'Erika Mustermann' },
+        reservationFor: {
+          '@type': 'TrainTrip', trainNumber: 'ICE 577', provider: { '@type': 'Organization', name: 'Rail Co' },
+          departureStation: { '@type': 'TrainStation', name: 'Hamburg Hbf', address: { addressLocality: 'Hamburg', addressCountry: 'DE' } },
+          departureTime: departure,
+          arrivalStation: { '@type': 'TrainStation', name: 'Berlin Hbf', address: { addressLocality: 'Berlin', addressCountry: 'DE' } },
+          arrivalTime: arrival,
+        },
+      };
+      return [
+        'Received: from mail.rail.example (mail.rail.example [192.0.2.7]) by mx.example.org (Stalwart SMTP) with ESMTPS id 1',
+        'Authentication-Results: mx.example.org; dkim=pass header.d=rail.example header.s=s1; spf=pass smtp.mailfrom=bounce@rail.example; dmarc=pass header.from=rail.example',
+        'From: Rail Co <booking@rail.example>',
+        `To: ${USER}`,
+        `Subject: ${RUN} booking ${reference} ${status}`,
+        `Date: ${new Date().toUTCString()}`,
+        `Message-ID: <${RUN}-${status}-${departure.slice(11, 13)}@rail.example>`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        `<html><head><script type="application/ld+json">${JSON.stringify(markup)}</script></head><body><p>Your booking ${reference}</p></body></html>`,
+        '',
+      ].join('\r\n');
+    }
+
+    /** Import a booking mail, read it as the reader does and hand back its one card. */
+    async function receive(message: string) {
+      const [{ uploadBytes }, mail, sm, trust] = await Promise.all([
+        import('../blob'), import('../email'), import('../../lib/structured-mail'), import('../../lib/structured-mail/trust'),
+      ]);
+      const [[, boxes]] = await raw(client, [['Mailbox/get', { accountId: client.accountId, properties: ['id', 'role'] }, '0']], MAIL_USING);
+      const inbox = (boxes.list as { id: string; role?: string }[]).find((b) => b.role === 'inbox')!.id;
+      const { blobId } = await uploadBytes(new TextEncoder().encode(message), 'message/rfc822');
+      const id = await mail.importEmailBlob(blobId, inbox, { $seen: true });
+      imported.push(id);
+      const email = await mail.getFullEmail(id);
+      expect(trust.getStructuredMailTrust(email)).toEqual({ trusted: true });
+      const cards = sm.resolveCards(sm.readStructuredMail(trust.structuredHtmlPart(email)!.value, { mailDate: new Date(email.sentAt ?? email.receivedAt) }));
+      expect(cards).toHaveLength(1);
+      return { email, card: cards[0] };
+    }
+
+    /** The booking calendar hook of the card, settled on `status`. */
+    async function cardCalendar(message: string, status: string) {
+      const [{ useBookingCalendar }, harness] = await Promise.all([
+        import('../../components/email/structured-mail/use-booking-calendar'),
+        import('../../components/email/structured-mail/__tests__/render-native'),
+      ]);
+      const { email, card } = await receive(message);
+      const hook = harness.renderHook(() => useBookingCalendar(card, email));
+      await harness.waitFor(() => expect(hook.current.status).toBe(status), { timeout: 15_000 });
+      return hook;
+    }
+
+    beforeAll(async () => {
+      await useCalendarStore.getState().fetchCalendars();
+    }, 30_000);
+
+    afterAll(async () => {
+      const c = await singleton();
+      if (imported.length > 0) {
+        await raw(c, [['Email/set', { accountId: c.accountId, destroy: imported }, '0']], MAIL_USING).catch(() => undefined);
+      }
+      if (uid) {
+        const { findEventsByUid } = await import('../calendar');
+        const left = await findEventsByUid(uid).catch(() => [] as CalendarEvent[]);
+        if (left.length > 0) await deleteEvents(left.map((e) => e.id)).catch(() => undefined);
+      }
+    }, 60_000);
+
+    it('adds the booking, moves its event for the changed mail and removes it for the cancellation', async () => {
+      const { findEventsByUid } = await import('../calendar');
+
+      const first = await cardCalendar(bookingMail('2027-01-15T08:46:00+01:00', '2027-01-15T12:50:00+01:00'), 'add');
+      await first.current.add();
+      expect(first.current.error).toBeNull();
+      expect(first.current.status).toBe('in-calendar');
+      const created = useCalendarStore.getState().events.find((e) => e.description?.includes(reference));
+      expect(created, 'the store holds the new event').toBeTruthy();
+      uid = created!.uid;
+      let onServer = await findEventsByUid(uid);
+      expect(onServer).toHaveLength(1);
+      expect(onServer[0]).toMatchObject({ start: '2027-01-15T08:46:00', timeZone: 'Europe/Berlin', duration: 'PT4H4M' });
+      first.unmount();
+
+      // A later mail moves the train by two hours: same booking, same uid.
+      const moved = await cardCalendar(bookingMail('2027-01-15T10:46:00+01:00', '2027-01-15T14:50:00+01:00'), 'update');
+      await moved.current.update();
+      expect(moved.current.error).toBeNull();
+      expect(moved.current.status).toBe('in-calendar');
+      onServer = await findEventsByUid(uid);
+      expect(onServer).toHaveLength(1);
+      expect(onServer[0]).toMatchObject({ start: '2027-01-15T10:46:00', timeZone: 'Europe/Berlin', duration: 'PT4H4M' });
+      moved.unmount();
+
+      // The cancellation takes it out.
+      const cancelled = await cardCalendar(bookingMail('2027-01-15T10:46:00+01:00', '2027-01-15T14:50:00+01:00', 'ReservationCancelled'), 'remove');
+      await cancelled.current.remove();
+      expect(cancelled.current.error).toBeNull();
+      expect(cancelled.current.status).toBe('cancelled');
+      expect(await findEventsByUid(uid)).toEqual([]);
+      cancelled.unmount();
+    }, 90_000);
+  });
 });
