@@ -71,7 +71,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - What RN does: `sendEmail` sets no `messageId`, relying on the server; RN's `src/lib/uuid.ts:6-20` already has a guarded UUID generator (Hermes fallback) so the crash class of the web fix does not apply.
   - Fix hint: optional — set `messageId: [`${generateUUID()}@${domain}`]` in `sendEmail` so the id is known before the response (useful once drafts/threading exist).
 
-- [ ] **Sending from shared/group accounts unsupported** — `P3` — `missing` (partly N/A) — deferred: RN is single-active-account; envelope/identity routing for shared accounts not implemented
+- [x] **Sending from shared/group accounts unsupported** — `P3` — `missing` (partly N/A) — deferred: RN is single-active-account; envelope/identity routing for shared accounts not implemented — fixed in 31d8e4a4, 893f40a2
   - What WEB does: routes the submission to the identity's owning account (#461, `email-composer.tsx:2258-2274`, `lib/jmap/client.ts:3131-3134` targetAccountId) and preselects the shared folder's identity (`lib/reply-identity.ts:114-128`).
   - What RN does: `ComposeScreen.tsx:267-272` explicitly always uses the user's own Sent ("composing on behalf of a shared account isn't supported"), `getIdentities` (`src/api/identity.ts:5-12`) only queries the primary account. Replying from a shared-folder message sends as the reaching login.
   - Fix hint: low priority; if implemented, query `Identity/get` for the shared `accountId`, submit with that `accountId`, and file into that account's Sent.
@@ -272,7 +272,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - What RN does: `settings-store.ts:105-106` has `trustedSenders`, but `ComposeScreen.tsx` never touches it (`grep -i trusted` → none).
   - Fix hint: after a successful reply push `finalTo`/`finalCc` emails into `trustedSenders` (dedupe).
 
-- [ ] **Offline send is not queued** — `P3` — `missing` (RN-only opportunity) — deferred: needs a new outbox op kind carrying the whole Email/set + submission payload; drafts now autosave to the server instead
+- [ ] **Offline send is not queued** — `P3` — `missing` (RN-only opportunity) — deferred: needs a new outbox op kind carrying the whole Email/set + submission payload; drafts now autosave to the server instead — not done: offline queue is its own project; the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows
   - What RN does: `outbox-store.ts:40-43` only knows `keywords|mailboxes|destroy` ops; `performSend` fails with a network error when offline (`ComposeScreen.tsx:975-979`) and the composed text is lost unless the user keeps the screen open. WEB has no offline outbox either, so this is not a parity item, but once drafts exist the natural mobile behaviour is "save draft locally, submit when online".
   - Fix hint: add a `send` op kind carrying the Email/set create + submission payload, flushed by `outbox-store.flush`.
 

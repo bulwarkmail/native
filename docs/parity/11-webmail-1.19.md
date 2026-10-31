@@ -59,7 +59,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: every card is replyable (`src/screens/EmailThreadScreen.tsx:1212`, `src/components/email/ThreadMessageCard.tsx:68-85`); quick reply targets the last member, which can be the user's own draft (`src/screens/EmailThreadScreen.tsx:1124`).
   - Fix hint: `replyable={false}` for `$draft` and scheduled members; point quick reply at the newest message that is neither.
 
-- [ ] **Bounce and receipt report parts show as list chips and go along on forward** — `P3` — `bug`
+- [ ] **Bounce and receipt report parts show as list chips and go along on forward** — `P3` — `bug` — forward part fixed in 482e9a20; list chips and the global- types in isReportPart are the reader pass
   - What WEB does: leaves `message/delivery-status`, `message/disposition-notification` and their `global-` forms out of list chips and forwards (`lib/attachment-visibility.ts:73`, `components/email/email-composer.tsx:985`). 8a09ba573.
   - What RN does: the reader hides them (`src/lib/attachment-display.ts:56`, `:130`), list chips and forwards don't (`src/lib/list-attachments.ts:21`, `src/lib/reply-compose.ts:14-19`); isReportPart misses the `global-` types.
   - Fix hint: filter isReportPart in both places and add the two global types.
@@ -103,27 +103,27 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Composer and sending
 
-- [ ] **Quick reply skips the placeholder, forgotten-attachment and confirm checks** — `P3` — `bug`
+- [x] **Quick reply skips the placeholder, forgotten-attachment and confirm checks** — `P3` — `bug` — fixed in db8eb731
   - What WEB does: quick reply runs the composer's checks (`lib/outgoing/quick-reply.ts:34`). 534049952.
   - What RN does: the composer has them (`src/screens/ComposeScreen.tsx:2078`, `:2137`), QuickReplyBox sends straight away (`src/components/email/QuickReplyBox.tsx:78-140`).
   - Fix hint: run unfilledPlaceholdersInMessage and the attachment keyword check before send.
 
-- [ ] **Quoted reply history isn't collapsed in the composer** — `P3` — `missing`
+- [x] **Quoted reply history isn't collapsed in the composer** — `P3` — `missing` — fixed in 9fd80993
   - What WEB does: collapses the quote behind an ellipsis button (`components/email/reply-quote-collapse.ts:13`). 9e0089604 (#1405).
   - What RN does: seeds the full quote into the editor (`src/screens/ComposeScreen.tsx:562-615`).
   - Fix hint: hide the quoted block in the editor behind a toggle, keep it in the sent body.
 
-- [ ] **Tag picker can't make a tag; template picker can't open the template manager** — `P3` — `missing`
+- [ ] **Tag picker can't make a tag; template picker can't open the template manager** — `P3` — `missing` — template half fixed in 2c1f266f; not done: the tag half lives in TagSheet and the thread tag sheet (reader files)
   - What WEB does: "New tag" in the tag picker (`components/email/tag-picker.tsx:214`), "Manage" in the template picker (`components/templates/template-picker.tsx:227`). 19676a14f.
   - What RN does: tag sheets list existing tags only (`src/screens/EmailThreadScreen.tsx:1489`, `src/components/TagSheet.tsx`); the template sheet shows "No templates yet" with no way on (`src/components/TemplateSheet.tsx:148-150`).
   - Fix hint: a "New tag" row and a "Manage templates" link.
 
-- [ ] **No optional confirm before sending, deleting or archiving** — `P3` — `missing`
+- [ ] **No optional confirm before sending, deleting or archiving** — `P3` — `missing` — send part fixed in db8eb731 (composer and quick reply); delete and archive are the reader pass
   - What WEB does: `sendConfirmation`, `confirmDelete`, `confirmArchive` (`components/email/email-composer.tsx:501`, `lib/mail-removal-confirm.ts:24`, `lib/accessibility-settings.ts:93-94`). 4d91d9b29, 374ae9c8d.
   - What RN does: asks only before a permanent delete (`src/lib/delete-confirm.ts:27`).
   - Fix hint: three settings and an Alert in the send, delete and archive paths, swipes and quick reply included.
 
-- [ ] **No alt-text prompt for images, no default compose font** — `P3` — `missing`
+- [ ] **No alt-text prompt for images, no default compose font** — `P3` — `missing` — alt-text prompt fixed in 303dea01; not done: default compose font and size, which needs a font setting with switches in the settings pages
   - What WEB does: asks for alt text when an image goes in (`components/email/image-alt-dialog.tsx`; 53cb49d3c), starts new mail in a chosen font and size (1b24c1980), offers an accessible example template (420bf8f9a).
   - What RN does: alt is the file name (`src/screens/ComposeScreen.tsx:1857`, `src/lib/editor-html.ts:413-419`); the editor font is fixed (`src/lib/editor-html.ts:160`).
   - Fix hint: the alt prompt first.

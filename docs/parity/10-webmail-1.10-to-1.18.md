@@ -257,29 +257,29 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: findUnfilledPlaceholders with per-locale words and a confirm (`lib/placeholder-check.ts:115`, `components/email/email-composer.tsx:3261`), setting placeholderWarningEnabled.
   - What RN does: nothing (`src/screens/ComposeScreen.tsx:2151`).
 
-- [ ] **Signature swap when changing From** — `P3` — `bug`
+- [x] **Signature swap when changing From** — `P3` — `bug` — fixed in 60d0e98f
   - What WEB does: `components/email/email-composer.tsx:1148`, `components/email/compose-format.ts:71`.
   - What RN does: an identity without a signature keeps the primary's (`src/lib/signature-utils.ts:83-91`, `src/screens/ComposeScreen.tsx:975`); typing under the signature breaks the swap (`src/lib/signature-utils.ts:245`).
 
-- [ ] **Plain-text part of sent mail** — `P3` — `bug`
+- [x] **Plain-text part of sent mail** — `P3` — `bug` — fixed in 0647cbf1
   - What WEB does: `lib/html-to-text.ts:73`, `:169`. What RN does: "-- " trimmed to "--", "> " dropped, ordered lists bulleted (`src/lib/compose-html.ts:109`, `:112`, `:125`).
 
-- [ ] **Composer prompts: missing-subject asks again, autosaved draft says "unsaved", no Discard for a reopened draft** — `P3` — `bug`
+- [x] **Composer prompts: missing-subject asks again, autosaved draft says "unsaved", no Discard for a reopened draft** — `P3` — `bug` — fixed in 1cc4ccca
   - What WEB does: `components/email/email-composer.tsx:3251`, `:3770`, `:3758`. What RN does: `src/screens/ComposeScreen.tsx:1983`, `:2135`, `:1501`, `:1454-1471`.
 
-- [ ] **Offline send shows a raw network error; no offline send queue** — `P3` — `partial` (old 04/09 item)
+- [ ] **Offline send shows a raw network error; no offline send queue** — `P3` — `partial` (old 04/09 item) — not done: offline queue is its own project; the offline message (says offline, the text stays) is in a43b55ec. One verdict for the 04, 09 and 10 rows
   - What WEB does: says offline and keeps the message (`components/email/email-composer.tsx:3661`). What RN does: `src/screens/ComposeScreen.tsx:2236`, `src/lib/send-failure-message.ts:57`, `src/stores/outbox-store.ts:53`.
 
-- [ ] **Scheduled time shows a minute early; presets (tomorrow 13:00, next Monday 08:00)** — `P3` — `bug`/`partial`
+- [x] **Scheduled time shows a minute early; presets (tomorrow 13:00, next Monday 08:00)** — `P3` — `bug`/`partial` — fixed in 8fe5798b
   - What WEB does: `lib/scheduled-send-label.ts:11`, `lib/schedule-presets.ts:20`. What RN does: `src/screens/ScheduledScreen.tsx:53`, `:222`; `src/screens/ComposeScreen.tsx:2046`.
 
-- [ ] **Reply puts no cursor in the body; autofill offered in address fields** — `P3` — `missing`
+- [x] **Reply puts no cursor in the body; autofill offered in address fields** — `P3` — `missing` — fixed in 8bb7b607 (composer; ParticipantInput in the event editor is the calendar pass)
   - What WEB does: `components/email/email-composer.tsx:2885`. What RN does: `src/screens/ComposeScreen.tsx:2466`, `:2316`, `:2946`, `src/components/calendar/ParticipantInput.tsx:119`.
 
 - [ ] **Composer extras: priority (#970), numeric date placeholders (#1284), @mentions (#1134), directory lookup (#1253), font size, pasted lists, DSN/REQUIRETLS** — `P3` — `missing`
   - What WEB does: `lib/recipient-mentions.ts`, `components/email/plain-text-paste.ts`, `components/email/rich-text-editor.tsx:445`, `lib/jmap/client.ts:1392-1413`. What RN does: `src/lib/template-utils.ts:9-15`, `src/components/RichTextEditor.tsx:26`, `src/lib/editor-html.ts`.
 
-- [ ] **The recipient splitter treats an escaped quote as closing** — `P3` — `bug`
+- [x] **The recipient splitter treats an escaped quote as closing** — `P3` — `bug` — fixed in ae2eb46b
   - What WEB does: `lib/email-composer-utils.ts:276`. What RN does: `src/lib/recipients.ts:57-90` (reached only from IdentitySettings).
 
 ### Calendar
