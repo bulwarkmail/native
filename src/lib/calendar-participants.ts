@@ -269,6 +269,18 @@ export interface Attendee {
   email: string;
 }
 
+/**
+ * `attendees` with `added` at the end, unless that address is invited
+ * already. Done/Enter on Android submits and then blurs the field, and both
+ * add what was typed: checking against the latest list (a state updater's
+ * `prev`) keeps the second add from inviting the same person twice.
+ */
+export function withAttendee(attendees: Attendee[], added: Attendee): Attendee[] {
+  const key = added.email.trim().toLowerCase();
+  if (!key || attendees.some((a) => a.email.trim().toLowerCase() === key)) return attendees;
+  return [...attendees, added];
+}
+
 type ParticipationStatus = Participant['participationStatus'];
 
 /**

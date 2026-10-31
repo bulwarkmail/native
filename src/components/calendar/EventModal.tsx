@@ -67,6 +67,7 @@ import {
   participantLimitMessage,
   seedAttendees,
   userOrganizes,
+  withAttendee,
   type Attendee,
 } from '../../lib/calendar-participants';
 import type { SeriesEdit } from '../../lib/recurrence-scope-edit';
@@ -880,7 +881,7 @@ export function EventModal({
           >
             <ParticipantInput
               attendees={attendees}
-              onAdd={(a) => setAttendees((prev) => [...prev, a])}
+              onAdd={(a) => setAttendees((prev) => withAttendee(prev, a))}
               onRemove={(email) =>
                 setAttendees((prev) => prev.filter((a) => a.email.toLowerCase() !== email.toLowerCase()))
               }
