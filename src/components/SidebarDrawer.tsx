@@ -339,6 +339,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const logout = useAuthStore((s) => s.logout);
   const logoutAll = useAuthStore((s) => s.logoutAll);
   const switchAccount = useAuthStore((s) => s.switchAccount);
+  const requestReauth = useAuthStore((s) => s.requestReauth);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const accounts = useAccountStore((s) => s.accounts);
   const setDefaultAccount = useAccountStore((s) => s.setDefaultAccount);
@@ -869,6 +870,13 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                   <Pressable
                     key={acc.id}
                     onPress={() => {
+                      // The server refused its stored sign-in: sign in again.
+                      if (acc.needsSignIn) {
+                        setAccountMenuOpen(false);
+                        onClose();
+                        void requestReauth(acc.id);
+                        return;
+                      }
                       if (isActive) return;
                       setAccountMenuOpen(false);
                       onClose();
@@ -912,7 +920,9 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                           <>
                             <AlertTriangle size={10} color={c.error} />
                             <Text style={[styles.accountMenuStatusText, { color: c.error }]} numberOfLines={1}>
-                              {acc.errorMessage || t('sidebar.account_error', 'Needs attention')}
+                              {acc.needsSignIn
+                                ? t('sidebar.account_sign_in_again', 'Sign in again')
+                                : acc.errorMessage || t('sidebar.account_error', 'Needs attention')}
                             </Text>
                           </>
                         ) : (

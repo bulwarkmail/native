@@ -34,6 +34,7 @@ import ConfirmStep from './login/ConfirmStep';
 import PasswordStep from './login/PasswordStep';
 import SigningInStep, { type SigningInPhase } from './login/SigningInStep';
 import { loginBackAction } from './login/login-back';
+import { reauthStart, type LoginStepName } from './login/reauth-start';
 import { isSignInCancelled } from '../lib/sign-in-abort';
 
 interface LoginScreenProps {
@@ -42,7 +43,7 @@ interface LoginScreenProps {
   onCancel?: () => void;
 }
 
-type StepName = 'choose' | 'email' | 'server' | 'confirm' | 'password';
+type StepName = LoginStepName;
 
 const RECENT_EMAILS_KEY = 'login:recentEmails:v1';
 
@@ -92,11 +93,20 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   const accounts = useAccountStore((state) => state.accounts);
   const activeAccountId = useAccountStore((state) => state.activeAccountId);
 
-  const [step, setStep] = React.useState<StepName>('choose');
+  // Signing in to an account again (its stored sign-in was refused) starts
+  // on its form, filled in. Read once: the store clears it on success.
+  const [reauth] = React.useState(() => useAuthStore.getState().reauth);
+  const start = React.useMemo(() => reauthStart(reauth), [reauth]);
+  // Closed without signing in: the request is answered (the account row
+  // still offers it again).
+  React.useEffect(() => () => {
+    if (reauth && useAuthStore.getState().reauth === reauth) useAuthStore.getState().clearReauth();
+  }, [reauth]);
+  const [step, setStep] = React.useState<StepName>(start.step);
   const [history, setHistory] = React.useState<StepName[]>([]);
-  const [email, setEmail] = React.useState('');
-  const [serverInput, setServerInput] = React.useState('');
-  const [serverUrl, setServerUrl] = React.useState('');
+  const [email, setEmail] = React.useState(start.email);
+  const [serverInput, setServerInput] = React.useState(start.serverUrl);
+  const [serverUrl, setServerUrl] = React.useState(start.serverUrl);
   // Drives the confirm step's heading: we only claim to have "found" a server
   // when discovery actually found one.
   const [serverDiscovered, setServerDiscovered] = React.useState(false);
@@ -107,10 +117,17 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   const [totpRequired, setTotpRequired] = React.useState(false);
   // Access-token (Bearer) sign-in in place of username and password, for
   // providers that hand out API tokens (Fastmail accepts nothing else).
-  const [tokenMode, setTokenMode] = React.useState(false);
+  const [tokenMode, setTokenMode] = React.useState(start.tokenMode);
   const [accessToken, setAccessToken] = React.useState('');
   const [failedDomain, setFailedDomain] = React.useState<string | null>(null);
-  const [notice, setNotice] = React.useState<LoginErrorCopy | null>(null);
+  const [notice, setNotice] = React.useState<LoginErrorCopy | null>(() => (reauth ? {
+    title: t('login.mobile.reauth_title', 'Sign in again'),
+    detail: t(
+      'login.mobile.reauth_detail',
+      'The server no longer accepts the saved sign-in for {account}. Sign in again to keep using this account.',
+      { account: reauth.username },
+    ),
+  } : null));
   const [searching, setSearching] = React.useState(false);
   const [busy, setBusy] = React.useState<SigningInPhase | null>(null);
   const [scannerVisible, setScannerVisible] = React.useState(false);

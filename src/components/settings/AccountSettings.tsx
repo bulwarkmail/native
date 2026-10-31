@@ -41,6 +41,7 @@ export function AccountSettings() {
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const session = useAuthStore((s) => s.session);
   const switchAccount = useAuthStore((s) => s.switchAccount);
+  const requestReauth = useAuthStore((s) => s.requestReauth);
   const removeAccountAuth = useAuthStore((s) => s.removeAccount);
   const accounts = useAccountStore((s) => s.accounts);
   const defaultAccountId = useAccountStore((s) => s.defaultAccountId);
@@ -178,7 +179,11 @@ export function AccountSettings() {
                 </View>
                 <Pressable
                   style={{ flex: 1, minWidth: 0 }}
-                  onPress={() => { if (!isActive) void switchAccount(a.id); }}
+                  onPress={() => {
+                    // The server refused its stored sign-in: sign in again.
+                    if (a.needsSignIn) void requestReauth(a.id);
+                    else if (!isActive) void switchAccount(a.id);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={isActive
                     ? t('settings.account.accounts.active', 'Currently active account')
@@ -196,7 +201,9 @@ export function AccountSettings() {
                       {t('settings.account.accounts.default_badge', 'Default account')}
                     </Text>
                   )}
-                  {a.hasError && a.errorMessage ? (
+                  {a.needsSignIn ? (
+                    <Text style={styles.rowError} numberOfLines={1}>{t('sidebar.account_sign_in_again', 'Sign in again')}</Text>
+                  ) : a.hasError && a.errorMessage ? (
                     <Text style={styles.rowError} numberOfLines={1}>{a.errorMessage}</Text>
                   ) : null}
                 </Pressable>

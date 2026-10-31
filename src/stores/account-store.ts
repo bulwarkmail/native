@@ -15,6 +15,10 @@ export interface AccountEntry {
   isConnected: boolean;
   hasError: boolean;
   errorMessage?: string;
+  // The server refused the stored sign-in (a password changed, a token that
+  // expired, a server moved to Stalwart 1.0): the account stays, and the
+  // user is asked to sign in to it again.
+  needsSignIn?: boolean;
   isDefault: boolean;
   // JMAP primary account id (from the session's primaryAccounts). Recorded
   // when push is set up so a relay payload can be routed to this entry.
@@ -67,6 +71,8 @@ export const useAccountStore = create<AccountState>()(
                     isConnected: entry.isConnected,
                     hasError: entry.hasError,
                     errorMessage: entry.errorMessage,
+                    // Signed in again.
+                    needsSignIn: false,
                   }
                 : a,
             ),

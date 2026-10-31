@@ -80,6 +80,7 @@ vi.mock('../../api/jmap-client', () => {
       clearAccountCredentials: vi.fn(async () => undefined),
       clearAllCredentials: vi.fn(async () => undefined),
       getStoredOAuthTokens: vi.fn(async () => null),
+      getStoredCredentials: vi.fn(async () => null),
       onAuthFailure: vi.fn(() => () => undefined),
       onTokenRefresh: vi.fn(() => () => undefined),
       hasAccountCapability: vi.fn(() => true),
@@ -206,7 +207,7 @@ describe('signing out of the active account (Stalwart 1.0)', () => {
     expect(useOutboxStore.getState().activeAccountId).toBe(B);
   });
 
-  it('skips a next account whose sign-in is refused', async () => {
+  it('skips a next account whose sign-in is refused, which stays for a new sign-in', async () => {
     await signedIn(A, B, C);
     client.loadErrors = { [B]: new AuthenticationError('Invalid credentials') };
 
@@ -214,7 +215,10 @@ describe('signing out of the active account (Stalwart 1.0)', () => {
     await settle();
 
     expect(where()).toEqual({ signedIn: true, auth: C, registry: C, email: C, client: C });
-    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([C]);
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([B, C]);
+    expect(useAccountStore.getState().getAccountById(B)?.needsSignIn).toBe(true);
+    // Landing on C does not open a sign-in to B; its row offers it.
+    expect(useAuthStore.getState().reauth).toBeNull();
   });
 });
 
@@ -281,18 +285,18 @@ describe('what a sign-out leaves behind', () => {
     expect(leftovers().feeds).toEqual([`sub-${A}`, `sub-${B}`]);
   });
 
-  it('drops the feeds of an account whose sign-in is refused on the switch to it', async () => {
+  it('keeps the feeds of an account whose sign-in is refused on the switch to it', async () => {
     await signedIn(A, B);
     useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A), feed(B)] });
     client.loadErrors = { [B]: new AuthenticationError('Invalid credentials') };
 
     await useAuthStore.getState().switchAccount(B);
 
-    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A]);
-    expect(leftovers().feeds).toEqual([`sub-${A}`]);
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A, B]);
+    expect(leftovers().feeds).toEqual([`sub-${A}`, `sub-${B}`]);
   });
 
-  it('clears them when a switch evicts the last account', async () => {
+  it('keeps them when a switch to the last account is refused', async () => {
     // Signed out of the active account while the last one's server was
     // away; it is refused when the user picks it.
     await signedIn(A);
@@ -304,24 +308,26 @@ describe('what a sign-out leaves behind', () => {
 
     await useAuthStore.getState().switchAccount(A);
 
-    expect(useAccountStore.getState().accounts).toEqual([]);
-    expect(leftovers()).toEqual({ searches: [], feeds: [] });
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A]);
+    expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${A}`] });
   });
 
-  it('clears them when the restore on launch evicts the last account', async () => {
+  it('keeps them when the restore on launch is refused', async () => {
     await signedIn(A);
     useAuthStore.setState({ isAuthenticated: false, session: null, activeAccountId: null, accountId: null });
     useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
     useCalendarSubscriptionsStore.setState({ subscriptions: [feed(A)] });
     client.loadErrors = { [A]: new AuthenticationError('Invalid credentials') };
 
-    expect(await useAuthStore.getState().restoreSession()).toBe(false);
+    // The cached mail shows while the app asks for a new sign-in.
+    expect(await useAuthStore.getState().restoreSession()).toBe(true);
 
-    expect(useAccountStore.getState().accounts).toEqual([]);
-    expect(leftovers()).toEqual({ searches: [], feeds: [] });
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A]);
+    expect(useAuthStore.getState().reauth?.accountId).toBe(A);
+    expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${A}`] });
   });
 
-  it('clears them when a session retry evicts the last account', async () => {
+  it('keeps them when a session retry is refused', async () => {
     await signedIn(A);
     useAuthStore.setState({ session: null });
     useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
@@ -330,8 +336,9 @@ describe('what a sign-out leaves behind', () => {
 
     expect(await useAuthStore.getState().retrySession()).toBe(false);
 
-    expect(useAccountStore.getState().accounts).toEqual([]);
-    expect(leftovers()).toEqual({ searches: [], feeds: [] });
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A]);
+    expect(useAuthStore.getState().reauth?.accountId).toBe(A);
+    expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${A}`] });
   });
 
   it('clears them when the last account signs out', async () => {

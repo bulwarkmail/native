@@ -640,6 +640,24 @@ export default function App() {
     return () => { cancelled = true; };
   }, [addAccountForLink]);
 
+  // The server refused the stored sign-in of an account (auth store
+  // keepForSignIn): open the sign-in to it, filled in, over what is cached.
+  const reauthTarget = useAuthStore((s) => s.reauth);
+  React.useEffect(() => {
+    if (!isAuthenticated || !reauthTarget) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 50 && !navigationRef.isReady(); attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (cancelled) return;
+      }
+      if (cancelled || !navigationRef.isReady()) return;
+      if (navigationRef.getCurrentRoute()?.name === 'AddAccount') return;
+      navigationRef.navigate('AddAccount');
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, reauthTarget]);
+
   // Re-register the device with the configured relay once authenticated,
   // and whenever the FCM token rotates. Honours the user's notification
   // preference - flipping it off tears down THIS account's subscription so

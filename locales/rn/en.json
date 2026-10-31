@@ -854,6 +854,8 @@
       "qr_hint": "Settings → Security → Link Mobile App shows a code. Point the camera at it.",
       "qr_hint_title": "Open Bulwark on your computer",
       "qr_title": "Sign-in code",
+      "reauth_detail": "The server no longer accepts the saved sign-in for {account}. Sign in again to keep using this account.",
+      "reauth_title": "Sign in again",
       "scan_desc": "The fastest way in if you're signed in on the web",
       "scan_title": "Scan a sign-in code",
       "server_cert_active": "Signing in with the client certificate \"{alias}\". Tap to choose another.",
@@ -1649,6 +1651,7 @@
   },
   "sidebar": {
     "account_error": "Needs attention",
+    "account_sign_in_again": "Sign in again",
     "remove_account_hint": "Long-press to remove this account",
     "remove_account_message": "Sign out of {account} on this device. Your mail stays on the server.",
     "remove_account_title": "Remove account?",
