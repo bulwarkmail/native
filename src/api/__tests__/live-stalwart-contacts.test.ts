@@ -7,7 +7,9 @@
  * message.
  *
  * Opt-in like live-stalwart.test.ts: skipped unless `BULWARK_LIVE_JMAP` and
- * `BULWARK_LIVE_PASS` are set.
+ * `BULWARK_LIVE_PASS` are set. `BULWARK_LIVE_USER2` and `BULWARK_LIVE_PASS2`
+ * name a second account for address book sharing and for which shared
+ * accounts count as holding contacts (webmail #1239).
  *
  *   BULWARK_LIVE_JMAP=http://10.10.10.62:8120 \
  *   BULWARK_LIVE_USER=e2e-tablet-dark@example.org BULWARK_LIVE_PASS=… \
@@ -29,9 +31,13 @@ import {
   deleteContacts,
   getAddressBooks,
   getContact,
+  getContactCapableAccountIds,
+  getContactsAccountId,
   createContact,
+  setAddressBookShare,
   updateContact,
 } from '../contacts';
+import { accountSupports } from '../../lib/account-capability';
 import {
   createSieveScript,
   deleteSieveScript,
@@ -58,6 +64,9 @@ const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
 const PASS = process.env.BULWARK_LIVE_PASS ?? '';
 const live = SERVER && PASS ? describe : describe.skip;
+const USER2 = process.env.BULWARK_LIVE_USER2;
+const PASS2 = process.env.BULWARK_LIVE_PASS2 ?? PASS;
+const liveTwo = SERVER && PASS && USER2 ? describe : describe.skip;
 
 const RUN = Date.now().toString(36);
 const SIEVE_USING = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:sieve'];
@@ -337,4 +346,78 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       }
     }, 60_000);
   });
+});
+
+liveTwo('live Stalwart: address book sharing (0.16 and 1.0)', () => {
+  let other: JMAPClient;
+  let bookId = '';
+  let otherMailbox = '';
+  const MAIL_USING = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:principals'];
+
+  const connectMain = async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    singleton.restoreSnapshot(client.snapshot());
+  };
+
+  beforeAll(async () => {
+    await connectMain();
+    other = new JMAPClient();
+    await other.connect(SERVER!, USER2!, PASS2);
+    bookId = (await createAddressBook(`live-share-${RUN}`)).id;
+  }, 60_000);
+
+  afterAll(async () => {
+    if (otherMailbox) {
+      await other.request([['Mailbox/set', { accountId: other.accountId, destroy: [otherMailbox], onDestroyRemoveEmails: true }, '0']], MAIL_USING)
+        .catch(() => undefined);
+    }
+    await connectMain().catch(() => undefined);
+    if (bookId) await deleteAddressBook(bookId, undefined, { removeContents: true }).catch(() => undefined);
+    useContactsStore.getState().reset();
+  }, 60_000);
+
+  it('shares an address book with another account and takes the share back', async () => {
+    const principal = other.accountId;
+    const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+    await setAddressBookShare(bookId, principal, read);
+    const shared = (await getAddressBooks()).find((b) => b.id === bookId);
+    expect(shared?.shareWith?.[principal]).toMatchObject({ mayRead: true, mayWrite: false });
+
+    // The other account sees the book in the owner's account.
+    await other.connect(SERVER!, USER2!, PASS2);
+    const owner = getContactsAccountId();
+    const [[, got]] = (await other.request([['AddressBook/get', { accountId: owner, ids: null }, '0']],
+      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'])).methodResponses as [string, { list?: { id: string }[] }, string][];
+    expect((got.list ?? []).map((b) => b.id)).toContain(bookId);
+
+    // Read & write, then nothing.
+    await setAddressBookShare(bookId, principal, { ...read, mayWrite: true });
+    expect((await getAddressBooks()).find((b) => b.id === bookId)?.shareWith?.[principal]).toMatchObject({ mayWrite: true });
+    await setAddressBookShare(bookId, principal, null);
+    expect((await getAddressBooks()).find((b) => b.id === bookId)?.shareWith?.[principal]).toBeUndefined();
+  }, 60_000);
+
+  it('lists a shared account for contacts only as far as its capabilities go', async () => {
+    // A mailbox shared by the other account puts that account in the session.
+    const [[, created]] = (await other.request([['Mailbox/set', {
+      accountId: other.accountId,
+      create: { m: { name: `${RUN} shared`, shareWith: { [client.accountId]: { mayReadItems: true } } } },
+    }, '0']], MAIL_USING)).methodResponses as [string, { created?: Record<string, { id: string }>; notCreated?: unknown }, string][];
+    otherMailbox = created.created?.m?.id ?? '';
+    expect(otherMailbox, JSON.stringify(created.notCreated)).toBeTruthy();
+    await connectMain();
+    const session = client.currentSession!;
+    const sharer = session.accounts?.[other.accountId];
+    expect(sharer, "the sharer's account is in the session").toBeTruthy();
+    const ids = getContactCapableAccountIds();
+    expect(ids[0]).toBe(getContactsAccountId());
+    // Whatever the server lists for the sharer decides, not that it is shared.
+    expect(ids.includes(other.accountId)).toBe(accountSupports(sharer, session.capabilities, 'urn:ietf:params:jmap:contacts'));
+    for (const id of ids.slice(1)) {
+      expect(accountSupports(session.accounts?.[id], session.capabilities, 'urn:ietf:params:jmap:contacts')).toBe(true);
+    }
+  }, 60_000);
 });
