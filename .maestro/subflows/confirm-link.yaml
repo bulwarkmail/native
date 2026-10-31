@@ -18,3 +18,14 @@ appId: org.bulwarkmail.mobile
 - tapOn:
     text: "Continue"
     below: "Sign in with a link."
+# A tap while the alert is still animating in can go nowhere: tap again if
+# it is still up.
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      visible: "Sign in with a link."
+    commands:
+      - tapOn:
+          text: "Continue"
+          below: "Sign in with a link."
