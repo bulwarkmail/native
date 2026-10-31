@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback, Alert, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -71,7 +71,10 @@ import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { moveSheetCurrentId } from '../lib/move-targets';
 import { listViewKey } from '../lib/list-view-key';
 import { searchScopeFolders } from '../lib/search-scope-folders';
-import { SIZE_PRESETS_MB, sizeFilterBytes, sizePresetOf } from '../lib/search-utils';
+import {
+  SIZE_PRESETS_MB, sizeFilterBytes, sizePresetOf, sizeChipLabel, filterButtonLabel, keepCustomSize, filterSheetFrame,
+} from '../lib/search-utils';
+import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -1195,6 +1198,41 @@ export default function EmailListScreen({
   // size" (webmail search-filter-panel).
   const [customSize, setCustomSize] = React.useState(false);
   const sizePreset = customSize ? 'custom' : sizePresetOf(filters.minSizeKb, filters.maxSizeKb);
+  React.useEffect(() => {
+    if (!keepCustomSize(customSize, filterMenuOpen, filters.minSizeKb, filters.maxSizeKb)) setCustomSize(false);
+  }, [customSize, filterMenuOpen, filters.minSizeKb, filters.maxSizeKb]);
+  // Clear empties every field of the sheet, also text not yet committed
+  // (the fields commit after a pause): a new key remounts them.
+  const [filterFormKey, setFilterFormKey] = React.useState(0);
+  const clearFilters = () => {
+    setCustomSize(false);
+    setFilterFormKey((k) => k + 1);
+    setFilters({});
+  };
+  // The sheet stays between the system bars and above the keyboard.
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const keyboardHeight = useKeyboardObstruction(insets.bottom);
+  // The sheet's window as laid out, and its tallest height in this
+  // orientation: a window that resizes for the keyboard is shorter by then.
+  const [filterWindow, setFilterWindow] = React.useState({ width: 0, full: 0, now: 0 });
+  const onFilterBackdropLayout = (height: number) => setFilterWindow((w) => {
+    const full = w.width === windowWidth ? Math.max(w.full, height) : height;
+    return w.width === windowWidth && w.full === full && w.now === height ? w : { width: windowWidth, full, now: height };
+  });
+  const filterWindowKnown = filterWindow.width === windowWidth && filterWindow.now > 0;
+  const filterFrame = filterSheetFrame(
+    filterWindowKnown ? filterWindow.now : windowHeight,
+    insets.top,
+    insets.bottom,
+    keyboardHeight,
+    spacing.lg,
+    filterWindowKnown ? filterWindow.full - filterWindow.now : 0,
+  );
+  const filterScrollRef = React.useRef<ScrollView>(null);
+  // The size fields are near the end: bring them up once the keyboard is out.
+  const revealSizeFields = () => {
+    setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 350);
+  };
   const pickSizePreset = (key: string) => {
     setCustomSize(key === 'custom');
     if (key === 'custom') return;
@@ -1352,8 +1390,7 @@ export default function EmailListScreen({
         style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
         onPress={() => setFilterMenuOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel={t('advanced_search.advanced_filters_tooltip', 'Advanced search filters')}
-        accessibilityValue={activeFilterCount > 0 ? { text: String(activeFilterCount) } : undefined}
+        accessibilityLabel={filterButtonLabel(activeFilterCount, t)}
       >
         <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
         {activeFilterCount > 0 && (
@@ -1658,13 +1695,13 @@ export default function EmailListScreen({
           )}
           {sizeFilterBytes(filters.minSizeKb) !== null ? (
             <FilterChip
-              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} KB` })}
+              label={sizeChipLabel('min', filters.minSizeKb ?? '', t)}
               onRemove={() => setFilterField('minSizeKb', undefined)}
             />
           ) : null}
           {sizeFilterBytes(filters.maxSizeKb) !== null ? (
             <FilterChip
-              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} KB` })}
+              label={sizeChipLabel('max', filters.maxSizeKb ?? '', t)}
               onRemove={() => setFilterField('maxSizeKb', undefined)}
             />
           ) : null}
@@ -1672,6 +1709,7 @@ export default function EmailListScreen({
             onPress={() => {
               setSearchInput('');
               setCustomSize(false);
+              setFilterFormKey((k) => k + 1);
               clearSearchAndFilters();
             }}
             style={styles.clearAllButton}
@@ -1829,14 +1867,17 @@ export default function EmailListScreen({
         onRequestClose={() => setFilterMenuOpen(false)}
       >
         <TouchableWithoutFeedback accessible={false} onPress={() => setFilterMenuOpen(false)}>
-          <View style={styles.filterBackdrop}>
+          <View
+            style={[styles.filterBackdrop, { paddingTop: filterFrame.paddingTop, paddingBottom: filterFrame.paddingBottom }]}
+            onLayout={(e) => onFilterBackdropLayout(e.nativeEvent.layout.height)}
+          >
             <TouchableWithoutFeedback accessible={false}>
-              <View style={styles.filterMenu}>
+              <View style={[styles.filterMenu, { maxHeight: filterFrame.maxHeight }]}>
                 <View style={styles.filterMenuHeader}>
                   <Text style={styles.filterMenuTitle}>{t('email_list.filter_title', 'Filter emails')}</Text>
                   <View style={styles.filterMenuHeaderActions}>
                     <Pressable
-                      onPress={() => { setCustomSize(false); setFilters({}); }}
+                      onPress={clearFilters}
                       style={styles.filterMenuHeaderBtn}
                       hitSlop={6}
                       accessibilityRole="button"
@@ -1856,7 +1897,13 @@ export default function EmailListScreen({
                   </View>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.filterMenuBody} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                  key={filterFormKey}
+                  ref={filterScrollRef}
+                  style={styles.filterMenuScroll}
+                  contentContainerStyle={styles.filterMenuBody}
+                  keyboardShouldPersistTaps="handled"
+                >
                   <View style={styles.filterFieldRow}>
                     <View style={styles.filterFieldHalf}>
                       <Text style={styles.filterFieldLabel}>{t('advanced_search.from', 'From')}</Text>
@@ -2026,6 +2073,7 @@ export default function EmailListScreen({
                             accessibilityLabel={t('advanced_search.size_min', 'Larger than (KB)')}
                             placeholderTextColor={c.textMuted}
                             keyboardType="number-pad"
+                            onFocus={revealSizeFields}
                             style={styles.filterFieldInput}
                             testID="advanced-search-min-size"
                           />
@@ -2038,6 +2086,7 @@ export default function EmailListScreen({
                             accessibilityLabel={t('advanced_search.size_max', 'Smaller than (KB)')}
                             placeholderTextColor={c.textMuted}
                             keyboardType="number-pad"
+                            onFocus={revealSizeFields}
                             style={styles.filterFieldInput}
                             testID="advanced-search-max-size"
                           />
@@ -2463,7 +2512,6 @@ function makeStyles(c: ThemePalette) {
   filterMenu: {
     width: '100%',
     maxWidth: 380,
-    maxHeight: '85%',
     backgroundColor: c.popover,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -2507,6 +2555,7 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
     borderRadius: radius.xs,
   },
+  filterMenuScroll: { flexGrow: 0, flexShrink: 1 },
   filterMenuBody: {
     padding: spacing.lg,
     gap: spacing.md,

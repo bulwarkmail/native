@@ -1,9 +1,12 @@
 {
   "advanced_search": {
+    "advanced_filters_count": "{name}, {count} active",
     "after": "After",
     "before": "Before",
+    "larger_than_kb": "Larger than {size} KB",
     "no_attachment": "No attachment",
-    "not_starred": "Not starred"
+    "not_starred": "Not starred",
+    "smaller_than_kb": "Smaller than {size} KB"
   },
   "calendar": {
     "a11y": {
