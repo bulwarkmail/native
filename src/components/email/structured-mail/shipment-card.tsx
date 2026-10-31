@@ -2,13 +2,12 @@
 // b0782af2d (same rows, React Native views).
 import React from 'react';
 import { Image, Text, View } from 'react-native';
-import { Clock, ExternalLink } from '../../icons';
+import { Clock, ExternalLink, Package, ShoppingBag, Truck } from '../../icons';
 import { formatMomentDate, formatMoney, isWebLink, shipmentItems, summarizeItems } from '../../../lib/structured-mail/format';
 import type { Item, Link, OrderStatus, Parcel, Shipment } from '../../../lib/structured-mail/types';
 import { useLocaleStore } from '../../../stores/locale-store';
 import { CardLink, CardShell, MetaRow, Pill, useCardFormat, useCardStyles } from './card-parts';
 import { CopyValueChip } from './copy-value-chip';
-import { Package, ShoppingBag, Truck } from './icons';
 
 const STATUS_TONE: Record<OrderStatus, 'error' | 'warning' | 'success' | 'info' | 'muted'> = {
   payment_due: 'warning',
