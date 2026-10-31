@@ -327,6 +327,14 @@
     "from_options": "Sender options",
     "group_chip": "{name} ({count})",
     "identity_unavailable": "Identity unavailable",
+    "image_alt": {
+      "decorative": "Decorative image (no description)",
+      "hint": "Say what the image shows for people who can't see it.",
+      "label": "Image description",
+      "plain_text": "[Image: {alt}]",
+      "skip": "Skip",
+      "title": "Describe this image"
+    },
     "image_load_failed": "Could not load image",
     "login_switched_attach_body": "You started this message in {account}. Switch back to that account to attach files.",
     "login_switched_body": "You started this message in {account}. Switch back to that account to send it.",
@@ -379,6 +387,10 @@
     "schedule_in_3h": "In 3 hours",
     "schedule_past_body": "The scheduled time must be in the future.",
     "schedule_past_title": "Pick a future time",
+    "schedule_preset": {
+      "this_afternoon": "This afternoon",
+      "this_morning": "This morning"
+    },
     "schedule_tomorrow": "Tomorrow, 8:00 AM",
     "schedule_tomorrow_morning": "Tomorrow morning",
     "schedule_too_late_body": "That is later than this server allows. Pick an earlier time.",
@@ -387,6 +399,10 @@
     "schedule_unsupported_title": "Scheduling unavailable",
     "scheduled_body": "Your message will be sent at {time}.",
     "scheduled_title": "Scheduled",
+    "send_confirm": {
+      "message": "It goes to {count, plural, one {# recipient} other {# recipients}}.",
+      "title": "Send this message?"
+    },
     "send_now": "Send now",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
@@ -1437,6 +1453,9 @@
     "sign_out_confirm_title": "Sign out?",
     "sign_out_confirm_title_account": "Sign out of {account}?",
     "tab_unavailable": "{name} (unavailable)"
+  },
+  "templates": {
+    "manage": "Manage templates"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, one {# account could not be loaded} other {# accounts could not be loaded}}"
