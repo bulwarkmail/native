@@ -14,7 +14,7 @@
 import { supportsDeviceSync } from './platform-capabilities';
 
 export type SettingsTabId =
-  | 'account' | 'language' | 'notifications' | 'accessibility'
+  | 'account' | 'sharing' | 'language' | 'notifications' | 'accessibility'
   | 'appearance' | 'layout'
   | 'reading' | 'composing' | 'identities' | 'vacation'
   | 'filters' | 'recovery' | 'templates' | 'folders' | 'keywords' | 'downloads'
@@ -38,7 +38,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.account.accounts',
     'settings.account.shared_accounts',
   ],
-  // Recover deleted items shows only where the server has it.
+  // Delegates and Recover deleted items show only where the server has them.
+  sharing: ['delegates.title'],
   recovery: ['recover_deleted.title'],
   language: [
     'settings.appearance.language',
@@ -258,6 +259,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
 // translation doesn't contain the literal word.
 export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   account: 'profile email password user signin signout reorder switch default multi-account shared storage quota',
+  sharing: 'delegate delegation share access assistant permissions revoke folders calendars contacts colleague',
   recovery: 'recover restore undelete deleted trash emptied lost messages',
   language: 'locale region date time format translation',
   notifications: 'alert push badge unifiedpush relay device reminder',
