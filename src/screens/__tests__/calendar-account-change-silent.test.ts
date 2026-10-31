@@ -31,7 +31,7 @@ describe('a calendar write the account switch stopped shows no error', () => {
   });
 
   it('EventModal save', () => {
-    expect(beforeAlert('components/calendar/EventModal.tsx', 'await onSave(data, calendarId, {')).toMatch(SILENT);
+    expect(beforeAlert('components/calendar/EventModal.tsx', '=> onSave(data, calendarId, {')).toMatch(SILENT);
   });
 
   it('CalendarScreen gives the scope edits one account for the whole operation', () => {
