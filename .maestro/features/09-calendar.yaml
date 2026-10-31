@@ -46,6 +46,19 @@ tags:
 - pressKey: Enter
 - waitForAnimationToEnd:
     timeout: 3000
+# A new event starts on the calendar's default reminders; Customize turns
+# them into the event's own list, which has Add reminder.
+- scrollUntilVisible:
+    element: "Customize|Add reminder"
+    direction: DOWN
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Customize"
+    commands:
+      - tapOn: "Customize"
+      - waitForAnimationToEnd:
+          timeout: 3000
 - scrollUntilVisible:
     element: "Add reminder"
     direction: DOWN
