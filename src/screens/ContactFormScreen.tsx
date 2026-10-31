@@ -245,7 +245,7 @@ export default function ContactFormScreen() {
   const route = useRoute<Route>();
   const t = useLocaleStore((s) => s.t);
   const opts = React.useMemo(() => formOptions(t), [t]);
-  const { contactId, addressBookId: initialBook, asGroup, prefill, memberIds: initialMemberIds } = route.params || {};
+  const { contactId, addressBookId: initialBook, asGroup: asGroupParam, prefill, memberIds: initialMemberIds } = route.params || {};
   const isEdit = !!contactId;
 
   const addressBooks = useContactsStore((s) => s.addressBooks);
@@ -258,6 +258,8 @@ export default function ContactFormScreen() {
     () => (contactId ? allContacts.find((c) => c.id === contactId) : undefined),
     [allContacts, contactId],
   );
+  // An edit link (`/contacts/<id>/edit`) does not know it names a group.
+  const asGroup = asGroupParam || existing?.kind === 'group';
   const existingKeywords = React.useMemo(() => {
     const counts = new Map<string, number>();
     for (const contact of allContacts) {
@@ -280,12 +282,14 @@ export default function ContactFormScreen() {
     const init = blankForm();
     init.addressBookId = initialBook || getDefaultAddressBookId() || '';
     if (initialMemberIds?.length) init.members = initialMemberIds;
-    if (prefill?.email) {
+    if (prefill?.email || prefill?.name) {
       // "Add sender to contacts": split the display name like the webmail
       // (first word → given, rest → surname) and never let a mailbox-shaped
-      // name through (#672).
-      const mailbox = splitMailbox(prefill.name ? `${prefill.name} <${prefill.email}>` : prefill.email);
-      init.emails = [{ address: mailbox.email, context: '' }];
+      // name through (#672). A `/contacts/new` link may carry only a name.
+      const mailbox = prefill.email
+        ? splitMailbox(prefill.name ? `${prefill.name} <${prefill.email}>` : prefill.email)
+        : { email: '', name: prefill.name ?? '' };
+      if (mailbox.email) init.emails = [{ address: mailbox.email, context: '' }];
       const parts = (mailbox.name || '').split(/\s+/).filter(Boolean);
       if (parts.length > 0) {
         init.given = parts[0];
@@ -309,6 +313,19 @@ export default function ContactFormScreen() {
   const firstEmailRef = React.useRef<TextInput>(null);
   const [datePickerIndex, setDatePickerIndex] = React.useState<number | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = React.useState(false);
+
+  // An edit link can open the form before the contacts have loaded: the
+  // card's fields go in when it arrives, unless the user has typed already.
+  const filledFromExisting = React.useRef(!!existing);
+  React.useEffect(() => {
+    if (filledFromExisting.current || !existing) return;
+    filledFromExisting.current = true;
+    if (dirty) return;
+    const members = asGroup
+      ? selectGroupMembers({ contacts: allContacts }, existing.id).map((m) => m.id)
+      : [];
+    setForm(contactToForm(existing, members));
+  }, [existing, dirty, asGroup, allContacts]);
 
   React.useEffect(() => {
     if (!form.addressBookId) {
@@ -344,6 +361,8 @@ export default function ContactFormScreen() {
   };
 
   const handleSave = async () => {
+    // Never turn an edit of a card that isn't there into a new card.
+    if (isEdit && !existing) return;
     const orgName = form.orgs[0]?.name.trim() || '';
     if (asGroup) {
       if (!form.given.trim()) {
@@ -646,6 +665,28 @@ export default function ContactFormScreen() {
       }}
     />
   );
+
+  if (isEdit && !existing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <Pressable
+            onPress={handleBack}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
+            <ArrowLeft size={22} color={c.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{t('contacts.contact', 'Contact')}</Text>
+        </View>
+        <View style={styles.missing}>
+          <Text style={styles.missingText}>{t('contacts.detail.not_found', 'Contact not found')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (asGroup) {
     // Groups are a name plus a member list - none of the person fields apply.
@@ -1477,6 +1518,8 @@ function formatDateAsISO(d: Date): string {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    missingText: { ...typography.body, color: c.textMuted },
     scrollContent: {
       paddingVertical: spacing.md,
       paddingBottom: spacing.xxxl * 2,

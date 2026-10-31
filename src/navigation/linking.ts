@@ -47,7 +47,10 @@ export type DeepLink =
   // account it belongs to (`?appAccount=`, from widgets). `view` and `date`
   // (`YYYY-MM-DD`): the view and day a `/calendar/<view>/<date>` link shows.
   | { kind: 'calendar'; eventId?: string; view?: CalendarLinkView; date?: string; jmapAccountId?: string; accountId?: string }
-  | { kind: 'contact'; contactId: string }
+  // `edit`: `/contacts/<id>/edit` opens the contact's editor.
+  | { kind: 'contact'; contactId: string; edit?: true }
+  // `/contacts/new`, with `?email=`/`?addEmail=` and `?name=`/`?addName=`.
+  | { kind: 'contact-new'; email?: string; name?: string }
   | { kind: 'contacts' }
   | { kind: 'files' }
   | { kind: 'settings'; tab?: string }
@@ -168,7 +171,24 @@ export function parseDeepLink(url: string): DeepLink | null {
       return { kind: 'calendar', ...(parseCalendarLinkDate(kind) ? { date: kind } : {}) };
     }
     case 'contacts': {
-      if (kind && kind !== 'new') return { kind: 'contact', contactId: decodeSegment(kind) };
+      // Webmail parseContactsPath, with the older query form plugins and
+      // bookmarks still emit (`?contactId=[&view=edit]`, `?addEmail=`).
+      const newContact = (email: string | null, name: string | null): DeepLink => ({
+        kind: 'contact-new',
+        ...(email ? { email } : {}),
+        ...(name ? { name } : {}),
+      });
+      if (kind === 'new') {
+        return newContact(search.get('email') ?? search.get('addEmail'), search.get('name') ?? search.get('addName'));
+      }
+      const contactId = kind ? decodeSegment(kind) : search.get('contactId');
+      if (contactId) {
+        const edit = kind ? value === 'edit' : search.get('view') === 'edit';
+        return { kind: 'contact', contactId, ...(edit ? { edit: true as const } : {}) };
+      }
+      if (search.get('addEmail') || search.get('addName')) {
+        return newContact(search.get('addEmail'), search.get('addName'));
+      }
       return { kind: 'contacts' };
     }
     case 'files':
@@ -323,7 +343,13 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       navigation.navigate('MainTabs', { screen: 'Calendar' } as never);
       return true;
     case 'contact':
-      navigation.navigate('ContactDetail', { contactId: link.contactId });
+      if (link.edit) navigation.navigate('ContactForm', { contactId: link.contactId });
+      else navigation.navigate('ContactDetail', { contactId: link.contactId });
+      return true;
+    case 'contact-new':
+      navigation.navigate('ContactForm', link.email || link.name
+        ? { prefill: { ...(link.email ? { email: link.email } : {}), ...(link.name ? { name: link.name } : {}) } }
+        : {});
       return true;
     case 'contacts':
       navigation.navigate('MainTabs', { screen: 'Contacts' } as never);
