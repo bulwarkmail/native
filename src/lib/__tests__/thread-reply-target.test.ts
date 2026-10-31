@@ -33,7 +33,7 @@ describe('replying in a conversation (bulwarkmail/webmail#1404)', () => {
 
   it('is wired into the conversation cards and the quick reply', () => {
     const screen = fs.readFileSync(path.resolve(__dirname, '../../screens/EmailThreadScreen.tsx'), 'utf8');
-    expect(screen).toMatch(/replyable=\{!!full && isReplyableMember\(m, scheduledIds\)\}/);
+    expect(screen).toMatch(/replyActions=\{cardReplyActions\(m, !!full, scheduledIds\)\}/);
     expect(screen).toMatch(/const newest = quickReplyTarget\(/);
     expect(screen).toMatch(/scheduledEmailIdsInThread\(threadId, jmapAccountId\)/);
   });

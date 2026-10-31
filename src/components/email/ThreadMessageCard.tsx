@@ -13,6 +13,7 @@ import { singleLine } from '../../lib/single-line';
 import { cleanPreview } from '../../lib/preview-text';
 import { useSenderWarning } from './use-sender-warning';
 import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
+import type { CardReplyActions } from '../../lib/thread-card-actions';
 
 interface Props extends MessageContentProps {
   expanded: boolean;
@@ -24,8 +25,11 @@ interface Props extends MessageContentProps {
    * the card so the content survives a conversation arriving around it.
    */
   bare?: boolean;
-  /** The full message is here (not only its header), so it can be replied to. */
-  replyable?: boolean;
+  /**
+   * The reply row: hidden on a draft or scheduled message, disabled until
+   * the full message is here (lib/thread-card-actions).
+   */
+  replyActions?: CardReplyActions;
 }
 
 /**
@@ -34,7 +38,7 @@ interface Props extends MessageContentProps {
  * actions - the webmail's thread-conversation-view cards.
  */
 export function ThreadMessageCard({
-  expanded, onToggleExpanded, onReply, bare, replyable = true, ...content
+  expanded, onToggleExpanded, onReply, bare, replyActions = 'enabled', ...content
 }: Props) {
   const { email, onToggleStar } = content;
   const c = useColors();
@@ -71,24 +75,29 @@ export function ThreadMessageCard({
 
   // The content keeps its place among the children whether bare or not, so
   // it (and its WebView) is not remounted when a conversation arrives.
+  const replyable = replyActions === 'enabled';
   const reply = (mode: 'reply' | 'replyAll' | 'forward') => (replyable ? () => onReply(mode, email) : undefined);
+  const actionA11y = {
+    accessibilityRole: 'button' as const,
+    accessibilityState: { disabled: !replyable },
+  };
   return (
     <View style={bare ? (content.fill ? styles.bareFill : undefined) : styles.expanded}>
       {!bare && (
         <Pressable onPress={onToggleExpanded} style={styles.collapseHandle} hitSlop={6} accessibilityLabel={t('threads.collapse', 'Collapse conversation')} />
       )}
       <MessageContent {...content} compact={false} onToggleStar={bare ? undefined : onToggleStar} />
-      {!bare && (
+      {!bare && replyActions !== 'hidden' && (
         <View style={[styles.actions, !replyable && styles.actionsDisabled]}>
-          <Pressable style={styles.actionBtn} onPress={reply('reply')} hitSlop={6}>
+          <Pressable style={styles.actionBtn} onPress={reply('reply')} disabled={!replyable} hitSlop={6} {...actionA11y}>
             <Reply size={16} color={c.text} />
             <Text style={styles.actionLabel}>{t('email_viewer.reply', 'Reply')}</Text>
           </Pressable>
-          <Pressable style={styles.actionBtn} onPress={reply('replyAll')} hitSlop={6}>
+          <Pressable style={styles.actionBtn} onPress={reply('replyAll')} disabled={!replyable} hitSlop={6} {...actionA11y}>
             <ReplyAll size={16} color={c.text} />
             <Text style={styles.actionLabel}>{t('email_viewer.reply_all', 'Reply All')}</Text>
           </Pressable>
-          <Pressable style={styles.actionBtn} onPress={reply('forward')} hitSlop={6}>
+          <Pressable style={styles.actionBtn} onPress={reply('forward')} disabled={!replyable} hitSlop={6} {...actionA11y}>
             <Forward size={16} color={c.text} />
             <Text style={styles.actionLabel}>{t('email_viewer.forward', 'Forward')}</Text>
           </Pressable>

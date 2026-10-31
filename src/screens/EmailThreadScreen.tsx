@@ -16,6 +16,7 @@ import {
 import { pickEmailBody } from '../lib/email-body';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { useTagUndoGroup } from '../lib/tag-undo-group';
+import { cardReplyActions } from '../lib/thread-card-actions';
 import { NewTagRow } from '../components/NewTagRow';
 import { QuickRuleSheet } from '../components/filters/QuickRuleSheet';
 import { isSieveSupported } from '../api/sieve';
@@ -51,7 +52,7 @@ import { replyComposeParams } from '../lib/reply-compose';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
-import { accountScopedId, isReplyableMember, quickReplyTarget } from '../lib/thread-utils';
+import { accountScopedId, quickReplyTarget } from '../lib/thread-utils';
 import { scheduledEmailIdsInThread } from '../api/thread-scheduled';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -1260,7 +1261,7 @@ function EmailPane({
               fill={!asConversation}
               email={full ?? m}
               expanded={open}
-              replyable={!!full && isReplyableMember(m, scheduledIds)}
+              replyActions={cardReplyActions(m, !!full, scheduledIds)}
               deferBody={!full || !bodyEnabled}
               onBodySettled={onBodySettled}
               onToggleExpanded={() => toggleCard(m.id)}
