@@ -41,6 +41,8 @@ import {
   type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
+import { usePolicyFeature } from '../stores/policy-store';
+import { swipeActionShown } from '../lib/swipe-actions';
 import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/keywords-store';
 import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
@@ -538,8 +540,10 @@ export default function EmailListScreen({
   const retryFailedOps = useOutboxStore((s) => s.retryFailed);
   const discardFailedOps = useOutboxStore((s) => s.discardFailed);
 
-  const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
-  const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
+  // The organisation's Archive gate: a stored Archive swipe does nothing while it is off.
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
+  const swipeLeftAction = swipeActionShown(useSettingsStore((s) => s.swipeLeftAction), archiveEnabled);
+  const swipeRightAction = swipeActionShown(useSettingsStore((s) => s.swipeRightAction), archiveEnabled);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showPreview = useSettingsStore((s) => s.showPreview);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
@@ -1041,7 +1045,7 @@ export default function EmailListScreen({
   };
 
   const canArchiveSelection =
-    archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
+    archiveEnabled && archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
   const canSpamSelection =
     currentRole !== 'sent' && currentRole !== 'drafts' && (inJunk || junkMailboxId != null);
 

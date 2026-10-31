@@ -33,10 +33,11 @@ import { useEmailStore, listRowsOfAccount } from '../stores/email-store';
 import { toast } from '../stores/toast-store';
 import {
   useSettingsStore,
-  normalizeBottomQuickActions,
   REPLY_QUICK_ACTIONS,
   type QuickAction,
 } from '../stores/settings-store';
+import { usePolicyFeature } from '../stores/policy-store';
+import { bottomQuickActionsFor } from '../lib/swipe-actions';
 import { patchKeywordsForEmails } from '../api/email';
 import {
   loadDetail, loadDetails, loadThread, patchDetail, peekDetail, peekRow, peekThread, subscribeEmailCache,
@@ -356,9 +357,12 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
 
   const markAsReadDelay = useSettingsStore((s) => s.markAsReadDelay);
   const bottomQuickActionsRaw = useSettingsStore((s) => s.bottomQuickActions);
+  // The organisation's Archive gate (webmail lib/archive-gate.ts): off, a
+  // stored Archive quick action gives way and no Archive button shows.
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
   const bottomActions = React.useMemo(
-    () => normalizeBottomQuickActions(bottomQuickActionsRaw),
-    [bottomQuickActionsRaw],
+    () => bottomQuickActionsFor(bottomQuickActionsRaw, archiveEnabled),
+    [bottomQuickActionsRaw, archiveEnabled],
   );
   // Any reply-family action the user pulled out of the bottom bar is surfaced
   // in the top toolbar so it stays reachable.
@@ -488,7 +492,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     [scopedMailboxes, email, currentMailboxId],
   );
   const isInTrash = !!(trashMailbox && sourceMailbox?.id === trashMailbox.id);
-  const canArchive = !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
+  const canArchive = archiveEnabled && !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
   // Not spam files back into the Inbox, so it needs one.
   const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
 
