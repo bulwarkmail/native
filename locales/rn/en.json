@@ -325,6 +325,9 @@
   "deep_link": {
     "open_failed": "Couldn't open this"
   },
+  "delegates": {
+    "remove_for": "Remove access for {name}"
+  },
   "device_sync": {
     "auth_problem_text": "The server no longer accepts the sign-in of {account}, so its contacts and calendars on this device stopped syncing. Sign in again to resume. Changes made on this device are kept.",
     "auth_problem_title": "Sign in again to keep syncing",
@@ -730,6 +733,7 @@
     "share_no_users": "No other users found",
     "share_remove": "Remove access",
     "share_remove_confirm": "Remove access?",
+    "share_remove_for": "Remove access for {name}",
     "share_role_custom": "Custom",
     "share_search_placeholder": "Search by name or email",
     "share_unavailable": "Sharing is not available on this device",

@@ -278,6 +278,9 @@
       "login_changed": "Sie haben das Konto gewechselt, daher wurde die Regel nicht gespeichert"
     }
   },
+  "delegates": {
+    "remove_for": "Zugriff für {name} entfernen"
+  },
   "device_sync": {
     "auth_problem_text": "Der Server akzeptiert die Anmeldung von {account} nicht mehr, daher werden die Kontakte und Kalender dieses Kontos auf diesem Gerät nicht mehr synchronisiert. Melden Sie sich erneut an, um fortzufahren. Auf diesem Gerät vorgenommene Änderungen bleiben erhalten.",
     "auth_problem_title": "Erneut anmelden, um weiter zu synchronisieren",
@@ -533,6 +536,7 @@
     "share_no_users": "Keine anderen Benutzer gefunden",
     "share_remove": "Zugriff entfernen",
     "share_remove_confirm": "Zugriff entfernen?",
+    "share_remove_for": "Zugriff für {name} entfernen",
     "share_role_custom": "Benutzerdefiniert",
     "share_search_placeholder": "Nach Name oder E-Mail suchen",
     "share_unavailable": "Teilen ist auf diesem Gerät nicht verfügbar",
