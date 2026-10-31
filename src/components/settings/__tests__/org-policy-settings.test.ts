@@ -34,4 +34,13 @@ describe('organisation policy on the settings pages', () => {
     expect(page).toMatch(/\{tasksAllowed && \(\s*<SettingItem\s+label=\{t\('calendar\.settings\.enable_tasks'[\s\S]*?locked=\{tasksLocked\}/);
     expect(page).toContain('{tasksAllowed && tasksEnabled && (');
   });
+
+  it('hides the external content option when the organisation turns it off or hides it', () => {
+    const page = settings('ContentSendersSettings');
+    expect(page).toContain("const externalContentAllowed = usePolicyFeature('externalContentEnabled');");
+    expect(page).toContain("const externalContentHidden = useSettingHidden('externalContentPolicy');");
+    expect(page).toContain('const showExternalContent = externalContentAllowed && !externalContentHidden;');
+    expect(page).toMatch(/\{showExternalContent && \(\s*<SettingItem\s+label=\{t\('settings\.email_behavior\.external_content\.label'[\s\S]*?locked=\{externalContentLocked\}/);
+    expect(page).toContain("const externalContentLocked = useSettingLocked('externalContentPolicy');");
+  });
 });
