@@ -24,6 +24,9 @@ import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 const EMAIL_SUMMARY_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
   'receivedAt', 'from', 'to', 'cc', 'subject', 'preview', 'hasAttachment',
+  // Sorting by "Date sent" compares it on the device for a list merged from
+  // several accounts; without it the order fell back to receivedAt (#1219).
+  'sentAt',
 ];
 
 export const EMAIL_LIST_PROPERTIES = [
@@ -41,7 +44,7 @@ export const EMAIL_LIST_PROPERTIES = [
 export const EMAIL_FULL_PROPERTIES = [
   ...EMAIL_SUMMARY_PROPERTIES,
   'bodyStructure', 'textBody', 'htmlBody', 'bodyValues',
-  'attachments', 'blobId', 'bcc', 'replyTo', 'sentAt',
+  'attachments', 'blobId', 'bcc', 'replyTo',
   'messageId', 'inReplyTo', 'references', 'headers',
 ];
 
@@ -1024,7 +1027,7 @@ export async function getEmailFlags(
 }
 
 // What a collapsed conversation card shows; `sentAt` is the date it prints.
-export const THREAD_HEADER_PROPERTIES = [...EMAIL_LIST_PROPERTIES, 'sentAt'];
+export const THREAD_HEADER_PROPERTIES = EMAIL_LIST_PROPERTIES;
 
 /** A conversation's members, oldest first, without bodies. */
 export interface ThreadHeaders {

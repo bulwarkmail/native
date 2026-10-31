@@ -445,6 +445,8 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       const row = page.list.find((e) => e.id === id);
       expect(row).toBeDefined();
       expect(senderWarningOf(row!)?.status).toBe('failed');
+      // The Date header, for sorting by date sent in merged lists (bulwarkmail/webmail#1219).
+      expect(typeof row!.sentAt).toBe('string');
       // The full fetch reads the same verdict from `headers`.
       const [full] = await getFullEmails([id]);
       expect(senderWarningOf(full)?.status).toBe('failed');
