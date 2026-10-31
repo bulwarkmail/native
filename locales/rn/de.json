@@ -952,6 +952,7 @@
       "not_empty_message": "\"{name}\" enthält {count} E-Mails. Trotzdem löschen?",
       "not_empty_title": "Ordner nicht leer",
       "own_account": "Meine Ordner",
+      "parent_folder": "Übergeordneter Ordner",
       "role": "Ordnerrolle",
       "role_hint": "Weisen Sie diesem Ordner eine Sonderrolle zu (Archiv, Spam, …). Jede Rolle kann nur einem Ordner zugewiesen werden.",
       "save_failed": "Speichern fehlgeschlagen",
