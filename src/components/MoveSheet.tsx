@@ -13,19 +13,24 @@ import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailb
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
 import { localizeMailboxName } from '../lib/mailbox-label';
+import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
 
-function moveTargetIcon(role: string | null | undefined, name: string): AppIcon {
-  const lower = name.toLowerCase();
-  if (role === 'inbox' || lower.includes('inbox')) return Inbox;
-  if (role === 'sent' || lower.includes('sent')) return Send;
-  if (role === 'drafts' || lower.includes('draft')) return FileIcon;
-  if (role === 'trash' || lower.includes('trash') || lower.includes('deleted')) return Trash2;
-  if (role === 'junk' || role === 'spam' || lower.includes('junk') || lower.includes('spam')) return Ban;
-  if (role === 'archive' || lower.includes('archive')) return Archive;
-  return Folder;
+// By role only, like the sidebar (mailboxIconKind, #1235): a user folder
+// named "web/sentry" is not the Sent folder.
+const MOVE_TARGET_ICONS: Partial<Record<MailboxIconKind, AppIcon>> = {
+  inbox: Inbox,
+  sent: Send,
+  drafts: FileIcon,
+  trash: Trash2,
+  junk: Ban,
+  archive: Archive,
+};
+
+function moveTargetIcon(role: string | null | undefined): AppIcon {
+  return MOVE_TARGET_ICONS[mailboxIconKind(role, false, false)] ?? Folder;
 }
 
 interface MoveSheetProps {
@@ -106,7 +111,7 @@ export function MoveSheet({
         </View>
         <ScrollView>
           {visibleNodes.map((node) => {
-            const Icon = moveTargetIcon(node.role, node.name);
+            const Icon = moveTargetIcon(node.role);
             const isCurrent = node.id === currentMailboxId;
             // A shared account's header is a grouping row, not a folder, and
             // Drafts is never a move target (the webmail excludes it too).

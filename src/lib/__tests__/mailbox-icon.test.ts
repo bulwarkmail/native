@@ -25,4 +25,11 @@ describe('mailboxIconKind', () => {
     expect(source).toContain('mailboxIconKind(');
     expect(source).not.toMatch(/lower\.includes\('(?:sent|inbox|draft|trash|junk|archive|star)'\)/);
   });
+
+  // The move sheet still guessed from the name (#1235 fixed only the sidebar).
+  it('is what the move sheet uses too, with no guess from the folder name', () => {
+    const source = readFileSync(path.join(process.cwd(), 'src/components/MoveSheet.tsx'), 'utf8');
+    expect(source).toContain('mailboxIconKind(');
+    expect(source).not.toMatch(/\.includes\('(?:sent|inbox|draft|trash|deleted|junk|spam|archive)'\)/);
+  });
 });
