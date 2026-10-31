@@ -2160,6 +2160,10 @@ export const useEmailStore = create<EmailState>()(
     const state = get();
     const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
+    // While this change is on its way the bar must not still offer the
+    // previous one's Undo: tapping it right after a star undid the tag set
+    // before, and the star stayed.
+    if (!viewed && keywordUndoLabel(token, on, targets.length) && get().pendingUndo) set({ pendingUndo: null });
     // One Email/set per account the selection spans (#1082); the viewer's
     // message goes to the account it names.
     const groups = viewed ? [{ accountId: viewed.accountId, emails: targets }] : groupByAccount(state, targets);
