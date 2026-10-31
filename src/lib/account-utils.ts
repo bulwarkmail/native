@@ -96,11 +96,13 @@ export function generateAccountId(username: string, serverUrl: string): string {
   if (id === legacy) {
     const explicit = `${id}:${defaultPortOf(serverUrl)}`;
     if (knownAccounts.some((a) => a.id === explicit)) return explicit;
-    const taken = knownAccounts.some((a) => a.id === id && `${a.username}@${serverHostLabel(a.serverUrl)}` !== id);
+    const taken = knownAccounts.some((a) => a.id === id && !!a.serverUrl
+      && `${a.username}@${serverHostLabel(a.serverUrl)}` !== id);
     return taken ? explicit : id;
   }
   const kept = knownAccounts.find((a) => a.id === legacy
     && a.username === username
+    && !!a.serverUrl
     && `${a.username}@${serverHostLabel(a.serverUrl)}` === id);
   return kept ? kept.id : id;
 }

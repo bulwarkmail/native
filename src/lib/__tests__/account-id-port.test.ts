@@ -49,6 +49,14 @@ describe('generateAccountId', () => {
   });
 });
 
+describe('registry entries without a server', () => {
+  it('are skipped instead of throwing', () => {
+    setKnownAccounts([{ id: 'u@example.org@mail.example.org', username: 'u@example.org' } as never]);
+    expect(generateAccountId('u@example.org', 'https://mail.example.org')).toBe('u@example.org@mail.example.org');
+    expect(generateAccountId('u@example.org', 'https://mail.example.org:8443')).toBe('u@example.org@mail.example.org:8443');
+  });
+});
+
 describe('a new default-port account next to a kept host-only id', () => {
   const legacy = { id: 'u@example.org@mail.example.org', username: 'u@example.org', serverUrl: 'https://mail.example.org:8120' };
 
