@@ -34,6 +34,7 @@ import {
   updateAddressBook,
   setDefaultAddressBook,
   deleteAddressBook,
+  setAddressBookShare,
 } from '../contacts';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -69,6 +70,30 @@ describe('contacts operations', () => {
         'acc-team': { name: 'Team', isPersonal: false, accountCapabilities: { 'urn:ietf:params:jmap:contacts': {} } },
       };
       expect(getContactCapableAccountIds()).toEqual(['acc-1', 'acc-team']);
+    });
+  });
+
+  describe('setAddressBookShare', () => {
+    const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+
+    it('patches one principal on the book', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['AddressBook/set', { updated: { ab: null } }, '0']] });
+      await setAddressBookShare('ab', 'carol', read, 'acc-team');
+      expect(mockRequest.mock.calls[0][0]).toEqual([['AddressBook/set', {
+        accountId: 'acc-team',
+        update: { ab: { 'shareWith/carol': read } },
+      }, '0']]);
+      await setAddressBookShare('ab', 'carol', null);
+      expect(mockRequest.mock.calls[1][0][0][1]).toEqual({ accountId: 'acc-1', update: { ab: { 'shareWith/carol': null } } });
+    });
+
+    it('throws when the server refuses or does not confirm', async () => {
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [['AddressBook/set', { notUpdated: { ab: { type: 'forbidden', description: 'no' } } }, '0']],
+      });
+      await expect(setAddressBookShare('ab', 'carol', read)).rejects.toThrow('no');
+      mockRequest.mockResolvedValueOnce({ methodResponses: [['AddressBook/set', { updated: {} }, '0']] });
+      await expect(setAddressBookShare('ab', 'carol', read)).rejects.toThrow('Server did not confirm the share update');
     });
   });
 

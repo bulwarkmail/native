@@ -3,12 +3,13 @@ import { Alert, Share, Text, View, StyleSheet, Pressable, TextInput } from 'reac
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
-  Download, Upload, Plus, Pencil, Trash2, Check, X, BookUser, Star,
+  Download, Upload, Plus, Pencil, Trash2, Check, X, BookUser, Star, Users,
 } from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import Dialog from '../Dialog';
 import { ContactImportSheet, AddressBookPickerSheet } from '../contacts';
+import { AddressBookShareSheet } from '../contacts/AddressBookShareSheet';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -20,6 +21,7 @@ import { deviceSyncAvailable } from '../../device-sync/app/available';
 import { CONTACTS_AUTHORITY } from '../../device-sync/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import type { AddressBook } from '../../api/types';
 
 export function ContactsSettings() {
   const c = useColors();
@@ -45,6 +47,7 @@ export function ContactsSettings() {
   const deleteAddressBook = useContactsStore((s) => s.deleteAddressBook);
   const setDefaultAddressBook = useContactsStore((s) => s.setDefaultAddressBook);
   const getDefaultAddressBookId = useContactsStore((s) => s.getDefaultAddressBookId);
+  const shareAddressBook = useContactsStore((s) => s.shareAddressBook);
 
   const [exporting, setExporting] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
@@ -57,6 +60,8 @@ export function ContactsSettings() {
   const [newName, setNewName] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string; count: number } | null>(null);
+  // The book whose sharing sheet is open, as it was when opened.
+  const [shareTarget, setShareTarget] = React.useState<AddressBook | null>(null);
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
 
@@ -263,6 +268,21 @@ export function ContactsSettings() {
                     {book.isDefault ? ` · ${t('contacts.address_books.default', 'Default')}` : ''}
                   </Text>
                 </View>
+                {/* Own books the user may share (webmail address-book settings). */}
+                {!book.isShared && book.myRights?.mayShare ? (
+                  <Pressable
+                    onPress={() => setShareTarget(book)}
+                    hitSlop={6}
+                    style={styles.iconBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('contacts.address_books.share', 'Share address book')}
+                  >
+                    <Users
+                      size={15}
+                      color={Object.keys(book.shareWith ?? {}).length > 0 ? c.primary : c.textSecondary}
+                    />
+                  </Pressable>
+                ) : null}
                 {!book.isShared && (
                   <Pressable
                     onPress={() => { if (!book.isDefault) void handleSetDefault(book.id); }}
@@ -390,6 +410,12 @@ export function ContactsSettings() {
         currentBookId={resolvedImportTarget}
         title={t('contacts.import.into_address_book', 'Import into address book')}
         onPick={(id) => { setImportTargetBookId(id); setImportTargetOpen(false); }}
+      />
+
+      <AddressBookShareSheet
+        book={shareTarget}
+        onShare={shareAddressBook}
+        onClose={() => setShareTarget(null)}
       />
 
       <Dialog

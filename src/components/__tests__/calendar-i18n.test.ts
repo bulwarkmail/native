@@ -19,6 +19,8 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/calendar/WeekView.tsx': [],
   'components/calendar/CalendarEditSheet.tsx': [],
   'components/calendar/CalendarShareSheet.tsx': [],
+  'components/sharing/ShareCollectionSheet.tsx': [],
+  'components/contacts/AddressBookShareSheet.tsx': [],
   'components/calendar/CalendarSidebarDrawer.tsx': [],
   'components/calendar/EventDetailSheet.tsx': [],
   // The meeting link placeholder shows an example URL.

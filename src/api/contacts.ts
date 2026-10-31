@@ -1,7 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { JMAPSetError } from './jmap-result';
 import { CAPABILITIES } from './types';
-import type { ContactCard, ContactMedia, AddressBook } from './types';
+import type { ContactCard, ContactMedia, AddressBook, AddressBookRights } from './types';
 import { generateUUID } from '../lib/uuid';
 import { contactFromWire, contactToWire } from '../lib/contact-wire';
 import { accountSupports } from '../lib/account-capability';
@@ -377,6 +377,34 @@ export async function updateAddressBook(
   const result = methodResult<{ notUpdated?: Record<string, SetError> }>(res);
   const err = result.notUpdated?.[id];
   if (err) throw new Error(setErrorMessage(err, 'Failed to update address book'));
+}
+
+/**
+ * Give a principal rights on an address book, or take them away with null
+ * (RFC 9610 `shareWith`, patched per principal like the webmail's
+ * setAddressBookShare). Throws when the server refuses or doesn't confirm
+ * the update.
+ */
+export async function setAddressBookShare(
+  addressBookId: string,
+  principalId: string,
+  rights: AddressBookRights | null,
+  accountId?: string,
+): Promise<void> {
+  const account = accountId || getContactsAccountId();
+  const res = await jmapClient.request(
+    [['AddressBook/set', {
+      accountId: account,
+      update: { [addressBookId]: { [`shareWith/${principalId}`]: rights } },
+    }, '0']],
+    USING,
+  );
+  const result = methodResult<{ updated?: Record<string, unknown> | null; notUpdated?: Record<string, SetError> }>(res);
+  const err = result.notUpdated?.[addressBookId];
+  if (err) throw setError(err, 'Failed to update address book share');
+  if (!result.updated || !(addressBookId in result.updated)) {
+    throw new Error('Server did not confirm the share update');
+  }
 }
 
 /**
