@@ -10,7 +10,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock('react-native', () => ({ AppState: { addEventListener: vi.fn() } }));
 vi.mock('../../api/jmap-client', () => ({ jmapClient: h.client }));
-vi.mock('../../api/calendar-event-notifications', () => ({
+vi.mock('../../api/calendar-event-notifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/calendar-event-notifications')>()),
   getCalendarEventNotifications: h.list,
   destroyCalendarEventNotifications: h.destroy,
 }));
@@ -69,6 +70,17 @@ describe('the toast for a calendar event notification', () => {
     expect(eventNotificationToast(note('2'), t)).toEqual({ type: 'info', title: 'Land updated "Planning"', message: undefined });
     expect(eventNotificationToast(note('3', { type: 'destroyed', comment: 'Sorry, ill' }), t))
       .toEqual({ type: 'warning', title: 'Land cancelled "Planning"', message: 'Sorry, ill' });
+  });
+
+  it('says cancelled, as a warning, when the organizer cancels (an update setting status cancelled)', () => {
+    // What Stalwart 1.0.1 sends the attendee after CalendarEvent/set destroy
+    // with sendSchedulingMessages; 0.16.27 sends the whole event as the patch.
+    expect(eventNotificationToast(note('4', { eventPatch: { sequence: null, status: 'cancelled' } as never }), t))
+      .toEqual({ type: 'warning', title: 'Land cancelled "Planning"', message: undefined });
+    expect(eventNotificationToast(note('5', { event: null, eventPatch: { title: 'Planning', status: 'cancelled' } }), t)!.type)
+      .toBe('warning');
+    // Any other change stays an update.
+    expect(eventNotificationToast(note('6', { eventPatch: { title: 'Planning v2' } }), t)!.type).toBe('info');
   });
 
   it('falls back to the address, then "Someone", and to an untitled event', () => {

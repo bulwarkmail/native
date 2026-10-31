@@ -321,6 +321,7 @@ export function EventDetailSheet({
           </View>
 
           <ScrollView
+            keyboardShouldPersistTaps="handled"
             style={styles.body}
             contentContainerStyle={styles.bodyContent}
             showsVerticalScrollIndicator={false}

@@ -124,7 +124,7 @@
       "time_zone": "Fuso orario",
       "time_zone_auto": "Fuso orario del dispositivo",
       "time_zone_auto_zone": "Fuso orario del dispositivo ({zone})",
-      "time_zone_desc": "Fuso usato per i nuovi eventi e per interpretare il calendario. \"Dispositivo\" segue quello del telefono."
+      "time_zone_desc": "Fuso usato per i nuovi eventi e per interpretare il calendario. \"Dispositivo\" segue quello di questo dispositivo."
     },
     "share": {
       "add_people": "Aggiungi persone",
@@ -677,7 +677,7 @@
       "err_pair_connect_detail": "Mostra un nuovo codice sul computer e scansionalo di nuovo.",
       "err_pair_connect_title": "Accesso eseguito, ma impossibile connettersi a {host}",
       "err_pair_insecure_detail": "{host} vuole usare una connessione non cifrata.",
-      "err_pair_network_detail": "Controlla la connessione e che il telefono possa raggiungere la webmail, poi riprova.",
+      "err_pair_network_detail": "Controlla la connessione e che questo dispositivo possa raggiungere la webmail, poi riprova.",
       "err_pair_rate_detail": "Attendi un minuto, poi riprova.",
       "err_pair_server_detail": "Riprova con un nuovo codice. Se continua a non funzionare, rivolgiti all'amministratore.",
       "err_pair_server_title": "La webmail non è riuscita a completare l'accesso",
@@ -765,7 +765,7 @@
       "server_cert_active": "Accesso con il certificato client “{alias}”. Tocca per sceglierne un altro.",
       "server_cert_clear": "Accedi senza il certificato",
       "server_cert_failed": "Impossibile scegliere un certificato",
-      "server_cert_hint": "Il tuo server richiede un certificato client? Scegline uno installato su questo telefono."
+      "server_cert_hint": "Il tuo server richiede un certificato client? Scegline uno installato su questo dispositivo."
     }
   },
   "offline": {
@@ -1240,7 +1240,7 @@
       "window_24h": "Ultime 24 ore",
       "window_days": "Ultimi {count} giorni",
       "window_desc": "Fino a quando salvare in cache, in base alla data di ricezione del messaggio.",
-      "description_short": "Conserva i messaggi recenti su questo telefono, così si aprono anche senza connessione.",
+      "description_short": "Conserva i messaggi recenti su questo dispositivo, così si aprono anche senza connessione.",
       "keep_24h": "24 ore",
       "keep_days": "{count} giorni",
       "keep_from": "Conserva la posta degli ultimi",
@@ -1440,7 +1440,7 @@
       "licences_desc": "AGPL-3.0 per l'app e le librerie che usa",
       "never_checked": "Non ancora controllato",
       "privacy": "Privacy",
-      "privacy_desc": "Cosa resta su questo telefono e cosa va al tuo server",
+      "privacy_desc": "Cosa resta su questo dispositivo e cosa va al tuo server",
       "report_problem": "Segnala un problema",
       "report_problem_desc": "Apre una segnalazione su GitHub con la versione già compilata",
       "server": "Server",
@@ -1479,17 +1479,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Disattiva i pannelli a scorrimento e le transizioni. L'app lo fa anche quando nelle impostazioni del telefono è attiva la riduzione del movimento."
+        "description_mobile": "Disattiva i pannelli a scorrimento e le transizioni. L'app lo fa anche quando nelle impostazioni del dispositivo è attiva la riduzione del movimento."
       },
       "text_size": {
-        "description_mobile": "Ridimensiona il testo dell'app in aggiunta alla dimensione del testo del telefono. 100% corrisponde alla dimensione del telefono."
+        "description_mobile": "Ridimensiona il testo dell'app in aggiunta alla dimensione del testo del dispositivo. 100% corrisponde alla dimensione del dispositivo."
       },
       "toast_duration": {
         "automatic": "Automatica (più lunga con uno screen reader)"
       }
     },
     "backup": {
-      "description": "Trasferisci le impostazioni su un altro telefono o nella webmail.",
+      "description": "Trasferisci le impostazioni su un altro dispositivo o nella webmail.",
       "export_import": "Esporta o importa",
       "export_import_desc": "Un file JSON, nello stesso formato della webmail",
       "reset": "Ripristina",
@@ -1508,7 +1508,7 @@
       "other_title": "Altre connessioni",
       "phone_backup": "Niente di tutto ciò finisce nel backup cloud di Android.",
       "phone_secure": "I tuoi dati di accesso sono conservati nell'archivio sicuro del sistema. Impostazioni, cache della posta offline e modifiche in attesa di sincronizzazione sono conservate nell'archivio dell'app.",
-      "phone_title": "Su questo telefono",
+      "phone_title": "Su questo dispositivo",
       "push": "Quando le notifiche sono attive, il tuo server comunica al relay push ({relay}) che qualcosa è cambiato, e il relay riattiva l'app tramite {service}. Il relay vede un token del dispositivo e un indicatore di modifica, mai la tua posta. Puoi usare un relay tuo in Notifiche.",
       "push_title": "Notifiche push",
       "server": "Posta, calendari, contatti e file vengono caricati dal tuo server e salvati di nuovo su di esso. A parte le connessioni qui sotto, l'app comunica solo con il tuo server.",

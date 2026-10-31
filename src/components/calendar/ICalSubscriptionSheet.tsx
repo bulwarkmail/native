@@ -162,7 +162,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
             </Pressable>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <Text style={styles.sectionLabel}>
               {editingId
                 ? t('calendar.subscription.edit_title', 'Edit Subscription')

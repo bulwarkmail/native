@@ -367,7 +367,7 @@ export function TasksSheet({
                 })}
               </View>
               {writableCalendars.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calChips}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calChips} keyboardShouldPersistTaps="handled">
                   {writableCalendars.map((cal) => (
                     <Pressable
                       key={cal.id}
@@ -388,7 +388,7 @@ export function TasksSheet({
             </View>
           )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} keyboardShouldPersistTaps="handled">
             {FILTERS.map((f) => {
               const active = filter === f.value;
               return (
@@ -405,7 +405,7 @@ export function TasksSheet({
             })}
           </ScrollView>
 
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
             {filtered.length === 0 ? (
               <View style={styles.empty}>
                 <ListChecks size={32} color={c.surfaceActive} />

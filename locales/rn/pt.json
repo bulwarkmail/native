@@ -124,7 +124,7 @@
       "time_zone": "Fuso horário",
       "time_zone_auto": "Fuso horário do dispositivo",
       "time_zone_auto_zone": "Fuso horário do dispositivo ({zone})",
-      "time_zone_desc": "Fuso usado para novos eventos e para interpretar o calendário. \"Dispositivo\" segue o do celular."
+      "time_zone_desc": "Fuso usado para novos eventos e para interpretar o calendário. \"Dispositivo\" segue o deste dispositivo."
     },
     "share": {
       "add_people": "Adicionar pessoas",
@@ -678,7 +678,7 @@
       "err_pair_connect_detail": "Mostre um novo código no computador e escaneie de novo.",
       "err_pair_connect_title": "Login feito, mas não foi possível conectar a {host}",
       "err_pair_insecure_detail": "{host} quer usar uma conexão sem criptografia.",
-      "err_pair_network_detail": "Verifique sua conexão e se o celular consegue acessar o webmail, depois tente de novo.",
+      "err_pair_network_detail": "Verifique sua conexão e se este dispositivo consegue acessar o webmail, depois tente de novo.",
       "err_pair_rate_detail": "Aguarde um minuto e tente de novo.",
       "err_pair_server_detail": "Tente de novo com um novo código. Se continuar falhando, fale com o administrador.",
       "err_pair_server_title": "O webmail não conseguiu concluir o login",
@@ -766,7 +766,7 @@
       "server_cert_active": "Entrando com o certificado de cliente “{alias}”. Toque para escolher outro.",
       "server_cert_clear": "Entrar sem o certificado",
       "server_cert_failed": "Não foi possível escolher um certificado",
-      "server_cert_hint": "Seu servidor pede um certificado de cliente? Escolha um instalado neste celular."
+      "server_cert_hint": "Seu servidor pede um certificado de cliente? Escolha um instalado neste dispositivo."
     }
   },
   "offline": {
@@ -1241,7 +1241,7 @@
       "window_24h": "Últimas 24 horas",
       "window_days": "Últimos {count} dias",
       "window_desc": "Até quando armazenar em cache, com base na data de recebimento da mensagem.",
-      "description_short": "Guardar as mensagens recentes neste celular para que abram sem conexão.",
+      "description_short": "Guardar as mensagens recentes neste dispositivo para que abram sem conexão.",
       "keep_24h": "24 horas",
       "keep_days": "{count} dias",
       "keep_from": "Guardar e-mails dos últimos",
@@ -1441,7 +1441,7 @@
       "licences_desc": "AGPL-3.0 para o aplicativo e as bibliotecas que ele usa",
       "never_checked": "Ainda não verificado",
       "privacy": "Privacidade",
-      "privacy_desc": "O que fica neste celular e o que vai para o seu servidor",
+      "privacy_desc": "O que fica neste dispositivo e o que vai para o seu servidor",
       "report_problem": "Relatar um problema",
       "report_problem_desc": "Abre uma issue no GitHub com a versão já preenchida",
       "server": "Servidor",
@@ -1480,17 +1480,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Desativa painéis deslizantes e transições. O aplicativo também faz isso quando o movimento reduzido está ativado nas configurações do celular."
+        "description_mobile": "Desativa painéis deslizantes e transições. O aplicativo também faz isso quando o movimento reduzido está ativado nas configurações do dispositivo."
       },
       "text_size": {
-        "description_mobile": "Ajusta o texto do aplicativo além do tamanho de texto do celular. 100% é o tamanho do celular."
+        "description_mobile": "Ajusta o texto do aplicativo além do tamanho de texto do dispositivo. 100% é o tamanho do dispositivo."
       },
       "toast_duration": {
         "automatic": "Automático (mais longo com leitor de tela)"
       }
     },
     "backup": {
-      "description": "Leve suas configurações para outro celular ou para o webmail.",
+      "description": "Leve suas configurações para outro dispositivo ou para o webmail.",
       "export_import": "Exportar ou importar",
       "export_import_desc": "Um arquivo JSON, no mesmo formato do webmail",
       "reset": "Redefinir",
@@ -1509,7 +1509,7 @@
       "other_title": "Outras conexões",
       "phone_backup": "Nada disso vai para o backup na nuvem do Android.",
       "phone_secure": "Seus dados de login ficam no armazenamento seguro do sistema. As configurações, o cache de e-mails offline e as alterações aguardando sincronização ficam no armazenamento do próprio aplicativo.",
-      "phone_title": "Neste celular",
+      "phone_title": "Neste dispositivo",
       "push": "Quando as notificações estão ativadas, seu servidor avisa o relay push ({relay}) de que algo mudou, e o relay desperta o aplicativo por meio do {service}. O relay vê um token do dispositivo e um marcador de alteração, nunca seus e-mails. Você pode usar seu próprio relay em Notificações.",
       "push_title": "Notificações push",
       "server": "E-mails, calendários, contatos e arquivos são carregados do seu servidor e salvos de volta nele. Além das conexões abaixo, o aplicativo só se comunica com o seu servidor.",

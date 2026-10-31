@@ -8,10 +8,18 @@
 // chosen family under the caller's own style (an explicit fontFamily still
 // wins) and re-renders when the setting changes.
 //
+// The wrapped components replace the `Text` and `TextInput` getters on
+// react-native's own exports object, which every `import { Text } from
+// 'react-native'` reads at render time. Replacing the `default` export of
+// react-native/Libraries/Text/Text instead worked in a dev bundle only: the
+// release bundle defines that export as a getter without a setter
+// (`Object.defineProperty(exports, "default", { get })`), so the assignment
+// failed, was swallowed, and the app text stayed in the theme font while the
+// plain-text mail body (which takes the font another way) changed.
+//
 // Wrapping happens before any screen module loads (index.ts imports
-// ./reading-font-install first): with Metro's import support every module
-// copies `Text` out of react-native when it is evaluated, so a module loaded
-// earlier keeps the plain component. The wrapper stays installed for the
+// ./reading-font-install first), so a module that copies the exports (an
+// `import * as`) copies the wrapped ones. The wrapper stays installed for the
 // whole run, also while the theme font is chosen; swapping the component
 // later would remount every text field.
 
@@ -66,23 +74,38 @@ export function wrapWithReadingFont(Original: FunctionComponent): FunctionCompon
 }
 
 /**
- * Wraps the default export of each module (react-native's Text and
- * TextInput) in place. Only plain function components are wrapped; anything
- * else (a future memo or forwardRef object) is left alone. Returns how many
- * were wrapped; a second call wraps nothing.
+ * Replaces the named components on `exports` (react-native's exports object:
+ * Text, TextInput) with wrapped ones. A getter is redefined as a getter that
+ * returns the wrapped component, as react-native's own lazy getters are
+ * configurable; a property that can be neither redefined nor assigned is
+ * left alone. Only plain function components are wrapped; anything else (a
+ * future memo or forwardRef object) is left alone. Returns how many were
+ * wrapped; a second call wraps nothing.
  */
-export function wrapModuleDefaults(modules: Array<{ default?: unknown }>): number {
+export function wrapNamedExports(exports: object, names: readonly string[]): number {
+  const target = exports as Record<string, unknown>;
   let wrapped = 0;
-  for (const mod of modules) {
-    const component = mod?.default;
+  for (const name of names) {
+    let component: unknown;
+    try {
+      component = target[name];
+    } catch {
+      continue;
+    }
     if (typeof component !== 'function') continue;
     if ((component as unknown as Record<symbol, unknown>)[WRAPPED]) continue;
+    const next = wrapWithReadingFont(component as FunctionComponent);
+    const own = Object.getOwnPropertyDescriptor(target, name);
     try {
-      mod.default = wrapWithReadingFont(component as FunctionComponent);
-      wrapped++;
+      if (!own || own.configurable) {
+        Object.defineProperty(target, name, { configurable: true, enumerable: own?.enumerable ?? true, get: () => next });
+      } else if (own.writable) {
+        target[name] = next;
+      }
     } catch {
-      // A read-only export: leave the component as it is.
+      // Neither redefinable nor writable: leave the component as it is.
     }
+    if (target[name] === next) wrapped++;
   }
   return wrapped;
 }

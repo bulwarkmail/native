@@ -225,7 +225,7 @@ export function TemplateSettings() {
                 <X size={20} color={c.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={styles.modalBody}>
+            <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.fieldLabel}>{tr('settings.templates.name', 'Template Name')}</Text>
               <TextInput accessibilityLabel={tr('settings.templates.name', 'Template Name')}
                 value={draftName}
@@ -297,7 +297,7 @@ export function TemplateSettings() {
                 <X size={20} color={c.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={styles.modalBody}>
+            <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.fieldLabel}>JSON</Text>
               <TextInput
                 accessibilityLabel={tr('settings.templates.import_json_label', 'Templates as JSON')}

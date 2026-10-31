@@ -159,8 +159,11 @@ liveTwo('live Stalwart calendar event notifications', () => {
     const cancel = notes.find((n) => n.calendarEventId === attendeeEventId && !ours.has(n.id));
     expect(cancel, JSON.stringify(notes)).toBeTruthy();
     ours.add(cancel!.id);
+    // Both servers send it as an update that sets the status to cancelled
+    // (the attendee's copy stays, cancelled); it must read as a cancellation.
     const toast = eventNotificationToast(cancel!, t)!;
-    if (cancel!.type === 'destroyed') expect(toast.type).toBe('warning');
+    expect(toast.type, JSON.stringify(cancel)).toBe('warning');
+    expect(toast.title).toContain(`cancelled "${RUN} review"`);
 
     await destroyCalendarEventNotifications([...ours]);
     const after = (await getCalendarEventNotifications()).map((n) => n.id);

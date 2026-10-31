@@ -3,6 +3,7 @@ import { jmapClient } from '../api/jmap-client';
 import {
   destroyCalendarEventNotifications,
   getCalendarEventNotifications,
+  isCancellation,
   type CalendarEventNotification,
 } from '../api/calendar-event-notifications';
 import { useAuthStore } from '../stores/auth-store';
@@ -33,7 +34,9 @@ export interface EventNotificationToast {
 /** The toast for one notification; null for a draft (the user's own unsent change). */
 export function eventNotificationToast(n: CalendarEventNotification, t: Translate): EventNotificationToast | null {
   if (n.isDraft) return null;
-  const kind = n.type === 'created' ? 'invited' : n.type === 'destroyed' ? 'cancelled' : 'updated';
+  // Stalwart sends an organizer's cancellation as an update setting the
+  // status to cancelled (the webmail reads only `type` and says "updated").
+  const kind = n.type === 'created' ? 'invited' : isCancellation(n) ? 'cancelled' : 'updated';
   const params = {
     name: n.changedBy?.name || n.changedBy?.email || t('calendar_event_notifications.someone', 'Someone'),
     title: n.event?.title || t('calendar_event_notifications.untitled', 'Untitled event'),

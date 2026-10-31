@@ -20,8 +20,20 @@ export interface CalendarEventNotification {
   type: 'created' | 'updated' | 'destroyed';
   calendarEventId: string;
   isDraft?: boolean;
-  /** The event as it is now; 1.0 returns it, 0.16 leaves it out. */
+  /** The event before the change on 1.0 (as created for an invitation); 0.16 leaves it out. */
   event?: { title?: string | null } | null;
+  /**
+   * What changed, for an `updated` one: a JSCalendar patch on 1.0, the whole
+   * event as it is now on 0.16. An organizer's cancellation reaches the
+   * attendee as an update that sets `status` to `cancelled` (iTIP CANCEL
+   * keeps the attendee's copy), never as `destroyed`.
+   */
+  eventPatch?: { status?: string | null; title?: string | null } | null;
+}
+
+/** An organizer cancelled the event: the change sets its status to cancelled. */
+export function isCancellation(n: Pick<CalendarEventNotification, 'type' | 'eventPatch'>): boolean {
+  return n.type === 'destroyed' || (n.type === 'updated' && n.eventPatch?.status === 'cancelled');
 }
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
@@ -42,7 +54,7 @@ export async function getCalendarEventNotifications(): Promise<CalendarEventNoti
     ['CalendarEventNotification/get', {
       accountId,
       '#ids': { resultOf: '0', name: 'CalendarEventNotification/query', path: '/ids' },
-      properties: ['id', 'created', 'changedBy', 'comment', 'type', 'calendarEventId', 'isDraft', 'event'],
+      properties: ['id', 'created', 'changedBy', 'comment', 'type', 'calendarEventId', 'isDraft', 'event', 'eventPatch'],
     }, '1'],
   ], USING);
   const responses = (response.methodResponses ?? []) as [string, any, string][];

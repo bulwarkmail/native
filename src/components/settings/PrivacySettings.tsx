@@ -25,7 +25,7 @@ export function PrivacySettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsSection title={t('settings.privacy.phone_title', 'On this phone')}>
+      <SettingsSection title={t('settings.privacy.phone_title', 'On this device')}>
         {paragraph(t(
           'settings.privacy.phone_secure',
           'Your sign-in details are kept in the system\'s secure storage. Settings, the offline mail cache and changes waiting to sync are kept in the app\'s own storage.',

@@ -71,7 +71,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatListDate } from '../lib/date-format';
 import { useLayout, useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
-import { filesListWidth } from '../lib/files-split';
+import { filesListWidth, filesTitleOnOwnRow } from '../lib/files-split';
 import { radioOptionA11y } from '../components/radio-a11y';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
@@ -232,6 +232,9 @@ export default function FilesScreen() {
   // whole screen keeps clear of the side insets in landscape.
   const insets = useSafeAreaInsets();
   const headerInsets = { paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.md };
+  // The header's width: next to the docked preview the folder name moves
+  // under the buttons when they leave it too little room.
+  const [headerWidth, setHeaderWidth] = useState(0);
 
   // Folder navigation stack. Hierarchy is real parentId nesting (#379) — each
   // entry is the folder's node id (namespaced "accountId:nodeId" inside a
@@ -1015,8 +1018,12 @@ export default function FilesScreen() {
         </View>
       );
     }
+    // Search and view toggle; New folder and Upload; Trash at the top level.
+    // Only the list column next to the docked preview is that narrow.
+    const headerButtons = 2 + (canCreateHere ? 2 : 0) + (path.length === 0 && !inTrash ? 1 : 0);
+    const titleOwnRow = isSplit && previewTarget != null && filesTitleOnOwnRow(headerWidth, headerButtons, canBack);
     return (
-      <View style={[styles.header, headerInsets]}>
+      <View style={[styles.header, headerInsets]} onLayout={(e) => setHeaderWidth(e.nativeEvent.layout.width)}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             {canBack ? (
@@ -1030,9 +1037,11 @@ export default function FilesScreen() {
                 <ChevronLeft size={22} color={c.text} />
               </Pressable>
             ) : null}
-            <Text style={styles.title} numberOfLines={1}>
-              {headerName}
-            </Text>
+            {!titleOwnRow ? (
+              <Text style={styles.title} numberOfLines={1}>
+                {headerName}
+              </Text>
+            ) : null}
           </View>
           <View style={styles.headerActions}>
             <Pressable
@@ -1092,6 +1101,11 @@ export default function FilesScreen() {
             ) : null}
           </View>
         </View>
+        {titleOwnRow ? (
+          <Text style={styles.title} numberOfLines={2}>
+            {headerName}
+          </Text>
+        ) : null}
         {canBack ? (
           <Text style={styles.breadcrumb} numberOfLines={1}>
             {[rootLabel, ...(inTrash ? [trashLabel] : path.map((p) => p.name))].join(' / ')}
@@ -2092,7 +2106,7 @@ function FolderPickerSheet({ target, allNodes, rootLabel, t, onClose, onPick }: 
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {t('files.move_to', 'Move to…')} · {target.displayName}
               </Text>
-              <ScrollView style={{ maxHeight: 360 }}>
+              <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
                 {options.map((opt) => {
                   const isCurrent = opt.id === currentParent;
                   return (

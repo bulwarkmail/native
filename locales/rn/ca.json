@@ -124,7 +124,7 @@
       "time_zone": "Zona horària",
       "time_zone_auto": "Zona horària del dispositiu",
       "time_zone_auto_zone": "Zona horària del dispositiu ({zone})",
-      "time_zone_desc": "Zona que s'utilitza per als esdeveniments nous i per interpretar el calendari. «Dispositiu» segueix la del telèfon."
+      "time_zone_desc": "Zona que s'utilitza per als esdeveniments nous i per interpretar el calendari. «Dispositiu» segueix la d'aquest dispositiu."
     },
     "share": {
       "add_people": "Afegeix persones",
@@ -675,7 +675,7 @@
       "err_pair_connect_detail": "Mostreu un codi nou a l'ordinador i torneu-lo a escanejar.",
       "err_pair_connect_title": "Sessió iniciada, però no s'ha pogut connectar a {host}",
       "err_pair_insecure_detail": "{host} vol utilitzar una connexió sense xifrar.",
-      "err_pair_network_detail": "Comproveu la connexió i que el telèfon pugui accedir al webmail, i torneu-ho a provar.",
+      "err_pair_network_detail": "Comproveu la connexió i que aquest dispositiu pugui accedir al webmail, i torneu-ho a provar.",
       "err_pair_rate_detail": "Espereu un minut i torneu-ho a provar.",
       "err_pair_server_detail": "Torneu-ho a provar amb un codi nou. Si continua fallant, consulteu l'administrador.",
       "err_pair_server_title": "El webmail no ha pogut completar l'inici de sessió",
@@ -763,7 +763,7 @@
       "server_cert_active": "S'inicia la sessió amb el certificat de client «{alias}». Toqueu per triar-ne un altre.",
       "server_cert_clear": "Inicia la sessió sense el certificat",
       "server_cert_failed": "No s'ha pogut triar cap certificat",
-      "server_cert_hint": "El vostre servidor demana un certificat de client? Trieu-ne un d'instal·lat en aquest telèfon."
+      "server_cert_hint": "El vostre servidor demana un certificat de client? Trieu-ne un d'instal·lat en aquest dispositiu."
     }
   },
   "offline": {
@@ -1238,7 +1238,7 @@
       "window_24h": "Últimes 24 hores",
       "window_days": "Últims {count} dies",
       "window_desc": "Fins a quina data desar a la memòria cau, segons la data de recepció del missatge.",
-      "description_short": "Conserva els missatges recents en aquest telèfon perquè s'obrin sense connexió.",
+      "description_short": "Conserva els missatges recents en aquest dispositiu perquè s'obrin sense connexió.",
       "keep_24h": "24 hores",
       "keep_days": "{count} dies",
       "keep_from": "Conserva el correu dels últims",
@@ -1438,7 +1438,7 @@
       "licences_desc": "AGPL-3.0 per a l'aplicació, i les biblioteques que fa servir",
       "never_checked": "Encara no s'ha comprovat",
       "privacy": "Privadesa",
-      "privacy_desc": "Què es queda en aquest telèfon i què va al vostre servidor",
+      "privacy_desc": "Què es queda en aquest dispositiu i què va al vostre servidor",
       "report_problem": "Informa d'un problema",
       "report_problem_desc": "Obre una incidència a GitHub amb la versió ja emplenada",
       "server": "Servidor",
@@ -1477,17 +1477,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Desactiva els panells lliscants i les transicions. L'aplicació també ho fa quan teniu activat el moviment reduït a la configuració del telèfon."
+        "description_mobile": "Desactiva els panells lliscants i les transicions. L'aplicació també ho fa quan teniu activat el moviment reduït a la configuració del dispositiu."
       },
       "text_size": {
-        "description_mobile": "Escala el text de l'aplicació per sobre de la mida de text del telèfon. El 100% és la mida del telèfon."
+        "description_mobile": "Escala el text de l'aplicació per sobre de la mida de text del dispositiu. El 100% és la mida del dispositiu."
       },
       "toast_duration": {
         "automatic": "Automàtica (més llarga amb un lector de pantalla)"
       }
     },
     "backup": {
-      "description": "Traslladeu la configuració a un altre telèfon o al webmail.",
+      "description": "Traslladeu la configuració a un altre dispositiu o al webmail.",
       "export_import": "Exporta o importa",
       "export_import_desc": "Un fitxer JSON, amb el mateix format que el webmail",
       "reset": "Restableix",
@@ -1506,7 +1506,7 @@
       "other_title": "Altres connexions",
       "phone_backup": "Res d'això va a la còpia de seguretat al núvol d'Android.",
       "phone_secure": "Les vostres dades d'inici de sessió es guarden a l'emmagatzematge segur del sistema. La configuració, la memòria cau del correu sense connexió i els canvis pendents de sincronitzar es guarden a l'emmagatzematge propi de l'aplicació.",
-      "phone_title": "En aquest telèfon",
+      "phone_title": "En aquest dispositiu",
       "push": "Quan les notificacions estan activades, el vostre servidor avisa el repetidor push ({relay}) que alguna cosa ha canviat, i el repetidor desperta l'aplicació mitjançant {service}. El repetidor veu un testimoni del dispositiu i un marcador de canvi, mai el vostre correu. Podeu fer servir el vostre propi repetidor a Notificacions.",
       "push_title": "Notificacions push",
       "server": "El correu, els calendaris, els contactes i els fitxers es carreguen del vostre servidor i s'hi tornen a desar. A part de les connexions següents, l'aplicació només es comunica amb el vostre servidor.",

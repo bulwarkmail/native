@@ -124,7 +124,7 @@
       "time_zone": "時區",
       "time_zone_auto": "裝置時區",
       "time_zone_auto_zone": "裝置時區（{zone}）",
-      "time_zone_desc": "用於新增活動與顯示行事曆的時區。選擇「裝置」時會依照手機的設定。"
+      "time_zone_desc": "用於新增活動與顯示行事曆的時區。選擇「裝置」時會依照此裝置的設定。"
     },
     "share": {
       "add_people": "新增使用者",
@@ -674,7 +674,7 @@
       "err_pair_connect_detail": "請在電腦上顯示新的登入碼，再重新掃描。",
       "err_pair_connect_title": "已登入，但無法連線至 {host}",
       "err_pair_insecure_detail": "{host} 想要使用未加密的連線。",
-      "err_pair_network_detail": "請檢查網路連線，並確認手機可以連上網頁郵件，然後再試一次。",
+      "err_pair_network_detail": "請檢查網路連線，並確認此裝置可以連上網頁郵件，然後再試一次。",
       "err_pair_rate_detail": "請等候一分鐘後再試一次。",
       "err_pair_server_detail": "請使用新的登入碼再試一次。如果仍然失敗，請洽詢管理員。",
       "err_pair_server_title": "網頁郵件無法完成登入",
@@ -762,7 +762,7 @@
       "server_cert_active": "正在使用用戶端憑證「{alias}」登入。點一下可選擇其他憑證。",
       "server_cert_clear": "不使用憑證登入",
       "server_cert_failed": "無法選擇憑證",
-      "server_cert_hint": "您的伺服器要求用戶端憑證嗎？請選擇此手機上已安裝的憑證。"
+      "server_cert_hint": "您的伺服器要求用戶端憑證嗎？請選擇此裝置上已安裝的憑證。"
     }
   },
   "offline": {
@@ -1237,7 +1237,7 @@
       "window_24h": "過去 24 小時",
       "window_days": "過去 {count} 天",
       "window_desc": "依郵件接收日期計算，要快取多久以前的郵件。",
-      "description_short": "在此手機上保留最近的郵件，沒有網路時也能開啟。",
+      "description_short": "在此裝置上保留最近的郵件，沒有網路時也能開啟。",
       "keep_24h": "24 小時",
       "keep_days": "{count} 天",
       "keep_from": "保留以下期間的郵件",
@@ -1437,7 +1437,7 @@
       "licences_desc": "應用程式採用 AGPL-3.0，以及所用程式庫的授權",
       "never_checked": "尚未檢查",
       "privacy": "隱私權",
-      "privacy_desc": "哪些內容留在此手機上，哪些會傳送到您的伺服器",
+      "privacy_desc": "哪些內容留在此裝置上，哪些會傳送到您的伺服器",
       "report_problem": "回報問題",
       "report_problem_desc": "在 GitHub 上建立 issue，並自動填入版本號碼",
       "server": "伺服器",
@@ -1476,17 +1476,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "關閉滑動面板和轉場效果。手機設定中開啟減少動態效果時，應用程式也會這麼做。"
+        "description_mobile": "關閉滑動面板和轉場效果。裝置設定中開啟減少動態效果時，應用程式也會這麼做。"
       },
       "text_size": {
-        "description_mobile": "在手機文字大小的基礎上縮放應用程式的文字。100% 即手機的文字大小。"
+        "description_mobile": "在裝置文字大小的基礎上縮放應用程式的文字。100% 即裝置的文字大小。"
       },
       "toast_duration": {
         "automatic": "自動（使用螢幕閱讀器時較長）"
       }
     },
     "backup": {
-      "description": "將您的設定移至另一支手機或網頁郵件。",
+      "description": "將您的設定移至另一台裝置或網頁郵件。",
       "export_import": "匯出或匯入",
       "export_import_desc": "JSON 檔案，格式與網頁郵件相同",
       "reset": "重設",
@@ -1505,7 +1505,7 @@
       "other_title": "其他連線",
       "phone_backup": "這些資料都不會進入 Android 的雲端備份。",
       "phone_secure": "您的登入資訊存放在系統的安全儲存空間中。設定、離線郵件快取以及等待同步的變更則存放在應用程式自己的儲存空間中。",
-      "phone_title": "在此手機上",
+      "phone_title": "在此裝置上",
       "push": "開啟通知後，您的伺服器會告知推送中繼（{relay}）有內容變更，中繼再透過{service}喚醒應用程式。中繼只會看到裝置權杖和變更標記，看不到您的郵件。您可以在「通知」中使用自己的中繼。",
       "push_title": "推送通知",
       "server": "郵件、行事曆、聯絡人和檔案從您的伺服器載入，並儲存回伺服器。除了下列連線外，應用程式只會與您的伺服器通訊。",

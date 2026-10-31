@@ -124,7 +124,7 @@
       "time_zone": "Tidssone",
       "time_zone_auto": "Enhetens tidssone",
       "time_zone_auto_zone": "Enhetens tidssone ({zone})",
-      "time_zone_desc": "Tidssonen som brukes for nye hendelser og for visning av kalenderen. «Enhetens tidssone» følger telefonen."
+      "time_zone_desc": "Tidssonen som brukes for nye hendelser og for visning av kalenderen. «Enhetens tidssone» følger denne enheten."
     },
     "share": {
       "add_people": "Legg til personer",
@@ -672,7 +672,7 @@
       "err_pair_connect_detail": "Vis en ny kode på datamaskinen, og skann på nytt.",
       "err_pair_connect_title": "Pålogget, men kunne ikke koble til {host}",
       "err_pair_insecure_detail": "{host} vil bruke en ukryptert tilkobling.",
-      "err_pair_network_detail": "Sjekk tilkoblingen og at telefonen kan nå nettposten, og prøv deretter på nytt.",
+      "err_pair_network_detail": "Sjekk tilkoblingen og at denne enheten kan nå nettposten, og prøv deretter på nytt.",
       "err_pair_rate_detail": "Vent et minutt, og prøv deretter på nytt.",
       "err_pair_server_detail": "Prøv på nytt med en ny kode. Hvis det fortsatt mislykkes, kontakt administratoren.",
       "err_pair_server_title": "Nettposten kunne ikke fullføre påloggingen",
@@ -760,7 +760,7 @@
       "server_cert_active": "Logger på med klientsertifikatet «{alias}». Trykk for å velge et annet.",
       "server_cert_clear": "Logg på uten sertifikatet",
       "server_cert_failed": "Kunne ikke velge et sertifikat",
-      "server_cert_hint": "Ber serveren din om et klientsertifikat? Velg et som er installert på denne telefonen."
+      "server_cert_hint": "Ber serveren din om et klientsertifikat? Velg et som er installert på denne enheten."
     }
   },
   "offline": {
@@ -1235,7 +1235,7 @@
       "window_24h": "Siste 24 timer",
       "window_days": "Siste {count} dager",
       "window_desc": "Hvor langt tilbake som bufres, basert på datoen meldingen ble mottatt.",
-      "description_short": "Behold nylige meldinger på denne telefonen så de kan åpnes uten tilkobling.",
+      "description_short": "Behold nylige meldinger på denne enheten så de kan åpnes uten tilkobling.",
       "keep_24h": "24 timer",
       "keep_days": "{count} dager",
       "keep_from": "Behold e-post fra de siste",
@@ -1435,7 +1435,7 @@
       "licences_desc": "AGPL-3.0 for appen, og bibliotekene den bruker",
       "never_checked": "Ikke sjekket ennå",
       "privacy": "Personvern",
-      "privacy_desc": "Hva som blir på denne telefonen, og hva som går til serveren din",
+      "privacy_desc": "Hva som blir på denne enheten, og hva som går til serveren din",
       "report_problem": "Rapporter et problem",
       "report_problem_desc": "Åpner en sak på GitHub med versjonen fylt ut",
       "server": "Server",
@@ -1474,17 +1474,17 @@
         }
       },
       "reduce_motion": {
-        "description_mobile": "Slår av glidende paneler og overganger. Appen gjør også dette når redusert bevegelse er slått på i telefonens innstillinger."
+        "description_mobile": "Slår av glidende paneler og overganger. Appen gjør også dette når redusert bevegelse er slått på i enhetens innstillinger."
       },
       "text_size": {
-        "description_mobile": "Skalerer teksten i appen i tillegg til telefonens tekststørrelse. 100 % er telefonens størrelse."
+        "description_mobile": "Skalerer teksten i appen i tillegg til enhetens tekststørrelse. 100 % er enhetens størrelse."
       },
       "toast_duration": {
         "automatic": "Automatisk (lenger med skjermleser)"
       }
     },
     "backup": {
-      "description": "Flytt innstillingene dine til en annen telefon eller til nettposten.",
+      "description": "Flytt innstillingene dine til en annen enhet eller til nettposten.",
       "export_import": "Eksporter eller importer",
       "export_import_desc": "En JSON-fil i samme format som nettposten",
       "reset": "Tilbakestill",
@@ -1503,7 +1503,7 @@
       "other_title": "Andre tilkoblinger",
       "phone_backup": "Ingenting av dette havner i Androids skysikkerhetskopi.",
       "phone_secure": "Påloggingsinformasjonen din oppbevares i systemets sikre lagring. Innstillinger, hurtigbufferen for e-post uten nett og endringer som venter på synkronisering, oppbevares i appens egen lagring.",
-      "phone_title": "På denne telefonen",
+      "phone_title": "På denne enheten",
       "push": "Når varsler er på, forteller serveren din push-reléet ({relay}) at noe er endret, og reléet vekker appen gjennom {service}. Reléet ser et enhetstoken og en endringsmarkør, aldri e-posten din. Du kan bruke ditt eget relé under Varsler.",
       "push_title": "Pushvarsler",
       "server": "E-post, kalendere, kontakter og filer lastes inn fra serveren din og lagres tilbake dit. Bortsett fra tilkoblingene nedenfor snakker appen bare med serveren din.",

@@ -1037,7 +1037,7 @@ export default function CalendarScreen() {
           style={styles.titleBtn}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel={monthButtonAccessibilityLabel(headerTitle(titleDate, locale, system), t)}
+          accessibilityLabel={monthButtonAccessibilityLabel(titleDate, system, locale, t)}
           accessibilityState={{ expanded: monthPanelOpen }}
         >
           <Text style={styles.headerTitle} numberOfLines={1}>

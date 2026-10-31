@@ -79,6 +79,7 @@ export function MonthDropdown({
   const renderItem = React.useCallback(
     ({ item }: ListRenderItemInfo<Date>) => (
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={{ width, height: panelHeight }}
         scrollEnabled={panelHeight < PANEL_HEIGHT}
         showsVerticalScrollIndicator={false}
@@ -111,6 +112,7 @@ export function MonthDropdown({
       }}
     >
       <FlatList
+        keyboardShouldPersistTaps="handled"
         // A new width remounts the pager on the month it was showing.
         key={width}
         horizontal

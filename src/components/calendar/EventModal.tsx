@@ -82,7 +82,7 @@ import { SafeAreaModal } from '../SafeAreaModal';
 import { useKeyboardObstruction } from '../../lib/use-keyboard-obstruction';
 import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
-import { askBeforeDiscard, editorFormChanged, editorFormSnapshot } from '../../lib/calendar-editor-discard';
+import { askBeforeDiscard, editorFormChanged, editorFormSnapshot, editorTimesSnapshot } from '../../lib/calendar-editor-discard';
 import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-denied';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -269,7 +269,7 @@ export function EventModal({
   // What the form holds against what it opened with: Close and Back ask
   // before they drop changes (webmail 13f9f27c4).
   const formSnapshot = React.useMemo(() => editorFormSnapshot({
-    title, description, allDay, start, end, calendarId, attendees, recurrence, customRule,
+    title, description, times: editorTimesSnapshot({ allDay, start, end }), calendarId, attendees, recurrence, customRule,
     reminders, useDefaults, preserved, sendInvitations, location, videoUrl,
   }), [title, description, allDay, start, end, calendarId, attendees, recurrence, customRule,
     reminders, useDefaults, preserved, sendInvitations, location, videoUrl]);

@@ -166,7 +166,7 @@ export function AccessibilitySettings() {
       <SettingsSection title={t('settings.accessibility.sections.text', 'Text and reading')}>
         <SettingItem
           label={t('settings.accessibility.text_size.label', 'Text size')}
-          description={t('settings.accessibility.text_size.description_mobile', "Scales the app's text on top of your phone's text size. 100% is your phone's size.")}
+          description={t('settings.accessibility.text_size.description_mobile', "Scales the app's text on top of your device's text size. 100% is your device's size.")}
         >
           <Select
             value={fontSize}
@@ -219,7 +219,7 @@ export function AccessibilitySettings() {
       <SettingsSection title={t('settings.accessibility.sections.motion', 'Motion')}>
         <SettingItem
           label={t('settings.accessibility.reduce_motion.label', 'Reduce motion')}
-          description={t('settings.accessibility.reduce_motion.description_mobile', "Turns off sliding panels and transitions. The app also does this when reduced motion is on in your phone's settings.")}
+          description={t('settings.accessibility.reduce_motion.description_mobile', "Turns off sliding panels and transitions. The app also does this when reduced motion is on in your device's settings.")}
           noBorder
         >
           <ToggleSwitch

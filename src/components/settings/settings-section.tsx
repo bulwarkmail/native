@@ -76,6 +76,16 @@ const STACK_BELOW = 140;
 // its own, so without it a screen reader only announces "switch, off".
 const SettingLabelContext = React.createContext<string | undefined>(undefined);
 
+// What a tap on the row does when its control is a switch: flip it, so the
+// label and the description are as good a target as the 44 x 24 switch
+// (tapping "Colour-blind-safe colours" did nothing).
+const SettingToggleContext = React.createContext<React.MutableRefObject<(() => void) | null> | null>(null);
+
+/** The row tap for a switch: flips it; null while it is disabled. */
+export function switchRowPress(checked: boolean, onChange: (v: boolean) => void, disabled?: boolean): (() => void) | null {
+  return disabled ? null : () => onChange(!checked);
+}
+
 interface SettingItemProps {
   label: string;
   description?: string;
@@ -100,6 +110,8 @@ export function SettingItem({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const highlight = useSearchHighlight(label);
+  // Set by a ToggleSwitch in the row (switchRowPress).
+  const rowToggle = React.useRef<(() => void) | null>(null);
   // The control sits on the right. When that leaves the label column narrower
   // than STACK_BELOW (a long translation, two buttons), the control moves
   // under the label, as the webmail stacks it on a phone. A new row width
@@ -130,8 +142,10 @@ export function SettingItem({
       </View>
       {children && (
         <SettingLabelContext.Provider value={label}>
-          {/* A locked setting shows its value but can't be changed. */}
-          <View style={styles.settingRight} pointerEvents={locked ? 'none' : 'auto'}>{children}</View>
+          <SettingToggleContext.Provider value={rowToggle}>
+            {/* A locked setting shows its value but can't be changed. */}
+            <View style={styles.settingRight} pointerEvents={locked ? 'none' : 'auto'}>{children}</View>
+          </SettingToggleContext.Provider>
         </SettingLabelContext.Provider>
       )}
       {onPress && (link === 'external'
@@ -152,10 +166,18 @@ export function SettingItem({
       </Pressable>
     );
   }
+  // A tap anywhere on the row flips its switch, if it has one. Not a
+  // control of its own for a screen reader: the switch carries the label.
   return (
-    <View ref={highlight.ref} onLayout={onRowLayout} style={rowStyle}>
+    <Pressable
+      ref={highlight.ref}
+      onLayout={onRowLayout}
+      onPress={() => { if (!locked) rowToggle.current?.(); }}
+      accessible={false}
+      style={rowStyle}
+    >
       {body}
-    </View>
+    </Pressable>
   );
 }
 
@@ -219,6 +241,12 @@ interface ToggleSwitchProps {
 
 export function ToggleSwitch({ checked, onChange, disabled, accessibilityLabel }: ToggleSwitchProps) {
   const settingLabel = useContext(SettingLabelContext);
+  const rowToggle = useContext(SettingToggleContext);
+  React.useEffect(() => {
+    if (!rowToggle) return undefined;
+    rowToggle.current = switchRowPress(checked, onChange, disabled);
+    return () => { rowToggle.current = null; };
+  }, [rowToggle, checked, onChange, disabled]);
   return (
     <ToggleSwitchComponent
       value={checked}
@@ -303,7 +331,7 @@ export function Select({ value, onChange, options, style }: SelectProps) {
       >
         <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setOpen(false)}>
           <View style={styles.modalContent}>
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               {options.map((opt) => {
                 const selected = opt.value === value;
                 return (

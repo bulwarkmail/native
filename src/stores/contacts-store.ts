@@ -491,6 +491,10 @@ export const useContactsStore = create<ContactsState>()(
           if (contactsPromise) return contactsPromise;
           const { stale } = generationGuard();
           const promise: Promise<void> = (async () => {
+            // No books yet (a reset for another account, a first start): load
+            // them with the cards. An account switch reloads only the cards,
+            // so Settings > Contacts listed none until Refresh.
+            if (!addressBooksPromise && get().addressBooks.length === 0) void get().fetchAddressBooks();
             // Books first: AddressBook/get is the call that makes Stalwart mint
             // the default book, so ContactCard/query must never run alongside it.
             if (addressBooksPromise) await addressBooksPromise;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard, Dimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { useLayout } from '../lib/use-layout';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import {
@@ -71,10 +72,15 @@ import {
   type SettingsTabId, type SubResult,
 } from '../lib/settings-search';
 import { SearchHighlightContext, type SearchHighlight } from '../components/settings/search-highlight';
+import {
+  SettingsKeyboardContext, revealScrollY, settingsPagePaddingBottom, visibleHeightAboveKeyboard,
+} from '../components/settings/keyboard-reveal';
 import { BUILTIN_THEMES } from '../theme/builtin-themes';
 import { getDictionary } from '../i18n';
 
 type Tab = SettingsTabId;
+
+const DETAIL_PADDING_BOTTOM = 40;
 
 type TabGroup = 'general' | 'appearance' | 'mail' | 'privacy' | 'apps' | 'advanced';
 
@@ -391,6 +397,46 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
     }
     setPendingHighlight(null);
   }, []);
+  // The window does not shrink for the keyboard (Android edge to edge, iOS):
+  // the page pads its end by the keyboard and scrolls the form being typed
+  // in above it (Settings > Tags > Add tag sat under the keyboard).
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardObstruction(insets.bottom);
+  const keyboardRef = React.useRef(keyboard);
+  keyboardRef.current = keyboard;
+  const paneScrollY = React.useRef(0);
+  const revealForm = React.useRef<View | null>(null);
+  const revealFocused = React.useCallback(() => {
+    if (keyboardRef.current <= 0) return;
+    const scroll = paneScrollRef.current;
+    const viewport = scroll?.getNativeScrollRef();
+    const target = revealForm.current ?? (TextInput.State.currentlyFocusedInput() as unknown as View | null);
+    if (!scroll || !viewport || !target) return;
+    viewport.measureInWindow((_vx, viewportTop, _vw, viewportHeight) => {
+      target.measureInWindow((_x, top, _w, height) => {
+        const keyboardTop = Dimensions.get('screen').height - keyboardRef.current;
+        const visible = visibleHeightAboveKeyboard(viewportTop, viewportHeight, keyboardTop);
+        // Window coordinates turned into the page's own.
+        const formTop = top - viewportTop + paneScrollY.current;
+        const y = revealScrollY(paneScrollY.current, formTop, formTop + height, visible);
+        if (y !== null) scroll.scrollTo({ y, animated: true });
+      });
+    });
+  }, []);
+  const revealOnKeyboard = React.useCallback((form: View | null) => {
+    revealForm.current = form;
+    revealFocused();
+  }, [revealFocused]);
+  useEffect(() => {
+    if (keyboard <= 0) {
+      revealForm.current = null;
+      return undefined;
+    }
+    // After the keyboard padding is laid out, so the page can scroll that far.
+    const frame = requestAnimationFrame(revealFocused);
+    return () => cancelAnimationFrame(frame);
+  }, [keyboard, revealFocused]);
+
   const searchHighlight = React.useMemo<SearchHighlight | null>(
     () => (pendingHighlight && pendingHighlight.tab === selectedTab
       ? { label: pendingHighlight.label, reveal: revealHighlight }
@@ -456,8 +502,17 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
         {/* Keyed per page: React would otherwise reuse the list's ScrollView
             and open the page at the list's scroll offset. */}
-        <ScrollView key={`page-${selectedTab}`} ref={paneScrollRef} style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
+        <ScrollView
+          key={`page-${selectedTab}`}
+          ref={paneScrollRef}
+          style={styles.scrollArea}
+          contentContainerStyle={[styles.detailContent, { paddingBottom: settingsPagePaddingBottom(DETAIL_PADDING_BOTTOM, keyboard) }]}
+          keyboardShouldPersistTaps="handled"
+          onScroll={(e) => { paneScrollY.current = e.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={64}
+        >
           <View ref={paneContentRef}>
+            <SettingsKeyboardContext.Provider value={revealOnKeyboard}>
             <SearchHighlightContext.Provider value={searchHighlight}>
               {scopeBanner}
               {selectedTab === 'filters' ? (
@@ -470,6 +525,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                 <StorageSettings onOpenTroubleshooting={() => openPage('debug')} />
               ) : Component ? <Component /> : null}
             </SearchHighlightContext.Provider>
+            </SettingsKeyboardContext.Provider>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -662,7 +718,7 @@ function makeStyles(c: ThemePalette) {
     scrollContent: { paddingTop: spacing.md, paddingBottom: 40 },
     // A page keeps form width on a wide pane: labels and their controls
     // 700 dp apart are hard to read across.
-    detailContent: { padding: spacing.lg, paddingBottom: 40, width: '100%', maxWidth: 720, alignSelf: 'center' },
+    detailContent: { padding: spacing.lg, paddingBottom: DETAIL_PADDING_BOTTOM, width: '100%', maxWidth: 720, alignSelf: 'center' },
 
     accountCard: {
       flexDirection: 'row',

@@ -124,7 +124,7 @@
       "time_zone": "Zeitzone",
       "time_zone_auto": "Gerätezeitzone",
       "time_zone_auto_zone": "Gerätezeitzone ({zone})",
-      "time_zone_desc": "Zeitzone für neue Termine und für die Darstellung des Kalenders. \"Gerätezeitzone\" folgt dem Telefon."
+      "time_zone_desc": "Zeitzone für neue Termine und für die Darstellung des Kalenders. \"Gerätezeitzone\" folgt diesem Gerät."
     },
     "share": {
       "add_people": "Personen hinzufügen",
@@ -682,7 +682,7 @@
       "err_pair_connect_detail": "Zeigen Sie auf Ihrem Computer einen neuen Code an und scannen Sie erneut.",
       "err_pair_connect_title": "Angemeldet, aber keine Verbindung zu {host}",
       "err_pair_insecure_detail": "{host} möchte eine unverschlüsselte Verbindung verwenden.",
-      "err_pair_network_detail": "Prüfen Sie Ihre Verbindung und ob Ihr Telefon das Webmail erreichen kann, und versuchen Sie es dann erneut.",
+      "err_pair_network_detail": "Prüfen Sie Ihre Verbindung und ob dieses Gerät das Webmail erreichen kann, und versuchen Sie es dann erneut.",
       "err_pair_rate_detail": "Warten Sie eine Minute und versuchen Sie es dann erneut.",
       "err_pair_server_detail": "Versuchen Sie es mit einem neuen Code erneut. Wenn es weiterhin fehlschlägt, wenden Sie sich an Ihren Administrator.",
       "err_pair_server_title": "Das Webmail konnte die Anmeldung nicht abschließen",
@@ -770,7 +770,7 @@
       "server_cert_active": "Anmeldung mit dem Client-Zertifikat „{alias}“. Tippen, um ein anderes zu wählen.",
       "server_cert_clear": "Ohne Zertifikat anmelden",
       "server_cert_failed": "Zertifikat konnte nicht ausgewählt werden",
-      "server_cert_hint": "Verlangt Ihr Server ein Client-Zertifikat? Wählen Sie eines, das auf diesem Telefon installiert ist."
+      "server_cert_hint": "Verlangt Ihr Server ein Client-Zertifikat? Wählen Sie eines, das auf diesem Gerät installiert ist."
     }
   },
   "notifications": {
@@ -1248,7 +1248,7 @@
       "window_24h": "Letzte 24 Stunden",
       "window_days": "Letzte {count} Tage",
       "window_desc": "Wie weit zurück zwischengespeichert wird, gemessen am Empfangsdatum der Nachricht.",
-      "description_short": "Neue Nachrichten auf dem Telefon behalten, damit sie auch ohne Verbindung aufgehen.",
+      "description_short": "Neue Nachrichten auf diesem Gerät behalten, damit sie auch ohne Verbindung aufgehen.",
       "keep_24h": "24 Stunden",
       "keep_days": "{count} Tage",
       "keep_from": "Mails der letzten",
@@ -1430,7 +1430,7 @@
       "licences_desc": "AGPL-3.0 für die App und die Bibliotheken, die sie nutzt",
       "never_checked": "Noch nicht geprüft",
       "privacy": "Datenschutz",
-      "privacy_desc": "Was auf diesem Telefon bleibt und was an Ihren Server geht",
+      "privacy_desc": "Was auf diesem Gerät bleibt und was an Ihren Server geht",
       "report_problem": "Problem melden",
       "report_problem_desc": "Öffnet ein Issue auf GitHub mit eingetragener Version",
       "server": "Server",
@@ -1442,7 +1442,7 @@
       "updates": "Updates"
     },
     "backup": {
-      "description": "Übertragen Sie Ihre Einstellungen auf ein anderes Telefon oder ins Webmail.",
+      "description": "Übertragen Sie Ihre Einstellungen auf ein anderes Gerät oder ins Webmail.",
       "export_import": "Exportieren oder importieren",
       "export_import_desc": "Eine JSON-Datei im selben Format wie im Webmail",
       "reset": "Zurücksetzen",
@@ -1461,7 +1461,7 @@
       "other_title": "Weitere Verbindungen",
       "phone_backup": "Nichts davon landet in der Cloud-Sicherung von Android.",
       "phone_secure": "Ihre Anmeldedaten liegen im sicheren Speicher des Systems. Einstellungen, der Offline-Cache und noch nicht synchronisierte Änderungen liegen im Speicher der App.",
-      "phone_title": "Auf diesem Telefon",
+      "phone_title": "Auf diesem Gerät",
       "push": "Wenn Benachrichtigungen an sind, meldet Ihr Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über {service}. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie Ihre Mails. Unter Benachrichtigungen können Sie ein eigenes Relay eintragen.",
       "push_title": "Push-Benachrichtigungen",
       "server": "Mails, Kalender, Kontakte und Dateien werden von Ihrem Server geladen und dort gespeichert. Außer den Verbindungen unten spricht die App nur mit Ihrem Server.",
@@ -1550,10 +1550,10 @@
         "description_mobile": "Einfachere Formulierungen in Einstellungen und Fehlermeldungen. Auf Deutsch und Englisch verfügbar."
       },
       "reduce_motion": {
-        "description_mobile": "Schaltet gleitende Bereiche und Übergänge aus. Die App tut das auch, wenn in den Einstellungen Ihres Telefons „Bewegung reduzieren“ aktiviert ist."
+        "description_mobile": "Schaltet gleitende Bereiche und Übergänge aus. Die App tut das auch, wenn in den Einstellungen Ihres Geräts „Bewegung reduzieren“ aktiviert ist."
       },
       "text_size": {
-        "description_mobile": "Skaliert den Text der App zusätzlich zur Schriftgröße Ihres Telefons. 100 % entspricht der Größe Ihres Telefons."
+        "description_mobile": "Skaliert den Text der App zusätzlich zur Schriftgröße Ihres Geräts. 100 % entspricht der Größe Ihres Geräts."
       },
       "toast_duration": {
         "automatic": "Automatisch (länger mit Screenreader)"
