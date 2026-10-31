@@ -26,3 +26,13 @@ appId: org.bulwarkmail.mobile
 - tapOn:
     text: "Sign in"
     index: 1
+# Stalwart 1.0.1 asks for consent after Sign in, once per client grant;
+# 0.16 and repeat sign-ins go straight back to the app.
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - takeScreenshot: stalwart-consent-page
+      - tapOn: "Allow"
