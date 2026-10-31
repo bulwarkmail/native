@@ -18,6 +18,7 @@ import { useEmailStore } from '../../stores/email-store';
 import { archiveEmails, queryEmails, getEmails } from '../../api/email';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
+import { usePolicyFeature } from '../../stores/policy-store';
 
 export function ReadingSettings() {
   const c = useColors();
@@ -28,6 +29,9 @@ export function ReadingSettings() {
   const update = useSettingsStore((s) => s.updateSetting);
 
   const archiveMode = useSettingsStore((s) => s.archiveMode);
+  // Where archived mail goes means nothing with the organisation's Archive
+  // action off (webmail message-list-settings.tsx).
+  const archiveEnabled = usePolicyFeature('archiveActionEnabled');
   const markAsReadDelay = useSettingsStore((s) => s.markAsReadDelay);
   const deleteAction = useSettingsStore((s) => s.deleteAction);
   const permanentlyDeleteJunk = useSettingsStore((s) => s.permanentlyDeleteJunk);
@@ -147,40 +151,42 @@ export function ReadingSettings() {
         <View style={styles.divider} />
       </View>
 
-      <View style={styles.group}>
-        <SettingItem label={t('settings.email_behavior.archive_mode.label', "Archive in")} description={t('settings.email_behavior.archive_mode.description', "How to organize emails when archiving")} noBorder />
-        <Select
-          value={archiveMode}
-          onChange={(v) => update('archiveMode', v as ArchiveMode)}
-          options={[
-            { value: 'single', label: t('settings.email_behavior.archive_mode.single', "A single folder") },
-            { value: 'year', label: t('settings.email_behavior.archive_mode.year', "A folder per year") },
-            { value: 'month', label: t('settings.email_behavior.archive_mode.month', "A folder per month") },
-          ]}
-        />
-        {archiveMode !== 'single' && (
-          <>
-            <Pressable
-              style={[styles.inlineBtn, reorganizing && styles.inlineBtnDisabled]}
-              onPress={reorganizing ? undefined : handleReorganizeArchive}
-              disabled={reorganizing}
-            >
-              {reorganizing ? (
-                <ActivityIndicator size="small" color={c.text} />
-              ) : (
-                <FolderSync size={14} color={c.text} />
+      {archiveEnabled && (
+        <View style={styles.group}>
+          <SettingItem label={t('settings.email_behavior.archive_mode.label', "Archive in")} description={t('settings.email_behavior.archive_mode.description', "How to organize emails when archiving")} noBorder />
+          <Select
+            value={archiveMode}
+            onChange={(v) => update('archiveMode', v as ArchiveMode)}
+            options={[
+              { value: 'single', label: t('settings.email_behavior.archive_mode.single', "A single folder") },
+              { value: 'year', label: t('settings.email_behavior.archive_mode.year', "A folder per year") },
+              { value: 'month', label: t('settings.email_behavior.archive_mode.month', "A folder per month") },
+            ]}
+          />
+          {archiveMode !== 'single' && (
+            <>
+              <Pressable
+                style={[styles.inlineBtn, reorganizing && styles.inlineBtnDisabled]}
+                onPress={reorganizing ? undefined : handleReorganizeArchive}
+                disabled={reorganizing}
+              >
+                {reorganizing ? (
+                  <ActivityIndicator size="small" color={c.text} />
+                ) : (
+                  <FolderSync size={14} color={c.text} />
+                )}
+                <Text style={styles.inlineBtnText}>
+                  {reorganizing ? t('settings.email_behavior.archive_mode.reorganizing', "Reorganizing…") : t('settings.email_behavior.archive_mode.reorganize', "Reorganize existing archive")}
+                </Text>
+              </Pressable>
+              {reorganizeResult && (
+                <Text style={styles.reorganizeResult}>{reorganizeResult}</Text>
               )}
-              <Text style={styles.inlineBtnText}>
-                {reorganizing ? t('settings.email_behavior.archive_mode.reorganizing', "Reorganizing…") : t('settings.email_behavior.archive_mode.reorganize', "Reorganize existing archive")}
-              </Text>
-            </Pressable>
-            {reorganizeResult && (
-              <Text style={styles.reorganizeResult}>{reorganizeResult}</Text>
-            )}
-          </>
-        )}
-        <View style={styles.divider} />
-      </View>
+            </>
+          )}
+          <View style={styles.divider} />
+        </View>
+      )}
 
       <SettingItem label={t('settings.email_behavior.permanently_delete_junk.label', "Permanently Delete Junk")} description={t('settings.email_behavior.permanently_delete_junk.description', "Permanently delete emails from the Junk/Spam folder instead of moving them to Trash")}>
         <ToggleSwitch checked={permanentlyDeleteJunk} onChange={(v) => update('permanentlyDeleteJunk', v)} />

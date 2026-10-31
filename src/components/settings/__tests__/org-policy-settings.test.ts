@@ -49,4 +49,18 @@ describe('organisation policy on the settings pages', () => {
     expect(page).toContain("const exportAllowed = usePolicyFeature('settingsExportEnabled');");
     expect(page).toMatch(/\{exportAllowed && \(\s*<SettingItem\s+label=\{t\('settings\.backup\.export_import'[\s\S]*?handleExport[\s\S]*?handleImport[\s\S]*?<\/SettingItem>\s*\)\}/);
   });
+
+  it('takes Archive out of the swipe and quick actions when the organisation turns it off', () => {
+    const layout = settings('LayoutSettings');
+    expect(layout).toContain("const archiveEnabled = usePolicyFeature('archiveActionEnabled');");
+    expect(layout).toContain('withoutArchive(swipeOptions(t), archiveEnabled)');
+    expect(layout).toContain('value={swipeActionShown(swipeRightAction, archiveEnabled)}');
+    expect(layout).toContain('value={swipeActionShown(swipeLeftAction, archiveEnabled)}');
+    expect(layout).toMatch(/withoutArchive\(ALL_QUICK_ACTIONS\.map\([\s\S]*?\), archiveEnabled\)/);
+    expect(layout).toContain('const bottomActions = bottomQuickActionsFor(bottomQuickActionsRaw, archiveEnabled);');
+
+    const reading = settings('ReadingSettings');
+    expect(reading).toContain("const archiveEnabled = usePolicyFeature('archiveActionEnabled');");
+    expect(reading).toMatch(/\{archiveEnabled && \(\s*<View style=\{styles\.group\}>\s*<SettingItem label=\{t\('settings\.email_behavior\.archive_mode\.label'/);
+  });
 });
