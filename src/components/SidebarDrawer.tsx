@@ -291,6 +291,7 @@ function NamePrompt({ title, message, initial, confirmLabel, onSubmit, onClose }
         <Text style={styles.sheetTitle}>{title}</Text>
         {message ? <Text style={styles.promptMessage}>{message}</Text> : null}
         <TextInput
+          accessibilityLabel={t('mailbox_context_menu.placeholder_folder_name', 'Folder name')}
           value={value}
           onChangeText={setValue}
           placeholder={t('mailbox_context_menu.placeholder_folder_name', 'Folder name')}

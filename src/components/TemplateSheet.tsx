@@ -149,6 +149,7 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
         </View>
         {total > 4 && (
           <TextInput
+            accessibilityLabel={t('templates.search_placeholder', 'Search templates...')}
             value={query}
             onChangeText={setQuery}
             placeholder={t('templates.search_placeholder', 'Search templates...')}

@@ -2708,6 +2708,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             // No full-screen keyboard in landscape: it would hide the suggestions
             // and the text around the field.
             disableFullscreenUI
+            accessibilityLabel={label}
             style={[styles.recipientInput, invalidInput && styles.recipientInputInvalid]}
             placeholder={placeholder}
             placeholderTextColor={c.textMuted}
@@ -2900,6 +2901,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <TextInput
               ref={subjectRef}
               disableFullscreenUI
+              accessibilityLabel={t('email_composer.subject', 'Subject')}
               style={styles.subjectInput}
               placeholder={t('email_composer.subject_placeholder', 'Subject')}
               placeholderTextColor={c.textMuted}
@@ -2936,6 +2938,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <TextInput
               ref={plainBodyRef}
               disableFullscreenUI
+              accessibilityLabel={t('email_composer.body_label', 'Message')}
               style={styles.plainEditor}
               multiline
               value={plainBody}
@@ -3098,6 +3101,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               {t('email_composer.link_url_prompt', 'Enter the URL')}
             </Text>
             <TextInput
+              accessibilityLabel={t('email_composer.link_url_prompt', 'Enter the URL')}
               style={styles.modalInput}
               value={linkPromptValue}
               onChangeText={setLinkPromptValue}
@@ -3345,6 +3349,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                     {t(`templates.placeholders.${name}`, name.replace(/_/g, ' '))}
                   </Text>
                   <TextInput
+                    accessibilityLabel={t(`templates.placeholders.${name}`, name.replace(/_/g, ' '))}
                     style={styles.modalInput}
                     value={placeholderPrompt?.values[name] ?? ''}
                     onChangeText={(v) => setPlaceholderPrompt((p) => (p ? { ...p, values: { ...p.values, [name]: v } } : p))}
@@ -3392,6 +3397,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               <>
                 <Text style={styles.modalLabel}>{t('identities.sub_address.popover_title', 'Add Sub-Address Tag')}</Text>
                 <TextInput
+                  accessibilityLabel={t('identities.sub_address.popover_title', 'Add Sub-Address Tag')}
                   style={styles.modalInput}
                   value={tagDraft}
                   onChangeText={setTagDraft}
@@ -3437,6 +3443,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               <>
                 <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity - only the visible From header changes.')}</Text>
                 <TextInput
+                  accessibilityLabel={t('email_composer.from_override.name_label', 'From name')}
                   style={styles.modalInput}
                   value={overrideName}
                   onChangeText={setOverrideName}
@@ -3444,6 +3451,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   placeholderTextColor={c.textMuted}
                 />
                 <TextInput
+                  accessibilityLabel={t('email_composer.from_override.email_label', 'From email address')}
                   style={styles.modalInput}
                   value={overrideEmail}
                   onChangeText={setOverrideEmail}
