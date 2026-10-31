@@ -23,6 +23,7 @@ import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { useTagUndoGroup } from '../lib/tag-undo-group';
+import { selectAllA11y } from '../lib/select-all-a11y';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
 import {
@@ -721,6 +722,7 @@ export default function EmailListScreen({
   const selectedLabel = t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selectedIds.size });
   const allSelected =
     visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(rowKeyOf(e)));
+  const selectAll = selectAllA11y(allSelected, selectedIds.size, t);
 
   // Refs so row press handlers stay referentially stable across renders.
   // FlatList rows then skip re-render when the parent re-renders for unrelated
@@ -1274,8 +1276,8 @@ export default function EmailListScreen({
         onPress={toggleSelectAllVisible}
         hitSlop={6}
         accessibilityRole="checkbox"
-        accessibilityLabel={t('email_list.batch_actions.select_all', 'Select all')}
-        accessibilityState={{ checked: allSelected ? true : selectionMode ? 'mixed' : false }}
+        accessibilityLabel={selectAll.label}
+        accessibilityState={{ checked: selectAll.checked }}
       >
         {allSelected ? (
           <SquareCheck size={18} color={c.primary} />
