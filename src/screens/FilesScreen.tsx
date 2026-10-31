@@ -22,6 +22,7 @@ import {
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
   ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink, RotateCcw, Star, Clock,
+  FolderOpen, type AppIcon,
 } from '../components/icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { File, Paths } from 'expo-file-system';
@@ -255,6 +256,8 @@ export default function FilesScreen() {
   const [renameTarget, setRenameTarget] = useState<FileRow | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [actionsTarget, setActionsTarget] = useState<FileRow | null>(null);
+  // The menu of a starred folder or a recent file.
+  const [placeMenu, setPlaceMenu] = useState<PlaceMenu | null>(null);
   const [shareTarget, setShareTarget] = useState<FileRow | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileRow | null>(null);
   const [previewTarget, setPreviewTarget] = useState<FileRow | null>(null);
@@ -1324,29 +1327,41 @@ export default function FilesScreen() {
     openFolderStack(place.stack);
     if (!reveal && !isSymlink(place.node)) openFile({ ...place.node, displayName: place.node.name });
   };
+  // A sheet, not an Alert: an Android alert shows at most three buttons, so
+  // the recent file's Cancel was dropped, and it ignores Back and outside
+  // taps. Same items as the webmail's sidebar menu (files-sidebar.tsx).
   const recentActions = (id: string, name: string) => {
-    Alert.alert(name, undefined, [
-      { text: t('files.open', 'Open'), onPress: () => openRecent(id) },
-      { text: t('files.show_in_folder', 'Show in folder'), onPress: () => openRecent(id, true) },
-      {
-        text: t('files.remove_from_recent', 'Remove from recent'),
-        onPress: () => {
-          if (activeAccountId) useFilesPlacesStore.getState().removeRecentFiles(activeAccountId, [id]);
+    setPlaceMenu({
+      title: name,
+      actions: [
+        { key: 'open', label: t('files.open', 'Open'), icon: Eye, onPress: () => openRecent(id) },
+        { key: 'reveal', label: t('files.show_in_folder', 'Show in folder'), icon: FolderOpen, onPress: () => openRecent(id, true) },
+        {
+          key: 'remove',
+          label: t('files.remove_from_recent', 'Remove from recent'),
+          icon: X,
+          onPress: () => {
+            if (activeAccountId) useFilesPlacesStore.getState().removeRecentFiles(activeAccountId, [id]);
+          },
         },
-      },
-      { text: t('files.cancel', 'Cancel'), style: 'cancel' },
-    ]);
+      ],
+    });
   };
-  const starredActions = (folderPath: string, name: string) => {
-    Alert.alert(name, undefined, [
-      {
-        text: t('files.unstar', 'Remove star'),
-        onPress: () => {
-          if (activeAccountId) useFilesPlacesStore.getState().toggleFavorite(activeAccountId, folderPath);
+  const starredActions = (folderPath: string, name: string, stack: FolderStep[]) => {
+    setPlaceMenu({
+      title: name,
+      actions: [
+        { key: 'open', label: t('files.open', 'Open'), icon: FolderOpen, onPress: () => openFolderStack(stack) },
+        {
+          key: 'unstar',
+          label: t('files.unstar', 'Remove star'),
+          icon: Star,
+          onPress: () => {
+            if (activeAccountId) useFilesPlacesStore.getState().toggleFavorite(activeAccountId, folderPath);
+          },
         },
-      },
-      { text: t('files.cancel', 'Cancel'), style: 'cancel' },
-    ]);
+      ],
+    });
   };
   const placesHeader = showPlaces && (starredFolders.length > 0 || recentFiles.length > 0) ? (
     <View style={styles.places}>
@@ -1359,7 +1374,7 @@ export default function FilesScreen() {
           <Pressable
             key={folderPath}
             onPress={() => openFolderStack(stack)}
-            onLongPress={() => starredActions(folderPath, name)}
+            onLongPress={() => starredActions(folderPath, name, stack)}
             delayLongPress={300}
             style={({ pressed }) => [styles.fileRow, pressed && { backgroundColor: c.surfaceHover }]}
             accessibilityRole="button"
@@ -1367,7 +1382,7 @@ export default function FilesScreen() {
             <Star size={20} color={c.starred} fill={c.starred} />
             <Text style={[styles.fileName, styles.placeName]} numberOfLines={1}>{name}</Text>
             <Pressable
-              onPress={() => starredActions(folderPath, name)}
+              onPress={() => starredActions(folderPath, name, stack)}
               hitSlop={8}
               style={styles.rowMore}
               accessibilityRole="button"
@@ -1656,6 +1671,8 @@ export default function FilesScreen() {
         onPick={(destinationId) => moveTarget && void performMove(moveTarget, destinationId)}
       />
 
+      <PlaceActionsSheet menu={placeMenu} t={t} onClose={() => setPlaceMenu(null)} />
+
       <SortSheet
         visible={sortSheetOpen}
         sortKey={sortKey}
@@ -1942,6 +1959,62 @@ function ActionsSheet({
                   <Text style={[styles.actionLabel, { color: c.error }]}>{t('files.delete', 'Delete')}</Text>
                 </Pressable>
               ) : null}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+}
+
+interface PlaceAction {
+  key: string;
+  label: string;
+  icon: AppIcon;
+  onPress: () => void;
+}
+
+interface PlaceMenu {
+  title: string;
+  actions: PlaceAction[];
+}
+
+/**
+ * The actions of a starred folder or a recent file, with a Cancel row. Back
+ * and a tap outside close it too.
+ */
+function PlaceActionsSheet({ menu, t, onClose }: { menu: PlaceMenu | null; t: Translate; onClose: () => void }) {
+  // Centred on a wide window, clear of side insets in landscape.
+  const sheetInsets = useSheetInsets();
+  const bottomInset = useSheetBottomInset(!!menu);
+  const c = useColors();
+  const styles = React.useMemo(() => makeSheetStyles(c), [c]);
+  if (!menu) return null;
+  return (
+    <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback accessible={false} onPress={onClose}>
+        <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
+          <TouchableWithoutFeedback accessible={false}>
+            <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
+              <Text style={styles.sheetTitle} numberOfLines={1}>{menu.title}</Text>
+              {menu.actions.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <Pressable
+                    key={a.key}
+                    style={styles.action}
+                    accessibilityRole="button"
+                    onPress={() => { onClose(); a.onPress(); }}
+                  >
+                    <Icon size={18} color={c.text} />
+                    <Text style={styles.actionLabel}>{a.label}</Text>
+                  </Pressable>
+                );
+              })}
+              <View style={styles.sheetDivider} />
+              <Pressable style={styles.action} accessibilityRole="button" onPress={onClose}>
+                <Text style={styles.actionLabel}>{t('files.cancel', 'Cancel')}</Text>
+              </Pressable>
             </View>
           </TouchableWithoutFeedback>
         </View>
