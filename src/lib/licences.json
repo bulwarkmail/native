@@ -42,13 +42,13 @@
     },
     {
       "name": "date-fns",
-      "version": "4.1.0",
+      "version": "4.4.0",
       "license": "MIT",
       "url": "https://github.com/date-fns/date-fns"
     },
     {
       "name": "expo",
-      "version": "54.0.33",
+      "version": "54.0.38",
       "license": "MIT",
       "url": "https://github.com/expo/expo/tree/main/packages/expo"
     },
@@ -78,7 +78,7 @@
     },
     {
       "name": "expo-file-system",
-      "version": "19.0.21",
+      "version": "19.0.24",
       "license": "MIT",
       "url": "https://docs.expo.dev/versions/latest/sdk/filesystem/"
     },
@@ -96,7 +96,7 @@
     },
     {
       "name": "expo-image-picker",
-      "version": "17.0.10",
+      "version": "17.0.11",
       "license": "MIT",
       "url": "https://docs.expo.dev/versions/latest/sdk/imagepicker/"
     },
@@ -108,7 +108,7 @@
     },
     {
       "name": "expo-localization",
-      "version": "17.0.8",
+      "version": "17.0.9",
       "license": "MIT",
       "url": "https://docs.expo.dev/versions/latest/sdk/localization/"
     },
