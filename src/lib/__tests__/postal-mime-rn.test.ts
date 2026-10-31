@@ -4,7 +4,7 @@ import PostalMime from 'postal-mime';
 // React Native's Blob only takes strings and other Blobs; building one from an
 // ArrayBuffer or typed array throws. postal-mime used to join every decoded
 // part through such a Blob, so an .eml with an attachment could not be
-// previewed on the device (patches/postal-mime+3.0.0.patch).
+// previewed on the device (patches/postal-mime+4.2.0.patch).
 class ReactNativeBlob {
   constructor(parts: unknown[] = []) {
     if (parts.some((p) => p instanceof ArrayBuffer || ArrayBuffer.isView(p))) {

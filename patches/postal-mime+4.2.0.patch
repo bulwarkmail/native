@@ -1,0 +1,128 @@
+diff --git a/node_modules/postal-mime/dist/cjs/chunk-writer.js b/node_modules/postal-mime/dist/cjs/chunk-writer.js
+index aac95eb..3425832 100644
+--- a/node_modules/postal-mime/dist/cjs/chunk-writer.js
++++ b/node_modules/postal-mime/dist/cjs/chunk-writer.js
+@@ -57,7 +57,7 @@ class ChunkWriter {
+     finalize() {
+         this.flush();
+         // convert an array of arraybuffers into a blob and then back into a single arraybuffer
+-        return (0, decode_strings_js_1.blobToArrayBuffer)(new Blob(this.chunks, { type: 'application/octet-stream' }));
++        return (0, decode_strings_js_1.concatChunks)(this.chunks);
+     }
+ }
+ exports.default = ChunkWriter;
+diff --git a/node_modules/postal-mime/dist/cjs/decode-strings.js b/node_modules/postal-mime/dist/cjs/decode-strings.js
+index 40c59f6..74b0c41 100644
+--- a/node_modules/postal-mime/dist/cjs/decode-strings.js
++++ b/node_modules/postal-mime/dist/cjs/decode-strings.js
+@@ -8,6 +8,7 @@ exports.decodeUtf8OrWindows1252 = decodeUtf8OrWindows1252;
+ exports.decodeCharset = decodeCharset;
+ exports.decodeText = decodeText;
+ exports.blobToArrayBuffer = blobToArrayBuffer;
++exports.concatChunks = concatChunks;
+ exports.hexNibble = hexNibble;
+ exports.foldLineBreaks = foldLineBreaks;
+ exports.decodeWord = decodeWord;
+@@ -461,6 +462,22 @@ function decodeText(bytes, charset, html) {
+     }
+     return (decoder.encoding === 'x-user-defined' ? getDecoder('windows-1252') : decoder).decode(view);
+ }
++// React Native's Blob cannot be built from ArrayBuffers or typed arrays, so
++// the decoders join their chunks here instead of through a Blob.
++function concatChunks(chunks) {
++    const parts = chunks.map(chunk => {
++        if (typeof chunk === 'string') return exports.textEncoder.encode(chunk);
++        if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
++        return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
++    });
++    const out = new Uint8Array(parts.reduce((n, part) => n + part.byteLength, 0));
++    let pos = 0;
++    for (const part of parts) {
++        out.set(part, pos);
++        pos += part.byteLength;
++    }
++    return out.buffer;
++}
+ /**
+  * Converts a Blob into an ArrayBuffer
+  * @param blob Blob to convert
+diff --git a/node_modules/postal-mime/dist/cjs/pass-through-decoder.js b/node_modules/postal-mime/dist/cjs/pass-through-decoder.js
+index 755a1a7..d7f4ebc 100644
+--- a/node_modules/postal-mime/dist/cjs/pass-through-decoder.js
++++ b/node_modules/postal-mime/dist/cjs/pass-through-decoder.js
+@@ -68,7 +68,7 @@ class PassThroughDecoder {
+         }
+         this.flushRun();
+         // convert an array of arraybuffers into a blob and then back into a single arraybuffer
+-        return (0, decode_strings_js_1.blobToArrayBuffer)(new Blob(this.chunks, { type: 'application/octet-stream' }));
++        return (0, decode_strings_js_1.concatChunks)(this.chunks);
+     }
+ }
+ exports.default = PassThroughDecoder;
+diff --git a/node_modules/postal-mime/dist/esm/chunk-writer.js b/node_modules/postal-mime/dist/esm/chunk-writer.js
+index eb22f8a..ceebace 100644
+--- a/node_modules/postal-mime/dist/esm/chunk-writer.js
++++ b/node_modules/postal-mime/dist/esm/chunk-writer.js
+@@ -1,4 +1,4 @@
+-import { blobToArrayBuffer } from './decode-strings.js';
++import { concatChunks } from './decode-strings.js';
+ /**
+  * Collects decoded content in fixed size chunks, so memory follows the number of bytes
+  * written rather than the number of writes. Decoders that write many short runs, such as
+@@ -55,7 +55,7 @@ export default class ChunkWriter {
+     finalize() {
+         this.flush();
+         // convert an array of arraybuffers into a blob and then back into a single arraybuffer
+-        return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
++        return concatChunks(this.chunks);
+     }
+ }
+ //# sourceMappingURL=chunk-writer.js.map
+\ No newline at end of file
+diff --git a/node_modules/postal-mime/dist/esm/decode-strings.js b/node_modules/postal-mime/dist/esm/decode-strings.js
+index 7108f8d..3dbd459 100644
+--- a/node_modules/postal-mime/dist/esm/decode-strings.js
++++ b/node_modules/postal-mime/dist/esm/decode-strings.js
+@@ -443,6 +443,22 @@ export function decodeText(bytes, charset, html) {
+     }
+     return (decoder.encoding === 'x-user-defined' ? getDecoder('windows-1252') : decoder).decode(view);
+ }
++// React Native's Blob cannot be built from ArrayBuffers or typed arrays, so
++// the decoders join their chunks here instead of through a Blob.
++export function concatChunks(chunks) {
++    const parts = chunks.map(chunk => {
++        if (typeof chunk === 'string') return textEncoder.encode(chunk);
++        if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
++        return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
++    });
++    const out = new Uint8Array(parts.reduce((n, part) => n + part.byteLength, 0));
++    let pos = 0;
++    for (const part of parts) {
++        out.set(part, pos);
++        pos += part.byteLength;
++    }
++    return out.buffer;
++}
+ /**
+  * Converts a Blob into an ArrayBuffer
+  * @param blob Blob to convert
+diff --git a/node_modules/postal-mime/dist/esm/pass-through-decoder.js b/node_modules/postal-mime/dist/esm/pass-through-decoder.js
+index 4d493af..39e6ad5 100644
+--- a/node_modules/postal-mime/dist/esm/pass-through-decoder.js
++++ b/node_modules/postal-mime/dist/esm/pass-through-decoder.js
+@@ -1,4 +1,4 @@
+-import { blobToArrayBuffer } from './decode-strings.js';
++import { concatChunks } from './decode-strings.js';
+ // Hands the body through as it is, the line endings included.
+ //
+ // The line break is written when the next line arrives, not after each line. The CRLF in
+@@ -66,7 +66,7 @@ export default class PassThroughDecoder {
+         }
+         this.flushRun();
+         // convert an array of arraybuffers into a blob and then back into a single arraybuffer
+-        return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
++        return concatChunks(this.chunks);
+     }
+ }
+ //# sourceMappingURL=pass-through-decoder.js.map
+\ No newline at end of file

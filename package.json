@@ -43,7 +43,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.8",
     "jszip": "^3.10.1",
-    "postal-mime": "^3.0.0",
+    "postal-mime": "^4.2.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-android-widget": "0.22.1",
