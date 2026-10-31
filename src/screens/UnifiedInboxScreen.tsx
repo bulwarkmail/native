@@ -33,6 +33,7 @@ import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
 import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
+import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -380,6 +381,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
               senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
+              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item)}
             />
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />

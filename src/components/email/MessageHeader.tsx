@@ -25,6 +25,7 @@ import { resolveEmailTags } from '../../lib/thread-utils';
 import { findVerificationCode, verificationCodeBodyText } from '../../lib/verification-code';
 import { VerificationCodeChip } from './VerificationCodeChip';
 import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
+import { brandIndicatorDomain } from '../../lib/avatar-bimi';
 
 interface Props {
   email: Email;
@@ -185,6 +186,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
             email={from?.email}
             size={compact ? componentSizes.avatarSm : componentSizes.avatarMd}
             senderWarning={verificationText?.label}
+            brandDomain={brandIndicatorDomain(email)}
           />
         </Pressable>
         <View style={styles.info}>
