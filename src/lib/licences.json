@@ -213,6 +213,24 @@
       "version": "",
       "license": "MIT",
       "url": "https://tabler.io/icons"
+    },
+    {
+      "name": "Atkinson Hyperlegible Next",
+      "version": "",
+      "license": "OFL-1.1",
+      "url": "https://github.com/googlefonts/atkinson-hyperlegible-next"
+    },
+    {
+      "name": "Lexend",
+      "version": "",
+      "license": "OFL-1.1",
+      "url": "https://github.com/googlefonts/lexend"
+    },
+    {
+      "name": "OpenDyslexic",
+      "version": "",
+      "license": "OFL-1.1",
+      "url": "https://opendyslexic.org"
     }
   ]
 }

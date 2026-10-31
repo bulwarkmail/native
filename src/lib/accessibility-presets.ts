@@ -6,14 +6,15 @@
 //
 // The phone takes the presets whose settings it has: screen reader (no
 // conversation grouping), low vision (150% text, labels under the toolbar
-// icons) and motion (no animations). The webmail's others need settings the
-// app doesn't have (reading fonts, spacing, focus outlines, hover, sounds).
+// icons), dyslexia (the reading font, also for plain-text mail) and motion
+// (no animations). The webmail's others need settings the app doesn't have
+// (spacing, focus outlines, hover, sounds).
 
 import type { PersistedSettings } from '../stores/settings-store';
 
-export type AccessibilityPresetId = 'screen-reader' | 'low-vision' | 'motion';
+export type AccessibilityPresetId = 'screen-reader' | 'low-vision' | 'dyslexia' | 'motion';
 
-export const ACCESSIBILITY_PRESET_IDS: readonly AccessibilityPresetId[] = ['screen-reader', 'low-vision', 'motion'];
+export const ACCESSIBILITY_PRESET_IDS: readonly AccessibilityPresetId[] = ['screen-reader', 'low-vision', 'dyslexia', 'motion'];
 
 type PresetValues = Partial<PersistedSettings>;
 
@@ -26,6 +27,12 @@ export const ACCESSIBILITY_PRESETS: Record<AccessibilityPresetId, PresetValues> 
   'low-vision': {
     fontSize: 'xx-large',
     showToolbarLabels: true,
+  },
+  // The webmail's font part (its spacing, reading width and mail style
+  // options have no phone counterpart yet).
+  dyslexia: {
+    appFont: 'atkinson',
+    plainTextFont: 'sans',
   },
   motion: {
     animationsEnabled: false,

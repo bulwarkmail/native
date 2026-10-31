@@ -444,6 +444,9 @@ export default function EmailBodyView({
   const syncTrustedSenders = isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts);
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
+  // The reading font reaches a plain-text body ("Same as above"), as in the
+  // webmail; HTML mail keeps the sender's fonts.
+  const appFont = useSettingsStore((s) => s.appFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   // Body text follows the app's text size and the system font scale (webmail
@@ -611,9 +614,10 @@ export default function EmailBodyView({
     quoteLabels,
     textFactor,
     plainDarkColors,
+    appFont,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
-    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors,
+    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont,
   ]);
 
   const source = React.useMemo(

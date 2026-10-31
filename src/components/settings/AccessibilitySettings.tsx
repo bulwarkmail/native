@@ -1,10 +1,11 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing } from '../../theme/tokens';
 import { useLocaleStore } from '../../stores/locale-store';
-import { FONT_SIZES, useSettingsStore, type FontSize } from '../../stores/settings-store';
+import { APP_FONTS, FONT_SIZES, useSettingsStore, type AppFont, type FontSize } from '../../stores/settings-store';
+import { uiFontsBundled } from '../../theme/reading-fonts';
 import { toast } from '../../stores/toast-store';
 import {
   ACCESSIBILITY_PRESET_IDS,
@@ -14,6 +15,14 @@ import {
   type AccessibilityPresetId,
 } from '../../lib/accessibility-presets';
 import { TOAST_DURATION_CHOICES } from '../../lib/toast-duration';
+
+// Font names are names: the same in every language (webmail
+// accessibility-settings.tsx).
+const FONT_NAMES: Record<Exclude<AppFont, 'default'>, string> = {
+  atkinson: 'Atkinson Hyperlegible',
+  lexend: 'Lexend',
+  opendyslexic: 'OpenDyslexic',
+};
 
 // Percentages read the same in every language the app has.
 const TEXT_SIZE_LABELS: Record<FontSize, string> = {
@@ -41,6 +50,11 @@ function presetCopy(id: AccessibilityPresetId, t: Translate): { label: string; d
         label: t('settings.accessibility.presets.low-vision.label', 'Low vision'),
         description: t('settings.accessibility.presets.low-vision.description_mobile', 'Text at 150% and labels under the toolbar icons.'),
       };
+    case 'dyslexia':
+      return {
+        label: t('settings.accessibility.presets.dyslexia.label', 'Dyslexia'),
+        description: t('settings.accessibility.presets.dyslexia.description_mobile', 'Atkinson Hyperlegible as the font, also for plain-text messages.'),
+      };
     case 'motion':
       return {
         label: t('settings.accessibility.presets.motion.label', 'Motion and seizure safe'),
@@ -61,6 +75,7 @@ export function AccessibilitySettings() {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const update = useSettingsStore((s) => s.updateSetting);
   const fontSize = useSettingsStore((s) => s.fontSize);
+  const appFont = useSettingsStore((s) => s.appFont);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const toastDuration = useSettingsStore((s) => s.toastDuration);
   const sendConfirmation = useSettingsStore((s) => s.sendConfirmation);
@@ -130,12 +145,27 @@ export function AccessibilitySettings() {
         <SettingItem
           label={t('settings.accessibility.text_size.label', 'Text size')}
           description={t('settings.accessibility.text_size.description_mobile', "Scales the app's text on top of your phone's text size. 100% is your phone's size.")}
-          noBorder
         >
           <Select
             value={fontSize}
             onChange={(v) => update('fontSize', v as FontSize)}
             options={FONT_SIZES.map((size) => ({ value: size, label: TEXT_SIZE_LABELS[size] }))}
+          />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.accessibility.font.label', 'Font')}
+          description={uiFontsBundled(Platform.OS)
+            ? t('settings.accessibility.font.description', 'Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. They cover Latin script.')
+            : t('settings.accessibility.font.description_ios', 'Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages.')}
+          noBorder
+        >
+          <Select
+            value={appFont}
+            onChange={(v) => update('appFont', v as AppFont)}
+            options={APP_FONTS.map((font) => ({
+              value: font,
+              label: font === 'default' ? t('settings.accessibility.font.default', 'Theme font') : FONT_NAMES[font],
+            }))}
           />
         </SettingItem>
       </SettingsSection>

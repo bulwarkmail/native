@@ -1384,6 +1384,16 @@
       "appearance": "Darstellung",
       "general": "Allgemein",
       "privacy": "Datenschutz & Sicherheit"
+    },
+    "accessibility": {
+      "presets": {
+        "dyslexia": {
+          "description_mobile": "Atkinson Hyperlegible als Schrift, auch für Nachrichten als reiner Text."
+        }
+      },
+      "font": {
+        "description_ios": "Atkinson Hyperlegible und Lexend sind so gestaltet, dass sich die Buchstaben gut unterscheiden; OpenDyslexic hilft manchen Menschen mit Legasthenie. Auf diesem Gerät gilt die Schrift für Nachrichten als reiner Text."
+      }
     }
   },
   "sharing": {

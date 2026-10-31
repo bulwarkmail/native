@@ -17,6 +17,9 @@ export type MailAttachmentAction = 'preview' | 'download';
 export type AttachmentPosition = 'beside-sender' | 'below-header';
 export type PlainTextFont = 'sans' | 'mono';
 export type MessageSpacing = 'auto' | 'always' | 'edge';
+// a11y-reading: the webmail's reading fonts (lib/accessibility-settings.ts AppFont).
+export type AppFont = 'default' | 'atkinson' | 'lexend' | 'opendyslexic';
+export const APP_FONTS: readonly AppFont[] = ['default', 'atkinson', 'lexend', 'opendyslexic'];
 export type ReadReceiptResponse = 'ask' | 'always' | 'never';
 export type PostExportAction = 'keep' | 'archive' | 'trash';
 export type SwipeAction =
@@ -158,6 +161,11 @@ export interface PersistedSettings {
   animationsEnabled: boolean;
   emailAlwaysLightMode: boolean;
   activeThemeId: string | null;
+
+  // a11y-reading: Settings > Accessibility (webmail lib/accessibility-
+  // settings.ts, same keys for export/import). The reading font for the
+  // app's text and plain-text mail (theme/reading-fonts).
+  appFont: AppFont;
 
   // Composing
   autoSelectReplyIdentity: boolean;
@@ -359,6 +367,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   animationsEnabled: true,
   emailAlwaysLightMode: false,
   activeThemeId: null,
+  // a11y-reading:
+  appFont: 'default',
 
   autoSelectReplyIdentity: false,
   replyIdentityMatch: 'domain',
@@ -617,6 +627,8 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   // Levels are sanitized by the consumer (lib/message-list-order sanitizeSortLevels).
   messageListOrder: (v) => Array.isArray(v),
   fontSize: oneOf(FONT_SIZES),
+  // a11y-reading:
+  appFont: oneOf(APP_FONTS),
   density: oneOf(['extra-compact', 'compact', 'regular', 'comfortable']),
   attachmentReminderKeywords: stringArray,
   // Same set the webmail accepts (stores/settings-store.ts importSettings).

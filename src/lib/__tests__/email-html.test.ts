@@ -388,6 +388,22 @@ describe('wrapPlainTextEmail', () => {
   it('lets the content pick its text direction', () => {
     expect(wrapPlainTextEmail('مرحبا بالعالم.')).toContain('<body dir="auto">');
   });
+
+  // Settings > Accessibility > Font: a plain body sits in the app document in
+  // the webmail, so it is drawn in the reading font ("Same as above").
+  it('draws the body in the reading font, which the page loads from data:', () => {
+    const html = wrapPlainTextEmail('x', { font: 'sans', readingFont: 'opendyslexic' });
+    expect(html).toContain('font-family: "OpenDyslexic", -apple-system');
+    expect(html).toMatch(/@font-face \{ font-family: "OpenDyslexic";[^}]*src: url\("data:font\/woff2;base64,/);
+    expect(html).toContain('font-src data:');
+  });
+
+  it('keeps monospace and the theme font as they were', () => {
+    const mono = wrapPlainTextEmail('x', { font: 'mono', readingFont: 'opendyslexic' });
+    expect(mono).toContain('font-family: ui-monospace');
+    expect(mono).not.toContain('OpenDyslexic');
+    expect(wrapPlainTextEmail('x', { font: 'sans', readingFont: 'default' })).not.toContain('@font-face');
+  });
 });
 
 describe('hasNativeDarkMode', () => {

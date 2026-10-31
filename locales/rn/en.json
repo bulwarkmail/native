@@ -963,10 +963,16 @@
       "updates": "Updates"
     },
     "accessibility": {
+      "font": {
+        "description_ios": "Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages."
+      },
       "presets": {
         "applied_mobile": "{name} changed {count, plural, one {# setting} other {# settings}}",
         "apply": "Apply",
         "apply_named": "Apply {name}",
+        "dyslexia": {
+          "description_mobile": "Atkinson Hyperlegible as the font, also for plain-text messages."
+        },
         "low-vision": {
           "description_mobile": "Text at 150% and labels under the toolbar icons."
         },
@@ -1016,7 +1022,6 @@
       "accessibility_link": {
         "description_mobile": "Text size, reduced motion and the accessibility presets are on the Accessibility page."
       },
-      "description_mobile": "Customize how the app looks",
       "cross_all": {
         "label_mobile": "All mail"
       },
@@ -1026,6 +1031,7 @@
       "cross_unread": {
         "label_mobile": "All unread"
       },
+      "description_mobile": "Customize how the app looks",
       "language": {
         "restart_for_direction": "Restart the app to apply the new text direction.",
         "system_default": "System default"

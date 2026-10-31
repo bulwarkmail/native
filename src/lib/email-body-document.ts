@@ -10,6 +10,7 @@ import {
 } from './email-html';
 import { collapsePlainTextQuotes, type QuoteCollapseLabels } from './quote-collapse';
 import { mailBaseFontPx } from './mail-reading';
+import type { AppFont } from '../theme/reading-fonts';
 
 export interface BodyDocumentInput {
   /** The message (account and id); the sources below are compared as well. */
@@ -33,6 +34,8 @@ export interface BodyDocumentInput {
   textFactor?: number;
   /** The app theme's colours for a plain-text body in dark mode. */
   plainDarkColors?: PlainTextColors;
+  /** The reading font (Settings > Accessibility > Font) for a plain-text body. */
+  appFont?: AppFont;
 }
 
 export interface BodyDocument {
@@ -68,6 +71,7 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       font: input.plainTextFont,
       fontPx: mailBaseFontPx(input.textFactor ?? 1),
       darkColors: input.plainDarkColors,
+      readingFont: input.appFont,
     }),
     recolorDark: false,
     hasNativeDark: false,
@@ -97,7 +101,7 @@ export function bodyDocument(input: BodyDocumentInput): BodyDocument {
   const key = JSON.stringify([
     input.key, input.blockRemoteImages, input.isDark, input.messageSpacing, input.plainTextFont,
     input.quoteLabels.show, input.quoteLabels.hide, input.emptyLabel, input.textFactor ?? 1,
-    input.plainDarkColors ?? null,
+    input.plainDarkColors ?? null, input.appFont ?? 'default',
   ]);
   const hit = documents.get(key);
   if (hit && sameSources(hit.input, input)) {

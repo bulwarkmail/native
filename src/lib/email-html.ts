@@ -22,6 +22,7 @@
 // sheet is scrubbed of url()/@import/@font-face references instead.
 
 import { DARK_PENDING_CLASS, emailColorScheme, emailDarkModeCss, resolveColorSchemeMedia } from './email-dark-mode';
+import { mailFontStack, readingFontFaceCss, type AppFont } from '../theme/reading-fonts';
 
 const FORBIDDEN_TAGS = [
   'script', 'iframe', 'object', 'embed', 'form',
@@ -935,10 +936,22 @@ function cssColor(value: string, fallback: string): string {
 
 export function wrapPlainTextEmail(
   innerHtml: string,
-  options: { isDark?: boolean; font?: PlainTextFont; fontPx?: number; darkColors?: PlainTextColors } = {},
+  options: {
+    isDark?: boolean;
+    font?: PlainTextFont;
+    fontPx?: number;
+    darkColors?: PlainTextColors;
+    /**
+     * The app's reading font (Settings > Accessibility > Font). "Same as
+     * above" (sans) draws the body in it, as the webmail does for a plain
+     * body in the app document; monospace stays monospace.
+     */
+    readingFont?: AppFont;
+  } = {},
 ): string {
-  const { isDark = true, font = 'sans', fontPx = 14, darkColors } = options;
+  const { isDark = true, font = 'sans', fontPx = 14, darkColors, readingFont } = options;
   const cleaned = stripDangerousTags(innerHtml);
+  const reading = font === 'sans' ? readingFont : undefined;
 
   // In dark mode the body takes the app theme's ground, text and link colours
   // when they are given (a built-in dark theme isn't #0a0a0a); light mode
@@ -948,9 +961,9 @@ export function wrapPlainTextEmail(
   const link = isDark ? cssColor(darkColors?.link ?? '', '#60a5fa') : '#1a73e8';
   const fontFamily = font === 'mono'
     ? 'ui-monospace, Menlo, Consolas, "SF Mono", monospace'
-    : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    : mailFontStack(reading);
 
-  const styles = `
+  const styles = `${readingFontFaceCss(reading)}
 html, body { background: ${bg}; }
 /* Pinch-zoomed content overflows sideways; it is panned via the injected
    transform, never via native horizontal scrolling. */
