@@ -48,7 +48,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { CalendarAccountChangedError } from '../../stores/calendar-store';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
-import { formatCalendarDate } from '../../lib/date-format';
+import { formatCalendarDay } from '../../lib/calendar-system';
 import {
   alertsToReminders,
   calendarDefaultAlerts,
@@ -73,6 +73,8 @@ import {
 import type { SeriesEdit } from '../../lib/recurrence-scope-edit';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
+import { ParticipantAvailability } from './ParticipantAvailability';
+import { editorAvailabilityWindow } from '../../lib/calendar-free-busy';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
@@ -256,6 +258,12 @@ export function EventModal({
   const [showEndDate, setShowEndDate] = React.useState(false);
   const [showEndTime, setShowEndTime] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+
+  // The event window the attendees' free/busy is checked against.
+  const availabilityWindow = React.useMemo(
+    () => editorAvailabilityWindow({ allDay, start, end }),
+    [allDay, start, end],
+  );
 
   // What the form holds against what it opened with: Close and Back ask
   // before they drop changes (webmail 13f9f27c4).
@@ -633,7 +641,7 @@ export function EventModal({
                   style={styles.dateBtn}
                   onPress={() => setShowStartDate(true)}
                 >
-                  <Text style={styles.dateText}>{formatCalendarDate(start, locale.code, 'weekdayMonthDay')}</Text>
+                  <Text style={styles.dateText}>{formatCalendarDay(start, locale, 'weekdayMonthDay')}</Text>
                 </Pressable>
                 {!allDay && (
                   <Pressable
@@ -653,7 +661,7 @@ export function EventModal({
                   style={styles.dateBtn}
                   onPress={() => setShowEndDate(true)}
                 >
-                  <Text style={styles.dateText}>{formatCalendarDate(end, locale.code, 'weekdayMonthDay')}</Text>
+                  <Text style={styles.dateText}>{formatCalendarDay(end, locale, 'weekdayMonthDay')}</Text>
                 </Pressable>
                 {!allDay && (
                   <Pressable
@@ -901,6 +909,7 @@ export function EventModal({
                 </Text>
               </View>
             )}
+            <ParticipantAvailability attendees={attendees} window={availabilityWindow} />
             {organizes && attendees.length > 0 && (
               <View style={styles.allDayRow}>
                 <Text style={[styles.fieldText, { flex: 1 }]}>

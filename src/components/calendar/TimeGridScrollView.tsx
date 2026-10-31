@@ -21,6 +21,7 @@ import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { dayNumberLabel } from '../../lib/calendar-system';
 import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
   buildEventDayIndex,
@@ -558,6 +559,7 @@ const DayHeaderCell = React.memo(function DayHeaderCell({
   styles: GridStyles;
   onPress?: (date: Date) => void;
 }) {
+  const { system } = useCalendarLocale();
   return (
     <Pressable style={[styles.dayHeaderCell, { left, width }]} onPress={() => onPress?.(day)}>
       <Text style={styles.dayHeaderWeekday} numberOfLines={1}>
@@ -577,7 +579,7 @@ const DayHeaderCell = React.memo(function DayHeaderCell({
             selected && !today && styles.dayHeaderNumberTextSelected,
           ]}
         >
-          {format(day, 'd')}
+          {dayNumberLabel(day, system)}
         </Text>
       </View>
     </Pressable>

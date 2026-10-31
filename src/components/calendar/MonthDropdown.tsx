@@ -9,11 +9,11 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { addMonths, startOfMonth } from 'date-fns';
 import type { Calendar } from '../../api/types';
 import type { ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import type { EventDayIndex } from '../../lib/calendar-utils';
+import { useCalendarLocale } from '../../lib/calendar-locale';
 import { MONTH_ROW_HEIGHT, MonthView } from './MonthView';
 
 type WeekStart = 0 | 1 | 6;
@@ -51,6 +51,7 @@ export function MonthDropdown({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { system } = useCalendarLocale();
   // Pages are as wide as the panel (the window, or a pane on a tablet) and
   // re-measure on rotation. In a short window the panel takes at most about
   // half of it and its month scrolls inside.
@@ -58,9 +59,10 @@ export function MonthDropdown({
   const width = measuredWidth || windowWidth;
   const panelHeight = Math.min(PANEL_HEIGHT, Math.round(windowHeight * 0.55));
   // The months are fixed while the panel is open; it remounts on each open.
+  // Jalali months for Persian, as the month grid shows them.
   const [months] = React.useState(() => {
-    const first = addMonths(startOfMonth(month), -MONTHS_EACH_SIDE);
-    return Array.from({ length: MONTHS_EACH_SIDE * 2 + 1 }, (_, i) => addMonths(first, i));
+    const first = system.addMonths(system.startOfMonth(month), -MONTHS_EACH_SIDE);
+    return Array.from({ length: MONTHS_EACH_SIDE * 2 + 1 }, (_, i) => system.addMonths(first, i));
   });
   const lastIndexRef = React.useRef(MONTHS_EACH_SIDE);
 
@@ -129,7 +131,7 @@ export function MonthDropdown({
 }
 
 function monthKey(month: Date): string {
-  return `${month.getFullYear()}-${month.getMonth()}`;
+  return month.toISOString();
 }
 
 function makeStyles(c: ThemePalette) {

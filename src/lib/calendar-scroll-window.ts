@@ -8,6 +8,7 @@ import {
   subDays,
 } from 'date-fns';
 import { dayKey } from './calendar-utils';
+import { monthGridRange, type CalendarSystem } from './calendar-system';
 
 /**
  * The calendar views scroll freely (#759; webmail lib/calendar-scroll-window):
@@ -50,6 +51,8 @@ export interface CalendarFocus {
 
 export interface ScrollWindowOptions {
   weekStartsOn: WeekStartsOn;
+  /** What a month is (Jalali for Persian); Gregorian when omitted. */
+  calendarSystem?: CalendarSystem;
 }
 
 /** First growth step in days; every further step doubles the side. */
@@ -114,6 +117,7 @@ export function baseRange(mode: ScrollViewMode, date: Date, opts: ScrollWindowOp
         end: startOfDay(endOfWeek(day, { weekStartsOn: opts.weekStartsOn })),
       };
     case 'month':
+      if (opts.calendarSystem) return monthGridRange(day, opts.weekStartsOn, opts.calendarSystem);
       return {
         start: startOfWeek(startOfMonth(day), { weekStartsOn: opts.weekStartsOn }),
         end: startOfDay(endOfWeek(endOfMonth(day), { weekStartsOn: opts.weekStartsOn })),

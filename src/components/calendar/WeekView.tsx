@@ -13,6 +13,7 @@ import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { dayNumberLabel } from '../../lib/calendar-system';
 import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
   buildEventDayIndex,
@@ -70,7 +71,7 @@ function WeekViewInner({
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { locale, t } = useCalendarLocale();
+  const { locale, t, system } = useCalendarLocale();
   const scrollRef = React.useRef<ScrollView>(null);
 
   const index = React.useMemo(
@@ -171,7 +172,7 @@ function WeekViewInner({
               selected && !today && styles.dayHeaderNumberTextSelected,
             ]}
           >
-            {format(day, 'd')}
+            {dayNumberLabel(day, system)}
           </Text>
         </View>
       </Pressable>

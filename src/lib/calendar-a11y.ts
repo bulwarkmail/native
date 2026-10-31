@@ -3,7 +3,7 @@ import type { Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../api/types';
 import { getEventDisplayEndDate, getEventStartDate, getPrimaryCalendarId, timePattern } from './calendar-utils';
 import { isDeclinedByUser } from './calendar-participants';
-import { formatCalendarDate } from './date-format';
+import { formatCalendarDay } from './calendar-system';
 
 type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 
@@ -27,7 +27,7 @@ export function participantRemoveAccessibilityLabel(attendee: { name?: string; e
 
 /** "Monday, November 2, 2026, 3 events" for a month day cell. */
 export function dayCellAccessibilityLabel(day: Date, eventCount: number, t: Translate, locale: Locale): string {
-  const date = formatCalendarDate(day, locale.code, 'longWeekdayMonthDayYear');
+  const date = formatCalendarDay(day, locale, 'longWeekdayMonthDayYear');
   if (eventCount === 0) return date;
   return `${date}, ${t('calendar.a11y.event_count', '{count, plural, one {# event} other {# events}}', { count: eventCount })}`;
 }
@@ -49,10 +49,10 @@ export function eventAccessibilityLabel(
   const end = getEventDisplayEndDate(event);
   const valid = (d: Date) => !isNaN(d.getTime());
   if (valid(start)) {
-    const date = formatCalendarDate(start, locale.code, 'longWeekdayMonthDayYear');
+    const date = formatCalendarDay(start, locale, 'longWeekdayMonthDayYear');
     if (event.showWithoutTime) {
       const last = valid(end) && !isSameDay(start, end)
-        ? ` – ${formatCalendarDate(end, locale.code, 'longWeekdayMonthDayYear')}`
+        ? ` – ${formatCalendarDay(end, locale, 'longWeekdayMonthDayYear')}`
         : '';
       parts.push(date + last, t('calendar.events.all_day', 'All day'));
     } else {
@@ -61,7 +61,7 @@ export function eventAccessibilityLabel(
       if (valid(end) && end.getTime() > start.getTime()) {
         range += isSameDay(start, end)
           ? ` – ${format(end, time, { locale })}`
-          : ` – ${formatCalendarDate(end, locale.code, 'longWeekdayMonthDayYear')} ${format(end, time, { locale })}`;
+          : ` – ${formatCalendarDay(end, locale, 'longWeekdayMonthDayYear')} ${format(end, time, { locale })}`;
       }
       parts.push(date, range);
     }

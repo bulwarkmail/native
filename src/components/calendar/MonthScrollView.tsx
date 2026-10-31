@@ -94,12 +94,12 @@ function MonthScrollViewInner({
   onLongPressDate,
 }: MonthScrollViewProps) {
   const styles = useMonthStyles();
-  const { locale } = useCalendarLocale();
+  const { locale, system } = useCalendarLocale();
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
     [eventsByDay, events],
   );
-  const opts = React.useMemo(() => ({ weekStartsOn }), [weekStartsOn]);
+  const opts = React.useMemo(() => ({ weekStartsOn, calendarSystem: system }), [weekStartsOn, system]);
 
   // One row per week of the window. A week keeps its array across window
   // changes, so growing the window doesn't re-render the rows already there.
@@ -131,8 +131,16 @@ function MonthScrollViewInner({
 
   // The month in focus: set by navigation, then by what scrolls under the
   // sample line.
-  const [activeMonth, setActiveMonth] = React.useState(() => monthKeyOf(focus.date));
+  const [activeMonth, setActiveMonth] = React.useState(() => monthKeyOf(focus.date, system));
   const activeMonthRef = React.useRef(activeMonth);
+  // Another calendar system (the language changed) counts months its own way.
+  const systemRef = React.useRef(system);
+  if (systemRef.current !== system) {
+    systemRef.current = system;
+    const key = monthKeyOf(focus.date, system);
+    activeMonthRef.current = key;
+    setActiveMonth(key);
+  }
   const onVisibleRef = React.useRef(onVisibleDateChange);
   onVisibleRef.current = onVisibleDateChange;
   const offsetRef = React.useRef(0);
@@ -163,7 +171,7 @@ function MonthScrollViewInner({
       if (!days) return;
       // Mid-week decides which month a row belongs to.
       const mid = days[3];
-      const key = monthKeyOf(mid);
+      const key = monthKeyOf(mid, systemRef.current);
       if (key === activeMonthRef.current) return;
       activeMonthRef.current = key;
       setActiveMonth(key);
@@ -191,14 +199,14 @@ function MonthScrollViewInner({
     handledNonceRef.current = focus.nonce;
     const row = monthFocusRow(window, focus.date, weeks.length, opts);
     const currentRow = Math.round(offsetRef.current / rowHeight);
-    const key = monthKeyOf(focus.date);
+    const key = monthKeyOf(focus.date, system);
     activeMonthRef.current = key;
     setActiveMonth(key);
     listRef.current?.scrollToIndex({
       index: row,
       animated: Math.abs(row - currentRow) <= SMOOTH_SCROLL_ROWS,
     });
-  }, [focus, window, weeks.length, opts, rowHeight]);
+  }, [focus, window, weeks.length, opts, rowHeight, system]);
 
   const selectedKey = dayKey(selectedDate);
   // Today on a clock in the calendar's time zone.
@@ -209,7 +217,7 @@ function MonthScrollViewInner({
       return (
         <MonthWeekRow
           days={days}
-          activeMask={monthMask(days, activeMonth)}
+          activeMask={monthMask(days, activeMonth, system)}
           selectedIndex={dayIndexIn(days, selectedDate)}
           todayIndex={dayIndexIn(days, displayNow())}
           index={index}
@@ -241,6 +249,7 @@ function MonthScrollViewInner({
       currentUserEmails,
       rowHeight,
       locale,
+      system,
       styles,
       onSelectDate,
       onLongPressDate,

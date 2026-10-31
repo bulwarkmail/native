@@ -29,16 +29,14 @@ import {
   Square,
 } from '../components/icons';
 import {
-  format,
   addDays,
   subDays,
-  addMonths,
-  subMonths,
   addWeeks,
   subWeeks,
   type Locale,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
+import { dayNumberLabel, monthTitle, type CalendarSystem } from '../lib/calendar-system';
 import { displayNow } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -153,10 +151,11 @@ type PendingAction =
 // the next arrow press or edge usually finds them there already.
 const RANGE_MARGIN_DAYS = 14;
 
-// The month on screen; the year only when it isn't this year.
-function headerTitle(date: Date, locale: Locale): string {
-  const sameYear = date.getFullYear() === displayNow().getFullYear();
-  return format(date, sameYear ? 'LLLL' : 'LLLL yyyy', { locale });
+// The month on screen; the year only when it isn't this year. Jalali
+// months and years in Persian, as the webmail's toolbar shows them.
+export function headerTitle(date: Date, locale: Locale, system: CalendarSystem): string {
+  const sameYear = system.year(date) === system.year(displayNow());
+  return monthTitle(date, system, locale, !sameYear);
 }
 
 export default function CalendarScreen() {
@@ -165,7 +164,7 @@ export default function CalendarScreen() {
   const t = useLocaleStore((s) => s.t);
   const currentUserEmails = useUserCalendarAddresses();
   const resolveContactName = useContactNameResolver();
-  const { locale } = useCalendarLocale();
+  const { locale, system } = useCalendarLocale();
   const calendarDefaultView = useSettingsStore((s) => s.calendarDefaultView);
   const calendarShowTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showTasksOnCalendar = useSettingsStore((s) => s.showTasksOnCalendar);
@@ -197,8 +196,8 @@ export default function CalendarScreen() {
   // shows exactly one period. Navigation moves the focus and, when that
   // leaves the window, starts a fresh window there.
   const windowOptions = React.useMemo<ScrollWindowOptions>(
-    () => ({ weekStartsOn: calendarFirstDayOfWeek }),
-    [calendarFirstDayOfWeek],
+    () => ({ weekStartsOn: calendarFirstDayOfWeek, calendarSystem: system }),
+    [calendarFirstDayOfWeek, system],
   );
   const [focus, setFocus] = React.useState<CalendarFocus>(() => ({ date: displayNow(), nonce: 0 }));
   // The day the scrolled view shows at its top, while it differs from the focus.
@@ -501,9 +500,9 @@ export default function CalendarScreen() {
       viewMode === 'week' ? subWeeks(base, 1)
       : viewMode === '3day' ? subDays(base, multiDays)
       : viewMode === 'day' ? subDays(base, 1)
-      : subMonths(base, 1),
+      : system.addMonths(base, -1),
     );
-  }, [viewMode, visibleDate, focus.date, jumpTo, multiDays]);
+  }, [viewMode, visibleDate, focus.date, jumpTo, multiDays, system]);
 
   const goNext = React.useCallback(() => {
     const base = visibleDate ?? focus.date;
@@ -511,9 +510,9 @@ export default function CalendarScreen() {
       viewMode === 'week' ? addWeeks(base, 1)
       : viewMode === '3day' ? addDays(base, multiDays)
       : viewMode === 'day' ? addDays(base, 1)
-      : addMonths(base, 1),
+      : system.addMonths(base, 1),
     );
-  }, [viewMode, visibleDate, focus.date, jumpTo, multiDays]);
+  }, [viewMode, visibleDate, focus.date, jumpTo, multiDays, system]);
 
   const goToday = React.useCallback(() => {
     jumpTo(displayNow());
@@ -1038,11 +1037,11 @@ export default function CalendarScreen() {
           style={styles.titleBtn}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel={monthButtonAccessibilityLabel(headerTitle(titleDate, locale), t)}
+          accessibilityLabel={monthButtonAccessibilityLabel(headerTitle(titleDate, locale, system), t)}
           accessibilityState={{ expanded: monthPanelOpen }}
         >
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {headerTitle(titleDate, locale)}
+            {headerTitle(titleDate, locale, system)}
           </Text>
           <View style={monthPanelOpen && styles.chevronOpen}>
             <ChevronDown size={18} color={c.textSecondary} />
@@ -1095,7 +1094,7 @@ export default function CalendarScreen() {
             accessibilityLabel={t('calendar.events.go_to_today', 'Go to today')}
           >
             <CalendarIcon size={26} color={c.text} strokeWidth={1.75} />
-            <Text style={styles.todayIconText}>{format(displayNow(), 'd')}</Text>
+            <Text style={styles.todayIconText}>{dayNumberLabel(displayNow(), system)}</Text>
           </Pressable>
           {enableCalendarTasks && (
             <Pressable

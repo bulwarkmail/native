@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 type Listener = (state: Record<string, unknown>, prev: Record<string, unknown>) => void;
 
@@ -24,6 +26,8 @@ const h = vi.hoisted(() => ({
   // Device sync (#34): which events the device's calendar app reminds of.
   onDevice: null as ((event: { id: string }) => boolean) | null,
   reminderListener: null as (() => void) | null,
+  // The reminder channel earlier versions created, if any.
+  legacyChannel: null as { id: string; importance: number } | null,
 }));
 
 vi.mock('react-native', () => ({
@@ -35,6 +39,8 @@ vi.mock('expo-notifications', () => ({
   getPermissionsAsync: vi.fn(async () => ({ ...h.permission })),
   requestPermissionsAsync: vi.fn(async () => ({ granted: true })),
   setNotificationChannelAsync: vi.fn(async () => undefined),
+  getNotificationChannelAsync: vi.fn(async (id: string) => (h.legacyChannel?.id === id ? h.legacyChannel : null)),
+  deleteNotificationChannelAsync: vi.fn(async () => undefined),
   getAllScheduledNotificationsAsync: vi.fn(async () => h.pending),
   cancelScheduledNotificationAsync: vi.fn(async () => undefined),
   scheduleNotificationAsync: vi.fn(async () => 'id'),
@@ -46,7 +52,7 @@ vi.mock('expo-notifications', () => ({
     return { remove: vi.fn() };
   }),
   DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
-  AndroidImportance: { HIGH: 4 },
+  AndroidImportance: { NONE: 2, DEFAULT: 5, HIGH: 6 },
   IosAuthorizationStatus: { PROVISIONAL: 3 },
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
@@ -91,7 +97,7 @@ const upcoming = {
 const upcomingKey = `ev1:a1:${new Date('2026-09-24T09:45:00Z').getTime()}`;
 
 function reminder(identifier: string, key: string) {
-  return { identifier, content: { data: { tag: TAG, key } } };
+  return { identifier, content: { data: { tag: TAG, key, delivery: 'calendar-reminders-involved' } } };
 }
 
 let mod: typeof import('../calendar-notifications');
@@ -115,6 +121,7 @@ beforeEach(async () => {
   h.calendarListener = null;
   h.onDevice = null;
   h.reminderListener = null;
+  h.legacyChannel = null;
   h.loadEventsInRange.mockResolvedValue([upcoming]);
   mod = await import('../calendar-notifications');
   N = await import('expo-notifications');
@@ -322,6 +329,7 @@ describe('tapping a calendar reminder', () => {
       tag: TAG,
       key: expect.any(String),
       locale: 'en',
+      delivery: 'calendar-reminders-involved',
       eventId: 'acc-2:ev1:2026-09-24T10:00:00Z',
       kind: 'event',
       serverId: 'ev1',
@@ -364,5 +372,57 @@ describe('tapping a calendar reminder', () => {
     stop();
     h.responseListener!(response('later', { tag: TAG, key: 'k3', eventId: 'ev3' }));
     expect(open).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the Involved sound on calendar reminders', () => {
+  it('schedules reminders on a channel of its own that plays the Involved sound', async () => {
+    await mod.rescheduleCalendarNotifications();
+    expect(N.setNotificationChannelAsync).toHaveBeenCalledWith('calendar-reminders-involved', expect.objectContaining({
+      sound: 'involved_notification.mp3',
+    }));
+    const request = vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0];
+    expect(request.trigger).toMatchObject({ channelId: 'calendar-reminders-involved' });
+    expect(request.content.sound).toBe('involved_notification.mp3');
+  });
+
+  it('leaves the channel of earlier versions alone', async () => {
+    h.legacyChannel = { id: 'calendar-reminders', importance: 6 };
+    await mod.rescheduleCalendarNotifications();
+    const ids = vi.mocked(N.setNotificationChannelAsync).mock.calls.map((call) => call[0]);
+    expect(ids).toEqual(['calendar-reminders-involved']);
+    expect(N.deleteNotificationChannelAsync).not.toHaveBeenCalled();
+    expect(vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0].trigger).toMatchObject({ channelId: 'calendar-reminders-involved' });
+  });
+
+  it('keeps reminders off for someone who switched the old channel off', async () => {
+    h.legacyChannel = { id: 'calendar-reminders', importance: 2 };
+    await mod.rescheduleCalendarNotifications();
+    expect(N.setNotificationChannelAsync).not.toHaveBeenCalled();
+    expect(vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0].trigger).toMatchObject({ channelId: 'calendar-reminders' });
+  });
+
+  it('schedules again a reminder pending from before, so it plays the new sound', async () => {
+    h.pending = [{ identifier: 'old', content: { data: { tag: TAG, key: upcomingKey, locale: 'en' } } }];
+    await mod.rescheduleCalendarNotifications();
+    expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledWith('old');
+    const request = vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0];
+    expect(request.content.data).toMatchObject({ key: upcomingKey, delivery: 'calendar-reminders-involved' });
+
+    // Once moved, it stays.
+    h.pending = [{ identifier: 'new', content: { data: request.content.data as Record<string, unknown> } }];
+    vi.mocked(N.scheduleNotificationAsync).mockClear();
+    vi.mocked(N.cancelScheduledNotificationAsync).mockClear();
+    await mod.rescheduleCalendarNotifications();
+    expect(N.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
+    expect(N.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('ships the sound for Android, kept from the resource shrinker, and for iOS', () => {
+    const root = path.resolve(__dirname, '../../..');
+    expect(fs.existsSync(path.join(root, 'android/app/src/main/res/raw/involved_notification.mp3'))).toBe(true);
+    expect(fs.readFileSync(path.join(root, 'android/app/src/main/res/raw/keep.xml'), 'utf8')).toContain('@raw/involved_notification');
+    expect(fs.existsSync(path.join(root, 'assets/sounds/involved_notification.wav'))).toBe(true);
+    expect(fs.readFileSync(path.join(root, 'app.config.js'), 'utf8')).toContain("sounds: ['./assets/sounds/involved_notification.wav']");
   });
 });

@@ -8,6 +8,7 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { Button } from '..';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { formatCalendarDay } from '../../lib/calendar-system';
 import {
   EDITOR_FREQUENCIES,
   UNIT_LABEL_KEYS,
@@ -113,7 +114,7 @@ function NumberInput({
 export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: RecurrenceEditorProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { locale, t } = useCalendarLocale();
+  const { locale, t, system } = useCalendarLocale();
 
   const [value, setValue] = React.useState<RecurrenceEditorValue>(() =>
     editorValueFromRule(rule, eventStart),
@@ -245,7 +246,9 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
         {value.endsMode === 'on' && (
           <Pressable style={[styles.selectButton, styles.selectFlex]} onPress={() => setShowUntilPicker(true)}>
             <Text style={styles.selectText}>
-              {format(parseISO(value.untilDate), 'MMM d, yyyy', { locale })}
+              {system.jalali
+                ? formatCalendarDay(parseISO(value.untilDate), locale, 'monthDayYear')
+                : format(parseISO(value.untilDate), 'MMM d, yyyy', { locale })}
             </Text>
           </Pressable>
         )}

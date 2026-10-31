@@ -23,6 +23,7 @@ import {
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
 import { buildAgendaDays, findAgendaFocusIndex, type AgendaDay } from '../../lib/calendar-agenda';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { dayNumberLabel, dayRangeLabel, fullDateLabel, monthTitle, type CalendarSystem } from '../../lib/calendar-system';
 import { useLocaleStore } from '../../stores/locale-store';
 import { EventCard } from './EventCard';
 
@@ -63,12 +64,12 @@ interface DaySection extends AgendaDay {
   weekTitle: string | null;
 }
 
-// The week separators: "Oct 11 – 17", or "Sep 27 – Oct 3" across months.
-function formatWeekRange(date: Date, weekStartsOn: 0 | 1 | 6, locale: Locale): string {
+// The week separators: "Oct 11 – 17", or "Sep 27 – Oct 3" across months
+// (Jalali days and months in Persian).
+function formatWeekRange(date: Date, weekStartsOn: 0 | 1 | 6, locale: Locale, system: CalendarSystem): string {
   const start = startOfWeek(date, { weekStartsOn });
   const end = endOfWeek(date, { weekStartsOn });
-  const sameMonth = start.getMonth() === end.getMonth();
-  return `${format(start, 'MMM d', { locale })} – ${format(end, sameMonth ? 'd' : 'MMM d', { locale })}`;
+  return dayRangeLabel(start, end, system, locale);
 }
 
 const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 };
@@ -102,7 +103,7 @@ export function AgendaView({
 }: AgendaViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { locale, t } = useCalendarLocale();
+  const { locale, t, system } = useCalendarLocale();
   const tp = useLocaleStore((s) => s.t);
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
@@ -115,15 +116,15 @@ export function AgendaView({
     let lastMonth = '';
     let lastWeek = '';
     return buildAgendaDays(index, loaded, displayNow()).map((day) => {
-      const month = format(day.date, 'yyyy-MM');
+      const month = String(system.monthKey(day.date));
       const week = dayKey(startOfWeek(day.date, { weekStartsOn }));
-      const monthTitle = month !== lastMonth ? format(day.date, 'LLLL yyyy', { locale }) : null;
-      const weekTitle = week !== lastWeek ? formatWeekRange(day.date, weekStartsOn, locale) : null;
+      const title = month !== lastMonth ? monthTitle(day.date, system, locale, true) : null;
+      const weekTitle = week !== lastWeek ? formatWeekRange(day.date, weekStartsOn, locale, system) : null;
       lastMonth = month;
       lastWeek = week;
-      return { ...day, key: dayKey(day.date), monthTitle, weekTitle };
+      return { ...day, key: dayKey(day.date), monthTitle: title, weekTitle };
     });
-  }, [index, loaded, weekStartsOn, locale]);
+  }, [index, loaded, weekStartsOn, locale, system]);
 
   const listRef = React.useRef<SectionList<CalendarEvent, DaySection>>(null);
   const sectionsRef = React.useRef(sections);
@@ -245,7 +246,7 @@ export function AgendaView({
     sizeRef.current.content = h;
   }, []);
 
-  const formatRangeDate = (date: Date) => format(date, 'PP', { locale });
+  const formatRangeDate = (date: Date) => (system.jalali ? fullDateLabel(date, system, locale) : format(date, 'PP', { locale }));
 
   const header = (
     <View style={styles.edge}>
@@ -383,6 +384,7 @@ function DateColumn({
   locale: Locale;
   styles: AgendaStyles;
 }) {
+  const { system } = useCalendarLocale();
   if (!show) return <View style={styles.dateCol} />;
   const today = isDisplayToday(date);
   return (
@@ -392,7 +394,7 @@ function DateColumn({
       </Text>
       <View style={[styles.dateNumber, today && styles.dateNumberToday]}>
         <Text style={[styles.dateNumberText, today && styles.dateNumberTextToday]}>
-          {format(date, 'd')}
+          {dayNumberLabel(date, system)}
         </Text>
       </View>
     </View>

@@ -11,6 +11,7 @@ import { onStateChangeType } from './state-change-bus';
 import { getUpcomingAlerts, type ScheduledAlert } from './calendar-alert-scheduler';
 import type { CalendarReminderTarget } from '../navigation/pending-calendar-open';
 import { onDeviceRemindersChange, remindedOnDevice } from '../device-sync/app/reminders';
+import { startCalendarEventNotificationSync } from './calendar-event-notifications';
 
 // Local reminders for calendar events and tasks. The webmail polls
 // `getPendingAlerts` every minute while a tab is open; a phone is mostly
@@ -21,7 +22,17 @@ import { onDeviceRemindersChange, remindedOnDevice } from '../device-sync/app/re
 // don't depend on the Calendar tab being open. Honours the
 // `calendarNotificationsEnabled` setting.
 
-const CHANNEL_ID = 'calendar-reminders';
+// Reminders play the webmail's default notification sound, Involved
+// (webmail lib/notification-sound.ts, stores/settings-store.ts
+// notificationSoundChoice). An Android channel keeps the sound it was created
+// with, so the Involved channel has an id of its own; the channel earlier
+// versions created stays as the user left it. Its sound file ships as
+// android/app/src/main/res/raw/involved_notification.mp3 and, for iOS,
+// assets/sounds/involved_notification.wav.
+export const CHANNEL_ID = 'calendar-reminders-involved';
+export const LEGACY_CHANNEL_ID = 'calendar-reminders';
+const ANDROID_SOUND = 'involved_notification.mp3';
+const IOS_SOUND = 'involved_notification.wav';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HORIZON_MS = 7 * DAY_MS;
 // The events loaded for the horizon: from a day back (an end-relative alert
@@ -41,6 +52,8 @@ let permissionRequested = false;
 let mayAskPermission = false;
 // The language the Android channel was last named in; null until created.
 let channelLocale: string | null = null;
+// The channel reminders go to; decided once per run.
+let activeChannelId: string | null = null;
 let rescheduleTimer: ReturnType<typeof setTimeout> | null = null;
 let rescheduling: Promise<void> | null = null;
 let queued = false;
@@ -67,23 +80,46 @@ async function ensurePermission(): Promise<boolean> {
   return permissionGranted;
 }
 
+/**
+ * The channel reminders go to, given the channel earlier versions created
+ * (null when there is none). Someone who switched those reminders off in the
+ * system settings keeps them off: they stay on that channel. Everyone else
+ * gets the Involved channel.
+ */
+export function reminderChannelFor(legacy: { importance?: number } | null): string {
+  if (legacy && legacy.importance === Notifications.AndroidImportance.NONE) return LEGACY_CHANNEL_ID;
+  return CHANNEL_ID;
+}
+
 // The channel's name shows in the system notification settings, so it is
 // (re)named in the app language; setting an existing channel only renames it.
+// The old channel is never touched.
 async function ensureChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const { locale, t } = useLocaleStore.getState();
   if (channelLocale === locale) return;
   try {
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: t('calendar.notifications.channel_name', 'Calendar reminders'),
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: 'default',
-      vibrationPattern: [0, 250, 250, 250],
-    });
+    if (activeChannelId === null) {
+      const legacy = await Notifications.getNotificationChannelAsync(LEGACY_CHANNEL_ID).catch(() => null);
+      activeChannelId = reminderChannelFor(legacy);
+    }
+    if (activeChannelId === CHANNEL_ID) {
+      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+        name: t('calendar.notifications.channel_name', 'Calendar reminders'),
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: ANDROID_SOUND,
+        vibrationPattern: [0, 250, 250, 250],
+      });
+    }
   } catch {
     // Channel creation failing only degrades to the default channel.
   }
   channelLocale = locale;
+}
+
+/** What a reminder is scheduled with: its channel on Android, its sound on iOS. */
+function deliveryTag(): string {
+  return Platform.OS === 'android' ? activeChannelId ?? CHANNEL_ID : IOS_SOUND;
 }
 
 function alertKeyOf(request: Notifications.NotificationRequest): string | null {
@@ -96,6 +132,13 @@ function alertKeyOf(request: Notifications.NotificationRequest): string | null {
 function isStaleLanguage(request: Notifications.NotificationRequest, locale: string): boolean {
   const data = request.content.data as { locale?: unknown } | undefined;
   return typeof data?.locale === 'string' && data.locale !== locale;
+}
+
+// A reminder scheduled for another channel or sound, such as the default one
+// before the Involved sound: scheduled again, so it plays the new sound.
+function isStaleDelivery(request: Notifications.NotificationRequest): boolean {
+  const data = request.content.data as { delivery?: unknown } | undefined;
+  return data?.delivery !== deliveryTag();
 }
 
 /** Cancel every calendar reminder this app scheduled. */
@@ -118,6 +161,8 @@ async function scheduleOne(alert: ScheduledAlert, locale: string): Promise<void>
     key: alert.key,
     // The language the title and body are in, to reword it on a switch.
     locale,
+    // The channel (Android) or sound (iOS) it goes out with.
+    delivery: deliveryTag(),
     eventId: alert.eventId,
     kind: alert.kind,
     // Enough to find the event again when the reminder is tapped.
@@ -132,13 +177,15 @@ async function scheduleOne(alert: ScheduledAlert, locale: string): Promise<void>
     content: {
       title: alert.title,
       body: alert.body,
-      sound: 'default',
+      // iOS plays the bundled file, or the default sound without it. Android
+      // takes the channel's sound.
+      sound: Platform.OS === 'ios' ? IOS_SOUND : ANDROID_SOUND,
       data,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: new Date(alert.fireTimeMs),
-      ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+      ...(Platform.OS === 'android' ? { channelId: activeChannelId ?? CHANNEL_ID } : {}),
     },
   });
 }
@@ -250,7 +297,7 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
       for (const request of pending) {
         const key = alertKeyOf(request);
         if (key === null) continue;
-        if (wantedByKey.has(key) && !isStaleLanguage(request, locale)) {
+        if (wantedByKey.has(key) && !isStaleLanguage(request, locale) && !isStaleDelivery(request)) {
           present.add(key);
         } else {
           await Notifications.cancelScheduledNotificationAsync(request.identifier);
@@ -369,6 +416,8 @@ export function startCalendarNotificationSync(options?: { askPermission?: boolea
   if (syncStarted) return;
   syncStarted = true;
   installForegroundHandler();
+  // Invitations, changes and cancellations others made (CalendarEventNotification).
+  startCalendarEventNotificationSync();
   // Edits in the app, a refresh after a push, tasks loading. Moving the
   // calendar to another window changes no reminder.
   useCalendarStore.subscribe((state, prev) => {

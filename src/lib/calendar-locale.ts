@@ -2,6 +2,7 @@ import type { Locale } from 'date-fns';
 import { enUS } from 'date-fns/locale/en-US';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import type { LocaleCode } from '../i18n';
+import { calendarSystemFor, type CalendarSystem } from './calendar-system';
 
 // date-fns locale for each UI language so month/day names, "EEE, MMM d"
 // headers and the like render in the user's language (the webmail localizes
@@ -55,9 +56,12 @@ export function getDateFnsLocale(code: LocaleCode | string | null | undefined): 
   return locale;
 }
 
-/** `{ locale }` options for date-fns `format()` plus the translate function. */
-export function useCalendarLocale(): { locale: Locale; t: TranslateFn } {
+/**
+ * `{ locale }` options for date-fns `format()`, the translate function and
+ * the calendar system (Jalali for Persian, as in the webmail).
+ */
+export function useCalendarLocale(): { locale: Locale; t: TranslateFn; system: CalendarSystem } {
   const code = useLocaleStore((s) => s.locale);
   const t = useLocaleStore((s) => s.t);
-  return { locale: getDateFnsLocale(code), t };
+  return { locale: getDateFnsLocale(code), t, system: calendarSystemFor(code) };
 }
