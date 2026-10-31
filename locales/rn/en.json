@@ -6,6 +6,9 @@
     "not_starred": "Not starred"
   },
   "calendar": {
+    "a11y": {
+      "event_count": "{count, plural, one {# event} other {# events}}"
+    },
     "account_changed": "The account changed while the calendar was loading or saving.",
     "alerts": {
       "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}"
@@ -16,6 +19,12 @@
     },
     "detail": {
       "location_hint": "Opens the location; long-press to copy it"
+    },
+    "discard": {
+      "confirm": "Discard",
+      "keep": "Keep editing",
+      "message": "Your changes haven't been saved.",
+      "title": "Discard changes?"
     },
     "drawer": {
       "my_calendars": "My calendars",
@@ -28,6 +37,7 @@
     },
     "events": {
       "copy_link_short": "Link",
+      "copy_title_short": "Title",
       "export_ics_short": ".ics",
       "nothing_planned": "Nothing planned. Tap to create.",
       "tap_to_create": "Tap + to create one"
@@ -59,12 +69,16 @@
       "add_to_calendar": "Add to calendar",
       "added": "Added to calendar",
       "already_in_calendar": "Already in your calendar",
+      "cancel_outdated": "Your calendar has a newer version of this event than this cancellation.",
       "cancelled": "This event was cancelled",
       "decline": "No",
       "join_video": "Join video call",
       "no_writable_calendar": "No writable calendar available",
       "organizer": "Organizer",
       "reading": "Reading invitation…",
+      "remove_error": "Could not remove the event",
+      "remove_from_calendar": "Remove from calendar",
+      "removed_from_calendar": "Removed from your calendar.",
       "reply": "A participant replied to this invitation",
       "response_error": "Could not send your response",
       "response_sent": "Response sent",
@@ -80,10 +94,14 @@
       "clear_confirm": "Remove all",
       "clear_description": "Every event in this calendar will be deleted. Events that also belong to another calendar are only unlinked.",
       "clear_title": "Remove all events?",
+      "color_invalid": "Enter a color as # and six hex digits, such as #3b82f6.",
+      "custom_color": "Custom color (hex)",
       "delete_description": "The calendar and all of its events will be deleted. This cannot be undone.",
       "delete_title": "Delete calendar?",
       "description_placeholder": "Optional",
       "edit_calendar": "Edit calendar",
+      "fewer_colors": "Fewer colors",
+      "more_colors": "More colors",
       "new_calendar": "New calendar"
     },
     "notifications": {
@@ -95,6 +113,7 @@
     },
     "occurrence_not_found_again": "The change was not saved: the occurrence could not be found again on the server. Please try again.",
     "participants": {
+      "group_members": "{count, plural, one {# member} other {# members}}",
       "limit_warning": "More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit."
     },
     "recurrence": {
@@ -188,8 +207,11 @@
       "move_to_address_book": "Move to address book",
       "tag_failed": "Tagging failed"
     },
+    "category_delete_failed": "Couldn't delete the category",
+    "category_deleted": "Category \"{name}\" deleted",
     "contact": "Contact",
     "create_hint_mobile": "Long-press to create a group instead",
+    "delete_category": "Delete category",
     "detail": {
       "add_to_group_failed": "Add to group failed",
       "copy_name": "{name} (Copy)",
@@ -287,6 +309,7 @@
     },
     "rename_tag_hint_mobile": "Long-press a tag to rename it",
     "tag_name_placeholder": "New tag name",
+    "undo": "Undo",
     "unnamed": "Unnamed"
   },
   "context_menu": {
