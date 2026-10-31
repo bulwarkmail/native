@@ -7,7 +7,7 @@ tags:
 ---
 - runFlow: ../subflows/signed-in.yaml
 
-# Move via More → Move to...
+# Move via More → Move to
 - runFlow:
     file: ../subflows/open-message.yaml
     env:
@@ -17,9 +17,11 @@ tags:
     visible: "More actions"
     timeout: 10000
 - takeScreenshot: actions-01-more
-- tapOn: "Move to..."
+# Both the menu row and the sheet title read "Move to" (webmail catalog),
+# so wait for the folder list instead of the title.
+- tapOn: "Move to"
 - extendedWaitUntil:
-    visible: "Move to..."
+    visible: "Projects"
     timeout: 10000
 - tapOn:
     text: "Projects"
