@@ -87,7 +87,7 @@ import {
   getEventStartDate,
   getPrimaryCalendarId,
   getTaskDueDate,
-  pickUnusedCalendarColor,
+  autoAssignSharedCalendarColors,
   sharedCalendarColorKey,
   reopenedEdit,
 } from '../lib/calendar-utils';
@@ -308,29 +308,13 @@ export default function CalendarScreen() {
     [storeCalendars, sharedCalendarColors],
   );
 
-  // Auto-assign a random, not-yet-used palette color to any freshly shared
-  // calendar so multiple shared calendars don't collide on one color. Runs
-  // once per calendar (guarded by the presence of an existing key), and the
-  // user can still overwrite it from the sidebar.
+  // Auto-assign a not-yet-used palette color to any freshly shared calendar
+  // without a server colour, so multiple shared calendars don't collide on
+  // one color (#1414: one with a server colour keeps it). Runs once per
+  // calendar, and the user can still overwrite it from the sidebar.
   React.useEffect(() => {
-    const missing = storeCalendars.filter(
-      (cal) => cal.isShared && !sharedCalendarColors[sharedCalendarColorKey(cal)],
-    );
-    if (missing.length === 0) return;
-    // Seed "used" with personal calendar colors plus already-assigned shared
-    // overrides so the picks stay distinct from what's already on screen.
-    const used = new Set<string>();
-    for (const cal of storeCalendars) {
-      if (!cal.isShared && cal.color) used.add(cal.color.toLowerCase());
-    }
-    for (const color of Object.values(sharedCalendarColors)) {
-      if (color) used.add(color.toLowerCase());
-    }
-    for (const cal of missing) {
-      const color = pickUnusedCalendarColor(used);
-      used.add(color.toLowerCase());
-      setSharedCalendarColor(sharedCalendarColorKey(cal), color);
-    }
+    const assigned = autoAssignSharedCalendarColors(storeCalendars, sharedCalendarColors);
+    for (const [key, color] of Object.entries(assigned)) setSharedCalendarColor(key, color);
   }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor]);
 
   const allCalendars = React.useMemo(
