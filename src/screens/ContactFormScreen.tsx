@@ -245,7 +245,7 @@ export default function ContactFormScreen() {
   const route = useRoute<Route>();
   const t = useLocaleStore((s) => s.t);
   const opts = React.useMemo(() => formOptions(t), [t]);
-  const { contactId, addressBookId: initialBook, asGroup, prefill, memberIds: initialMemberIds } = route.params || {};
+  const { contactId, addressBookId: initialBook, asGroup: asGroupParam, prefill, memberIds: initialMemberIds } = route.params || {};
   const isEdit = !!contactId;
 
   const addressBooks = useContactsStore((s) => s.addressBooks);
@@ -258,6 +258,8 @@ export default function ContactFormScreen() {
     () => (contactId ? allContacts.find((c) => c.id === contactId) : undefined),
     [allContacts, contactId],
   );
+  // An edit link (`/contacts/<id>/edit`) does not know it names a group.
+  const asGroup = asGroupParam || existing?.kind === 'group';
   const existingKeywords = React.useMemo(() => {
     const counts = new Map<string, number>();
     for (const contact of allContacts) {
@@ -280,12 +282,14 @@ export default function ContactFormScreen() {
     const init = blankForm();
     init.addressBookId = initialBook || getDefaultAddressBookId() || '';
     if (initialMemberIds?.length) init.members = initialMemberIds;
-    if (prefill?.email) {
+    if (prefill?.email || prefill?.name) {
       // "Add sender to contacts": split the display name like the webmail
       // (first word → given, rest → surname) and never let a mailbox-shaped
-      // name through (#672).
-      const mailbox = splitMailbox(prefill.name ? `${prefill.name} <${prefill.email}>` : prefill.email);
-      init.emails = [{ address: mailbox.email, context: '' }];
+      // name through (#672). A `/contacts/new` link may carry only a name.
+      const mailbox = prefill.email
+        ? splitMailbox(prefill.name ? `${prefill.name} <${prefill.email}>` : prefill.email)
+        : { email: '', name: prefill.name ?? '' };
+      if (mailbox.email) init.emails = [{ address: mailbox.email, context: '' }];
       const parts = (mailbox.name || '').split(/\s+/).filter(Boolean);
       if (parts.length > 0) {
         init.given = parts[0];
@@ -309,6 +313,19 @@ export default function ContactFormScreen() {
   const firstEmailRef = React.useRef<TextInput>(null);
   const [datePickerIndex, setDatePickerIndex] = React.useState<number | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = React.useState(false);
+
+  // An edit link can open the form before the contacts have loaded: the
+  // card's fields go in when it arrives, unless the user has typed already.
+  const filledFromExisting = React.useRef(!!existing);
+  React.useEffect(() => {
+    if (filledFromExisting.current || !existing) return;
+    filledFromExisting.current = true;
+    if (dirty) return;
+    const members = asGroup
+      ? selectGroupMembers({ contacts: allContacts }, existing.id).map((m) => m.id)
+      : [];
+    setForm(contactToForm(existing, members));
+  }, [existing, dirty, asGroup, allContacts]);
 
   React.useEffect(() => {
     if (!form.addressBookId) {
@@ -344,6 +361,8 @@ export default function ContactFormScreen() {
   };
 
   const handleSave = async () => {
+    // Never turn an edit of a card that isn't there into a new card.
+    if (isEdit && !existing) return;
     const orgName = form.orgs[0]?.name.trim() || '';
     if (asGroup) {
       if (!form.given.trim()) {
@@ -519,6 +538,7 @@ export default function ContactFormScreen() {
           onRemove={() => updateForm('notes', form.notes.filter((_, idx) => idx !== i))}
         >
           <TextInput
+            accessibilityLabel={t('contacts.form.note', 'Notes')}
             style={[styles.input, styles.multiline]}
             placeholder={t('contacts.form.note_placeholder', 'Add a note...')}
             placeholderTextColor={c.textMuted}
@@ -561,6 +581,7 @@ export default function ContactFormScreen() {
         </View>
       )}
       <TextInput
+        accessibilityLabel={t('contacts.form.categories', 'Categories')}
         style={styles.input}
         placeholder={t('contacts.form.categories_placeholder_mobile', 'Add tag and press Enter')}
         placeholderTextColor={c.textMuted}
@@ -647,6 +668,28 @@ export default function ContactFormScreen() {
     />
   );
 
+  if (isEdit && !existing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <Pressable
+            onPress={handleBack}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
+            <ArrowLeft size={22} color={c.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{t('contacts.contact', 'Contact')}</Text>
+        </View>
+        <View style={styles.missing}>
+          <Text style={styles.missingText}>{t('contacts.detail.not_found', 'Contact not found')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (asGroup) {
     // Groups are a name plus a member list - none of the person fields apply.
     return (
@@ -662,6 +705,7 @@ export default function ContactFormScreen() {
             <Section icon={<Users size={16} color={c.textMuted} />} label={t('contacts.group', 'Group')}>
               <Field label={t('contacts.groups.name_label', 'Group Name')}>
                 <TextInput
+                  accessibilityLabel={t('contacts.groups.name_label', 'Group Name')}
                   style={styles.input}
                   placeholder={t('contacts.groups.name_placeholder', 'e.g., Team, Family')}
                   placeholderTextColor={c.textMuted}
@@ -774,6 +818,7 @@ export default function ContactFormScreen() {
             {form.isOrg ? (
               <Field label={t('contacts.form.organization', 'Organization')}>
                 <TextInput
+                  accessibilityLabel={t('contacts.form.organization', 'Organization')}
                   style={styles.input}
                   placeholder={t('contacts.form.organization_placeholder', 'Company name')}
                   ref={orgRef}
@@ -794,6 +839,7 @@ export default function ContactFormScreen() {
                 <View style={styles.row2}>
                   <Field label={t('contacts.form.prefix', 'Prefix')}>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.prefix', 'Prefix')}
                       style={styles.input}
                       placeholder={t('contacts.form.prefix_placeholder', 'Dr., Mr., Mrs.')}
                       ref={prefixRef}
@@ -807,6 +853,7 @@ export default function ContactFormScreen() {
                   </Field>
                   <Field label={t('contacts.form.suffix', 'Suffix')}>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.suffix', 'Suffix')}
                       style={styles.input}
                       placeholder={t('contacts.form.suffix_placeholder', 'Jr., Sr., III')}
                       ref={suffixRef}
@@ -821,6 +868,7 @@ export default function ContactFormScreen() {
                 </View>
                 <Field label={t('contacts.form.given_name', 'First name')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.given_name', 'First name')}
                     style={styles.input}
                     placeholder={t('contacts.form.given_name', 'First name')}
                     ref={givenRef}
@@ -835,6 +883,7 @@ export default function ContactFormScreen() {
                 </Field>
                 <Field label={t('contacts.form.middle_name', 'Middle name')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.middle_name', 'Middle name')}
                     style={styles.input}
                     placeholder={t('contacts.form.middle_name', 'Middle name')}
                     ref={middleRef}
@@ -848,6 +897,7 @@ export default function ContactFormScreen() {
                 </Field>
                 <Field label={t('contacts.form.surname', 'Last name')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.surname', 'Last name')}
                     style={styles.input}
                     placeholder={t('contacts.form.surname', 'Last name')}
                     ref={surnameRef}
@@ -864,6 +914,7 @@ export default function ContactFormScreen() {
                   <Field key={i} label={i === 0 ? t('contacts.form.nickname', 'Nickname') : undefined}>
                     <View style={styles.dateInputRow}>
                       <TextInput
+                        accessibilityLabel={t('contacts.form.nickname', 'Nickname')}
                         style={[styles.input, { flex: 1 }]}
                         placeholder={t('contacts.form.nickname_placeholder', 'Nickname')}
                         placeholderTextColor={c.textMuted}
@@ -895,6 +946,7 @@ export default function ContactFormScreen() {
             )}
             <Field label={t('contacts.form.display_name_optional', 'Display name (optional)')}>
               <TextInput
+                accessibilityLabel={t('contacts.form.display_name_optional', 'Display name (optional)')}
                 style={styles.input}
                 placeholder={t('contacts.form.display_name_placeholder', 'Custom display name')}
                 ref={fullRef}
@@ -916,6 +968,7 @@ export default function ContactFormScreen() {
                 onRemove={() => updateForm('emails', form.emails.filter((_, idx) => idx !== i))}
               >
                 <TextInput
+                  accessibilityLabel={t('contacts.form.email', 'Email')}
                   style={styles.input}
                   placeholder={t('contacts.form.email_placeholder', 'email@example.com')}
                   ref={i === 0 ? firstEmailRef : undefined}
@@ -955,6 +1008,7 @@ export default function ContactFormScreen() {
                 onRemove={() => updateForm('phones', form.phones.filter((_, idx) => idx !== i))}
               >
                 <TextInput
+                  accessibilityLabel={t('contacts.form.phone', 'Phone')}
                   style={styles.input}
                   placeholder={t('contacts.form.phone_placeholder', '+1 234 567 890')}
                   placeholderTextColor={c.textMuted}
@@ -1007,6 +1061,7 @@ export default function ContactFormScreen() {
                 {!(form.isOrg && i === 0) && (
                   <Field label={t('contacts.form.organization', 'Organization')}>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.organization', 'Organization')}
                       style={styles.input}
                       placeholder={t('contacts.form.organization_placeholder', 'Company name')}
                       placeholderTextColor={c.textMuted}
@@ -1021,6 +1076,7 @@ export default function ContactFormScreen() {
                 )}
                 <Field label={t('contacts.form.department', 'Department')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.department', 'Department')}
                     style={styles.input}
                     placeholder={t('contacts.form.department_placeholder', 'Department')}
                     placeholderTextColor={c.textMuted}
@@ -1034,6 +1090,7 @@ export default function ContactFormScreen() {
                 </Field>
                 <Field label={t('contacts.form.job_title', 'Job title')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.job_title', 'Job title')}
                     style={styles.input}
                     placeholder={t('contacts.form.job_title_placeholder', 'e.g., Software Engineer')}
                     placeholderTextColor={c.textMuted}
@@ -1047,6 +1104,7 @@ export default function ContactFormScreen() {
                 </Field>
                 <Field label={t('contacts.form.role', 'Role')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.role', 'Role')}
                     style={styles.input}
                     placeholder={t('contacts.form.role_placeholder', 'e.g., Team Lead')}
                     placeholderTextColor={c.textMuted}
@@ -1079,6 +1137,7 @@ export default function ContactFormScreen() {
                 onRemove={() => updateForm('addresses', form.addresses.filter((_, idx) => idx !== i))}
               >
                 <TextInput
+                  accessibilityLabel={t('contacts.form.street', 'Street')}
                   style={styles.input}
                   placeholder={t('contacts.form.street', 'Street')}
                   placeholderTextColor={c.textMuted}
@@ -1092,6 +1151,7 @@ export default function ContactFormScreen() {
                 <View style={styles.row2}>
                   <Field>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.city', 'City')}
                       style={styles.input}
                       placeholder={t('contacts.form.city', 'City')}
                       placeholderTextColor={c.textMuted}
@@ -1105,6 +1165,7 @@ export default function ContactFormScreen() {
                   </Field>
                   <Field>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.region', 'State / Region')}
                       style={styles.input}
                       placeholder={t('contacts.form.region', 'State / Region')}
                       placeholderTextColor={c.textMuted}
@@ -1120,6 +1181,7 @@ export default function ContactFormScreen() {
                 <View style={styles.row2}>
                   <Field>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.postcode', 'Postal code')}
                       style={styles.input}
                       placeholder={t('contacts.form.postcode', 'Postal code')}
                       placeholderTextColor={c.textMuted}
@@ -1133,6 +1195,7 @@ export default function ContactFormScreen() {
                   </Field>
                   <Field>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.country', 'Country')}
                       style={styles.input}
                       placeholder={t('contacts.form.country', 'Country')}
                       placeholderTextColor={c.textMuted}
@@ -1180,6 +1243,7 @@ export default function ContactFormScreen() {
               >
                 <Field label={t('contacts.form.url', 'URL')}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.url', 'URL')}
                     style={styles.input}
                     placeholder={t('contacts.form.url_placeholder', 'https://...')}
                     placeholderTextColor={c.textMuted}
@@ -1195,6 +1259,7 @@ export default function ContactFormScreen() {
                 <View style={styles.row2}>
                   <Field label={t('contacts.form.service_placeholder', 'Service')}>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.service_placeholder', 'Service')}
                       style={styles.input}
                       placeholder="LinkedIn, Mastodon, …"
                       placeholderTextColor={c.textMuted}
@@ -1208,6 +1273,7 @@ export default function ContactFormScreen() {
                   </Field>
                   <Field label={t('contacts.form.label', 'Label')}>
                     <TextInput
+                      accessibilityLabel={t('contacts.form.label', 'Label')}
                       style={styles.input}
                       placeholder={t('contacts.form.label_placeholder', 'Work, Personal, …')}
                       placeholderTextColor={c.textMuted}
@@ -1242,6 +1308,7 @@ export default function ContactFormScreen() {
               >
                 <View style={styles.dateInputRow}>
                   <TextInput
+                    accessibilityLabel={t('contacts.form.anniversary_date', 'Date')}
                     style={[
                       styles.input,
                       { flex: 1 },
@@ -1296,6 +1363,7 @@ export default function ContactFormScreen() {
                 onRemove={() => updateForm('personalInfo', form.personalInfo.filter((_, idx) => idx !== i))}
               >
                 <TextInput
+                  accessibilityLabel={t('contacts.form.personal_info', 'Personal info')}
                   style={styles.input}
                   placeholder={t('contacts.form.personal_info_placeholder', 'e.g., Photography')}
                   placeholderTextColor={c.textMuted}
@@ -1356,6 +1424,7 @@ export default function ContactFormScreen() {
               </Field>
               <Field label={t('contacts.form.pronouns', 'Pronouns')}>
                 <TextInput
+                  accessibilityLabel={t('contacts.form.pronouns', 'Pronouns')}
                   style={styles.input}
                   placeholder={t('contacts.form.pronouns_placeholder', 'they/them')}
                   placeholderTextColor={c.textMuted}
@@ -1375,6 +1444,7 @@ export default function ContactFormScreen() {
           >
             <Field label={t('contacts.form.calendar_uri', 'Calendar URL')}>
               <TextInput
+                accessibilityLabel={t('contacts.form.calendar_uri', 'Calendar URL')}
                 style={styles.input}
                 placeholder={t('contacts.form.url_placeholder', 'https://...')}
                 placeholderTextColor={c.textMuted}
@@ -1385,6 +1455,7 @@ export default function ContactFormScreen() {
             </Field>
             <Field label={t('contacts.form.scheduling_uri', 'Scheduling URL')}>
               <TextInput
+                accessibilityLabel={t('contacts.form.scheduling_uri', 'Scheduling URL')}
                 style={styles.input}
                 placeholder={t('contacts.form.url_placeholder', 'https://...')}
                 placeholderTextColor={c.textMuted}
@@ -1395,6 +1466,7 @@ export default function ContactFormScreen() {
             </Field>
             <Field label={t('contacts.form.freebusy_uri', 'Free/Busy URL')}>
               <TextInput
+                accessibilityLabel={t('contacts.form.freebusy_uri', 'Free/Busy URL')}
                 style={styles.input}
                 placeholder={t('contacts.form.url_placeholder', 'https://...')}
                 placeholderTextColor={c.textMuted}
@@ -1477,6 +1549,8 @@ function formatDateAsISO(d: Date): string {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    missingText: { ...typography.body, color: c.textMuted },
     scrollContent: {
       paddingVertical: spacing.md,
       paddingBottom: spacing.xxxl * 2,

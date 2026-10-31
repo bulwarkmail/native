@@ -143,7 +143,7 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What WEB does: on first listing, reparents nodes named with `/`, `∕`, `⁄`, `／` separators and replaces blob-backed "dir marker" files with real folders, with a progress overlay (`files-app.tsx:245-263`, `710-734`).
   - What RN does: reads only the real hierarchy (`src/api/files.ts:6-14` comment acknowledges WEB migrates). A user who never opens WEB sees legacy files as flat names at the root. Acceptable if WEB is always used at least once; otherwise port `migrateLegacyFlatNodes`.
 
-- [ ] **Deep link `/files/<folder>` and `?preview=` not handled** — `P3` — `missing` (changelog 1.8.1 "Deep links for mail, calendar, contacts, files") — partly: `/files` links open the Files tab since 5802cae; folder paths and `?preview=` are ignored — not done: ran out of time (same verdict as the 10 row)
+- [x] **Deep link `/files/<folder>` and `?preview=` not handled** — `P3` — `missing` (changelog 1.8.1 "Deep links for mail, calendar, contacts, files") — `/files` links open the Files tab since 5802cae; folder paths, `?preview=` and `?shared=` since d684b00e (same verdict as the 10 row)
   - What WEB does: `parseFilesPath`/`buildFilesPath` walk the drive to the folder and open the preview (`components/files/files-app.tsx:190-278`; `lib/deep-links.ts:381`).
   - What RN does: `src/navigation/linking.ts` (5802cae) turns any `/files/...` link into `{ kind: 'files' }` and opens the tab; `Files: undefined` in `src/navigation/types.ts:35`.
   - Fix hint: parse the rest of the path in `linking.ts`, pass it to `Files` as a `path` param and walk `allNodes` by names.

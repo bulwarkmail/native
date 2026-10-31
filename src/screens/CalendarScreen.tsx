@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { multiDayCount } from '../lib/calendar-time-grid';
+import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
   Calendar as CalendarIcon,
   ChevronDown,
@@ -107,6 +107,11 @@ import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
 import { useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
+import {
+  parseCalendarLinkDate,
+  usePendingCalendarDate,
+  type CalendarDateLink,
+} from '../navigation/pending-calendar-date';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent } from '../api/types';
@@ -335,7 +340,7 @@ export default function CalendarScreen() {
       const allDay = !!task.showWithoutTime || dateOnly;
       out.push({
         ...task,
-        id: `task:${task.id}`,
+        id: `${TASK_CHIP_ID_PREFIX}${task.id}`,
         start: dateOnly ? `${task.due}T00:00:00` : task.due,
         showWithoutTime: allDay,
         duration: allDay ? 'P1D' : 'PT30M',
@@ -516,6 +521,42 @@ export default function CalendarScreen() {
     [viewMode, visibleDate, focus.date],
   );
 
+  // A `/calendar/<view>/<date>` link (webmail applyCalendarDeepLink): the
+  // view it names, on the day it names. Without a view the view on screen
+  // stays; `tasks`, a view the phone has as a sheet, opens the task list.
+  const applyDateLink = React.useCallback(
+    (link: CalendarDateLink) => {
+      if (link.view === 'tasks') {
+        if (enableCalendarTasks) {
+          setTasksInitialId(null);
+          setTasksVisible(true);
+        }
+      }
+      const mode: ViewMode = link.view && link.view !== 'tasks' ? link.view : viewMode;
+      const date = parseCalendarLinkDate(link.date);
+      if (!date) {
+        changeViewMode(mode);
+        return;
+      }
+      setSelectedDate(date);
+      setVisibleDate(null);
+      setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+      setWindowState((prev) =>
+        mode === viewMode
+          ? windowStateForJump(prev, windowMode(mode), date, windowOptions)
+          : freshScrollWindowState(windowMode(mode), date),
+      );
+      setViewMode(mode);
+    },
+    [enableCalendarTasks, viewMode, changeViewMode, windowOptions],
+  );
+  const pendingDateLink = usePendingCalendarDate((s) => s.link);
+  React.useEffect(() => {
+    if (!pendingDateLink) return;
+    const link = usePendingCalendarDate.getState().consume();
+    if (link) applyDateLink(link);
+  }, [pendingDateLink, applyDateLink]);
+
   // The views, listed at the top of the drawer.
   const viewOptions = React.useMemo<DrawerViewOption[]>(
     () => [
@@ -582,8 +623,8 @@ export default function CalendarScreen() {
 
   // Task chips route to the tasks sheet; everything else opens the detail sheet.
   const handleSelectEvent = React.useCallback((event: CalendarEvent) => {
-    if (event.id.startsWith('task:')) {
-      setTasksInitialId(event.id.slice('task:'.length));
+    if (event.id.startsWith(TASK_CHIP_ID_PREFIX)) {
+      setTasksInitialId(event.id.slice(TASK_CHIP_ID_PREFIX.length));
       setTasksVisible(true);
       return;
     }

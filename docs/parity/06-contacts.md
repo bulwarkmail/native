@@ -73,7 +73,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: shows the trash icon whenever `books.length > 1 && mayDelete !== false` (`src/components/settings/ContactsSettings.tsx:209`); the server then rejects and the user sees a raw error.
   - Fix hint: add `!book.isDefault` to the guard.
 
-- [ ] **Address book share / visibility (subscription) management missing** — `P3` — `missing` — not done: needs its own share sheet; ran out of time (same verdict as the 10 row)
+- [x] **Address book share / visibility (subscription) management missing** — `P3` — `missing` — sharing fixed in 96b163a1 (same verdict as the 10 row); visibility (subscription): the webmail has no subscription switch for address books to port
   - deferred: `shareWith`/`myRights` are now requested explicitly (580e010) and typed on `AddressBook`; no sharing sheet on mobile yet (reuse the calendar-sharing sheet when it exists).
   - What WEB does: `shareAddressBook` via `shareWith/<principal>` patch + ShareCollectionDialog (`stores/contact-store.ts:1064-1085`, `components/contacts/contacts-app.tsx:1142-1158`); sidebar shows a shared indicator (`contacts-sidebar.tsx:879-881`).
   - What RN does: nothing; `getAddressBooks` requests no `properties` so `shareWith` is whatever the server defaults to (`src/api/contacts.ts:17-24`; WEB requests `ADDRESS_BOOK_PROPERTIES` incl. `shareWith`, `lib/jmap/client.ts:252-261`, #257).
@@ -209,7 +209,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: none (see previous item).
   - Fix hint: same sheet as above; show the matching card's phone/org and an "Open" that navigates to `ContactDetail`.
 
-- [ ] **Contact deep links (`/contacts/<id>[/edit]`, `/contacts/new`)** — `P3` — `missing` — not done: needs routes in linking.ts, the platform agent's file (same verdict as the 10 row)
+- [x] **Contact deep links (`/contacts/<id>[/edit]`, `/contacts/new`)** — `P3` — `missing` — fixed in ecefd1cb (same verdict as the 10 row)
   - partly: `/contacts/<id>` opens the contact since 5802cae; `/contacts/new` and `/contacts/<id>/edit` only open the Contacts tab.
   - What WEB does: `parseContactsPath`/`buildContactsPath` (`lib/deep-links.ts:323-329`), applied once on mount (`components/contacts/contacts-app.tsx:182-224`).
   - What RN does: `src/navigation/linking.ts` (5802cae) maps `/contacts/<id>` to `ContactDetail { contactId }` and every other contacts path to the tab; it never opens `ContactForm`.

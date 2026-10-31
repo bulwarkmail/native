@@ -8,8 +8,15 @@ import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
 import { setPendingCalendarOpen } from './pending-calendar-open';
+import {
+  CALENDAR_LINK_VIEWS,
+  parseCalendarLinkDate,
+  setPendingCalendarDate,
+  type CalendarLinkView,
+} from './pending-calendar-date';
 import { setPendingMailSearch } from './pending-mail-search';
 import { setPendingMailFolder } from './pending-mail-folder';
+import { setPendingFilesLink } from './pending-files-link';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
@@ -38,11 +45,18 @@ export type DeepLink =
   | { kind: 'search'; query: string }
   // `jmapAccountId`: the JMAP account owning the event (`?account=`), for
   // one on a calendar shared with the user; `accountId`: the signed-in
-  // account it belongs to (`?appAccount=`, from widgets).
-  | { kind: 'calendar'; eventId?: string; date?: string; jmapAccountId?: string; accountId?: string }
-  | { kind: 'contact'; contactId: string }
+  // account it belongs to (`?appAccount=`, from widgets). `view` and `date`
+  // (`YYYY-MM-DD`): the view and day a `/calendar/<view>/<date>` link shows.
+  | { kind: 'calendar'; eventId?: string; view?: CalendarLinkView; date?: string; jmapAccountId?: string; accountId?: string }
+  // `edit`: `/contacts/<id>/edit` opens the contact's editor.
+  | { kind: 'contact'; contactId: string; edit?: true }
+  // `/contacts/new`, with `?email=`/`?addEmail=` and `?name=`/`?addName=`.
+  | { kind: 'contact-new'; email?: string; name?: string }
   | { kind: 'contacts' }
-  | { kind: 'files' }
+  // `path`: a folder (`/files/<folder>/<sub>`); `preview`: a file in it to
+  // open (`?preview=`); `shared`: a node of a drive shared with the user
+  // (`?shared=<owner>:<id>`). None of them: just the Files tab.
+  | { kind: 'files'; path?: string; preview?: string; shared?: string }
   | { kind: 'settings'; tab?: string }
   | { kind: 'compose'; to: EmailAddress[]; cc: EmailAddress[]; bcc?: EmailAddress[]; subject?: string; body?: string };
 
@@ -149,15 +163,51 @@ export function parseDeepLink(url: string): DeepLink | null {
           ...(appAccountId ? { accountId: appAccountId } : {}),
         };
       }
-      const date = [kind, value].find((s) => s && /^\d{4}-\d{2}-\d{2}$/.test(s));
-      return { kind: 'calendar', date };
+      // `/calendar/<view>[/<date>]`, or a bare `/calendar/<date>` that keeps
+      // the view on screen (webmail parseCalendarPath).
+      if (kind && (CALENDAR_LINK_VIEWS as readonly string[]).includes(kind)) {
+        return {
+          kind: 'calendar',
+          view: kind as CalendarLinkView,
+          ...(parseCalendarLinkDate(value) ? { date: value } : {}),
+        };
+      }
+      return { kind: 'calendar', ...(parseCalendarLinkDate(kind) ? { date: kind } : {}) };
     }
     case 'contacts': {
-      if (kind && kind !== 'new') return { kind: 'contact', contactId: decodeSegment(kind) };
+      // Webmail parseContactsPath, with the older query form plugins and
+      // bookmarks still emit (`?contactId=[&view=edit]`, `?addEmail=`).
+      const newContact = (email: string | null, name: string | null): DeepLink => ({
+        kind: 'contact-new',
+        ...(email ? { email } : {}),
+        ...(name ? { name } : {}),
+      });
+      if (kind === 'new') {
+        return newContact(search.get('email') ?? search.get('addEmail'), search.get('name') ?? search.get('addName'));
+      }
+      const contactId = kind ? decodeSegment(kind) : search.get('contactId');
+      if (contactId) {
+        const edit = kind ? value === 'edit' : search.get('view') === 'edit';
+        return { kind: 'contact', contactId, ...(edit ? { edit: true as const } : {}) };
+      }
+      if (search.get('addEmail') || search.get('addName')) {
+        return newContact(search.get('addEmail'), search.get('addName'));
+      }
       return { kind: 'contacts' };
     }
-    case 'files':
-      return { kind: 'files' };
+    case 'files': {
+      // Webmail parseFilesPath.
+      const parts = segments.slice(1).map(decodeSegment).filter(Boolean);
+      const preview = search.get('preview') || undefined;
+      const shared = search.get('shared') || undefined;
+      if (parts.length === 0 && !preview && !shared) return { kind: 'files' };
+      return {
+        kind: 'files',
+        path: `/${parts.join('/')}`,
+        ...(preview ? { preview } : {}),
+        ...(shared ? { shared } : {}),
+      };
+    }
     case 'settings':
       return { kind: 'settings', tab: kind ? decodeSegment(kind) : undefined };
     case 'compose': {
@@ -298,16 +348,36 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
           serverId: link.eventId,
           accountId: link.jmapAccountId,
         });
+      } else if (link.view || link.date) {
+        // The Calendar tab moves to the view and day.
+        setPendingCalendarDate({
+          ...(link.view ? { view: link.view } : {}),
+          ...(link.date ? { date: link.date } : {}),
+        });
       }
       navigation.navigate('MainTabs', { screen: 'Calendar' } as never);
       return true;
     case 'contact':
-      navigation.navigate('ContactDetail', { contactId: link.contactId });
+      if (link.edit) navigation.navigate('ContactForm', { contactId: link.contactId });
+      else navigation.navigate('ContactDetail', { contactId: link.contactId });
+      return true;
+    case 'contact-new':
+      navigation.navigate('ContactForm', link.email || link.name
+        ? { prefill: { ...(link.email ? { email: link.email } : {}), ...(link.name ? { name: link.name } : {}) } }
+        : {});
       return true;
     case 'contacts':
       navigation.navigate('MainTabs', { screen: 'Contacts' } as never);
       return true;
     case 'files':
+      // The Files tab walks to the folder once it has listed the drive.
+      if (link.path || link.preview || link.shared) {
+        setPendingFilesLink({
+          path: link.path ?? '/',
+          ...(link.preview ? { preview: link.preview } : {}),
+          ...(link.shared ? { shared: link.shared } : {}),
+        });
+      }
       navigation.navigate('MainTabs', { screen: 'Files' } as never);
       return true;
     case 'settings':

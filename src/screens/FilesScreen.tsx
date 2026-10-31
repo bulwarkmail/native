@@ -21,7 +21,7 @@ import {
   ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink, RotateCcw,
+  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink, RotateCcw, Star, Clock,
 } from '../components/icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { File, Paths } from 'expo-file-system';
@@ -84,6 +84,12 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
+import { previewNeighbours } from '../lib/files-preview-neighbours';
+import {
+  RECENT_FILES_SHOWN, folderPathOf, nodePlace, resolveFolderPath, type FolderStep,
+} from '../lib/files-places';
+import { NO_FILES_PLACES, useFilesPlacesStore } from '../stores/files-places-store';
+import { usePendingFilesLink, type FilesLink } from '../navigation/pending-files-link';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 
 // A file row carries the display name alongside the rest of the node.
@@ -265,6 +271,9 @@ export default function FilesScreen() {
   const setSetting = useSettingsStore((s) => s.updateSetting);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const session = useAuthStore((s) => s.session);
+  // Starred folders and recent files of the signed-in account (webmail
+  // file-store favorites / recentFiles).
+  const places = useFilesPlacesStore((s) => (activeAccountId ? s.places[activeAccountId] : undefined)) ?? NO_FILES_PLACES;
 
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
@@ -298,6 +307,7 @@ export default function FilesScreen() {
   const loadFiles = useCallback(
     async (mode: 'initial' | 'refresh' | 'quiet' = 'initial') => {
       const seq = ++loadSeqRef.current;
+      const account = useAuthStore.getState().activeAccountId;
       if (mode === 'refresh') setRefreshing(true);
       else if (mode === 'initial') setLoading(true);
       if (mode !== 'quiet') setError(null);
@@ -305,7 +315,13 @@ export default function FilesScreen() {
         // One fetch across all accessible accounts: own files plus nodes other
         // principals shared with us (tagged isShared, ids namespaced).
         const nodes = await getAllFileNodesAcrossAccounts();
-        if (seq === loadSeqRef.current) setAllNodes(nodes);
+        if (seq === loadSeqRef.current) {
+          setAllNodes(nodes);
+          // Recent files that are gone or in the trash drop off.
+          if (account && account === useAuthStore.getState().activeAccountId) {
+            useFilesPlacesStore.getState().pruneRecentFiles(account, new Set(withoutTrash(nodes).map((n) => n.id)));
+          }
+        }
       } catch (e) {
         // A quiet read keeps what is on screen.
         if (mode !== 'quiet' && seq === loadSeqRef.current) {
@@ -450,10 +466,33 @@ export default function FilesScreen() {
     });
   }, []);
 
+  // Opened and downloaded files go to the top of Recent (webmail addRecentFile).
+  const recordRecent = useCallback((row: FileRow) => {
+    const account = useAuthStore.getState().activeAccountId;
+    if (!account || row.trash) return;
+    useFilesPlacesStore.getState().addRecentFile(account, row.displayName, row.id);
+  }, []);
+
+  // `/A/B` for a folder of the drive, `/` for the root; null when no listing
+  // reaches it. Stars are kept by path, as in the webmail.
+  const folderPathFor = useCallback((id: string | null): string | null => {
+    if (id === null) return '/';
+    const place = nodePlace(driveNodes, id);
+    return place ? folderPathOf([...place.stack, { id: place.node.id, name: place.node.name }]) : null;
+  }, [driveNodes]);
+
+  const toggleStar = useCallback((row: FileRow) => {
+    const account = useAuthStore.getState().activeAccountId;
+    const folderPath = folderPathFor(row.id);
+    if (!account || !folderPath || folderPath === '/') return;
+    useFilesPlacesStore.getState().toggleFavorite(account, folderPath);
+  }, [folderPathFor]);
+
   // Hand the file to another app: the viewer for its type on Android, the
   // share sheet otherwise.
   const openFileWith = useCallback(async (row: FileRow) => {
     if (!row.blobId) return;
+    recordRecent(row);
     setBusyId(row.id);
     try {
       await shareAttachment(row.blobId, row.displayName, row.type, undefined, row.accountId);
@@ -462,26 +501,33 @@ export default function FilesScreen() {
     } finally {
       setBusyId(null);
     }
-  }, [t]);
+  }, [recordRecent, t]);
+
+  // Every way into the preview: a tap, the row's actions, previous / next.
+  const openPreview = useCallback((row: FileRow) => {
+    setPreviewTarget(row);
+    recordRecent(row);
+  }, [recordRecent]);
 
   // Tap on a file: the in-app preview for the types it shows (lib/file-preview),
   // the other app for the rest.
   const openFile = useCallback((row: FileRow) => {
-    if (canPreviewInApp(row)) setPreviewTarget(row);
+    if (canPreviewInApp(row)) openPreview(row);
     else void openFileWith(row);
-  }, [openFileWith]);
+  }, [openFileWith, openPreview]);
 
   const downloadFile = useCallback(async (row: FileRow) => {
     if (!row.blobId) return;
     setBusyId(row.id);
     try {
       await downloadAttachment(row.blobId, row.displayName, row.type, undefined, row.accountId);
+      recordRecent(row);
     } catch (e) {
       Alert.alert(t('files.download_error', 'Failed to download'), e instanceof Error ? e.message : String(e));
     } finally {
       setBusyId(null);
     }
-  }, [t]);
+  }, [recordRecent, t]);
 
   // Batch download: one selected file goes straight to the share sheet; more
   // than one (or any folder) is bundled into a zip that mirrors the folder
@@ -552,7 +598,7 @@ export default function FilesScreen() {
       // In the trash a file can be looked at; a folder is restored before
       // it is opened. Everything else is in the row's actions.
       if (row.trash) {
-        if (!isFolder(row) && !isSymlink(row) && canPreviewInApp(row)) setPreviewTarget(row);
+        if (!isFolder(row) && !isSymlink(row) && canPreviewInApp(row)) openPreview(row);
         else setActionsTarget(row);
         return;
       }
@@ -566,7 +612,7 @@ export default function FilesScreen() {
       if (isSymlink(row)) return;
       openFile(row);
     },
-    [selectionMode, toggleSelect, openFile],
+    [selectionMode, toggleSelect, openFile, openPreview],
   );
 
   const handleRowLongPress = useCallback((row: FileRow) => {
@@ -652,13 +698,19 @@ export default function FilesScreen() {
     const target = renameTarget;
     setRenameTarget(null);
     setRenameValue('');
+    const oldPath = isFolder(target) ? folderPathFor(target.id) : null;
     try {
       await renameFileNode(target.id, name);
+      // Stars of the folder and below it follow the new name.
+      const account = useAuthStore.getState().activeAccountId;
+      if (account && oldPath && oldPath !== '/') {
+        useFilesPlacesStore.getState().moveFavorites(account, oldPath, oldPath.slice(0, oldPath.lastIndexOf('/') + 1) + name);
+      }
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert(t('files.rename_error', 'Failed to rename'), fileErrorMessage(e, t));
     }
-  }, [renameTarget, renameValue, loadFiles, checkName, t]);
+  }, [renameTarget, renameValue, loadFiles, checkName, folderPathFor, t]);
 
   const duplicateFile = useCallback(async (row: FileRow) => {
     // A folder is copied with everything in it (webmail copyFileNode).
@@ -685,15 +737,31 @@ export default function FilesScreen() {
       return;
     }
     setBusyId(row.id);
+    const oldPath = isFolder(row) ? folderPathFor(row.id) : null;
+    const destinationPath = folderPathFor(destinationId);
     try {
       await moveFileNode(row.id, destinationId);
+      // A moved folder keeps its stars, at its new path.
+      const account = useAuthStore.getState().activeAccountId;
+      if (account && oldPath && destinationPath) {
+        useFilesPlacesStore.getState().moveFavorites(account, oldPath, `${destinationPath === '/' ? '' : destinationPath}/${row.name}`);
+      }
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert(t('files.move_error', 'Failed to move'), fileErrorMessage(e, t));
     } finally {
       setBusyId(null);
     }
-  }, [loadFiles, t]);
+  }, [loadFiles, folderPathFor, t]);
+
+  // Stars of deleted folders, and of those below them, go (webmail
+  // deleteNode / trashResources); recent files drop off with the next
+  // listing.
+  const dropStarsOf = useCallback((paths: Array<string | null>) => {
+    const account = useAuthStore.getState().activeAccountId;
+    if (!account) return;
+    for (const p of paths) if (p && p !== '/') useFilesPlacesStore.getState().dropFavoritesUnder(account, p);
+  }, []);
 
   const cancelUpload = useCallback(() => {
     uploadAbortRef.current?.abort();
@@ -793,9 +861,11 @@ export default function FilesScreen() {
   const trashRows = useCallback(async (rows: FileRow[]) => {
     clearSelection();
     const listing = allNodes;
+    const folderPaths = new Map(rows.filter((r) => isFolder(r)).map((r) => [r.id, folderPathFor(r.id)]));
     try {
       const moved = await moveToTrash(listing, rows);
       const { done, refused } = moved;
+      dropStarsOf(done.map((item) => folderPaths.get(item.node.id) ?? null));
       await loadFiles('refresh');
       if (refused.length > 0) {
         Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(refused[0], t));
@@ -811,7 +881,7 @@ export default function FilesScreen() {
       else Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
       await loadFiles('refresh');
     }
-  }, [allNodes, clearSelection, loadFiles, undoTrash, t]);
+  }, [allNodes, clearSelection, loadFiles, undoTrash, folderPathFor, dropStarsOf, t]);
 
   const requestDelete = useCallback((rows: FileRow[]) => {
     if (rows.length === 0) return;
@@ -830,7 +900,11 @@ export default function FilesScreen() {
       // the trash only what is still there goes (see purgeFromTrash).
       let count = targets.length;
       if (fromTrash.length > 0) count = await purgeFromTrash(fromTrash);
-      else await deleteFileNodes(targets.map((r) => r.id));
+      else {
+        const folderPaths = targets.filter((r) => isFolder(r)).map((r) => folderPathFor(r.id));
+        await deleteFileNodes(targets.map((r) => r.id));
+        dropStarsOf(folderPaths);
+      }
       if (count > 0) {
         toast.success(t('files.deleted_forever', '{count, plural, one {Deleted permanently} other {# items deleted permanently}}', {
           count,
@@ -840,7 +914,7 @@ export default function FilesScreen() {
       Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
     }
     await loadFiles('refresh');
-  }, [confirmDelete, clearSelection, loadFiles, t]);
+  }, [confirmDelete, clearSelection, loadFiles, folderPathFor, dropStarsOf, t]);
 
   const restoreRows = useCallback(async (rows: FileRow[]) => {
     const items = rows.flatMap((r) => (r.trash ? [r.trash] : []));
@@ -1018,6 +1092,7 @@ export default function FilesScreen() {
         <View style={styles.toolbarRow}>
           {searchOpen ? (
             <TextInput
+              accessibilityLabel={t('files.search_placeholder', 'Search files...')}
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder={t('files.search_placeholder', 'Search files...')}
@@ -1221,6 +1296,167 @@ export default function FilesScreen() {
     );
   };
 
+  // Starred folders and recent files, listed above the root's files (the
+  // webmail's sidebar sections). A star whose folder is gone is not shown.
+  const showPlaces = path.length === 0 && !inTrash && !searchQuery.trim();
+  const starredFolders = useMemo(
+    () => places.favorites.flatMap((p) => {
+      const stack = resolveFolderPath(driveNodes, p);
+      return stack && stack.length > 0 ? [{ path: p, stack }] : [];
+    }),
+    [places.favorites, driveNodes],
+  );
+  const recentFiles = places.recent.slice(0, RECENT_FILES_SHOWN);
+  const openFolderStack = (stack: FolderStep[]) => {
+    setInTrash(false);
+    setPath(stack);
+    setSearchQuery('');
+    clearSelection();
+  };
+  // A recent file can live in any folder: open that folder, then the file.
+  const openRecent = (id: string, reveal = false) => {
+    const place = nodePlace(driveNodes, id);
+    if (!place || isFolder(place.node)) {
+      toast.error(t('deep_link.file_not_found', 'This file is no longer available.'));
+      return;
+    }
+    openFolderStack(place.stack);
+    if (!reveal && !isSymlink(place.node)) openFile({ ...place.node, displayName: place.node.name });
+  };
+  const recentActions = (id: string, name: string) => {
+    Alert.alert(name, undefined, [
+      { text: t('files.open', 'Open'), onPress: () => openRecent(id) },
+      { text: t('files.show_in_folder', 'Show in folder'), onPress: () => openRecent(id, true) },
+      {
+        text: t('files.remove_from_recent', 'Remove from recent'),
+        onPress: () => {
+          if (activeAccountId) useFilesPlacesStore.getState().removeRecentFiles(activeAccountId, [id]);
+        },
+      },
+      { text: t('files.cancel', 'Cancel'), style: 'cancel' },
+    ]);
+  };
+  const starredActions = (folderPath: string, name: string) => {
+    Alert.alert(name, undefined, [
+      {
+        text: t('files.unstar', 'Remove star'),
+        onPress: () => {
+          if (activeAccountId) useFilesPlacesStore.getState().toggleFavorite(activeAccountId, folderPath);
+        },
+      },
+      { text: t('files.cancel', 'Cancel'), style: 'cancel' },
+    ]);
+  };
+  const placesHeader = showPlaces && (starredFolders.length > 0 || recentFiles.length > 0) ? (
+    <View style={styles.places}>
+      {starredFolders.length > 0 ? (
+        <Text style={styles.placesTitle} accessibilityRole="header">{t('files.favorites', 'Starred')}</Text>
+      ) : null}
+      {starredFolders.map(({ path: folderPath, stack }) => {
+        const name = stack[stack.length - 1].name;
+        return (
+          <Pressable
+            key={folderPath}
+            onPress={() => openFolderStack(stack)}
+            onLongPress={() => starredActions(folderPath, name)}
+            delayLongPress={300}
+            style={({ pressed }) => [styles.fileRow, pressed && { backgroundColor: c.surfaceHover }]}
+            accessibilityRole="button"
+          >
+            <Star size={20} color={c.starred} fill={c.starred} />
+            <Text style={[styles.fileName, styles.placeName]} numberOfLines={1}>{name}</Text>
+            <Pressable
+              onPress={() => starredActions(folderPath, name)}
+              hitSlop={8}
+              style={styles.rowMore}
+              accessibilityRole="button"
+              accessibilityLabel={t('files.context_menu', 'Actions')}
+            >
+              <MoreVertical size={18} color={c.textMuted} />
+            </Pressable>
+          </Pressable>
+        );
+      })}
+      {recentFiles.length > 0 ? (
+        <Text style={styles.placesTitle} accessibilityRole="header">{t('files.recent', 'Recent')}</Text>
+      ) : null}
+      {recentFiles.map((entry) => {
+        const Icon = pickFileIcon(entry.name);
+        return (
+          <Pressable
+            key={entry.id}
+            onPress={() => openRecent(entry.id)}
+            onLongPress={() => recentActions(entry.id, entry.name)}
+            delayLongPress={300}
+            style={({ pressed }) => [styles.fileRow, pressed && { backgroundColor: c.surfaceHover }]}
+            accessibilityRole="button"
+          >
+            {showIcons ? (
+              <Icon size={20} color={coloredIcons ? fileIconColor(entry.name, c) : c.textMuted} />
+            ) : <Clock size={20} color={c.textMuted} />}
+            <Text style={[styles.fileName, styles.placeName]} numberOfLines={1}>{entry.name}</Text>
+            <Pressable
+              onPress={() => recentActions(entry.id, entry.name)}
+              hitSlop={8}
+              style={styles.rowMore}
+              accessibilityRole="button"
+              accessibilityLabel={t('files.context_menu', 'Actions')}
+            >
+              <MoreVertical size={18} color={c.textMuted} />
+            </Pressable>
+          </Pressable>
+        );
+      })}
+      <Text style={styles.placesTitle} accessibilityRole="header">{rootLabel}</Text>
+    </View>
+  ) : null;
+
+  // A `/files/<folder>?preview=<name>` link (webmail files-app): once the
+  // drive is listed, walk to the folder and open the file there. A link into
+  // a shared drive names the node by id (`?shared=`).
+  const applyFilesLink = (link: FilesLink) => {
+    let stack: FolderStep[] | null = null;
+    let fileNode: FileNode | undefined;
+    if (link.shared) {
+      const place = nodePlace(driveNodes, link.shared);
+      if (place && isFolder(place.node)) stack = [...place.stack, { id: place.node.id, name: place.node.name }];
+      else if (place) {
+        stack = place.stack;
+        fileNode = place.node;
+      }
+    } else if (link.path === `/${TRASH_FOLDER_NAME}`) {
+      setPath([]);
+      setInTrash(true);
+      setSearchQuery('');
+      clearSelection();
+      return;
+    } else {
+      stack = resolveFolderPath(driveNodes.filter((n) => !n.isShared), link.path);
+    }
+    if (!stack) {
+      toast.error(link.preview
+        ? t('deep_link.file_not_found', 'This file is no longer available.')
+        : t('deep_link.folder_not_found', 'This folder is no longer available.'));
+      return;
+    }
+    openFolderStack(stack);
+    if (!link.preview && !fileNode) return;
+    const parentId = stack.length > 0 ? stack[stack.length - 1].id : null;
+    const target = fileNode ?? listFolder(driveNodes, parentId).find((n) => n.name === link.preview && !isFolder(n));
+    const row = target ? { ...target, displayName: target.name } : null;
+    if (row && !isSymlink(row) && canPreviewInApp(row)) openPreview(row);
+    else toast.error(t('deep_link.file_not_found', 'This file is no longer available.'));
+  };
+  const applyFilesLinkRef = useRef(applyFilesLink);
+  applyFilesLinkRef.current = applyFilesLink;
+  const pendingFilesLink = usePendingFilesLink((s) => s.link);
+  useEffect(() => {
+    // Wait for the listing: the walk needs the drive's folders.
+    if (!pendingFilesLink || loading || !driveRef.current?.account) return;
+    const link = usePendingFilesLink.getState().consume();
+    if (link) applyFilesLinkRef.current(link);
+  }, [pendingFilesLink, loading]);
+
   let body: React.ReactNode;
   if (loading && !refreshing) {
     body = (
@@ -1275,6 +1511,7 @@ export default function FilesScreen() {
         contentContainerStyle={styles.gridContent}
         onLayout={(e) => setGridWidth(Math.round(e.nativeEvent.layout.width))}
         renderItem={({ item }) => <View style={{ width: grid.cellWidth }}>{renderGridCell(item)}</View>}
+        ListHeaderComponent={placesHeader}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
@@ -1288,6 +1525,7 @@ export default function FilesScreen() {
         key="list"
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => renderRow(item)}
+        ListHeaderComponent={placesHeader}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
@@ -1295,6 +1533,16 @@ export default function FilesScreen() {
       />
     );
   }
+
+  // The preview steps through the folder's other files it can show, in the
+  // order of the list (webmail previewNeighbours).
+  const previewable = useMemo(
+    () => visibleFiles.filter((r) => !isFolder(r) && !isSymlink(r) && canPreviewInApp(r)),
+    [visibleFiles],
+  );
+  const { previous: previousFile, next: nextFile } = previewNeighbours(previewable, previewTarget);
+  const showPrevious = previousFile ? () => openPreview(previousFile) : undefined;
+  const showNext = nextFile ? () => openPreview(nextFile) : undefined;
 
   // On a wide window an open file shows beside the list instead of covering it.
   const previewDocked = isSplit && previewTarget != null;
@@ -1306,7 +1554,13 @@ export default function FilesScreen() {
       </View>
       {previewDocked && (
         <View style={styles.previewPane}>
-          <FilePreviewModal docked file={previewTarget} onClose={() => setPreviewTarget(null)} />
+          <FilePreviewModal
+            docked
+            file={previewTarget}
+            onClose={() => setPreviewTarget(null)}
+            onPrevious={showPrevious}
+            onNext={showNext}
+          />
         </View>
       )}
 
@@ -1348,7 +1602,7 @@ export default function FilesScreen() {
         onClose={() => setActionsTarget(null)}
         onPreview={(r) => {
           setActionsTarget(null);
-          setPreviewTarget(r);
+          openPreview(r);
         }}
         onOpenWith={(r) => {
           setActionsTarget(null);
@@ -1383,6 +1637,13 @@ export default function FilesScreen() {
           setActionsTarget(null);
           void restoreRows([r]);
         }}
+        starred={actionsTarget && isFolder(actionsTarget) && !actionsTarget.trash
+          ? places.favorites.includes(folderPathFor(actionsTarget.id) ?? '')
+          : null}
+        onToggleStar={(r) => {
+          setActionsTarget(null);
+          toggleStar(r);
+        }}
       />
 
       <FolderPickerSheet
@@ -1404,7 +1665,14 @@ export default function FilesScreen() {
         onChangeDir={(d) => setSetting('filesDefaultSortDir', d)}
       />
 
-      {!isSplit && <FilePreviewModal file={previewTarget} onClose={() => setPreviewTarget(null)} />}
+      {!isSplit && (
+        <FilePreviewModal
+          file={previewTarget}
+          onClose={() => setPreviewTarget(null)}
+          onPrevious={showPrevious}
+          onNext={showNext}
+        />
+      )}
 
       <ShareSheet
         node={shareTarget}
@@ -1481,6 +1749,7 @@ function PromptModal(props: PromptModalProps) {
             <View style={styles.dialog}>
               <Text style={styles.title}>{props.title}</Text>
               <TextInput
+                accessibilityLabel={props.placeholder ?? props.title}
                 value={props.value}
                 onChangeText={props.onChange}
                 placeholder={props.placeholder}
@@ -1527,11 +1796,14 @@ interface ActionsSheetProps {
   onDelete: (r: FileRow) => void;
   /** For a row of the trash: put it back where it came from. */
   onRestore: (r: FileRow) => void;
+  /** For a folder: whether it is starred; null hides Star. */
+  starred: boolean | null;
+  onToggleStar: (r: FileRow) => void;
 }
 
 function ActionsSheet({
   target, access, sharingEnabled, t, onClose, onPreview, onOpenWith, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
-  onRestore,
+  onRestore, starred, onToggleStar,
 }: ActionsSheetProps) {
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -1628,6 +1900,12 @@ function ActionsSheet({
                 <Pressable style={styles.action} onPress={() => onDownload(target)}>
                   <Download size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.download', 'Download')}</Text>
+                </Pressable>
+              ) : null}
+              {starred !== null ? (
+                <Pressable style={styles.action} onPress={() => onToggleStar(target)}>
+                  <Star size={18} color={starred ? c.starred : c.text} fill={starred ? c.starred : 'transparent'} />
+                  <Text style={styles.actionLabel}>{starred ? t('files.unstar', 'Remove star') : t('files.star', 'Star')}</Text>
                 </Pressable>
               ) : null}
               {canShare ? (
@@ -1966,6 +2244,20 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.sm,
     },
     fileInfo: {
+      flex: 1,
+    },
+    places: {
+      paddingTop: spacing.xs,
+    },
+    placesTitle: {
+      fontSize: typography.caption.fontSize,
+      fontWeight: '600' as const,
+      color: c.textMuted,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xs,
+    },
+    placeName: {
       flex: 1,
     },
     fileNameRow: {

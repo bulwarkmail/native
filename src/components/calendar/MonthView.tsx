@@ -14,6 +14,7 @@ import {
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { componentSizes, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 import {
   buildEventDayIndex,
   eventsOnDayFromIndex,
@@ -26,7 +27,7 @@ import {
 } from '../../lib/calendar-utils';
 import { dayIndexIn, monthChipShowsTime, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
 import { isInactiveEvent } from '../../lib/calendar-participants';
-import { eventBlockColors } from '../../lib/event-colors';
+import { TINTED_BAR_WIDTH, eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { dayCellAccessibilityLabel } from '../../lib/calendar-a11y';
 import { displayNow } from '../../lib/calendar-timezone';
@@ -156,6 +157,8 @@ function MonthWeekRowInner({
   const c = useColors();
   const { t } = useCalendarLocale();
   const { width } = useWindowDimensions();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const chipTime = monthChipShowsTime(true, width / 7);
   if (variant === 'full') {
     return (
@@ -254,13 +257,14 @@ function MonthWeekRowInner({
                   // Solid bars in the calendar colour; declined and
                   // cancelled events outlined (repos/branding/APP.md).
                   const inactive = isInactiveEvent(event, currentUserEmails);
-                  const colors = eventBlockColors(getEventColor(event, calendars), inactive, c);
+                  const colors = eventBlockColors(getEventColor(event, calendars), inactive, c, tinted);
                   return (
                     <View
                       key={`${event.id}-${idx}`}
                       style={[
                         styles.chip,
                         { backgroundColor: colors.fill },
+                        colors.bar ? { borderStartWidth: TINTED_BAR_WIDTH, borderStartColor: colors.bar } : null,
                         colors.border !== null && [styles.chipInactive, { borderColor: colors.border }],
                       ]}
                     >
@@ -327,6 +331,8 @@ function FullWeekRow({
 }) {
   const { width } = useWindowDimensions();
   const { t } = useCalendarLocale();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const showTime = monthChipShowsTime(showTimeInMonthView, width / 7);
   return (
     <View style={[styles.fullWeekRow, { height }]}>
@@ -365,7 +371,7 @@ function FullWeekRow({
             </View>
             {dayEvents.slice(0, shown).map((event, idx) => {
               const inactive = isInactiveEvent(event, currentUserEmails);
-              const colors = eventBlockColors(getEventColor(event, calendars), inactive, c);
+              const colors = eventBlockColors(getEventColor(event, calendars), inactive, c, tinted);
               // No time on events that fill the whole day.
               const time = showTime && !event.showWithoutTime && !isTimedEventFullDayOnDate(event, d)
                 ? `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `
@@ -376,6 +382,7 @@ function FullWeekRow({
                   style={[
                     styles.fullChip,
                     { backgroundColor: colors.fill },
+                    colors.bar ? { borderStartWidth: TINTED_BAR_WIDTH, borderStartColor: colors.bar } : null,
                     colors.border !== null && [styles.chipInactive, { borderColor: colors.border }],
                   ]}
                 >

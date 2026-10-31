@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import type { EventBlockColors } from '../../lib/event-colors';
+import { TINTED_BAR_WIDTH, type EventBlockColors } from '../../lib/event-colors';
 
 // Events in the week and day grids, shared by the paged WeekView and the
 // scrolling TimeGridScrollView. Every event is a solid block of its calendar
@@ -80,9 +80,11 @@ export function TimedEventBlock({
         styles.block,
         corners('vertical', continuesBefore, continuesAfter, EVENT_RADIUS),
         { backgroundColor: colors.fill, borderColor: ringColor },
+        colors.bar ? styles.blockWithBar : null,
         style,
       ]}
     >
+      {colors.bar ? <View pointerEvents="none" style={[styles.startBar, { backgroundColor: colors.bar }]} /> : null}
       {inactive && (
         // The calendar-coloured outline sits inside the ring.
         <View
@@ -143,10 +145,12 @@ export function AllDayEventBar({
         styles.bar,
         corners('horizontal', continuesBefore, continuesAfter, EVENT_RADIUS),
         { backgroundColor: colors.fill },
+        colors.bar ? styles.barWithBar : null,
         inactive && [styles.barInactive, { borderColor: colors.border ?? undefined }],
         style,
       ]}
     >
+      {colors.bar ? <View pointerEvents="none" style={[styles.startBar, { backgroundColor: colors.bar }]} /> : null}
       <Text style={[styles.barTitle, { color: colors.text }]} numberOfLines={1}>
         {continuesBefore ? '… ' : ''}
         <Text style={inactive && styles.struck}>{title}</Text>
@@ -164,6 +168,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   outline: { ...StyleSheet.absoluteFillObject, borderWidth: 1 },
+  // The title clears the light style's bar.
+  blockWithBar: { paddingStart: 3 + TINTED_BAR_WIDTH },
+  barWithBar: { paddingStart: 4 + TINTED_BAR_WIDTH },
+  // "Light event colors": the calendar colour along the start edge.
+  startBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: TINTED_BAR_WIDTH },
   blockTitle: { fontSize: 12, lineHeight: 15, fontWeight: '500' },
   blockTime: { fontSize: 10.5, lineHeight: 13, fontWeight: '400', opacity: 0.85 },
   struck: { textDecorationLine: 'line-through' },

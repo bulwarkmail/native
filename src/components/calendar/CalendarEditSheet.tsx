@@ -225,6 +225,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                 <Text style={styles.label}>{t('calendar.management.name', 'Name')}</Text>
                 <TextInput
+                  accessibilityLabel={t('calendar.management.name', 'Name')}
                   value={name}
                   onChangeText={setName}
                   placeholder={t('calendar.management.name_placeholder', 'Calendar name')}
@@ -308,6 +309,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                 )}
                 <Text style={styles.label}>{t('calendar.management.description', 'Description')}</Text>
                 <TextInput
+                  accessibilityLabel={t('calendar.management.description', 'Description')}
                   value={description}
                   onChangeText={setDescription}
                   placeholder={t('calendar.management.description_placeholder', 'Optional')}

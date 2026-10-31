@@ -19,6 +19,7 @@ import { differenceInCalendarDays, format, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
@@ -37,7 +38,9 @@ import { displayNow, displayNowMinutes } from '../../lib/calendar-timezone';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import {
+  allDayRowsInView,
   buildAllDaySegments,
+  shownAllDayRows,
   columnsPerScreen,
   headerColumnRange,
   hourAtOffset,
@@ -46,6 +49,7 @@ import {
   type TimeGridMode,
 } from '../../lib/calendar-time-grid';
 import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllDayToggle } from './AllDayToggle';
 
 const HOUR_HEIGHT = 48;
 const GRID_HEIGHT = 24 * HOUR_HEIGHT;
@@ -117,6 +121,8 @@ function TimeGridScrollViewInner({
   onCreateAtTime,
 }: TimeGridScrollViewProps) {
   const c = useColors();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const index = React.useMemo(
@@ -174,16 +180,12 @@ function TimeGridScrollViewInner({
   );
 
   // All-day bars over the whole window (cut per week, or per day in the day
-  // view), so the strip keeps one height while scrolling.
+  // view). The area is sized from the columns in view, below.
   const allDaySegments = React.useMemo<CalendarWeekSegment[]>(
     () => buildAllDaySegments(index, days, perScreen),
     [index, days, perScreen],
   );
-  const allDayRows = React.useMemo(
-    () => allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0),
-    [allDaySegments],
-  );
-  const allDayHeight = allDayRows > 0 ? allDayRows * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs : 0;
+  const [allDayExpanded, setAllDayExpanded] = React.useState(false);
 
   // The first column in view. Kept as a day so columns added at the start
   // don't move it.
@@ -370,8 +372,13 @@ function TimeGridScrollViewInner({
       />,
     );
   }
+  // The all-day area holds the rows of the days in view, three until it is
+  // expanded (webmail #1122, #1293).
+  const allDayRows = allDayRowsInView(allDaySegments, anchorIndex, anchorIndex + perScreen - 1);
+  const allDayShownRows = shownAllDayRows(allDayRows, allDayExpanded);
+  const allDayHeight = allDayShownRows > 0 ? allDayShownRows * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs : 0;
   const visibleSegments = allDaySegments.filter(
-    (s) => s.startIndex <= to && s.startIndex + s.span - 1 >= from,
+    (s) => s.startIndex <= to && s.startIndex + s.span - 1 >= from && s.row < allDayShownRows,
   );
 
   const threshold = perScreen === 1 ? 3 : 1;
@@ -418,6 +425,13 @@ function TimeGridScrollViewInner({
               <Text style={styles.allDayLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {t('calendar.events.all_day', 'All day')}
               </Text>
+              {allDayRows > shownAllDayRows(allDayRows, false) ? (
+                <AllDayToggle
+                  hiddenRows={allDayRows - shownAllDayRows(allDayRows, false)}
+                  expanded={allDayExpanded}
+                  onToggle={() => setAllDayExpanded((v) => !v)}
+                />
+              ) : null}
             </View>
           )}
         </View>
@@ -437,6 +451,7 @@ function TimeGridScrollViewInner({
                   getEventColor(segment.event, calendars),
                   isInactiveEvent(segment.event, currentUserEmails),
                   c,
+                  tinted,
                 )}
                 continuesBefore={segment.continuesBefore}
                 continuesAfter={segment.continuesAfter}
@@ -595,6 +610,8 @@ const DayColumn = React.memo(function DayColumn({
   draftHour: number;
 }) {
   const { locale, t } = useCalendarLocale();
+  // "Light event colors" (webmail calendarTintedEvents).
+  const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const handleLongPress = React.useCallback(
     (e: GestureResponderEvent) => {
       onLongPressAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
@@ -628,6 +645,7 @@ const DayColumn = React.memo(function DayColumn({
               getEventColor(event, calendars),
               isInactiveEvent(event, currentUserEmails),
               colors,
+                  tinted,
             )}
             ringColor={colors.background}
             continuesBefore={continuesBefore}

@@ -6,6 +6,7 @@ import { batched, JMAPSetError, requireMethodResult } from './jmap-result';
 import { decodeFileNodeName, getUniqueName } from '../lib/filenode-name';
 import { acceptedFileName, fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
 import { mediaTypeEssence } from '../lib/media-type';
+import { accountSupports } from '../lib/account-capability';
 
 /**
  * What a FileNode is: a file, a folder or a symlink.
@@ -119,16 +120,15 @@ export function filesAccountId(): string {
 // capability. A server can advertise urn:ietf:params:jmap:filenode while a
 // specific account has its jmap-file-node-* permissions revoked, in which case
 // the capability is absent from that account's accountCapabilities and every
-// FileNode action fails with an authorization error (#563). Non-personal
-// (shared/group) accounts don't always advertise per-account, so treat those
-// as capable. Mirrors the webmail's `supportsFiles`.
+// FileNode action fails with an authorization error (#563). A shared account
+// that lists no capabilities at all falls back to the server-wide one; one
+// that lists them without FileNode is not capable (lib/account-capability,
+// webmail #1239). Mirrors the webmail's `supportsFiles`.
 export function accountSupportsFiles(
   account: JMAPAccountInfo | undefined,
   sessionCapabilities: Record<string, unknown> | undefined,
 ): boolean {
-  if (!sessionCapabilities || !(CAPABILITIES.FILES in sessionCapabilities)) return false;
-  if (!account) return false;
-  return account.accountCapabilities?.[CAPABILITIES.FILES] != null || !account.isPersonal;
+  return accountSupports(account, sessionCapabilities, CAPABILITIES.FILES);
 }
 
 export function supportsFiles(): boolean {
@@ -318,15 +318,13 @@ export async function getAllFileNodes(): Promise<FileNode[]> {
 }
 
 // Accounts (primary + shared/group) that can hold FileNodes: any non-primary
-// account that advertises the filenode capability or is non-personal, since
-// Stalwart doesn't always advertise capabilities on shared accounts.
-function filesCapableAccountIds(): string[] {
+// account the user may use FileNode with (accountSupportsFiles).
+export function filesCapableAccountIds(): string[] {
   const primaryId = filesAccountId();
-  const accounts = jmapClient.currentSession?.accounts ?? {};
+  const session = jmapClient.currentSession;
+  const accounts = session?.accounts ?? {};
   const rest = Object.entries(accounts)
-    .filter(([id, info]) =>
-      id !== primaryId &&
-      (info.accountCapabilities?.[CAPABILITIES.FILES] != null || !info.isPersonal))
+    .filter(([id, info]) => id !== primaryId && accountSupportsFiles(info, session?.capabilities))
     .map(([id]) => id);
   return [primaryId, ...rest];
 }

@@ -13,6 +13,7 @@ vi.mock('../../api/contacts', () => ({
   updateAddressBook: vi.fn(),
   deleteAddressBook: vi.fn(),
   setDefaultAddressBook: vi.fn(),
+  setAddressBookShare: vi.fn(),
   getContactsInBook: vi.fn(),
   getContactMedia: vi.fn(),
   getContactsAccountId: () => 'acc-1',
@@ -87,6 +88,7 @@ const mockDeleteContacts = contactsApi.deleteContacts as ReturnType<typeof vi.fn
 const mockCreateAddressBook = contactsApi.createAddressBook as ReturnType<typeof vi.fn>;
 const mockDeleteAddressBook = contactsApi.deleteAddressBook as ReturnType<typeof vi.fn>;
 const mockSetDefaultAddressBook = contactsApi.setDefaultAddressBook as ReturnType<typeof vi.fn>;
+const mockSetAddressBookShare = contactsApi.setAddressBookShare as ReturnType<typeof vi.fn>;
 const mockGetContactsInBook = contactsApi.getContactsInBook as ReturnType<typeof vi.fn>;
 const mockQueryRecent = recentApi.queryRecentRecipients as ReturnType<typeof vi.fn>;
 
@@ -517,6 +519,23 @@ describe('contacts-store', () => {
       await useContactsStore.getState().setDefaultAddressBook('ab-2');
       expect(mockSetDefaultAddressBook).toHaveBeenCalledWith('ab-2', undefined);
       expect(useContactsStore.getState().addressBooks.map((b) => !!b.isDefault)).toEqual([false, true]);
+    });
+
+    it('shareAddressBook writes to the account the book is in and keeps the shares', async () => {
+      const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+      useContactsStore.setState({
+        addressBooks: [
+          { id: 'ab-1', name: 'P', shareWith: { bob: read } },
+          { id: 'acc-team:ab', originalId: 'ab', accountId: 'acc-team', name: 'Team', isShared: true },
+        ],
+      });
+      mockSetAddressBookShare.mockResolvedValue(undefined);
+      await useContactsStore.getState().shareAddressBook('ab-1', 'carol', read);
+      expect(mockSetAddressBookShare).toHaveBeenCalledWith('ab-1', 'carol', read, 'acc-1');
+      await useContactsStore.getState().shareAddressBook('ab-1', 'bob', null);
+      expect(useContactsStore.getState().addressBooks[0].shareWith).toEqual({ carol: read });
+      await useContactsStore.getState().shareAddressBook('acc-team:ab', 'carol', read);
+      expect(mockSetAddressBookShare).toHaveBeenLastCalledWith('ab', 'carol', read, 'acc-team');
     });
 
     it('getDefaultAddressBookId prefers the default own book', () => {

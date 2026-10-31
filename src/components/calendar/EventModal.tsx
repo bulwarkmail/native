@@ -558,6 +558,7 @@ export function EventModal({
           automaticallyAdjustKeyboardInsets
         >
           <TextInput
+            accessibilityLabel={t('calendar.form.title', 'Title')}
             value={title}
             onChangeText={setTitle}
             placeholder={t('calendar.form.title', 'Title')}
@@ -797,6 +798,7 @@ export function EventModal({
             {customReminderOpen && (
               <View style={styles.customReminderRow}>
                 <TextInput
+                  accessibilityLabel={t('calendar.alerts.amount', 'Reminder amount')}
                   value={customAmount}
                   onChangeText={(v) => setCustomAmount(v.replace(/[^0-9]/g, ''))}
                   keyboardType="number-pad"
@@ -834,6 +836,7 @@ export function EventModal({
 
           <Section icon={<MapPin size={16} color={c.textMuted} />} label={t('calendar.form.location', 'Location')}>
             <TextInput
+              accessibilityLabel={t('calendar.form.location', 'Location')}
               value={location}
               onChangeText={setLocation}
               placeholder={t('calendar.form.location_placeholder', 'Place or address')}
@@ -844,6 +847,7 @@ export function EventModal({
 
           <Section icon={<Video size={16} color={c.textMuted} />} label={t('calendar.form.meeting_link', 'Meeting link')}>
             <TextInput
+              accessibilityLabel={t('calendar.form.meeting_link', 'Meeting link')}
               value={videoUrl}
               onChangeText={setVideoUrl}
               placeholder="https://meet.example.com/…"
@@ -860,6 +864,7 @@ export function EventModal({
             label={t('calendar.form.description', 'Description')}
           >
             <TextInput
+              accessibilityLabel={t('calendar.form.description', 'Description')}
               value={description}
               onChangeText={setDescription}
               placeholder={t('calendar.form.description_placeholder', 'Notes, agenda…')}

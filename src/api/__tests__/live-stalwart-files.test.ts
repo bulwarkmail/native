@@ -476,3 +476,22 @@ live('live Stalwart files trash', () => {
     expect(after.some((n) => n.id === file.id)).toBe(false);
   }, 90_000);
 });
+
+live('live Stalwart files: which accounts hold files (webmail #1239)', () => {
+  beforeAll(async () => {
+    await connectSingleton();
+  }, 60_000);
+
+  it('lists an account for files only when its capabilities allow it', async () => {
+    const { filesCapableAccountIds, accountSupportsFiles } = await import('../files');
+    const session = client.currentSession!;
+    const ids = filesCapableAccountIds();
+    expect(ids[0]).toBe(filesAccountId());
+    for (const [id, account] of Object.entries(session.accounts ?? {})) {
+      if (id === ids[0]) continue;
+      expect(ids.includes(id), id).toBe(accountSupportsFiles(account, session.capabilities));
+    }
+    // The listing reads exactly those accounts.
+    await expect(getAllFileNodesAcrossAccounts()).resolves.toBeInstanceOf(Array);
+  }, 60_000);
+});

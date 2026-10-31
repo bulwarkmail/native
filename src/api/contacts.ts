@@ -1,9 +1,10 @@
 import { jmapClient } from './jmap-client';
 import { JMAPSetError } from './jmap-result';
 import { CAPABILITIES } from './types';
-import type { ContactCard, ContactMedia, AddressBook } from './types';
+import type { ContactCard, ContactMedia, AddressBook, AddressBookRights } from './types';
 import { generateUUID } from '../lib/uuid';
 import { contactFromWire, contactToWire } from '../lib/contact-wire';
+import { accountSupports } from '../lib/account-capability';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -55,18 +56,19 @@ export function getContactsAccountId(): string {
 
 /**
  * Every account that may hold address books: the contacts primary first, then
- * accounts that advertise the contacts capability or are non-personal (shared
- * / group) accounts - Stalwart doesn't always advertise capabilities on group
- * accounts even when they have contact resources. Mirrors the webmail's
- * getContactCapableAccountIds().
+ * the accounts the user may use contacts with (lib/account-capability: a
+ * shared account that lists its capabilities without contacts is left out,
+ * one that lists none falls back to the server-wide capability, webmail
+ * #1239). Mirrors the webmail's getContactCapableAccountIds().
  */
 export function getContactCapableAccountIds(): string[] {
   const primaryId = getContactsAccountId();
-  const accounts = jmapClient.currentSession?.accounts ?? {};
+  const session = jmapClient.currentSession;
+  const accounts = session?.accounts ?? {};
   const out: string[] = [];
   for (const [id, account] of Object.entries(accounts)) {
     if (id === primaryId) continue;
-    if (account.accountCapabilities?.[CAPABILITIES.CONTACTS] || account.isPersonal === false) {
+    if (accountSupports(account, session?.capabilities, CAPABILITIES.CONTACTS)) {
       out.push(id);
     }
   }
@@ -375,6 +377,34 @@ export async function updateAddressBook(
   const result = methodResult<{ notUpdated?: Record<string, SetError> }>(res);
   const err = result.notUpdated?.[id];
   if (err) throw new Error(setErrorMessage(err, 'Failed to update address book'));
+}
+
+/**
+ * Give a principal rights on an address book, or take them away with null
+ * (RFC 9610 `shareWith`, patched per principal like the webmail's
+ * setAddressBookShare). Throws when the server refuses or doesn't confirm
+ * the update.
+ */
+export async function setAddressBookShare(
+  addressBookId: string,
+  principalId: string,
+  rights: AddressBookRights | null,
+  accountId?: string,
+): Promise<void> {
+  const account = accountId || getContactsAccountId();
+  const res = await jmapClient.request(
+    [['AddressBook/set', {
+      accountId: account,
+      update: { [addressBookId]: { [`shareWith/${principalId}`]: rights } },
+    }, '0']],
+    USING,
+  );
+  const result = methodResult<{ updated?: Record<string, unknown> | null; notUpdated?: Record<string, SetError> }>(res);
+  const err = result.notUpdated?.[addressBookId];
+  if (err) throw setError(err, 'Failed to update address book share');
+  if (!result.updated || !(addressBookId in result.updated)) {
+    throw new Error('Server did not confirm the share update');
+  }
 }
 
 /**

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPersistStorage, memoizeSlice } from './persist-storage';
-import type { ContactCard, AddressBook, StateChange, EmailAddress } from '../api/types';
+import type { ContactCard, AddressBook, AddressBookRights, StateChange, EmailAddress } from '../api/types';
 import {
   getAddressBooks as fetchPrimaryAddressBooks,
   getAllAddressBooks as fetchAllAddressBooks,
@@ -16,6 +16,7 @@ import {
   updateAddressBook as apiUpdateAddressBook,
   deleteAddressBook as apiDeleteAddressBook,
   setDefaultAddressBook as apiSetDefaultAddressBook,
+  setAddressBookShare as apiSetAddressBookShare,
   getContactsInBook,
   getContactsAccountId,
   getContactCapableAccountIds,
@@ -152,6 +153,8 @@ export interface ContactsState {
   renameAddressBook: (id: string, name: string) => Promise<void>;
   deleteAddressBook: (id: string) => Promise<void>;
   setDefaultAddressBook: (id: string) => Promise<void>;
+  /** Give a principal rights on an own address book; null takes them away. */
+  shareAddressBook: (id: string, principalId: string, rights: AddressBookRights | null) => Promise<void>;
   /** The book new contacts / imports should land in when none is chosen. */
   getDefaultAddressBookId: () => string | null;
 
@@ -920,6 +923,24 @@ export const useContactsStore = create<ContactsState>()(
                 return { ...b, isDefault: false };
               }
               return b;
+            }),
+          });
+        },
+
+        shareAddressBook: async (id, principalId, rights) => {
+          const { check } = generationGuard();
+          const { originalId, accountId } = bookTarget(id);
+          // The write goes to the account the book was listed in, even if
+          // the login changes while it is on its way.
+          await apiSetAddressBookShare(originalId, principalId, rights, accountId ?? getContactsAccountId());
+          check();
+          set({
+            addressBooks: get().addressBooks.map((b) => {
+              if (b.id !== id) return b;
+              const next = { ...(b.shareWith ?? {}) };
+              if (rights === null) delete next[principalId];
+              else next[principalId] = rights;
+              return { ...b, shareWith: next };
             }),
           });
         },

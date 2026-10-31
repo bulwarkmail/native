@@ -70,7 +70,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: clearAllFeatureStores (`src/stores/auth-store.ts:126-134`) never clears `src/stores/search-history-store.ts:44`.
   - Fix hint: clear it, and check the other persisted stores in the same pass.
 
-- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows) and 4932764a (the composer takes recipients on Unicode domains and sends them in ASCII form; the From identity and a sender on one of your own domains show as written in the composer and the reader; unit tests only, the test servers have no IDN domain); left: the sender in the mail list rows (EmailListScreen, UnifiedInboxScreen) still shows the xn-- form on your own domains — list rows in b35d15ca
+- [x] **Internationalized domains** — `P3` — `missing` — fixed in f5875f87 (sign-in, discovery, account rows), 4932764a (composer recipients sent in ASCII form; own-domain senders shown as written in the composer and reader), b35d15ca (mail list rows), ecf1f3ec (auto-reply forward address in ASCII form); unit tests only, the test servers have no IDN domain
   - What WEB does: `lib/idn.ts:25` (#1100). What RN does: ASCII-only checks (`src/lib/recipients.ts:31`, `src/lib/server-discovery.ts:78`).
   - Fix hint: toASCII on the wire, Unicode on screen.
 
@@ -323,7 +323,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Moving a task into or within a shared calendar (#1204)** — `P3` — `partial` — fixed in b6995bb6
   - What WEB does: `lib/jmap/client.ts:9473`. What RN does: updateTask sends unmapped calendarIds (`src/stores/calendar-store.ts:1311-1315`).
 
-- [ ] **Working hours (#1164); week all-day area (#1122); light tinted colours; Jalali; birthday colour; copy title/append note; component set on new calendars (#760); date deep links; background reminder refresh without device sync** — `P3` — `missing`/`partial` — birthday colour fixed in 574db426, copy title/append note in baa3ff59 (duplicate and .ics export were there); not done: week all-day area, light tinted colours (needs a toggle on the platform agent's calendar settings page), date deep links (route in App.tsx/linking.ts, see the calendar report) and background reminder refresh: ran out of time; working hours and Jalali: own feature, not in this run; component set (#760): needs a CalDAV client (05 row)
+- [x] **Working hours (#1164); week all-day area (#1122); light tinted colours; Jalali; birthday colour; copy title/append note; component set on new calendars (#760); date deep links; background reminder refresh without device sync** — `P3` — `missing`/`partial` — birthday colour fixed in 574db426, copy title/append note in baa3ff59 (duplicate and .ics export were there), week all-day area in 90ce7c1b (sized from the days in view, tasks under their day's events, three rows with +N), light tinted colours in 01578ac2 (Settings > Calendar "Light event colors"), date deep links in fe455370 (`/calendar/<view>/<date>`, a bare date keeps the view, `tasks` opens the task list); left: background reminder refresh without device sync: left, it needs native work: the push subscription would have to carry `CalendarEvent`/`Calendar` for every account (src/lib/push-notifications.ts), PushRouting.kt would have to start a headless JS task for a calendar-only push (today it starts nothing without device sync), and that task would need a reminder scheduler that runs without the restored session and stores the in-app one (src/lib/calendar-notifications.ts) depends on; Android only, and not testable without a device. While the app runs, reminders are rescheduled on every calendar change already; working hours and Jalali: own feature, not in this run; component set (#760): needs a CalDAV client (05 row)
   - What RN does: `src/components/calendar/WeekView.tsx`, `src/components/calendar/TimeGridScrollView.tsx:177-185`, `src/lib/birthday-calendar.ts:6`, `src/components/calendar/EventDetailSheet.tsx:422`, `src/api/calendar.ts:1150`, `src/navigation/linking.ts:151`, `:288-299`, `src/lib/push-notifications.ts:243`.
 
 - [ ] **Free/busy, CalendarEventNotification, organizer from ParticipantIdentity (1.10.0)** — `P3` — `missing` — not done: own feature, not in this run
@@ -350,7 +350,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **vCard 4.0 export (#1407)** — `P3` — `bug` — fixed in 07fd03e2
   - What RN does: dashes in dates, MOBILE instead of CELL (`src/lib/vcard.ts:21`, `:24`, `:1264`).
 
-- [ ] **Delete contact categories; address book sharing; list filters; deep links new/edit** — `P3` — `missing`/`partial` — category delete with Undo fixed in 65ffef71, list filters in 18c6b03f; not done: address book sharing (needs its own share sheet, CalendarShareSheet is calendar-only; ran out of time) and deep links new/edit (route in linking.ts, platform agent's file)
+- [x] **Delete contact categories; address book sharing; list filters; deep links new/edit** — `P3` — `missing`/`partial` — category delete with Undo fixed in 65ffef71, list filters in 18c6b03f, address book sharing in 96b163a1 (Settings > Contacts, own books the user may share; one share sheet with the calendars), deep links new/edit in ecefd1cb (`/contacts/new?email=&name=`, `/contacts/<id>/edit`, the older `?contactId=`/`?addEmail=` form)
   - What WEB does: `components/settings/address-book-management-settings.tsx:84`, `:435`, `components/contacts/contact-list.tsx:30`, `lib/deep-links.ts:394`. What RN does: `src/components/contacts/ContactsSidebarDrawer.tsx:144`, `src/components/settings/ContactsSettings.tsx:33`, `src/screens/ContactsScreen.tsx:163`, `src/navigation/linking.ts:155`.
 
 ### Files
@@ -362,7 +362,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Save an attachment to Files (incl. shared and group mail)** — `P2` — `missing` — fixed in 8e07b7d8, 39e82f99
   - What WEB does: `components/email/save-to-files-dialog.tsx:43`, `lib/jmap/client.ts:9981`. What RN does: `src/components/email/AttachmentChips.tsx:183`; `src/api/files.ts:411` has createFileNodeFromBlob.
 
-- [ ] **Copy folders, numbered new folder names, next/previous in preview, starred and recent, deep links** — `P3` — `partial`/`missing` — copy folders fixed in a0f586f9; numbered new folder names: no webmail behaviour to port (its New folder dialog also takes the typed name, file-browser.tsx:1389); not done: next/previous in preview (needs header buttons in AttachmentPreviewModal, the reader agent's file), starred and recent and deep links: ran out of time
+- [x] **Copy folders, numbered new folder names, next/previous in preview, starred and recent, deep links** — `P3` — `partial`/`missing` — copy folders fixed in a0f586f9; numbered new folder names: no webmail behaviour to port (its New folder dialog also takes the typed name, file-browser.tsx:1389); next/previous in preview in e3fc67e7; starred and recent in cad9296a (kept on the device per account like the webmail's localStorage, listed above the root's files, Star in a folder's actions); deep links in d684b00e (`/files/<path>`, `?preview=`, `?shared=`)
   - What WEB does: `lib/jmap/client.ts:10155`, `stores/file-store.ts:640`, `lib/deep-links.ts:444`. What RN does: `src/api/files.ts:511-519`, `:328-345`, `src/components/files/FilePreviewModal.tsx`, `src/navigation/linking.ts:158`, `:307`.
 
 - [ ] **Sharing fails on Stalwart before 0.16.6** — `P3` — `bug`
@@ -419,7 +419,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: Mailbox/AddressBook/Calendar shareWith in one batch (`lib/delegation/delegation.ts:96`).
   - What RN does: no mailbox sharing (`src/components/settings/FolderSettings.tsx`).
 
-- [x] **Shared accounts treated as capable when their capabilities say otherwise (#1239)** — `P3` — `bug` — fixed in 67732348 (filters and auto-reply; contacts and files go with the calendar branch)
+- [x] **Shared accounts treated as capable when their capabilities say otherwise (#1239)** — `P3` — `bug` — fixed in 67732348 (filters and auto-reply), 7a15c0c6 (contacts and files)
   - What WEB does: `lib/jmap/client.ts:6431`. What RN does: `src/api/contacts.ts:76`, `src/api/files.ts:98`, `src/api/sieve.ts:43`, `src/api/vacation.ts:77`.
 
 - [x] **Storage quota ignores softLimit (#1242)** — `P3` — `bug` — fixed in af86339b

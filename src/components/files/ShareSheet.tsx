@@ -274,6 +274,7 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>{t('files.share_add_people', 'Add people')}</Text>
                   <TextInput
+                    accessibilityLabel={t('sharing.add_person', 'Add person or group')}
                     value={search}
                     onChangeText={setSearch}
                     placeholder={t('files.share_search_placeholder', 'Search by name or email')}

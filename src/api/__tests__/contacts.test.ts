@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const session = {
+  capabilities: { 'urn:ietf:params:jmap:contacts': {} } as Record<string, unknown>,
   primaryAccounts: {} as Record<string, string>,
   accounts: {} as Record<string, { name: string; isPersonal: boolean; accountCapabilities?: Record<string, unknown> }>,
 };
@@ -33,6 +34,7 @@ import {
   updateAddressBook,
   setDefaultAddressBook,
   deleteAddressBook,
+  setAddressBookShare,
 } from '../contacts';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -59,6 +61,39 @@ describe('contacts operations', () => {
         'acc-ct': { name: 'Ct', isPersonal: true, accountCapabilities: { 'urn:ietf:params:jmap:contacts': {} } },
       };
       expect(getContactCapableAccountIds()).toEqual(['acc-1', 'acc-team', 'acc-ct']);
+    });
+
+    it('leaves out a shared account that lists its capabilities without contacts (bulwarkmail/webmail#1239)', () => {
+      session.accounts = {
+        'acc-1': { name: 'me', isPersonal: true },
+        'acc-mail': { name: 'Mail only', isPersonal: false, accountCapabilities: { 'urn:ietf:params:jmap:mail': {} } },
+        'acc-team': { name: 'Team', isPersonal: false, accountCapabilities: { 'urn:ietf:params:jmap:contacts': {} } },
+      };
+      expect(getContactCapableAccountIds()).toEqual(['acc-1', 'acc-team']);
+    });
+  });
+
+  describe('setAddressBookShare', () => {
+    const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+
+    it('patches one principal on the book', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['AddressBook/set', { updated: { ab: null } }, '0']] });
+      await setAddressBookShare('ab', 'carol', read, 'acc-team');
+      expect(mockRequest.mock.calls[0][0]).toEqual([['AddressBook/set', {
+        accountId: 'acc-team',
+        update: { ab: { 'shareWith/carol': read } },
+      }, '0']]);
+      await setAddressBookShare('ab', 'carol', null);
+      expect(mockRequest.mock.calls[1][0][0][1]).toEqual({ accountId: 'acc-1', update: { ab: { 'shareWith/carol': null } } });
+    });
+
+    it('throws when the server refuses or does not confirm', async () => {
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [['AddressBook/set', { notUpdated: { ab: { type: 'forbidden', description: 'no' } } }, '0']],
+      });
+      await expect(setAddressBookShare('ab', 'carol', read)).rejects.toThrow('no');
+      mockRequest.mockResolvedValueOnce({ methodResponses: [['AddressBook/set', { updated: {} }, '0']] });
+      await expect(setAddressBookShare('ab', 'carol', read)).rejects.toThrow('Server did not confirm the share update');
     });
   });
 

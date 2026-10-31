@@ -128,6 +128,7 @@ export default function AddressBookPickerSheet({
           {creating ? (
             <View style={styles.createRow}>
               <TextInput
+                accessibilityLabel={t('contacts.address_books.name_label', 'Address book name')}
                 style={styles.createInput}
                 placeholder={t('contacts.address_books.name_label', 'Address book name')}
                 placeholderTextColor={c.textMuted}
