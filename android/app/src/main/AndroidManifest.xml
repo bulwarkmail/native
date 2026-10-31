@@ -9,8 +9,9 @@
   <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
   <!-- expo-camera declares the microphone for video; QR scanning never records audio. -->
   <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
-  <!-- expo-screen-capture declares it for its screenshot listener; the app only blocks capture. -->
-  <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE" tools:node="remove"/>
+  <!-- expo-screen-capture registers its screenshot listener on Android 14+ as soon
+       as it loads; without this permission the app crashes at launch. -->
+  <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
   <!-- Device sync (#34): contacts and calendars in Android's providers, driven by the sync framework. -->
   <uses-permission android:name="android.permission.READ_CONTACTS"/>
