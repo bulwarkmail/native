@@ -1190,6 +1190,25 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return appendPlainTextSignature(body, identity, { separator: signatureSeparatorEnabled });
   }, [isReplyLike, signaturePosition, signatureSeparatorEnabled]);
 
+  // A reply opens with the caret in the body, where the user's text goes
+  // (webmail email-composer.tsx handleEditorReady): in front of the
+  // signature and the quote. Again once the signature is in, since putting
+  // it in replaces the editor's content and drops the caret.
+  const focusReplyBody = React.useCallback(() => {
+    if (!isReplyLike || (mode !== 'reply' && mode !== 'replyAll')) return;
+    if (plainTextMode) {
+      plainBodyRef.current?.focus();
+      plainBodyRef.current?.setSelection(0, 0);
+    } else {
+      editorRef.current?.focusEnd();
+    }
+  }, [isReplyLike, mode, plainTextMode]);
+  React.useEffect(() => {
+    focusReplyBody();
+    // On open only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Embed the signature once the identities are known. A re-opened draft
   // keeps whatever it already carries (#848).
   const signatureEmbeddedRef = React.useRef(false);
@@ -1206,6 +1225,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
         baselineRef.current = snapshotOf({
           to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject, body: next, attachments: initialAttachments,
         });
+        // After the new text has rendered.
+        setTimeout(focusReplyBody, 0);
       } else {
         const sigHtml = buildEmbeddedSignatureHtml(signatureIdentity, { separator: signatureSeparatorEnabled });
         void (async () => {
@@ -1232,6 +1253,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           });
           // The baseline is a ref: re-render so "edited" is worked out again.
           bumpBaseline();
+          focusReplyBody();
         })();
       }
       return;
@@ -2620,6 +2642,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            // The contact suggestions below are the autocomplete here, not
+            // the system's autofill (webmail: autoComplete off).
+            autoComplete="off"
+            importantForAutofill="no"
+            textContentType="none"
           />
         </View>
         {activeField === field && suggestions.length > 0 && (

@@ -41,6 +41,23 @@ describe('ComposeScreen wiring', () => {
     expect(source).toMatch(/onPress=\{onDiscard\}/);
   });
 
+  it('puts the caret in the body of a reply, also after the signature goes in', () => {
+    const fn = source.slice(source.indexOf('const focusReplyBody'), source.indexOf('const signatureEmbeddedRef'));
+    expect(fn).toMatch(/if \(!isReplyLike \|\| \(mode !== 'reply' && mode !== 'replyAll'\)\) return;/);
+    expect(fn).toMatch(/editorRef\.current\?\.focusEnd\(\);/);
+    expect(fn).toMatch(/plainBodyRef\.current\?\.setSelection\(0, 0\);/);
+    expect(fn).toMatch(/React\.useEffect\(\(\) => \{\s+focusReplyBody\(\);/);
+    const embed = source.slice(source.indexOf('const signatureEmbeddedRef'), source.indexOf('// Identity switch: swap the signature block'));
+    expect(embed).toMatch(/bumpBaseline\(\);\s+focusReplyBody\(\);/);
+    expect(embed).toMatch(/setTimeout\(focusReplyBody, 0\);/);
+  });
+
+  it('offers no system autofill in the address fields', () => {
+    const field = source.slice(source.indexOf('const renderRecipientField'), source.indexOf('const composer = ('));
+    expect(field).toMatch(/autoComplete="off"/);
+    expect(field).toMatch(/importantForAutofill="no"/);
+  });
+
   it('writes the text part of a rich message with mail markup', () => {
     const build = source.slice(source.indexOf('const buildOutgoing'), source.indexOf('// Save one draft version'));
     expect(build).toMatch(/textBody = htmlToPlainText\(safeHtml, \{ mailMarkup: true \}\);/);
