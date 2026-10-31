@@ -43,4 +43,18 @@ config.transformer.getTransformOptions = async () => ({
   },
 });
 
+// openpgp's package exports send Metro to its Node build, which imports
+// node:crypto. The browser build (same API, WebCrypto from
+// src/lib/crypto/install-webcrypto.ts) is what runs on Hermes. Only openpgp
+// gets it: adding the "browser" condition globally would change what every
+// other package resolves to.
+const OPENPGP_BROWSER_BUILD = path.join(path.dirname(require.resolve('openpgp')), '..', 'openpgp.min.mjs');
+const baseResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'openpgp') return { type: 'sourceFile', filePath: OPENPGP_BROWSER_BUILD };
+  return baseResolveRequest
+    ? baseResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;
