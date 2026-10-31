@@ -83,23 +83,32 @@ enum PushRenewal {
       }
       // The recorded expiry was stale: the server's copy has time left.
       if let expires = current.expires, !needsExtension(expires) {
-        record(key: key, account: account, expires: expires)
+        record(key: key, subscriptionId: subscriptionId, expires: expires)
         return false
       }
       let wanted = formatDate(Date().addingTimeInterval(wantedSeconds))
       let extended = try await Jmap.extendPushSubscription(
         apiUrl: apiUrl, id: subscriptionId, expires: wanted, authorization: authorization)
-      if let expires = extended?.expires { record(key: key, account: account, expires: expires) }
+      if let expires = extended?.expires { record(key: key, subscriptionId: subscriptionId, expires: expires) }
       pushLog.info("extended subscription \(subscriptionId, privacy: .public)")
       return true
+    } catch JmapError.notUpdated(let reason) {
+      // The server kept the old expiry: not extended, nothing to record.
+      pushLog.error("server did not extend subscription \(subscriptionId, privacy: .public): \(reason, privacy: .public)")
+      return false
     } catch {
       pushLog.error("renewal failed: \(String(describing: error), privacy: .public)")
       return false
     }
   }
 
-  private static func record(key: String, account: [String: Any], expires: String) {
-    var json = account
+  /// Writes the expiry into the account's entry as it is now, not as it was
+  /// when the renewal started: the app may have replaced the subscription (or
+  /// the credentials key) meanwhile. Only the expiry changes, and only while
+  /// the entry still names the subscription that was extended.
+  private static func record(key: String, subscriptionId: String, expires: String) {
+    guard var json = SharedKeychain.readJSON(key),
+          json["subscriptionId"] as? String == subscriptionId else { return }
     json["subscriptionExpires"] = expires
     SharedKeychain.update(key, json: json)
   }
