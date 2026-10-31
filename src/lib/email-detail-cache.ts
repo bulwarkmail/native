@@ -177,6 +177,17 @@ function localSince(key: string, startedAt: number): FlagsHint | undefined {
   return local && local.at > startedAt ? local.patch : undefined;
 }
 
+/**
+ * The server has no such message (deleted or moved out of reach elsewhere),
+ * as opposed to a load that failed: the viewer says it is gone.
+ */
+export class EmailNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Email ${id} not found`);
+    this.name = 'EmailNotFoundError';
+  }
+}
+
 /** The copy held for a message, if any. Synchronous: for rendering. */
 export function peekDetail(id: string, accountId?: string): Email | undefined {
   return details.get(keyOf(id, accountId))?.email;
@@ -292,7 +303,7 @@ async function fetchBodies(
     for (const id of ids) {
       const email = found.get(id);
       if (email) waiting.get(id)?.resolve(email);
-      else waiting.get(id)?.reject(new Error(`Email ${id} not found`));
+      else waiting.get(id)?.reject(new EmailNotFoundError(id));
     }
   } catch (err) {
     for (const id of ids) waiting.get(id)?.reject(err);
@@ -345,7 +356,7 @@ async function revalidate(
   for (const id of ids) {
     const email = peekDetail(id, accountId);
     if (email) waiting.get(id)?.resolve(email);
-    else waiting.get(id)?.reject(new Error(`Email ${id} not found`));
+    else waiting.get(id)?.reject(gone.has(id) ? new EmailNotFoundError(id) : new Error(`Email ${id} not found`));
   }
 }
 

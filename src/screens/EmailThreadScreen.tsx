@@ -37,7 +37,7 @@ import {
 import { patchKeywordsForEmails } from '../api/email';
 import {
   loadDetail, loadDetails, loadThread, patchDetail, peekDetail, peekRow, peekThread, subscribeEmailCache,
-  type FlagsHint,
+  EmailNotFoundError, type FlagsHint,
 } from '../lib/email-detail-cache';
 import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, useAccountKeywordDefs, keywordToken, type KeywordDef } from '../stores/keywords-store';
@@ -237,9 +237,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
 
   // Cache first: a held copy renders at once and the promise resolves with the
   // checked one (which mark-as-read goes by). Concurrent loads share a request.
+  // `onGone` hears when the server has no such message any more.
   const ensureDetail = React.useCallback(
-    (id: string): Promise<Email | null> =>
-      loadDetail(id, ownerAccountId, hintFor(id)).catch(() => peekDetail(id, ownerAccountId) ?? null),
+    (id: string, onGone?: () => void): Promise<Email | null> =>
+      loadDetail(id, ownerAccountId, hintFor(id)).catch((err) => {
+        if (err instanceof EmailNotFoundError) onGone?.();
+        return peekDetail(id, ownerAccountId) ?? null;
+      }),
     [ownerAccountId, hintFor],
   );
   const ensureDetails = React.useCallback((ids: string[]) => {
@@ -418,10 +422,18 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     // this lands. Then mark it read per the user's delay.
     setError(null);
     void (async () => {
-      const fetched = await ensureDetail(activeEmailId);
+      let gone = false;
+      const fetched = await ensureDetail(activeEmailId, () => { gone = true; });
       if (cancelled) return;
       if (!fetched) {
-        if (!detailOf(activeEmailId)) setError(t('email_viewer.load_failed', 'Failed to load email'));
+        if (!detailOf(activeEmailId)) {
+          // Deleted or moved elsewhere: say so (webmail deep_link
+          // message_not_found) and let the list drop its row.
+          setError(gone
+            ? t('deep_link.message_not_found', 'This message is no longer available.')
+            : t('email_viewer.load_failed', 'Failed to load email'));
+          if (gone) void useEmailStore.getState().refreshEmails();
+        }
         return;
       }
       cancelRead = scheduleMarkRead(fetched);

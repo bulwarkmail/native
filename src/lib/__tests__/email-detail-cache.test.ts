@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: { accountId: 'own', serverUrl: 'https://mail.example', username: 'me' },
@@ -15,7 +17,7 @@ import { getEmailFlags, getFullEmailsWithState, getThreadsHeaders } from '../../
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { dispatchStateChange } from '../state-change-bus';
 import {
-  clearEmailDetailCache, loadDetail, loadDetails, loadThread, needsRevalidation, noteEmailState,
+  clearEmailDetailCache, EmailNotFoundError, loadDetail, loadDetails, loadThread, needsRevalidation, noteEmailState,
   patchDetail, peekDetail, peekRow, peekThread, prefetchMessage, rememberRows, subscribeEmailCache,
 } from '../email-detail-cache';
 
@@ -156,6 +158,31 @@ describe('loading a message', () => {
 
     await expect(loadDetail('e1')).rejects.toThrow('not found');
     expect(peekDetail('e1')).toBeUndefined();
+  });
+
+  // A row deleted elsewhere opened "Failed to load email": the viewer could
+  // not tell a missing message from a failed load.
+  it('tells a message the server no longer has from a failed load', async () => {
+    fullGet.mockResolvedValueOnce(fullResponse([], 's1', ['e9']));
+    await expect(loadDetail('e9')).rejects.toBeInstanceOf(EmailNotFoundError);
+
+    fullGet.mockResolvedValueOnce(fullResponse([full('e1')], 's1'));
+    await loadDetail('e1');
+    noteEmailState(undefined, 's2');
+    flagsGet.mockResolvedValueOnce({ list: [], notFound: ['e1'], state: 's2' });
+    await expect(loadDetail('e1')).rejects.toBeInstanceOf(EmailNotFoundError);
+
+    fullGet.mockRejectedValueOnce(new TypeError('Network request failed'));
+    const failed = await loadDetail('e3').catch((err: unknown) => err);
+    expect(failed).not.toBeInstanceOf(EmailNotFoundError);
+  });
+
+  it('has the viewer say a gone message is no longer available and refresh the list', () => {
+    const viewer = fs.readFileSync(path.resolve(__dirname, '..', '..', 'screens/EmailThreadScreen.tsx'), 'utf8');
+    expect(viewer).toMatch(/if \(err instanceof EmailNotFoundError\) onGone\?\.\(\);/);
+    expect(viewer).toMatch(/const fetched = await ensureDetail\(activeEmailId, \(\) => \{ gone = true; \}\);/);
+    expect(viewer).toMatch(/t\('deep_link\.message_not_found', 'This message is no longer available\.'\)/);
+    expect(viewer).toMatch(/if \(gone\) void useEmailStore\.getState\(\)\.refreshEmails\(\);/);
   });
 
   it('rejects with the fetch error when nothing is held', async () => {
