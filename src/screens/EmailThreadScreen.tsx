@@ -119,8 +119,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const { width: windowWidth } = useWindowDimensions();
   // Pages are as wide as the pager itself, which is the window on a phone
   // but only the detail pane in a split view. Measured, so a rotation or a
-  // pane resize re-sizes them.
-  const [pageWidth, setPageWidth] = React.useState(windowWidth);
+  // pane resize re-sizes them. The pages render only once it is measured:
+  // laid out at the window's width first, a split view's pager scrolled the
+  // opened message to the wrong offset, and on a tablet the pane once stayed
+  // empty (just the toolbar and the bottom bar) until the message was
+  // reopened.
+  const [measuredWidth, setMeasuredWidth] = React.useState(0);
+  const pageWidth = measuredWidth || windowWidth;
   const markRead = useEmailStore((s) => s.markRead);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
@@ -336,12 +341,12 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   }, [pageWidth]);
   const onPagerLayout = React.useCallback((e: LayoutChangeEvent) => {
     const width = Math.round(e.nativeEvent.layout.width);
-    if (width > 0) setPageWidth((prev) => (prev === width ? prev : width));
+    if (width > 0) setMeasuredWidth((prev) => (prev === width ? prev : width));
   }, []);
 
   const pagerExtraData = React.useMemo(
-    () => [cacheVersion, neighboursReady],
-    [cacheVersion, neighboursReady],
+    () => [cacheVersion, neighboursReady, pageWidth],
+    [cacheVersion, neighboursReady, pageWidth],
   );
 
   // While the body is pinch-zoomed the pager must not treat horizontal
@@ -815,10 +820,11 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         </View>
       ) : (
         <>
+          <View style={styles.pagerViewport} onLayout={onPagerLayout}>
+          {measuredWidth > 0 && (
           <FlatList
             ref={listRef}
             style={styles.pagerViewport}
-            onLayout={onPagerLayout}
             onContentSizeChange={snapToActive}
             data={emails}
             extraData={pagerExtraData}
@@ -831,7 +837,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
             windowSize={3}
             initialNumToRender={1}
             maxToRenderPerBatch={2}
-            removeClippedSubviews
+            // Not removeClippedSubviews: with three pages it saves nothing,
+            // and Android can leave the open page detached after a resize.
             scrollEnabled={!pagerLocked && kbObstruction === 0}
             onScrollBeginDrag={releaseNeighbours}
             onMomentumScrollEnd={onMomentumEnd}
@@ -876,6 +883,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
               </View>
             )}
           />
+          )}
+          </View>
 
           {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
           {kbObstruction === 0 && (
