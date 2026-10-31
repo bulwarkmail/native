@@ -23,6 +23,7 @@ import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListAttachments, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
@@ -1665,6 +1666,9 @@ export default function EmailListScreen({
           </Pressable>
         </View>
       )}
+
+      {/* Recover deleted items, from the account's own Trash (mounted only there) */}
+      {currentMailbox?.role === 'trash' && <TrashRecoveryLink mailbox={currentMailbox} />}
 
       {canEmptyFolder && !selectionMode && (
         <View style={styles.emptyFolderBanner}>
