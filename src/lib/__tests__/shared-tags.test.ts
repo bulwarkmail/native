@@ -3,7 +3,7 @@ import { keywordColorFromPalette, mergeSharedTags, parseSharedTags } from '../sh
 
 describe('parseSharedTags', () => {
   // The map shape the webmail writes (lib/shared-tags.ts).
-  it('reads the map by tag id, sorted by name, keeping unknown fields out', () => {
+  it('reads the map by tag id, sorted by name, with the sidebar visibility and without unknown fields', () => {
     expect(parseSharedTags({
       tags: {
         urgent: { label: 'Urgent', color: 'red-dark', visibility: 'show', by: 'x' },
@@ -14,7 +14,7 @@ describe('parseSharedTags', () => {
     })).toEqual([
       { id: 'billing', label: 'Billing', color: 'teal' },
       { id: 'unnamed', label: 'unnamed', color: 'blue' },
-      { id: 'urgent', label: 'Urgent', color: 'red' },
+      { id: 'urgent', label: 'Urgent', color: 'red', visibility: 'show' },
     ]);
   });
 

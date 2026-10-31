@@ -80,7 +80,12 @@ export function parseSharedTags(value: unknown): KeywordDef[] {
   return Object.entries(entriesOf(value))
     .map(([id, entry]) => {
       const label = typeof entry.label === 'string' ? entry.label.trim().slice(0, MAX_SHARED_TAG_LABEL) : '';
-      return { id, label: label || id, color: keywordColorFromPalette(entry.color) };
+      const def: KeywordDef = { id, label: label || id, color: keywordColorFromPalette(entry.color) };
+      // The sidebar visibility a member set for the group (webmail readSharedTags).
+      if (entry.visibility === 'show' || entry.visibility === 'hide' || entry.visibility === 'unread') {
+        def.visibility = entry.visibility;
+      }
+      return def;
     })
     .sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }

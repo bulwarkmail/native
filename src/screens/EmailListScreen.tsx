@@ -41,6 +41,7 @@ import {
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/keywords-store';
+import { formatKeyword } from '../lib/keyword-nesting';
 import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
@@ -196,17 +197,19 @@ const EmailRow = React.memo(function EmailRow({
   const unread = isUnread(item);
   const starred = isStarred(item);
   const pinned = isPinned(item);
+  // A nested tag is named by its path, "Work/Clients" (webmail tag badge).
+  const nestedTags = useKeywordsStore((s) => s.nested);
   const tags = React.useMemo(() => {
     if (!tagIds) return [];
     return tagIds.split(',').map((id) => {
       const def = keywordDefs.find((k) => k.id === id);
       return def
-        ? { id, label: def.label, dot: c.tags[def.color]?.dot ?? c.textMuted, text: c.tags[def.color]?.text ?? c.textSecondary, bg: c.tags[def.color]?.bg ?? c.muted }
+        ? { id, label: formatKeyword(id, keywordDefs, nestedTags), dot: c.tags[def.color]?.dot ?? c.textMuted, text: c.tags[def.color]?.text ?? c.textSecondary, bg: c.tags[def.color]?.bg ?? c.muted }
         // A tag no local definition explains (set by another client): grey,
         // with the raw id so it is at least visible and removable.
-        : { id, label: id, dot: c.tags.gray.dot, text: c.tags.gray.text, bg: c.tags.gray.bg };
+        : { id, label: formatKeyword(id, keywordDefs, nestedTags), dot: c.tags.gray.dot, text: c.tags.gray.text, bg: c.tags.gray.bg };
     });
-  }, [tagIds, keywordDefs, c]);
+  }, [tagIds, keywordDefs, nestedTags, c]);
 
   // The row's key (`rowKeyOf`): ids repeat across the accounts of a list
   // spanning accounts (#1082).

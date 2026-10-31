@@ -6,7 +6,8 @@ import { X, Check, Tag } from './icons';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
-import { keywordToken, type KeywordDef } from '../stores/keywords-store';
+import { keywordToken, useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
+import { buildKeywordTree, flattenKeywordTree, treeRowLabel } from '../lib/keyword-nesting';
 import { useLocaleStore } from '../stores/locale-store';
 import { getEmailTagIds } from '../lib/thread-utils';
 import type { Email } from '../api/types';
@@ -59,6 +60,14 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
     [selectedEmails],
   );
 
+  // With "Nested tags" on, a tree: children indented under their parent and
+  // named by their own label, as the webmail tag picker draws it.
+  const nested = useKeywordsStore((s) => s.nested);
+  const rows = React.useMemo(
+    () => flattenKeywordTree(buildKeywordTree(keywords, nested)),
+    [keywords, nested],
+  );
+
   // Tags set on the selection that no local definition explains (set by the
   // webmail or another device): listed so they can at least be removed.
   const unknownIds = React.useMemo(() => {
@@ -103,7 +112,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
           {keywords.length === 0 && unknownIds.length === 0 ? (
             <Text style={styles.empty}>{t('email_list.no_tags_defined', 'No tags defined. Add tags in Settings.')}</Text>
           ) : (
-            keywords.map((kw) => {
+            rows.map((kw) => {
               const token = keywordToken(kw.id);
               const applied = allHaveToken(token);
               const dot = c.tags[kw.color]?.dot ?? c.primary;
@@ -111,10 +120,10 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
                 <Pressable
                   key={kw.id}
                   onPress={() => onToggle(token, !applied)}
-                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                  style={({ pressed }) => [styles.row, tagRowIndent(kw.depth), pressed && styles.rowPressed]}
                 >
                   <Tag size={16} color={dot} fill={dot} />
-                  <Text style={styles.rowLabel} numberOfLines={1}>{kw.label}</Text>
+                  <Text style={styles.rowLabel} numberOfLines={1}>{treeRowLabel(kw, keywords, nested)}</Text>
                   {applied && <Check size={16} color={c.primary} />}
                 </Pressable>
               );
@@ -141,6 +150,11 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
       </Animated.View>
     </Modal>
   );
+}
+
+/** Left padding of a tag row: one step per nesting level. */
+export function tagRowIndent(depth: number): { paddingLeft: number } {
+  return { paddingLeft: spacing.lg + depth * spacing.lg };
 }
 
 function makeStyles(c: ThemePalette) {

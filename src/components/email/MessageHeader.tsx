@@ -12,7 +12,8 @@ import { useColors } from '../../theme/colors';
 import SenderAvatar from '../SenderAvatar';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { useAccountKeywordDefs } from '../../stores/keywords-store';
+import { useAccountKeywordDefs, useKeywordsStore } from '../../stores/keywords-store';
+import { formatKeyword } from '../../lib/keyword-nesting';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import {
   deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity, viaIdentityNameShown,
@@ -154,7 +155,13 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
     return null;
   }, [spoofed, identities, from?.email, email]);
 
-  const tags = React.useMemo(() => resolveEmailTags(email.keywords, keywordDefs), [keywordDefs, email.keywords]);
+  // A nested tag is named by its path, "Work/Clients" (webmail tag badge).
+  const nestedTags = useKeywordsStore((s) => s.nested);
+  const tags = React.useMemo(
+    () => resolveEmailTags(email.keywords, keywordDefs)
+      .map((kw) => ({ ...kw, label: formatKeyword(kw.id, keywordDefs, nestedTags) })),
+    [keywordDefs, email.keywords, nestedTags],
+  );
   const important = !!email.keywords?.$important;
   const answered = !!email.keywords?.$answered;
   const forwarded = !!email.keywords?.$forwarded;
