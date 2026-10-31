@@ -1,4 +1,5 @@
-import { RequestTimeoutError } from '../api/jmap-client';
+import { NetworkError, RequestTimeoutError } from '../api/jmap-client';
+import { useNetworkStore } from '../stores/network-store';
 import {
   NoLongerScheduledError, RecipientsRefusedError, ScheduleTooLateError, SubmissionQuotaError, formatRefusedRecipients,
   type RefusedRecipient,
@@ -60,6 +61,27 @@ export function sendFailureMessage(error: unknown, t: Translate): string {
   return error instanceof Error && error.message
     ? error.message
     : t('notifications.error_sending', 'Failed to send email');
+}
+
+/**
+ * sendFailureMessage for a message the user is writing (composer, quick
+ * reply): a send that never reached the server because the device is
+ * offline says so, and that the text is still there, instead of "Network
+ * request failed" (webmail email-composer.tsx send_offline). The server is
+ * unreachable when the transport failed (the client's NetworkError, or a
+ * bare fetch TypeError) or the device reports no connection.
+ */
+export function composerSendFailureMessage(error: unknown, t: Translate): string {
+  const offline = error instanceof NetworkError
+    || error instanceof TypeError
+    || !useNetworkStore.getState().online;
+  if (offline && !(error instanceof RequestTimeoutError)) {
+    return t(
+      'email_composer.send_offline',
+      'You seem to be offline. The message is still here, send it again once you are back online.',
+    );
+  }
+  return sendFailureMessage(error, t);
 }
 
 /**

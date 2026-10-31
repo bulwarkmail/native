@@ -15,7 +15,7 @@ import { sendEmail, patchKeywordsForEmails, SendUnconfirmedError } from '../../a
 import { jmapClient } from '../../api/jmap-client';
 import { pruneEmailSubmissions } from '../../api/submissions';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
-import { partlyRefusedWarning, sendFailureMessage } from '../../lib/send-failure-message';
+import { composerSendFailureMessage, partlyRefusedWarning } from '../../lib/send-failure-message';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
 import { resolveReplyIdentity } from '../../lib/reply-identity';
@@ -255,7 +255,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
         );
         return;
       }
-      Alert.alert(t('email_composer.send_failed', 'Failed to send'), sendFailureMessage(err, t));
+      Alert.alert(t('email_composer.send_failed', 'Failed to send'), composerSendFailureMessage(err, t));
     } finally {
       setSending(false);
     }

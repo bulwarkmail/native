@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { RequestTimeoutError } from '../../api/jmap-client';
+import fs from 'node:fs';
+import path from 'node:path';
+import { NetworkError, RequestTimeoutError } from '../../api/jmap-client';
+import { useNetworkStore } from '../../stores/network-store';
 import {
   JMAPMethodError, NoLongerScheduledError, RecipientsRefusedError, ScheduleTooLateError, SubmissionQuotaError,
   formatRefusedRecipients,
 } from '../../api/jmap-result';
-import { partlyRefusedWarning, rescheduleFailureNotice, sendFailureMessage } from '../send-failure-message';
+import {
+  composerSendFailureMessage, partlyRefusedWarning, rescheduleFailureNotice, sendFailureMessage,
+} from '../send-failure-message';
 
 // The English fallback stands in for the catalog.
 const t = (key: string, fallback?: string, params?: Record<string, unknown>) =>
@@ -95,5 +100,36 @@ describe('recipients the server refused', () => {
       title: 'Not sent to everyone',
       message: 'The server refused nobody@example.net (550 5.1.2 Relay not allowed.). The other recipients get the message.',
     });
+  });
+});
+
+describe('composerSendFailureMessage (offline)', () => {
+  const OFFLINE = /You seem to be offline\. The message is still here/;
+
+  it('says offline instead of the transport error', () => {
+    expect(composerSendFailureMessage(new NetworkError('Network request failed'), t)).toMatch(OFFLINE);
+    expect(composerSendFailureMessage(new TypeError('Network request failed'), t)).toMatch(OFFLINE);
+  });
+
+  it('says offline when the device reports no connection', () => {
+    useNetworkStore.setState({ online: false });
+    try {
+      expect(composerSendFailureMessage(new Error('boom'), t)).toMatch(OFFLINE);
+    } finally {
+      useNetworkStore.setState({ online: true });
+    }
+  });
+
+  it("keeps the server's words and the timeout advice when online", () => {
+    expect(composerSendFailureMessage(new Error('Relay denied'), t)).toBe('Relay denied');
+    expect(composerSendFailureMessage(new RequestTimeoutError(30_000), t)).toMatch(/Check your Sent folder/);
+  });
+
+  it('is what the composer and quick reply show', () => {
+    for (const rel of ['../../screens/ComposeScreen.tsx', '../../components/email/QuickReplyBox.tsx']) {
+      const source = fs.readFileSync(path.resolve(__dirname, rel), 'utf8');
+      expect(source).toMatch(/Alert\.alert\(t\('email_composer\.send_failed', '[^']+'\), composerSendFailureMessage\((e|err), t\)\);/);
+      expect(source).not.toMatch(/[^r]sendFailureMessage\(/);
+    }
   });
 });

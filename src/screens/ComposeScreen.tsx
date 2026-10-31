@@ -48,7 +48,7 @@ import {
 } from '../api/email';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
-import { partlyRefusedWarning, sendFailureMessage } from '../lib/send-failure-message';
+import { composerSendFailureMessage, partlyRefusedWarning } from '../lib/send-failure-message';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
@@ -2559,7 +2559,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         );
         return;
       }
-      Alert.alert(t('email_composer.send_failed', 'Send failed'), sendFailureMessage(e, t));
+      Alert.alert(t('email_composer.send_failed', 'Send failed'), composerSendFailureMessage(e, t));
     } finally {
       setSending(false);
     }
