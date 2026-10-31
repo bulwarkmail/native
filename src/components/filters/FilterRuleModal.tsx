@@ -329,6 +329,9 @@ export function FilterRuleModal({
                 value={name}
                 onChangeText={setName}
                 placeholder={t('settings.filters.rule_name_placeholder', 'e.g., Sort newsletters')}
+                // Named by its label, not the example in the placeholder
+                // (webmail filter-rule-modal.tsx).
+                accessibilityLabel={t('settings.filters.rule_name', 'Rule Name')}
                 maxLength={200}
               />
             </View>
@@ -414,6 +417,7 @@ export function FilterRuleModal({
                         }
                         keyboardType={condition.field === 'size' ? 'numeric' : 'default'}
                         autoCapitalize="none"
+                        accessibilityLabel={t('settings.filters.condition_value', 'Condition value')}
                       />
                     )}
                   </View>
