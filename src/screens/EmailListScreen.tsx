@@ -23,6 +23,7 @@ import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListAttachments, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
@@ -50,6 +51,8 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { toast } from '../stores/toast-store';
 import { getContactDisplayName } from '../lib/contact-utils';
+import { listAddressLabel } from '../lib/list-sender';
+import { useOwnDomainAddress } from '../lib/use-own-domain-address';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import { cleanPreview } from '../lib/preview-text';
@@ -85,21 +88,20 @@ function reportKeywordFailure(title: string, err: unknown): void {
   toast.error(title, err instanceof Error ? err.message : undefined);
 }
 
-function getSenderName(email: Email, unknownLabel: string): string {
-  return email.from?.[0]?.name || email.from?.[0]?.email || unknownLabel;
-}
-
-function getSenderEmail(email: Email): string | undefined {
-  return email.from?.[0]?.email;
-}
-
-// Sent/Drafts rows name the recipient, not "me" (webmail 1.4.12).
-function getCounterpart(email: Email, showRecipient: boolean, unknownLabel: string): { name: string; email?: string } {
+// Sent/Drafts rows name the recipient, not "me" (webmail 1.4.12). A bare
+// address on one of the user's own IDN domains reads as written (#1100).
+function getCounterpart(
+  email: Email,
+  showRecipient: boolean,
+  unknownLabel: string,
+  formatAddress: (address: string) => string,
+): { name: string; email?: string } {
   if (showRecipient) {
     const to = email.to?.[0] ?? email.cc?.[0] ?? email.bcc?.[0];
-    if (to) return { name: to.name || to.email, email: to.email };
+    if (to) return { name: listAddressLabel(to, formatAddress, unknownLabel), email: to.email };
   }
-  return { name: getSenderName(email, unknownLabel), email: getSenderEmail(email) };
+  const from = email.from?.[0];
+  return { name: listAddressLabel(from, formatAddress, unknownLabel), email: from?.email };
 }
 
 function isUnread(email: Email): boolean {
@@ -136,6 +138,7 @@ const EmailRow = React.memo(function EmailRow({
   threadCount,
   showPreview,
   showRecipient,
+  formatAddress,
   tagIds,
   keywordDefs,
   disableAvatarImages,
@@ -153,6 +156,8 @@ const EmailRow = React.memo(function EmailRow({
   threadCount: number;
   showPreview: boolean;
   showRecipient: boolean;
+  /** useOwnDomainAddress, read once by the list rather than per row. */
+  formatAddress: (address: string) => string;
   /** Comma-joined tag ids of the row (thread union) — a string so memo holds. */
   tagIds: string;
   keywordDefs: KeywordDef[];
@@ -181,6 +186,7 @@ const EmailRow = React.memo(function EmailRow({
     item,
     showRecipient,
     tr('email_viewer.unknown_sender', 'Unknown'),
+    formatAddress,
   );
   const unread = isUnread(item);
   const starred = isStarred(item);
@@ -570,6 +576,7 @@ export default function EmailListScreen({
   const folderKeywordDefs = (currentOwnerAccountId && keywordDefsByAccount.get(currentOwnerAccountId)) || keywordDefs;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
+  const formatAddress = useOwnDomainAddress();
 
   // When threading is on, collapse same-thread emails so the list shows the
   // newest message per thread with a count badge (pinned threads first).
@@ -885,6 +892,7 @@ export default function EmailListScreen({
           threadCount={threadCountFor(item)}
           showPreview={showPreview}
           showRecipient={showRecipient}
+          formatAddress={formatAddress}
           tagIds={rowTagIds.get(key) ?? ''}
           keywordDefs={(item.jmapAccountId && keywordDefsByAccount.get(item.jmapAccountId)) || folderKeywordDefs}
           disableAvatarImages={inJunk && !showAvatarsInJunk}
@@ -903,7 +911,7 @@ export default function EmailListScreen({
     [
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showRecipient, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );
@@ -1658,6 +1666,9 @@ export default function EmailListScreen({
           </Pressable>
         </View>
       )}
+
+      {/* Recover deleted items, from the account's own Trash (mounted only there) */}
+      {currentMailbox?.role === 'trash' && <TrashRecoveryLink mailbox={currentMailbox} />}
 
       {canEmptyFolder && !selectionMode && (
         <View style={styles.emptyFolderBanner}>

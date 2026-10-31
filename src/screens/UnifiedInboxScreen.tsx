@@ -25,6 +25,8 @@ import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { listAddressLabel } from '../lib/list-sender';
+import { useOwnDomainAddress } from '../lib/use-own-domain-address';
 import { cleanPreview } from '../lib/preview-text';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
@@ -39,12 +41,18 @@ type Props = NativeStackScreenProps<RootStackParamList, 'UnifiedInbox'>;
 
 const PAGE_SIZE = 25;
 
-function senderName(email: UnifiedEmail, showRecipient: boolean, unknown: string): string {
+// A bare address on one of the user's own IDN domains reads as written (#1100).
+function senderName(
+  email: UnifiedEmail,
+  showRecipient: boolean,
+  unknown: string,
+  formatAddress: (address: string) => string,
+): string {
   if (showRecipient) {
     const to = email.to?.[0];
-    if (to) return to.name || to.email;
+    if (to) return listAddressLabel(to, formatAddress, unknown);
   }
-  return email.from?.[0]?.name || email.from?.[0]?.email || unknown;
+  return listAddressLabel(email.from?.[0], formatAddress, unknown);
 }
 
 function rowKey(e: UnifiedEmail): string {
@@ -326,6 +334,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   const errorCount = Object.keys(errors).length;
   const showRecipient = role === 'sent' || role === 'drafts';
+  const formatAddress = useOwnDomainAddress();
   const title = view
     ? t(`sidebar.unified_all_${view === 'all' ? 'mail' : view}`, { all: 'All mail', unread: 'All unread', starred: 'All starred' }[view])
     : role === 'inbox'
@@ -366,7 +375,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           )}
           {density.showAvatar && <View style={styles.avatarWrap}>
             <SenderAvatar
-              name={senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'))}
+              name={senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress)}
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
@@ -379,7 +388,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           <View style={styles.content}>
             <View style={styles.line}>
               <Text style={[styles.sender, dyn.bodyMedium, unread && styles.bold]} numberOfLines={1}>
-                {senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'))}
+                {senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress)}
               </Text>
               {starred && <Star size={12} color={c.starred} fill={c.starred} />}
               {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
