@@ -80,6 +80,7 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     username: 'user@example.com',
     serverUrl: 'https://mail.example.com',
+    isConnected: true,
     accountId: 'jmap-primary',
     currentSession: { capabilities: { 'urn:ietf:params:jmap:core': {} } },
   },
@@ -1580,6 +1581,45 @@ describe('resyncPushNotifications', () => {
 
     expect(result).toBeNull();
     expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('waits for the session instead of asking the server without one', async () => {
+    // An account being added: the client holds its credentials, no session yet.
+    const client = jmapClient as unknown as { isConnected: boolean };
+    client.isConnected = false;
+    try {
+      await AsyncStorage.setItem(SUB_KEY, 'existing');
+      await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+      const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+      expect(result).toBeNull();
+      expect(listMock).not.toHaveBeenCalled();
+      expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+    } finally {
+      client.isConnected = true;
+    }
+  });
+
+  it('keeps push on when the client moved to another account during the revocation check', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    const client = jmapClient as unknown as { serverUrl: string };
+    // The listing answers for the account added meanwhile, which has none of ours.
+    listMock.mockImplementation(async () => {
+      client.serverUrl = 'https://mail.example.com:8443';
+      return [];
+    });
+    try {
+      const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+      expect(result).toBeNull();
+      expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+      expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+      expect(await readPushAccountIds()).toEqual([ACCOUNT_ID]);
+    } finally {
+      client.serverUrl = 'https://mail.example.com';
+      listMock.mockReset();
+      listMock.mockResolvedValue([]);
+    }
   });
 
   it('does not re-register a subscription another device revoked', async () => {

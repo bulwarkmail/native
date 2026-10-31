@@ -203,6 +203,19 @@ async function checkServerChange(accountId: string, session: JMAPSession): Promi
   }
 }
 
+// The registry names the server the account's stored credentials sign in
+// to. Before ports were part of account ids, signing in to a second server
+// on the same host stored its credentials under the first server's account
+// and left the registry naming the first server. That account has been the
+// second server's since (its mail, its sends), and now says so; the ids
+// stay consistent with it (see generateAccountId).
+function followStoredServer(accountId: string): void {
+  const served = jmapClient.serverUrl;
+  const accountStore = useAccountStore.getState();
+  const entry = accountStore.getAccountById(accountId);
+  if (served && entry && entry.serverUrl !== served) accountStore.updateAccount(accountId, { serverUrl: served });
+}
+
 // The outbox replays against whatever account the JMAP client serves, and a
 // replaced server may have given the queued ids to other messages. So it
 // runs only once the account's session is up and its server was checked.
@@ -993,6 +1006,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false, error: 'Failed to load session' });
         return;
       }
+      followStoredServer(accountId);
       await checkServerChange(accountId, session);
       if (!isCurrent()) return;
 
@@ -1139,6 +1153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       const session = jmapClient.currentSession!;
+      followStoredServer(target.id);
       await checkServerChange(target.id, session);
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
       perfMark('restore-done');
@@ -1183,6 +1198,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         errorMessage: undefined,
       });
       const fresh = jmapClient.currentSession!;
+      followStoredServer(activeAccountId);
       await checkServerChange(activeAccountId, fresh);
       if (!isCurrent()) return false;
       applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);

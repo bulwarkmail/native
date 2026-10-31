@@ -21,7 +21,7 @@ import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
-import { MAX_ACCOUNTS, accountRowText } from '../lib/account-utils';
+import { MAX_ACCOUNTS, accountRowText, serverHostLabel } from '../lib/account-utils';
 import { toUnicodeEmail } from '../lib/idn';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
@@ -788,6 +788,9 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     if (!serverUrl) return '';
     try { return new URL(serverUrl).hostname; } catch { return serverUrl; }
   }, [serverUrl]);
+  // The header names the server with its port when that isn't the default:
+  // two servers on one host are two accounts with the same address.
+  const hostLabel = React.useMemo(() => (serverUrl ? serverHostLabel(serverUrl) : ''), [serverUrl]);
   const accountEmailFull = React.useMemo(() => {
     if (!username) return hostname;
     if (username.includes('@')) return username;
@@ -836,8 +839,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             </View>
             <View style={styles.accountInfo}>
               <Text style={styles.accountName} numberOfLines={1}>{username || t('settings.account.title', 'Account')}</Text>
-              {hostname ? (
-                <Text style={styles.accountEmail} numberOfLines={1}>{hostname}</Text>
+              {hostLabel ? (
+                <Text style={styles.accountEmail} numberOfLines={1}>{hostLabel}</Text>
               ) : null}
             </View>
             {busy ? (
@@ -857,8 +860,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             <ScrollView style={styles.accountMenuList}>
               {accounts.map((acc) => {
                 const isActive = acc.id === activeAccountId;
-                let accHost = '';
-                try { accHost = new URL(acc.serverUrl).hostname; } catch { accHost = acc.serverUrl; }
+                // With the port when it isn't the default (see hostLabel).
+                const accHost = serverHostLabel(acc.serverUrl);
                 // The address leads when another account has the same name
                 // (webmail 3bb9f7df8).
                 const rowText = accountRowText(acc, accounts);

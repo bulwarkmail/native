@@ -15,7 +15,7 @@ import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
 import { fetchMailQuota, type MailQuota } from '../../api/quota';
-import { MAX_ACCOUNTS, accountRowText } from '../../lib/account-utils';
+import { MAX_ACCOUNTS, accountRowText, nonDefaultPort, serverHostLabel } from '../../lib/account-utils';
 import { toUnicodeEmail } from '../../lib/idn';
 import type { RootStackParamList } from '../../navigation/types';
 
@@ -189,6 +189,8 @@ export function AccountSettings() {
                     {isActive && <Check size={14} color={c.success} />}
                   </View>
                   {rowText.subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{toUnicodeEmail(rowText.subtitle)}</Text> : null}
+                  {/* Two servers on one host are two accounts with the same address. */}
+                  {nonDefaultPort(a.serverUrl) ? <Text style={styles.rowSub} numberOfLines={1}>{serverHostLabel(a.serverUrl)}</Text> : null}
                   {isDefault && (
                     <Text style={styles.defaultBadge}>
                       {t('settings.account.accounts.default_badge', 'Default account')}

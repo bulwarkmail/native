@@ -5,6 +5,7 @@ import { CAPABILITIES } from '../api/types';
 import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
 import { secureFetch } from './client-cert';
+import { setKnownAccounts, type KnownAccount } from './account-utils';
 import { freshStoredCredentials } from './stored-token-refresh';
 import {
   generateEmailAvatarColor,
@@ -194,6 +195,7 @@ export function parseRelayPushData(data: unknown): RelayPushData {
 interface RegistryAccount {
   id: string;
   username?: string;
+  serverUrl?: string;
 }
 
 async function readAccountRegistry(): Promise<RegistryAccount[]> {
@@ -452,6 +454,9 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
     if (accountIds.length === 0) return;
 
     const registry = await readAccountRegistry();
+    // Without the account store loaded, account ids are still the ones the
+    // registry holds (see generateAccountId).
+    setKnownAccounts(registry.filter((a): a is KnownAccount => !!a.username && !!a.serverUrl));
     const jmapAccountIds = await readPushJmapAccountIds();
     const match = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
     if (match.ambiguous) await showPlainNotification(payload);

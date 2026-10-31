@@ -654,7 +654,10 @@ export default function App() {
   );
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   React.useEffect(() => {
-    if (!isAuthenticated || !client) return;
+    // The setup asks the server through the client: it waits for the
+    // session, and runs again once one comes up (an account added or
+    // switched to, a cold start that began offline).
+    if (!isAuthenticated || !client || !haveLiveSession) return;
 
     let cancelled = false;
     const doSetup = async () => {
@@ -700,7 +703,7 @@ export default function App() {
       unsubscribe();
       unsubscribeUp();
     };
-  }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId]);
+  }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId, haveLiveSession]);
 
   // Muting a folder or account changes the server-side push filter (#78),
   // which the setup above would only send at the next launch. Send it now,
