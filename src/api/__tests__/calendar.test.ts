@@ -251,7 +251,8 @@ describe('calendar operations', () => {
         id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02', start: '2026-03-02T00:00:00',
         timeZone: 'Europe/Berlin', title: 'Daily',
       } as any;
-      const single = { id: 's9', baseEventId: 'other', start: '2026-03-02T09:00:00', title: 'Once' } as any;
+      // Stalwart 1.0 returns a one-off event under its own id.
+      const single = { id: 's9', baseEventId: null, start: '2026-03-02T09:00:00', title: 'Once' } as any;
 
       const [hydrated, untouched] = await hydrateExpandedOccurrences([occurrence, single]);
 
@@ -267,9 +268,39 @@ describe('calendar operations', () => {
     });
 
     it('skips the round trip when nothing recurs', async () => {
-      const single = { id: 's9', baseEventId: 'other', start: '2026-03-02T09:00:00' } as any;
-      expect(await hydrateExpandedOccurrences([single])).toEqual([single]);
+      const single = { id: 's9', baseEventId: null, start: '2026-03-02T09:00:00' } as any;
+      const own = { id: 'd', baseEventId: 'd', start: '2026-03-02T09:00:00' } as any;
+      expect(await hydrateExpandedOccurrences([single, own])).toEqual([single, own]);
       expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    // Stalwart 0.16 hands a one-off event out under a synthetic id, with no
+    // recurrenceId and no showWithoutTime, in the query's time zone: the
+    // all-day "Company holiday" read as 00:00 to 00:00.
+    it('gives a one-off all-day event under a synthetic id its all-day flag back', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/get', {
+          list: [
+            { id: 'c', showWithoutTime: true, duration: 'P1D' },
+            { id: 'd', timeZone: 'Europe/Berlin', duration: 'PT1H' },
+          ],
+        }, '0']],
+      });
+      const holiday = {
+        id: 'h1pceeaaaaac', baseEventId: 'c', '@type': 'Event', title: 'Company holiday',
+        start: '2026-11-01T00:00:00', duration: 'P1D', timeZone: 'Europe/Berlin',
+        utcStart: '2026-10-31T23:00:00Z', utcEnd: '2026-11-01T23:00:00Z',
+      } as any;
+      const review = {
+        id: 'h1pceeaaaaad', baseEventId: 'd', start: '2026-11-01T14:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin',
+      } as any;
+
+      const [allDay, timed] = await hydrateExpandedOccurrences([holiday, review]);
+
+      expect(mockRequest.mock.calls[0][0][0][1]).toMatchObject({ ids: ['c', 'd'] });
+      expect(allDay).toMatchObject({ id: 'h1pceeaaaaac', showWithoutTime: true, timeZone: null, start: '2026-11-01T00:00:00' });
+      expect(allDay.recurrenceRules).toBeUndefined();
+      expect(timed).toBe(review);
     });
   });
 

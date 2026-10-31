@@ -349,9 +349,16 @@ export function hydrateRecurrenceInstances(
   bases: ReadonlyMap<string, Partial<CalendarEvent>>,
 ): CalendarEvent[] {
   return collapseDuplicateInstances(instances, bases).map((instance) => {
-    if (!isServerRecurrenceInstance(instance) || !instance.recurrenceId) return instance;
+    if (!isServerRecurrenceInstance(instance)) return instance;
     const base = instance.baseEventId ? bases.get(instance.baseEventId) : undefined;
     if (!base) return instance;
+    // Stalwart 0.16 expands a one-off event to a synthetic id too, without
+    // a recurrenceId and without showWithoutTime, in the query's time zone.
+    if (!instance.recurrenceId) {
+      return base.showWithoutTime
+        ? { ...instance, showWithoutTime: true, timeZone: base.timeZone ?? null }
+        : instance;
+    }
 
     const hydrated: CalendarEvent = {
       ...instance,
