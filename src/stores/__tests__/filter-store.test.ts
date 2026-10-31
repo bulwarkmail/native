@@ -373,3 +373,46 @@ describe('readVacationFilters', () => {
     expect(content).toContain('    redirect :copy "backup@example.org";');
   });
 });
+
+describe('deleteRuleNow', () => {
+  const a = makeRule({ id: 'a', name: 'A' });
+  const b = makeRule({ id: 'b', name: 'B' });
+
+  it('deletes and saves at once, and Undo puts the rule back where it was and saves again', async () => {
+    serveScript([a, b]);
+    await useFilterStore.getState().selectAccount(null);
+    api.updateSieveScript.mockResolvedValue(undefined);
+
+    const undo = await useFilterStore.getState().deleteRuleNow('a');
+    expect(useFilterStore.getState().rules.map((r) => r.id)).toEqual(['b']);
+    expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
+    expect(api.updateSieveScript.mock.calls[0][1]).not.toContain('"A"');
+
+    expect(await undo!()).toBe(true);
+    expect(useFilterStore.getState().rules.map((r) => r.id)).toEqual(['a', 'b']);
+    expect(api.updateSieveScript).toHaveBeenCalledTimes(2);
+    expect(api.updateSieveScript.mock.calls[1][1]).toContain('A');
+    // Once undone there is nothing left to undo.
+    expect(await undo!()).toBe(false);
+    expect(api.updateSieveScript).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the rule when the save fails', async () => {
+    serveScript([a, b]);
+    await useFilterStore.getState().selectAccount(null);
+    api.updateSieveScript.mockRejectedValueOnce(new Error('down'));
+    await expect(useFilterStore.getState().deleteRuleNow('a')).rejects.toThrow('down');
+    expect(useFilterStore.getState().rules.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it("does not undo into another account's filters", async () => {
+    serveScript([a, b]);
+    await useFilterStore.getState().selectAccount(null);
+    api.updateSieveScript.mockResolvedValue(undefined);
+    const undo = await useFilterStore.getState().deleteRuleNow('a');
+    serveScript([b]);
+    await useFilterStore.getState().selectAccount('team');
+    expect(await undo!()).toBe(false);
+    expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
+  });
+});

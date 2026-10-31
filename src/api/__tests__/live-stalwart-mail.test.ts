@@ -45,8 +45,9 @@ import { pruneEmailSubmissions } from '../submissions';
 import { listPrincipals } from '../files';
 import { createContact, deleteContacts, getAddressBooks, getContact } from '../contacts';
 import {
-  createSieveScript, deleteSieveScript, getSieveScriptContent, getSieveScripts, validateSieveScript,
+  createSieveScript, deleteSieveScript, getSieveScriptContent, getSieveScripts, updateSieveScript, validateSieveScript,
 } from '../sieve';
+import { useFilterStore } from '../../stores/filter-store';
 import { inlineContactMediaForExport, writeContactWithNewPhoto } from '../../lib/contact-media';
 import { getBulwarkMetadata, resetBulwarkMetadata, supportsBulwarkMetadata } from '../bulwark-metadata';
 import { parseSharedTags, SHARED_TAGS_KEY } from '../../lib/shared-tags';
@@ -402,6 +403,47 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
         expect(await getSieveScriptContent(listed!.blobId)).toContain(RUN);
       } finally {
         await deleteSieveScript(script.id);
+      }
+    }, 60_000);
+
+    it('deletes a filter rule at once and puts it back on Undo, in the script on the server', async () => {
+      // The account's filters as they are, to put back afterwards.
+      const before = await getSieveScripts();
+      const active = before.find((s) => s.isActive && s.name !== 'vacation');
+      const original = active ? await getSieveScriptContent(active.blobId) : null;
+      const activeContent = async () => {
+        const now = (await getSieveScripts()).find((s) => s.isActive && s.name !== 'vacation');
+        return now ? getSieveScriptContent(now.blobId) : '';
+      };
+      try {
+        await useFilterStore.getState().selectAccount(null);
+        expect(useFilterStore.getState().isOpaque, 'the test account has no hand-written filters').toBe(false);
+        const rule = (id: string) => ({
+          id, name: `live ${id} ${RUN}`, enabled: true, matchType: 'all' as const,
+          conditions: [{ field: 'subject' as const, comparator: 'contains' as const, value: `${id}-${RUN}` }],
+          actions: [{ type: 'mark_read' as const, value: '' }], stopProcessing: false,
+        });
+        useFilterStore.getState().addRule(rule('one'));
+        useFilterStore.getState().addRule(rule('two'));
+        await useFilterStore.getState().saveFilters();
+        expect(await activeContent()).toContain(`one-${RUN}`);
+
+        const undo = await useFilterStore.getState().deleteRuleNow('one');
+        let content = await activeContent();
+        expect(content).not.toContain(`one-${RUN}`);
+        expect(content).toContain(`two-${RUN}`);
+
+        expect(await undo!()).toBe(true);
+        content = await activeContent();
+        expect(content.indexOf(`one-${RUN}`)).toBeGreaterThan(-1);
+        expect(content.indexOf(`one-${RUN}`)).toBeLessThan(content.indexOf(`two-${RUN}`));
+      } finally {
+        const after = await getSieveScripts();
+        if (active && original !== null) await updateSieveScript(active.id, original, true);
+        for (const script of after) {
+          if (!before.some((b) => b.id === script.id)) await deleteSieveScript(script.id).catch(() => undefined);
+        }
+        useFilterStore.getState().clearState();
       }
     }, 60_000);
 

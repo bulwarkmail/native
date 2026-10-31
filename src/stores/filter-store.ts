@@ -57,6 +57,14 @@ interface FilterStore {
   addRule: (rule: FilterRule) => void;
   updateRule: (ruleId: string, updates: Partial<FilterRule>) => void;
   deleteRule: (ruleId: string) => void;
+  /**
+   * Delete a rule and save at once, as the webmail does with an Undo (R3).
+   * Resolves to the undo, or null when there is no such rule; throws, with
+   * the rules put back, when the save fails. The undo puts the rules back as
+   * they were and saves again; it resolves false when there is nothing to
+   * undo any more (the rule is back, or another account's filters show).
+   */
+  deleteRuleNow: (ruleId: string) => Promise<(() => Promise<boolean>) | null>;
   reorderRules: (ruleIds: string[]) => void;
   toggleRule: (ruleId: string) => void;
   setRawScript: (content: string) => void;
@@ -236,6 +244,31 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
         return r.origin === 'external' || r.origin === 'opaque';
       }),
     }));
+  },
+
+  deleteRuleNow: async (ruleId) => {
+    const before = get().rules;
+    const account = get().selectedAccountId;
+    if (!before.some((r) => r.id === ruleId && r.origin !== 'external' && r.origin !== 'opaque')) return null;
+    get().deleteRule(ruleId);
+    try {
+      await get().saveFilters();
+    } catch (error) {
+      set({ rules: before });
+      throw error;
+    }
+    return async () => {
+      if (get().selectedAccountId !== account || get().rules.some((r) => r.id === ruleId)) return false;
+      const current = get().rules;
+      set({ rules: before });
+      try {
+        await get().saveFilters();
+      } catch (error) {
+        set({ rules: current });
+        throw error;
+      }
+      return true;
+    };
   },
 
   reorderRules: (ruleIds) => {
