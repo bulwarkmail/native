@@ -26,7 +26,7 @@ import {
   getUiFontFamily,
   setUiFontFamily,
   withFontFamily,
-  wrapModuleDefaults,
+  wrapNamedExports,
   wrapWithReadingFont,
 } from '../reading-font-text';
 import { APP_FONTS, mergeWithDefaults } from '../../stores/settings-store';
@@ -191,15 +191,48 @@ describe('the reading font on the app text', () => {
     setUiFontFamily(null);
   });
 
-  it('wraps each module default once and leaves non-functions alone', () => {
-    const text = { default: () => null };
-    const memo = { default: { $$typeof: Symbol.for('react.memo') } };
-    const original = text.default;
-    expect(wrapModuleDefaults([text, memo])).toBe(1);
-    expect(text.default).not.toBe(original);
-    const wrapped = text.default;
-    expect(wrapModuleDefaults([text])).toBe(0);
-    expect(text.default).toBe(wrapped);
-    expect(memo.default).toEqual({ $$typeof: Symbol.for('react.memo') });
+  // The shapes in a release bundle (expo export:embed --dev false): the Text
+  // module's default export is a getter without a setter, and react-native's
+  // index exposes Text through a configurable lazy getter that reads it.
+  function releaseModules() {
+    const seen: unknown[] = [];
+    const TextImpl = (props: Record<string, unknown>) => { seen.push(props); return null; };
+    const textModule = {};
+    Object.defineProperty(textModule, '__esModule', { value: true });
+    Object.defineProperty(textModule, 'default', { enumerable: true, get: () => TextImpl });
+    const reactNative = {
+      get Text() { return (textModule as { default: typeof TextImpl }).default; },
+      get TextInput() { return { $$typeof: Symbol.for('react.forward_ref') }; },
+    };
+    return { seen, TextImpl, textModule, reactNative };
+  }
+
+  it('cannot replace the Text module default of a release bundle', () => {
+    const { TextImpl, textModule } = releaseModules();
+    // What the app used to do: the assignment fails and the plain Text stays.
+    expect(() => { (textModule as { default: unknown }).default = () => null; }).toThrow(TypeError);
+    expect((textModule as { default: unknown }).default).toBe(TextImpl);
+  });
+
+  it('wraps Text on react-native’s exports, which app code reads at render time', () => {
+    const { seen, TextImpl, reactNative } = releaseModules();
+    expect(wrapNamedExports(reactNative, ['Text', 'TextInput'])).toBe(1);
+    const Text = reactNative.Text as unknown as (props: Record<string, unknown>) => unknown;
+    expect(Text).not.toBe(TextImpl);
+    setUiFontFamily('OpenDyslexic');
+    Text({ style: { color: 'red' }, children: 'Inbox' });
+    expect(seen.pop()).toEqual({ style: [{ fontFamily: 'OpenDyslexic' }, { color: 'red' }], children: 'Inbox' });
+    setUiFontFamily(null);
+    // Once only; a forwardRef object is left alone.
+    expect(wrapNamedExports(reactNative, ['Text', 'TextInput'])).toBe(0);
+    expect(reactNative.Text).toBe(Text);
+    expect(reactNative.TextInput).toEqual({ $$typeof: Symbol.for('react.forward_ref') });
+  });
+
+  it('is what the startup install wraps, before the app loads', () => {
+    const install = readFileSync(join(__dirname, '..', 'reading-font-install.ts'), 'utf8');
+    expect(install).toMatch(/wrapNamedExports\(require\('react-native'\), \['Text', 'TextInput'\]\)/);
+    const entry = readFileSync(join(__dirname, '..', '..', '..', 'index.ts'), 'utf8');
+    expect(entry.match(/^import .*$/m)?.[0]).toBe("import './src/theme/reading-font-install';");
   });
 });
