@@ -55,7 +55,7 @@ Findings:
   - What RN does: createCalendar returns `created` alone (src/api/calendar.ts:1269) and the store inserts it (src/stores/calendar-store.ts:1415-1423), so the calendar shows nameless and colourless until the next fetch.
   - Fix hint: `{ ...props, ...created }`, as createEvent does. Live test in live-stalwart-calendar.
 
-- [ ] **iOS Maestro OAuth flows have no step for the consent page** — `P2` — `test`
+- [x] **iOS Maestro OAuth flows have no step for the consent page** — `P2` — `test` — fixed in 3769b24b
   - What Stalwart does: on 1.0.1 the consent page comes after Sign in, once per client grant ("Allow"/"Deny", login.html:462-463), for every client that isn't a Stalwart-installed Application, `bulwark-mobile` included.
   - What RN does: .maestro/subflows/stalwart-login-page.yaml types and taps Sign in, then inbox.yaml waits for the tab bar. The app doesn't depend on the order (oauth-native.ts never sends `prompt=consent`). The iOS e2e server (`vars.E2E_SERVER`) is the 0.16 server, so CI isn't affected today.
   - Fix hint: optional `runFlow when visible "Allow"` tap at the end of the subflow.
