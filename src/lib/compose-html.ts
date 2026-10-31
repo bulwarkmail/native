@@ -88,6 +88,12 @@ export interface HtmlToPlainTextOptions {
    * quote. Use for the text/plain part of a sent message.
    */
   mailMarkup?: boolean;
+  /**
+   * Write an image as this text ("[Image: a red bicycle]"), from its alt
+   * text. Images without alt text, and decorative ones (alt=""), are left
+   * out. Without it, images are left out.
+   */
+  imageAlt?: (alt: string) => string;
 }
 
 // Private-use characters that stand in for converted quotes until the end.
@@ -105,6 +111,7 @@ const INNERMOST_BLOCKQUOTE_RE = /<blockquote\b[^>]*>((?:(?!<blockquote\b)[\s\S])
  */
 export function htmlToPlainText(html: string, options: HtmlToPlainTextOptions = {}): string {
   if (!html) return '';
+  if (options.imageAlt) html = writeImageAlt(html, options.imageAlt);
   if (!options.mailMarkup) return blocksToPlainText(html, false);
   // Quotes from the innermost out: each becomes its text with "> " in front
   // of every line, so a quote in a quote reads "> > ".
@@ -119,6 +126,20 @@ export function htmlToPlainText(html: string, options: HtmlToPlainTextOptions = 
     s = s.slice(0, m.index) + token + s.slice(m.index + m[0].length);
   }
   return expand(blocksToPlainText(s, true));
+}
+
+/** Each described `<img>` replaced by its text, escaped as HTML text. */
+function writeImageAlt(html: string, imageAlt: (alt: string) => string): string {
+  // Quoted attribute values may hold a raw `>`.
+  return html.replace(/<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, (tag) => {
+    const m = tag.match(/\salt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const alt = (m?.[2] ?? m?.[3] ?? m?.[4] ?? '')
+      .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!alt) return '';
+    return imageAlt(alt).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  });
 }
 
 function blocksToPlainText(html: string, mailMarkup: boolean): string {

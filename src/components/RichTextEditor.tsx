@@ -54,7 +54,10 @@ export interface RichTextEditorHandle {
   exec(command: RichTextCommand): void;
   insertLink(url: string, label?: string): void;
   unsetLink(): void;
-  insertImage(src: string, cid?: string, alt?: string): void;
+  /** `alt` null or left out: no alt attribute (not described yet). */
+  insertImage(src: string, cid?: string, alt?: string | null): void;
+  /** Describe the inline image with this cid; "" marks it decorative. */
+  setImageAlt(cid: string, alt: string): void;
   /** Insert an HTML fragment at the caret (template bodies, tables). */
   insertHtml(html: string): void;
   setHtml(html: string): void;
@@ -178,7 +181,10 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       call(`window.__rne && window.__rne.unsetLink()`);
     },
     insertImage: (src, cid, alt) => {
-      call(`window.__rne && window.__rne.insertImage(${JSON.stringify(src)}, ${JSON.stringify(cid ?? '')}, ${JSON.stringify(alt ?? '')})`);
+      call(`window.__rne && window.__rne.insertImage(${JSON.stringify(src)}, ${JSON.stringify(cid ?? '')}, ${JSON.stringify(alt ?? null)})`);
+    },
+    setImageAlt: (cid, alt) => {
+      call(`window.__rne && window.__rne.setImageAlt(${JSON.stringify(cid)}, ${JSON.stringify(alt)})`);
     },
     insertHtml: (html) => {
       call(`window.__rne && window.__rne.insertHtml(${JSON.stringify(html)})`);

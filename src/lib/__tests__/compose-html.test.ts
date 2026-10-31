@@ -125,6 +125,15 @@ describe('htmlToPlainText with mail markup (the sent text part)', () => {
   it('keeps the signature delimiter', () => {
     expect(mail('<p>Hi</p><p data-signature-block="separator">-- </p><p>Jane</p>')).toBe('Hi\n\n-- \n\nJane');
   });
+
+  it('writes a described image as its description and leaves decorative and undescribed ones out', () => {
+    const withAlt = (html: string) => htmlToPlainText(html, { mailMarkup: true, imageAlt: (alt) => `[Image: ${alt}]` });
+    expect(withAlt('<p>Look <img src="cid:a" alt="a red &amp; blue bike"> here</p>')).toBe('Look [Image: a red & blue bike] here');
+    expect(withAlt('<p>A<img src="cid:b" alt="">B<img src="cid:c">C</p>')).toBe('ABC');
+    expect(withAlt('<p><img alt="x <y>" src="cid:d"></p>')).toBe('[Image: x <y>]');
+    // Without the option images stay out, as before.
+    expect(mail('<p>A<img src="cid:a" alt="bike">B</p>')).toBe('AB');
+  });
 });
 
 describe('rewriteInlineImages', () => {

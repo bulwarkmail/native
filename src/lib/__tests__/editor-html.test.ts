@@ -435,3 +435,65 @@ describe('collapsed reply quote (webmail #1405)', () => {
     expect(source).toMatch(/collapseQuote=\{collapseReplyQuote && editorSeedHtml === initialBodyHtml\}/);
   });
 });
+
+describe('image descriptions (webmail 53cb49d3c)', () => {
+  function boot() {
+    const inserted: string[] = [];
+    const images = [
+      { attrs: { 'data-cid': 'a@x' } as Record<string, string> },
+      { attrs: { 'data-cid': 'b@x' } as Record<string, string> },
+    ].map((img) => ({
+      ...img,
+      getAttribute(n: string) { return this.attrs[n] ?? null; },
+      setAttribute(n: string, v: string) { this.attrs[n] = v; },
+    }));
+    const editor = {
+      innerHTML: '',
+      get textContent() { return 'x'; },
+      scrollHeight: 100,
+      querySelector: () => null,
+      setAttribute: () => undefined,
+      focus: () => undefined,
+      addEventListener: () => undefined,
+      getElementsByTagName: () => images,
+    };
+    const document = {
+      activeElement: editor as unknown,
+      getElementById: () => editor,
+      addEventListener: () => undefined,
+      queryCommandState: () => false,
+      execCommand: (_cmd: string, _ui: boolean, html: string) => { inserted.push(html); return true; },
+    };
+    const window: Record<string, unknown> = {
+      ReactNativeWebView: { postMessage: () => undefined },
+      addEventListener: () => undefined,
+      getSelection: () => null,
+    };
+    const script = extractScript(buildEditorHtml({ initialHtml: '<p><br></p>', placeholder: '', c: LIGHT_COLORS }));
+    new Function('window', 'document', script)(window, document);
+    return { rne: window.__rne as Record<string, (...args: unknown[]) => void>, inserted, images };
+  }
+
+  it('inserts an image without alt text until it is described, never with the file name', () => {
+    const page = boot();
+    page.rne.insertImage('data:image/png;base64,AA', 'a@x', null);
+    expect(page.inserted[0]).toBe('<img src="data:image/png;base64,AA" data-cid="a@x" />');
+    page.rne.insertImage('data:image/png;base64,AA', 'b@x', 'A "red" bike');
+    expect(page.inserted[1]).toBe('<img src="data:image/png;base64,AA" alt="A &quot;red&quot; bike" data-cid="b@x" />');
+  });
+
+  it('describes the inline image with that cid, or marks it decorative', () => {
+    const page = boot();
+    page.rne.setImageAlt('b@x', 'a red bike');
+    expect(page.images.map((i) => i.attrs.alt)).toEqual([undefined, 'a red bike']);
+    page.rne.setImageAlt('a@x', '');
+    expect(page.images[0].attrs.alt).toBe('');
+  });
+
+  it('asks for a description when the composer inserts an image, and writes it into the text part', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../screens/ComposeScreen.tsx'), 'utf8');
+    expect(source).toMatch(/editorRef\.current\?\.insertImage\(dataUrl, cid, null\);\s+setAltQueue\(\(q\) => \[\.\.\.q, \{ cid, src: dataUrl \}\]\);/);
+    expect(source).toMatch(/editorRef\.current\?\.setImageAlt\(altTarget\.cid, alt\);/);
+    expect(source).toMatch(/imageAlt: \(alt\) => t\('email_composer\.image_alt\.plain_text', '\[Image: \{alt\}\]', \{ alt \}\)/);
+  });
+});

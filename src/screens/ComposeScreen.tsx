@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Platform, ActivityIndicator, Alert, Modal, useWindowDimensions,
+  Keyboard, Platform, ActivityIndicator, Alert, Modal, useWindowDimensions, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -1336,7 +1336,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       htmlBody = `<div>${safeHtml}</div>`;
       // The text part marks the quote with "> ", numbers ordered lists and
       // keeps the "-- " signature delimiter, as plain-text mail does.
-      textBody = htmlToPlainText(safeHtml, { mailMarkup: true });
+      textBody = htmlToPlainText(safeHtml, {
+        mailMarkup: true,
+        imageAlt: (alt) => t('email_composer.image_alt.plain_text', '[Image: {alt}]', { alt }),
+      });
     }
 
     const inlineFromBody = usedCids
@@ -1392,7 +1395,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       requestReadReceipt,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, t]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -1937,7 +1940,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
         Alert.alert(t('email_composer.attach', 'Attach'), t('email_composer.image_load_failed', 'Could not load image'));
         continue;
       }
-      editorRef.current?.insertImage(dataUrl, cid, fallbackName);
+      // Not the file name as alt text: the user is asked what it shows.
+      editorRef.current?.insertImage(dataUrl, cid, null);
+      setAltQueue((q) => [...q, { cid, src: dataUrl }]);
       const entry = addUploadEntry({
         name: fallbackName,
         type: mime,
@@ -2001,6 +2006,27 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setPlainBody(htmlComposeBodyToPlainText(html, signatureIdentity, { separator }));
     setAttachments((prev) => (prev.some((a) => a.inline) ? prev.map((a) => (a.inline ? { ...a, inline: false } : a)) : prev));
     setPlainTextMode(true);
+  };
+
+  // ── Image description (Modal) ────────────────────────────────────────
+  // Asked right after an image goes in, one image at a time (webmail
+  // image-alt-dialog, 53cb49d3c). "Decorative" writes alt="" so screen
+  // readers skip it; Skip leaves it undescribed.
+  const [altQueue, setAltQueue] = React.useState<Array<{ cid: string; src: string }>>([]);
+  const altTarget = altQueue[0] ?? null;
+  const [altText, setAltText] = React.useState('');
+  const [altDecorative, setAltDecorative] = React.useState(false);
+  React.useEffect(() => {
+    setAltText('');
+    setAltDecorative(false);
+  }, [altTarget?.cid]);
+  const closeAltPrompt = () => setAltQueue((q) => q.slice(1));
+  const saveAltPrompt = () => {
+    if (!altTarget) return;
+    const alt = altDecorative ? '' : altText.trim();
+    if (!altDecorative && !alt) return;
+    editorRef.current?.setImageAlt(altTarget.cid, alt);
+    closeAltPrompt();
   };
 
   // ── Link prompt (Modal) ──────────────────────────────────────────────
@@ -3029,6 +3055,57 @@ export default function ComposeScreen({ route, navigation }: Props) {
         </View>
       </Modal>
 
+      <Modal supportedOrientations={MODAL_ORIENTATIONS}
+        visible={!!altTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAltPrompt}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('email_composer.image_alt.title', 'Describe this image')}</Text>
+            <Text style={styles.modalLabel}>
+              {t('email_composer.image_alt.hint', "Say what the image shows for people who can't see it.")}
+            </Text>
+            {!!altTarget && (
+              <Image source={{ uri: altTarget.src }} style={styles.altPreview} resizeMode="contain" accessible={false} />
+            )}
+            <TextInput
+              style={styles.modalInput}
+              value={altDecorative ? '' : altText}
+              onChangeText={setAltText}
+              editable={!altDecorative}
+              placeholder={t('email_composer.image_alt.label', 'Image description')}
+              accessibilityLabel={t('email_composer.image_alt.label', 'Image description')}
+              placeholderTextColor={c.textMuted}
+              autoFocus
+              onSubmitEditing={saveAltPrompt}
+            />
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('email_composer.image_alt.decorative', 'Decorative image (no description)')}</Text>
+              <ToggleSwitch
+                value={altDecorative}
+                onValueChange={setAltDecorative}
+                accessibilityLabel={t('email_composer.image_alt.decorative', 'Decorative image (no description)')}
+              />
+            </View>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancel} onPress={closeAltPrompt} hitSlop={4}>
+                <Text style={styles.modalCancelText}>{t('email_composer.image_alt.skip', 'Skip')}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirm, !altDecorative && !altText.trim() && styles.sendButtonDisabled]}
+                onPress={saveAltPrompt}
+                disabled={!altDecorative && !altText.trim()}
+                hitSlop={4}
+              >
+                <Text style={styles.modalConfirmText}>{t('common.save', 'Save')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Text / background colour palette */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={!!colorTarget} transparent animationType="fade" onRequestClose={() => setColorTarget(null)}>
         <Pressable accessible={false} style={styles.modalBackdrop} onPress={() => setColorTarget(null)}>
@@ -3605,6 +3682,7 @@ function makeStyles(c: ThemePalette) {
   },
   modalConfirmText: { ...typography.bodyMedium, color: c.primaryForeground },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  altPreview: { width: '100%', height: 96, borderRadius: radius.sm },
   switchLabel: { ...typography.body, color: c.text },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tagChip: {

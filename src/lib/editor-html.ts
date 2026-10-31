@@ -523,9 +523,11 @@ export function buildEditorHtml(opts: {
     insertImage: function (src, cid, alt) {
       editor.focus();
       var safeSrc = (src || '').replace(/"/g, '&quot;');
-      var safeAlt = (alt || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      // No alt attribute at all until the user describes the image: alt=""
+      // would mark it decorative, and the file name tells nobody anything.
+      var safeAlt = typeof alt === 'string' ? alt.replace(/&/g, '&amp;').replace(/"/g, '&quot;') : null;
       var safeCid = cid ? cid.replace(/"/g, '&quot;') : '';
-      var html = '<img src="' + safeSrc + '" alt="' + safeAlt + '"' +
+      var html = '<img src="' + safeSrc + '"' + (safeAlt === null ? '' : ' alt="' + safeAlt + '"') +
         (safeCid ? ' data-cid="' + safeCid + '"' : '') + ' />';
       try { document.execCommand('insertHTML', false, html); } catch (e) {}
       reportChange();
@@ -539,6 +541,14 @@ export function buildEditorHtml(opts: {
     },
     focus: function () { editor.focus(); },
     focusEnd: function () { focusEnd(editor); },
+    // The description of the inline image with this cid; "" is decorative.
+    setImageAlt: function (cid, alt) {
+      var images = editor.getElementsByTagName('img');
+      for (var i = 0; i < images.length; i++) {
+        if (images[i].getAttribute('data-cid') === cid) images[i].setAttribute('alt', alt);
+      }
+      reportChange();
+    },
   };
 
   reportHeight();
