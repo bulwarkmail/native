@@ -323,6 +323,12 @@ function parseResinfos(header: string): ResInfo[] {
     .filter((info): info is ResInfo => info !== null);
 }
 
+/** The domain of a DKIM identity (`header.i`): `@domain` or `user@domain`. */
+function identityDomain(identity: string | undefined): string | undefined {
+  const at = identity?.lastIndexOf('@') ?? -1;
+  return identity && at >= 0 && at < identity.length - 1 ? identity.slice(at + 1) : undefined;
+}
+
 const DMARC_SEVERITY: Record<string, number> = {
   fail: 3,
   permerror: 2,
@@ -394,7 +400,9 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     .filter((info) => info.method === 'dkim')
     .map((info) => ({
       result: info.result as DkimResult,
-      domain: info.props['header.d'],
+      // Some receivers name the signature only by its identity (`header.i`,
+      // `@domain` or `user@domain`, RFC 8601 2.7.1); its domain is the signer's.
+      domain: info.props['header.d'] ?? identityDomain(info.props['header.i']),
       selector: info.props['header.s'],
     }));
   if (dkimResults.length > 0) {
