@@ -320,6 +320,49 @@ describe('loading a conversation', () => {
     expect(threadGet).toHaveBeenCalledWith(['t1'], 'group');
   });
 
+  it('keeps a read mark made while the conversation was loading', async () => {
+    fullGet.mockResolvedValueOnce(fullResponse([full('m1')], 's1'));
+    await loadDetail('m1');
+    let answer!: (v: unknown) => void;
+    threadGet.mockReturnValueOnce(new Promise((r) => { answer = r; }));
+    const loading = loadThread('t-m1');
+    await flush();
+    // Marked read on open, while Thread/get is out.
+    patchDetail('m1', undefined, { keywords: { $seen: true } });
+    answer(threadResponse('t-m1', [{ id: 'm1', threadId: 't-m1', keywords: {}, mailboxIds: { inbox: true } }], 's2'));
+    await loading;
+
+    expect(peekDetail('m1')?.keywords).toEqual({ $seen: true });
+    expect(peekThread('t-m1')?.headers.get('m1')?.keywords).toEqual({ $seen: true });
+  });
+
+  it('keeps a read mark made while the message itself was loading', async () => {
+    let answer!: (v: unknown) => void;
+    fullGet.mockReturnValueOnce(new Promise((r) => { answer = r; }));
+    threadGet.mockResolvedValueOnce(threadResponse('t-m1', [{ id: 'm1', threadId: 't-m1', keywords: {}, mailboxIds: { inbox: true } }]));
+    await loadThread('t-m1');
+    const loading = loadDetail('m1');
+    await flush();
+    patchDetail('m1', undefined, { keywords: { $seen: true } });
+    answer(fullResponse([full('m1')], 's2'));
+
+    expect((await loading).keywords).toEqual({ $seen: true });
+    expect(peekDetail('m1')?.keywords).toEqual({ $seen: true });
+  });
+
+  it('takes the server keywords of a conversation read after the local change', async () => {
+    fullGet.mockResolvedValueOnce(fullResponse([full('m1')], 's1'));
+    await loadDetail('m1');
+    patchDetail('m1', undefined, { keywords: { $seen: true } });
+    threadGet.mockResolvedValueOnce(
+      threadResponse('t-m1', [{ id: 'm1', threadId: 't-m1', keywords: { $seen: true, $flagged: true }, mailboxIds: { inbox: true } }], 's2'),
+    );
+
+    await loadThread('t-m1');
+
+    expect(peekDetail('m1')?.keywords).toEqual({ $seen: true, $flagged: true });
+  });
+
   it('applies local keyword changes to the conversation headers too', async () => {
     threadGet.mockResolvedValue(threadResponse('t1', headers(['m1'])));
     await loadThread('t1');
