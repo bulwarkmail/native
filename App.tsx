@@ -708,8 +708,10 @@ export default function App() {
   // content, since hydration hands back an equal but new object; the value
   // seen first after hydration is the baseline, not a change.
   const notificationMutes = useSettingsStore((s) => s.notificationMutes);
+  // The Inbox-only switch changes the same filter (webmail #983).
+  const pushInboxOnly = useSettingsStore((s) => s.pushNotifyInboxOnly);
   const settingsHydrated = useSettingsStore((s) => s.hydrated);
-  const mutesKey = JSON.stringify(notificationMutes);
+  const mutesKey = JSON.stringify([notificationMutes, pushInboxOnly]);
   const lastMutesKey = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!settingsHydrated) return;

@@ -234,6 +234,15 @@ live('live Stalwart push subscriptions', () => {
     }
   }, 60_000);
 
+  it('takes the Inbox-only filter and echoes it so it compares equal (bulwarkmail/webmail#983)', async () => {
+    const me = client.accountId;
+    const emailPush = await buildEmailPushConfig(undefined, true);
+    expect(emailPush[me].filter).toEqual({ operator: 'AND', conditions: [{ notKeyword: '$junk' }, { inMailbox: inbox }] });
+    const { id } = await create('inbox-only', { emailPush });
+    const listed = (await listPushSubscriptions()).find((s) => s.id === id);
+    expect(sameEmailPush(listed?.emailPush, emailPush), JSON.stringify(listed?.emailPush)).toBe(true);
+  }, 30_000);
+
   it('refuses push addresses that are not public: http and private IPs everywhere, local names on 1.0', async () => {
     for (const url of ['http://notifications.relay.bulwarkmail.org/api/push/jmap/x', 'https://192.168.1.20/api/push/jmap/x', 'https://10.0.0.5:8443/api/push/jmap/x']) {
       const err = await refusal(create('private-ip', { url }));

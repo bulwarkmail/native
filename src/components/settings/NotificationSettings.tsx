@@ -94,11 +94,14 @@ export function NotificationSettings() {
   try { ownJmapAccountId = jmapClient.accountId; } catch { ownJmapAccountId = null; }
   const canMuteAccount = ownJmapAccountId !== null && serverSupportsEmailPush();
   const accountMuted = ownJmapAccountId !== null && isAccountMuted(notificationMutes, ownJmapAccountId);
+  // The Inbox-only filter needs the server's emailPush filter too (webmail #983).
+  const inboxOnly = useSettingsStore((s) => s.pushNotifyInboxOnly);
   const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const appIconBadge = useSettingsStore((s) => s.appIconUnreadBadge);
 
   const supported = isPushSupported();
+  const inboxOnlyAvailable = supported && !!client && serverSupportsEmailPush();
   const upSupported = isUnifiedPushSupported();
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_BASE_URL);
   const [transport, setTransport] = useState<PushTransport>('fcm');
@@ -557,6 +560,18 @@ export function NotificationSettings() {
         >
           <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
         </SettingItem>
+        {inboxOnlyAvailable && (
+          <SettingItem
+            label={t('settings.notifications.email.inbox_only', 'Inbox only')}
+            description={t('settings.notifications.email.inbox_only_desc', 'Only notify for mail that lands in the Inbox; skip mail a filter files into another folder')}
+          >
+            <ToggleSwitch
+              checked={inboxOnly}
+              onChange={(v) => update('pushNotifyInboxOnly', v)}
+              accessibilityLabel={t('settings.notifications.email.inbox_only', 'Inbox only')}
+            />
+          </SettingItem>
+        )}
         {canMuteAccount && (
           <SettingItem
             label={t('settings.notifications.email.mute_account', 'Mute this account')}

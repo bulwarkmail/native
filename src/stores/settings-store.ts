@@ -317,6 +317,8 @@ export interface PersistedSettings {
   // until closed); -1 = automatic: 5 s, or 20 s while a screen reader is
   // on (lib/toast-duration).
   toastDuration: number;
+  // Push only for mail that lands in the Inbox (webmail #983, same key).
+  pushNotifyInboxOnly: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -474,6 +476,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
   // platform:
   toastDuration: -1,
+  pushNotifyInboxOnly: false,
 };
 
 export interface SettingsState extends PersistedSettings {
