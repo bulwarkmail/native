@@ -150,7 +150,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: textMuted is `#94a3b8` on white in the light theme (2.56:1) and `#737373` in dark (4.18:1 on the background, 3.19:1 on surfaces) (`src/theme/tokens.ts:236`, `:140`); used in 456 places, also as placeholder colour.
   - Fix hint: adjust both, add a contrast test over tokens.ts and builtin-themes.ts.
 
-- [ ] **The calendar grid reads poorly with a screen reader** — `P2` — `bug`
+- [x] **The calendar grid reads poorly with a screen reader** — `P2` — `bug` — fixed in 294023e2
   - What WEB does: events sit inside their day cell and day cells have full date names (0026abba4, 19e0acde9).
   - What RN does: month day cells read only the number and the dots are silent (`src/components/calendar/MonthView.tsx:199-240`); event blocks have no role, label or date (`src/components/calendar/EventBlock.tsx:72-104`).
   - Fix hint: label day cells with date and event count; event blocks get a button role and a label with title, date and time.
@@ -207,17 +207,17 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Calendar
 
-- [ ] **A cancellation mail can't remove the meeting from the calendar (#1425)** — `P2` — `missing`
+- [x] **A cancellation mail can't remove the meeting from the calendar (#1425)** — `P2` — `missing` — fixed in a19afe9b
   - What WEB does: offers "Remove from calendar" for a trusted cancellation from the organizer, for the series or one occurrence, and says when it's outdated (`components/email/calendar-invitation-banner.tsx:627-635`, `:831`, `:1229`, `lib/calendar-cancellation.ts:49`; 357b6af3c).
   - What RN does: only "This event was cancelled" (`src/components/email/CalendarInvitationBanner.tsx:201`, `:270-272`); it already looks up the server copy (`:122`).
   - Fix hint: port planCancellationRemoval behind the banner's trust check.
 
-- [ ] **The event and task editors throw away typed changes on Close or Back** — `P2` — `bug`
+- [x] **The event and task editors throw away typed changes on Close or Back** — `P2` — `bug` — fixed in 10e9f81d
   - What WEB does: asks before closing with unsaved changes (`components/calendar/event-modal.tsx:530-547`, `components/calendar/task-modal.tsx`; 13f9f27c4).
   - What RN does: close and Back call onClose (`src/components/calendar/EventModal.tsx:495`, `:500`); the task editor resets on the next open (`src/components/calendar/TasksSheet.tsx:135-146`, `:238-253`).
   - Fix hint: compare with the initial form and ask, as ContactFormScreen does (`src/screens/ContactFormScreen.tsx:639`).
 
-- [ ] **A shared calendar's server colour is replaced by a random one (#1414)** — `P3` — `bug`
+- [x] **A shared calendar's server colour is replaced by a random one (#1414)** — `P3` — `bug` — fixed in 64eb97f4
   - What WEB does: auto-colours only shared calendars with neither a server colour nor an override (`lib/shared-calendar-colors.ts:79`; 2dbe5d024).
   - What RN does: colours every shared calendar without an override (`src/screens/CalendarScreen.tsx:315-333`).
   - Fix hint: skip calendars with `cal.color`.

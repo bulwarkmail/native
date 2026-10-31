@@ -20,6 +20,7 @@ import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
   buildEventDayIndex,
   dayKey,
@@ -439,6 +440,7 @@ function TimeGridScrollViewInner({
                 )}
                 continuesBefore={segment.continuesBefore}
                 continuesAfter={segment.continuesAfter}
+                accessibilityLabel={eventAccessibilityLabel(segment.event, { t, locale, timeFormat, calendars, currentUserEmails })}
                 onPress={() => onSelectEvent?.(segment.event)}
                 style={{
                   left: segment.startIndex * colWidth + 1,
@@ -592,7 +594,7 @@ const DayColumn = React.memo(function DayColumn({
   /** Hour of the "New event" block in this column, or -1. */
   draftHour: number;
 }) {
-  const { t } = useCalendarLocale();
+  const { locale, t } = useCalendarLocale();
   const handleLongPress = React.useCallback(
     (e: GestureResponderEvent) => {
       onLongPressAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
@@ -630,6 +632,7 @@ const DayColumn = React.memo(function DayColumn({
             ringColor={colors.background}
             continuesBefore={continuesBefore}
             continuesAfter={continuesAfter}
+            accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
             onPress={() => onSelectEvent?.(event)}
             style={{ top, height, left: `${column * widthPct}%`, width: `${widthPct}%` }}
           />

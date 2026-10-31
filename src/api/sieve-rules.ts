@@ -33,6 +33,16 @@ export class FiltersLoginChangedError extends Error {
   }
 }
 
+/** The account's filters as the server has them now (its active script, parsed). */
+export async function readAccountFilters(accountId: string = getSieveAccountId()): Promise<ParseResult> {
+  const all = await getSieveScripts(accountId);
+  const scripts = all.filter((s) => s.name !== VACATION_SCRIPT_NAME);
+  const script = scripts.find((s) => s.isActive) || scripts[0] || null;
+  return script
+    ? parseScript(await getSieveScriptContent(script.blobId, accountId))
+    : { rules: [], isOpaque: false, externalRequires: [] };
+}
+
 /**
  * Read the account's script from the server, let `modify` change its rules,
  * and write the result back as the active script, keeping the vacation

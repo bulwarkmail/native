@@ -27,6 +27,9 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
 import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
+import { customColorGrid, normalizeHexColor } from '../../lib/calendar-custom-color';
+
+const CUSTOM_COLOR_GRID = customColorGrid();
 import Button from '../Button';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
@@ -150,6 +153,9 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
   const [name, setName] = React.useState('');
   const [color, setColor] = React.useState<string>(CALENDAR_COLOR_PALETTE[0]);
   const [description, setDescription] = React.useState('');
+  // The colour as typed in the hex field; a pick from the swatches fills it.
+  const [hexInput, setHexInput] = React.useState('');
+  const [moreColors, setMoreColors] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   // The calendar's default reminders (#1209): the owner's to set, for an
@@ -165,7 +171,10 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
   React.useEffect(() => {
     if (!visible) return;
     setName(calendar?.name ?? '');
-    setColor(calendar ? getCalendarColor(calendar) : CALENDAR_COLOR_PALETTE[0]);
+    const initialColor = calendar ? getCalendarColor(calendar) : CALENDAR_COLOR_PALETTE[0];
+    setColor(initialColor);
+    setHexInput(initialColor);
+    setMoreColors(false);
     setDescription(calendar?.description ?? '');
     setTimedReminders(initialTimed);
     setAllDayReminders(initialAllDay);
@@ -173,9 +182,15 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
     setSaving(false);
   }, [visible, calendar, initialTimed, initialAllDay]);
 
+  const pickColor = (col: string) => {
+    setColor(col);
+    setHexInput(col);
+  };
+  const hexInvalid = normalizeHexColor(hexInput) === null;
+
   const handleSave = async () => {
     const trimmed = name.trim();
-    if (!trimmed || saving) return;
+    if (!trimmed || saving || hexInvalid) return;
     setSaving(true);
     setError(null);
     try {
@@ -224,7 +239,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                     return (
                       <Pressable
                         key={col}
-                        onPress={() => setColor(col)}
+                        onPress={() => pickColor(col)}
                         style={[styles.swatch, { backgroundColor: col }, active && styles.swatchActive]}
                         accessibilityRole="radio"
                         accessibilityLabel={calendarColorName(col, t)}
@@ -235,6 +250,62 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                     );
                   })}
                 </View>
+                <View style={styles.hexRow}>
+                  <View style={[styles.hexPreview, { backgroundColor: hexInvalid ? 'transparent' : color }]} />
+                  <TextInput
+                    value={hexInput}
+                    onChangeText={(v) => {
+                      setHexInput(v);
+                      const hex = normalizeHexColor(v);
+                      if (hex) setColor(hex);
+                    }}
+                    placeholder="#3b82f6"
+                    placeholderTextColor={c.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={7}
+                    accessibilityLabel={t('calendar.management.custom_color', 'Custom color (hex)')}
+                    style={[styles.input, styles.hexInput, hexInvalid && styles.inputInvalid]}
+                  />
+                  <Pressable
+                    onPress={() => setMoreColors((v) => !v)}
+                    style={styles.moreColors}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: moreColors }}
+                  >
+                    <Text style={styles.moreColorsText}>
+                      {moreColors
+                        ? t('calendar.management.fewer_colors', 'Fewer colors')
+                        : t('calendar.management.more_colors', 'More colors')}
+                    </Text>
+                  </Pressable>
+                </View>
+                {hexInvalid && (
+                  <Text style={styles.error}>
+                    {t('calendar.management.color_invalid', 'Enter a color as # and six hex digits, such as #3b82f6.')}
+                  </Text>
+                )}
+                {moreColors && (
+                  <View style={styles.grid}>
+                    {CUSTOM_COLOR_GRID.map((row, r) => (
+                      <View key={r} style={styles.gridRow}>
+                        {row.map((col) => {
+                          const active = color.toLowerCase() === col;
+                          return (
+                            <Pressable
+                              key={col}
+                              onPress={() => pickColor(col)}
+                              style={[styles.gridSwatch, { backgroundColor: col }, active && styles.swatchActive]}
+                              accessibilityRole="radio"
+                              accessibilityLabel={col}
+                              accessibilityState={{ selected: active }}
+                            />
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </View>
+                )}
                 <Text style={styles.label}>{t('calendar.management.description', 'Description')}</Text>
                 <TextInput
                   value={description}
@@ -282,7 +353,7 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                 <Button
                   size="sm"
                   onPress={() => { void handleSave(); }}
-                  disabled={!name.trim() || saving}
+                  disabled={!name.trim() || saving || hexInvalid}
                   icon={saving ? <ActivityIndicator size="small" color={c.primaryForeground} /> : undefined}
                 >
                   {calendar ? t('common.save', 'Save') : t('common.create', 'Create')}
@@ -336,6 +407,15 @@ function makeStyles(c: ThemePalette) {
       justifyContent: 'center',
     },
     swatchActive: { borderWidth: 2, borderColor: c.text },
+    hexRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+    hexPreview: { width: 28, height: 28, borderRadius: radius.full, borderWidth: 1, borderColor: c.border },
+    hexInput: { flex: 1 },
+    inputInvalid: { borderColor: c.error },
+    moreColors: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+    moreColorsText: { ...typography.captionMedium, color: c.primary },
+    grid: { gap: 4, marginTop: spacing.xs },
+    gridRow: { flexDirection: 'row', gap: 4 },
+    gridSwatch: { flex: 1, aspectRatio: 1, borderRadius: radius.sm, maxWidth: 28 },
     error: { ...typography.caption, color: c.error },
     footer: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md },
     sectionTitle: { ...typography.bodyMedium, color: c.text, marginTop: spacing.md },

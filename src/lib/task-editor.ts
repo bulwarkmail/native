@@ -7,6 +7,7 @@ import {
   getEffectiveTimeZone,
   isValidTimeZone,
 } from './calendar-timezone';
+import { editorFormSnapshot } from './calendar-editor-discard';
 
 export type PriorityLevel = 'none' | 'high' | 'medium' | 'low';
 
@@ -42,6 +43,15 @@ export interface TaskEditorState {
 
 export function emptyTaskEditor(calendarId: string): TaskEditorState {
   return { id: null, title: '', description: '', due: null, withTime: false, priority: 'none', calendarId };
+}
+
+/** Whether the editor holds changes against the task it was opened on (or the empty form). */
+export function taskEditorChanged(baseline: TaskEditorState, current: TaskEditorState): boolean {
+  const key = (e: TaskEditorState) => editorFormSnapshot({
+    id: e.id, title: e.title, description: e.description, due: e.due?.getTime() ?? null,
+    withTime: e.withTime, priority: e.priority, calendarId: e.calendarId,
+  });
+  return key(baseline) !== key(current);
 }
 
 export function taskEditorFromTask(

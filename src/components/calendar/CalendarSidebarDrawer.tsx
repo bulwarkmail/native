@@ -322,8 +322,9 @@ function Section({
         const isSubscription = !!isSubscriptionCalendar?.(cal.id);
         const isOwn = !cal.isShared && !isBirthday && !isSubscription;
         const canSetDefault = !!onSetDefault && isOwn && !cal.isDefault;
-        // Own calendars recolour server-side; shared ones locally (#345).
-        const canRecolor = !!onSetColor && (!!cal.isShared || isOwn);
+        // Own calendars recolour server-side; shared ones and the birthdays
+        // locally (#345).
+        const canRecolor = !!onSetColor && (!!cal.isShared || isOwn || isBirthday);
         const canRename = !!onRename && isOwn;
         const canShare = !!onShare && isOwn && (!cal.myRights || cal.myRights.mayShare !== false);
         const canClear = !!onClear && isOwn && isWritableCalendar(cal);

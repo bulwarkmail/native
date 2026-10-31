@@ -34,10 +34,12 @@ import {
   emptyTaskEditor,
   priorityToLevel,
   submitTaskEditor,
+  taskEditorChanged,
   taskEditorFromTask,
   type PriorityLevel,
   type TaskEditorState,
 } from '../../lib/task-editor';
+import { askBeforeDiscard } from '../../lib/calendar-editor-discard';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { formatCalendarDate } from '../../lib/date-format';
@@ -113,10 +115,13 @@ export function TasksSheet({
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  // Close, Back, a tap beside the sheet and a drag down ask before they drop
+  // a changed task (webmail 13f9f27c4); kept, a dragged sheet comes back.
+  const closeRef = React.useRef<() => void>(onClose);
   const dragHandlers = useSheetDrag({
     slideY,
     closedY: Dimensions.get('window').height,
-    onClose,
+    onClose: React.useCallback(() => closeRef.current(), []),
   });
 
   const writableCalendars = React.useMemo(
@@ -127,6 +132,12 @@ export function TasksSheet({
 
   const [filter, setFilter] = React.useState<TaskFilter>('all');
   const [editor, setEditor] = React.useState<TaskEditorState>(() => emptyTaskEditor(defaultCalendarId));
+  // The task as the editor was opened on it, to tell typed changes.
+  const [baseline, setBaseline] = React.useState<TaskEditorState>(editor);
+  const seedEditor = (state: TaskEditorState) => {
+    setEditor(state);
+    setBaseline(state);
+  };
   const [expanded, setExpanded] = React.useState(false);
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   const [showTimePicker, setShowTimePicker] = React.useState(false);
@@ -136,10 +147,10 @@ export function TasksSheet({
     if (!visible) return;
     const initial = initialTaskId ? tasks.find((task) => task.id === initialTaskId) : undefined;
     if (initial) {
-      setEditor(taskEditorFromTask(initial, defaultCalendarId));
+      seedEditor(taskEditorFromTask(initial, defaultCalendarId));
       setExpanded(true);
     } else {
-      setEditor(emptyTaskEditor(defaultCalendarId));
+      seedEditor(emptyTaskEditor(defaultCalendarId));
       setExpanded(startNew);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,6 +159,7 @@ export function TasksSheet({
   React.useEffect(() => {
     if (visible && !editor.calendarId && defaultCalendarId) {
       setEditor((e) => ({ ...e, calendarId: defaultCalendarId }));
+      setBaseline((b) => (b.calendarId ? b : { ...b, calendarId: defaultCalendarId }));
     }
   }, [visible, editor.calendarId, defaultCalendarId]);
 
@@ -189,9 +201,16 @@ export function TasksSheet({
   }), [tasks]);
 
   const resetEditor = () => {
-    setEditor(emptyTaskEditor(defaultCalendarId));
+    seedEditor(emptyTaskEditor(defaultCalendarId));
     setExpanded(false);
   };
+
+  const dirty = visible && taskEditorChanged(baseline, editor);
+  const springBack = () => {
+    Animated.spring(slideY, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+  };
+  const requestClose = () => askBeforeDiscard(dirty, t, onClose, springBack);
+  closeRef.current = requestClose;
 
   const handleSave = async () => {
     if (!editor.title.trim() || !editor.calendarId || saving) return;
@@ -235,9 +254,9 @@ export function TasksSheet({
   ];
 
   return (
-    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={requestClose}>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
-        <Pressable style={styles.overlayPress} onPress={onClose} />
+        <Pressable style={styles.overlayPress} onPress={requestClose} />
       </Animated.View>
 
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }], ...sheetInsets }]}>
@@ -250,7 +269,7 @@ export function TasksSheet({
               <ListChecks size={20} color={c.text} />
               <Text style={styles.headerTitle}>{t('calendar.tasks.label', 'Tasks')}</Text>
               <Pressable
-                onPress={onClose}
+                onPress={requestClose}
                 style={styles.closeBtn}
                 hitSlop={10}
                 accessibilityRole="button"
@@ -359,7 +378,7 @@ export function TasksSheet({
                 </ScrollView>
               )}
               {editor.id && (
-                <Pressable onPress={resetEditor} style={styles.cancelEdit}>
+                <Pressable onPress={() => askBeforeDiscard(dirty, t, resetEditor)} style={styles.cancelEdit}>
                   <Text style={styles.cancelEditText}>{t('calendar.form.cancel', 'Cancel')}</Text>
                 </Pressable>
               )}
@@ -410,9 +429,11 @@ export function TasksSheet({
                     <Pressable
                       style={styles.taskText}
                       onPress={() => {
-                        if (!onUpdate) return;
-                        setEditor(taskEditorFromTask(task, defaultCalendarId));
-                        setExpanded(true);
+                        if (!onUpdate || editor.id === task.id) return;
+                        askBeforeDiscard(dirty, t, () => {
+                          seedEditor(taskEditorFromTask(task, defaultCalendarId));
+                          setExpanded(true);
+                        });
                       }}
                     >
                       <View style={styles.taskTitleRow}>

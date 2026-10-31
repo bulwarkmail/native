@@ -171,6 +171,29 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
 
     // 1.0 refuses to destroy a book that holds cards without
     // onDestroyRemoveContents (addressBookHasContents).
+    it('deletes a category from its contacts and puts it back on Undo', async () => {
+      const tag = `live-cat-${RUN}`;
+      const one = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Cat One ${RUN}` },
+        keywords: { [tag]: true, keep: true },
+      } as Partial<ContactCard>, bookId);
+      const two = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Cat Two ${RUN}` },
+        keywords: { [tag]: true },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(one.id, two.id);
+      await useContactsStore.getState().fetchContacts();
+
+      const ids = await useContactsStore.getState().removeKeyword(tag);
+      expect(ids.sort()).toEqual([one.id, two.id].sort());
+      expect((await getContact(one.id))?.keywords ?? {}).toEqual({ keep: true });
+      expect((await getContact(two.id))?.keywords?.[tag]).toBeFalsy();
+
+      await useContactsStore.getState().addKeyword(tag, ids);
+      expect((await getContact(one.id))?.keywords).toEqual({ [tag]: true, keep: true });
+      expect((await getContact(two.id))?.keywords).toEqual({ [tag]: true });
+    }, 60_000);
+
     it('deletes an address book that still holds contacts', async () => {
       const book = await createAddressBook(`live-contacts-${RUN}-full`);
       const card = await createContact({ '@type': 'Card', version: '1.0', name: { full: `Live Book ${RUN}` } } as Partial<ContactCard>, book.id);

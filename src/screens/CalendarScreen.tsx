@@ -42,6 +42,8 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { CalendarAccountChangedError, calendarOperationScope, useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { appendEventNote } from '../lib/calendar-event-note';
+import { toast } from '../stores/toast-store';
 import { MonthView } from '../components/calendar/MonthView';
 import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
@@ -87,7 +89,7 @@ import {
   getEventStartDate,
   getPrimaryCalendarId,
   getTaskDueDate,
-  pickUnusedCalendarColor,
+  autoAssignSharedCalendarColors,
   sharedCalendarColorKey,
   reopenedEdit,
 } from '../lib/calendar-utils';
@@ -165,6 +167,7 @@ export default function CalendarScreen() {
   const calendarFreeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const showBirthdayCalendar = useSettingsStore((s) => s.showBirthdayCalendar);
+  const birthdayCalendarColor = useSettingsStore((s) => s.birthdayCalendarColor);
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
   const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
   const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
@@ -308,34 +311,18 @@ export default function CalendarScreen() {
     [storeCalendars, sharedCalendarColors],
   );
 
-  // Auto-assign a random, not-yet-used palette color to any freshly shared
-  // calendar so multiple shared calendars don't collide on one color. Runs
-  // once per calendar (guarded by the presence of an existing key), and the
-  // user can still overwrite it from the sidebar.
+  // Auto-assign a not-yet-used palette color to any freshly shared calendar
+  // without a server colour, so multiple shared calendars don't collide on
+  // one color (#1414: one with a server colour keeps it). Runs once per
+  // calendar, and the user can still overwrite it from the sidebar.
   React.useEffect(() => {
-    const missing = storeCalendars.filter(
-      (cal) => cal.isShared && !sharedCalendarColors[sharedCalendarColorKey(cal)],
-    );
-    if (missing.length === 0) return;
-    // Seed "used" with personal calendar colors plus already-assigned shared
-    // overrides so the picks stay distinct from what's already on screen.
-    const used = new Set<string>();
-    for (const cal of storeCalendars) {
-      if (!cal.isShared && cal.color) used.add(cal.color.toLowerCase());
-    }
-    for (const color of Object.values(sharedCalendarColors)) {
-      if (color) used.add(color.toLowerCase());
-    }
-    for (const cal of missing) {
-      const color = pickUnusedCalendarColor(used);
-      used.add(color.toLowerCase());
-      setSharedCalendarColor(sharedCalendarColorKey(cal), color);
-    }
+    const assigned = autoAssignSharedCalendarColors(storeCalendars, sharedCalendarColors);
+    for (const [key, color] of Object.entries(assigned)) setSharedCalendarColor(key, color);
   }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor]);
 
   const allCalendars = React.useMemo(
-    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar()] : displayCalendars),
-    [displayCalendars, showBirthdayCalendar],
+    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar(undefined, birthdayCalendarColor)] : displayCalendars),
+    [displayCalendars, showBirthdayCalendar, birthdayCalendarColor],
   );
   // Tasks with a due date are overlaid on the grid as chips (webmail's
   // showTasksOnCalendar); tapping one opens the tasks sheet on that task.
@@ -834,6 +821,22 @@ export default function CalendarScreen() {
     [deleteTask, t],
   );
 
+  // A quick note from the detail sheet goes under the description with a
+  // time stamp (webmail's handleSaveNoteFromDetail).
+  const handleSaveNoteFromDetail = React.useCallback(
+    async (event: CalendarEvent, note: string) => {
+      const description = appendEventNote(event.description, note, displayNow());
+      try {
+        await updateEvent(event.id, { description });
+        setDetailEvent((current) => (current?.id === event.id ? { ...current, description } : current));
+        toast.success(t('calendar.detail.note_saved', 'Note saved'));
+      } catch (err) {
+        reportError(err);
+      }
+    },
+    [updateEvent, reportError, t],
+  );
+
   // Clone the event one day later and open it in the editor (webmail's
   // handleDuplicateFromDetail).
   const handleDuplicateFromDetail = React.useCallback(
@@ -900,6 +903,10 @@ export default function CalendarScreen() {
 
   const handleSetCalendarColor = React.useCallback(
     (cal: Calendar, color: string) => {
+      if (cal.id === BIRTHDAY_CALENDAR_ID) {
+        useSettingsStore.getState().updateSetting('birthdayCalendarColor', color);
+        return;
+      }
       if (cal.isShared) {
         // Per-viewer recolor (#345): the owner's colour is left alone.
         setSharedCalendarColor(sharedCalendarColorKey(cal), color);
@@ -1192,6 +1199,7 @@ export default function CalendarScreen() {
         onDuplicate={(ev) => { if (!isReadOnlyEvent(ev)) void handleDuplicateFromDetail(ev); }}
         onExport={handleExportFromDetail}
         onCopyLink={handleCopyLink}
+        onSaveNote={handleSaveNoteFromDetail}
         onRsvp={async (ev, participantId, status) => {
           // An answer on one occurrence of a series asks whether it covers
           // just that occurrence or the whole series (webmail #1086).

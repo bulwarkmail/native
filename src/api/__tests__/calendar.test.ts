@@ -15,6 +15,7 @@ import {
   queryEvents,
   getEvents,
   createEvent,
+  createCalendar,
   updateEvent,
   deleteEvents,
   batchCreateEvents,
@@ -554,6 +555,35 @@ describe('calendar operations', () => {
       expect(sent).not.toHaveProperty('recurrenceRules');
       // The returned event exposes the internal plural form again.
       expect(result.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 5 }]);
+    });
+  });
+
+  describe('createCalendar', () => {
+    it('returns the new calendar with the name and colour sent when the server echoes only its id', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Calendar/set', { created: { 'new-cal': { id: 'c9', color: null, myRights: { mayDelete: true } } } }, '0'],
+          ['error', { type: 'serverFail' }, '1'],
+        ],
+      });
+      const cal = await createCalendar('Work', '#123456');
+      expect(cal).toMatchObject({ id: 'c9', name: 'Work', color: '#123456', isVisible: true, myRights: { mayDelete: true } });
+    });
+
+    it('takes the read-back calendar with its rights', async () => {
+      const rights = { mayReadItems: true, mayWriteAll: true, mayDelete: true, mayShare: true };
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Calendar/set', { created: { 'new-cal': { id: 'c9' } } }, '0'],
+          ['Calendar/get', { list: [{ id: 'c9', name: 'Work', color: '#123456', myRights: rights }] }, '1'],
+        ],
+      });
+      const cal = await createCalendar('Work', '#123456');
+      expect(cal).toMatchObject({ id: 'c9', name: 'Work', color: '#123456', myRights: rights });
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls[1][0]).toBe('Calendar/get');
+      // The creation id: 0.16 refuses a result reference into `created`.
+      expect(calls[1][1].ids).toEqual(['#new-cal']);
     });
   });
 

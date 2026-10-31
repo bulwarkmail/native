@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { openExternalUrl } from '../../lib/open-url';
 import {
   CalendarPlus, Check, HelpCircle, X, MapPin, Video, Clock, CalendarDays, AlertTriangle,
-  ShieldCheck, ShieldAlert, ChevronDown,
+  ShieldCheck, ShieldAlert, ChevronDown, Trash2,
 } from '../icons';
 import { format, isSameDay } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
@@ -32,6 +32,13 @@ import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { useCalendarSubscriptionsStore } from '../../stores/calendar-subscriptions-store';
+import {
+  canRemoveCancelled as canRemoveCancelledMeeting,
+  planCancellationRemoval,
+  removeCancelledMeeting,
+  sameRecurrenceId,
+  type CancellationRemoval,
+} from '../../lib/calendar-cancellation';
 
 type BannerState = 'loading' | 'parsed' | 'done' | 'error';
 type RsvpStatus = 'accepted' | 'tentative' | 'declined';
@@ -76,6 +83,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const subscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
   const importEvents = useCalendarStore((s) => s.importEvents);
   const rsvpEvent = useCalendarStore((s) => s.rsvpEvent);
+  const deleteEvent = useCalendarStore((s) => s.deleteEvent);
+  const updateEvent = useCalendarStore((s) => s.updateEvent);
   const attachment = React.useMemo(() => findCalendarAttachment(email), [email]);
   // Login address + identities + aliases, so invitations addressed to an
   // alias still show the RSVP buttons. Only an invitation looks the aliases up.
@@ -97,6 +106,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const [busy, setBusy] = React.useState(false);
   const [calendarId, setCalendarId] = React.useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  // What removing a cancelled meeting from the calendar takes, read from the
+  // events stored with its uid; null until known (webmail #1425).
+  const [cancelRemoval, setCancelRemoval] = React.useState<CancellationRemoval | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -138,6 +150,17 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     })();
     return () => { cancelled = true; };
   }, [invitationKey, enabled, jmapAccountId]);
+
+  const isCancellation = state !== 'loading' && method === 'cancel';
+  React.useEffect(() => {
+    setCancelRemoval(null);
+    if (!isCancellation || !event?.uid) return;
+    let current = true;
+    findEventsByUid(event.uid)
+      .then((stored) => { if (current) setCancelRemoval(planCancellationRemoval(stored, event)); })
+      .catch(() => { /* no remove action then */ });
+    return () => { current = false; };
+  }, [isCancellation, event]);
 
   // Import into the account's default calendar; never into a shared calendar,
   // an iCal subscription (the next feed sync would delete the event) or a
@@ -255,6 +278,45 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     }
   };
 
+  // A cancellation that fails authentication, or comes from someone other
+  // than the organizer without passing it, does not get to remove anything.
+  const senderAddress = email.from?.[0]?.email?.toLowerCase() ?? '';
+  const userIsSender = !!senderAddress && currentUserEmails.some((a) => a.toLowerCase() === senderAddress);
+  const canRemoveCancelled = canRemoveCancelledMeeting({
+    isCancellation, userIsSender, trustLevel: trust?.level, removal: cancelRemoval,
+  });
+  const cancellationOutdated = isCancellation && cancelRemoval?.kind === 'outdated';
+
+  const handleRemoveCancelled = async () => {
+    const cancel = event;
+    if (busy || !cancel.uid) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const removal = await removeCancelledMeeting(cancel, {
+        findEventsByUid: (uid) => findEventsByUid(uid),
+        deleteEvent,
+        updateEvent,
+      });
+      if (removal.kind !== 'delete' && removal.kind !== 'exclude') {
+        setCancelRemoval(removal);
+        return;
+      }
+      // Occurrences of it in view go as well.
+      useCalendarStore.setState((s) => ({
+        events: s.events.filter((e) => e.uid !== cancel.uid
+          || (Boolean(cancel.recurrenceId) && !sameRecurrenceId(e, cancel))),
+      }));
+      setServerMatch(null);
+      setCancelRemoval({ kind: 'none' });
+      setNotice(t('calendar.invitation.removed_from_calendar', 'Removed from your calendar.'));
+    } catch {
+      setNotice(t('calendar.invitation.remove_error', 'Could not remove the event'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const trustColor = trust?.level === 'warning' ? c.error : trust?.level === 'caution' ? c.warning : c.success;
 
   return (
@@ -269,6 +331,11 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
           </Text>
           {method === 'cancel' && (
             <Text style={styles.cancelled}>{t('calendar.invitation.cancelled', 'This event was cancelled')}</Text>
+          )}
+          {cancellationOutdated && (
+            <Text style={styles.subtitle}>
+              {t('calendar.invitation.cancel_outdated', 'Your calendar has a newer version of this event than this cancellation.')}
+            </Text>
           )}
           {method === 'reply' && (
             <Text style={styles.subtitle}>{t('calendar.invitation.reply', 'A participant replied to this invitation')}</Text>
@@ -360,7 +427,21 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
                 icon={<X size={15} color={currentStatus === 'declined' ? c.textInverse : c.error} />}
                 disabled={busy} onPress={() => ensureImportedAndRsvp('declined')} c={c} styles={styles} />
             </>
-          ) : !existing && method !== 'reply' ? (
+          ) : canRemoveCancelled ? (
+            <Pressable
+              style={[styles.removeBtn, busy && { opacity: 0.5 }]}
+              onPress={() => { void handleRemoveCancelled(); }}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={c.error} />
+              ) : (
+                <Trash2 size={16} color={c.error} />
+              )}
+              <Text style={styles.removeBtnText}>{t('calendar.invitation.remove_from_calendar', 'Remove from calendar')}</Text>
+            </Pressable>
+          ) : !existing && method !== 'reply' && method !== 'cancel' ? (
             <Pressable
               style={[styles.importBtn, (busy || !targetCalendar) && { opacity: 0.5 }]}
               onPress={() => { void handleImport(); }}
@@ -521,6 +602,19 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.primary,
     },
     importBtnText: { ...typography.bodyMedium, color: c.primaryForeground },
+    removeBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: c.errorBorder,
+      backgroundColor: c.background,
+    },
+    removeBtnText: { ...typography.bodyMedium, color: c.error },
     warnRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
     warnText: { ...typography.caption, color: c.warning },
   });

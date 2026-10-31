@@ -42,6 +42,8 @@ import type {
   FilterActionType,
 } from '../../lib/sieve/types';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useFilterStore } from '../../stores/filter-store';
+import { forwardsOfEditedRule, ruleForwardLimit } from '../../lib/sieve/forward-limit';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 
 const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment', 'all'];
@@ -72,12 +74,19 @@ interface FilterRuleModalProps {
   mailboxes: Mailbox[];
   /** The server can confine a rule to a period (Sieve "date" and "relational"). */
   periodsSupported?: boolean;
+  /**
+   * The server's cap on forwards per message, and the forwards a message can
+   * have collected when it reaches this rule / still collect below it (see
+   * lib/sieve/forward-limit.ts). Left out: read from the filter list the
+   * Filters settings show.
+   */
+  forwardContext?: { maxRedirects: number | null | undefined; before: number; after: number };
   onSave: (rule: FilterRule) => void;
   onClose: () => void;
 }
 
 export function FilterRuleModal({
-  visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, onSave, onClose,
+  visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, forwardContext, onSave, onClose,
 }: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -119,6 +128,25 @@ export function FilterRuleModal({
   const periodProblem = periodOn ? periodError(activeFrom, activeUntil) : null;
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
+
+  // A message can collect only so many forwards on the server (#1155, #1208).
+  const listedRules = useFilterStore((s) => s.rules);
+  const listedForward = useFilterStore((s) => s.vacationForward);
+  const listedMaxRedirects = useFilterStore((s) => s.sieveCapabilities?.maxNumberRedirects);
+  const listedAround = useMemo(
+    () => forwardsOfEditedRule(listedRules, listedForward, editedRule?.id),
+    [listedRules, listedForward, editedRule?.id],
+  );
+  const forwardLimit = ruleForwardLimit(
+    { actions, stopProcessing },
+    forwardContext ? forwardContext.maxRedirects : listedMaxRedirects,
+    forwardContext ?? listedAround,
+  );
+  const ruleForwardCount = actions.filter((a) => a.type === 'forward').length;
+  const actionOptionsFor = (action: FilterAction) =>
+    action.type === 'forward' || forwardLimit.canAddForward
+      ? actionTypeOptions
+      : actionTypeOptions.filter((o) => o.value !== 'forward');
 
   const fieldOptions = useMemo(
     () => ALL_FIELDS.map((f) => ({ value: f, label: t(`settings.filters.condition_fields.${f}`, f) })),
@@ -407,7 +435,7 @@ export function FilterRuleModal({
                       <Select
                         value={action.type}
                         onChange={(v) => updateAction(index, { type: v as FilterActionType })}
-                        options={actionTypeOptions}
+                        options={actionOptionsFor(action)}
                         style={{ flex: 1 }}
                       />
                       <Pressable
@@ -489,6 +517,16 @@ export function FilterRuleModal({
                   </View>
                 ))}
               </View>
+              {forwardLimit.unavailable && ruleForwardCount > 0 && (
+                <Text style={styles.forwardWarning}>
+                  {t('settings.filters.forward_unavailable', 'This server does not allow forwarding. Forward actions in filter rules have no effect.')}
+                </Text>
+              )}
+              {forwardLimit.overLimit && (
+                <Text style={styles.forwardWarning}>
+                  {t('settings.filters.forward_limit', 'Forward limit per message on this server: {count}. Extra forwards are skipped.', { count: forwardLimit.limit ?? 0 })}
+                </Text>
+              )}
               <Pressable
                 onPress={() => setActions((prev) => [...prev, makeEmptyAction()])}
                 style={styles.addRow}
@@ -645,6 +683,7 @@ function makeStyles(c: ThemePalette) {
     },
     optionLabel: { ...typography.body, color: c.text, flex: 1 },
     hint: { ...typography.caption, color: c.mutedForeground },
+    forwardWarning: { ...typography.caption, color: c.warning, marginTop: spacing.sm },
 
     footer: {
       flexDirection: 'row',

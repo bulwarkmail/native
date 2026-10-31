@@ -29,6 +29,7 @@ import type { Calendar, CalendarEvent, Participant } from '../types';
 import {
   createEvent,
   deleteEvents,
+  findEventsByUid,
   getCalendars,
   getEvents,
   queryEvents,
@@ -43,6 +44,7 @@ import { expandRecurringEvents } from '../../lib/recurrence-expansion';
 import { getEventStartDate } from '../../lib/calendar-utils';
 import { alertsToReminders, calendarDefaultAlerts, defaultAlertIdPrefix, remindersToDefaultAlerts } from '../../lib/calendar-alerts';
 import { getEffectiveAlerts } from '../../lib/calendar-alert-scheduler';
+import { removeCancelledMeeting } from '../../lib/calendar-cancellation';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -607,6 +609,89 @@ live('live Stalwart calendar', () => {
     }, 120_000);
   });
 
+  liveTwo('a cancelled meeting (#1425)', () => {
+    const after = '2027-10-01T00:00:00.000Z';
+    const before = '2027-10-31T00:00:00.000Z';
+    const me = [USER];
+
+    /** Run `fn` as the second user, in the app's singleton. */
+    async function asOther<T>(fn: () => Promise<T>): Promise<T> {
+      (await singleton()).restoreSnapshot(other!.snapshot());
+      useCalendarStore.getState().reset();
+      try {
+        return await fn();
+      } finally {
+        await connectSingleton();
+      }
+    }
+
+    function removeAsOther(cancel: Partial<CalendarEvent>) {
+      return asOther(async () => {
+        await useCalendarStore.getState().fetchCalendars();
+        const s = useCalendarStore.getState();
+        return removeCancelledMeeting(cancel, {
+          findEventsByUid: (u) => findEventsByUid(u),
+          deleteEvent: s.deleteEvent,
+          updateEvent: s.updateEvent,
+        });
+      });
+    }
+
+    it('takes one cancelled occurrence, then the cancelled series, out of the attendee\'s calendar', async () => {
+      await connectSingleton();
+      // Four Mondays from 4 October 2027, the second user invited.
+      const invitation = editorSave(
+        { title: `${RUN} cancelled`, start: '2027-10-04T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin' } as CalendarEvent,
+        { attendees: [{ name: 'Land', email: USER2! }] },
+        me,
+      );
+      const created = await useCalendarStore.getState().createEvent({
+        ...seriesData('cancelled', '2027-10-04T10:00:00', 4),
+        participants: invitation.updates.participants,
+        organizerCalendarAddress: invitation.updates.organizerCalendarAddress,
+      }, calendarId, { sendSchedulingMessages: true });
+      const uid = created.uid!;
+      const copies = await waitFor(() => seriesByUid(other!, uid), (list) => list.length > 0);
+      expect(copies, 'the invitation reached the second user').toHaveLength(1);
+
+      // The organizer cancels the second Monday. The attendee's 1.0 keeps
+      // it, marked cancelled; 0.16 takes it out itself.
+      const occurrences = await loadOccurrences(uid, after, before);
+      const second = occurrences.find((e) => (e.recurrenceId ?? '').startsWith('2027-10-11'))!;
+      expect(await deleteOccurrence('this', { event: second, userEmails: me }, storeActions())).toBe(true);
+      const key = '2027-10-11T10:00:00';
+      const marked = await waitFor(() => seriesByUid(other!, uid), (list) =>
+        /cancelled|excluded/.test(JSON.stringify(list[0]?.recurrenceOverrides?.[key] ?? null)));
+      const entry = marked[0].recurrenceOverrides?.[key] as { sequence?: number; excluded?: boolean } | undefined;
+      expect(JSON.stringify(entry ?? null)).toMatch(/cancelled|excluded/);
+
+      const one = await removeAsOther({
+        uid,
+        recurrenceId: key,
+        recurrenceIdTimeZone: 'Europe/Berlin',
+        sequence: entry?.sequence ?? 0,
+      });
+      expect(one.kind).toBe(entry?.excluded ? 'none' : 'exclude');
+      const [excluded] = await seriesByUid(other!, uid);
+      expect(excluded.recurrenceOverrides?.[key]).toEqual({ excluded: true });
+      expect(excluded.status).not.toBe('cancelled');
+
+      // An older cancellation of the whole meeting is not applied.
+      const outdated = await removeAsOther({ uid, sequence: -1 });
+      expect(outdated.kind).toBe('outdated');
+
+      // The organizer cancels the series.
+      const left = await loadOccurrences(uid, after, before);
+      expect(await deleteOccurrence('all', { event: left[0], userEmails: me }, storeActions())).toBe(true);
+      // Both servers keep it, marked cancelled.
+      const marked2 = await waitFor(() => seriesByUid(other!, uid), (list) => list[0]?.status === 'cancelled');
+      expect(marked2[0]?.status).toBe('cancelled');
+      const all = await removeAsOther({ uid, sequence: marked2[0].sequence ?? 0 });
+      expect(all.kind).toBe('delete');
+      expect(await seriesByUid(other!, uid)).toEqual([]);
+    }, 120_000);
+  });
+
   liveTwo('shares', () => {
     let mailboxId = '';
     let sharedCalendarId = '';
@@ -698,6 +783,59 @@ live('live Stalwart calendar', () => {
       expect(list).toHaveLength(1);
       expect(list[0].recurrenceOverrides?.['2027-10-11T10:00:00']?.title).toBe(`${RUN} owner second`);
     }, 60_000);
+
+    it('moves a task into the shared calendar and back out of it (#1204)', async () => {
+      expect(sharedCalendarId, 'the calendar shared above').toBeTruthy();
+      await connectSingleton();
+      const [[, made]] = await raw(client, [['CalendarEvent/set', {
+        accountId: client.accountId,
+        create: { t: { '@type': 'Task', title: `${RUN} moving task`, calendarIds: { [calendarId]: true }, due: '2027-11-03T10:00:00', timeZone: 'Europe/Berlin' } },
+      }, '0']]);
+      expect(made.created?.t?.id, JSON.stringify(made.notCreated)).toBeTruthy();
+      const store = useCalendarStore.getState();
+      await store.fetchCalendars();
+      await useCalendarStore.getState().fetchTasks();
+      const taskOf = () => useCalendarStore.getState().tasks.find((t) => t.title === `${RUN} moving task`);
+      const shared = useCalendarStore.getState().calendars.find((c) => c.name === `${RUN} team`)!;
+      const task = taskOf()!;
+      expect(task.accountId).toBeFalsy();
+
+      await useCalendarStore.getState().updateTask(task.id, { calendarIds: { [shared.id]: true } });
+      const inShared = (await raw(other!, [['CalendarEvent/query', { accountId: other!.accountId, filter: { inCalendar: sharedCalendarId } }, 'q'],
+        ['CalendarEvent/get', { accountId: other!.accountId, '#ids': { resultOf: 'q', name: 'CalendarEvent/query', path: '/ids' }, properties: ['id', 'uid', 'title', '@type'] }, 'g']]))
+        .find((r) => r[2] === 'g')?.[1].list as Record<string, any>[];
+      const moved = inShared.find((e) => e.title === `${RUN} moving task`);
+      expect(moved?.uid).toBe(task.uid);
+      expect((await raw(client, [['CalendarEvent/get', { accountId: client.accountId, ids: [task.id], properties: ['id'] }, '0']]))[0][1].notFound)
+        .toEqual([task.id]);
+      expect(taskOf()?.accountId).toBe(other!.accountId);
+
+      // And back into the user's own calendar.
+      await useCalendarStore.getState().updateTask(taskOf()!.id, { calendarIds: { [calendarId]: true } });
+      expect(taskOf()?.accountId).toBeFalsy();
+      await removeRunEvents(client);
+    }, 60_000);
+  });
+
+  describe('a new calendar', () => {
+    let newCalendarId = '';
+
+    afterAll(async () => {
+      if (newCalendarId) {
+        await raw(client, [['Calendar/set', { accountId: client.accountId, destroy: [newCalendarId], onDestroyRemoveEvents: true }, '0']]).catch(() => undefined);
+      }
+    }, 30_000);
+
+    it('has its name, colour and rights in the store right after it is made', async () => {
+      await connectSingleton();
+      await useCalendarStore.getState().fetchCalendars();
+      const made = await useCalendarStore.getState().createCalendar(`${RUN} new`, '#0f766e');
+      newCalendarId = made.id;
+      const inStore = useCalendarStore.getState().calendars.find((c) => c.id === made.id);
+      expect(inStore).toMatchObject({ name: `${RUN} new`, color: '#0f766e' });
+      expect(inStore?.myRights?.mayDelete).toBe(true);
+      expect(inStore?.myRights?.mayWriteAll).toBe(true);
+    }, 30_000);
   });
 
   describe('a calendar\'s default reminders (#1209)', () => {

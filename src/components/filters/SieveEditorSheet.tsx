@@ -11,6 +11,7 @@ import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
 import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { seedsOnRender } from '../../lib/sieve/editor-seed';
 
 interface SieveEditorSheetProps {
   visible: boolean;
@@ -30,14 +31,17 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
   const [validationResult, setValidationResult] = useState<{ isValid: boolean; errors?: string[] } | null>(null);
   const [showSaveWarning, setShowSaveWarning] = useState(false);
 
-  // Re-seed the editor whenever it's (re)opened with fresh content. Keying the
-  // editor on `content` while closed avoids a stale draft on the next open.
+  // Seed the editor when it opens, with the script as it is then. A new
+  // `content` while it is open (a store refresh) must not wipe what was
+  // typed (#1162).
+  const wasVisible = React.useRef(false);
   React.useEffect(() => {
-    if (visible) {
+    if (seedsOnRender(wasVisible.current, visible)) {
       setScript(content);
       setValidationResult(null);
       setShowSaveWarning(false);
     }
+    wasVisible.current = visible;
   }, [visible, content]);
 
   const lineCount = script.split('\n').length;

@@ -20,8 +20,12 @@ import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2,
+  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2, Filter,
 } from '../components/icons';
+import { ContactFiltersPanel } from '../components/contacts/ContactFiltersPanel';
+import {
+  countActiveFilters, EMPTY_CONTACT_FILTERS, matchesContactFilters, type ContactListFilters,
+} from '../lib/contact-list-filters';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
 import {
@@ -137,6 +141,9 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
   const sortByLastName = useSettingsStore((s) => s.sortContactsByLastName);
 
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [filters, setFilters] = React.useState<ContactListFilters>(EMPTY_CONTACT_FILTERS);
+  const activeFilterCount = countActiveFilters(filters);
   // The company directory shows in place of the list (#1253). Not a stored
   // category: it is the server's list, not the user's contacts.
   const [showDirectory, setShowDirectory] = React.useState(false);
@@ -201,9 +208,11 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
   );
 
   const visible = React.useMemo(() => {
-    if (!searchQuery) return sorted;
-    return sorted.filter((c) => matchesContactSearch(c, searchQuery));
-  }, [sorted, searchQuery]);
+    // The filters sit under the search field and apply while it is open.
+    const filtered = searchActive && activeFilterCount > 0 ? sorted.filter((c) => matchesContactFilters(c, filters)) : sorted;
+    if (!searchQuery) return filtered;
+    return filtered.filter((c) => matchesContactSearch(c, searchQuery));
+  }, [sorted, searchQuery, filters, activeFilterCount, searchActive]);
 
   const sections = React.useMemo<Section[]>(() => {
     if (groupByLetter) return groupContacts(visible, sortByLastName);
@@ -538,7 +547,19 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
               <X size={16} color={c.textMuted} />
             </Pressable>
           )}
+          <Pressable
+            onPress={() => setFiltersOpen((v) => !v)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.filters.toggle', 'Filters')}
+            accessibilityState={{ expanded: filtersOpen }}
+          >
+            <Filter size={16} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
+          </Pressable>
         </View>
+      )}
+      {searchActive && filtersOpen && (
+        <ContactFiltersPanel filters={filters} onChange={setFilters} onClose={() => setFiltersOpen(false)} />
       )}
 
       {!selectionMode && (

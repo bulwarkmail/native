@@ -50,7 +50,7 @@ both versions want.
 
 Findings:
 
-- [ ] **A new calendar lands in the store without its name and colour** — `P2` — `bug` (also on 1.0.0)
+- [x] **A new calendar lands in the store without its name and colour** — `P2` — `bug` (also on 1.0.0) — fixed in a2344ea0
   - What Stalwart does: the Calendar/set create answer never echoes properties the client sent (crates/jmap/src/calendar/set.rs:1307-1367).
   - What RN does: createCalendar returns `created` alone (src/api/calendar.ts:1269) and the store inserts it (src/stores/calendar-store.ts:1415-1423), so the calendar shows nameless and colourless until the next fetch.
   - Fix hint: `{ ...props, ...created }`, as createEvent does. Live test in live-stalwart-calendar.
@@ -117,9 +117,9 @@ parses it, nothing stores it), the global locks need no webmail change.
 - [ ] **iOS: reader CSP, composer nonce, `target=_blank` taps, #81 keyboard** — `P2` — `partial` — needs an iOS run (e2e-ios.yml in testing step 4)
 - [ ] **iOS push lapses after 7 days without opening the app** — `P2` — `bug` — the extension has no expiry handling (plugins/ios-push/NotificationService.swift), no BGTask; needs a device to verify
 - [ ] **Login switch from a deep link or notification keeps the old navigation stack** — `P2` — `bug` — App.tsx:118-122, :141-145, :181-186 switch and navigate on top; question 7
-- [ ] **Sieve editor loses typed text (#1162)** — `P3` — `bug` — src/components/filters/SieveEditorSheet.tsx:35-41 re-seeds on every content change
-- [ ] **No forward limit (#1155, #1208), no vacation length warning** — `P3` — `missing` — FilterRuleModal.tsx:443-459, VacationSettings.tsx:140-142
-- [ ] **Other-zone daily series keeps a wrong recurrenceId on the device's DST day** — `P3` — `bug` — src/lib/recurrence-expansion.ts:526-536 builds candidates from device-local fields
+- [x] **Sieve editor loses typed text (#1162)** — `P3` — `bug` — src/components/filters/SieveEditorSheet.tsx:35-41 re-seeds on every content change — fixed in 6c3046c8
+- [x] **No forward limit (#1155, #1208), no vacation length warning** — `P3` — `missing` — FilterRuleModal.tsx:443-459, VacationSettings.tsx:140-142 — fixed in dcbfc907
+- [x] **Other-zone daily series keeps a wrong recurrenceId on the device's DST day** — `P3` — `bug` — src/lib/recurrence-expansion.ts:526-536 builds candidates from device-local fields — fixed in 6e697baa
 - [ ] **New strings English-only** — `P3` — `partial` — 331 overlay keys missing in 25 locales, 86 in de; question 6
 - [ ] **Org policy, hand-off password** — blocked on the webmail (above)
 - [ ] **`C:\ns` junction and the native-sync worktree still exist** — chore — C:\ns points at C:\Users\info\worktrees\native-sync (e6e5e521, on main)
@@ -152,7 +152,7 @@ current lines is in "Webmail bugs" at the end of this file.
 
 - Fixed on main, unreleased (close after 0.1.87 ships): #80, #82, #83, #84, #86, #87, #89. #81 is fixed in code (01983a38), unchecked on iOS.
 - [ ] **#91 multi-select without long press** — `P3` — `missing` — EmailListScreen.tsx:190-218; tap on the avatar toggles selection
-- [ ] **#90 custom calendar colours** — `P3` — `missing` — CalendarEditSheet.tsx:222 offers the palette only
+- [x] **#90 custom calendar colours** — `P3` — `missing` — CalendarEditSheet.tsx:222 offers the palette only — fixed in d3f6d6ae
 - [ ] **#85 keep the shade open on Delete** — question 1
 - [ ] **#58 PGP / S/MIME** — `P3` — L, not in this run
 - [ ] **#3 TLS client certificates** — Android done in 0.1.83; iOS has none (L)

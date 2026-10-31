@@ -617,6 +617,38 @@ export function pickUnusedCalendarColor(usedColors: Iterable<string>): string {
  * via the `colorIsLocalOverride` flag (see getEventColor). Personal calendars
  * are passed through untouched.
  */
+/**
+ * A distinct colour for each shared calendar that has neither a colour from
+ * the server nor one the viewer picked, so several shared calendars don't
+ * collide on the default colour. A shared calendar the server gives a colour
+ * keeps it until the viewer picks their own (webmail #1414). Returns only the
+ * new overrides, keyed by sharedCalendarColorKey().
+ */
+export function autoAssignSharedCalendarColors(
+  calendars: Pick<Calendar, 'id' | 'color' | 'isShared' | 'accountId' | 'originalId'>[],
+  overrides: Record<string, string>,
+): Record<string, string> {
+  // Every colour already on screen: personal and server colours plus the
+  // existing shared overrides.
+  const used = new Set<string>();
+  for (const cal of calendars) {
+    if (cal.color) used.add(cal.color.toLowerCase());
+  }
+  for (const color of Object.values(overrides)) {
+    if (color) used.add(color.toLowerCase());
+  }
+  const assigned: Record<string, string> = {};
+  for (const cal of calendars) {
+    if (!cal.isShared || cal.color) continue;
+    const key = sharedCalendarColorKey(cal);
+    if (overrides[key] || assigned[key]) continue;
+    const color = pickUnusedCalendarColor(used);
+    used.add(color.toLowerCase());
+    assigned[key] = color;
+  }
+  return assigned;
+}
+
 export function applySharedCalendarColors(
   calendars: Calendar[],
   overrides: Record<string, string>,

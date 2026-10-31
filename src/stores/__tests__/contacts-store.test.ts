@@ -591,6 +591,32 @@ describe('contacts-store', () => {
     });
   });
 
+  describe('deleting a category (removeKeyword / addKeyword)', () => {
+    it('takes the category off every card that has it and puts it back on those on Undo', async () => {
+      useContactsStore.setState({
+        contacts: [
+          card('c1', { keywords: { Gone: true, Keep: true } }),
+          card('c2', { keywords: { Gone: true } }),
+          card('c3', { keywords: { Other: true } }),
+        ],
+        selectedCategory: { type: 'keyword', keyword: 'Gone' },
+      });
+      mockUpdateContact.mockResolvedValue(undefined);
+      const ids = await useContactsStore.getState().removeKeyword('Gone');
+      expect(ids).toEqual(['c1', 'c2']);
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', { keywords: { Keep: true } }, undefined);
+      expect(mockUpdateContact).toHaveBeenCalledWith('c2', { keywords: {} }, undefined);
+      expect(mockUpdateContact).toHaveBeenCalledTimes(2);
+      expect(useContactsStore.getState().selectedCategory).toEqual({ type: 'all' });
+
+      mockUpdateContact.mockClear();
+      await useContactsStore.getState().addKeyword('Gone', ids);
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', { keywords: { Keep: true, Gone: true } }, undefined);
+      expect(mockUpdateContact).toHaveBeenCalledWith('c2', { keywords: { Gone: true } }, undefined);
+      expect(useContactsStore.getState().contacts.find((c) => c.id === 'c3')?.keywords).toEqual({ Other: true });
+    });
+  });
+
   describe('autocomplete', () => {
     it('merges contacts, groups and recent recipients without duplicates', async () => {
       useContactsStore.setState({

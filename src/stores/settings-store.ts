@@ -309,6 +309,10 @@ interface PersistedSettings {
   // Hard cap on the on-disk body cache, in megabytes. When a sync pushes the
   // cache past this, the oldest messages are evicted to fit.
   offlineCacheMaxMB: number;
+
+  // calendar: the colour of the virtual Birthdays calendar (webmail
+  // birthdayCalendarColor).
+  birthdayCalendarColor: string;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -463,6 +467,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   offlineCacheEnabled: false,
   offlineCacheDays: 7,
   offlineCacheMaxMB: 50,
+
+  // calendar:
+  birthdayCalendarColor: '#eab308',
 };
 
 export interface SettingsState extends PersistedSettings {

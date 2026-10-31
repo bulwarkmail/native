@@ -317,16 +317,16 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Blank participant names are written (#748)** — `P3` — `bug` — fixed in 59c32782
   - What WEB does: `lib/calendar-participants.ts:368`. What RN does: `src/lib/calendar-participants.ts:360`, `:385`, `:484`.
 
-- [ ] **Offer to save without invitations when the server refuses them** — `P3` — `partial`
+- [x] **Offer to save without invitations when the server refuses them** — `P3` — `partial` — fixed in 9b5692a8
   - What WEB does: `lib/jmap/scheduling-error.ts:7`. What RN does: `src/components/calendar/EventModal.tsx:385-390`.
 
-- [ ] **Moving a task into or within a shared calendar (#1204)** — `P3` — `partial`
+- [x] **Moving a task into or within a shared calendar (#1204)** — `P3` — `partial` — fixed in b6995bb6
   - What WEB does: `lib/jmap/client.ts:9473`. What RN does: updateTask sends unmapped calendarIds (`src/stores/calendar-store.ts:1311-1315`).
 
-- [ ] **Working hours (#1164); week all-day area (#1122); light tinted colours; Jalali; birthday colour; copy title/append note; component set on new calendars (#760); date deep links; background reminder refresh without device sync** — `P3` — `missing`/`partial`
+- [ ] **Working hours (#1164); week all-day area (#1122); light tinted colours; Jalali; birthday colour; copy title/append note; component set on new calendars (#760); date deep links; background reminder refresh without device sync** — `P3` — `missing`/`partial` — birthday colour fixed in 574db426, copy title/append note in baa3ff59 (duplicate and .ics export were there); not done: week all-day area, light tinted colours (needs a toggle on the platform agent's calendar settings page), date deep links (route in App.tsx/linking.ts, see the calendar report) and background reminder refresh: ran out of time; working hours and Jalali: own feature, not in this run; component set (#760): needs a CalDAV client (05 row)
   - What RN does: `src/components/calendar/WeekView.tsx`, `src/components/calendar/TimeGridScrollView.tsx:177-185`, `src/lib/birthday-calendar.ts:6`, `src/components/calendar/EventDetailSheet.tsx:422`, `src/api/calendar.ts:1150`, `src/navigation/linking.ts:151`, `:288-299`, `src/lib/push-notifications.ts:243`.
 
-- [ ] **Free/busy, CalendarEventNotification, organizer from ParticipantIdentity (1.10.0)** — `P3` — `missing`
+- [ ] **Free/busy, CalendarEventNotification, organizer from ParticipantIdentity (1.10.0)** — `P3` — `missing` — not done: own feature, not in this run
   - What WEB does: `lib/jmap/client.ts:1198`.
 
 ### Contacts
@@ -350,7 +350,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **vCard 4.0 export (#1407)** — `P3` — `bug` — fixed in 07fd03e2
   - What RN does: dashes in dates, MOBILE instead of CELL (`src/lib/vcard.ts:21`, `:24`, `:1264`).
 
-- [ ] **Delete contact categories; address book sharing; list filters; deep links new/edit** — `P3` — `missing`/`partial`
+- [ ] **Delete contact categories; address book sharing; list filters; deep links new/edit** — `P3` — `missing`/`partial` — category delete with Undo fixed in 65ffef71, list filters in 18c6b03f; not done: address book sharing (needs its own share sheet, CalendarShareSheet is calendar-only; ran out of time) and deep links new/edit (route in linking.ts, platform agent's file)
   - What WEB does: `components/settings/address-book-management-settings.tsx:84`, `:435`, `components/contacts/contact-list.tsx:30`, `lib/deep-links.ts:394`. What RN does: `src/components/contacts/ContactsSidebarDrawer.tsx:144`, `src/components/settings/ContactsSettings.tsx:33`, `src/screens/ContactsScreen.tsx:163`, `src/navigation/linking.ts:155`.
 
 ### Files
@@ -362,7 +362,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Save an attachment to Files (incl. shared and group mail)** — `P2` — `missing` — fixed in 8e07b7d8, 39e82f99
   - What WEB does: `components/email/save-to-files-dialog.tsx:43`, `lib/jmap/client.ts:9981`. What RN does: `src/components/email/AttachmentChips.tsx:183`; `src/api/files.ts:411` has createFileNodeFromBlob.
 
-- [ ] **Copy folders, numbered new folder names, next/previous in preview, starred and recent, deep links** — `P3` — `partial`/`missing`
+- [ ] **Copy folders, numbered new folder names, next/previous in preview, starred and recent, deep links** — `P3` — `partial`/`missing` — copy folders fixed in a0f586f9; numbered new folder names: no webmail behaviour to port (its New folder dialog also takes the typed name, file-browser.tsx:1389); not done: next/previous in preview (needs header buttons in AttachmentPreviewModal, the reader agent's file), starred and recent and deep links: ran out of time
   - What WEB does: `lib/jmap/client.ts:10155`, `stores/file-store.ts:640`, `lib/deep-links.ts:444`. What RN does: `src/api/files.ts:511-519`, `:328-345`, `src/components/files/FilePreviewModal.tsx`, `src/navigation/linking.ts:158`, `:307`.
 
 - [ ] **Sharing fails on Stalwart before 0.16.6** — `P3` — `bug`
@@ -394,7 +394,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Create rules from a message** — `P2` — `missing` — fixed in d546d509, 7b7236f0
   - What WEB does: `components/email/rules-menu.tsx`, `lib/filters/quick-rules.ts:187`. What RN does: `src/components/email/ActionSheet.tsx`, `src/components/filters/FilterRuleModal.tsx`.
 
-- [ ] **Forward limit (#1155, #1208); vacation length warning; run a rule on a folder (#1166); Sieve editor loses typed text (#1162); size value raw into Sieve; undo after deleting tags/rules/trusted senders** — `P3` — `missing`/`bug`
+- [ ] **Forward limit (#1155, #1208); vacation length warning; run a rule on a folder (#1166); Sieve editor loses typed text (#1162); size value raw into Sieve; undo after deleting tags/rules/trusted senders** — `P3` — `missing`/`bug` — forward limit and vacation length fixed in dcbfc907, Sieve editor text in 6c3046c8, size value in 2167a9d7 (before this pass); undo after deleting rules: store side in b95f2c29, FilterSettings (platform agent's file) still has to call deleteRuleNow; not done: undo after deleting tags and trusted senders (KeywordSettings and the trusted-senders list are not the calendar agent's files); run a rule on a folder: needs server-side run, its own feature
   - What WEB does: `lib/filters/forward-limit.ts:16`, `components/settings/vacation-settings.tsx:253`, `lib/filters/quick-rule-flow.ts:221`, `lib/sieve/generator.ts:63`. What RN does: `src/components/filters/FilterRuleModal.tsx:63`, `:413`, `src/components/settings/VacationSettings.tsx:106`, `src/components/filters/SieveEditorSheet.tsx:35-41`, `src/lib/sieve/generator.ts:69-74`, `src/components/settings/KeywordSettings.tsx:50-56`.
 
 ### Push, settings and core

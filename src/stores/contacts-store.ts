@@ -132,6 +132,13 @@ export interface ContactsState {
   removeContactKeyword: (id: string, keyword: string) => Promise<void>;
   addKeywordToContacts: (ids: string[], keyword: string) => Promise<void>;
   renameKeyword: (oldKeyword: string, newKeyword: string) => Promise<void>;
+  /**
+   * Delete a category: take it off every contact that has it. Resolves to
+   * the contacts it came off, for an Undo (webmail 1.19 removeKeyword).
+   */
+  removeKeyword: (keyword: string) => Promise<string[]>;
+  /** Put a category back on these contacts (the Undo of removeKeyword). */
+  addKeyword: (keyword: string, contactIds: string[]) => Promise<void>;
   moveContactsToAddressBook: (ids: string[], addressBookId: string) => Promise<void>;
 
   // Groups
@@ -739,6 +746,31 @@ export const useContactsStore = create<ContactsState>()(
           const category = get().selectedCategory;
           if (category.type === 'keyword' && category.keyword === oldKw) {
             get().setSelectedCategory({ type: 'keyword', keyword: newKw });
+          }
+        },
+
+        removeKeyword: async (keyword) => {
+          const kw = keyword.trim();
+          if (!kw) return [];
+          const done: string[] = [];
+          for (const contact of get().contacts.filter((c) => c.keywords?.[kw])) {
+            const { [kw]: _gone, ...rest } = contact.keywords || {};
+            // Through the normal update, so each contact goes to its own account.
+            await get().updateContact(contact.id, { keywords: rest });
+            done.push(contact.id);
+          }
+          const category = get().selectedCategory;
+          if (category.type === 'keyword' && category.keyword === kw) get().setSelectedCategory({ type: 'all' });
+          return done;
+        },
+
+        addKeyword: async (keyword, contactIds) => {
+          const kw = keyword.trim();
+          if (!kw) return;
+          for (const id of contactIds) {
+            const contact = get().contacts.find((c) => c.id === id);
+            if (!contact || contact.keywords?.[kw]) continue;
+            await get().updateContact(id, { keywords: { ...(contact.keywords || {}), [kw]: true } });
           }
         },
 

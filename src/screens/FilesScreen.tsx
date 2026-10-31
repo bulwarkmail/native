@@ -47,7 +47,7 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 }
 
 import {
-  copyFileNode, createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts,
+  copyFileTree, createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts,
   getFileNameRules, getFileNodeDownloadUrl, getMaxSizeUpload, isFolder,
   isSymlink, listFolder, moveFileNode, renameFileNode, supportsSharing, uploadFileBatch,
 } from '../api/files';
@@ -661,13 +661,14 @@ export default function FilesScreen() {
   }, [renameTarget, renameValue, loadFiles, checkName, t]);
 
   const duplicateFile = useCallback(async (row: FileRow) => {
-    if (isFolder(row) || isSymlink(row) || !fileNodeAccess(row, allNodes).duplicate) return;
+    // A folder is copied with everything in it (webmail copyFileNode).
+    if (isSymlink(row) || !fileNodeAccess(row, allNodes).duplicate) return;
     setBusyId(row.id);
     try {
       const siblings = new Set(
         allNodes.filter((n) => (n.parentId ?? null) === (row.parentId ?? null)).map((n) => n.name),
       );
-      await copyFileNode(row, row.parentId ?? null, getUniqueName(row.name, siblings));
+      await copyFileTree(row, allNodes, row.parentId ?? null, getUniqueName(row.name, siblings));
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert(t('files.duplicate_error', 'Failed to duplicate'), fileErrorMessage(e, t));
@@ -1641,7 +1642,7 @@ function ActionsSheet({
                   <Text style={styles.actionLabel}>{t('files.move_to', 'Move to…')}</Text>
                 </Pressable>
               ) : null}
-              {access.duplicate && isFile ? (
+              {access.duplicate && !isSymlink(target) ? (
                 <Pressable style={styles.action} onPress={() => onDuplicate(target)}>
                   <Copy size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.duplicate', 'Duplicate')}</Text>

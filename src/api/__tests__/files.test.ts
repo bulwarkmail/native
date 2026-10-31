@@ -30,6 +30,7 @@ import { CAPABILITIES } from '../types';
 import {
   accountSupportsFiles,
   copyFileNode,
+  copyFileTree,
   createFolder,
   deleteFileNodes,
   fileNodeKind,
@@ -662,6 +663,52 @@ describe('copyFileNode', () => {
     await expect(copyFileNode({ id: 'd', name: 'Docs', type: '', blobId: null }, null)).rejects.toThrow();
     await expect(copyFileNode({ id: 'l', name: 'latest', type: '', blobId: null, nodeType: 'symlink' }, null)).rejects.toThrow();
     expect(mockRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('copyFileTree', () => {
+  const tree = [
+    { id: 'src', name: 'Docs', type: '', blobId: null, parentId: null },
+    { id: 'sub', name: 'Old', type: '', blobId: null, parentId: 'src' },
+    { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', parentId: 'src' },
+    { id: 'f2', name: 'b.txt', type: 'text/plain', blobId: 'b2', parentId: 'sub' },
+    { id: 'other', name: 'c.txt', type: 'text/plain', blobId: 'b3', parentId: null },
+  ];
+  /** Answers each FileNode/set create with a new id, or fails the call for `failOn`. */
+  function serve(failOn?: string) {
+    let n = 0;
+    const creates: Record<string, unknown>[] = [];
+    const destroys: string[][] = [];
+    mockRequest.mockImplementation(async (calls: [string, Record<string, any>, string][]) => {
+      const [, args] = calls[0];
+      if (args.destroy) {
+        destroys.push(args.destroy);
+        return { methodResponses: [['FileNode/set', { destroyed: args.destroy }, '0']] };
+      }
+      const [key, props] = Object.entries(args.create as Record<string, Record<string, unknown>>)[0];
+      if (props.name === failOn) return { methodResponses: [['FileNode/set', { notCreated: { [key]: { type: 'forbidden' } } }, '0']] };
+      creates.push(props);
+      return { methodResponses: [['FileNode/set', { created: { [key]: { id: `new-${++n}` } } }, '0']] };
+    });
+    return { creates, destroys };
+  }
+
+  it('makes the folder again with its folders and files, the files on the same blobs', async () => {
+    const { creates } = serve();
+    const copy = await copyFileTree(tree[0], tree, null, 'Docs (1)');
+    expect(copy.id).toBe('new-1');
+    expect(creates).toEqual([
+      { name: 'Docs (1)' },
+      { name: 'Old', parentId: 'new-1' },
+      { name: 'b.txt', type: 'text/plain', blobId: 'b2', parentId: 'new-2' },
+      { name: 'a.txt', type: 'text/plain', blobId: 'b1', parentId: 'new-1' },
+    ]);
+  });
+
+  it('takes a half-made copy back, the deepest level first', async () => {
+    const { destroys } = serve('a.txt');
+    await expect(copyFileTree(tree[0], tree, null, 'Docs (1)')).rejects.toThrow();
+    expect(destroys).toEqual([['new-3'], ['new-2'], ['new-1']]);
   });
 });
 

@@ -28,6 +28,7 @@ import { dayIndexIn, monthChipShowsTime, monthKeyOf, monthMask } from '../../lib
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { dayCellAccessibilityLabel } from '../../lib/calendar-a11y';
 import { displayNow } from '../../lib/calendar-timezone';
 
 type WeekStart = 0 | 1 | 6;
@@ -153,6 +154,7 @@ function MonthWeekRowInner({
   onLongPressDate,
 }: MonthWeekRowProps) {
   const c = useColors();
+  const { t } = useCalendarLocale();
   const { width } = useWindowDimensions();
   const chipTime = monthChipShowsTime(true, width / 7);
   if (variant === 'full') {
@@ -201,6 +203,9 @@ function MonthWeekRowInner({
             style={[styles.dayCell, showTimeInMonthView && styles.dayCellTall]}
             onPress={() => onSelectDate(d)}
             onLongPress={onLongPressDate ? () => onLongPressDate(d) : undefined}
+            accessibilityRole="button"
+            accessibilityLabel={dayCellAccessibilityLabel(d, dayEvents.length, t, locale)}
+            accessibilityState={{ selected }}
           >
             <View style={[
               styles.dayNumber,
@@ -321,6 +326,7 @@ function FullWeekRow({
   colors: ThemePalette;
 }) {
   const { width } = useWindowDimensions();
+  const { t } = useCalendarLocale();
   const showTime = monthChipShowsTime(showTimeInMonthView, width / 7);
   return (
     <View style={[styles.fullWeekRow, { height }]}>
@@ -341,7 +347,7 @@ function FullWeekRow({
             onPress={() => onSelectDate(d)}
             onLongPress={onLongPressDate ? () => onLongPressDate(d) : undefined}
             accessibilityRole="button"
-            accessibilityLabel={format(d, 'PPPP', { locale })}
+            accessibilityLabel={dayCellAccessibilityLabel(d, dayEvents.length, t, locale)}
           >
             <View style={styles.fullNumberWrap}>
               <View style={[styles.fullNumber, today && styles.fullNumberToday]}>

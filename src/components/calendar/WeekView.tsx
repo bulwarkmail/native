@@ -12,6 +12,7 @@ import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { eventAccessibilityLabel } from '../../lib/calendar-a11y';
 import {
   buildEventDayIndex,
   buildTimedFullDayWeekSegments,
@@ -202,6 +203,7 @@ function WeekViewInner({
                     )}
                     continuesBefore={segment.continuesBefore}
                     continuesAfter={segment.continuesAfter}
+                    accessibilityLabel={eventAccessibilityLabel(segment.event, { t, locale, timeFormat, calendars, currentUserEmails })}
                     onPress={() => onSelectEvent?.(segment.event)}
                     style={{
                       left: `${leftPct}%`,
@@ -277,6 +279,7 @@ function WeekViewInner({
                           ringColor={c.background}
                           continuesBefore={continuesBefore}
                           continuesAfter={continuesAfter}
+                          accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
                           onPress={() => onSelectEvent?.(event)}
                           style={{ top, height, left: `${leftPct}%`, width: `${widthPct}%` }}
                         />

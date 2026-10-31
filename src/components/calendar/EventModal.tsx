@@ -79,6 +79,8 @@ import { SafeAreaModal } from '../SafeAreaModal';
 import { useKeyboardObstruction } from '../../lib/use-keyboard-obstruction';
 import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
+import { askBeforeDiscard, editorFormChanged, editorFormSnapshot } from '../../lib/calendar-editor-discard';
+import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-denied';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -254,12 +256,34 @@ export function EventModal({
   const [showEndTime, setShowEndTime] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
+  // What the form holds against what it opened with: Close and Back ask
+  // before they drop changes (webmail 13f9f27c4).
+  const formSnapshot = React.useMemo(() => editorFormSnapshot({
+    title, description, allDay, start, end, calendarId, attendees, recurrence, customRule,
+    reminders, useDefaults, preserved, sendInvitations, location, videoUrl,
+  }), [title, description, allDay, start, end, calendarId, attendees, recurrence, customRule,
+    reminders, useDefaults, preserved, sendInvitations, location, videoUrl]);
+  const [baseline, setBaseline] = React.useState<string | null>(null);
+  // Before the reset below: the reset clears the baseline after this took
+  // the form of the render before it, and the next render takes the
+  // seeded form.
+  React.useEffect(() => {
+    if (!visible) {
+      if (baseline !== null) setBaseline(null);
+      return;
+    }
+    if (baseline === null) setBaseline(formSnapshot);
+  }, [visible, baseline, formSnapshot]);
+  const dirty = visible && editorFormChanged(baseline, formSnapshot);
+  const requestClose = () => askBeforeDiscard(dirty, t, onClose);
+
   // Reset the form when the editor opens or switches to another event only.
   // `calendars` and `currentUserEmails` get new identities when a calendar
   // push or the alias lookup lands, which used to wipe what the user typed.
   const formKey = visible ? event?.id ?? 'new' : null;
   React.useEffect(() => {
     if (!visible) return;
+    setBaseline(null);
     if (event) {
       setTitle(event.title || '');
       setDescription(event.description || '');
@@ -306,7 +330,11 @@ export function EventModal({
 
   // The calendars can arrive after a new-event form opened.
   React.useEffect(() => {
-    if (visible && !calendarId && fallbackCalendarId) setCalendarId(fallbackCalendarId);
+    if (visible && !calendarId && fallbackCalendarId) {
+      setCalendarId(fallbackCalendarId);
+      // Not a change of the user's.
+      setBaseline(null);
+    }
   }, [visible, calendarId, fallbackCalendarId]);
 
   React.useEffect(() => {
@@ -408,14 +436,18 @@ export function EventModal({
       for (const key of Object.keys(data) as (keyof CalendarEvent)[]) {
         if (data[key] === undefined) delete data[key];
       }
-      await onSave(data, calendarId, {
-        // Only the organizer sends: on an invitation someone else sent, a
-        // save would reach the organizer as a reply.
-        sendSchedulingMessages: organizes && attendees.length > 0 && sendInvitations,
+      // Only the organizer sends: on an invitation someone else sent, a
+      // save would reach the organizer as a reply.
+      const send = organizes && attendees.length > 0 && sendInvitations;
+      // A server that refuses to send the invitations refuses the whole
+      // save: offer to keep the event without them.
+      const saved = await saveOfferingWithoutInvitations((sendSchedulingMessages) => onSave(data, calendarId, {
+        sendSchedulingMessages,
         // The dates as shown: a series moves by the occurrence's move, on
         // its own clock (lib/recurrence-scope-edit).
         edit: { attendees, when: { allDay, start, end }, ruleChanged },
-      });
+      }), send, t);
+      if (!saved) return;
       onClose();
     } catch (err) {
       // The account changed under the save: the event is the previous
@@ -492,12 +524,12 @@ export function EventModal({
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
-      onRequestClose={onClose}
+      onRequestClose={requestClose}
     >
       <SafeAreaView style={styles.container} edges={['top', 'bottom']} onLayout={onContainerLayout}>
         <View style={styles.header}>
           <Pressable
-            onPress={onClose}
+            onPress={requestClose}
             hitSlop={8}
             style={styles.headerBtn}
             accessibilityRole="button"
