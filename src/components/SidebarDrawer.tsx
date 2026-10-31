@@ -49,6 +49,7 @@ import {
 import { serverSupportsEmailPush } from '../lib/push-notifications';
 import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import { unreadRowLabel } from '../lib/unread-row-label';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -171,9 +172,7 @@ function SidebarRow({
   const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
   // Which folder is open, and the unread count with the folder's name
   // ("Inbox, 3 unread"), for screen readers (webmail 7c282f1f4).
-  const accessibleName = unread > 0 && !isAccountHeader
-    ? t('shell.name_unread', '{name}, {count} unread', { name: label, count: unread })
-    : label;
+  const accessibleName = isAccountHeader ? label : unreadRowLabel(label, unread, t);
   return (
     <Pressable
       onPress={onPress}
@@ -720,6 +719,9 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   // account's (own + shared) plus, cross-account, the tucked-away snapshots
   // of the other accounts.
   const hasSharedInbox = mailboxes.some((m) => m.isShared && m.role === 'inbox');
+  const unifiedInboxLabel = unifiedCrossAccount && accounts.length > 1
+    ? t('sidebar.all_accounts', 'All accounts')
+    : t('sidebar.unified_inbox', 'All inboxes');
   const showUnified = showUnifiedSection({
     accountCount: accounts.length, unifiedCrossAccount, includeGroupInUnified, hasSharedInbox,
   });
@@ -1047,13 +1049,13 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             <Pressable
               style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
               onPress={() => { onClose(); navigation.navigate('UnifiedInbox', { role: 'inbox' }); }}
+              // A name of its own, like a folder row: else TalkBack read its
+              // texts one by one ("All inboxes, /, 9").
+              accessibilityRole="button"
+              accessibilityLabel={unreadRowLabel(unifiedInboxLabel, unifiedCounts.inbox.unread, t)}
             >
               <Layers size={16} color={c.textSecondary} />
-              <Text style={styles.quickRowLabel}>
-                {unifiedCrossAccount && accounts.length > 1
-                  ? t('sidebar.all_accounts', 'All accounts')
-                  : t('sidebar.unified_inbox', 'All inboxes')}
-              </Text>
+              <Text style={styles.quickRowLabel}>{unifiedInboxLabel}</Text>
               <View style={{ flex: 1 }} />
               <RowCounts unread={unifiedCounts.inbox.unread} total={unifiedCounts.inbox.total} showTotal={showFolderTotalCount} />
             </Pressable>
