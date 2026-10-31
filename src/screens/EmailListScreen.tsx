@@ -64,6 +64,7 @@ import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { moveSheetCurrentId } from '../lib/move-targets';
 import { listViewKey } from '../lib/list-view-key';
+import { searchScopeFolders } from '../lib/search-scope-folders';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
@@ -1854,17 +1855,18 @@ export default function EmailListScreen({
                         active={folderScope === 'current'}
                         onPress={() => setFolderScope('current')}
                       />
-                      {scopedMailboxes
-                        .filter((m) => m.id !== currentMailboxId)
-                        .slice(0, 12)
-                        .map((m) => (
+                    </View>
+                    {/* Every folder, as a tree (it was a flat list cut at 12). */}
+                    <View style={styles.scopeFolderList}>
+                      {searchScopeFolders(scopedMailboxes, currentMailboxId).map((m) => (
+                        <View key={m.id} style={{ marginLeft: m.depth * spacing.lg }}>
                           <ScopeChip
-                            key={m.id}
                             label={localizeMailboxName(m.role, m.name, t)}
                             active={folderScope === m.id}
                             onPress={() => setFolderScope(m.id)}
                           />
-                        ))}
+                        </View>
+                      ))}
                     </View>
                   </View>
 
@@ -2427,6 +2429,7 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
     marginTop: 4,
   },
+  scopeFolderList: { alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
   triToggle: {
     flexDirection: 'row',
     alignItems: 'center',
