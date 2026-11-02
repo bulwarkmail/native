@@ -117,7 +117,7 @@ import {
 import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
-import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
+import { activeFromOverride, composeSenderAddress } from '../lib/compose-sender';
 import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -1425,21 +1425,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // ── Outgoing message assembly ─────────────────────────────────────────
 
-  const senderAddress = React.useCallback((identity: Identity): { from: EmailAddress; envelopeMailFrom?: string } => {
-    const name = sanitizeDisplayName(identity.name);
-    let from: EmailAddress;
-    if (fromOverride?.email.trim()) {
-      const overrideName = sanitizeDisplayName(fromOverride.name);
-      from = overrideName ? { name: overrideName, email: fromOverride.email.trim() } : { email: fromOverride.email.trim() };
-    } else {
-      const email = subAddressTag ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter) : identity.email;
-      from = name ? { name, email } : { email };
-    }
-    // A From that isn't the identity's own address still goes out through
-    // the identity's envelope sender.
-    const envelopeMailFrom = from.email.toLowerCase() !== identity.email.toLowerCase() ? identity.email : undefined;
-    return { from, envelopeMailFrom };
-  }, [fromOverride, subAddressTag, subAddressDelimiter]);
+  // Without the organisation's custom From, an override set earlier no longer applies.
+  const senderAddress = React.useCallback(
+    (identity: Identity): { from: EmailAddress; envelopeMailFrom?: string } =>
+      composeSenderAddress(identity, { fromOverride, customFromEnabled, subAddressTag, subAddressDelimiter }),
+    [fromOverride, customFromEnabled, subAddressTag, subAddressDelimiter],
+  );
+  const shownFromOverride = activeFromOverride(fromOverride, customFromEnabled);
 
   const buildOutgoing = React.useCallback((identity: Identity, liveHtml: string, opts: { forDraft: boolean }): OutgoingEmail => {
     const { from, envelopeMailFrom } = senderAddress(identity);
@@ -2361,9 +2353,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [overrideEmail, setOverrideEmail] = React.useState('');
   const openFromOptions = () => {
     setTagDraft(subAddressTag);
-    setOverrideEnabled(!!fromOverride);
-    setOverrideName(fromOverride?.name ?? primaryIdentity?.name ?? '');
-    setOverrideEmail(fromOverride?.email ?? primaryIdentity?.email ?? '');
+    setOverrideEnabled(!!shownFromOverride);
+    setOverrideName(shownFromOverride?.name ?? primaryIdentity?.name ?? '');
+    setOverrideEmail(shownFromOverride?.email ?? primaryIdentity?.email ?? '');
     setFromOptionsOpen(true);
   };
   const tagError = tagDraft ? getTagValidationError(tagDraft) : null;
@@ -2376,7 +2368,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return out.slice(0, 5);
   }, [finalTo]);
   const applyFromOptions = () => {
-    if (overrideEnabled) {
+    if (overrideEnabled && customFromEnabled) {
       const email = overrideEmail.trim();
       if (!isValidEmail(email)) {
         Alert.alert(t('email_composer.from_override.email_label', 'From email address'), t('identities.form.email_invalid', 'Please enter a valid email address'));
@@ -3147,7 +3139,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               disabled={identities.length <= 1 && !primaryIdentity}
               style={styles.fieldContent}
             >
-              <Text style={[styles.fromText, !!fromOverride && styles.fromTextOverride]} numberOfLines={1}>
+              <Text style={[styles.fromText, !!shownFromOverride && styles.fromTextOverride]} numberOfLines={1}>
                 {fromDisplay}
               </Text>
               {identities.length > 1 && <ChevronDown size={14} color={c.textMuted} />}
@@ -3160,7 +3152,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={t('email_composer.from_options', 'Sender options')}
               >
-                <Tag size={16} color={subAddressTag || fromOverride ? c.primary : c.textMuted} />
+                <Tag size={16} color={subAddressTag || shownFromOverride ? c.primary : c.textMuted} />
               </Pressable>
             )}
           </View>
@@ -3683,7 +3675,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('email_composer.from', 'From')}</Text>
-            {!overrideEnabled && (
+            {!(overrideEnabled && customFromEnabled) && (
               <>
                 <Text style={styles.modalLabel}>{t('identities.sub_address.popover_title', 'Add Sub-Address Tag')}</Text>
                 <TextInput
@@ -3721,15 +3713,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 )}
               </>
             )}
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>{t('email_composer.from_override.toggle_off', 'Override')}</Text>
-              <ToggleSwitch
-                value={overrideEnabled}
-                onValueChange={setOverrideEnabled}
-                accessibilityLabel={t('email_composer.from_override.toggle_off', 'Override')}
-              />
-            </View>
-            {overrideEnabled && (
+            {/* The organisation can turn custom From off (webmail email-composer.tsx customFromEnabled). */}
+            {customFromEnabled && (
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>{t('email_composer.from_override.toggle_off', 'Override')}</Text>
+                <ToggleSwitch
+                  value={overrideEnabled}
+                  onValueChange={setOverrideEnabled}
+                  accessibilityLabel={t('email_composer.from_override.toggle_off', 'Override')}
+                />
+              </View>
+            )}
+            {overrideEnabled && customFromEnabled && (
               <>
                 <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity - only the visible From header changes.')}</Text>
                 <TextInput
