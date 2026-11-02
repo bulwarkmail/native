@@ -1252,7 +1252,11 @@
     "use_template": "Mall",
     "validation": {
       "subject_required": "Lisa teema"
-    }
+    },
+    "draft_kept_title": "Salvestatud selles seadmes",
+    "draft_kept_body": "See läheb mustanditesse, kui oled jälle sisse logitud ja võrgus.",
+    "rescued_draft_title": "Salvestatud mustanditesse",
+    "rescued_draft_body": "Kirjutatud sõnumit ei õnnestunud varem salvestada. See on nüüd mustandites."
   },
   "email_list": {
     "cross_account_move_offline": "Kontode vahel teisaldamiseks on vaja ühendust",

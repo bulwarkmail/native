@@ -26,6 +26,8 @@ const GRIDS = new Set(['MonthScrollView.tsx', 'TimeGridScrollView.tsx', 'WeekVie
 const files = [
   path.join(SRC, 'screens', 'SettingsScreen.tsx'),
   path.join(SRC, 'screens', 'FilesScreen.tsx'),
+  // The reader's page pager sits around the quick reply box.
+  path.join(SRC, 'screens', 'EmailThreadScreen.tsx'),
   ...walk(path.join(SRC, 'components', 'settings')),
   ...walk(path.join(SRC, 'components', 'calendar')).filter((f) => !GRIDS.has(path.basename(f))),
   ...walk(path.join(SRC, 'components', 'files')),

@@ -75,6 +75,21 @@ describe('a PGP key in a message', () => {
     expect(stored()).toEqual([]);
   }, 60_000);
 
+  it('is neither stored nor offered when it also names another address', async () => {
+    // Mallory's own address and the boss's on one key: saved for Mallory,
+    // it would be encrypted to for the boss and verify mail forged from them.
+    const { privateKey, publicKey } = await openpgp.generateKey({
+      type: 'ecc', curve: 'curve25519Legacy',
+      userIDs: [{ name: 'Mallory', email: mallory.email }, { name: 'Boss', email: 'boss@example.org' }],
+      format: 'armored',
+    });
+    const signer = await openpgp.readPrivateKey({ armoredKey: privateKey });
+    const res = await openSecureMessage(await inlineSigned(mallory.email, signer, publicKey), mallory.email, keyringAccess());
+    expect(res?.offeredKey).toBeUndefined();
+    await expect(savePgpKeyFor(publicKey, mallory.email)).rejects.toThrow(/not for mallory@example.org alone/);
+    expect(stored()).toEqual([]);
+  }, 60_000);
+
   it('is neither stored nor offered when the signature fails', async () => {
     await importPgpKey(alice.publicKey);
     const res = await openSecureMessage(await inlineSigned(alice.email, alice.unlocked, alice.publicKey, true), alice.email, keyringAccess());
@@ -116,6 +131,19 @@ describe('an S/MIME signer certificate', () => {
   it('is not kept when it does not name the From address, even with a valid signature', async () => {
     const res = await openSecureMessage(await signed(), 'mallory@example.org', keyringAccess());
     expect(res?.status.signature).toBe('valid');
+    expect(stored()).toEqual([]);
+  }, 60_000);
+
+  it('is not kept when it also names another address', async () => {
+    const both = await makeSmimeCert('mallory@example.org', { extraEmails: ['boss@example.org'] });
+    const raw = await buildSecureMessage(
+      { from: { email: both.email }, to: [{ email: 'bob@example.org' }], subject: 's', textBody: 'signed' },
+      { mode: 'smime', sign: true, encrypt: false },
+      { smime: { signer: { pkcs8: both.pkcs8, certificate: both.certificate, chain: [], algorithm: 'RSA-2048' } } },
+    );
+    const res = await openSecureMessage(raw, both.email, keyringAccess());
+    expect(res?.status.signature).toBe('valid');
+    await new Promise((r) => setTimeout(r, 50));
     expect(stored()).toEqual([]);
   }, 60_000);
 

@@ -9,7 +9,7 @@ import type { BodyPart, Email } from '../../api/types';
 import { binaryToBytes, bytesToBinary, decodeBody, findNode, parseEntity, type MimeNode } from './mime';
 import {
   detectPgp, decryptMessage, verifyDetached, verifyCleartext, encryptionKeyIds, keyHasId, canonicalSignedBytes,
-  extractPublicKeyBlock, inspectKey, PgpArgon2UnsupportedError, type PgpSignatureSummary,
+  extractPublicKeyBlock, inspectKey, keyNamesOnly, PgpArgon2UnsupportedError, type PgpSignatureSummary,
 } from './pgp';
 import type { SmimeKeyMaterial, SmimeSignatureStatus } from './smime/cms';
 
@@ -220,7 +220,7 @@ async function withOfferedKey(result: SecureResult, text: string | null | undefi
   try {
     const info = await inspectKey(block);
     if (info.isPrivate) return result;
-    if (!info.userIDs.some((u) => u.email.trim().toLowerCase() === from)) return result;
+    if (!keyNamesOnly(info, from)) return result;
     return { ...result, offeredKey: { armored: info.publicKeyArmored, fingerprint: info.fingerprint.toLowerCase(), email: from } };
   } catch {
     // a broken embedded key: nothing to offer

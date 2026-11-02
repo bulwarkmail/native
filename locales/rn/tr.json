@@ -427,7 +427,11 @@
     "undo_send_other_login": "Bu ileti başka bir hesaptan gönderildi",
     "undo_send_other_login_body": "Geri almak veya hemen göndermek için {account} hesabına geri dönün. İleti, gecikme süresi dolunca gönderilir.",
     "upload_login_switched": "Yüklenmedi: hesap değiştirildi",
-    "use_template": "Şablon"
+    "use_template": "Şablon",
+    "draft_kept_title": "Bu cihaza kaydedildi",
+    "draft_kept_body": "Yeniden oturum açıp çevrimiçi olduğunuzda Taslaklar'a gider.",
+    "rescued_draft_title": "Taslaklar'a kaydedildi",
+    "rescued_draft_body": "Yazdığınız bir ileti daha önce kaydedilemedi. Artık Taslaklar'da."
   },
   "email_list": {
     "cross_account_move_offline": "Hesaplar arasında taşımak için bağlantı gerekiyor",

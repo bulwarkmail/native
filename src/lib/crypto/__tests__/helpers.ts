@@ -43,7 +43,7 @@ export interface TestCert {
 const engine = () => new pkijs.CryptoEngine({ name: 'test', crypto: globalThis.crypto });
 
 /** A self-signed RSA-2048 S/MIME certificate for `email`. */
-export async function makeSmimeCert(email: string, opts: { notAfter?: Date } = {}): Promise<TestCert> {
+export async function makeSmimeCert(email: string, opts: { notAfter?: Date; extraEmails?: string[] } = {}): Promise<TestCert> {
   const subtle = globalThis.crypto.subtle;
   const keys = await subtle.generateKey(
     { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
@@ -67,7 +67,9 @@ export async function makeSmimeCert(email: string, opts: { notAfter?: Date } = {
     new pkijs.Extension({ extnID: '2.5.29.15', critical: true, extnValue: ku.toBER(false), parsedValue: ku }),
     new pkijs.Extension({
       extnID: '2.5.29.17',
-      extnValue: new pkijs.GeneralNames({ names: [new pkijs.GeneralName({ type: 1, value: email })] }).toSchema().toBER(false),
+      extnValue: new pkijs.GeneralNames({
+        names: [email, ...(opts.extraEmails ?? [])].map((value) => new pkijs.GeneralName({ type: 1, value })),
+      }).toSchema().toBER(false),
     }),
   ];
   await cert.subjectPublicKeyInfo.importKey(keys.publicKey, engine());

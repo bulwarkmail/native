@@ -420,7 +420,11 @@
     "undo_send_other_login": "این پیام از حساب دیگری ارسال شده است",
     "undo_send_other_login_body": "برای بازگردانی یا ارسال فوری آن، به {account} برگردید. پس از پایان تأخیر ارسال می‌شود.",
     "upload_login_switched": "بارگذاری نشد: حساب عوض شد",
-    "use_template": "قالب"
+    "use_template": "قالب",
+    "draft_kept_title": "روی این دستگاه ذخیره شد",
+    "draft_kept_body": "وقتی دوباره وارد شوید و آنلاین باشید، به پیش‌نویس‌ها می‌رود.",
+    "rescued_draft_title": "در پیش‌نویس‌ها ذخیره شد",
+    "rescued_draft_body": "پیامی که می‌نوشتید قبلاً ذخیره نشد. اکنون در پیش‌نویس‌ها است."
   },
   "email_list": {
     "cross_account_move_offline": "انتقال بین حساب‌ها به اتصال اینترنت نیاز دارد",

@@ -200,6 +200,11 @@ export interface WidgetSnapshot {
   accounts: AccountSummary[];
   /** The signed-in account the single-account widgets show. */
   activeAccountId: string | null;
+  /**
+   * False when the active account's organisation turned archiving off
+   * (policy archiveActionEnabled); absent counts as on.
+   */
+  archiveEnabled?: boolean;
   mail: {
     folders: FolderCount[];
     inbox: MailItem[];

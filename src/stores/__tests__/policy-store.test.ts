@@ -27,7 +27,7 @@ import { useAuthStore } from '../auth-store';
 import { useAccountStore, type AccountEntry } from '../account-store';
 import { useSettingsStore, resetPolicyRulesForTests } from '../settings-store';
 import { useToastStore } from '../toast-store';
-import { startPolicySync, usePolicyStore, settingKeyFor } from '../policy-store';
+import { noThirdPartyTraffic, startPolicySync, usePolicyStore, settingKeyFor } from '../policy-store';
 
 const WEBMAIL = 'https://webmail.example.org';
 const ADA = 'ada@example.com@mail.example.com';
@@ -81,7 +81,7 @@ beforeEach(() => {
     defaultAccountId: ADA,
   });
   useAuthStore.setState({ activeAccountId: ADA, session: null });
-  usePolicyStore.setState({ byAccount: {}, accountId: null, effective: null, links: {} });
+  usePolicyStore.setState({ byAccount: {}, configByAccount: {}, accountId: null, effective: null, links: {}, configPending: true });
   useSettingsStore.setState({ density: 'regular', markAsReadDelay: 0, explicitSettings: [], hydrated: true });
   useToastStore.setState({ toasts: [] });
 });
@@ -193,6 +193,68 @@ describe('startPolicySync', () => {
     useAccountStore.getState().removeAccount(BOB);
     expect(usePolicyStore.getState().byAccount[BOB]).toBeUndefined();
     stop();
+  });
+});
+
+describe('no third-party traffic', () => {
+  const mode = () => noThirdPartyTraffic(usePolicyStore.getState());
+
+  it('counts as on until the config of the account\'s webmail is known', async () => {
+    usePolicyStore.getState().activate(ADA);
+    expect(mode()).toBe(true);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(mode()).toBe(false);
+  });
+
+  it('keeps it on when the config says so', async () => {
+    configs[WEBMAIL] = { noThirdPartyTraffic: true };
+    await usePolicyStore.getState().refresh(ADA);
+    expect(mode()).toBe(true);
+  });
+
+  it('is off for an account without a webmail', () => {
+    useAccountStore.getState().updateAccount(ADA, { webmailUrl: undefined });
+    usePolicyStore.getState().activate(ADA);
+    expect(mode()).toBe(false);
+  });
+
+  it('uses the cached config on an offline start', async () => {
+    await usePolicyStore.getState().refresh(ADA);
+    usePolicyStore.setState({ links: {}, configPending: true });
+    mockFetch.mockRejectedValue(new Error('Network request failed'));
+    usePolicyStore.getState().activate(ADA);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(mode()).toBe(false);
+    expect(usePolicyStore.getState().links).toEqual({ helpUrl: 'https://help.example.org' });
+  });
+
+  it('uses the links a policy cached by an earlier version holds', async () => {
+    await usePolicyStore.getState().refresh(ADA);
+    const cached = usePolicyStore.getState().byAccount[ADA];
+    usePolicyStore.setState({ byAccount: { [ADA]: { ...cached, links: { noThirdPartyTraffic: true } } }, configByAccount: {} });
+    usePolicyStore.getState().activate(ADA);
+    expect(mode()).toBe(true);
+    usePolicyStore.setState({ byAccount: { [ADA]: { ...cached, links: {} } } });
+    usePolicyStore.getState().activate(ADA);
+    expect(mode()).toBe(false);
+  });
+
+  it('reads the config of a webmail without the policy route', async () => {
+    mockFetch.mockImplementation(async (url: string) => (url.endsWith('/api/config')
+      ? response(url, {})
+      : ({ ok: false, status: 404, headers: { get: () => null } } as unknown as Response)));
+    usePolicyStore.getState().activate(ADA);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(mode()).toBe(false);
+  });
+
+  it('stays on when only the policy answered', async () => {
+    mockFetch.mockImplementation(async (url: string) => (url.endsWith('/api/config')
+      ? Promise.reject(new Error('timeout'))
+      : response(url, policies[WEBMAIL])));
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().effective).not.toBeNull();
+    expect(mode()).toBe(true);
   });
 });
 

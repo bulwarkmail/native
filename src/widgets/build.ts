@@ -16,6 +16,7 @@ import { getEventEndDate, getEventStartDate } from '../lib/calendar-utils';
 import { getUserParticipantId, getUserStatus } from '../lib/calendar-participants';
 import { getBirthday, getContactDisplayName, getDateParts } from '../lib/contact-utils';
 import { notificationLocale } from '../lib/push-background-task';
+import { isFeatureEnabled, resolvePolicy, sanitizePolicy } from '../lib/org-policy';
 import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { LIGHT_COLORS } from '../theme/tokens';
@@ -46,6 +47,30 @@ interface RegistryAccount {
   displayName?: string;
   username?: string;
   avatarColor?: string;
+  webmailUrl?: string;
+}
+
+/**
+ * Whether the account's organisation lets it archive (policy
+ * archiveActionEnabled), from the policy the app cached for it
+ * (stores/policy-store.ts, which this runtime may not have loaded). On
+ * without a webmail or a cached policy from it.
+ */
+export async function readArchiveEnabled(account: RegistryAccount | undefined): Promise<boolean> {
+  if (!account?.webmailUrl) return true;
+  try {
+    const raw = await AsyncStorage.getItem('org-policy-cache');
+    const byAccount = raw
+      ? (JSON.parse(raw) as { state?: { byAccount?: Record<string, { policy?: unknown; webmailUrl?: string }> } }).state?.byAccount
+      : undefined;
+    const cached = byAccount?.[account.id];
+    const policy = cached?.webmailUrl === account.webmailUrl ? sanitizePolicy(cached.policy) : null;
+    if (!policy) return true;
+    const email = (account.email || account.username || '').trim().toLowerCase();
+    return isFeatureEnabled(resolvePolicy(policy, { email, groups: [] }), 'archiveActionEnabled');
+  } catch {
+    return true;
+  }
 }
 
 export async function readRegistry(): Promise<{ accounts: RegistryAccount[]; activeAccountId: string | null }> {
@@ -390,6 +415,7 @@ async function buildSnapshot(previous: WidgetSnapshot): Promise<WidgetSnapshot> 
     hour12: timeFormat === '12h',
     weekStart: calendarFirstDayOfWeek === 0 ? 0 : 1,
     activeAccountId,
+    archiveEnabled: await readArchiveEnabled(accounts.find((a) => a.id === activeAccountId)),
   };
   if (previous.activeAccountId !== activeAccountId) {
     // Nothing of another account's data may linger in a widget.

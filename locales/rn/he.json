@@ -424,7 +424,11 @@
     "undo_send_other_login": "ההודעה הזו נשלחה מחשבון אחר",
     "undo_send_other_login_body": "חזור אל {account} כדי לבטל אותה או לשלוח אותה עכשיו. היא תישלח כשההשהיה תסתיים.",
     "upload_login_switched": "לא הועלה: החשבון הוחלף",
-    "use_template": "תבנית"
+    "use_template": "תבנית",
+    "draft_kept_title": "נשמר במכשיר הזה",
+    "draft_kept_body": "הוא יעבור לטיוטות כשתתחבר שוב ותהיה מחובר לרשת.",
+    "rescued_draft_title": "נשמר בטיוטות",
+    "rescued_draft_body": "לא ניתן היה לשמור קודם הודעה שכתבת. היא נמצאת עכשיו בטיוטות."
   },
   "email_list": {
     "cross_account_move_offline": "העברה בין חשבונות דורשת חיבור",

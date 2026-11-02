@@ -158,13 +158,14 @@ Holder has to accept an updated agreement under Business in App Store Connect.
 
 ## What does not work on iOS yet
 
-- **Push notifications.** The push path is a hand-written Android module talking
-  to FCM (`BulwarkFcmModule`, `BulwarkMessagingService`). iOS needs an APNs key
-  and an equivalent native module; until then `push-notifications.ts` short-
-  circuits and the app polls like a device with push disabled.
-- **Client certificates.** `BulwarkClientCertModule` is Android-only.
-  `secureFetch` falls back to plain `fetch`, so cert-authenticated servers will
-  not connect.
+- **Client certificates, partly (#3).** The app imports a .p12 into its own
+  keychain (plugins/ios-client-cert) and every request of the app answers the
+  server's certificate request with it. Two places can't: the notification
+  service extension (plugins/ios-push) uses a plain URLSession, so behind
+  client certificate authentication notifications show only the placeholder
+  text and push renewal fails; and sign-in through the server's page runs in
+  the system browser, which can't use the app's certificate (password sign-in
+  in the app works). Not yet run on a device.
 - **In-app updates.** Hidden on purpose - see `supportsSideloadUpdates` in
   [src/lib/platform-capabilities.ts](../src/lib/platform-capabilities.ts).
   Downloading and installing a binary is forbidden by App Store Review guideline

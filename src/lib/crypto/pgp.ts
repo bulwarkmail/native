@@ -26,6 +26,17 @@ export interface PgpKeyInfo {
   algorithm: string;
 }
 
+/**
+ * Whether a key names `email` and no other address. A key that arrives in a
+ * message is offered and saved only then: one that also named another
+ * address would be encrypted to for it and would verify mail forged from it.
+ */
+export function keyNamesOnly(info: Pick<PgpKeyInfo, 'userIDs'>, email: string): boolean {
+  const address = email.trim().toLowerCase();
+  const named = info.userIDs.map((u) => u.email.trim().toLowerCase()).filter(Boolean);
+  return !!address && named.length > 0 && named.every((e) => e === address);
+}
+
 export type PgpSignatureStatus = 'none' | 'valid' | 'invalid' | 'unknown';
 
 export interface PgpSignatureSummary {
