@@ -573,18 +573,44 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (!accountId || !send || !canCancel(send)) return false;
     // Out of the queue first, so a flush can't send it while it is saved.
     removeSend(accountId, id);
-    if (!opts?.keepAsDraft) return true;
+    // Nothing reached the server: a discard needs no lookup.
+    if (!opts?.keepAsDraft && !send.maybeSent) return true;
     const p = send.payload;
     try {
       // An attempt that may have reached the server is looked for first, as
       // before a resend: a message that went out must not come back as a
-      // draft.
+      // draft. One the server still holds for later (a "send later") is
+      // cancelled there, or it would go out all the same.
       if (send.maybeSent) {
-        const [{ wasQueuedSendSent }, { useEmailStore }] = await Promise.all([
+        const [{ takeBackQueuedSend }, { useEmailStore }] = await Promise.all([
           import('../api/queued-send'),
           import('./email-store'),
         ]);
-        if (await wasQueuedSendSent(send, useEmailStore.getState().mailboxes)) {
+        const mailboxes = useEmailStore.getState().mailboxes;
+        const found = await takeBackQueuedSend(send, mailboxes);
+        let released = found.kind === 'released';
+        if (found.kind === 'held') {
+          const [{ cancelScheduledToDrafts }, { cancelScheduledSend }, { JMAPSetError }] = await Promise.all([
+            import('../lib/compose-scheduled'),
+            import('../api/email'),
+            import('../api/jmap-result'),
+          ]);
+          try {
+            if (opts?.keepAsDraft) {
+              const { inDrafts } = await cancelScheduledToDrafts(found, mailboxes, jmapClient.accountId);
+              void notifySendCancelled(inDrafts ? 'drafts' : 'notMoved');
+            } else {
+              await cancelScheduledSend(found.emailSubmissionId, found.accountId);
+              void notifySendCancelled('sent');
+            }
+            return true;
+          } catch (err) {
+            // The server refused the cancel: it let the message go meanwhile.
+            if (!(err instanceof JMAPSetError)) throw err;
+            released = true;
+          }
+        }
+        if (released) {
           if (p.original) {
             patchKeywordsForEmails([p.original.emailId], { [p.original.keyword]: true }, p.original.accountId).catch(() => undefined);
           }
@@ -592,6 +618,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
           return true;
         }
       }
+      if (!opts?.keepAsDraft) return true;
       if (!p.draftsMailboxId) throw new Error('No Drafts folder');
       const { saveDraftVersion } = await import('../api/email');
       await saveDraftVersion(p.outgoing, p.draftsMailboxId, p.draftId, undefined, p.draftAccountId);
@@ -792,6 +819,33 @@ async function saveRescuedDrafts(accountId: string): Promise<void> {
     });
   } catch (err) {
     console.warn('[outbox] could not save kept drafts', err);
+  }
+}
+
+/**
+ * Taking back a message the server held for later: the held send was
+ * cancelled. Its copy went back to Drafts, stayed in Sent because the move
+ * failed, or stays in Sent on a discard.
+ */
+async function notifySendCancelled(where: 'drafts' | 'notMoved' | 'sent'): Promise<void> {
+  try {
+    const [{ toast }, { useLocaleStore }] = await Promise.all([import('./toast-store'), import('./locale-store')]);
+    const t = useLocaleStore.getState().t;
+    if (where === 'drafts') {
+      toast.info(t('scheduled.send_cancelled', 'Send cancelled'), {
+        message: t('scheduled.cancel_to_drafts_body', 'The message will not be sent. It goes back to your Drafts.'),
+      });
+    } else if (where === 'notMoved') {
+      toast.info(t('scheduled.cancelled_not_moved', 'Send cancelled, but not moved to Drafts'), {
+        message: t('scheduled.cancelled_not_moved_body', 'The message will not be sent. It is still in Sent.'),
+      });
+    } else {
+      toast.info(t('scheduled.send_cancelled', 'Send cancelled'), {
+        message: t('scheduled.cancel_body', 'The message will not be delivered. A copy stays in your Sent folder.'),
+      });
+    }
+  } catch (err) {
+    console.warn('[outbox] could not report a cancelled send', err);
   }
 }
 

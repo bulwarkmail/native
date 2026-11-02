@@ -18,7 +18,7 @@ vi.mock('../../lib/compose-send-account', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { findCopiesByMessageId, runQueuedSend, wasQueuedSendSent } from '../queued-send';
+import { findCopiesByMessageId, runQueuedSend, takeBackQueuedSend } from '../queued-send';
 import { newQueuedSend, type QueuedSendPayload } from '../../lib/send-queue';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -85,14 +85,35 @@ describe('runQueuedSend', () => {
   });
 });
 
-describe('wasQueuedSendSent', () => {
-  it('finds a copy an earlier attempt sent, and removes the old draft', async () => {
-    mockRequest.mockResolvedValueOnce(found([
-      { id: 'draft-1', keywords: { $draft: true }, messageId: ['m1@x.de'] },
-      { id: 'sent-1', keywords: { $seen: true }, messageId: ['m1@x.de'] },
-    ]));
-    expect(await wasQueuedSendSent(newQueuedSend('q', PAYLOAD, 0, true), [])).toBe(true);
+const submissions = (list: Array<{ id: string; emailId: string; undoStatus: string }>) => ({
+  methodResponses: [
+    ['EmailSubmission/query', { ids: list.map((x) => x.id) }, '0'],
+    ['EmailSubmission/get', { list }, '1'],
+  ],
+});
+
+describe('takeBackQueuedSend', () => {
+  const sentCopy = () => found([
+    { id: 'draft-1', keywords: { $draft: true }, messageId: ['m1@x.de'] },
+    { id: 'sent-1', keywords: { $seen: true }, messageId: ['m1@x.de'] },
+  ]);
+
+  it('finds the submission an earlier attempt left held, to be cancelled', async () => {
+    mockRequest.mockResolvedValueOnce(sentCopy());
+    mockRequest.mockResolvedValueOnce(submissions([{ id: 'sub-1', emailId: 'sent-1', undoStatus: 'pending' }]));
+    expect(await takeBackQueuedSend(newQueuedSend('q', PAYLOAD, 0, true), [])).toEqual({
+      kind: 'held', accountId: 'acc-1', emailId: 'sent-1', emailSubmissionId: 'sub-1',
+    });
+    expect(mockRequest.mock.calls[1][0][0]).toEqual(
+      ['EmailSubmission/query', { accountId: 'acc-1', filter: { emailIds: ['sent-1'] } }, '0'],
+    );
     expect(destroyEmails).toHaveBeenCalledWith(['draft-1'], 'acc-1');
+  });
+
+  it('says released when the server let the copy go already', async () => {
+    mockRequest.mockResolvedValueOnce(sentCopy());
+    mockRequest.mockResolvedValueOnce(submissions([{ id: 'sub-1', emailId: 'sent-1', undoStatus: 'final' }]));
+    expect(await takeBackQueuedSend(newQueuedSend('q', PAYLOAD, 0, true), [])).toEqual({ kind: 'released' });
   });
 
   it('says not sent when only drafts are there, and removes nothing', async () => {
@@ -100,12 +121,13 @@ describe('wasQueuedSendSent', () => {
       { id: 'draft-1', keywords: { $draft: true }, messageId: ['m1@x.de'] },
       { id: 'left-1', keywords: { $draft: true, $seen: true }, messageId: ['m1@x.de'] },
     ]));
-    expect(await wasQueuedSendSent(newQueuedSend('q', PAYLOAD, 0, true), [])).toBe(false);
+    expect(await takeBackQueuedSend(newQueuedSend('q', PAYLOAD, 0, true), [])).toEqual({ kind: 'notSent' });
     expect(destroyEmails).not.toHaveBeenCalled();
+    expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
   it('does not look for a message no attempt reached the server with', async () => {
-    expect(await wasQueuedSendSent(newQueuedSend('q', PAYLOAD, 0, false), [])).toBe(false);
+    expect(await takeBackQueuedSend(newQueuedSend('q', PAYLOAD, 0, false), [])).toEqual({ kind: 'notSent' });
     expect(mockRequest).not.toHaveBeenCalled();
   });
 });
