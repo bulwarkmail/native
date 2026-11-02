@@ -54,6 +54,12 @@ describe('no third-party traffic', () => {
     expect(src).toMatch(/t\('third_party\.remote_content_blocked'/);
   });
 
+  it('shows no sender favicons from the outside host', () => {
+    const src = read('components/SenderAvatar.tsx');
+    expect(src).toMatch(/const noThirdParty = useNoThirdPartyTraffic\(\);/);
+    expect(src).toMatch(/showFavicon: senderFavicons && !noThirdParty && /);
+  });
+
   it('keeps remote images blocked in booking cards and quoted originals', () => {
     expect(read('components/email/structured-mail/StructuredMailBanner.tsx')).toMatch(/\(\) => !remoteBlockedByOrg && \(policy === 'allow' \|\|/);
     const compose = read('screens/ComposeScreen.tsx');

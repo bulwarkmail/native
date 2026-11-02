@@ -18,6 +18,7 @@ import { useContactPhotoSource } from '../lib/use-contact-photo';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useAccountStore } from '../stores/account-store';
+import { useNoThirdPartyTraffic } from '../stores/policy-store';
 import { useColors } from '../theme/colors';
 import { ShieldAlert } from './icons';
 
@@ -61,6 +62,10 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
   const c = useColors();
   const warned = !!senderWarning;
   const senderFavicons = useSettingsStore((s) => s.senderFavicons) && !disableImages && !warned;
+  // Favicons come from an outside host (DuckDuckGo), which the webmail's
+  // "no third-party traffic" mode rules out (webmail lib/outgoing-hosts.ts).
+  // BIMI logos come from the webmail itself.
+  const noThirdParty = useNoThirdPartyTraffic();
   // Compared shallowly, so only avatars whose photo changed re-render when the
   // contacts change; the index behind it is built once per contacts array.
   const indexedPhoto = useContactsStore(
@@ -94,7 +99,7 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
     senderWarning,
     hasPhoto: !disableImages && !!photoSource,
     showBrand,
-    showFavicon: senderFavicons && !!faviconDomain && !imgError && !domainFailed,
+    showFavicon: senderFavicons && !noThirdParty && !!faviconDomain && !imgError && !domainFailed,
   });
 
   const handleError = React.useCallback(() => {
