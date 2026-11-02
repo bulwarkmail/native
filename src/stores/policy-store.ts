@@ -48,11 +48,19 @@ export interface CachedPolicy {
   fetchedAt: number;
   /** The webmail it came from; an account that moved to another drops it. */
   webmailUrl: string;
+  /** Only in policies cached before configByAccount; the config now has its own entry. */
+  links?: WebmailLinks;
+}
+
+/** The last answer of the webmail's /api/config, kept apart from the policy (an older webmail has no policy route). */
+export interface CachedConfig {
+  webmailUrl: string;
   links: WebmailLinks;
 }
 
 interface PolicyState {
   byAccount: Record<string, CachedPolicy>;
+  configByAccount: Record<string, CachedConfig>;
   /** The account `effective` was resolved for. */
   accountId: string | null;
   /** The active account's policy with its scopes applied; null without a webmail. */
@@ -60,6 +68,12 @@ interface PolicyState {
   /** What `effective` does to the settings. */
   rules: SettingsRules;
   links: WebmailLinks;
+  /**
+   * The active account has a webmail whose /api/config hasn't been read
+   * yet (nor cached). Its "no third-party traffic" mode counts as on
+   * meanwhile, as in the webmail (hooks/use-third-party-mode.ts).
+   */
+  configPending: boolean;
 
   /** Resolve and apply the cached policy of this account (the active one). */
   activate: (accountId: string | null) => void;
@@ -195,10 +209,13 @@ export const usePolicyStore = create<PolicyState>()(
   persist(
     (set, get) => ({
       byAccount: {},
+      configByAccount: {},
       accountId: null,
       effective: null,
       rules: EMPTY_SETTINGS_RULES,
       links: {},
+      // Until the cache is read and the active account known.
+      configPending: true,
 
       activate: (accountId) => {
         const account = accountId ? useAccountStore.getState().getAccountById(accountId) : undefined;
@@ -207,7 +224,16 @@ export const usePolicyStore = create<PolicyState>()(
         const usable = account?.webmailUrl && cached && cached.webmailUrl === account.webmailUrl ? cached : null;
         const effective = usable && account ? resolvePolicy(usable.policy, policySubjectFor(account)) : null;
         const rules = rulesFor(effective);
-        set({ accountId: accountId ?? null, effective, rules, links: usable?.links ?? {} });
+        const config = accountId && account?.webmailUrl ? get().configByAccount[accountId] : undefined;
+        // A policy cached before the config had its own entry came with the config's links.
+        const links = config?.webmailUrl === account?.webmailUrl && config ? config.links : usable?.links;
+        set({
+          accountId: accountId ?? null,
+          effective,
+          rules,
+          links: links ?? {},
+          configPending: !!account?.webmailUrl && !links,
+        });
         useSettingsStore.getState().applyPolicyRules(rules);
       },
 
@@ -220,21 +246,27 @@ export const usePolicyStore = create<PolicyState>()(
           if (!account || !webmailUrl) return;
           const auth = await bearerFor(account);
           const [fetched, links] = await Promise.all([fetchOrgPolicy(webmailUrl, auth), fetchWebmailLinks(webmailUrl)]);
-          if (!fetched) return; // offline or no policy route: keep what is cached
+          // Offline: keep what is cached. A webmail without the policy route
+          // still has its config.
+          if (!fetched && !links) return;
           // Signed out of the account meanwhile.
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
+          const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
           set({
-            byAccount: {
-              ...get().byAccount,
-              [accountId]: {
-                policy: fetched.policy,
-                partial: fetched.partial,
-                fetchedAt: Date.now(),
-                webmailUrl,
-                links: links ?? (previous?.webmailUrl === webmailUrl ? previous.links : {}),
+            ...(fetched ? {
+              byAccount: {
+                ...get().byAccount,
+                [accountId]: { policy: fetched.policy, partial: fetched.partial, fetchedAt: Date.now(), webmailUrl },
               },
-            },
+            } : {}),
+            // Config links cached inside an older policy entry move to their own.
+            ...(links || (fetched && legacyLinks) ? {
+              configByAccount: {
+                ...get().configByAccount,
+                [accountId]: { webmailUrl, links: (links ?? legacyLinks)! },
+              },
+            } : {}),
           });
           if (useAuthStore.getState().activeAccountId === accountId) get().activate(accountId);
         })().finally(() => refreshes.delete(accountId));
@@ -244,15 +276,18 @@ export const usePolicyStore = create<PolicyState>()(
 
       prune: (accountIds) => {
         const keep = new Set(accountIds);
-        const current = get().byAccount;
-        if (Object.keys(current).every((id) => keep.has(id))) return;
-        set({ byAccount: Object.fromEntries(Object.entries(current).filter(([id]) => keep.has(id))) });
+        const { byAccount, configByAccount } = get();
+        if ([...Object.keys(byAccount), ...Object.keys(configByAccount)].every((id) => keep.has(id))) return;
+        set({
+          byAccount: Object.fromEntries(Object.entries(byAccount).filter(([id]) => keep.has(id))),
+          configByAccount: Object.fromEntries(Object.entries(configByAccount).filter(([id]) => keep.has(id))),
+        });
       },
     }),
     {
       name: 'org-policy-cache',
       storage: createPersistStorage(),
-      partialize: (state) => ({ byAccount: state.byAccount }) as unknown as PolicyState,
+      partialize: (state) => ({ byAccount: state.byAccount, configByAccount: state.configByAccount }) as unknown as PolicyState,
     },
   ),
 );
@@ -270,10 +305,15 @@ export function useSettingLocked(key: string): boolean {
 /**
  * Whether the active account's webmail runs without third-party traffic
  * (webmail hooks/use-third-party-mode.ts): remote content in mail never
- * loads, whatever the setting or a trusted sender says.
+ * loads, whatever the setting or a trusted sender says. On while the
+ * config is still unknown, so nothing reaches out before it says it may.
  */
+export function noThirdPartyTraffic(state: Pick<PolicyState, 'links' | 'configPending'>): boolean {
+  return state.configPending || state.links.noThirdPartyTraffic === true;
+}
+
 export function useNoThirdPartyTraffic(): boolean {
-  return usePolicyStore((s) => s.links.noThirdPartyTraffic === true);
+  return usePolicyStore(noThirdPartyTraffic);
 }
 
 /** Whether the active account's policy hides a setting (by the app's key). */
@@ -301,7 +341,8 @@ export function startPolicySync(): () => void {
     });
   });
 
-  let activeId: string | null = null;
+  // Undefined until the first activate, which also settles configPending without an account.
+  let activeId: string | null | undefined;
   let fetchedFor: string | null = null;
   const follow = () => {
     const auth = useAuthStore.getState();
@@ -337,7 +378,11 @@ export function startPolicySync(): () => void {
     const before = id ? prev.accounts.find((a) => a.id === id) : undefined;
     if (id && now?.webmailUrl && now.webmailUrl !== before?.webmailUrl) {
       fetchedFor = null;
-      whenHydrated(follow);
+      // Its config is unknown until the fetch answers.
+      whenHydrated(() => {
+        usePolicyStore.getState().activate(id);
+        follow();
+      });
     }
   });
 
