@@ -8,8 +8,8 @@
 # $OUT/screenshots, $OUT/run.mp4, $OUT/app.log, $OUT/steps.txt.
 #
 # Each flow runs in its own Maestro process with a time cap: when the XCTest
-# driver dies (it does, now and then), only that flow fails and the next one
-# starts a fresh driver.
+# driver dies (it does, now and then), only that flow is affected: it runs
+# once more with a fresh driver, and the next flow starts a fresh one too.
 #
 # Secrets: Maestro's debug output holds every typed text, passwords included,
 # and artifacts of this public repo are public. Only the warm-up (which types
@@ -75,23 +75,42 @@ if [ $STATUS -eq 0 ]; then
   fi
 
   FAILED=()
+  RETRIED=()
   for f in "${FLOWS[@]}"; do
     name=$(basename "$f" .yaml)
-    started=$(date +%s)
-    echo "::group::$name"
-    (cd "$OUT/screenshots" && capped maestro --device "$UDID" test \
-      --format junit --output "$OUT/junit/$name.xml" \
-      --debug-output "$DEBUG_DIR/$name" \
-      "${ARGS[@]}" "$f")
-    rc=$?
-    echo "::endgroup::"
-    echo "$name: exit $rc after $(( $(date +%s) - started )) s"
+    # When the XCTest driver dies during a flow ("Device became unreachable"),
+    # the flow gets one more try in a fresh Maestro process, which starts a
+    # new driver. Any other failure (an assertion, a missing element, the
+    # time cap) stays a failure. The console output is kept on the runner
+    # only, to look for the driver's death.
+    for attempt in 1 2; do
+      suffix=""
+      [ $attempt -gt 1 ] && suffix="-retry"
+      started=$(date +%s)
+      console="$RUNNER_TEMP/maestro-console-$name$suffix.txt"
+      echo "::group::$name$suffix"
+      (cd "$OUT/screenshots" && capped maestro --device "$UDID" test \
+        --format junit --output "$OUT/junit/$name.xml" \
+        --debug-output "$DEBUG_DIR/$name$suffix" \
+        "${ARGS[@]}" "$f") 2>&1 | tee "$console"
+      rc=${PIPESTATUS[0]}
+      echo "::endgroup::"
+      echo "$name$suffix: exit $rc after $(( $(date +%s) - started )) s"
+      [ $rc -eq 0 ] && break
+      [ $attempt -eq 2 ] && break
+      grep -qE 'DeviceUnreachableException|Device became unreachable|Transport unreachable' "$console" || break
+      echo "::warning::$name: the Maestro driver became unreachable, running the flow once more"
+      RETRIED+=("$name")
+    done
     if [ $rc -ne 0 ]; then
       FAILED+=("$name")
       # What the screen showed when it failed.
       xcrun simctl io "$UDID" screenshot "$OUT/screenshots/FAILED-$name.png" >/dev/null 2>&1 || true
     fi
   done
+  if [ ${#RETRIED[@]} -gt 0 ]; then
+    echo "::warning::Flows run again after the driver died: ${RETRIED[*]}"
+  fi
   if [ ${#FAILED[@]} -gt 0 ]; then
     echo "::error::Failed flows: ${FAILED[*]}"
     STATUS=1
