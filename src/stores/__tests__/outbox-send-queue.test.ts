@@ -10,6 +10,7 @@ vi.mock('../../api/jmap-client', () => ({
     get isConnected() { return client.served !== null; },
     get username() { return client.served ? client.served.split('@')[0] : null; },
     get serverUrl() { return client.served ? `https://${client.served.split('@')[1]}` : null; },
+    accountId: 'acc-own',
   },
 }));
 
@@ -22,16 +23,21 @@ vi.mock('../../api/email', () => ({
   archiveEmails: vi.fn(),
   unprefixMailboxId: (id: string) => id,
   saveDraftVersion: (...a: any[]) => saveDraftVersion(...a),
+  cancelScheduledSend: (...a: any[]) => cancelScheduledSend(...a),
+  restoreEmailToDraft: (...a: any[]) => restoreEmailToDraft(...a),
 }));
+const cancelScheduledSend = vi.fn(async (..._a: any[]) => undefined);
+const restoreEmailToDraft = vi.fn(async (..._a: any[]) => undefined);
 
 const runQueuedSend = vi.fn(async (..._a: any[]): Promise<any> => ({ kind: 'sent', result: { scheduled: false } }));
-const wasQueuedSendSent = vi.fn(async (..._a: any[]) => false);
+const takeBackQueuedSend = vi.fn(async (..._a: any[]): Promise<any> => ({ kind: 'notSent' }));
 vi.mock('../../api/queued-send', () => ({
   runQueuedSend: (...a: any[]) => runQueuedSend(...a),
-  wasQueuedSendSent: (...a: any[]) => wasQueuedSendSent(...a),
+  takeBackQueuedSend: (...a: any[]) => takeBackQueuedSend(...a),
 }));
+const MAILBOXES = [{ id: 'sent', role: 'sent' }, { id: 'drafts', role: 'drafts' }];
 vi.mock('../email-store', () => ({
-  useEmailStore: { getState: () => ({ mailboxes: [{ id: 'sent', role: 'sent' }] }) },
+  useEmailStore: { getState: () => ({ mailboxes: MAILBOXES }) },
 }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }));
 vi.mock('../toast-store', () => ({ toast }));
@@ -256,9 +262,9 @@ describe('offline send queue', () => {
 
   it('does not turn a message an earlier attempt sent into a draft, and says it was sent', async () => {
     const id = useOutboxStore.getState().enqueueSend(payload('went-out'), { maybeSent: true })!;
-    wasQueuedSendSent.mockResolvedValueOnce(true);
+    takeBackQueuedSend.mockResolvedValueOnce({ kind: 'released' });
     expect(await useOutboxStore.getState().cancelSend(id, { keepAsDraft: true })).toBe(true);
-    expect(wasQueuedSendSent).toHaveBeenCalledWith(expect.objectContaining({ id, maybeSent: true }), [{ id: 'sent', role: 'sent' }]);
+    expect(takeBackQueuedSend).toHaveBeenCalledWith(expect.objectContaining({ id, maybeSent: true }), MAILBOXES);
     expect(saveDraftVersion).not.toHaveBeenCalled();
     expect(useOutboxStore.getState().sends).toEqual([]);
     await flushed();
@@ -269,21 +275,62 @@ describe('offline send queue', () => {
   it('moves a marked message to Drafts when no earlier attempt sent it, and looks only for marked ones', async () => {
     const marked = useOutboxStore.getState().enqueueSend(payload('marked'), { maybeSent: true })!;
     expect(await useOutboxStore.getState().cancelSend(marked, { keepAsDraft: true })).toBe(true);
-    expect(wasQueuedSendSent).toHaveBeenCalledTimes(1);
+    expect(takeBackQueuedSend).toHaveBeenCalledTimes(1);
     expect(saveDraftVersion).toHaveBeenCalledTimes(1);
 
     const plain = useOutboxStore.getState().enqueueSend(payload('plain'))!;
     expect(await useOutboxStore.getState().cancelSend(plain, { keepAsDraft: true })).toBe(true);
-    expect(wasQueuedSendSent).toHaveBeenCalledTimes(1);
+    expect(takeBackQueuedSend).toHaveBeenCalledTimes(1);
     expect(saveDraftVersion).toHaveBeenCalledTimes(2);
   });
 
   it('keeps a marked message in the Outbox when the lookup fails', async () => {
     const id = useOutboxStore.getState().enqueueSend(payload('unknown'), { maybeSent: true })!;
-    wasQueuedSendSent.mockRejectedValueOnce(named('NetworkError', 'Network request failed'));
+    takeBackQueuedSend.mockRejectedValueOnce(named('NetworkError', 'Network request failed'));
     expect(await useOutboxStore.getState().cancelSend(id, { keepAsDraft: true })).toBe(false);
     expect(saveDraftVersion).not.toHaveBeenCalled();
     expect(useOutboxStore.getState().sends[0]).toMatchObject({ id, status: 'failed' });
+  });
+
+  it('cancels a send later that an earlier attempt left held on the server, and moves it back to Drafts', async () => {
+    const id = useOutboxStore.getState().enqueueSend(payload('held'), { maybeSent: true })!;
+    takeBackQueuedSend.mockResolvedValueOnce({ kind: 'held', accountId: 'acc-own', emailId: 'copy-1', emailSubmissionId: 'sub-1' });
+    expect(await useOutboxStore.getState().cancelSend(id, { keepAsDraft: true })).toBe(true);
+    expect(cancelScheduledSend).toHaveBeenCalledWith('sub-1', 'acc-own');
+    expect(restoreEmailToDraft).toHaveBeenCalledWith('copy-1', 'drafts', 'sent', 'acc-own');
+    expect(saveDraftVersion).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().sends).toEqual([]);
+    await flushed();
+    expect(toast.info).toHaveBeenCalledWith('Send cancelled', { message: 'The message will not be sent. It goes back to your Drafts.' });
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+  });
+
+  it('cancels the held send on a discard too, and says the copy stays in Sent', async () => {
+    const id = useOutboxStore.getState().enqueueSend(payload('held'), { maybeSent: true })!;
+    takeBackQueuedSend.mockResolvedValueOnce({ kind: 'held', accountId: 'acc-own', emailId: 'copy-1', emailSubmissionId: 'sub-1' });
+    expect(await useOutboxStore.getState().cancelSend(id)).toBe(true);
+    expect(cancelScheduledSend).toHaveBeenCalledWith('sub-1', 'acc-own');
+    expect(restoreEmailToDraft).not.toHaveBeenCalled();
+    await flushed();
+    expect(toast.info).toHaveBeenCalledWith('Send cancelled', { message: 'The message will not be delivered. A copy stays in your Sent folder.' });
+  });
+
+  it('says it was sent when the server let the held send go before the cancel', async () => {
+    const { JMAPSetError } = await import('../../api/jmap-result');
+    const id = useOutboxStore.getState().enqueueSend(payload('too-late'), { maybeSent: true })!;
+    takeBackQueuedSend.mockResolvedValueOnce({ kind: 'held', accountId: 'acc-own', emailId: 'copy-1', emailSubmissionId: 'sub-1' });
+    cancelScheduledSend.mockRejectedValueOnce(new JMAPSetError('cannotUnsend', 'already delivered'));
+    expect(await useOutboxStore.getState().cancelSend(id, { keepAsDraft: true })).toBe(true);
+    expect(restoreEmailToDraft).not.toHaveBeenCalled();
+    await flushed();
+    expect(toast.info).toHaveBeenCalledWith('This message was already sent', { message: 'too-late' });
+  });
+
+  it('discards a message no attempt reached the server with without asking it', async () => {
+    const id = useOutboxStore.getState().enqueueSend(payload('plain'))!;
+    expect(await useOutboxStore.getState().cancelSend(id)).toBe(true);
+    expect(takeBackQueuedSend).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().sends).toEqual([]);
   });
 
   it('drops the queued messages with the rest when the server behind the account changed', async () => {

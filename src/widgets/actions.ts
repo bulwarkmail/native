@@ -94,7 +94,13 @@ export async function handleWidgetAction(name: string, data: Data, widgetId: num
     case 'markRead': {
       const id = str(data.id);
       if (!id) return;
-      const subject = (await currentView()).mail.inbox.find((m) => m.id === id)?.subject ?? '';
+      const view = await currentView();
+      // A drawing from before the organisation turned archiving off.
+      if (name === 'archive' && view.archiveEnabled === false) {
+        await redrawAll();
+        return;
+      }
+      const subject = view.mail.inbox.find((m) => m.id === id)?.subject ?? '';
       // The triage card moves on to the next unread message, not back to
       // the first one.
       if (name !== 'markRead') await moveTriagePointer(widgetId, id);

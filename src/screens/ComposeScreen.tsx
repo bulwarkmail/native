@@ -98,7 +98,11 @@ import { isPickerReopenTooSoon, needsRecipientPicker } from '../lib/recipient-pi
 import { useOutboxStore } from '../stores/outbox-store';
 import { useNetworkStore } from '../stores/network-store';
 import { useAuthStore } from '../stores/auth-store';
-import { isTransientNetworkError } from '../lib/network-error';
+import { isAuthError, isTransientNetworkError } from '../lib/network-error';
+import { generateUUID } from '../lib/uuid';
+import {
+  DraftKeptOnDeviceError, composerClosed, composerOpened, forgetRescuedDraft, rescueDraft,
+} from '../lib/compose-rescue';
 import { classifySendFailure, shouldQueueFailedSend } from '../lib/send-queue';
 import {
   assertComposerLogin, ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
@@ -117,7 +121,7 @@ import {
 import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
-import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
+import { activeFromOverride, composeSenderAddress } from '../lib/compose-sender';
 import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -1283,6 +1287,29 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const owner = ownerLoginRef.current ? useAccountStore.getState().getAccountById(ownerLoginRef.current) : undefined;
     return owner?.email || owner?.displayName || '';
   };
+  // While the server can't take the draft (the session expired, or offline)
+  // it is kept on the device and goes to Drafts once the session is back
+  // (lib/compose-rescue), also when the composer was closed or the app
+  // ended meanwhile.
+  const [composeId] = React.useState(() => `compose-${generateUUID()}`);
+  const composeIdRef = React.useRef(composeId);
+  /** The last save went to the device, not the server. */
+  const keptOnDeviceRef = React.useRef(false);
+  /** Closed with the draft kept on the device: it stays for the Outbox flush. */
+  const closedWithKeptDraftRef = React.useRef(false);
+  React.useEffect(() => {
+    const id = composeIdRef.current;
+    const login = ownerLoginRef.current;
+    composerOpened(id);
+    return () => {
+      composerClosed(id);
+      if (!login) return;
+      // Sent, queued, discarded or saved: nothing left to keep. Torn down
+      // without leaving (the app's stack was reset): the kept draft stays.
+      if (allowLeaveRef.current && !closedWithKeptDraftRef.current) void forgetRescuedDraft(login, id);
+      else if (keptOnDeviceRef.current) void useOutboxStore.getState().flush();
+    };
+  }, []);
   const [draftStatus, setDraftStatus] = React.useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [savingDraft, setSavingDraft] = React.useState(false);
 
@@ -1425,21 +1452,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // ── Outgoing message assembly ─────────────────────────────────────────
 
-  const senderAddress = React.useCallback((identity: Identity): { from: EmailAddress; envelopeMailFrom?: string } => {
-    const name = sanitizeDisplayName(identity.name);
-    let from: EmailAddress;
-    if (fromOverride?.email.trim()) {
-      const overrideName = sanitizeDisplayName(fromOverride.name);
-      from = overrideName ? { name: overrideName, email: fromOverride.email.trim() } : { email: fromOverride.email.trim() };
-    } else {
-      const email = subAddressTag ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter) : identity.email;
-      from = name ? { name, email } : { email };
-    }
-    // A From that isn't the identity's own address still goes out through
-    // the identity's envelope sender.
-    const envelopeMailFrom = from.email.toLowerCase() !== identity.email.toLowerCase() ? identity.email : undefined;
-    return { from, envelopeMailFrom };
-  }, [fromOverride, subAddressTag, subAddressDelimiter]);
+  // Without the organisation's custom From, an override set earlier no longer applies.
+  const senderAddress = React.useCallback(
+    (identity: Identity): { from: EmailAddress; envelopeMailFrom?: string } =>
+      composeSenderAddress(identity, { fromOverride, customFromEnabled, subAddressTag, subAddressDelimiter }),
+    [fromOverride, customFromEnabled, subAddressTag, subAddressDelimiter],
+  );
+  const shownFromOverride = activeFromOverride(fromOverride, customFromEnabled);
 
   const buildOutgoing = React.useCallback((identity: Identity, liveHtml: string, opts: { forDraft: boolean }): OutgoingEmail => {
     const { from, envelopeMailFrom } = senderAddress(identity);
@@ -1625,8 +1644,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (snapshot === lastSavedRef.current) return draftIdRef.current;
     if (snapshot === baselineRef.current && !draftIdRef.current) return null;
     setDraftStatus('saving');
+    let outgoing: OutgoingEmail | null = null;
+    let saveIn: { accountId: string | undefined; draftsMailboxId: string } = { accountId: undefined, draftsMailboxId: draftsMailbox.id };
     try {
-      const outgoing = buildOutgoing(identity, html, { forDraft: true });
+      outgoing = buildOutgoing(identity, html, { forDraft: true });
       // A draft From a group identity is saved in the group's Drafts, like
       // its Sent copy (#1090); one without a Drafts folder there in the own.
       const target = await sendTargetFor(identity, outgoing.from[0]?.email ?? identity.email, mailboxes);
@@ -1634,9 +1655,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
         setDraftStatus('idle');
         return draftIdRef.current;
       }
-      const saveIn = target.accountId && target.draftsMailboxId
-        ? { accountId: target.accountId, draftsMailboxId: target.draftsMailboxId }
-        : { accountId: undefined, draftsMailboxId: draftsMailbox.id };
+      if (target.accountId && target.draftsMailboxId) {
+        saveIn = { accountId: target.accountId, draftsMailboxId: target.draftsMailboxId };
+      }
       const saved = await saveDraftVersion(
         outgoing,
         saveIn.draftsMailboxId,
@@ -1659,9 +1680,29 @@ export default function ComposeScreen({ route, navigation }: Props) {
       // after the next pull-to-refresh.
       const thread = draftThreadOf({ replyTo, draft });
       if (thread) void refreshDraftThread(thread);
+      if (keptOnDeviceRef.current && ownerLoginRef.current) {
+        keptOnDeviceRef.current = false;
+        void forgetRescuedDraft(ownerLoginRef.current, composeIdRef.current);
+      }
       return id;
     } catch (err) {
       setDraftStatus('failed');
+      // The server can't be reached or no longer takes the sign-in: keep
+      // the draft on the device instead (lib/compose-rescue).
+      if (outgoing && ownerLoginRef.current && !loginMoved() && (isAuthError(err) || isTransientNetworkError(err))) {
+        keptOnDeviceRef.current = true;
+        await rescueDraft(ownerLoginRef.current, {
+          id: composeIdRef.current,
+          savedAt: Date.now(),
+          outgoing,
+          draftsMailboxId: saveIn.draftsMailboxId,
+          jmapAccountId: saveIn.accountId,
+          previousDraftId: draftIdRef.current ?? undefined,
+          // Undefined is the login's own account (the getter throws without a session).
+          previousDraftAccountId: draftIdRef.current ? draftAccountRef.current : undefined,
+        });
+        throw new DraftKeptOnDeviceError(err);
+      }
       throw err;
     }
   };
@@ -1709,6 +1750,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSnapshot, draftsMailbox?.id, primaryIdentity?.id]);
 
+  // A draft kept on the device while the composer stayed open goes to the
+  // server once the session (or the connection) is back.
+  React.useEffect(() => {
+    if (!sessionUp || !online || !keptOnDeviceRef.current || sendingRef.current) return;
+    saveDraftRef.current({ live: true }).catch((err) => {
+      console.warn('[compose] saving the kept draft failed', err);
+    });
+  }, [sessionUp, online]);
+
   // ── Close guard ──────────────────────────────────────────────────────
 
   // Why a draft can't be saved right now: the identities didn't load (e.g.
@@ -1749,6 +1799,17 @@ export default function ComposeScreen({ route, navigation }: Props) {
       allowLeaveRef.current = true;
       proceed();
     } catch (err) {
+      if (err instanceof DraftKeptOnDeviceError) {
+        // Kept on the device: it goes to Drafts once the session is back.
+        closedWithKeptDraftRef.current = true;
+        allowLeaveRef.current = true;
+        toast.info(
+          t('email_composer.draft_kept_title', 'Saved on this device'),
+          { message: t('email_composer.draft_kept_body', 'It goes to Drafts once you are signed in and online again.') },
+        );
+        proceed();
+        return;
+      }
       // The server refused the draft: keep the text on screen rather than
       // dropping it with nothing but an error (#702).
       Alert.alert(
@@ -2361,9 +2422,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [overrideEmail, setOverrideEmail] = React.useState('');
   const openFromOptions = () => {
     setTagDraft(subAddressTag);
-    setOverrideEnabled(!!fromOverride);
-    setOverrideName(fromOverride?.name ?? primaryIdentity?.name ?? '');
-    setOverrideEmail(fromOverride?.email ?? primaryIdentity?.email ?? '');
+    setOverrideEnabled(!!shownFromOverride);
+    setOverrideName(shownFromOverride?.name ?? primaryIdentity?.name ?? '');
+    setOverrideEmail(shownFromOverride?.email ?? primaryIdentity?.email ?? '');
     setFromOptionsOpen(true);
   };
   const tagError = tagDraft ? getTagValidationError(tagDraft) : null;
@@ -2376,7 +2437,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return out.slice(0, 5);
   }, [finalTo]);
   const applyFromOptions = () => {
-    if (overrideEnabled) {
+    if (overrideEnabled && customFromEnabled) {
       const email = overrideEmail.trim();
       if (!isValidEmail(email)) {
         Alert.alert(t('email_composer.from_override.email_label', 'From email address'), t('identities.form.email_invalid', 'Please enter a valid email address'));
@@ -3147,7 +3208,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               disabled={identities.length <= 1 && !primaryIdentity}
               style={styles.fieldContent}
             >
-              <Text style={[styles.fromText, !!fromOverride && styles.fromTextOverride]} numberOfLines={1}>
+              <Text style={[styles.fromText, !!shownFromOverride && styles.fromTextOverride]} numberOfLines={1}>
                 {fromDisplay}
               </Text>
               {identities.length > 1 && <ChevronDown size={14} color={c.textMuted} />}
@@ -3160,7 +3221,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={t('email_composer.from_options', 'Sender options')}
               >
-                <Tag size={16} color={subAddressTag || fromOverride ? c.primary : c.textMuted} />
+                <Tag size={16} color={subAddressTag || shownFromOverride ? c.primary : c.textMuted} />
               </Pressable>
             )}
           </View>
@@ -3683,7 +3744,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('email_composer.from', 'From')}</Text>
-            {!overrideEnabled && (
+            {!(overrideEnabled && customFromEnabled) && (
               <>
                 <Text style={styles.modalLabel}>{t('identities.sub_address.popover_title', 'Add Sub-Address Tag')}</Text>
                 <TextInput
@@ -3721,15 +3782,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 )}
               </>
             )}
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>{t('email_composer.from_override.toggle_off', 'Override')}</Text>
-              <ToggleSwitch
-                value={overrideEnabled}
-                onValueChange={setOverrideEnabled}
-                accessibilityLabel={t('email_composer.from_override.toggle_off', 'Override')}
-              />
-            </View>
-            {overrideEnabled && (
+            {/* The organisation can turn custom From off (webmail email-composer.tsx customFromEnabled). */}
+            {customFromEnabled && (
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>{t('email_composer.from_override.toggle_off', 'Override')}</Text>
+                <ToggleSwitch
+                  value={overrideEnabled}
+                  onValueChange={setOverrideEnabled}
+                  accessibilityLabel={t('email_composer.from_override.toggle_off', 'Override')}
+                />
+              </View>
+            )}
+            {overrideEnabled && customFromEnabled && (
               <>
                 <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity - only the visible From header changes.')}</Text>
                 <TextInput

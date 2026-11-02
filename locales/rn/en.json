@@ -352,6 +352,8 @@
     "attachment_reminder_body": "Your message mentions \"{keyword}\" but no file is attached. Send anyway?",
     "attachment_reminder_title": "Forgot an attachment?",
     "attachments_too_large_total": "The attachments would exceed the {max} this server allows per message.",
+    "draft_kept_body": "It goes to Drafts once you are signed in and online again.",
+    "draft_kept_title": "Saved on this device",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
     "files_picker": {
       "attach": "{count, plural, =0 {Attach} one {Attach 1 file} other {Attach # files}}",
@@ -421,6 +423,8 @@
     "recipients_partly_refused_title": "Not sent to everyone",
     "recipients_refused": "Not sent: the server refused {recipients}.",
     "remove_attachment": "Remove attachment",
+    "rescued_draft_body": "A message you were writing couldn't be saved earlier. It is in Drafts now.",
+    "rescued_draft_title": "Saved to Drafts",
     "save_draft": "Save Draft",
     "save_failed_no_drafts": "There is no Drafts folder to save this draft to.",
     "save_failed_no_identity": "Your sender identities could not be loaded, so this draft cannot be saved. Check your connection, or copy your text before closing.",

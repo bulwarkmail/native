@@ -426,7 +426,11 @@
     "undo_send_other_login": "Acest mesaj a fost trimis din alt cont",
     "undo_send_other_login_body": "Reveniți la {account} pentru a anula trimiterea sau a-l trimite acum. Mesajul pleacă la sfârșitul întârzierii.",
     "upload_login_switched": "Neîncărcat: contul a fost schimbat",
-    "use_template": "Șablon"
+    "use_template": "Șablon",
+    "draft_kept_title": "Salvat pe acest dispozitiv",
+    "draft_kept_body": "Ajunge în Ciorne după ce te conectezi din nou și ești online.",
+    "rescued_draft_title": "Salvat în Ciorne",
+    "rescued_draft_body": "Un mesaj pe care îl scriai nu a putut fi salvat mai devreme. Acum este în Ciorne."
   },
   "email_list": {
     "cross_account_move_offline": "Mutarea între conturi necesită conexiune",

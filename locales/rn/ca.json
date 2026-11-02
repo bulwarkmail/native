@@ -426,7 +426,11 @@
     "undo_send_other_login": "Aquest missatge s'ha enviat des d'un altre compte",
     "undo_send_other_login_body": "Torneu a {account} per desfer-lo o enviar-lo ara. Sortirà quan s'acabi el retard.",
     "upload_login_switched": "No s'ha pujat: s'ha canviat de compte",
-    "use_template": "Plantilla"
+    "use_template": "Plantilla",
+    "draft_kept_title": "Desat en aquest dispositiu",
+    "draft_kept_body": "Anirà a Esborranys quan tornis a tenir la sessió iniciada i connexió.",
+    "rescued_draft_title": "Desat a Esborranys",
+    "rescued_draft_body": "Abans no s'ha pogut desar un missatge que escrivies. Ara és a Esborranys."
   },
   "email_list": {
     "cross_account_move_offline": "Per moure entre comptes cal connexió",

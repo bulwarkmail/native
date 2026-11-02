@@ -428,7 +428,11 @@
     "undo_send_other_login": "Questo messaggio è stato inviato da un altro account",
     "undo_send_other_login_body": "Torna a {account} per annullarlo o inviarlo subito. Parte al termine del ritardo.",
     "upload_login_switched": "Non caricato: l'account è stato cambiato",
-    "use_template": "Modello"
+    "use_template": "Modello",
+    "draft_kept_title": "Salvato su questo dispositivo",
+    "draft_kept_body": "Andrà nelle Bozze appena sarai di nuovo connesso e online.",
+    "rescued_draft_title": "Salvato nelle Bozze",
+    "rescued_draft_body": "Prima non è stato possibile salvare un messaggio che stavi scrivendo. Ora è nelle Bozze."
   },
   "email_list": {
     "cross_account_move_offline": "Per spostare tra account serve una connessione",

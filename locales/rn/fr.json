@@ -430,7 +430,11 @@
     "undo_send_other_login": "Ce message a été envoyé depuis un autre compte",
     "undo_send_other_login_body": "Revenez à {account} pour l'annuler ou l'envoyer maintenant. Il partira à la fin du délai.",
     "upload_login_switched": "Non téléversé : le compte a été changé",
-    "use_template": "Modèle"
+    "use_template": "Modèle",
+    "draft_kept_title": "Enregistré sur cet appareil",
+    "draft_kept_body": "Il ira dans les Brouillons dès que vous serez de nouveau connecté et en ligne.",
+    "rescued_draft_title": "Enregistré dans les Brouillons",
+    "rescued_draft_body": "Un message que vous écriviez n'a pas pu être enregistré plus tôt. Il est maintenant dans les Brouillons."
   },
   "email_list": {
     "cross_account_move_offline": "Le déplacement entre comptes nécessite une connexion",

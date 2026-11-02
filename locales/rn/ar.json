@@ -421,7 +421,11 @@
     "undo_send_other_login": "أُرسلت هذه الرسالة من حساب آخر",
     "undo_send_other_login_body": "عُد إلى {account} للتراجع عنها أو إرسالها الآن. ستُرسل عند انتهاء المهلة.",
     "upload_login_switched": "لم يتم الرفع: تم تبديل الحساب",
-    "use_template": "قالب"
+    "use_template": "قالب",
+    "draft_kept_title": "حُفظت على هذا الجهاز",
+    "draft_kept_body": "سينتقل إلى المسودات عندما تسجّل الدخول وتتصل بالإنترنت مجددًا.",
+    "rescued_draft_title": "حُفظت في المسودات",
+    "rescued_draft_body": "تعذّر حفظ رسالة كنت تكتبها في وقت سابق. إنها الآن في المسودات."
   },
   "email_list": {
     "cross_account_move_offline": "يتطلب النقل بين الحسابات اتصالًا بالإنترنت",

@@ -426,7 +426,11 @@
     "undo_send_other_login": "Ta wiadomość została wysłana z innego konta",
     "undo_send_other_login_body": "Przełącz się z powrotem na {account}, aby cofnąć wysłanie lub wysłać ją teraz. Zostanie wysłana po upływie opóźnienia.",
     "upload_login_switched": "Nie przesłano: przełączono konto",
-    "use_template": "Szablon"
+    "use_template": "Szablon",
+    "draft_kept_title": "Zapisano na tym urządzeniu",
+    "draft_kept_body": "Trafi do Wersji roboczych, gdy znów się zalogujesz i będziesz online.",
+    "rescued_draft_title": "Zapisano w Wersjach roboczych",
+    "rescued_draft_body": "Wiadomości, którą pisałeś, nie udało się wcześniej zapisać. Jest teraz w Wersjach roboczych."
   },
   "email_list": {
     "cross_account_move_offline": "Przenoszenie między kontami wymaga połączenia",

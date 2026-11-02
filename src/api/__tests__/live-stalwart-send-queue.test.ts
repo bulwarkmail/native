@@ -16,9 +16,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
-import { destroyEmails, getMailboxes, saveDraftVersion, sendEmail } from '../email';
+import { cancelScheduledSend, destroyEmails, getMailboxes, saveDraftVersion, sendEmail } from '../email';
 import { getIdentities } from '../identity';
-import { findCopiesByMessageId, runQueuedSend } from '../queued-send';
+import { findCopiesByMessageId, runQueuedSend, takeBackQueuedSend } from '../queued-send';
+import { cancelScheduledToDrafts } from '../../lib/compose-scheduled';
 import { generateMessageId } from '../../lib/email-threading';
 import { newQueuedSend } from '../../lib/send-queue';
 import type { Identity, Mailbox } from '../types';
@@ -124,5 +125,45 @@ live('live Stalwart: offline send queue', () => {
     expect(copies[0].keywords?.$draft).toBeFalsy();
     const res = await singleton.request([['Email/get', { accountId: singleton.accountId, ids: [copies[0].id], properties: ['mailboxIds'] }, '0']]);
     expect(res.methodResponses[0][1].list[0].mailboxIds[sent]).toBe(true);
+  }, 60_000);
+
+  // A "send later" whose answer was lost: the server holds it, and taking it
+  // back from the Outbox must cancel it there, not only drop the queue entry.
+  const submissionOf = async (emailId: string) => {
+    const res = await singleton.request([
+      ['EmailSubmission/query', { accountId: singleton.accountId, filter: { emailIds: [emailId] } }, '0'],
+      ['EmailSubmission/get', {
+        accountId: singleton.accountId, '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' }, properties: ['id', 'undoStatus'],
+      }, '1'],
+    ], ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']);
+    return res.methodResponses[1][1].list as Array<{ id: string; undoStatus: string }>;
+  };
+
+  it('finds a held send an unanswered attempt left, cancels it and moves it back to Drafts', async () => {
+    const outgoing = message('held');
+    const at = new Date(Date.now() + 3600_000).toISOString();
+    const first = await sendEmail(outgoing, identity.id, sent, 3600, { draftsMailboxId: drafts });
+    expect(first.scheduled).toBe(true);
+    const queued = newQueuedSend('q4', { ...payloadFor(outgoing), scheduledAt: at }, Date.now(), true);
+    const found = await takeBackQueuedSend(queued, boxes);
+    expect(found).toEqual({ kind: 'held', accountId: singleton.accountId, emailId: first.emailId, emailSubmissionId: first.emailSubmissionId });
+    if (found.kind !== 'held') return;
+    const { inDrafts } = await cancelScheduledToDrafts(found, boxes, singleton.accountId);
+    expect(inDrafts).toBe(true);
+    // Cancelled, and its record removed.
+    expect((await submissionOf(first.emailId!)).filter((x) => x.undoStatus === 'pending')).toEqual([]);
+    const copies = await findCopiesByMessageId(outgoing.messageId, lookup());
+    expect(copies.map((c) => c.id)).toEqual([first.emailId]);
+    expect(copies[0].keywords?.$draft).toBe(true);
+  }, 60_000);
+
+  it('says released for a send the server let go, and the cancel is refused', async () => {
+    const outgoing = message('released');
+    const first = await sendEmail(outgoing, identity.id, sent, undefined, { draftsMailboxId: drafts });
+    const found = await takeBackQueuedSend(newQueuedSend('q5', payloadFor(outgoing), Date.now(), true), boxes);
+    expect(found).toEqual({ kind: 'released' });
+    // What the Outbox meets when the server lets a held send go between the lookup and the cancel.
+    const subs = await submissionOf(first.emailId!);
+    if (subs[0]) await expect(cancelScheduledSend(subs[0].id)).rejects.toMatchObject({ name: 'JMAPSetError' });
   }, 60_000);
 });

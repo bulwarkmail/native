@@ -159,6 +159,20 @@ describe('widget layouts', () => {
     for (const w of catalog.widgets) build(w.name, { ...sample, images }, w.cols, w.rows);
   });
 
+  it('leaves Archive off the triage card when the organisation turned archiving off', () => {
+    const actions = (s: WidgetSnapshot, cols: number) => {
+      const trees = renderFor('TriageWidget', s, { width: dp(cols), height: dp(2), widgetId: 1 }, {}, PREVIEW_NOW);
+      const tree = 'light' in trees ? trees.light : trees;
+      return [...JSON.stringify(buildWidgetTree(tree)).matchAll(/"clickAction":"(\w+)"/g)].map((m) => m[1]);
+    };
+    expect(actions(sample, 4)).toContain('archive');
+    for (const cols of [3, 4, 5]) {
+      const shown = actions({ ...sample, archiveEnabled: false }, cols);
+      expect(shown).not.toContain('archive');
+      expect(shown).toContain('trash');
+    }
+  });
+
   it('builds the triage card on a message that is gone', () => {
     build('TriageWidget', sample, 4, 2, { triageId: 'no-such-message' });
     build('TriageWidget', { ...sample, mail: { ...sample.mail, inbox: [] } }, 4, 2, { triageId: 'm1' });

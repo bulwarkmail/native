@@ -426,7 +426,11 @@
     "undo_send_other_login": "このメッセージは別のアカウントから送信されました",
     "undo_send_other_login_body": "取り消すか今すぐ送信するには、{account} に戻してください。待機時間が終わると送信されます。",
     "upload_login_switched": "アップロードされていません：アカウントが切り替わりました",
-    "use_template": "テンプレート"
+    "use_template": "テンプレート",
+    "draft_kept_title": "このデバイスに保存しました",
+    "draft_kept_body": "再びサインインしてオンラインになると、下書きに保存されます。",
+    "rescued_draft_title": "下書きに保存しました",
+    "rescued_draft_body": "書いていたメッセージを先ほど保存できませんでした。今は下書きにあります。"
   },
   "email_list": {
     "cross_account_move_offline": "アカウント間の移動には接続が必要です",

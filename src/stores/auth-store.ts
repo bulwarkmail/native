@@ -1,4 +1,5 @@
 import { forgetCachedIdentities } from '../lib/identity-cache';
+import { clearRescuedDrafts } from '../lib/compose-rescue';
 import { create } from 'zustand';
 import {
   jmapClient,
@@ -178,6 +179,8 @@ function clearDeviceWideAccountData(): void {
 // data goes too.
 async function forgetRemovedAccount(accountId: string): Promise<void> {
   void forgetCachedIdentities(accountId);
+  // Drafts its composers kept on the device while signed out of the server.
+  void clearRescuedDrafts(accountId);
   try {
     const feeds = useCalendarSubscriptionsStore;
     // On a cold start the stored list may not have been read yet; written

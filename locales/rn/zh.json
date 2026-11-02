@@ -425,7 +425,11 @@
     "undo_send_other_login": "这封邮件是从另一个账户发送的",
     "undo_send_other_login_body": "切换回 {account} 即可撤销或立即发送。延迟结束后邮件将发出。",
     "upload_login_switched": "未上传：账户已切换",
-    "use_template": "模板"
+    "use_template": "模板",
+    "draft_kept_title": "已保存在此设备上",
+    "draft_kept_body": "重新登录并联网后，它会保存到草稿箱。",
+    "rescued_draft_title": "已保存到草稿箱",
+    "rescued_draft_body": "你之前写的一封邮件当时未能保存，现在已在草稿箱中。"
   },
   "email_list": {
     "cross_account_move_offline": "在账户之间移动需要网络连接",

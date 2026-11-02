@@ -20,6 +20,14 @@ describe('customFromEnabled', () => {
   it('matches only exact identities in the composer when custom From is off', () => {
     expect(read('screens/ComposeScreen.tsx')).toMatch(/matchMode: customFromEnabled \? replyIdentityMatch : 'exact',/);
   });
+
+  it('offers the custom From in the sender sheet only when allowed, and sends without it otherwise', () => {
+    const src = read('screens/ComposeScreen.tsx');
+    expect(src).toMatch(/\{customFromEnabled && \(\s+<View style=\{styles\.switchRow\}>\s+<Text style=\{styles\.switchLabel\}>\{t\('email_composer\.from_override\.toggle_off'/);
+    expect(src).toMatch(/\{overrideEnabled && customFromEnabled && \(/);
+    expect(src).toMatch(/if \(overrideEnabled && customFromEnabled\) \{/);
+    expect(src).toMatch(/composeSenderAddress\(identity, \{ fromOverride, customFromEnabled, subAddressTag, subAddressDelimiter \}\)/);
+  });
 });
 
 describe('no third-party traffic', () => {
@@ -44,6 +52,12 @@ describe('no third-party traffic', () => {
     expect(src).toMatch(/!!rawHtml && \(\s+remoteBlockedByOrg \|\|\s+\(!trusted && !allowOnce && externalContentPolicy !== 'allow'\)\s+\)/);
     expect(src).toMatch(/\{!remoteBlockedByOrg && <View style=\{styles\.bannerActions\}>/);
     expect(src).toMatch(/t\('third_party\.remote_content_blocked'/);
+  });
+
+  it('shows no sender favicons from the outside host', () => {
+    const src = read('components/SenderAvatar.tsx');
+    expect(src).toMatch(/const noThirdParty = useNoThirdPartyTraffic\(\);/);
+    expect(src).toMatch(/showFavicon: senderFavicons && !noThirdParty && /);
   });
 
   it('keeps remote images blocked in booking cards and quoted originals', () => {

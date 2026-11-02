@@ -9,7 +9,7 @@
 import type * as OpenPgp from 'openpgp';
 import { useCryptoKeysStore, upsertRecord, keysForEmail, isRecordCurrent, type CryptoKeyRecord, type PgpKeyRecord, type SmimeCertRecord } from '../../stores/crypto-keys-store';
 import { setSecret, getSecret, deleteSecret } from './secret-store';
-import { inspectKey, unlockPrivateKey, privateKeyNeedsPassphrase, type PgpKeyInfo } from './pgp';
+import { inspectKey, keyNamesOnly, unlockPrivateKey, privateKeyNeedsPassphrase, type PgpKeyInfo } from './pgp';
 import { base64Decode, base64Encode } from './mime';
 
 const pgpSecretId = (id: string) => `pgp.${id}`;
@@ -227,10 +227,8 @@ export function allPgpPublicKeys(): string[] {
 export async function savePgpKeyFor(armored: string, email: string): Promise<PgpKeyRecord> {
   const info = await inspectKey(armored);
   if (info.isPrivate) throw new Error('Only a public key can be saved from a message');
-  const address = email.trim().toLowerCase();
-  if (!address || !info.userIDs.some((u) => u.email.trim().toLowerCase() === address)) {
-    throw new Error('The key is not for ' + email);
-  }
+  // Only a key for the sender alone (see keyNamesOnly).
+  if (!keyNamesOnly(info, email)) throw new Error('The key is not for ' + email + ' alone');
   const known = records().find((k): k is PgpKeyRecord => k.kind === 'pgp' && k.id === info.fingerprint.toLowerCase());
   if (known) return known;
   const record = pgpRecord(info, false, 'message');
@@ -250,7 +248,10 @@ export async function rememberSignerCertificate(der: Uint8Array, fromEmail: stri
     const { describeCertificate } = await import('./smime/certificate');
     const info = await describeCertificate(der);
     const from = fromEmail.trim().toLowerCase();
-    if (!from || !info.emailAddresses.some((e) => e.toLowerCase() === from)) return;
+    // Only one for the sender alone: a certificate that also names another
+    // address would be encrypted to for it (see keyNamesOnly).
+    const named = info.emailAddresses.map((e) => e.trim().toLowerCase()).filter(Boolean);
+    if (!from || named.length === 0 || !named.every((e) => e === from)) return;
     if (records().some((k) => k.kind === 'smime' && k.id === info.fingerprint)) return;
     upsert(smimeRecord(info, der, [], false, 'message'));
   } catch {

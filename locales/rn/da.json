@@ -423,7 +423,11 @@
     "undo_send_other_login": "Denne besked blev sendt fra en anden konto",
     "undo_send_other_login_body": "Skift tilbage til {account} for at fortryde den eller sende den nu. Den sendes, når forsinkelsen er udløbet.",
     "upload_login_switched": "Ikke uploadet: kontoen blev skiftet",
-    "use_template": "Skabelon"
+    "use_template": "Skabelon",
+    "draft_kept_title": "Gemt på denne enhed",
+    "draft_kept_body": "Den kommer i Kladder, når du er logget ind og online igen.",
+    "rescued_draft_title": "Gemt i Kladder",
+    "rescued_draft_body": "En besked, du skrev, kunne ikke gemmes tidligere. Den ligger nu i Kladder."
   },
   "email_list": {
     "cross_account_move_offline": "Flytning mellem konti kræver forbindelse",

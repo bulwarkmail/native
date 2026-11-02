@@ -422,7 +422,11 @@
     "undo_send_other_login": "Ezt az üzenetet egy másik fiókból küldted",
     "undo_send_other_login_body": "Válts vissza erre a fiókra: {account}, hogy visszavond vagy most elküldd. A késleltetés végén kimegy.",
     "upload_login_switched": "Nincs feltöltve: fiókot váltottál",
-    "use_template": "Sablon"
+    "use_template": "Sablon",
+    "draft_kept_title": "Mentve ezen az eszközön",
+    "draft_kept_body": "A Piszkozatok közé kerül, amint újra bejelentkezik és online lesz.",
+    "rescued_draft_title": "Mentve a Piszkozatok közé",
+    "rescued_draft_body": "Egy üzenetet, amelyet írt, korábban nem sikerült menteni. Most a Piszkozatok között van."
   },
   "email_list": {
     "cross_account_move_offline": "A fiókok közötti áthelyezéshez kapcsolat szükséges",

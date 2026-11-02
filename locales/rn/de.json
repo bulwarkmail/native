@@ -431,7 +431,11 @@
     "undo_send_other_login": "Diese Nachricht wurde von einem anderen Konto gesendet",
     "undo_send_other_login_body": "Wechseln Sie zurück zu {account}, um das Senden rückgängig zu machen oder sofort zu senden. Sie geht raus, wenn die Verzögerung abläuft.",
     "upload_login_switched": "Nicht hochgeladen: Das Konto wurde gewechselt",
-    "use_template": "Vorlage"
+    "use_template": "Vorlage",
+    "draft_kept_title": "Auf diesem Gerät gespeichert",
+    "draft_kept_body": "Er kommt in die Entwürfe, sobald Sie wieder angemeldet und online sind.",
+    "rescued_draft_title": "In Entwürfen gespeichert",
+    "rescued_draft_body": "Eine Nachricht, die Sie geschrieben haben, konnte vorhin nicht gespeichert werden. Sie ist jetzt in den Entwürfen."
   },
   "email_list": {
     "cross_account_move_offline": "Verschieben zwischen Konten erfordert eine Verbindung",

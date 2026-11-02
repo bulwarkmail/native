@@ -178,4 +178,11 @@ describe('widget archive', () => {
     calls.moves[0].resolve(true);
     await tap;
   });
+
+  it('does nothing for a tap on an older drawing once the organisation turned archiving off', async () => {
+    await saveSnapshot({ ...snapshotOf(server.inbox), archiveEnabled: false });
+    await handleWidgetAction('archive', { id: 'm1', accountId: 'acc' }, 7);
+    expect(calls.moves).toEqual([]);
+    expect(await shown()).toEqual(['m1', 'm2', 'm3']);
+  });
 });

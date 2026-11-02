@@ -425,7 +425,11 @@
     "undo_send_other_login": "Šī vēstule tika nosūtīta no cita konta",
     "undo_send_other_login_body": "Pārslēdzieties atpakaļ uz {account}, lai to atsauktu vai nosūtītu tagad. Tā tiks nosūtīta, kad beigsies aizture.",
     "upload_login_switched": "Nav augšupielādēts: konts tika pārslēgts",
-    "use_template": "Veidne"
+    "use_template": "Veidne",
+    "draft_kept_title": "Saglabāts šajā ierīcē",
+    "draft_kept_body": "Tas nonāks melnrakstos, kad atkal būsiet pierakstījies un tiešsaistē.",
+    "rescued_draft_title": "Saglabāts melnrakstos",
+    "rescued_draft_body": "Ziņojumu, ko rakstījāt, iepriekš neizdevās saglabāt. Tagad tas ir melnrakstos."
   },
   "email_list": {
     "cross_account_move_offline": "Pārvietošanai starp kontiem nepieciešams savienojums",

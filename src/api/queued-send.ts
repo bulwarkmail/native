@@ -4,6 +4,7 @@
 import { jmapClient } from './jmap-client';
 import { destroyEmails, sendEmail, type SendEmailResult } from './email';
 import { requireMethodResult } from './jmap-result';
+import { SUBMISSION_ONLY_USING } from './submissions';
 import type { Mailbox } from './types';
 import { sendTargetFor } from '../lib/compose-send-account';
 import { supportsSubmissionExtension } from '../lib/submission-options';
@@ -108,14 +109,48 @@ async function earlierAttempt(send: QueuedSend, r: Resolved): Promise<CopyVerdic
 }
 
 /**
- * Before a queued message is taken back (moved to Drafts): true when an
- * earlier attempt that may have reached the server did send it. A message no
- * attempt reached the server with is never looked up.
+ * What taking back a queued message finds on the server:
+ * - `notSent`: no earlier attempt reached it (or none was looked up).
+ * - `held`: an earlier attempt did, as a send held for later (a "send
+ *   later", or the undo-send delay) that the server still holds; the caller
+ *   cancels `emailSubmissionId` in `accountId` and decides where the copy
+ *   `emailId` goes.
+ * - `released`: an earlier attempt did, and the server already let it go.
  */
-export async function wasQueuedSendSent(send: QueuedSend, mailboxes: Mailbox[]): Promise<boolean> {
-  if (!send.maybeSent || !send.payload.outgoing.messageId) return false;
-  const verdict = await earlierAttempt(send, await queuedSendTarget(send, mailboxes));
-  return verdict.kind === 'sent';
+export type QueuedSendTakeBack =
+  | { kind: 'notSent' }
+  | { kind: 'held'; accountId: string; emailId: string; emailSubmissionId: string }
+  | { kind: 'released' };
+
+/**
+ * Before a queued message is taken back (moved to Drafts or discarded): a
+ * message no attempt reached the server with is never looked up. One that
+ * went out is looked for among the submissions of its account, so a held one
+ * can still be cancelled.
+ */
+export async function takeBackQueuedSend(send: QueuedSend, mailboxes: Mailbox[]): Promise<QueuedSendTakeBack> {
+  if (!send.maybeSent || !send.payload.outgoing.messageId) return { kind: 'notSent' };
+  const resolved = await queuedSendTarget(send, mailboxes);
+  const verdict = await earlierAttempt(send, resolved);
+  if (verdict.kind !== 'sent') return { kind: 'notSent' };
+  const accountId = resolved.accountId;
+  // EmailSubmission/query by emailIds finds it on 0.16.27 and 1.0.1.
+  const res = await jmapClient.request([
+    ['EmailSubmission/query', { accountId, filter: { emailIds: [verdict.copyId] } }, '0'],
+    ['EmailSubmission/get', {
+      accountId,
+      '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' },
+      properties: ['id', 'emailId', 'undoStatus'],
+    }, '1'],
+  ], SUBMISSION_ONLY_USING);
+  requireMethodResult(res, '0', 'EmailSubmission/query');
+  const list = (requireMethodResult(res, '1', 'EmailSubmission/get').list ?? []) as Array<{
+    id: string; emailId?: string; undoStatus?: string;
+  }>;
+  const pending = list.find((sub) => sub.emailId === verdict.copyId && sub.undoStatus === 'pending');
+  return pending
+    ? { kind: 'held', accountId, emailId: verdict.copyId, emailSubmissionId: pending.id }
+    : { kind: 'released' };
 }
 
 export async function runQueuedSend(send: QueuedSend, mailboxes: Mailbox[], now = Date.now()): Promise<QueuedSendOutcome> {

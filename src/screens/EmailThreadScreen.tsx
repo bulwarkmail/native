@@ -835,6 +835,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
             keyExtractor={(item) => item.id}
             horizontal
             pagingEnabled
+            // Else the first tap on the quick reply's Send only closes the keyboard.
+            keyboardShouldPersistTaps="handled"
             showsHorizontalScrollIndicator={false}
             initialScrollIndex={initialIndexRef.current}
             getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
@@ -1467,7 +1469,7 @@ function MoreMenuSheet({
             </Pressable>
           </View>
         </View>
-        <ScrollView style={styles.sheetScroll} bounces={false}>
+        <ScrollView style={styles.sheetScroll} bounces={false} keyboardShouldPersistTaps="handled">
           {canArchive && (
             <MoreMenuItem
               icon={<Archive size={18} color={c.textSecondary} />}
