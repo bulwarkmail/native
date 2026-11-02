@@ -429,7 +429,11 @@
     "undo_send_other_login": "Esta mensagem foi enviada de outra conta",
     "undo_send_other_login_body": "Volte para {account} para desfazer ou enviar agora. Ela sai quando o atraso terminar.",
     "upload_login_switched": "Não enviado: a conta foi trocada",
-    "use_template": "Modelo"
+    "use_template": "Modelo",
+    "draft_kept_title": "Guardado neste dispositivo",
+    "draft_kept_body": "Vai para Rascunhos assim que voltar a ter sessão iniciada e ligação.",
+    "rescued_draft_title": "Guardado em Rascunhos",
+    "rescued_draft_body": "Não foi possível guardar antes uma mensagem que estava a escrever. Está agora em Rascunhos."
   },
   "email_list": {
     "cross_account_move_offline": "Mover entre contas requer conexão",

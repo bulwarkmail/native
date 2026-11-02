@@ -424,7 +424,11 @@
     "undo_send_other_login": "이 메시지는 다른 계정에서 보냈어요",
     "undo_send_other_login_body": "취소하거나 지금 보내려면 {account}(으)로 다시 전환해 주세요. 대기 시간이 끝나면 전송돼요.",
     "upload_login_switched": "업로드되지 않음: 계정이 전환되었어요",
-    "use_template": "템플릿"
+    "use_template": "템플릿",
+    "draft_kept_title": "이 기기에 저장됨",
+    "draft_kept_body": "다시 로그인하고 온라인이 되면 임시 보관함으로 옮겨집니다.",
+    "rescued_draft_title": "임시 보관함에 저장됨",
+    "rescued_draft_body": "작성하던 메시지를 앞서 저장하지 못했습니다. 이제 임시 보관함에 있습니다."
   },
   "email_list": {
     "cross_account_move_offline": "계정 간 이동은 인터넷 연결이 필요해요",

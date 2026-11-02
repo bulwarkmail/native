@@ -423,7 +423,11 @@
     "undo_send_other_login": "Denne meldingen ble sendt fra en annen konto",
     "undo_send_other_login_body": "Bytt tilbake til {account} for å angre eller sende den nå. Den sendes når forsinkelsen er over.",
     "upload_login_switched": "Ikke lastet opp: kontoen ble byttet",
-    "use_template": "Mal"
+    "use_template": "Mal",
+    "draft_kept_title": "Lagret på denne enheten",
+    "draft_kept_body": "Den havner i Utkast når du er logget inn og på nett igjen.",
+    "rescued_draft_title": "Lagret i Utkast",
+    "rescued_draft_body": "En melding du skrev, kunne ikke lagres tidligere. Den ligger nå i Utkast."
   },
   "email_list": {
     "cross_account_move_offline": "Du må være tilkoblet for å flytte mellom kontoer",

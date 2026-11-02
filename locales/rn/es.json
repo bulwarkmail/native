@@ -432,7 +432,11 @@
     "undo_send_other_login": "Este mensaje se envió desde otra cuenta",
     "undo_send_other_login_body": "Vuelve a {account} para deshacerlo o enviarlo ahora. Se enviará cuando termine la espera.",
     "upload_login_switched": "No se ha subido: se cambió de cuenta",
-    "use_template": "Plantilla"
+    "use_template": "Plantilla",
+    "draft_kept_title": "Guardado en este dispositivo",
+    "draft_kept_body": "Pasará a Borradores cuando vuelvas a tener la sesión iniciada y conexión.",
+    "rescued_draft_title": "Guardado en Borradores",
+    "rescued_draft_body": "Antes no se pudo guardar un mensaje que escribías. Ahora está en Borradores."
   },
   "email_list": {
     "cross_account_move_offline": "Mover entre cuentas requiere conexión",

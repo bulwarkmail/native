@@ -425,7 +425,11 @@
     "undo_send_other_login": "這封郵件是從另一個帳號寄出的",
     "undo_send_other_login_body": "切換回 {account} 即可取消傳送或立即寄出。延遲結束後郵件就會寄出。",
     "upload_login_switched": "未上傳：已切換帳號",
-    "use_template": "範本"
+    "use_template": "範本",
+    "draft_kept_title": "已儲存在此裝置上",
+    "draft_kept_body": "重新登入並連上網路後，它會儲存到草稿匣。",
+    "rescued_draft_title": "已儲存到草稿匣",
+    "rescued_draft_body": "你之前寫的一封郵件當時未能儲存，現在已在草稿匣中。"
   },
   "email_list": {
     "cross_account_move_offline": "在帳號之間移動需要網路連線",

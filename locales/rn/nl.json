@@ -426,7 +426,11 @@
     "undo_send_other_login": "Dit bericht is verzonden vanuit een ander account",
     "undo_send_other_login_body": "Ga terug naar {account} om het ongedaan te maken of nu te verzenden. Het gaat de deur uit wanneer de vertraging voorbij is.",
     "upload_login_switched": "Niet geüpload: er is van account gewisseld",
-    "use_template": "Sjabloon"
+    "use_template": "Sjabloon",
+    "draft_kept_title": "Opgeslagen op dit apparaat",
+    "draft_kept_body": "Het gaat naar Concepten zodra je weer bent ingelogd en online bent.",
+    "rescued_draft_title": "Opgeslagen in Concepten",
+    "rescued_draft_body": "Een bericht dat je schreef, kon eerder niet worden opgeslagen. Het staat nu in Concepten."
   },
   "email_list": {
     "cross_account_move_offline": "Verplaatsen tussen accounts vereist een verbinding",

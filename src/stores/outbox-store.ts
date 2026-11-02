@@ -449,6 +449,9 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (get().paused || !get().resumed || !get().hydrated) return;
     const accountId = get().activeAccountId;
     if (!accountId) return;
+    // Drafts a composer kept on the device while the server couldn't take
+    // them (lib/compose-rescue) go to Drafts now.
+    if (clientServes(accountId) && useNetworkStore.getState().online) void saveRescuedDrafts(accountId);
     if (get().entries.length === 0 && !hasWaitingSends()) return;
     // Need a live client that's actually serving this account, and a network.
     if (!clientServes(accountId)) return;
@@ -756,6 +759,39 @@ async function afterQueuedSend(send: QueuedSend, outcome: QueuedSendOutcomeLike)
     }
   } catch (err) {
     console.warn('[outbox] could not report a queued send', err);
+  }
+}
+
+/** Save the drafts composers kept on the device (lib/compose-rescue) and say where they went. */
+async function saveRescuedDrafts(accountId: string): Promise<void> {
+  try {
+    const { flushRescuedDrafts, rescuedDrafts } = await import('../lib/compose-rescue');
+    if ((await rescuedDrafts(accountId)).length === 0) return;
+    const { saveDraftVersion } = await import('../api/email');
+    await flushRescuedDrafts(accountId, {
+      save: async (draft) => {
+        // The client moved on to another account meanwhile.
+        if (!clientServes(accountId)) throw new Error('Account switched');
+        return saveDraftVersion(
+          draft.outgoing,
+          draft.draftsMailboxId,
+          draft.previousDraftId,
+          draft.jmapAccountId,
+          draft.previousDraftAccountId,
+        );
+      },
+      saved: () => {
+        void (async () => {
+          const [{ toast }, { useLocaleStore }] = await Promise.all([import('./toast-store'), import('./locale-store')]);
+          const t = useLocaleStore.getState().t;
+          toast.info(t('email_composer.rescued_draft_title', 'Saved to Drafts'), {
+            message: t('email_composer.rescued_draft_body', "A message you were writing couldn't be saved earlier. It is in Drafts now."),
+          });
+        })().catch(() => undefined);
+      },
+    });
+  } catch (err) {
+    console.warn('[outbox] could not save kept drafts', err);
   }
 }
 

@@ -425,7 +425,11 @@
     "undo_send_other_login": "Táto správa bola odoslaná z iného účtu",
     "undo_send_other_login_body": "Ak ju chcete vrátiť alebo odoslať hneď, prepnite sa späť na účet {account}. Odíde po uplynutí oneskorenia.",
     "upload_login_switched": "Nenahrané: účet bol prepnutý",
-    "use_template": "Šablóna"
+    "use_template": "Šablóna",
+    "draft_kept_title": "Uložené v tomto zariadení",
+    "draft_kept_body": "Do Konceptov sa uloží, keď budete znova prihlásení a online.",
+    "rescued_draft_title": "Uložené do Konceptov",
+    "rescued_draft_body": "Správu, ktorú ste písali, sa predtým nepodarilo uložiť. Teraz je v Konceptoch."
   },
   "email_list": {
     "cross_account_move_offline": "Presun medzi účtami vyžaduje pripojenie",
