@@ -81,23 +81,24 @@ tags:
     commands:
       - tapOn: "More actions.*"
 - tapOn: "Star|Unstar"
-# A bulk action ends selection mode by itself.
-- runFlow:
-    when:
-      visible: "Clear selection"
-    commands:
-      - tapOn: "Clear selection"
+# A bulk action ends selection mode by itself once the server has the
+# change, so the bar stays up for a moment: wait for it to go rather than
+# tap Clear selection (the tap can land after the bar is gone).
+- extendedWaitUntil:
+    notVisible: "Clear selection"
+    timeout: 15000
 - longPressOn:
     id: email-row
     text: ".*Grüße aus München.*"
+- extendedWaitUntil:
+    visible: "Clear selection"
+    timeout: 10000
 - runFlow:
     when:
       notVisible: "Unstar|Star"
     commands:
       - tapOn: "More actions.*"
 - tapOn: "Unstar|Star"
-- runFlow:
-    when:
-      visible: "Clear selection"
-    commands:
-      - tapOn: "Clear selection"
+- extendedWaitUntil:
+    notVisible: "Clear selection"
+    timeout: 15000
