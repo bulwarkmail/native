@@ -112,9 +112,11 @@ export const TriageLayout: Layout = ({ s, p, f, now, width, height, widgetId, lo
     trash: f.t('widgets.mail.delete', 'Delete'),
     reply: f.t('widgets.mail.reply', 'Reply'),
   };
-  const room = width - 2 - 24 - 32 - 18;
-  const allFit = buttonWidth(labels.archive) + buttonWidth(labels.trash) + buttonWidth(labels.reply) <= room;
-  const replyFits = 2 * 32 + buttonWidth(labels.reply) <= room;
+  // No Archive button when the organisation turned archiving off.
+  const archive = s.archiveEnabled !== false;
+  const room = width - 2 - 24 - 32 - (archive ? 18 : 12);
+  const allFit = (archive ? buttonWidth(labels.archive) : 0) + buttonWidth(labels.trash) + buttonWidth(labels.reply) <= room;
+  const replyFits = (archive ? 2 : 1) * 32 + buttonWidth(labels.reply) <= room;
   return (
     // The buttons draw 32dp tall in a 48dp tap area (slop 8), which takes the
     // gap above them and 8dp of the bottom padding.
@@ -146,8 +148,10 @@ export const TriageLayout: Layout = ({ s, p, f, now, width, height, widgetId, lo
       </FlexWidget>
       {notice ? <NoticeBar p={p} f={f} notice={notice} /> : null}
       <FlexWidget style={{ flexDirection: 'row', width: 'match_parent' }}>
-        <Button p={p} label={allFit ? labels.archive : undefined} iconName="archive" flex={1} slop={8} click={action('archive', target)} />
-        <Spacer size={6} horizontal />
+        {archive ? (
+          <Button p={p} label={allFit ? labels.archive : undefined} iconName="archive" flex={1} slop={8} click={action('archive', target)} />
+        ) : null}
+        {archive ? <Spacer size={6} horizontal /> : null}
         <Button p={p} label={allFit ? labels.trash : undefined} iconName="trash" flex={1} slop={8} click={action('trash', target)} />
         <Spacer size={6} horizontal />
         <Button p={p} label={allFit || replyFits ? labels.reply : undefined} iconName="reply" variant="primary" flex={1} slop={8} click={open(links.reply(current))} />
