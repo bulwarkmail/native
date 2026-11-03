@@ -43,14 +43,16 @@ function findHierarchy(obj, seen = new Set()) {
   return null;
 }
 
-for (const file of walkFiles(root).filter((f) => /commands-.*\.json$/.test(f))) {
+// Maestro 1 writes commands-<flow>.json, Maestro 2 <flow>/commands.json.
+for (const file of walkFiles(root).filter((f) => /(^|[\\/])commands(-[^\\/]*)?\.json$/.test(f))) {
   let data;
   try {
     data = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     continue;
   }
-  out.push(`== ${path.basename(file)}`);
+  const base = path.basename(file);
+  out.push(`== ${base === 'commands.json' ? `${path.basename(path.dirname(file))} / ${base}` : base}`);
   for (const entry of Array.isArray(data) ? data : []) {
     const command = entry.command || {};
     const type = Object.keys(command).find((k) => command[k]) || '?';
