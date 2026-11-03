@@ -81,24 +81,25 @@ if [ $STATUS -eq 0 ]; then
     # When the XCTest driver dies during a flow ("Device became unreachable"),
     # the flow gets one more try in a fresh Maestro process, which starts a
     # new driver. Any other failure (an assertion, a missing element, the
-    # time cap) stays a failure. The console output is kept on the runner
-    # only, to look for the driver's death.
+    # time cap) stays a failure. The driver's death shows in Maestro's log in
+    # the flow's debug output (never uploaded; grep -q prints nothing). Piping
+    # Maestro's console output instead loses the failure reasons it prints.
     for attempt in 1 2; do
       suffix=""
       [ $attempt -gt 1 ] && suffix="-retry"
       started=$(date +%s)
-      console="$RUNNER_TEMP/maestro-console-$name$suffix.txt"
       echo "::group::$name$suffix"
       (cd "$OUT/screenshots" && capped maestro --device "$UDID" test \
         --format junit --output "$OUT/junit/$name.xml" \
         --debug-output "$DEBUG_DIR/$name$suffix" \
-        "${ARGS[@]}" "$f") 2>&1 | tee "$console"
-      rc=${PIPESTATUS[0]}
+        "${ARGS[@]}" "$f")
+      rc=$?
       echo "::endgroup::"
       echo "$name$suffix: exit $rc after $(( $(date +%s) - started )) s"
       [ $rc -eq 0 ] && break
       [ $attempt -eq 2 ] && break
-      grep -qE 'DeviceUnreachableException|Device became unreachable|Transport unreachable' "$console" || break
+      grep -rqE 'DeviceUnreachableException|Device became unreachable|Transport unreachable' \
+        "$DEBUG_DIR/$name$suffix" 2>/dev/null || break
       echo "::warning::$name: the Maestro driver became unreachable, running the flow once more"
       RETRIED+=("$name")
     done
