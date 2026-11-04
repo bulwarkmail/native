@@ -15,6 +15,7 @@ vi.mock('../booking-calendar-actions', async () => {
 });
 
 import type { Email } from '../../../../api/types';
+import { usePolicyStore } from '../../../../stores/policy-store';
 import { useSettingsStore } from '../../../../stores/settings-store';
 import { StructuredMailBanner } from '../StructuredMailBanner';
 import { byTestId, render, textOf } from './render-native';
@@ -37,7 +38,11 @@ function mail(ar: string | null, subject = 'Your order'): Email {
 }
 
 const initialSettings = useSettingsStore.getState();
-afterEach(() => useSettingsStore.setState(initialSettings, true));
+const initialPolicy = usePolicyStore.getState();
+afterEach(() => {
+  useSettingsStore.setState(initialSettings, true);
+  usePolicyStore.setState(initialPolicy, true);
+});
 
 describe('StructuredMailBanner', () => {
   it('shows the order card of a verified mail', () => {
@@ -67,11 +72,21 @@ describe('StructuredMailBanner', () => {
   });
 
   it('loads product images only when remote content would load', () => {
+    // The webmail's config is known and allows third-party traffic.
+    usePolicyStore.setState({ configPending: false, links: {} });
     useSettingsStore.setState({ externalContentPolicy: 'block', trustedSenders: [] });
     expect(byTestId(render(createElement(StructuredMailBanner, { email: mail(PASS) })), 'structured-mail-item-image')).toHaveLength(0);
     useSettingsStore.setState({ trustedSenders: ['orders@shop.example'] });
     expect(byTestId(render(createElement(StructuredMailBanner, { email: mail(PASS) })), 'structured-mail-item-image')).toHaveLength(1);
     useSettingsStore.setState({ externalContentPolicy: 'allow', trustedSenders: [] });
     expect(byTestId(render(createElement(StructuredMailBanner, { email: mail(PASS) })), 'structured-mail-item-image')).toHaveLength(1);
+  });
+
+  it('loads no product images while the webmail config is unknown or forbids third-party traffic', () => {
+    useSettingsStore.setState({ externalContentPolicy: 'allow', trustedSenders: [] });
+    usePolicyStore.setState({ configPending: true, links: {} });
+    expect(byTestId(render(createElement(StructuredMailBanner, { email: mail(PASS) })), 'structured-mail-item-image')).toHaveLength(0);
+    usePolicyStore.setState({ configPending: false, links: { noThirdPartyTraffic: true } });
+    expect(byTestId(render(createElement(StructuredMailBanner, { email: mail(PASS) })), 'structured-mail-item-image')).toHaveLength(0);
   });
 });
