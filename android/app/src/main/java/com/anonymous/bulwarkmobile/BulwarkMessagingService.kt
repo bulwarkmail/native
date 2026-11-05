@@ -33,14 +33,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         // they feed (device sync, #34); only mail needs the push task.
         val mail = DeviceSyncPushRouter.route(applicationContext, data)
 
-        // Hand off to JS via a headless task only when the app isn't already
-        // running in the foreground - HeadlessJsTaskContext throws if started
-        // while foreground. When the app is open, the main JS instance already
-        // receives JMAP push directly, so the fcm:message event below is
-        // sufficient for it to refresh state.
-        if (mail && !isAppInForeground()) {
-            startHeadlessTask(applicationContext, data)
-        }
+        startTaskUnlessInForeground(applicationContext, data, mail)
 
         val params = Arguments.createMap().apply {
             val dataMap = Arguments.createMap()
@@ -58,13 +51,29 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         private const val TAG = "BulwarkPush"
         private const val START_WAKE_LOCK_MS = 10_000L
 
-        // Shared with BulwarkUnifiedPushService - a push arriving over either
-        // transport is dispatched the same way.
-        fun isAppInForeground(): Boolean {
+        /**
+         * Runs the push task for a mail push unless the app's screen is
+         * resumed: then the user is looking at the app, which syncs over its
+         * own event stream, and HeadlessJsTaskContext would refuse the task.
+         * Shared with BulwarkUnifiedPushService, so a push arriving over
+         * either transport is dispatched the same way.
+         *
+         * The process importance is no measure of that (#94): an app paused
+         * under a translucent screen, or kept important by anything bound to
+         * it, counts as foreground, and its pushes ended without a
+         * notification.
+         */
+        fun startTaskUnlessInForeground(context: Context, data: Map<String, String>, mail: Boolean) {
+            val foreground = MainActivity.isInForeground
+            Log.i(TAG, "Push: mail=$mail foreground=$foreground importance=${processImportance()}")
+            if (mail && !foreground) startHeadlessTask(context, data)
+        }
+
+        /** For the log only. */
+        private fun processImportance(): Int {
             val info = ActivityManager.RunningAppProcessInfo()
             ActivityManager.getMyMemoryState(info)
-            return info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-                info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+            return info.importance
         }
 
         fun startHeadlessTask(context: Context, data: Map<String, String>) {

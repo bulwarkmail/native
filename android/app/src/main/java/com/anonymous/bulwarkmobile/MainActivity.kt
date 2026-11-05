@@ -23,6 +23,16 @@ class MainActivity : ReactActivity() {
     ShareIntentStore.captureFromIntent(intent, contentResolver)
   }
 
+  override fun onResume() {
+    super.onResume()
+    isInForeground = true
+  }
+
+  override fun onPause() {
+    isInForeground = false
+    super.onPause()
+  }
+
   override fun onNewIntent(intent: Intent) {
     ShareIntentStore.rewriteSendToAsView(intent)
     super.onNewIntent(intent)
@@ -72,5 +82,17 @@ class MainActivity : ReactActivity() {
       // Use the default back button implementation on Android S
       // because it's doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
+  }
+
+  companion object {
+    /**
+     * Whether the app's screen is resumed, the state in which React Native
+     * refuses to start a headless task (HeadlessJsTaskContext). Pushes read
+     * it to decide whether the push task runs (BulwarkMessagingService).
+     */
+    @Volatile
+    @JvmStatic
+    var isInForeground = false
+      private set
   }
 }
