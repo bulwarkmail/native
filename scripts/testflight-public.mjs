@@ -99,7 +99,7 @@ if (!group) {
 // ── Wait for the build ─────────────────────────────────────────
 const query =
   `/v1/builds?filter[app]=${app.id}&filter[version]=${encodeURIComponent(buildNumber)}` +
-  `&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&fields[builds]=version,processingState`;
+  `&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&fields[builds]=version,processingState,usesNonExemptEncryption`;
 const started = Date.now();
 let build;
 for (;;) {
@@ -120,6 +120,18 @@ for (;;) {
   await sleep(POLL_MS);
 }
 console.log(`Build ${version} (${buildNumber}) is processed.`);
+
+// ── Export compliance ──────────────────────────────────────────
+// The app uses non-exempt encryption (PGP and S/MIME, #58) with standard
+// algorithms only and is not on the French store: App Store Connect needs no
+// documentation, so Info.plist has no key and the answer is given here.
+if (build.attributes.usesNonExemptEncryption == null) {
+  const answer = await api('PATCH', `/v1/builds/${build.id}`, {
+    data: { type: 'builds', id: build.id, attributes: { usesNonExemptEncryption: true } },
+  });
+  if (!answer.ok) fail('Answering export compliance', answer);
+  console.log('Export compliance answered: standard encryption, no documentation needed.');
+}
 
 // ── Add it to the group ────────────────────────────────────────
 const add = await api('POST', `/v1/betaGroups/${group.id}/relationships/builds`, {
@@ -150,7 +162,7 @@ const detail = await api('GET', `/v1/builds/${build.id}/buildBetaDetail`);
 if (!detail.ok) fail('Reading the build state', detail);
 const external = detail.json.data.attributes.externalBuildState;
 if (external === 'MISSING_EXPORT_COMPLIANCE') {
-  console.error('The build has no export compliance answer; set usesNonExemptEncryption in app.config.js.');
+  console.error('The build still has no export compliance answer; answer it in App Store Connect > TestFlight.');
   process.exit(1);
 }
 if (external === 'READY_FOR_BETA_SUBMISSION') {

@@ -57,12 +57,13 @@ module.exports = {
       supportsTablet: true,
       bundleIdentifier: 'org.bulwarkmail.mobile',
       buildNumber: IOS_BUILD_NUMBER,
-      config: {
-        // PGP and S/MIME (#58) add end-to-end encryption beyond HTTPS/TLS,
-        // so the app declares non-exempt encryption; App Store Connect asks
-        // for the export compliance documentation on upload.
-        usesNonExemptEncryption: true,
-      },
+      // No usesNonExemptEncryption here. PGP and S/MIME (#58) are non-exempt
+      // encryption, but only standard algorithms from open-source libraries
+      // and the app is not on the French store, so App Store Connect keeps no
+      // declaration and has no ITSEncryptionExportComplianceCode to give. An
+      // Info.plist saying YES without that code fails upload validation
+      // (90592), so the key stays out and scripts/testflight-public.mjs
+      // answers the question for each build through the API.
     },
     android: {
       adaptiveIcon: {
