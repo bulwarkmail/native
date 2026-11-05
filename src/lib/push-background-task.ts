@@ -321,13 +321,42 @@ function rewriteApiUrl(session: JMAPSession, serverUrl: string): string {
   return serverOrigin + session.apiUrl.slice(apiOrigin.length);
 }
 
+/**
+ * How long one request of the push task may go unanswered. React Native's
+ * HTTP client has no timeout of its own, so a request on a dead connection
+ * waited until the task's 30 s were up and ended without any notification
+ * (#94). This leaves time for the session and the lookup, and the failure
+ * still shows the generic one.
+ */
+export const PUSH_REQUEST_TIMEOUT_MS = 10_000;
+
+/** secureFetch that gives up after PUSH_REQUEST_TIMEOUT_MS. */
+async function fetchInTime(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new PushLookupError(`No answer within ${PUSH_REQUEST_TIMEOUT_MS} ms`));
+    }, PUSH_REQUEST_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      secureFetch(url, { ...init, signal: controller.signal, timeoutMs: PUSH_REQUEST_TIMEOUT_MS }),
+      deadline,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function openDetachedSession(accountId: string): Promise<DetachedSession | null> {
   let creds = await jmapClient.getStoredCredentials(accountId);
   if (!creds) return null;
   creds = await freshStoredCredentials(accountId, creds);
   const baseUrl = creds.serverUrl.replace(/\/+$/, '');
   const authHeader = authHeaderFor(creds);
-  const res = await secureFetch(`${baseUrl}/.well-known/jmap`, {
+  const res = await fetchInTime(`${baseUrl}/.well-known/jmap`, {
     headers: { Authorization: authHeader, Accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`Session discovery failed: ${res.status}`);
@@ -370,7 +399,7 @@ async function jmapPost(
   session: DetachedSession,
   methodCalls: JMAPMethodCall[],
 ): Promise<Array<[string, Record<string, any>, string]>> {
-  const response = await secureFetch(session.apiUrl, {
+  const response = await fetchInTime(session.apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: session.authHeader },
     body: JSON.stringify({ using: [CAPABILITIES.CORE, CAPABILITIES.MAIL], methodCalls }),

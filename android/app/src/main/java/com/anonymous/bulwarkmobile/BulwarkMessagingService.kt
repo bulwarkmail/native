@@ -66,7 +66,12 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         fun startTaskUnlessInForeground(context: Context, data: Map<String, String>, mail: Boolean) {
             val foreground = MainActivity.isInForeground
             Log.i(TAG, "Push: mail=$mail foreground=$foreground importance=${processImportance()}")
-            if (mail && !foreground) startHeadlessTask(context, data)
+            if (mail && !foreground) {
+                // The task opens its own connection rather than one left
+                // over from the foreground, which may be dead (#94).
+                HttpConnections.dropIdle()
+                startHeadlessTask(context, data)
+            }
         }
 
         /** For the log only. */

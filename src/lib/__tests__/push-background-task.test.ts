@@ -19,6 +19,7 @@ import {
   handleNotificationAction,
   matchAccountsForPush,
   parseRelayPushData,
+  PUSH_REQUEST_TIMEOUT_MS,
   pushBackgroundTask,
   selectNotifiableEmails,
   senderFaviconsAllowed,
@@ -266,6 +267,30 @@ describe('pushBackgroundTask notifications', () => {
       threadId: '',
       groupKey: `bulwark-mail:${LOCAL}`,
     });
+  });
+
+  it('shows the generic notification when a request never answers, as on a dead connection (#94)', async () => {
+    vi.useFakeTimers();
+    try {
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => undefined));
+      let settled = false;
+      const task = pushBackgroundTask({ kind: 'jmap-email-push', accountLabel: 'alice', accountId: 'jmap-primary', emailIds: '["m1"]' })
+        .then(() => { settled = true; });
+
+      await vi.advanceTimersByTimeAsync(PUSH_REQUEST_TIMEOUT_MS - 1);
+      expect(settled).toBe(false);
+      expect(showNotification).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await task;
+      expect(showNotification).toHaveBeenCalledTimes(1);
+      expect((showNotification.mock.calls[0] as unknown[])[0]).toMatchObject({ title: 'New email', body: 'alice', emailId: '' });
+      // The request was told to stop, so it doesn't hold the connection.
+      const init = (secureFetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as { signal: AbortSignal };
+      expect(init.signal.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('takes a method error for a failed lookup, not for "nothing new" (#1041)', async () => {
