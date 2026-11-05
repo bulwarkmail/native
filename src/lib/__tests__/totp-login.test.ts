@@ -34,16 +34,26 @@ interface Call { url: string; method: string; body?: string }
 // A fake Stalwart of either line. `v1` knows no client but the ones it
 // registered (ids `swc1.<n>`) and those in `admin` (registered by an admin
 // for the given redirect URI), takes `{query, consent}` and answers with a
-// location; 0.16 has no client check and answers `client_code`.
+// location; 0.16 has no client check and answers `client_code`. An admin
+// client listed in `adminScopes` allows only those scopes besides openid and
+// offline_access (1.0.3, which has no first-party clients), and a request
+// naming another is refused with invalid_scope; any other client allows all.
 function fakeServer(
   version: '0.16' | '1.0',
   answer?: (query: URLSearchParams) => unknown,
   admin: Record<string, string> = {},
+  adminScopes: Record<string, string[]> = {},
 ) {
   const calls: Call[] = [];
   let registered = 0;
   const knows = (clientId: string, redirectUri: string | null) =>
     clientId.startsWith('swc1.') || (clientId in admin && admin[clientId] === redirectUri);
+  const allows = (clientId: string, scope: string | null) => {
+    const allowed = adminScopes[clientId];
+    if (!allowed) return true;
+    return (scope ?? '').split(' ').every((s) => !s || s === 'openid' || s === 'offline_access' || allowed.includes(s));
+  };
+  const scopeRefused = (redirectUri: string | null) => `${redirectUri}?error=invalid_scope&error_description=The+requested+scope+is+not+allowed+for+this+client.`;
   fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     const call = { url, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? init.body : undefined };
     calls.push(call);
@@ -51,9 +61,13 @@ function fakeServer(
     if (path === '/api/auth/client') {
       if (version === '0.16') return json({ type: 'about:blank', status: 404 }, 404);
       const params = new URL(url).searchParams;
-      return json(knows(params.get('client_id') ?? '', params.get('redirect_uri'))
+      const clientId = params.get('client_id') ?? '';
+      if (!knows(clientId, params.get('redirect_uri'))) {
+        return json({ error: 'invalid_client', description: 'Unknown client id', redirect: false });
+      }
+      return json(allows(clientId, params.get('scope'))
         ? { name: 'Bulwark Mobile' }
-        : { error: 'invalid_client', description: 'Unknown client id', redirect: false });
+        : { error: 'invalid_request', redirect: true, location: scopeRefused(params.get('redirect_uri')) });
     }
     if (path === '/auth/register') {
       if (version === '0.16') return json({ error: 'invalid_redirect_uri' }, 400);
@@ -67,6 +81,7 @@ function fakeServer(
       const query = new URLSearchParams(body.query);
       if (answer) return json(answer(query));
       if (!knows(query.get('client_id') ?? '', query.get('redirect_uri'))) return json({ type: 'invalid', error: 'invalid_client', description: 'Unknown client id' });
+      if (!allows(query.get('client_id') ?? '', query.get('scope'))) return json({ type: 'redirect', location: scopeRefused(query.get('redirect_uri')) });
       return json({
         type: 'authenticated',
         location: `${query.get('redirect_uri')}?code=code-10&state=${query.get('state')}&iss=x`,
@@ -151,6 +166,30 @@ describe('exchangePasswordForTokens', () => {
     expect(tokenCall(calls).get('redirect_uri')).toBe(REGISTERED_REDIRECT_URI);
     // A public client: there is no secret to send.
     expect(tokenCall(calls).has('client_secret')).toBe(false);
+  });
+
+  it('registers its own client on Stalwart 1.0.3, where bulwark-mobile lost its first-party access', async () => {
+    // 1.0.3 has no first-party clients: bulwark-mobile now allows only openid
+    // and offline_access and refuses the app's request with invalid_scope.
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, { 'bulwark-mobile': [] });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.clientId).toBe('swc1.1');
+    expect(authCalls(calls)).toHaveLength(1);
+    const register = JSON.parse(calls.find((c) => c.url.endsWith('/auth/register'))!.body!);
+    expect(register.scope).toContain('urn:stalwart:oauth:scope:security');
+    expect(register.scope).not.toContain('urn:stalwart:oauth:scope:full');
+  });
+
+  it('asks again when a remembered bulwark-mobile no longer allows the scopes, without a second password check failing', async () => {
+    fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
+    await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+    // The server is upgraded to 1.0.3 while the app keeps running.
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, { 'bulwark-mobile': [] });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '654321');
+
+    expect(tokens.clientId).toBe('swc1.1');
+    expect(tokenCall(calls).get('client_id')).toBe('swc1.1');
   });
 
   it('keeps the registered client per server for the next sign-in', async () => {

@@ -151,6 +151,52 @@ describe('loginWithPkce on Stalwart', () => {
     expect(scopes).not.toContain('profile');
   });
 
+  // 1.0.3 dropped first-party clients: the bulwark-mobile client the webmail
+  // setup registered now allows only openid and offline_access, and refuses
+  // the whole request with invalid_scope.
+  const stalwart103: OAuthMetadata = {
+    ...stalwart,
+    scopes_supported: [
+      ...stalwart.scopes_supported!,
+      'urn:stalwart:oauth:scope:security',
+      'urn:stalwart:oauth:scope:settings',
+      'urn:stalwart:oauth:scope:full',
+    ],
+  };
+
+  it('registers its own client on 1.0.3 when bulwark-mobile does not allow the scopes it asks for', async () => {
+    const checked: URLSearchParams[] = [];
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/client')) {
+        const q = new URL(url).searchParams;
+        checked.push(q);
+        if (q.get('client_id') !== 'bulwark-mobile') return answer({ error: 'invalid_client' });
+        const extra = (q.get('scope') ?? '').split(' ').filter((s) => s && s !== 'openid' && s !== 'offline_access');
+        return extra.length
+          ? answer({ error: 'invalid_request', redirect: true, location: `${REGISTERED_REDIRECT_URI}?error=invalid_scope` })
+          : answer({ name: 'Bulwark Mobile (auto-configured)', scopes: ['Full access to your account'] });
+      }
+      if (url.endsWith('/auth/register')) return answer({ client_id: 'swc1.own' }, 201);
+      return answer({}, 404);
+    });
+    const { params } = await openedSession(stalwart103);
+
+    expect(params.get('client_id')).toBe('swc1.own');
+    // The check asked with the scopes the browser then asks for.
+    expect(checked[0].get('scope')).toBe(params.get('scope'));
+  });
+
+  it("asks 1.0.3 for the account's settings, but not for full access", async () => {
+    fetchMock.mockImplementation(async () => answer({ status: 404 }, 404));
+    const { params } = await openedSession(stalwart103);
+    const scopes = params.get('scope')!.split(' ');
+
+    expect(scopes).toEqual(expect.arrayContaining(['urn:stalwart:oauth:scope:security', 'urn:stalwart:oauth:scope:settings']));
+    expect(scopes).not.toContain('urn:stalwart:oauth:scope:full');
+    // A server that doesn't list them isn't asked for them.
+    expect(pkceScopes(stalwart)).not.toContain('urn:stalwart:');
+  });
+
   it('asks another identity provider for the usual OpenID scopes', () => {
     expect(pkceScopes({ ...metadata, scopes_supported: ['openid', 'email', 'profile', 'offline_access', 'groups'] }))
       .toBe('openid email profile offline_access');

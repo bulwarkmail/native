@@ -14,9 +14,11 @@ import * as WebBrowser from 'expo-web-browser';
 import { fetchWithoutForeignRedirect, followedOnlyAllowedRedirects, mayFollowRedirect, secureFetch } from './client-cert';
 import { HANDOFF_REDIRECT_URI, HandoffError, HandoffCancelledError, type OAuthTokens } from './oauth';
 import {
+  forgetLoginClient,
   generateCodeChallenge,
   generateCodeVerifier,
   resolveLoginClient,
+  STALWART_ACCOUNT_SCOPES,
   DEFAULT_CLIENT_ID,
   MOBILE_CLIENT_ID,
   REGISTERED_LOGOUT_REDIRECT_URI,
@@ -142,7 +144,8 @@ const DATA_SCOPE_PREFIX = 'urn:ietf:params:oauth:scope:';
  * advertises OAuth data scopes is Stalwart: 1.0 gives a client it doesn't
  * treat as first-party only what these name, and refuses a scope it doesn't
  * list (`email`, `profile`) with `invalid_scope`. For such a provider the
- * scopes it doesn't list are dropped and every data scope it lists is added;
+ * scopes it doesn't list are dropped and every data scope it lists is added,
+ * with the account-settings scopes 1.0.3 lists (STALWART_ACCOUNT_SCOPES);
  * any other provider gets the usual OIDC set.
  */
 export function pkceScopes(metadata: OAuthMetadata): string {
@@ -151,7 +154,8 @@ export function pkceScopes(metadata: OAuthMetadata): string {
   if (!supported?.length) return wanted.join(' ');
   const kept = wanted.filter((s) => supported.includes(s));
   const data = supported.filter((s) => typeof s === 'string' && s.startsWith(DATA_SCOPE_PREFIX));
-  if (data.length) return [...new Set([...kept, ...data])].join(' ');
+  const account = STALWART_ACCOUNT_SCOPES.filter((s) => supported.includes(s));
+  if (data.length) return [...new Set([...kept, ...data, ...account])].join(' ');
   return kept.join(' ') || supported.join(' ');
 }
 
@@ -170,7 +174,10 @@ async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<{
   const stalwart = !!metadata.scopes_supported?.some((s) => typeof s === 'string' && s.startsWith(DATA_SCOPE_PREFIX));
   if (onServer || stalwart) {
     try {
-      return await resolveLoginClient(serverUrl, { registrationEndpoint: registrationEndpoint(metadata) });
+      return await resolveLoginClient(serverUrl, {
+        registrationEndpoint: registrationEndpoint(metadata),
+        scope: pkceScopes(metadata),
+      });
     } catch (err) {
       // Unreachable: say so, rather than let the browser show the server
       // refusing a client it doesn't know.
@@ -232,7 +239,11 @@ export async function loginWithPkce(
 
   const cb = parseCallbackParams(result.url);
   const err = cb.get('error');
-  if (err) throw new HandoffError(cb.get('error_description') || err);
+  if (err) {
+    // A remembered client the server no longer takes: the next try asks again.
+    if (!opts?.clientId && (err === 'invalid_client' || err === 'invalid_scope')) forgetLoginClient(serverUrl);
+    throw new HandoffError(cb.get('error_description') || err);
+  }
   if (cb.get('state') !== state) throw new HandoffError('State mismatch');
   const code = cb.get('code');
   if (!code) throw new HandoffError('Sign-in response missing authorization code');

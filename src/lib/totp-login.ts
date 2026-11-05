@@ -76,7 +76,20 @@ export const STALWART_DATA_SCOPES = [
   'urn:ietf:params:oauth:scope:files',
 ];
 
-export const STALWART_LOGIN_SCOPE = ['openid', 'offline_access', ...STALWART_DATA_SCOPES].join(' ');
+/**
+ * Stalwart 1.0.3's scopes for the account's own settings (password, 2FA, app
+ * passwords, encryption keys), which until then only a first-party client
+ * reached. 1.0.3 dropped first-party clients, so `bulwark-mobile` too gets
+ * only what its scopes name. `urn:stalwart:oauth:scope:full` isn't asked for:
+ * only a client a superuser allowed it may, and a request naming a scope the
+ * client lacks is refused as a whole. Earlier servers skip these names.
+ */
+export const STALWART_ACCOUNT_SCOPES = [
+  'urn:stalwart:oauth:scope:security',
+  'urn:stalwart:oauth:scope:settings',
+];
+
+export const STALWART_LOGIN_SCOPE = ['openid', 'offline_access', ...STALWART_DATA_SCOPES, ...STALWART_ACCOUNT_SCOPES].join(' ');
 
 export class LoginEndpointMissingError extends Error {
   constructor() {
@@ -135,6 +148,11 @@ function trimBase(url: string): string {
 /** Test hook. */
 export function resetLoginClients(): void {
   loginClients.clear();
+}
+
+/** Drop the client remembered for `serverUrl`, which the server just refused. */
+export function forgetLoginClient(serverUrl: string): void {
+  loginClients.delete(trimBase(serverUrl));
 }
 
 function rememberClient(base: string, client: LoginClient): void {
@@ -209,14 +227,18 @@ async function registerPublicClient(
 
 /**
  * Stalwart 1.0's client check (GET /api/auth/client, which 0.16 doesn't
- * have): does the server take `clientId` on `redirectUri`? `busy` for a
- * server having a bad moment (5xx, 429), `none` where there is no such
- * check; an unreachable server throws `NetworkError`.
+ * have): does the server take `clientId` on `redirectUri` asking for
+ * `scope`? A client registered without the scopes the app asks for
+ * (`bulwark-mobile` on 1.0.3, which dropped first-party clients) counts as
+ * unknown, since the server refuses the whole request with `invalid_scope`.
+ * `busy` for a server having a bad moment (5xx, 429), `none` where there is
+ * no such check; an unreachable server throws `NetworkError`.
  */
 async function checkClient(
   base: string,
   clientId: string,
   redirectUri: string,
+  scope: string,
   signal?: AbortSignal,
 ): Promise<'known' | 'unknown' | 'none' | 'busy'> {
   const query = new URLSearchParams({
@@ -224,6 +246,7 @@ async function checkClient(
     client_id: clientId,
     redirect_uri: redirectUri,
     state: 'probe',
+    scope,
     code_challenge: 'A'.repeat(43),
     code_challenge_method: 'S256',
   });
@@ -249,7 +272,8 @@ async function checkClient(
   if (!response.ok) return 'none';
   const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
   if (!body || typeof body !== 'object') return 'none';
-  // `invalid_client` (unknown id) or a redirect URI the client doesn't list.
+  // `invalid_client` (unknown id), a redirect URI the client doesn't list,
+  // or (as a `redirect` carrying `invalid_scope`) a scope it doesn't allow.
   return typeof body.error === 'string' && body.error ? 'unknown' : 'known';
 }
 
@@ -258,22 +282,25 @@ async function checkClient(
  * `bulwark-mobile` where the admin's OAuth setup registered it, else the
  * webmail's client if it takes the app's redirect URI, else a public client
  * the app registers itself, at `registrationEndpoint` when the OAuth
- * metadata names one. Any other server, and 0.16, gets `bulwark-webmail` as
- * before. A server having a bad moment (5xx, 429) gets the default without
- * it being remembered; an unreachable one throws `NetworkError`, as the
- * default would only end in the server refusing a client it doesn't know.
+ * metadata names one. Either of the first two counts only if it allows
+ * `scope`, the scopes the sign-in will ask for. Any other server, and 0.16,
+ * gets `bulwark-webmail` as before. A server having a bad moment (5xx, 429)
+ * gets the default without it being remembered; an unreachable one throws
+ * `NetworkError`, as the default would only end in the server refusing a
+ * client it doesn't know.
  */
 export async function resolveLoginClient(
   serverUrl: string,
-  opts?: { registrationEndpoint?: string; signal?: AbortSignal },
+  opts?: { registrationEndpoint?: string; scope?: string; signal?: AbortSignal },
 ): Promise<LoginClient> {
   const base = trimBase(serverUrl);
   const cached = loginClients.get(base);
   if (cached) return cached;
   const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
   const signal = opts?.signal;
+  const scope = opts?.scope ?? STALWART_LOGIN_SCOPE;
 
-  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, signal);
+  const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, scope, signal);
   if (own === 'busy') return fallback;
   if (own === 'known') {
     const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI };
@@ -281,7 +308,7 @@ export async function resolveLoginClient(
     return client;
   }
   if (own === 'unknown') {
-    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI, signal);
+    const shared = await checkClient(base, DEFAULT_CLIENT_ID, HANDOFF_REDIRECT_URI, scope, signal);
     if (shared === 'busy') return fallback;
     if (shared === 'unknown') {
       const endpoint = opts?.registrationEndpoint;
@@ -502,10 +529,15 @@ export async function exchangePasswordForTokens(
     : await resolveLoginClient(base, { signal });
   let outcome = await requestLoginCode(base, username, password, totp, client, challenge, signal);
   // A remembered client the server no longer knows (another server now
-  // answers at the address, or its key changed), or the default taken while
-  // the client check failed: ask again, once. 1.0 checks the client before
-  // the credentials, so this costs no failed sign-in.
-  if (outcome.kind === 'rejected' && outcome.error === 'invalid_client' && !opts?.clientId) {
+  // answers at the address, or its key changed) or no longer gives the
+  // scopes (bulwark-mobile after the upgrade to 1.0.3), or the default taken
+  // while the client check failed: ask again, once. 1.0 checks the client
+  // before the credentials, so this costs no failed sign-in.
+  if (
+    outcome.kind === 'rejected'
+    && (outcome.error === 'invalid_client' || outcome.error === 'invalid_scope')
+    && !opts?.clientId
+  ) {
     loginClients.delete(base);
     const fresh = await resolveLoginClient(base, { signal });
     if (fresh.clientId !== client.clientId) {
