@@ -14,6 +14,7 @@ import {
   isEmailAddress,
   serverCandidates,
   probeJmapServer,
+  resolveJmapServer,
   discoverServerForEmail,
 } from '../server-discovery';
 
@@ -152,6 +153,69 @@ describe('probeJmapServer', () => {
   });
 });
 
+describe('resolveJmapServer', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** Every request is answered as if its redirects had ended at `finalUrl`. */
+  function answeredAt(finalUrl: string, status = 200) {
+    mockSecureFetch.mockResolvedValue({ status, url: finalUrl, json: async () => SESSION_DOC } as Response);
+  }
+
+  it('names the server the redirects led to, not the name that was tried (#95)', async () => {
+    answeredAt('https://mail.example.com/jmap/session');
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.com');
+    answeredAt('https://mail.example.com/.well-known/jmap', 401);
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.com');
+  });
+
+  it('keeps the name that was tried when the redirects stay on it', async () => {
+    answeredAt('https://mail.example.org/jmap/session');
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.org');
+    answeredAt('https://MAIL.example.org:443/somewhere/else');
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.org');
+    mockSecureFetch.mockResolvedValue({ status: 200, json: async () => SESSION_DOC } as Response);
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.org');
+  });
+
+  it('keeps a base path in front of the session path, and no other path', async () => {
+    answeredAt('https://host.example.com/mail/jmap/session');
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://host.example.com/mail');
+    answeredAt('https://host.example.com/api/v1/whoami');
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://host.example.com');
+  });
+
+  it('does not save a server the redirects reached over plain http', async () => {
+    answeredAt('http://mail.example.com/jmap/session');
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.org');
+  });
+
+  it('takes one unfollowed redirect to another host itself, as the client-certificate path leaves it', async () => {
+    mockSecureFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith('https://mail.example.org/')) {
+        return { status: 302, headers: new Headers({ Location: 'https://mail.example.com/.well-known/jmap' }) } as Response;
+      }
+      if (url === 'https://mail.example.com/.well-known/jmap') return { status: 401 } as Response;
+      throw new TypeError('Network request failed');
+    });
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBe('https://mail.example.com');
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up on a second redirect and on one to plain http', async () => {
+    mockSecureFetch.mockImplementation(async (url: string) => {
+      const next = url.startsWith('https://a.example.org/') ? 'https://b.example.org/' : 'https://c.example.org/';
+      return { status: 302, headers: new Headers({ Location: next }) } as Response;
+    });
+    await expect(resolveJmapServer('https://a.example.org')).resolves.toBeNull();
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
+
+    mockSecureFetch.mockClear();
+    mockSecureFetch.mockResolvedValue({ status: 302, headers: new Headers({ Location: 'http://mail.example.com/' }) } as Response);
+    await expect(resolveJmapServer('https://mail.example.org')).resolves.toBeNull();
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('discoverServerForEmail', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -203,6 +267,14 @@ describe('discoverServerForEmail', () => {
     expect(emailDomain('jörg@bücher.de')).toBe('xn--bcher-kva.de');
     expect(normalizeServerUrl('mail.bücher.de/jmap/session')).toBe('https://mail.xn--bcher-kva.de');
     expect(normalizeServerUrl('https://Mail.Bücher.de:8443')).toBe('https://mail.xn--bcher-kva.de:8443');
+  });
+
+  it('offers the server behind a name that only redirects to it (#95)', async () => {
+    mockSecureFetch.mockImplementation(async (url: string) => {
+      if (!url.startsWith('https://mail.example.org/')) throw new TypeError('Network request failed');
+      return { status: 200, url: 'https://mail.example.com/jmap/session', json: async () => SESSION_DOC } as Response;
+    });
+    await expect(discoverServerForEmail('ada@example.org')).resolves.toBe('https://mail.example.com');
   });
 
   it('stops searching as soon as the sign-in is cancelled (U-133)', async () => {

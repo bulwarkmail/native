@@ -135,44 +135,83 @@ function looksLikeSession(body: unknown): boolean {
   return 'capabilities' in body || 'apiUrl' in body || 'primaryAccounts' in body;
 }
 
+const SESSION_PATH_RE = /\/(?:jmap\/session|\.well-known\/jmap|jmap)\/?(?:[?#].*)?$/i;
+const REDIRECT_STATUSES = [301, 302, 303, 307, 308];
+
+function originOf(url: string): string {
+  const m = /^(https?:\/\/[^/?#]+)/i.exec(url);
+  return m ? m[1].toLowerCase().replace(/^(https:\/\/.+):443$/, '$1') : '';
+}
+
 /**
- * True when `baseUrl` looks like a JMAP server.
+ * The server to save when the probe of `tried` was answered at `finalUrl`.
+ * A name that only redirects to the mail server (`mail.<second domain>`) is
+ * not the server: every later request would take the redirect, which may
+ * drop the Authorization header on its way to another host (#95).
+ */
+function serverBehind(tried: string, finalUrl: string | undefined): string {
+  if (!finalUrl) return tried;
+  const origin = originOf(finalUrl);
+  if (!origin || origin === originOf(tried)) return tried;
+  // A session path keeps the base path in front of it (#971); any other
+  // path says nothing about where the server's root is.
+  return normalizeServerUrl(SESSION_PATH_RE.test(finalUrl) ? finalUrl : origin) ?? tried;
+}
+
+/**
+ * The JMAP server that answers at `baseUrl`, or null when none does: `baseUrl`
+ * itself, or the server its redirects lead to.
  *
- * A 401 counts as a hit â€” an unauthenticated probe of Stalwart's session
+ * A 401 counts as a hit — an unauthenticated probe of Stalwart's session
  * endpoint is *supposed* to be rejected, and that rejection is proof the
  * endpoint is there. A 200, on the other hand, has to actually contain a
  * session document: a captive portal or a catch-all web server will happily
  * answer 200 with HTML for any path we ask for.
  */
+export async function resolveJmapServer(
+  baseUrl: string,
+  timeoutMs: number = DISCOVERY_TIMEOUT_MS,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  // Gives up at the deadline, or when the user cancels the sign-in.
+  const deadline = signalWithTimeout(signal, timeoutMs);
+
+  const ask = async (base: string, mayHop: boolean): Promise<string | null> => {
+    const response = await secureFetch(`${base}/.well-known/jmap`, {
+      headers: { Accept: 'application/json' },
+      signal: deadline.signal,
+    });
+    // With a client certificate the request doesn't follow a redirect to
+    // another host, so the probe takes that one step itself. It carries no
+    // credentials.
+    if (REDIRECT_STATUSES.includes(response.status)) {
+      const location = response.headers?.get('location') ?? '';
+      const next = /^https:\/\//i.test(location) ? serverBehind(base, location) : base;
+      return mayHop && next !== base ? ask(next, false) : null;
+    }
+    const found = serverBehind(base, response.url);
+    if (response.status === 401) return found;
+    if (response.status !== 200) return null;
+    return looksLikeSession(await response.json()) ? found : null;
+  };
+  const request = ask(baseUrl, true).catch(() => null);
+
+  try {
+    // The abort signal doesn't reach the native client-certificate path, so
+    // race the whole thing rather than trusting the request to give up.
+    return await withTimeout(request, timeoutMs, null, signal);
+  } finally {
+    deadline.done();
+  }
+}
+
+/** True when `baseUrl` looks like a JMAP server. */
 export async function probeJmapServer(
   baseUrl: string,
   timeoutMs: number = DISCOVERY_TIMEOUT_MS,
   signal?: AbortSignal,
 ): Promise<boolean> {
-  // Gives up at the deadline, or when the user cancels the sign-in.
-  const deadline = signalWithTimeout(signal, timeoutMs);
-
-  const request = (async () => {
-    try {
-      const response = await secureFetch(`${baseUrl}/.well-known/jmap`, {
-        headers: { Accept: 'application/json' },
-        signal: deadline.signal,
-      });
-      if (response.status === 401) return true;
-      if (response.status !== 200) return false;
-      return looksLikeSession(await response.json());
-    } catch {
-      return false;
-    }
-  })();
-
-  try {
-    // The abort signal doesn't reach the native client-certificate path, so
-    // race the whole thing rather than trusting the request to give up.
-    return await withTimeout(request, timeoutMs, false, signal);
-  } finally {
-    deadline.done();
-  }
+  return (await resolveJmapServer(baseUrl, timeoutMs, signal)) !== null;
 }
 
 export interface DiscoveryOptions {
@@ -208,7 +247,7 @@ export async function discoverServerForEmail(
   const timeoutMs = options.timeoutMs ?? DISCOVERY_TIMEOUT_MS;
   const candidates = serverCandidates(domain);
   const results = await Promise.all(
-    candidates.map(async (candidate) => ((await probeJmapServer(candidate, timeoutMs, options.signal)) ? candidate : null)),
+    candidates.map((candidate) => resolveJmapServer(candidate, timeoutMs, options.signal)),
   );
   if (options.signal?.aborted) return null;
 
