@@ -15,7 +15,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { monthButtonAccessibilityLabel } from '../lib/calendar-a11y';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
-  Calendar as CalendarIcon,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -44,6 +43,7 @@ import { CalendarAccountChangedError, calendarOperationScope, useCalendarStore }
 import { useSettingsStore } from '../stores/settings-store';
 import { appendEventNote } from '../lib/calendar-event-note';
 import { toast } from '../stores/toast-store';
+import { CalendarFrame } from '../components/calendar/calendar-frame-icon';
 import { MonthView } from '../components/calendar/MonthView';
 import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
@@ -1093,8 +1093,10 @@ export default function CalendarScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('calendar.events.go_to_today', 'Go to today')}
           >
-            <CalendarIcon size={26} color={c.text} strokeWidth={1.75} />
-            <Text style={styles.todayIconText}>{dayNumberLabel(displayNow(), system)}</Text>
+            <CalendarFrame size={26} color={c.text} strokeWidth={1.75} />
+            <Text style={styles.todayIconText} allowFontScaling={false}>
+              {dayNumberLabel(displayNow(), system)}
+            </Text>
           </Pressable>
           {enableCalendarTasks && (
             <Pressable
@@ -1412,7 +1414,7 @@ function makeStyles(c: ThemePalette) {
   // Today's date inside the calendar icon, below its rings.
   todayIconText: {
     position: 'absolute',
-    top: 15,
+    top: 18,
     left: 0,
     right: 0,
     textAlign: 'center',
