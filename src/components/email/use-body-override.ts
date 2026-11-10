@@ -6,6 +6,7 @@ import { fetchBlobBytes, bytesToBase64 } from '../../lib/email-export';
 import { isRfc822Attachment, isTnefAttachment } from '../../lib/attachment-display';
 import { parseTnef } from '../../lib/tnef';
 import { sniffImageMime } from '../../lib/email-html';
+import { installWindows1252Decoder } from '../../lib/single-byte-text-decoder';
 
 /** A part extracted client-side (TNEF / embedded message) - bytes, not a blob. */
 export interface ExtractedAttachment {
@@ -34,6 +35,7 @@ function toBytes(content: ArrayBuffer | Uint8Array | string): Uint8Array {
 }
 
 async function parseMessage(bytes: Uint8Array): Promise<ParsedEmail> {
+  installWindows1252Decoder();
   const { default: PostalMime } = await import('postal-mime');
   return PostalMime.parse(bytes, { attachmentEncoding: 'arraybuffer' });
 }

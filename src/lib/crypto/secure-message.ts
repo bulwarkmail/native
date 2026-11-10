@@ -12,6 +12,7 @@ import {
   extractPublicKeyBlock, inspectKey, keyNamesOnly, PgpArgon2UnsupportedError, type PgpSignatureSummary,
 } from './pgp';
 import type { SmimeKeyMaterial, SmimeSignatureStatus } from './smime/cms';
+import { installWindows1252Decoder } from '../single-byte-text-decoder';
 
 export type SecureKind = 'pgp' | 'smime';
 export type SignatureState = 'none' | 'valid' | 'invalid' | 'unknown';
@@ -125,6 +126,7 @@ async function renderPayload(bytes: Uint8Array): Promise<{ body: SecureResult['b
   if (!looksLikeMime(bytes)) {
     return { body: { html: null, text: new TextDecoder('utf-8', { fatal: false }).decode(bytes) }, attachments: [] };
   }
+  installWindows1252Decoder();
   const { default: PostalMime } = await import('postal-mime');
   const parsed = await PostalMime.parse(bytes, { attachmentEncoding: 'arraybuffer' });
   let html = parsed.html ?? null;
