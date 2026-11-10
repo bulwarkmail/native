@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import * as openpgp from 'openpgp';
 import { buildSecureMessage } from '../secure-send';
 import { openSecureMessage, secureKindHint, type SecureKeyAccess } from '../secure-message';
-import type { MimeMessageInput } from '../mime';
+import { wrapPgpEncrypted, type MimeMessageInput } from '../mime';
 import { makePgpKey, makeSmimeCert, useNodeCrypto, type TestCert } from './helpers';
 
 beforeAll(() => {
@@ -118,6 +118,61 @@ describe('PGP/MIME', () => {
     const sig = await openSecureMessage(inlineSigned, alice.email, pgpAccess([], [alice.publicKey]));
     expect(sig?.status).toMatchObject({ signature: 'valid', signerEmail: alice.email });
     expect(sig?.body?.text).toBe('signed in the clear');
+  }, 30_000);
+
+  it('renders a header-protected inner part (RFC 9788) instead of showing its source (#98)', async () => {
+    // What Stalwart's encryption at rest encrypts: the protected headers,
+    // an HP-Outer copy of each, then the original body. The header block
+    // runs past 512 bytes.
+    const inner = [
+      'Date: Sun, 08 Nov 2026 16:25:42 +0000',
+      'Message-ID: <01M6XZN6XZDWHWN0RX5Y09DDYZ@mail.example.com>',
+      'Reply-To: <support@example.com>',
+      'Subject:',
+      ' =?UTF-8?q?Watch_the_game_last_night=3F!=3F_=E2=98=98=EF=B8=8F?=',
+      'From: "Brian | Example" <news@example.com>',
+      'To: <reader@example.org>',
+      'HP-Outer: Date: Sun, 08 Nov 2026 16:25:42 +0000',
+      'HP-Outer: Message-ID: <01M6XZN6XZDWHWN0RX5Y09DDYZ@mail.example.com>',
+      'HP-Outer: Reply-To: <support@example.com>',
+      'HP-Outer: Subject: =?UTF-8?q?Watch_the_game_last_night=3F!=3F_=E2=98=98=EF=B8=8F?=',
+      'HP-Outer: From: "Brian | Example" <news@example.com>',
+      'HP-Outer: To: <reader@example.org>',
+      'Content-Type: multipart/alternative;',
+      ' boundary=43dede65d20e6e8c33119261b87f8921a208b425c9e42a64c6d85e4f4061; hp="cipher"',
+      '',
+      '--43dede65d20e6e8c33119261b87f8921a208b425c9e42a64c6d85e4f4061',
+      'Content-Transfer-Encoding: quoted-printable',
+      'Content-Type: text/plain; charset="iso-8859-1"',
+      '',
+      'Caf=E9 talk: I=92m typing this at 7:08am, after staying up late to watch=',
+      ' the game.',
+      '--43dede65d20e6e8c33119261b87f8921a208b425c9e42a64c6d85e4f4061',
+      'Content-Transfer-Encoding: quoted-printable',
+      'Content-Type: text/html; charset=UTF-8',
+      '',
+      '<html><body><p class=3D"note">Caf=C3=A9 talk: I=E2=80=99m typing this at 7:0=',
+      '8am.</p></body></html>',
+      '--43dede65d20e6e8c33119261b87f8921a208b425c9e42a64c6d85e4f4061--',
+      '',
+    ].join('\r\n');
+    expect(inner.indexOf('\r\n\r\n')).toBeGreaterThan(512);
+
+    const armored = await openpgp.encrypt({
+      message: await openpgp.createMessage({ binary: encode(inner) }),
+      encryptionKeys: await openpgp.readKey({ armoredKey: bob.publicKey }),
+    });
+    const raw = wrapPgpEncrypted(armored as string, { from: { email: 'news@example.com' }, to: [{ email: 'reader@example.org' }], subject: '...' });
+    const res = await openSecureMessage(raw, 'news@example.com', pgpAccess([{ id: 'bob', publicKey: bob.publicKey, unlocked: bob.unlocked }], []));
+
+    expect(res?.status).toMatchObject({ kind: 'pgp', encrypted: true, decrypted: true });
+    expect(res?.body?.html).toContain('<p class="note">Café talk: I’m typing this at 7:08am.</p>');
+    expect(res?.body?.text).toBe('Café talk: I’m typing this at 7:08am, after staying up late to watch the game.');
+    for (const shown of [res?.body?.html, res?.body?.text]) {
+      expect(shown).not.toContain('HP-Outer');
+      expect(shown).not.toContain('Content-Type');
+      expect(shown).not.toContain('--43dede65');
+    }
   }, 30_000);
 
   it('leaves ordinary mail alone', async () => {

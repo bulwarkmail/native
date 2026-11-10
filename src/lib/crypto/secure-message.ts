@@ -103,11 +103,26 @@ export function secureKindHint(email: Pick<Email, 'bodyStructure' | 'attachments
   return null;
 }
 
+/**
+ * Whether a payload starts with a MIME header block rather than plain text.
+ * The whole block is checked, however long: with header protection
+ * (RFC 9788, Stalwart's encryption at rest) the encrypted part carries every
+ * protected header plus an HP-Outer copy of each, often well over 512 bytes.
+ */
+function looksLikeMime(bytes: Uint8Array): boolean {
+  const head = bytesToBinary(bytes.subarray(0, 64 * 1024));
+  if (/^content-type:/i.test(head)) return true;
+  const end = head.search(/\r?\n\r?\n/);
+  if (end <= 0) return false;
+  return head
+    .slice(0, end)
+    .split(/\r?\n/)
+    .every((line, i) => /^[A-Za-z][A-Za-z0-9-]*:/.test(line) || (i > 0 && /^[ \t]/.test(line)));
+}
+
 /** A decrypted payload: a MIME entity, or (inline PGP) plain text. */
 async function renderPayload(bytes: Uint8Array): Promise<{ body: SecureResult['body']; attachments: SecureAttachment[] }> {
-  const head = new TextDecoder('utf-8', { fatal: false }).decode(bytes.subarray(0, 512));
-  const looksLikeMime = /^(?:[A-Za-z][A-Za-z0-9-]*:[^\r\n]*\r?\n(?:[ \t][^\r\n]*\r?\n)*)+\r?\n/.test(head) || /^content-type:/i.test(head);
-  if (!looksLikeMime) {
+  if (!looksLikeMime(bytes)) {
     return { body: { html: null, text: new TextDecoder('utf-8', { fatal: false }).decode(bytes) }, attachments: [] };
   }
   const { default: PostalMime } = await import('postal-mime');
