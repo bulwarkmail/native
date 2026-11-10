@@ -65,8 +65,9 @@ export function installWindows1252Decoder(target: { TextDecoder?: typeof TextDec
   const Current = target.TextDecoder;
   if (!Current) return;
   try {
-    new Current('windows-1252');
-    return;
+    // Some decoders take the label but decode it as plain ISO-8859-1 (Node 20
+    // gives U+0092 for 0x92): only a real windows-1252 decoder is kept.
+    if (new Current('windows-1252').decode(new Uint8Array([0x80, 0x92])) === '€’') return;
   } catch {
     // UTF-8 only: wrap it below
   }

@@ -80,4 +80,25 @@ describe('Latin-1 on a UTF-8-only TextDecoder', () => {
     expect(() => new Wrapped('shift_jis')).toThrow(RangeError);
     expect(decodeWindows1252(new Uint8Array([0x81, 0x9f, 0xff]))).toBe('\u0081Ÿÿ');
   });
+
+  it('wraps a decoder that takes the windows-1252 label but decodes plain ISO-8859-1', () => {
+    // Node 20: 0x92 comes out as U+0092 instead of a right single quote.
+    class Latin1AsWindows1252 extends NodeTextDecoder {
+      private readonly latin1: boolean;
+      constructor(label = 'utf-8', options?: TextDecoderOptions) {
+        const latin1 = String(label).trim().toLowerCase() === 'windows-1252';
+        super(latin1 ? 'utf-8' : label, options);
+        this.latin1 = latin1;
+      }
+      decode(input?: AllowSharedBufferSource): string {
+        if (!this.latin1) return super.decode(input);
+        const bytes = ArrayBuffer.isView(input) ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength) : new Uint8Array(input ?? new ArrayBuffer(0));
+        return String.fromCharCode(...bytes);
+      }
+    }
+    const target: { TextDecoder?: typeof TextDecoder } = { TextDecoder: Latin1AsWindows1252 };
+    installWindows1252Decoder(target);
+    expect(target.TextDecoder).not.toBe(Latin1AsWindows1252);
+    expect(new target.TextDecoder!('windows-1252').decode(new Uint8Array([0x49, 0x92, 0x6d]))).toBe('I’m');
+  });
 });
