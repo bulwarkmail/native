@@ -1,5 +1,6 @@
 package com.anonymous.bulwarkmobile
 
+import android.app.NotificationManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
@@ -125,6 +126,7 @@ object BulwarkNativePushFetcher {
         val subject: String,
         val preview: String,
         val receivedAtEpochMs: Long,
+        val mailboxIds: List<String> = emptyList(),
     )
 
     data class StoredCredentials(
@@ -486,6 +488,7 @@ object BulwarkNativePushFetcher {
             put("preview")
             put("keywords")
             put("receivedAt")
+            put("mailboxIds")
         }
         val emailGetArgs = JSONObject().apply {
             put("accountId", jmapAccountId)
@@ -592,6 +595,7 @@ object BulwarkNativePushFetcher {
                 val fromObj = fromArr?.optJSONObject(0)
                 val senderName = if (fromObj == null || fromObj.isNull("name")) "" else fromObj.optString("name", "").trim()
                 val senderEmail = if (fromObj == null || fromObj.isNull("email")) "" else fromObj.optString("email", "").trim()
+                val mailboxIds = email.optJSONObject("mailboxIds")?.keys()?.asSequence()?.toList().orEmpty()
 
                 candidates.add(
                     PushedEmail(
@@ -602,6 +606,7 @@ object BulwarkNativePushFetcher {
                         subject = singleLine(rawSubject),
                         preview = singleLine(cleanPreview(rawPreview)),
                         receivedAtEpochMs = receivedAtEpochMs,
+                        mailboxIds = mailboxIds,
                     )
                 )
             }
@@ -1182,6 +1187,7 @@ object BulwarkNativePushFetcher {
                             subject = email.subject.ifBlank { null },
                             accountId = localAccountId,
                             jmapAccountId = jmapAccountId,
+                            mailboxIds = email.mailboxIds,
                             groupKey = groupKey,
                             groupTitle = groupTitle,
                             markReadLabel = strings.markRead,
@@ -1220,28 +1226,7 @@ object BulwarkNativePushFetcher {
         if (!supportedOnThisDevice()) return false
         val deadlineMs = System.currentTimeMillis() + ACTION_BUDGET_MS
         return try {
-            val prefs = getPrefs(context)
-            var accountObj: JSONObject? = null
-            var resolvedJmapAccountId: String? = jmapAccountId?.takeIf { it.isNotBlank() }
-
-            if (resolvedJmapAccountId != null) {
-                val raw = prefs.getString(resolvedJmapAccountId, null)
-                if (raw != null) accountObj = JSONObject(raw)
-            }
-            if (accountObj == null) {
-                for ((key, value) in prefs.all) {
-                    val raw = value as? String ?: continue
-                    val obj = try { JSONObject(raw) } catch (_: Exception) { continue }
-                    if (obj.optString("accountId") == accountId) {
-                        accountObj = obj
-                        if (resolvedJmapAccountId == null) resolvedJmapAccountId = key
-                        break
-                    }
-                }
-            }
-
-            val account = accountObj ?: return false
-            val targetJmapAccountId = resolvedJmapAccountId ?: return false
+            val (targetJmapAccountId, account) = findPushAccount(context, jmapAccountId, accountId) ?: return false
             val apiUrl = account.optString("apiUrl").takeIf { it.isNotBlank() } ?: return false
             val credentialsKey = account.optString("credentialsKey")
                 .takeIf { it.isNotBlank() }
@@ -1273,6 +1258,219 @@ object BulwarkNativePushFetcher {
             Log.w(TAG, "executeNotificationAction failed ($action, $emailId): ${e.message}")
             false
         }
+    }
+
+    /**
+     * The shared account entry for a message's JMAP account, or failing that
+     * (a shared mailbox's account has no entry of its own) the login's entry,
+     * with the JMAP account id to use.
+     */
+    private fun findPushAccount(
+        context: Context,
+        jmapAccountId: String?,
+        accountId: String,
+    ): Pair<String, JSONObject>? {
+        val prefs = getPrefs(context)
+        var accountObj: JSONObject? = null
+        var resolvedJmapAccountId: String? = jmapAccountId?.takeIf { it.isNotBlank() }
+
+        if (resolvedJmapAccountId != null) {
+            val raw = prefs.getString(resolvedJmapAccountId, null)
+            if (raw != null) accountObj = JSONObject(raw)
+        }
+        if (accountObj == null) {
+            for ((key, value) in prefs.all) {
+                val raw = value as? String ?: continue
+                val obj = try { JSONObject(raw) } catch (_: Exception) { continue }
+                if (obj.optString("accountId") == accountId) {
+                    accountObj = obj
+                    if (resolvedJmapAccountId == null) resolvedJmapAccountId = key
+                    break
+                }
+            }
+        }
+        val account = accountObj ?: return null
+        val targetJmapAccountId = resolvedJmapAccountId ?: return null
+        return targetJmapAccountId to account
+    }
+
+    // ─── Stale Notification Removal (#96) ───────────────────────────────────
+
+    /**
+     * The shared account entry for [jmapAccountId] of the login [accountId],
+     * or that login's own entry (a shared mailbox's account has none), never
+     * another login's: the entries are keyed by JMAP account id alone.
+     */
+    private fun findLoginAccount(context: Context, jmapAccountId: String, accountId: String): JSONObject? {
+        val prefs = getPrefs(context)
+        prefs.getString(jmapAccountId, null)?.let { raw ->
+            val obj = try { JSONObject(raw) } catch (_: Exception) { null }
+            if (obj?.optString("accountId") == accountId) return obj
+        }
+        for ((_, value) in prefs.all) {
+            val raw = value as? String ?: continue
+            val obj = try { JSONObject(raw) } catch (_: Exception) { continue }
+            if (obj.optString("accountId") == accountId) return obj
+        }
+        return null
+    }
+
+    /** A mail notification on screen, from the extras BulwarkFcmModule gives it. */
+    data class ShownMail(
+        val tag: String,
+        val id: Int,
+        val emailId: String,
+        val accountId: String,
+        val jmapAccountId: String,
+        val mailboxIds: Set<String>,
+    )
+
+    fun buildJmapStaleCheckBody(jmapAccountId: String, emailIds: List<String>): JSONObject =
+        JSONObject().apply {
+            put("using", JSONArray().apply {
+                put("urn:ietf:params:jmap:core")
+                put("urn:ietf:params:jmap:mail")
+            })
+            put("methodCalls", JSONArray().apply {
+                put(JSONArray().apply {
+                    put("Email/get")
+                    put(JSONObject().apply {
+                        put("accountId", jmapAccountId)
+                        put("ids", JSONArray().apply { emailIds.forEach { put(it) } })
+                        put("properties", JSONArray().apply {
+                            put("id")
+                            put("keywords")
+                            put("mailboxIds")
+                        })
+                    })
+                    put("0")
+                })
+            })
+        }
+
+    /**
+     * The ids among [shown] (email id → the mailboxes it was in when notified)
+     * whose notification should go: the message is gone (`notFound`), `$seen`
+     * or `$junk`, or in none of the mailboxes it was in. A message the
+     * response does not mention stays. Null for a response that is not a
+     * usable `Email/get`, so nothing is removed on an error.
+     */
+    fun parseStaleEmailIds(responseBody: String, shown: Map<String, Set<String>>): Set<String>? = try {
+        val first = JSONObject(responseBody).optJSONArray("methodResponses")?.optJSONArray(0)
+        val body = first?.optJSONObject(1)
+        if (first?.optString(0) != "Email/get" || body == null) {
+            null
+        } else {
+            val stale = LinkedHashSet<String>()
+            val notFound = body.optJSONArray("notFound") ?: JSONArray()
+            for (i in 0 until notFound.length()) {
+                val id = notFound.optString(i)
+                if (id in shown) stale += id
+            }
+            val list = body.optJSONArray("list") ?: JSONArray()
+            for (i in 0 until list.length()) {
+                val email = list.optJSONObject(i) ?: continue
+                val id = email.optString("id")
+                val wasIn = shown[id] ?: continue
+                val keywords = email.optJSONObject("keywords")
+                val nowIn = email.optJSONObject("mailboxIds")?.keys()?.asSequence()?.toSet()
+                val read = keywords?.optBoolean("\$seen", false) == true
+                val junk = keywords?.optBoolean("\$junk", false) == true
+                val left = nowIn != null && wasIn.isNotEmpty() && wasIn.none { it in nowIn }
+                if (read || junk || left) stale += id
+            }
+            stale
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * For a push saying mail of [jmapAccountIds] changed without new mail
+     * (#96): removes the notifications of those accounts whose message was
+     * read, moved or deleted elsewhere, then updates the group summaries. With
+     * none showing it makes no request. Failures keep the notifications, and
+     * so does running out of time: it shares the push's [deadlineMs] with the
+     * new-mail lookup, which goes first.
+     *
+     * JMAP account ids repeat across servers, so each notification is checked
+     * through its own login, and only when the push's [pushLabel] fits that
+     * login, as [processPush] does.
+     */
+    fun reconcileNotifications(
+        context: Context,
+        jmapAccountIds: Set<String>,
+        pushLabel: String?,
+        deadlineMs: Long = System.currentTimeMillis() + PUSH_BUDGET_MS,
+    ) {
+        // Reading the credentials needs Android 8; on 7 the notifications stay.
+        if (!supportedOnThisDevice()) return
+        try {
+            reconcileShown(context, jmapAccountIds, pushLabel, deadlineMs)
+        } catch (e: Exception) {
+            Log.w(TAG, "Change push: check failed: ${e.message}")
+        }
+    }
+
+    private fun reconcileShown(context: Context, jmapAccountIds: Set<String>, pushLabel: String?, deadlineMs: Long) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val shown = manager.activeNotifications.mapNotNull { sbn ->
+            val extras = sbn.notification.extras
+            val jmapAccountId = extras.getString(BulwarkFcmModule.EXTRA_SHOWN_JMAP_ACCOUNT_ID)
+            if (jmapAccountId == null || jmapAccountId !in jmapAccountIds) return@mapNotNull null
+            ShownMail(
+                tag = sbn.tag ?: return@mapNotNull null,
+                id = sbn.id,
+                emailId = extras.getString(BulwarkFcmModule.EXTRA_SHOWN_EMAIL_ID) ?: return@mapNotNull null,
+                accountId = extras.getString(BulwarkFcmModule.EXTRA_SHOWN_ACCOUNT_ID) ?: return@mapNotNull null,
+                jmapAccountId = jmapAccountId,
+                mailboxIds = extras.getStringArrayList(BulwarkFcmModule.EXTRA_SHOWN_MAILBOX_IDS).orEmpty().toSet(),
+            )
+        }
+        if (shown.isEmpty()) {
+            Log.i(TAG, "Change push: no mail notification showing")
+            return
+        }
+        val touched = LinkedHashSet<String>()
+        for ((key, mails) in shown.groupBy { it.accountId to it.jmapAccountId }) {
+            val (accountId, jmapAccountId) = key
+            try {
+                val account = findLoginAccount(context, jmapAccountId, accountId) ?: continue
+                val label = if (account.isNull("label")) null else account.optString("label").takeIf { it.isNotBlank() }
+                if (!pushLabelMatchesAccount(pushLabel, label, accountId)) {
+                    Log.i(TAG, "Change push: not for the login of $jmapAccountId ($pushLabel vs $label)")
+                    continue
+                }
+                val apiUrl = account.optString("apiUrl").takeIf { it.isNotBlank() } ?: continue
+                val credentialsKey = account.optString("credentialsKey")
+                    .takeIf { it.isNotBlank() }
+                    ?: credentialsKeyFor(accountId)
+                val creds = readCredentialsFromSecureStore(context, credentialsKey) ?: continue
+                val byEmail = mails.associateBy { it.emailId }
+                val responseBody = executeAuthenticatedJmapPost(
+                    context = context,
+                    apiUrl = apiUrl,
+                    credentialsKey = credentialsKey,
+                    creds = creds,
+                    bodyJson = buildJmapStaleCheckBody(jmapAccountId, byEmail.keys.toList()),
+                    deadlineMs = deadlineMs,
+                ) ?: continue
+                val stale = parseStaleEmailIds(responseBody, byEmail.mapValues { it.value.mailboxIds })
+                if (stale == null) {
+                    Log.w(TAG, "Change push: unusable Email/get response for $jmapAccountId")
+                    continue
+                }
+                for (emailId in stale) {
+                    val mail = byEmail.getValue(emailId)
+                    manager.cancel(mail.tag, mail.id)
+                    touched += mail.accountId
+                }
+                Log.i(TAG, "Change push: removed ${stale.size} of ${mails.size} notification(s) for $jmapAccountId")
+            } catch (e: Exception) {
+                Log.w(TAG, "Change push: check failed for $jmapAccountId: ${e.message}")
+            }
+        }
+        for (accountId in touched) BulwarkFcmModule.refreshGroupSummaryAfterCancel(context, accountId)
     }
 
     private fun fetchTrashMailboxId(

@@ -123,6 +123,8 @@ interface ShowNotificationOptions {
   // The JMAP account the message lives in - a group or shared mailbox's
   // account rather than the user's own - so a tap opens it there.
   jmapAccountId?: string;
+  // The mailboxes the message was in, so a change push can tell it moved (#96).
+  mailboxIds?: string[];
   // Android notification group: one per account so the tray bundles
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
@@ -464,13 +466,18 @@ async function detachedNewestUnreadInboxIds(
 // Types that may mean new mail: `EmailDelivery`, and `Email`/`Mailbox`, which
 // new mail changes too. A subscription made by an older build listens to them
 // until the launch-time resync replaces its types, and a server without
-// `EmailDelivery` has only them. Keep in sync with MAIL_TYPES in PushRouting.kt.
+// `EmailDelivery` has only them. `Email` without `EmailDelivery` is a change
+// to mail already there (#96), which the native router handles without this
+// task. Keep in sync with MAIL_TYPES in PushRouting.kt.
 const MAIL_TYPES = ['EmailDelivery', 'Email', 'Mailbox'];
 
 /**
  * A StateChange push in which no account got new mail: only contact or
  * calendar changes, which the native push router already turned into device
- * syncs (#34, docs/device-sync.md "Triggers"). Without a mail type there is
+ * syncs (#34, docs/device-sync.md "Triggers"), or `Email` changes without
+ * `EmailDelivery` (#96), which it hands to the native check of the shown
+ * notifications (where native code runs: not on Android 7, nor on iOS,
+ * which doesn't subscribe to `Email`). Without new mail there is
  * nothing to notify, and the legacy path (the newest unread mail) must not
  * run for it. A missing map, or one that names no type, keeps the old
  * behaviour, and an account entry it can't read may be mail. The same rules
@@ -482,7 +489,11 @@ export function carriesNoMail(payload: RelayPushData): boolean {
   if (entries.some((types) => !types || typeof types !== 'object' || Array.isArray(types))) return false;
   const types = entries.flatMap((entry) => Object.keys(entry as Record<string, unknown>));
   if (types.length === 0) return false;
-  return !types.some((type) => MAIL_TYPES.includes(type));
+  return !entries.some((entry) => {
+    const accountTypes = Object.keys(entry as Record<string, unknown>);
+    if (accountTypes.includes('Email') && !accountTypes.includes('EmailDelivery')) return false;
+    return accountTypes.some((type) => MAIL_TYPES.includes(type));
+  });
 }
 
 // Fired by BulwarkPushTaskService when a data FCM message arrives. Runs in a
@@ -663,6 +674,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
       subject: email.subject ?? undefined,
       accountId,
       jmapAccountId: emailAccountId,
+      mailboxIds: Object.keys(email.mailboxIds ?? {}),
       groupKey,
       groupTitle,
       markReadLabel,

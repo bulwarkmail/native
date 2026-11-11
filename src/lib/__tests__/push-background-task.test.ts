@@ -613,8 +613,9 @@ describe('pushes for device sync (#34)', () => {
     [STATE, '{"c":5}', true],
     // Mail types anywhere in the map.
     [STATE, '{"c":{"EmailDelivery":"s"}}', true],
-    [STATE, '{"c":{"Email":"s"}}', true],
+    [STATE, '{"c":{"Email":"s","EmailDelivery":"d"}}', true],
     [STATE, '{"c":{"Mailbox":"s"}}', true],
+    [STATE, '{"c":{"Email":"s"},"team":{"EmailDelivery":"d"}}', true],
     [STATE, '{"c":{"ContactCard":"s1"},"team":{"EmailDelivery":"s2"}}', true],
     // Only a StateChange can say it carries no mail.
     [undefined, '{"c":{"ContactCard":"s"}}', true],
@@ -626,6 +627,10 @@ describe('pushes for device sync (#34)', () => {
     [STATE, '{"c":{"ContactCard":"s"},"team":{}}', false],
     [STATE, '{"elsewhere":{"ContactCard":"s"}}', false],
     [STATE, '{"c":{"Thread":"t1","ContactCard":"s1"}}', false],
+    // Email without EmailDelivery: mail read, moved or deleted (#96).
+    [STATE, '{"c":{"Email":"s"}}', false],
+    [STATE, '{"c":{"Email":"s1","Mailbox":"s2","Thread":"t1"}}', false],
+    [STATE, '{"c":{"ContactCard":"s1"},"team":{"Email":"s2"}}', false],
   ];
 
   it('reads a push the same way as the native router', () => {
@@ -648,11 +653,12 @@ describe('pushes for device sync (#34)', () => {
     }
   });
 
-  it('takes an Email or Mailbox change for possible mail, as a subscription from an older build sends it', () => {
-    expect(carriesNoMail(parseRelayPushData(stateChange({ a: { Email: 's1', Mailbox: 's2' } })))).toBe(false);
-    expect(carriesNoMail(parseRelayPushData(stateChange({ a: { Email: 's1' } })))).toBe(false);
+  it('takes a Mailbox change for possible mail, as a subscription from an older build sends it', () => {
     expect(carriesNoMail(parseRelayPushData(stateChange({ a: { Mailbox: 's1' } })))).toBe(false);
-    expect(carriesNoMail(parseRelayPushData(stateChange({ a: { CalendarEvent: 'e1' }, b: { Email: 's1' } })))).toBe(false);
+    expect(carriesNoMail(parseRelayPushData(stateChange({ a: { Email: 's1', EmailDelivery: 'd1', Mailbox: 's2' } })))).toBe(false);
+    // Email without EmailDelivery is a change to mail already there (#96).
+    expect(carriesNoMail(parseRelayPushData(stateChange({ a: { Email: 's1', Mailbox: 's2' } })))).toBe(true);
+    expect(carriesNoMail(parseRelayPushData(stateChange({ a: { CalendarEvent: 'e1' }, b: { Email: 's1' } })))).toBe(true);
     // Types that are neither mail nor device sync say nothing about mail.
     expect(carriesNoMail(parseRelayPushData(stateChange({ a: { Thread: 't1', ContactCard: 's1' } })))).toBe(true);
   });
@@ -679,7 +685,7 @@ describe('pushes for device sync (#34)', () => {
       return { ok: true, json: async () => ({ methodResponses: [[name, body, '0']] }) };
     });
 
-    await pushBackgroundTask(stateChange({ 'jmap-primary': { Email: 's1', Mailbox: 's2' } }));
+    await pushBackgroundTask(stateChange({ 'jmap-primary': { Email: 's1', EmailDelivery: 'd1', Mailbox: 's2' } }));
 
     expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', accountId: LOCAL }));
   });

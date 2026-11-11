@@ -1593,10 +1593,11 @@ app's system settings when Android no longer asks.
   The follow-up finds nothing to do, so it stays one.
 - **App closed:** while an account has device sync on, its push subscription
   adds `ContactCard`, `AddressBook` (contacts) and `CalendarEvent`, `Calendar`
-  (calendar) to `EmailDelivery`, per account, when the account's session
+  (calendar) to the mail types (`EmailDelivery`, and `Email` on Android), per
+  account, when the account's session
   advertises `urn:ietf:params:jmap:contacts` or
   `urn:ietf:params:jmap:calendars`. A server that refuses a subscription
-  write carrying them gets it again with `EmailDelivery` alone, so mail push
+  write carrying them gets it again with the mail types alone, so mail push
   never depends on device sync. Turning sync on or off updates the
   subscription right away; for a signed-in account other than the one the UI
   serves, through a client of its own, never the UI's singleton. The relay
@@ -1611,7 +1612,13 @@ app's system settings when Android no longer asks.
   may mean new mail in some account's map: `EmailDelivery`, or
   `Email`/`Mailbox`, which new mail changes too (a subscription made by an
   older build listens to them until the launch-time resync replaces its
-  types, and a server without `EmailDelivery` has only them). A guard at the
+  types, and a server without `EmailDelivery` has only them). An account
+  entry with `Email` but no `EmailDelivery` is not new mail but mail read,
+  moved or deleted elsewhere (#96): the router names it in the decision's
+  `reconcile` set, and the push service checks the mail notifications still
+  showing for that account with one `Email/get` and removes the ones whose
+  message is gone, `$seen`, `$junk` or in none of the mailboxes it was in.
+  With no notification showing it makes no request. A guard at the
   top of `pushBackgroundTask` (`carriesNoMail`) applies the same rules,
   tested with the same cases, so a contact or calendar change can never take
   the legacy "notify the newest unread mail" path.

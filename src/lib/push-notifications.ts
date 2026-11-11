@@ -222,9 +222,14 @@ export function isValidRelayUrl(value: string): boolean {
 // Only `EmailDelivery` state-changes when new mail is actually delivered.
 // `Email` fires for any mutation (sending, drafting, moving, marking read,
 // deleting) and `Mailbox` fires for mailbox edits - both produced spurious
-// system notifications, so we keep them out of the push subscription.
+// system notifications, so they were kept out of the push subscription.
+// On Android `Email` is back (#96): the native push router treats `Email`
+// without `EmailDelivery` as a change, never as new mail, and only removes
+// the notifications of messages read, moved or deleted elsewhere. iOS shows
+// every push as an alert, so it keeps `EmailDelivery` alone.
 // In-app sync uses the separate SSE channel and is unaffected.
-export const PUSH_TYPES = ['EmailDelivery'] as const;
+export const PUSH_TYPES: readonly string[] =
+  Platform.OS === 'android' ? ['EmailDelivery', 'Email'] : ['EmailDelivery'];
 
 // The capability a server advertises for the data types of an authority.
 const DEVICE_SYNC_CAPABILITIES: Record<Authority, string> = {
