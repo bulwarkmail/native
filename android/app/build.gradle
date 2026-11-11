@@ -311,6 +311,11 @@ dependencies {
     // Kotlin 2.1 toolchain; 3.3.5 went back to 2.2 which it can read.
     implementation("org.unifiedpush.android:connector:3.3.5")
 
+    // Hardware-backed encrypted SharedPreferences for push credentials
+    implementation("androidx.security:security-crypto:1.1.0-alpha06") {
+        exclude group: 'com.google.crypto.tink', module: 'tink-android'
+    }
+
     // JVM unit tests for the logic in the Kotlin shell of device sync (src/test).
     // android.jar only stubs org.json, so the tests use the real one.
     testImplementation("junit:junit:4.13.2")

@@ -4,10 +4,11 @@ import { NativeModules, Platform } from 'react-native';
 import fs from 'node:fs';
 import path from 'node:path';
 import { jmapClient } from '../../api/jmap-client';
-import { shareAccountWithExtension } from '../push-notifications';
+import { shareAccountWithExtension, syncRefreshedNativeTokens } from '../push-notifications';
 
 const savePushAccount = vi.fn();
 const removePushAccount = vi.fn();
+const getRefreshedAccountTokens = vi.fn();
 
 describe('shareAccountWithExtension on Android', () => {
   const API = 'https://mail.example.org/jmap/';
@@ -19,6 +20,7 @@ describe('shareAccountWithExtension on Android', () => {
     (NativeModules as Record<string, unknown>).BulwarkFcm = {
       savePushAccount,
       removePushAccount,
+      getRefreshedAccountTokens,
     };
     vi.spyOn(jmapClient, 'getStoredCredentials').mockResolvedValue({
       username: 'ada',
@@ -44,7 +46,28 @@ describe('shareAccountWithExtension on Android', () => {
       label: 'ada',
       username: 'ada',
       password: 'secret',
+      notificationsAllowed: true,
     });
+  });
+
+  it('syncs refreshed native OAuth tokens back into SecureStore', async () => {
+    const setStoredCredentials = vi.spyOn(jmapClient, 'setStoredCredentials').mockResolvedValue(undefined);
+    getRefreshedAccountTokens.mockResolvedValue({
+      'ada@mail.example.org': {
+        accessToken: 'fresh-access',
+        refreshToken: 'fresh-refresh',
+        expiresAt: 123456789,
+      },
+    });
+
+    await syncRefreshedNativeTokens();
+
+    expect(setStoredCredentials).toHaveBeenCalledWith('ada@mail.example.org', expect.objectContaining({
+      username: 'ada',
+      accessToken: 'fresh-access',
+      refreshToken: 'fresh-refresh',
+      expiresAt: 123456789,
+    }));
   });
 
   it('removes native push account when there is a duplicate JMAP account id', async () => {

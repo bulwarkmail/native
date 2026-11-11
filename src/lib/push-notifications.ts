@@ -1085,12 +1085,15 @@ export async function shareAccountWithExtension(
     const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
       savePushAccount?: (id: string, json: string) => void;
       removePushAccount?: (id: string) => void;
+      getRefreshedAccountTokens?: () => Promise<Record<string, { accessToken: string; refreshToken?: string; expiresAt?: number }>>;
     } | undefined;
     if (duplicate) {
       native?.removePushAccount?.(jmapAccountId);
       return;
     }
     if (!apiUrl) return;
+    await syncRefreshedNativeTokens().catch(() => undefined);
+    const notificationsAllowed = await isEmailNotificationsAllowed(accountId);
     const creds = await jmapClient.getStoredCredentials(accountId).catch(() => null);
     if (creds && native?.savePushAccount) {
       native.savePushAccount(
@@ -1106,9 +1109,56 @@ export async function shareAccountWithExtension(
           tokenEndpoint: creds.tokenEndpoint,
           clientId: creds.clientId,
           expiresAt: creds.expiresAt,
+          notificationsAllowed,
         }),
       );
     }
+  }
+}
+
+/**
+ * Checks whether push notifications are enabled both globally and for this account.
+ */
+async function isEmailNotificationsAllowed(accountId: string): Promise<boolean> {
+  try {
+    const optedOut = await AsyncStorage.getItem(optedOutKey(accountId));
+    if (optedOut) return false;
+    const raw = await AsyncStorage.getItem('webmail:settings:v1');
+    if (!raw) return true;
+    const parsed = JSON.parse(raw) as { emailNotificationsEnabled?: boolean };
+    return parsed.emailNotificationsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Synchronizes any OAuth access/refresh tokens refreshed by native Kotlin
+ * in the background back into JS expo-secure-store.
+ */
+export async function syncRefreshedNativeTokens(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
+    getRefreshedAccountTokens?: () => Promise<Record<string, { accessToken: string; refreshToken?: string; expiresAt?: number }>>;
+  } | undefined;
+  if (!native?.getRefreshedAccountTokens) return;
+  try {
+    const refreshed = await native.getRefreshedAccountTokens();
+    if (!refreshed || typeof refreshed !== 'object') return;
+    for (const [accountId, tokens] of Object.entries(refreshed)) {
+      if (!tokens?.accessToken) continue;
+      const creds = await jmapClient.getStoredCredentials(accountId).catch(() => null);
+      if (creds) {
+        await jmapClient.setStoredCredentials(accountId, {
+          ...creds,
+          accessToken: tokens.accessToken,
+          ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),
+          ...(tokens.expiresAt ? { expiresAt: tokens.expiresAt } : {}),
+        });
+      }
+    }
+  } catch {
+    // Ignore error
   }
 }
 

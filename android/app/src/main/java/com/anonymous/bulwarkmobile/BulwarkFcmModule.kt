@@ -12,6 +12,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.core.app.NotificationCompat
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -20,6 +21,7 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
 import com.google.firebase.messaging.FirebaseMessaging
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -74,9 +76,12 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             ?: accountId ?: "Bulwark Mail"
 
         val preview = options.takeIf { it.hasKey("preview") }?.getString("preview")
-        val markReadLabel = options.takeIf { it.hasKey("markReadLabel") }?.getString("markReadLabel") ?: "Mark as read"
-        val deleteLabel = options.takeIf { it.hasKey("deleteLabel") }?.getString("deleteLabel") ?: "Delete"
-        val replyLabel = options.takeIf { it.hasKey("replyLabel") }?.getString("replyLabel") ?: "Reply"
+        val markReadLabel = options.takeIf { it.hasKey("markReadLabel") }?.getString("markReadLabel")
+            ?: reactApplicationContext.getString(R.string.notification_action_mark_read)
+        val deleteLabel = options.takeIf { it.hasKey("deleteLabel") }?.getString("deleteLabel")
+            ?: reactApplicationContext.getString(R.string.notification_action_delete)
+        val replyLabel = options.takeIf { it.hasKey("replyLabel") }?.getString("replyLabel")
+            ?: reactApplicationContext.getString(R.string.notification_action_reply)
         // Delete moves the mail to Trash where there is one: no unlock needed
         // for that (#85). Without a Trash it destroys the mail, so it asks.
         // Unlock stays the default for a caller that doesn't say.
@@ -99,20 +104,45 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
 
     @ReactMethod
     fun savePushAccount(jmapAccountId: String, accountJson: String) {
-        val prefs = reactApplicationContext.getSharedPreferences(
-            BulwarkNativePushFetcher.PREFS_NAME,
-            Context.MODE_PRIVATE
-        )
+        val prefs = BulwarkNativePushFetcher.getPrefs(reactApplicationContext)
         prefs.edit().putString(jmapAccountId, accountJson).apply()
     }
 
     @ReactMethod
     fun removePushAccount(jmapAccountId: String) {
-        val prefs = reactApplicationContext.getSharedPreferences(
-            BulwarkNativePushFetcher.PREFS_NAME,
-            Context.MODE_PRIVATE
-        )
+        val prefs = BulwarkNativePushFetcher.getPrefs(reactApplicationContext)
         prefs.edit().remove(jmapAccountId).apply()
+    }
+
+    @ReactMethod
+    fun getRefreshedAccountTokens(promise: Promise) {
+        try {
+            val prefs = BulwarkNativePushFetcher.getPrefs(reactApplicationContext)
+            val result = Arguments.createMap()
+            val all = prefs.all
+            for ((key, value) in all) {
+                if (key.startsWith("notified_ids_")) continue
+                val raw = value as? String ?: continue
+                try {
+                    val obj = JSONObject(raw)
+                    if (obj.optBoolean("tokensRefreshed", false)) {
+                        val accountId = obj.optString("accountId", key)
+                        val tokenMap: WritableMap = Arguments.createMap()
+                        tokenMap.putString("accessToken", obj.optString("accessToken"))
+                        if (obj.has("refreshToken")) {
+                            tokenMap.putString("refreshToken", obj.optString("refreshToken"))
+                        }
+                        tokenMap.putDouble("expiresAt", obj.optDouble("expiresAt"))
+                        result.putMap(accountId, tokenMap)
+                        obj.put("tokensRefreshed", false)
+                        prefs.edit().putString(key, obj.toString()).apply()
+                    }
+                } catch (_: Exception) {}
+            }
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("tokens_error", e)
+        }
     }
 
     @ReactMethod
@@ -262,7 +292,11 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             postNotificationToContext(
                 context, notificationId, title, body, preview, largeIcon, "#2563eb",
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
-                groupTitle, "Mark as read", "Delete", "Reply", deleteNeedsUnlock,
+                groupTitle,
+                context.getString(R.string.notification_action_mark_read),
+                context.getString(R.string.notification_action_delete),
+                context.getString(R.string.notification_action_reply),
+                deleteNeedsUnlock,
             )
             if (groupKey != null) {
                 postGroupSummaryToContext(context, groupKey, groupTitle ?: "Bulwark Mail", "#2563eb", accountId)
