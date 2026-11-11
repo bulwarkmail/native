@@ -16,6 +16,7 @@ import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
 import { stripBidiControls } from './bidi';
 import { handoffMimeType } from './file-preview';
+import { isForeignContentUri } from './share-intent';
 
 const RFC822 = 'message/rfc822';
 const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
@@ -354,12 +355,41 @@ export async function cachePreviewFile(
   }
 }
 
+// Where the pickers put the copies they hand to the composer: expo-image-picker
+// (library and camera) and expo-document-picker with copyToCacheDirectory.
+const PICKER_CACHE_DIRS = ['ImagePicker', 'DocumentPicker'];
+
+/**
+ * Whether a compose attachment's file may be copied for a preview or handed
+ * on: a file another app shared (isForeignContentUri), or a copy a picker
+ * made in the app's cache. Any other file of the app (its databases, offline
+ * mail, settings) never is an attachment.
+ */
+export function isComposeAttachmentUri(uri: string, cacheUri: string = Paths.cache.uri): boolean {
+  if (/^content:/i.test(uri)) return isForeignContentUri(uri);
+  const pathOf = (fileUri: string): string | null => {
+    const match = /^file:\/\/(?:localhost)?(\/[^?#]*)$/i.exec(fileUri);
+    if (!match) return null;
+    try {
+      return decodeURIComponent(match[1]).replace(/^\/private(?=\/)/, '');
+    } catch {
+      return null;
+    }
+  };
+  const path = pathOf(uri);
+  const cache = pathOf(cacheUri);
+  if (!path || !cache || path.split('/').some((segment) => segment === '..' || segment === '.')) return false;
+  const base = cache.endsWith('/') ? cache : `${cache}/`;
+  return PICKER_CACHE_DIRS.some((dir) => path.startsWith(`${base}${dir}/`));
+}
+
 /**
  * {@link cachePreviewFile} for a file already on the device (a compose
  * attachment): copied, so the preview owns its copy and the original is never
- * deleted with it.
+ * deleted with it. Only for a file isComposeAttachmentUri accepts.
  */
 export function copyPreviewFile(uri: string, name: string | undefined, type: string | undefined): File {
+  if (!isComposeAttachmentUri(uri)) throw new Error(t('email_viewer.attachment_failed', 'Could not open attachment'));
   void sweepStaleExportFiles();
   const dir = newPreviewDir();
   ensureDir(dir);
