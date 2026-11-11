@@ -5,7 +5,9 @@
 //
 // Readable after the first unlock: a push usually arrives while the phone is
 // locked, and a notification that has to wait for the user to unlock would
-// show only "New message".
+// show only "New message". On this device only: the items stay out of
+// encrypted backups and device-to-device transfers, so a restored device asks
+// for the sign-in again.
 
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -35,7 +37,72 @@ export function sharedKeychainGroup(): string | null {
 export function sharedStoreOptions(): SecureStore.SecureStoreOptions | undefined {
   const group = sharedKeychainGroup();
   if (!group) return undefined;
-  return { accessGroup: group, keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+  return { accessGroup: group, keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+}
+
+// A keychain item keeps the class it was added with: writing it again only
+// replaces the value (expo-secure-store updates an existing item's data). An
+// item an earlier version added with another class is deleted and added anew
+// once; this marker, itself device-only, says that happened on this device.
+// A device restored from a backup has the items but not the markers, so it
+// does it again.
+const CLASS_MARKER_PREFIX = 'bulwark_device_only__';
+// A copy of a credentials item while it is replaced (replaceSharedSecret).
+const REWRITE_COPY_PREFIX = 'bulwark_rewrite__';
+
+async function hasCurrentClass(key: string, options: SecureStore.SecureStoreOptions): Promise<boolean> {
+  return (await SecureStore.getItemAsync(CLASS_MARKER_PREFIX + key, options).catch(() => null)) === '1';
+}
+
+async function markCurrentClass(key: string, options: SecureStore.SecureStoreOptions): Promise<void> {
+  await SecureStore.setItemAsync(CLASS_MARKER_PREFIX + key, '1', options).catch(() => undefined);
+}
+
+/**
+ * Write an item the extension or the widget reads and the app can build
+ * again (push entries, settings, the widget snapshot): the first write on
+ * this device replaces the item, so it gets the class of sharedStoreOptions.
+ */
+export async function writeSharedItem(key: string, value: string, options: SecureStore.SecureStoreOptions): Promise<void> {
+  if (!(await hasCurrentClass(key, options))) await SecureStore.deleteItemAsync(key, options).catch(() => undefined);
+  await SecureStore.setItemAsync(key, value, options);
+  await markCurrentClass(key, options);
+}
+
+// Writes of one credentials item, one after the other: the start-up rewrite
+// must not put back a value a token refresh replaced meanwhile.
+const keyQueues = new Map<string, Promise<unknown>>();
+
+function serialized<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const previous = keyQueues.get(key) ?? Promise.resolve();
+  const next = previous.then(run, run);
+  const settled = next.then(() => undefined, () => undefined);
+  keyQueues.set(key, settled);
+  void settled.then(() => {
+    if (keyQueues.get(key) === settled) keyQueues.delete(key);
+  });
+  return next;
+}
+
+/**
+ * Add a credentials item anew with the class of `shared`, keeping the
+ * stored sign-in when the keychain refuses: a copy is written first, and
+ * nothing is deleted when that fails. When adding the item back fails, it
+ * goes back with the class it had.
+ */
+async function replaceSharedSecret(key: string, value: string, shared: SecureStore.SecureStoreOptions): Promise<void> {
+  const copy = REWRITE_COPY_PREFIX + key;
+  await SecureStore.setItemAsync(copy, value, shared);
+  await SecureStore.deleteItemAsync(key, shared);
+  try {
+    await SecureStore.setItemAsync(key, value, shared);
+  } catch (err) {
+    await SecureStore.setItemAsync(key, value, { accessGroup: shared.accessGroup, keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK })
+      .catch(() => undefined);
+    throw err;
+  }
+  await SecureStore.deleteItemAsync(copy, shared).catch(() => undefined);
+  await markCurrentClass(key, shared);
 }
 
 /** Options naming the app's own access group, where items used to live. */
@@ -93,7 +160,7 @@ export interface IosPushAccount {
 export async function writeIosPushAccount(jmapAccountId: string, account: IosPushAccount): Promise<void> {
   const options = sharedStoreOptions();
   if (!options) return;
-  await SecureStore.setItemAsync(pushAccountKey(jmapAccountId), JSON.stringify(account), options);
+  await writeSharedItem(pushAccountKey(jmapAccountId), JSON.stringify(account), options);
 }
 
 export async function removeIosPushAccount(jmapAccountId: string): Promise<void> {
@@ -114,7 +181,7 @@ export interface IosPushSettings {
 export async function writeIosPushSettings(settings: IosPushSettings): Promise<void> {
   const options = sharedStoreOptions();
   if (!options) return;
-  await SecureStore.setItemAsync(PUSH_SETTINGS_KEY, JSON.stringify(settings), options);
+  await writeSharedItem(PUSH_SETTINGS_KEY, JSON.stringify(settings), options);
 }
 
 /**
@@ -128,17 +195,35 @@ export async function writeSharedSecret(key: string, value: string): Promise<voi
     await SecureStore.setItemAsync(key, value);
     return;
   }
-  await SecureStore.setItemAsync(key, value, shared);
+  await serialized(key, async () => {
+    if (await hasCurrentClass(key, shared)) await SecureStore.setItemAsync(key, value, shared);
+    else await replaceSharedSecret(key, value, shared);
+  });
   const own = appStoreOptions();
   if (own) await SecureStore.deleteItemAsync(key, own).catch(() => undefined);
 }
 
-/** Move an item saved before the shared group existed. True if it moved. */
+/**
+ * The step every start runs for each account's credentials item (jmap-client
+ * loadAccount and loadAccountFromCache). Moves an item saved before the
+ * shared group existed into it, and adds an item an earlier version stored
+ * there with another class anew, with the class of sharedStoreOptions. When
+ * the keychain refuses (a start before the first unlock), the item stays as
+ * it is and the next start tries again. True if it moved.
+ */
 export async function moveToSharedGroup(key: string): Promise<boolean> {
+  const shared = sharedStoreOptions();
+  if (!shared) return false;
   const own = appStoreOptions();
-  if (!own || !sharedStoreOptions()) return false;
-  const value = await SecureStore.getItemAsync(key, own).catch(() => null);
-  if (value === null) return false;
-  await writeSharedSecret(key, value);
-  return true;
+  const fromOwn = own ? await SecureStore.getItemAsync(key, own).catch(() => null) : null;
+  if (fromOwn !== null) {
+    await writeSharedSecret(key, fromOwn);
+    return true;
+  }
+  await serialized(key, async () => {
+    if (await hasCurrentClass(key, shared)) return;
+    const value = await SecureStore.getItemAsync(key, shared);
+    if (value !== null) await replaceSharedSecret(key, value, shared);
+  });
+  return false;
 }

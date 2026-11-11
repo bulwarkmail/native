@@ -22,7 +22,8 @@ vi.mock('react-native-android-widget', () => ({
   getWidgetInfo: vi.fn(async () => []),
   requestWidgetUpdate: vi.fn(async () => undefined),
 }));
-vi.mock('../../lib/ios-push-shared', () => ({
+vi.mock('../../lib/ios-push-shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/ios-push-shared')>()),
   sharedStoreOptions: () => ({ accessGroup: 'TEAM.org.bulwarkmail.shared', keychainAccessible: 1 }),
 }));
 

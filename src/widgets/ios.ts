@@ -10,8 +10,7 @@
 // After each write the app asks WidgetKit to redraw (BulwarkWidgetKit).
 
 import { NativeModules, Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import { sharedStoreOptions } from '../lib/ios-push-shared';
+import { sharedStoreOptions, writeSharedItem } from '../lib/ios-push-shared';
 import { links } from './clicks';
 import { makeFmt } from './format';
 import { normalizeHex } from './theme';
@@ -111,6 +110,6 @@ export async function writeIosWidget(s: WidgetSnapshot): Promise<void> {
   if (Platform.OS !== 'ios') return;
   const options = sharedStoreOptions();
   if (!options) return;
-  await SecureStore.setItemAsync(IOS_WIDGET_KEY, JSON.stringify(iosWidgetSnapshot(s)), options);
+  await writeSharedItem(IOS_WIDGET_KEY, JSON.stringify(iosWidgetSnapshot(s)), options);
   await widgetKit()?.reloadAll?.().catch(() => undefined);
 }
