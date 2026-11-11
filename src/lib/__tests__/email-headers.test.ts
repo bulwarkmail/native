@@ -147,8 +147,7 @@ describe('deriveHeaderInfo', () => {
     const info = deriveHeaderInfo({
       headers: [
         { name: 'Disposition-Notification-To', value: 'Sender <s@x.example>' },
-        { name: 'X-Spam-Status', value: 'random string that does not meet the format' },
-        { name: 'X-Spam-Result', value: 'No, score=0.1' },
+        { name: 'X-Spam-Status', value: 'No, score=0.1' },
         { name: 'Authentication-Results', value: 'mx; dmarc=fail header.from=x.example' },
         { name: 'Authentication-Results', value: 'relay; dmarc=pass header.from=x.example' },
       ],
@@ -158,6 +157,26 @@ describe('deriveHeaderInfo', () => {
     expect(info.messageId).toBe('abc@x.example');
     expect(info.spamScore?.score).toBe(0.1);
     expect(isAuthenticationSpoofed(info.auth)).toBe(true);
+  });
+
+  it('takes the spam score from the first spam header that parses', () => {
+    const fromOtherName = deriveHeaderInfo({
+      headers: [
+        { name: 'X-Spam-Status', value: 'random string that does not meet the format' },
+        { name: 'X-Spam-Result', value: 'ham, score=0.1' },
+      ],
+      messageId: null,
+    });
+    expect(fromOtherName.spamScore).toEqual({ status: 'ham', score: 0.1 });
+
+    const fromSecondValue = deriveHeaderInfo({
+      headers: [
+        { name: 'X-Spam-Status', value: 'unparseable' },
+        { name: 'X-Spam-Status', value: 'Yes, score=7.5' },
+      ],
+      messageId: null,
+    });
+    expect(fromSecondValue.spamScore).toEqual({ status: 'yes', score: 7.5 });
   });
 
   it('copes with no headers', () => {

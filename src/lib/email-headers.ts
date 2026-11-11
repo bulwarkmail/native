@@ -572,9 +572,9 @@ export function deriveHeaderInfo(email: Pick<Email, 'headers' | 'messageId'>): E
   const auth = authHeaders.length ? parseAuthenticationResults(authHeaders) : undefined;
 
   const spamScore = ['X-Spam-Status', 'X-Spam-Result', 'X-Spam-Score']
-      .flatMap((name) => headerValues(headers, name))
-      .map(parseSpamScore)
-      .find((x) => x !== null) ?? null;
+    .flatMap((name) => headerValues(headers, name))
+    .map(parseSpamScore)
+    .find((x) => x !== null) ?? null;
 
   const llmRaw = headerValue(headers, 'X-Spam-LLM');
   const spamLLM = llmRaw ? parseSpamLLM(llmRaw) : null;
