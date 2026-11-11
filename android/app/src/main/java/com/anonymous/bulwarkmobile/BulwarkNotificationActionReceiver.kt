@@ -13,6 +13,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.jstasks.HeadlessJsTaskConfig
 import com.facebook.react.jstasks.HeadlessJsTaskContext
 import com.facebook.react.jstasks.HeadlessJsTaskEventListener
+import kotlin.concurrent.thread
 
 class BulwarkNotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -33,9 +34,6 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
             return
         }
 
-        // On Android 8+, a broadcast receiver in background cannot start a Service
-        // (BackgroundServiceStartNotAllowedException). Instead, we use goAsync() and
-        // HeadlessJs.withReadyReactContext to execute the headless JS task directly.
         val pendingResult = goAsync()
         val app = context.applicationContext as Application
         val mainHandler = Handler(Looper.getMainLooper())
@@ -49,72 +47,90 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
         }
         mainHandler.postDelayed(timeoutRunnable, 20_000L)
 
-        try {
-            HeadlessJs.withReadyReactContext(app) { reactContext ->
-                if (!reactContext.hasActiveReactInstance()) {
-                    Log.w(TAG, "React context does not have active instance")
+        // Execute natively first so "Mark as read" and "Delete" succeed even when
+        // the JS thread is frozen in the background on Samsung One UI (#94).
+        thread(name = "bulwark-notif-action") {
+            val handledNatively = BulwarkNativePushFetcher.executeNotificationAction(
+                app, action, emailId, accountId, jmapAccountId
+            )
+            if (handledNatively) {
+                Log.i(TAG, "Notification action '$action' ($emailId) handled natively via Kotlin")
+                mainHandler.removeCallbacks(timeoutRunnable)
+                try {
+                    pendingResult.finish()
+                } catch (_: Exception) {}
+                return@thread
+            }
+
+            mainHandler.post {
+                try {
+                    HeadlessJs.withReadyReactContext(app) { reactContext ->
+                        if (!reactContext.hasActiveReactInstance()) {
+                            Log.w(TAG, "React context does not have active instance")
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            try {
+                                pendingResult.finish()
+                            } catch (_: Exception) {}
+                            return@withReadyReactContext
+                        }
+
+                        val tasks = HeadlessJsTaskContext.getInstance(reactContext)
+                        val taskBundle = Bundle().apply {
+                            putString("action", action)
+                            putString("emailId", emailId)
+                            putString("accountId", accountId)
+                            if (jmapAccountId != null) putString("jmapAccountId", jmapAccountId)
+                            // Keep raw extras as well
+                            putString(BulwarkFcmModule.EXTRA_ACTION, action)
+                            putString(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
+                            putString(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
+                            if (jmapAccountId != null) putString(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID, jmapAccountId)
+                        }
+
+                        val config = HeadlessJsTaskConfig(
+                            "BulwarkNotificationAction",
+                            Arguments.fromBundle(taskBundle),
+                            15_000L,
+                            true // allowExecutionInForeground
+                        )
+
+                        val listener = object : HeadlessJsTaskEventListener {
+                            override fun onHeadlessJsTaskStart(taskId: Int) = Unit
+                            override fun onHeadlessJsTaskFinish(taskId: Int) {
+                                Log.i(TAG, "Notification action task $taskId finished for action $action")
+                                tasks.removeTaskEventListener(this)
+                                mainHandler.removeCallbacks(timeoutRunnable)
+                                try {
+                                    pendingResult.finish()
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        tasks.addTaskEventListener(listener)
+
+                        HeadlessJs.startTask(
+                            tasks,
+                            config,
+                            onStarted = { taskId ->
+                                Log.i(TAG, "Started notification action task $taskId for action $action ($emailId)")
+                            },
+                            onRefused = { e ->
+                                Log.w(TAG, "Notification action task refused: ${e.message}")
+                                tasks.removeTaskEventListener(listener)
+                                mainHandler.removeCallbacks(timeoutRunnable)
+                                try {
+                                    pendingResult.finish()
+                                } catch (_: Exception) {}
+                            }
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to dispatch headless task from action receiver", e)
                     mainHandler.removeCallbacks(timeoutRunnable)
                     try {
                         pendingResult.finish()
                     } catch (_: Exception) {}
-                    return@withReadyReactContext
                 }
-
-                val tasks = HeadlessJsTaskContext.getInstance(reactContext)
-                val taskBundle = Bundle().apply {
-                    putString("action", action)
-                    putString("emailId", emailId)
-                    putString("accountId", accountId)
-                    if (jmapAccountId != null) putString("jmapAccountId", jmapAccountId)
-                    // Keep raw extras as well
-                    putString(BulwarkFcmModule.EXTRA_ACTION, action)
-                    putString(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
-                    putString(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
-                    if (jmapAccountId != null) putString(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID, jmapAccountId)
-                }
-
-                val config = HeadlessJsTaskConfig(
-                    "BulwarkNotificationAction",
-                    Arguments.fromBundle(taskBundle),
-                    15_000L,
-                    true // allowExecutionInForeground
-                )
-
-                val listener = object : HeadlessJsTaskEventListener {
-                    override fun onHeadlessJsTaskStart(taskId: Int) = Unit
-                    override fun onHeadlessJsTaskFinish(taskId: Int) {
-                        Log.i(TAG, "Notification action task $taskId finished for action $action")
-                        tasks.removeTaskEventListener(this)
-                        mainHandler.removeCallbacks(timeoutRunnable)
-                        try {
-                            pendingResult.finish()
-                        } catch (_: Exception) {}
-                    }
-                }
-                tasks.addTaskEventListener(listener)
-
-                HeadlessJs.startTask(
-                    tasks,
-                    config,
-                    onStarted = { taskId ->
-                        Log.i(TAG, "Started notification action task $taskId for action $action ($emailId)")
-                    },
-                    onRefused = { e ->
-                        Log.w(TAG, "Notification action task refused: ${e.message}")
-                        tasks.removeTaskEventListener(listener)
-                        mainHandler.removeCallbacks(timeoutRunnable)
-                        try {
-                            pendingResult.finish()
-                        } catch (_: Exception) {}
-                    }
-                )
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to dispatch headless task from action receiver", e)
-            mainHandler.removeCallbacks(timeoutRunnable)
-            try {
-                pendingResult.finish()
-            } catch (_: Exception) {}
         }
     }
 

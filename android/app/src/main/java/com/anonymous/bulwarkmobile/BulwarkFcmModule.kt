@@ -12,7 +12,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.core.app.NotificationCompat
-import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -21,7 +20,6 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
 import com.google.firebase.messaging.FirebaseMessaging
-import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -115,37 +113,6 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
     }
 
     @ReactMethod
-    fun getRefreshedAccountTokens(promise: Promise) {
-        try {
-            val prefs = BulwarkNativePushFetcher.getPrefs(reactApplicationContext)
-            val result = Arguments.createMap()
-            val all = prefs.all
-            for ((key, value) in all) {
-                if (key.startsWith("notified_ids_")) continue
-                val raw = value as? String ?: continue
-                try {
-                    val obj = JSONObject(raw)
-                    if (obj.optBoolean("tokensRefreshed", false)) {
-                        val accountId = obj.optString("accountId", key)
-                        val tokenMap: WritableMap = Arguments.createMap()
-                        tokenMap.putString("accessToken", obj.optString("accessToken"))
-                        if (obj.has("refreshToken")) {
-                            tokenMap.putString("refreshToken", obj.optString("refreshToken"))
-                        }
-                        tokenMap.putDouble("expiresAt", obj.optDouble("expiresAt"))
-                        result.putMap(accountId, tokenMap)
-                        obj.put("tokensRefreshed", false)
-                        prefs.edit().putString(key, obj.toString()).apply()
-                    }
-                } catch (_: Exception) {}
-            }
-            promise.resolve(result)
-        } catch (e: Exception) {
-            promise.reject("tokens_error", e)
-        }
-    }
-
-    @ReactMethod
     fun getInitialNotification(promise: Promise) {
         val payload = NotificationTapStore.consume()
         promise.resolve(payload?.toMap())
@@ -176,76 +143,15 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         replyLabel: String,
         deleteNeedsUnlock: Boolean,
     ) {
-        val ctx = reactApplicationContext
         postNotificationToContext(
-            ctx, notificationId, title, body, preview, largeIcon, colorHex,
+            reactApplicationContext, notificationId, title, body, preview, largeIcon, colorHex,
             emailId, threadId, subject, accountId, jmapAccountId, groupKey,
             groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
         )
     }
 
     private fun postGroupSummary(groupKey: String, groupTitle: String, colorHex: String, accountId: String?) {
-        val ctx = reactApplicationContext
-        postGroupSummaryToContext(ctx, groupKey, groupTitle, colorHex, accountId)
-    }
-
-    private fun makeLetterAvatar(initials: String, bgHex: String): Bitmap {
-        val size = 192
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = parseColor(bgHex, fallback = Color.parseColor("#2563eb"))
-        }
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, bgPaint)
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            textSize = size * 0.44f
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        }
-        val baseline = size / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(initials.take(2).uppercase(), size / 2f, baseline, textPaint)
-        return bitmap
-    }
-
-    private fun fetchBitmap(url: String): Bitmap? = try {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 3000
-        conn.readTimeout = 3000
-        conn.instanceFollowRedirects = true
-        conn.setRequestProperty("User-Agent", "bulwark-mobile")
-        // Cap the response to MAX_FAVICON_BYTES so a hostile / misconfigured
-        // server can't OOM the headless task with a multi-megabyte image.
-        // We also sample down to ~256x256 since it'll only render at 192px.
-        val stream = conn.inputStream
-        val bytes = stream.use { input ->
-            val limit = MAX_FAVICON_BYTES
-            val buf = ByteArrayOutputStream()
-            val chunk = ByteArray(8 * 1024)
-            var total = 0
-            while (true) {
-                val n = input.read(chunk)
-                if (n <= 0) break
-                total += n
-                if (total > limit) return@use null
-                buf.write(chunk, 0, n)
-            }
-            buf.toByteArray()
-        } ?: return null
-        val opts = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-        var sample = 1
-        while ((opts.outWidth / sample) > 384 || (opts.outHeight / sample) > 384) {
-            sample *= 2
-        }
-        val decodeOpts = BitmapFactory.Options().apply {
-            inSampleSize = sample
-        }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOpts)
-    } catch (_: Exception) {
-        null
+        postGroupSummaryToContext(reactApplicationContext, groupKey, groupTitle, colorHex, accountId)
     }
 
     // NativeEventEmitter required no-ops.
@@ -279,6 +185,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             title: String,
             body: String,
             preview: String?,
+            initials: String,
+            bgColorHex: String,
+            iconUrl: String? = null,
             emailId: String?,
             threadId: String?,
             subject: String?,
@@ -286,20 +195,20 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             jmapAccountId: String?,
             groupKey: String?,
             groupTitle: String?,
-            deleteNeedsUnlock: Boolean = false,
+            markReadLabel: String = context.getString(R.string.notification_action_mark_read),
+            deleteLabel: String = context.getString(R.string.notification_action_delete),
+            replyLabel: String = context.getString(R.string.notification_action_reply),
+            deleteNeedsUnlock: Boolean = true,
         ) {
-            val largeIcon = makeLetterAvatar(title.take(2), "#2563eb")
+            val largeIcon = iconUrl?.let { fetchBitmap(it) }
+                ?: makeLetterAvatar(initials, bgColorHex)
             postNotificationToContext(
-                context, notificationId, title, body, preview, largeIcon, "#2563eb",
+                context, notificationId, title, body, preview, largeIcon, bgColorHex,
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
-                groupTitle,
-                context.getString(R.string.notification_action_mark_read),
-                context.getString(R.string.notification_action_delete),
-                context.getString(R.string.notification_action_reply),
-                deleteNeedsUnlock,
+                groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
             )
             if (groupKey != null) {
-                postGroupSummaryToContext(context, groupKey, groupTitle ?: "Bulwark Mail", "#2563eb", accountId)
+                postGroupSummaryToContext(context, groupKey, groupTitle ?: "Bulwark Mail", bgColorHex, accountId)
             }
         }
 
@@ -507,6 +416,46 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             val baseline = size / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
             canvas.drawText(initials.take(2).uppercase(), size / 2f, baseline, textPaint)
             return bitmap
+        }
+
+        fun fetchBitmap(url: String): Bitmap? = try {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", "bulwark-mobile")
+            // Cap the response to MAX_FAVICON_BYTES so a hostile / misconfigured
+            // server can't OOM the headless task with a multi-megabyte image.
+            // We also sample down to ~256x256 since it'll only render at 192px.
+            val stream = conn.inputStream
+            val bytes = stream.use { input ->
+                val limit = MAX_FAVICON_BYTES
+                val buf = ByteArrayOutputStream()
+                val chunk = ByteArray(8 * 1024)
+                var total = 0
+                while (true) {
+                    val n = input.read(chunk)
+                    if (n <= 0) break
+                    total += n
+                    if (total > limit) return@use null
+                    buf.write(chunk, 0, n)
+                }
+                buf.toByteArray()
+            } ?: return null
+            val opts = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            var sample = 1
+            while ((opts.outWidth / sample) > 384 || (opts.outHeight / sample) > 384) {
+                sample *= 2
+            }
+            val decodeOpts = BitmapFactory.Options().apply {
+                inSampleSize = sample
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOpts)
+        } catch (_: Exception) {
+            null
         }
 
         fun parseColor(hex: String, fallback: Int): Int = try {

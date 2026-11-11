@@ -1,11 +1,12 @@
 package com.anonymous.bulwarkmobile
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Base64
+import android.database.sqlite.SQLiteDatabase
 import android.util.Log
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.reactnativecommunity.asyncstorage.AsyncLocalStorageUtil
+import com.reactnativecommunity.asyncstorage.ReactDatabaseSupplier
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -13,15 +14,31 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import java.time.Instant
+import java.util.Base64
 import java.util.concurrent.TimeUnit
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Handles incoming mail push notifications directly in native Kotlin.
  *
- * This mirrors the iOS NotificationService.swift / Jmap.swift implementation:
- * it fetches message metadata (sender, subject, preview) over JMAP using
- * credentials stored securely by the app, and displays the notification immediately
- * without booting React Native or Hermes.
+ * Mirrors the iOS NotificationService.swift / Jmap.swift / SharedKeychain.swift
+ * architecture and shares the exact same credential and deduplication stores as JS:
+ * 1. Credentials are read from (and refreshed OAuth tokens are written back to)
+ *    expo-secure-store's "SecureStore" SharedPreferences encrypted with AndroidKeyStore
+ *    AES/GCM/NoPadding under `credentialsKey(accountId)` — zero duplicate credential copies,
+ *    zero plaintext storage, and zero token drift window with `jmapClient.adoptStoredTokens()`.
+ * 2. Deduplication (`push:notifiedIds:v1:<accountId>` and `push:lastNotifiedEmailId:v2:<accountId>`)
+ *    and settings (`webmail:settings:v1`, `push:optedOut:v1:<accountId>`) are read from and
+ *    written to AsyncStorage's `RKStorage` SQLite database (`catalystLocalStorage`).
  *
  * This completely avoids the background freeze on Samsung devices (One UI)
  * and aggressive battery optimizers where Choreographer frame callbacks and
@@ -30,7 +47,25 @@ import java.util.concurrent.TimeUnit
 object BulwarkNativePushFetcher {
     private const val TAG = "BulwarkNativePush"
     const val PREFS_NAME = "bulwark_native_push_accounts"
-    private const val NOTIFIED_IDS_LIMIT = 200
+    const val NOTIFIED_IDS_LIMIT = 200
+    private const val TOKEN_REFRESH_LEEWAY_MS = 60_000L
+
+    // Expo SecureStore constants (must match expo.modules.securestore.SecureStoreModule & AESEncryptor)
+    private const val SECURE_STORE_PREFS_NAME = "SecureStore"
+    private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
+    private const val AES_CIPHER = "AES/GCM/NoPadding"
+    private const val DEFAULT_KEYSTORE_ALIAS = "key_v1"
+    private const val UNAUTHENTICATED_KEYSTORE_SUFFIX = "keystoreUnauthenticated"
+    private const val MIN_GCM_TAG_LENGTH_BITS = 96
+
+    // AsyncStorage key constants (must match src/lib/push-notifications.ts & src/lib/push-background-task.ts)
+    const val SETTINGS_STORAGE_KEY = "webmail:settings:v1"
+    private const val NOTIFIED_IDS_PREFIX = "push:notifiedIds:v1:"
+    private const val LAST_NOTIFIED_EMAIL_ID_PREFIX = "push:lastNotifiedEmailId:v2:"
+    private const val OPTED_OUT_PREFIX = "push:optedOut:v1:"
+    private const val CREDENTIALS_PREFIX = "jmap_credentials__"
+
+    private val secureStoreLock = Any()
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -42,288 +77,760 @@ object BulwarkNativePushFetcher {
     data class PushedEmail(
         val id: String,
         val threadId: String,
-        val sender: String,
+        val senderName: String,
+        val senderEmail: String,
         val subject: String,
-        val preview: String
+        val preview: String,
+        val receivedAtEpochMs: Long,
+    )
+
+    data class StoredCredentials(
+        val rawJson: JSONObject,
+        val serverUrl: String,
+        val username: String,
+        val password: String?,
+        val accessToken: String?,
+        val refreshToken: String?,
+        val expiresAt: Long,
+        val tokenEndpoint: String?,
+        val clientId: String?,
     )
 
     data class FreshTokens(
         val accessToken: String,
         val refreshToken: String?,
-        val expiresIn: Double
+        val expiresIn: Double,
     )
 
+    data class LocalizedStrings(
+        val newEmail: String,
+        val noSubject: String,
+        val markRead: String,
+        val delete: String,
+        val reply: String,
+    )
+
+    sealed class JmapFetchResult {
+        data class Success(val emails: List<PushedEmail>, val hasTrash: Boolean) : JmapFetchResult()
+        data class Failure(val reason: String) : JmapFetchResult()
+    }
+
     /**
-     * Returns hardware-backed EncryptedSharedPreferences (Android Keystore),
-     * or standard SharedPreferences as fallback if Keystore initialization fails.
+     * Non-sensitive routing metadata per JMAP account ID:
+     * `{ credentialsKey, accountId, apiUrl, label, strings }`.
+     * Passwords and OAuth tokens are never stored here; they remain solely in Expo SecureStore.
      */
-    fun getPrefs(context: Context): SharedPreferences {
+    fun getPrefs(context: Context): SharedPreferences =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // ─── Pure key & data helpers (JVM-unit-testable) ────────────────────────
+
+    fun credentialsKeyFor(accountId: String): String =
+        CREDENTIALS_PREFIX + accountId.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+
+    fun notifiedIdsKeyFor(accountId: String): String =
+        NOTIFIED_IDS_PREFIX + accountId
+
+    fun lastNotifiedKeyFor(accountId: String): String =
+        LAST_NOTIFIED_EMAIL_ID_PREFIX + accountId
+
+    fun optedOutKeyFor(accountId: String): String =
+        OPTED_OUT_PREFIX + accountId
+
+    fun parseNotifiedIds(notifiedIdsJson: String?, legacyLastNotifiedId: String?): List<String> {
+        if (!notifiedIdsJson.isNullOrBlank()) {
+            try {
+                val arr = JSONArray(notifiedIdsJson)
+                val out = mutableListOf<String>()
+                for (i in 0 until arr.length()) {
+                    val id = arr.optString(i)
+                    if (id.isNotBlank()) out.add(id)
+                }
+                return out
+            } catch (_: Exception) {
+                // Fall through to legacy key
+            }
+        }
+        return if (!legacyLastNotifiedId.isNullOrBlank()) listOf(legacyLastNotifiedId) else emptyList()
+    }
+
+    fun mergeNotifiedIds(
+        current: List<String>,
+        newIds: List<String>,
+        limit: Int = NOTIFIED_IDS_LIMIT,
+    ): List<String> {
+        if (newIds.isEmpty()) return current.take(limit)
+        val newSet = newIds.toSet()
+        return (newIds + current.filter { !newSet.contains(it) }).take(limit)
+    }
+
+    fun extractEmailIds(data: Map<String, String>): List<String> {
+        val out = mutableListOf<String>()
+        val rawEmailIdsStr = data["emailIds"]
+        if (!rawEmailIdsStr.isNullOrBlank()) {
+            try {
+                val arr = JSONArray(rawEmailIdsStr)
+                for (i in 0 until arr.length()) {
+                    val id = arr.optString(i)
+                    if (id.isNotBlank()) out.add(id)
+                }
+            } catch (_: Exception) {}
+        }
+        if (out.isEmpty()) {
+            val single = data["emailId"]
+            if (!single.isNullOrBlank()) out.add(single)
+        }
+        return out
+    }
+
+    fun isEmailNotificationsEnabledInSettings(settingsJson: String?): Boolean {
+        if (settingsJson.isNullOrBlank()) return true
         return try {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "EncryptedSharedPreferences init failed, falling back to standard prefs", e)
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val obj = JSONObject(settingsJson)
+            if (obj.has("emailNotificationsEnabled") && !obj.isNull("emailNotificationsEnabled")) {
+                obj.optBoolean("emailNotificationsEnabled", true)
+            } else {
+                true
+            }
+        } catch (_: Exception) {
+            true
         }
     }
 
-    private fun isAlreadyNotified(prefs: SharedPreferences, accountId: String, emailId: String): Boolean {
-        val raw = prefs.getString("notified_ids_$accountId", null) ?: return false
+    fun isSenderFaviconsEnabledInSettings(settingsJson: String?): Boolean {
+        if (settingsJson.isNullOrBlank()) return false
         return try {
-            val arr = JSONArray(raw)
-            for (i in 0 until arr.length()) {
-                if (arr.optString(i) == emailId) return true
-            }
-            false
+            JSONObject(settingsJson).optBoolean("senderFavicons", false)
         } catch (_: Exception) {
             false
         }
     }
 
-    private fun rememberNotifiedIds(prefs: SharedPreferences, accountId: String, newIds: List<String>) {
-        if (newIds.isEmpty()) return
-        try {
-            val current = mutableListOf<String>()
-            val raw = prefs.getString("notified_ids_$accountId", null)
-            if (raw != null) {
-                val arr = JSONArray(raw)
-                for (i in 0 until arr.length()) {
-                    val id = arr.optString(i)
-                    if (id.isNotBlank()) current.add(id)
-                }
-            }
-            val combined = (newIds + current.filter { !newIds.contains(it) }).take(NOTIFIED_IDS_LIMIT)
-            val json = JSONArray()
-            combined.forEach { json.put(it) }
-            prefs.edit().putString("notified_ids_$accountId", json.toString()).apply()
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to persist notified IDs for $accountId", e)
-        }
-    }
-
-    /**
-     * Attempts to fetch new mail metadata and post notifications natively.
-     * Returns true if successfully handled (or confirmed nothing to notify),
-     * or false if fallback to the headless JS task is required.
-     */
-    fun processPush(context: Context, data: Map<String, String>): Boolean {
+    fun isDeleteMarksReadInSettings(settingsJson: String?): Boolean {
+        if (settingsJson.isNullOrBlank()) return false
         return try {
-            val jmapAccountId = data["accountId"]?.takeIf { it.isNotBlank() } ?: return false
-            val prefs = getPrefs(context)
-            val accountRaw = prefs.getString(jmapAccountId, null) ?: return false
-
-            val account = JSONObject(accountRaw)
-
-            // Respect user notification permissions/preferences
-            val notificationsAllowed = account.optBoolean("notificationsAllowed", true)
-            if (!notificationsAllowed) {
-                Log.i(TAG, "Push received but email notifications disabled for account $jmapAccountId")
-                return true
-            }
-
-            val apiUrl = account.optString("apiUrl").takeIf { it.isNotBlank() } ?: return false
-            val localAccountId = account.optString("accountId", jmapAccountId)
-            val label = account.optString("label").takeIf { it.isNotBlank() }
-            val username = account.optString("username").takeIf { it.isNotBlank() }
-            val password = account.optString("password").takeIf { it.isNotBlank() }
-            var accessToken = account.optString("accessToken").takeIf { it.isNotBlank() }
-            val refreshToken = account.optString("refreshToken").takeIf { it.isNotBlank() }
-            val tokenEndpoint = account.optString("tokenEndpoint").takeIf { it.isNotBlank() }
-            val clientId = account.optString("clientId").takeIf { it.isNotBlank() }
-            var expiresAt = account.optLong("expiresAt", 0L)
-
-            // Validate push label if present (mirroring NotificationService.swift)
-            val pushLabel = data["accountLabel"]
-            if (!pushLabel.isNullOrBlank() && label != null && !pushLabel.equals(label, ignoreCase = true)) {
-                Log.w(TAG, "Push label does not fit shared account for $jmapAccountId ($pushLabel vs $label)")
-                return false
-            }
-
-            // Resolve email IDs
-            val rawEmailIds = mutableListOf<String>()
-            val rawEmailIdsStr = data["emailIds"]
-            if (!rawEmailIdsStr.isNullOrBlank()) {
-                try {
-                    val arr = JSONArray(rawEmailIdsStr)
-                    for (i in 0 until arr.length()) {
-                        val id = arr.optString(i)
-                        if (id.isNotBlank()) rawEmailIds.add(id)
-                    }
-                } catch (_: Exception) {}
-            }
-            if (rawEmailIds.isEmpty() && !data["emailId"].isNullOrBlank()) {
-                rawEmailIds.add(data["emailId"]!!)
-            }
-
-            // If the push carries no explicit email IDs (e.g. legacy state-change without IDs),
-            // return false to let the headless JS task perform the full mailbox/query resolution.
-            if (rawEmailIds.isEmpty()) {
-                Log.i(TAG, "Push has no emailIds; falling back to headless JS task")
-                return false
-            }
-
-            // Deduplication: filter out already notified email IDs
-            val freshEmailIds = rawEmailIds.filter { !isAlreadyNotified(prefs, localAccountId, it) }
-            if (freshEmailIds.isEmpty()) {
-                Log.i(TAG, "All email IDs already notified for account $localAccountId; skipping")
-                return true
-            }
-
-            // Authorization header
-            val authHeader = if (accessToken != null) {
-                val now = System.currentTimeMillis()
-                if (expiresAt > 0 && expiresAt - now < 60_000 && refreshToken != null && tokenEndpoint != null) {
-                    val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, clientId)
-                    if (fresh != null) {
-                        accessToken = fresh.accessToken
-                        expiresAt = now + (fresh.expiresIn * 1000).toLong()
-                        account.put("accessToken", fresh.accessToken)
-                        if (fresh.refreshToken != null) account.put("refreshToken", fresh.refreshToken)
-                        account.put("expiresAt", expiresAt)
-                        account.put("tokensRefreshed", true)
-                        prefs.edit().putString(jmapAccountId, account.toString()).apply()
-                    }
-                }
-                "Bearer $accessToken"
-            } else if (username != null && password != null) {
-                val basic = Base64.encodeToString(
-                    "$username:$password".toByteArray(Charsets.UTF_8),
-                    Base64.NO_WRAP
-                )
-                "Basic $basic"
-            } else {
-                return false
-            }
-
-            // Construct JMAP Email/get call
-            val idsJson = JSONArray()
-            freshEmailIds.take(5).forEach { idsJson.put(it) }
-
-            val props = JSONArray().apply {
-                put("threadId")
-                put("from")
-                put("subject")
-                put("preview")
-                put("keywords")
-                put("receivedAt")
-            }
-            val args = JSONObject().apply {
-                put("accountId", jmapAccountId)
-                put("ids", idsJson)
-                put("properties", props)
-            }
-
-            val methodCalls = JSONArray().apply {
-                put(JSONArray().apply {
-                    put("Email/get")
-                    put(args)
-                    put("0")
-                })
-            }
-
-            val bodyJson = JSONObject().apply {
-                put("using", JSONArray().apply {
-                    put("urn:ietf:params:jmap:core")
-                    put("urn:ietf:params:jmap:mail")
-                })
-                put("methodCalls", methodCalls)
-            }
-
-            val request = Request.Builder()
-                .url(apiUrl)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "application/json")
-                .addHeader("Authorization", authHeader)
-                .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Log.w(TAG, "JMAP HTTP request failed with code ${response.code}")
-                return false
-            }
-
-            val responseBody = response.body?.string() ?: return false
-            val root = JSONObject(responseBody)
-            val methodResponses = root.optJSONArray("methodResponses") ?: return false
-
-            val emails = mutableListOf<PushedEmail>()
-            for (i in 0 until methodResponses.length()) {
-                val resp = methodResponses.optJSONArray(i) ?: continue
-                val name = resp.optString(0)
-                val methodArgs = resp.optJSONObject(1) ?: continue
-                if (name == "Email/get") {
-                    val list = methodArgs.optJSONArray("list") ?: continue
-                    for (j in 0 until list.length()) {
-                        val email = list.optJSONObject(j) ?: continue
-                        val id = email.optString("id")
-                        val keywords = email.optJSONObject("keywords")
-                        if (keywords?.optBoolean("\$seen", false) == true ||
-                            keywords?.optBoolean("\$junk", false) == true) {
-                            continue
-                        }
-                        val threadId = email.optString("threadId")
-                        val subject = email.optString("subject", "")
-                        val preview = email.optString("preview", "")
-
-                        val fromArr = email.optJSONArray("from")
-                        val fromObj = fromArr?.optJSONObject(0)
-                        val senderName = fromObj?.optString("name")?.takeIf { it.isNotBlank() }
-                        val senderEmail = fromObj?.optString("email")?.takeIf { it.isNotBlank() }
-                        val sender = senderName ?: senderEmail ?: label ?: "New mail"
-
-                        emails.add(PushedEmail(id, threadId, sender, subject, preview))
-                    }
-                }
-            }
-
-            if (emails.isEmpty()) {
-                Log.i(TAG, "Native push: no unread messages found; letting headless task inspect fallback")
-                return false
-            }
-
-            // Post notification for the unread emails
-            val groupKey = "bulwark-mail:$localAccountId"
-            val groupTitle = label ?: localAccountId
-            val noSubjectText = context.getString(R.string.notification_no_subject)
-
-            for (email in emails) {
-                val displaySubject = if (email.subject.isNotBlank()) email.subject else noSubjectText
-                BulwarkFcmModule.postNotificationNatively(
-                    context = context,
-                    notificationId = "mail:${email.id}",
-                    title = email.sender,
-                    body = displaySubject,
-                    preview = email.preview,
-                    emailId = email.id,
-                    threadId = email.threadId,
-                    subject = displaySubject,
-                    accountId = localAccountId,
-                    jmapAccountId = jmapAccountId,
-                    groupKey = groupKey,
-                    groupTitle = groupTitle,
-                    deleteNeedsUnlock = false
-                )
-            }
-
-            rememberNotifiedIds(prefs, localAccountId, emails.map { it.id })
-            Log.i(TAG, "Native push: successfully posted ${emails.size} notification(s)")
-            true
-        } catch (e: Exception) {
-            Log.w(TAG, "processPush exception: ${e.message}", e)
+            JSONObject(settingsJson).optString("deleteAction") == "trash-and-read"
+        } catch (_: Exception) {
             false
         }
     }
 
-    private fun refreshOAuthToken(tokenEndpoint: String, refreshToken: String, clientId: String?): FreshTokens? {
+    /**
+     * Whether a push's `accountLabel` fits the shared account entry.
+     * Mirrors `NotificationService.swift` and `accountMatchesPushLabel` in `push-notifications.ts`.
+     */
+    fun pushLabelMatchesAccount(pushLabel: String?, accountLabel: String?, localAccountId: String): Boolean {
+        if (pushLabel.isNullOrBlank()) return true
+        val wanted = pushLabel.trim().lowercase()
+        if (!accountLabel.isNullOrBlank()) {
+            return accountLabel.trim().lowercase() == wanted
+        }
+        return localAccountId.trim().lowercase().startsWith("$wanted@")
+    }
+
+    // ─── Text Sanitization (mirrors src/lib/single-line.ts & src/lib/preview-text.ts) ──
+
+    private val WHITESPACE_RUN_RE = Regex("\\s+")
+    private val LEADING_INVISIBLE_RE = Regex("^[\\s\\p{Cf}\\p{Mn}]+")
+    private val ONLY_PUNCTUATION_RE = Regex("^[.\u2026\\s]+$")
+    private val DECLARATIONS_RE = Regex("^\\s*(?:[-\\w]+\\s*:|[.#@a-z*][^{}]*\\{)", RegexOption.IGNORE_CASE)
+    private val AT_RULE_RE = Regex("^@(?:media|font-face|import|supports|keyframes|charset|page)\\b")
+    private val SELECTOR_RE = Regex("^[.#]?[a-z*](?:[\\w\\-.#,>~+*\\s\\[\\]=\"']|:(?!\\s))*\\{", RegexOption.IGNORE_CASE)
+    private val IMPORT_OR_CHARSET_RE = Regex("^@(?:import|charset)\\b")
+    private val EMPHASIS_RE = Regex("(^|[\\s(\\[{\"'])(\\*\\*|__|\\*|_)([^\\s*_]|[^\\s*_].*?[^\\s])\\2(?=$|[\\s)\\]}\"']|[.,;:!?](?!\\w))")
+
+    fun singleLine(text: String?): String {
+        if (text.isNullOrEmpty()) return ""
+        return WHITESPACE_RUN_RE.replace(text) { m ->
+            if (m.value == "\u00A0") "\u00A0" else " "
+        }.trim()
+    }
+
+    fun stripInvisibleLeading(text: String): String {
+        val stripped = LEADING_INVISIBLE_RE.replaceFirst(text, "")
+        return if (ONLY_PUNCTUATION_RE.matches(stripped)) "" else stripped
+    }
+
+    fun stripLeadingCss(text: String): String {
+        var rest = text.trimStart()
+        var guard = 0
+        while (guard < 100 && (AT_RULE_RE.containsMatchIn(rest) || SELECTOR_RE.containsMatchIn(rest))) {
+            guard++
+            val brace = rest.indexOf('{')
+            val semicolon = rest.indexOf(';')
+            if (semicolon >= 0 && (brace < 0 || semicolon < brace) && IMPORT_OR_CHARSET_RE.containsMatchIn(rest)) {
+                rest = rest.substring(semicolon + 1).trimStart()
+                continue
+            }
+            if (brace < 0) return rest
+            var depth = 0
+            var end = -1
+            for (i in brace until rest.length) {
+                when (rest[i]) {
+                    '{' -> depth++
+                    '}' -> {
+                        depth--
+                        if (depth == 0) {
+                            end = i
+                            break
+                        }
+                    }
+                }
+            }
+            if (end < 0) {
+                return if (rest.startsWith("@") || DECLARATIONS_RE.containsMatchIn(rest.substring(brace + 1))) "" else rest
+            }
+            if (!rest.startsWith("@") && !DECLARATIONS_RE.containsMatchIn(rest.substring(brace + 1, end))) {
+                return rest
+            }
+            rest = rest.substring(end + 1).trimStart()
+        }
+        return rest
+    }
+
+    fun stripEmphasisMarkers(text: String): String =
+        EMPHASIS_RE.replace(text, "$1$3")
+
+    fun cleanPreview(text: String?): String =
+        stripEmphasisMarkers(stripInvisibleLeading(stripLeadingCss(stripInvisibleLeading(text ?: ""))))
+
+    // ─── Avatar Initials, Color & Favicon (mirrors src/lib/avatar-utils.ts) ──
+
+    private val LEADING_NON_ALNUM_RE = Regex("^[^\\p{L}\\p{N}]+")
+
+    fun getEmailInitials(name: String?, email: String?): String {
+        val cleanName = name?.trim().orEmpty()
+        if (cleanName.isNotEmpty()) {
+            val parts = cleanName
+                .split(Regex("\\s+"))
+                .map { LEADING_NON_ALNUM_RE.replaceFirst(it, "") }
+                .filter { it.isNotEmpty() }
+            if (parts.size >= 2) {
+                return "${parts.first().first()}${parts.last().first()}".uppercase()
+            }
+            if (parts.size == 1) {
+                return parts.first().take(2).uppercase()
+            }
+            return cleanName.take(2).uppercase()
+        }
+        val cleanEmail = email?.trim().orEmpty()
+        if (cleanEmail.isNotEmpty()) {
+            return cleanEmail.first().uppercaseChar().toString()
+        }
+        return "?"
+    }
+
+    fun generateEmailAvatarColorHex(name: String?, email: String?): String {
+        val str = name?.takeIf { it.isNotEmpty() } ?: email?.takeIf { it.isNotEmpty() } ?: ""
+        var hash = 0
+        for (i in 0 until str.length) {
+            hash = str[i].code + ((hash shl 5) - hash)
+        }
+        // Maintain identical 32-bit signed/unsigned modulus behavior with JS `Math.abs(hash) % 360`
+        val hue = abs(hash.toLong()) % 360L
+        return hslToHex(hue.toInt(), 70, 50)
+    }
+
+    fun hslToHex(h: Int, sPercent: Int, lPercent: Int): String {
+        val s = sPercent / 100.0
+        val l = lPercent / 100.0
+        val a = s * min(l, 1.0 - l)
+        fun component(n: Int): String {
+            val k = (n + h / 30.0) % 12.0
+            val c = l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0))
+            val byteVal = (255.0 * c).roundToInt().coerceIn(0, 255)
+            return byteVal.toString(16).padStart(2, '0')
+        }
+        return "#${component(0)}${component(8)}${component(4)}"
+    }
+
+    private val MULTI_PART_TLDS = setOf(
+        "co.uk", "org.uk", "me.uk", "ac.uk", "gov.uk", "net.uk",
+        "co.jp", "or.jp", "ne.jp", "ac.jp", "go.jp",
+        "co.kr", "or.kr", "go.kr", "ac.kr",
+        "co.in", "net.in", "org.in", "ac.in", "gov.in",
+        "co.nz", "org.nz", "net.nz", "govt.nz", "ac.nz",
+        "co.za", "org.za", "net.za", "gov.za", "ac.za",
+        "com.au", "net.au", "org.au", "edu.au", "gov.au",
+        "com.br", "net.br", "org.br", "edu.br", "gov.br",
+        "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn",
+        "com.mx", "net.mx", "org.mx", "gob.mx", "edu.mx",
+        "com.ar", "net.ar", "org.ar", "gob.ar", "edu.ar",
+        "com.tw", "net.tw", "org.tw", "edu.tw", "gov.tw",
+        "com.hk", "net.hk", "org.hk", "edu.hk", "gov.hk",
+        "com.sg", "net.sg", "org.sg", "edu.sg", "gov.sg",
+        "com.my", "net.my", "org.my", "edu.my", "gov.my",
+        "com.ph", "net.ph", "org.ph", "edu.ph", "gov.ph",
+        "com.pk", "net.pk", "org.pk", "edu.pk", "gov.pk",
+        "com.ng", "net.ng", "org.ng", "edu.ng", "gov.ng",
+        "co.il", "org.il", "net.il", "ac.il", "gov.il",
+        "co.th", "or.th", "ac.th", "go.th", "in.th",
+        "co.id", "or.id", "ac.id", "go.id", "web.id",
+        "com.tr", "net.tr", "org.tr", "edu.tr", "gov.tr",
+        "com.ua", "net.ua", "org.ua", "edu.ua", "gov.ua",
+        "com.eg", "net.eg", "org.eg", "edu.eg", "gov.eg",
+        "com.sa", "net.sa", "org.sa", "edu.sa", "gov.sa",
+        "co.ke", "or.ke", "ac.ke", "go.ke", "ne.ke",
+    )
+
+    private val PERSONAL_DOMAINS = setOf(
+        "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com",
+        "msn.com", "yahoo.com", "yahoo.fr", "yahoo.co.uk", "yahoo.co.jp",
+        "aol.com", "icloud.com", "me.com", "mac.com", "mail.com",
+        "proton.me", "protonmail.com", "pm.me", "tutanota.com", "tuta.com",
+        "zoho.com", "yandex.com", "yandex.ru", "gmx.com", "gmx.net",
+        "fastmail.com", "hey.com", "posteo.de", "mailbox.org",
+        "example.com", "example.org",
+    )
+
+    fun getRootDomain(domain: String): String {
+        val parts = domain.split(".")
+        if (parts.size <= 2) return domain
+        val lastTwo = parts.takeLast(2).joinToString(".")
+        if (MULTI_PART_TLDS.contains(lastTwo)) {
+            return if (parts.size >= 3) parts.takeLast(3).joinToString(".") else domain
+        }
+        return lastTwo
+    }
+
+    fun getFaviconDomain(email: String?): String? {
+        if (email.isNullOrBlank()) return null
+        val at = email.indexOf('@')
+        if (at < 0) return null
+        val domain = email.substring(at + 1).trim().lowercase()
+        if (domain.isEmpty()) return null
+        val root = getRootDomain(domain)
+        return if (PERSONAL_DOMAINS.contains(root)) null else root
+    }
+
+    fun getFaviconUrl(domain: String): String {
+        val encoded = URLEncoder.encode(domain, StandardCharsets.UTF_8.name())
+        return "https://icons.duckduckgo.com/ip3/$encoded.ico"
+    }
+
+    // ─── JMAP Request & Response Parsing (JVM-unit-testable) ────────────────
+
+    fun buildJmapEmailAndMailboxGetBody(jmapAccountId: String, emailIds: List<String>): JSONObject {
+        val idsJson = JSONArray()
+        emailIds.take(5).forEach { idsJson.put(it) }
+
+        val emailProps = JSONArray().apply {
+            put("id")
+            put("threadId")
+            put("from")
+            put("subject")
+            put("preview")
+            put("keywords")
+            put("receivedAt")
+        }
+        val emailGetArgs = JSONObject().apply {
+            put("accountId", jmapAccountId)
+            put("ids", idsJson)
+            put("properties", emailProps)
+        }
+
+        val mailboxProps = JSONArray().apply {
+            put("id")
+            put("role")
+        }
+        val mailboxGetArgs = JSONObject().apply {
+            put("accountId", jmapAccountId)
+            put("properties", mailboxProps)
+        }
+
+        val methodCalls = JSONArray().apply {
+            put(JSONArray().apply {
+                put("Email/get")
+                put(emailGetArgs)
+                put("0")
+            })
+            put(JSONArray().apply {
+                put("Mailbox/get")
+                put(mailboxGetArgs)
+                put("1")
+            })
+        }
+
+        return JSONObject().apply {
+            put("using", JSONArray().apply {
+                put("urn:ietf:params:jmap:core")
+                put("urn:ietf:params:jmap:mail")
+            })
+            put("methodCalls", methodCalls)
+        }
+    }
+
+    /**
+     * Parses a JMAP response containing `Email/get` (callId "0") and `Mailbox/get` (callId "1").
+     * - Returns [JmapFetchResult.Failure] if the JSON is malformed, `methodResponses` is missing,
+     *   or `Email/get` returned a JMAP method error or no `list` (so the caller falls back to JS).
+     * - Returns [JmapFetchResult.Success] with the filtered, oldest-first-sorted notifiable emails
+     *   and `hasTrash` flag when `Email/get` succeeded (even if all emails were already `$seen` or `$junk`).
+     */
+    fun parseJmapGetResponse(responseBody: String, alreadyNotified: Set<String>): JmapFetchResult {
+        return try {
+            val root = JSONObject(responseBody)
+            val methodResponses = root.optJSONArray("methodResponses")
+                ?: return JmapFetchResult.Failure("Missing methodResponses")
+
+            var emailList: JSONArray? = null
+            var hasTrash = false
+
+            for (i in 0 until methodResponses.length()) {
+                val resp = methodResponses.optJSONArray(i) ?: continue
+                val name = resp.optString(0)
+                val body = resp.optJSONObject(1)
+                val callId = resp.optString(2)
+
+                if (callId == "0") {
+                    if (name != "Email/get" || body == null) {
+                        val errType = body?.optString("type", name) ?: name
+                        return JmapFetchResult.Failure("Email/get failed: $errType")
+                    }
+                    emailList = body.optJSONArray("list")
+                        ?: return JmapFetchResult.Failure("Email/get missing list")
+                } else if (callId == "1" && name == "Mailbox/get" && body != null) {
+                    val mbList = body.optJSONArray("list")
+                    if (mbList != null) {
+                        for (j in 0 until mbList.length()) {
+                            val mb = mbList.optJSONObject(j) ?: continue
+                            if (mb.optString("role") == "trash") {
+                                hasTrash = true
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+
+            val list = emailList ?: return JmapFetchResult.Failure("No Email/get response for callId 0")
+            val candidates = mutableListOf<PushedEmail>()
+
+            for (j in 0 until list.length()) {
+                val email = list.optJSONObject(j) ?: continue
+                val id = email.optString("id")
+                if (id.isBlank() || alreadyNotified.contains(id)) continue
+
+                val keywords = email.optJSONObject("keywords")
+                if (keywords?.optBoolean("\$seen", false) == true ||
+                    keywords?.optBoolean("\$junk", false) == true
+                ) {
+                    continue
+                }
+
+                val threadId = email.optString("threadId", id).ifBlank { id }
+                val rawSubject = if (email.isNull("subject")) "" else email.optString("subject", "")
+                val rawPreview = if (email.isNull("preview")) "" else email.optString("preview", "")
+                val receivedAtStr = if (email.isNull("receivedAt")) "" else email.optString("receivedAt", "")
+                val receivedAtEpochMs = parseIsoTimestampMs(receivedAtStr)
+
+                val fromArr = email.optJSONArray("from")
+                val fromObj = fromArr?.optJSONObject(0)
+                val senderName = if (fromObj == null || fromObj.isNull("name")) "" else fromObj.optString("name", "").trim()
+                val senderEmail = if (fromObj == null || fromObj.isNull("email")) "" else fromObj.optString("email", "").trim()
+
+                candidates.add(
+                    PushedEmail(
+                        id = id,
+                        threadId = threadId,
+                        senderName = senderName,
+                        senderEmail = senderEmail,
+                        subject = singleLine(rawSubject),
+                        preview = singleLine(cleanPreview(rawPreview)),
+                        receivedAtEpochMs = receivedAtEpochMs,
+                    )
+                )
+            }
+
+            // Oldest first so the newest ends up on top of the notification tray
+            // (matching push-background-task.ts lines 633-635).
+            val ordered = candidates.sortedBy { it.receivedAtEpochMs }
+            JmapFetchResult.Success(emails = ordered, hasTrash = hasTrash)
+        } catch (e: Exception) {
+            JmapFetchResult.Failure("Invalid JMAP JSON: ${e.message}")
+        }
+    }
+
+    private fun parseIsoTimestampMs(iso: String): Long {
+        if (iso.isBlank()) return 0L
+        return try {
+            Instant.parse(iso).toEpochMilli()
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    fun parseStoredCredentialsJson(rawJsonStr: String): StoredCredentials? {
+        return try {
+            val obj = JSONObject(rawJsonStr)
+            val serverUrl = obj.optString("serverUrl").takeIf { it.isNotBlank() } ?: return null
+            val username = obj.optString("username").takeIf { it.isNotBlank() } ?: return null
+            val password = if (obj.isNull("password")) null else obj.optString("password").takeIf { it.isNotEmpty() }
+            val accessToken = if (obj.isNull("accessToken")) null else obj.optString("accessToken").takeIf { it.isNotBlank() }
+            val refreshToken = if (obj.isNull("refreshToken")) null else obj.optString("refreshToken").takeIf { it.isNotBlank() }
+            val expiresAt = obj.optLong("expiresAt", 0L)
+            val tokenEndpoint = if (obj.isNull("tokenEndpoint")) null else obj.optString("tokenEndpoint").takeIf { it.isNotBlank() }
+            val clientId = if (obj.isNull("clientId")) null else obj.optString("clientId").takeIf { it.isNotBlank() }
+            StoredCredentials(
+                rawJson = obj,
+                serverUrl = serverUrl,
+                username = username,
+                password = password,
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                expiresAt = expiresAt,
+                tokenEndpoint = tokenEndpoint,
+                clientId = clientId,
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // ─── Shared Expo SecureStore Access (AndroidKeyStore AES/GCM/NoPadding) ──
+
+    private data class SecureStoreEntryMetadata(
+        val prefKey: String,
+        val keystoreAlias: String,
+        val usesKeystoreSuffix: Boolean,
+        val secretKeyEntry: KeyStore.SecretKeyEntry,
+        val plaintext: String,
+    )
+
+    private fun readExpoSecureStoreEntry(context: Context, key: String): SecureStoreEntryMetadata? {
+        val prefs = context.getSharedPreferences(SECURE_STORE_PREFS_NAME, Context.MODE_PRIVATE)
+        val keychainAwareKey = "$DEFAULT_KEYSTORE_ALIAS-$key"
+        val (prefKey, encryptedItemString) = when {
+            prefs.contains(keychainAwareKey) -> keychainAwareKey to prefs.getString(keychainAwareKey, null)
+            prefs.contains(key) -> key to prefs.getString(key, null)
+            else -> return null
+        }
+        if (encryptedItemString.isNullOrBlank()) return null
+
+        val encryptedItem = JSONObject(encryptedItemString)
+        val scheme = encryptedItem.optString("scheme")
+        if (scheme != "aes") return null
+        if (encryptedItem.optBoolean("requireAuthentication", false)) return null
+
+        val usesKeystoreSuffix = encryptedItem.optBoolean("usesKeystoreSuffix", false)
+        val keystoreAliasProp = encryptedItem.optString("keystoreAlias", DEFAULT_KEYSTORE_ALIAS)
+            .ifBlank { DEFAULT_KEYSTORE_ALIAS }
+
+        val fullKeystoreAlias = if (usesKeystoreSuffix) {
+            "$AES_CIPHER:$keystoreAliasProp:$UNAUTHENTICATED_KEYSTORE_SUFFIX"
+        } else {
+            "$AES_CIPHER:$keystoreAliasProp"
+        }
+
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
+        if (!keyStore.containsAlias(fullKeystoreAlias)) return null
+        val secretKeyEntry = keyStore.getEntry(fullKeystoreAlias, null) as? KeyStore.SecretKeyEntry
+            ?: return null
+
+        val ctBase64 = encryptedItem.optString("ct").takeIf { it.isNotBlank() } ?: return null
+        val ivBase64 = encryptedItem.optString("iv").takeIf { it.isNotBlank() } ?: return null
+        val tlen = encryptedItem.optInt("tlen", 128)
+        if (tlen < MIN_GCM_TAG_LENGTH_BITS) return null
+
+        val ciphertextBytes = Base64.getMimeDecoder().decode(ctBase64)
+        val ivBytes = Base64.getMimeDecoder().decode(ivBase64)
+        val cipher = Cipher.getInstance(AES_CIPHER)
+        cipher.init(Cipher.DECRYPT_MODE, secretKeyEntry.secretKey, GCMParameterSpec(tlen, ivBytes))
+        val plaintext = String(cipher.doFinal(ciphertextBytes), StandardCharsets.UTF_8)
+
+        return SecureStoreEntryMetadata(
+            prefKey = prefKey,
+            keystoreAlias = keystoreAliasProp,
+            usesKeystoreSuffix = usesKeystoreSuffix,
+            secretKeyEntry = secretKeyEntry,
+            plaintext = plaintext,
+        )
+    }
+
+    fun readCredentialsFromSecureStore(context: Context, credentialsKey: String): StoredCredentials? {
+        synchronized(secureStoreLock) {
+            return try {
+                val entry = readExpoSecureStoreEntry(context, credentialsKey) ?: return null
+                parseStoredCredentialsJson(entry.plaintext)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to read credentials from SecureStore for $credentialsKey: ${e.message}")
+                null
+            }
+        }
+    }
+
+    /**
+     * Updates OAuth tokens in-place inside Expo SecureStore's entry so both native and JS
+     * share a single copy of the tokens. Re-reads the entry under `secureStoreLock` first
+     * (mirroring `SharedKeychain.updateAccountTokens` on iOS) to ensure a sign-out or
+     * account switch that happened while the refresh was in flight is never overwritten.
+     */
+    private fun updateTokensInSecureStore(
+        context: Context,
+        credentialsKey: String,
+        expectedUsername: String,
+        expectedServerUrl: String,
+        fresh: FreshTokens,
+        nowMs: Long,
+    ): StoredCredentials? {
+        synchronized(secureStoreLock) {
+            return try {
+                val currentEntry = readExpoSecureStoreEntry(context, credentialsKey) ?: return null
+                val currentCreds = parseStoredCredentialsJson(currentEntry.plaintext) ?: return null
+                if (currentCreds.username != expectedUsername || currentCreds.serverUrl != expectedServerUrl) {
+                    return null
+                }
+
+                val expiresAt = nowMs + (fresh.expiresIn * 1000.0).toLong()
+                val updatedJson = currentCreds.rawJson.apply {
+                    put("accessToken", fresh.accessToken)
+                    if (!fresh.refreshToken.isNullOrBlank()) {
+                        put("refreshToken", fresh.refreshToken)
+                    }
+                    put("expiresAt", expiresAt)
+                }
+                val updatedPlaintext = updatedJson.toString()
+
+                val cipher = Cipher.getInstance(AES_CIPHER)
+                cipher.init(Cipher.ENCRYPT_MODE, currentEntry.secretKeyEntry.secretKey)
+                val gcmSpec = cipher.parameters.getParameterSpec(GCMParameterSpec::class.java)
+                val ciphertextBytes = cipher.doFinal(updatedPlaintext.toByteArray(StandardCharsets.UTF_8))
+
+                val encryptedItem = JSONObject().apply {
+                    put("ct", Base64.getEncoder().encodeToString(ciphertextBytes))
+                    put("iv", Base64.getEncoder().encodeToString(gcmSpec.iv))
+                    put("tlen", gcmSpec.tLen)
+                    put("scheme", "aes")
+                    put("usesKeystoreSuffix", currentEntry.usesKeystoreSuffix)
+                    put("keystoreAlias", currentEntry.keystoreAlias)
+                    put("requireAuthentication", false)
+                }
+
+                val prefs = context.getSharedPreferences(SECURE_STORE_PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putString(currentEntry.prefKey, encryptedItem.toString()).commit()
+
+                parseStoredCredentialsJson(updatedPlaintext)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to update refreshed tokens in SecureStore for $credentialsKey: ${e.message}")
+                null
+            }
+        }
+    }
+
+    // ─── Shared AsyncStorage (`RKStorage`) Access ───────────────────────────
+
+    private fun readAsyncStorageItem(context: Context, key: String): String? {
+        return try {
+            val supplier = ReactDatabaseSupplier.getInstance(context)
+            synchronized(supplier) {
+                val db = supplier.get()
+                AsyncLocalStorageUtil.getItemImpl(db, key)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read AsyncStorage key $key: ${e.message}")
+            null
+        }
+    }
+
+    private fun writeAsyncStorageItems(context: Context, pairs: List<Pair<String, String>>) {
+        if (pairs.isEmpty()) return
+        try {
+            val supplier = ReactDatabaseSupplier.getInstance(context)
+            synchronized(supplier) {
+                val db = supplier.get()
+                db.beginTransaction()
+                try {
+                    for ((key, value) in pairs) {
+                        val cv = ContentValues().apply {
+                            put("key", key)
+                            put("value", value)
+                        }
+                        db.insertWithOnConflict(
+                            "catalystLocalStorage",
+                            null,
+                            cv,
+                            SQLiteDatabase.CONFLICT_REPLACE,
+                        )
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write AsyncStorage keys: ${e.message}")
+        }
+    }
+
+    private fun readNotifiedIds(context: Context, localAccountId: String): List<String> {
+        val rawRing = readAsyncStorageItem(context, notifiedIdsKeyFor(localAccountId))
+        val legacySingle = if (rawRing.isNullOrBlank()) {
+            readAsyncStorageItem(context, lastNotifiedKeyFor(localAccountId))
+        } else {
+            null
+        }
+        return parseNotifiedIds(rawRing, legacySingle)
+    }
+
+    private fun rememberNotifiedIds(context: Context, localAccountId: String, newIds: List<String>) {
+        if (newIds.isEmpty()) return
+        val current = readNotifiedIds(context, localAccountId)
+        val next = mergeNotifiedIds(current, newIds, NOTIFIED_IDS_LIMIT)
+        val json = JSONArray().apply { next.forEach { put(it) } }.toString()
+        writeAsyncStorageItems(
+            context,
+            listOf(
+                notifiedIdsKeyFor(localAccountId) to json,
+                lastNotifiedKeyFor(localAccountId) to newIds.first(),
+            ),
+        )
+    }
+
+    // ─── Auth Header & Token Refresh ────────────────────────────────────────
+
+    private fun resolveAuthHeader(
+        context: Context,
+        credentialsKey: String,
+        creds: StoredCredentials,
+    ): String? {
+        var activeCreds = creds
+        val accessToken = activeCreds.accessToken
+        if (!accessToken.isNullOrBlank()) {
+            val now = System.currentTimeMillis()
+            val refreshToken = activeCreds.refreshToken
+            val tokenEndpoint = activeCreds.tokenEndpoint
+            if (activeCreds.expiresAt > 0L && activeCreds.expiresAt - now <= TOKEN_REFRESH_LEEWAY_MS) {
+                if (refreshToken.isNullOrBlank() || tokenEndpoint.isNullOrBlank()) {
+                    return null
+                }
+                val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, activeCreds.clientId)
+                    ?: return null
+                activeCreds = updateTokensInSecureStore(
+                    context = context,
+                    credentialsKey = credentialsKey,
+                    expectedUsername = creds.username,
+                    expectedServerUrl = creds.serverUrl,
+                    fresh = fresh,
+                    nowMs = now,
+                ) ?: activeCreds.copy(accessToken = fresh.accessToken)
+            }
+            return "Bearer ${activeCreds.accessToken}"
+        }
+        val password = activeCreds.password
+        if (activeCreds.username.isNotBlank() && !password.isNullOrEmpty()) {
+            val basic = Base64.getEncoder().encodeToString(
+                "${activeCreds.username}:$password".toByteArray(StandardCharsets.UTF_8)
+            )
+            return "Basic $basic"
+        }
+        return null
+    }
+
+    private fun refreshOAuthToken(
+        tokenEndpoint: String,
+        refreshToken: String,
+        clientId: String?,
+    ): FreshTokens? {
         return try {
             val form = FormBody.Builder()
                 .add("grant_type", "refresh_token")
@@ -336,15 +843,341 @@ object BulwarkNativePushFetcher {
                 .post(form.build())
                 .build()
 
-            val resp = httpClient.newCall(req).execute()
-            if (!resp.isSuccessful) return null
-            val body = JSONObject(resp.body?.string() ?: return null)
-            val accessToken = body.optString("access_token").takeIf { it.isNotBlank() } ?: return null
-            val newRefresh = body.optString("refresh_token").takeIf { it.isNotBlank() }
-            val expiresIn = body.optDouble("expires_in", 3600.0)
-            FreshTokens(accessToken, newRefresh, expiresIn)
+            httpClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val bodyStr = resp.body?.string() ?: return null
+                val body = JSONObject(bodyStr)
+                val accessToken = body.optString("access_token").takeIf { it.isNotBlank() } ?: return null
+                val newRefresh = if (body.isNull("refresh_token")) null else body.optString("refresh_token").takeIf { it.isNotBlank() }
+                val expiresIn = body.optDouble("expires_in", 3600.0)
+                FreshTokens(accessToken, newRefresh, expiresIn)
+            }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    private fun readLocalizedStrings(context: Context, accountObj: JSONObject): LocalizedStrings {
+        val stringsObj = accountObj.optJSONObject("strings")
+        return LocalizedStrings(
+            newEmail = stringsObj?.optString("newEmail")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_new_email),
+            noSubject = stringsObj?.optString("noSubject")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_no_subject),
+            markRead = stringsObj?.optString("markRead")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_action_mark_read),
+            delete = stringsObj?.optString("delete")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_action_delete),
+            reply = stringsObj?.optString("reply")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_action_reply),
+        )
+    }
+
+    // ─── Main Push Entry Point ──────────────────────────────────────────────
+
+    /**
+     * Attempts to fetch new mail metadata and post notifications natively.
+     *
+     * Return value semantics:
+     * - `true`: The push has been completely handled (notifications posted, or notifications
+     *   are disabled for this account, or all pushed message IDs were already notified / already
+     *   read / marked as junk on the server). The caller MUST NOT start the headless JS task.
+     * - `false`: Native could not handle the push (no shared account metadata, legacy push
+     *   without `emailIds`, label mismatch / multi-account ambiguity, missing credentials, or
+     *   network / JMAP error). The caller falls back to the headless JS task.
+     */
+    fun processPush(context: Context, data: Map<String, String>): Boolean {
+        return try {
+            val jmapAccountId = data["accountId"]?.takeIf { it.isNotBlank() } ?: return false
+            val prefs = getPrefs(context)
+            val accountRaw = prefs.getString(jmapAccountId, null) ?: return false
+
+            val account = JSONObject(accountRaw)
+            val apiUrl = account.optString("apiUrl").takeIf { it.isNotBlank() } ?: return false
+            val localAccountId = account.optString("accountId").takeIf { it.isNotBlank() } ?: return false
+            val label = if (account.isNull("label")) null else account.optString("label").takeIf { it.isNotBlank() }
+            val credentialsKey = account.optString("credentialsKey")
+                .takeIf { it.isNotBlank() }
+                ?: credentialsKeyFor(localAccountId)
+
+            // Validate push label if present (mirroring NotificationService.swift)
+            val pushLabel = data["accountLabel"]
+            if (!pushLabelMatchesAccount(pushLabel, label, localAccountId)) {
+                Log.w(TAG, "Push label does not fit shared account for $jmapAccountId ($pushLabel vs $label)")
+                return false
+            }
+
+            // Respect user notification settings and per-account opt-out directly from AsyncStorage
+            val optedOut = readAsyncStorageItem(context, optedOutKeyFor(localAccountId))
+            if (!optedOut.isNullOrBlank()) {
+                Log.i(TAG, "Push received for opted-out account $localAccountId; skipping")
+                return true
+            }
+            val settingsJson = readAsyncStorageItem(context, SETTINGS_STORAGE_KEY)
+            if (!isEmailNotificationsEnabledInSettings(settingsJson)) {
+                Log.i(TAG, "Push received while email notifications are disabled; skipping")
+                return true
+            }
+
+            // Extract email IDs; legacy state-change payloads without IDs fall back to JS
+            val rawEmailIds = extractEmailIds(data)
+            if (rawEmailIds.isEmpty()) {
+                Log.i(TAG, "Push carries no emailIds; falling back to headless JS task")
+                return false
+            }
+
+            // Shared deduplication check against AsyncStorage `push:notifiedIds:v1:<accountId>`
+            val alreadyNotified = readNotifiedIds(context, localAccountId).toSet()
+            val freshEmailIds = rawEmailIds.filter { !alreadyNotified.contains(it) }
+            if (freshEmailIds.isEmpty()) {
+                Log.i(TAG, "All email IDs already notified for account $localAccountId; skipping")
+                return true
+            }
+
+            // Read credentials from Expo SecureStore (and refresh OAuth token in-place if needed)
+            val creds = readCredentialsFromSecureStore(context, credentialsKey) ?: return false
+            val authHeader = resolveAuthHeader(context, credentialsKey, creds) ?: return false
+
+            // Execute single-round-trip JMAP Email/get + Mailbox/get request
+            val bodyJson = buildJmapEmailAndMailboxGetBody(jmapAccountId, freshEmailIds)
+            val request = Request.Builder()
+                .url(apiUrl)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json")
+                .addHeader("Authorization", authHeader)
+                .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val responseBody = httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "JMAP HTTP request failed with status ${response.code}")
+                    return false
+                }
+                response.body?.string()
+            } ?: return false
+
+            when (val result = parseJmapGetResponse(responseBody, alreadyNotified)) {
+                is JmapFetchResult.Failure -> {
+                    Log.w(TAG, "JMAP response failure (${result.reason}); falling back to headless JS task")
+                    return false
+                }
+                is JmapFetchResult.Success -> {
+                    val emails = result.emails
+                    if (emails.isEmpty()) {
+                        // Nothing new to show (e.g. already read on another device or marked as $junk).
+                        // Return true so we don't start the headless JS task unnecessarily (#94).
+                        Log.i(TAG, "Native push: all fetched messages are already read or junk; nothing to show")
+                        return true
+                    }
+
+                    val strings = readLocalizedStrings(context, account)
+                    val faviconsEnabled = isSenderFaviconsEnabledInSettings(settingsJson)
+                    val groupKey = "bulwark-mail:$localAccountId"
+                    val groupTitle = label ?: localAccountId.substringBefore('@').ifBlank { localAccountId }
+
+                    for (email in emails) {
+                        val title = email.senderName.ifBlank {
+                            email.senderEmail.ifBlank { strings.newEmail }
+                        }
+                        val displaySubject = email.subject.ifBlank { strings.noSubject }
+                        val initials = getEmailInitials(email.senderName, email.senderEmail)
+                        val bgColorHex = generateEmailAvatarColorHex(email.senderName, email.senderEmail)
+                        val iconUrl = if (faviconsEnabled) {
+                            getFaviconDomain(email.senderEmail)?.let { getFaviconUrl(it) }
+                        } else {
+                            null
+                        }
+
+                        BulwarkFcmModule.postNotificationNatively(
+                            context = context,
+                            notificationId = "mail:${email.id}",
+                            title = title,
+                            body = displaySubject,
+                            preview = email.preview.ifBlank { null },
+                            initials = initials,
+                            bgColorHex = bgColorHex,
+                            iconUrl = iconUrl,
+                            emailId = email.id,
+                            threadId = email.threadId,
+                            subject = email.subject.ifBlank { null },
+                            accountId = localAccountId,
+                            jmapAccountId = jmapAccountId,
+                            groupKey = groupKey,
+                            groupTitle = groupTitle,
+                            markReadLabel = strings.markRead,
+                            deleteLabel = strings.delete,
+                            replyLabel = strings.reply,
+                            deleteNeedsUnlock = !result.hasTrash,
+                        )
+                    }
+
+                    // Record newest-first in the shared ring (matching push-background-task.ts line 675)
+                    rememberNotifiedIds(context, localAccountId, emails.map { it.id }.reversed())
+                    Log.i(TAG, "Native push: successfully posted ${emails.size} notification(s)")
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "processPush exception: ${e.message}", e)
+            false
+        }
+    }
+
+    // ─── Native Notification Action Execution (Mark as Read / Delete) ───────
+
+    /**
+     * Executes a notification action (`markRead` or `delete`) natively over JMAP
+     * so action buttons work reliably even when the app is cached/dozing on Samsung One UI.
+     * Returns `true` if the action succeeded natively, or `false` to fall back to Headless JS.
+     */
+    fun executeNotificationAction(
+        context: Context,
+        action: String,
+        emailId: String,
+        accountId: String,
+        jmapAccountId: String?,
+    ): Boolean {
+        return try {
+            val prefs = getPrefs(context)
+            var accountObj: JSONObject? = null
+            var resolvedJmapAccountId: String? = jmapAccountId?.takeIf { it.isNotBlank() }
+
+            if (resolvedJmapAccountId != null) {
+                val raw = prefs.getString(resolvedJmapAccountId, null)
+                if (raw != null) accountObj = JSONObject(raw)
+            }
+            if (accountObj == null) {
+                for ((key, value) in prefs.all) {
+                    val raw = value as? String ?: continue
+                    val obj = try { JSONObject(raw) } catch (_: Exception) { continue }
+                    if (obj.optString("accountId") == accountId) {
+                        accountObj = obj
+                        if (resolvedJmapAccountId == null) resolvedJmapAccountId = key
+                        break
+                    }
+                }
+            }
+
+            val account = accountObj ?: return false
+            val targetJmapAccountId = resolvedJmapAccountId ?: return false
+            val apiUrl = account.optString("apiUrl").takeIf { it.isNotBlank() } ?: return false
+            val credentialsKey = account.optString("credentialsKey")
+                .takeIf { it.isNotBlank() }
+                ?: credentialsKeyFor(accountId)
+
+            val creds = readCredentialsFromSecureStore(context, credentialsKey) ?: return false
+            val authHeader = resolveAuthHeader(context, credentialsKey, creds) ?: return false
+
+            when (action) {
+                "markRead" -> {
+                    val patch = JSONObject().apply { put("keywords/\$seen", true) }
+                    executeEmailSetUpdate(apiUrl, authHeader, targetJmapAccountId, emailId, patch)
+                }
+                "delete" -> {
+                    val trashId = fetchTrashMailboxId(apiUrl, authHeader, targetJmapAccountId)
+                        ?: return false
+                    val settingsJson = readAsyncStorageItem(context, SETTINGS_STORAGE_KEY)
+                    val markReadToo = isDeleteMarksReadInSettings(settingsJson)
+                    val patch = JSONObject().apply {
+                        put("mailboxIds", JSONObject().apply { put(trashId, true) })
+                        if (markReadToo) put("keywords/\$seen", true)
+                    }
+                    executeEmailSetUpdate(apiUrl, authHeader, targetJmapAccountId, emailId, patch)
+                }
+                else -> false
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "executeNotificationAction failed ($action, $emailId): ${e.message}")
+            false
+        }
+    }
+
+    private fun fetchTrashMailboxId(
+        apiUrl: String,
+        authHeader: String,
+        jmapAccountId: String,
+    ): String? {
+        val bodyJson = JSONObject().apply {
+            put("using", JSONArray().apply {
+                put("urn:ietf:params:jmap:core")
+                put("urn:ietf:params:jmap:mail")
+            })
+            put("methodCalls", JSONArray().apply {
+                put(JSONArray().apply {
+                    put("Mailbox/get")
+                    put(JSONObject().apply {
+                        put("accountId", jmapAccountId)
+                        put("properties", JSONArray().apply {
+                            put("id")
+                            put("role")
+                        })
+                    })
+                    put("0")
+                })
+            })
+        }
+        val request = Request.Builder()
+            .url(apiUrl)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .addHeader("Authorization", authHeader)
+            .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        httpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) return null
+            val root = JSONObject(resp.body?.string() ?: return null)
+            val first = root.optJSONArray("methodResponses")?.optJSONArray(0) ?: return null
+            if (first.optString(0) != "Mailbox/get") return null
+            val list = first.optJSONObject(1)?.optJSONArray("list") ?: return null
+            for (i in 0 until list.length()) {
+                val mb = list.optJSONObject(i) ?: continue
+                if (mb.optString("role") == "trash") {
+                    return mb.optString("id").takeIf { it.isNotBlank() }
+                }
+            }
+            return null
+        }
+    }
+
+    private fun executeEmailSetUpdate(
+        apiUrl: String,
+        authHeader: String,
+        jmapAccountId: String,
+        emailId: String,
+        patch: JSONObject,
+    ): Boolean {
+        val bodyJson = JSONObject().apply {
+            put("using", JSONArray().apply {
+                put("urn:ietf:params:jmap:core")
+                put("urn:ietf:params:jmap:mail")
+            })
+            put("methodCalls", JSONArray().apply {
+                put(JSONArray().apply {
+                    put("Email/set")
+                    put(JSONObject().apply {
+                        put("accountId", jmapAccountId)
+                        put("update", JSONObject().apply { put(emailId, patch) })
+                    })
+                    put("0")
+                })
+            })
+        }
+        val request = Request.Builder()
+            .url(apiUrl)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .addHeader("Authorization", authHeader)
+            .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        httpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) return false
+            val root = JSONObject(resp.body?.string() ?: return false)
+            val first = root.optJSONArray("methodResponses")?.optJSONArray(0) ?: return false
+            if (first.optString(0) != "Email/set") return false
+            val updated = first.optJSONObject(1)?.optJSONObject("updated") ?: return false
+            return updated.has(emailId)
         }
     }
 }

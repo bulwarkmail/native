@@ -3,12 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules, Platform } from 'react-native';
 import fs from 'node:fs';
 import path from 'node:path';
-import { jmapClient } from '../../api/jmap-client';
-import { shareAccountWithExtension, syncRefreshedNativeTokens } from '../push-notifications';
+import { credentialsKey } from '../../api/jmap-client';
+import { shareAccountWithExtension, lastNotifiedKey, notifiedIdsKey } from '../push-notifications';
 
 const savePushAccount = vi.fn();
 const removePushAccount = vi.fn();
-const getRefreshedAccountTokens = vi.fn();
 
 describe('shareAccountWithExtension on Android', () => {
   const API = 'https://mail.example.org/jmap/';
@@ -20,54 +19,37 @@ describe('shareAccountWithExtension on Android', () => {
     (NativeModules as Record<string, unknown>).BulwarkFcm = {
       savePushAccount,
       removePushAccount,
-      getRefreshedAccountTokens,
     };
-    vi.spyOn(jmapClient, 'getStoredCredentials').mockResolvedValue({
-      username: 'ada',
-      password: 'secret',
-      serverUrl: 'https://mail.example.org',
-    } as any);
   });
 
   afterEach(() => {
     delete (NativeModules as Record<string, unknown>).BulwarkFcm;
   });
 
-  it('shares credentials and apiUrl with native Android for fast native push (#94)', async () => {
+  it('shares credentialsKey, apiUrl and localized strings without copying secrets (#94)', async () => {
     await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ 'ada@mail.example.org': 'c' }));
     await shareAccountWithExtension('ada@mail.example.org', 'c', API, 'ada');
 
     expect(savePushAccount).toHaveBeenCalledTimes(1);
     expect(savePushAccount).toHaveBeenCalledWith('c', expect.stringContaining(API));
     const parsed = JSON.parse(savePushAccount.mock.calls[0][1]);
-    expect(parsed).toMatchObject({
+    expect(parsed).toEqual({
+      credentialsKey: credentialsKey('ada@mail.example.org'),
       accountId: 'ada@mail.example.org',
       apiUrl: API,
       label: 'ada',
-      username: 'ada',
-      password: 'secret',
-      notificationsAllowed: true,
-    });
-  });
-
-  it('syncs refreshed native OAuth tokens back into SecureStore', async () => {
-    const setStoredCredentials = vi.spyOn(jmapClient, 'setStoredCredentials').mockResolvedValue(undefined);
-    getRefreshedAccountTokens.mockResolvedValue({
-      'ada@mail.example.org': {
-        accessToken: 'fresh-access',
-        refreshToken: 'fresh-refresh',
-        expiresAt: 123456789,
+      strings: {
+        newEmail: expect.any(String),
+        noSubject: expect.any(String),
+        markRead: expect.any(String),
+        delete: expect.any(String),
+        reply: expect.any(String),
       },
     });
-
-    await syncRefreshedNativeTokens();
-
-    expect(setStoredCredentials).toHaveBeenCalledWith('ada@mail.example.org', expect.objectContaining({
-      username: 'ada',
-      accessToken: 'fresh-access',
-      refreshToken: 'fresh-refresh',
-      expiresAt: 123456789,
-    }));
+    // Ensure passwords and OAuth tokens are never duplicated into SharedPreferences
+    expect(parsed.password).toBeUndefined();
+    expect(parsed.accessToken).toBeUndefined();
+    expect(parsed.refreshToken).toBeUndefined();
   });
 
   it('removes native push account when there is a duplicate JMAP account id', async () => {
@@ -81,7 +63,7 @@ describe('shareAccountWithExtension on Android', () => {
     expect(removePushAccount).toHaveBeenCalledWith('c');
   });
 
-  it('includes native Kotlin fetcher implementation for background execution', () => {
+  it('shares the exact same SecureStore and AsyncStorage keys with BulwarkNativePushFetcher.kt', () => {
     const fetcherPath = path.resolve(
       __dirname,
       '../../../android/app/src/main/java/com/anonymous/bulwarkmobile/BulwarkNativePushFetcher.kt',
@@ -89,7 +71,10 @@ describe('shareAccountWithExtension on Android', () => {
     expect(fs.existsSync(fetcherPath)).toBe(true);
     const content = fs.readFileSync(fetcherPath, 'utf8');
     expect(content).toContain('fun processPush(');
-    expect(content).toContain('refreshOAuthToken(');
-    expect(content).toContain('Email/get');
+    expect(content).toContain('readCredentialsFromSecureStore(');
+    expect(content).toContain('updateTokensInSecureStore(');
+    expect(content).toContain(notifiedIdsKey(''));
+    expect(content).toContain(lastNotifiedKey(''));
+    expect(content).not.toContain('EncryptedSharedPreferences');
   });
 });
