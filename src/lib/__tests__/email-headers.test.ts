@@ -147,7 +147,8 @@ describe('deriveHeaderInfo', () => {
     const info = deriveHeaderInfo({
       headers: [
         { name: 'Disposition-Notification-To', value: 'Sender <s@x.example>' },
-        { name: 'X-Spam-Status', value: 'No, score=0.1' },
+        { name: 'X-Spam-Status', value: 'random string that does not meet the format' },
+        { name: 'X-Spam-Result', value: 'No, score=0.1' },
         { name: 'Authentication-Results', value: 'mx; dmarc=fail header.from=x.example' },
         { name: 'Authentication-Results', value: 'relay; dmarc=pass header.from=x.example' },
       ],
