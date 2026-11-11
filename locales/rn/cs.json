@@ -560,7 +560,12 @@
     "not_spam_short": "Není spam",
     "quick_reply_login_switched": "Tato zpráva je v jiném účtu. Chcete-li odpovědět, přepněte zpět na něj.",
     "quick_reply_unconfirmed": "Server odeslání nepotvrdil. Než zprávu odešlete znovu, zkontrolujte složku Odeslané.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Balíček aplikace z e-mailu",
+      "message": "„{name}“ je balíček aplikace pro Android. Aplikace nainstalovaná z e-mailu může převzít kontrolu nad tímto zařízením. Pokračujte, jen pokud jste tento soubor očekávali.",
+      "continue": "Pokračovat"
+    }
   },
   "files": {
     "delete_cascade_hint": "Složky se smažou včetně veškerého obsahu. Tuto akci nelze vrátit zpět.",

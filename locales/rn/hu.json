@@ -556,7 +556,12 @@
     "not_spam_short": "Nem spam",
     "quick_reply_login_switched": "Ez az üzenet egy másik fiókban van. A válaszhoz válts vissza arra a fiókra.",
     "quick_reply_unconfirmed": "A szerver nem erősítette meg a küldést. Mielőtt újra elküldöd, nézd meg az Elküldött mappát.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Alkalmazáscsomag egy levélből",
+      "message": "A(z) „{name}” egy Android-alkalmazáscsomag. Egy levélből telepített alkalmazás átveheti az irányítást az eszköz felett. Csak akkor folytasd, ha vártad ezt a fájlt.",
+      "continue": "Folytatás"
+    }
   },
   "files": {
     "delete_cascade_hint": "A mappák a teljes tartalmukkal együtt törlődnek. Ez nem vonható vissza.",

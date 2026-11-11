@@ -567,7 +567,12 @@
     "next": "Nächste",
     "quick_reply_login_switched": "Diese Nachricht gehört zu einem anderen Konto. Wechseln Sie zurück zu diesem Konto, um zu antworten.",
     "quick_reply_unconfirmed": "Der Server hat das Senden nicht bestätigt. Prüfen Sie Ihren Gesendet-Ordner, bevor Sie erneut senden.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "App-Paket aus einer E-Mail",
+      "message": "„{name}“ ist ein Android-App-Paket. Eine aus einer E-Mail installierte App kann dieses Gerät übernehmen. Fahren Sie nur fort, wenn Sie diese Datei erwartet haben.",
+      "continue": "Fortfahren"
+    }
   },
   "files": {
     "delete_cascade_hint": "Ordner werden samt ihrem gesamten Inhalt gelöscht. Dies kann nicht rückgängig gemacht werden.",

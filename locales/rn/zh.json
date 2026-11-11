@@ -559,7 +559,12 @@
     "not_spam_short": "非垃圾邮件",
     "spam_short": "垃圾邮件",
     "quick_reply_login_switched": "这封邮件属于另一个账户。请切换回该账户再回复。",
-    "quick_reply_unconfirmed": "服务器未确认发送。再次发送前，请先检查“已发送”文件夹。"
+    "quick_reply_unconfirmed": "服务器未确认发送。再次发送前，请先检查“已发送”文件夹。",
+    "package_handoff": {
+      "title": "来自邮件的应用安装包",
+      "message": "“{name}”是 Android 应用安装包。从邮件安装的应用可能会控制此设备。只有在你预期收到此文件时才继续。",
+      "continue": "继续"
+    }
   },
   "files": {
     "delete_cascade_hint": "文件夹将连同其中的所有内容一起删除。此操作无法撤销。",

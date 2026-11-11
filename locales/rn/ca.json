@@ -560,7 +560,12 @@
     "not_spam_short": "No és brossa",
     "spam_short": "Brossa",
     "quick_reply_login_switched": "Aquest missatge és en un altre compte. Torneu a aquell compte per respondre.",
-    "quick_reply_unconfirmed": "El servidor no ha confirmat l'enviament. Comproveu la carpeta Enviats abans de tornar a enviar."
+    "quick_reply_unconfirmed": "El servidor no ha confirmat l'enviament. Comproveu la carpeta Enviats abans de tornar a enviar.",
+    "package_handoff": {
+      "title": "Paquet d'aplicació d'un correu",
+      "message": "«{name}» és un paquet d'aplicació d'Android. Una aplicació instal·lada des d'un correu pot prendre el control d'aquest dispositiu. Continueu només si esperàveu aquest fitxer.",
+      "continue": "Continua"
+    }
   },
   "files": {
     "delete_cascade_hint": "Les carpetes se suprimeixen amb tot el que contenen. Això no es pot desfer.",

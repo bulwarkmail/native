@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
@@ -15,8 +15,9 @@ import {
 import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
 import { stripBidiControls } from './bidi';
-import { handoffMimeType } from './file-preview';
+import { ANDROID_PACKAGE_MIME, handoffMimeType } from './file-preview';
 import { isForeignContentUri } from './share-intent';
+import { androidDistribution } from './platform-capabilities';
 
 const RFC822 = 'message/rfc822';
 const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
@@ -147,6 +148,33 @@ function scheduleTempCleanup(file: File): void {
 // one exception: it assembles the intent itself, so there it's the reverse —
 // only a content URI is grantable to another app.
 
+/**
+ * Before a file handed to another app goes as an app package (a name ending
+ * in .apk, see handoffMimeType): asks in the app's own dialog, which says
+ * that it is an app package from a mail. Resolves true to go on. Only the
+ * GitHub build on Android asks: the Play build can't install packages, and
+ * iOS can't run them.
+ */
+export function confirmHandoff(name: string | undefined, type: string | null | undefined): Promise<boolean> {
+  if (Platform.OS !== 'android' || androidDistribution === 'play') return Promise.resolve(true);
+  if (handoffMimeType(name, type) !== ANDROID_PACKAGE_MIME) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    Alert.alert(
+      t('email_viewer.package_handoff.title', 'App package from a mail'),
+      t(
+        'email_viewer.package_handoff.message',
+        '"{name}" is an Android app package. An app installed from a mail can take over this device. Only continue if you expected this file.',
+        { name: name ?? '' },
+      ),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
+        { text: t('email_viewer.package_handoff.continue', 'Continue'), style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
+}
+
 // Android-only: hand the file to whichever app owns the type (PDF viewer,
 // gallery, video player, ...) rather than to the share sheet. Returns false
 // when the handoff didn't happen so the caller can fall back to sharing —
@@ -250,6 +278,7 @@ export async function shareAttachment(
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
+  if (!(await confirmHandoff(filename, mimeType))) return;
   const downloaded = await cacheBlobFile(blobId, filename, mimeType, accountId);
 
   if (Platform.OS === 'android' && (await openWithViewer(downloaded, mimeType))) {
@@ -288,6 +317,7 @@ export async function downloadAttachment(
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
+  if (!(await confirmHandoff(filename, mimeType))) return;
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
   const downloaded = await downloadInto(url, dest, Paths.document);
@@ -311,6 +341,7 @@ async function offerSavedFile(file: File, filename: string, mimeType: string): P
  */
 export async function saveLocalFileCopy(file: File, mimeType: string, filename = file.name): Promise<void> {
   const name = safeAttachmentName(filename, mimeType);
+  if (!(await confirmHandoff(name, mimeType))) return;
   const dest = new File(Paths.document, name);
   if (dest.exists) dest.delete();
   file.copy(dest);
@@ -449,6 +480,10 @@ export async function shareLocalFile(
   dialogTitle?: string,
   opts: { forceSheet?: boolean; keep?: boolean } = {},
 ): Promise<void> {
+  if (!(await confirmHandoff(file.name, mimeType))) {
+    if (!opts.keep) deleteQuietly(file);
+    return;
+  }
   if (!opts.forceSheet && Platform.OS === 'android' && (await openWithViewer(file, mimeType))) return;
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
