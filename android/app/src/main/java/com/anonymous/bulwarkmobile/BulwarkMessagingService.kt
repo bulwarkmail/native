@@ -33,7 +33,17 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         // they feed (device sync, #34); only mail needs the push task.
         val mail = DeviceSyncPushRouter.route(applicationContext, data)
 
-        startTaskUnlessInForeground(applicationContext, data, mail)
+        var handledNatively = false
+        if (mail && !MainActivity.isInForeground) {
+            handledNatively = BulwarkNativePushFetcher.processPush(applicationContext, data)
+            if (handledNatively) {
+                Log.i(TAG, "Push handled natively via Kotlin")
+            }
+        }
+
+        if (mail && !handledNatively) {
+            startTaskUnlessInForeground(applicationContext, data, mail)
+        }
 
         val params = Arguments.createMap().apply {
             val dataMap = Arguments.createMap()
