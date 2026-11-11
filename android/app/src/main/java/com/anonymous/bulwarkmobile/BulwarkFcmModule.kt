@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -68,6 +69,8 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val subject = options.takeIf { it.hasKey("subject") }?.getString("subject")
         val accountId = options.takeIf { it.hasKey("accountId") }?.getString("accountId")
         val jmapAccountId = options.takeIf { it.hasKey("jmapAccountId") }?.getString("jmapAccountId")
+        val mailboxIds = options.takeIf { it.hasKey("mailboxIds") }?.getArray("mailboxIds")
+            ?.toArrayList()?.filterIsInstance<String>()
         val groupKey = options.takeIf { it.hasKey("groupKey") }?.getString("groupKey")
             ?: accountId?.let { "bulwark-mail:$it" }
         val groupTitle = options.takeIf { it.hasKey("groupTitle") }?.getString("groupTitle")
@@ -116,7 +119,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 val posted = postOnceForAccount(reactApplicationContext, notifiedAccountId, notifiedIds) {
                     postNotification(
                         reactApplicationContext, notificationId, title, body, preview, largeIcon, bgColorHex,
-                        emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                        emailId, threadId, subject, accountId, jmapAccountId, mailboxIds, groupKey,
                         groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
                         archiveLabel, copyCode,
                     )
@@ -182,6 +185,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         subject: String?,
         accountId: String?,
         jmapAccountId: String?,
+        mailboxIds: List<String>?,
         groupKey: String?,
         groupTitle: String?,
         markReadLabel: String,
@@ -234,6 +238,16 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pending)
+        if (emailId != null && accountId != null && jmapAccountId != null) {
+            // What a change push needs to tell whether this message was read,
+            // moved or deleted elsewhere (#96, BulwarkNativePushFetcher.reconcileNotifications).
+            builder.addExtras(Bundle().apply {
+                putString(EXTRA_SHOWN_EMAIL_ID, emailId)
+                putString(EXTRA_SHOWN_ACCOUNT_ID, accountId)
+                putString(EXTRA_SHOWN_JMAP_ACCOUNT_ID, jmapAccountId)
+                if (mailboxIds != null) putStringArrayList(EXTRA_SHOWN_MAILBOX_IDS, ArrayList(mailboxIds))
+            })
+        }
         if (groupKey != null) {
             builder.setGroup(groupKey)
             builder.setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
@@ -575,6 +589,12 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         fun watchActions(archive: Boolean): List<String> =
             if (archive) listOf("archive", "markRead", "delete") else listOf("markRead", "delete")
 
+        // Extras of a posted mail notification (#96).
+        const val EXTRA_SHOWN_EMAIL_ID = "bulwark.mail.emailId"
+        const val EXTRA_SHOWN_ACCOUNT_ID = "bulwark.mail.accountId"
+        const val EXTRA_SHOWN_JMAP_ACCOUNT_ID = "bulwark.mail.jmapAccountId"
+        const val EXTRA_SHOWN_MAILBOX_IDS = "bulwark.mail.mailboxIds"
+
         fun emit(eventName: String, params: WritableMap?) {
             val module = currentInstance ?: return
             val ctx = module.reactApplicationContext
@@ -596,6 +616,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             subject: String?,
             accountId: String?,
             jmapAccountId: String?,
+            mailboxIds: List<String>?,
             groupKey: String?,
             groupTitle: String?,
             markReadLabel: String = context.getString(R.string.notification_action_mark_read),
@@ -610,7 +631,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             return postOnceForAccount(context, accountId, listOfNotNull(emailId)) {
                 postNotification(
                     context, notificationId, title, body, preview, largeIcon, bgColorHex,
-                    emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                    emailId, threadId, subject, accountId, jmapAccountId, mailboxIds, groupKey,
                     groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
                     archiveLabel, copyCode,
                 )
