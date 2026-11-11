@@ -2,6 +2,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { fetchWithoutForeignRedirect, secureFetch } from './client-cert';
 import { base64UrlEncode, randomBytes, randomHex } from './random';
 import { sha256Hex } from './sha256';
+import { stripBidiControls } from './bidi';
 
 // Webmail-mediated login. The app opens the webmail's normal login page with
 // extra `mobile_redirect_uri`, `mobile_state` and `mobile_code_challenge`
@@ -52,6 +53,23 @@ export class HandoffCancelledError extends HandoffError {
   constructor() {
     super('Sign-in cancelled');
   }
+}
+
+/** The most of a provider's error text the sign-in screen shows. */
+export const PROVIDER_ERROR_MAX = 160;
+
+/**
+ * A provider's error text as the sign-in screen shows it: one line, without
+ * control or directional formatting characters, and cut to
+ * PROVIDER_ERROR_MAX characters.
+ */
+export function providerErrorLine(text: string): string {
+  const line = stripBidiControls(text)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f-\x9f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return line.length > PROVIDER_ERROR_MAX ? `${line.slice(0, PROVIDER_ERROR_MAX - 1).trimEnd()}…` : line;
 }
 
 // The token endpoint could not be reached, or answered 5xx/429: the refresh
@@ -409,7 +427,13 @@ export async function runWebmailHandoff(
   const fragment = parseFragment(result.url);
   const query = parseQuery(result.url);
   const err = fragment.get('error') ?? query.get('error');
-  if (err) throw new HandoffError(err);
+  if (err) {
+    // Any app or page can open the callback link while the browser is open:
+    // its error is believed only with this sign-in's state, and shown as one
+    // short line.
+    if (query.get('state') !== state && fragment.get('state') !== state) throw new HandoffError('State mismatch');
+    throw new HandoffError(providerErrorLine(err));
+  }
 
   // A webmail that got the challenge answers with a one-time code in the
   // query string; older webmails and Lite put the sign-in in the fragment.
