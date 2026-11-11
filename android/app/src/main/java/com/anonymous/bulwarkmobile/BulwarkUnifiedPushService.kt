@@ -1,6 +1,7 @@
 package com.anonymous.bulwarkmobile
 
 import android.content.Context
+import android.util.Log
 import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
 import com.facebook.react.bridge.Arguments
 import org.json.JSONArray
@@ -9,6 +10,8 @@ import org.unifiedpush.android.connector.FailedReason
 import org.unifiedpush.android.connector.PushService
 import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
+
+private const val TAG = "BulwarkUnifiedPushService"
 
 // Receives UnifiedPush events from the user's distributor app (ntfy, ...).
 // The relay sends the same content-blind ForwardPayload it sends over FCM -

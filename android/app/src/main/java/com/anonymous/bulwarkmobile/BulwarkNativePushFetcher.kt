@@ -4,10 +4,10 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import okhttp3.FormBody
-import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -33,7 +33,7 @@ object BulwarkNativePushFetcher {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    private val JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8")
+    private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
     data class PushedEmail(
         val id: String,
@@ -209,16 +209,16 @@ object BulwarkNativePushFetcher {
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Accept", "application/json")
                 .addHeader("Authorization", authHeader)
-                .post(RequestBody.create(JSON_MEDIA_TYPE, bodyJson.toString()))
+                .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
 
             val response = httpClient.newCall(request).execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "JMAP HTTP request failed with code ${response.code()}")
+                Log.w(TAG, "JMAP HTTP request failed with code ${response.code}")
                 return false
             }
 
-            val responseBody = response.body()?.string() ?: return false
+            val responseBody = response.body?.string() ?: return false
             val root = JSONObject(responseBody)
             val methodResponses = root.optJSONArray("methodResponses") ?: return false
 
@@ -301,7 +301,7 @@ object BulwarkNativePushFetcher {
 
             val resp = httpClient.newCall(req).execute()
             if (!resp.isSuccessful) return null
-            val body = JSONObject(resp.body()?.string() ?: return null)
+            val body = JSONObject(resp.body?.string() ?: return null)
             val accessToken = body.optString("access_token").takeIf { it.isNotBlank() } ?: return null
             val newRefresh = body.optString("refresh_token").takeIf { it.isNotBlank() }
             val expiresIn = body.optDouble("expires_in", 3600.0)
