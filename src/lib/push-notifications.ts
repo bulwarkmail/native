@@ -1724,12 +1724,11 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
   }
   if (Platform.OS === 'android') {
     const jmapAccountId = (await readPushJmapAccountIds())[accountId];
-    if (jmapAccountId) {
-      const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
-        removePushAccount?: (id: string) => void;
-      } | undefined;
-      native?.removePushAccount?.(jmapAccountId);
-    }
+    const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
+      removePushAccount?: (id: string) => void;
+    } | undefined;
+    if (jmapAccountId) native?.removePushAccount?.(jmapAccountId);
+    native?.removePushAccount?.(accountId);
   }
   await AsyncStorage.multiRemove([
     subscriptionIdKey(accountId),

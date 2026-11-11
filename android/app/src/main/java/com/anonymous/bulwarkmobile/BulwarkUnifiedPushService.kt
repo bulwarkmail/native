@@ -1,7 +1,6 @@
 package com.anonymous.bulwarkmobile
 
 import android.content.Context
-import android.util.Log
 import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
 import com.facebook.react.bridge.Arguments
 import org.json.JSONArray
@@ -10,8 +9,6 @@ import org.unifiedpush.android.connector.FailedReason
 import org.unifiedpush.android.connector.PushService
 import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
-
-private const val TAG = "BulwarkUnifiedPushService"
 
 // Receives UnifiedPush events from the user's distributor app (ntfy, ...).
 // The relay sends the same content-blind ForwardPayload it sends over FCM -
@@ -38,18 +35,7 @@ class BulwarkUnifiedPushService : PushService() {
         // Same routing as FCM: contact and calendar changes request device
         // syncs, and only mail starts the push task.
         val mail = DeviceSyncPushRouter.route(applicationContext, data)
-
-        var handledNatively = false
-        if (mail && !MainActivity.isInForeground) {
-            handledNatively = BulwarkNativePushFetcher.processPush(applicationContext, data)
-            if (handledNatively) {
-                Log.i(TAG, "UnifiedPush handled natively via Kotlin")
-            }
-        }
-
-        if (mail && !handledNatively) {
-            BulwarkMessagingService.startTaskUnlessInForeground(applicationContext, data, mail)
-        }
+        BulwarkMessagingService.startTaskUnlessInForeground(applicationContext, data, mail)
 
         // Same event name and shape as the FCM path so the foreground JS
         // handler (App.tsx addMessageListener) works transport-agnostically.

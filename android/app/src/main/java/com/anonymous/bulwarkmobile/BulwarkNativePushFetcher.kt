@@ -123,6 +123,27 @@ object BulwarkNativePushFetcher {
     fun getPrefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /**
+     * Removes shared push metadata by either `jmapAccountId` (map key) or `localAccountId`
+     * (`accountId` field inside the JSON value).
+     */
+    fun removePushAccount(context: Context, idOrAccountId: String) {
+        if (idOrAccountId.isBlank()) return
+        val prefs = getPrefs(context)
+        val editor = prefs.edit()
+        editor.remove(idOrAccountId)
+        for ((key, value) in prefs.all) {
+            val raw = value as? String ?: continue
+            val matchesAccount = try {
+                JSONObject(raw).optString("accountId") == idOrAccountId
+            } catch (_: Exception) {
+                false
+            }
+            if (matchesAccount) editor.remove(key)
+        }
+        editor.apply()
+    }
+
     // ─── Pure key & data helpers (JVM-unit-testable) ────────────────────────
 
     fun credentialsKeyFor(accountId: String): String =
@@ -786,16 +807,27 @@ object BulwarkNativePushFetcher {
         )
     }
 
-    // ─── Auth Header & Token Refresh ────────────────────────────────────────
+    // ─── Auth Header, Token Refresh & Authenticated JMAP Request ────────────
 
-    private fun resolveAuthHeader(
+    /**
+     * Executes a JMAP POST request with stored credentials:
+     * - Refreshes the OAuth access token beforehand if it is within 60s of expiry.
+     * - If the server responds with HTTP 401 (e.g. clock skew or early server-side token
+     *   revocation) and the token was not just refreshed, refreshes the OAuth token in-place
+     *   in Expo SecureStore and retries the request once (matching `plugins/ios-push/Jmap.swift`).
+     */
+    private fun executeAuthenticatedJmapPost(
         context: Context,
+        apiUrl: String,
         credentialsKey: String,
         creds: StoredCredentials,
+        bodyJson: JSONObject,
     ): String? {
         var activeCreds = creds
+        var refreshedAlready = false
         val accessToken = activeCreds.accessToken
-        if (!accessToken.isNullOrBlank()) {
+
+        val initialAuthHeader = if (!accessToken.isNullOrBlank()) {
             val now = System.currentTimeMillis()
             val refreshToken = activeCreds.refreshToken
             val tokenEndpoint = activeCreds.tokenEndpoint
@@ -805,6 +837,7 @@ object BulwarkNativePushFetcher {
                 }
                 val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, activeCreds.clientId)
                     ?: return null
+                refreshedAlready = true
                 activeCreds = updateTokensInSecureStore(
                     context = context,
                     credentialsKey = credentialsKey,
@@ -814,15 +847,64 @@ object BulwarkNativePushFetcher {
                     nowMs = now,
                 ) ?: activeCreds.copy(accessToken = fresh.accessToken)
             }
-            return "Bearer ${activeCreds.accessToken}"
+            "Bearer ${activeCreds.accessToken}"
+        } else {
+            val password = activeCreds.password
+            if (activeCreds.username.isNotBlank() && !password.isNullOrEmpty()) {
+                val basic = Base64.getEncoder().encodeToString(
+                    "${activeCreds.username}:$password".toByteArray(StandardCharsets.UTF_8)
+                )
+                "Basic $basic"
+            } else {
+                return null
+            }
         }
-        val password = activeCreds.password
-        if (activeCreds.username.isNotBlank() && !password.isNullOrEmpty()) {
-            val basic = Base64.getEncoder().encodeToString(
-                "${activeCreds.username}:$password".toByteArray(StandardCharsets.UTF_8)
+
+        val requestBodyStr = bodyJson.toString()
+        fun postWithAuth(authHeader: String): Pair<Int, String?> {
+            val request = Request.Builder()
+                .url(apiUrl)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json")
+                .addHeader("Authorization", authHeader)
+                .post(requestBodyStr.toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            return httpClient.newCall(request).execute().use { response ->
+                response.code to if (response.isSuccessful) response.body?.string() else null
+            }
+        }
+
+        val (statusCode, firstBody) = postWithAuth(initialAuthHeader)
+        if (firstBody != null) return firstBody
+
+        if (statusCode == 401 &&
+            !refreshedAlready &&
+            !activeCreds.accessToken.isNullOrBlank() &&
+            !activeCreds.refreshToken.isNullOrBlank() &&
+            !activeCreds.tokenEndpoint.isNullOrBlank()
+        ) {
+            val now = System.currentTimeMillis()
+            val fresh = refreshOAuthToken(
+                activeCreds.tokenEndpoint,
+                activeCreds.refreshToken,
+                activeCreds.clientId,
+            ) ?: return null
+            updateTokensInSecureStore(
+                context = context,
+                credentialsKey = credentialsKey,
+                expectedUsername = creds.username,
+                expectedServerUrl = creds.serverUrl,
+                fresh = fresh,
+                nowMs = now,
             )
-            return "Basic $basic"
+            val (retryCode, retryBody) = postWithAuth("Bearer ${fresh.accessToken}")
+            if (retryBody == null) {
+                Log.w(TAG, "JMAP retry after 401 token refresh failed with status $retryCode")
+            }
+            return retryBody
         }
+
+        Log.w(TAG, "JMAP HTTP request failed with status $statusCode")
         return null
     }
 
@@ -936,25 +1018,16 @@ object BulwarkNativePushFetcher {
 
             // Read credentials from Expo SecureStore (and refresh OAuth token in-place if needed)
             val creds = readCredentialsFromSecureStore(context, credentialsKey) ?: return false
-            val authHeader = resolveAuthHeader(context, credentialsKey, creds) ?: return false
 
-            // Execute single-round-trip JMAP Email/get + Mailbox/get request
+            // Execute single-round-trip JMAP Email/get + Mailbox/get request (with 401 refresh retry)
             val bodyJson = buildJmapEmailAndMailboxGetBody(jmapAccountId, freshEmailIds)
-            val request = Request.Builder()
-                .url(apiUrl)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "application/json")
-                .addHeader("Authorization", authHeader)
-                .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
-                .build()
-
-            val responseBody = httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "JMAP HTTP request failed with status ${response.code}")
-                    return false
-                }
-                response.body?.string()
-            } ?: return false
+            val responseBody = executeAuthenticatedJmapPost(
+                context = context,
+                apiUrl = apiUrl,
+                credentialsKey = credentialsKey,
+                creds = creds,
+                bodyJson = bodyJson,
+            ) ?: return false
 
             when (val result = parseJmapGetResponse(responseBody, alreadyNotified)) {
                 is JmapFetchResult.Failure -> {
@@ -1066,23 +1139,24 @@ object BulwarkNativePushFetcher {
                 ?: credentialsKeyFor(accountId)
 
             val creds = readCredentialsFromSecureStore(context, credentialsKey) ?: return false
-            val authHeader = resolveAuthHeader(context, credentialsKey, creds) ?: return false
 
             when (action) {
                 "markRead" -> {
                     val patch = JSONObject().apply { put("keywords/\$seen", true) }
-                    executeEmailSetUpdate(apiUrl, authHeader, targetJmapAccountId, emailId, patch)
+                    executeEmailSetUpdate(context, apiUrl, credentialsKey, creds, targetJmapAccountId, emailId, patch)
                 }
                 "delete" -> {
-                    val trashId = fetchTrashMailboxId(apiUrl, authHeader, targetJmapAccountId)
+                    val trashId = fetchTrashMailboxId(context, apiUrl, credentialsKey, creds, targetJmapAccountId)
                         ?: return false
+                    // Re-read credentials in case fetchTrashMailboxId refreshed the OAuth token
+                    val latestCreds = readCredentialsFromSecureStore(context, credentialsKey) ?: creds
                     val settingsJson = readAsyncStorageItem(context, SETTINGS_STORAGE_KEY)
                     val markReadToo = isDeleteMarksReadInSettings(settingsJson)
                     val patch = JSONObject().apply {
                         put("mailboxIds", JSONObject().apply { put(trashId, true) })
                         if (markReadToo) put("keywords/\$seen", true)
                     }
-                    executeEmailSetUpdate(apiUrl, authHeader, targetJmapAccountId, emailId, patch)
+                    executeEmailSetUpdate(context, apiUrl, credentialsKey, latestCreds, targetJmapAccountId, emailId, patch)
                 }
                 else -> false
             }
@@ -1093,8 +1167,10 @@ object BulwarkNativePushFetcher {
     }
 
     private fun fetchTrashMailboxId(
+        context: Context,
         apiUrl: String,
-        authHeader: String,
+        credentialsKey: String,
+        creds: StoredCredentials,
         jmapAccountId: String,
     ): String? {
         val bodyJson = JSONObject().apply {
@@ -1116,33 +1192,32 @@ object BulwarkNativePushFetcher {
                 })
             })
         }
-        val request = Request.Builder()
-            .url(apiUrl)
-            .addHeader("Content-Type", "application/json")
-            .addHeader("Accept", "application/json")
-            .addHeader("Authorization", authHeader)
-            .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .build()
+        val responseBody = executeAuthenticatedJmapPost(
+            context = context,
+            apiUrl = apiUrl,
+            credentialsKey = credentialsKey,
+            creds = creds,
+            bodyJson = bodyJson,
+        ) ?: return null
 
-        httpClient.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) return null
-            val root = JSONObject(resp.body?.string() ?: return null)
-            val first = root.optJSONArray("methodResponses")?.optJSONArray(0) ?: return null
-            if (first.optString(0) != "Mailbox/get") return null
-            val list = first.optJSONObject(1)?.optJSONArray("list") ?: return null
-            for (i in 0 until list.length()) {
-                val mb = list.optJSONObject(i) ?: continue
-                if (mb.optString("role") == "trash") {
-                    return mb.optString("id").takeIf { it.isNotBlank() }
-                }
+        val root = JSONObject(responseBody)
+        val first = root.optJSONArray("methodResponses")?.optJSONArray(0) ?: return null
+        if (first.optString(0) != "Mailbox/get") return null
+        val list = first.optJSONObject(1)?.optJSONArray("list") ?: return null
+        for (i in 0 until list.length()) {
+            val mb = list.optJSONObject(i) ?: continue
+            if (mb.optString("role") == "trash") {
+                return mb.optString("id").takeIf { it.isNotBlank() }
             }
-            return null
         }
+        return null
     }
 
     private fun executeEmailSetUpdate(
+        context: Context,
         apiUrl: String,
-        authHeader: String,
+        credentialsKey: String,
+        creds: StoredCredentials,
         jmapAccountId: String,
         emailId: String,
         patch: JSONObject,
@@ -1163,21 +1238,18 @@ object BulwarkNativePushFetcher {
                 })
             })
         }
-        val request = Request.Builder()
-            .url(apiUrl)
-            .addHeader("Content-Type", "application/json")
-            .addHeader("Accept", "application/json")
-            .addHeader("Authorization", authHeader)
-            .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .build()
+        val responseBody = executeAuthenticatedJmapPost(
+            context = context,
+            apiUrl = apiUrl,
+            credentialsKey = credentialsKey,
+            creds = creds,
+            bodyJson = bodyJson,
+        ) ?: return false
 
-        httpClient.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) return false
-            val root = JSONObject(resp.body?.string() ?: return false)
-            val first = root.optJSONArray("methodResponses")?.optJSONArray(0) ?: return false
-            if (first.optString(0) != "Email/set") return false
-            val updated = first.optJSONObject(1)?.optJSONObject("updated") ?: return false
-            return updated.has(emailId)
-        }
+        val root = JSONObject(responseBody)
+        val first = root.optJSONArray("methodResponses")?.optJSONArray(0) ?: return false
+        if (first.optString(0) != "Email/set") return false
+        val updated = first.optJSONObject(1)?.optJSONObject("updated") ?: return false
+        return updated.has(emailId)
     }
 }
