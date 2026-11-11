@@ -23,6 +23,7 @@ vi.mock('../auth-store', async () => {
   return { useAuthStore: create(() => ({ activeAccountId: null as string | null, session: null as unknown })) };
 });
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../auth-store';
 import { useAccountStore, type AccountEntry } from '../account-store';
 import { useSettingsStore, resetPolicyRulesForTests } from '../settings-store';
@@ -255,6 +256,44 @@ describe('no third-party traffic', () => {
     await usePolicyStore.getState().refresh(ADA);
     expect(usePolicyStore.getState().effective).not.toBeNull();
     expect(mode()).toBe(true);
+  });
+});
+
+describe('the notification rule pushWithoutContent', () => {
+  const withRule = (on: boolean) => ({ ...(policies[WEBMAIL] as object), organisation: { devices: { pushWithoutContent: on } } });
+
+  it('holds while the webmail answers with the public part, until a full policy turns it off', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+
+    // A refused token: the public subset, without organisation settings.
+    publicScope = true;
+    policies[WEBMAIL] = { ...(policies[WEBMAIL] as object), organisation: undefined };
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA]).toMatchObject({ partial: true, pushWithoutContent: true });
+    // And again.
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBe(true);
+    // Written at once, for the push task that reads it from AsyncStorage.
+    await vi.waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem('org-policy-cache'))!);
+      expect(stored.state.byAccount[ADA].pushWithoutContent).toBe(true);
+    });
+
+    publicScope = false;
+    policies[WEBMAIL] = withRule(false);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('isn\'t made up by a public answer after a full policy without it', async () => {
+    policies[WEBMAIL] = withRule(false);
+    await usePolicyStore.getState().refresh(ADA);
+    publicScope = true;
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA]).toMatchObject({ partial: true });
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
   });
 });
 

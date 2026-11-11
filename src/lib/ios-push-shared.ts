@@ -81,6 +81,13 @@ export interface IosPushAccount {
   deviceClientId?: string;
   /** When the subscription expires, as last recorded (UTCDate). */
   subscriptionExpires?: string;
+  /**
+   * The login's organisation wants new-mail notifications to say only that
+   * there is new mail (organisation.devices.pushWithoutContent): the
+   * extension keeps the relay's placeholder and fetches nothing. Present
+   * only while the rule is on.
+   */
+  withoutContent?: true;
 }
 
 export async function writeIosPushAccount(jmapAccountId: string, account: IosPushAccount): Promise<void> {

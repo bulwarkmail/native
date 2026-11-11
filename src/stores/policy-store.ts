@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage } from './persist-storage';
@@ -18,6 +19,7 @@ import {
   EMPTY_SETTINGS_RULES,
   isFeatureEnabled,
   isLockedSetting,
+  pushWithoutContent,
   resolvePolicy,
   sanitizePolicy,
   settingsRulesFromPolicy,
@@ -50,6 +52,12 @@ export interface CachedPolicy {
   webmailUrl: string;
   /** Only in policies cached before configByAccount; the config now has its own entry. */
   links?: WebmailLinks;
+  /**
+   * The rule pushWithoutContent, kept from the last full policy for the
+   * account while the webmail answers with the public subset (which carries
+   * no organisation settings): only a full policy turns it off again.
+   */
+  pushWithoutContent?: true;
 }
 
 /** The last answer of the webmail's /api/config, kept apart from the policy (an older webmail has no policy route). */
@@ -203,6 +211,25 @@ async function bearerFor(account: AccountEntry): Promise<{ authorization: string
   }
 }
 
+/**
+ * On iOS, share the account with the notification extension again once a
+ * policy for it is cached, so the extension's entry follows the rule
+ * pushWithoutContent (shareAccountWithExtension). The entry is written from
+ * the live client's session, so only for the account it serves.
+ */
+function shareNotificationRuleWithExtension(accountId: string, account: AccountEntry): void {
+  if (Platform.OS !== 'ios' || !sameClientAccount(account)) return;
+  let jmapAccountId: string | null = null;
+  try {
+    jmapAccountId = jmapClient.accountId;
+  } catch {
+    jmapAccountId = null;
+  }
+  void import('../lib/push-notifications')
+    .then(({ shareAccountWithExtension }) => shareAccountWithExtension(accountId, jmapAccountId))
+    .catch(() => undefined);
+}
+
 const refreshes = new Map<string, Promise<void>>();
 
 export const usePolicyStore = create<PolicyState>()(
@@ -253,11 +280,22 @@ export const usePolicyStore = create<PolicyState>()(
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
           const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
+          // The public subset says nothing about the organisation's rules.
+          const holdsPushRule = !!fetched?.partial && previous?.webmailUrl === webmailUrl && (
+            previous.pushWithoutContent === true
+            || (!previous.partial && pushWithoutContent(previous.policy, policySubjectFor(account)))
+          );
           set({
             ...(fetched ? {
               byAccount: {
                 ...get().byAccount,
-                [accountId]: { policy: fetched.policy, partial: fetched.partial, fetchedAt: Date.now(), webmailUrl },
+                [accountId]: {
+                  policy: fetched.policy,
+                  partial: fetched.partial,
+                  fetchedAt: Date.now(),
+                  webmailUrl,
+                  ...(holdsPushRule ? { pushWithoutContent: true as const } : {}),
+                },
               },
             } : {}),
             // Config links cached inside an older policy entry move to their own.
@@ -269,6 +307,7 @@ export const usePolicyStore = create<PolicyState>()(
             } : {}),
           });
           if (useAuthStore.getState().activeAccountId === accountId) get().activate(accountId);
+          if (fetched) shareNotificationRuleWithExtension(accountId, account);
         })().finally(() => refreshes.delete(accountId));
         refreshes.set(accountId, run);
         return run;
@@ -286,7 +325,9 @@ export const usePolicyStore = create<PolicyState>()(
     }),
     {
       name: 'org-policy-cache',
-      storage: createPersistStorage(),
+      // Small, and read straight from AsyncStorage by the headless push
+      // task and the iOS extension's share step, so it isn't held back.
+      storage: createPersistStorage({ writeDelayMs: 0 }),
       partialize: (state) => ({ byAccount: state.byAccount, configByAccount: state.configByAccount }) as unknown as PolicyState,
     },
   ),
