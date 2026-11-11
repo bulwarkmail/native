@@ -13,6 +13,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.jstasks.HeadlessJsTaskConfig
 import com.facebook.react.jstasks.HeadlessJsTaskContext
 import com.facebook.react.jstasks.HeadlessJsTaskEventListener
+import kotlin.concurrent.thread
 
 class BulwarkNotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -22,10 +23,14 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
         val accountId = intent.getStringExtra(NotificationTapStore.EXTRA_ACCOUNT_ID)
         val jmapAccountId = intent.getStringExtra(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID)
 
-        // Dismiss the notification immediately from the tray
+        // Dismiss the notification immediately from the tray and clean up the
+        // group summary if fewer than two child notifications remain.
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (notificationId != null) {
             manager.cancel(notificationId, notificationId.hashCode())
+        }
+        if (!accountId.isNullOrBlank()) {
+            BulwarkFcmModule.refreshGroupSummaryAfterCancel(context, accountId)
         }
 
         if (emailId.isNullOrBlank() || action.isNullOrBlank() || accountId.isNullOrBlank()) {
@@ -34,8 +39,9 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
         }
 
         // On Android 8+, a broadcast receiver in background cannot start a Service
-        // (BackgroundServiceStartNotAllowedException). Instead, we use goAsync() and
-        // HeadlessJs.withReadyReactContext to execute the headless JS task directly.
+        // (BackgroundServiceStartNotAllowedException). We use goAsync() and execute
+        // the JMAP action natively first (avoiding the background JS freeze on Samsung
+        // One UI, #94), falling back to HeadlessJs only if native execution fails.
         val pendingResult = goAsync()
         val app = context.applicationContext as Application
         val mainHandler = Handler(Looper.getMainLooper())
@@ -49,6 +55,32 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
         }
         mainHandler.postDelayed(timeoutRunnable, 20_000L)
 
+        thread(name = "bulwark-notif-action") {
+            if (BulwarkNativePushFetcher.executeNotificationAction(app, action, emailId, accountId, jmapAccountId)) {
+                Log.i(TAG, "Notification action '$action' ($emailId) handled natively via Kotlin")
+                mainHandler.removeCallbacks(timeoutRunnable)
+                try {
+                    pendingResult.finish()
+                } catch (_: Exception) {}
+                return@thread
+            }
+
+            mainHandler.post {
+                dispatchHeadlessActionFallback(app, mainHandler, timeoutRunnable, pendingResult, action, emailId, accountId, jmapAccountId)
+            }
+        }
+    }
+
+    private fun dispatchHeadlessActionFallback(
+        app: Application,
+        mainHandler: Handler,
+        timeoutRunnable: Runnable,
+        pendingResult: PendingResult,
+        action: String,
+        emailId: String,
+        accountId: String,
+        jmapAccountId: String?,
+    ) {
         try {
             HeadlessJs.withReadyReactContext(app) { reactContext ->
                 if (!reactContext.hasActiveReactInstance()) {

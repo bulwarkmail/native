@@ -74,9 +74,12 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             ?: accountId ?: "Bulwark Mail"
 
         val preview = options.takeIf { it.hasKey("preview") }?.getString("preview")
-        val markReadLabel = options.takeIf { it.hasKey("markReadLabel") }?.getString("markReadLabel") ?: "Mark as read"
-        val deleteLabel = options.takeIf { it.hasKey("deleteLabel") }?.getString("deleteLabel") ?: "Delete"
-        val replyLabel = options.takeIf { it.hasKey("replyLabel") }?.getString("replyLabel") ?: "Reply"
+        val markReadLabel = options.takeIf { it.hasKey("markReadLabel") }?.getString("markReadLabel")
+            ?: reactApplicationContext.getString(R.string.notification_action_mark_read)
+        val deleteLabel = options.takeIf { it.hasKey("deleteLabel") }?.getString("deleteLabel")
+            ?: reactApplicationContext.getString(R.string.notification_action_delete)
+        val replyLabel = options.takeIf { it.hasKey("replyLabel") }?.getString("replyLabel")
+            ?: reactApplicationContext.getString(R.string.notification_action_reply)
         // Delete moves the mail to Trash where there is one: no unlock needed
         // for that (#85). Without a Trash it destroys the mail, so it asks.
         // Unlock stays the default for a caller that doesn't say.
@@ -88,13 +91,24 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             val largeIcon = iconUrl?.let { fetchBitmap(it) }
                 ?: makeLetterAvatar(initials, bgColorHex)
             postNotification(
-                notificationId, title, body, preview, largeIcon, bgColorHex,
+                reactApplicationContext, notificationId, title, body, preview, largeIcon, bgColorHex,
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
                 groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
             )
-            if (groupKey != null) postGroupSummary(groupKey, groupTitle, bgColorHex, accountId)
+            if (groupKey != null) postGroupSummary(reactApplicationContext, groupKey, groupTitle, bgColorHex, accountId)
             promise.resolve(null)
         }
+    }
+
+    @ReactMethod
+    fun savePushAccount(jmapAccountId: String, accountJson: String) {
+        val prefs = BulwarkNativePushFetcher.getPrefs(reactApplicationContext)
+        prefs.edit().putString(jmapAccountId, accountJson).apply()
+    }
+
+    @ReactMethod
+    fun removePushAccount(idOrAccountId: String) {
+        BulwarkNativePushFetcher.removePushAccount(reactApplicationContext, idOrAccountId)
     }
 
     @ReactMethod
@@ -109,7 +123,16 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         promise.resolve(payload?.toMap())
     }
 
+    // NativeEventEmitter required no-ops.
+    @ReactMethod
+    fun addListener(eventName: String) {}
+
+    @ReactMethod
+    fun removeListeners(count: Int) {}
+
+    companion object {
     private fun postNotification(
+        ctx: Context,
         notificationId: String,
         title: String,
         body: String,
@@ -128,7 +151,6 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         replyLabel: String,
         deleteNeedsUnlock: Boolean,
     ) {
-        val ctx = reactApplicationContext
         val intent = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             data = Uri.parse("bulwark-notification://$notificationId")
@@ -247,12 +269,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         manager.notify(notificationId, notificationId.hashCode(), builder.build())
     }
 
-    // One summary per account group so several deliveries collapse into a
-    // single "N new messages" entry (Android renders the "+N more" itself
-    // from the children). Tapping the summary opens the app on the inbox;
-    // the per-message children carry the deep link.
-    private fun postGroupSummary(groupKey: String, groupTitle: String, colorHex: String, accountId: String?) {
-        val ctx = reactApplicationContext
+    private fun postGroupSummary(ctx: Context, groupKey: String, groupTitle: String, colorHex: String, accountId: String?) {
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val children = manager.activeNotifications.filter {
             it.groupKey?.endsWith(groupKey) == true &&
@@ -305,12 +322,15 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val size = 192
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        val bgColor = parseColor(bgHex, fallback = Color.parseColor("#2563eb"))
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = parseColor(bgHex, fallback = Color.parseColor("#2563eb"))
+            color = bgColor
         }
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, bgPaint)
+        val lum = Color.luminance(bgColor)
+        val textColor = if (1.05f / (lum + 0.05f) >= (lum + 0.05f) / 0.05f) Color.WHITE else Color.BLACK
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
+            color = textColor
             textSize = size * 0.44f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -366,14 +386,6 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         fallback
     }
 
-    // NativeEventEmitter required no-ops.
-    @ReactMethod
-    fun addListener(eventName: String) {}
-
-    @ReactMethod
-    fun removeListeners(count: Int) {}
-
-    companion object {
         // 1 MiB is plenty for a favicon; anything bigger is a sign of trouble.
         private const val MAX_FAVICON_BYTES = 1 * 1024 * 1024
 
@@ -389,6 +401,51 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             val ctx = module.reactApplicationContext
             if (!ctx.hasActiveReactInstance()) return
             ctx.getJSModule(RCTDeviceEventEmitter::class.java).emit(eventName, params)
+        }
+
+        fun postNotificationNatively(
+            context: Context,
+            notificationId: String,
+            title: String,
+            body: String,
+            preview: String?,
+            initials: String,
+            bgColorHex: String,
+            iconUrl: String? = null,
+            emailId: String?,
+            threadId: String?,
+            subject: String?,
+            accountId: String?,
+            jmapAccountId: String?,
+            groupKey: String?,
+            groupTitle: String?,
+            markReadLabel: String = context.getString(R.string.notification_action_mark_read),
+            deleteLabel: String = context.getString(R.string.notification_action_delete),
+            replyLabel: String = context.getString(R.string.notification_action_reply),
+            deleteNeedsUnlock: Boolean = true,
+        ) {
+            val largeIcon = iconUrl?.let { fetchBitmap(it) }
+                ?: makeLetterAvatar(initials, bgColorHex)
+            postNotification(
+                context, notificationId, title, body, preview, largeIcon, bgColorHex,
+                emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
+            )
+            if (groupKey != null) {
+                postGroupSummary(context, groupKey, groupTitle ?: "Bulwark Mail", bgColorHex, accountId)
+            }
+        }
+
+        fun refreshGroupSummaryAfterCancel(ctx: Context, accountId: String) {
+            val groupKey = "bulwark-mail:$accountId"
+            val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val children = manager.activeNotifications.filter {
+                it.groupKey?.endsWith(groupKey) == true &&
+                    (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) == 0
+            }
+            if (children.size < 2) {
+                manager.cancel(groupKey, groupKey.hashCode())
+            }
         }
     }
 }
