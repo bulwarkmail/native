@@ -23,6 +23,7 @@ import { useFilePreview } from './use-file-preview';
 import { ArchiveSummary, PreviewPartList, type PreviewPart } from './PreviewPartList';
 import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { previewTitle } from '../../lib/preview-title';
 
 export interface PreviewItem {
   kind: PreviewKind;
@@ -394,7 +395,7 @@ export function AttachmentPreviewModal({
           >
             <X size={22} color={c.text} />
           </Pressable>
-          <Text style={styles.title} numberOfLines={1}>{item?.name ?? title ?? ''}</Text>
+          <Text style={styles.title} numberOfLines={1}>{item ? previewTitle(item) : title ?? ''}</Text>
           {headerActions}
           {item && !showsFallback ? (
             <Pressable
