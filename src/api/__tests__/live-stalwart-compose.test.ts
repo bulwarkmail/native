@@ -373,14 +373,27 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
 
   describe('composer tags', () => {
     // The draft keeps the composer's tags and the sent copy carries them (webmail #1610).
-    it('saves the tags with the draft and puts them on the sent copy', async () => {
+    it('saves the tags with the draft and puts them on the sent copy', async (ctx) => {
       const token = `$label:bulwark-${RUN}`;
       const saved = await saveDraftVersion({
         from: [{ email: USER }], to: [{ email: USER }], subject: `tags draft ${tag}`, textBody: 'tags', keywords: [token],
       }, drafts);
       createdEmails.push(saved.id);
       const [kept] = await getFullEmails([saved.id]);
-      expect(kept.keywords).toMatchObject({ [token]: true, $draft: true });
+      expect(kept.keywords?.$draft).toBe(true);
+      if (!kept.keywords?.[token]) {
+        // Seen on the 0.16.27 test server for usera (userb keeps them): the
+        // account takes every write but keeps only system keywords. Whether
+        // the server or the draft save dropped the tag, a plain Email/set
+        // tells.
+        await singleton.request([['Email/set', { accountId: singleton.accountId, update: { [saved.id]: { [`keywords/${token}`]: true } } }, '0']]);
+        const [again] = await getFullEmails([saved.id]);
+        if (!again.keywords?.[token]) {
+          ctx.skip('the server keeps no tag keyword for this account');
+          return;
+        }
+        expect(kept.keywords, 'the draft save dropped the tag').toMatchObject({ [token]: true });
+      }
 
       const identities = await getIdentities();
       const identity = identities.find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
