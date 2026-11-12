@@ -98,6 +98,7 @@ import {
 import { NO_FILES_PLACES, useFilesPlacesStore } from '../stores/files-places-store';
 import { usePendingFilesLink, type FilesLink } from '../navigation/pending-files-link';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
@@ -1610,6 +1611,7 @@ export default function FilesScreen() {
     >
       <View style={[styles.listColumn, previewDocked && { flex: 0, width: filesListWidth(contentWidth) }]}>
         {renderHeader()}
+        <OrgAnnouncementBanner />
         {body}
       </View>
       {previewDocked && (

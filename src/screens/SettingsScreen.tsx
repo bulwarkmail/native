@@ -77,6 +77,7 @@ import {
 } from '../components/settings/keyboard-reveal';
 import { BUILTIN_THEMES } from '../theme/builtin-themes';
 import { getDictionary } from '../i18n';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 type Tab = SettingsTabId;
 
@@ -552,6 +553,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         )}
         <Text style={styles.headerTitle} accessibilityRole="header">{t('settings.title', 'Settings')}</Text>
       </View>
+      <OrgAnnouncementBanner />
 
       <ScrollView
         key="list"

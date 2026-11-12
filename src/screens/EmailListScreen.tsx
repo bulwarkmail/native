@@ -95,6 +95,7 @@ import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { searchEverythingPlacement } from '../lib/search-everything-entry';
 import { fitToolbarActions } from '../lib/selection-toolbar';
 import { setPromptListColumn } from '../lib/push-prompt-frame';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 // The server refuses keywords per message (a read-only shared folder;
 // Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
@@ -1671,6 +1672,7 @@ export default function EmailListScreen({
           />
         </View>
       )}
+      <OrgAnnouncementBanner />
 
       {/* Search bar (always visible; inside the header in a short window) */}
       {!shortHeight && renderSearchBar(false)}
