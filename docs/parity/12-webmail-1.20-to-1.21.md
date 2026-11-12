@@ -495,7 +495,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Push and notifications
 
-- [ ] **New mail notifications have no Archive action** — `P3` — `partial`
+- [x] **New mail notifications have no Archive action** — `P3` — `partial` — fixed in ab715d6e
   - What WEB does: Archive, Mark as read and Reply, Archive only where archiving is allowed (`public/sw.js:1391`, `:1498-1501`, `:1598-1603`). Changelog 1.21.0 Notifications.
   - What RN does: Mark as read, Delete and Reply (`src/lib/push-background-task.ts:130-138`, `:649-651`, `:750`).
   - Fix hint: add an `archive` action to the notification payload and handler; respect the `archiveActionEnabled` gate (`src/lib/org-policy.ts:92`).
@@ -522,7 +522,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: no device registration, check-in or wipe; a refused login signs the account out, and its cached data is cleared only by the sign-out path (`src/stores/auth-store.ts:553`).
   - Fix hint: cross-repo. Registration needs a session cookie today (`app/api/devices/route.ts:27-29`), so the webmail needs a bearer-token registration for the app first; then the app checks in at start and on resume and wipes the account's caches, drafts and keychain entries on a `wipe` answer.
 
-- [ ] **No "Copy code" action on a new-mail notification for a sign-in code** — `P3` — `missing`
+- [x] **No "Copy code" action on a new-mail notification for a sign-in code** — `P3` — `missing` — fixed in ab715d6e
   - What WEB does: the desktop notification for a sign-in mail gets a Copy code button when "show verification codes" is on, using the same code finder as the list chip (`lib/desktop/mail-notifications.ts:146`, `:153`). 677903094.
   - What RN does: the list shows the code chip (`src/screens/EmailListScreen.tsx:352`, `src/lib/verification-code.ts:398`), but notifications offer only Mark read, Delete and Reply (`android/app/src/main/java/com/anonymous/bulwarkmobile/BulwarkFcmModule.kt:205-264`).
   - Fix hint: when the notification task has the message body, run the code finder and add a fourth action that copies to the clipboard (Android `ClipboardManager` from the receiver; on iOS a notification category action that opens the app briefly).
