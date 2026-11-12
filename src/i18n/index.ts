@@ -41,6 +41,7 @@ export const SUPPORTED_LOCALES = [
   { code: 'lv', label: 'Latviešu' },
   { code: 'nl', label: 'Nederlands' },
   { code: 'nb', label: 'Norsk bokmål' },
+  { code: 'nn', label: 'Norsk nynorsk' },
   { code: 'pl', label: 'Polski' },
   { code: 'pt', label: 'Português' },
   { code: 'ro', label: 'Română' },
@@ -77,7 +78,7 @@ function deepMerge(base: Dictionary, overlay: Dictionary): Dictionary {
 
 // A catalog is a few hundred KB of JSON. Metro only evaluates a module when it
 // is first required, so keeping each require inside its loader means startup
-// builds English plus the active language instead of all 30, and switching
+// builds English plus the active language instead of all 31, and switching
 // language loads the new catalog synchronously on the next t() call. The
 // require paths must stay string literals for Metro to bundle them.
 const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
@@ -100,6 +101,7 @@ const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
   lv: () => require('../../locales/lv/common.json'),
   mn: () => require('../../locales/mn/common.json'),
   nb: () => require('../../locales/nb/common.json'),
+  nn: () => require('../../locales/nn/common.json'),
   nl: () => require('../../locales/nl/common.json'),
   pl: () => require('../../locales/pl/common.json'),
   pt: () => require('../../locales/pt/common.json'),
@@ -134,6 +136,7 @@ const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
   lv: () => require('../../locales/rn/lv.json'),
   mn: () => require('../../locales/rn/mn.json'),
   nb: () => require('../../locales/rn/nb.json'),
+  nn: () => require('../../locales/rn/nn.json'),
   nl: () => require('../../locales/rn/nl.json'),
   pl: () => require('../../locales/rn/pl.json'),
   pt: () => require('../../locales/rn/pt.json'),
@@ -237,8 +240,9 @@ export function resolveLocaleTag(input: {
       || region === 'TW' || region === 'HK' || region === 'MO';
     return traditional ? 'zh-TW' : 'zh';
   }
-  // Norwegian devices report `no`/`nn` as often as `nb`.
-  if (lang === 'no' || lang === 'nn') return 'nb';
+  // Norwegian devices report the macrolanguage `no` as often as `nb`;
+  // Nynorsk (`nn`) has its own catalog.
+  if (lang === 'no') return 'nb';
   return isSupportedLocale(lang) ? lang : null;
 }
 

@@ -1,0 +1,1887 @@
+{
+  "advanced_search": {
+    "advanced_filters_count": "{name}, {count} aktive",
+    "after": "Etter",
+    "before": "Før",
+    "larger_than_kb": "Større enn {size} KB",
+    "no_attachment": "Utan vedlegg",
+    "smaller_than_kb": "Mindre enn {size} KB"
+  },
+  "calendar": {
+    "a11y": {
+      "event_count": "{count, plural, one {# hending} other {# hendingar}}"
+    },
+    "account_changed": "Kontoen vart endra medan kalenderen lasta eller lagra.",
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minutt etter} other {# minutt etter}}"
+    },
+    "change_month_named": "{month}, byt månad",
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Blågrøn"
+    },
+    "detail": {
+      "delete_confirm": "Slette denne hendinga?",
+      "location_hint": "Opnar staden. Trykk lenge for å kopiere han"
+    },
+    "drawer": {
+      "my_calendars": "Kalendrane mine",
+      "no_calendars": "Ingen kalendrar enno.",
+      "shared_with_me": "Delt med meg",
+      "subscribed": "Abonnert"
+    },
+    "event_modal": {
+      "participant_placeholder": "Legg til deltakar med e-post"
+    },
+    "events": {
+      "copy_link_short": "Lenkje",
+      "copy_title_short": "Tittel",
+      "export_ics_short": ".ics",
+      "nothing_planned": "Ingenting planlagt. Trykk for å opprette.",
+      "tap_to_create": "Trykk + for å opprette ei"
+    },
+    "fab": {
+      "event": "Hending",
+      "task": "Oppgåve"
+    },
+    "form": {
+      "description_placeholder": "Notat, agenda …",
+      "location_placeholder": "Stad eller adresse",
+      "time": "Tid"
+    },
+    "import": {
+      "file_too_large_max": "Fila er for stor (maks {size} MB).",
+      "imported_count": "{count, plural, one {Importerte # hending.} other {Importerte # hendingar.}}",
+      "no_calendar": "Opprett ein kalender før du importerer hendingar.",
+      "no_calendar_title": "Ingen kalender",
+      "picker_error": "Klarte ikkje opne filveljaren",
+      "picker_unavailable": "Filveljaren er ikkje installert i denne versjonen. Bygg appen på nytt for å kunne importere.",
+      "picker_unavailable_title": "Import er ikkje tilgjengeleg",
+      "refused_count": "{count, plural, one {# hending kunne ikkje importerast:} other {# hendingar kunne ikkje importerast:}}",
+      "refused_message": "{count, plural, =1 {Hendinga kunne ikkje importerast: {reason}} one {# hending kunne ikkje importerast: {reason}} other {# hendingar kunne ikkje importerast: {reason}}}",
+      "selected_count": "{count} valt"
+    },
+    "invitation": {
+      "accept": "Ja",
+      "add_error": "Klarte ikkje leggje til hendinga",
+      "add_to_calendar": "Legg til i kalenderen",
+      "added": "Lagt til i kalenderen",
+      "already_in_calendar": "Ligg allereie i kalenderen din",
+      "cancel_outdated": "Kalenderen din har ein nyare versjon av hendinga enn denne avlysinga.",
+      "cancelled": "Denne hendinga er avlyst",
+      "decline": "Nei",
+      "join_video": "Bli med i videosamtale",
+      "no_writable_calendar": "Ingen kalender du kan skrive i",
+      "organizer": "Arrangør",
+      "reading": "Les invitasjonen …",
+      "remove_error": "Klarte ikkje fjerne hendinga",
+      "remove_from_calendar": "Fjern frå kalenderen",
+      "removed_from_calendar": "Fjerna frå kalenderen din.",
+      "reply": "Ein deltakar har svart på denne invitasjonen",
+      "response_error": "Klarte ikkje sende svaret ditt",
+      "response_sent": "Svaret er sendt",
+      "tentative": "Kanskje",
+      "title": "Kalenderinvitasjon",
+      "trust_authentication_failed": "Denne meldinga stod ikkje i avsendarkontrollen (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Avsendaren kunne ikkje stadfestast.",
+      "trust_sender_mismatch": "Avsendaren er ein annan enn arrangøren av hendinga.",
+      "trust_sender_mismatch_unverified": "Avsendaren er ikkje arrangøren, og meldinga er ikkje autentisert.",
+      "trust_verified": "Avsendaren er stadfesta"
+    },
+    "management": {
+      "clear_confirm": "Fjern alle",
+      "clear_description": "Alle hendingane i denne kalenderen blir sletta. Hendingar som òg høyrer til ein annan kalender, blir berre kopla frå.",
+      "clear_title": "Fjerne alle hendingar?",
+      "color_invalid": "Skriv inn ein farge som seks heksadesimale siffer, med eller utan #, til dømes #3b82f6.",
+      "custom_color": "Eigen farge (hex)",
+      "delete_description": "Kalenderen og alle hendingane i han blir sletta. Dette kan ikkje angrast.",
+      "delete_title": "Slette kalenderen?",
+      "description_field": "Skildring",
+      "description_placeholder": "Valfritt",
+      "edit_calendar": "Rediger kalender",
+      "fewer_colors": "Færre fargar",
+      "more_colors": "Fleire fargar",
+      "new_calendar": "Ny kalender"
+    },
+    "notifications": {
+      "channel_name": "Kalenderpåminningar",
+      "starts_in_days": "{count, plural, one {Byrjar om # dag} other {Byrjar om # dagar}}",
+      "starts_in_hours": "{count, plural, one {Byrjar om # time} other {Byrjar om # timar}}",
+      "starts_in_minutes": "{count, plural, one {Byrjar om # minutt} other {Byrjar om # minutt}}"
+    },
+    "occurrence_not_found_again": "Endringa vart ikkje lagra: Serveren fann ikkje att førekomsten. Prøv igjen.",
+    "participants": {
+      "group_members": "{count, plural, one {# medlem} other {# medlemmer}}",
+      "remove_named": "Fjern {name}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {gong} other {gonger}}",
+      "every_count_days": "{count, plural, one {Kvar dag} other {Kvar #. dag}}",
+      "every_count_months": "{count, plural, one {Kvar månad} other {Kvar #. månad}}",
+      "every_count_weeks": "{count, plural, one {Kvar veke} other {Kvar #. veke}}",
+      "every_count_years": "{count, plural, one {Kvart år} other {Kvart #. år}}",
+      "occurrence_count": "{count, plural, one {# gong} other {# gonger}}",
+      "until_date": "Til {date}"
+    },
+    "settings": {
+      "device_sync_desc": "Vis kalendrane dine i Kalender-appen og andre appar på denne eininga. Endringar blir synkroniserte begge vegar.",
+      "device_sync_title": "Synkroniser til denne eininga",
+      "show_week_numbers_mobile_desc": "Vis vekenummer i månadsvisinga.",
+      "time_zone": "Tidssone",
+      "time_zone_auto": "Tidssona til eininga",
+      "time_zone_auto_zone": "Tidssona til eininga ({zone})",
+      "time_zone_desc": "Sona som blir brukt for nye hendingar og for å tolke kalenderen. «Eining» følgjer tidssona som er sett på denne eininga."
+    },
+    "share": {
+      "add_people": "Legg til personar",
+      "error": "Klarte ikkje oppdatere delinga",
+      "no_matches": "Ingen treff",
+      "no_principals": "Deling er ikkje tilgjengeleg på denne serveren.",
+      "search_placeholder": "Søk etter namn eller e-post",
+      "shared_with": "Delt med"
+    },
+    "subscription": {
+      "account_changed": "Kontoen vart endra medan abonnementet synkroniserte. Det blir synkronisert på nytt i sin eigen konto.",
+      "add_feed": "Legg til ein kjelde",
+      "feed_too_large": "Kjelda er for stor",
+      "feed_truncated": "Kjelda vart kutta før slutten. Ingenting vart endra.",
+      "fetch_failed": "Klarte ikkje hente kjelda (HTTP {status})",
+      "mass_removal": "Kjelda utelét {count} av dei {total} hendingane på ein gong. Dei vart behaldne i tilfelle kjelda er øydelagd.",
+      "name_and_url_required": "Skriv inn eit namn og ein URL til kjelda.",
+      "not_a_feed": "Den URL-en gav ikkje ei iCalendar-kjelde",
+      "not_synced": "Ikkje synkronisert enno",
+      "url_scheme_invalid": "URL-en må byrje med https://, http://, webcal:// eller webcals://",
+      "your_subscriptions": "Abonnementa dine"
+    },
+    "tasks": {
+      "add_placeholder": "Legg til ei oppgåve …",
+      "add_time": "Legg til tid",
+      "clear_due_date": "Fjern fristen",
+      "delete_confirm": "Slette denne oppgåva?",
+      "delete_error": "Klarte ikkje slette oppgåva",
+      "mark_occurrence_done": "Merk denne dagen som gjord",
+      "mark_occurrence_open": "Merk denne dagen som ikkje gjord",
+      "not_found": "Denne oppgåva finst ikkje lenger.",
+      "open_task": "Opne oppgåva",
+      "save_error": "Klarte ikkje lagre oppgåva",
+      "update_error": "Klarte ikkje oppdatere oppgåva"
+    },
+    "views": {
+      "n_days": "{count, plural, one {# dag} other {# dagar}}",
+      "schedule": "Timeplan",
+      "three_days": "3 dagar"
+    }
+  },
+  "common": {
+    "add": "Legg til",
+    "back": "Tilbake",
+    "confirm": "Stadfest",
+    "create": "Opprett",
+    "dismiss": "Lukk",
+    "done": "Ferdig",
+    "open": "Opne",
+    "open_link_message": "Dette opnar {host} utanfor appen.",
+    "open_link_title": "Opne lenkja?",
+    "remove": "Fjern",
+    "retry": "Prøv igjen",
+    "undo": "Angre",
+    "update": "Oppdater"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Ein mottakar er} other {# mottakarar er}} utanfor organisasjonen din:"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Slette «{name}»? Dette kan ikkje angrast.} one {Slette «{name}»? Den # kontakten i ho blir sletta saman med ho. Dette kan ikkje angrast.} other {Slette «{name}»? Dei # kontaktane i ho blir sletta saman med ho. Dette kan ikkje angrast.}}"
+    },
+    "all_contacts": "Alle kontaktar",
+    "bulk": {
+      "add_tag": "Legg til etikett",
+      "delete_confirm_mobile": "{count, plural, one {Slette # kontakt? Dette kan ikkje angrast.} other {Slette # kontaktar? Dette kan ikkje angrast.}}",
+      "delete_confirm_title": "Slett kontaktar",
+      "move_to_address_book": "Flytt til adressebok",
+      "tag_failed": "Klarte ikkje setje etikett"
+    },
+    "contact": "Kontakt",
+    "create_hint_mobile": "Trykk lenge for å opprette ei gruppe i staden",
+    "delete_confirm_title": "Slett kontakt",
+    "detail": {
+      "add_to_group_failed": "Klarte ikkje leggje til i gruppa",
+      "copy_name": "{name} (kopi)",
+      "created_on": "Oppretta {date}",
+      "duplicate_failed": "Klarte ikkje duplisere",
+      "duplicate_no_book": "Kan ikkje duplisere utan ei adressebok.",
+      "no_address_book": "Inga adressebok",
+      "not_found": "Fann ikkje kontakten",
+      "open_dialer_failed": "Klarte ikkje opne telefonappen",
+      "open_link_failed": "Klarte ikkje opne lenkja",
+      "open_maps_failed": "Klarte ikkje opne kart",
+      "open_sms_failed": "Klarte ikkje opne meldingsappen",
+      "share": "Del",
+      "share_title": "Del {name}",
+      "sms": "SMS",
+      "timezone_value": "Tidssone: {zone}",
+      "updated_on": "Oppdatert {date}"
+    },
+    "directory": {
+      "restricted_hint": "E-postserveren din viser berre kontoane du allereie arbeider med, som gruppene dine og dei som deler med deg.",
+      "restricted_queries_off": "E-postserveren din viser berre kontoane du allereie arbeider med, som gruppene dine og dei som deler med deg. Ein administrator kan slå på katalogsøk for å vise alle."
+    },
+    "empty_state_hint_mobile": "Trykk + for å leggje til ein",
+    "export": {
+      "failed": "Eksporten mislukkast"
+    },
+    "form": {
+      "add_nickname": "Legg til kallenamn",
+      "add_note": "Legg til notat",
+      "add_organization": "Legg til organisasjon",
+      "address_book_required": "Vel ei adressebok for å lagre denne kontakten.",
+      "categories_placeholder_mobile": "Legg til etikett og trykk Enter",
+      "context_none": "Ingen",
+      "date_placeholder": "ÅÅÅÅ-MM-DD, ÅÅÅÅ-MM, ÅÅÅÅ eller --MM-DD",
+      "display_name_optional": "Visingsnamn (valfritt)",
+      "display_name_placeholder": "Eige visingsnamn",
+      "edit_named": "Rediger {name}",
+      "gender_unspecified": "Ikkje oppgitt",
+      "grammatical_gender": "Grammatisk kjønn",
+      "invalid_date_message": "«{date}» er ikkje ein dato. Bruk ÅÅÅÅ-MM-DD, ÅÅÅÅ-MM, ÅÅÅÅ eller --MM-DD.",
+      "invalid_date_title": "Ugyldig dato",
+      "invalid_email_message": "«{address}» er ikkje ei gyldig e-postadresse.",
+      "invalid_email_title": "Ugyldig e-post",
+      "label": "Etikett",
+      "label_placeholder": "Arbeid, privat …",
+      "missing_address_book": "Adressebok manglar",
+      "missing_info": "Opplysningar manglar",
+      "name_or_email_required": "Legg til eit namn eller minst éi e-postadresse.",
+      "new_organization": "Ny organisasjon",
+      "org_name_required": "Legg til namnet på organisasjonen.",
+      "photo_hint_mobile": "Trykk på biletet for å velje eit bilete",
+      "photo_media_unread": "Klarte ikkje lese bileta til kontakten frå serveren, så ingenting vart lagra. Prøv igjen.",
+      "photo_permission_message": "Gje tilgang til biletbiblioteket for å velje eit kontaktbilete.",
+      "photo_permission_title": "Treng tilgang til bilete",
+      "pick_date": "Vel ein dato",
+      "pronouns": "Pronomen",
+      "pronouns_placeholder": "hen/hen",
+      "url": "URL"
+    },
+    "group": "Gruppe",
+    "groups": {
+      "add_member": "Legg til medlem",
+      "add_members": "Legg til medlemmer",
+      "add_members_failed": "Klarte ikkje leggje til medlemmer",
+      "create_ellipsis": "Ny gruppe …",
+      "delete_confirm_named": "Slette «{name}»? Medlemmene blir ikkje sletta.",
+      "delete_failed": "Klarte ikkje slette gruppa",
+      "email_all": "Send e-post til alle",
+      "members_with_count": "Medlemmer ({count})",
+      "no_emails": "Ingen e-postadresser",
+      "no_members_hint": "Trykk «Legg til medlem» for å kome i gang",
+      "not_found": "Fann ikkje gruppa",
+      "remove_member": "Fjern medlem",
+      "remove_member_confirm": "Fjerne «{name}» frå denne gruppa?",
+      "remove_member_failed": "Klarte ikkje fjerne medlemmen"
+    },
+    "import": {
+      "change_target": "Endre",
+      "choose_file_mobile": "Vel ei vCard-fil",
+      "failed_count": "{count, plural, one {# kontakt kunne ikkje importerast.} other {# kontaktar kunne ikkje importerast.}}",
+      "import_count": "Importer {count}",
+      "into_address_book": "Importer til adressebok",
+      "into_named": "Importer til {name}",
+      "no_address_book": "Opprett ei adressebok før du importerer kontaktar.",
+      "picker_failed": "Klarte ikkje opne filveljaren",
+      "replaces": "Erstattar {name}",
+      "unnamed": "Kontakt utan namn",
+      "update_existing": "Oppdater eksisterande",
+      "updated_count": "{count, plural, one {# kontakt fanst allereie og er oppdatert.} other {# kontaktar fanst allereie og er oppdaterte.}}"
+    },
+    "no_tags_hint": "Ingen etikettar enno. Skriv ein ovanfor.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Legg til} other {Legg til (#)}}",
+      "title": "Legg til kontakt"
+    },
+    "rename_tag_hint_mobile": "Trykk lenge på ein etikett for å gje han nytt namn",
+    "tag_name_placeholder": "Namn på ny etikett",
+    "unnamed": "Utan namn"
+  },
+  "context_menu": {
+    "color_tag": "Etikett",
+    "emails_selected": "{count, plural, one {# e-post valt} other {# e-postar valde}}",
+    "remove_color": "Fjern etikett",
+    "rules": {
+      "login_changed": "Du bytte konto, så regelen vart ikkje lagra"
+    }
+  },
+  "deep_link": {
+    "open_failed": "Klarte ikkje opne dette"
+  },
+  "delegates": {
+    "remove_for": "Fjern tilgangen for {name}"
+  },
+  "device_sync": {
+    "auth_problem_text": "Serveren godtek ikkje lenger innlogginga til {account}, så kontaktane og kalendrane på denne eininga har slutta å synkronisere. Logg inn igjen for å halde fram. Endringar gjorde på denne eininga blir behaldne.",
+    "auth_problem_title": "Logg inn igjen for å halde fram med synkroniseringa",
+    "problem_channel": "Synkroniseringsproblem",
+    "sign_out_anyway": "Logg ut",
+    "sign_out_pending_message": "{count, plural, one {# endring gjord på denne eininga har ikkje nådd serveren. Ho går tapt viss du loggar ut no.} other {# endringar gjorde på denne eininga har ikkje nådd serveren. Dei går tapt viss du loggar ut no.}}",
+    "sign_out_pending_title": "Logge ut likevel?",
+    "sign_out_unknown_message": "Endringar gjorde på denne eininga har kanskje ikkje nådd serveren. Dei går tapt viss du loggar ut no.",
+    "signed_out_text": "{account} vart logga ut, så kontaktane og kalendrane på denne eininga blir ikkje lenger synkroniserte. Logg inn igjen for å halde fram. Endringar gjorde på denne eininga blir behaldne.",
+    "signed_out_title": "Logg inn for å halde fram med synkroniseringa",
+    "signing_out": "Fjernar synkroniserte kontaktar og kalendrar frå denne eininga …"
+  },
+  "email_composer": {
+    "attach_camera": "Kamera",
+    "attachment_reminder_body": "Meldinga di nemner «{keyword}», men inga fil er lagd ved. Sende likevel?",
+    "attachment_reminder_title": "Gløymt eit vedlegg?",
+    "attachments_too_large_total": "Vedlegga ville gå over dei {max} som denne serveren tillèt per melding.",
+    "draft_kept_body": "Ho går til Utkast så snart du er innlogga og tilkopla igjen.",
+    "draft_kept_title": "Lagra på denne eininga",
+    "editor_unavailable": "Klarte ikkje lese innhaldet i meldinga. Kopier teksten din, og lukk og opne skrivevindauget på nytt.",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Legg ved} one {Legg ved # fil} other {Legg ved # filer}}"
+    },
+    "format_plain_text": "Byt til rein tekst",
+    "format_rich_text": "Byt til formatert tekst (HTML)",
+    "from_options": "Avsendarval",
+    "group_chip": "{name} ({count})",
+    "identity_unavailable": "Identiteten er ikkje tilgjengeleg",
+    "image_load_failed": "Klarte ikkje laste biletet",
+    "login_switched_attach_body": "Du byrja denne meldinga i {account}. Byt tilbake til den kontoen for å leggje ved filer.",
+    "login_switched_body": "Du byrja denne meldinga i {account}. Byt tilbake til den kontoen for å sende ho.",
+    "login_switched_save_body": "Du byrja denne meldinga i {account}. Byt tilbake til den kontoen for å lagre ho.",
+    "login_switched_title": "Kontoen er bytt",
+    "no_recipient": "(ingen mottakar)",
+    "no_sent_folder": "Fann inga Sendt-mappe",
+    "option_encrypt": "Krypter",
+    "option_encrypt_hint": "Berre mottakarane (og du) kan lese ho. Kvar mottakar treng ein nøkkel",
+    "option_security": "Signatur og kryptering",
+    "option_sign": "Signer",
+    "option_sign_pgp_hint": "Legg til ein OpenPGP-signatur med nøkkelen din",
+    "option_sign_smime_hint": "Legg til ein S/MIME-signatur med sertifikatet ditt",
+    "permission_camera": "Appen treng tilgang til kameraet for å ta eit bilete.",
+    "permission_photos": "Appen treng tilgang til biletbiblioteket for å leggje ved bilete.",
+    "recipient_add_contact": "Legg til i kontaktar",
+    "recipient_copy": "Kopier adressa",
+    "recipients_partly_refused_title": "Ikkje sendt til alle",
+    "remove_attachment": "Fjern vedlegget",
+    "request_read_receipt": "Be om lesekvittering",
+    "rescued_draft_body": "Ei melding du skreiv, kunne ikkje lagrast tidlegare. Ho ligg no i Utkast.",
+    "rescued_draft_title": "Lagra i Utkast",
+    "save_draft": "Lagre utkast",
+    "save_failed_no_drafts": "Det finst inga Utkast-mappe å lagre dette utkastet i.",
+    "save_failed_no_identity": "Klarte ikkje laste avsendaridentitetane dine, så dette utkastet kan ikkje lagrast. Sjekk tilkoplinga, eller kopier teksten før du lukkar.",
+    "schedule_custom": "Vel dato og tid …",
+    "schedule_in_1h": "Om 1 time",
+    "schedule_in_3h": "Om 3 timar",
+    "schedule_past_body": "Det planlagde tidspunktet må vere fram i tid.",
+    "schedule_past_title": "Vel eit tidspunkt fram i tid",
+    "schedule_tomorrow": "I morgon kl. 08:00",
+    "schedule_tomorrow_morning": "I morgon tidleg",
+    "schedule_too_late_body": "Det er seinare enn denne serveren tillèt. Vel eit tidlegare tidspunkt.",
+    "schedule_too_late_title": "For langt fram i tid",
+    "schedule_unsupported_body": "Denne e-postserveren støttar ikkje planlagd sending.",
+    "schedule_unsupported_title": "Planlegging er ikkje tilgjengeleg",
+    "scheduled_body": "Meldinga di blir send {time}.",
+    "scheduled_title": "Planlagd",
+    "secure_failed_title": "Kan ikkje signere eller kryptere",
+    "secure_missing_keys": "Ingen nøkkel for {recipients}. Importer ein under Innstillingar → Kryptering.",
+    "secure_no_key": "Det finst ingen nøkkel for {email} på denne eininga. Importer ein under Innstillingar → Kryptering.",
+    "secure_offline": "Signerte eller krypterte meldingar kan ikkje vente i utboksen. Send meldinga når du er tilkopla.",
+    "secure_unlock_reason": "Nøkkelen din signerer denne meldinga.",
+    "send_now": "Send no",
+    "send_timeout_body": "Meldinga kan allereie vere send. Sjekk Sendt-mappa før du sender ho på nytt.",
+    "send_timeout_title": "Ikkje svar frå serveren",
+    "send_unconfirmed_body": "Serveren stadfesta ikkje sendinga. Sjekk Sendt-mappa før du sender på nytt. Utkastet ditt er teke vare på.",
+    "send_unconfirmed_title": "Sendinga er ikkje stadfesta",
+    "toolbar": {
+      "insert_image": "Set inn bilete"
+    },
+    "undo_send_label": "Sender om {seconds} s …",
+    "undo_send_other_login": "Denne meldinga vart send frå ein annan konto",
+    "undo_send_other_login_body": "Byt tilbake til {account} for å angre eller sende ho no. Ho går ut når ventetida er over.",
+    "upload_failed_short": "Opplastinga mislukkast",
+    "upload_login_switched": "Ikkje lasta opp: Kontoen vart bytt",
+    "uploading": "Lastar opp …",
+    "uploading_pct": "Lastar opp {pct} %",
+    "use_template": "Mal",
+    "validation": {
+      "subject_required": "Legg til eit emne"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "Du må vere tilkopla for å flytte mellom kontoar",
+    "emails_archived_count": "{count, plural, one {# e-post} other {# e-postar}} arkivert",
+    "emails_moved_to": "{count, plural, one {# e-post} other {# e-postar}} flytta til {mailbox}",
+    "error": "Feil",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtrer e-postar",
+    "folder_counts": "{total} totalt · {unread} ulesne",
+    "import": {
+      "none": "Ingen meldingar vart importerte.",
+      "partial": "{imported} importerte, {failed} mislukkast.",
+      "success": "{count, plural, one {# melding importert.} other {# meldingar importerte.}}",
+      "title": "Importer"
+    },
+    "marked_as_spam": "Merkt som søppelpost",
+    "marked_as_spam_count": "{count, plural, one {# e-post} other {# e-postar}} merkt som søppelpost",
+    "marked_not_spam": "Merkt som ikkje søppelpost",
+    "marked_not_spam_count": "{count, plural, one {# e-post} other {# e-postar}} merkt som ikkje søppelpost",
+    "move_same_account": "Meldingar kan berre flyttast innanfor same kontoen",
+    "moved_to_trash": "E-posten er flytta til papirkorga",
+    "moved_to_trash_count": "{count, plural, one {# e-post} other {# e-postar}} flytta til papirkorga",
+    "no_archive_folder": "Fann inga Arkiv-mappe på serveren.",
+    "no_emails_in": "Ingen e-postar i {folder}",
+    "no_junk_folder": "Fann inga mappe for søppelpost på serveren.",
+    "no_mailboxes": "Fann ingen postkassar",
+    "no_mailboxes_hint": "Sjekk at JMAP-kontoen din har e-poststøtte.",
+    "no_tags_defined": "Ingen etikettar er definerte. Legg til etikettar i Innstillingar.",
+    "no_trash_folder": "Fann inga papirkorg-mappe på serveren. Sjekk mappeoppsettet ditt.",
+    "offline_nothing_cached": "Inga tilkopling. Ingenting blir vist fordi ingen e-post er mellomlagra enno.",
+    "open_draft_failed": "Klarte ikkje opne utkastet.",
+    "outbox_discard": "Forkast",
+    "outbox_failed": "{count, plural, one {# endring kunne ikkje lagrast på serveren.} other {# endringar kunne ikkje lagrast på serveren.}}",
+    "recent_searches": "Nylege søk",
+    "remove_filter": "Fjern filteret {label}",
+    "scope_all_folders": "Alle mapper",
+    "scope_this_folder": "Denne mappa",
+    "search_placeholder": "Søk i e-post …",
+    "showing_cached": "Viser mellomlagra e-post",
+    "sort_toggle_hint": "Snur sorteringsrekkjefølgja",
+    "swipe_move": "Flytt",
+    "swipe_spam": "Søppelpost",
+    "total": "totalt",
+    "undo_failed": "Klarte ikkje angre",
+    "unknown_tag": "ikkje definert her"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "Legg til avsendaren i kontaktar",
+    "address_actions": {
+      "add_contact": "Legg til i kontaktar",
+      "compose": "Ny melding",
+      "copy": "Kopier adressa",
+      "copy_failed": "Klarte ikkje kopiere adressa."
+    },
+    "attachment_actions": {
+      "open": "Opne",
+      "preview": "Førehandsvis",
+      "save": "Lagre",
+      "save_as": "Lagre som …",
+      "share": "Del"
+    },
+    "attachment_failed": "Klarte ikkje opne vedlegget",
+    "authentication": {
+      "spoof_warning": "Avsendaradressa kunne ikkje stadfestast. Meldinga kan vere forfalska."
+    },
+    "body_truncated": "Meldinga er for stor til å visast i heilskap.",
+    "bundle_too_large": "Vedlegga er for store til å samlast.",
+    "color_tag": {
+      "blue": "Blå",
+      "green": "Grøn",
+      "none": "Ingen",
+      "orange": "Oransje",
+      "pink": "Rosa",
+      "purple": "Lilla",
+      "red": "Raud",
+      "title": "Fargeetikett",
+      "yellow": "Gul"
+    },
+    "delete_permanently_message": "Denne meldinga blir sletta permanent og kan ikkje gjenopprettast.",
+    "delete_permanently_title": "Slette permanent?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fil} other {# filer}} · {size}",
+      "received_after_delay": "{date} · {delay} leveringstid",
+      "spam_score_value": "{score} ({status})"
+    },
+    "export_failed": "Eksporten mislukkast",
+    "forwarded": "Vidaresend",
+    "import_email": "Importer .eml eller .zip",
+    "load_failed": "Klarte ikkje laste e-posten",
+    "not_spam_short": "Ikkje søppelpost",
+    "preview": {
+      "archive_files": "{count, plural, one {# fil} other {# filer}}",
+      "archive_first_files": "Dei første {count} filene",
+      "archive_protected": "Dette arkivet er passordverna. Opne det i ein annan app for å skrive inn passordet.",
+      "archive_unreadable": "Dette arkivet kan ikkje opnast her.",
+      "media_unsupported": "Denne fila kan ikkje spelast av her.",
+      "open_external": "Opne i app",
+      "pdf_external": "PDF-filer blir opna i PDF-visaren på denne eininga.",
+      "pdf_protected": "Denne PDF-fila er passordverna. Opne ho i ein annan app for å skrive inn passordet.",
+      "pdf_unreadable": "Denne PDF-fila kan ikkje visast her.",
+      "unsupported": "Inga førehandsvising for denne filtypen."
+    },
+    "quick_reply_login_switched": "Denne meldinga ligg i ein annan konto. Byt tilbake til han for å svare.",
+    "quick_reply_unconfirmed": "Serveren stadfesta ikkje sendinga. Sjekk Sendt-mappa før du sender på nytt.",
+    "received_via": "til {name}",
+    "remove_color": "Fjern etikett",
+    "replied": "Svart",
+    "sender_actions": "Avsendar …",
+    "set_color": "Set etikett",
+    "show_all_count": "Vis alle ({count})",
+    "show_less": "Vis mindre",
+    "smime_unsupported": "Signert eller kryptert med S/MIME, som appen ikkje støttar",
+    "source_too_large": "Meldinga er for stor til å visast i heilskap. Del heller heile kjelda.",
+    "spam_short": "Søppelpost",
+    "structured_mail": {
+      "party_size": "{count, plural, other {Bord for #}}"
+    },
+    "thread_loading": "Lastar samtalen …",
+    "undo_send_failed": "Klarte ikkje angre sendinga",
+    "unsubscribe_banner": {
+      "no_identity": "Ingen avsendaridentitet tilgjengeleg"
+    },
+    "view_dark_mode": "Vis i mørk modus",
+    "view_light_mode": "Vis i lys modus"
+  },
+  "encryption": {
+    "armored_key": "ASCII-armert nøkkel",
+    "banner": {
+      "checking": "Sjekkar kryptering og signatur …",
+      "decrypted": "Dekryptert ({kind})",
+      "failed": "Klarte ikkje dekryptere: {reason}",
+      "invalid": "Ugyldig signatur ({kind})",
+      "invalid_reason": "Ugyldig signatur ({kind}): {reason}",
+      "key_offered": "Meldinga inneheld ein offentleg nøkkel for {email}. Fingeravtrykk: {fingerprint}",
+      "locked": "Kryptert ({kind}). Lås opp nøkkelen din for å lese ho.",
+      "no_key": "Kryptert ({kind}) til ein nøkkel som ikkje er på denne eininga.",
+      "save_key": "Lagre nøkkel for {email}",
+      "save_key_failed": "Klarte ikkje lagre nøkkelen",
+      "self_signed": "Sertifikatet er sjølvsignert, ikkje utferda av ein kjend instans.",
+      "signed": "Gyldig signatur ({kind})",
+      "signed_by": "Gyldig signatur ({kind}) frå {signer}",
+      "signer_mismatch": "Den som har signert, er ikkje avsendaren som står i Frå.",
+      "unknown_key": "Signert ({kind}) med ein nøkkel du ikkje har importert.",
+      "unsupported": "Kryptert med {algorithm}, som appen ikkje kan dekryptere."
+    },
+    "check_description": "Køyrer alle algoritmane PGP og S/MIME brukar, på denne eininga.",
+    "check_run": "Køyr sjekk",
+    "check_title": "Sjekk krypteringsstøtte",
+    "delete_private_message": "{key} og den private nøkkelen blir fjerna frå denne eininga. E-post som er kryptert til han, kan ikkje lesast her lenger med mindre du importerer han på nytt.",
+    "delete_public_message": "{key} blir fjerna frå denne eininga.",
+    "delete_title": "Slette nøkkelen?",
+    "expired": "Gjekk ut {date}",
+    "expires": "Går ut {date}",
+    "find_key": "Finn ein nøkkel på keys.openpgp.org",
+    "import": "Importer",
+    "import_cert": "Importer sertifikat",
+    "import_p12": "Importer S/MIME-sertifikat (.p12)",
+    "import_pgp_file": "Importer PGP-nøkkelfil",
+    "import_public_file": "Importer fil med offentleg nøkkel",
+    "imported": "Importerte {key}",
+    "lock": "Lås",
+    "lock_all": "Lås alle nøklar",
+    "lock_all_description": "Gløym dei opplåste nøklane til du skriv inn passfrasen deira igjen.",
+    "locked": "Låst",
+    "locked_all": "Nøklane er låste",
+    "lookup_confirm": "Samanlikn dette fingeravtrykket med det eigaren gav deg (personleg eller på telefon) før du importerer det.",
+    "lookup_none": "Fann ingen nøkkel.",
+    "lookup_placeholder": "E-postadresse eller fingeravtrykk",
+    "lookup_search": "Søk",
+    "lookup_verified": "Nøkkelen har fingeravtrykket du søkte etter.",
+    "no_other_keys": "Ingen enno.",
+    "no_own_keys": "Ingen nøklar enno.",
+    "not_a_key": "Dette er ikkje ein nøkkel eller eit sertifikat appen kan lese.",
+    "others_description": "Offentlege nøklar og sertifikat å kryptere til og sjekke signaturar med. Nøklar frå signert e-post og nøklar i kontaktane dine blir òg brukte.",
+    "others_title": "Nøklane til andre",
+    "own_description": "Signer og dekrypter e-post med OpenPGP eller S/MIME. Private nøklar blir verande i det sikre lageret på denne eininga og blir låste opp med passfrasen ein gong per appøkt.",
+    "own_title": "Nøklane dine",
+    "p12_password_message": "Skriv inn passordet .p12-fila vart eksportert med. Du treng det igjen for å låse opp nøkkelen etter at appen startar på nytt.",
+    "p12_password_title": "Sertifikatpassord",
+    "passphrase": "Passfrase",
+    "passphrase_message": "Skriv inn passfrasen til denne nøkkelen. Han blir sjekka no og spurd om igjen ein gong per appøkt.",
+    "passphrase_title": "Passfrase for nøkkelen",
+    "password": "Passord",
+    "paste_pgp": "Lim inn PGP-nøkkel",
+    "paste_public": "Lim inn offentleg nøkkel",
+    "share_cert": "Del sertifikatet",
+    "share_key": "Del den offentlege nøkkelen",
+    "tab": "Kryptering",
+    "title": "Kryptering",
+    "unlock": "Lås opp",
+    "unlock_pgp_message": "Skriv inn passfrasen til PGP-nøkkelen din {key}.",
+    "unlock_read_reason": "Meldinga er kryptert til denne nøkkelen.",
+    "unlock_smime_message": "Skriv inn passordet til S/MIME-sertifikatet ditt {key}.",
+    "unlock_title": "Lås opp nøkkelen",
+    "unlocked": "Låst opp",
+    "unlocking": "Låser opp …",
+    "wrong_passphrase": "Passfrasen er ikkje rett."
+  },
+  "files": {
+    "batch_delete_confirm_message": "Er du sikker på at du vil slette {count, plural, one {# element} other {# element}}? Dette kan ikkje angrast.",
+    "batch_delete_success": "{count, plural, one {# element sletta} other {# element sletta}}",
+    "delete_cascade_hint": "Mapper blir sletta saman med alt som ligg i dei. Dette kan ikkje angrast.",
+    "delete_confirm_message": "Er du sikker på at du vil slette «{name}»? Dette kan ikkje angrast.",
+    "delete_confirm_title": "Slett ressurs",
+    "delete_item_title": "Slette dette elementet?",
+    "delete_items_title": "{count, plural, one {Slette # element?} other {Slette # element?}}",
+    "delete_success": "Sletta",
+    "done": "Ferdig",
+    "download_failed_status": "Nedlastinga mislukkast (HTTP {status})",
+    "folder_empty": "Denne mappa er tom",
+    "invalid_name": "Ugyldig namn",
+    "invalid_name_slash": "Namn kan ikkje innehalde «/».",
+    "name_trash": "«.Trash» er namnet på papirkorg-mappa øvst i filene dine. Vel eit anna namn.",
+    "open_error": "Klarte ikkje opne fila",
+    "open_with": "Opne med …",
+    "preview_too_large": "Fila er for stor til å førehandsvisast.",
+    "settings_behavior": "Åtferd",
+    "settings_colored_icons": "Fargerike ikon",
+    "settings_colored_icons_desc": "Bruk fargerike ikon i staden for einsfarga",
+    "settings_default_sort": "Standardsortering",
+    "settings_default_sort_desc": "Vel standardsorteringa for filer",
+    "settings_default_view": "Standardvising",
+    "settings_default_view_desc": "Vel mellom rutenett og liste",
+    "settings_display": "Vising",
+    "settings_icons": "Ikon",
+    "settings_show_hidden": "Vis skjulte filer",
+    "settings_show_hidden_desc": "Vis filer og mapper som byrjar med punktum",
+    "settings_show_icons": "Vis filikon",
+    "settings_show_icons_desc": "Vis ikon ved sidan av filer og mapper",
+    "settings_show_thumbnails": "Vis miniatyrbilete",
+    "settings_show_thumbnails_desc": "Vis førehandsvising av bilete i staden for ikon for biletfiler",
+    "settings_sort_direction": "Sorteringsretning",
+    "settings_sort_direction_desc": "Vel stigande eller søkkande rekkjefølgje",
+    "share_add_people": "Legg til personar",
+    "share_empty": "Ikkje delt med nokon enno",
+    "share_error": "Klarte ikkje oppdatere delinga",
+    "share_file_error": "Klarte ikkje dele fila",
+    "share_folder_hint": "Når du deler ei mappe, deler du alt som ligg i ho.",
+    "share_no_matches": "Ingen treff",
+    "share_no_users": "Fann ingen andre brukarar",
+    "share_remove": "Fjern tilgang",
+    "share_remove_confirm": "Fjerne tilgangen?",
+    "share_remove_for": "Fjern tilgangen for {name}",
+    "share_role_custom": "Tilpassa",
+    "share_search_placeholder": "Søk etter namn eller e-post",
+    "share_unavailable": "Deling er ikkje tilgjengeleg på denne eininga",
+    "shared_with": "Delt med",
+    "sharing_access": "Deling og tilgang",
+    "trash_unavailable_message": "{count, plural, one {Dette elementet} other {Desse # elementa}} kan ikkje flyttast til papirkorga. Slette permanent i staden? Dette kan ikkje angrast.",
+    "upload": "Last opp",
+    "upload_failed": "{count, plural, one {# fil kunne ikkje lastast opp} other {# filer kunne ikkje lastast opp}}",
+    "upload_unavailable": "Filveljaren er ikkje installert i denne versjonen. Bygg appen på nytt for å kunne laste opp.",
+    "uploading_progress": "Lastar opp {current}/{total} · {name}"
+  },
+  "identities": {
+    "badge": {
+      "to": "til {identity}",
+      "via": "via {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "Du er allereie logga inn på desse.",
+      "add_title": "Legg til ein konto til",
+      "camera_allow": "Gje tilgang til kameraet",
+      "camera_disabled": "Tilgang til kameraet er slått av. Slå det på i Innstillingar for å skanne ein QR-kode for innlogging.",
+      "camera_needed": "Bulwark Mail treng tilgang til kameraet for å skanne ein QR-kode for innlogging.",
+      "cancel_sign_in": "Avbryt innlogginga",
+      "choose_subtitle": "Vel korleis du vil logge inn.",
+      "confirm_check": "Sjekk at dette ser rett ut",
+      "confirm_found": "Fann e-postserveren din",
+      "confirm_subtitle": "Deretter loggar du inn på sida til leverandøren din.",
+      "connecting": "Koplar til {host}",
+      "connecting_detail": "Set opp postkassen din …",
+      "continue": "Hald fram",
+      "different_server": "Bruk ein annan server",
+      "elsewhere_title": "Ein konto ein annan stad",
+      "email_desc": "Vi finn e-postserveren din",
+      "email_step_hint": "Fungerer med Stalwart og alle andre JMAP-e-postserverar.",
+      "email_step_subtitle": "Det er som regel alt vi treng for å finne e-postserveren din.",
+      "email_step_title": "Kva er e-postadressa di?",
+      "email_step_title_add": "Kva er den andre adressa?",
+      "email_title": "Bruk e-postadressa mi",
+      "err_account_limit_detail": "Fjern ein konto i Innstillingar for å leggje til ein annan.",
+      "err_bad_detail": "Sjekk e-postadressa og passordet. Viss kontoen din brukar tofaktorinnlogging, lag eit appassord i webmailen og bruk det her.",
+      "err_bad_title": "Det fungerte ikkje",
+      "err_cert_detail": "Tryggingssertifikatet til serveren vart avvist. Viss dette er din eigen server, sjekk at sertifikatet er gyldig og ikkje har gått ut.",
+      "err_cert_title": "Klarte ikkje stadfeste {host}",
+      "err_client_rejected_detail": "Serveren avviste Bulwark som innloggingsklient. Be administratoren din om å tillate han, eller logg inn med eit appassord.",
+      "err_client_rejected_title": "{host} godtok ikkje appen",
+      "err_code_expired_detail": "Innloggingskodar gjeld i to minutt. Vis ein ny i webmailen og skann igjen.",
+      "err_code_expired_or_used_detail": "Vis ein ny i webmailen og skann igjen.",
+      "err_code_expired_or_used_title": "Koden har gått ut eller er allereie brukt",
+      "err_code_expired_title": "Koden har gått ut",
+      "err_code_invalid_detail": "Vis ein ny kode i webmailen (Innstillingar → Tryggleik → Kople til mobilappen) og skann han.",
+      "err_code_invalid_title": "Koden er ikkje gyldig",
+      "err_code_used_detail": "Kvar kode fungerer éin gong. Vis ein ny i webmailen og skann igjen.",
+      "err_code_used_title": "Koden er allereie brukt",
+      "err_generic_detail": "Noko gjekk gale. Prøv igjen.",
+      "err_generic_title": "Innlogginga mislukkast",
+      "err_handoff_expired_detail": "Nettlesaren leverte innlogginga tilbake etter at ho hadde gått ut. Logg inn igjen.",
+      "err_handoff_expired_title": "Innlogginga tok for lang tid",
+      "err_handoff_network_detail": "Fekk ikkje kontakt med webmailen etter at du logga inn. Sjekk tilkoplinga og logg inn igjen.",
+      "err_handoff_network_title": "Klarte ikkje fullføre innlogginga",
+      "err_handoff_rate_detail": "Vent nokre minutt og logg inn igjen.",
+      "err_handoff_refused_detail": "Innloggingslenkja var allereie brukt eller kom ikkje frå denne innlogginga. Logg inn igjen.",
+      "err_handoff_refused_title": "Webmailen godtok ikkje denne innlogginga",
+      "err_handoff_server_detail": "Logg inn igjen. Viss det framleis ikkje fungerer, spør administratoren din.",
+      "err_handoff_server_title": "Webmailen klarte ikkje fullføre innlogginga",
+      "err_interrupted_detail": "Svaret passa ikkje med førespurnaden vi starta. Prøv å logge inn igjen.",
+      "err_interrupted_title": "Innlogginga vart avbroten",
+      "err_no_server_detail": "Sjekk adressa på nytt, eller skann ein innloggingskode frå webmailen i staden.",
+      "err_no_server_title": "Ingen e-postserver på {host}",
+      "err_no_webmail_detail": "Denne serveren har verken Bulwark-webmail eller OAuth-innlogging. Bruk eit passord (eller eit appassord) i staden.",
+      "err_no_webmail_title": "Inga innloggingsside på {host}",
+      "err_pair_connect_detail": "Vis ein ny kode på datamaskina og skann igjen.",
+      "err_pair_connect_title": "Logga inn, men klarte ikkje kople til {host}",
+      "err_pair_insecure_detail": "{host} vil bruke ei ukryptert tilkopling.",
+      "err_pair_network_detail": "Sjekk tilkoplinga og at denne eininga når webmailen, og prøv igjen.",
+      "err_pair_rate_detail": "Vent eit minutt og prøv igjen.",
+      "err_pair_server_detail": "Prøv igjen med ein ny kode. Viss det framleis ikkje fungerer, spør administratoren din.",
+      "err_pair_server_title": "Webmailen klarte ikkje fullføre innlogginga",
+      "err_pair_unsupported_detail": "{host} støttar ikkje innloggingskodar. Han treng kanskje ei oppdatering, eller lenkja peikar til feil adresse.",
+      "err_pair_unsupported_title": "Denne webmailen kan ikkje kople til einingar",
+      "err_pair_untrusted_detail": "{host} sende innloggingsopplysningar for ein server appen ikkje kan stadfeste.",
+      "err_pair_untrusted_title": "Denne innlogginga er ikkje til å stole på",
+      "err_password_expired_detail": "Endre det i nettgrensesnittet til serveren, og logg så inn med det nye.",
+      "err_password_expired_title": "Passordet ditt har gått ut",
+      "err_rate_detail": "Serveren bad oss vente litt. Prøv igjen om ei lita stund.",
+      "err_rate_detail_seconds": "Serveren bad oss vente. Prøv igjen om om lag {seconds} sekund.",
+      "err_rate_title": "For mange forsøk",
+      "err_server_detail": "Serveren svarte med ein feil. Prøv igjen om nokre minutt.",
+      "err_server_title": "{host} har problem",
+      "err_token_exchange_title": "{host} starta ikkje ei økt",
+      "err_totp_bad_detail": "Sjekk passordet og den gjeldande koden frå autentiseringsappen, og prøv igjen.",
+      "err_totp_detail": "Denne kontoen er verna med tofaktorinnlogging. Skriv inn den 6-sifra koden frå autentiseringsappen.",
+      "err_totp_title": "Skriv inn tofaktorkoden din",
+      "err_unreachable_detail": "Sjekk tilkoplinga og serveradressa, og prøv igjen.",
+      "err_unreachable_title": "Får ikkje kontakt med {host}",
+      "know_server": "Eg kjenner serveradressa mi",
+      "known_server_desc": "Vi kjenner allereie denne serveren, så du treng ikkje setje opp noko",
+      "known_server_title": "Ein annan konto på {host}",
+      "link_confirm_connect": "Ei lenkje ber om å logge inn på denne sida. Hald berre fram viss du brukar {host} til e-posten din.",
+      "link_confirm_connect_add": "Ei lenkje ber om å leggje til ein konto ved å logge inn på denne sida. Hald berre fram viss du brukar {host} til e-posten din.",
+      "link_confirm_connect_title": "Opne innloggingssida til {host}?",
+      "link_confirm_pair": "Denne lenkja loggar inn på ein konto frå {host}. Hald berre fram viss du nettopp viste ein innloggingskode på datamaskina.",
+      "link_confirm_pair_add": "Denne lenkja legg til ein konto frå {host} og byter appen til han. Hald berre fram viss du nettopp viste ein innloggingskode på datamaskina.",
+      "link_confirm_title": "Logge inn med ei lenkje?",
+      "looking_up": "Slår opp serveren din …",
+      "manual": "Skriv inn serveropplysningar manuelt",
+      "notice_bad_qr": "Den koden er ikkje ein innloggingskode for Bulwark",
+      "notice_bad_qr_detail": "Opne Bulwark på nettet og så Innstillingar → Tryggleik → Kople til mobilappen for å vise ein.",
+      "notice_bad_server": "Det ser ikkje ut som ei serveradresse",
+      "notice_bad_server_detail": "Prøv adressa du brukar til webmail, til dømes mail.example.com.",
+      "notice_full_email": "Skriv inn ei fullstendig e-postadresse",
+      "notice_full_email_detail": "Til dømes ada@example.com. Viss du loggar inn med eit brukarnamn i staden, bruk «Eg kjenner serveradressa mi».",
+      "notice_need_code": "Skriv inn den 6-sifra koden frå autentiseringsappen",
+      "notice_need_credentials": "Skriv inn e-postadressa og passordet ditt",
+      "notice_need_server": "Vi treng ei serveradresse først",
+      "open_settings": "Opne Innstillingar",
+      "opening": "Opnar {host}",
+      "opening_detail": "Fullfør innlogginga på sida som nettopp opna seg. Vi tek det vidare derifrå.",
+      "pairing": "Løyser inn innloggingskoden din",
+      "pairing_detail": "Koplar denne eininga til {host} …",
+      "password_subtitle": "Passordet ditt blir berre sendt til denne serveren og lagra i nøkkelringen på eininga.",
+      "password_title": "Logg inn på {host}",
+      "paste_button": "Lim inn",
+      "paste_clipboard_empty": "Ingenting å lime inn. Kopier lenkja i webmailen først.",
+      "paste_hint": "I webmailen opnar du Innstillingar → Tryggleik → Kople til mobilappen, kopierer innloggingslenkja og limer ho inn her.",
+      "paste_invalid": "Det er ikkje ei innloggingslenkje for Bulwark",
+      "paste_label": "Innloggingslenkje",
+      "paste_title": "Lim inn innloggingslenkje",
+      "provider_detail": "Du skriv det inn på sida deira. Bulwark lagrar berre ein innloggingstoken, som du kan trekkje tilbake når som helst.",
+      "provider_title": "Passordet ditt blir verande hos leverandøren",
+      "qr_hint": "Innstillingar → Tryggleik → Kople til mobilappen viser ein kode. Rett kameraet mot han.",
+      "qr_hint_title": "Opne Bulwark på datamaskina",
+      "qr_title": "Innloggingskode",
+      "reauth_detail": "Serveren godtek ikkje lenger den lagra innlogginga for {account}. Logg inn igjen for å halde fram med å bruke denne kontoen.",
+      "reauth_title": "Logg inn igjen",
+      "scan_desc": "Den raskaste vegen inn viss du er logga inn på nettet",
+      "scan_title": "Skann ein innloggingskode",
+      "server_cert_active": "Loggar inn med klientsertifikatet «{alias}». Trykk for å velje eit anna.",
+      "server_cert_clear": "Logg inn utan sertifikatet",
+      "server_cert_failed": "Klarte ikkje velje eit sertifikat",
+      "server_cert_hint": "Spør serveren din etter eit klientsertifikat? Vel eit som er installert på denne eininga.",
+      "server_hint": "Same adresse som du skriv i nettlesaren. Vi legg til https:// for deg.",
+      "server_label": "Serveradresse",
+      "server_not_found": "Vi fann ingen server for {domain}. Viss du driftar sjølv, er adressa den du brukar til webmail.",
+      "server_paste_hint": "Har du ei innloggingslenkje i staden? Lim ho inn her.",
+      "server_scan_hint": "Viss du ikkje er sikker, skann ein innloggingskode i staden. Han inneheld serveradressa.",
+      "server_subtitle": "Skriv inn adressa du brukar for å nå webmailen din.",
+      "server_title": "Kva er serveradressa di?",
+      "the_server": "serveren",
+      "unencrypted": "Ukryptert tilkopling",
+      "use_password": "Logg inn med passord i staden",
+      "username_label": "E-post eller brukarnamn",
+      "your_server": "serveren din"
+    }
+  },
+  "notifications": {
+    "vacation_filters_off": "Fråværsinnstillingane er lagra, men filtera dine er slått av. Lagre igjen for å slå dei på att."
+  },
+  "offline": {
+    "banner": "Du er fråkopla",
+    "discarded_changes": "{count, plural, one {# fråkopla endring vart forkasta} other {# fråkopla endringar vart forkasta}} fordi e-postserveren vart endra",
+    "queued_changes": "{count, plural, one {# endring} other {# endringar}} blir synkronisert når du er tilkopla igjen",
+    "sync": {
+      "cached_count": "{count, plural, one {# ny melding mellomlagra} other {# nye meldingar mellomlagra}} • {size}",
+      "cancelled": "Synkroniseringa er avbroten",
+      "failed": "Fråkopla synkronisering mislukkast",
+      "processed": "{completed}/{total} handsama",
+      "ready": "E-post for fråkopla bruk er klar",
+      "syncing": "Synkroniserer e-post for fråkopla bruk",
+      "title": "Fråkopla synkronisering",
+      "unable_to_download": "Klarte ikkje laste ned",
+      "up_to_date": "Allereie oppdatert"
+    }
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Serveren godtek ikkje lenger den lagra innlogginga for {account}. E-posten til kontoen blir verande skjult på denne eininga til du loggar inn igjen."
+  },
+  "outbox": {
+    "already_sent": "Denne meldinga er allereie send",
+    "discard": "Forkast",
+    "discard_body": "Ho blir ikkje send, og teksten går tapt.",
+    "discard_title": "Forkaste denne meldinga?",
+    "failed_count": "{count, plural, one {# melding} other {# meldingar}} ikkje send",
+    "move_failed_body": "Meldinga blir verande i utboksen. Prøv igjen når tilkoplinga er tilbake.",
+    "move_failed_title": "Klarte ikkje flytte til Utkast",
+    "move_to_drafts": "Flytt til Utkast",
+    "open_hint": "Opnar utboksen",
+    "queued_body": "Ho går ut så snart du er tilkopla igjen.",
+    "queued_title": "Lagra i utboksen",
+    "retry": "Prøv igjen",
+    "send_failed": "Ei melding i utboksen kunne ikkje sendast",
+    "sent": "Melding frå utboksen er send",
+    "status_failed": "Ikkje send",
+    "status_failed_reason": "Ikkje send: {reason}",
+    "status_offline": "Ventar på tilkopling",
+    "status_retrying": "Ventar på å sende",
+    "status_sending": "Sender …",
+    "title": "Utboks",
+    "waiting": "{count, plural, one {# melding} other {# meldingar}} i utboksen"
+  },
+  "push": {
+    "ios": {
+      "more_messages": "og {count} til",
+      "no_subject": "(utan emne)"
+    }
+  },
+  "push_prompt": {
+    "body": "Slå på bakgrunnsvarsel, så får du nye meldingar sjølv når appen er lukka.",
+    "dismiss": "Ikkje no",
+    "enable": "Slå på",
+    "title": "Få varsel om ny e-post"
+  },
+  "scheduled": {
+    "actions": "Handlingar",
+    "already_sent": "Denne meldinga er allereie send.",
+    "cancel_body": "Meldinga blir ikkje levert. Ein kopi blir verande i Sendt-mappa.",
+    "cancel_failed": "Klarte ikkje avbryte",
+    "cancel_to_drafts_body": "Meldinga blir ikkje send. Ho går tilbake til Utkast.",
+    "cancelled_not_moved": "Sendinga er avbroten, men ikkje flytta til Utkast",
+    "cancelled_not_moved_body": "Meldinga blir ikkje send. Ho ligg framleis i Sendt.",
+    "edit_failed": "Klarte ikkje opne meldinga for redigering",
+    "keep_scheduled": "Behald planlagd",
+    "login_switched": "Desse planlagde meldingane høyrer til ein annan konto. Byt tilbake til han for å endre dei.",
+    "no_longer_scheduled": "Denne meldinga er ikkje planlagd lenger.",
+    "reschedule_failed": "Klarte ikkje planleggje på nytt",
+    "reschedule_lost": "Meldinga er ikkje planlagd lenger. Sjekk Utkast og Sendt før du sender ho på nytt.",
+    "reschedule_lost_drafts": "Meldinga er ikkje planlagd lenger. Ho ligg att i Utkast, der du kan sende ho på nytt.",
+    "send_cancelled": "Sendinga er avbroten",
+    "send_now_failed": "Klarte ikkje sende no"
+  },
+  "settings": {
+    "about": {
+      "check_now": "Sjekk no",
+      "checked_at": "Sjekka {when}",
+      "licences": "Lisensar for open kjeldekode",
+      "licences_desc": "Lisensen til appen (AGPL-3.0) og lisensane til biblioteka han brukar",
+      "never_checked": "Ikkje sjekka enno",
+      "privacy": "Personvern",
+      "privacy_desc": "Kva som blir verande på denne eininga, og kva som går til serveren din",
+      "report_problem": "Meld frå om eit problem",
+      "report_problem_desc": "Opnar ei sak på GitHub med versjonen fylt inn",
+      "server": "Server",
+      "server_value": "{host} · logga inn som {user}",
+      "source_code": "Kjeldekode",
+      "this_device": "Denne eininga",
+      "this_device_desc": "Kva appen er kopla til, og korleis du får hjelp.",
+      "up_to_date": "Oppdatert",
+      "updates": "Oppdateringar"
+    },
+    "accessibility": {
+      "cvd_palette": {
+        "description_mobile": "Brukar etikett- og kalenderfargar som held seg ulike ved raud-grøn eller blå-gul fargeblindskap."
+      },
+      "font": {
+        "description_ios": "Atkinson Hyperlegible og Lexend er laga for å vere lette å skilje frå kvarandre. OpenDyslexic hjelper nokre med dysleksi. På denne eininga blir skrifta brukt for meldingar i rein tekst."
+      },
+      "plain_language": {
+        "description_mobile": "Enklare ordlyd i innstillingar og feilmeldingar. Tilgjengeleg på engelsk, tysk og vietnamesisk.",
+        "label": "Klarspråk"
+      },
+      "presets": {
+        "applied_mobile": "{name} endra {count, plural, one {# innstilling} other {# innstillingar}}",
+        "apply": "Bruk",
+        "apply_named": "Bruk {name}",
+        "dyslexia": {
+          "description_mobile": "Atkinson Hyperlegible som skrift, òg for meldingar i rein tekst."
+        },
+        "low-vision": {
+          "description_mobile": "Tekst på 150 % og etikettar under ikona i verktøylinja."
+        },
+        "motion": {
+          "description_mobile": "Ingen animasjonar eller glidande overgangar."
+        },
+        "screen-reader": {
+          "description_mobile": "Ingen samtalegruppering, så kvar melding får si eiga rad."
+        }
+      },
+      "reduce_motion": {
+        "description_mobile": "Slår av glidande panel og overgangar. Appen gjer dette òg når redusert rørsle er slått på i innstillingane på eininga di."
+      },
+      "text_size": {
+        "description_mobile": "Skalerer teksten i appen i tillegg til tekststorleiken på eininga di. 100 % er storleiken på eininga."
+      },
+      "toast_duration": {
+        "automatic": "Automatisk (lenger med skjermlesar)"
+      }
+    },
+    "account": {
+      "accounts": {
+        "description_mobile": "Endre rekkjefølgja kontoane har i kontobytaren, vel standardkonto eller logg ut av ein.",
+        "limit": "Du har nådd grensa på {count} kontoar."
+      },
+      "shared_accounts": {
+        "description_manage": "Gruppekontoar og delte kontoar du kan lese gjennom denne kontoen. Vel ein for å administrere filtera og fråværsmeldinga."
+      },
+      "unknown": "Ukjend"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "Oppdatering krevst: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "Tryggingsoppdatering: {version}",
+        "update_available": "Oppdatering: {version}",
+        "update_store_hint": "tilgjengeleg i TestFlight / App Store"
+      },
+      "export_settings": {
+        "saved_to": "Lagra i {path}"
+      },
+      "reset_settings": {
+        "done": "Alle innstillingane er sette tilbake til standard."
+      }
+    },
+    "appearance": {
+      "accessibility_link": {
+        "description_mobile": "Tekststorleik, redusert rørsle og tilgjengeoppsetta finn du på sida Tilgjenge."
+      },
+      "cross_all": {
+        "label_mobile": "All e-post"
+      },
+      "cross_starred": {
+        "label_mobile": "Alle stjernemerkte"
+      },
+      "cross_unread": {
+        "label_mobile": "Alle ulesne"
+      },
+      "description_mobile": "Tilpass korleis appen ser ut",
+      "language": {
+        "restart_for_direction": "Start appen på nytt for å bruke den nye tekstretninga.",
+        "system_default": "Systemstandard"
+      },
+      "toolbar_labels": {
+        "description_mobile": "Vis tekstetikettar ved sidan av ikona i verktøylinja."
+      }
+    },
+    "backup": {
+      "description": "Flytt innstillingane dine til ei anna eining eller til webmailen.",
+      "export_import": "Eksporter eller importer",
+      "export_import_desc": "Ei JSON-fil, same format som webmailen",
+      "reset": "Tilbakestill",
+      "reset_desc": "Tilbake til standard. E-posten blir verande",
+      "title": "Reservekopi av innstillingar"
+    },
+    "badges": {
+      "experimental": "Eksperimentell",
+      "not_implemented": "Ikkje implementert",
+      "not_on_server": "Ikkje på denne serveren",
+      "unavailable": "Ikkje tilgjengeleg"
+    },
+    "composer": {
+      "autosave": {
+        "1m": "Kvart minutt",
+        "2m": "Kvart 2. minutt",
+        "30s": "Kvart 30. sekund",
+        "5m": "Kvart 5. minutt",
+        "description": "Kor ofte utkast skal lagrast automatisk",
+        "label": "Intervall for automatisk lagring"
+      },
+      "description": "Innstillingar for å skrive e-post",
+      "title": "Skriving"
+    },
+    "contacts": {
+      "book_count": "{count, plural, one {# kontakt} other {# kontaktar}}",
+      "default_book": "Standardadressebok",
+      "description_mobile": "Visingsval og verktøy for adressebøker.",
+      "device_sync_desc": "Vis adressebøkene dine i Kontaktar-appen og andre appar på denne eininga. Endringar blir synkroniserte begge vegar.",
+      "device_sync_title": "Synkroniser til denne eininga",
+      "export_description_count": "{count, plural, one {Eksporter # kontakt som éi vCard-fil.} other {Eksporter # kontaktar som éi vCard-fil.}}",
+      "export_empty": "Ingen kontaktar å eksportere",
+      "import_description_mobile": "Importer kontaktar frå ei vCard-fil (.vcf) med oppdaging av duplikat.",
+      "manage_description_mobile": "Opprett, gje nytt namn til og fjern adressebøkene som kontaktane dine er ordna i."
+    },
+    "device_sync": {
+      "also_synced_by": "Blir òg synkronisert for {accounts}, så det blir vist to gonger på denne eininga.",
+      "android_settings": "Kontoinnstillingar i Android",
+      "blocked_calendar": "Android spør ikkje lenger om tilgang til kalendrar. Gje tilgang i innstillingane for appen, og slå så på synkroniseringa igjen.",
+      "blocked_contacts": "Android spør ikkje lenger om tilgang til kontaktar. Gje tilgang i innstillingane for appen, og slå så på synkroniseringa igjen.",
+      "blocked_title": "Tilgangen er slått av",
+      "books_default": "Dine eigne adressebøker blir synkroniserte. Delte berre når du vel dei.",
+      "books_hint": "Dine eigne adressebøker blir synkroniserte med mindre du slår dei av. Delte berre når du slår dei på.",
+      "books_label": "Adressebøker",
+      "calendars_default": "Dine eigne kalendrar blir synkroniserte. Delte berre når du vel dei.",
+      "calendars_hint": "Dine eigne kalendrar blir synkroniserte med mindre du slår dei av. Delte berre når du slår dei på. Oppgåvelister blir verande i Bulwark.",
+      "calendars_label": "Kalendrar",
+      "choose": "Vel",
+      "choose_books_title": "Adressebøker som skal synkroniserast",
+      "choose_calendars_title": "Kalendrar som skal synkroniserast",
+      "collections_count": "{selected, plural, one {# av {total} blir synkronisert} other {# av {total} blir synkroniserte}}",
+      "continue": "Hald fram",
+      "deletions_delete": "Slett på serveren",
+      "deletions_message": "Mange element vart sletta på denne eininga på ein gong, så dei vart ikkje sletta på serveren. Slett dei der òg, eller hent dei tilbake på denne eininga.",
+      "deletions_restore": "Hent dei tilbake",
+      "deletions_title": "Slette dei på serveren òg?",
+      "denied_calendar": "Utan tilgang til kalendrar kan ikkje Bulwark leggje kalendrane dine på denne eininga.",
+      "denied_contacts": "Utan tilgang til kontaktar kan ikkje Bulwark leggje adressebøkene dine på denne eininga.",
+      "denied_title": "Synkroniseringa blir verande av",
+      "failed_title": "Klarte ikkje slå på synkroniseringa",
+      "grant_access": "Gje tilgang",
+      "interval_15m": "Kvart 15. minutt",
+      "interval_1h": "Kvar time",
+      "interval_30m": "Kvart 30. minutt",
+      "interval_6h": "Kvar 6. time",
+      "interval_desc": "Kor ofte Android synkroniserer på eiga hand. Endringar i Bulwark og pusha endringar blir synkroniserte raskare.",
+      "interval_label": "Synkroniseringsintervall",
+      "interval_manual": "Inga fast synkronisering",
+      "keep_syncing": "Hald fram med å synkronisere",
+      "list_error_auth": "Serveren godtok ikkje innlogginga.",
+      "list_error_network": "Fekk ikkje kontakt med serveren.",
+      "list_error_server": "Serveren klarte ikkje liste dei opp.",
+      "list_error_signed_out": "Denne kontoen er ikkje logga inn på denne eininga.",
+      "master_off": "Automatisk synkronisering er av på denne eininga, så synkronisering skjer berre når du trykkjer på Synkroniser no.",
+      "new_contacts_default": "Standardadressebok",
+      "new_contacts_desc": "Adresseboka for kontaktar som blir oppretta i andre appar på denne eininga.",
+      "new_contacts_label": "Nye kontaktar går til",
+      "no_books": "Denne kontoen har ingen adressebøker.",
+      "no_calendars": "Denne kontoen har ingen kalendrar å synkronisere.",
+      "ok": "OK",
+      "open_app_settings": "Opne innstillingane for appen",
+      "own_collections": "Dine eigne",
+      "rationale_calendar": "For å vise kalendrane dine i Kalender-appen treng Bulwark tilgang til kalendrane på denne eininga. Appen endrar berre kalendrane til sin eigen konto.",
+      "rationale_contacts": "For å vise adressebøkene dine i Kontaktar-appen treng Bulwark tilgang til kontaktane på denne eininga. Appen endrar berre kontaktane til sin eigen konto.",
+      "rationale_title_calendar": "Gje tilgang til kalendrar",
+      "rationale_title_contacts": "Gje tilgang til kontaktar",
+      "read_only": "Skriveverna",
+      "reminder_owner_bulwark": "Bulwark",
+      "reminder_owner_device": "Kalender-appen",
+      "reminder_question_message": "Synkroniserte hendingar kan minne deg på frå kalender-appen på denne eininga eller frå Bulwark. Vel éin, så du ikkje blir mint på to gonger. Du kan endre det seinare.",
+      "reminder_question_title": "Kven skal minne deg på?",
+      "reminders_desc": "Kven som minner deg på synkroniserte hendingar. Den andre er stille, så du ikkje blir mint på to gonger.",
+      "reminders_label": "Påminningar",
+      "reminders_nobody": "Hendingsvarsla i Bulwark er slått av, så ingenting minner deg på synkroniserte hendingar.",
+      "remove": "Fjern",
+      "remove_from_device": "Fjern frå denne eininga",
+      "remove_message": "Kontaktane og kalendrane til kontoen blir fjerna frå denne eininga. Endringar gjorde her som ikkje har nådd serveren, går tapt.",
+      "remove_title": "Fjerne frå denne eininga?",
+      "review_deletions": "Sjå gjennom slettingane",
+      "shared_by": "Delt av {name}",
+      "sign_in_again": "Logg inn igjen",
+      "status_auth": "Serveren godtek ikkje lenger innlogginga. Logg inn igjen for å halde fram med synkroniseringa.",
+      "status_cancelled": "Den siste synkroniseringa stoppa tidleg. Ho held fram neste gong.",
+      "status_failed": "Den siste synkroniseringa mislukkast: {message}",
+      "status_failed_plain": "Den siste synkroniseringa mislukkast.",
+      "status_io": "Fekk ikkje kontakt med serveren {when}. Android prøver igjen.",
+      "status_item_errors": "{count, plural, one {# element kunne ikkje synkroniserast.} other {# element kunne ikkje synkroniserast.}}",
+      "status_off": "Av",
+      "status_paused": "Sett på pause i innstillingane til Android",
+      "status_permission_calendar": "Tilgang til kalendrar vart slått av, så ingenting blir synkronisert.",
+      "status_permission_contacts": "Tilgang til kontaktar vart slått av, så ingenting blir synkronisert.",
+      "status_removed": "Fjerna i innstillingane til Android. Slå på for å leggje til kontoen igjen.",
+      "status_safety_abort": "Stoppa: Serveren returnerte ingenting medan denne eininga framleis har element. Sjekk serveren og synkroniser igjen.",
+      "status_synced": "Synkronisert {when}",
+      "status_syncing": "Synkroniserer …",
+      "status_too_many_deletions": "Mange element vart sletta på denne eininga. Dei blir ikkje sletta på serveren før du stadfestar.",
+      "status_unsupported_calendar": "Serveren har ingen kalendrar for denne kontoen.",
+      "status_unsupported_contacts": "Serveren har ingen adressebøker for denne kontoen.",
+      "status_waiting": "Ventar på den første synkroniseringa",
+      "status_waiting_next": "Ventar på neste synkronisering",
+      "suspended_desc": "Logga ut. Kontaktane og kalendrane blir verande på denne eininga, med endringane gjorde her, og blir synkroniserte igjen når du loggar inn.",
+      "switch_label": "Synkroniser {account} til denne eininga",
+      "sync_now": "Synkroniser no",
+      "turn_off_anyway": "Slå av",
+      "turn_off_failed": "Klarte ikkje fjerne dei synkroniserte dataa frå denne eininga. Synkroniseringa er sett på pause. Prøv igjen seinare.",
+      "turn_off_failed_title": "Klarte ikkje slå av synkroniseringa",
+      "turn_off_pending": "{count, plural, one {# endring gjord på denne eininga har ikkje nådd serveren enno. Ho går tapt viss du slår av synkroniseringa no.} other {# endringar gjorde på denne eininga har ikkje nådd serveren enno. Dei går tapt viss du slår av synkroniseringa no.}}",
+      "turn_off_title": "Slå av likevel?",
+      "turn_off_unknown": "Bulwark klarte ikkje sjekke om endringar gjorde på denne eininga har nådd serveren. Dei går tapt viss du slår av synkroniseringa no.",
+      "turning_off": "Lastar opp endringar og fjernar så dataa frå denne eininga …",
+      "turning_on": "Set opp …"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "Mal som blir brukt når du lagrar eller deler eit vedlegg."
+      },
+      "email_template": {
+        "description_mobile": "Mal som blir brukt når du eksporterer ei melding som .eml-fil."
+      },
+      "strip_diacritics": {
+        "description_mobile": "Gjer om bokstavar med aksent til vanleg ASCII (ä → a)."
+      },
+      "transform_description": "Blir brukt på alle eksporterte filnamn.",
+      "transform_title": "Omforming av filnamn"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "Fann inga arkivmappe.",
+        "reorganize_result": "Flytta {moved} av {total} e-postar.",
+        "reorganizing": "Omorganiserer …"
+      },
+      "attachment_click_action": {
+        "description_mobile": "Kva som skjer når du trykkjer på eit vedlegg."
+      },
+      "attachment_position": {
+        "below-header": "Under toppfeltet",
+        "beside-sender": "Ved sidan av avsendaren",
+        "description": "Kvar vedlegg skal visast i toppfeltet på e-posten",
+        "label": "Plassering av vedlegg"
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "Svar kjem alltid frå identiteten ei melding vart send til. Når dette er på, blir òg eit svar til ei anna adresse på domena dine (eit catch-all-alias) sendt frå den adressa."
+      },
+      "content_senders_description_mobile": "Styr korleis eksterne ressursar og sporingspikslar blir handsama.",
+      "disable_threading": {
+        "description": "Vis e-postar som enkeltmeldingar i staden for gruppert etter samtale",
+        "label": "Slå av samtalegruppering"
+      },
+      "external_content": {
+        "allow_mobile": "Tillat",
+        "ask_mobile": "Spør",
+        "block_mobile": "Blokker"
+      },
+      "plain_text_mode": {
+        "description_mobile": "Skriv og les berre i rein tekst."
+      },
+      "recipient_mentions": {
+        "description_mobile": "Når du skriv @ i meldinga, får du forslag frå mottakarane, og førenamnet til den du vel, blir sett inn."
+      },
+      "send_delay": {
+        "description_mobile": "Hald att utgåande e-post i nokre sekund så du kan avbryte sendinga. Krev støtte på serveren."
+      },
+      "swipe_actions": {
+        "move": "Flytt til mappe",
+        "pin": "Fest"
+      },
+      "swipe_left_action": {
+        "description_mobile": "Handling når du dreg ei rad frå høgre kant mot venstre.",
+        "label_mobile": "Sveip til venstre (høgre → venstre)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "Handling når du dreg ei rad frå venstre kant mot høgre.",
+        "label_mobile": "Sveip til høgre (venstre → høgre)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Eksternt innhald blir alltid lasta for avsendarar på denne lista.",
+        "description_synced_mobile": "Eksternt innhald blir alltid lasta for avsendarar på denne lista. {count} synkronisert via adresseboka di.",
+        "sync_add_failed": "Klarte ikkje synkronisere til adresseboka",
+        "sync_remove_failed": "Klarte ikkje fjerne frå adresseboka",
+        "synced_badge": "Synkronisert via adresseboka"
+      }
+    },
+    "experimental": {
+      "title": "Eksperimentell funksjon"
+    },
+    "filters": {
+      "sieve_editor": {
+        "confirm_save": "Stadfest lagring",
+        "line_count": "{count, plural, one {# linje} other {# linjer}}",
+        "save_warning": "Lagring skriv over alle visuelle reglar. Dette kan ikkje angrast. Trykk Lagre igjen for å stadfeste."
+      },
+      "validation_header_name": "Skriv inn eit namn på eit hovudfelt som berre brukar bokstavane A-Z, siffer, bindestrek og understrek, til dømes X-Spam-Flag."
+    },
+    "folders": {
+      "account": "Konto",
+      "cannot_delete": "Kan ikkje slette",
+      "description_mobile": "Opprett, gje nytt namn til, flytt og slett mapper. Trykk lenge på ei mappe i sidefeltet for snøggval.",
+      "edit_folder": "Rediger «{name}»",
+      "folder_name": "Mappenamn",
+      "move_under": "Flytt under",
+      "name_placeholder": "Kvitteringar",
+      "name_required": "Namn må fyllast ut",
+      "new_folder": "Ny mappe",
+      "not_empty_message": "{count, plural, one {«{name}» inneheld # e-post. Slette likevel?} other {«{name}» inneheld # e-postar. Slette likevel?}}",
+      "not_empty_title": "Mappa er ikkje tom",
+      "own_account": "Mappene mine",
+      "parent_folder": "Overordna mappe",
+      "role": "Spesialbruk",
+      "role_hint": "Gje denne mappa ei spesialrolle (Arkiv, Søppelpost, …). Kvar rolle kan berre ha éi mappe.",
+      "save_failed": "Klarte ikkje lagre",
+      "system_folder_delete": "Systemmapper kan ikkje fjernast.",
+      "system_folder_rename": "Systemmapper kan ikkje få nytt namn.",
+      "top_level": "Øvste nivå"
+    },
+    "identities": {
+      "cannot_delete": "Hovudidentiteten kan ikkje fjernast.",
+      "cannot_delete_title": "Kan ikkje slette",
+      "count": "{count, plural, =0 {Ingen identitetar} one {# identitet} other {# identitetar}}",
+      "create": "Ny identitet",
+      "delete_confirm": "Fjerne «{name}»?",
+      "delete_failed": "Klarte ikkje slette",
+      "delete_title": "Slett identitet",
+      "description_mobile": "Administrer avsendarnamn, e-postadresser og signaturar. Trykk på ei rad for å redigere.",
+      "display_name": "Visingsnamn",
+      "display_name_placeholder": "Kari Nordmann",
+      "edit": "Rediger identitet",
+      "email_address": "E-postadresse",
+      "email_locked": "JMAP tillèt ikkje å endre e-postadressa til ein identitet. Opprett ein ny i staden.",
+      "invalid_email": "Skriv inn ei gyldig e-postadresse for denne identiteten.",
+      "invalid_email_title": "Ugyldig e-post",
+      "new": "Ny",
+      "no_name": "(utan namn)",
+      "primary": "hovud",
+      "save_failed": "Klarte ikkje lagre",
+      "text_signature": "Signatur i rein tekst",
+      "title": "Avsendaridentitetar"
+    },
+    "keywords": {
+      "delete_confirm_title": "Slette etiketten «{label}»?",
+      "description_mobile": "Farga etikettar for å organisere e-posten din.",
+      "discover": {
+        "add_all": "Legg til alle",
+        "found": "{count, plural, one {Fann # etikett som ikkje er definert her.} other {Fann # etikettar som ikkje er definerte her.}}",
+        "none": "Fann ingen ukjende etikettar i {scanned} meldingar.",
+        "partial": "(Skanninga stoppa ved dei nyaste meldingane.)",
+        "progress": "Skanna {scanned} av {total} meldingar …",
+        "scan": "Finn etikettar i postkassen"
+      },
+      "reset_confirm": "Erstatte etikettlista di med standardetikettane? Etikettar som allereie er sette på meldingar, blir verande på serveren.",
+      "reset_defaults": "Tilbakestill til standard"
+    },
+    "layout": {
+      "description": "Juster samhandlinga med e-postlista på mobil.",
+      "quick_actions": {
+        "description": "Dei tre knappane mellom Førre/Neste nedst i ein open e-post. Standard er Svar, Svar alle og Vidaresend.",
+        "label": "Snøggknappar i lesaren",
+        "mark_unread": "Merk som lesen/ulesen",
+        "relocated": "{count, plural, one {{actions} er flytta til den øvste verktøylinja, så du kan framleis bruke han.} other {{actions} er flytta til den øvste verktøylinja, så du kan framleis bruke dei.}}",
+        "slot": "Plass {n}",
+        "spam": "Søppelpost",
+        "star": "Stjernemerk",
+        "tag": "Etikett"
+      },
+      "reading_pane": {
+        "auto": "Ved sidan av lista når det er plass",
+        "description": "På eit nettbrett eller ei utbretta samanleggbar eining blir den opne meldinga vist ved sidan av e-postlista. Berre denne eininga.",
+        "label": "Leseflate",
+        "off": "Av: Meldingar blir opna i fullskjerm"
+      },
+      "show_avatars_in_junk": "Vis avsendarbilete i søppelpost",
+      "show_avatars_in_junk_description": "Last avsendarlogoar for meldingar i søppelpostmappa. Når dette er av, blir ikkje avsendarar av søppelpost kontakta.",
+      "show_folder_total_count": "Vis totalt tal på meldingar ved mapper",
+      "show_folder_total_count_description": "Vis totalen ved sidan av talet på ulesne i mappelista.",
+      "swipe_mode": {
+        "description": "Vel umiddelbar (sveip forbi grensa for å utføre handlinga) eller vis (sveip for å vise eit handlingsfelt, og trykk så for å stadfeste).",
+        "instant": "Umiddelbar (sveip = handling)",
+        "label": "Sveipeåtferd",
+        "reveal": "Vis (sveip, og trykk så)"
+      },
+      "unified_cross_account": "Samla visingar på tvers av kontoar",
+      "unified_cross_account_description": "Samla alle innlogga kontoar i «Alle innboksar». Når dette er av, held dei samla visingane seg innanfor den aktive kontoen og dei delte mappene hans."
+    },
+    "licences": {
+      "app_desc": "Appen er fri programvare under {licence}. Du kan bruke, studere, dele og endre han.",
+      "libraries": "Bibliotek",
+      "libraries_desc": "Open kjeldekode som appen er bygd med.",
+      "read_licence": "Les heile lisensteksten"
+    },
+    "message_list_order": {
+      "description": "Kva meldingar som kjem først i lista. Nyaste først avgjer innanfor kvar gruppe. Knappen i toppfeltet byter framleis mellom eldste og nyaste.",
+      "preset_chronological": "Nyaste først",
+      "preset_custom": "Tilpassa",
+      "preset_starred_first": "Stjernemerkte først",
+      "preset_tagged_first": "Med etikett først",
+      "preset_unread_first": "Ulesne først",
+      "scope": "Bruk på",
+      "scope_all": "Alle mapper",
+      "scope_inbox": "Berre innboksen",
+      "tag": "Etikett",
+      "title": "Rekkjefølgje i meldingslista"
+    },
+    "notifications": {
+      "calendar": {
+        "invitation_parsing": "Les e-postinvitasjonar",
+        "invitation_parsing_desc": "Finn kalenderinvitasjonar i e-postvedlegg og vis kalenderhandlingar"
+      },
+      "email": {
+        "app_icon_badge": "Tal på ulesne på appikonet",
+        "app_icon_badge_desc": "Vis talet på ulesne i innboksen som eit merke på appikonet.",
+        "mute_account": "Demp denne kontoen",
+        "mute_account_desc": "Ingen varsel om ny e-post i denne kontoen. Trykk lenge på ei mappe i sidefeltet for å dempe eller slå på varsel for ho åleine.",
+        "sound_channel_hint": "Lyd og vibrasjon for e-postvarsel blir styrt av varslingskanalen i Android: Trykk lenge på eit varsel eller opne appinnstillingane i systemet."
+      },
+      "push": {
+        "accounts_desc_mobile": "Bakgrunnsvarsel for kvar innlogga konto på denne eininga. Byt til ein konto for å slå dei på eller av for han.",
+        "confirm_disable_message_mobile": "Denne eininga sluttar å få varsel om ny e-post for denne kontoen.",
+        "description_mobile": "Få systemvarsel om ny e-post når appen er lukka. Blir levert via Bulwark-push-reléet. Reléet ser aldri innhaldet i e-posten.",
+        "err_account_changed": "Kontoen vart endra medan push vart sett opp. Prøv igjen.",
+        "err_apns_empty": "iOS returnerte ein tom push-token.",
+        "err_apns_token": "iOS klarte ikkje lage ein push-token ({detail}).",
+        "err_fcm_empty": "Firebase returnerte ein tom einingstoken.",
+        "err_fcm_token": "Firebase klarte ikkje lage ein einingstoken ({detail}). Push over FCM krev Google Play-tenester på denne eininga.",
+        "err_fcm_token_up": "Firebase klarte ikkje lage ein einingstoken ({detail}). Push over FCM krev Google Play-tenester på denne eininga. Denne eininga har ein UnifiedPush-distributør installert: Byt leveringsmåte til UnifiedPush i staden.",
+        "err_fcm_unavailable": "Push gjennom Firebase er ikkje tilgjengeleg i denne versjonen av appen.",
+        "err_forbidden": "E-postserveren tillèt ikkje bakgrunnsvarsel for denne kontoen.",
+        "err_jmap_list": "Klarte ikkje lese push-registreringane frå e-postserveren: {detail}",
+        "err_jmap_refused": "E-postserveren avviste push-abonnementet: {detail}",
+        "err_no_account": "Ingen konto er lasta, så push kan ikkje setjast opp.",
+        "err_over_quota": "Denne kontoen har for mange push-registreringar på e-postserveren (grensa er vanlegvis 15). Trekk tilbake einingar du ikkje brukar lenger i varslingsinnstillingane, og prøv igjen.",
+        "err_permission": "Løyve til varsel vart ikkje gitt.",
+        "err_relay_https": "URL-en til reléet må bruke https://.",
+        "err_relay_no_apns": "Push-reléet på {url} leverer ikkje til iPhone og iPad enno.",
+        "err_relay_rejected": "Push-reléet avviste registreringa: {detail}",
+        "err_relay_unreachable": "Fekk ikkje kontakt med push-reléet på {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush er berre tilgjengeleg på Android.",
+        "err_url_refused": "E-postserveren nektar å sende varsel til reléet på {url}. Han godtek berre https-adresser på eit offentleg domenenamn, ikkje ei privat IP-adresse eller eit lokalt namn som localhost, .local eller .lan. Bruk det drifta reléet, eller gje reléet ditt eit offentleg domenenamn.",
+        "err_verify_rejected": "E-postserveren avviste stadfestingskoden: {detail}",
+        "err_verify_relay": "Reléet fekk aldri stadfestingskoden frå e-postserveren (siste svar frå reléet: {detail}).",
+        "err_verify_timeout": "E-postserveren sende ikkje ein stadfestingskode til reléet innan 75 s. Sjekk at serveren når URL-en til reléet.",
+        "phase_account": "Konto",
+        "phase_distributor": "UnifiedPush-distributør",
+        "phase_jmap": "Abonnement på e-postserveren",
+        "phase_permission": "Løyve til varsel",
+        "phase_platform": "Plattform",
+        "phase_relay": "Registrering hos reléet",
+        "phase_token": "Einingstoken",
+        "phase_verify": "Stadfesting",
+        "relay_desc_mobile": "Serveren som leverer varsla dine. Standard er det drifta Bulwark-reléet. Endre berre viss du driftar sjølv. Må bruke https.",
+        "relay_invalid": "Skriv inn ein gyldig https://-URL",
+        "setup_failed": "Oppsettet mislukkast",
+        "status_unavailable": "Denne versjonen av appen kan ikkje ta imot pushvarsel.",
+        "transport_desc": "Korleis varsla når denne eininga: Firebase Cloud Messaging frå Google, eller ein UnifiedPush-distributørapp (til dømes ntfy) for levering utan Google.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "Leveringsmåte",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "Fleire UnifiedPush-distributørappar er installerte. Vel den som skal levere varsla.",
+        "up_distributor_label": "Distributør",
+        "up_no_distributor": "Ingen UnifiedPush-distributørapp er installert på denne eininga. Installer ein (til dømes ntfy) og prøv igjen."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, one {# melding} other {# meldingar}}",
+      "clear": "Tøm",
+      "clear_cache": "Tøm mellomlageret",
+      "clear_message": "Fjerne {count, plural, one {# mellomlagra melding} other {# mellomlagra meldingar}} ({size})?",
+      "clear_title": "Tøm e-post for fråkopla bruk",
+      "days_ago": "for {count} d sidan",
+      "description": "Last ned nye meldingar så dei opnar seg med ein gong og kan lesast utan tilkopling. Berre teksten i meldingane blir lasta ned. Vedlegg blir framleis lasta når du opnar dei.",
+      "description_account": "Behald nye meldingar frå {account} på denne eininga så dei kan opnast utan tilkopling. Kvar konto har sin eigen periode og storleik.",
+      "description_short": "Behald nye meldingar på denne eininga så dei kan opnast utan tilkopling.",
+      "downloading": "Lastar ned {completed}/{total} …",
+      "enabled": "Mellomlagre ny e-post",
+      "enabled_desc": "Når dette er på, held appen på innhaldet i meldingane for den valde perioden på denne eininga.",
+      "hours_ago": "for {count} t sidan",
+      "just_now": "nett no",
+      "keep_24h": "24 timar",
+      "keep_days": "{count, plural, one {# dag} other {# dagar}}",
+      "keep_from": "Periode",
+      "last_sync": "Siste synkronisering {when}",
+      "last_sync_failed": "Siste synkronisering mislukkast: {message}",
+      "max_size": "Maksimal storleik",
+      "max_size_desc": "Dei eldste meldingane blir fjerna når mellomlageret blir større enn dette.",
+      "messages_offline": "{count, plural, one {# melding fråkopla} other {# meldingar fråkopla}}",
+      "minutes_ago": "for {count} min sidan",
+      "never": "aldri",
+      "nothing_cached": "Ingenting mellomlagra enno",
+      "queued_changes": "{count, plural, one {# endring} other {# endringar}} ventar på synkronisering",
+      "scanning": "Skannar ny e-post …",
+      "sync_now": "Synkroniser no",
+      "synced": "Synkronisert {when}",
+      "syncing": "Synkroniserer …",
+      "title": "E-post for fråkopla bruk",
+      "use_at_most": "Maksimal storleik",
+      "used_of": "{used} av {limit} MB",
+      "window": "Periode",
+      "window_24h": "Siste 24 timar",
+      "window_days": "Siste {count} dagar",
+      "window_desc": "Kor langt tilbake som skal mellomlagrast, målt etter når meldinga vart motteken."
+    },
+    "plugins": {
+      "mobile_description": "Programtillegg køyrer i webmailen og utvidar han i nettlesaren.",
+      "mobile_explainer": "Mobilappen kan ikkje køyre programtillegg. Installer og administrer programtillegg i webmailen under Innstillingar → Programtillegg. Tema og filter frå dei blir ikkje brukte her."
+    },
+    "privacy": {
+      "favicons": "Avsendarikon for bedriftspost kjem frå ikontenesta til DuckDuckGo, som ser domenet til avsendaren. Slå dei av under Utsjånad → Favikon for avsendarar.",
+      "no_tracking": "Appen har ingen analyse og ingen reklame.",
+      "other_title": "Andre tilkoplingar",
+      "phone_backup": "Ingenting av dette går til skysikkerheitskopien i Android.",
+      "phone_secure": "Innloggingsopplysningane dine blir haldne i det sikre lageret til systemet. Innstillingar, mellomlageret for fråkopla e-post og endringar som ventar på synkronisering, blir haldne i lageret til appen.",
+      "phone_title": "På denne eininga",
+      "push_apple": "Når varsel er på, seier serveren din frå til push-reléet ({relay}) at noko er endra, og reléet vekkjer appen gjennom pushtenesta til Apple. Reléet ser ein einingstoken og eit endringsmerke, aldri e-posten din. Du kan bruke ditt eige relé under Varsel.",
+      "push_google": "Når varsel er på, seier serveren din frå til push-reléet ({relay}) at noko er endra, og reléet vekkjer appen gjennom pushtenesta til Google. Reléet ser ein einingstoken og eit endringsmerke, aldri e-posten din. Du kan bruke ditt eige relé under Varsel.",
+      "push_title": "Pushvarsel",
+      "server": "E-post, kalendrar, kontaktar og filer blir lasta frå serveren din og lagra tilbake der. Bortsett frå tilkoplingane nedanfor snakkar appen berre med serveren din.",
+      "server_title": "E-postserveren din",
+      "updates": "Appen spør GitHub om den nyaste utgåva for å fortelje deg om oppdateringar.",
+      "updates_android": "Appen spør GitHub om den nyaste utgåva for å fortelje deg om oppdateringar. Slå det av under Oppdateringar."
+    },
+    "security": {
+      "client_cert": {
+        "active": "Aktiv: {alias}",
+        "choose_another": "Vel eit anna",
+        "clear": "Fjern",
+        "clear_message": "Nye førespurnader viser ikkje lenger fram eit sertifikat. Sertifikatet blir verande installert i Android.",
+        "clear_message_ios": "Nye førespurnader viser ikkje lenger fram eit sertifikat. Sertifikatet blir fjerna frå appen. For å bruke det igjen må du velje fila på nytt.",
+        "clear_title": "Slutte å bruke klientsertifikatet?",
+        "description": "Vel eit installert Android-sertifikat for å autentisere deg mot serveren under TLS-handtrykket. Nyttig når den omvende proxyen krev mTLS.",
+        "description_ios": "Importerer ei sertifikatfil for å autentisere deg mot serveren under TLS-handtrykket. Nyttig når den omvende proxyen krev mTLS.",
+        "hint": "Installer sertifikatet via Android-innstillingar → Tryggleik → Kryptering og legitimasjon, og vel det så her.",
+        "hint_ios": "Vel sertifikatfila (.p12 eller .pfx) i Filer og skriv inn passordet til ho.",
+        "not_set": "Ikkje sett",
+        "pick": "Vel sertifikat",
+        "pick_failed": "Klarte ikkje velje",
+        "title": "TLS-klientsertifikat"
+      },
+      "credentials": {
+        "allowed_ips": "Tillatne IP-adresser (valfritt)",
+        "allowed_ips_hint": "Skilde med komma eller mellomrom. La stå tomt for å tillate alle IP-adresser.",
+        "clear_expiry": "Fjern utløpsdato",
+        "copy_now": "Kopier dette no. Det blir berre vist éin gong. Trykk og hald for å markere.",
+        "create_error": "Klarte ikkje opprette",
+        "expires": "Går ut (valfritt)",
+        "expires_on": "går ut {date}",
+        "no_expiry": "Går ikkje ut",
+        "none": "Ingen enno.",
+        "remove_error": "Klarte ikkje fjerne",
+        "remove_message": "Alle klientar som brukar han, sluttar å fungere.",
+        "remove_title": "Fjerne legitimasjonen?"
+      },
+      "display_name": {
+        "error_title": "Klarte ikkje oppdatere"
+      },
+      "encryption": {
+        "no_keys": "Legg til ein offentleg nøkkel først. Kryptering i kvile treng ein.",
+        "turned_off_on_server": "Kryptering i kvile var på og er slått av på serveren, slik oppdateringa til Stalwart 1.0.2 gjer. Ny e-post blir lagra ukryptert til du slår ho på igjen her."
+      },
+      "load_error": "Klarte ikkje laste tryggingsinnstillingane.",
+      "not_supported": "Administrasjon av kontotryggleik krev ein Stalwart-server. Desse funksjonane er ikkje tilgjengelege for denne kontoen.",
+      "offline": "Du er fråkopla. Tryggingsinnstillingane for kontoen krev ei aktiv tilkopling til serveren.",
+      "password": {
+        "change": "Endre passord",
+        "changed": "Kontopassordet ditt er oppdatert.",
+        "changed_sign_in_again": "Kontopassordet ditt er oppdatert. Logg inn igjen med det nye passordet.",
+        "changed_title": "Passordet er endra",
+        "description": "Endre passordet for denne kontoen.",
+        "error": "Klarte ikkje endre passordet.",
+        "mismatch": "Passorda er ikkje like.",
+        "session_ended": "Endringa av passordet avslutta denne økta. Logg inn igjen med det nye passordet.",
+        "session_ended_title": "Logg inn igjen",
+        "toggle_visibility": "Vis eller skjul passordet",
+        "too_short": "Det nye passordet må ha minst 8 teikn."
+      },
+      "public_keys": {
+        "add_error": "Klarte ikkje leggje til den offentlege nøkkelen",
+        "description": "S/MIME-sertifikat og PGP-nøklar som er lagra på serveren. Dei blir brukte til kryptering i kvile.",
+        "expires": "går ut {date}",
+        "remove_error": "Klarte ikkje fjerne den offentlege nøkkelen",
+        "remove_message": "Kryptering i kvile som brukar denne nøkkelen, sluttar å fungere.",
+        "remove_title": "Fjerne den offentlege nøkkelen?"
+      },
+      "restricted": "Serveren din lèt berre appar som administratoren har godkjent, endre passordet, tofaktorinnlogginga, appassord og API-nøklar. Bulwark logga inn utan den godkjenninga, så e-post, kontaktar, kalendrar og filer fungerer, men desse innstillingane gjer ikkje det. Endre dei i nettgrensesnittet til serveren eller i Bulwark-webmailen.",
+      "restricted_sign_in_again": "Bulwark logga inn før serveren din lét appar administrere desse innstillingane. Logg inn igjen for å administrere passordet, tofaktorinnlogginga, appassord og API-nøklar her.",
+      "screen_privacy": {
+        "block_screenshots": "Blokker skjermbilete",
+        "block_screenshots_description": "Hindrar skjermbilete og skjermopptak av appen og skjuler innhaldet i oversikta over nylege appar.",
+        "title": "Skjermpersonvern"
+      },
+      "two_factor": {
+        "active": "Aktiv",
+        "code": "Stadfestingskode",
+        "code_required": "Skriv inn den 6-sifra koden frå appen.",
+        "description": "Krev ein eingongskode ved innlogging.",
+        "disable": "Slå av",
+        "disable_error": "Klarte ikkje slå av tofaktorautentisering.",
+        "disable_hint": "Skriv inn passordet ditt for å slå av tofaktorautentisering.",
+        "disable_hint_code": "Skriv inn passordet ditt og ein kode frå autentiseringsappen for å slå av tofaktorautentisering.",
+        "enable_error": "Klarte ikkje slå på tofaktorautentisering.",
+        "enabled_message": "Du blir beden om ein kode neste gong du loggar inn.",
+        "enabled_title": "Tofaktor er slått på",
+        "enrol_hint": "Legg til denne løyndomen i autentiseringsappen, og skriv så inn den 6-sifra koden for å stadfeste.",
+        "inactive": "Inaktiv",
+        "label": "Autentiseringsapp",
+        "manual_secret": "Eller skriv inn denne løyndomen manuelt",
+        "no_app": "Klarte ikkje opne ein autentiseringsapp. Legg til løyndomen nedanfor manuelt.",
+        "no_app_title": "Ingen autentiseringsapp",
+        "open_app": "Legg til i autentiseringsappen",
+        "password_required": "Skriv inn det noverande passordet ditt.",
+        "section_title": "Tofaktorautentisering"
+      }
+    },
+    "sidebar_apps": {
+      "add": "Legg til app",
+      "empty": "Ingen appar lagde til enno.",
+      "form": {
+        "name": "Namn",
+        "name_placeholder": "Namn på appen",
+        "open_mode": "Opningsmåte",
+        "show_on_mobile": "Vis på mobil",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "Hald innebygde appar i gang i bakgrunnen når du byter til noko anna.",
+      "open_mode": {
+        "inline": "Innebygd",
+        "new_tab": "Ny fane",
+        "tab": "Fane"
+      }
+    },
+    "smime": {
+      "mobile_description": "Signer og krypter e-post med S/MIME-sertifikat.",
+      "mobile_explainer": "S/MIME er ikkje tilgjengeleg i mobilappen enno. Administrer nøklar og sertifikat i webmailen. Signerte meldingar blir viste utan stadfesting her."
+    },
+    "summary": {
+      "accessibility": "Tekststorleik, rørsle, stadfestingar",
+      "composing": "Signatur, sendeforseinking, utkast",
+      "contacts": "Adressebøker, sortering",
+      "content_senders": "Eksterne bilete, avsendarar du stoler på",
+      "downloads": "Filnamn for lagra e-post",
+      "events_off": "hendingar av",
+      "events_on": "hendingar på",
+      "files": "Vising, sortering, miniatyrbilete",
+      "filters": "Reglar for innkomande e-post",
+      "folders": "Opprett, gje nytt namn, roller",
+      "identities": "Adresser du sender frå",
+      "keywords": "Namn og fargar på etikettar",
+      "layout": "Snøggknappar, sveip, rekkjefølgje i lista",
+      "mail_off": "E-post av",
+      "mail_on": "E-post på",
+      "offline_off": "Fråkopla e-post av",
+      "offline_on": "Fråkopla e-post på · {days, plural, one {# dag} other {# dagar}}, {mb} MB",
+      "reading": "Lesestatus, sletting, vedlegg",
+      "security": "Passord, tofaktor, appassord",
+      "sidebar_apps": "Nettappar i sidemenyen",
+      "templates": "Meldingar du kan bruke om igjen",
+      "updates": "Installer nye versjonar",
+      "vacation": "Automatisk svar når du er borte",
+      "version": "Versjon {version}",
+      "week_starts": "veka byrjar {day}"
+    },
+    "tab_groups": {
+      "advanced": "Avansert",
+      "appearance": "Utsjånad",
+      "general": "Generelt",
+      "privacy": "Personvern og tryggleik"
+    },
+    "tabs": {
+      "about": "Om",
+      "content_senders": "Innhald og avsendarar",
+      "downloads": "Nedlastingar",
+      "identities": "Identitetar",
+      "keywords": "Etikettar",
+      "language": "Språk, region og tid",
+      "layout": "Oppsett",
+      "plugins": "Programtillegg",
+      "sidebar_apps": "Appar i sidefeltet",
+      "storage": "Lagring og reservekopi",
+      "templates": "Malar",
+      "themes": "Tema",
+      "troubleshooting": "Feilsøking",
+      "updates": "Oppdateringar"
+    },
+    "templates": {
+      "delete_confirm": "Slette «{name}» permanent?",
+      "delete_title": "Slett mal",
+      "description_mobile": "Tekstbitar du kan bruke om igjen til vanlege svar. Trykk på ein for å redigere, trykk lenge for å slette.",
+      "export_failed": "Eksporten mislukkast",
+      "import_failed": "Importen mislukkast",
+      "import_json_label": "Malar som JSON",
+      "imported": "Importert",
+      "imported_count": "{count, plural, one {# mal} other {# malar}} lagt til.",
+      "is_html": "Innhaldet er HTML",
+      "placeholders_hint": "Plasshaldarar: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Klarte ikkje dele"
+    },
+    "themes": {
+      "default_description": "Standardpalettane for lys og mørk modus.",
+      "mobile_description": "Vel eit fargetema. Tema følgjer lys/mørk-innstillinga i Utsjånad. Eigne temapakkar blir administrerte i webmailen."
+    },
+    "troubleshooting": {
+      "cache_desc": "Når ei liste ser utdatert eller feil ut.",
+      "cache_title": "Mellomlagra data",
+      "row_desc": "Oppdater mellomlagra data, feilsøkingslogg",
+      "title": "Feilsøking"
+    },
+    "vacation": {
+      "date_range": {
+        "description": "Avgrens om ønskjeleg det automatiske svaret til ein bestemd periode",
+        "title": "Datoområde"
+      },
+      "message": {
+        "description": "Meldinga som blir send som svar",
+        "title": "Automatisk svar"
+      },
+      "status": {
+        "ended": "Avslutta",
+        "scheduled": "Planlagd"
+      },
+      "warnings": {
+        "date_format": "Datoar må vere «ÅÅÅÅ-MM-DD» eller «ÅÅÅÅ-MM-DD TT:MM»"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "Treng merksemd",
+    "account_sign_in_again": "Logg inn igjen",
+    "account_unread": "{count} ulesne",
+    "remove_account_hint": "Trykk lenge for å fjerne denne kontoen",
+    "remove_account_message": "Logg ut av {account} på denne eininga. E-posten din blir verande på serveren.",
+    "show_unread": "Vis ulesne",
+    "sign_out_all_confirm_message": "Alle kontoane blir fjerna frå denne eininga. Du kan logge inn igjen når som helst.",
+    "sign_out_all_confirm_title": "Logge ut av alle kontoane?",
+    "sign_out_confirm_message": "Kontoen blir fjerna frå denne eininga. Du kan logge inn igjen når som helst.",
+    "sign_out_confirm_title": "Logge ut?",
+    "sign_out_confirm_title_account": "Logge ut av {account}?",
+    "tab_unavailable": "{name} (ikkje tilgjengeleg)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# konto kunne ikkje lastast} other {# kontoar kunne ikkje lastast}}"
+  },
+  "updates": {
+    "advisory": "Tryggingsvarsel",
+    "advisory_desc": "Detaljar om problemet denne utgåva rettar.",
+    "auto_check": "Sjekk automatisk",
+    "auto_check_desc": "Sjekk etter oppdateringar med nokre timars mellomrom når appen startar.",
+    "available": "Oppdatering tilgjengeleg",
+    "available_desc": "Trykk på Installer for å laste ned v{version} og opne han med pakkeinstallasjonen i Android.",
+    "banner": {
+      "advisory": "Les tryggingsvarselet",
+      "deprecated_subtitle": "Installer v{version} for å halde fram med å bruke appen.",
+      "deprecated_title": "Denne versjonen er ikkje lenger støtta",
+      "security_subtitle": "v{version} rettar eit tryggingsproblem. Installer han så snart som mogleg.",
+      "security_title": "Tryggingsoppdatering tilgjengeleg",
+      "subtitle": "v{version} er klar til å installerast.",
+      "title": "Oppdatering tilgjengeleg"
+    },
+    "building": "Oppdateringa blir bygd",
+    "building_desc": "v{version} er publisert, men APK-fila blir framleis bygd. Denne sida sjekkar igjen kvart 30. sekund.",
+    "check": "Sjekk etter oppdateringar",
+    "check_again": "Sjekk igjen",
+    "check_now": "Sjekk no",
+    "checking": "Sjekkar …",
+    "current_version": "Noverande versjon",
+    "description": "Sjekk etter nye versjonar og installer dei.",
+    "downloading": "Lastar ned …",
+    "downloading_pct": "Lastar ned {pct} %",
+    "install": "Installer",
+    "installing": "Installerer …",
+    "last_checked": "Sist sjekka",
+    "last_error": "Siste feil: {message}",
+    "latest_version": "Nyaste versjon",
+    "never": "aldri",
+    "open": "Opne",
+    "open_github": "Opne på GitHub",
+    "opening_installer": "Opnar installasjonsprogrammet …",
+    "progress_of": "{written} av {total}",
+    "published": "Publisert {date}",
+    "rate_limited": "GitHub avgrensar talet på oppdateringssjekkar. Prøver igjen seinare.",
+    "release_notes": "Utgivingsnotat",
+    "release_page": "Utgivingsside",
+    "release_page_desc": "Fullstendige utgivingsnotat og nedlastingar på GitHub.",
+    "release_page_pending_desc": "Følg med på bygginga eller last ned APK-fila manuelt.",
+    "severity_deprecated": "Påkravd",
+    "severity_security": "Tryggleik",
+    "title": "Appoppdateringar",
+    "verifying": "Stadfestar …"
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "Ingen nye vedlegg",
+      "from_mail": "frå e-post",
+      "title": "Vedlegg",
+      "unknown_sender": "Ukjend avsendar"
+    },
+    "birthdays": {
+      "empty": "Ingen bursdagar snart",
+      "empty_body": "Bursdagar kjem frå kontaktane dine.",
+      "in_days": "{count, plural, one {om # dag} other {om # dagar}}",
+      "send_wishes": "Send helsing",
+      "title": "Bursdagar",
+      "wishes_subject": "Gratulerer med dagen!"
+    },
+    "calendar": {
+      "agenda": "Agenda",
+      "agenda_more": "{day}: {events}",
+      "all_day": "Heile dagen",
+      "join": "Bli med",
+      "join_named": "Bli med i {name}",
+      "more_this_week": "{count, plural, other {# til denne veka}}",
+      "no_more_today": "Ingen fleire hendingar i dag",
+      "nothing_planned": "Ingenting i kalenderen",
+      "now": "No",
+      "open": "Opne",
+      "running_late": "Blir forseinka",
+      "running_late_body": "Eg blir nokre minutt forseinka til {title}.",
+      "running_late_subject": "Blir forseinka: {title}",
+      "today": "I dag",
+      "tomorrow": "I morgon",
+      "unit_days": "{count, plural, one {dag} other {dagar}}",
+      "unit_hours": "{count, plural, one {time} other {timar}}",
+      "unit_minutes": "{count, plural, other {min}}",
+      "unsupported": "Kalender er ikkje tilgjengeleg på denne serveren",
+      "untitled": "(utan tittel)",
+      "video_call": "Videosamtale"
+    },
+    "countdown": {
+      "days": "{count, plural, one {dag} other {dagar}}",
+      "empty": "Ingen komande hendingar"
+    },
+    "draft": {
+      "edited_at": "Redigert {when}",
+      "edited_minutes": "{count, plural, other {Redigert for # min sidan}}",
+      "edited_now": "Redigert nett no",
+      "empty": "Ingen utkast",
+      "empty_body": "Meldingar du byrjar på og ikkje sender, ventar her.",
+      "keep_writing": "Skriv vidare",
+      "title": "Utkast"
+    },
+    "files": {
+      "empty": "Ingen filer enno",
+      "recent": "Nyleg endra",
+      "unsupported": "Filer er ikkje tilgjengelege på denne serveren"
+    },
+    "free": {
+      "busy_until": "Oppteken til {time}",
+      "free_rest": "Ledig resten av dagen",
+      "free_until": "Ledig til {time}",
+      "mail": "Send ledige tider på e-post",
+      "mail_subject": "Dei ledige tidene mine denne veka",
+      "no_calendar": "Ingen kalender på denne kontoen",
+      "then": "deretter {title}",
+      "then_free": "deretter ledig"
+    },
+    "hub": {
+      "all_clear": "Du er à jour",
+      "mail_unread": "E-post · {count} ulesne",
+      "next": "Neste",
+      "next_on": "Neste · {day}",
+      "no_events": "Ingen komande hendingar",
+      "now": "No",
+      "tasks_due": "Oppgåver · {count} forfell"
+    },
+    "invites": {
+      "accept": "Godta",
+      "decline": "Avslå",
+      "empty": "Ingen invitasjonar ventar",
+      "label": "Invitasjon · {name}",
+      "label_plain": "Invitasjon",
+      "maybe": "Kanskje",
+      "position": "{index} av {count}"
+    },
+    "mail": {
+      "all_accounts": "Alle kontoar",
+      "all_caught_up": "Alt er lese",
+      "archive": "Arkiver",
+      "changes_waiting": "{count, plural, one {# endring ventar} other {# endringar ventar}}",
+      "changes_waiting_short": "{count} ventar",
+      "delete": "Slett",
+      "empty_all_accounts": "Innboksane dine er tomme",
+      "empty_inbox": "Innboksen din er tom",
+      "folders": "Mapper",
+      "inbox": "Innboks",
+      "more_unread": "+{count} fleire ulesne",
+      "no_folders": "Ingen mapper å vise",
+      "no_starred": "Ingen stjernemerkt e-post",
+      "no_starred_body": "Stjernemerk ei melding for å ha ho her.",
+      "no_subject": "(utan emne)",
+      "no_unread": "Ingen ulesne meldingar i innboksen.",
+      "position": "{index} av {count}",
+      "reply": "Svar",
+      "scheduled": "Planlagd",
+      "starred": "Stjernemerkt",
+      "unread": "ulesne"
+    },
+    "notice": {
+      "archive": "Klarte ikkje arkivere. Trykk for å prøve igjen.",
+      "mark_read": "Klarte ikkje merkje som lesen. Trykk for å prøve igjen.",
+      "rsvp": "Klarte ikkje sende svaret ditt. Trykk for å prøve igjen.",
+      "task": "Klarte ikkje oppdatere «{title}». Trykk for å prøve igjen.",
+      "trash": "Klarte ikkje slette. Trykk for å prøve igjen."
+    },
+    "people": {
+      "empty": "Ingen favorittar enno",
+      "empty_body": "Dei du høyrer mest frå, blir viste her.",
+      "favourites": "Favorittar"
+    },
+    "relative": {
+      "days": "{count, plural, one {om # dag} other {om # dagar}}",
+      "hours": "om {count} t",
+      "minutes": "om {count} min",
+      "now": "no"
+    },
+    "scheduled": {
+      "day_at": "{day}, {time}",
+      "empty": "Ingenting planlagt",
+      "empty_body": "Meldingar du planlegg å sende seinare, blir viste her.",
+      "no_recipient": "(ingen mottakar)",
+      "sending": "Sender no",
+      "to": "Til: {name}",
+      "today_at": "I dag, {time}",
+      "tomorrow_at": "I morgon, {time}",
+      "waiting": "Ventar på nettverk",
+      "waiting_body": "Endringar du gjorde fråkopla, går ut når du er tilkopla igjen."
+    },
+    "search": {
+      "no_recent": "Dei siste søka dine blir viste her.",
+      "placeholder": "Søk i e-post …",
+      "recent": "Nylege søk"
+    },
+    "shortcuts": {
+      "calendar": "Kalender",
+      "compose": "Skriv",
+      "contacts": "Kontaktar",
+      "files": "Filer"
+    },
+    "state": {
+      "error": "Klarte ikkje vise denne widgeten",
+      "loading": "Lastar …",
+      "open_app": "Opne appen ein gong viss dette held fram med å vere tomt.",
+      "open_to_load": "Opne Bulwark for å laste dette",
+      "signed_out": "Logg inn på Bulwark"
+    },
+    "storage": {
+      "no_limit": "Inga lagringsgrense",
+      "title": "Lagring",
+      "unavailable": "Ingen kvoteinformasjon",
+      "used_of": "{used} av {total}"
+    },
+    "tag": {
+      "empty": "Ingen etikettar enno",
+      "empty_body": "Etikettar du legg til i appen, blir viste her.",
+      "messages": "{count, plural, one {melding} other {meldingar}}",
+      "total": "{count, plural, one {# melding} other {# meldingar}}"
+    },
+    "tasks": {
+      "all_done": "Alt er gjort",
+      "empty": "Ingen opne oppgåver",
+      "mark_complete": "Merk som gjord",
+      "mark_incomplete": "Merk som ikkje gjord",
+      "no_title": "(utan tittel)",
+      "off": "Oppgåver er av",
+      "off_body": "Slå på oppgåver i kalenderinnstillingane i appen",
+      "open_count": "{count} opne",
+      "overdue": "Over fristen",
+      "still_open": "{count} framleis opne",
+      "title": "Oppgåver",
+      "today": "I dag",
+      "tomorrow": "I morgon"
+    },
+    "vacation": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "subject": "Emne: {subject}",
+      "title": "Fråvær",
+      "unsupported": "Fråværssvar er ikkje tilgjengeleg",
+      "until": "Til {date}"
+    }
+  }
+}

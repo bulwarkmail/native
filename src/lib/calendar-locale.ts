@@ -32,6 +32,7 @@ const DATE_FNS_LOCALE_LOADERS: Record<LocaleCode, () => Locale> = {
   lv: () => require('date-fns/locale/lv').lv,
   mn: () => require('date-fns/locale/mn').mn,
   nb: () => require('date-fns/locale/nb').nb,
+  nn: () => require('date-fns/locale/nn').nn,
   nl: () => require('date-fns/locale/nl').nl,
   pl: () => require('date-fns/locale/pl').pl,
   pt: () => require('date-fns/locale/pt').pt,

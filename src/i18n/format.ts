@@ -122,6 +122,7 @@ const PLURAL_RULES: Record<string, PluralRule> = {
   },
   nl: oneForIntegerOne,
   nb: oneForOne,
+  nn: oneForOne,
   pl: ({ i, v }) => {
     if (v !== 0) return 'other';
     if (i === 1) return 'one';
