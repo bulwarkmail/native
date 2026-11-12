@@ -40,6 +40,15 @@ describe('recent move targets', () => {
     await loadRecentMoveTargets();
     expect(readRecentMoveTargets('acc1')).toEqual(['work']);
   });
+
+  it('keeps what an earlier run noted when the first move of a cold start is saved', async () => {
+    storage.set('bulwark.moveRecent.v1', JSON.stringify({ acc1: ['archive', 'work'], acc2: ['x'] }));
+    await noteMoveTarget('acc1', 'invoices');
+    resetRecentMoveTargetsForTests();
+    await loadRecentMoveTargets();
+    expect(readRecentMoveTargets('acc1')).toEqual(['invoices', 'archive', 'work']);
+    expect(readRecentMoveTargets('acc2')).toEqual(['x']);
+  });
 });
 
 describe('move filter', () => {

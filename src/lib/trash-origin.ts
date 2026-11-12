@@ -57,17 +57,27 @@ function persist(): void {
   }
 }
 
-/** Notes the folder (its list id) each message left for the Trash folder `trashMailboxId`. */
-export function rememberTrashOrigins(emailIds: readonly string[], fromMailboxId: string, trashMailboxId: string): void {
-  if (emailIds.length === 0) return;
-  void loadTrashOrigins();
+function trim(): void {
+  for (const key of [...origins.keys()].slice(0, Math.max(0, origins.size - KEPT))) origins.delete(key);
+}
+
+/**
+ * Notes the folder (its list id) each message left for the Trash folder
+ * `trashMailboxId`. Restore sees it at once; it is saved once what earlier
+ * runs noted has been read, which a save before that replaced on a cold start.
+ */
+export function rememberTrashOrigins(emailIds: readonly string[], fromMailboxId: string, trashMailboxId: string): Promise<void> {
+  if (emailIds.length === 0) return Promise.resolve();
   for (const id of emailIds) {
     const key = keyOf(id, trashMailboxId);
     origins.delete(key);
     origins.set(key, fromMailboxId);
   }
-  for (const key of [...origins.keys()].slice(0, Math.max(0, origins.size - KEPT))) origins.delete(key);
-  persist();
+  trim();
+  return loadTrashOrigins().then(() => {
+    trim();
+    persist();
+  });
 }
 
 /** The Inbox of the account a message in `trash` lives in. */

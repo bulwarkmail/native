@@ -45,14 +45,20 @@ export function readRecentMoveTargets(accountId: string | null | undefined): str
   return store[accountId] ?? [];
 }
 
-export function noteMoveTarget(accountId: string | null | undefined, mailboxId: string): void {
-  if (!accountId || !mailboxId) return;
+/**
+ * Notes a move. The list has it at once; it is saved once what earlier runs
+ * noted has been read, which a save before that replaced on a cold start.
+ */
+export function noteMoveTarget(accountId: string | null | undefined, mailboxId: string): Promise<void> {
+  if (!accountId || !mailboxId) return Promise.resolve();
   store = { ...store, [accountId]: [mailboxId, ...(store[accountId] ?? []).filter((id) => id !== mailboxId)].slice(0, KEPT) };
-  try {
-    void AsyncStorage.setItem(KEY, JSON.stringify(store)).catch(() => undefined);
-  } catch {
-    // Storage off: the list just has no recents.
-  }
+  return loadRecentMoveTargets().then(() => {
+    try {
+      void AsyncStorage.setItem(KEY, JSON.stringify(store)).catch(() => undefined);
+    } catch {
+      // Storage off: the list just has no recents.
+    }
+  });
 }
 
 /** Lowercased, without accents, for matching a typed filter. */

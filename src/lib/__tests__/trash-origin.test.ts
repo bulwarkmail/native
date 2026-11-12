@@ -67,6 +67,15 @@ describe('Restore from Trash', () => {
     expect(restoreTarget('e1', 'trash', MAILBOXES)).toBe('work');
   });
 
+  it('keeps what an earlier run noted when the first note of a cold start is saved', async () => {
+    storage.set('bulwark.trashOrigin.v1', JSON.stringify({ 'trash|old': 'work' }));
+    await rememberTrashOrigins(['e1'], 'work', 'trash');
+    resetTrashOriginsForTests();
+    await loadTrashOrigins();
+    expect(restoreTarget('old', 'trash', MAILBOXES)).toBe('work');
+    expect(restoreTarget('e1', 'trash', MAILBOXES)).toBe('work');
+  });
+
   it('is noted on delete and offered in the Trash selection bar and the reader', () => {
     const read = (p: string) => fs.readFileSync(path.resolve(__dirname, '../..', p), 'utf8');
     const store = read('stores/email-store.ts');
