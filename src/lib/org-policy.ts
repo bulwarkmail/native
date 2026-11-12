@@ -485,11 +485,18 @@ export interface WebmailLinks {
    * `noThirdPartyTraffic`): remote content in mail never loads.
    */
   noThirdPartyTraffic?: boolean;
+  /**
+   * The mail server's own account page (config `accountManagementUrl`,
+   * webmail #1570), linked under Settings > Account; http(s) only.
+   */
+  accountManagementUrl?: string;
+  /** Its link text (`accountManagementLabel`); the app's own when empty. */
+  accountManagementLabel?: string;
 }
 
 /** The accessibility and help links, in the webmail's fixed order (lib/help-links.ts). */
-/** The keys of WebmailLinks that hold a link. */
-export type WebmailLinkKey = Exclude<keyof WebmailLinks, 'companyName' | 'noThirdPartyTraffic'>;
+/** The keys of WebmailLinks that hold a help link. */
+export type WebmailLinkKey = Exclude<keyof WebmailLinks, 'companyName' | 'noThirdPartyTraffic' | 'accountManagementUrl' | 'accountManagementLabel'>;
 
 export const HELP_LINK_ORDER: ReadonlyArray<[HelpLinkId, WebmailLinkKey]> = [
   ['statement', 'accessibilityStatementUrl'],
@@ -518,6 +525,13 @@ export function webmailLinksFromConfig(raw: unknown): WebmailLinks {
   const noThirdParty = raw.noThirdPartyTraffic;
   if (noThirdParty === true || (typeof noThirdParty === 'string' && /^(true|1|yes|on)$/i.test(noThirdParty.trim()))) {
     out.noThirdPartyTraffic = true;
+  }
+  const accountPage = typeof raw.accountManagementUrl === 'string' ? raw.accountManagementUrl.trim() : '';
+  if (/^https?:\/\/\S+$/i.test(accountPage)) {
+    out.accountManagementUrl = accountPage;
+    if (typeof raw.accountManagementLabel === 'string' && raw.accountManagementLabel.trim()) {
+      out.accountManagementLabel = raw.accountManagementLabel.trim().slice(0, 200);
+    }
   }
   return out;
 }

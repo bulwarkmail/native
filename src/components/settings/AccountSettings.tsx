@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ArrowDown, ArrowUp, Check, ChevronRight, Plus, Star, Trash2, Users } from '../icons';
+import { ArrowDown, ArrowUp, Check, ChevronRight, ExternalLink, Plus, Star, Trash2, Users } from '../icons';
 import { SettingsSection, SettingItem } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -11,6 +11,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
+import { usePolicyStore } from '../../stores/policy-store';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
@@ -48,6 +49,9 @@ export function AccountSettings() {
   const setDefaultAccount = useAccountStore((s) => s.setDefaultAccount);
   const reorderAccounts = useAccountStore((s) => s.reorderAccounts);
   const account = accounts.find((a) => a.id === activeAccountId);
+  // The paired webmail's config (#1570): the mail server's account page.
+  const accountPageUrl = usePolicyStore((s) => s.links.accountManagementUrl);
+  const accountPageLabel = usePolicyStore((s) => s.links.accountManagementLabel);
 
   const displayName = account?.displayName || authUsername || t('settings.account.unknown', 'Unknown');
   const email = account?.email || authUsername || '';
@@ -137,6 +141,19 @@ export function AccountSettings() {
                 : t('settings.account.auth_method_basic', 'Password')}
           </Text>
         </SettingItem>
+        {/* The server's own page for 2FA and app passwords (webmail #1570). */}
+        {accountPageUrl ? (
+          <Pressable
+            onPress={() => { void Linking.openURL(accountPageUrl).catch(() => undefined); }}
+            accessibilityRole="link"
+            style={styles.accountPageLink}
+          >
+            <Text style={styles.accountPageText}>
+              {accountPageLabel || t('settings.account.account_management_link', 'Manage account security (2FA, app passwords)')}
+            </Text>
+            <ExternalLink size={14} color={c.primary} />
+          </Pressable>
+        ) : null}
 
         <SettingItem label={t('settings.account.server.label', 'JMAP Server')}>
           <Text style={styles.value} numberOfLines={1}>{serverUrl}</Text>
@@ -312,6 +329,14 @@ function makeStyles(c: ThemePalette) {
     color: c.text,
     maxWidth: 240,
   },
+  accountPageLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  accountPageText: { ...typography.body, color: c.primary },
   storage: {
     alignItems: 'flex-end',
     gap: 6,

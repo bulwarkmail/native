@@ -190,6 +190,18 @@ describe('policyReleasePatch', () => {
 });
 
 describe('webmailLinksFromConfig and helpLinks', () => {
+  it("reads the mail server's account page and its label, http(s) only, and keeps it out of the help links (#1570)", () => {
+    const links = webmailLinksFromConfig({
+      accountManagementUrl: ' https://mail.example.org/account ',
+      accountManagementLabel: 'Konto verwalten',
+      helpUrl: 'https://help.example.org',
+    });
+    expect(links).toMatchObject({ accountManagementUrl: 'https://mail.example.org/account', accountManagementLabel: 'Konto verwalten' });
+    expect(helpLinks(links).map((l) => l.id)).toEqual(['help']);
+    expect(webmailLinksFromConfig({ accountManagementUrl: 'javascript:alert(1)', accountManagementLabel: 'x' })).toEqual({});
+    expect(webmailLinksFromConfig({ accountManagementUrl: '' })).toEqual({});
+  });
+
   it('keeps http(s) and mailto links, drops the rest, and lists them in the webmail order', () => {
     const links = webmailLinksFromConfig({
       helpUrl: 'https://help.example.org/mail',
