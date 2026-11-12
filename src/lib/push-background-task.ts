@@ -532,7 +532,12 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
           err instanceof Error ? err.message : err,
         );
         // Something arrived; say so even though the lookup couldn't say what.
-        if (!match.ambiguous) await showAccountNotification(accountId, payload, registry).catch(() => undefined);
+        // Under the organisation's rule (without the session, any scope that
+        // turns it on counts) the group summary takes no lines either.
+        if (!match.ambiguous) {
+          const withoutContent = await pushWithoutContentFor(accountId, null).catch(() => true);
+          await showAccountNotification(accountId, payload, registry, withoutContent).catch(() => undefined);
+        }
       }
     }
   } catch (error) {

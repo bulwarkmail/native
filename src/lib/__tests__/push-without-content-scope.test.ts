@@ -137,6 +137,25 @@ describe('the rule with a username-only registry, a failed lookup and without th
     expect(shownText()).not.toContain(SECRET_SUBJECT);
   });
 
+  it('a lookup that fails has the group summary built without lines under the rule, and with them without it', async () => {
+    const failLookup = () => vi.mocked(secureFetch).mockImplementation(async (url: string) => {
+      if (String(url).endsWith('/.well-known/jmap')) {
+        return { ok: true, json: async () => ({ apiUrl: 'https://mail.example.com/jmap/', primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' }, accounts: sessionAccounts }) } as never;
+      }
+      return { ok: false, status: 500, json: async () => ({}) } as never;
+    });
+    await seedCache({ [LOCAL]: cacheEntry(orgPolicy({ devices: { pushWithoutContent: true } })) });
+    failLookup();
+    await push(['m1']);
+    expect(showNotification.mock.calls[0][0]).toMatchObject({ notificationId: `mail-unknown:${LOCAL}`, withoutContent: true });
+
+    showNotification.mockClear();
+    await seedCache({ [LOCAL]: cacheEntry(orgPolicy({ devices: { pushWithoutContent: false } })) });
+    await push(['m2']);
+    expect(showNotification.mock.calls[0][0]).toMatchObject({ notificationId: `mail-unknown:${LOCAL}` });
+    expect(showNotification.mock.calls[0][0]).not.toHaveProperty('withoutContent');
+  });
+
   it('nothing changes for an organisation without the rule: full notification with actions', async () => {
     await seedCache({ [LOCAL]: cacheEntry(orgPolicy({ devices: { pushWithoutContent: false } }, [{
       id: 'other', match: { groups: ['board@corp.example'] }, policy: { organisation: { devices: { noPrint: true } } },
