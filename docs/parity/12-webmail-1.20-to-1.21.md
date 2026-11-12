@@ -79,12 +79,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: drops every item whose `accountId` isn't the account's, including items with none (`src/lib/recovery/archived-items.ts:128`), so the list stays empty.
   - Fix hint: one-line port: skip only when `accountId` is present and different.
 
-- [ ] **Trash has no Restore, and a mixed selection can't be marked unread** — `P3` — `missing`
+- [x] **Trash has no Restore, and a mixed selection can't be marked unread** — `P3` — `missing` — fixed in aef6aea9
   - What WEB does: notes the folder a message came from when Bulwark moves it to Trash; in Trash, Restore puts it back there (or in the Inbox); a selection with read and unread mail offers both (`lib/trash-origin.ts:32`, `:70`, `components/email/email-context-menu.tsx:290`, `components/email/email-list.tsx:875-884`). e8d8486b8.
   - What RN does: no Restore in the list or reader (moves only, `src/components/MoveSheet.tsx`); the selection bar toggles to "Mark as read" whenever one row is unread (`src/screens/EmailListScreen.tsx:1381-1388`).
   - Fix hint: record the origin in the trash paths of email-store (AsyncStorage, capped), add Restore to the Trash selection bar and the reader menu.
 
-- [ ] **Select all doesn't offer the rest of the folder** — `P3` — `partial`
+- [ ] **Select all doesn't offer the rest of the folder** — `P3` — `partial` — not done: the selection and every batch action work on loaded rows; running them by query needs a store rework
   - What WEB does: select all ticks every loaded conversation and then offers "Select all N in this folder" (`components/email/email-list.tsx:977-1007`). 1.21.0 Mail.
   - What RN does: selects the loaded rows only (`src/screens/EmailListScreen.tsx:977-983`).
   - Fix hint: after select all, offer the folder total and run the batch actions by query.
@@ -94,12 +94,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: chips always render when the row can open attachments (`src/screens/EmailListScreen.tsx:353-361`); no setting in `src/stores/settings-store.ts`.
   - Fix hint: a boolean in settings-store and Message list settings that skips ListAttachmentChips and its loader.
 
-- [ ] **The Move sheet has no filter and no recent folders** — `P3` — `missing`
+- [x] **The Move sheet has no filter and no recent folders** — `P3` — `missing` — fixed in 329468fe
   - What WEB does: Move lists recent folders first, then the folders in mail-client order, other accounts under their names, with a filter field on long lists, also from the selection bar (`components/email/move-target-list.tsx:18`, `:44`, `:106`). 56e833fe6, 1.21.0 Mail.
   - What RN does: a scrolled tree with no search and no recents (`src/components/MoveSheet.tsx:73-87`, `:113-140`).
   - Fix hint: a TextInput over the list using the same filter as the search folder tree, and a small recent-targets list in AsyncStorage.
 
-- [ ] **The unified "All Trash" can't be emptied** — `P3` — `missing`
+- [x] **The unified "All Trash" can't be emptied** — `P3` — `missing` — fixed in 97265b45
   - What WEB does: the All Trash (and All Junk) row has a menu that empties that folder in every account (`components/layout/mailbox-context-menu.tsx:132`, `:285`). 648bbf536 (#1540).
   - What RN does: unified role views exist (`src/api/unified-inbox.ts:36`) but UnifiedInboxScreen only deletes selected rows (`src/screens/UnifiedInboxScreen.tsx:353-371`); Empty folder is per account (`src/components/SidebarDrawer.tsx:626-645`).
   - Fix hint: an "Empty" button in the unified Trash and Junk views that calls emptyMailbox per account after one confirm.
@@ -148,7 +148,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the id is the slug only, so "Работа" gives an empty id and Save stays disabled with no message, and "Банк 1" and "Счета 1" both give "1" (`src/lib/new-tag.ts:22-46`, `src/components/settings/KeywordSettings.tsx:338-341`, `src/components/NewTagRow.tsx:33`).
   - Fix hint: port generatedKeywordLevel, chooseKeywordId and isKeywordNameTaken into new-tag.ts and use them in both places. Renames already keep the id in RN (39b6f6542 needs nothing).
 
-- [ ] **A tag made in a group account's tag picker isn't shared with the group** — `P3` — `bug`
+- [ ] **A tag made in a group account's tag picker isn't shared with the group** — `P3` — `bug` — not done: the app only reads shared tags (no write path); fba71cbd hides New tag in group accounts so it no longer makes a personal tag there
   - What WEB does: "New tag" in a group account adds the tag to the group's shared tags, and is hidden for members who can't change them (`components/email/tag-picker.tsx:57-76`). 9eae5ae9d (#1613).
   - What RN does: NewTagRow always adds to the user's own tags (`src/components/NewTagRow.tsx:24-38`), while group rows show the group's merged tags (`src/screens/EmailListScreen.tsx:605-611`).
   - Fix hint: pass the scope to NewTagRow and save through the shared tags store for a group account.
@@ -158,12 +158,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: DEFAULT_KEYWORDS (Red, Orange, ...) for every new account and on reset (`src/stores/keywords-store.ts:35`, `:117`, `:211`).
   - Fix hint: start empty, take the policy default when there is one.
 
-- [ ] **Tag colours are limited to the palette** — `P3` — `missing`
+- [ ] **Tag colours are limited to the palette** — `P3` — `missing` — not done: needs a hex KeywordColor in keywords-store (not this agent's file) and every tag renderer
   - What WEB does: a tag takes any colour from a hex code or the colour dialog (`lib/tag-hex-color.ts:14`, `:74`). 4cb4ccf1c.
   - What RN does: KeywordColor is a palette name (`src/stores/keywords-store.ts:11`); a hex tag colour synced from the webmail falls back. Not checked how RN draws an unknown colour.
   - Fix hint: accept `#rrggbb` in KeywordColor and add a hex field to the tag form.
 
-- [ ] **Shared mailboxes can't be shown compact in the drawer** — `P3` — `missing`
+- [x] **Shared mailboxes can't be shown compact in the drawer** — `P3` — `missing` — fixed in acab8b21
   - What WEB does: "compact shared mailboxes" folds a shared account with one Inbox into a single row (`lib/compact-shared-mailbox.ts:18`, `stores/settings-store.ts:936`). fca08981a (1.20.0, #1483).
   - What RN does: shared accounts always show as a header with their folders (`src/components/SidebarDrawer.tsx:1235-1248`).
   - Fix hint: optional; port compactSharedMailbox behind a setting.
@@ -180,7 +180,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: AttachmentChips still hides parts the HTML references, and isn't told about the plain view (`src/components/email/AttachmentChips.tsx:80`, `src/components/email/MessageContent.tsx:94-102`, `:157`).
   - Fix hint: pass `plainView` (and the plain-text setting) to AttachmentChips and skip the embedded filter then.
 
-- [ ] **An attachment can't be renamed when saving a copy** — `P3` — `missing`
+- [x] **An attachment can't be renamed when saving a copy** — `P3` — `missing` — fixed in 0ebc5bae
   - What WEB does: a Rename button on each reader attachment opens a dialog that keeps the extension, and the copy saves under the new name; the composer can rename before sending (`components/email/reader-attachments.tsx`, `components/email/rename-attachment-dialog.tsx:21`, `lib/attachment-name.ts:55`). fc54c1915, 8093ccb7a, 2c21722ae (#1623).
   - What RN does: Save and Share hand the file to the share sheet under its generated name (`src/lib/email-export.ts:278-304`). Not checked whether the Android save target lets the user change the name.
   - Fix hint: a "Save as…" entry in the attachment sheet with a name prompt before downloadAttachment. The composer side belongs to the compose inventory.
