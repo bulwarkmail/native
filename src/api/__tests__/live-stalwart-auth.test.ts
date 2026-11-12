@@ -71,6 +71,7 @@ import {
 } from '../../lib/totp-login';
 import { describeLoginError } from '../../lib/login-errors';
 import { fetchMailQuota, serverSupportsQuota, toMailQuota } from '../quota';
+import { createMaskedEmailManager, loadMaskedAddresses } from '../masked-email';
 import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
 import {
   HANDOFF_REDIRECT_URI,
@@ -540,6 +541,31 @@ live('live Stalwart sign-in', () => {
     expect(info.otpEnabled).toBe(false);
     expect(Array.isArray(info.appPasswords)).toBe(true);
   });
+
+  it('masked addresses: hidden where the server has none, a full round trip where it has them', async () => {
+    const client = new JMAPClient();
+    await client.connect(SERVER, USER, PASS);
+    useSingleton(client);
+    const manager = createMaskedEmailManager();
+    const loaded = await loadMaskedAddresses(manager);
+    // Stalwart Community (the rig's 1.0 and 0.16) refuses MaskedEmail: the
+    // section stays hidden, nothing throws.
+    if (loaded.status !== 'ready') {
+      expect(loaded.status).toBe('unavailable');
+      return;
+    }
+    const id = await manager!.create({ description: `live ${Date.now()}`, forDomain: '' });
+    try {
+      const listed = (await manager!.list()).find((a) => a.id === id);
+      expect(listed?.enabled).toBe(true);
+      await manager!.update(id, { enabled: false, description: '' });
+      const after = (await manager!.list()).find((a) => a.id === id);
+      expect(after).toMatchObject({ enabled: false, description: null });
+    } finally {
+      await manager!.destroy(id).catch(() => undefined);
+    }
+    expect((await manager!.list()).some((a) => a.id === id)).toBe(false);
+  }, 30_000);
 
   it('sign-out revokes the grant on 1.0; 0.16 has no revocation endpoint', async () => {
     const tokens = await exchangePasswordForTokens(SERVER, USER, PASS);

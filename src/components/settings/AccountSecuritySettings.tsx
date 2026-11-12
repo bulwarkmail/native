@@ -52,6 +52,7 @@ import {
   type PublicKeyInfo,
 } from '../../api/account-security';
 import { generateTotpEnrolment, type TotpEnrolment } from '../../lib/totp';
+import { MaskedAddressesSection } from './MaskedAddressesSection';
 
 // ── TLS client certificate (mobile-only) ──────────────────
 // Picks an installed Android cert (iOS: imports a .p12 file) for mTLS handshakes. Independent of the
@@ -1118,6 +1119,8 @@ export function AccountSecuritySettings() {
               onCreate={async (input) => { const r = await createApiKey(input); await reloadAuth(); return r; }}
               onRemove={async (id) => { await removeApiKey(id); await reloadAuth(); }}
             />
+
+            <MaskedAddressesSection />
 
             {isOAuth && <EmailClientSection />}
             {!isOAuth && (

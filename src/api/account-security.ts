@@ -193,7 +193,8 @@ function resultFor<T = Record<string, any>>(responses: MethodResponse[], callId:
   return match[1] as T;
 }
 
-async function send(methodCalls: [string, Record<string, unknown>, string][]): Promise<MethodResponse[]> {
+/** An x:* request with the account's management capability (also masked-email.ts). */
+export async function send(methodCalls: [string, Record<string, unknown>, string][]): Promise<MethodResponse[]> {
   const res = await jmapClient.request(methodCalls, [CAPABILITIES.CORE, getManagementCapability() ?? 'urn:stalwart:jmap']);
   return res.methodResponses as MethodResponse[];
 }
