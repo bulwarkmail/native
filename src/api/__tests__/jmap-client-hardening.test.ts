@@ -520,6 +520,51 @@ describe('JMAPClient hardening', () => {
     (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockReset();
   });
 
+  // The Android push handler refreshes in the background too (#94) and may
+  // spend the refresh token a moment before the app does: the server then
+  // refuses the app's refresh, and the new bundle lands in storage right
+  // after. That is not a dead session.
+  it('takes tokens stored just after its own refresh was refused', async () => {
+    const SecureStore = await import('expo-secure-store');
+    const { HandoffError } = await import('../../lib/oauth');
+    const client = new JMAPClient();
+    mockFetch([{ status: 200, json: SESSION }]);
+    await client.connectWithOAuth('https://mail.example.com', {
+      accessToken: 'old',
+      refreshToken: 'r1',
+      expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    });
+    const bundle = (accessToken: string, refreshToken: string, expiresAt: number) => JSON.stringify({
+      serverUrl: 'https://mail.example.com',
+      username: 'user@example.com',
+      password: '',
+      accessToken,
+      refreshToken,
+      expiresAt,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    });
+    let stored = bundle('old', 'r1', Date.now() + 3_600_000);
+    (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockImplementation(async () => stored);
+    mockRefresh.mockImplementationOnce(async () => {
+      // The push handler won: its tokens are written while the app's refusal comes back.
+      setTimeout(() => { stored = bundle('from-push', 'r2', Date.now() + 7_200_000); }, 50);
+      throw new HandoffError('Token refresh failed: 400');
+    });
+    const onAuthFailure = vi.fn();
+    client.onAuthFailure(onAuthFailure);
+    const fetch = mockFetch([
+      { status: 401 },
+      { status: 200, json: { methodResponses: [['Mailbox/get', {}, '0']] } },
+    ]);
+    await client.request([['Mailbox/get', {}, '0']]);
+    expect(onAuthFailure).not.toHaveBeenCalled();
+    expect((fetch.mock.calls[1][1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer from-push' });
+    (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockReset();
+  });
+
   it('updatePassword rewrites the stored credential', async () => {
     const SecureStore = await import('expo-secure-store');
     const client = await connected();
