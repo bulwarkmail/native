@@ -456,7 +456,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing; no autoconfig or IMAP/SMTP settings in src.
   - Fix hint: fetch `/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=` from the account's server and show copyable rows under Security, next to app passwords. Substitute the address for `%EMAILADDRESS%`.
 
-- [ ] **No link to the mail server's account page** — `P3` — `missing`
+- [x] **No link to the mail server's account page** — `P3` — `missing` — fixed in da0f091c (absolute http(s) URLs only; a path relative to the webmail is not resolved)
   - What WEB does: `ACCOUNT_MANAGEMENT_URL` and `ACCOUNT_MANAGEMENT_LABEL` from `/api/config` add a link under Settings > Account (`app/api/config/route.ts`, `components/settings/account-settings.tsx:51`, `:173`). 8689f0661 (#1570).
   - What RN does: reads only the help links, company name and no-third-party flag from the paired webmail's `/api/config` (`src/lib/org-policy.ts:475-525`); Settings > Account shows the auth method without a link (`src/components/settings/AccountSettings.tsx:131-136`).
   - Fix hint: add accountManagementUrl and accountManagementLabel to webmailLinksFromConfig and show the link under the auth method.
