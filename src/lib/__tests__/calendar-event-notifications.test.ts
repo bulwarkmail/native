@@ -106,6 +106,16 @@ describe('pulling calendar event notifications', () => {
     expect(h.destroy).toHaveBeenCalledWith(['a', 'b', 'c']);
   });
 
+  // #1567: a script writing into many calendars left a stack of toasts.
+  it('sums up more than three at once in one toast and still acknowledges all of them', async () => {
+    h.list.mockResolvedValue([note('a'), note('b', { type: 'created' }), note('c', { type: 'destroyed' }), note('d'), note('e', { isDraft: true })]);
+    await pullCalendarEventNotifications();
+    expect(h.toast.info).toHaveBeenCalledTimes(1);
+    expect(h.toast.info).toHaveBeenCalledWith('Changes to events you take part in: 4', undefined);
+    expect(h.toast.warning).not.toHaveBeenCalled();
+    expect(h.destroy).toHaveBeenCalledWith(['a', 'b', 'c', 'd', 'e']);
+  });
+
   it('does not show one again when the server still lists it', async () => {
     h.list.mockResolvedValue([note('a')]);
     await pullCalendarEventNotifications();

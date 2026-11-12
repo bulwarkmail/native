@@ -49,6 +49,23 @@ export function eventNotificationToast(n: CalendarEventNotification, t: Translat
   return { type: kind === 'cancelled' ? 'warning' : 'info', title, message: n.comment || undefined };
 }
 
+/** More notifications at once than this come as one summary toast (webmail 6f93d81f5). */
+export const MAX_SEPARATE_TOASTS = 3;
+
+/**
+ * The toasts for a batch of fresh notifications: one each, or above
+ * MAX_SEPARATE_TOASTS one line for all of them (a script that writes into
+ * many calendars leaves hundreds at once).
+ */
+export function eventNotificationToasts(list: CalendarEventNotification[], t: Translate): EventNotificationToast[] {
+  const shown = list.map((n) => eventNotificationToast(n, t)).filter((x): x is EventNotificationToast => !!x);
+  if (shown.length <= MAX_SEPARATE_TOASTS) return shown;
+  return [{
+    type: 'info',
+    title: t('calendar_event_notifications.summary', 'Changes to events you take part in: {count}', { count: shown.length }),
+  }];
+}
+
 // Ids already shown in this session; a pull racing an acknowledgement must
 // not show them again.
 const seen = new Set<string>();
@@ -108,10 +125,9 @@ async function pullOnce(): Promise<void> {
   if (sessionKey() !== key) return;
   const fresh = list.filter((n) => !seen.has(n.id));
   if (fresh.length === 0) return;
-  for (const n of fresh) {
-    seen.add(n.id);
-    const shown = eventNotificationToast(n, translate as Translate);
-    if (shown) toast[shown.type](shown.title, shown.message);
+  for (const n of fresh) seen.add(n.id);
+  for (const shown of eventNotificationToasts(fresh, translate as Translate)) {
+    toast[shown.type](shown.title, shown.message);
   }
   void useCalendarStore.getState().refresh().catch(() => undefined);
   try {
