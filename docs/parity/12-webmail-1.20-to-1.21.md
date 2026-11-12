@@ -390,7 +390,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: Export, Move, Add tag and Delete (`src/screens/ContactsScreen.tsx:446`, `:456`, `:466`, `:475`).
   - Fix hint: a "Send email" action that opens Compose with the addresses, and "Add to group".
 
-- [ ] **The directory can't be turned off, and the admin's same-domain rule isn't applied** — `P3` — `missing` — partly in e3446c72 (the directory can be turned off); not done: the same-domain rule, sanitizePolicy in src/lib/org-policy.ts drops directorySameDomainOnly and directoryHiddenLocalparts and may not be edited in this wave
+- [x] **The directory can't be turned off, and the admin's same-domain rule isn't applied** — `P3` — `missing` — partly in e3446c72 (the directory can be turned off); not done: the same-domain rule, sanitizePolicy in src/lib/org-policy.ts drops directorySameDomainOnly and directoryHiddenLocalparts and may not be edited in this wave; the same-domain rule and hidden names fixed in ed18165e (every listPrincipals list: directory, sharing, delegation, free/busy)
   - What WEB does: users and admins can turn the directory off (#1457, changelog 1.20.0); the policy can limit every account list (directory, suggestions, sharing, delegation, free/busy) to the user's own domains and hide names such as noreply (`lib/directory-scope.ts`). a236eb555.
   - What RN does: handles a server refusal (`src/lib/contact-directory.ts:20`) but has no setting and reads no directory rule from the policy (`src/lib/org-policy.ts`).
   - Fix hint: a Contacts setting, and apply `directorySameDomainOnly` from the public policy in principal-directory.
