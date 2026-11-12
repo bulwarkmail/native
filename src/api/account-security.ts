@@ -440,20 +440,34 @@ export async function fetchPublicKeys(): Promise<PublicKeyInfo[]> {
   return (got.list ?? []).map(publicKeyFromResult);
 }
 
+/**
+ * Adds an S/MIME certificate or PGP key. Stalwart 1.0.2+ reads the
+ * addresses and the expiry from the key itself and refuses a create that
+ * sets them ("Cannot modify server set property"); 0.16 and 1.0.1 take them
+ * and default to none. So they go along only when the caller has them, and
+ * a create the server refuses for them is sent again without them.
+ */
 export async function createPublicKey(input: PublicKeyInput): Promise<string> {
   const accountId = jmapClient.accountId;
   const tmpId = 'new';
-  const payload: Record<string, unknown> = {
-    description: input.description,
-    key: input.key,
-    emailAddresses: ipsToMap(input.emailAddresses) ?? {},
+  const base: Record<string, unknown> = { description: input.description, key: input.key };
+  const extra: Record<string, unknown> = {};
+  const addresses = ipsToMap(input.emailAddresses);
+  if (addresses) extra.emailAddresses = addresses;
+  if (input.expiresAt) extra.expiresAt = input.expiresAt;
+
+  const attempt = async (payload: Record<string, unknown>) => {
+    const responses = await send([['x:PublicKey/set', { accountId, create: { [tmpId]: payload } }, '0']]);
+    return resultFor<{
+      created?: Record<string, { id: string }>;
+      notCreated?: Record<string, { type?: string; description?: string }>;
+    }>(responses, '0');
   };
-  if (input.expiresAt) payload.expiresAt = input.expiresAt;
-  const responses = await send([['x:PublicKey/set', { accountId, create: { [tmpId]: payload } }, '0']]);
-  const result = resultFor<{
-    created?: Record<string, { id: string }>;
-    notCreated?: Record<string, { type?: string; description?: string }>;
-  }>(responses, '0');
+  let result = await attempt({ ...base, ...extra });
+  const refused = result.notCreated?.[tmpId];
+  if (refused && Object.keys(extra).length && /server set property/i.test(refused.description ?? '')) {
+    result = await attempt(base);
+  }
   const notCreated = result.notCreated?.[tmpId];
   if (notCreated) throw new Error(notCreated.description || notCreated.type || 'Failed to add public key');
   const created = result.created?.[tmpId];

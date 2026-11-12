@@ -37,6 +37,7 @@ vi.mock('../../lib/oauth-native', () => ({
 import {
   AccountSecurityForbiddenError,
   changePassword,
+  createPublicKey,
   disableTotp,
   encryptionDialect,
   fetchAuthInfo,
@@ -278,5 +279,44 @@ describe('account security on Inbuxa (urn:inbuxa:jmap:registry)', () => {
     expect(getManagementCapability()).toBe('urn:stalwart:jmap');
     fake.hasAccountCapability = () => false;
     expect(isStalwartSupported()).toBe(false);
+  });
+});
+
+describe('createPublicKey', () => {
+  const originalRequest = fake.request;
+  const creates = () => fake.sent.filter((c) => c[0] === 'x:PublicKey/set')
+    .map((c) => (c[1] as { create: { new: Record<string, unknown> } }).create.new);
+  // A Stalwart of the given line: 1.0.2+ refuses addresses and expiry, 1.0.1 and 0.16 take them.
+  function server(line: '1.0.1' | '1.1.0') {
+    fake.request = async function request(this: typeof fake, calls: unknown[][]) {
+      this.sent.push(...calls);
+      const payload = (calls[0][1] as { create: { new: Record<string, unknown> } }).create.new;
+      const serverSet = line === '1.1.0' && ('emailAddresses' in payload || 'expiresAt' in payload);
+      return { methodResponses: [['x:PublicKey/set', serverSet
+        ? { notCreated: { new: { type: 'invalidPatch', description: 'Cannot modify server set property' } } }
+        : { created: { new: { id: 'k1' } } }, '0']] };
+    } as typeof fake.request;
+  }
+  beforeEach(() => { fake.sent = []; });
+  afterEach(() => { fake.request = originalRequest; });
+
+  it('sends only the key and its name, which 1.1.0 takes, when the screen adds one', async () => {
+    server('1.1.0');
+    expect(await createPublicKey({ description: 'Work', key: '-----BEGIN CERTIFICATE-----' })).toBe('k1');
+    expect(creates()).toEqual([{ description: 'Work', key: '-----BEGIN CERTIFICATE-----' }]);
+  });
+
+  it('keeps addresses and expiry for 1.0.1 and 0.16, and drops them where 1.1.0 sets them itself', async () => {
+    const input = { description: 'Work', key: 'k', emailAddresses: ['a@example.org'], expiresAt: '2027-01-01T00:00:00Z' };
+    server('1.0.1');
+    await createPublicKey(input);
+    expect(creates()).toEqual([{ description: 'Work', key: 'k', emailAddresses: { 'a@example.org': true }, expiresAt: '2027-01-01T00:00:00Z' }]);
+    fake.sent = [];
+    server('1.1.0');
+    expect(await createPublicKey(input)).toBe('k1');
+    expect(creates().map((p) => Object.keys(p).sort())).toEqual([
+      ['description', 'emailAddresses', 'expiresAt', 'key'],
+      ['description', 'key'],
+    ]);
   });
 });
