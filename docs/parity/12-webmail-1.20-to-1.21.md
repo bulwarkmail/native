@@ -539,7 +539,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: keeps the refused account with its caches and marks it "Sign in again" (`src/stores/auth-store.ts:249-270`); the start shows the refused account's cached mail (`src/stores/auth-store.ts:971-981`).
   - Fix hint: while `needsSignIn` is set, show the sign-in prompt instead of the cached list; drop the account's caches after 30 days, or at once when the policy asks.
 
-- [ ] **No organisation announcement banner** — `P2` — `missing`
+- [x] **No organisation announcement banner** — `P2` — `missing` — fixed in d1b6cde9
   - What WEB does: an admin announcement across the top of Mail, Calendar, Contacts, Files and Settings, per language, with severity, start and end time and an optional close (`lib/admin/organisation-policy.ts:141-152`, `components/org/org-announcement.tsx`). Changelog 1.20.0 Organisation.
   - What RN does: nothing; `organisation.announcement` is never read (only `src/lib/org-signature.ts` reads `organisation`).
   - Fix hint: a banner under the header of the main tabs, dismissal stored per announcement id.
