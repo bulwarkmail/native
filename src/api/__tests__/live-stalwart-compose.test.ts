@@ -44,6 +44,8 @@ import { findReplyDraftContext } from '../../lib/reply-draft-resume';
 import { replyComposeParams } from '../../lib/reply-compose';
 import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { mergeRecipientSuggestions } from '../../lib/recipient-suggestions';
+import { classifyOutgoing, draftLabelChoice, draftLabelProperty, labelSourceHeaders, receivedLabel, type LabelsPolicy } from '../../lib/classification-labels';
+import { draftContextFromEmail } from '../../lib/draft-context';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useTemplatesStore } from '../../stores/templates-store';
@@ -545,6 +547,55 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(formatScheduledSendAt(listed.sendAt, '24h', 'en'))
         .toBe(formatScheduledSendAt(target.toISOString(), '24h', 'en'));
       await cancelScheduledSend(listed.emailSubmissionId);
+    }, 60_000);
+  });
+
+  describe('classification labels (webmail 1.20)', () => {
+    const labels: LabelsPolicy = {
+      list: [
+        { id: 'internal', name: 'Internal', color: '#2563eb', description: '', marking: 'INTERNAL', sensitivity: '', subjectPrefix: '', extraHeaderValue: 'Internal' },
+        {
+          id: 'vs-nfd', name: 'VS-NfD', color: '#b91c1c', description: '', marking: 'VS-NUR FÜR DEN DIENSTGEBRAUCH',
+          sensitivity: 'Company-Confidential', subjectPrefix: 'VS-NfD', extraHeaderValue: 'VS-NfD',
+        },
+      ],
+      defaultId: 'internal',
+      required: true,
+      extraHeader: 'X-Classification',
+    };
+    const header = (email: { headers?: Array<{ name: string; value: string }> }, name: string) =>
+      email.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
+
+    it('sends SIO-Label, Sensitivity, the extra header and the subject prefix, and reads the label back', async () => {
+      const identity = (await getIdentities()).find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
+      const label = labels.list[1];
+      const labelled = classifyOutgoing(labels, label, `Re: Lagebericht ${tag}`);
+      // Held for an hour so nothing is delivered; afterAll cancels and removes it.
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: labelled.subject, textBody: 'live', labelHeaders: labelled.headers },
+        identity.id, sent, 3600, { draftsMailboxId: drafts },
+      );
+      createdEmails.push(result.emailId!);
+      const [stored] = await getFullEmails([result.emailId!]);
+      expect(stored.subject).toBe(`VS-NfD Re: Lagebericht ${tag}`);
+      expect(header(stored, 'SIO-Label')).toContain("marking*=utf-8''VS-NUR%20F%C3%9CR%20DEN%20DIENSTGEBRAUCH");
+      expect(header(stored, 'Sensitivity')?.trim()).toBe('Company-Confidential');
+      expect(header(stored, 'X-Classification')?.trim()).toBe('VS-NfD');
+      // The reader's chip and a reply's label come from these headers.
+      expect(receivedLabel(stored.headers, labels)?.id).toBe('vs-nfd');
+      await cancelScheduledSend(result.emailSubmissionId!).catch(() => undefined);
+    }, 60_000);
+
+    it('keeps the label choice on a draft', async () => {
+      const saved = await saveDraftVersion(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `label draft ${tag}`, textBody: 'live', labelHeaders: draftLabelProperty('vs-nfd') },
+        drafts,
+      );
+      createdEmails.push(saved.id);
+      const [stored] = await getFullEmails([saved.id]);
+      const reopened = draftContextFromEmail(stored);
+      expect(draftLabelChoice(reopened.labelHeaders)).toBe('vs-nfd');
+      expect(labelSourceHeaders(stored.headers)?.map((h) => h.name.toLowerCase())).toEqual(['x-bulwark-label']);
     }, 60_000);
   });
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Check } from '../icons';
 import ToggleSwitch from '../ToggleSwitch';
 import { useColors } from '../../theme/colors';
@@ -9,6 +9,7 @@ import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { MESSAGE_PRIORITIES, type MessagePriority } from '../../lib/message-priority';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import type { SecureMode } from '../../lib/crypto/secure-send';
+import type { ClassificationLabel } from '../../lib/classification-labels';
 
 export interface ComposerOptions {
   requestReadReceipt: boolean;
@@ -19,6 +20,18 @@ export interface ComposerOptions {
   secureMode: SecureMode;
   sign: boolean;
   encrypt: boolean;
+}
+
+/** The classification labels the message can go out with (policy `organisation.labels`). */
+export interface ComposerLabels {
+  list: ClassificationLabel[];
+  /** The label the message goes out with now; null for none. */
+  selectedId: string | null;
+  /** "No label" isn't offered. */
+  required: boolean;
+  /** Send was pressed without the required label. */
+  invalid?: boolean;
+  onPick: (id: string | null) => void;
 }
 
 /** Which kinds of signing/encryption the From address has a key for. */
@@ -44,7 +57,7 @@ export function activeComposerOptionCount(options: ComposerOptions): number {
  * address has a key (the PGP and S/MIME plugins' Options entries).
  */
 export function ComposerOptionsSheet({
-  visible, options, dsnAvailable, requireTlsAvailable, secureAvailable, secureHint, onChange, onClose, onSaveAsTemplate,
+  visible, options, dsnAvailable, requireTlsAvailable, secureAvailable, secureHint, labels, onChange, onClose, onSaveAsTemplate,
 }: {
   visible: boolean;
   options: ComposerOptions;
@@ -54,6 +67,8 @@ export function ComposerOptionsSheet({
   secureAvailable?: SecureAvailability;
   /** Why the chosen sign/encrypt can't go out yet (a recipient without a key). */
   secureHint?: string | null;
+  /** Classification labels (webmail classification-label-picker); left out when the organisation has none. */
+  labels?: ComposerLabels | null;
   onChange: (next: Partial<ComposerOptions>) => void;
   onClose: () => void;
   /** "Save as template" (webmail #1506); left out when templates are off. */
@@ -91,100 +106,136 @@ export function ComposerOptionsSheet({
     >
       <Pressable accessible={false} style={[styles.backdrop, { paddingBottom: spacing.lg + bottomInset }]} onPress={onClose}>
         <Pressable accessible={false} style={styles.card} onPress={() => {}}>
-          <Text style={styles.title} accessibilityRole="header">{t('email_composer.options', 'Options')}</Text>
-          {toggleRow(
-            t('email_composer.option_read_receipt', 'Request read receipt'),
-            t('email_composer.option_read_receipt_hint', 'Ask the recipient to confirm they opened it'),
-            options.requestReadReceipt,
-            'requestReadReceipt',
-          )}
-          {dsnAvailable && toggleRow(
-            t('email_composer.option_dsn', 'Delivery notification'),
-            t('email_composer.option_dsn_hint', 'Get a report when the server delivers it'),
-            options.requestDsn,
-            'requestDsn',
-          )}
-          {requireTlsAvailable && toggleRow(
-            t('email_composer.option_require_tls', 'Require encrypted delivery'),
-            t('email_composer.option_require_tls_hint', 'Only deliver over TLS, otherwise bounce'),
-            options.requireTls,
-            'requireTls',
-          )}
-          {secureAvailable && (secureAvailable.pgp || secureAvailable.smime) && (
-            <>
-              <View style={styles.separator} />
-              <Text style={styles.groupLabel}>{t('email_composer.option_security', 'Signature and encryption')}</Text>
-              {secureAvailable.pgp && secureAvailable.smime && (
-                <View style={styles.segment} accessibilityRole="radiogroup">
-                  {(['pgp', 'smime'] as const).map((mode) => {
-                    const selected = options.secureMode === mode;
-                    const label = mode === 'pgp' ? 'OpenPGP' : 'S/MIME';
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            <Text style={styles.title} accessibilityRole="header">{t('email_composer.options', 'Options')}</Text>
+            {labels && labels.list.length > 0 && (
+              <>
+                <Text style={[styles.groupLabel, labels.invalid && !labels.selectedId && styles.invalidText]}>
+                  {t('classification.picker_label', 'Classification')}
+                </Text>
+                {labels.required && <Text style={styles.rowHint}>{t('classification.required_hint', 'Your organisation requires a label.')}</Text>}
+                <View accessibilityRole="radiogroup" accessibilityLabel={t('classification.picker_label', 'Classification')} testID="composer-classification">
+                  {[...(labels.required ? [] : [null]), ...labels.list].map((label) => {
+                    const selected = (label?.id ?? null) === labels.selectedId;
+                    const name = label ? label.name : t('classification.none', 'No label');
                     return (
                       <Pressable
-                        key={mode}
-                        style={[styles.segmentItem, selected && styles.segmentItemSelected]}
-                        onPress={() => onChange({ secureMode: mode })}
+                        key={label?.id ?? 'none'}
+                        style={styles.row}
+                        onPress={() => labels.onPick(label?.id ?? null)}
                         accessibilityRole="radio"
-                        accessibilityLabel={label}
+                        accessibilityLabel={name}
+                        accessibilityHint={label?.description || undefined}
                         accessibilityState={{ checked: selected, selected }}
+                        testID={`composer-classification-${label?.id ?? 'none'}`}
                       >
-                        <Text style={[styles.rowLabel, selected && styles.segmentTextSelected]}>{label}</Text>
+                        <View style={[styles.labelDot, label ? { backgroundColor: label.color } : styles.labelDotNone]} />
+                        <View style={styles.rowText}>
+                          <Text style={styles.rowLabel}>{name}</Text>
+                          {label?.description ? <Text style={styles.rowHint} numberOfLines={2}>{label.description}</Text> : null}
+                        </View>
+                        {selected && <Check size={18} color={c.primary} />}
                       </Pressable>
                     );
                   })}
                 </View>
-              )}
-              {toggleRow(
-                t('email_composer.option_sign', 'Sign'),
-                options.secureMode === 'pgp'
-                  ? t('email_composer.option_sign_pgp_hint', 'Add an OpenPGP signature with your key')
-                  : t('email_composer.option_sign_smime_hint', 'Add an S/MIME signature with your certificate'),
-                options.sign,
-                'sign',
-              )}
-              {toggleRow(
-                t('email_composer.option_encrypt', 'Encrypt'),
-                t('email_composer.option_encrypt_hint', 'Only the recipients (and you) can read it; every recipient needs a key'),
-                options.encrypt,
-                'encrypt',
-              )}
-              {!!secureHint && (options.sign || options.encrypt) && <Text style={styles.warning}>{secureHint}</Text>}
-            </>
-          )}
-          <View style={styles.separator} />
-          <Text style={styles.groupLabel}>{t('email_composer.option_priority', 'Priority')}</Text>
-          <View accessibilityRole="radiogroup" accessibilityLabel={t('email_composer.option_priority', 'Priority')}>
-            {MESSAGE_PRIORITIES.map((level) => {
-              const selected = options.priority === level;
-              const label = level === 'high'
-                ? t('email_composer.option_priority_high', 'High')
-                : level === 'low'
-                  ? t('email_composer.option_priority_low', 'Low')
-                  : t('email_composer.option_priority_normal', 'Normal');
-              return (
-                <Pressable
-                  key={level}
-                  style={styles.row}
-                  onPress={() => onChange({ priority: level })}
-                  accessibilityRole="radio"
-                  accessibilityLabel={label}
-                  accessibilityState={{ checked: selected, selected }}
-                  testID={`composer-priority-${level}`}
-                >
-                  <Text style={[styles.rowLabel, styles.rowText]}>{label}</Text>
-                  {selected && <Check size={18} color={c.primary} />}
+                <View style={styles.separator} />
+              </>
+            )}
+            {toggleRow(
+              t('email_composer.option_read_receipt', 'Request read receipt'),
+              t('email_composer.option_read_receipt_hint', 'Ask the recipient to confirm they opened it'),
+              options.requestReadReceipt,
+              'requestReadReceipt',
+            )}
+            {dsnAvailable && toggleRow(
+              t('email_composer.option_dsn', 'Delivery notification'),
+              t('email_composer.option_dsn_hint', 'Get a report when the server delivers it'),
+              options.requestDsn,
+              'requestDsn',
+            )}
+            {requireTlsAvailable && toggleRow(
+              t('email_composer.option_require_tls', 'Require encrypted delivery'),
+              t('email_composer.option_require_tls_hint', 'Only deliver over TLS, otherwise bounce'),
+              options.requireTls,
+              'requireTls',
+            )}
+            {secureAvailable && (secureAvailable.pgp || secureAvailable.smime) && (
+              <>
+                <View style={styles.separator} />
+                <Text style={styles.groupLabel}>{t('email_composer.option_security', 'Signature and encryption')}</Text>
+                {secureAvailable.pgp && secureAvailable.smime && (
+                  <View style={styles.segment} accessibilityRole="radiogroup">
+                    {(['pgp', 'smime'] as const).map((mode) => {
+                      const selected = options.secureMode === mode;
+                      const label = mode === 'pgp' ? 'OpenPGP' : 'S/MIME';
+                      return (
+                        <Pressable
+                          key={mode}
+                          style={[styles.segmentItem, selected && styles.segmentItemSelected]}
+                          onPress={() => onChange({ secureMode: mode })}
+                          accessibilityRole="radio"
+                          accessibilityLabel={label}
+                          accessibilityState={{ checked: selected, selected }}
+                        >
+                          <Text style={[styles.rowLabel, selected && styles.segmentTextSelected]}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+                {toggleRow(
+                  t('email_composer.option_sign', 'Sign'),
+                  options.secureMode === 'pgp'
+                    ? t('email_composer.option_sign_pgp_hint', 'Add an OpenPGP signature with your key')
+                    : t('email_composer.option_sign_smime_hint', 'Add an S/MIME signature with your certificate'),
+                  options.sign,
+                  'sign',
+                )}
+                {toggleRow(
+                  t('email_composer.option_encrypt', 'Encrypt'),
+                  t('email_composer.option_encrypt_hint', 'Only the recipients (and you) can read it; every recipient needs a key'),
+                  options.encrypt,
+                  'encrypt',
+                )}
+                {!!secureHint && (options.sign || options.encrypt) && <Text style={styles.warning}>{secureHint}</Text>}
+              </>
+            )}
+            <View style={styles.separator} />
+            <Text style={styles.groupLabel}>{t('email_composer.option_priority', 'Priority')}</Text>
+            <View accessibilityRole="radiogroup" accessibilityLabel={t('email_composer.option_priority', 'Priority')}>
+              {MESSAGE_PRIORITIES.map((level) => {
+                const selected = options.priority === level;
+                const label = level === 'high'
+                  ? t('email_composer.option_priority_high', 'High')
+                  : level === 'low'
+                    ? t('email_composer.option_priority_low', 'Low')
+                    : t('email_composer.option_priority_normal', 'Normal');
+                return (
+                  <Pressable
+                    key={level}
+                    style={styles.row}
+                    onPress={() => onChange({ priority: level })}
+                    accessibilityRole="radio"
+                    accessibilityLabel={label}
+                    accessibilityState={{ checked: selected, selected }}
+                    testID={`composer-priority-${level}`}
+                  >
+                    <Text style={[styles.rowLabel, styles.rowText]}>{label}</Text>
+                    {selected && <Check size={18} color={c.primary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+            {onSaveAsTemplate && (
+              <>
+                <View style={styles.separator} />
+                <Pressable style={styles.row} onPress={onSaveAsTemplate} accessibilityRole="button" testID="composer-save-as-template">
+                  <Text style={[styles.rowLabel, styles.rowText]}>{t('email_composer.save_as_template', 'Save as template')}</Text>
                 </Pressable>
-              );
-            })}
-          </View>
-          {onSaveAsTemplate && (
-            <>
-              <View style={styles.separator} />
-              <Pressable style={styles.row} onPress={onSaveAsTemplate} accessibilityRole="button" testID="composer-save-as-template">
-                <Text style={[styles.rowLabel, styles.rowText]}>{t('email_composer.save_as_template', 'Save as template')}</Text>
-              </Pressable>
-            </>
-          )}
+              </>
+            )}
+          </ScrollView>
           <Pressable style={styles.done} onPress={onClose} accessibilityRole="button">
             <Text style={styles.doneText}>{t('common.done', 'Done')}</Text>
           </Pressable>
@@ -206,6 +257,7 @@ function makeStyles(c: ThemePalette) {
     card: {
       width: '100%',
       maxWidth: 420,
+      maxHeight: '90%',
       backgroundColor: c.background,
       borderRadius: radius.md,
       borderWidth: 1,
@@ -213,7 +265,12 @@ function makeStyles(c: ThemePalette) {
       padding: spacing.lg,
       gap: spacing.xs,
     },
+    scroll: { flexGrow: 0 },
+    scrollContent: { gap: spacing.xs },
     title: { ...typography.h3, color: c.text, marginBottom: spacing.xs },
+    labelDot: { width: 12, height: 12, borderRadius: 6 },
+    labelDotNone: { borderWidth: 1, borderColor: c.border, borderStyle: 'dashed' },
+    invalidText: { color: c.error },
     row: {
       flexDirection: 'row',
       alignItems: 'center',

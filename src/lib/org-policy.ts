@@ -222,6 +222,9 @@ export function sanitizePolicy(raw: unknown): OrgPolicy | null {
   };
 }
 
+/** Organisation sections a scope replaces as a whole instead of per key. */
+const WHOLE_SECTIONS: ReadonlySet<string> = new Set(['labels', 'announcement']);
+
 function domainOf(email: string): string {
   const at = email.lastIndexOf('@');
   return at >= 0 ? email.slice(at + 1).trim().toLowerCase().replace(/\.+$/, '') : '';
@@ -259,7 +262,9 @@ export function resolvePolicy(policy: OrgPolicy, subject: PolicySubject | null):
       if (scope.policy.organisation) {
         const merged: Record<string, unknown> = { ...(organisation ?? {}) };
         for (const [section, values] of Object.entries(scope.policy.organisation)) {
-          merged[section] = isRecord(values) && isRecord(merged[section])
+          // A scope's own label scheme or announcement replaces the inherited
+          // one as a whole (webmail WHOLE_SECTIONS).
+          merged[section] = !WHOLE_SECTIONS.has(section) && isRecord(values) && isRecord(merged[section])
             ? { ...(merged[section] as Record<string, unknown>), ...values }
             : values;
         }

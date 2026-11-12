@@ -27,7 +27,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Reading mail
 
-- [ ] **A trusted sender still loads remote content while the organisation locks remote content to "block"** — `P1` — `bug`
+- [x] **A trusted sender still loads remote content while the organisation locks remote content to "block"** — `P1` — `bug` — fixed in 11632d78
   - What WEB does: remote content counts as blocked by the organisation when the policy locks or limits External content to "block", not only under no-third-party traffic, and then neither trusted senders nor "load once" lift it, in the reader, replies, reopened drafts and previews (`hooks/use-third-party-mode.ts:35`, `:90`, `components/email/email-viewer.tsx:1563`). 84de2395f, 128f61646 (1.20.0 Security).
   - What RN does: only no-third-party traffic overrides trust (`src/stores/policy-store.ts:315`, `src/components/EmailBodyView.tsx:443`); with the setting locked to "block" a trusted sender passes `!trusted && ... !== 'allow'` and the WebView loads remote images (`src/components/EmailBodyView.tsx:513-533`). The composer's quote does the same (`src/screens/ComposeScreen.tsx:537-538`).
   - Fix hint: add the "locked or limited to block" check from the policy restrictions to `remoteBlockedByOrg` in EmailBodyView and ComposeScreen.
@@ -37,7 +37,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing reads `$phishing` (no match in `src/`), so a message reported on the webmail opens on the phone with live links and no warning; the body goes through EmailBodyView unchanged (`src/components/EmailBodyView.tsx:613`).
   - Fix hint: first strip links and show the banner for `$phishing` in the body HTML; then add the action behind the org policy's `phishingReport` address.
 
-- [ ] **Received mail doesn't show its classification label** — `P3` — `missing`
+- [x] **Received mail doesn't show its classification label** — `P3` — `missing` — fixed in 54cae455
   - What WEB does: shows the SIO-Label / Sensitivity label of received mail that matches a label the organisation defined (`lib/classification/labels.ts:286`, `components/email/received-label-chip.tsx:8`). 912462054.
   - What RN does: no classification code; MessageHeader shows tags, flags and the via badge only (`src/components/email/MessageHeader.tsx:244-280`).
   - Fix hint: port `receivedLabel` and show a chip in MessageHeader when the org policy has labels.
@@ -204,7 +204,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the regexes only know `{{name}}` (`src/lib/template-utils.ts:19`, `src/lib/placeholder-check.ts:11`). Templates are shared with the webmail through account metadata (`src/stores/templates-store.ts:7-16`), so a webmail template with `{{checkin_time:15:00}}` inserted in the app gets no fill prompt (`src/screens/ComposeScreen.tsx:2399`) and the placeholder warning doesn't fire, so it goes out with the braces.
   - Fix hint: port both regexes and getPlaceholderDefaults; prefill the fill sheet with the default.
 
-- [ ] **No classification labels in the composer; mail goes out unlabelled where the organisation requires one** — `P2` — `missing`
+- [x] **No classification labels in the composer; mail goes out unlabelled where the organisation requires one** — `P2` — `missing` — fixed in 8cf942e4
   - What WEB does: admins define labels in the organisation policy; the composer has a label picker, sent mail carries SIO-Label, Sensitivity and a subject prefix, and a required label stops the send (`lib/outgoing/classification.ts:1-30`, `components/email/classification-label-picker.tsx`, `lib/classification/labels.ts:315`). Changelog 1.20.0 (Security: Classification labels).
   - What RN does: nothing; no label code in src. The app already reads the policy and keeps its `organisation` block (`src/lib/org-policy.ts:57`), which is where the labels live (`OrganisationPolicy['labels']`, `lib/classification/labels.ts:27`).
   - Fix hint: port lib/classification/labels.ts, add a label row to the composer options, apply headers and prefix in the send path, and refuse to send when a label is required and none is picked.
@@ -306,7 +306,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the banner imports only into the user's own calendars (`src/components/email/CalendarInvitationBanner.tsx:166-171`); no SENT-BY handling outside recurrence copying (`src/lib/recurrence-instances.ts:423`).
   - Fix hint: port calendar-delegate and offer the shared owner's calendar as an answer target.
 
-- [ ] **Invitations from another of the organisation's domains warn about missing authentication** — `P3` — `bug` — not done: the policy's internal domains are dropped by sanitizePolicy in src/lib/org-policy.ts, which this wave may not edit; goes with the External sender chip
+- [x] **Invitations from another of the organisation's domains warn about missing authentication** — `P3` — `bug` — fixed in 6cb26e52
   - What WEB does: treats mail without Authentication-Results from the domains the External sender chip counts as internal (identity domains plus the policy's list) as internal (`lib/calendar-invitation.ts`, `lib/external-mail.ts:61`). 400dfb9c6 (#1593).
   - What RN does: only the domains of the user's own addresses count (`src/lib/calendar-invitation.ts:528-543`); the policy's internal domains aren't read.
   - Fix hint: read the internal domains from the organisation policy (the same list the External sender chip needs) and pass them in.

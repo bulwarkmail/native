@@ -107,6 +107,8 @@ function extraHeaders(outgoing: OutgoingEmail): string[] {
     if (name) lines.push(formatHeader(name, value));
   }
   if (outgoing.requestReadReceipt && outgoing.from[0]?.email) lines.push(formatHeader('Disposition-Notification-To', outgoing.from[0].email));
+  // The classification label (already folded).
+  lines.push(...(outgoing.labelHeaderLines ?? []));
   return lines;
 }
 

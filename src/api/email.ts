@@ -1705,6 +1705,14 @@ export interface OutgoingEmail {
   /** Tag keywords (`$label:<id>`) for the draft and the sent copy (webmail #1610). */
   keywords?: string[];
   /**
+   * Classification label headers as JMAP create properties (lib/classification-labels):
+   * SIO-Label, Sensitivity and the admin's extra header on a send, the
+   * X-Bulwark-Label marker on a draft.
+   */
+  labelHeaders?: Record<string, string>;
+  /** The send's label headers as raw lines, for a signed or encrypted message's MIME. */
+  labelHeaderLines?: string[];
+  /**
    * SMTP MAIL FROM when it must differ from the header From - a catch-all
    * alias on an owned domain is sent through the identity's envelope while
    * the visible From keeps the alias (webmail #246).
@@ -1816,6 +1824,7 @@ function buildEmailCreate(email: OutgoingEmail): Record<string, unknown> {
 
   // Drafts carry it too, so a re-opened draft reads its priority back.
   Object.assign(emailCreate, messagePriorityHeaders(email.priority));
+  if (email.labelHeaders) Object.assign(emailCreate, email.labelHeaders);
 
   return emailCreate;
 }

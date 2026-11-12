@@ -31,6 +31,8 @@ export interface ComposeReplyContext {
   deliveredTo?: string[];
   /** The original's keywords: a reply or forward starts with its tags. */
   keywords?: Record<string, boolean>;
+  /** The original's classification label headers (lib/outgoing/classification labelSourceHeaders). */
+  labelHeaders?: Array<{ name: string; value: string }>;
   /** JMAP id of the original message, for `$answered` / `$forwarded`. */
   originalEmailId?: string;
   /** Owning JMAP account when the original lives in a shared/group account. */
@@ -56,6 +58,8 @@ export interface ComposeDraftContext {
   priority?: MessagePriority;
   /** The draft's keywords: it keeps its tags. */
   keywords?: Record<string, boolean>;
+  /** The draft's classification label headers (X-Bulwark-Label, SIO-Label). */
+  labelHeaders?: Array<{ name: string; value: string }>;
 }
 
 export type RootStackParamList = {

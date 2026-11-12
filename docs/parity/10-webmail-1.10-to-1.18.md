@@ -176,7 +176,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What WEB does: getSenderVerification (`lib/email-headers.ts:112`), banner and badge (`components/email/email-viewer.tsx:4037`).
   - What RN does: a spoof line in the collapsed details only, first DKIM signature only, trust still offered (`src/components/email/MessageHeader.tsx:108`, `:273`; `src/lib/email-headers.ts:99`; `src/components/EmailBodyView.tsx:771`).
 
-- [ ] **External sender chip** — `P2` — `missing` (blocked on the policy)
+- [x] **External sender chip** — `P2` — `missing` (blocked on the policy) — fixed in 54cae455
   - What WEB does: `lib/external-mail.ts:119`, `components/email/external-sender-chip.tsx`, `components/email/email-viewer.tsx:903`.
   - What RN does: `src/components/email/MessageHeader.tsx:159`, nothing.
   - Fix hint: internal and partner domains come from the policy; identity domains would only be a fallback.
@@ -245,7 +245,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 - [x] **Attach from Files (#1179)** — `P2` — `missing` — fixed in 8e07b7d8
   - What WEB does: `components/email/email-composer.tsx:4574`. What RN does: device picker only (`src/screens/ComposeScreen.tsx:1686-1711`).
 
-- [ ] **External recipient confirm (composer, quick reply, invitations)** — `P2` — `missing` (blocked on the policy)
+- [x] **External recipient confirm (composer, quick reply, invitations)** — `P2` — `missing` (blocked on the policy) — fixed in d49d9ef1
   - What WEB does: `lib/outgoing/external-recipients.ts:53`, `:107`, `components/email/external-recipient-confirm.tsx`.
   - What RN does: nothing (`src/screens/ComposeScreen.tsx:2151`, `src/components/email/QuickReplyBox.tsx`, `src/components/calendar/EventModal.tsx`).
 

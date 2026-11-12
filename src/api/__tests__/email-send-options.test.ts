@@ -93,6 +93,37 @@ describe('message priority', () => {
   });
 });
 
+describe('classification labels', () => {
+  const LABEL_HEADERS = {
+    'header:SIO-Label:asRaw': 'marking="CONFIDENTIAL"; fgcolor=#000000; bgcolor=#d97706',
+    'header:Sensitivity:asText': 'Company-Confidential',
+  };
+
+  it('writes the label\'s headers on a send', async () => {
+    await sendEmail({ ...OUTGOING, subject: '[Confidential] Hello', labelHeaders: LABEL_HEADERS }, 'id-1', 'sent', undefined, { draftsMailboxId: 'drafts' });
+    const { create } = sentCalls();
+    expect(create).toMatchObject({ subject: '[Confidential] Hello', ...LABEL_HEADERS });
+  });
+
+  it('keeps the choice on a draft, and a re-opened draft carries it to the composer', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'd-1' } } }, '0'],
+        ['Email/get', { list: [] }, '1'],
+      ],
+    });
+    await saveDraftVersion({ ...OUTGOING, labelHeaders: { 'header:X-Bulwark-Label:asText': 'confidential' } }, 'drafts');
+    const create = (mockRequest.mock.calls[0][0] as any[])[0][1].create.draft;
+    expect(create['header:X-Bulwark-Label:asText']).toBe('confidential');
+
+    const reopened = draftContextFromEmail({
+      id: 'd-1',
+      headers: [{ name: 'Received', value: ' x' }, { name: 'X-Bulwark-Label', value: ' confidential' }],
+    } as unknown as Email);
+    expect(reopened.labelHeaders).toEqual([{ name: 'X-Bulwark-Label', value: ' confidential' }]);
+  });
+});
+
 describe('delivery status notifications and REQUIRETLS', () => {
   it('asks every recipient for a DSN with headers only', async () => {
     await sendEmail(OUTGOING, 'id-1', 'sent', undefined, { draftsMailboxId: 'drafts', requestDsn: true });
