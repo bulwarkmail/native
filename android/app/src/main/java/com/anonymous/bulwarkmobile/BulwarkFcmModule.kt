@@ -269,16 +269,29 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         manager.notify(notificationId, notificationId.hashCode(), builder.build())
     }
 
-    private fun postGroupSummary(ctx: Context, groupKey: String, groupTitle: String, colorHex: String, accountId: String?) {
+    /**
+     * Posts the group summary once the group has [minChildren] notifications,
+     * cancels it when it has none. Between the two it is left alone: with a
+     * summary up, cancelling it takes its last child down with it.
+     */
+    private fun postGroupSummary(
+        ctx: Context,
+        groupKey: String,
+        groupTitle: String,
+        colorHex: String,
+        accountId: String?,
+        minChildren: Int = 2,
+    ) {
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val children = manager.activeNotifications.filter {
             it.groupKey?.endsWith(groupKey) == true &&
                 (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) == 0
         }
-        if (children.size < 2) {
+        if (children.isEmpty()) {
             manager.cancel(groupKey, groupKey.hashCode())
             return
         }
+        if (children.size < minChildren) return
         val count = children.size
         val inbox = NotificationCompat.InboxStyle()
         children.sortedByDescending { it.postTime }.take(5).forEach { sbn ->
@@ -436,16 +449,22 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             }
         }
 
+        /**
+         * After notifications of the account were cancelled: posts the group
+         * summary again with the new count and lines, keeping its title and
+         * colour, or cancels it when no notification is left.
+         */
         fun refreshGroupSummaryAfterCancel(ctx: Context, accountId: String) {
             val groupKey = "bulwark-mail:$accountId"
             val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val children = manager.activeNotifications.filter {
-                it.groupKey?.endsWith(groupKey) == true &&
-                    (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) == 0
-            }
-            if (children.size < 2) {
-                manager.cancel(groupKey, groupKey.hashCode())
-            }
+            val summary = manager.activeNotifications.firstOrNull {
+                it.tag == groupKey &&
+                    (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) != 0
+            } ?: return
+            val title = summary.notification.extras
+                .getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: accountId
+            val colorHex = String.format("#%06X", summary.notification.color and 0xFFFFFF)
+            postGroupSummary(ctx, groupKey, title, colorHex, accountId, minChildren = 1)
         }
     }
 }
