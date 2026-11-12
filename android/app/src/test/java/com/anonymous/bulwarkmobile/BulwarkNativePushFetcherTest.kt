@@ -5,6 +5,12 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.IOException
+import java.net.ServerSocket
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 class BulwarkNativePushFetcherTest {
 
@@ -212,5 +218,44 @@ class BulwarkNativePushFetcherTest {
         assertEquals(listOf("m-older", "m-newer"), unreadResult.emails.map { it.id })
         assertEquals("Newest message", unreadResult.emails[1].subject)
         assertEquals("Important update", unreadResult.emails[1].preview)
+    }
+
+    @Test
+    fun `a request gives up at the push deadline, not after the read timeout`() {
+        // A server that takes the connection and never answers.
+        ServerSocket(0).use { server ->
+            val held = mutableListOf<java.net.Socket>()
+            thread(isDaemon = true) {
+                try {
+                    while (true) held += server.accept()
+                } catch (_: IOException) {
+                }
+            }
+            val client = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build()
+            val request = Request.Builder().url("http://127.0.0.1:${server.localPort}/jmap/").build()
+            val started = System.currentTimeMillis()
+            var failed = false
+            try {
+                BulwarkNativePushFetcher.executeBefore(client, request, started + 500) { it.code }
+            } catch (_: IOException) {
+                failed = true
+            }
+            val took = System.currentTimeMillis() - started
+            assertTrue(failed)
+            assertTrue("gave up after $took ms", took < 3_000)
+
+            // No time left: no request at all.
+            var refused = false
+            try {
+                BulwarkNativePushFetcher.executeBefore(client, request, System.currentTimeMillis() - 1) { it.code }
+            } catch (e: IOException) {
+                refused = e.message?.startsWith("No time left") == true
+            }
+            assertTrue(refused)
+            held.forEach { it.close() }
+        }
     }
 }

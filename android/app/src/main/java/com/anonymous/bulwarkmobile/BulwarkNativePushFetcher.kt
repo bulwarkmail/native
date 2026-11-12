@@ -12,8 +12,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
@@ -67,10 +69,36 @@ object BulwarkNativePushFetcher {
 
     private val secureStoreLock = Any()
 
+    /**
+     * How long a push may spend on the network here. Android gives the FCM
+     * service little time, and when the native lookup fails the JS task still
+     * has to start: a refresh, the lookup and a 401 retry at 10 s each could
+     * outlast the process, leaving no notification and no fallback.
+     */
+    const val PUSH_BUDGET_MS = 8_000L
+    /** A notification action's budget; the receiver gives up after 20 s. */
+    private const val ACTION_BUDGET_MS = 15_000L
+    /** Sender icons are fetched only with this much of the budget left (3 s connect + 3 s read). */
+    const val FAVICON_MIN_LEFT_MS = 6_000L
+
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
+
+    /** Runs [request], giving up at [deadlineMs]. */
+    internal inline fun <T> executeBefore(
+        client: OkHttpClient,
+        request: Request,
+        deadlineMs: Long,
+        block: (Response) -> T,
+    ): T {
+        val left = deadlineMs - System.currentTimeMillis()
+        if (left <= 0) throw IOException("No time left for ${request.url.host}")
+        val call = client.newCall(request)
+        call.timeout().timeout(left, TimeUnit.MILLISECONDS)
+        return call.execute().use(block)
+    }
 
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
@@ -822,6 +850,7 @@ object BulwarkNativePushFetcher {
         credentialsKey: String,
         creds: StoredCredentials,
         bodyJson: JSONObject,
+        deadlineMs: Long = System.currentTimeMillis() + ACTION_BUDGET_MS,
     ): String? {
         var activeCreds = creds
         var refreshedAlready = false
@@ -835,7 +864,7 @@ object BulwarkNativePushFetcher {
                 if (refreshToken.isNullOrBlank() || tokenEndpoint.isNullOrBlank()) {
                     return null
                 }
-                val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, activeCreds.clientId)
+                val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, activeCreds.clientId, deadlineMs)
                     ?: return null
                 refreshedAlready = true
                 activeCreds = updateTokensInSecureStore(
@@ -869,7 +898,7 @@ object BulwarkNativePushFetcher {
                 .addHeader("Authorization", authHeader)
                 .post(requestBodyStr.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
-            return httpClient.newCall(request).execute().use { response ->
+            return executeBefore(httpClient, request, deadlineMs) { response ->
                 response.code to if (response.isSuccessful) response.body?.string() else null
             }
         }
@@ -888,6 +917,7 @@ object BulwarkNativePushFetcher {
                 activeCreds.tokenEndpoint,
                 activeCreds.refreshToken,
                 activeCreds.clientId,
+                deadlineMs,
             ) ?: return null
             updateTokensInSecureStore(
                 context = context,
@@ -912,6 +942,7 @@ object BulwarkNativePushFetcher {
         tokenEndpoint: String,
         refreshToken: String,
         clientId: String?,
+        deadlineMs: Long,
     ): FreshTokens? {
         return try {
             val form = FormBody.Builder()
@@ -925,7 +956,7 @@ object BulwarkNativePushFetcher {
                 .post(form.build())
                 .build()
 
-            httpClient.newCall(req).execute().use { resp ->
+            executeBefore(httpClient, req, deadlineMs) { resp ->
                 if (!resp.isSuccessful) return null
                 val bodyStr = resp.body?.string() ?: return null
                 val body = JSONObject(bodyStr)
@@ -969,6 +1000,7 @@ object BulwarkNativePushFetcher {
      *   network / JMAP error). The caller falls back to the headless JS task.
      */
     fun processPush(context: Context, data: Map<String, String>): Boolean {
+        val deadlineMs = System.currentTimeMillis() + PUSH_BUDGET_MS
         return try {
             val jmapAccountId = data["accountId"]?.takeIf { it.isNotBlank() } ?: return false
             val prefs = getPrefs(context)
@@ -1027,6 +1059,7 @@ object BulwarkNativePushFetcher {
                 credentialsKey = credentialsKey,
                 creds = creds,
                 bodyJson = bodyJson,
+                deadlineMs = deadlineMs,
             ) ?: return false
 
             when (val result = parseJmapGetResponse(responseBody, alreadyNotified)) {
@@ -1055,7 +1088,8 @@ object BulwarkNativePushFetcher {
                         val displaySubject = email.subject.ifBlank { strings.noSubject }
                         val initials = getEmailInitials(email.senderName, email.senderEmail)
                         val bgColorHex = generateEmailAvatarColorHex(email.senderName, email.senderEmail)
-                        val iconUrl = if (faviconsEnabled) {
+                        // An icon fetch can take seconds: only while the budget allows it.
+                        val iconUrl = if (faviconsEnabled && deadlineMs - System.currentTimeMillis() >= FAVICON_MIN_LEFT_MS) {
                             getFaviconDomain(email.senderEmail)?.let { getFaviconUrl(it) }
                         } else {
                             null
@@ -1110,6 +1144,7 @@ object BulwarkNativePushFetcher {
         accountId: String,
         jmapAccountId: String?,
     ): Boolean {
+        val deadlineMs = System.currentTimeMillis() + ACTION_BUDGET_MS
         return try {
             val prefs = getPrefs(context)
             var accountObj: JSONObject? = null
@@ -1143,10 +1178,10 @@ object BulwarkNativePushFetcher {
             when (action) {
                 "markRead" -> {
                     val patch = JSONObject().apply { put("keywords/\$seen", true) }
-                    executeEmailSetUpdate(context, apiUrl, credentialsKey, creds, targetJmapAccountId, emailId, patch)
+                    executeEmailSetUpdate(context, apiUrl, credentialsKey, creds, targetJmapAccountId, emailId, patch, deadlineMs)
                 }
                 "delete" -> {
-                    val trashId = fetchTrashMailboxId(context, apiUrl, credentialsKey, creds, targetJmapAccountId)
+                    val trashId = fetchTrashMailboxId(context, apiUrl, credentialsKey, creds, targetJmapAccountId, deadlineMs)
                         ?: return false
                     // Re-read credentials in case fetchTrashMailboxId refreshed the OAuth token
                     val latestCreds = readCredentialsFromSecureStore(context, credentialsKey) ?: creds
@@ -1156,7 +1191,7 @@ object BulwarkNativePushFetcher {
                         put("mailboxIds", JSONObject().apply { put(trashId, true) })
                         if (markReadToo) put("keywords/\$seen", true)
                     }
-                    executeEmailSetUpdate(context, apiUrl, credentialsKey, latestCreds, targetJmapAccountId, emailId, patch)
+                    executeEmailSetUpdate(context, apiUrl, credentialsKey, latestCreds, targetJmapAccountId, emailId, patch, deadlineMs)
                 }
                 else -> false
             }
@@ -1172,6 +1207,7 @@ object BulwarkNativePushFetcher {
         credentialsKey: String,
         creds: StoredCredentials,
         jmapAccountId: String,
+        deadlineMs: Long,
     ): String? {
         val bodyJson = JSONObject().apply {
             put("using", JSONArray().apply {
@@ -1198,6 +1234,7 @@ object BulwarkNativePushFetcher {
             credentialsKey = credentialsKey,
             creds = creds,
             bodyJson = bodyJson,
+            deadlineMs = deadlineMs,
         ) ?: return null
 
         val root = JSONObject(responseBody)
@@ -1221,6 +1258,7 @@ object BulwarkNativePushFetcher {
         jmapAccountId: String,
         emailId: String,
         patch: JSONObject,
+        deadlineMs: Long,
     ): Boolean {
         val bodyJson = JSONObject().apply {
             put("using", JSONArray().apply {
@@ -1244,6 +1282,7 @@ object BulwarkNativePushFetcher {
             credentialsKey = credentialsKey,
             creds = creds,
             bodyJson = bodyJson,
+            deadlineMs = deadlineMs,
         ) ?: return false
 
         val root = JSONObject(responseBody)
