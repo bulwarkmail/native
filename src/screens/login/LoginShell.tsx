@@ -14,6 +14,7 @@ import { ArrowLeft, X } from '../../components/icons';
 import { spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { LoginLanguagePicker } from './LoginLanguagePicker';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 
@@ -64,19 +65,21 @@ export default function LoginShell({
           ) : (
             <View style={styles.headerButton} />
           )}
-          {onClose ? (
-            <Pressable
-              onPress={onClose}
-              hitSlop={12}
-              style={styles.headerButton}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close', 'Close')}
-            >
-              <X size={22} color={c.textSecondary} />
-            </Pressable>
-          ) : (
-            <View style={styles.headerButton} />
-          )}
+          <View style={styles.headerEnd}>
+            {/* Before sign-in, for someone who can't read the phone's language (webmail 32dc8b7ef). */}
+            <LoginLanguagePicker />
+            {onClose ? (
+              <Pressable
+                onPress={onClose}
+                hitSlop={12}
+                style={styles.headerButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', 'Close')}
+              >
+                <X size={22} color={c.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <ScrollView
@@ -110,6 +113,7 @@ function makeStyles(c: ThemePalette) {
       height: componentSizes.headerHeight,
     },
     headerButton: { width: componentSizes.buttonLg, height: componentSizes.buttonLg, alignItems: 'center', justifyContent: 'center' },
+    headerEnd: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     // One readable column, centred on a tablet or a phone in landscape.
     content: {
       width: '100%',
