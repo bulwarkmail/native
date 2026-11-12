@@ -14,6 +14,7 @@
 
 import type { Email, Identity } from '../api/types';
 import type { OrgPolicy } from './org-policy';
+import { sortIdentities } from './identity-order';
 import { encodeHeaderWord, rfc5322Date, utf8ToBase64 } from './mdn';
 import { PHISHING_KEYWORD } from './phishing-links';
 
@@ -74,8 +75,7 @@ export function reportText(reporter: { name?: string; email: string }): string {
 /** The identity a report goes out from: the login's own address first, never a catch-all. */
 export function reporterIdentity(identities: Identity[], username: string): Identity | null {
   const usable = identities.filter((identity) => identity.email && !identity.email.includes('*'));
-  const own = username.trim().toLowerCase();
-  return usable.find((identity) => identity.email.toLowerCase() === own) ?? usable[0] ?? null;
+  return sortIdentities(usable, username)[0] ?? null;
 }
 
 /** The attachment name of the reported message. */

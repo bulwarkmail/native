@@ -87,6 +87,12 @@ describe('isReportable', () => {
   it("picks the login's own identity, never a catch-all", () => {
     expect(reporterIdentity(identities, 'USERA@example.org')?.id).toBe('i-own');
     expect(reporterIdentity(identities.slice(0, 2), 'usera@example.org')?.id).toBe('i-alias');
+    // A bare login and an internationalized domain still find the own address
+    // (webmail lib/identity-order), not the group's Stalwart 1.x lists first.
+    const team = { id: 'i-team', name: 'Team', email: 'team@example.org', mayDelete: true } as Identity;
+    expect(reporterIdentity([team, ...identities], 'usera')?.id).toBe('i-own');
+    const idn = { id: 'i-idn', name: 'Anna', email: 'anna@xn--bcher-kva.de', mayDelete: true } as Identity;
+    expect(reporterIdentity([team, idn], 'anna@bücher.de')?.id).toBe('i-idn');
     expect(reportSubject(' Hi\r\nthere ')).toBe('Phishing: Hi there');
     expect(reportSubject('')).toBe('Phishing');
   });

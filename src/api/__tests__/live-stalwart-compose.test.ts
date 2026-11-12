@@ -50,6 +50,9 @@ import { draftContextFromEmail } from '../../lib/draft-context';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useTemplatesStore } from '../../stores/templates-store';
+import { useSettingsStore } from '../../stores/settings-store';
+import { findReceivingIdentity } from '../../lib/email-headers';
+import { defaultSenderIdentity } from '../../lib/identity-order';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'e2e-phone-dark@example.org';
@@ -420,6 +423,33 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       const ids = singleton.getSubmissionAccountIds();
       expect(ids[0]).toBe(singleton.accountId);
       expect([...ids].sort()).toEqual([singleton.accountId, ...others].sort());
+    }, 30_000);
+
+    // Stalwart 1.x lists a group's identity (team@ for usera) ahead of the
+    // login's own; every "first identity" default picked the group's address.
+    it("defaults a quick reply, a read receipt and a new message to the login's own identity", async () => {
+      const fromServer = await getIdentities();
+      useSettingsStore.setState({ identities: [], identitiesFor: null });
+      await useSettingsStore.getState().fetchIdentities();
+      const identities = useSettingsStore.getState().identities;
+      expect(identities.map((i) => i.id).sort()).toEqual(fromServer.map((i) => i.id).sort());
+      expect(identities[0]?.email.toLowerCase()).toBe(USER.toLowerCase());
+
+      // A message to a list address none of the identities has.
+      const message = {
+        from: [{ name: 'Someone', email: `someone-${RUN}@example.net` }],
+        to: [{ name: 'List', email: `list-${RUN}@example.net` }],
+        cc: undefined, bcc: undefined,
+      };
+      // QuickReplyBox: the identity the reply resolves to, else the first.
+      const resolved = resolveReplyIdentity(identities, { ...message, from: message.from[0] }, {
+        ownEmails: identities.map((i) => i.email), catchAll: false,
+      });
+      const quickReply = identities.find((i) => i.id === resolved?.identityId) ?? identities[0];
+      expect(quickReply.email.toLowerCase()).toBe(USER.toLowerCase());
+      expect(findReceivingIdentity(identities, message)?.email.toLowerCase()).toBe(USER.toLowerCase());
+      // ComposeScreen, a plain new message with no default picked.
+      expect(defaultSenderIdentity(identities, USER)?.email.toLowerCase()).toBe(USER.toLowerCase());
     }, 30_000);
   });
 
