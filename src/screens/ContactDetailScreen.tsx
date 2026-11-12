@@ -1045,10 +1045,10 @@ function makeStyles(c: ThemePalette) {
       alignItems: 'center',
       gap: spacing.xs,
     },
+    // As stored: a label of the user's own ("Chess club") keeps its capitals.
     detailLabel: {
       ...typography.caption,
       color: c.textMuted,
-      textTransform: 'lowercase',
     },
     value: { ...typography.body, color: c.text },
     subValue: { ...typography.caption, color: c.textMuted, marginTop: 2 },
