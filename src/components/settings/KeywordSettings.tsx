@@ -14,7 +14,7 @@ import { discoverKeywords } from '../../api/keyword-discovery';
 import { findUnrecognizedKeywords, type UnrecognizedKeyword } from '../../lib/keyword-discovery';
 import { jmapClient } from '../../api/jmap-client';
 import { deleteKeywordWithUndo } from '../../lib/settings-undo';
-import { composeKeywordId, MAX_KEYWORD_ID_LENGTH } from '../../lib/new-tag';
+import { chooseKeywordId, isKeywordNameTaken, MAX_KEYWORD_ID_LENGTH } from '../../lib/new-tag';
 import {
   formatKeyword, getKeywordVisibility, getParentKeywordId, hasChildKeywords, parentKeywordOptions,
 } from '../../lib/keyword-nesting';
@@ -333,10 +333,14 @@ function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel 
   const [color, setColor] = useState<keyof typeof DARK_COLORS.tags>(initial?.color ?? 'blue');
   const [parentId, setParentId] = useState('');
 
-  // A new tag takes the id of its name under its parent (webmail
-  // KeywordEditForm). An edited tag keeps its id, which is on the messages.
-  const normalizedId = initial ? initial.id : composeKeywordId(parentId || null, label);
-  const isDuplicate = !initial && normalizedId.length > 0 && existingIds.includes(normalizedId);
+  // A new tag takes the id of its name under its parent, or a generated one
+  // when the name has no free slug (Cyrillic, Greek, CJK...; webmail
+  // KeywordEditForm, #1613). An edited tag keeps its id, which is on the
+  // messages. Only the same name twice under one parent is refused.
+  const normalizedId = initial ? initial.id : chooseKeywordId(parentId || null, label, existingIds);
+  const nameParent = initial ? getParentKeywordId(initial.id) : parentId || null;
+  const keepsName = !!initial && label.trim() === (initial.label ?? '').trim();
+  const isDuplicate = !keepsName && isKeywordNameTaken(keywords, nameParent, label, initial?.id);
   const isTooLong = !initial && normalizedId.length > MAX_KEYWORD_ID_LENGTH;
   const isValid = normalizedId.length > 0 && label.trim().length > 0 && !isDuplicate && !isTooLong;
   const parentOptions = [
@@ -380,7 +384,7 @@ function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel 
           autoFocus
         />
         {nested && normalizedId.length > 0 && <Text style={[styles.kwId, { marginTop: 4 }]}>$label:{normalizedId}</Text>}
-        {isDuplicate && <Text style={styles.errorText}>{t('settings.keywords.id_exists', "This tag ID already exists")}</Text>}
+        {isDuplicate && <Text style={styles.errorText}>{t('settings.keywords.name_exists', 'A tag with this name already exists')}</Text>}
         {isTooLong && (
           <Text style={styles.errorText}>
             {t('settings.keywords.too_long', 'This tag path is too long (at most {max} characters)', { max: MAX_KEYWORD_ID_LENGTH })}

@@ -183,6 +183,17 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       // Neither server stores the 129-byte keyword as sent.
       expect(flags.keywords[long]).toBeUndefined();
     }, 60_000);
+
+    it('keeps the generated keyword of a tag named in Cyrillic (#1613)', async () => {
+      const { checkNewTag } = await import('../../lib/new-tag');
+      const { id: tagId, error } = checkNewTag('Работа', []);
+      expect(error).toBeNull();
+      const keyword = `$label:${tagId}`;
+      const id = await importMessage(scratch, `kw cyrillic ${mailTag}`, 'x');
+      await patchKeywordsForEmails([id], { [keyword]: true });
+      const [flags] = (await getEmailFlags([id])).list;
+      expect(flags.keywords[keyword]).toBe(true);
+    }, 60_000);
   });
 
   describe('submissions', () => {
