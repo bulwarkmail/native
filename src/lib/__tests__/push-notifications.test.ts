@@ -30,6 +30,11 @@ vi.mock('react-native', () => {
           auth: 'a'.repeat(22),
         })),
       },
+      BulwarkDirectPush: {
+        start: vi.fn(async () => undefined),
+        stop: vi.fn(async () => undefined),
+        setAccounts: vi.fn(async () => undefined),
+      },
     },
     NativeEventEmitter,
     PermissionsAndroid: { RESULTS: { GRANTED: 'granted' }, request: vi.fn(async () => 'granted') },
@@ -66,8 +71,8 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
       // The subscription's expiry, and what an update of it settles on.
       expires: null as string | null,
       settles: null as string | null,
-      // Every subscription of the account, for a listing with ids: null, and
-      // whether that listing fails.
+      // Every subscription of the account, for a listing through its own
+      // client (listingOwnAccount), and whether that listing fails.
       all: [] as Array<{ id: string; deviceClientId?: string }>,
       listFails: false,
       log: [] as unknown[],
@@ -77,6 +82,8 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
 });
 
 vi.mock('../../api/jmap-client', () => ({
+  // As the real one, on the clients of this mock.
+  primaryJmapAccountId: (client?: { accountId: string }) => (client ?? jmapClient).accountId,
   jmapClient: {
     username: 'user@example.com',
     serverUrl: 'https://mail.example.com',
@@ -85,12 +92,21 @@ vi.mock('../../api/jmap-client', () => ({
     currentSession: { capabilities: { 'urn:ietf:params:jmap:core': {} } },
   },
   JMAPClient: class {
+    // The account this client was loaded for (its id is bob@<host>).
+    loaded: string | null = null;
     get currentSession() {
       return DETACHED.session;
     }
     async loadAccount(id: string) {
       DETACHED.log.push(['load', id]);
+      if (DETACHED.loaded) this.loaded = id;
       return DETACHED.loaded;
+    }
+    get isConnected() {
+      return this.loaded !== null;
+    }
+    get serverUrl() {
+      return this.loaded ? `https://${this.loaded.split('@')[1]}` : null;
     }
     get username() {
       return 'bob';
@@ -101,10 +117,6 @@ vi.mock('../../api/jmap-client', () => ({
     async request(calls: Array<[string, Record<string, any>, string]>) {
       const methodResponses = calls.map(([name, args, id]) => {
         DETACHED.log.push([name, args]);
-        if (name === 'PushSubscription/get' && args.ids === null) {
-          if (DETACHED.listFails) throw new Error('network down');
-          return [name, { list: DETACHED.all }, id];
-        }
         if (args.destroy) return [name, { destroyed: args.destroy }, id];
         if (name === 'PushSubscription/get') {
           const listed = {
@@ -132,6 +144,16 @@ vi.mock('../../api/email', () => ({
   getSharedMailboxes: vi.fn(async () => []),
 }));
 
+// No client certificate unless a test says otherwise.
+vi.mock('../client-cert', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../client-cert')>()),
+  getClientCertAlias: vi.fn(async () => null),
+}));
+
+vi.mock('../push-background-task', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../push-background-task')>()),
+  rememberUnreadInboxMail: vi.fn(async () => undefined),
+}));
 vi.mock('../../api/push', () => ({
   listPushSubscriptions: vi.fn(async () => []),
   createPushSubscription: vi.fn(async () => CREATED),
@@ -150,6 +172,7 @@ import {
   isValidRelayUrl,
   mailAccountsWithoutPush,
   notificationTapJmapAccountId,
+  readDirectPushAccountIds,
   readPushAccountIds,
   readPushJmapAccountIds,
   PushSetupError,
@@ -158,9 +181,16 @@ import {
   refreshPushSubscriptionTypes,
   renewOtherPushAccounts,
   resyncPushNotifications,
+  setUpOtherPushAccounts,
+  setupDirectPushForOtherAccounts,
+  syncDirectPush,
   revokePushDevice,
+  setStoredPushTransport,
   teardownPushNotificationsForAccount,
+  isPushEnabledForAccount,
+  notifiedIdsKey,
 } from '../push-notifications';
+import { getClientCertAlias } from '../client-cert';
 import {
   listPushSubscriptions,
   createPushSubscription,
@@ -168,13 +198,14 @@ import {
   updatePushSubscription,
   verifyPushSubscription,
 } from '../../api/push';
-import { getSharedMailboxes } from '../../api/email';
+import { getMailboxes, getSharedMailboxes } from '../../api/email';
 import { JMAPMethodError, JMAPSetError } from '../../api/jmap-result';
 import type { EmailPushConfig, JMAPSession } from '../../api/types';
-import { jmapClient } from '../../api/jmap-client';
-import { NativeModules } from 'react-native';
+import { jmapClient, JMAPClient } from '../../api/jmap-client';
+import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import { generateAccountId } from '../account-utils';
 import { reconcileServerFingerprint } from '../server-change';
+import { rememberUnreadInboxMail } from '../push-background-task';
 
 const OUR_DCID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ACCOUNT_ID = generateAccountId('user@example.com', 'https://mail.example.com');
@@ -1298,7 +1329,7 @@ describe('setupPushNotifications at the server\'s subscription limit', () => {
     expect(oldDestroys).toHaveLength(1);
     expect(oldDestroys[0]).toBeGreaterThan(createMock.mock.invocationCallOrder[0]);
     expect(oldDestroys[0]).toBeLessThan(createMock.mock.invocationCallOrder[1]);
-    expect(verifyMock).toHaveBeenCalledWith('new-server-id', 'CODE');
+    expect(verifyMock).toHaveBeenCalledWith('new-server-id', 'CODE', jmapClient);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
   });
 
@@ -1803,6 +1834,37 @@ describe('renewOtherPushAccounts (#1054)', () => {
     Object.assign(DETACHED, { deviceClientId: null, expires: null, settles: null });
   });
 
+  it('leaves alone, as upstream, an account without a subscription that never was on the direct connection', async () => {
+    await AsyncStorage.removeItem(`push:subscriptionId:v2:${OTHER}`);
+
+    await renewOtherPushAccounts();
+
+    expect(loads()).toEqual([]);
+    expect(createMock).not.toHaveBeenCalled();
+    expect(directNative().start).not.toHaveBeenCalled();
+    expect(directNative().stop).not.toHaveBeenCalled();
+  });
+
+  it('touches nothing of the direct connection when a relay setup ends', async () => {
+    await AsyncStorage.removeItem(SUB_KEY);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe(CREATED.id);
+    expect(directNative().start).not.toHaveBeenCalled();
+    expect(directNative().stop).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('push:directWanted:v1')).toBeNull();
+  });
+
+  it('sets up nothing when every account is registered: no other client, no stop of the direct connection', async () => {
+    DETACHED.expires = inDays(30);
+    await renewOtherPushAccounts();
+
+    expect(loads()).toEqual([['load', OTHER]]);
+    expect(createMock).not.toHaveBeenCalled();
+    expect(directNative().stop).not.toHaveBeenCalled();
+  });
+
   it("extends another account's subscription through a client of its own and records the server's expiry", async () => {
     const settles = DETACHED.settles;
 
@@ -1851,6 +1913,583 @@ describe('renewOtherPushAccounts (#1054)', () => {
       [OTHER]: { enabled: false, optedOut: true },
       'carl@example.org': { enabled: false, optedOut: false },
     });
+  });
+});
+
+/** The accounts a client of its own was loaded for, in order. */
+const loads = () => DETACHED.log.filter((e) => (e as unknown[])[0] === 'load');
+
+/** Whether an api/push call went through a client of its own rather than the jmapClient. */
+const ownClient = (client: unknown) => client !== undefined && client !== jmapClient;
+
+/** What a signed-in account the client does not serve had destroyed through a client of its own. */
+const destroyedThroughOwnClient = () => destroyMock.mock.calls
+  .filter(([, client]) => ownClient(client))
+  .map(([id]) => [id]);
+
+/** Listings through a client of its own answer from DETACHED; the jmapClient's answer `open`. */
+const listingOwnAccount = (open: unknown[]) => async (client?: unknown) => {
+  if (!ownClient(client)) return open;
+  if (DETACHED.listFails) throw new Error('network down');
+  return DETACHED.all;
+};
+
+type DirectNative = { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+const directNative = () => (NativeModules as { BulwarkDirectPush: DirectNative }).BulwarkDirectPush;
+
+describe('setupPushNotifications over the direct connection', () => {
+  const relayCalls = () => (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+    .map(([input, init]) => `${(init as RequestInit | undefined)?.method ?? 'GET'} ${String(input)}`);
+
+  const servedSession = jmapClient.currentSession;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    installFetch({});
+    listMock.mockResolvedValue([]);
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: { 'urn:ietf:params:jmap:core': {} },
+      eventSourceUrl: 'https://mail.example.com/jmap/eventsource/?types={types}&closeafter={closeafter}&ping={ping}',
+    };
+    await setStoredPushTransport('direct');
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    (jmapClient as { currentSession: unknown }).currentSession = servedSession;
+    listMock.mockImplementation(async () => []);
+    Object.assign(DETACHED, { loaded: true, all: [], listFails: false, log: [] });
+  });
+
+  it('registers nothing on the server or the relay, and starts the service for the account', async () => {
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result.verified).toBe(true);
+    expect(relayCalls()).toEqual([]);
+    expect(createMock).not.toHaveBeenCalled();
+    expect(listMock).not.toHaveBeenCalled();
+    const fcm = (NativeModules as { BulwarkFcm: { getToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
+    expect(fcm.getToken).not.toHaveBeenCalled();
+    // The push task serves it: it is a push account, with its JMAP id.
+    expect(await readPushAccountIds()).toEqual([ACCOUNT_ID]);
+    expect(await readPushJmapAccountIds()).toEqual({ [ACCOUNT_ID]: 'jmap-primary' });
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    expect(directNative().start).toHaveBeenCalledTimes(1);
+    expect(directNative().start.mock.calls[0][0]).toEqual({
+      channelName: 'Direct connection',
+      title: 'Waiting for new mail',
+      text: 'Connected directly to your mail server',
+      stoppedText: 'New-mail notifications over the direct connection have stopped. Open the app to start them again.',
+      problemChannelName: 'Sync problems',
+    });
+    // With no subscription recorded, push still reads as on for the account.
+    expect(await isPushEnabledForAccount(ACCOUNT_ID)).toBe(true);
+    expect((await readPushAccountStates([ACCOUNT_ID]))[ACCOUNT_ID].enabled).toBe(true);
+  });
+
+  it('records the unread Inbox mail of that moment as notified when turned on, before the service starts', async () => {
+    const outcome = await enablePushFromSettings({ relayBaseUrl: RELAY });
+
+    expect(outcome.error).toBeNull();
+    const remember = vi.mocked(rememberUnreadInboxMail);
+    expect(remember).toHaveBeenCalledWith(ACCOUNT_ID);
+    expect(remember.mock.invocationCallOrder[0]).toBeLessThan(directNative().start.mock.invocationCallOrder[0]);
+  });
+
+  it("records nothing at a launch's resync of an account served already: what was not shown has not been seen", async () => {
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    vi.clearAllMocks();
+
+    await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(directNative().start).toHaveBeenCalledTimes(1);
+    expect(rememberUnreadInboxMail).not.toHaveBeenCalled();
+  });
+
+  it('records the unread Inbox mail again when email notifications come back on, which emptied its notified ids', async () => {
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    // Email notifications off, as App.tsx does it.
+    await teardownPushNotificationsForAccount(ACCOUNT_ID);
+    vi.clearAllMocks();
+
+    // Back on: the launch-time setup runs again.
+    await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    const remember = vi.mocked(rememberUnreadInboxMail);
+    expect(remember.mock.calls).toEqual([[ACCOUNT_ID]]);
+    expect(remember.mock.invocationCallOrder[0]).toBeLessThan(directNative().start.mock.invocationCallOrder[0]);
+  });
+
+  it('records every push account when email notifications come back on, before the service streams it', async () => {
+    const OTHER = 'bob@other.example.net';
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([OTHER]));
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    // Off: the switch stores the setting and syncs; App.tsx tears down the account on screen.
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ emailNotificationsEnabled: false }));
+    await syncDirectPush();
+    await teardownPushNotificationsForAccount(ACCOUNT_ID);
+    expect(directNative().stop).toHaveBeenCalled();
+    vi.clearAllMocks();
+
+    // On: the switch syncs, then App.tsx sets the account on screen up again.
+    await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ emailNotificationsEnabled: true }));
+    await syncDirectPush();
+    await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    const remember = vi.mocked(rememberUnreadInboxMail);
+    expect(remember.mock.calls).toEqual([[OTHER], [ACCOUNT_ID]]);
+    const starts = directNative().start.mock.invocationCallOrder;
+    expect(remember.mock.invocationCallOrder[0]).toBeLessThan(starts[0]);
+    expect(remember.mock.invocationCallOrder[1]).toBeLessThan(starts[1]);
+  });
+
+  it('records the unread Inbox mail of an account whose server was replaced, before its stream is asked for again', async () => {
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    vi.clearAllMocks();
+
+    await forgetPushServerState(ACCOUNT_ID);
+
+    const remember = vi.mocked(rememberUnreadInboxMail);
+    expect(remember.mock.calls).toEqual([[ACCOUNT_ID]]);
+    expect(remember.mock.invocationCallOrder[0]).toBeLessThan(directNative().start.mock.invocationCallOrder[0]);
+  });
+
+  it('sets up the account of the client it is given', async () => {
+    const client = new JMAPClient();
+    await client.loadAccount('bob@other.example.net');
+    DETACHED.session = { ...SYNC_SESSION, eventSourceUrl: 'https://other.example.net/jmap/eventsource/' } as typeof SYNC_SESSION;
+    try {
+      await setupPushNotifications({ relayBaseUrl: RELAY }, client);
+    } finally {
+      DETACHED.session = SYNC_SESSION;
+    }
+
+    const bob = generateAccountId('bob', 'https://other.example.net');
+    expect(await readPushAccountIds()).toEqual([bob]);
+    expect(await readPushJmapAccountIds()).toEqual({ [bob]: 'bob-jmap' });
+  });
+
+  it('removes the subscription and relay registration of the transport used before', async () => {
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    await AsyncStorage.setItem(SUB_KEY, 'recorded');
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    const ring = JSON.stringify([`m${Date.now()}`]);
+    await AsyncStorage.setItem(notifiedIdsKey(ACCOUNT_ID), ring);
+    listMock.mockResolvedValue([sub('recorded', OUR_DCID), sub('foreign', 'ffffffffffffffffffffffffffffffff')]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    // The mail it already notified stays known: nothing is notified twice.
+    expect(await AsyncStorage.getItem(notifiedIdsKey(ACCOUNT_ID))).toBe(ring);
+
+    expect(destroyMock.mock.calls.map((c) => c[0])).toEqual(['recorded']);
+    expect(relayCalls()).toEqual([`DELETE ${RELAY}/api/push/register/${OUR_DCID}`]);
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    expect(await AsyncStorage.getItem(deviceClientIdKey(ACCOUNT_ID))).toBeNull();
+    expect(await readPushAccountIds()).toEqual([ACCOUNT_ID]);
+    expect(directNative().start).toHaveBeenCalled();
+  });
+
+  describe('with a second account registered for the relay', () => {
+    const OTHER = 'bob@other.example.net';
+    const OTHER_DCID = 'bobsphonebobsphonebobsphonebobsp';
+
+    beforeEach(async () => {
+      await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+      await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([OTHER]));
+      await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [OTHER]: 'bob-jmap' }));
+      await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
+      await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
+      Object.assign(DETACHED, { loaded: true, all: [{ id: 'b', deviceClientId: OTHER_DCID }], listFails: false, log: [] });
+      DETACHED.session = { ...SYNC_SESSION, eventSourceUrl: 'https://other.example.net/jmap/eventsource/' } as typeof SYNC_SESSION;
+      listMock.mockImplementation(listingOwnAccount([]));
+    });
+
+    afterEach(() => {
+      listMock.mockImplementation(async () => []);
+      Object.assign(DETACHED, { all: [], listFails: false, session: SYNC_SESSION });
+    });
+
+    it('moves it to the direct connection while push is off for the account on screen, which stays off', async () => {
+      const optedOut = 'push:optedOut:v1:' + ACCOUNT_ID;
+      await AsyncStorage.setItem(optedOut, '1');
+
+      await setupDirectPushForOtherAccounts();
+
+      expect(destroyedThroughOwnClient()).toEqual([['b']]);
+      expect(await readPushAccountIds()).toEqual([OTHER]);
+      expect(await AsyncStorage.getItem(optedOut)).toBe('1');
+      expect(await readDirectPushAccountIds()).toEqual([OTHER]);
+      expect(vi.mocked(rememberUnreadInboxMail).mock.calls).toEqual([[OTHER]]);
+      expect(directNative().start).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses the switch, naming it, when its server offers no event stream, and leaves it on its relay', async () => {
+      DETACHED.session = SYNC_SESSION;
+
+      const error = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(PushSetupError);
+      expect((error as Error).message).toContain('bob');
+      expect(destroyMock).not.toHaveBeenCalled();
+      expect(relayCalls()).toEqual([]);
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBe('b');
+      expect(await readPushAccountIds()).toEqual([OTHER]);
+      expect(directNative().start).not.toHaveBeenCalled();
+    });
+
+    it('moves it off the relay too, and it stays a push account', async () => {
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+
+      // One session and one listing for it.
+      expect(loads()).toEqual([['load', OTHER]]);
+      expect(listMock.mock.calls.filter(([client]) => ownClient(client))).toHaveLength(1);
+      expect(destroyedThroughOwnClient()).toEqual([['b']]);
+      expect(relayCalls()).toEqual([`DELETE ${RELAY}/api/push/register/${OTHER_DCID}`]);
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
+      expect(await AsyncStorage.getItem(deviceClientIdKey(OTHER))).toBeNull();
+      expect((await readPushAccountIds()).sort()).toEqual([ACCOUNT_ID, OTHER].sort());
+      expect(await readPushJmapAccountIds()).toEqual({ [OTHER]: 'bob-jmap', [ACCOUNT_ID]: 'jmap-primary' });
+      expect(directNative().start).toHaveBeenCalledTimes(1);
+      expect(directNative().stop).not.toHaveBeenCalled();
+    });
+
+    it('records the unread Inbox mail of the moved account as notified before the service starts', async () => {
+      await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, OTHER]));
+      // The service serves the account on screen already.
+      await AsyncStorage.setItem('push:directWanted:v1', '1');
+
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+
+      // The account on screen was served already and is not registered: only the moved one.
+      const remember = vi.mocked(rememberUnreadInboxMail);
+      expect(remember.mock.calls).toEqual([[OTHER]]);
+      expect(remember.mock.invocationCallOrder[0]).toBeLessThan(directNative().start.mock.invocationCallOrder[0]);
+    });
+
+    it("records its unread Inbox mail too while its server can't be asked and it stays registered", async () => {
+      await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, OTHER]));
+      await AsyncStorage.setItem('push:directWanted:v1', '1');
+      DETACHED.listFails = true;
+      // Its detached session fails as well: nothing recorded, the setup goes on.
+      vi.mocked(rememberUnreadInboxMail).mockRejectedValueOnce(new Error('network down'));
+
+      const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+      expect(result.verified).toBe(true);
+      const remember = vi.mocked(rememberUnreadInboxMail);
+      expect(remember.mock.calls).toEqual([[OTHER]]);
+      expect(remember.mock.invocationCallOrder[0]).toBeLessThan(directNative().start.mock.invocationCallOrder[0]);
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBe('b');
+    });
+
+    it('keeps the ids of the mail it already notified', async () => {
+      const ring = JSON.stringify([`m-${Date.now()}`]);
+      await AsyncStorage.setItem(notifiedIdsKey(OTHER), ring);
+
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+
+      expect(await AsyncStorage.getItem(notifiedIdsKey(OTHER))).toBe(ring);
+    });
+
+    it("keeps its registration when its server can't be asked, and moves it on the next run", async () => {
+      DETACHED.listFails = true;
+
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+      expect(relayCalls()).toEqual([]);
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBe('b');
+      expect(await AsyncStorage.getItem(deviceClientIdKey(OTHER))).toBe(OTHER_DCID);
+      expect((await readPushAccountIds()).sort()).toEqual([ACCOUNT_ID, OTHER].sort());
+
+      DETACHED.listFails = false;
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
+      expect((await readPushAccountIds()).sort()).toEqual([ACCOUNT_ID, OTHER].sort());
+    });
+
+    it('never registers it with the relay again while direct is chosen', async () => {
+      await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, OTHER]));
+
+      await renewOtherPushAccounts();
+
+      expect(relayCalls().filter((c) => c.startsWith('POST'))).toEqual([]);
+      const fcm = (NativeModules as { BulwarkFcm: { getToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
+      expect(fcm.getToken).not.toHaveBeenCalled();
+    });
+  });
+
+  it('refuses with a client certificate, which the stream cannot present', async () => {
+    (getClientCertAlias as ReturnType<typeof vi.fn>).mockResolvedValueOnce(`cert-${Date.now()}`);
+
+    await expect(setupPushNotifications({ relayBaseUrl: RELAY })).rejects.toBeInstanceOf(PushSetupError);
+
+    expect(directNative().start).not.toHaveBeenCalled();
+    expect(await readPushAccountIds()).toEqual([]);
+  });
+
+  describe('on an Android that asks for the notification permission', () => {
+    const platform = Platform as { Version: number };
+    const version = platform.Version;
+    beforeEach(() => { platform.Version = 33; });
+    afterEach(() => { platform.Version = version; });
+
+    it('refuses without the notification permission, and records nothing', async () => {
+      (PermissionsAndroid.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce('denied');
+
+      await expect(setupPushNotifications({ relayBaseUrl: RELAY })).rejects.toMatchObject({ phase: 'permission' });
+
+      expect(directNative().start).not.toHaveBeenCalled();
+      expect(await readPushAccountIds()).toEqual([]);
+    });
+
+    it('records nothing when the account changes while the permission prompt is open', async () => {
+      const client = jmapClient as unknown as { username: string; accountId: string };
+      const served = { username: client.username, accountId: client.accountId };
+      (PermissionsAndroid.request as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+        Object.assign(client, { username: 'carol@example.com', accountId: 'jmap-carol' });
+        return 'granted';
+      });
+      try {
+        await expect(setupPushNotifications({ relayBaseUrl: RELAY })).rejects.toMatchObject({ phase: 'account' });
+      } finally {
+        Object.assign(client, served);
+      }
+
+      expect(directNative().start).not.toHaveBeenCalled();
+      expect(await readPushAccountIds()).toEqual([]);
+      expect(await readPushJmapAccountIds()).toEqual({});
+    });
+  });
+
+  it('refuses when the server offers no event stream', async () => {
+    (jmapClient as { currentSession: unknown }).currentSession = { capabilities: { 'urn:ietf:params:jmap:core': {} } };
+
+    await expect(setupPushNotifications({ relayBaseUrl: RELAY })).rejects.toBeInstanceOf(PushSetupError);
+
+    expect(directNative().start).not.toHaveBeenCalled();
+    expect(await readPushAccountIds()).toEqual([]);
+  });
+
+  it('hands changed push types to the service by asking it again', async () => {
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    directNative().start.mockClear();
+
+    await refreshPushSubscriptionTypes(ACCOUNT_ID);
+
+    expect(directNative().start).toHaveBeenCalledTimes(1);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('starts the service once, when the setup has succeeded, not when the transport is chosen', async () => {
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([generateAccountId('bob', 'https://other.example.net')]));
+
+    await setStoredPushTransport('direct');
+    expect(directNative().start).not.toHaveBeenCalled();
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(directNative().start).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops the service once another transport is set up, not when it is chosen', async () => {
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(directNative().stop).not.toHaveBeenCalled();
+
+    await setStoredPushTransport('fcm');
+    expect(directNative().stop).not.toHaveBeenCalled();
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(directNative().stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops the service with the last account, and asks it again while others are left', async () => {
+    const other = generateAccountId('bob', 'https://other.example.net');
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, other]));
+
+    await teardownPushNotificationsForAccount(other);
+    expect(directNative().stop).not.toHaveBeenCalled();
+    expect(directNative().start).toHaveBeenCalledTimes(1);
+
+    await teardownPushNotificationsForAccount(ACCOUNT_ID);
+    expect(directNative().stop).toHaveBeenCalledTimes(1);
+    expect(await readPushAccountIds()).toEqual([]);
+  });
+
+  it('shows the other accounts as off once another delivery method is chosen', async () => {
+    const other = generateAccountId('bob', 'https://other.example.net');
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, other]));
+    expect(await readPushAccountStates([ACCOUNT_ID, other])).toEqual({
+      [ACCOUNT_ID]: { enabled: true, optedOut: false },
+      [other]: { enabled: true, optedOut: false },
+    });
+
+    // Only the account on screen is set up again; the other has no
+    // subscription until it is opened.
+    await setStoredPushTransport('fcm');
+    await AsyncStorage.setItem(SUB_KEY, 'recorded');
+
+    expect(await readPushAccountStates([ACCOUNT_ID, other])).toEqual({
+      [ACCOUNT_ID]: { enabled: true, optedOut: false },
+      [other]: { enabled: false, optedOut: false },
+    });
+    expect(await readPushAccountIds()).toEqual([ACCOUNT_ID, other]);
+  });
+});
+
+describe('setUpOtherPushAccounts, after leaving the direct connection', () => {
+  const BOB = generateAccountId('bob', 'https://other.example.net');
+  const BOB_ELSEWHERE = generateAccountId('bob', 'https://third.example.org');
+  // The account each call went to: the client it was handed was loaded for it.
+  const accountsOf = (mock: ReturnType<typeof vi.fn>) =>
+    mock.mock.calls.map((call) => (call[call.length - 1] as { loaded?: string }).loaded);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    installFetch({});
+    listMock.mockResolvedValue([]);
+    createMock.mockImplementation(async () => CREATED);
+    // The direct connection left every account a push account without a
+    // registration, owed one, and was wanted when it was left.
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, BOB, BOB_ELSEWHERE]));
+    await AsyncStorage.setItem('push:relayOwed:v1', JSON.stringify([BOB, BOB_ELSEWHERE]));
+    await AsyncStorage.setItem('push:directWanted:v1', '1');
+    await setStoredPushTransport('fcm');
+  });
+
+  afterEach(() => {
+    Object.assign(DETACHED, { loaded: true, log: [], session: SYNC_SESSION });
+  });
+
+  it('streams the other accounts until each has its relay, then stops', async () => {
+    // A (on screen), B and C on the direct connection.
+    await AsyncStorage.multiRemove(['push:relayOwed:v1', 'push:directWanted:v1']);
+    (jmapClient as { currentSession: unknown }).currentSession = { capabilities: {}, eventSourceUrl: 'https://mail.example.com/jmap/eventsource/' };
+    try {
+      await setStoredPushTransport('direct');
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+      expect(await readDirectPushAccountIds()).toEqual([ACCOUNT_ID, BOB, BOB_ELSEWHERE]);
+
+      // Google chosen: A verifies first.
+      await setStoredPushTransport('fcm');
+      vi.clearAllMocks();
+      await setupPushNotifications({ relayBaseUrl: RELAY });
+      expect(await AsyncStorage.getItem(SUB_KEY)).toBe(CREATED.id);
+      expect(directNative().stop).not.toHaveBeenCalled();
+      expect(directNative().start).toHaveBeenCalledTimes(1);
+      expect(await readDirectPushAccountIds()).toEqual([BOB, BOB_ELSEWHERE]);
+
+      await setUpOtherPushAccounts(RELAY);
+      expect(accountsOf(createMock)).toEqual([undefined, BOB, BOB_ELSEWHERE]);
+      expect(await readDirectPushAccountIds()).toEqual([]);
+      expect(directNative().stop).toHaveBeenCalledTimes(1);
+    } finally {
+      (jmapClient as { currentSession: unknown }).currentSession = { capabilities: { 'urn:ietf:params:jmap:core': {} } };
+    }
+  });
+
+  it('registers each other account on the chosen transport through a client loaded for it, one after another', async () => {
+    await setUpOtherPushAccounts(RELAY);
+
+    expect(loads()).toEqual([['load', BOB], ['load', BOB_ELSEWHERE]]);
+    expect(accountsOf(createMock)).toEqual([BOB, BOB_ELSEWHERE]);
+    expect(accountsOf(verifyPushSubscription as ReturnType<typeof vi.fn>)).toEqual([BOB, BOB_ELSEWHERE]);
+    expect(await AsyncStorage.getItem('push:subscriptionId:v2:' + BOB)).toBe(CREATED.id);
+    expect(await AsyncStorage.getItem('push:subscriptionId:v2:' + BOB_ELSEWHERE)).toBe(CREATED.id);
+    // The account on screen made its own switch.
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    expect(directNative().stop).toHaveBeenCalled();
+  });
+
+  it('goes on with the next account when one fails, and streams the failed one until the next launch sets it up', async () => {
+    createMock.mockRejectedValueOnce(new Error('server down'));
+
+    await setUpOtherPushAccounts(RELAY);
+
+    expect(accountsOf(createMock)).toEqual([BOB, BOB_ELSEWHERE]);
+    expect(await AsyncStorage.getItem('push:subscriptionId:v2:' + BOB)).toBeNull();
+    expect(await AsyncStorage.getItem('push:subscriptionId:v2:' + BOB_ELSEWHERE)).toBe(CREATED.id);
+    expect(await readPushAccountIds()).toEqual([ACCOUNT_ID, BOB, BOB_ELSEWHERE]);
+    expect(await readDirectPushAccountIds()).toEqual([BOB]);
+    expect(directNative().stop).not.toHaveBeenCalled();
+  });
+
+  it("builds each account's delivery filter from that account's folders, not the open account's", async () => {
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID, BOB]));
+    await AsyncStorage.setItem('push:relayOwed:v1', JSON.stringify([BOB]));
+    DETACHED.session = { capabilities: { ...SYNC_SESSION.capabilities, 'urn:ietf:params:jmap:emailpush': {} } };
+    vi.mocked(getMailboxes).mockImplementationOnce(async (_accountId, client) =>
+      (client as { loaded?: string } | undefined)?.loaded === BOB
+        ? [{ id: 'bob-junk', role: 'junk', accountId: 'bob-jmap' }] as never
+        : [{ id: 'junk', role: 'junk', accountId: 'jmap-primary' }] as never);
+
+    await setUpOtherPushAccounts(RELAY);
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    const emailPush = createMock.mock.calls[0][0].emailPush as Record<string, { filter: { conditions: unknown[] } }>;
+    expect(Object.keys(emailPush)).toEqual(['bob-jmap']);
+    expect(emailPush['bob-jmap'].filter.conditions).toContainEqual({ inMailboxOtherThan: ['bob-junk'] });
+  });
+
+  it('runs one call after the other: a second waits and sets up only what the first left', async () => {
+    const first = setUpOtherPushAccounts(RELAY);
+    const second = setUpOtherPushAccounts(RELAY);
+    await Promise.all([first, second]);
+
+    expect(loads()).toEqual([['load', BOB], ['load', BOB_ELSEWHERE]]);
+    expect(createMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sets up at launch the accounts a run cut short left without a registration", async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+
+    await renewOtherPushAccounts();
+
+    expect(loads()).toEqual([['load', BOB], ['load', BOB_ELSEWHERE]]);
+    expect(accountsOf(createMock)).toEqual([BOB, BOB_ELSEWHERE]);
+    expect(await AsyncStorage.getItem('push:subscriptionId:v2:' + BOB_ELSEWHERE)).toBe(CREATED.id);
+  });
+
+  it('leaves them to the direct connection at launch when it is chosen again', async () => {
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    await setStoredPushTransport('direct');
+
+    await renewOtherPushAccounts();
+
+    expect(loads()).toEqual([]);
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves alone an account still registered or turned off, and stops the service also when none is set up', async () => {
+    // Neither is owed a registration: the move left one its relay, turning push off took the other out.
+    await AsyncStorage.setItem('push:subscriptionId:v2:' + BOB, 'kept');
+    await AsyncStorage.setItem('push:optedOut:v1:' + BOB_ELSEWHERE, '1');
+    await AsyncStorage.removeItem('push:relayOwed:v1');
+
+    await setUpOtherPushAccounts(RELAY);
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(directNative().stop).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('push without a recorded subscription', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+  });
+
+  it.each(['fcm', 'unifiedpush'] as const)('reads as off over %s', async (transport) => {
+    await setStoredPushTransport(transport);
+
+    expect(await isPushEnabledForAccount(ACCOUNT_ID)).toBe(false);
+    expect((await readPushAccountStates([ACCOUNT_ID]))[ACCOUNT_ID].enabled).toBe(false);
   });
 });
 
@@ -1907,16 +2546,13 @@ describe('teardownPushNotificationsForAccount', () => {
   describe('for a signed-in account the client does not serve', () => {
     const OTHER = 'bob@other.example.net';
     const OTHER_DCID = 'bobsphonebobsphonebobsphonebobsp';
-    const destroyedThroughOwnClient = () => DETACHED.log
-      .filter((entry) => (entry as unknown[])[0] === 'PushSubscription/set')
-      .map((entry) => ((entry as [string, { destroy: string[] }])[1]).destroy);
 
     beforeEach(async () => {
       await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
       await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
       await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
       // The open account's own push, with the same short id.
-      listMock.mockResolvedValue([{ id: 'b', types: ['EmailDelivery'] }]);
+      listMock.mockImplementation(listingOwnAccount([{ id: 'b', types: ['EmailDelivery'] }]));
       Object.assign(DETACHED, {
         loaded: true,
         all: [{ id: 'b', deviceClientId: OTHER_DCID }, { id: 'c', deviceClientId: 'ffffffffffffffffffffffffffffffff' }],
@@ -1933,30 +2569,30 @@ describe('teardownPushNotificationsForAccount', () => {
     it('destroys its subscriptions through a client of its own', async () => {
       await teardownPushNotificationsForAccount(OTHER);
 
-      expect(DETACHED.log[0]).toEqual(['load', OTHER]);
+      expect(DETACHED.log).toEqual([['load', OTHER]]);
       expect(destroyedThroughOwnClient()).toEqual([['b']]);
-      expect(listMock).not.toHaveBeenCalled();
-      expect(destroyMock).not.toHaveBeenCalled();
+      expect(listMock.mock.calls.filter(([client]) => !ownClient(client))).toEqual([]);
+      expect(destroyMock.mock.calls.filter(([, client]) => !ownClient(client))).toEqual([]);
       expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
     });
 
     it("never destroys the recorded id on the open account when its own server can't list", async () => {
-      listMock.mockRejectedValue(new Error('network down'));
       DETACHED.listFails = true;
 
       await teardownPushNotificationsForAccount(OTHER);
 
-      expect(destroyMock).not.toHaveBeenCalled();
+      expect(listMock.mock.calls.filter(([client]) => !ownClient(client))).toEqual([]);
+      expect(destroyMock.mock.calls.filter(([, client]) => !ownClient(client))).toEqual([]);
       expect(destroyedThroughOwnClient()).toEqual([['b']]);
 
       // An account that can't be loaded leaves every server alone.
       DETACHED.log = [];
       DETACHED.loaded = false;
+      destroyMock.mockClear();
       await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
       await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
       await teardownPushNotificationsForAccount(OTHER);
       expect(destroyMock).not.toHaveBeenCalled();
-      expect(destroyedThroughOwnClient()).toEqual([]);
       expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
     });
   });

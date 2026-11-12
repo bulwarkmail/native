@@ -21,10 +21,13 @@ import {
   parseRelayPushData,
   PUSH_REQUEST_TIMEOUT_MS,
   pushBackgroundTask,
+  rememberShownInboxMail,
+  rememberUnreadInboxMail,
   selectNotifiableEmails,
   senderFaviconsAllowed,
 } from '../push-background-task';
 import type { Email } from '../../api/types';
+import { setStoredPushTransport } from '../push-notifications';
 
 describe('parseRelayPushData', () => {
   it('decodes the relay FCM data payload (all values are strings)', () => {
@@ -52,6 +55,14 @@ describe('parseRelayPushData', () => {
     });
     expect(parsed.jmapAccountId).toBe('a9');
     expect(parsed.emailIds).toEqual([]);
+  });
+
+  it('takes no account id from a labelled `changed` map of several accounts', () => {
+    const changed = JSON.stringify({ shared: { Email: 'x' }, a9: { Email: 'y' } });
+    expect(parseRelayPushData({ kind: 'jmap-state-change', accountLabel: 'alice', changed }).jmapAccountId).toBeNull();
+    // Without a label, or with an account id, as before.
+    expect(parseRelayPushData({ kind: 'jmap-state-change', changed }).jmapAccountId).toBe('shared');
+    expect(parseRelayPushData({ accountId: 'a9', accountLabel: 'alice', changed }).jmapAccountId).toBe('a9');
   });
 
   it('tolerates garbage', () => {
@@ -93,6 +104,17 @@ describe('matchAccountsForPush', () => {
   it('checks every account when nothing matches', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'carol' });
     expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual({ accountIds: accounts, ambiguous: false });
+  });
+
+  it("takes a push for a login's own and shared accounts for that login, not for another whose id a shared one carries", () => {
+    // bob's login reads a shared account whose id is alice's own.
+    const payload = parseRelayPushData({
+      kind: 'jmap-state-change',
+      accountLabel: 'bob',
+      changed: JSON.stringify({ ja: { Email: 's1' }, jb: { Email: 's2' } }),
+    });
+    expect(matchAccountsForPush(payload, ['alice@x', 'bob@x'], { 'alice@x': 'ja', 'bob@x': 'jb' }, []))
+      .toEqual({ accountIds: ['bob@x'], ambiguous: false });
   });
 
   describe('with two logins on different servers that share a JMAP account id', () => {
@@ -304,6 +326,194 @@ describe('pushBackgroundTask notifications', () => {
 
     expect(showNotification).toHaveBeenCalledTimes(1);
     expect((showNotification.mock.calls[0] as unknown[])[0]).toMatchObject({ title: 'New email', emailId: '' });
+  });
+
+  describe('a push that names no message', () => {
+    const RECEIVED: Record<string, string> = { before: '2026-11-12T16:00:00Z', after: '2026-11-12T16:30:00Z' };
+    // The newest unread Inbox mail, newest first.
+    let unread: string[] = [];
+    let queried = false;
+
+    beforeEach(() => {
+      unread = ['after', 'before'];
+      queried = false;
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+        if (url.endsWith('/.well-known/jmap')) {
+          return { ok: true, json: async () => ({ apiUrl: 'https://mail.example.com/jmap/', primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' } }) };
+        }
+        const [[method, args]] = JSON.parse(init?.body ?? '{}').methodCalls;
+        if (method === 'Email/query') queried = true;
+        const answer = method === 'Mailbox/get'
+          ? { list: [{ id: 'inbox', role: 'inbox' }] }
+          : method === 'Email/query'
+            ? { ids: unread.slice(0, args.limit) }
+            : { list: (args.ids as string[]).map((id) => ({ id, keywords: {}, subject: id, receivedAt: RECEIVED[id], from: [{ email: 'bob@example.com' }] })) };
+        return { ok: true, json: async () => ({ methodResponses: [[method, answer, '0']] }) };
+      });
+    });
+    const shown = () => showNotification.mock.calls.map((call) => ((call as unknown[])[0] as { emailId: string }).emailId);
+
+    it("catches up a direct stream's gap: notifies mail that came meanwhile, not mail notified before it", async () => {
+      // The stream's state event before the gap.
+      unread = ['before'];
+      await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', accountId: 'jmap-primary', emailIds: '[]', changed: '{"jmap-primary":{"EmailDelivery":"s1"}}' });
+      expect(shown()).toEqual(['before']);
+
+      // `after` came while the stream was down; the wake on its return carries no change.
+      unread = ['after', 'before'];
+      await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', emailIds: '[]' });
+      expect(shown()).toEqual(['before', 'after']);
+
+      await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', emailIds: '[]' });
+      expect(shown()).toEqual(['before', 'after']);
+    });
+
+    it('notifies new mail once when two pushes for it come together', async () => {
+      const push = { kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' };
+
+      await Promise.all([pushBackgroundTask(push), pushBackgroundTask(push)]);
+
+      expect(shown()).toEqual(['before', 'after']);
+    });
+
+    it('a push whose lookup fails does not hold up the next one', async () => {
+      const lookup = vi.mocked(secureFetch).getMockImplementation()!;
+      let queries = 0;
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+        const [[method] = []] = JSON.parse(init?.body ?? '{}').methodCalls ?? [];
+        if (method === 'Email/query' && queries++ === 0) {
+          return { ok: true, json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }) };
+        }
+        return lookup(url, init);
+      });
+      const push = { kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' };
+
+      await Promise.all([pushBackgroundTask(push), pushBackgroundTask(push)]);
+
+      // The first says that something came; the second names it.
+      const ids = showNotification.mock.calls.map((call) => ((call as unknown[])[0] as { notificationId: string }).notificationId);
+      expect(ids).toEqual([`mail-unknown:${LOCAL}`, 'mail:before', 'mail:after']);
+    });
+
+    it('announces none of the unread mail of that moment once the newest is read elsewhere', async () => {
+      const old = ['old1', 'old2', 'old3', 'old4', 'old5', 'old6', 'old7'];
+      unread = old;
+      await rememberUnreadInboxMail(LOCAL);
+      unread = old.slice(1);
+      await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+      expect(shown()).toEqual([]);
+    });
+
+    it('does not notify the unread mail that was there when the direct connection was set up', async () => {
+      unread = ['before'];
+      await rememberUnreadInboxMail(LOCAL);
+      unread = ['after', 'before'];
+      await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+      expect(shown()).toEqual(['after']);
+    });
+
+    describe('after the app showed its Inbox in front', () => {
+      const shownInFront: Email[] = [{ id: 'after', keywords: {}, mailboxIds: { inbox: true }, receivedAt: RECEIVED.after } as unknown as Email];
+      beforeEach(() => {
+        (NativeModules as Record<string, unknown>).BulwarkDirectPush = { start: vi.fn(), stop: vi.fn(), setAccounts: vi.fn() };
+      });
+      afterEach(() => {
+        delete (NativeModules as Record<string, unknown>).BulwarkDirectPush;
+      });
+
+      it('does not notify that mail over the direct connection', async () => {
+        await setStoredPushTransport('direct');
+        await rememberShownInboxMail(LOCAL, 'inbox', shownInFront);
+        await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+        expect(shown()).toEqual(['before']);
+      });
+
+      it("records no row of a search or filter result that is not in that Inbox, nor one of another account", async () => {
+        await setStoredPushTransport('direct');
+        const rows = [
+          // Another folder of the own account, and a group account's Inbox row, both under the same short id.
+          { id: 'after', keywords: {}, mailboxIds: { archive: true }, receivedAt: RECEIVED.after },
+          { id: 'after', keywords: {}, mailboxIds: { inbox: true }, jmapAccountId: 'team', receivedAt: RECEIVED.after },
+        ] as unknown as Email[];
+        await rememberShownInboxMail(LOCAL, 'inbox', rows);
+        await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+        expect(shown()).toEqual(['before', 'after']);
+      });
+
+      it('reads the stored transport once, not at every change of the list', async () => {
+        await setStoredPushTransport('fcm');
+        const getItem = vi.spyOn(AsyncStorage, 'getItem');
+        try {
+          await rememberShownInboxMail(LOCAL, 'inbox', shownInFront);
+          await rememberShownInboxMail(LOCAL, 'inbox', shownInFront);
+          expect(getItem.mock.calls.filter(([key]) => key === 'push:transport:v1')).toHaveLength(1);
+        } finally {
+          getItem.mockRestore();
+        }
+      });
+
+      it('leaves the relay transports as they were', async () => {
+        await setStoredPushTransport('fcm');
+        await rememberShownInboxMail(LOCAL, 'inbox', shownInFront);
+        await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+        expect(shown()).toEqual(['before', 'after']);
+      });
+    });
+
+    describe('over the direct connection', () => {
+      beforeEach(async () => {
+        (NativeModules as Record<string, unknown>).BulwarkDirectPush = { start: vi.fn(), stop: vi.fn(), setAccounts: vi.fn() };
+        await setStoredPushTransport('direct');
+      });
+      afterEach(async () => {
+        await setStoredPushTransport(null);
+        delete (NativeModules as Record<string, unknown>).BulwarkDirectPush;
+      });
+
+      it.each([
+        ['an account mute', { accounts: ['jmap-primary'], mailboxes: {} }],
+        ['an Inbox mute', { accounts: [], mailboxes: { 'jmap-primary/inbox': true } }],
+      ])('announces none of the mail that came under %s once it is lifted', async (_label, notificationMutes) => {
+        const push = { kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' };
+        await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ notificationMutes }));
+        await pushBackgroundTask(push);
+        expect(shown()).toEqual([]);
+
+        await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ notificationMutes: { accounts: [], mailboxes: {} } }));
+        await pushBackgroundTask(push);
+        expect(shown()).toEqual([]);
+
+        // What comes after is news.
+        unread = ['later', 'after', 'before'];
+        await pushBackgroundTask(push);
+        expect(shown()).toEqual(['later']);
+      });
+
+      it('notifies the Inbox of a muted account when the Inbox is unmuted', async () => {
+        const notificationMutes = { accounts: ['jmap-primary'], mailboxes: { 'jmap-primary/inbox': false } };
+        await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ notificationMutes }));
+        await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+        expect(shown()).toEqual(['before', 'after']);
+      });
+    });
+
+    it.each([
+      ['a muted account', { accounts: ['jmap-primary'], mailboxes: {} }],
+      ['a muted Inbox', { accounts: [], mailboxes: { 'jmap-primary/inbox': true } }],
+    ])("leaves a relay's push as it comes for %s: the server's filter honours mutes there", async (_label, notificationMutes) => {
+      await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ notificationMutes }));
+      await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+
+      expect(shown()).toEqual(['before', 'after']);
+      expect(await AsyncStorage.getItem(`push:notifiedIds:v1:${LOCAL}`)).toBe(JSON.stringify(['after', 'before']));
+    });
+
   });
 
   it('stays quiet when the lookup worked and found nothing new', async () => {

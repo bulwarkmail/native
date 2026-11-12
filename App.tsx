@@ -32,6 +32,7 @@ import {
   addMessageListener,
   addNotificationTapListener,
   addTokenRefreshListener,
+  getEffectivePushTransport,
   getInitialNotificationTap,
   getStoredRelayBaseUrl,
   notificationTapJmapAccountId,
@@ -58,6 +59,7 @@ import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore } from './src/stores/email-store';
+import { rememberShownInboxMail } from './src/lib/push-background-task';
 import { loadDetail, prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
@@ -453,6 +455,15 @@ export default function App() {
     return undefined;
   }, [isAuthenticated, hasRestoredSession]);
 
+  // Mail seen here in the Inbox is not notified later by the direct
+  // connection, whose pushes name no message (rememberShownInboxMail).
+  React.useEffect(() => useEmailStore.subscribe((state, prev) => {
+    if (state.emails === prev.emails || !state.activeAccountId || AppState.currentState !== 'active') return;
+    const shown = state.mailboxes.find((m) => m.id === state.currentMailboxId);
+    if (shown?.role !== 'inbox' || shown.isShared) return;
+    void rememberShownInboxMail(state.activeAccountId, shown.id, state.emails).catch(() => undefined);
+  }), []);
+
   // When the network flips back on while we're authenticated-but-offline
   // (no live JMAP session), retry the session so the user lands back on
   // live data without needing to relaunch.
@@ -700,10 +711,13 @@ export default function App() {
         return;
       }
       const relayBaseUrl = await getStoredRelayBaseUrl();
-      if (!relayBaseUrl) return;
+      // The direct connection uses no relay; its setup starts the service,
+      // which asks for every account's credentials again.
+      const direct = (await getEffectivePushTransport()) === 'direct';
+      if (!relayBaseUrl && !direct) return;
       try {
         await resyncPushNotifications({
-          relayBaseUrl,
+          relayBaseUrl: relayBaseUrl ?? undefined,
           accountLabel: client.username ?? undefined,
         });
       } catch (error) {

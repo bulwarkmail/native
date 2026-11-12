@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -39,6 +40,9 @@ import {
   enablePushFromSettings,
   getStoredPushTransport,
   setStoredPushTransport,
+  setUpOtherPushAccounts,
+  setupDirectPushForOtherAccounts,
+  syncDirectPush,
   type PushAccountState,
   type PushDevice,
   type PushSetupPhase,
@@ -50,9 +54,10 @@ import {
   isUnifiedPushSupported,
   saveUnifiedPushDistributor,
 } from '../../lib/unified-push';
+import { isDirectPushSupported } from '../../lib/direct-push';
 import { canBadgeAppIcon } from '../../lib/app-badge';
 import { isAccountMuted, setAccountMuted } from '../../lib/notification-mutes';
-import { jmapClient } from '../../api/jmap-client';
+import { primaryJmapAccountId } from '../../api/jmap-client';
 
 type PushStatus =
   | { kind: 'idle' }
@@ -65,6 +70,14 @@ type DevicesState =
   | { kind: 'loading' }
   | { kind: 'loaded'; devices: PushDevice[] }
   | { kind: 'error' };
+
+// Android's list of apps exempt from battery optimization.
+const BATTERY_OPTIMIZATION_SETTINGS = 'android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS';
+
+// Direct mode talks to the mail server itself: no relay is registered or read.
+function usesRelay(transport: PushTransport): boolean {
+  return transport !== 'direct';
+}
 
 const PHASE_KEYS: Record<PushSetupPhase, { key: string; fallback: string }> = {
   platform: { key: 'settings.notifications.push.phase_platform', fallback: 'Platform' },
@@ -93,8 +106,7 @@ export function NotificationSettings() {
   // Muting works through the server's emailPush filter (#78): offered only
   // where it exists, for the account this screen shows. Single folders are
   // muted from the sidebar.
-  let ownJmapAccountId: string | null = null;
-  try { ownJmapAccountId = jmapClient.accountId; } catch { ownJmapAccountId = null; }
+  const ownJmapAccountId = primaryJmapAccountId();
   const canMuteAccount = ownJmapAccountId !== null && serverSupportsEmailPush();
   const accountMuted = ownJmapAccountId !== null && isAccountMuted(notificationMutes, ownJmapAccountId);
   // The Inbox-only filter needs the server's emailPush filter too (webmail #983).
@@ -113,6 +125,7 @@ export function NotificationSettings() {
   const supported = isPushSupported();
   const inboxOnlyAvailable = supported && !!client && serverSupportsEmailPush();
   const upSupported = isUnifiedPushSupported();
+  const directSupported = isDirectPushSupported();
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_BASE_URL);
   const [transport, setTransport] = useState<PushTransport>('fcm');
   const [distributors, setDistributors] = useState<string[]>([]);
@@ -232,8 +245,10 @@ export function NotificationSettings() {
     return error instanceof Error ? error.message : t('settings.notifications.push.setup_failed', 'Setup failed');
   };
 
-  const handleEnable = async (forceRecreate = false) => {
-    if (!relayValid) {
+  // `enabling` is the transport the run sets up: a switch calls this before
+  // the new transport is rendered.
+  const handleEnable = async (enabling: PushTransport, forceRecreate = false) => {
+    if (usesRelay(enabling) && !relayValid) {
       setPushStatus({
         kind: 'error',
         message: t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL'),
@@ -257,16 +272,43 @@ export function NotificationSettings() {
       ? { kind: 'error', message: describeError(outcome.error) }
       : { kind: 'enabled' });
     void refreshDevices(outcome.relayBaseUrl);
+    return !outcome.error;
   };
 
   // Switching the transport while push is on re-registers immediately so the
   // relay record flips to the new delivery path; while off it just records
-  // the preference for the next enable.
+  // the preference for the next enable, except that the direct connection
+  // takes the other push accounts over at once. A failed move to or from the
+  // direct connection goes back: the two deliver so differently that the
+  // stored choice must name the one still delivering. Back on the direct connection,
+  // its service is started again: it stops when it asks for the accounts
+  // while the other transport is stored. Leaving the direct connection also
+  // brings the other accounts back, in the background: each one's
+  // verification can take over a minute.
   const handleSelectTransport = async (next: PushTransport) => {
     if (next === transport || busy) return;
+    const previous = transport;
     setTransport(next);
     await setStoredPushTransport(next);
-    if (pushEnabled) void handleEnable(true);
+    if (!pushEnabled && next === 'direct') {
+      try {
+        await setupDirectPushForOtherAccounts();
+      } catch (err) {
+        setTransport(previous);
+        await setStoredPushTransport(previous);
+        setPushStatus({ kind: 'error', message: describeError(err) });
+      }
+      return;
+    }
+    if (pushEnabled && !(await handleEnable(next, true))) {
+      if (next === 'direct' || previous === 'direct') {
+        setTransport(previous);
+        await setStoredPushTransport(previous);
+        if (previous === 'direct') await syncDirectPush().catch(() => undefined);
+      }
+      return;
+    }
+    if (previous === 'direct') void setUpOtherPushAccounts(trimmed);
   };
 
   const handleSelectDistributor = async (distributor: string) => {
@@ -277,7 +319,7 @@ export function NotificationSettings() {
     } catch {
       return;
     }
-    if (pushEnabled && transport === 'unifiedpush') void handleEnable(true);
+    if (pushEnabled && transport === 'unifiedpush') void handleEnable(transport, true);
   };
 
   const performDisable = async () => {
@@ -344,10 +386,11 @@ export function NotificationSettings() {
     <View style={styles.container}>
       <SettingsSection
         title={t('settings.notifications.push.title', 'Background Notifications')}
-        description={t(
+        // The direct connection has no relay to speak of; its own text is under the delivery methods.
+        description={usesRelay(transport) ? t(
           'settings.notifications.push.description_mobile',
           'Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.',
-        )}
+        ) : undefined}
       >
         <SettingItem label={t('settings.notifications.push.enable', 'Enable')} description={statusDescription}>
           <View style={styles.row}>
@@ -356,7 +399,7 @@ export function NotificationSettings() {
             <ToggleSwitch
               checked={pushEnabled}
               onChange={(checked) => {
-                if (checked) void handleEnable();
+                if (checked) void handleEnable(transport);
                 else setConfirmDisable(true);
               }}
               disabled={!supported || busy || !client}
@@ -373,13 +416,13 @@ export function NotificationSettings() {
           </Text>
         )}
 
-        {upSupported && (
+        {(upSupported || directSupported) && (
           <>
             <SettingItem
               label={t('settings.notifications.push.transport_label', 'Delivery method')}
               description={t(
                 'settings.notifications.push.transport_desc',
-                'How notifications reach this device: Google’s Firebase Cloud Messaging, or a UnifiedPush distributor app (such as ntfy) for Google-free delivery.',
+                'How notifications reach this device: Google’s Firebase Cloud Messaging, a UnifiedPush distributor app (such as ntfy) for Google-free delivery, or a direct connection to your mail server.',
               )}
             >
               <View style={styles.row}>
@@ -391,16 +434,48 @@ export function NotificationSettings() {
                 >
                   {t('settings.notifications.push.transport_fcm', 'Google (FCM)')}
                 </Button>
-                <Button
-                  variant={transport === 'unifiedpush' ? 'default' : 'outline'}
-                  size="sm"
-                  onPress={() => void handleSelectTransport('unifiedpush')}
-                  disabled={busy}
-                >
-                  {t('settings.notifications.push.transport_unifiedpush', 'UnifiedPush')}
-                </Button>
+                {upSupported && (
+                  <Button
+                    variant={transport === 'unifiedpush' ? 'default' : 'outline'}
+                    size="sm"
+                    onPress={() => void handleSelectTransport('unifiedpush')}
+                    disabled={busy}
+                  >
+                    {t('settings.notifications.push.transport_unifiedpush', 'UnifiedPush')}
+                  </Button>
+                )}
+                {directSupported && (
+                  <Button
+                    variant={transport === 'direct' ? 'default' : 'outline'}
+                    size="sm"
+                    onPress={() => void handleSelectTransport('direct')}
+                    disabled={busy}
+                  >
+                    {t('settings.notifications.push.transport_direct', 'Direct')}
+                  </Button>
+                )}
               </View>
             </SettingItem>
+            {transport === 'direct' && (
+              <Text style={styles.fieldDescription}>
+                {t(
+                  'settings.notifications.push.direct_desc',
+                  'The app keeps its own connection to your mail server, without Google or another app, at the cost of a permanent notification and some battery. If notifications stop after a while, let the app run without battery optimization.',
+                )}
+              </Text>
+            )}
+            {transport === 'direct' && (
+              <Text style={styles.fieldDescription}>
+                {t('settings.notifications.push.direct_inbox_only', 'Over the direct connection, only new mail in the Inbox is notified.')}
+              </Text>
+            )}
+            {transport === 'direct' && (
+              <View style={styles.row}>
+                <Button variant="outline" size="sm" onPress={() => void Linking.sendIntent(BATTERY_OPTIMIZATION_SETTINGS).catch(() => undefined)}>
+                  {t('settings.notifications.push.direct_battery', 'Battery optimization')}
+                </Button>
+              </View>
+            )}
             {transport === 'unifiedpush' && distributors.length === 0 && (
               <Text style={styles.errorText}>
                 {t(
@@ -435,40 +510,44 @@ export function NotificationSettings() {
           </>
         )}
 
-        <SettingItem
-          label={t('settings.notifications.push.relay_label', 'Push relay')}
-          description={t(
-            'settings.notifications.push.relay_desc_mobile',
-            'The server that delivers your notifications. Defaults to the hosted Bulwark relay; change only if you self-host. Must use https.',
-          )}
-          noBorder
-        >
-          <View />
-        </SettingItem>
-        <TextInput
-          value={relayUrl}
-          onChangeText={setRelayUrl}
-          placeholder={DEFAULT_RELAY_BASE_URL}
-          placeholderTextColor={c.textMuted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          editable={supported && !busy}
-          accessibilityLabel={t('settings.notifications.push.relay_label', 'Push relay')}
-          style={[styles.urlInput, !relayValid && styles.urlInputInvalid]}
-        />
-        {!relayValid && (
-          <Text style={styles.errorText}>
-            {t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL')}
-          </Text>
+        {usesRelay(transport) && (
+          <>
+            <SettingItem
+              label={t('settings.notifications.push.relay_label', 'Push relay')}
+              description={t(
+                'settings.notifications.push.relay_desc_mobile',
+                'The server that delivers your notifications. Defaults to the hosted Bulwark relay; change only if you self-host. Must use https.',
+              )}
+              noBorder
+            >
+              <View />
+            </SettingItem>
+            <TextInput
+              value={relayUrl}
+              onChangeText={setRelayUrl}
+              placeholder={DEFAULT_RELAY_BASE_URL}
+              placeholderTextColor={c.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              editable={supported && !busy}
+              accessibilityLabel={t('settings.notifications.push.relay_label', 'Push relay')}
+              style={[styles.urlInput, !relayValid && styles.urlInputInvalid]}
+            />
+            {!relayValid && (
+              <Text style={styles.errorText}>
+                {t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL')}
+              </Text>
+            )}
+          </>
         )}
         {pushEnabled && (
           <View style={styles.actions}>
             <Button
               variant="outline"
               size="sm"
-              onPress={() => void handleEnable(true)}
-              disabled={!supported || busy || !relayValid}
+              onPress={() => void handleEnable(transport, true)}
+              disabled={!supported || busy || (usesRelay(transport) && !relayValid)}
             >
               {t('settings.notifications.push.reenable', 'Re-register')}
             </Button>
@@ -584,10 +663,16 @@ export function NotificationSettings() {
             description={t('settings.notifications.email.enabled_desc', 'Show notifications when new emails arrive')}
             locked={emailEnabledLocked}
           >
-            <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
+            <ToggleSwitch
+              checked={emailEnabled}
+              onChange={(v) => {
+                update('emailNotificationsEnabled', v);
+                void syncDirectPush().catch(() => undefined);
+              }}
+            />
           </SettingItem>
         )}
-        {inboxOnlyAvailable && !inboxOnlyHidden && (
+        {inboxOnlyAvailable && transport !== 'direct' && !inboxOnlyHidden && (
           <SettingItem
             label={t('settings.notifications.email.inbox_only', 'Inbox only')}
             description={t('settings.notifications.email.inbox_only_desc', 'Only notify for mail that lands in the Inbox; skip mail a filter files into another folder')}

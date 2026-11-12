@@ -9,6 +9,7 @@ import { AppRegistry } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 
+import { DIRECT_PUSH_CREDENTIALS_TASK } from './src/lib/direct-push';
 import { pushBackgroundTask } from './src/lib/push-background-task';
 import { widgetTaskHandler } from './src/widgets/task-handler';
 import { refreshWidgetsInBackground } from './src/widgets/sync';
@@ -24,6 +25,13 @@ import { markUiStarted } from './src/widgets/ui-presence';
 // any home-screen widgets (a no-op when none are placed).
 AppRegistry.registerHeadlessTask('BulwarkPushTask', () => async (data: Parameters<typeof pushBackgroundTask>[0]) => {
   await Promise.allSettled([pushBackgroundTask(data), refreshWidgetsInBackground()]);
+});
+
+// The direct connection (Android): BulwarkDirectPushService asks for the
+// accounts' stream credentials, which it keeps in memory only.
+AppRegistry.registerHeadlessTask(DIRECT_PUSH_CREDENTIALS_TASK, () => async (data: { request?: unknown }) => {
+  const { directPushCredentialsTask } = require('./src/lib/direct-push-task') as typeof import('./src/lib/direct-push-task');
+  await directPushCredentialsTask(data);
 });
 
 // Notification quick actions (Mark as read, Delete): run without launching the app UI.

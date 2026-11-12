@@ -9,7 +9,7 @@ import {
 } from '../api/push';
 import { getMailboxes, getSharedMailboxes } from '../api/email';
 import { loadedMailboxes } from './mailbox-source';
-import { jmapClient, JMAPClient } from '../api/jmap-client';
+import { jmapClient, JMAPClient, primaryJmapAccountId } from '../api/jmap-client';
 import { isJMAPSetError, JMAPMethodError, requireMethodResult } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
 import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox, PushSubscription } from '../api/types';
@@ -43,15 +43,27 @@ import {
   UnifiedPushRegisterError,
   type UnifiedPushEndpoint,
 } from './unified-push';
+import { directPushTexts, isDirectPushSupported, startDirectPush, stopDirectPush } from './direct-push';
+import { getClientCertAlias } from './client-cert';
+import { makeLane } from './lane';
 
 // Persist identifiers across launches so we reuse the same JMAP subscription
 // after app restarts. Each account gets its own deviceClientId so the hosted
 // relay can distinguish per-account pushes via the URL slot it forwards.
 const RELAY_BASE_URL_KEY = 'push:relayBaseUrl:v1';
-// Which transport carries pushes to this device: FCM (default) or a
-// UnifiedPush distributor. Device-wide, like the relay URL.
+// Which transport carries pushes to this device: FCM (default), a
+// UnifiedPush distributor, or the app's own connection to the mail server
+// (lib/direct-push). Device-wide, like the relay URL.
 const PUSH_TRANSPORT_KEY = 'push:transport:v1';
 const PUSH_ACCOUNT_IDS_KEY = 'push:accountIds:v1';
+// Set while the direct connection's service is wanted, as syncDirectPush last
+// found it: a launch, a boot or a restarted process finds it set.
+const DIRECT_PUSH_WANTED_KEY = 'push:directWanted:v1';
+// The push accounts owed a relay registration: those the direct connection
+// serves without a subscription. While a relay transport is chosen, the
+// service goes on streaming them until each has its relay
+// (setUpOtherPushAccounts), so no mail falls between the two.
+const RELAY_OWED_IDS_KEY = 'push:relayOwed:v1';
 // Local account id (username@host) → JMAP primary account id. The relay tags
 // every forwarded push with the JMAP account id it came from, which is the
 // only reliable key for routing a payload to the right local account.
@@ -116,8 +128,30 @@ function optedOutKey(accountId: string): string {
   return OPTED_OUT_PREFIX + accountId;
 }
 
-export async function readPushAccountIds(): Promise<string[]> {
-  const raw = await AsyncStorage.getItem(PUSH_ACCOUNT_IDS_KEY);
+export function readPushAccountIds(): Promise<string[]> {
+  return readIdList(PUSH_ACCOUNT_IDS_KEY);
+}
+
+function writePushAccountIds(ids: string[]): Promise<void> {
+  return writeIdList(PUSH_ACCOUNT_IDS_KEY, ids);
+}
+
+function readRelayOwedIds(): Promise<string[]> {
+  return readIdList(RELAY_OWED_IDS_KEY);
+}
+
+/** Adds `add` to the accounts owed a relay registration and takes `remove` out; writes only on a change. */
+async function updateRelayOwedIds(add: Iterable<string>, remove: Iterable<string> = []): Promise<void> {
+  const current = await readRelayOwedIds();
+  const next = new Set([...current, ...add]);
+  for (const id of remove) next.delete(id);
+  if (next.size !== current.length || current.some((id) => !next.has(id))) {
+    await writeIdList(RELAY_OWED_IDS_KEY, [...next]);
+  }
+}
+
+async function readIdList(key: string): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(key);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -128,12 +162,12 @@ export async function readPushAccountIds(): Promise<string[]> {
   }
 }
 
-async function writePushAccountIds(ids: string[]): Promise<void> {
+async function writeIdList(key: string, ids: string[]): Promise<void> {
   const deduped = Array.from(new Set(ids));
   if (deduped.length === 0) {
-    await AsyncStorage.removeItem(PUSH_ACCOUNT_IDS_KEY);
+    await AsyncStorage.removeItem(key);
   } else {
-    await AsyncStorage.setItem(PUSH_ACCOUNT_IDS_KEY, JSON.stringify(deduped));
+    await AsyncStorage.setItem(key, JSON.stringify(deduped));
   }
 }
 
@@ -366,9 +400,9 @@ export function sameTypes(a: readonly string[] | null | undefined, b: readonly s
   return sortedA.every((t, i) => t === sortedB[i]);
 }
 
-export function serverSupportsEmailPush(): boolean {
+export function serverSupportsEmailPush(client: JMAPClient = jmapClient): boolean {
   try {
-    return EMAIL_PUSH_CAPABILITY in (jmapClient.currentSession?.capabilities ?? {});
+    return EMAIL_PUSH_CAPABILITY in (client.currentSession?.capabilities ?? {});
   } catch {
     return false;
   }
@@ -379,8 +413,8 @@ export function serverSupportsEmailPush(): boolean {
  * Not jmapClient.hasAccountCapability: that falls back to the session-level
  * capability, which Stalwart advertises whatever the account.
  */
-function accountListsEmailPush(accountId: string): boolean {
-  const caps = jmapClient.currentSession?.accounts?.[accountId]?.accountCapabilities;
+function accountListsEmailPush(accountId: string, client: JMAPClient = jmapClient): boolean {
+  const caps = client.currentSession?.accounts?.[accountId]?.accountCapabilities;
   return !!caps && EMAIL_PUSH_CAPABILITY in caps;
 }
 
@@ -394,9 +428,9 @@ const PRINCIPALS_OWNER_CAPABILITY = 'urn:ietf:params:jmap:principals:owner';
  * only. 0.16.16 to 0.16.23 list it on every account, ACL shares included, and
  * 0.16.6 to 0.16.15 on none, so there the app has to work it out.
  */
-function emailPushCapabilityIsExact(): boolean {
+function emailPushCapabilityIsExact(client: JMAPClient = jmapClient): boolean {
   try {
-    const caps = jmapClient.currentSession?.accounts?.[jmapClient.accountId]?.accountCapabilities;
+    const caps = client.currentSession?.accounts?.[client.accountId]?.accountCapabilities;
     return !!caps && PRINCIPALS_OWNER_CAPABILITY in caps;
   } catch {
     return false;
@@ -428,15 +462,17 @@ function emailPushCapabilityIsExact(): boolean {
 export async function buildEmailPushConfig(
   mutes: NotificationMutes = EMPTY_NOTIFICATION_MUTES,
   inboxOnly = false,
+  client: JMAPClient = jmapClient,
 ): Promise<Record<string, EmailPushConfig>> {
-  const primary = jmapClient.accountId;
+  const primary = client.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
   const mailboxIdsByAccount = new Map<string, Set<string>>();
   const inboxByAccount = new Map<string, string>();
   // The mail store loads the same folders at the same moment (sign-in,
-  // start): reuse its list rather than a second Mailbox/get of our own.
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
+  // start): reuse its list rather than a second Mailbox/get of our own. It
+  // holds the open account's only: another account's are fetched below.
+  const username = client.username;
+  const serverUrl = client.serverUrl;
   const loaded = username && serverUrl ? await loadedMailboxes(generateAccountId(username, serverUrl)) : null;
   // With mutes a swallowed fetch failure would look like "no such folder"
   // and unmute everything, so let the real error surface; otherwise the
@@ -444,14 +480,14 @@ export async function buildEmailPushConfig(
   const hasMutes = mutes.accounts.length > 0 || Object.keys(mutes.mailboxes).length > 0;
   // In inbox-only mode a swallowed failure would read as "no Inbox" too.
   const all = loaded ?? (hasMutes || inboxOnly
-    ? [...(await getMailboxes()), ...(await getSharedMailboxes())]
+    ? [...(await getMailboxes(undefined, client)), ...(await getSharedMailboxes(client))]
     : [
-      ...(await getMailboxes().catch(() => [] as Mailbox[])),
-      ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
+      ...(await getMailboxes(undefined, client).catch(() => [] as Mailbox[])),
+      ...(await getSharedMailboxes(client).catch(() => [] as Mailbox[])),
     ]);
   for (const m of all) {
     const accountId = m.accountId || primary;
-    if (accountId !== primary && !accountListsEmailPush(accountId)) continue;
+    if (accountId !== primary && !accountListsEmailPush(accountId, client)) continue;
     // Shared-account mailboxes carry a client-side "<account>:<id>" id;
     // the server only knows the original.
     const serverId = m.originalId ?? m.id;
@@ -582,9 +618,10 @@ export function emailPushFallbacks(
 async function writeWithEmailPush<T>(
   emailPush: Record<string, EmailPushConfig> | null,
   write: (emailPush: Record<string, EmailPushConfig> | null) => Promise<T>,
+  client: JMAPClient,
 ): Promise<{ result: T; emailPush: Record<string, EmailPushConfig> | null }> {
   const attempts = emailPush
-    ? emailPushFallbacks(emailPush, jmapClient.accountId, jmapClient.currentSession?.accounts)
+    ? emailPushFallbacks(emailPush, client.accountId, client.currentSession?.accounts)
     : [null];
   for (let i = 0; ; i++) {
     try {
@@ -713,11 +750,22 @@ export function isPushSupported(): boolean {
   return Platform.OS === 'ios' || getNative() !== null || isUnifiedPushSupported();
 }
 
-export type PushTransport = 'fcm' | 'unifiedpush' | 'apns';
+export type PushTransport = 'fcm' | 'unifiedpush' | 'apns' | 'direct';
+
+// The stored transport as this process last read it: undefined before the
+// first read and after a write, which the next read replaces.
+let readTransport: PushTransport | null | undefined;
 
 export async function getStoredPushTransport(): Promise<PushTransport | null> {
   const raw = await AsyncStorage.getItem(PUSH_TRANSPORT_KEY);
-  return raw === 'fcm' || raw === 'unifiedpush' ? raw : null;
+  if (raw === 'direct') readTransport = isDirectPushSupported() ? raw : null;
+  else readTransport = raw === 'fcm' || raw === 'unifiedpush' ? raw : null;
+  return readTransport;
+}
+
+/** The stored transport, read from storage only when this process has not read it since it was last set. */
+export async function knownPushTransport(): Promise<PushTransport | null> {
+  return readTransport === undefined ? getStoredPushTransport() : readTransport;
 }
 
 export async function setStoredPushTransport(transport: PushTransport | null): Promise<void> {
@@ -726,6 +774,60 @@ export async function setStoredPushTransport(transport: PushTransport | null): P
   } else {
     await AsyncStorage.setItem(PUSH_TRANSPORT_KEY, transport);
   }
+  readTransport = undefined;
+}
+
+/**
+ * The accounts the direct connection's service streams while email
+ * notifications are on: every push account while that transport is chosen;
+ * under a relay transport, those still owed their relay registration.
+ */
+export async function readDirectPushAccountIds(): Promise<string[]> {
+  // Read as the push task reads it, also in headless code: that module
+  // imports this one.
+  const { emailNotificationsAllowed } = await import('./push-background-task');
+  if (!(await emailNotificationsAllowed())) return [];
+  const accountIds = await readPushAccountIds();
+  if ((await getStoredPushTransport()) === 'direct') return accountIds;
+  const owed = await readRelayOwedIds();
+  return accountIds.filter((id) => owed.includes(id));
+}
+
+/**
+ * Starts or stops the direct connection's service as wanted; a running one
+ * asks for the accounts again. The stream's pushes name no message: each
+ * notifies the newest unread Inbox mail missing from the account's notified
+ * ids. So whenever notifying resumes for an account, its unread Inbox mail of
+ * that moment is recorded as notified before the service starts: for the
+ * accounts in `resumed`, and for every account it streams when the service
+ * was not wanted before (email notifications back on, the direct connection
+ * chosen again). A launch, a boot or a restarted process finds it wanted
+ * already and records nothing: mail that came meanwhile is news. Not wanted
+ * and not wanted before, as for anyone who never chose the direct
+ * connection, it does nothing at all.
+ */
+export async function syncDirectPush(resumed: Iterable<string> = []): Promise<void> {
+  const streamed = await readDirectPushAccountIds();
+  const wantedBefore = (await AsyncStorage.getItem(DIRECT_PUSH_WANTED_KEY)) !== null;
+  if (streamed.length === 0) {
+    if (wantedBefore) await stopDirectPushService();
+    return;
+  }
+  const accountIds = new Set(resumed);
+  if (!wantedBefore) for (const id of streamed) accountIds.add(id);
+  const { rememberUnreadInboxMail } = await import('./push-background-task');
+  for (const id of accountIds) {
+    // Best effort: when this fails the cost is an old alert, never a lost one.
+    await rememberUnreadInboxMail(id).catch(() => undefined);
+  }
+  await startDirectPush(directPushTexts(t));
+  await AsyncStorage.setItem(DIRECT_PUSH_WANTED_KEY, '1');
+}
+
+/** Stops the direct connection's service and forgets that it was wanted. */
+export async function stopDirectPushService(): Promise<void> {
+  await AsyncStorage.removeItem(DIRECT_PUSH_WANTED_KEY);
+  await stopDirectPush();
 }
 
 export async function getEffectivePushTransport(): Promise<PushTransport> {
@@ -860,7 +962,16 @@ export async function setStoredRelayBaseUrl(url: string | null): Promise<void> {
 /** Whether this account has a JMAP subscription recorded on this device. */
 export async function isPushEnabledForAccount(accountId: string): Promise<boolean> {
   await migrateLegacyPushKeys();
-  return (await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null;
+  return hasPushRecord(accountId);
+}
+
+/**
+ * A subscription is recorded for the account, or, over the direct
+ * connection, which records none, the account is among the push accounts.
+ */
+async function hasPushRecord(accountId: string): Promise<boolean> {
+  if ((await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null) return true;
+  return (await getEffectivePushTransport()) === 'direct' && (await readPushAccountIds()).includes(accountId);
 }
 
 /**
@@ -1366,17 +1477,17 @@ async function pollVerificationCode(
 const inFlightSetups = new Map<string, Promise<PushSetupResult>>();
 
 /**
- * The local account the singleton client serves with a live session; null
+ * The local account the client serves with a live session; null
  * while it has none, such as during an account change, when it holds the
  * credentials of the account being signed in to before its session is up.
  * The setup asks the server through the client, so it must know the client
  * still serves the account it is setting up: a listing of another account's
  * subscriptions took the account's own for revoked and turned its push off.
  */
-function servedAccountId(): string | null {
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (!jmapClient.isConnected || !username || !serverUrl) return null;
+function servedAccountId(client: JMAPClient = jmapClient): string | null {
+  const username = client.username;
+  const serverUrl = client.serverUrl;
+  if (!client.isConnected || !username || !serverUrl) return null;
   return generateAccountId(username, serverUrl);
 }
 
@@ -1391,16 +1502,19 @@ function accountChangedError(): PushSetupError {
  * Full setup flow: ask permission, fetch the device's FCM token, register
  * with the relay, create a JMAP PushSubscription, poll for the verification
  * code, and finalise the subscription. Concurrent calls for the same account
- * are coalesced onto a single in-flight run.
+ * are coalesced onto a single in-flight run. The account is the one the
+ * singleton serves, or the one `client` was loaded for (another signed-in
+ * account, see setUpOtherPushAccounts).
  */
 export function setupPushNotifications(
   params: PushSetupParams,
+  client: JMAPClient = jmapClient,
 ): Promise<PushSetupResult> {
-  const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
+  const key = `${client.username ?? ''}@${client.serverUrl ?? ''}`;
   const existing = inFlightSetups.get(key);
   if (existing) return existing;
   const rollback: SetupRollback = {};
-  const run = setupPushNotificationsInner(params, rollback)
+  const run = setupPushNotificationsInner(params, rollback, client)
     .catch(async (err: unknown) => {
       await rollback.relayMove?.().catch(() => undefined);
       throw err;
@@ -1424,6 +1538,7 @@ interface SetupRollback {
 async function setupPushNotificationsInner(
   params: PushSetupParams,
   rollback: SetupRollback,
+  client: JMAPClient,
 ): Promise<PushSetupResult> {
   const transport = await getEffectivePushTransport();
   const native = getNative();
@@ -1436,6 +1551,7 @@ async function setupPushNotificationsInner(
   if (transport === 'unifiedpush' && !isUnifiedPushSupported()) {
     throw new PushSetupError('platform', t('settings.notifications.push.err_up_android_only', 'UnifiedPush is only available on Android.'));
   }
+  if (transport === 'direct') return setupDirectPush(client);
 
   const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
   if (!relayBaseUrl) throw new PushSetupError('relay', 'relayBaseUrl is required');
@@ -1461,9 +1577,9 @@ async function setupPushNotificationsInner(
     fcmToken = await getFcmTokenOrThrow(native!);
   }
 
-  // setupPushNotifications operates on the currently-loaded jmapClient. We
-  // need its username/serverUrl up-front so we can key per-account state.
-  const accountId = servedAccountId();
+  // The run operates on the account the client serves. We need its
+  // username/serverUrl up-front so we can key per-account state.
+  const accountId = servedAccountId(client);
   if (!accountId) {
     throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
@@ -1543,10 +1659,10 @@ async function setupPushNotificationsInner(
   // subscription", it would drop the key of a working registration.
   logPhase('jmap');
   // From here on the server is asked through the client (see servedAccountId).
-  if (servedAccountId() !== accountId) throw accountChangedError();
+  if (servedAccountId(client) !== accountId) throw accountChangedError();
   let existingSubs: PushSubscription[];
   try {
-    existingSubs = await listPushSubscriptions();
+    existingSubs = await listPushSubscriptions(client);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new PushSetupError(
@@ -1560,22 +1676,17 @@ async function setupPushNotificationsInner(
   // On 1.0 the capabilities the map is built from already leave out every
   // account the server refuses; a list remembered under 0.16 could only keep
   // a group out.
-  const refusedBefore = emailPushCapabilityIsExact() ? [] : await readRefusedEmailPushAccounts(accountId);
-  const emailPush = serverSupportsEmailPush()
+  const refusedBefore = emailPushCapabilityIsExact(client) ? [] : await readRefusedEmailPushAccounts(accountId);
+  const emailPush = serverSupportsEmailPush(client)
     ? withoutAccounts(
-      await buildEmailPushConfig(useSettingsStore.getState().notificationMutes, useSettingsStore.getState().pushNotifyInboxOnly),
+      await buildEmailPushConfig(useSettingsStore.getState().notificationMutes, useSettingsStore.getState().pushNotifyInboxOnly, client),
       refusedBefore,
     )
     : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);
-  const types = await pushTypesFor(accountId, jmapClient.currentSession);
-  let jmapAccountId: string | null = null;
-  try {
-    jmapAccountId = jmapClient.accountId;
-  } catch {
-    jmapAccountId = null;
-  }
+  const types = await pushTypesFor(accountId, client.currentSession);
+  const jmapAccountId = primaryJmapAccountId(client);
   let replacedServerId: string | null = null;
   // Ours only if it was made for this device: Stalwart's ids are short and
   // sequential, so once the server is reinstalled at the same address the
@@ -1589,7 +1700,7 @@ async function setupPushNotificationsInner(
       if (!params.forceRecreate) {
         let refreshed: Awaited<ReturnType<typeof refreshSubscriptionExpires>>;
         try {
-          refreshed = await refreshSubscriptionExpires(match, emailPush, types);
+          refreshed = await refreshSubscriptionExpires(match, emailPush, types, client);
         } catch (err) {
           // Nothing the server said about the subscription (a failed request,
           // rate limiting, a refused method call): it keeps delivering, and
@@ -1601,11 +1712,11 @@ async function setupPushNotificationsInner(
           // the expiry recorded above is from before it. Left there, it would
           // read as lapsed days before the server's copy is, which turns the
           // background extension off for an account without new mail.
-          if (refreshed.updated) await recordServerExpiry(accountId, match.id, deviceClientId);
+          if (refreshed.updated) await recordServerExpiry(accountId, match.id, deviceClientId, client);
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
           await writePushJmapAccountId(accountId, jmapAccountId);
-          await shareAccountWithExtension(accountId, jmapAccountId);
+          await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username, client.currentSession);
           await AsyncStorage.removeItem(optedOutKey(accountId));
           logPhase('done', 'reused existing subscription');
           return { subscriptionId: storedServerId, verified: true };
@@ -1643,11 +1754,11 @@ async function setupPushNotificationsInner(
   for (const s of existingSubs) {
     if (s.id === match?.id) continue;
     if (s.deviceClientId === deviceClientId) {
-      await destroyPushSubscription(s.id).catch(() => undefined);
+      await destroyPushSubscription(s.id, client).catch(() => undefined);
       continue;
     }
     if (await relayReportsDead(relayBaseUrl, s.deviceClientId)) {
-      await destroyPushSubscription(s.id).catch(() => undefined);
+      await destroyPushSubscription(s.id, client).catch(() => undefined);
     }
   }
 
@@ -1661,7 +1772,8 @@ async function setupPushNotificationsInner(
         types: [...wanted],
         expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
         ...(filter ? { emailPush: filter } : {}),
-      }),
+      }, client),
+      client,
     ),
   );
   try {
@@ -1679,7 +1791,7 @@ async function setupPushNotificationsInner(
       const relayChanged = previousRelayBaseUrl !== relayBaseUrl;
       if (!params.forceRecreate || !replacedServerId || relayChanged || !isJMAPSetError(err) || err.type !== 'overQuota') throw err;
       logPhase('jmap', 'subscription limit reached, replacing the old record first');
-      await destroyPushSubscription(replacedServerId);
+      await destroyPushSubscription(replacedServerId, client);
       await AsyncStorage.removeItem(subKey);
       replacedServerId = null;
       created = await create();
@@ -1694,7 +1806,7 @@ async function setupPushNotificationsInner(
   logPhase('verify');
   const verificationCode = await pollVerificationCode(relayBaseUrl, deviceClientId);
   try {
-    await verifyPushSubscription(serverAssignedId, verificationCode);
+    await verifyPushSubscription(serverAssignedId, verificationCode, client);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new PushSetupError(
@@ -1707,22 +1819,141 @@ async function setupPushNotificationsInner(
   await AsyncStorage.setItem(subKey, serverAssignedId);
   if (serverExpires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), serverExpires);
   if (replacedServerId) {
-    await destroyPushSubscription(replacedServerId).catch(() => undefined);
+    await destroyPushSubscription(replacedServerId, client).catch(() => undefined);
   }
   await addPushAccountId(accountId);
   await writePushJmapAccountId(accountId, jmapAccountId);
-  await shareAccountWithExtension(accountId, jmapAccountId);
+  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username, client.currentSession);
   await AsyncStorage.removeItem(optedOutKey(accountId));
+  // A relay now delivers: the direct connection stops serving the account.
+  await updateRelayOwedIds([], [accountId]);
+  await syncDirectPush().catch(() => undefined);
   logPhase('done', 'subscription verified');
 
   return { subscriptionId: serverAssignedId, verified: true };
 }
 
-async function addPushAccountId(accountId: string): Promise<void> {
-  const ids = await readPushAccountIds();
-  if (!ids.includes(accountId)) {
-    await writePushAccountIds([...ids, accountId]);
+/**
+ * The direct connection: the app keeps the account's event stream open
+ * itself, so nothing is registered on the server or with a relay. Every
+ * push account leaves the transport used before
+ * (moveRegisteredAccountsToDirect), and the account on screen joins the push
+ * accounts, which the service streams and the push task serves; with `join`
+ * false (push is off for it) it stays out and only the others move.
+ *
+ * Notifying resumes (syncDirectPush) for every account the direct connection
+ * starts serving here, one that joins the push accounts (new, or back after
+ * push was turned off, which empties its notified ids), and for every
+ * account it still finds registered elsewhere. An account served already
+ * records nothing.
+ */
+async function setupDirectPush(client: JMAPClient, join = true): Promise<PushSetupResult> {
+  const accountId = servedAccountId(client);
+  if (!accountId) {
+    throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
+  // The service's HTTP client can't present a client certificate, and a
+  // server without an event source has nothing to stream: the permanent
+  // notification would promise mail that never comes.
+  if (await getClientCertAlias().catch(() => null)) {
+    throw new PushSetupError('platform', t(
+      'settings.notifications.push.err_direct_client_cert',
+      'The direct connection does not work with a client certificate. Choose another delivery method.',
+    ));
+  }
+  if (join && !client.currentSession?.eventSourceUrl) {
+    throw new PushSetupError('jmap', t(
+      'settings.notifications.push.err_direct_no_event_source',
+      'The mail server offers no event stream for a direct connection. Choose another delivery method.',
+    ));
+  }
+  logPhase('permission');
+  const granted = await requestNotificationPermission();
+  if (!granted) {
+    throw new PushSetupError('permission', t('settings.notifications.push.err_permission', 'Notification permission was not granted.'));
+  }
+  await migrateLegacyPushKeys();
+  // The prompt waits on the user, who can change accounts meanwhile.
+  if (servedAccountId(client) !== accountId) throw accountChangedError();
+  const { registered, unregistered } = await moveRegisteredAccountsToDirect();
+  const joined = join && (await addPushAccountId(accountId));
+  if (join) {
+    await writePushJmapAccountId(accountId, primaryJmapAccountId(client));
+    await AsyncStorage.removeItem(optedOutKey(accountId));
+  }
+  await updateRelayOwedIds(joined ? [accountId, ...unregistered] : unregistered);
+  await syncDirectPush(joined ? [accountId, ...registered] : registered);
+  logPhase('done', 'direct connection');
+  return { subscriptionId: '', verified: true };
+}
+
+/**
+ * The direct connection chosen while push is off for the account on screen:
+ * the other push accounts move to it, the account on screen stays off.
+ * Without another push account there is nothing to move.
+ */
+export async function setupDirectPushForOtherAccounts(): Promise<void> {
+  if ((await readPushAccountIds()).length === 0) return;
+  await setupDirectPush(jmapClient, false);
+}
+
+/**
+ * Every push account still registered for another transport loses its
+ * subscription and relay registration and stays a push account. Each one's
+ * server is asked first, and the move is refused, naming the account, when
+ * one of them offers no event stream: its relay is all it has. One whose
+ * server can't be asked now (offline, signed out) keeps its registration and
+ * is moved, and asked, on the next run, since every launch sets push up
+ * again for the account on screen: until then it delivers through the relay
+ * as before besides the stream. A mail both deliver shows as one notification
+ * but may sound twice: the native lookup of a relay push that carries message
+ * ids records them outside the lane the stream's pushes go through.
+ * Returns the accounts found registered, moved or not, and the push
+ * accounts left without a registration, moved or never registered: the
+ * stream serves them all from now on.
+ */
+async function moveRegisteredAccountsToDirect(): Promise<{ registered: string[]; unregistered: string[] }> {
+  const registered: string[] = [];
+  const unregistered: string[] = [];
+  const moving: Array<{ accountId: string; client: JMAPClient; subscriptions: PushSubscription[] }> = [];
+  for (const accountId of await readPushAccountIds()) {
+    const isRegistered = (await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null
+      || (await AsyncStorage.getItem(deviceClientIdKey(accountId))) !== null;
+    if (!isRegistered) {
+      unregistered.push(accountId);
+      continue;
+    }
+    registered.push(accountId);
+    const client = await clientServing(accountId);
+    const subscriptions = client ? await listPushSubscriptions(client).catch(() => null) : null;
+    if (!client || !subscriptions) {
+      logPhase('teardown', `${accountId}: the server can't be asked, it keeps its registration until the next run`);
+      continue;
+    }
+    if (!client.currentSession?.eventSourceUrl) {
+      throw new PushSetupError('jmap', t(
+        'settings.notifications.push.err_direct_no_event_source_account',
+        'The mail server of {account} offers no event stream for a direct connection. Choose another delivery method.',
+        { account: client.username ?? accountId },
+      ));
+    }
+    moving.push({ accountId, client, subscriptions });
+  }
+  for (const { accountId, client, subscriptions } of moving) {
+    logPhase('teardown', `${accountId}: leaving the previous transport`);
+    await unregisterPushAccount(accountId, { client, subscriptions });
+    await AsyncStorage.multiRemove(registrationKeys(accountId));
+    unregistered.push(accountId);
+  }
+  return { registered, unregistered };
+}
+
+/** Adds the account to the push accounts; true when it was not one before. */
+async function addPushAccountId(accountId: string): Promise<boolean> {
+  const ids = await readPushAccountIds();
+  if (ids.includes(accountId)) return false;
+  await writePushAccountIds([...ids, accountId]);
+  return true;
 }
 
 // Push the subscription's expires forward when it's getting close to the
@@ -1746,6 +1977,7 @@ async function refreshSubscriptionExpires(
   // null when the server has no emailPush support - leave the property alone.
   desiredEmailPush: Record<string, EmailPushConfig> | null,
   types: readonly string[],
+  client: JMAPClient,
 ): Promise<false | { emailPush: Record<string, EmailPushConfig> | null; updated: boolean }> {
   const typesNeedUpdate = !sameTypes(sub.types, types);
   const emailPushNeedsUpdate =
@@ -1766,7 +1998,8 @@ async function refreshSubscriptionExpires(
       if (!sameTypes(sub.types, wanted)) patch.types = [...wanted];
       const { emailPush } = await writeWithEmailPush(
         emailPushNeedsUpdate ? desiredEmailPush : null,
-        (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
+        (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch, client),
+        client,
       );
       return { emailPush, updated: true };
     });
@@ -1781,9 +2014,14 @@ async function refreshSubscriptionExpires(
  * back after an update. Best effort: without an answer the recorded one
  * stays, and the background extension asks the server itself.
  */
-async function recordServerExpiry(accountId: string, subscriptionId: string, deviceClientId: string): Promise<void> {
+async function recordServerExpiry(
+  accountId: string,
+  subscriptionId: string,
+  deviceClientId: string,
+  client: JMAPClient,
+): Promise<void> {
   try {
-    const current = (await listPushSubscriptions()).find(
+    const current = (await listPushSubscriptions(client)).find(
       (s) => s.id === subscriptionId && (!s.deviceClientId || s.deviceClientId === deviceClientId),
     );
     if (current?.expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), current.expires);
@@ -1802,6 +2040,11 @@ async function deregisterFromRelay(
   ).catch(() => undefined);
 }
 
+/** What records an account's registration with its server and the relay. */
+function registrationKeys(accountId: string): string[] {
+  return [subscriptionIdKey(accountId), deviceClientIdKey(accountId), subscriptionExpiresKey(accountId)];
+}
+
 async function clearAccountPushKeys(accountId: string): Promise<void> {
   if (Platform.OS === 'ios') {
     const jmapAccountId = (await readPushJmapAccountIds())[accountId];
@@ -1816,12 +2059,10 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
     native?.removePushAccount?.(accountId);
   }
   await AsyncStorage.multiRemove([
-    subscriptionIdKey(accountId),
-    deviceClientIdKey(accountId),
+    ...registrationKeys(accountId),
     lastNotifiedKey(accountId),
     notifiedIdsKey(accountId),
     emailPushRefusedKey(accountId),
-    subscriptionExpiresKey(accountId),
   ]);
   await writePushJmapAccountId(accountId, null);
 }
@@ -1832,7 +2073,9 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
  * would then never notify), the accounts it refused in the emailPush map, and
  * the recorded subscription's expiry. A replaced server holds none of the old
  * subscriptions, which must not count as revoked: without the expiry the next
- * resync re-creates it (see lib/server-change).
+ * resync re-creates it (see lib/server-change). Over the direct connection
+ * notifying resumes for a push account on the new server: its unread Inbox
+ * mail there is recorded and its stream asked for again (syncDirectPush).
  */
 export async function forgetPushServerState(accountId: string): Promise<void> {
   await AsyncStorage.multiRemove([
@@ -1841,6 +2084,9 @@ export async function forgetPushServerState(accountId: string): Promise<void> {
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
   ]);
+  if ((await readDirectPushAccountIds()).includes(accountId)) {
+    await syncDirectPush([accountId]).catch(() => undefined);
+  }
 }
 
 /**
@@ -1915,7 +2161,24 @@ export async function teardownPushNotificationsForAccount(
   accountId: string,
 ): Promise<void> {
   await migrateLegacyPushKeys();
+  await unregisterPushAccount(accountId);
+  await clearAccountPushKeys(accountId);
 
+  const remaining = (await readPushAccountIds()).filter((id) => id !== accountId);
+  await writePushAccountIds(remaining);
+  await updateRelayOwedIds([], [accountId]);
+  await syncDirectPush().catch(() => undefined);
+}
+
+/**
+ * Ends the account's registration: its subscriptions on the server and its
+ * mapping on the relay. `server` is the account's client with the
+ * subscriptions it just listed, for a caller that asked already.
+ */
+async function unregisterPushAccount(
+  accountId: string,
+  server?: { client: JMAPClient; subscriptions: PushSubscription[] },
+): Promise<void> {
   const storedSubId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
   const storedDcid = await AsyncStorage.getItem(deviceClientIdKey(accountId));
   const relayBaseUrl = await getStoredRelayBaseUrl();
@@ -1925,9 +2188,11 @@ export async function teardownPushNotificationsForAccount(
   // failed enable can leave a registration this client no longer tracks (#841).
   // The recorded id alone is trusted only when the server can't be asked: on
   // a server reinstalled at the same address it can name another device's.
-  const server = await pushSubscriptionsOf(accountId);
+  const client = server ? server.client : await clientServing(accountId);
   const idsToDestroy = new Set<string>();
-  const existing = server && storedDcid ? await server.list().catch(() => null) : null;
+  const existing = client && storedDcid
+    ? server?.subscriptions ?? await listPushSubscriptions(client).catch(() => null)
+    : null;
   if (existing) {
     for (const s of existing) {
       const recordedWithoutDevice = s.id === storedSubId && !s.deviceClientId;
@@ -1936,49 +2201,23 @@ export async function teardownPushNotificationsForAccount(
   } else if (storedSubId) {
     idsToDestroy.add(storedSubId);
   }
-  for (const id of idsToDestroy) {
-    await server?.destroy(id).catch(() => undefined);
+  if (client) {
+    for (const id of idsToDestroy) await destroyPushSubscription(id, client).catch(() => undefined);
   }
   if (relayBaseUrl && storedDcid) {
     await deregisterFromRelay(relayBaseUrl, storedDcid);
   }
-
-  await clearAccountPushKeys(accountId);
-
-  const remaining = (await readPushAccountIds()).filter((id) => id !== accountId);
-  await writePushAccountIds(remaining);
 }
 
 /**
- * Listing and destroying the account's push subscriptions, through the
- * jmapClient when it serves the account, else through a client of its own.
- * Null when the account can't be loaded: its server is left alone then.
+ * The client serving the account: the jmapClient when it does, else one of
+ * its own. Null when the account can't be loaded: its server is left alone
+ * then.
  */
-async function pushSubscriptionsOf(accountId: string): Promise<{
-  list: () => Promise<ListedSubscription[]>;
-  destroy: (id: string) => Promise<void>;
-} | null> {
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (username && serverUrl && generateAccountId(username, serverUrl) === accountId) {
-    return { list: listPushSubscriptions, destroy: destroyPushSubscription };
-  }
+async function clientServing(accountId: string): Promise<JMAPClient | null> {
+  if (servedAccountId() === accountId) return jmapClient;
   const client = new JMAPClient();
-  if (!(await client.loadAccount(accountId).catch(() => false))) return null;
-  const using = [CAPABILITIES.CORE];
-  return {
-    list: async () => {
-      const res = await client.request(
-        [['PushSubscription/get', { ids: null, properties: ['id', 'deviceClientId'] }, '0']],
-        using,
-      );
-      return (requireMethodResult(res, '0', 'PushSubscription/get').list as ListedSubscription[] | undefined) ?? [];
-    },
-    destroy: async (id) => {
-      const res = await client.request([['PushSubscription/set', { destroy: [id] }, '0']], using);
-      requireMethodResult(res, '0', 'PushSubscription/set');
-    },
-  };
+  return (await client.loadAccount(accountId).catch(() => false)) ? client : null;
 }
 
 /**
@@ -2099,6 +2338,12 @@ export async function enablePushFromSettings(params: PushSetupParams): Promise<P
  */
 export async function refreshPushSubscriptionTypes(accountId: string): Promise<void> {
   if (await AsyncStorage.getItem(optedOutKey(accountId))) return;
+  // The direct connection's service asks for the accounts again, and with
+  // them for the types each stream listens to.
+  if ((await getEffectivePushTransport()) === 'direct') {
+    if ((await readPushAccountIds()).includes(accountId)) await syncDirectPush();
+    return;
+  }
   const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
   if (!subscriptionId) return;
   const username = jmapClient.username;
@@ -2146,29 +2391,78 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
  * recorded. A subscription the server no longer has - lapsed, or revoked
  * elsewhere - is left to the account's own resync, which can tell the two
  * apart and verify a new one; so are its delivery filter and push types.
- * Best effort: whatever fails is tried again on the next launch.
+ * An account still owed its relay registration after leaving the direct
+ * connection, which setUpOtherPushAccounts had not reached or failed for, is
+ * set up then, unless the direct connection is chosen again; any other
+ * account without a subscription is left alone. Best effort: whatever fails
+ * is tried again on the next launch.
  */
 export async function renewOtherPushAccounts(): Promise<void> {
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
   const served = username && serverUrl ? generateAccountId(username, serverUrl) : null;
   const relayBaseUrl = await getStoredRelayBaseUrl();
+  let owed = false;
   for (const accountId of await readPushAccountIds()) {
     if (accountId === served) continue;
+    if (await AsyncStorage.getItem(optedOutKey(accountId))) continue;
+    const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+    if (!subscriptionId) {
+      owed ||= (await readRelayOwedIds()).includes(accountId);
+      continue;
+    }
     try {
-      await renewPushAccount(accountId, relayBaseUrl);
+      await renewPushAccount(accountId, subscriptionId, relayBaseUrl);
     } catch (err) {
       logPhase('renew', `${accountId}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+  if (owed && relayBaseUrl && (await getEffectivePushTransport()) !== 'direct') {
+    await setUpOtherPushAccounts(relayBaseUrl);
+  }
+}
+
+const otherAccountsLane = makeLane();
+
+/**
+ * Bring the push accounts still owed a relay registration onto the transport
+ * chosen after the direct connection, which took them off their server and
+ * relay (moveRegisteredAccountsToDirect). Each is set up through a client
+ * loaded for it, never the singleton, one after another: a verification can
+ * take over a minute and Stalwart sends one per account at a time. The direct
+ * connection streams each until its setup succeeds; one that fails, or that
+ * the app is closed before, stays owed and streamed, and is set up again at
+ * the next launch (renewOtherPushAccounts). The service stops once none is
+ * owed. A call made while a run is under way (Direct chosen and left again)
+ * waits for it, then sets up what that run left: two runs at once would
+ * register an account twice.
+ */
+export function setUpOtherPushAccounts(relayBaseUrl: string): Promise<void> {
+  return otherAccountsLane(() => setUpOtherPushAccountsInner(relayBaseUrl));
+}
+
+async function setUpOtherPushAccountsInner(relayBaseUrl: string): Promise<void> {
+  const served = servedAccountId();
+  for (const accountId of await readRelayOwedIds()) {
+    // Back on the direct connection meanwhile: it serves them all again.
+    if ((await getEffectivePushTransport()) === 'direct') break;
+    if (accountId === served) continue;
+    if (await AsyncStorage.getItem(optedOutKey(accountId))) continue;
+    if (await AsyncStorage.getItem(subscriptionIdKey(accountId))) continue;
+    try {
+      const client = new JMAPClient();
+      if (!(await client.loadAccount(accountId))) continue;
+      await setupPushNotifications({ relayBaseUrl, accountLabel: client.username ?? undefined }, client);
+    } catch (err) {
+      logPhase('setup', `${accountId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  await syncDirectPush().catch(() => undefined);
 }
 
 type ListedSubscription = { id: string; deviceClientId?: string | null; expires?: string | null };
 
-async function renewPushAccount(accountId: string, relayBaseUrl: string | null): Promise<void> {
-  if (await AsyncStorage.getItem(optedOutKey(accountId))) return;
-  const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
-  if (!subscriptionId) return;
+async function renewPushAccount(accountId: string, subscriptionId: string, relayBaseUrl: string | null): Promise<void> {
   const deviceClientId = await AsyncStorage.getItem(deviceClientIdKey(accountId));
   const client = new JMAPClient();
   if (!(await client.loadAccount(accountId))) return;
@@ -2199,12 +2493,7 @@ async function renewPushAccount(accountId: string, relayBaseUrl: string | null):
     expires = ownIn(res, '1')?.expires ?? expires;
   }
   if (expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), expires);
-  let jmapAccountId: string | null = null;
-  try {
-    jmapAccountId = client.accountId;
-  } catch {
-    jmapAccountId = null;
-  }
+  const jmapAccountId = primaryJmapAccountId(client);
   await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username, client.currentSession);
 }
 
@@ -2215,6 +2504,8 @@ async function renewPushAccount(accountId: string, relayBaseUrl: string | null):
  */
 async function registerDeviceWithRelay(relayBaseUrl: string, deviceClientId: string, accountLabel?: string): Promise<void> {
   const transport = await getEffectivePushTransport();
+  // The direct connection goes through no relay.
+  if (transport === 'direct') return;
   if (transport === 'apns') {
     const token = (await Notifications.getDevicePushTokenAsync()).data;
     if (typeof token !== 'string' || !token) return;
@@ -2243,7 +2534,7 @@ export async function readPushAccountStates(accountIds: string[]): Promise<Recor
   const out: Record<string, PushAccountState> = {};
   for (const accountId of accountIds) {
     out[accountId] = {
-      enabled: (await AsyncStorage.getItem(subscriptionIdKey(accountId))) !== null,
+      enabled: await hasPushRecord(accountId),
       optedOut: (await AsyncStorage.getItem(optedOutKey(accountId))) !== null,
     };
   }
@@ -2279,7 +2570,7 @@ export async function teardownPushNotifications(): Promise<void> {
     await clearAccountPushKeys(accountId);
   }
 
-  await AsyncStorage.multiRemove([PUSH_ACCOUNT_IDS_KEY, PUSH_JMAP_ACCOUNT_IDS_KEY]);
+  await AsyncStorage.multiRemove([PUSH_ACCOUNT_IDS_KEY, PUSH_JMAP_ACCOUNT_IDS_KEY, RELAY_OWED_IDS_KEY]);
 
   const native = getNative();
   if (native) {
@@ -2288,6 +2579,7 @@ export async function teardownPushNotifications(): Promise<void> {
   // Also release any UnifiedPush registration so the distributor stops
   // holding a channel for us. No-op when never registered.
   await unregisterUnifiedPush().catch(() => undefined);
+  await syncDirectPush().catch(() => undefined);
 }
 
 export interface PushDevice {
