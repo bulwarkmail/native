@@ -91,11 +91,12 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const locale = useLocaleStore((s) => s.locale);
-  const windowLayout = useLayout();
-  const layout = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
+  const readingPane = useSettingsStore((s) => s.readingPane);
+  // A full-window screen, no tab rail: the window is its width.
   const { width } = useWindowDimensions();
-  // On a wide window a message opens next to the list, as in the Mail tab (#97).
-  const pane = useMessagePane(navigation, layout.isSplit, windowLayout.isSplit);
+  const layout = mailLayoutFor(useLayout(), readingPane, width);
+  // Where there is room a message opens next to the list, as in the Mail tab (#97).
+  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
   const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);

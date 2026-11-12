@@ -55,6 +55,7 @@ import { serverSupportsEmailPush } from '../lib/push-notifications';
 import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { unreadRowLabel } from '../lib/unread-row-label';
+import { DOCKED_WIDTH } from '../lib/use-layout';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -1369,9 +1370,6 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     </SafeAreaModal>
   );
 }
-
-/** Width of the permanent sidebar (the webmail's default sidebar is 256 px). */
-export const DOCKED_WIDTH = 272;
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
