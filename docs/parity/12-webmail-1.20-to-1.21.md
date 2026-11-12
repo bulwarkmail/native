@@ -224,7 +224,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: with unsaved changes it asks Save or Discard (`src/screens/ComposeScreen.tsx:1859-1867`); with everything saved it closes without a word (`:1894-1907`), so there is no quick way back to the draft or to drop it.
   - Fix hint: after a close that kept a draft, show a toast with Open (navigate to Compose with the draft) and Discard.
 
-- [ ] **Reply starts a second draft when a reply to that message is already saved** — `P3` — `missing`
+- [x] **Reply starts a second draft when a reply to that message is already saved** — `P3` — `missing` — fixed in 7e61fa9e
   - What WEB does: finds the newest draft whose In-Reply-To names the message and opens it again on Reply (`lib/reply-drafts.ts:18`, `:33`). Changelog 1.21.0 (Mail: Reply picks up a reply you already started).
   - What RN does: Reply always builds a new composer from the message (`src/screens/EmailThreadScreen.tsx:620-625`).
   - Fix hint: look for a `$draft` in the thread whose inReplyTo matches the message's Message-ID and open that draft instead.
