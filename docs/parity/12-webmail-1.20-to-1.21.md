@@ -512,12 +512,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: caches message bodies and optional attachment blobs of the last N days, bodies as JSON in AsyncStorage (`src/stores/offline-cache-store.ts:1-10`), with one device-wide day and MB setting (`src/components/settings/StorageSettings.tsx:39-41`, `:208-226`); plus the Outbox for mail sent offline. No offline search, calendar, contacts or files, no per-account caps, no encryption beyond the app sandbox.
   - Fix hint: a large project. First steps that fit the current cache: per-account caps, search over cached bodies, and offline drafts through the Outbox. Encryption at rest matters less in the app sandbox than in a browser, but org caps (see Organisation policy) need the per-account split.
 
-- [ ] **No app lock** — `P3` — `missing`
+- [ ] **No app lock** — `P3` — `missing` — not done: needs a new native module (biometrics) and a dependency install, decision 14
   - What WEB does: locks the app and the mail kept on the device with a PIN, a passkey or Windows Hello after a chosen time (changelog 1.21.0 App lock; `lib/app-lock/`).
   - What RN does: no app lock; it relies on the phone's own lock, with Delete from a notification asking for the device unlock where needed (`src/lib/push-background-task.ts:132-136`) and screenshot protection (`src/lib/screen-privacy.ts:6-20`).
   - Fix hint: optional biometric or device-credential lock on foreground after a timeout (expo-local-authentication), which needs a new native module and manifest entries.
 
-- [ ] **An admin's remote wipe doesn't reach the phone** — `P3` — `missing`
+- [ ] **An admin's remote wipe doesn't reach the phone** — `P3` — `missing` — not done: the webmail registers devices with a session cookie only, decision 14
   - What WEB does: devices register with the instance and check in at start (`POST /api/devices`, `app/api/devices/route.ts:31`); an admin can wipe a lost device or all of a user's devices, and the device deletes its local data at the next check-in, also when its password was revoked (`lib/offline/device-wipe.ts:1-35`). `organisation.devices.wipeOnForcedSignOut` asks for deletion at once after a refused login. ce3e3b9db (desktop main process part); changelog `CHANGELOG.md:175-176`.
   - What RN does: no device registration, check-in or wipe; a refused login signs the account out, and its cached data is cleared only by the sign-out path (`src/stores/auth-store.ts:553`).
   - Fix hint: cross-repo. Registration needs a session cookie today (`app/api/devices/route.ts:27-29`), so the webmail needs a bearer-token registration for the app first; then the app checks in at start and on resume and wipes the account's caches, drafts and keychain entries on a `wipe` answer.
