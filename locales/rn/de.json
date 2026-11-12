@@ -153,7 +153,10 @@
       "clear_due_date": "Fälligkeitsdatum entfernen",
       "delete_confirm": "Diese Aufgabe löschen?",
       "delete_error": "Aufgabe konnte nicht gelöscht werden",
+      "mark_occurrence_done": "Diesen Tag als erledigt markieren",
+      "mark_occurrence_open": "Diesen Tag als nicht erledigt markieren",
       "not_found": "Diese Aufgabe ist nicht mehr verfügbar.",
+      "open_task": "Aufgabe öffnen",
       "save_error": "Aufgabe konnte nicht gespeichert werden",
       "update_error": "Aufgabe konnte nicht aktualisiert werden"
     },
@@ -186,6 +189,9 @@
     "retry": "Wiederholen",
     "undo": "Rückgängig",
     "update": "Aktualisieren"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Ein Empfänger ist} other {# Empfänger sind}} außerhalb Ihrer Organisation:"
   },
   "contacts": {
     "address_books": {
@@ -494,6 +500,7 @@
       "open": "Öffnen",
       "preview": "Vorschau",
       "save": "Speichern",
+      "save_as": "Speichern unter…",
       "share": "Teilen"
     },
     "attachment_failed": "Anhang konnte nicht geöffnet werden",
@@ -522,6 +529,7 @@
     },
     "export_failed": "Export fehlgeschlagen",
     "forwarded": "Weitergeleitet",
+    "import_email": ".eml oder .zip importieren",
     "load_failed": "E-Mail konnte nicht geladen werden",
     "preview": {
       "open_external": "In App öffnen",
@@ -768,6 +776,8 @@
       "err_handoff_refused_title": "Das Webmail hat diese Anmeldung nicht akzeptiert",
       "err_handoff_server_detail": "Melden Sie sich erneut an. Wenn es weiterhin fehlschlägt, wenden Sie sich an Ihren Administrator.",
       "err_handoff_server_title": "Das Webmail konnte die Anmeldung nicht abschließen",
+      "err_password_expired_detail": "Ändern Sie es in der Weboberfläche des Servers und melden Sie sich dann mit dem neuen an.",
+      "err_password_expired_title": "Ihr Passwort ist abgelaufen",
       "err_token_exchange_title": "{host} hat keine Sitzung gestartet",
       "reauth_detail": "Der Server akzeptiert die gespeicherte Anmeldung für {account} nicht mehr. Melden Sie sich erneut an, um dieses Konto weiter zu nutzen.",
       "reauth_title": "Erneut anmelden",
@@ -1008,6 +1018,12 @@
       "attachment_click_action": {
         "description_mobile": "Was passiert, wenn Sie auf einen Anhang tippen."
       },
+      "attachment_position": {
+        "below-header": "Unter dem Kopfbereich",
+        "beside-sender": "Neben dem Absender",
+        "description": "Wo Anhänge im Kopfbereich der E-Mail erscheinen",
+        "label": "Position der Anhänge"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Antworten werden immer von der Identität gesendet, an die eine Nachricht ging. Wenn aktiviert, wird auch eine Antwort an eine andere Adresse Ihrer Domains (ein Catch-all-Alias) von dieser Adresse gesendet."
       },
@@ -1137,6 +1153,12 @@
         "star": "Stern",
         "tag": "Label"
       },
+      "reading_pane": {
+        "auto": "Neben der Liste, wenn Platz ist",
+        "description": "Auf einem Tablet oder aufgeklappten Foldable die geöffnete Nachricht neben der E-Mail-Liste zeigen. Nur auf diesem Gerät.",
+        "label": "Lesebereich",
+        "off": "Aus: Nachrichten öffnen im Vollbild"
+      },
       "show_avatars_in_junk": "Absender-Avatare im Spam-Ordner anzeigen",
       "show_avatars_in_junk_description": "Absenderlogos für Nachrichten im Spam-Ordner laden. Wenn deaktiviert, werden Spam-Absender nicht kontaktiert.",
       "show_folder_total_count": "Gesamtzahl der Nachrichten bei Ordnern anzeigen",
@@ -1231,6 +1253,7 @@
       "clear_title": "Offline-E-Mails löschen",
       "days_ago": "{count, plural, one {vor # Tag} other {vor # Tagen}}",
       "description": "Laden Sie aktuelle Nachrichten herunter, damit sie sofort öffnen und auch ohne Verbindung lesbar bleiben. Nur der Nachrichtentext — Anhänge werden weiterhin bei Bedarf geladen.",
+      "description_account": "Neue Nachrichten von {account} auf diesem Gerät behalten, damit sie auch ohne Verbindung aufgehen. Jedes Konto hat seinen eigenen Zeitraum und seine eigene Größe.",
       "downloading": "Herunterladen {completed}/{total}…",
       "enabled": "Aktuelle E-Mails zwischenspeichern",
       "enabled_desc": "Wenn aktiviert, behält die App die Nachrichtentexte des gewählten Zeitraums auf diesem Gerät.",
@@ -1300,7 +1323,8 @@
         "error_title": "Aktualisierung fehlgeschlagen"
       },
       "encryption": {
-        "no_keys": "Fügen Sie zuerst einen öffentlichen Schlüssel hinzu - die Verschlüsselung im Ruhezustand benötigt einen."
+        "no_keys": "Fügen Sie zuerst einen öffentlichen Schlüssel hinzu - die Verschlüsselung im Ruhezustand benötigt einen.",
+        "turned_off_on_server": "Die Verschlüsselung im Ruhezustand war eingeschaltet und wurde auf dem Server ausgeschaltet, wie es das Update auf Stalwart 1.0.2 tut. Neue E-Mails werden unverschlüsselt gespeichert, bis Sie sie hier wieder einschalten."
       },
       "load_error": "Sicherheitseinstellungen konnten nicht geladen werden.",
       "not_supported": "Die Verwaltung der Kontosicherheit erfordert einen Stalwart-Server. Diese Funktionen sind für dieses Konto nicht verfügbar.",
@@ -1350,6 +1374,7 @@
         "section_title": "Zwei-Faktor-Authentifizierung"
       },
       "restricted": "Ihr Server erlaubt nur Apps, die sein Administrator freigegeben hat, das Passwort, die Zwei-Faktor-Anmeldung, App-Passwörter und API-Schlüssel zu ändern. Bulwark hat sich ohne diese Freigabe angemeldet: E-Mail, Kontakte, Kalender und Dateien funktionieren, diese Einstellungen aber nicht. Ändern Sie sie in der Weboberfläche Ihres Servers oder im Bulwark Webmail.",
+      "restricted_sign_in_again": "Bulwark hat sich angemeldet, bevor Ihr Server Apps erlaubt hat, diese Einstellungen zu verwalten. Melden Sie sich erneut an, um hier das Passwort, die Zwei-Faktor-Anmeldung, App-Passwörter und API-Schlüssel zu verwalten.",
       "screen_privacy": {
         "block_screenshots": "Bildschirmfotos blockieren",
         "block_screenshots_description": "Verhindert Bildschirmfotos und Bildschirmaufnahmen der App und verbirgt ihren Inhalt in der Ansicht der zuletzt verwendeten Apps.",
@@ -1551,7 +1576,8 @@
         "description_mobile": "Verwendet Farben für Tags und Kalender, die bei Rot-Grün- oder Blau-Gelb-Schwäche unterscheidbar bleiben."
       },
       "plain_language": {
-        "description_mobile": "Einfachere Formulierungen in Einstellungen und Fehlermeldungen. Auf Deutsch und Englisch verfügbar."
+        "description_mobile": "Einfachere Formulierungen in Einstellungen und Fehlermeldungen. Auf Deutsch und Englisch verfügbar.",
+        "label": "Einfache Sprache"
       },
       "reduce_motion": {
         "description_mobile": "Schaltet gleitende Bereiche und Übergänge aus. Die App tut das auch, wenn in den Einstellungen Ihres Geräts „Bewegung reduzieren“ aktiviert ist."
@@ -1582,7 +1608,8 @@
     "sign_out_confirm_title": "Abmelden?",
     "sign_out_confirm_title_account": "Von {account} abmelden?",
     "tab_unavailable": "{name} (nicht verfügbar)",
-    "account_sign_in_again": "Erneut anmelden"
+    "account_sign_in_again": "Erneut anmelden",
+    "account_unread": "{count} ungelesen"
   },
   "unified_mailbox": {
     "accounts_failed": "{count, plural, one {# Konto konnte nicht geladen werden} other {# Konten konnten nicht geladen werden}}"
@@ -1900,6 +1927,9 @@
     "unlocked": "Entsperrt",
     "unlocking": "Wird entsperrt…",
     "wrong_passphrase": "Diese Passphrase ist nicht richtig."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Der Server akzeptiert die gespeicherte Anmeldung für {account} nicht mehr. Die E-Mails des Kontos bleiben auf diesem Gerät ausgeblendet, bis Sie sich erneut anmelden."
   },
   "outbox": {
     "discard": "Verwerfen",
