@@ -13,8 +13,7 @@ const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', '..'
 describe('BIMI logo wiring', () => {
   it('gives list rows the brand domain, none on rows that show the recipient', () => {
     const src = read('screens/EmailListScreen.tsx');
-    expect(src).toMatch(/\(\) => \(showRecipient \? undefined : brandIndicatorDomain\(item, internalDomains\)\),?
-\s*\[showRecipient, item, internalDomains\],/);
+    expect(src).toMatch(/\(\) => \(showRecipient \? undefined : brandIndicatorDomain\(item, internalDomains\)\),\s*\[showRecipient, item, internalDomains\],/);
     expect(src).toMatch(/senderWarning=\{senderWarning\}\s+brandDomain=\{brandDomain\}/);
   });
 
