@@ -34,6 +34,7 @@ import * as Notifications from 'expo-notifications';
 import { credentialsKey } from '../api/jmap-client';
 import { apnsEnvironment, removeIosPushAccount, writeIosPushAccount } from './ios-push-shared';
 import { readArchiveEnabledFor } from './archive-gate';
+import { policySubjectFromSession, pushRuleEmails, pushWithoutContent, sanitizePolicy } from './org-policy';
 import {
   getUnifiedPushDistributors,
   getUnifiedPushEndpoint,
@@ -152,6 +153,75 @@ export async function readPushJmapAccountIds(): Promise<Record<string, string>> 
   } catch {
     return {};
   }
+}
+
+// The persist names of stores/policy-store.ts and stores/account-store.ts.
+// The headless push task can't load the stores, so both are read straight
+// from AsyncStorage.
+const POLICY_CACHE_KEY = 'org-policy-cache';
+const ACCOUNT_REGISTRY_KEY = 'account-registry';
+
+/**
+ * Whether a login's organisation wants its new-mail notifications to say
+ * only that there is new mail (webmail Organisation > Devices,
+ * `pushWithoutContent`), from the policy the app cached for the login
+ * (stores/policy-store.ts). `sessionAccounts` are the accounts of the
+ * login's own JMAP session, for its group scopes; without them, every scope
+ * that turns the rule on counts. With them, the rule is on when it is on for
+ * either address of pushRuleEmails: the name the login signed in with (the
+ * registry's user name, or `sessionUsername` for a bare local part), as the
+ * webmail's web push takes it, or the name the session gives the login's own
+ * account (`ownAccountId`), else the registry's email.
+ *
+ *  - No policy cached for the login (signed in to the mail server directly,
+ *    or never answered by its webmail): off.
+ *  - A policy cache that can't be read or parsed: on, unless the login
+ *    signed in to the mail server directly.
+ *  - An answer that doesn't say what the rule is (the public subset for no
+ *    token or a refused one, or anything else) keeps the rule a full policy
+ *    turned on (CachedPolicy.pushWithoutContent).
+ */
+export async function pushWithoutContentFor(
+  accountId: string,
+  sessionAccounts: Record<string, { name?: unknown; isPersonal?: unknown }> | null | undefined,
+  ownAccountId?: string | null,
+  sessionUsername?: string | null,
+): Promise<boolean> {
+  type RegistryEntry = { id?: unknown; username?: unknown; email?: unknown; webmailUrl?: unknown };
+  let account: RegistryEntry | undefined;
+  try {
+    const raw = await AsyncStorage.getItem(ACCOUNT_REGISTRY_KEY);
+    const accounts = raw ? (JSON.parse(raw) as { state?: { accounts?: unknown } } | null)?.state?.accounts : undefined;
+    if (Array.isArray(accounts)) account = (accounts as RegistryEntry[]).find((a) => a?.id === accountId);
+  } catch {
+    // Unknown: the policy cache alone decides.
+  }
+  if (account && !account.webmailUrl) return false;
+  let entry: unknown;
+  try {
+    const raw = await AsyncStorage.getItem(POLICY_CACHE_KEY);
+    if (raw === null) return false;
+    entry = (JSON.parse(raw) as { state?: { byAccount?: Record<string, unknown> } } | null)?.state?.byAccount?.[accountId];
+  } catch {
+    return true;
+  }
+  if (entry === undefined) return false;
+  if (!entry || typeof entry !== 'object') return true;
+  const cached = entry as { policy?: unknown; webmailUrl?: unknown; pushWithoutContent?: unknown };
+  // Only a policy from the webmail the login signs in through (policy-store activate).
+  if (typeof account?.webmailUrl === 'string' && cached.webmailUrl !== account.webmailUrl) return false;
+  if (cached.pushWithoutContent === true) return true;
+  const policy = sanitizePolicy(cached.policy);
+  if (!policy) return true;
+  if (!sessionAccounts) return pushWithoutContent(policy, null);
+  const emails = pushRuleEmails({
+    username: account?.username,
+    sessionUsername,
+    ownAccountName: ownAccountId ? sessionAccounts[ownAccountId]?.name : undefined,
+    email: account?.email,
+  });
+  if (emails[0] === '') return pushWithoutContent(policy, null);
+  return emails.some((email) => pushWithoutContent(policy, policySubjectFromSession(email, sessionAccounts)));
 }
 
 async function writePushJmapAccountId(accountId: string, jmapAccountId: string | null): Promise<void> {
@@ -1055,13 +1125,22 @@ async function registerWithRelayApns(params: {
  * fetch and show a message of the other's server. Run again for the login
  * that is left once the other is gone (the next resync does). The entry also
  * names the username, which the extension compares with the push's label: a
- * group account of another login can have this login's id.
+ * group account of another login can have this login's id. While the login's
+ * organisation wants notifications without content (pushWithoutContentFor),
+ * the entry says so and the extension fetches nothing; the policy store runs
+ * this again when a new policy for the login is cached.
+ *
+ * On Android the entry goes to the native lookup (BulwarkNativePushFetcher),
+ * which fetches and shows sender and subject and can't read the policy. While
+ * the rule is on, the account has no entry there: the lookup declines its
+ * pushes and the push task, which follows the rule, shows them.
  */
 export async function shareAccountWithExtension(
   accountId: string,
   jmapAccountId: string | null,
   apiUrl: string | undefined = jmapClient.currentSession?.apiUrl,
   username: string | null | undefined = jmapClient.username,
+  session: Pick<JMAPSession, 'accounts' | 'username'> | null | undefined = jmapClient.currentSession,
 ): Promise<void> {
   if (!jmapAccountId) return;
   const byLocal = await readPushJmapAccountIds();
@@ -1073,10 +1152,12 @@ export async function shareAccountWithExtension(
       return;
     }
     if (!apiUrl) return;
+    const withoutContent = await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId, session?.username);
     await writeIosPushAccount(jmapAccountId, {
       credentialsKey: credentialsKey(accountId),
       apiUrl,
       ...(username ? { label: username } : {}),
+      ...(withoutContent ? { withoutContent: true } : {}),
       ...(await sharedSubscription(accountId)),
     }).catch(() => undefined);
     return;
@@ -1088,6 +1169,10 @@ export async function shareAccountWithExtension(
       removePushAccount?: (id: string) => void;
     } | undefined;
     if (duplicate) {
+      native?.removePushAccount?.(jmapAccountId);
+      return;
+    }
+    if (await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId, session?.username)) {
       native?.removePushAccount?.(jmapAccountId);
       return;
     }
@@ -2128,7 +2213,7 @@ async function renewPushAccount(accountId: string, relayBaseUrl: string | null):
   } catch {
     jmapAccountId = null;
   }
-  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username);
+  await shareAccountWithExtension(accountId, jmapAccountId, client.currentSession?.apiUrl, client.username, client.currentSession);
 }
 
 /**

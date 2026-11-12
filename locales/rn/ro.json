@@ -568,7 +568,12 @@
     "not_spam_short": "Nu este spam",
     "quick_reply_login_switched": "Acest mesaj este în alt cont. Reveniți la acel cont pentru a răspunde.",
     "quick_reply_unconfirmed": "Serverul nu a confirmat trimiterea. Verificați folderul Trimise înainte de a trimite din nou.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Pachet de aplicație dintr-un e-mail",
+      "message": "„{name}” este un pachet de aplicație Android. O aplicație instalată dintr-un e-mail poate prelua controlul acestui dispozitiv. Continuați doar dacă vă așteptați la acest fișier.",
+      "continue": "Continuați"
+    }
   },
   "files": {
     "delete_cascade_hint": "Folderele sunt șterse împreună cu tot conținutul lor. Această acțiune nu poate fi anulată.",

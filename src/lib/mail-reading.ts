@@ -5,6 +5,8 @@
  * a pass over the computed styles of an HTML body once it has laid out.
  */
 
+import { PAGE_DOM_SOURCE } from './page-dom';
+
 /** Size of body text in a message, in CSS px at 100 %: what mail used to be fixed at. */
 export const MAIL_BASE_FONT_PX = 14;
 
@@ -29,25 +31,25 @@ export function mailBaseFontPx(factor: number): number {
   return Math.round(MAIL_BASE_FONT_PX * factor * 100) / 100;
 }
 
-const DONE_ATTR = 'data-bulwark-text-size';
-
 /**
  * Script injected into an HTML body that scales its text by `factor`: reads
  * every element's computed font size first and writes the scaled sizes after,
  * pinning each element to its own px size so a child sized in em doesn't grow
  * twice. A line height in px grows by the same ratio. Runs once per document
- * (the body view injects its scripts again after load). Text size works on
- * the text rather than zooming the whole mail, so a fixed-width newsletter
- * keeps its width and its text wraps inside it. Empty at factor 1.
+ * (the body view injects its scripts again after load): the body is marked
+ * with a symbol, which no attribute of the mail can set. The body and the
+ * height hook are taken with the page helpers (./page-dom). Text size works
+ * on the text rather than zooming the whole mail, so a fixed-width
+ * newsletter keeps its width and its text wraps inside it. Empty at factor 1.
  */
 export function buildMailTextSizeScript(factor: number): string {
   if (!(factor > 0) || Math.abs(factor - 1) < 0.005) return '';
   return `
 (function () {
   var F = ${JSON.stringify(factor)};
-  var body = document.body;
-  if (!body || body.hasAttribute('${DONE_ATTR}')) return;
-  body.setAttribute('${DONE_ATTR}', '');
+  ${PAGE_DOM_SOURCE}
+  var body = pagePart(document, 'body');
+  if (!body || !pageOnce(body, 'textSize')) return;
   var NO_TEXT = { IMG: 1, BR: 1, HR: 1, WBR: 1, PICTURE: 1, SOURCE: 1, VIDEO: 1, AUDIO: 1, CANVAS: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, STYLE: 1, SCRIPT: 1, TEMPLATE: 1 };
   var els = [body];
   var all = body.querySelectorAll('*');
@@ -69,7 +71,8 @@ export function buildMailTextSizeScript(factor: number): string {
     s[0].style.setProperty('font-size', Math.round(s[1] * 100) / 100 + 'px', 'important');
     if (s[2] !== null) s[0].style.setProperty('line-height', Math.round(s[2] * 100) / 100 + 'px', 'important');
   }
-  if (window.__rnReport) setTimeout(window.__rnReport, 0);
+  var report = pageGlobal(window, '__rnReport');
+  if (typeof report === 'function') setTimeout(report, 0);
 })();
 true;
 `;

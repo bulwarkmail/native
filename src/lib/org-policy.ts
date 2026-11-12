@@ -275,6 +275,67 @@ export function resolvePolicy(policy: OrgPolicy, subject: PolicySubject | null):
   return { ...policy, features, restrictions, defaults, ...(organisation ? { organisation } : {}), scopes: [] };
 }
 
+/**
+ * Who a login is for the device rules, from its own JMAP session (webmail
+ * lib/admin/server-device-policy.ts): its address, and every account the
+ * session lists as not personal and names by an address.
+ */
+export function policySubjectFromSession(
+  email: string,
+  accounts: Record<string, { name?: unknown; isPersonal?: unknown }>,
+): PolicySubject {
+  const own = email.trim().toLowerCase();
+  const groups = Object.values(accounts)
+    .filter((info) => info && !info.isPersonal && typeof info.name === 'string' && info.name.includes('@'))
+    .map((info) => (info.name as string).trim().toLowerCase())
+    .filter((name) => name !== own)
+    .sort();
+  return { email: own, groups };
+}
+
+/**
+ * The addresses the rule pushWithoutContent is resolved for. It hides
+ * content, so it is on when it is on for either of them:
+ *  - the name the login signed in with, as the webmail's web push takes it
+ *    (lib/admin/server-device-policy.ts, `accountName || username`: the
+ *    claimed login name, or the session's `username` for a bare local part);
+ *  - the name the session gives the login's own account when it is an
+ *    address, else the registry's email, else the user name.
+ * One address when both are the same; [''] when nothing is known.
+ */
+export function pushRuleEmails(names: {
+  username?: unknown;
+  sessionUsername?: unknown;
+  ownAccountName?: unknown;
+  email?: unknown;
+}): string[] {
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const username = text(names.username);
+  const sessionUsername = text(names.sessionUsername);
+  const ownAccountName = text(names.ownAccountName);
+  const signedInAs = !username.includes('@') && sessionUsername.includes('@') ? sessionUsername : username;
+  const address = ownAccountName.includes('@') ? ownAccountName : text(names.email) || username;
+  const emails = [...new Set([signedInAs, address].map((e) => e.toLowerCase()).filter(Boolean))];
+  return emails.length > 0 ? emails : [''];
+}
+
+function pushRuleOn(organisation: Record<string, unknown> | undefined): boolean {
+  const devices = organisation?.devices;
+  return isRecord(devices) && devices.pushWithoutContent === true;
+}
+
+/**
+ * Whether new-mail notifications may say only that there is new mail
+ * (organisation.devices.pushWithoutContent). For a known subject, the policy
+ * resolved for it. Without one (its group accounts are unknown), on when the
+ * global policy or any scope turns it on, as the webmail does for a login
+ * whose scopes it can't work out (strictestOfAllScopes).
+ */
+export function pushWithoutContent(policy: OrgPolicy, subject: PolicySubject | null): boolean {
+  if (subject) return pushRuleOn(resolvePolicy(policy, subject).organisation);
+  return pushRuleOn(policy.organisation) || policy.scopes.some((scope) => pushRuleOn(scope.policy.organisation));
+}
+
 /** Whether a gate is on; without a policy (no webmail known) everything is. */
 export function isFeatureEnabled(policy: OrgPolicy | null | undefined, feature: FeatureGate): boolean {
   if (!policy) return true;

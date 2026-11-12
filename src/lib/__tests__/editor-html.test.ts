@@ -323,7 +323,7 @@ describe('editor visual viewport pinning', () => {
 
 describe('collapsed reply quote (webmail #1405)', () => {
   type Listener = (e?: { preventDefault: () => void }) => void;
-  function boot(opts: { collapseQuote?: boolean; withQuote?: boolean } = {}) {
+  function boot(opts: { collapseQuote?: boolean; withQuote?: boolean; namedInQuote?: boolean } = {}) {
     const docListeners: Record<string, Listener[]> = {};
     const classes = new Set<string>();
     const appended: unknown[] = [];
@@ -362,7 +362,7 @@ describe('collapsed reply quote (webmail #1405)', () => {
       setAttribute(n: string, v: string) { this.attrs[n] = v; },
       addEventListener(n: string, fn: Listener) { (this.listeners[n] ??= []).push(fn); },
     };
-    const document = {
+    const page = {
       activeElement: editor as unknown,
       body: { appendChild: (n: unknown) => appended.push(n) },
       getElementById: () => editor,
@@ -370,6 +370,19 @@ describe('collapsed reply quote (webmail #1405)', () => {
       addEventListener: (name: string, fn: Listener) => { (docListeners[name] ??= []).push(fn); },
       queryCommandState: () => false,
     };
+    // A quoted mail with <img name="body"> and <img name="createElement">:
+    // the page's own body and createElement sit behind Document.prototype,
+    // and the document's properties of those names are the images.
+    class FakeDocument {}
+    let document: object = page;
+    if (opts.namedInQuote) {
+      Object.defineProperty(FakeDocument.prototype, 'body', { get: () => page.body });
+      (FakeDocument.prototype as unknown as Record<string, unknown>).createElement = page.createElement;
+      const img = { tagName: 'IMG', appendChild: () => { throw new Error('appended to the named element'); } };
+      const own: PropertyDescriptorMap = {};
+      for (const [name, value] of Object.entries({ ...page, body: img, createElement: img })) own[name] = { value };
+      document = Object.create(FakeDocument.prototype, own);
+    }
     const window = {
       ReactNativeWebView: { postMessage: () => undefined },
       addEventListener: () => undefined,
@@ -382,7 +395,7 @@ describe('collapsed reply quote (webmail #1405)', () => {
       collapseQuote: opts.collapseQuote ?? true,
       quoteToggleLabels: { show: 'Zitat zeigen', hide: 'Zitat verbergen' },
     }));
-    new Function('window', 'document', script)(window, document);
+    new Function('window', 'document', 'Document', script)(window, document, opts.namedInQuote ? FakeDocument : undefined);
     const click = () => (button.listeners.click ?? []).forEach((fn) => fn({ preventDefault: () => undefined }));
     const caretAt = (node: unknown) => { anchorNode = node; (docListeners.selectionchange ?? []).forEach((fn) => fn()); };
     return { classes, appended, created, button, click, caretAt, quoteChild, typed };
@@ -414,6 +427,13 @@ describe('collapsed reply quote (webmail #1405)', () => {
     expect(page.classes.has('rne-quote-collapsed')).toBe(true);
     page.caretAt(page.quoteChild);
     expect(page.classes.has('rne-quote-collapsed')).toBe(false);
+  });
+
+  it('puts the toggle on the page body when the quoted mail names elements body and createElement', () => {
+    const page = boot({ namedInQuote: true });
+    expect(page.created).toEqual(['button']);
+    expect(page.appended).toEqual([page.button]);
+    expect(page.classes.has('rne-quote-collapsed')).toBe(true);
   });
 
   it('adds nothing to a message without a quote, or when not asked', () => {
@@ -495,5 +515,124 @@ describe('image descriptions (webmail 53cb49d3c)', () => {
     expect(source).toMatch(/editorRef\.current\?\.insertImage\(dataUrl, cid, null\);\s+setAltQueue\(\(q\) => \[\.\.\.q, \{ cid, src: dataUrl \}\]\);/);
     expect(source).toMatch(/editorRef\.current\?\.setImageAlt\(altTarget\.cid, alt\);/);
     expect(source).toMatch(/imageAlt: \(alt\) => t\('email_composer\.image_alt\.plain_text', '\[Image: \{alt\}\]', \{ alt \}\)/);
+  });
+});
+
+describe('a quoted mail that names its elements like the page', () => {
+  // <img name="execCommand"> in a quoted mail is what document.execCommand
+  // returns once the reply is in the editor; the page's own methods and
+  // parts sit behind Document.prototype. Every name the page script takes
+  // from document, one row each, and all at once.
+  const NAMES = [
+    'getElementById', 'createRange', 'queryCommandState', 'addEventListener', 'activeElement',
+    'execCommand', 'createElement', 'createTextNode', 'body',
+  ];
+
+  function boot(named: string[]) {
+    const calls: string[] = [];
+    const docListeners: Record<string, Array<() => void>> = {};
+    const classes = new Set<string>();
+    const editor: Record<string, unknown> = {
+      innerHTML: '',
+      textContent: 'x',
+      scrollHeight: 300,
+      classList: { add: (n: string) => classes.add(n), remove: (n: string) => classes.delete(n), contains: (n: string) => classes.has(n) },
+      querySelector: () => null,
+      setAttribute: () => undefined,
+      focus: () => undefined,
+      addEventListener: () => undefined,
+      getElementsByTagName: () => [],
+    };
+    const quote = { hasAttribute: (n: string) => n === 'data-quoted-html', nextElementSibling: null, offsetTop: 0, offsetLeft: 0, parentNode: editor };
+    editor.firstElementChild = quote;
+    // The caret right after "@an" in the typed text.
+    const typed = { nodeType: 3, data: 'hi @an', parentNode: editor };
+    const selection = {
+      rangeCount: 1, isCollapsed: true, anchorNode: typed, anchorOffset: 6,
+      getRangeAt: () => ({ collapsed: true }),
+      removeAllRanges: () => undefined,
+      addRange: () => calls.push('caret placed'),
+    };
+    const range = () => ({
+      setStart: () => undefined, setEnd: () => undefined, deleteContents: () => undefined, setStartAfter: () => undefined,
+      setStartBefore: () => undefined, selectNodeContents: () => undefined, collapse: () => undefined,
+      insertNode: (n: { tagName?: string }) => calls.push(`inserted ${n.tagName ?? 'text'}`),
+    });
+    const element = (tag: string) => ({
+      tagName: tag.toUpperCase(), style: {}, setAttribute: () => undefined, addEventListener: () => undefined,
+    });
+    class FakeDocument {}
+    const proto = FakeDocument.prototype as unknown as Record<string, unknown>;
+    Object.assign(proto, {
+      getElementById: () => editor,
+      createRange: () => range(),
+      queryCommandState: (name: string) => { calls.push(`state ${name}`); return false; },
+      addEventListener: (name: string, fn: () => void) => { (docListeners[name] ??= []).push(fn); },
+      execCommand: (name: string) => { calls.push(`exec ${name}`); return true; },
+      createElement: (tag: string) => element(tag),
+      createTextNode: (text: string) => ({ nodeType: 3, data: text }),
+    });
+    Object.defineProperty(proto, 'activeElement', { get: () => editor });
+    Object.defineProperty(proto, 'body', { get: () => ({ appendChild: (n: { tagName: string }) => calls.push(`on the body: ${n.tagName}`) }) });
+    const img = { tagName: 'IMG' };
+    const own: PropertyDescriptorMap = {};
+    for (const name of named) own[name] = { value: img };
+    const document = Object.create(proto, own);
+    const window: Record<string, unknown> = {
+      ReactNativeWebView: { postMessage: () => undefined },
+      addEventListener: () => undefined,
+      getSelection: () => selection,
+    };
+    const script = extractScript(buildEditorHtml({
+      initialHtml: '<p><br></p><div data-quoted-html="true">q</div>', placeholder: '', c: LIGHT_COLORS, collapseQuote: true, mentions: true,
+    }));
+    let error: unknown = null;
+    try {
+      new Function('window', 'document', 'Document', script)(window, document, FakeDocument);
+    } catch (e) {
+      error = e;
+    }
+    return { calls, docListeners, rne: window.__rne as Record<string, (...args: unknown[]) => void> | undefined, error };
+  }
+
+  // What the editor does for the user, by the page calls it makes.
+  function exercise(page: ReturnType<typeof boot>): string[] {
+    if (page.error) return [`threw: ${String(page.error)}`];
+    if (!page.rne) return ['no editor API'];
+    page.calls.push('--- selection changes');
+    (page.docListeners.selectionchange ?? []).forEach((fn) => fn());
+    page.calls.push('--- bold, heading');
+    page.rne.exec('bold');
+    page.rne.exec('formatBlock', 'H1');
+    page.calls.push('--- link');
+    page.rne.insertLink('https://example.com/', 'Example');
+    page.calls.push('--- mention');
+    page.rne.insertMention('Ann', 'mailto:ann@example.com');
+    page.calls.push('--- tap below the text');
+    page.rne.focusEnd();
+    return page.calls;
+  }
+
+  it('control: without such an element the editor makes every call it needs', () => {
+    const calls = exercise(boot([]));
+    expect(calls).toContain('on the body: BUTTON');
+    expect(calls).toContain('state bold');
+    expect(calls).toEqual(expect.arrayContaining(['exec bold', 'exec formatBlock', 'exec insertHTML', 'inserted A', 'inserted text', 'caret placed']));
+  });
+
+  it.each(NAMES)('works the same with an element named %s in the quoted mail', (name) => {
+    expect(exercise(boot([name]))).toEqual(exercise(boot([])));
+  });
+
+  it('works the same with all of them at once', () => {
+    expect(exercise(boot(NAMES))).toEqual(exercise(boot([])));
+  });
+
+  it('takes nothing from document by name in the page script', () => {
+    const script = extractScript(buildEditorHtml({ initialHtml: '<p><br></p>', placeholder: '', c: LIGHT_COLORS, collapseQuote: true, mentions: true }));
+    expect(script).not.toMatch(/\bdocument\.[A-Za-z]/);
+    // The helpers are pasted once, at the top.
+    expect(script.match(/function pageCall\(/g)).toHaveLength(1);
+    expect(script.indexOf('function pageCall(')).toBeLessThan(script.indexOf('var editor ='));
   });
 });

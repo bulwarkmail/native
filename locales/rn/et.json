@@ -352,7 +352,12 @@
       "no_identity": "Saatmiseks pole ühtegi identiteeti saadaval"
     },
     "view_dark_mode": "Vaata tumedas režiimis",
-    "view_light_mode": "Vaata heledas režiimis"
+    "view_light_mode": "Vaata heledas režiimis",
+    "package_handoff": {
+      "title": "Rakenduse pakett e-kirjast",
+      "message": "„{name}“ on Androidi rakenduse pakett. E-kirjast paigaldatud rakendus võib selle seadme üle võtta. Jätka ainult siis, kui ootasid seda faili.",
+      "continue": "Jätka"
+    }
   },
   "files": {
     "batch_delete_confirm_message": "Kas oled kindel, et soovid kustutada {count, plural, one {# üksuse} other {# üksust}}? Seda ei saa tagasi võtta.",

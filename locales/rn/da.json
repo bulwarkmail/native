@@ -565,7 +565,12 @@
     "not_spam_short": "Ikke spam",
     "quick_reply_login_switched": "Denne besked ligger i en anden konto. Skift tilbage til den for at svare.",
     "quick_reply_unconfirmed": "Serveren bekræftede ikke afsendelsen. Tjek mappen Sendt, før du sender igen.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Apppakke fra en mail",
+      "message": "\"{name}\" er en Android-apppakke. En app, der installeres fra en mail, kan overtage denne enhed. Fortsæt kun, hvis du ventede denne fil.",
+      "continue": "Fortsæt"
+    }
   },
   "files": {
     "delete_cascade_hint": "Mapper slettes sammen med alt deres indhold. Dette kan ikke fortrydes.",

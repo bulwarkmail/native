@@ -36,6 +36,9 @@ object ShareIntentStore {
         } else {
             streamExtras(intent)?.let { uris.addAll(it) }
         }
+        // Only files of other apps' providers: the rest is dropped before the
+        // app opens or describes anything (see isForeignContentUri).
+        uris.retainAll { isForeignContentUri(it.toString()) }
         val type = intent.type
 
         if (text.isNullOrBlank() && uris.isEmpty()) return null
@@ -55,6 +58,50 @@ object ShareIntentStore {
         intent.removeExtra(Intent.EXTRA_STREAM)
         intent.action = Intent.ACTION_MAIN
         return payload
+    }
+
+    // The app's package names, the GitHub and the Play flavour. A provider of
+    // either belongs to the app, whichever build is running. Keep in sync with
+    // OWN_PACKAGES in src/lib/share-intent.ts.
+    private val OWN_PACKAGES = listOf("com.anonymous.bulwarkmobile", "org.bulwarkmail.mobile")
+
+    // Whether a shared stream may be attached: a `content:` URI whose provider
+    // isn't one of the app's own. Anything else (`file:`, a bare path, other
+    // schemes) can name the app's private files, which this app can read and
+    // the sending app can't. The authority is read as Android resolves it:
+    // ending at the first `/`, `?`, `#` or `\` (Uri.parse stops at a
+    // backslash too), percent-decoded, without a `<user>@` in front or a
+    // port, in any case. Plain string work, so the JVM tests can run it. Same
+    // rule as isForeignContentUri in src/lib/share-intent.ts.
+    fun isForeignContentUri(uri: String): Boolean {
+        if (!uri.regionMatches(0, "content://", 0, "content://".length, ignoreCase = true)) return false
+        val rest = uri.substring("content://".length)
+        val end = rest.indexOfAny(charArrayOf('/', '?', '#', '\\')).let { if (it < 0) rest.length else it }
+        val decoded = percentDecode(rest.substring(0, end)) ?: return false
+        val authority = decoded.substringAfterLast('@').substringBefore(':').trim().lowercase()
+        if (authority.isEmpty()) return false
+        return OWN_PACKAGES.none { authority == it || authority.startsWith("$it.") }
+    }
+
+    // %XX sequences as UTF-8; null when one is malformed. `+` stays a `+`.
+    private fun percentDecode(value: String): String? {
+        if (!value.contains('%')) return value
+        val bytes = java.io.ByteArrayOutputStream()
+        var i = 0
+        while (i < value.length) {
+            val ch = value[i]
+            if (ch == '%') {
+                if (i + 2 >= value.length) return null
+                val hex = value.substring(i + 1, i + 3)
+                if (!hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) return null
+                bytes.write(hex.toInt(16))
+                i += 3
+            } else {
+                bytes.write(ch.toString().toByteArray(Charsets.UTF_8))
+                i += 1
+            }
+        }
+        return bytes.toString("UTF-8")
     }
 
     // `SENDTO mailto:` is how most apps start an email, but React Native's

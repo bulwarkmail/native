@@ -11,6 +11,7 @@
 
 import type { ThemePalette } from '../theme/tokens';
 import { randomHex } from './random';
+import { PAGE_DOM_SOURCE } from './page-dom';
 
 // Minimum visible editor height (px). The editor auto-grows beyond this as the
 // user types, and the parent ScrollView handles overflow.
@@ -77,14 +78,15 @@ export function shouldBlockEditorRemoteImages(opts: {
  * Page-script function for a tap on the empty space under the editor: focus
  * it with the caret where the user's own text goes, in front of the
  * signature or the quoted message, else at the end. A string, embedded in
- * the page script and run by the unit test against stand-in DOM objects.
+ * the page script after the page helpers (./page-dom) and run by the unit
+ * test against stand-in DOM objects.
  */
 export const FOCUS_END_SOURCE = `function focusEnd(editor) {
     editor.focus();
     var sel = window.getSelection();
     if (!sel) return;
     var stop = editor.querySelector('[data-signature-block="start"], [data-signature-block="separator"], [data-quoted-html]');
-    var range = document.createRange();
+    var range = pageCall(document, 'createRange', []);
     var prev = stop ? stop.previousElementSibling : null;
     if (prev) {
       range.selectNodeContents(prev);
@@ -267,7 +269,11 @@ export function buildEditorHtml(opts: {
 <div id="editor" contenteditable="true" dir="auto" data-placeholder="${escapeAttr(placeholder)}"></div>
 <script nonce="${nonce}">
 (function () {
-  var editor = document.getElementById('editor');
+  // The page holds a quoted mail once the initial content is in, and its
+  // named elements stand in for document's properties (<img name=execCommand>):
+  // everything of document is taken with the page helpers.
+  ${PAGE_DOM_SOURCE}
+  var editor = pageCall(document, 'getElementById', ['editor']);
   var lastHtml = null;
   var lastHeight = 0;
   var lastSelection = '';
@@ -332,7 +338,7 @@ export function buildEditorHtml(opts: {
 
   function reportSelection() {
     function active(name) {
-      try { return document.queryCommandState(name); } catch (e) { return false; }
+      try { return pageCall(document, 'queryCommandState', [name]); } catch (e) { return false; }
     }
     function inBlock(tag) {
       var sel = window.getSelection();
@@ -434,7 +440,7 @@ export function buildEditorHtml(opts: {
   lastHtml = editor.innerHTML;
 
   if (COLLAPSE_QUOTE && topQuote()) {
-    quoteToggle = document.createElement('button');
+    quoteToggle = pageCall(document, 'createElement', ['button']);
     quoteToggle.id = 'rne-quote-toggle';
     quoteToggle.type = 'button';
     quoteToggle.textContent = '•••';
@@ -444,7 +450,7 @@ export function buildEditorHtml(opts: {
       e.preventDefault();
       setQuoteCollapsed(!quoteCollapsed());
     });
-    document.body.appendChild(quoteToggle);
+    pagePart(document, 'body').appendChild(quoteToggle);
     editor.classList.add('rne-quote-toggle');
     setQuoteCollapsed(true);
   }
@@ -492,13 +498,13 @@ export function buildEditorHtml(opts: {
     post('blur', null);
   });
   editor.addEventListener('focus', function () { post('focus', null); });
-  document.addEventListener('selectionchange', function () {
-    if (document.activeElement === editor) {
+  pageCall(document, 'addEventListener', ['selectionchange', function () {
+    if (pagePart(document, 'activeElement') === editor) {
       revealQuoteAtCaret();
       reportSelection();
       reportMention();
     }
-  });
+  }]);
 
   // ── Bridge: receive commands from RN ───────────────────────────────
   ${FOCUS_END_SOURCE}
@@ -514,7 +520,7 @@ export function buildEditorHtml(opts: {
             var node = sel.anchorNode;
             while (node && node !== editor) {
               if (node.nodeType === 1 && node.tagName === value.toUpperCase()) {
-                document.execCommand('formatBlock', false, '<p>');
+                pageCall(document, 'execCommand', ['formatBlock', false, '<p>']);
                 reportChange();
                 reportHeight();
                 reportSelection();
@@ -523,9 +529,9 @@ export function buildEditorHtml(opts: {
               node = node.parentNode;
             }
           }
-          document.execCommand('formatBlock', false, '<' + value.toLowerCase() + '>');
+          pageCall(document, 'execCommand', ['formatBlock', false, '<' + value.toLowerCase() + '>']);
         } else {
-          document.execCommand(command, false, value);
+          pageCall(document, 'execCommand', [command, false, value]);
         }
       } catch (e) {}
       reportChange();
@@ -541,7 +547,7 @@ export function buildEditorHtml(opts: {
     },
     insertHtml: function (html) {
       editor.focus();
-      try { document.execCommand('insertHTML', false, html); } catch (e) {}
+      try { pageCall(document, 'execCommand', ['insertHTML', false, html]); } catch (e) {}
       reportChange();
       reportHeight();
     },
@@ -560,7 +566,7 @@ export function buildEditorHtml(opts: {
       var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed;
       // A text typed in the link prompt replaces the selection (insertHTML).
       if (hasSelection && !(label && label.trim())) {
-        try { document.execCommand('createLink', false, trimmed); } catch (e) {}
+        try { pageCall(document, 'execCommand', ['createLink', false, trimmed]); } catch (e) {}
         // execCommand doesn't set rel; tag every anchor that points at this URL.
         Array.prototype.forEach.call(editor.getElementsByTagName('a'), function (a) {
           if (a.getAttribute('href') === trimmed) {
@@ -576,7 +582,7 @@ export function buildEditorHtml(opts: {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
         var html = '<a href="' + safeUrl + '" rel="noopener noreferrer nofollow">' + safe + '</a>';
-        try { document.execCommand('insertHTML', false, html); } catch (e) {}
+        try { pageCall(document, 'execCommand', ['insertHTML', false, html]); } catch (e) {}
       }
       reportChange();
       reportHeight();
@@ -584,7 +590,7 @@ export function buildEditorHtml(opts: {
     },
     unsetLink: function () {
       editor.focus();
-      try { document.execCommand('unlink', false, null); } catch (e) {}
+      try { pageCall(document, 'execCommand', ['unlink', false, null]); } catch (e) {}
       reportChange();
       reportSelection();
     },
@@ -597,7 +603,7 @@ export function buildEditorHtml(opts: {
       var safeCid = cid ? cid.replace(/"/g, '&quot;') : '';
       var html = '<img src="' + safeSrc + '"' + (safeAlt === null ? '' : ' alt="' + safeAlt + '"') +
         (safeCid ? ' data-cid="' + safeCid + '"' : '') + ' />';
-      try { document.execCommand('insertHTML', false, html); } catch (e) {}
+      try { pageCall(document, 'execCommand', ['insertHTML', false, html]); } catch (e) {}
       reportChange();
       reportHeight();
     },
@@ -617,19 +623,19 @@ export function buildEditorHtml(opts: {
       if (!MENTIONS) return;
       var m = currentMention();
       if (!m) return;
-      var range = document.createRange();
+      var range = pageCall(document, 'createRange', []);
       range.setStart(m.node, m.start);
       range.setEnd(m.node, m.end);
       range.deleteContents();
-      var link = document.createElement('a');
+      var link = pageCall(document, 'createElement', ['a']);
       link.setAttribute('href', href);
       link.setAttribute('class', 'mention');
       link.textContent = '@' + label;
-      var space = document.createTextNode(String.fromCharCode(160));
+      var space = pageCall(document, 'createTextNode', [String.fromCharCode(160)]);
       range.insertNode(space);
       range.insertNode(link);
       var sel = window.getSelection();
-      var caret = document.createRange();
+      var caret = pageCall(document, 'createRange', []);
       caret.setStartAfter(space);
       caret.collapse(true);
       if (sel) {

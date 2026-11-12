@@ -571,7 +571,12 @@
     "not_spam_short": "Não spam",
     "quick_reply_login_switched": "Esta mensagem está em outra conta. Volte para ela para responder.",
     "quick_reply_unconfirmed": "O servidor não confirmou o envio. Verifique a pasta Enviados antes de enviar de novo.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Pacote de app de um e-mail",
+      "message": "\"{name}\" é um pacote de app Android. Um app instalado a partir de um e-mail pode assumir o controle deste dispositivo. Só continue se você estava esperando este arquivo.",
+      "continue": "Continuar"
+    }
   },
   "files": {
     "delete_cascade_hint": "As pastas são excluídas junto com tudo o que há dentro delas. Esta ação não pode ser desfeita.",

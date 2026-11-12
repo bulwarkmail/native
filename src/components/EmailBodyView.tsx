@@ -19,6 +19,7 @@ import { isPhishingMarked, turnOffLinks } from '../lib/phishing-links';
 import { plainTextReading } from '../lib/html-to-readable-text';
 import { buildMailTextSizeScript, mailTextFactor } from '../lib/mail-reading';
 import { buildPauseAnimatedImagesScript, withReducedMotion } from '../lib/mail-motion';
+import { PAGE_DOM_SOURCE } from '../lib/page-dom';
 import { useHasContacts } from '../lib/capabilities';
 import { useSettingsStore } from '../stores/settings-store';
 import { readerBlocksRemoteContent, useRemoteContentBlockedByOrg } from '../lib/remote-content-lock';
@@ -77,14 +78,13 @@ interface EmailBodyViewProps {
 //    the engine's broken-image glyph and alt text as stray labels.
 const IMG_FIXUP_SCRIPT = `
 (function () {
-  if (document.__rnImgFixupDone) return;
-  var doc = document;
-  if (!doc.body) return;
-  document.__rnImgFixupDone = true;
+  ${PAGE_DOM_SOURCE}
+  var body = pagePart(document, 'body');
+  if (!body || !pageOnce(document, 'imgFixup')) return;
 
-  doc.querySelectorAll('img[data-blocked-src]').forEach(function (img) {
+  body.querySelectorAll('img[data-blocked-src]').forEach(function (img) {
     var el = img.parentElement;
-    while (el && el !== doc.body) {
+    while (el && el !== body) {
       if (el.tagName === 'TD' || el.tagName === 'TH' ||
           (el.tagName === 'DIV' && el.parentElement && el.parentElement.tagName === 'TD')) {
         var hasText = (el.textContent || '').replace(/[\\s\\u00A0]+/g, '').trim();
@@ -109,7 +109,7 @@ const IMG_FIXUP_SCRIPT = `
       img.style.display = 'none';
     }
   }
-  doc.querySelectorAll('img').forEach(function (img) {
+  body.querySelectorAll('img').forEach(function (img) {
     if (img.hasAttribute('data-blocked-src')) return;
     if (img.complete) {
       hideIfBroken(img);
@@ -123,31 +123,40 @@ const IMG_FIXUP_SCRIPT = `
 
 const HEIGHT_REPORTER = `
 (function () {
+  ${PAGE_DOM_SOURCE}
+  // The body, taken once by its place in the tree, not by a name the mail
+  // can use too.
+  var bodyEl = null;
+  function pageBody() {
+    if (!bodyEl) bodyEl = pagePart(document, 'body');
+    return bodyEl;
+  }
   // One-time: wrap body contents in a block-level div we can measure reliably.
   // body.scrollHeight on Android WebView is pinned to the container viewport
   // height, so we can't trust it. A dedicated wrapper gives a deterministic
-  // bounding box.
+  // bounding box. It is created here, never looked up; the view injects this
+  // script again after load, and that run takes it from window (__rnWrap).
   var wrapperEl = null;
   function ensureWrapper() {
-    var b = document.body;
+    var b = pageBody();
     if (!b) return null;
     if (wrapperEl && wrapperEl.isConnected) return wrapperEl;
-    var wrap = document.getElementById('__rn_email_body_wrap__');
-    if (!wrap) {
-      wrap = document.createElement('div');
-      wrap.id = '__rn_email_body_wrap__';
+    var wrap = pageGlobal(window, '__rnWrap');
+    if (!wrap || !wrap.isConnected || wrap.parentNode !== b) {
+      wrap = pageCall(document, 'createElement', ['div']);
       wrap.style.display = 'block';
       wrap.style.width = '100%';
       wrap.style.transformOrigin = 'top left';
       while (b.firstChild) wrap.appendChild(b.firstChild);
       b.appendChild(wrap);
+      window.__rnWrap = wrap;
     }
     wrapperEl = wrap;
     return wrap;
   }
   // The width available for the email content (body content-box).
   function availWidth() {
-    var b = document.body;
+    var b = pageBody();
     var cs = window.getComputedStyle(b);
     var padL = parseFloat(cs.paddingLeft) || 0;
     var padR = parseFloat(cs.paddingRight) || 0;
@@ -158,7 +167,7 @@ const HEIGHT_REPORTER = `
   // on top of it, "tx" pans the zoomed overflow into view horizontally.
   // Vertical panning needs no state here: the height reports below carry the
   // scaled height, so the surrounding native ScrollView grows and scrolls.
-  var Z = window.__rnZoom = window.__rnZoom || {
+  var Z = window.__rnZoom = pageGlobal(window, '__rnZoom') || {
     scale: 1, tx: 0, pinching: false, fit: 1, layoutW: 0, avail: 0,
   };
   // Apply the combined fit × pinch transform using the cached layout numbers
@@ -210,7 +219,7 @@ const HEIGHT_REPORTER = `
     // getBoundingClientRect reflects the applied transform, so r.height is the
     // already-scaled visual height of the content.
     var r = w.getBoundingClientRect();
-    var b = document.body;
+    var b = pageBody();
     var cs = window.getComputedStyle(b);
     var padTop = parseFloat(cs.paddingTop) || 0;
     var padBottom = parseFloat(cs.paddingBottom) || 0;
@@ -236,8 +245,9 @@ const HEIGHT_REPORTER = `
         requestAnimationFrame(report);
       });
     };
-    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-      document.fonts.ready.then(go).catch(go);
+    var fonts = pagePart(document, 'fonts');
+    if (fonts && fonts.ready && typeof fonts.ready.then === 'function') {
+      fonts.ready.then(go).catch(go);
     } else {
       go();
     }
@@ -247,15 +257,16 @@ const HEIGHT_REPORTER = `
     // Follow-up re-measures: late-arriving images / async layout shifts.
     [120, 300, 700, 1500, 3000].forEach(function (t) { setTimeout(report, t); });
   }
-  if (document.readyState === 'complete') scheduleReports();
+  if (pagePart(document, 'readyState') === 'complete') scheduleReports();
   else {
     window.addEventListener('load', scheduleReports);
-    document.addEventListener('DOMContentLoaded', reportWhenReady);
+    pageCall(document, 'addEventListener', ['DOMContentLoaded', reportWhenReady]);
   }
   try {
     var ro = new ResizeObserver(report);
-    if (document.documentElement) ro.observe(document.documentElement);
-    if (document.body) ro.observe(document.body);
+    var root = pagePart(document, 'documentElement');
+    if (root) ro.observe(root);
+    if (pageBody()) ro.observe(pageBody());
   } catch (e) {}
   try {
     var mo = new MutationObserver(function (records) {
@@ -268,10 +279,10 @@ const HEIGHT_REPORTER = `
         return;
       }
     });
-    if (document.body) mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+    if (pageBody()) mo.observe(pageBody(), { childList: true, subtree: true, attributes: true, characterData: true });
   } catch (e) {}
   try {
-    Array.prototype.forEach.call(document.images || [], function (img) {
+    Array.prototype.forEach.call(pageCall(document, 'querySelectorAll', ['img']), function (img) {
       if (!img.complete) img.addEventListener('load', report);
       img.addEventListener('error', report);
     });
@@ -289,20 +300,22 @@ const HEIGHT_REPORTER = `
 // gesture on release. Guarded so re-injection (onLoadEnd) is a no-op.
 const SWIPE_DETECTOR = `
 (function () {
-  if (window.__rnSwipeInit) return;
+  ${PAGE_DOM_SOURCE}
+  if (pageGlobal(window, '__rnSwipeInit') === true) return;
   window.__rnSwipeInit = true;
   var x0 = 0, y0 = 0, t0 = 0, tracking = false;
-  document.addEventListener('touchstart', function (e) {
+  pageCall(document, 'addEventListener', ['touchstart', function (e) {
     if (e.touches.length !== 1) { tracking = false; return; }
     var t = e.touches[0];
     x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); tracking = true;
-  }, { passive: true, capture: true });
-  document.addEventListener('touchend', function (e) {
+  }, { passive: true, capture: true }]);
+  pageCall(document, 'addEventListener', ['touchend', function (e) {
     if (!tracking) return;
     tracking = false;
     // While the content is pinch-zoomed, horizontal flicks pan the zoomed
     // content — never switch mails.
-    if (window.__rnZoom && (window.__rnZoom.pinching || window.__rnZoom.scale > 1.001)) return;
+    var zoom = pageGlobal(window, '__rnZoom');
+    if (zoom && (zoom.pinching || zoom.scale > 1.001)) return;
     var t = e.changedTouches[0];
     if (!t) return;
     var dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
@@ -311,7 +324,7 @@ const SWIPE_DETECTOR = `
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'swipe', dir: dx < 0 ? 'next' : 'prev' }));
       }
     }
-  }, { passive: true, capture: true });
+  }, { passive: true, capture: true }]);
   true;
 })();
 `;
@@ -328,9 +341,10 @@ const SWIPE_DETECTOR = `
 // messages let the RN side freeze the pane scroll / pager as a second guard.
 const PINCH_ZOOM = `
 (function () {
-  if (window.__rnPinchInit) return;
+  ${PAGE_DOM_SOURCE}
+  if (pageGlobal(window, '__rnPinchInit') === true) return;
   window.__rnPinchInit = true;
-  var Z = window.__rnZoom = window.__rnZoom || {
+  var Z = window.__rnZoom = pageGlobal(window, '__rnZoom') || {
     scale: 1, tx: 0, pinching: false, fit: 1, layoutW: 0, avail: 0,
   };
   var MAX_ZOOM = 4;
@@ -343,8 +357,13 @@ const PINCH_ZOOM = `
       window.ReactNativeWebView.postMessage(JSON.stringify(msg));
     }
   }
+  // The height reporter's hooks on window: __rnApplyZoom and __rnReport.
+  function hook(name) {
+    var fn = pageGlobal(window, name);
+    if (typeof fn === 'function') fn();
+  }
   function apply() {
-    if (window.__rnApplyZoom) window.__rnApplyZoom();
+    hook('__rnApplyZoom');
   }
   // Height reports are rAF-throttled during the gesture so the RN container
   // keeps up with the growing content without re-measuring on every move.
@@ -353,7 +372,7 @@ const PINCH_ZOOM = `
     rafPending = true;
     requestAnimationFrame(function () {
       rafPending = false;
-      if (window.__rnReport) window.__rnReport();
+      hook('__rnReport');
     });
   }
   function dist(t0, t1) {
@@ -361,7 +380,7 @@ const PINCH_ZOOM = `
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  document.addEventListener('touchstart', function (e) {
+  pageCall(document, 'addEventListener', ['touchstart', function (e) {
     if (e.touches.length === 2) {
       var t0 = e.touches[0], t1 = e.touches[1];
       pinch = {
@@ -381,9 +400,9 @@ const PINCH_ZOOM = `
     } else {
       pan = null;
     }
-  }, { passive: false, capture: true });
+  }, { passive: false, capture: true }]);
 
-  document.addEventListener('touchmove', function (e) {
+  pageCall(document, 'addEventListener', ['touchmove', function (e) {
     if (pinch && e.touches.length === 2) {
       e.preventDefault();
       var t0 = e.touches[0], t1 = e.touches[1];
@@ -406,7 +425,7 @@ const PINCH_ZOOM = `
       Z.tx = pan.tx0 + (e.touches[0].clientX - pan.x0);
       apply();
     }
-  }, { passive: false, capture: true });
+  }, { passive: false, capture: true }]);
 
   function onTouchEnd(e) {
     if (pinch && e.touches.length < 2) {
@@ -415,7 +434,7 @@ const PINCH_ZOOM = `
       if (Z.scale < 1.02) { Z.scale = 1; Z.tx = 0; }
       Z.pinching = false;
       apply();
-      if (window.__rnReport) window.__rnReport();
+      hook('__rnReport');
       post({ type: 'zoom', pinching: false, scale: Z.scale });
       // A finger left on screen continues as a pan.
       if (e.touches.length === 1 && Z.scale > 1.001) {
@@ -424,8 +443,8 @@ const PINCH_ZOOM = `
     }
     if (e.touches.length === 0) pan = null;
   }
-  document.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
-  document.addEventListener('touchcancel', onTouchEnd, { passive: true, capture: true });
+  pageCall(document, 'addEventListener', ['touchend', onTouchEnd, { passive: true, capture: true }]);
+  pageCall(document, 'addEventListener', ['touchcancel', onTouchEnd, { passive: true, capture: true }]);
   true;
 })();
 `;

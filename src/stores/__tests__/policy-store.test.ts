@@ -23,6 +23,7 @@ vi.mock('../auth-store', async () => {
   return { useAuthStore: create(() => ({ activeAccountId: null as string | null, session: null as unknown })) };
 });
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../auth-store';
 import { useAccountStore, type AccountEntry } from '../account-store';
 import { useSettingsStore, resetPolicyRulesForTests } from '../settings-store';
@@ -255,6 +256,152 @@ describe('no third-party traffic', () => {
     await usePolicyStore.getState().refresh(ADA);
     expect(usePolicyStore.getState().effective).not.toBeNull();
     expect(mode()).toBe(true);
+  });
+});
+
+describe('the notification rule pushWithoutContent', () => {
+  const withRule = (on: boolean) => ({ ...(policies[WEBMAIL] as object), organisation: { devices: { pushWithoutContent: on } } });
+
+  it('holds while the webmail answers with the public part, until a full policy turns it off', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+
+    // A refused token: the public subset, without organisation settings.
+    publicScope = true;
+    policies[WEBMAIL] = { ...(policies[WEBMAIL] as object), organisation: undefined };
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA]).toMatchObject({ partial: true, pushWithoutContent: true });
+    // And again.
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBe(true);
+    // Written at once, for the push task that reads it from AsyncStorage.
+    await vi.waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem('org-policy-cache'))!);
+      expect(stored.state.byAccount[ADA].pushWithoutContent).toBe(true);
+    });
+
+    publicScope = false;
+    policies[WEBMAIL] = withRule(false);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('isn\'t made up by a public answer after a full policy without it', async () => {
+    policies[WEBMAIL] = withRule(false);
+    await usePolicyStore.getState().refresh(ADA);
+    publicScope = true;
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA]).toMatchObject({ partial: true });
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('holds when an answer without the public marker leaves out the organisation part', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    // A proxy or maintenance page answering 200 with JSON, or a policy without organisation settings.
+    for (const answer of [{}, { restrictions: {}, features: {} }, { ...withRule(true), organisation: null }]) {
+      policies[WEBMAIL] = answer;
+      await usePolicyStore.getState().refresh(ADA);
+      expect(usePolicyStore.getState().byAccount[ADA], JSON.stringify(answer)).toMatchObject({ partial: false, pushWithoutContent: true });
+    }
+    // A full answer, which says what the rule is, decides.
+    policies[WEBMAIL] = withRule(false);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('holds when an answer\'s organisation part is empty or has no device settings', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    for (const answer of [{ organisation: {} }, { ...withRule(true), organisation: { signatures: {} } }, { organisation: { devices: {} } }]) {
+      policies[WEBMAIL] = answer;
+      await usePolicyStore.getState().refresh(ADA);
+      expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent, JSON.stringify(answer)).toBe(true);
+    }
+  });
+
+  it('scopes by the address the session names when the registry holds only a user name', async () => {
+    useAccountStore.getState().updateAccount(ADA, { email: 'ada' });
+    client.currentSession = {
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'a1' },
+      accounts: { a1: { name: 'ada@example.com', isPersonal: true } },
+    };
+    policies[WEBMAIL] = {
+      ...withRule(false),
+      scopes: [{ id: 'd', match: { domains: ['example.com'] }, policy: { organisation: { devices: { pushWithoutContent: true } } } }],
+    };
+    await usePolicyStore.getState().refresh(ADA);
+    publicScope = true;
+    policies[WEBMAIL] = { restrictions: {}, features: {}, defaults: {}, themePolicy: {} };
+    await usePolicyStore.getState().refresh(ADA);
+    // The full policy turned the rule on for example.com, so the public answer keeps it.
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBe(true);
+  });
+});
+
+describe('an alias login', () => {
+  // Signed in as ada@alias.example; the session names the login's own
+  // account by its primary address, ada@example.com. The webmail client
+  // resolves the gates and settings for the user name signed in with
+  // (lib/admin/policy-subject.ts). The push rule hides content, so it is on
+  // when a scope of either address turns it on.
+  const scopedTo = (domain: string) => ({
+    restrictions: {}, features: { calendarEnabled: true }, defaults: {}, themePolicy: {},
+    organisation: { devices: { pushWithoutContent: false } },
+    scopes: [{
+      id: 'd', match: { domains: [domain] },
+      policy: { features: { calendarEnabled: false }, organisation: { devices: { pushWithoutContent: true } } },
+    }],
+  });
+  const PUBLIC = { restrictions: {}, features: {}, defaults: {}, themePolicy: {} };
+
+  beforeEach(() => {
+    client.username = 'ada@alias.example';
+    useAccountStore.getState().updateAccount(ADA, { username: 'ada@alias.example', email: 'ada@alias.example' });
+    client.currentSession = {
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'a1' },
+      accounts: { a1: { name: 'ada@example.com', isPersonal: true } },
+    };
+  });
+
+  // The rule as the store keeps it once the webmail answers with the public part only.
+  async function pushRuleKept(): Promise<boolean> {
+    publicScope = true;
+    policies[WEBMAIL] = PUBLIC;
+    await usePolicyStore.getState().refresh(ADA);
+    publicScope = false;
+    return usePolicyStore.getState().byAccount[ADA].pushWithoutContent === true;
+  }
+
+  it('a domain rule on the alias closes a feature gate', async () => {
+    policies[WEBMAIL] = scopedTo('alias.example');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().effective?.features.calendarEnabled).toBe(false);
+  });
+
+  it('a domain rule on the primary address leaves the feature gate open', async () => {
+    policies[WEBMAIL] = scopedTo('example.com');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().effective?.features.calendarEnabled).toBe(true);
+  });
+
+  it('a domain rule on the primary address turns the push rule on', async () => {
+    policies[WEBMAIL] = scopedTo('example.com');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(await pushRuleKept()).toBe(true);
+  });
+
+  it('a domain rule on the alias turns the push rule on', async () => {
+    policies[WEBMAIL] = scopedTo('alias.example');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(await pushRuleKept()).toBe(true);
+  });
+
+  it('a domain rule on neither address leaves the push rule off', async () => {
+    policies[WEBMAIL] = scopedTo('other.example');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(await pushRuleKept()).toBe(false);
   });
 });
 

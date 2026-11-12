@@ -2,11 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Platform.OS is flipped per test, so hoist a mutable object into the module
 // mock rather than using the fixed 'android' stub from test-setup.
-const { platform } = vi.hoisted(() => ({ platform: { OS: 'android' as string, Version: 33 } }));
+const { platform, nativeModules, alert } = vi.hoisted(() => ({
+  platform: { OS: 'android' as string, Version: 33 },
+  // BulwarkBuild.distribution names the flavour (lib/platform-capabilities).
+  nativeModules: {} as Record<string, unknown>,
+  alert: { answer: 'Cancel' as string, calls: [] as Array<{ title: string; message: string }> },
+}));
 
 vi.mock('react-native', () => ({
   Platform: platform,
-  NativeModules: {},
+  NativeModules: nativeModules,
+  // Presses the button named alert.answer.
+  Alert: {
+    alert: (title: string, message: string, buttons: Array<{ text: string; onPress?: () => void }>) => {
+      alert.calls.push({ title, message });
+      buttons.find((b) => b.text === alert.answer)?.onPress?.();
+    },
+  },
   NativeEventEmitter: class {
     addListener() {
       return { remove: () => undefined };
@@ -348,6 +360,82 @@ describe('shareLocalFile', () => {
 
     expect(Sharing.shareAsync).toHaveBeenCalledTimes(1);
     expect(fsState.deleted).toEqual([]);
+  });
+});
+
+describe('an app package from a mail', () => {
+  const APK = 'application/vnd.android.package-archive';
+
+  beforeEach(() => {
+    platform.OS = 'android';
+    alert.answer = 'Cancel';
+    alert.calls.length = 0;
+    fsState.deleted.length = 0;
+    fsState.copies.length = 0;
+    vi.mocked(File.downloadFileAsync).mockClear();
+    vi.mocked(IntentLauncher.startActivityAsync).mockClear().mockResolvedValue({ resultCode: -1 });
+    vi.mocked(Sharing.shareAsync).mockClear();
+  });
+
+  it('opens "invoice.pdf" as a PDF, whatever type the sender declared', async () => {
+    await shareAttachment('blob-a', 'invoice.pdf', APK);
+    expect(alert.calls).toEqual([]);
+    expect(IntentLauncher.startActivityAsync).toHaveBeenCalledWith(VIEW, expect.objectContaining({ type: 'application/pdf' }));
+  });
+
+  it('asks before an .apk goes to another app, and does nothing when the user cancels', async () => {
+    await shareAttachment('blob-b', 'tool.apk', 'application/octet-stream');
+    expect(alert.calls).toHaveLength(1);
+    expect(alert.calls[0].title).toBe('App package from a mail');
+    expect(alert.calls[0].message).toContain('tool.apk');
+    expect(File.downloadFileAsync).not.toHaveBeenCalled();
+    expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+  });
+
+  it('hands the .apk over once the user continues', async () => {
+    alert.answer = 'Continue';
+    await shareAttachment('blob-c', 'tool.apk', APK);
+    expect(alert.calls).toHaveLength(1);
+    expect(IntentLauncher.startActivityAsync).toHaveBeenCalledWith(VIEW, expect.objectContaining({ type: APK }));
+  });
+
+  it('asks on every way out: save, save from a preview, and a file of a preview', async () => {
+    await downloadAttachment('blob-d', 'tool.apk', APK);
+    const file = new File({ uri: 'file:///cache/bulwark-exports/' } as never, 'tool.apk');
+    await saveLocalFileCopy(file, APK);
+    await shareLocalFile(file, APK);
+    expect(alert.calls).toHaveLength(3);
+    expect(File.downloadFileAsync).not.toHaveBeenCalled();
+    expect(fsState.copies).toEqual([]);
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+    expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
+    // The refused temp file goes at once.
+    expect(fsState.deleted).toEqual([file.uri]);
+  });
+
+  it('does not ask on iOS, which can\'t install it', async () => {
+    platform.OS = 'ios';
+    await shareAttachment('blob-e', 'tool.apk', APK);
+    expect(alert.calls).toEqual([]);
+    expect(Sharing.shareAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not ask in the Play build, which can\'t install packages, and still goes by the name', async () => {
+    nativeModules.BulwarkBuild = { distribution: 'play' };
+    vi.resetModules();
+    try {
+      const mod = await import('../email-export');
+      const launcher = await import('expo-intent-launcher');
+      await mod.shareAttachment('blob-f', 'tool.apk', APK);
+      await mod.shareAttachment('blob-g', 'invoice.pdf', APK);
+      expect(alert.calls).toEqual([]);
+      expect(vi.mocked(launcher.startActivityAsync).mock.calls.map(([, params]) => params?.type))
+        .toEqual([APK, 'application/pdf']);
+    } finally {
+      delete nativeModules.BulwarkBuild;
+      vi.resetModules();
+    }
   });
 });
 

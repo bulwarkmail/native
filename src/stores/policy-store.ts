@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage } from './persist-storage';
@@ -12,12 +13,15 @@ import {
 import { useToastStore } from './toast-store';
 import { useLocaleStore } from './locale-store';
 import { jmapClient } from '../api/jmap-client';
+import { CAPABILITIES } from '../api/types';
 import { fetchWithoutForeignRedirect } from '../lib/client-cert';
 import { isLoopbackHttp } from '../lib/oauth';
 import {
   EMPTY_SETTINGS_RULES,
   isFeatureEnabled,
   isLockedSetting,
+  pushRuleEmails,
+  pushWithoutContent,
   resolvePolicy,
   sanitizePolicy,
   settingsRulesFromPolicy,
@@ -51,6 +55,12 @@ export interface CachedPolicy {
   webmailUrl: string;
   /** Only in policies cached before configByAccount; the config now has its own entry. */
   links?: WebmailLinks;
+  /**
+   * The rule pushWithoutContent, kept from the last full policy for the
+   * account while the webmail answers without saying what the rule is (the
+   * public subset, or anything else): only a full policy turns it off again.
+   */
+  pushWithoutContent?: true;
 }
 
 /** The last answer of the webmail's /api/config, kept apart from the policy (an older webmail has no policy route). */
@@ -108,21 +118,68 @@ function sameClientAccount(account: AccountEntry): boolean {
   return jmapClient.serverUrl === account.serverUrl && jmapClient.username === account.username;
 }
 
-/**
- * Who the policy is for (webmail lib/admin/policy-subject.ts): the
- * account's address, and the group accounts its session shows (shared,
- * not personal, named by an address).
- */
-export function policySubjectFor(account: AccountEntry): PolicySubject {
-  const email = (account.email || account.username).trim().toLowerCase();
-  const session = sameClientAccount(account) ? jmapClient.currentSession : null;
-  const groups = session
+/** The live session of the account, when the client serves it. */
+function sessionOf(account: AccountEntry) {
+  return sameClientAccount(account) ? jmapClient.currentSession : null;
+}
+
+/** The name the session gives the login's own mail account. */
+function ownAccountName(session: ReturnType<typeof sessionOf>): string | undefined {
+  return session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
+}
+
+/** The group accounts the session shows: shared, not personal, named by an address. */
+function sessionGroups(session: ReturnType<typeof sessionOf>): string[] {
+  return session
     ? Object.values(session.accounts)
       .filter((info) => !info.isPersonal && info.name.includes('@'))
       .map((info) => info.name.trim().toLowerCase())
       .sort()
     : [];
-  return { email, groups };
+}
+
+/**
+ * Who the policy is for, as the webmail client works it out
+ * (lib/admin/policy-subject.ts): the user name the login signed in with
+ * (JMAPClient.getUsername, else the name of its own account in the session),
+ * and its group accounts. The feature gates, locked settings and the other
+ * rules are resolved for it.
+ */
+export function policySubjectFor(account: AccountEntry): PolicySubject {
+  const session = sessionOf(account);
+  const email = (account.username || ownAccountName(session) || '').trim().toLowerCase();
+  return { email, groups: sessionGroups(session) };
+}
+
+/**
+ * Who the rule pushWithoutContent is for; it is on when it is on for any of
+ * them (pushRuleEmails): the name the account signed in with, as the
+ * webmail's web push takes it, and the address the session names for the
+ * login's own account (else the registry's email). The same addresses as
+ * pushWithoutContentFor, which the push task uses.
+ */
+export function pushSubjectsFor(account: AccountEntry): PolicySubject[] {
+  const session = sessionOf(account);
+  const groups = sessionGroups(session);
+  return pushRuleEmails({
+    username: account.username,
+    sessionUsername: session?.username,
+    ownAccountName: ownAccountName(session),
+    email: account.email,
+  }).map((email) => ({ email, groups }));
+}
+
+/**
+ * Whether a policy answer is a full one: not the public subset, and it says
+ * what the rule pushWithoutContent is. The webmail fills in the whole
+ * organisation part of a full answer (sanitizeOrganisationPolicy), so the
+ * rule is a boolean there; an answer without it says nothing about it.
+ */
+function isFullAnswer(answer: { policy: OrgPolicy; partial: boolean }): boolean {
+  if (answer.partial) return false;
+  const devices = answer.policy.organisation?.devices;
+  return !!devices && typeof devices === 'object'
+    && typeof (devices as Record<string, unknown>).pushWithoutContent === 'boolean';
 }
 
 function isSecureUrl(url: string): boolean {
@@ -204,6 +261,27 @@ async function bearerFor(account: AccountEntry): Promise<{ authorization: string
   }
 }
 
+/**
+ * Share the account with the native push code again once a policy for it is
+ * cached, so what that code shows follows the rule pushWithoutContent
+ * (shareAccountWithExtension): the iOS extension reads the rule from its
+ * entry, and Android's native lookup has no entry while the rule is on. The
+ * entry is written from the live client's session, so only for the account
+ * it serves.
+ */
+function shareNotificationRuleWithExtension(accountId: string, account: AccountEntry): void {
+  if ((Platform.OS !== 'ios' && Platform.OS !== 'android') || !sameClientAccount(account)) return;
+  let jmapAccountId: string | null = null;
+  try {
+    jmapAccountId = jmapClient.accountId;
+  } catch {
+    jmapAccountId = null;
+  }
+  void import('../lib/push-notifications')
+    .then(({ shareAccountWithExtension }) => shareAccountWithExtension(accountId, jmapAccountId))
+    .catch(() => undefined);
+}
+
 const refreshes = new Map<string, Promise<void>>();
 
 export const usePolicyStore = create<PolicyState>()(
@@ -254,11 +332,24 @@ export const usePolicyStore = create<PolicyState>()(
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
           const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
+          // Only a full answer, one that says what the rule is, decides it;
+          // the public subset, or any other answer without it, leaves the
+          // stored rule as it is.
+          const holdsPushRule = !!fetched && !isFullAnswer(fetched) && previous?.webmailUrl === webmailUrl && (
+            previous.pushWithoutContent === true
+            || (isFullAnswer(previous) && pushSubjectsFor(account).some((subject) => pushWithoutContent(previous.policy, subject)))
+          );
           set({
             ...(fetched ? {
               byAccount: {
                 ...get().byAccount,
-                [accountId]: { policy: fetched.policy, partial: fetched.partial, fetchedAt: Date.now(), webmailUrl },
+                [accountId]: {
+                  policy: fetched.policy,
+                  partial: fetched.partial,
+                  fetchedAt: Date.now(),
+                  webmailUrl,
+                  ...(holdsPushRule ? { pushWithoutContent: true as const } : {}),
+                },
               },
             } : {}),
             // Config links cached inside an older policy entry move to their own.
@@ -270,6 +361,7 @@ export const usePolicyStore = create<PolicyState>()(
             } : {}),
           });
           if (useAuthStore.getState().activeAccountId === accountId) get().activate(accountId);
+          if (fetched) shareNotificationRuleWithExtension(accountId, account);
         })().finally(() => refreshes.delete(accountId));
         refreshes.set(accountId, run);
         return run;
@@ -287,7 +379,9 @@ export const usePolicyStore = create<PolicyState>()(
     }),
     {
       name: 'org-policy-cache',
-      storage: createPersistStorage(),
+      // Small, and read straight from AsyncStorage by the headless push
+      // task and the iOS extension's share step, so it isn't held back.
+      storage: createPersistStorage({ writeDelayMs: 0 }),
       partialize: (state) => ({ byAccount: state.byAccount, configByAccount: state.configByAccount }) as unknown as PolicyState,
     },
   ),

@@ -568,7 +568,12 @@
     "not_spam_short": "Geen spam",
     "quick_reply_login_switched": "Dit bericht staat in een ander account. Ga terug naar dat account om te antwoorden.",
     "quick_reply_unconfirmed": "De server heeft het verzenden niet bevestigd. Controleer je map Verzonden voordat je opnieuw verzendt.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "App-pakket uit een e-mail",
+      "message": "'{name}' is een Android-app-pakket. Een app die vanuit een e-mail wordt geïnstalleerd, kan dit apparaat overnemen. Ga alleen door als je dit bestand verwachtte.",
+      "continue": "Doorgaan"
+    }
   },
   "files": {
     "delete_cascade_hint": "Mappen worden samen met alles erin verwijderd. Dit kan niet ongedaan worden gemaakt.",

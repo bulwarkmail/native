@@ -568,7 +568,12 @@
     "not_spam_short": "Nie spam",
     "quick_reply_login_switched": "Ta wiadomość jest na innym koncie. Przełącz się na nie, aby odpowiedzieć.",
     "quick_reply_unconfirmed": "Serwer nie potwierdził wysłania. Sprawdź folder Wysłane, zanim wyślesz ponownie.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Pakiet aplikacji z e-maila",
+      "message": "„{name}” to pakiet aplikacji na Androida. Aplikacja zainstalowana z e-maila może przejąć kontrolę nad tym urządzeniem. Kontynuuj tylko wtedy, gdy spodziewasz się tego pliku.",
+      "continue": "Kontynuuj"
+    }
   },
   "files": {
     "delete_cascade_hint": "Foldery są usuwane wraz z całą zawartością. Tej operacji nie można cofnąć.",

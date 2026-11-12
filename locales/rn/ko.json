@@ -566,7 +566,12 @@
     "not_spam_short": "스팸 아님",
     "spam_short": "스팸",
     "quick_reply_login_switched": "이 메시지는 다른 계정에 있어요. 답장하려면 해당 계정으로 다시 전환해 주세요.",
-    "quick_reply_unconfirmed": "서버에서 전송을 확인하지 않았어요. 다시 보내기 전에 보낸편지함을 확인해 주세요."
+    "quick_reply_unconfirmed": "서버에서 전송을 확인하지 않았어요. 다시 보내기 전에 보낸편지함을 확인해 주세요.",
+    "package_handoff": {
+      "title": "메일로 받은 앱 패키지",
+      "message": "\"{name}\"은(는) Android 앱 패키지예요. 메일로 받은 앱을 설치하면 이 기기가 장악될 수 있어요. 이 파일을 받을 예정이었을 때만 계속하세요.",
+      "continue": "계속"
+    }
   },
   "files": {
     "delete_cascade_hint": "폴더를 삭제하면 안에 있는 모든 항목도 함께 삭제돼요. 이 작업은 되돌릴 수 없어요.",

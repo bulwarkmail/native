@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
@@ -15,7 +15,10 @@ import {
 import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
 import { stripBidiControls } from './bidi';
-import { handoffMimeType } from './file-preview';
+import { singleLine } from './single-line';
+import { ANDROID_PACKAGE_MIME, handoffMimeType } from './file-preview';
+import { isForeignContentUri } from './share-intent';
+import { androidDistribution } from './platform-capabilities';
 import { assertCanDownload, assertCanExport } from './download-guard';
 
 const RFC822 = 'message/rfc822';
@@ -147,6 +150,50 @@ function scheduleTempCleanup(file: File): void {
 // one exception: it assembles the intent itself, so there it's the reverse —
 // only a content URI is grantable to another app.
 
+/** The most of a file's name the question before handing it on shows. */
+const NAME_IN_QUESTION_MAX = 60;
+
+/**
+ * A file's name as the question shows it: one line, without control or
+ * directional formatting characters, and cut in the middle when long, so
+ * the extension stays in view.
+ */
+export function nameInQuestion(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  const line = singleLine(stripBidiControls(name).replace(/[\x00-\x1f\x7f-\x9f]+/g, ' '));
+  if (line.length <= NAME_IN_QUESTION_MAX) return line;
+  const dot = line.lastIndexOf('.');
+  const ext = dot > 0 && line.length - dot <= 12 ? line.slice(dot) : '';
+  return `${line.slice(0, NAME_IN_QUESTION_MAX - ext.length - 1).trimEnd()}…${ext}`;
+}
+
+/**
+ * Before a file handed to another app goes as an app package (a name ending
+ * in .apk, see handoffMimeType): asks in the app's own dialog, which says
+ * that it is an app package from a mail. Resolves true to go on. Only the
+ * GitHub build on Android asks: the Play build can't install packages, and
+ * iOS can't run them.
+ */
+export function confirmHandoff(name: string | undefined, type: string | null | undefined): Promise<boolean> {
+  if (Platform.OS !== 'android' || androidDistribution === 'play') return Promise.resolve(true);
+  if (handoffMimeType(name, type) !== ANDROID_PACKAGE_MIME) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    Alert.alert(
+      t('email_viewer.package_handoff.title', 'App package from a mail'),
+      t(
+        'email_viewer.package_handoff.message',
+        '"{name}" is an Android app package. An app installed from a mail can take over this device. Only continue if you expected this file.',
+        { name: nameInQuestion(name ?? '') },
+      ),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
+        { text: t('email_viewer.package_handoff.continue', 'Continue'), style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
+}
+
 // Android-only: hand the file to whichever app owns the type (PDF viewer,
 // gallery, video player, ...) rather than to the share sheet. Returns false
 // when the handoff didn't happen so the caller can fall back to sharing —
@@ -251,6 +298,7 @@ export async function shareAttachment(
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
+  if (!(await confirmHandoff(filename, mimeType))) return;
   const downloaded = await cacheBlobFile(blobId, filename, mimeType, accountId);
 
   if (Platform.OS === 'android' && (await openWithViewer(downloaded, mimeType))) {
@@ -290,6 +338,7 @@ export async function downloadAttachment(
     : safeAttachmentName(name, type);
   assertCanDownload();
   const mimeType = type || 'application/octet-stream';
+  if (!(await confirmHandoff(filename, mimeType))) return;
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
   const downloaded = await downloadInto(url, dest, Paths.document);
@@ -314,6 +363,7 @@ async function offerSavedFile(file: File, filename: string, mimeType: string): P
 export async function saveLocalFileCopy(file: File, mimeType: string, filename = file.name): Promise<void> {
   assertCanDownload();
   const name = safeAttachmentName(filename, mimeType);
+  if (!(await confirmHandoff(name, mimeType))) return;
   const dest = new File(Paths.document, name);
   if (dest.exists) dest.delete();
   file.copy(dest);
@@ -358,12 +408,41 @@ export async function cachePreviewFile(
   }
 }
 
+// Where the pickers put the copies they hand to the composer: expo-image-picker
+// (library and camera) and expo-document-picker with copyToCacheDirectory.
+const PICKER_CACHE_DIRS = ['ImagePicker', 'DocumentPicker'];
+
+/**
+ * Whether a compose attachment's file may be copied for a preview or handed
+ * on: a file another app shared (isForeignContentUri), or a copy a picker
+ * made in the app's cache. Any other file of the app (its databases, offline
+ * mail, settings) never is an attachment.
+ */
+export function isComposeAttachmentUri(uri: string, cacheUri: string = Paths.cache.uri): boolean {
+  if (/^content:/i.test(uri)) return isForeignContentUri(uri);
+  const pathOf = (fileUri: string): string | null => {
+    const match = /^file:\/\/(?:localhost)?(\/[^?#]*)$/i.exec(fileUri);
+    if (!match) return null;
+    try {
+      return decodeURIComponent(match[1]).replace(/^\/private(?=\/)/, '');
+    } catch {
+      return null;
+    }
+  };
+  const path = pathOf(uri);
+  const cache = pathOf(cacheUri);
+  if (!path || !cache || path.split('/').some((segment) => segment === '..' || segment === '.')) return false;
+  const base = cache.endsWith('/') ? cache : `${cache}/`;
+  return PICKER_CACHE_DIRS.some((dir) => path.startsWith(`${base}${dir}/`));
+}
+
 /**
  * {@link cachePreviewFile} for a file already on the device (a compose
  * attachment): copied, so the preview owns its copy and the original is never
- * deleted with it.
+ * deleted with it. Only for a file isComposeAttachmentUri accepts.
  */
 export function copyPreviewFile(uri: string, name: string | undefined, type: string | undefined): File {
+  if (!isComposeAttachmentUri(uri)) throw new Error(t('email_viewer.attachment_failed', 'Could not open attachment'));
   void sweepStaleExportFiles();
   const dir = newPreviewDir();
   ensureDir(dir);
@@ -424,6 +503,10 @@ export async function shareLocalFile(
   opts: { forceSheet?: boolean; keep?: boolean } = {},
 ): Promise<void> {
   assertCanDownload();
+  if (!(await confirmHandoff(file.name, mimeType))) {
+    if (!opts.keep) deleteQuietly(file);
+    return;
+  }
   if (!opts.forceSheet && Platform.OS === 'android' && (await openWithViewer(file, mimeType))) return;
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));

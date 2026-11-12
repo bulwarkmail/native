@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { jmapClient, type StoredCredentials } from '../api/jmap-client';
 import { CAPABILITIES } from '../api/types';
 import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
@@ -24,6 +25,7 @@ import {
   notifiedIdsKey,
   pushSubscriptionDueForExtension,
   pushSubscriptionNeedsExtension,
+  pushWithoutContentFor,
   accountMatchesPushLabel,
   readPushAccountIds,
   readPushJmapAccountIds,
@@ -52,6 +54,9 @@ const LEGACY_QUERY_LIMIT = 5;
 const EMAIL_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size', 'receivedAt', 'from', 'subject', 'preview',
 ];
+// Under the organisation rule pushWithoutContent: enough to pick what is new
+// and unread, nothing that says who wrote or what about.
+const CONTENT_FREE_EMAIL_PROPERTIES = ['id', 'threadId', 'keywords', 'receivedAt'];
 
 interface PushPersistedSettings {
   emailNotificationsEnabled?: boolean;
@@ -143,6 +148,10 @@ interface ShowNotificationOptions {
   verificationCode?: string;
   copyCodeLabel?: string;
   codeCopiedLabel?: string;
+  // The login's organisation wants notifications without content: the
+  // account's group summary takes no lines from the other notifications in
+  // the group, which may be message notifications just taken out.
+  withoutContent?: true;
 }
 
 interface BulwarkFcmNative {
@@ -307,6 +316,11 @@ interface DetachedSession {
   apiUrl: string;
   authHeader: string;
   jmapAccountId: string;
+  // The session's accounts: the login's group accounts decide which scopes
+  // of its organisation policy apply.
+  accounts: JMAPSession['accounts'];
+  // The name the server signed the login in as (session `username`).
+  username?: string;
 }
 
 function authHeaderFor(creds: StoredCredentials): string {
@@ -375,7 +389,10 @@ async function openDetachedSession(accountId: string): Promise<DetachedSession |
     || Object.keys(session.accounts ?? {})[0]
     || null;
   if (!jmapAccountId) return null;
-  return { apiUrl: rewriteApiUrl(session, baseUrl), authHeader, jmapAccountId };
+  return {
+    apiUrl: rewriteApiUrl(session, baseUrl), authHeader, jmapAccountId, accounts: session.accounts ?? {},
+    ...(typeof session.username === 'string' ? { username: session.username } : {}),
+  };
 }
 
 /**
@@ -426,9 +443,10 @@ async function detachedGetEmails(
   session: DetachedSession,
   accountId: string,
   ids: string[],
+  properties: string[] = EMAIL_PROPERTIES,
 ): Promise<{ emails: Email[]; hasTrash: boolean }> {
   const responses = await jmapPost(session, [
-    ['Email/get', { accountId, ids, properties: EMAIL_PROPERTIES }, '0'],
+    ['Email/get', { accountId, ids, properties }, '0'],
     ['Mailbox/get', { accountId, properties: ['id', 'role'] }, '1'],
   ]);
   const body = methodResult(responses, 'Email/get');
@@ -527,7 +545,12 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
           err instanceof Error ? err.message : err,
         );
         // Something arrived; say so even though the lookup couldn't say what.
-        if (!match.ambiguous) await showLookupFailedNotification(accountId, payload, registry).catch(() => undefined);
+        // Under the organisation's rule (without the session, any scope that
+        // turns it on counts) the group summary takes no lines either.
+        if (!match.ambiguous) {
+          const withoutContent = await pushWithoutContentFor(accountId, null).catch(() => true);
+          await showAccountNotification(accountId, payload, registry, withoutContent).catch(() => undefined);
+        }
       }
     }
   } catch (error) {
@@ -598,6 +621,11 @@ async function processAccountForPush(accountId: string, payload: RelayPushData, 
 
 async function notifyForPush(accountId: string, session: DetachedSession, payload: RelayPushData): Promise<void> {
   const alreadyNotified = await readNotifiedIds(accountId);
+  // The login's organisation wants notifications that say only that there
+  // is new mail: sender, subject and preview are not even fetched.
+  const withoutContent = await pushWithoutContentFor(accountId, session.accounts, session.jmapAccountId, session.username);
+  if (withoutContent) await clearShownMessageNotifications(alreadyNotified);
+  const properties = withoutContent ? CONTENT_FREE_EMAIL_PROPERTIES : EMAIL_PROPERTIES;
   let candidates: Email[];
   let hasTrash = false;
   let emailAccountId = session.jmapAccountId;
@@ -609,7 +637,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const fresh = payload.emailIds.filter((id) => !alreadyNotified.includes(id));
     if (fresh.length === 0) return;
     emailAccountId = payload.jmapAccountId ?? session.jmapAccountId;
-    ({ emails: candidates, hasTrash } = await detachedGetEmails(session, emailAccountId, fresh));
+    ({ emails: candidates, hasTrash } = await detachedGetEmails(session, emailAccountId, fresh, properties));
   } else {
     // Legacy `jmap-state-change` payload without ids: look at the newest
     // unread inbox messages and notify the ones not shown before. The ring
@@ -618,7 +646,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const ids = await detachedNewestUnreadInboxIds(session, LEGACY_QUERY_LIMIT);
     const fresh = ids.filter((id) => !alreadyNotified.includes(id));
     if (fresh.length === 0) return;
-    ({ emails: candidates, hasTrash } = await detachedGetEmails(session, session.jmapAccountId, fresh));
+    ({ emails: candidates, hasTrash } = await detachedGetEmails(session, session.jmapAccountId, fresh, properties));
   }
 
   const toNotify = selectNotifiableEmails(candidates, alreadyNotified);
@@ -627,12 +655,26 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
 
+  // Oldest first so the newest ends up on top of the tray.
+  const ordered = [...toNotify].sort(
+    (a, b) => new Date(a.receivedAt ?? 0).getTime() - new Date(b.receivedAt ?? 0).getTime(),
+  );
+  const registry = await readAccountRegistry();
+  if (withoutContent) {
+    // One notification per account, however many messages came: the
+    // account's name and nothing about them, no actions, and a tap opens
+    // the app as it is.
+    await showAccountNotification(accountId, payload, registry, true);
+    await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
+    return;
+  }
+
   const groupKey = `bulwark-mail:${accountId}`;
   // With the server when another login has the same username.
   const groupTitle = pushAccountLabel(
     accountId,
     payload.accountLabel ?? accountId.split('@')[0] ?? accountId,
-    await readAccountRegistry(),
+    registry,
   );
   const favicons = await senderFaviconsAllowed();
   const locale = await notificationLocale();
@@ -641,10 +683,6 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     : undefined;
   const { showVerificationCodes } = await notificationActionSettings();
 
-  // Oldest first so the newest ends up on top of the tray.
-  const ordered = [...toNotify].sort(
-    (a, b) => new Date(a.receivedAt ?? 0).getTime() - new Date(b.receivedAt ?? 0).getTime(),
-  );
   for (const email of ordered) {
     const from = email.from?.[0];
     const name = from?.name ?? '';
@@ -726,14 +764,17 @@ async function showPlainNotification(
 }
 
 /**
- * New mail in `accountId` that couldn't be looked up (webmail #1041): the
- * account's name and no message, so a tap opens the app as it is. One per
- * account; the next failure replaces it rather than stacking up.
+ * New mail in `accountId` without saying which: for mail that couldn't be
+ * looked up (webmail #1041), and for every new mail while the login's
+ * organisation wants notifications without content. The account's name and
+ * no message, so a tap opens the app as it is. One per account; the next
+ * one replaces it rather than stacking up.
  */
-async function showLookupFailedNotification(
+async function showAccountNotification(
   accountId: string,
   payload: RelayPushData,
   registry: RegistryAccount[],
+  withoutContent = false,
 ): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
@@ -749,7 +790,34 @@ async function showLookupFailedNotification(
     threadId: '',
     groupKey: `bulwark-mail:${accountId}`,
     groupTitle: label,
+    ...(withoutContent ? { withoutContent: true as const } : {}),
   });
+}
+
+/**
+ * Takes the account's message notifications still in the tray out of it,
+ * for a login whose organisation wants notifications without content: those
+ * posted before the rule came on show sender and subject. They are the ones
+ * tagged `mail:<id>` (BulwarkFcmModule) for an id this account notified;
+ * expo-notifications lists them as foreign notifications by tag and id.
+ * Where it can't (no tray access in this runtime), they stay until dismissed.
+ */
+async function clearShownMessageNotifications(notifiedIds: readonly string[]): Promise<void> {
+  if (notifiedIds.length === 0) return;
+  try {
+    const ids = new Set(notifiedIds);
+    const shown = await Notifications.getPresentedNotificationsAsync();
+    for (const notification of shown) {
+      const identifier = notification.request.identifier;
+      const tag = /^expo-notifications:\/\/foreign_notifications\?(?:.*&)?tag=([^&]*)/.exec(identifier)?.[1];
+      const decoded = tag ? decodeURIComponent(tag) : '';
+      if (decoded.startsWith('mail:') && ids.has(decoded.slice('mail:'.length))) {
+        await Notifications.dismissNotificationAsync(identifier);
+      }
+    }
+  } catch (err) {
+    console.warn('[push] could not clear earlier notifications', err instanceof Error ? err.message : err);
+  }
 }
 
 function hslToHex(hsl: string): string {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildEditorHtml, FOCUS_END_SOURCE } from '../editor-html';
+import { PAGE_DOM_SOURCE } from '../page-dom';
 import { LIGHT_COLORS } from '../../theme/tokens';
 
 // On the iPad most of the composer's body area is empty space under the
@@ -27,7 +28,8 @@ function run(stop: FakeNode | null) {
   };
   const fakeDocument = { createRange: () => range };
   const fakeWindow = { getSelection: () => selection };
-  const focusEnd = new Function('document', 'window', `${FOCUS_END_SOURCE}; return focusEnd;`)(fakeDocument, fakeWindow);
+  // With the page helpers it is pasted after in the page script.
+  const focusEnd = new Function('document', 'window', `${PAGE_DOM_SOURCE} ${FOCUS_END_SOURCE}; return focusEnd;`)(fakeDocument, fakeWindow);
   focusEnd(editor);
   return calls;
 }

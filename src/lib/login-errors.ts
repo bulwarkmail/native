@@ -6,6 +6,8 @@
 // Errors are matched by `name` and message text rather than `instanceof` so
 // this module stays free of the api/ and expo dependency graph.
 import { MAX_ACCOUNTS } from './account-utils';
+import { stripBidiControls } from './bidi';
+import { singleLine } from './single-line';
 
 export interface LoginErrorCopy {
   title: string;
@@ -272,9 +274,20 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
-  // Unrecognised: show what we were told rather than inventing a cause.
+  // Unrecognised: show what we were told rather than inventing a cause, as
+  // one line of text.
   return {
     title: t('login.mobile.err_generic_title', 'Sign-in failed'),
-    detail: message || t('login.mobile.err_generic_detail', 'Something went wrong. Try again.'),
+    detail: displayLine(message) || t('login.mobile.err_generic_detail', 'Something went wrong. Try again.'),
   };
+}
+
+/** The most of an unrecognised message the sign-in screen shows. */
+const UNRECOGNISED_DETAIL_MAX = 300;
+
+/** One line, without control or directional formatting characters, cut to UNRECOGNISED_DETAIL_MAX. */
+function displayLine(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  const line = singleLine(stripBidiControls(text).replace(/[\x00-\x1f\x7f-\x9f]+/g, ' '));
+  return line.length > UNRECOGNISED_DETAIL_MAX ? `${line.slice(0, UNRECOGNISED_DETAIL_MAX - 1).trimEnd()}…` : line;
 }

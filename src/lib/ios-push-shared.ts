@@ -5,7 +5,12 @@
 //
 // Readable after the first unlock: a push usually arrives while the phone is
 // locked, and a notification that has to wait for the user to unlock would
-// show only "New message".
+// show only "New message". On this device only: the items stay out of
+// encrypted backups and device-to-device transfers. A new item gets that
+// class from sharedStoreOptions; a write to an existing one only replaces its
+// value (expo-secure-store), so the items earlier versions added get the
+// class at launch, in place, from native code
+// (plugins/ios-push/SharedKeychain.swift keepOnThisDevice).
 
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -35,7 +40,7 @@ export function sharedKeychainGroup(): string | null {
 export function sharedStoreOptions(): SecureStore.SecureStoreOptions | undefined {
   const group = sharedKeychainGroup();
   if (!group) return undefined;
-  return { accessGroup: group, keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+  return { accessGroup: group, keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 }
 
 /** Options naming the app's own access group, where items used to live. */
@@ -81,6 +86,13 @@ export interface IosPushAccount {
   deviceClientId?: string;
   /** When the subscription expires, as last recorded (UTCDate). */
   subscriptionExpires?: string;
+  /**
+   * The login's organisation wants new-mail notifications to say only that
+   * there is new mail (organisation.devices.pushWithoutContent): the
+   * extension keeps the relay's placeholder and fetches nothing. Present
+   * only while the rule is on.
+   */
+  withoutContent?: true;
 }
 
 export async function writeIosPushAccount(jmapAccountId: string, account: IosPushAccount): Promise<void> {
@@ -126,7 +138,12 @@ export async function writeSharedSecret(key: string, value: string): Promise<voi
   if (own) await SecureStore.deleteItemAsync(key, own).catch(() => undefined);
 }
 
-/** Move an item saved before the shared group existed. True if it moved. */
+/**
+ * Move an item saved before the shared group existed (it arrives with the
+ * class of sharedStoreOptions). True if it moved. An item already in the
+ * shared group is left alone: native code gives it its class at launch, in
+ * place, so it is never missing.
+ */
 export async function moveToSharedGroup(key: string): Promise<boolean> {
   const own = appStoreOptions();
   if (!own || !sharedStoreOptions()) return false;

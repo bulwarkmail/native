@@ -572,7 +572,12 @@
     "not_spam_short": "Non spam",
     "quick_reply_login_switched": "Ce message se trouve dans un autre compte. Revenez-y pour répondre.",
     "quick_reply_unconfirmed": "Le serveur n'a pas confirmé l'envoi. Vérifiez votre dossier Envoyés avant de renvoyer le message.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Paquet d'application provenant d'un e-mail",
+      "message": "« {name} » est un paquet d'application Android. Une application installée depuis un e-mail peut prendre le contrôle de cet appareil. Ne continuez que si vous attendiez ce fichier.",
+      "continue": "Continuer"
+    }
   },
   "files": {
     "delete_cascade_hint": "Les dossiers sont supprimés avec tout leur contenu. Cette action est irréversible.",

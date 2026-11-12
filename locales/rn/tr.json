@@ -569,7 +569,12 @@
     "not_spam_short": "Spam değil",
     "quick_reply_login_switched": "Bu ileti başka bir hesapta. Yanıtlamak için o hesaba geri dönün.",
     "quick_reply_unconfirmed": "Sunucu gönderimi onaylamadı. Tekrar göndermeden önce Gönderilenler klasörünüzü kontrol edin.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "E-postadan gelen uygulama paketi",
+      "message": "\"{name}\" bir Android uygulama paketidir. Bir e-postadan yüklenen uygulama bu cihazın kontrolünü ele geçirebilir. Yalnızca bu dosyayı bekliyorsanız devam edin.",
+      "continue": "Devam et"
+    }
   },
   "files": {
     "delete_cascade_hint": "Klasörler, içindeki her şeyle birlikte silinir. Bu işlem geri alınamaz.",

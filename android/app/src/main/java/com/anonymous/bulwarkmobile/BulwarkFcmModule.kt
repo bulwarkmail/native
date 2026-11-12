@@ -84,10 +84,13 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         // for that (#85). Without a Trash it destroys the mail, so it asks.
         // Unlock stays the default for a caller that doesn't say.
         val deleteNeedsUnlock = !options.hasKey("deleteNeedsUnlock") || options.getBoolean("deleteNeedsUnlock")
+        // The login's organisation wants notifications without content.
+        val withoutContent = options.hasKey("withoutContent") && options.getBoolean("withoutContent")
         // Left out where the organisation turned archiving off.
         val archiveLabel = options.takeIf { it.hasKey("archiveLabel") }?.getString("archiveLabel")
         val code = options.takeIf { it.hasKey("verificationCode") }?.getString("verificationCode")
-        val copyCode = code?.let {
+        // A code to copy shows the code itself: not while the content is hidden.
+        val copyCode = code?.takeUnless { withoutContent }?.let {
             NotificationCopyCode(
                 code = it,
                 label = options.takeIf { o -> o.hasKey("copyCodeLabel") }?.getString("copyCodeLabel") ?: "Copy code $it",
@@ -106,7 +109,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
                 archiveLabel, copyCode,
             )
-            if (groupKey != null) postGroupSummary(reactApplicationContext, groupKey, groupTitle, bgColorHex, accountId)
+            if (groupKey != null) {
+                postGroupSummary(reactApplicationContext, groupKey, groupTitle, bgColorHex, accountId, withoutContent)
+            }
             promise.resolve(null)
         }
     }
@@ -369,7 +374,10 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
     /**
      * Posts the group summary once the group has [minChildren] notifications,
      * cancels it when it has none. Between the two it is left alone: with a
-     * summary up, cancelling it takes its last child down with it.
+     * summary up, cancelling it takes its last child down with it. Under the
+     * organisation's rule ([withoutContent]) the summary takes no lines and no
+     * count from the children, and one that is showing is posted again even
+     * over a single child (NotificationSummary).
      */
     private fun postGroupSummary(
         ctx: Context,
@@ -377,6 +385,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         groupTitle: String,
         colorHex: String,
         accountId: String?,
+        withoutContent: Boolean = false,
         minChildren: Int = 2,
     ) {
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -388,19 +397,21 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             manager.cancel(groupKey, groupKey.hashCode())
             return
         }
-        if (children.size < minChildren) return
-        val count = children.size
-        val inbox = NotificationCompat.InboxStyle()
-        children.sortedByDescending { it.postTime }.take(5).forEach { sbn ->
-            val extras = sbn.notification.extras
-            val line = listOfNotNull(
-                extras.getCharSequence(android.app.Notification.EXTRA_TITLE),
-                extras.getCharSequence(android.app.Notification.EXTRA_TEXT),
-            ).joinToString("  ")
-            if (line.isNotBlank()) inbox.addLine(line)
+        val summaryShowing = manager.activeNotifications.any {
+            it.tag == groupKey && (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) != 0
         }
+        if (!NotificationSummary.posts(children.size, minChildren, withoutContent, summaryShowing)) return
+        val count = children.size
+        val countText = NotificationSummary.countText(count, withoutContent)
+        val inbox = NotificationCompat.InboxStyle()
+        val newestFirst = children.sortedByDescending { it.postTime }.take(NotificationSummary.MAX_LINES).map { sbn ->
+            val extras = sbn.notification.extras
+            extras.getCharSequence(android.app.Notification.EXTRA_TITLE) to
+                extras.getCharSequence(android.app.Notification.EXTRA_TEXT)
+        }
+        NotificationSummary.lines(newestFirst, withoutContent).forEach { inbox.addLine(it) }
         inbox.setBigContentTitle(groupTitle)
-        inbox.setSummaryText(if (count == 1) "1 new message" else "$count new messages")
+        inbox.setSummaryText(countText)
 
         val intent = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -416,7 +427,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val summary = NotificationCompat.Builder(ctx, BulwarkMessagingService.channelId(ctx))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(groupTitle)
-            .setContentText(if (count == 1) "1 new message" else "$count new messages")
+            .setContentText(countText)
             .setStyle(inbox)
             .setColor(parseColor(colorHex, fallback = Color.parseColor("#2563eb")))
             .setGroup(groupKey)
@@ -573,7 +584,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         /**
          * After notifications of the account were cancelled: posts the group
          * summary again with the new count and lines, keeping its title and
-         * colour, or cancels it when no notification is left.
+         * colour, or cancels it when no notification is left. A summary posted
+         * without lines (the organisation hides notification content) stays
+         * without them.
          */
         fun refreshGroupSummaryAfterCancel(ctx: Context, accountId: String) {
             val groupKey = "bulwark-mail:$accountId"
@@ -585,7 +598,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             val title = summary.notification.extras
                 .getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: accountId
             val colorHex = String.format("#%06X", summary.notification.color and 0xFFFFFF)
-            postGroupSummary(ctx, groupKey, title, colorHex, accountId, minChildren = 1)
+            val withoutContent = summary.notification.extras
+                .getCharSequenceArray(android.app.Notification.EXTRA_TEXT_LINES).isNullOrEmpty()
+            postGroupSummary(ctx, groupKey, title, colorHex, accountId, withoutContent = withoutContent, minChildren = 1)
         }
     }
 }
