@@ -1172,9 +1172,12 @@ live('live Stalwart calendar', () => {
 
         // Untouched by the first account's load, which reads its task ids in
         // the second account by then: the e2e accounts repeat each other's
-        // ids, so what that finds can even look right.
+        // ids, so what that finds can even look right. The first account's
+        // task may still show as a shared one, when it shares its calendar
+        // with the second (the test servers' seed does), but never as the
+        // second account's own.
         expect(useCalendarStore.getState().tasks).toBe(loaded);
-        expect(loaded.map((t) => t.title)).not.toContain(`${RUN} task`);
+        expect(loaded.filter((t) => !t.accountId || t.accountId === second.accountId).map((t) => t.title)).not.toContain(`${RUN} task`);
       } finally {
         release();
         spy.mockRestore();
