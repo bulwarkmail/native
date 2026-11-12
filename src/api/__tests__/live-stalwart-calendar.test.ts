@@ -2,9 +2,10 @@
  * Live calendar checks against a real Stalwart server.
  *
  * Opt-in like live-stalwart.test.ts: skipped unless `BULWARK_LIVE_JMAP` and
- * `BULWARK_LIVE_PASS` are set. `BULWARK_LIVE_USER2` (same password) is the
- * attendee of the invitations and the account that shares a calendar and a
- * mail folder with the first one; without it those checks are skipped.
+ * `BULWARK_LIVE_PASS` are set. `BULWARK_LIVE_USER2` (password
+ * `BULWARK_LIVE_PASS2`, else the first one) is the attendee of the
+ * invitations and the account that shares a calendar and a mail folder with
+ * the first one; without it those checks are skipped.
  *
  *   BULWARK_LIVE_JMAP=http://10.10.10.62:8120 \
  *   BULWARK_LIVE_USER=e2e-tablet-light@example.org \
@@ -53,6 +54,7 @@ const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
 const USER2 = process.env.BULWARK_LIVE_USER2;
 const PASS = process.env.BULWARK_LIVE_PASS ?? '';
+const PASS2 = process.env.BULWARK_LIVE_PASS2 ?? PASS;
 const live = SERVER && PASS ? describe : describe.skip;
 const liveTwo = SERVER && PASS && USER2 ? describe : describe.skip;
 
@@ -218,7 +220,7 @@ live('live Stalwart calendar', () => {
     await connectSingleton();
     if (USER2) {
       other = new JMAPClient();
-      await other.connect(SERVER!, USER2, PASS);
+      await other.connect(SERVER!, USER2, PASS2);
     }
     calendarId = await ownCalendarId();
   }, 60_000);
@@ -1136,7 +1138,7 @@ live('live Stalwart calendar', () => {
       // The first account's task load is still waiting for its tasks when
       // the client switches to the second account and loads that one's.
       const second = new JMAPClient();
-      await second.connect(SERVER!, USER2, PASS);
+      await second.connect(SERVER!, USER2, PASS2);
       const jmap = await singleton();
       const request = jmap.request.bind(jmap);
       let switched = false;
