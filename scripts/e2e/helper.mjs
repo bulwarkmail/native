@@ -175,7 +175,10 @@ async function createPairingLink(user) {
     // Step-up: the password again (and a code for a TOTP account).
     const linkInput = page.locator('input[readonly][value^="bulwarkmail://"]');
     // The Security page has other password forms; use the link-device one.
-    const form = page.locator('form', { hasText: /confirm it's you/i });
+    // Its prompt reads "Enter your password to confirm it's you. ... your
+    // password is not sent to the phone." or, in plain language, "Type your
+    // password to show it's you. Your password is not sent to the phone."
+    const form = page.locator('form', { hasText: /password is not sent to the phone/i });
     const pw = form.locator('input[type=password]').first();
     await Promise.race([
       linkInput.waitFor({ timeout: 30_000 }),
