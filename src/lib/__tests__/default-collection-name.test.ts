@@ -26,11 +26,13 @@ describe('Stalwart default collection names', () => {
       ['components/calendar/CalendarSidebarDrawer.tsx', 'collectionNames.calendar(cal)'],
       ['components/calendar/EventDetailSheet.tsx', 'collectionNames.calendar(calendar)'],
       ['components/calendar/EventModal.tsx', 'collectionNames.calendar(c)'],
+      ['components/calendar/EventModal.tsx', 'collectionNames.calendar(selectedCalendar)'],
       ['components/calendar/ICalImportSheet.tsx', 'collectionNames.calendar(cal)'],
       ['components/calendar/TasksSheet.tsx', 'collectionNames.calendar(cal)'],
       ['components/contacts/AddressBookPickerSheet.tsx', 'collectionNames.addressBook(book)'],
       ['components/contacts/ContactsSidebarDrawer.tsx', 'collectionNames.addressBook(book)'],
       ['screens/ContactsScreen.tsx', 'collectionNames.addressBook(book)'],
+      ['screens/ContactDetailScreen.tsx', 'collectionNames.addressBook(book!)'],
     ]) {
       expect(src(file), file).toContain(call);
     }

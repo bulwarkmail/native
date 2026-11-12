@@ -37,6 +37,7 @@ import AddressBookPickerSheet from '../components/contacts/AddressBookPickerShee
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
+import { useCollectionNames } from '../lib/use-collection-names';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
 import { SafeAreaModal } from '../components/SafeAreaModal';
@@ -146,6 +147,7 @@ export default function ContactDetailScreen() {
 
   const contact = useContactsStore((s) => s.contacts.find((c) => c.id === contactId));
   const addressBooks = useContactsStore((s) => s.addressBooks);
+  const collectionNames = useCollectionNames();
   const allContacts = useContactsStore((s) => s.contacts);
   const deleteContact = useContactsStore((s) => s.deleteContact);
   const createContact = useContactsStore((s) => s.createContact);
@@ -219,8 +221,9 @@ export default function ContactDetailScreen() {
   const cryptoKeys = contact.cryptoKeys ? Object.values(contact.cryptoKeys) : [];
   const bookIds = Object.keys(contact.addressBookIds || {}).filter((k) => contact.addressBookIds[k]);
   const bookNames = bookIds
-    .map((id) => addressBooks.find((b) => b.id === id)?.name)
-    .filter(Boolean) as string[];
+    .map((id) => addressBooks.find((b) => b.id === id))
+    .filter((book) => !!book?.name)
+    .map((book) => collectionNames.addressBook(book!));
   // On an organization card the org name is already the heading; don't repeat it.
   const subtitleParts = [jobTitles[0]?.name, org === name ? undefined : org].filter(Boolean) as string[];
   const hasGender = !!(contact.speakToAs && (contact.speakToAs.grammaticalGender || contact.speakToAs.pronouns));

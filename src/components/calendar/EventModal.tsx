@@ -613,7 +613,7 @@ export function EventModal({
                   />
                 )}
                 <Text style={styles.fieldText}>
-                  {selectedCalendar?.name || t('calendar.form.calendar_select', 'Calendar')}
+                  {selectedCalendar ? collectionNames.calendar(selectedCalendar) : t('calendar.form.calendar_select', 'Calendar')}
                 </Text>
               </View>
             </Pressable>
