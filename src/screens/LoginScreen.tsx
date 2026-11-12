@@ -18,6 +18,7 @@ import {
   emailDomain,
   isEmailAddress,
   normalizeServerUrl,
+  unsupportedProvider,
 } from '../lib/server-discovery';
 import { describeLoginError, type LoginErrorCopy } from '../lib/login-errors';
 import { describeHandoffRedeemError } from './login/handoff-errors';
@@ -366,6 +367,17 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       setNotice({
         title: t('login.mobile.notice_full_email', 'Enter a full email address'),
         detail: t('login.mobile.notice_full_email_detail', 'Like ada@example.com. If you sign in with a username instead, use “I know my server address”.'),
+      });
+      return;
+    }
+
+    // Gmail, Outlook.com and iCloud offer no JMAP: say so instead of a
+    // lookup that can only fail (webmail login-server-field).
+    const provider = unsupportedProvider(emailDomain(value));
+    if (provider) {
+      setNotice({
+        title: t('uxs_login.provider_unsupported', "{provider} doesn't offer JMAP, the way Bulwark talks to mail servers, so Bulwark can't connect to it directly yet.", { provider }),
+        tone: 'info',
       });
       return;
     }

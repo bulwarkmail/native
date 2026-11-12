@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const { mockSecureFetch } = vi.hoisted(() => ({
   mockSecureFetch: vi.fn(),
@@ -16,6 +18,7 @@ import {
   probeJmapServer,
   resolveJmapServer,
   discoverServerForEmail,
+  unsupportedProvider,
 } from '../server-discovery';
 
 const SESSION_DOC = { capabilities: {}, apiUrl: '/jmap/', primaryAccounts: {} };
@@ -97,6 +100,27 @@ describe('emailDomain', () => {
     expect(emailDomain('a@b@example.com')).toBeNull();
     expect(isEmailAddress('ada@example.com')).toBe(true);
     expect(isEmailAddress('ada')).toBe(false);
+  });
+});
+
+describe('unsupportedProvider', () => {
+  it('names Gmail, Outlook.com and iCloud Mail, country variants too, and nothing else', () => {
+    expect(unsupportedProvider('gmail.com')).toBe('Gmail');
+    expect(unsupportedProvider('GoogleMail.co.uk')).toBe('Gmail');
+    expect(unsupportedProvider('hotmail.de')).toBe('Outlook.com');
+    expect(unsupportedProvider('live.co.uk')).toBe('Outlook.com');
+    expect(unsupportedProvider('me.com')).toBe('iCloud Mail');
+    expect(unsupportedProvider('example.org')).toBeNull();
+    expect(unsupportedProvider('mail.gmail-fans.org')).toBeNull();
+    expect(unsupportedProvider(null)).toBeNull();
+  });
+
+  it('stops the email step with the note before any lookup', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'screens', 'LoginScreen.tsx'), 'utf8');
+    const handler = source.slice(source.indexOf('const handleEmailContinue'), source.indexOf('const handleServerContinue'));
+    expect(handler.indexOf('unsupportedProvider(emailDomain(value))')).toBeGreaterThan(0);
+    expect(handler.indexOf('unsupportedProvider(emailDomain(value))')).toBeLessThan(handler.indexOf('discoverServerForEmail('));
+    expect(handler).toContain("t('uxs_login.provider_unsupported',");
   });
 });
 

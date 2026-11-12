@@ -100,6 +100,31 @@ export function isEmailAddress(value: string): boolean {
   return emailDomain(value) !== null;
 }
 
+/** Providers people try first. None of them offers JMAP (webmail lib/auth/mail-server-address.ts). */
+const UNSUPPORTED_PROVIDERS: Record<string, string> = {
+  'gmail.com': 'Gmail',
+  'googlemail.com': 'Gmail',
+  'outlook.com': 'Outlook.com',
+  'hotmail.com': 'Outlook.com',
+  'live.com': 'Outlook.com',
+  'msn.com': 'Outlook.com',
+  'icloud.com': 'iCloud Mail',
+  'me.com': 'iCloud Mail',
+  'mac.com': 'iCloud Mail',
+};
+
+/** The provider's name when this domain belongs to one that Bulwark can't reach, else null. */
+export function unsupportedProvider(domain: string | null | undefined): string | null {
+  const d = (domain ?? '').toLowerCase().replace(/\.$/, '');
+  if (!d) return null;
+  if (UNSUPPORTED_PROVIDERS[d]) return UNSUPPORTED_PROVIDERS[d];
+  // Country variants: hotmail.de, outlook.fr, live.co.uk, googlemail.co.uk.
+  const label = d.split('.')[0];
+  if (label === 'hotmail' || label === 'outlook' || label === 'live') return 'Outlook.com';
+  if (label === 'googlemail') return 'Gmail';
+  return null;
+}
+
 function hostOf(url: string): string {
   return url.slice(url.indexOf('://') + 3).split('/')[0].split(':')[0].toLowerCase();
 }
