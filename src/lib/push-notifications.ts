@@ -1128,6 +1128,11 @@ async function registerWithRelayApns(params: {
  * organisation wants notifications without content (pushWithoutContentFor),
  * the entry says so and the extension fetches nothing; the policy store runs
  * this again when a new policy for the login is cached.
+ *
+ * On Android the entry goes to the native lookup (BulwarkNativePushFetcher),
+ * which fetches and shows sender and subject and can't read the policy. While
+ * the rule is on, the account has no entry there: the lookup declines its
+ * pushes and the push task, which follows the rule, shows them.
  */
 export async function shareAccountWithExtension(
   accountId: string,
@@ -1163,6 +1168,10 @@ export async function shareAccountWithExtension(
       removePushAccount?: (id: string) => void;
     } | undefined;
     if (duplicate) {
+      native?.removePushAccount?.(jmapAccountId);
+      return;
+    }
+    if (await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId, session?.username)) {
       native?.removePushAccount?.(jmapAccountId);
       return;
     }

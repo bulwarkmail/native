@@ -261,13 +261,15 @@ async function bearerFor(account: AccountEntry): Promise<{ authorization: string
 }
 
 /**
- * On iOS, share the account with the notification extension again once a
- * policy for it is cached, so the extension's entry follows the rule
- * pushWithoutContent (shareAccountWithExtension). The entry is written from
- * the live client's session, so only for the account it serves.
+ * Share the account with the native push code again once a policy for it is
+ * cached, so what that code shows follows the rule pushWithoutContent
+ * (shareAccountWithExtension): the iOS extension reads the rule from its
+ * entry, and Android's native lookup has no entry while the rule is on. The
+ * entry is written from the live client's session, so only for the account
+ * it serves.
  */
 function shareNotificationRuleWithExtension(accountId: string, account: AccountEntry): void {
-  if (Platform.OS !== 'ios' || !sameClientAccount(account)) return;
+  if ((Platform.OS !== 'ios' && Platform.OS !== 'android') || !sameClientAccount(account)) return;
   let jmapAccountId: string | null = null;
   try {
     jmapAccountId = jmapClient.accountId;

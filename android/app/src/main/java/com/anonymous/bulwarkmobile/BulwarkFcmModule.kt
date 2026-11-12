@@ -457,7 +457,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         /**
          * After notifications of the account were cancelled: posts the group
          * summary again with the new count and lines, keeping its title and
-         * colour, or cancels it when no notification is left.
+         * colour, or cancels it when no notification is left. A summary posted
+         * without lines (the organisation hides notification content) stays
+         * without them.
          */
         fun refreshGroupSummaryAfterCancel(ctx: Context, accountId: String) {
             val groupKey = "bulwark-mail:$accountId"
@@ -469,7 +471,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             val title = summary.notification.extras
                 .getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: accountId
             val colorHex = String.format("#%06X", summary.notification.color and 0xFFFFFF)
-            postGroupSummary(ctx, groupKey, title, colorHex, accountId, minChildren = 1)
+            val withoutContent = summary.notification.extras
+                .getCharSequenceArray(android.app.Notification.EXTRA_TEXT_LINES).isNullOrEmpty()
+            postGroupSummary(ctx, groupKey, title, colorHex, accountId, withoutContent = withoutContent, minChildren = 1)
         }
     }
 }
