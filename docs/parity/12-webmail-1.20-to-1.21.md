@@ -89,7 +89,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: selects the loaded rows only (`src/screens/EmailListScreen.tsx:977-983`).
   - Fix hint: after select all, offer the folder total and run the batch actions by query.
 
-- [x] **No setting to hide the attachment chips under list rows** — `P3` — `missing` — fixed in 3a01b64e
+- [x] **No setting to hide the attachment chips under list rows** — `P3` — `missing` — fixed in 3a01b64e; the organisation's preset and lock in a56ea755
   - What WEB does: "Show attachments in the list" under Settings > Message list turns the chips off; the paperclip and the verification code chip stay; admins can preset or lock it (`components/email/attachment-chips.tsx`, `components/settings/message-list-settings.tsx`). c136bd816, 9c7d5ae29, efc17bda8 (#1604).
   - What RN does: chips always render when the row can open attachments (`src/screens/EmailListScreen.tsx:353-361`); no setting in `src/stores/settings-store.ts`.
   - Fix hint: a boolean in settings-store and Message list settings that skips ListAttachmentChips and its loader.
