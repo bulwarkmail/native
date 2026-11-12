@@ -29,8 +29,8 @@ describe('toMailItem', () => {
       threadSize: 2,
       preview: 'line one line two',
     });
-    // Same hue as the webmail's Avatar for this name.
-    expect(item.color).toBe('#6826d9');
+    // Same colour as the webmail's Avatar for this address (avatarColor, #1581).
+    expect(item.color).toBe('#16a34a');
   });
 });
 
