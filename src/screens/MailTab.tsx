@@ -12,7 +12,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { mailboxAccountId } from '../lib/mailbox-tree';
 import { prefetchMessage } from '../lib/email-detail-cache';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
-import { listPaneWidth, useLayout } from '../lib/use-layout';
+import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
 import { rowAfterRemoval, useMessagePane, type ThreadParams } from '../lib/use-message-pane';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
@@ -47,9 +47,10 @@ function visibleRows(): Email[] {
 export default function MailTab({ navigation }: { navigation: RootNav }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const layout = useLayout();
+  const windowLayout = useLayout();
+  const layout = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
   const { width } = useWindowDimensions();
-  const pane = useMessagePane(navigation, layout.isSplit);
+  const pane = useMessagePane(navigation, layout.isSplit, windowLayout.isSplit);
   const { show, close, openRef, setActiveKey } = pane;
 
   const openEmail = React.useCallback((email: Email) => {

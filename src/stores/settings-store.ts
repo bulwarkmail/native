@@ -41,6 +41,9 @@ export type SwipeAction =
   | 'pin'
   | 'move';
 export type SwipeMode = 'instant' | 'reveal';
+// The open message next to the list on a wide window (#93): 'auto' when the
+// window has room for both, 'off' keeps the phone's single pane at any width.
+export type ReadingPane = 'auto' | 'off';
 export type SignaturePosition = 'above_quote' | 'below_quote';
 // With autoSelectReplyIdentity on: 'exact' = configured identities only,
 // 'domain' = also same-domain catch-all addresses (rewrites From), #1000.
@@ -266,6 +269,8 @@ export interface PersistedSettings {
   swipeLeftAction: SwipeAction;
   swipeRightAction: SwipeAction;
   swipeMode: SwipeMode;
+  // Mail list and reading pane side by side on a wide window (#93).
+  readingPane: ReadingPane;
 
   // Email reader's bottom quick-action bar (3 slots). Defaults to the reply
   // family; reply-family actions removed from here move to the top toolbar.
@@ -476,6 +481,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   swipeLeftAction: 'archive',
   swipeRightAction: 'read',
   swipeMode: 'instant',
+  readingPane: 'auto',
 
   bottomQuickActions: ['reply', 'replyAll', 'forward'],
 
@@ -695,6 +701,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   swipeLeftAction: oneOf(SWIPE_ACTIONS),
   swipeRightAction: oneOf(SWIPE_ACTIONS),
   swipeMode: oneOf(['instant', 'reveal']),
+  readingPane: oneOf(['auto', 'off']),
   archiveMode: oneOf(['single', 'year', 'month']),
   calendarDefaultView: oneOf(['month', 'week', 'day', 'agenda']),
   calendarFirstDayOfWeek: oneOf([0, 1, 6]),
@@ -765,6 +772,7 @@ export const SETTINGS_KEY_MAP: Partial<Record<keyof PersistedSettings, string>> 
 // Keys that describe this device rather than the user's preferences.
 export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<keyof PersistedSettings>([
   'swipeMode',
+  'readingPane',
   'bottomQuickActions',
   'offlineCacheEnabled',
   'offlineCacheDays',

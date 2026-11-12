@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 411, height: 914 }) }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-import { floatingCardFrame, layoutFor, listPaneWidth, sheetSideInsets } from '../use-layout';
+import { floatingCardFrame, layoutFor, listPaneWidth, mailLayoutFor, sheetSideInsets } from '../use-layout';
 
 describe('layoutFor', () => {
   it('keeps a phone in portrait on the single-pane layout', () => {
@@ -41,6 +41,26 @@ describe('layoutFor', () => {
     expect(layoutFor(600, 900).widthClass).toBe('medium');
     expect(layoutFor(839, 900).widthClass).toBe('medium');
     expect(layoutFor(840, 900).widthClass).toBe('expanded');
+  });
+});
+
+describe('mailLayoutFor', () => {
+  it('leaves the window\'s layout alone on auto', () => {
+    const tablet = layoutFor(1280, 800);
+    expect(mailLayoutFor(tablet, 'auto')).toBe(tablet);
+  });
+
+  it('keeps the single pane and the folder drawer with the reading pane off (#93)', () => {
+    // A wide portrait window, as on an open foldable: the split and the docked sidebar.
+    const fold = layoutFor(884, 1104);
+    expect(fold.isSplit).toBe(true);
+    expect(fold.hasSidebar).toBe(true);
+    expect(mailLayoutFor(fold, 'off')).toEqual({ ...fold, isSplit: false, hasSidebar: false });
+  });
+
+  it('changes nothing on a phone', () => {
+    const phone = layoutFor(411, 914);
+    expect(mailLayoutFor(phone, 'off')).toEqual(phone);
   });
 });
 

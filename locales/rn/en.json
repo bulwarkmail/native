@@ -1456,6 +1456,12 @@
         "star": "Star",
         "tag": "Tag"
       },
+      "reading_pane": {
+        "auto": "Next to the list when there is room",
+        "description": "On a tablet or an open foldable, show the open message next to the mail list. This device only.",
+        "label": "Reading pane",
+        "off": "Off: messages open full screen"
+      },
       "show_avatars_in_junk": "Show sender avatars in Junk",
       "show_avatars_in_junk_description": "Load sender logos for messages in the Junk folder. Off keeps spam senders from being contacted.",
       "show_folder_total_count": "Show total message count on folders",

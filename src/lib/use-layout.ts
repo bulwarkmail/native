@@ -1,6 +1,7 @@
 import React from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { ReadingPane } from '../stores/settings-store';
 
 /**
  * Window size classes for the adaptive layouts (docs/ux-audit-2026-10.md,
@@ -30,6 +31,15 @@ export function layoutFor(width: number, height: number): Layout {
   const shortHeight = height < SHORT_MAX_HEIGHT;
   const isSplit = widthClass !== 'compact' && !shortHeight;
   return { widthClass, shortHeight, isSplit, hasSidebar: isSplit && widthClass === 'expanded' };
+}
+
+/**
+ * The layout of the mail list and reader: with the reading pane off (#93)
+ * they keep the phone's single pane, and the folder list its drawer, at any
+ * width. The rest of the app (tab rail, contacts, files) follows the window.
+ */
+export function mailLayoutFor(layout: Layout, readingPane: ReadingPane): Layout {
+  return readingPane === 'off' ? { ...layout, isSplit: false, hasSidebar: false } : layout;
 }
 
 export function useLayout(): Layout {
