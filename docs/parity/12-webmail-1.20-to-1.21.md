@@ -451,7 +451,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: hard-codes `urn:stalwart:jmap` (`src/api/account-security.ts:13`, `:76`).
   - Fix hint: port getManagementCapability and pass the chosen capability into `using`; do it together with masked addresses, which use the same switch.
 
-- [ ] **No server settings for other mail apps (IMAP, SMTP, CalDAV, CardDAV)** — `P3` — `missing`
+- [x] **No server settings for other mail apps (IMAP, SMTP, CalDAV, CardDAV)** — `P3` — `missing` — fixed in 31ea3a75
   - What WEB does: Settings > Security lists the IMAP/SMTP hosts, ports and security, and the CalDAV/CardDAV addresses, read from the server's Mozilla autoconfig, with the account address as username (`lib/mail-client-config.ts:1-40`, `components/settings/mail-apps-setup.tsx:58`, `components/settings/account-security-settings.tsx:1529`). e0f19bc6f, b44ad1503 (#1633).
   - What RN does: nothing; no autoconfig or IMAP/SMTP settings in src.
   - Fix hint: fetch `/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=` from the account's server and show copyable rows under Security, next to app passwords. Substitute the address for `%EMAILADDRESS%`.
