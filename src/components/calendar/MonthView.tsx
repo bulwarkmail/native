@@ -24,6 +24,7 @@ import {
 } from '../../lib/calendar-utils';
 import { dayIndexIn, monthChipShowsTime, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
 import { isInactiveEvent } from '../../lib/calendar-participants';
+import { gridTitle } from '../../lib/calendar-reply-state';
 import { TINTED_BAR_WIDTH, eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { dayCellAccessibilityLabel } from '../../lib/calendar-a11y';
@@ -271,7 +272,7 @@ function MonthWeekRowInner({
                         {event.showWithoutTime || !chipTime
                           ? null
                           : `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `}
-                        <Text style={inactive && styles.chipTextInactive}>{event.title || ''}</Text>
+                        <Text style={inactive && styles.chipTextInactive}>{gridTitle(event, event.title || '', currentUserEmails)}</Text>
                       </Text>
                     </View>
                   );
@@ -393,7 +394,7 @@ function FullWeekRow({
                     numberOfLines={1}
                     ellipsizeMode="clip"
                   >
-                    {time}{event.title || ''}
+                    {time}{gridTitle(event, event.title || '', currentUserEmails)}
                   </Text>
                 </View>
               );
