@@ -344,7 +344,8 @@ describe('an alias login', () => {
   // Signed in as ada@alias.example; the session names the login's own
   // account by its primary address, ada@example.com. The webmail client
   // resolves the gates and settings for the user name signed in with
-  // (lib/admin/policy-subject.ts); the push rule follows the session's address.
+  // (lib/admin/policy-subject.ts). The push rule hides content, so it is on
+  // when a scope of either address turns it on.
   const scopedTo = (domain: string) => ({
     restrictions: {}, features: { calendarEnabled: true }, defaults: {}, themePolicy: {},
     organisation: { devices: { pushWithoutContent: false } },
@@ -391,8 +392,14 @@ describe('an alias login', () => {
     expect(await pushRuleKept()).toBe(true);
   });
 
-  it('a domain rule on the alias leaves the push rule off', async () => {
+  it('a domain rule on the alias turns the push rule on', async () => {
     policies[WEBMAIL] = scopedTo('alias.example');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(await pushRuleKept()).toBe(true);
+  });
+
+  it('a domain rule on neither address leaves the push rule off', async () => {
+    policies[WEBMAIL] = scopedTo('other.example');
     await usePolicyStore.getState().refresh(ADA);
     expect(await pushRuleKept()).toBe(false);
   });

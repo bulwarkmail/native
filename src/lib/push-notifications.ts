@@ -33,7 +33,7 @@ import { CALENDAR_AUTHORITY, CONTACTS_AUTHORITY, type Authority } from '../devic
 import * as Notifications from 'expo-notifications';
 import { credentialsKey } from '../api/jmap-client';
 import { apnsEnvironment, removeIosPushAccount, writeIosPushAccount } from './ios-push-shared';
-import { policySubjectFromSession, pushWithoutContent, sanitizePolicy } from './org-policy';
+import { policySubjectFromSession, pushRuleEmails, pushWithoutContent, sanitizePolicy } from './org-policy';
 import {
   getUnifiedPushDistributors,
   getUnifiedPushEndpoint,
@@ -166,9 +166,11 @@ const ACCOUNT_REGISTRY_KEY = 'account-registry';
  * `pushWithoutContent`), from the policy the app cached for the login
  * (stores/policy-store.ts). `sessionAccounts` are the accounts of the
  * login's own JMAP session, for its group scopes; without them, every scope
- * that turns the rule on counts. The login's address is the name the session
- * gives its own account (`ownAccountId`), as the webmail takes it, and the
- * registry's only when the session names none.
+ * that turns the rule on counts. With them, the rule is on when it is on for
+ * either address of pushRuleEmails: the name the login signed in with (the
+ * registry's user name, or `sessionUsername` for a bare local part), as the
+ * webmail's web push takes it, or the name the session gives the login's own
+ * account (`ownAccountId`), else the registry's email.
  *
  *  - No policy cached for the login (signed in to the mail server directly,
  *    or never answered by its webmail): off.
@@ -182,6 +184,7 @@ export async function pushWithoutContentFor(
   accountId: string,
   sessionAccounts: Record<string, { name?: unknown; isPersonal?: unknown }> | null | undefined,
   ownAccountId?: string | null,
+  sessionUsername?: string | null,
 ): Promise<boolean> {
   type RegistryEntry = { id?: unknown; username?: unknown; email?: unknown; webmailUrl?: unknown };
   let account: RegistryEntry | undefined;
@@ -209,14 +212,15 @@ export async function pushWithoutContentFor(
   if (cached.pushWithoutContent === true) return true;
   const policy = sanitizePolicy(cached.policy);
   if (!policy) return true;
-  const own = ownAccountId ? sessionAccounts?.[ownAccountId]?.name : undefined;
-  const email = typeof own === 'string' && own.includes('@')
-    ? own
-    : typeof account?.email === 'string' && account.email
-      ? account.email
-      : typeof account?.username === 'string' ? account.username : '';
-  const subject = sessionAccounts && email ? policySubjectFromSession(email, sessionAccounts) : null;
-  return pushWithoutContent(policy, subject);
+  if (!sessionAccounts) return pushWithoutContent(policy, null);
+  const emails = pushRuleEmails({
+    username: account?.username,
+    sessionUsername,
+    ownAccountName: ownAccountId ? sessionAccounts[ownAccountId]?.name : undefined,
+    email: account?.email,
+  });
+  if (emails[0] === '') return pushWithoutContent(policy, null);
+  return emails.some((email) => pushWithoutContent(policy, policySubjectFromSession(email, sessionAccounts)));
 }
 
 async function writePushJmapAccountId(accountId: string, jmapAccountId: string | null): Promise<void> {
@@ -1130,7 +1134,7 @@ export async function shareAccountWithExtension(
   jmapAccountId: string | null,
   apiUrl: string | undefined = jmapClient.currentSession?.apiUrl,
   username: string | null | undefined = jmapClient.username,
-  session: Pick<JMAPSession, 'accounts'> | null | undefined = jmapClient.currentSession,
+  session: Pick<JMAPSession, 'accounts' | 'username'> | null | undefined = jmapClient.currentSession,
 ): Promise<void> {
   if (Platform.OS !== 'ios' || !jmapAccountId) return;
   const byLocal = await readPushJmapAccountIds();
@@ -1139,7 +1143,7 @@ export async function shareAccountWithExtension(
     return;
   }
   if (!apiUrl) return;
-  const withoutContent = await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId);
+  const withoutContent = await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId, session?.username);
   await writeIosPushAccount(jmapAccountId, {
     credentialsKey: credentialsKey(accountId),
     apiUrl,

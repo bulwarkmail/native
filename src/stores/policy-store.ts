@@ -20,6 +20,7 @@ import {
   EMPTY_SETTINGS_RULES,
   isFeatureEnabled,
   isLockedSetting,
+  pushRuleEmails,
   pushWithoutContent,
   resolvePolicy,
   sanitizePolicy,
@@ -150,16 +151,21 @@ export function policySubjectFor(account: AccountEntry): PolicySubject {
 }
 
 /**
- * Who the rule pushWithoutContent is for: the address the session names for
- * the login's own account, else the registry's email, else the user name
- * (the registry may hold a user name without a domain). The same chain as
+ * Who the rule pushWithoutContent is for; it is on when it is on for any of
+ * them (pushRuleEmails): the name the account signed in with, as the
+ * webmail's web push takes it, and the address the session names for the
+ * login's own account (else the registry's email). The same addresses as
  * pushWithoutContentFor, which the push task uses.
  */
-export function pushSubjectFor(account: AccountEntry): PolicySubject {
+export function pushSubjectsFor(account: AccountEntry): PolicySubject[] {
   const session = sessionOf(account);
-  const own = ownAccountName(session);
-  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
-  return { email, groups: sessionGroups(session) };
+  const groups = sessionGroups(session);
+  return pushRuleEmails({
+    username: account.username,
+    sessionUsername: session?.username,
+    ownAccountName: ownAccountName(session),
+    email: account.email,
+  }).map((email) => ({ email, groups }));
 }
 
 /**
@@ -328,7 +334,7 @@ export const usePolicyStore = create<PolicyState>()(
           // stored rule as it is.
           const holdsPushRule = !!fetched && !isFullAnswer(fetched) && previous?.webmailUrl === webmailUrl && (
             previous.pushWithoutContent === true
-            || (isFullAnswer(previous) && pushWithoutContent(previous.policy, pushSubjectFor(account)))
+            || (isFullAnswer(previous) && pushSubjectsFor(account).some((subject) => pushWithoutContent(previous.policy, subject)))
           );
           set({
             ...(fetched ? {
