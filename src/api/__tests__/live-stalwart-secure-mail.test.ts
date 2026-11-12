@@ -249,6 +249,11 @@ live('live Stalwart: PGP and S/MIME mail', () => {
       expect(on.publicKeyId).toBe(keyId);
       expect(on.dialect).toBe(dialect ?? on.dialect);
       if (keys.some((k) => k.hasKeyOptions)) expect(on.type).toBe('Enabled');
+      // The screen picks switch or cipher picker from the read while it is
+      // off, before any key: 1.0.3+ must be known as `Enabled` from that
+      // read alone (its discovery scopes), 0.16 must stay unknown. 1.0.2
+      // (no scopes) is the one server this leaves to the save.
+      expect(before.dialect).toBe(on.type === 'Enabled' ? 'enabled' : null);
 
       await updateEncryptionAtRest({ type: 'Disabled' });
       expect((await fetchCryptoInfo()).type).toBe('Disabled');
