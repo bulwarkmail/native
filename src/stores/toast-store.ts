@@ -20,6 +20,8 @@ export interface Toast {
   title: string;
   message?: string;
   action?: ToastAction;
+  /** A second button before `action` ("Draft saved · Open · Discard"). */
+  secondaryAction?: ToastAction;
   // ms; errors default to 10 s like the webmail, everything else to 5 s.
   // Errors and toasts with an action follow the "Notification duration"
   // setting (lib/toast-duration). 0 stays until it is swiped away.
@@ -67,6 +69,7 @@ export const useToastStore = create<ToastState>((set) => ({
 interface ToastOptions {
   message?: string;
   action?: ToastAction;
+  secondaryAction?: ToastAction;
   duration?: number;
 }
 
@@ -77,6 +80,7 @@ function show(type: ToastType, title: string, options?: string | ToastOptions): 
     title,
     message: opts?.message,
     action: opts?.action,
+    secondaryAction: opts?.secondaryAction,
     duration: opts?.duration,
   });
 }

@@ -44,7 +44,7 @@ export function activeComposerOptionCount(options: ComposerOptions): number {
  * address has a key (the PGP and S/MIME plugins' Options entries).
  */
 export function ComposerOptionsSheet({
-  visible, options, dsnAvailable, requireTlsAvailable, secureAvailable, secureHint, onChange, onClose,
+  visible, options, dsnAvailable, requireTlsAvailable, secureAvailable, secureHint, onChange, onClose, onSaveAsTemplate,
 }: {
   visible: boolean;
   options: ComposerOptions;
@@ -56,6 +56,8 @@ export function ComposerOptionsSheet({
   secureHint?: string | null;
   onChange: (next: Partial<ComposerOptions>) => void;
   onClose: () => void;
+  /** "Save as template" (webmail #1506); left out when templates are off. */
+  onSaveAsTemplate?: () => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -175,6 +177,14 @@ export function ComposerOptionsSheet({
               );
             })}
           </View>
+          {onSaveAsTemplate && (
+            <>
+              <View style={styles.separator} />
+              <Pressable style={styles.row} onPress={onSaveAsTemplate} accessibilityRole="button" testID="composer-save-as-template">
+                <Text style={[styles.rowLabel, styles.rowText]}>{t('email_composer.save_as_template', 'Save as template')}</Text>
+              </Pressable>
+            </>
+          )}
           <Pressable style={styles.done} onPress={onClose} accessibilityRole="button">
             <Text style={styles.doneText}>{t('common.done', 'Done')}</Text>
           </Pressable>

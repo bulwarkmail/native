@@ -207,6 +207,10 @@ export interface PersistedSettings {
   // Signature placement in replies/forwards and the RFC 3676 "-- " separator.
   signaturePosition: SignaturePosition;
   signatureSeparatorEnabled: boolean;
+  // Insert the signature automatically in new messages / in replies,
+  // forwards and quick replies (webmail #1493).
+  signatureNewMailEnabled: boolean;
+  signatureReplyForwardEnabled: boolean;
   // Pre-check "request read receipt" in the composer.
   requestReadReceiptDefault: boolean;
   // Confirm before sending a message without a subject (#684).
@@ -453,9 +457,12 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   sendConfirmation: false,
   confirmDelete: false,
   confirmArchive: false,
-  sendDelaySeconds: 0,
+  // Undo send is on by default with 5 seconds (webmail 1.21).
+  sendDelaySeconds: 5,
   signaturePosition: 'below_quote',
   signatureSeparatorEnabled: true,
+  signatureNewMailEnabled: true,
+  signatureReplyForwardEnabled: true,
   requestReadReceiptDefault: false,
   emptySubjectWarningEnabled: true,
   placeholderWarningEnabled: true,
@@ -693,7 +700,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   density: oneOf(['extra-compact', 'compact', 'regular', 'comfortable']),
   attachmentReminderKeywords: stringArray,
   // Same set the webmail accepts (stores/settings-store.ts importSettings).
-  sendDelaySeconds: oneOf([0, 10, 30, 60]),
+  sendDelaySeconds: oneOf([0, 5, 10, 30, 60]),
   signaturePosition: oneOf(['above_quote', 'below_quote']),
   replyIdentityMatch: oneOf(['exact', 'domain']),
   autoSaveDraftInterval: intBetween(1000, 3600000),

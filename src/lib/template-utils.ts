@@ -5,6 +5,8 @@
 import type { EmailTemplate } from '../stores/templates-store';
 import { generateUUID } from './uuid';
 import { intlLocale } from './intl-locale';
+import { escapeHtml } from './email-html';
+import { decodeEntities } from './verification-code';
 
 export const BUILT_IN_PLACEHOLDERS = [
   'recipient_name',
@@ -16,35 +18,45 @@ export const BUILT_IN_PLACEHOLDERS = [
 
 export type BuiltInPlaceholder = (typeof BUILT_IN_PLACEHOLDERS)[number];
 
-const PLACEHOLDER_REGEX = /\{\{(\w+)\}\}/g;
+// {{name}} or {{name:default}}. In a subject or a plain body the default is
+// text and may hold "<" and ">" ({{contact:Jane <jane@x.com>}}). In an HTML
+// body those are markup, so a default stops at a tag; a "<" typed in the
+// editor is stored as &lt; there.
+const TEXT_PLACEHOLDER_REGEX = /\{\{(\w+)(?::([^{}\n]*))?\}\}/g;
+const HTML_PLACEHOLDER_REGEX = /\{\{(\w+)(?::([^{}<>\n]*))?\}\}/g;
 const MAX_TEMPLATE_NAME_LENGTH = 200;
+
+const placeholderRegex = (html?: boolean) => (html ? HTML_PLACEHOLDER_REGEX : TEXT_PLACEHOLDER_REGEX);
 
 function stripTags(value: string): string {
   return value.replace(/<[^>]*>/g, '');
 }
 
-export function extractPlaceholders(text: string): string[] {
+export function extractPlaceholders(text: string, options: { html?: boolean } = {}): string[] {
   const matches = new Set<string>();
-  let match: RegExpExecArray | null;
-  const regex = new RegExp(PLACEHOLDER_REGEX.source, 'g');
-  while ((match = regex.exec(text)) !== null) {
+  for (const match of text.matchAll(placeholderRegex(options.html))) {
     matches.add(match[1]);
   }
   return Array.from(matches);
 }
 
+/**
+ * Fill in {{placeholders}}. Values are text: escaped for an HTML template,
+ * kept as typed for a plain one, so "Smith <j@x.com>" survives either way.
+ */
 export function substitutePlaceholders(
   text: string,
   values: Record<string, string>,
+  options: { html?: boolean } = {},
 ): string {
-  return text.replace(PLACEHOLDER_REGEX, (full, name: string) => {
+  return text.replace(placeholderRegex(options.html), (full, name: string) => {
     if (values[name] === undefined) return full;
-    return stripTags(values[name]);
+    return options.html ? escapeHtml(values[name]) : values[name];
   });
 }
 
-export function hasUnresolvedPlaceholders(text: string): boolean {
-  return new RegExp(PLACEHOLDER_REGEX.source).test(text);
+export function hasUnresolvedPlaceholders(text: string, options: { html?: boolean } = {}): boolean {
+  return new RegExp(placeholderRegex(options.html).source).test(text);
 }
 
 export function validateTemplateName(name: string): 'empty' | 'too_long' | null {
@@ -85,9 +97,41 @@ export function getAutoFilledPlaceholders(
   return values;
 }
 
-export function getPlaceholdersFromTemplate(template: Pick<EmailTemplate, 'subject' | 'body'>): string[] {
-  const combined = `${template.subject} ${template.body}`;
-  return extractPlaceholders(combined);
+export function getPlaceholdersFromTemplate(template: Pick<EmailTemplate, 'subject' | 'body' | 'isHTML'>): string[] {
+  return Array.from(new Set([
+    ...extractPlaceholders(template.subject),
+    ...extractPlaceholders(template.body, { html: !!template.isHTML }),
+  ]));
+}
+
+/** The default each placeholder carries ({{name:default}}), first one wins. */
+export function getPlaceholderDefaults(template: Pick<EmailTemplate, 'subject' | 'body' | 'isHTML'>): Map<string, string> {
+  const defaults = new Map<string, string>();
+  const collect = (text: string, html: boolean) => {
+    for (const [, name, value] of text.matchAll(placeholderRegex(html))) {
+      if (value === undefined || defaults.has(name)) continue;
+      defaults.set(name, html ? decodeEntities(value) : value);
+    }
+  };
+  collect(template.subject, false);
+  collect(template.body, !!template.isHTML);
+  return defaults;
+}
+
+/**
+ * The fields the fill sheet asks for: every placeholder the app can't fill
+ * itself, each started with its default (webmail placeholder-fill-modal).
+ */
+export function placeholderPromptValues(
+  template: Pick<EmailTemplate, 'subject' | 'body' | 'isHTML'>,
+  autoFilled: Record<string, string>,
+): Record<string, string> {
+  const defaults = getPlaceholderDefaults(template);
+  return Object.fromEntries(
+    getPlaceholdersFromTemplate(template)
+      .filter((p) => autoFilled[p] === undefined)
+      .map((p) => [p, defaults.get(p) ?? '']),
+  );
 }
 
 export function isBuiltInPlaceholder(name: string): boolean {
@@ -203,6 +247,63 @@ export function importTemplates(json: string): ImportResult {
   }
 
   return { templates, errors };
+}
+
+const DATA_IMAGE = /^data:(image\/(?:png|jpe?g|gif|webp|bmp|avif));base64,([a-z0-9+/=\s]+)$/i;
+const IMG_TAG = /<img\b[^>]*>/gi;
+const SRC_ATTR = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+
+function dataImageBytes(src: string): { bytes: Uint8Array; type: string } | null {
+  const match = DATA_IMAGE.exec(src);
+  if (!match) return null;
+  try {
+    const binary = atob(match[2].replace(/\s+/g, ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return { bytes, type: match[1].toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A template's images arrive as data: URIs (an imported templates file, a
+ * template saved from a message with a pasted image). Sent as they are,
+ * Gmail and Outlook don't show them, so hand each one to `upload` - the
+ * composer's inline-image upload - and tag it with the returned cid; the
+ * send path then turns it into a cid: part (webmail #1490/#1492). An image
+ * whose upload fails is left as is; the same image twice goes out as one part.
+ */
+export async function embedTemplateImages(
+  html: string,
+  upload: (image: { bytes: Uint8Array; type: string; name: string }) => Promise<{ cid: string } | null>,
+): Promise<string> {
+  if (!/<img\b[^>]*\bsrc\s*=\s*["']?\s*data:image\//i.test(html)) return html;
+  const tags = Array.from(html.matchAll(IMG_TAG), (m) => m[0]);
+  const sources: string[] = [];
+  for (const tag of tags) {
+    if (/\sdata-cid\s*=/i.test(tag)) continue;
+    const src = SRC_ATTR.exec(tag);
+    const value = (src?.[1] ?? src?.[2] ?? '').trim();
+    if (DATA_IMAGE.test(value) && !sources.includes(value)) sources.push(value);
+  }
+  if (sources.length === 0) return html;
+  const cids = new Map<string, string>();
+  await Promise.all(sources.map(async (src, i) => {
+    const image = dataImageBytes(src);
+    if (!image) return;
+    const name = `image-${i + 1}.${image.type.slice('image/'.length).replace('jpeg', 'jpg')}`;
+    const done = await upload({ ...image, name }).catch(() => null);
+    if (done?.cid) cids.set(src, done.cid);
+  }));
+  if (cids.size === 0) return html;
+  return html.replace(IMG_TAG, (tag) => {
+    if (/\sdata-cid\s*=/i.test(tag)) return tag;
+    const src = SRC_ATTR.exec(tag);
+    const cid = cids.get((src?.[1] ?? src?.[2] ?? '').trim());
+    if (!cid) return tag;
+    return tag.replace(/^<img\b/i, `<img data-cid="${cid.replace(/"/g, '&quot;')}"`);
+  });
 }
 
 /** Convert a plain-text template body to composer HTML (escape + <br>). */

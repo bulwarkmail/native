@@ -27,9 +27,11 @@ interface TagSheetProps {
   onToggle: (token: string, on: boolean) => void;
   /** Offer "New tag" (not in a group account: see NewTagRow). Default true. */
   allowNewTag?: boolean;
+  /** The heading instead of "N emails selected" (the composer's Tags). */
+  title?: string;
 }
 
-export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle, allowNewTag = true }: TagSheetProps) {
+export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle, allowNewTag = true, title }: TagSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -101,7 +103,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle,
             <Text style={styles.title}>
               {/* Not context_menu.items_selected: "{count} emails selected" has no
                   singular, and the sheet opens for one email too. */}
-              {t('context_menu.emails_selected', '{count, plural, one {# email selected} other {# emails selected}}', { count: selectedEmails.length })}
+              {title ?? t('context_menu.emails_selected', '{count, plural, one {# email selected} other {# emails selected}}', { count: selectedEmails.length })}
             </Text>
             <Pressable onPress={onClose} hitSlop={10} style={styles.close}
               accessibilityRole="button"

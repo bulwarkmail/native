@@ -23,7 +23,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import {
-  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreadDrafts, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  type OutgoingAttachment,
 } from '../email';
 import { uploadBytes } from '../blob';
 import { deleteFileNodes } from '../files';
@@ -34,10 +35,14 @@ import {
 import { CAPABILITIES } from '../types';
 import { cancelScheduledToDrafts } from '../../lib/compose-scheduled';
 import { formatScheduledSendAt, schedulePresets } from '../../lib/compose-schedule';
-import { htmlToPlainText } from '../../lib/compose-html';
+import { htmlToPlainText, rewriteInlineImages } from '../../lib/compose-html';
+import { embedTemplateImages } from '../../lib/template-utils';
 import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature-utils';
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
+import { findReplyDraftContext } from '../../lib/reply-draft-resume';
+import { replyComposeParams } from '../../lib/reply-compose';
+import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { mergeRecipientSuggestions } from '../../lib/recipient-suggestions';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useAccountStore } from '../../stores/account-store';
@@ -258,6 +263,134 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       const withBlob = await singleton.request([call as never], [CAPABILITIES.CORE, CAPABILITIES.BLOB]);
       expect(withBlob.methodResponses[0][0]).toBe('Blob/copy');
     }, 30_000);
+  });
+
+  describe('reply drafts', () => {
+    // Reply on a message with a saved reply opens that draft (webmail 1.21).
+    it('finds the saved reply to a message in its conversation', async () => {
+      const inbox = (await getMailboxes()).find((b) => b.role === 'inbox')!.id;
+      const msgId = `orig-${RUN}@example.org`;
+      const res = await singleton.request([['Email/set', {
+        accountId: singleton.accountId,
+        create: {
+          o: {
+            mailboxIds: { [inbox]: true }, keywords: { $seen: true },
+            from: [{ email: 'ann@example.org', name: 'Ann' }], to: [{ email: USER }], cc: [{ email: 'bob@example.org' }],
+            subject: `orig ${tag}`, messageId: [msgId], receivedAt: new Date(Date.now() - 60_000).toISOString(),
+            bodyValues: { b: { value: 'hello' } }, textBody: [{ partId: 'b', type: 'text/plain' }],
+          },
+        },
+      }, '0']]);
+      const origId = res.methodResponses[0][1].created.o.id as string;
+      createdEmails.push(origId);
+      const reply = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: 'ann@example.org' }], subject: `Re: orig ${tag}`, textBody: 'draft reply',
+        inReplyTo: [msgId], references: [msgId],
+      }, drafts);
+      createdEmails.push(reply.id);
+      const [original] = await getFullEmails([origId]);
+
+      const threadDrafts = await getThreadDrafts(original.threadId);
+      expect(threadDrafts.map((d) => d.id)).toContain(reply.id);
+      expect(threadDrafts.find((d) => d.id === reply.id)?.inReplyTo).toEqual([msgId]);
+
+      const ctx = await findReplyDraftContext('reply', original);
+      expect(ctx?.id).toBe(reply.id);
+      expect(ctx?.textBody).toContain('draft reply');
+      const all = await findReplyDraftContext('replyAll', original);
+      expect(all?.cc?.map((r) => r.email)).toEqual(['bob@example.org']);
+    }, 60_000);
+  });
+
+  describe('reply From', () => {
+    // Stalwart writes Delivered-To on local delivery; the reply's From picks
+    // the identity from it when To/Cc/Bcc name none (webmail #1353).
+    it('reads the delivery address of a delivered message and replies from it', async () => {
+      const identities = await getIdentities();
+      const identity = identities.find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
+      const inbox = (await getMailboxes()).find((b) => b.role === 'inbox')!.id;
+      const subject = `delivered ${tag}`;
+      const sentRes = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject, textBody: 'live' },
+        identity.id, sent, undefined, { draftsMailboxId: drafts },
+      );
+      if (sentRes.emailId) createdEmails.push(sentRes.emailId);
+      let received: Awaited<ReturnType<typeof getFullEmails>>[number] | undefined;
+      for (let i = 0; i < 30 && !received; i++) {
+        const q = await singleton.request([['Email/query', {
+          accountId: singleton.accountId, filter: { inMailbox: inbox, subject },
+        }, '0']]);
+        const ids = (q.methodResponses[0][1].ids as string[]) ?? [];
+        if (ids.length) [received] = await getFullEmails([ids[0]]);
+        else await new Promise((r) => setTimeout(r, 1000));
+      }
+      expect(received, 'the message reached the Inbox').toBeTruthy();
+      createdEmails.push(received!.id);
+      const params = replyComposeParams('reply', received!);
+      expect(params?.replyTo?.deliveredTo?.map((a) => a.toLowerCase())).toContain(USER.toLowerCase());
+      // As for mail to a list or a repo: no own address in To, Cc or Bcc.
+      const resolved = resolveReplyIdentity(
+        [{ id: 'other', name: 'Other', email: 'other@example.net', mayDelete: true }, identity],
+        { ...params!.replyTo!, from: { email: 'list@example.net' }, to: [{ email: 'list@example.net' }], cc: [], bcc: [] },
+        { ownEmails: [], catchAll: false },
+      );
+      expect(resolved?.identityId).toBe(identity.id);
+    }, 60_000);
+  });
+
+  describe('template pictures', () => {
+    // A template's data: image goes up and out as an inline cid: part (webmail #1492).
+    it('saves a template picture as an inline part, not a data: URI', async () => {
+      const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      const parts = new Map<string, OutgoingAttachment>();
+      const html = await embedTemplateImages(`<p>Logo</p><img src="data:image/png;base64,${png}">`, async (image) => {
+        const up = await uploadBytes(image.bytes, image.type);
+        const cid = `tpl-${RUN}@bulwark.local`;
+        parts.set(cid, { blobId: up.blobId, type: image.type, name: image.name, size: image.bytes.byteLength, disposition: 'inline', cid });
+        return { cid };
+      });
+      const rewritten = rewriteInlineImages(html);
+      expect(rewritten.html).toContain(`src="cid:tpl-${RUN}@bulwark.local"`);
+      expect(rewritten.html).not.toContain('data:image');
+      const saved = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `template picture ${tag}`,
+        htmlBody: rewritten.html, textBody: 'Logo',
+        attachments: rewritten.usedCids.map((cid) => parts.get(cid)!),
+      }, drafts);
+      createdEmails.push(saved.id);
+      const [kept] = await getFullEmails([saved.id]);
+      const part = [...(kept.attachments ?? [])].find((a) => a.cid && a.cid.includes(`tpl-${RUN}`));
+      expect(part?.type).toBe('image/png');
+      expect(part?.disposition).toBe('inline');
+      const body = Object.values(kept.bodyValues ?? {}).map((v) => v.value).join('');
+      expect(body).toContain(`cid:tpl-${RUN}@bulwark.local`);
+      expect(body).not.toContain('data:image');
+    }, 60_000);
+  });
+
+  describe('composer tags', () => {
+    // The draft keeps the composer's tags and the sent copy carries them (webmail #1610).
+    it('saves the tags with the draft and puts them on the sent copy', async () => {
+      const token = `$label:bulwark-${RUN}`;
+      const saved = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `tags draft ${tag}`, textBody: 'tags', keywords: [token],
+      }, drafts);
+      createdEmails.push(saved.id);
+      const [kept] = await getFullEmails([saved.id]);
+      expect(kept.keywords).toMatchObject({ [token]: true, $draft: true });
+
+      const identities = await getIdentities();
+      const identity = identities.find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `tags sent ${tag}`, textBody: 'tags', keywords: [token] },
+        identity.id, sent, undefined, { draftsMailboxId: drafts },
+      );
+      createdEmails.push(result.emailId!);
+      const [copy] = await getFullEmails([result.emailId!]);
+      expect(copy.keywords?.[token]).toBe(true);
+      expect(copy.keywords?.$draft).toBeFalsy();
+      expect(copy.mailboxIds[sent]).toBe(true);
+    }, 60_000);
   });
 
   describe('identities', () => {

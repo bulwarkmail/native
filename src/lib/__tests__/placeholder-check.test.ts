@@ -27,6 +27,22 @@ describe('findUnfilledPlaceholders', () => {
     ]);
   });
 
+  // Ported from the webmail (#1609): a placeholder with a default went out
+  // with its braces.
+  it('finds a template placeholder with a default', () => {
+    expect(findUnfilledPlaceholders('Stay from {{arrival:Sat 13 Feb}}', 'Check-in at {{time:15:00}}.')).toEqual([
+      '{{arrival:Sat 13 Feb}}',
+      '{{time:15:00}}',
+    ]);
+  });
+
+  it('finds a template placeholder whose default holds an address', () => {
+    expect(findUnfilledPlaceholders('For {{contact:Jane <jane@x.com>}}', 'Write to {{to:Bob <bob@x.com>}} today.')).toEqual([
+      '{{contact:Jane <jane@x.com>}}',
+      '{{to:Bob <bob@x.com>}}',
+    ]);
+  });
+
   it('finds upper-case fill-ins in brackets', () => {
     expect(findUnfilledPlaceholders('', 'See you at [TIME]. It costs [PRICE] per [UNIT_NAME].'))
       .toEqual(['[TIME]', '[PRICE]', '[UNIT_NAME]']);

@@ -34,6 +34,8 @@ export function ComposingSettings() {
   const customFromEnabled = usePolicyFeature('customFromEnabled');
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
+  const signatureNewMailEnabled = useSettingsStore((s) => s.signatureNewMailEnabled);
+  const signatureReplyForwardEnabled = useSettingsStore((s) => s.signatureReplyForwardEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
   const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
@@ -64,8 +66,9 @@ export function ComposingSettings() {
   };
 
   const SEND_DELAY_OPTIONS: { label: string; value: number }[] = [
-    // Same set the webmail accepts (0/10/30/60); the store rejects others.
+    // Same set the webmail accepts (0/5/10/30/60); the store rejects others.
     { label: t('settings.email_behavior.send_delay.off', "Off"), value: 0 },
+    { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 5 }), value: 5 },
     { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 10 }), value: 10 },
     { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 30 }), value: 30 },
     { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 60 }), value: 60 },
@@ -199,6 +202,20 @@ export function ComposingSettings() {
         description={t('settings.email_behavior.placeholder_warning.description', 'Ask for confirmation before sending a message that still has placeholders like [TIME] or [Your Name], template fields left empty, or unfinished text like TODO or TBD.')}
       >
         <ToggleSwitch checked={placeholderWarningEnabled} onChange={(v) => updateSetting('placeholderWarningEnabled', v)} />
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.email_behavior.signature_new_mail.label', 'Signature on new mail')}
+        description={t('settings.email_behavior.signature_new_mail.description', 'Automatically insert your signature when composing a new message. Turn off to start every new message without one.')}
+      >
+        <ToggleSwitch checked={signatureNewMailEnabled} onChange={(v) => updateSetting('signatureNewMailEnabled', v)} />
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.email_behavior.signature_reply_forward.label', 'Signature on replies & forwards')}
+        description={t('settings.email_behavior.signature_reply_forward.description', 'Automatically append your signature when replying to or forwarding a message. Turn off to send them without one.')}
+      >
+        <ToggleSwitch checked={signatureReplyForwardEnabled} onChange={(v) => updateSetting('signatureReplyForwardEnabled', v)} />
       </SettingItem>
 
       <View style={styles.subBlock}>

@@ -32,6 +32,7 @@ import { useSheetInsets } from '../../lib/use-layout';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import Badge from '../Badge';
 import { identityDraftChanged } from './identity-draft';
+import { SignatureEditor } from './SignatureEditor';
 
 type DraftIdentity = {
   id: string;
@@ -108,6 +109,8 @@ export function IdentitySettings() {
   const fetchIdentities = useSettingsStore((s) => s.fetchIdentities);
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  // Plain text only (Composing): the signature is a plain text box.
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   const accountId = jmapClient.isConnected ? jmapClient.accountId : '';
   const preferredId = accountId ? preferredIdentityIds[accountId] : undefined;
 
@@ -388,31 +391,23 @@ export function IdentitySettings() {
                 autoCorrect={false}
                 keyboardType="email-address"
               />
-              <Text style={styles.fieldLabel}>{t('identities.form.text_signature_label', "Text Signature")}</Text>
-              <TextInput accessibilityLabel={t('identities.form.text_signature_label', "Text Signature")}
-                value={editing?.textSignature ?? ''}
-                onChangeText={(textSignature) => setEditing((d) => (d ? { ...d, textSignature } : d))}
-                placeholder="--&#10;Jane Doe&#10;Bulwark Mail"
-                placeholderTextColor={c.textMuted}
-                multiline
-                style={[styles.input, styles.bodyInput]}
-              />
-              <Text style={[styles.hint, textBytes > SIGNATURE_MAX_BYTES && styles.hintError]}>
-                {t('identities.form.signature_byte_counter', '{bytes} / {max} bytes', { bytes: textBytes, max: SIGNATURE_MAX_BYTES })}
-              </Text>
-              <Text style={styles.fieldLabel}>{t('identities.form.html_signature_label', "HTML Signature")}</Text>
-              <TextInput accessibilityLabel={t('identities.form.html_signature_label', "HTML Signature")}
-                value={editing?.htmlSignature ?? ''}
-                onChangeText={(htmlSignature) => setEditing((d) => (d ? { ...d, htmlSignature } : d))}
-                placeholder="<p><b>Jane Doe</b><br>Bulwark Mail</p>"
-                placeholderTextColor={c.textMuted}
-                multiline
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[styles.input, styles.bodyInput, styles.mono]}
-              />
-              <Text style={[styles.hint, htmlBytes > SIGNATURE_MAX_BYTES && styles.hintError]}>
-                {t('identities.form.signature_byte_counter', '{bytes} / {max} bytes', { bytes: htmlBytes, max: SIGNATURE_MAX_BYTES })}
+              {/* One signature with formatting, the plain text made from it
+                  (webmail signature-editor.tsx); plain text only for someone
+                  who writes plain text. */}
+              {editing && (
+                <SignatureEditor
+                  key={editing.id || 'new'}
+                  html={editing.htmlSignature}
+                  text={editing.textSignature}
+                  plainOnly={plainTextMode}
+                  label={plainTextMode
+                    ? t('identities.form.text_signature_label', 'Text signature')
+                    : t('identities.form.html_signature_label', 'HTML signature')}
+                  onChange={(change) => setEditing((d) => (d ? { ...d, ...change } : d))}
+                />
+              )}
+              <Text style={[styles.hint, Math.max(textBytes, plainTextMode ? 0 : htmlBytes) > SIGNATURE_MAX_BYTES && styles.hintError]}>
+                {t('identities.form.signature_byte_counter', '{bytes} / {max} bytes', { bytes: Math.max(textBytes, plainTextMode ? 0 : htmlBytes), max: SIGNATURE_MAX_BYTES })}
               </Text>
             </ScrollView>
             <View style={styles.modalActions}>

@@ -109,7 +109,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the folder sheet always lists Mark folder as read and the other actions (`src/components/SidebarDrawer.tsx:587-597`); offline they end in an error alert (`:562-573`).
   - Fix hint: hide or disable the read rows when unreadEmails is 0 over the subtree, and disable rename, create, delete and share while the network store says offline.
 
-- [ ] **The undo send bar squeezes its text with long button labels** — `P3` — `bug`
+- [x] **The undo send bar squeezes its text with long button labels** — `P3` — `bug` — fixed in faae7363
   - What WEB does: the toast's actions wrap onto their own line when their labels don't leave the text a readable width (`components/ui/toast.tsx:291`). dc273ae94 (#1599, Russian).
   - What RN does: label (one line, flex 1) and the uppercase "SEND NOW" and "UNDO" buttons share one row (`src/components/UndoSnackbar.tsx:163-187`, `:200-220`); in Russian ("ОТПРАВИТЬ СЕЙЧАС", "ОТМЕНИТЬ") the countdown text has little room left on a phone. Read from the code, not tried on a device.
   - Fix hint: `flexWrap: 'wrap'` on the bar with the buttons in their own row, or a second line when the label gets narrower than a minimum.
@@ -199,7 +199,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Compose and send
 
-- [ ] **A template placeholder with a default, `{{name:default}}`, is neither filled nor caught by the send check** — `P2` — `bug`
+- [x] **A template placeholder with a default, `{{name:default}}`, is neither filled nor caught by the send check** — `P2` — `bug` — fixed in 17c9046e
   - What WEB does: placeholders can carry a default; the fill dialog starts the field with it, and the send check flags an unfilled one, also with an address in angle brackets (`lib/template-utils.ts:10-11`, `:88`, `lib/placeholder-check.ts:8`, `components/templates/placeholder-fill-modal.tsx`). ea7e2eedf, 6866201e2 (#1609).
   - What RN does: the regexes only know `{{name}}` (`src/lib/template-utils.ts:19`, `src/lib/placeholder-check.ts:11`). Templates are shared with the webmail through account metadata (`src/stores/templates-store.ts:7-16`), so a webmail template with `{{checkin_time:15:00}}` inserted in the app gets no fill prompt (`src/screens/ComposeScreen.tsx:2399`) and the placeholder warning doesn't fire, so it goes out with the braces.
   - Fix hint: port both regexes and getPlaceholderDefaults; prefill the fill sheet with the default.
@@ -209,67 +209,67 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing; no label code in src. The app already reads the policy and keeps its `organisation` block (`src/lib/org-policy.ts:57`), which is where the labels live (`OrganisationPolicy['labels']`, `lib/classification/labels.ts:27`).
   - Fix hint: port lib/classification/labels.ts, add a label row to the composer options, apply headers and prefix in the send path, and refuse to send when a label is required and none is picked.
 
-- [ ] **No Tags menu in the composer** — `P3` — `missing`
+- [x] **No Tags menu in the composer** — `P3` — `missing` — fixed in 49762298
   - What WEB does: a Tags menu next to Options; replies and forwards start with the original's tags, a group account offers its shared tags, drafts keep them and the sent copy carries them (`components/email/email-composer.tsx:1359`, `lib/jmap/client.ts:5411`, `lib/draft-composer-data.ts`). 5354d6066, 54e4a03a3 (#1610).
   - What RN does: drafts are created with `$seen` and `$draft` only (`src/api/email.ts:2049`); the composer has no tag state.
   - Fix hint: reuse TagSheet in the composer options and pass the keywords to the draft and the send.
 
-- [ ] **Undo send is off by default and has no 5-second choice** — `P3` — `partial`
+- [x] **Undo send is off by default and has no 5-second choice** — `P3` — `partial` — fixed in 6ed687aa
   - What WEB does: on by default with 5 s; choices 0, 5, 10, 30, 60 (`stores/settings-store.ts:492`, `:1144`). Changelog 1.21.0 (Compose: Undo send is on by default).
   - What RN does: default 0 and choices 0, 10, 30, 60 (`src/stores/settings-store.ts:442`, `:678`); an imported webmail settings file with 5 falls back to 0. The countdown itself is there (`src/stores/send-undo-store.ts:92`).
   - Fix hint: add 5 and make it the default for new installs.
 
-- [ ] **Closing the composer has no "Draft saved" notice with Open and Discard** — `P3` — `partial`
+- [x] **Closing the composer has no "Draft saved" notice with Open and Discard** — `P3` — `partial` — fixed in bc54de1c
   - What WEB does: closing keeps the draft and shows "Draft saved · Open · Discard"; Discard has its own Undo (`lib/compose/draft-close-toast.ts:58`). 656073804, changelog 1.21.0.
   - What RN does: with unsaved changes it asks Save or Discard (`src/screens/ComposeScreen.tsx:1859-1867`); with everything saved it closes without a word (`:1894-1907`), so there is no quick way back to the draft or to drop it.
   - Fix hint: after a close that kept a draft, show a toast with Open (navigate to Compose with the draft) and Discard.
 
-- [ ] **Reply starts a second draft when a reply to that message is already saved** — `P3` — `missing`
+- [x] **Reply starts a second draft when a reply to that message is already saved** — `P3` — `missing` — fixed in 7e61fa9e
   - What WEB does: finds the newest draft whose In-Reply-To names the message and opens it again on Reply (`lib/reply-drafts.ts:18`, `:33`). Changelog 1.21.0 (Mail: Reply picks up a reply you already started).
   - What RN does: Reply always builds a new composer from the message (`src/screens/EmailThreadScreen.tsx:620-625`).
   - Fix hint: look for a `$draft` in the thread whose inReplyTo matches the message's Message-ID and open that draft instead.
 
-- [ ] **A forwarded message's header doesn't list To and Cc** — `P3` — `missing`
+- [x] **A forwarded message's header doesn't list To and Cc** — `P3` — `missing` — fixed in 729bde85
   - What WEB does: the forward header has From, Date, Subject, To and Cc (`lib/quote-header.ts:24-25`, `:50-51`). Changelog 1.21.0.
   - What RN does: From, Date and Subject only (`src/lib/quote-header.ts:107-110`).
   - Fix hint: add the two lines and their labels.
 
-- [ ] **Replies don't come from the address the mail was delivered to** — `P3` — `missing`
+- [x] **Replies don't come from the address the mail was delivered to** — `P3` — `missing` — fixed in 891d9e74
   - What WEB does: when To, Cc and Bcc match no identity, it picks the identity from Delivered-To, X-Original-To and the like (`lib/reply-identity.ts:27`, `:48-55`). Changelog 1.20.0 (#1353).
   - What RN does: matches To, Cc and Bcc only (`src/lib/reply-identity.ts:52`); no delivery headers are read anywhere in src.
   - Fix hint: port the DELIVERY_HEADERS step and fetch those headers with the reply source.
 
-- [ ] **Pictures in an HTML template go out as data: URIs that Gmail and Outlook don't show** — `P3` — `bug`
+- [x] **Pictures in an HTML template go out as data: URIs that Gmail and Outlook don't show** — `P3` — `bug` — fixed in 3226f868
   - What WEB does: uploads each data: image of a template and sends it as an inline cid: part (`lib/template-utils.ts:191`, used at `components/email/email-composer.tsx:2667`). Changelog 1.20.0 (#1492).
   - What RN does: inserts an HTML template as it is (`src/lib/template-utils.ts:209-210`); the send path turns only `data-cid` images into parts (`src/lib/compose-html.ts:298-316`), so a template's `<img src="data:...">` stays in the HTML.
   - Fix hint: on template insert, upload each data: image like insertInlineImages does (`src/screens/ComposeScreen.tsx:2199`) and tag it with its cid.
 
-- [ ] **No switches to leave the signature out of new mail or out of replies** — `P3` — `missing`
+- [x] **No switches to leave the signature out of new mail or out of replies** — `P3` — `missing` — fixed in 570efabf
   - What WEB does: "Insert signature in new mail" and "in replies, forwards and quick replies", both on by default (`stores/settings-store.ts:781-782`, `components/email/email-composer.tsx:771-777`). Changelog 1.20.0 (#1493).
   - What RN does: always inserts the identity's signature (`src/screens/ComposeScreen.tsx:1386`); no such settings (`src/stores/settings-store.ts`).
   - Fix hint: two settings on the Composing page and a check before placing the signature.
 
-- [ ] **A message can't be saved as a template from the composer** — `P3` — `missing`
+- [x] **A message can't be saved as a template from the composer** — `P3` — `missing` — fixed in 0fda58fd
   - What WEB does: saves the open message as a template with just a name, HTML kept as HTML (`components/templates/quick-save-template-dialog.tsx`, `components/email/email-composer.tsx:6696`). Changelog 1.21.0 and 1.20.0 (#1506).
   - What RN does: templates are made only in Settings (`src/components/settings/TemplateSettings.tsx:33`, `:106`); the composer only inserts them.
   - Fix hint: a "Save as template" entry in the composer options that asks for a name and calls addTemplate.
 
-- [ ] **No picker to tick recipients from the contacts or the directory** — `P3` — `missing`
+- [x] **No picker to tick recipients from the contacts or the directory** — `P3` — `missing` — fixed in 26aaa502
   - What WEB does: a recipient picker lists the user's contacts with the directory on its own tab (`components/contacts/directory-picker-dialog.tsx:6`, `components/email/email-composer.tsx:6680`). Changelog 1.21.0.
   - What RN does: only suggestions while typing; RecipientPicker is the same suggestion list full screen (`src/components/compose/RecipientPicker.tsx:14-19`).
   - Fix hint: a sheet with Contacts and Directory tabs and check boxes, reusing ContactPickerSheet and DirectoryBrowser.
 
-- [ ] **Insert link asks only for the address** — `P3` — `partial`
+- [x] **Insert link asks only for the address** — `P3` — `partial` — fixed in 7fee8823
   - What WEB does: asks for the text and the address (`components/email/link-dialog.tsx`). Changelog 1.21.0.
   - What RN does: one field for the URL; without a selection the link text is the URL (`src/screens/ComposeScreen.tsx:2310-2321`, `src/lib/editor-html.ts:548-575`). The editor bridge already takes a label (`src/components/RichTextEditor.tsx:209`).
   - Fix hint: add a text field to the link prompt and pass it as the label.
 
-- [ ] **Send warnings come as several questions in a row** — `P3` — `partial`
+- [x] **Send warnings come as several questions in a row** — `P3` — `partial` — fixed in c68f0eed
   - What WEB does: one question before sending lists everything that's missing (`components/email/send-warnings-dialog.tsx`). Changelog 1.21.0.
   - What RN does: empty subject, placeholders, attachment and confirm each open their own Alert (`src/screens/ComposeScreen.tsx:2498`, `:2542`, `:2570`, `:2728-2729`).
   - Fix hint: collect the findings first and show one sheet with "Send anyway".
 
-- [ ] **The HTML signature is edited as raw HTML code** — `P3` — `partial`
+- [x] **The HTML signature is edited as raw HTML code** — `P3` — `partial` — fixed in aa9b1876
   - What WEB does: signatures use the composer's rich editor and can be edited per address on the Composing page (`components/settings/signatures-section.tsx`). Changelog 1.21.0 (Settings).
   - What RN does: a monospace TextInput for HTML (`src/components/settings/IdentitySettings.tsx:403-412`).
   - Fix hint: reuse RichTextEditor for the signature field.

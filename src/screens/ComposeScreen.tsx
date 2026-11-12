@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Tag, Type, Highlighter, Trash2, Settings,
+  Tag, Type, Highlighter, Trash2, Settings, BookUser,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -42,13 +42,15 @@ import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
-import { type EmailTemplate } from '../stores/templates-store';
+import { useTemplatesStore, type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import {
-  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, SendUnconfirmedError,
+  sendEmail, saveDraftVersion, destroyEmails, getFullEmail, patchKeywordsForEmails, SendUnconfirmedError,
   type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
+import { draftContextFromEmail } from '../lib/draft-context';
+import { showDraftSavedNotice } from '../lib/compose-draft-close-notice';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
 import { composerSendFailureMessage, partlyRefusedWarning } from '../lib/send-failure-message';
@@ -80,6 +82,17 @@ import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
 import { ComposerOptionsSheet, activeComposerOptionCount, type ComposerOptions } from '../components/compose/ComposerOptionsSheet';
+import { SendWarningsSheet } from '../components/compose/SendWarningsSheet';
+import { TagSheet } from '../components/TagSheet';
+import { useAccountKeywordDefs } from '../stores/keywords-store';
+import { initialTagTokens, tagTokensAsKeywords, toggleTagToken } from '../lib/compose-tags';
+import { answerSendWarnings, collectSendWarnings, type SendWarning } from '../lib/compose-send-warnings';
+import { linkPromptInput } from '../lib/compose-link';
+import { templateFromComposer } from '../lib/compose-template';
+import { RecipientPickerSheet, type PickerField } from '../components/compose/RecipientPickerSheet';
+import { addPickedRecipients } from '../lib/compose-recipient-picker';
+import type { DirectoryEntry } from '../lib/contact-directory';
+import Dialog from '../components/Dialog';
 import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
 import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
 import { prepareSecureSend, resolveRecipientKeys, SecureSendError, type SecureChoice } from '../lib/crypto/compose-secure';
@@ -116,13 +129,13 @@ import {
   plainTextBodyHasSignature, plainTextBodyWithoutSignature, SIGNATURE_RANGE_MARKER, wantsSignatureSeparator,
 } from '../lib/signature-utils';
 import {
-  getAutoFilledPlaceholders, getPlaceholdersFromTemplate, substitutePlaceholders, templateBodyToHtml,
+  embedTemplateImages, getAutoFilledPlaceholders, getPlaceholdersFromTemplate, placeholderPromptValues, substitutePlaceholders, templateBodyToHtml,
 } from '../lib/template-utils';
 import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
 import { activeFromOverride, composeSenderAddress } from '../lib/compose-sender';
-import type { EmailAddress, FileNode, Identity } from '../api/types';
+import type { Email, EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { draftThreadOf, refreshDraftThread } from '../lib/draft-thread-refresh';
@@ -156,8 +169,6 @@ type AttachmentEntry = {
 };
 
 type Field = 'to' | 'cc' | 'bcc';
-
-const URL_RE = /^https?:\/\/.+/i;
 
 // The webmail's 2 x 8 palette, used for text and background colour alike.
 const TEXT_COLORS = [
@@ -442,6 +453,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
+  const signatureNewMailEnabled = useSettingsStore((s) => s.signatureNewMailEnabled);
+  const signatureReplyForwardEnabled = useSettingsStore((s) => s.signatureReplyForwardEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
   const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
@@ -450,6 +463,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
   const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
   const hasContacts = useHasContacts();
+  // The recipient picker: contacts, and the directory where the server has one.
+  const directoryAvailable = useContactsStore((s) => s.directoryStatus !== 'unavailable');
+  const [recipientSheetOpen, setRecipientSheetOpen] = React.useState(false);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   const quoteLabels = React.useMemo<QuoteHeaderLabels>(() => quoteHeaderLabels(t), [t]);
@@ -580,7 +596,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (!replyTo) return prefillBody ?? '';
     const header = buildQuoteHeader({
       mode: mode === 'compose' ? 'reply' : mode,
-      email: { from: replyTo.from, subject: replyTo.subject, receivedAt: replyTo.sentAt ?? replyTo.receivedAt },
+      email: { from: replyTo.from, to: replyTo.to, cc: replyTo.cc, subject: replyTo.subject, receivedAt: replyTo.sentAt ?? replyTo.receivedAt },
       timeFormat,
       locale,
       unknownLabel: t('common.unknown', 'Unknown'),
@@ -648,6 +664,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const initialPriority: MessagePriority = draft?.priority ?? 'normal';
   const [priority, setPriority] = React.useState<MessagePriority>(initialPriority);
   const [optionsSheetOpen, setOptionsSheetOpen] = React.useState(false);
+  // Tags (webmail composer Tags menu, #1610): a draft keeps its own, a reply
+  // or forward starts with the original's; the draft and the sent copy carry
+  // them. A group account's message offers the group's shared tags.
+  const [initialTags] = React.useState<string[]>(() => initialTagTokens(draft ? draft.keywords : replyTo?.keywords));
+  const [tagTokens, setTagTokens] = React.useState<string[]>(initialTags);
+  const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  const tagKeywordDefs = useAccountKeywordDefs(replyTo?.jmapAccountId);
+  const tagSheetEmails = React.useMemo(() => [{ keywords: tagTokensAsKeywords(tagTokens) } as unknown as Email], [tagTokens]);
   // Sign / encrypt with OpenPGP or S/MIME (#58), per message.
   const [secureMode, setSecureMode] = React.useState<SecureMode>('pgp');
   const [secureSign, setSecureSign] = React.useState(false);
@@ -1241,6 +1265,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     attachments: AttachmentEntry[];
     /** A priority change alone is an edit worth saving (webmail #970). */
     priority?: MessagePriority;
+    /** So is a tag change; left out, the tags the message started with. */
+    tags?: string[];
   }) => JSON.stringify({
     to: s.to.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
     cc: s.cc.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
@@ -1249,15 +1275,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
     body: s.body,
     att: s.attachments.filter((a) => !a.inline).map((a) => a.blobId ?? a.localId),
     pri: s.priority ?? 'normal',
+    tags: [...(s.tags ?? initialTags)].sort(),
   });
 
   // Memoized: the snapshot copies the whole body, and the screen re-renders
   // for plenty that doesn't touch it (PF8).
   const currentSnapshot = React.useMemo(() => snapshotOf({
     to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-    body: plainTextMode ? plainBody : bodyHtml, attachments, priority,
+    body: plainTextMode ? plainBody : bodyHtml, attachments, priority, tags: tagTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority]);
+  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority, tagTokens]);
   const baselineRef = React.useRef(snapshotOf({
     to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
     body: plainTextMode ? initialPlainBody : initialBodyHtml, attachments: initialAttachments,
@@ -1365,11 +1392,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   // Embed the signature once the identities are known. A re-opened draft
-  // keeps whatever it already carries (#848).
+  // keeps whatever it already carries (#848). New mail follows the new-mail
+  // switch, replies and forwards the reply/forward one (webmail #1493); with
+  // it off nothing is inserted or swapped, and what the body already carries
+  // stays.
+  const autoSignatureEnabled = mode === 'compose' ? signatureNewMailEnabled : signatureReplyForwardEnabled;
   const signatureEmbeddedRef = React.useRef(false);
   const prevSignatureIdentityRef = React.useRef<Identity | null>(null);
   React.useEffect(() => {
-    if (!primaryIdentity) return;
+    if (!primaryIdentity || !autoSignatureEnabled) return;
     if (!signatureEmbeddedRef.current) {
       signatureEmbeddedRef.current = true;
       prevSignatureIdentityRef.current = signatureIdentity;
@@ -1546,9 +1577,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       messageId: messageIdRef.current,
       requestReadReceipt,
       priority: priority !== 'normal' ? priority : undefined,
+      keywords: tagTokens.length ? tagTokens : undefined,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, signatureSeparatorEnabled, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, tagTokens, signatureSeparatorEnabled, t]);
 
   // Which of OpenPGP / S/MIME the From address has a key for, and who of the
   // recipients has none (read while the options sheet is open).
@@ -1639,7 +1671,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? plainBody : html, attachments, priority,
+      body: plainTextMode ? plainBody : html, attachments, priority, tags: tagTokens,
     });
     if (snapshot === lastSavedRef.current) return draftIdRef.current;
     if (snapshot === baselineRef.current && !draftIdRef.current) return null;
@@ -1797,6 +1829,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     try {
       await saveDraft({ live: true });
       allowLeaveRef.current = true;
+      announceKeptDraft();
       proceed();
     } catch (err) {
       if (err instanceof DraftKeptOnDeviceError) {
@@ -1819,6 +1852,25 @@ export default function ComposeScreen({ route, navigation }: Props) {
     } finally {
       setSavingDraft(false);
     }
+  };
+
+  // "Draft saved" with Open and Discard, once the composer closed and kept
+  // its draft (webmail announceKeptDraft). Read before the screen goes; Open
+  // brings the draft back in a composer, as a draft opened from the list.
+  const announceKeptDraft = () => {
+    const id = draftIdRef.current;
+    if (!id || loginMoved()) return;
+    const account = draftAccountRef.current;
+    showDraftSavedNotice({
+      open: () => {
+        getFullEmail(id, account)
+          .then((full) => navigation.navigate('Compose', { draft: draftContextFromEmail(full, account) }))
+          .catch(() => toast.error(t('email_list.open_draft_failed', 'Could not open the draft.')));
+      },
+      discard: () => {
+        destroyEmails([id], account).catch((err) => console.warn('[compose] discard failed', err));
+      },
+    }, t);
   };
 
   const discardAndClose = (proceed: () => void) => {
@@ -1882,7 +1934,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority,
+      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority, tags: tagTokens,
     });
     return snapshot === lastSavedRef.current;
   };
@@ -1899,12 +1951,23 @@ export default function ComposeScreen({ route, navigation }: Props) {
     void (async () => {
       if (await savedAlready()) {
         allowLeaveRef.current = true;
+        announceKeptDraft();
         navigation.dispatch(data.action);
         return;
       }
       showCloseDialog(() => navigation.dispatch(data.action));
     })();
   });
+
+  // Nothing unsaved (a re-opened draft closed untouched): the guard above
+  // lets the screen go, and the kept draft is announced here.
+  React.useEffect(() => {
+    if (isDirty || needsSave) return undefined;
+    return navigation.addListener('beforeRemove', () => {
+      if (!allowLeaveRef.current) announceKeptDraft();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, isDirty, needsSave]);
 
   // Discard deletes the draft, also one without unsaved changes such as a
   // re-opened draft or a scheduled message back for editing, which the X
@@ -2303,21 +2366,26 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // ── Link prompt (Modal) ──────────────────────────────────────────────
+  // "Text" and "Link", as the webmail's link dialog (components/email/
+  // link-dialog.tsx) and Gmail ask. Empty text: the selection, or the address.
   const [linkPromptVisible, setLinkPromptVisible] = React.useState(false);
   const [linkPromptValue, setLinkPromptValue] = React.useState('');
+  const [linkPromptText, setLinkPromptText] = React.useState('');
   const linkInset = useSheetBottomInset(linkPromptVisible);
+  const linkPromptCheck = linkPromptInput(linkPromptValue);
 
   const openLinkPrompt = () => {
     setLinkPromptValue('https://');
+    setLinkPromptText('');
     setLinkPromptVisible(true);
   };
 
   const submitLinkPrompt = () => {
-    const trimmed = linkPromptValue.trim();
+    const link = linkPromptInput(linkPromptValue);
+    if (link.error) return;
     setLinkPromptVisible(false);
-    if (!trimmed || trimmed === 'https://' || trimmed === 'http://') return;
-    const url = URL_RE.test(trimmed) ? trimmed : `https://${trimmed}`;
-    editorRef.current?.insertLink(url);
+    if (!link.url) return;
+    editorRef.current?.insertLink(link.url, linkPromptText);
   };
 
   const onLinkPress = () => {
@@ -2363,10 +2431,35 @@ export default function ComposeScreen({ route, navigation }: Props) {
     });
   };
 
-  const applyTemplate = (template: EmailTemplate, values: Record<string, string>) => {
+  // A template's data: image goes up like a picked one and is tagged with
+  // its cid, so it is sent as an inline part (webmail #1492).
+  const uploadTemplateImage = async (image: { bytes: Uint8Array; type: string; name: string }): Promise<{ cid: string } | null> => {
+    if (!checkAttachmentSize(image.bytes.byteLength, true)) return null;
+    try {
+      const { blobId } = await uploadBytesForLogin(ownerLoginRef.current, image.bytes, image.type);
+      const cid = genCid();
+      inlineRegistryRef.current.set(cid, {
+        localId: `cid-${cid}`,
+        name: image.name,
+        type: image.type,
+        size: image.bytes.byteLength,
+        uri: '',
+        inline: true,
+        cid,
+        blobId,
+        uploading: false,
+      });
+      return { cid };
+    } catch (err) {
+      console.warn('[compose] template image upload failed', err);
+      return null;
+    }
+  };
+
+  const applyTemplate = async (template: EmailTemplate, values: Record<string, string>) => {
     const hasValues = Object.keys(values).length > 0;
     const filledSubject = hasValues ? substitutePlaceholders(template.subject, values) : template.subject;
-    const filledBody = hasValues ? substitutePlaceholders(template.body, values) : template.body;
+    const filledBody = hasValues ? substitutePlaceholders(template.body, values, { html: !!template.isHTML }) : template.body;
     // An empty template subject must not wipe one the user typed (#540).
     if (filledSubject && !subject.trim()) setSubject(filledSubject);
     if (plainTextMode) {
@@ -2374,7 +2467,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     } else {
       // Inserted at the caret so it lands after any text already typed and
       // leaves the signature / quote alone (#539/#540).
-      editorRef.current?.insertHtml(templateBodyToHtml({ body: filledBody, isHTML: template.isHTML }));
+      const html = await embedTemplateImages(templateBodyToHtml({ body: filledBody, isHTML: template.isHTML }), uploadTemplateImage);
+      editorRef.current?.insertHtml(html);
     }
     const addChips = (field: Field, list?: string[]) => {
       if (!list?.length) return;
@@ -2395,6 +2489,42 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // Ticked in the recipient picker: into the field asked for, each address
+  // once (webmail addDirectoryRecipients).
+  const addPickedToField = (field: PickerField, entries: DirectoryEntry[]) => {
+    setterFor(field)((prev) => addPickedRecipients(prev, entries, (e) => ({ name: e.name, email: e.email })));
+    if (field === 'cc') setCcVisible(true);
+    if (field === 'bcc') { setCcVisible(true); setBccVisible(true); }
+  };
+
+  // "Save as template": a name and Save, the HTML kept as HTML (webmail
+  // quick-save-template-dialog.tsx, #1506). The name starts as the subject.
+  const addTemplate = useTemplatesStore((s) => s.addTemplate);
+  const [saveTemplateName, setSaveTemplateName] = React.useState<string | null>(null);
+  const [saveTemplateError, setSaveTemplateError] = React.useState<string | null>(null);
+  const openSaveAsTemplate = () => {
+    setOptionsSheetOpen(false);
+    setSaveTemplateError(null);
+    setSaveTemplateName(subject.trim());
+  };
+  const saveAsTemplate = async () => {
+    if (saveTemplateName === null) return;
+    let html = latestRef.current.bodyHtml;
+    if (!plainTextMode) {
+      try { html = (await editorRef.current?.getHtml()) ?? html; } catch { /* the last change message */ }
+    }
+    const made = templateFromComposer({ name: saveTemplateName, subject, body: plainTextMode ? plainBody : html, plainTextMode });
+    if ('error' in made) {
+      setSaveTemplateError(made.error === 'too_long'
+        ? t('settings.templates.validation.too_long', 'Template name must be 200 characters or less')
+        : t('settings.templates.validation.empty', 'Template name is required'));
+      return;
+    }
+    addTemplate(made.template);
+    setSaveTemplateName(null);
+    toast.success(t('compose_send.template_saved', 'Template saved'));
+  };
+
   const onPickTemplate = (template: EmailTemplate) => {
     const placeholders = getPlaceholdersFromTemplate(template);
     const auto = getAutoFilledPlaceholders({
@@ -2402,16 +2532,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       recipientName: finalTo[0]?.name || undefined,
       locale,
     });
-    const missing = placeholders.filter((p) => auto[p] === undefined);
-    if (missing.length === 0) {
-      applyTemplate(template, placeholders.length ? auto : {});
+    const values = placeholderPromptValues(template, auto);
+    if (Object.keys(values).length === 0) {
+      void applyTemplate(template, placeholders.length ? auto : {});
       return;
     }
-    setPlaceholderPrompt({
-      template,
-      auto,
-      values: Object.fromEntries(missing.map((m) => [m, ''])),
-    });
+    setPlaceholderPrompt({ template, auto, values });
   };
 
   // ── From options (sub-address tag / override) ────────────────────────
@@ -2458,106 +2584,66 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Catch the classic "I forgot the attachment" footgun. Only file attachments
   // count - inline images don't satisfy the user's intent of attaching a file.
   // Only the text the user wrote is scanned, not the quoted original (#570).
-  // Returns true if it's safe to proceed, false if the user cancelled.
-  const passesAttachmentReminder = async (body: string): Promise<boolean> => {
-    if (!attachmentReminderEnabled) return true;
+  // The keyword that fires the reminder, or undefined.
+  const attachmentReminderKeyword = (body: string): string | undefined => {
+    if (!attachmentReminderEnabled) return undefined;
     const hasFileAttachment = attachments.some(
       (a) => !a.inline && a.blobId && !a.error,
     );
-    if (hasFileAttachment) return true;
+    if (hasFileAttachment) return undefined;
     const authored = extractUserAuthoredText(body, {
       plainTextMode,
       forwardedSeparator: quoteLabels.forwardedSeparator,
     });
-    const matchedKeyword = findAttachmentKeyword(`${subject}\n${authored}`, attachmentReminderKeywords);
-    if (!matchedKeyword) return true;
-    return new Promise<boolean>((resolve) => {
-      Alert.alert(
-        t('email_composer.attachment_reminder_title', 'Forgot an attachment?'),
-        t(
-          'email_composer.attachment_reminder_body',
-          'Your message mentions "{keyword}" but no file is attached. Send anyway?',
-          { keyword: matchedKeyword },
-        ),
-        [
-          { text: t('email_composer.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
-          { text: t('email_composer.send', 'Send'), onPress: () => resolve(true) },
-        ],
-      );
-    });
+    return findAttachmentKeyword(`${subject}\n${authored}`, attachmentReminderKeywords);
   };
 
-  // Confirm an empty subject instead of silently blocking Send (#684).
-  // Asked once: after "Send anyway" and a trip back from a later prompt, the
-  // next Send doesn't ask again (webmail emptySubjectConfirmedRef).
+  // What the user may have missed, asked about in one sheet (webmail
+  // send-warnings-dialog.tsx); Alerts in a row asked about each in turn.
+  // An empty subject (#684); unfilled placeholders: template fields left as
+  // {{name}}, fill-ins like [TIME] from AI drafts, and markers like TODO
+  // (lib/placeholder-check), without the signature, or a placeholder in it
+  // would stop every message; and the attachment reminder. After "Send
+  // anyway" and a trip back from a later question, the subject and the
+  // placeholders listed aren't asked about again for this message.
   const emptySubjectConfirmedRef = React.useRef(false);
-  const passesEmptySubjectCheck = (): Promise<boolean> => {
-    if (subject.trim() || !emptySubjectWarningEnabled || emptySubjectConfirmedRef.current) return Promise.resolve(true);
-    return new Promise<boolean>((resolve) => {
-      Alert.alert(
-        t('email_composer.empty_subject.title', 'Send without a subject?'),
-        t('email_composer.empty_subject.message', 'This message has no subject. Send it anyway?'),
-        [
-          { text: t('email_composer.empty_subject.back', 'Back to editing'), style: 'cancel', onPress: () => resolve(false) },
-          {
-            text: t('email_composer.empty_subject.dont_ask_again', "Don't ask again"),
-            onPress: () => { updateSetting('emptySubjectWarningEnabled', false); resolve(true); },
-          },
-          {
-            text: t('email_composer.empty_subject.send_anyway', 'Send anyway'),
-            onPress: () => { emptySubjectConfirmedRef.current = true; resolve(true); },
-          },
-        ],
-      );
-    });
-  };
-
-  // Unfilled placeholders: template fields left as {{name}}, fill-ins like
-  // [TIME] from AI drafts, and markers like TODO (webmail
-  // lib/placeholder-check). The signature is left out, or a placeholder in
-  // it would stop every message. Asked once per placeholder: after "Send
-  // anyway" and a trip back to add an attachment, the same ones pass.
   const confirmedPlaceholdersRef = React.useRef(new Set<string>());
-  const passesPlaceholderCheck = (body: string): Promise<boolean> => {
-    if (!placeholderWarningEnabled) return Promise.resolve(true);
-    const found = unfilledPlaceholdersInMessage({
+  const [sendWarnings, setSendWarnings] = React.useState<{
+    items: SendWarning[];
+    scheduling: boolean;
+    resolve: (send: boolean) => void;
+  } | null>(null);
+  const passesSendWarnings = (body: string, scheduling: boolean): Promise<boolean> => {
+    const warnings = collectSendWarnings({
       subject,
-      body,
-      plainTextMode,
-      signature: signatureIdentity,
-      forwardedSeparator: quoteLabels.forwardedSeparator,
-      words: placeholderWordsFor(locale),
+      askSubject: emptySubjectWarningEnabled && !emptySubjectConfirmedRef.current,
+      placeholders: placeholderWarningEnabled
+        ? unfilledPlaceholdersInMessage({
+          subject,
+          body,
+          plainTextMode,
+          signature: signatureIdentity,
+          forwardedSeparator: quoteLabels.forwardedSeparator,
+          words: placeholderWordsFor(locale),
+        })
+        : null,
+      confirmedPlaceholders: confirmedPlaceholdersRef.current,
+      attachmentKeyword: attachmentReminderKeyword(body),
     });
-    if (!found.some((p) => !confirmedPlaceholdersRef.current.has(p))) return Promise.resolve(true);
-    const SHOWN = 5;
-    const more = found.length > SHOWN
-      ? ` ${t('email_composer.placeholder_warning.more', 'and {count} more', { count: found.length - SHOWN })}`
-      : '';
-    const message = t(
-      'email_composer.placeholder_warning.message',
-      'Your message has placeholder text that recipients will see. Do you want to edit it before sending?',
-    );
-    const label = t('email_composer.placeholder_warning.found', 'Placeholders found');
-    return new Promise<boolean>((resolve) => {
-      Alert.alert(
-        t('email_composer.placeholder_warning.title', 'Check placeholders?'),
-        `${message}\n\n${label}: ${found.slice(0, SHOWN).join(', ')}${more}`,
-        [
-          { text: t('email_composer.placeholder_warning.back', 'Back to editing'), style: 'cancel', onPress: () => resolve(false) },
-          {
-            text: t('email_composer.placeholder_warning.dont_ask_again', "Don't ask again"),
-            onPress: () => { updateSetting('placeholderWarningEnabled', false); resolve(true); },
-          },
-          {
-            text: t('email_composer.placeholder_warning.send_anyway', 'Send anyway'),
-            onPress: () => {
-              for (const p of found) confirmedPlaceholdersRef.current.add(p);
-              resolve(true);
-            },
-          },
-        ],
-      );
-    });
+    if (warnings.length === 0) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => setSendWarnings({ items: warnings, scheduling, resolve }));
+  };
+  const answerWarnings = (send: boolean, dontAskAgain = false) => {
+    const pending = sendWarnings;
+    setSendWarnings(null);
+    if (!pending) return;
+    if (send) {
+      const answer = answerSendWarnings(pending.items, dontAskAgain);
+      if (answer.subjectConfirmed) emptySubjectConfirmedRef.current = true;
+      for (const p of answer.placeholders) confirmedPlaceholdersRef.current.add(p);
+      for (const key of answer.switchOff) updateSetting(key, false);
+    }
+    pending.resolve(send);
   };
 
   // "Send this message?" when "Confirm before sending" is on (webmail
@@ -2726,9 +2812,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (liveBodyHtml !== bodyHtml) setBodyHtml(liveBodyHtml);
     }
 
-    if (!(await passesEmptySubjectCheck())) return;
-    if (!(await passesPlaceholderCheck(plainTextMode ? plainBody : liveBodyHtml))) return;
-    if (!(await passesAttachmentReminder(plainTextMode ? plainBody : liveBodyHtml))) return;
+    if (!(await passesSendWarnings(plainTextMode ? plainBody : liveBodyHtml, !!scheduledAt))) return;
     if (!(await passesSendConfirmation())) return;
 
     // Autosave must not race the send: cancel a scheduled save and let an
@@ -3102,6 +3186,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
             searchingServer={searchingServer}
           />
         )}
+        {field === 'to' && (hasContacts || directoryAvailable) && (
+          <Pressable
+            onPress={() => setRecipientSheetOpen(true)}
+            style={styles.ccToggle}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('compose_send.picker_button', 'Add from contacts')}
+            testID="composer-recipient-picker"
+          >
+            <BookUser size={18} color={c.textSecondary} />
+          </Pressable>
+        )}
         {field === 'to' && !ccVisible && (
           <Pressable onPress={() => setCcVisible(true)} style={styles.ccToggle} hitSlop={10} accessibilityRole="button">
             <Text style={styles.ccToggleText}>{t('email_composer.cc', 'Cc')}</Text>
@@ -3344,6 +3440,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <ToolbarButton active={activeComposerOptionCount(composerOptions) > 0} onPress={() => setOptionsSheetOpen(true)}
               label={t('email_composer.options', 'Options')}
               icon={<Settings size={18} color={activeComposerOptionCount(composerOptions) > 0 ? c.primary : c.textSecondary} />} />
+            <ToolbarButton active={tagTokens.length > 0} onPress={() => setTagSheetOpen(true)}
+              label={t('email_composer.tags', 'Tags')}
+              icon={<Tag size={18} color={tagTokens.length > 0 ? c.primary : c.textSecondary} />} />
             <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
               label={plainTextMode
                 ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
@@ -3449,21 +3548,36 @@ export default function ComposeScreen({ route, navigation }: Props) {
               {t('email_composer.add_link', 'Add link')}
             </Text>
             <Text style={styles.modalLabel}>
-              {t('email_composer.link_url_prompt', 'Enter the URL')}
+              {t('email_composer.toolbar.link_text', 'Text')}
             </Text>
             <TextInput
-              accessibilityLabel={t('email_composer.link_url_prompt', 'Enter the URL')}
+              accessibilityLabel={t('email_composer.toolbar.link_text', 'Text')}
+              style={styles.modalInput}
+              value={linkPromptText}
+              onChangeText={setLinkPromptText}
+              autoFocus
+              returnKeyType="next"
+            />
+            <Text style={styles.modalLabel}>
+              {t('email_composer.toolbar.link', 'Link')}
+            </Text>
+            <TextInput
+              accessibilityLabel={t('email_composer.toolbar.link', 'Link')}
               style={styles.modalInput}
               value={linkPromptValue}
               onChangeText={setLinkPromptValue}
-              placeholder="https://example.com"
+              placeholder={t('email_composer.toolbar.link_address', 'Link address')}
               placeholderTextColor={c.textMuted}
               keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
-              autoFocus
               onSubmitEditing={submitLinkPrompt}
             />
+            {linkPromptCheck.error ? (
+              <Text style={{ color: c.error, fontSize: 12 }} accessibilityRole="alert">
+                {t('email_composer.toolbar.link_invalid', "The address can't contain spaces")}
+              </Text>
+            ) : null}
             <View style={styles.modalActions}>
               <Pressable
                 style={styles.modalCancel}
@@ -3683,6 +3797,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
         />
       )}
 
+      <RecipientPickerSheet
+        visible={recipientSheetOpen}
+        onClose={() => setRecipientSheetOpen(false)}
+        onAdd={addPickedToField}
+      />
+
+      <Dialog
+        visible={saveTemplateName !== null}
+        title={t('email_composer.save_as_template', 'Save as template')}
+        message={saveTemplateError ?? undefined}
+        confirmText={t('common.save', 'Save')}
+        confirmDisabled={!saveTemplateName?.trim()}
+        input={{
+          value: saveTemplateName ?? '',
+          onChangeText: (v) => { setSaveTemplateName(v); setSaveTemplateError(null); },
+          placeholder: t('compose_send.template_name', 'Template name'),
+        }}
+        onConfirm={() => { void saveAsTemplate(); }}
+        onCancel={() => setSaveTemplateName(null)}
+      />
+
+      <SendWarningsSheet
+        warnings={sendWarnings?.items ?? null}
+        scheduling={sendWarnings?.scheduling}
+        onBack={() => answerWarnings(false)}
+        onSendAnyway={(dontAskAgain) => answerWarnings(true, dontAskAgain)}
+      />
+
       {/* Template placeholders */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS}
         visible={!!placeholderPrompt}
@@ -3716,7 +3858,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 onPress={() => {
                   const p = placeholderPrompt;
                   setPlaceholderPrompt(null);
-                  if (p) applyTemplate(p.template, {});
+                  if (p) void applyTemplate(p.template, {});
                 }}
               >
                 <Text style={styles.modalCancelText}>{t('templates.insert_raw', 'Insert Raw')}</Text>
@@ -3729,7 +3871,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   if (!p) return;
                   const values: Record<string, string> = { ...p.auto };
                   for (const [k, v] of Object.entries(p.values)) if (v.trim()) values[k] = v.trim();
-                  applyTemplate(p.template, values);
+                  void applyTemplate(p.template, values);
                 }}
               >
                 <Text style={styles.modalConfirmText}>{t('templates.insert_with_values', 'Insert with Values')}</Text>
@@ -3852,12 +3994,22 @@ export default function ComposeScreen({ route, navigation }: Props) {
         />
       )}
 
+      <TagSheet
+        visible={tagSheetOpen}
+        onClose={() => setTagSheetOpen(false)}
+        title={t('email_composer.tags', 'Tags')}
+        keywords={tagKeywordDefs}
+        selectedEmails={tagSheetEmails}
+        onToggle={(token, on) => setTagTokens((prev) => toggleTagToken(prev, token, on))}
+      />
+
       <ComposerOptionsSheet
         visible={optionsSheetOpen}
         options={composerOptions}
         dsnAvailable={dsnAvailable}
         requireTlsAvailable={requireTlsAvailable}
         onChange={onComposerOptionsChange}
+        onSaveAsTemplate={templatesEnabled ? openSaveAsTemplate : undefined}
         onClose={() => setOptionsSheetOpen(false)}
         secureAvailable={secureAvailable}
         secureHint={secureHint}

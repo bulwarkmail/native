@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   findReplyIdentityId, findDraftIdentityId, resolveReplyFrom, findComposeIdentityId, resolveReplyIdentity,
-  resolveComposeAccountEmail,
+  resolveComposeAccountEmail, deliveryAddresses,
 } from '../reply-identity';
 import type { Identity } from '../../api/types';
 
@@ -103,6 +103,59 @@ describe('resolveReplyFrom', () => {
   it('skips the catch-all in exact match mode but still matches identities', () => {
     expect(resolveReplyFrom(identities, { to: [{ email: 'sales@example.com' }] }, 'exact')).toBeNull();
     expect(resolveReplyFrom(identities, { to: [{ email: 'info+x@example.com' }] }, 'exact')).toEqual({ identityId: 'info' });
+  });
+});
+
+// Webmail #1353: a GitHub notification is addressed to the repo, and the
+// catch-all alias it was delivered to only shows up in Delivered-To.
+describe('delivery addresses', () => {
+  const github = { to: [{ email: 'repo@noreply.github.com', name: 'owner/repo' }] };
+
+  it('takes the delivery address as catch-all override when To/Cc/Bcc have none', () => {
+    expect(resolveReplyFrom(identities, { ...github, deliveredTo: ['github@example.com'] })).toEqual({
+      identityId: 'main', overrideEmail: 'github@example.com', overrideName: undefined,
+    });
+    expect(resolveReplyFrom(identities, { ...github, deliveredTo: ['github@example.com'] }, 'exact')).toBeNull();
+    expect(resolveReplyFrom(identities, { ...github, deliveredTo: ['me@gmail.com'] })).toBeNull();
+  });
+
+  it('keeps a catch-all address in To ahead of the mailbox it was delivered to', () => {
+    expect(resolveReplyFrom(identities, {
+      to: [{ email: 'sales@example.com', name: 'Sales' }],
+      deliveredTo: ['info@example.com'],
+    })).toEqual({ identityId: 'main', overrideEmail: 'sales@example.com', overrideName: 'Sales' });
+  });
+
+  it('falls back to the delivery address when To/Cc/Bcc have no identity', () => {
+    expect(findReplyIdentityId(identities, {
+      to: [{ email: 'list@lists.example.org' }],
+      deliveredTo: ['info+lists@example.com'],
+    })).toBe('info');
+    expect(findReplyIdentityId(identities, {
+      to: [{ email: 'me@example.com' }],
+      deliveredTo: ['info@example.com'],
+    })).toBe('main');
+  });
+
+  it('replies from the identity the mail was delivered to, without the catch-all setting', () => {
+    expect(resolveReplyIdentity(identities, {
+      from: { email: 'notifications@github.com' },
+      ...github,
+      deliveredTo: ['info@example.com'],
+    }, { ownEmails: ['me@example.com'], catchAll: false })).toEqual({ identityId: 'info' });
+  });
+
+  it('reads the delivery headers in priority order, case-insensitively, without duplicates', () => {
+    expect(deliveryAddresses([
+      { name: 'X-Original-To', value: ' alias@primary.com' },
+      { name: 'delivered-to', value: ' github@primary.com' },
+      { name: 'Delivered-To', value: ' harry@gmail.com' },
+      { name: 'X-Delivered-to', value: '<GitHub@primary.com>' },
+      { name: 'X-Original-Delivered-To', value: 'mailing list list@lists.example.org' },
+      { name: 'Subject', value: 'not@an-address.com' },
+    ])).toEqual(['github@primary.com', 'harry@gmail.com', 'alias@primary.com', 'list@lists.example.org']);
+    expect(deliveryAddresses(undefined)).toEqual([]);
+    expect(deliveryAddresses({ 'Delivered-To': 'nobody' })).toEqual([]);
   });
 });
 

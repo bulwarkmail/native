@@ -23,6 +23,7 @@ import { isTransientNetworkError } from '../lib/network-error';
 import { LIST_AUTH_RESULTS_PROPERTY } from '../lib/email-headers';
 import { messagePriorityHeaders, type MessagePriority } from '../lib/message-priority';
 import { submissionEnvelopeParameters } from '../lib/submission-options';
+import { outgoingTagKeywordMap } from '../lib/compose-tags';
 
 const EMAIL_SUMMARY_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -1701,6 +1702,8 @@ export interface OutgoingEmail {
   requestReadReceipt?: boolean;
   /** Importance / X-Priority headers (webmail #970); normal writes none. */
   priority?: MessagePriority;
+  /** Tag keywords (`$label:<id>`) for the draft and the sent copy (webmail #1610). */
+  keywords?: string[];
   /**
    * SMTP MAIL FROM when it must differ from the header From - a catch-all
    * alias on an owned domain is sent through the identity's envelope while
@@ -1895,14 +1898,14 @@ export async function sendEmail(
   const viaDrafts = !!opts?.draftsMailboxId;
   if (viaDrafts) {
     emailCreate.mailboxIds = { [opts!.draftsMailboxId!]: true };
-    emailCreate.keywords = { $seen: true, $draft: true };
+    emailCreate.keywords = { ...outgoingTagKeywordMap(email.keywords), $seen: true, $draft: true };
   } else {
     // No Drafts folder: created in Sent, but still with `$draft` until the
     // submission succeeds, so a copy whose submission was refused (with the
     // answer lost) never passes for a sent message. The send queue takes a
     // copy without `$draft` as proof the message went out (verdictFromCopies).
     emailCreate.mailboxIds = { [sentMailboxId]: true };
-    emailCreate.keywords = { $seen: true, $draft: true };
+    emailCreate.keywords = { ...outgoingTagKeywordMap(email.keywords), $seen: true, $draft: true };
   }
   const createCall: [string, Record<string, unknown>, string] = raw
     ? ['Email/import', { accountId, emails: { draft: emailCreate } }, '0']
@@ -2162,7 +2165,7 @@ export async function saveDraftVersion(
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const emailCreate = buildEmailCreate(email);
   emailCreate.mailboxIds = { [draftsMailboxId]: true };
-  emailCreate.keywords = { $seen: true, $draft: true };
+  emailCreate.keywords = { ...outgoingTagKeywordMap(email.keywords), $seen: true, $draft: true };
   const res = await jmapClient.request([
     ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
     // `#draft` is the creation id (RFC 8620 §5.3). Stalwart 0.16 does not
@@ -2209,6 +2212,24 @@ export async function createDraft(
   accountIdOverride?: string,
 ): Promise<string> {
   return (await saveDraftVersion(email, draftsMailboxId, previousDraftId, accountIdOverride)).id;
+}
+
+/**
+ * A conversation's drafts with what it takes to tell which message each one
+ * answers (webmail lib/reply-drafts.ts threadDrafts). One round trip.
+ */
+export async function getThreadDrafts(threadId: string, accountIdOverride?: string): Promise<Email[]> {
+  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Thread/get', { accountId, ids: [threadId] }, 't'],
+    ['Email/get', {
+      accountId,
+      '#ids': { resultOf: 't', name: 'Thread/get', path: '/list/*/emailIds' },
+      properties: ['id', 'threadId', 'keywords', 'mailboxIds', 'inReplyTo', 'receivedAt'],
+    }, 'e'],
+  ]);
+  const list = (requireMethodResult(res, 'e', 'Email/get').list as Email[] | undefined) ?? [];
+  return list.filter((e) => e.keywords?.$draft);
 }
 
 export interface ScheduledEmail {

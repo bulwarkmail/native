@@ -66,7 +66,7 @@ export function buildInitialHtml(
 
   const header = buildQuoteHeader({
     mode,
-    email: { from: reply.from, subject: reply.subject, receivedAt: reply.receivedAt },
+    email: { from: reply.from, to: reply.to, cc: reply.cc, subject: reply.subject, receivedAt: reply.receivedAt },
     timeFormat,
     locale,
     unknownLabel,
