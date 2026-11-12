@@ -1345,6 +1345,61 @@ describe('calendar-store', () => {
         percentComplete: 20,
       });
     });
+
+    // #1621: a weekly task was gone for good after one tick.
+    const weekly = {
+      id: 'acc-2:t9', originalId: 't9', accountId: 'acc-2', '@type': 'Task', title: 'Bins',
+      progress: 'needs-action', due: '2026-11-02T09:00:00',
+      recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly' }],
+    };
+
+    it('ticks one occurrence of a repeating task through the series overrides', async () => {
+      useCalendarStore.setState({ tasks: [{ ...weekly } as any] });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('acc-2:t9', '2026-11-09T09:00:00');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't9',
+        { recurrenceOverrides: { '2026-11-09T09:00:00': { progress: 'completed' } } },
+        undefined,
+        'acc-2',
+      );
+      const task = useCalendarStore.getState().tasks[0];
+      expect(task.progress).toBe('needs-action');
+      expect(task.recurrenceOverrides).toEqual({ '2026-11-09T09:00:00': { progress: 'completed' } });
+    });
+
+    it('unticks an occurrence through a patch path when the series has overrides', async () => {
+      useCalendarStore.setState({
+        tasks: [{ ...weekly, recurrenceOverrides: { '2026-11-09T09:00:00': { progress: 'completed', title: 'Bins (glass)' } } } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('acc-2:t9', '2026-11-09T09:00:00');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't9',
+        { 'recurrenceOverrides/2026-11-09T09:00:00': { progress: 'needs-action', title: 'Bins (glass)' } },
+        undefined,
+        'acc-2',
+      );
+    });
+
+    it('checking off the series moves it to its next due date and keeps it open', async () => {
+      useCalendarStore.setState({ tasks: [{ ...weekly } as any] });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('acc-2:t9');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't9',
+        { progress: 'needs-action', due: '2026-11-09T09:00:00' },
+        undefined,
+        'acc-2',
+      );
+      expect(useCalendarStore.getState().tasks[0]).toMatchObject({ progress: 'needs-action', due: '2026-11-09T09:00:00' });
+    });
   });
 });
 

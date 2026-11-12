@@ -61,6 +61,7 @@ import { mergeRangeEvents, mergedSpanLimit, planRangeLoad, sameRange } from '../
 import { requestDeviceSync } from '../device-sync/app/request';
 import { sortCalendars, sortOrderUpdates } from '../lib/calendar-sort';
 import { searchFilter } from '../lib/calendar-search';
+import { occurrenceToggleEntry, overridePatch, seriesCompletionUpdates } from '../lib/calendar-tasks';
 import { CALENDAR_AUTHORITY } from '../device-sync/types';
 
 // extendRange merges up to twice the requested range (at least half a year,
@@ -293,7 +294,12 @@ export interface CalendarState {
   // Tasks
   createTask: (task: Partial<CalendarEvent>, calendarId: string) => Promise<void>;
   updateTask: (id: string, changes: Partial<CalendarEvent>) => Promise<void>;
-  toggleTaskComplete: (id: string) => Promise<void>;
+  /**
+   * Ticks a task, or with `recurrenceId` one occurrence of a repeating task
+   * (through the series' recurrenceOverrides). Checking off a repeating task
+   * itself moves it to its next due date.
+   */
+  toggleTaskComplete: (id: string, recurrenceId?: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   toggleCalendarVisibility: (id: string) => void;
   setCalendarHidden: (id: string, hidden: boolean) => void;
@@ -1585,9 +1591,42 @@ export const useCalendarStore = create<CalendarState>()(
     set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
   },
 
-  toggleTaskComplete: async (id) => {
+  toggleTaskComplete: async (id, recurrenceId) => {
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
+    const scope = writeScope();
+    // Shared tasks are written under their own account's id (originalId).
+    const writeId = task.originalId || id;
+    if (recurrenceId && task.recurrenceRules?.length) {
+      const entry = occurrenceToggleEntry(task, recurrenceId);
+      const before = task.recurrenceOverrides;
+      const setOverrides = (overrides: CalendarEvent['recurrenceOverrides']) =>
+        set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, recurrenceOverrides: overrides } : t)) });
+      setOverrides({ ...(before ?? {}), [recurrenceId]: entry as Partial<CalendarEvent> });
+      try {
+        await apiUpdateEvent(writeId, overridePatch(task, recurrenceId, entry), undefined, writeAccount(scope, task.accountId));
+      } catch (err) {
+        if (inScope(scope)) setOverrides(before);
+        throw err;
+      }
+      return;
+    }
+    const nextInSeries = seriesCompletionUpdates(task);
+    if (nextInSeries) {
+      const restore: Partial<CalendarEvent> = {
+        progress: task.progress, due: task.due, start: task.start, recurrenceRules: task.recurrenceRules,
+      };
+      const patchSeries = (changes: Partial<CalendarEvent>) =>
+        set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+      patchSeries(nextInSeries);
+      try {
+        await apiUpdateEvent(writeId, nextInSeries, undefined, writeAccount(scope, task.accountId));
+      } catch (err) {
+        if (inScope(scope)) patchSeries(restore);
+        throw err;
+      }
+      return;
+    }
     // The tasks sheet ticks cancelled tasks too, so a tap on one reopens it.
     const completed = task.progress === 'completed' || task.progress === 'cancelled';
     // Un-completing goes back to needs-action (not in-process), like webmail.
@@ -1599,10 +1638,9 @@ export const useCalendarStore = create<CalendarState>()(
     // Flip the checkbox right away and put it back if the server refuses.
     const patchTask = (changes: Partial<CalendarEvent>) =>
       set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
-    const scope = writeScope();
     patchTask(next);
     try {
-      await apiUpdateEvent(task.originalId || id, next, undefined, writeAccount(scope, task.accountId));
+      await apiUpdateEvent(writeId, next, undefined, writeAccount(scope, task.accountId));
     } catch (err) {
       // Not on the next account's task of the same id.
       if (inScope(scope)) patchTask({ progress: task.progress, percentComplete: task.percentComplete });

@@ -45,6 +45,7 @@ import { getEventStartDate } from '../../lib/calendar-utils';
 import { alertsToReminders, calendarDefaultAlerts, defaultAlertIdPrefix, remindersToDefaultAlerts } from '../../lib/calendar-alerts';
 import { getEffectiveAlerts } from '../../lib/calendar-alert-scheduler';
 import { removeCancelledMeeting } from '../../lib/calendar-cancellation';
+import { taskChips } from '../../lib/calendar-tasks';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -1054,6 +1055,39 @@ live('live Stalwart calendar', () => {
   });
 
   describe('tasks', () => {
+    // #1621: the tick completed the whole series.
+    it('ticks one occurrence of a weekly task and leaves the series open', async () => {
+      const [[, created]] = await raw(client, [['CalendarEvent/set', {
+        accountId: client.accountId,
+        create: { t: {
+          '@type': 'Task', title: `${RUN} weekly task`, calendarIds: { [calendarId]: true },
+          start: '2027-11-01T09:00:00', due: '2027-11-01T10:00:00', timeZone: 'Europe/Berlin',
+          recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'weekly', count: 4 },
+        } },
+      }, '0']]);
+      expect(created.created?.t?.id, JSON.stringify(created.notCreated)).toBeTruthy();
+      useCalendarStore.getState().reset();
+      await useCalendarStore.getState().fetchCalendars();
+      await useCalendarStore.getState().fetchTasks();
+      const task = useCalendarStore.getState().tasks.find((x) => x.title === `${RUN} weekly task`)!;
+      expect(task.recurrenceRules?.[0]?.frequency).toBe('weekly');
+      const { events, targets } = taskChips([task], new Date('2027-11-01T00:00:00'), new Date('2027-11-30T00:00:00'));
+      expect(events.map((e) => e.start)).toEqual([
+        '2027-11-01T10:00:00', '2027-11-08T10:00:00', '2027-11-15T10:00:00', '2027-11-22T10:00:00',
+      ]);
+      const second = targets.get(events[1].id)!;
+
+      await useCalendarStore.getState().toggleTaskComplete(second.taskId, second.recurrenceId);
+
+      const [back] = await getEvents([task.originalId || task.id]);
+      expect(back.progress ?? 'needs-action').toBe('needs-action');
+      expect(back.due).toBe('2027-11-01T10:00:00');
+      expect(Object.entries(back.recurrenceOverrides ?? {}).map(([k, v]) => [k, (v as CalendarEvent).progress]))
+        .toEqual([['2027-11-08T10:00:00', 'completed']]);
+      const after = taskChips([back], new Date('2027-11-01T00:00:00'), new Date('2027-11-30T00:00:00'));
+      expect([...after.targets.values()].map((x) => x.completed)).toEqual([false, true, false, false]);
+    }, 60_000);
+
     it('lists the account\'s own tasks and none of another account\'s', async () => {
       const [[, created]] = await raw(client, [['CalendarEvent/set', {
         accountId: client.accountId,

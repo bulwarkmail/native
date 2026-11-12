@@ -484,8 +484,21 @@ function addImplicitByX(rule: RecurrenceRule, eventStart: Date): RecurrenceRule 
   return r;
 }
 
+/**
+ * Next date a recurring item will fall on after its start or due date,
+ * looking ahead up to ten years. Null when the rule produces no further
+ * occurrences (an exhausted count or an until in the past). Webmail
+ * lib/recurrence-expansion.ts getNextRecurrenceDate.
+ */
+export function getNextRecurrenceDate(startOrDueDate: Date, rule: RecurrenceRule): Date | null {
+  const rangeStart = new Date(startOrDueDate.getTime() + 1000);
+  const rangeEnd = addYears(startOrDueDate, 10);
+  const dates = generateDates(startOrDueDate, rule, rangeStart, rangeEnd, false);
+  return dates.length > 0 ? dates[0] : null;
+}
+
 // ─── §3.3.3.1 - Generate occurrence dates ───────────────
-function generateDates(
+export function generateDates(
   eventStart: Date,
   rawRule: RecurrenceRule,
   rangeStart: Date,

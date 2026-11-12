@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { monthButtonAccessibilityLabel } from '../lib/calendar-a11y';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
+import { taskChips } from '../lib/calendar-tasks';
 import {
   ChevronDown,
   ChevronLeft,
@@ -88,7 +89,6 @@ import {
   dayKey,
   getEventStartDate,
   getPrimaryCalendarId,
-  getTaskDueDate,
   autoAssignSharedCalendarColors,
   sharedCalendarColorKey,
   reopenedEdit,
@@ -340,31 +340,13 @@ export default function CalendarScreen() {
     [displayCalendars, showBirthdayCalendar, birthdayCalendarColor],
   );
   // Tasks with a due date are overlaid on the grid as chips (webmail's
-  // showTasksOnCalendar); tapping one opens the tasks sheet on that task.
-  const taskEvents = React.useMemo<CalendarEvent[]>(() => {
-    if (!enableCalendarTasks || !showTasksOnCalendar) return [];
-    const out: CalendarEvent[] = [];
-    for (const task of tasks) {
-      if (!task.due || task.progress === 'completed' || task.progress === 'cancelled') continue;
-      const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(task.due);
-      const allDay = !!task.showWithoutTime || dateOnly;
-      out.push({
-        ...task,
-        id: `${TASK_CHIP_ID_PREFIX}${task.id}`,
-        start: dateOnly ? `${task.due}T00:00:00` : task.due,
-        showWithoutTime: allDay,
-        duration: allDay ? 'P1D' : 'PT30M',
-        // The due is wall time in the task's zone; place the chip at the
-        // instant, like events.
-        utcStart: allDay ? undefined : getTaskDueDate(task)?.toISOString(),
-        utcEnd: undefined,
-        title: `☐ ${task.title || ''}`.trim(),
-        recurrenceRules: undefined,
-        recurrenceId: undefined,
-      });
-    }
-    return out;
-  }, [tasks, enableCalendarTasks, showTasksOnCalendar]);
+  // showTasksOnCalendar), a repeating one on every day it is due; tapping one
+  // opens the tasks sheet on that task, or offers to tick that one day.
+  const taskChipSet = React.useMemo(() => {
+    if (!enableCalendarTasks || !showTasksOnCalendar) return { events: [] as CalendarEvent[], targets: new Map() };
+    return taskChips(tasks, new Date(loadRange.after), new Date(loadRange.before));
+  }, [tasks, enableCalendarTasks, showTasksOnCalendar, loadRange]);
+  const taskEvents = taskChipSet.events;
   const allEvents = React.useMemo(
     () => (birthdayEvents.length > 0 || taskEvents.length > 0
       ? [...storeEvents, ...birthdayEvents, ...taskEvents]
@@ -631,15 +613,48 @@ export default function CalendarScreen() {
     setModalVisible(true);
   }, []);
 
-  // Task chips route to the tasks sheet; everything else opens the detail sheet.
+  // The store flips the checkbox optimistically and reverts it when the
+  // server refuses; say so instead of leaving the user guessing.
+  const handleToggleTask = React.useCallback(
+    (id: string, recurrenceId?: string) => {
+      toggleTaskComplete(id, recurrenceId).catch((err: unknown) => {
+        Alert.alert(
+          t('calendar.tasks.update_error', 'Failed to update task'),
+          err instanceof Error ? err.message : undefined,
+        );
+      });
+    },
+    [toggleTaskComplete, t],
+  );
+
+  // Task chips route to the tasks sheet; a repeating task's day offers to
+  // tick just that day first. Everything else opens the detail sheet.
   const handleSelectEvent = React.useCallback((event: CalendarEvent) => {
     if (event.id.startsWith(TASK_CHIP_ID_PREFIX)) {
-      setTasksInitialId(event.id.slice(TASK_CHIP_ID_PREFIX.length));
-      setTasksVisible(true);
+      const target = taskChipSet.targets.get(event.id);
+      const openTask = () => {
+        setTasksInitialId(target?.taskId ?? event.id.slice(TASK_CHIP_ID_PREFIX.length));
+        setTasksVisible(true);
+      };
+      if (!target?.recurrenceId) {
+        openTask();
+        return;
+      }
+      const occurrence = target.recurrenceId;
+      Alert.alert(event.title.replace(/^[☐☑]\s*/, '') || t('calendar.tasks.no_title', '(No title)'), undefined, [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('calendar.tasks.open_task', 'Open task'), onPress: openTask },
+        {
+          text: target.completed
+            ? t('calendar.tasks.mark_occurrence_open', 'Mark this day as not done')
+            : t('calendar.tasks.mark_occurrence_done', 'Mark this day as done'),
+          onPress: () => handleToggleTask(target.taskId, occurrence),
+        },
+      ]);
       return;
     }
     setDetailEvent(event);
-  }, []);
+  }, [taskChipSet, t, handleToggleTask]);
 
   const openEditDirect = React.useCallback((event: CalendarEvent) => {
     setModalEvent(event);
@@ -841,20 +856,6 @@ export default function CalendarScreen() {
   );
 
   const onRefresh = React.useCallback(() => refresh(), [refresh]);
-
-  // The store flips the checkbox optimistically and reverts it when the
-  // server refuses; say so instead of leaving the user guessing.
-  const handleToggleTask = React.useCallback(
-    (id: string) => {
-      toggleTaskComplete(id).catch((err: unknown) => {
-        Alert.alert(
-          t('calendar.tasks.update_error', 'Failed to update task'),
-          err instanceof Error ? err.message : undefined,
-        );
-      });
-    },
-    [toggleTaskComplete, t],
-  );
 
   const handleDeleteTask = React.useCallback(
     (id: string) => {
