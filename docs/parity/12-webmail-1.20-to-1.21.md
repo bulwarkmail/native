@@ -507,7 +507,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Offline and app lock
 
-- [ ] **Offline keeps only recent message bodies, unencrypted, with one device-wide size cap** — `P2` — `partial`
+- [x] **Offline keeps only recent message bodies, unencrypted, with one device-wide size cap** — `P2` — `partial` — fixed in a7176a1f (per-account window and total, organisation caps; the app keeps no attachments offline, so the attachment caps have nothing to cap); not done: encrypted store, offline search, drafts, calendar, contacts and files: own project, decision 14
   - What WEB does: an encrypted on-device database of mail, calendars, tasks, contacts and files; offline search, drafts and attachments saved offline, changes queued and replayed once, conflicts listed; per-account history and attachment caps with a per-account total (92ca06c84, 510ae2f7a), clear per account, export of kept mail to mbox/EML zip (changelog 1.20.0 and 1.21.0 Offline; `lib/offline/`, `lib/store/`).
   - What RN does: caches message bodies and optional attachment blobs of the last N days, bodies as JSON in AsyncStorage (`src/stores/offline-cache-store.ts:1-10`), with one device-wide day and MB setting (`src/components/settings/StorageSettings.tsx:39-41`, `:208-226`); plus the Outbox for mail sent offline. No offline search, calendar, contacts or files, no per-account caps, no encryption beyond the app sandbox.
   - Fix hint: a large project. First steps that fit the current cache: per-account caps, search over cached bodies, and offline drafts through the Outbox. Encryption at rest matters less in the app sandbox than in a browser, but org caps (see Organisation policy) need the per-account split.
@@ -529,7 +529,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Organisation policy
 
-- [ ] **The organisation's device policies don't apply in the app (push text, downloads, export, watermark, offline caps, remote wipe)** — `P2` — `missing`
+- [x] **The organisation's device policies don't apply in the app (push text, downloads, export, watermark, offline caps, remote wipe)** — `P2` — `missing` — fixed in a7176a1f (downloads, export, watermark, offline caps); push text on the security branch; not done: remote wipe (needs a webmail change first, decision 14); n/a: print and the install prompt
   - What WEB does: `organisation.devices` turns off attachment and file downloads, mail and folder export, printing and the install prompt, keeps sender and subject off push notifications (enforced server-side in the push preview), adds a watermark, forbids or caps offline data (days, attachment size, total), and admins can wipe a lost device (`lib/admin/organisation-policy.ts:163-185`, `lib/device-policy.ts:1-26`, `app/api/push/preview/route.ts:268-275`, `lib/offline/device-wipe.ts`). Changelog 1.20.0 and 1.21.0 Organisation.
   - What RN does: keeps the policy's `organisation` part as sent (`src/lib/org-policy.ts:57-58`, `:191`) but reads only the signature and disclaimer from it (`src/lib/org-signature.ts:61-62`). Push notifications always show sender and subject (`src/lib/push-background-task.ts:637-641`); offline caching follows only the user's settings (`src/components/settings/StorageSettings.tsx:39-41`); no download or export guard, no watermark, no wipe.
   - Fix hint: port devicesForAccount and apply pushWithoutContent first (push task, generic text), then noDownloads/noExport on the attachment and export paths and noOffline plus caps on the offline cache. Print is n/a.
