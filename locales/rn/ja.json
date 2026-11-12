@@ -155,7 +155,10 @@
       "not_found": "このタスクは利用できなくなりました。",
       "save_error": "タスクの保存に失敗しました",
       "update_error": "タスクの更新に失敗しました",
-      "delete_confirm": "このタスクを削除しますか？"
+      "delete_confirm": "このタスクを削除しますか？",
+      "mark_occurrence_done": "この日を完了にする",
+      "mark_occurrence_open": "この日を未完了にする",
+      "open_task": "タスクを開く"
     },
     "views": {
       "schedule": "スケジュール",
@@ -186,6 +189,9 @@
     "retry": "再試行",
     "undo": "元に戻す",
     "update": "更新"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, other {#人の宛先}}が組織外です："
   },
   "contacts": {
     "address_books": {
@@ -489,6 +495,7 @@
       "open": "開く",
       "preview": "プレビュー",
       "save": "保存",
+      "save_as": "名前を付けて保存…",
       "share": "共有"
     },
     "attachment_failed": "添付ファイルを開けませんでした",
@@ -517,6 +524,7 @@
     },
     "export_failed": "エクスポートに失敗しました",
     "forwarded": "転送済み",
+    "import_email": ".eml または .zip をインポート",
     "load_failed": "メールの読み込みに失敗しました",
     "preview": {
       "open_external": "アプリで開く",
@@ -761,6 +769,8 @@
       "err_handoff_refused_title": "ウェブメールがこのサインインを受け付けませんでした",
       "err_handoff_server_detail": "もう一度サインインしてください。それでも失敗する場合は、管理者にお問い合わせください。",
       "err_handoff_server_title": "ウェブメールでサインインを完了できませんでした",
+      "err_password_expired_detail": "サーバーのウェブ管理画面で変更してから、新しいパスワードでサインインしてください。",
+      "err_password_expired_title": "パスワードの有効期限が切れました",
       "err_token_exchange_title": "{host} がセッションを開始しませんでした",
       "reauth_detail": "サーバーは {account} の保存されたサインイン情報を受け付けなくなりました。このアカウントを引き続き使うには、もう一度サインインしてください。",
       "reauth_title": "再度サインイン",
@@ -998,6 +1008,12 @@
       "attachment_click_action": {
         "description_mobile": "添付ファイルをタップしたときの動作です。"
       },
+      "attachment_position": {
+        "below-header": "ヘッダーの下",
+        "beside-sender": "送信者の横",
+        "description": "メールヘッダー内での添付ファイルの表示位置",
+        "label": "添付ファイルの位置"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "返信は常に、メッセージの宛先となった送信者情報から送信されます。オンにすると、ドメイン内の別のアドレス（キャッチオールエイリアス）宛てのメッセージへの返信も、そのアドレスから送信されます。"
       },
@@ -1127,6 +1143,12 @@
         "star": "スター",
         "tag": "ラベル"
       },
+      "reading_pane": {
+        "auto": "スペースがあるときは一覧の横",
+        "description": "タブレットや開いた折りたたみ端末では、開いたメッセージをメール一覧の横に表示します。このデバイスのみ。",
+        "label": "閲覧ウィンドウ",
+        "off": "オフ：メッセージは全画面で開きます"
+      },
       "show_avatars_in_junk": "迷惑メールで差出人のアバターを表示",
       "show_avatars_in_junk_description": "迷惑メールフォルダー内のメッセージについて、差出人のロゴを読み込みます。オフにすると、スパム送信者側への接続を防げます。",
       "show_folder_total_count": "フォルダーにメッセージの総数を表示",
@@ -1221,6 +1243,7 @@
       "clear_title": "オフラインメールをクリア",
       "days_ago": "{count}日前",
       "description": "最近のメッセージをダウンロードして、すぐに開けるようにし、接続がなくても読めるようにします。対象は本文のみで、添付ファイルは必要に応じて取得されます。",
+      "description_account": "{account} の最近のメッセージをこのデバイスに保存し、接続がなくても開けるようにします。期間とサイズはアカウントごとに設定します。",
       "downloading": "ダウンロード中 {completed}/{total}…",
       "enabled": "最近のメールをキャッシュ",
       "enabled_desc": "オンにすると、選択した期間のメッセージ本文をこのデバイスに保存します。",
@@ -1290,7 +1313,8 @@
         "error_title": "更新に失敗しました"
       },
       "encryption": {
-        "no_keys": "先に公開鍵を追加してください。保存時の暗号化には公開鍵が必要です。"
+        "no_keys": "先に公開鍵を追加してください。保存時の暗号化には公開鍵が必要です。",
+        "turned_off_on_server": "保存時の暗号化はオンでしたが、Stalwart 1.0.2 へのアップデートと同様にサーバー側でオフにされました。ここで再びオンにするまで、新しいメールは暗号化されずに保存されます。"
       },
       "load_error": "セキュリティ設定の読み込みに失敗しました。",
       "not_supported": "アカウントセキュリティの管理には Stalwart サーバーが必要です。このアカウントではこれらの機能を利用できません。",
@@ -1340,6 +1364,7 @@
         "disable_hint_code": "二要素認証をオフにするには、パスワードと認証アプリのコードを入力してください。"
       },
       "restricted": "お使いのサーバーでは、パスワード、二要素認証、アプリパスワード、API キーを変更できるのは管理者が承認したアプリだけです。Bulwark はその承認なしでサインインしたため、メール、連絡先、カレンダー、ファイルは使えますが、これらの設定は使えません。サーバーのウェブ管理画面か Bulwark ウェブメールで変更してください。",
+      "restricted_sign_in_again": "Bulwark は、サーバーがアプリにこれらの設定の管理を許可する前にサインインしました。パスワード、二要素認証、アプリパスワード、API キーをここで管理するには、もう一度サインインしてください。",
       "screen_privacy": {
         "block_screenshots": "スクリーンショットをブロック",
         "block_screenshots_description": "アプリのスクリーンショットと画面録画を防ぎ、最近使ったアプリの一覧で内容を隠します。",
@@ -1461,7 +1486,8 @@
         "description_ios": "Atkinson Hyperlegible と Lexend は文字を見分けやすいように設計されています。OpenDyslexic はディスレクシアの方の助けになることがあります。このデバイスでは、フォントはプレーンテキストのメッセージに使用されます。"
       },
       "plain_language": {
-        "description_mobile": "設定やエラーメッセージをよりわかりやすい言葉で表示します。英語とドイツ語で利用できます。"
+        "description_mobile": "設定やエラーメッセージをよりわかりやすい言葉で表示します。英語とドイツ語で利用できます。",
+        "label": "やさしい言葉"
       },
       "presets": {
         "applied_mobile": "{name} で{count, plural, other {#個の設定}}を変更しました",
@@ -1568,6 +1594,7 @@
     "show_unread": "未読を表示",
     "tab_unavailable": "{name}（利用不可）",
     "account_sign_in_again": "再度サインイン",
+    "account_unread": "未読 {count} 件",
     "sign_out_all_confirm_message": "すべてのアカウントがこのデバイスから削除されます。いつでも再度サインインできます。",
     "sign_out_all_confirm_title": "すべてのアカウントからサインアウトしますか？",
     "sign_out_confirm_message": "アカウントがこのデバイスから削除されます。いつでも再度サインインできます。",
@@ -1705,6 +1732,9 @@
   },
   "notifications": {
     "vacation_filters_off": "不在の設定を保存しましたが、フィルターがオフになっています。オンに戻すには、もう一度保存してください。"
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "サーバーは {account} の保存されたサインイン情報を受け付けなくなりました。もう一度サインインするまで、このアカウントのメールはこのデバイスで非表示になります。"
   },
   "outbox": {
     "discard": "破棄",

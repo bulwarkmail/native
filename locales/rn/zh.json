@@ -155,7 +155,10 @@
       "not_found": "此任务已不存在。",
       "save_error": "保存任务失败",
       "update_error": "更新任务失败",
-      "delete_confirm": "删除此任务？"
+      "delete_confirm": "删除此任务？",
+      "mark_occurrence_done": "将这一天标记为已完成",
+      "mark_occurrence_open": "将这一天标记为未完成",
+      "open_task": "打开任务"
     },
     "views": {
       "schedule": "日程",
@@ -186,6 +189,9 @@
     "retry": "重试",
     "undo": "撤销",
     "update": "更新"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, other {# 位收件人}}位于您的组织之外："
   },
   "contacts": {
     "address_books": {
@@ -488,6 +494,7 @@
       "open": "打开",
       "preview": "预览",
       "save": "保存",
+      "save_as": "另存为…",
       "share": "分享"
     },
     "attachment_failed": "无法打开附件",
@@ -516,6 +523,7 @@
     },
     "export_failed": "导出失败",
     "forwarded": "已转发",
+    "import_email": "导入 .eml 或 .zip",
     "load_failed": "加载邮件失败",
     "preview": {
       "open_external": "在应用中打开",
@@ -760,6 +768,8 @@
       "err_handoff_refused_title": "网页邮箱不接受此次登录",
       "err_handoff_server_detail": "请重新登录。如果仍然失败，请联系管理员。",
       "err_handoff_server_title": "网页邮箱无法完成登录",
+      "err_password_expired_detail": "请在服务器的网页界面中更改密码，然后用新密码登录。",
+      "err_password_expired_title": "您的密码已过期",
       "err_token_exchange_title": "{host} 未能建立会话",
       "reauth_detail": "服务器不再接受 {account} 已保存的登录信息。请重新登录以继续使用此账户。",
       "reauth_title": "重新登录",
@@ -997,6 +1007,12 @@
       "attachment_click_action": {
         "description_mobile": "点按附件时执行的操作。"
       },
+      "attachment_position": {
+        "below-header": "标题下方",
+        "beside-sender": "发件人旁",
+        "description": "在邮件标题中的何处显示附件",
+        "label": "附件位置"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "回复始终从邮件的收件身份发送。开启后，发往您域名下其他地址（catch-all 别名）的邮件，其回复也会从该地址发送。"
       },
@@ -1126,6 +1142,12 @@
         "star": "星标",
         "tag": "标签"
       },
+      "reading_pane": {
+        "auto": "有空间时显示在列表旁",
+        "description": "在平板或展开的折叠屏设备上，将打开的邮件显示在邮件列表旁边。仅限此设备。",
+        "label": "阅读窗格",
+        "off": "关闭：邮件以全屏打开"
+      },
       "show_avatars_in_junk": "在垃圾邮件中显示发件人头像",
       "show_avatars_in_junk_description": "为垃圾邮件文件夹中的邮件加载发件人徽标。关闭后可避免联系垃圾邮件发件人的服务器。",
       "show_folder_total_count": "在文件夹上显示邮件总数",
@@ -1220,6 +1242,7 @@
       "clear_title": "清除离线邮件",
       "days_ago": "{count} 天前",
       "description": "下载最近的邮件，使其可以立即打开，并在无网络时仍可阅读。仅下载正文——附件仍会按需获取。",
+      "description_account": "在此设备上保留 {account} 的最近邮件，无网络时也能打开。每个账户都有各自的时间范围和大小。",
       "downloading": "正在下载 {completed}/{total}…",
       "enabled": "缓存最近的邮件",
       "enabled_desc": "开启后，应用会在此设备上保存所选时间范围内的邮件正文。",
@@ -1289,7 +1312,8 @@
         "error_title": "更新失败"
       },
       "encryption": {
-        "no_keys": "请先添加公钥——静态加密需要公钥。"
+        "no_keys": "请先添加公钥——静态加密需要公钥。",
+        "turned_off_on_server": "静态加密原本已开启，现已在服务器上关闭，升级到 Stalwart 1.0.2 时就会这样。在您于此处重新开启之前，新邮件将以未加密方式存储。"
       },
       "load_error": "加载安全设置失败。",
       "not_supported": "账户安全管理需要 Stalwart 服务器。此账户无法使用这些功能。",
@@ -1339,6 +1363,7 @@
         "disable_hint_code": "输入您的密码和身份验证器应用中的验证码，以关闭双因素身份验证。"
       },
       "restricted": "您的服务器只允许管理员批准的应用更改密码、双因素身份验证、应用密码和 API 密钥。Bulwark 登录时未获此批准，因此邮件、联系人、日历和文件可以正常使用，但这些设置不行。请在服务器的网页界面或 Bulwark 网页邮箱中更改。",
+      "restricted_sign_in_again": "Bulwark 在您的服务器允许应用管理这些设置之前就已登录。请重新登录，以便在此管理密码、双因素身份验证、应用密码和 API 密钥。",
       "screen_privacy": {
         "block_screenshots": "禁止截屏",
         "block_screenshots_description": "禁止对应用截屏和录屏，并在最近使用的应用视图中隐藏其内容。",
@@ -1460,7 +1485,8 @@
         "description_ios": "Atkinson Hyperlegible 和 Lexend 的字形设计得容易区分；OpenDyslexic 对部分阅读障碍人士有帮助。在此设备上，该字体用于纯文本邮件。"
       },
       "plain_language": {
-        "description_mobile": "设置和错误消息使用更简单的措辞。仅提供英语和德语版本。"
+        "description_mobile": "设置和错误消息使用更简单的措辞。仅提供英语和德语版本。",
+        "label": "通俗语言"
       },
       "presets": {
         "applied_mobile": "{name}更改了 {count, plural, other {# 项设置}}",
@@ -1567,6 +1593,7 @@
     "show_unread": "显示未读",
     "tab_unavailable": "{name}（不可用）",
     "account_sign_in_again": "重新登录",
+    "account_unread": "{count} 封未读",
     "sign_out_all_confirm_message": "所有账户都将从此设备中移除。您可以随时重新登录。",
     "sign_out_all_confirm_title": "退出所有账户？",
     "sign_out_confirm_message": "该账户将从此设备中移除。您可以随时重新登录。",
@@ -1704,6 +1731,9 @@
   },
   "notifications": {
     "vacation_filters_off": "外出设置已保存，但您的过滤器已关闭。再次保存即可重新开启。"
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "服务器不再接受 {account} 已保存的登录信息。在您重新登录之前，该账户的邮件会在此设备上保持隐藏。"
   },
   "outbox": {
     "discard": "丢弃",

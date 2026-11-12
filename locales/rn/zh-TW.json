@@ -155,7 +155,10 @@
       "not_found": "此任務已不存在。",
       "save_error": "儲存任務失敗",
       "update_error": "更新任務失敗",
-      "delete_confirm": "要刪除此任務嗎？"
+      "delete_confirm": "要刪除此任務嗎？",
+      "mark_occurrence_done": "將這一天標示為已完成",
+      "mark_occurrence_open": "將這一天標示為未完成",
+      "open_task": "開啟任務"
     },
     "views": {
       "schedule": "行程",
@@ -186,6 +189,9 @@
     "retry": "重試",
     "undo": "撤銷",
     "update": "更新"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, other {# 位收件者}}位於您的組織之外："
   },
   "contacts": {
     "address_books": {
@@ -488,6 +494,7 @@
       "open": "開啟",
       "preview": "預覽",
       "save": "儲存",
+      "save_as": "另存新檔…",
       "share": "分享"
     },
     "attachment_failed": "無法開啟附件",
@@ -516,6 +523,7 @@
     },
     "export_failed": "匯出失敗",
     "forwarded": "已轉寄",
+    "import_email": "匯入 .eml 或 .zip",
     "load_failed": "載入郵件失敗",
     "preview": {
       "open_external": "在應用程式中開啟",
@@ -760,6 +768,8 @@
       "err_handoff_refused_title": "網頁郵件不接受這次登入",
       "err_handoff_server_detail": "請重新登入。如果仍然失敗，請聯絡管理員。",
       "err_handoff_server_title": "網頁郵件無法完成登入",
+      "err_password_expired_detail": "請在伺服器的網頁介面中變更密碼，然後以新密碼登入。",
+      "err_password_expired_title": "您的密碼已過期",
       "err_token_exchange_title": "{host} 未能建立工作階段",
       "reauth_detail": "伺服器不再接受 {account} 已儲存的登入資訊。請重新登入以繼續使用此帳號。",
       "reauth_title": "重新登入",
@@ -997,6 +1007,12 @@
       "attachment_click_action": {
         "description_mobile": "點選附件時執行的動作。"
       },
+      "attachment_position": {
+        "below-header": "標頭下方",
+        "beside-sender": "寄件者旁",
+        "description": "選擇在郵件標頭的哪個位置顯示附件",
+        "label": "附件位置"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "回覆一律從郵件原本寄達的寄件身分傳送。開啟後，寄到您網域中其他地址（catch-all 別名）的郵件，回覆時也會從該地址傳送。"
       },
@@ -1126,6 +1142,12 @@
         "star": "星號",
         "tag": "標籤"
       },
+      "reading_pane": {
+        "auto": "有空間時顯示在清單旁",
+        "description": "在平板或展開的摺疊裝置上，將開啟的郵件顯示在郵件清單旁邊。僅限此裝置。",
+        "label": "閱讀窗格",
+        "off": "關閉：郵件以全螢幕開啟"
+      },
       "show_avatars_in_junk": "在垃圾郵件中顯示寄件者頭像",
       "show_avatars_in_junk_description": "為垃圾郵件信件匣中的郵件載入寄件者標誌。關閉後可避免連線至垃圾郵件寄件者的伺服器。",
       "show_folder_total_count": "在信件匣上顯示郵件總數",
@@ -1220,6 +1242,7 @@
       "clear_title": "清除離線郵件",
       "days_ago": "{count} 天前",
       "description": "下載最近的郵件，讓郵件能立即開啟，且在沒有網路時也能閱讀。僅下載內文；附件仍會在需要時才取得。",
+      "description_account": "在此裝置上保留 {account} 的最近郵件，沒有網路時也能開啟。每個帳號都有各自的時間範圍和大小。",
       "downloading": "正在下載 {completed}/{total}…",
       "enabled": "快取最近的郵件",
       "enabled_desc": "開啟後，應用程式會在此裝置上保留所選期間內的郵件內文。",
@@ -1289,7 +1312,8 @@
         "error_title": "更新失敗"
       },
       "encryption": {
-        "no_keys": "請先新增公鑰，靜態資料加密需要公鑰。"
+        "no_keys": "請先新增公鑰，靜態資料加密需要公鑰。",
+        "turned_off_on_server": "靜態資料加密原本已開啟，現已在伺服器上關閉，升級到 Stalwart 1.0.2 時就會如此。在您於此處重新開啟之前，新郵件將以未加密方式儲存。"
       },
       "load_error": "無法載入安全設定。",
       "not_supported": "帳號安全管理需要 Stalwart 伺服器。此帳號無法使用這些功能。",
@@ -1339,6 +1363,7 @@
         "disable_hint_code": "輸入您的密碼和驗證器應用程式中的驗證碼，以關閉雙因素驗證。"
       },
       "restricted": "您的伺服器只允許管理員核准的應用程式變更密碼、雙因素驗證、應用程式密碼和 API 金鑰。Bulwark 登入時未獲得此核准，因此郵件、聯絡人、行事曆和檔案都能正常使用，但這些設定無法變更。請在伺服器的網頁介面或 Bulwark 網頁郵件中變更。",
+      "restricted_sign_in_again": "Bulwark 在您的伺服器允許應用程式管理這些設定之前就已登入。請重新登入，以便在此管理密碼、雙因素驗證、應用程式密碼和 API 金鑰。",
       "screen_privacy": {
         "block_screenshots": "封鎖螢幕截圖",
         "block_screenshots_description": "禁止對應用程式截圖和錄影，並在最近使用的應用程式畫面中隱藏其內容。",
@@ -1460,7 +1485,8 @@
         "description_ios": "Atkinson Hyperlegible 和 Lexend 的字形設計得容易區分；OpenDyslexic 對部分閱讀障礙者有幫助。在此裝置上，此字型用於純文字郵件。"
       },
       "plain_language": {
-        "description_mobile": "設定和錯誤訊息使用更簡單的措辭。僅提供英文和德文版本。"
+        "description_mobile": "設定和錯誤訊息使用更簡單的措辭。僅提供英文和德文版本。",
+        "label": "白話語言"
       },
       "presets": {
         "applied_mobile": "{name}變更了 {count, plural, other {# 項設定}}",
@@ -1567,6 +1593,7 @@
     "show_unread": "顯示未讀",
     "tab_unavailable": "{name}（無法使用）",
     "account_sign_in_again": "重新登入",
+    "account_unread": "{count} 封未讀",
     "sign_out_all_confirm_message": "所有帳號都會從此裝置移除。您可以隨時重新登入。",
     "sign_out_all_confirm_title": "要登出所有帳號嗎？",
     "sign_out_confirm_message": "此帳號會從此裝置移除。您可以隨時重新登入。",
@@ -1704,6 +1731,9 @@
   },
   "notifications": {
     "vacation_filters_off": "外出設定已儲存，但您的篩選規則已關閉。再次儲存即可重新開啟。"
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "伺服器不再接受 {account} 已儲存的登入資訊。在您重新登入之前，此帳號的郵件會在這部裝置上保持隱藏。"
   },
   "outbox": {
     "discard": "捨棄",

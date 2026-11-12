@@ -155,7 +155,10 @@
       "not_found": "이 할 일을 더 이상 찾을 수 없어요.",
       "save_error": "할 일을 저장하지 못했어요",
       "update_error": "할 일을 업데이트하지 못했어요",
-      "delete_confirm": "이 할 일을 삭제할까요?"
+      "delete_confirm": "이 할 일을 삭제할까요?",
+      "mark_occurrence_done": "이날을 완료로 표시",
+      "mark_occurrence_open": "이날을 미완료로 표시",
+      "open_task": "할 일 열기"
     },
     "views": {
       "schedule": "일정",
@@ -186,6 +189,9 @@
     "retry": "다시 시도",
     "undo": "실행 취소",
     "update": "업데이트"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, other {받는 사람 #명}}이 조직 외부에 있어요:"
   },
   "contacts": {
     "address_books": {
@@ -487,6 +493,7 @@
       "open": "열기",
       "preview": "미리보기",
       "save": "저장",
+      "save_as": "다른 이름으로 저장…",
       "share": "공유"
     },
     "attachment_failed": "첨부 파일을 열 수 없어요",
@@ -515,6 +522,7 @@
     },
     "export_failed": "내보내기에 실패했어요",
     "forwarded": "전달함",
+    "import_email": ".eml 또는 .zip 가져오기",
     "load_failed": "메일을 불러오지 못했어요",
     "preview": {
       "open_external": "앱에서 열기",
@@ -759,6 +767,8 @@
       "err_handoff_refused_title": "웹메일에서 이 로그인을 허용하지 않았어요",
       "err_handoff_server_detail": "다시 로그인해 주세요. 계속 실패하면 관리자에게 문의해 주세요.",
       "err_handoff_server_title": "웹메일에서 로그인을 완료하지 못했어요",
+      "err_password_expired_detail": "서버의 웹 인터페이스에서 변경한 뒤 새 비밀번호로 로그인하세요.",
+      "err_password_expired_title": "비밀번호가 만료되었어요",
       "err_token_exchange_title": "{host}에서 세션을 시작하지 않았어요",
       "reauth_detail": "서버에서 {account}의 저장된 로그인 정보를 더 이상 허용하지 않아요. 이 계정을 계속 사용하려면 다시 로그인해 주세요.",
       "reauth_title": "다시 로그인",
@@ -996,6 +1006,12 @@
       "attachment_click_action": {
         "description_mobile": "첨부 파일을 탭했을 때의 동작이에요."
       },
+      "attachment_position": {
+        "below-header": "제목 아래",
+        "beside-sender": "보낸 사람 옆",
+        "description": "메일 상단에서 첨부파일을 어디에 표시할지 설정해요",
+        "label": "첨부파일 위치"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "답장은 항상 메시지를 받은 보내는 사람 주소로 전송돼요. 이 옵션을 켜면 내 도메인의 다른 주소(catch-all 별칭)로 받은 메시지에 대한 답장도 해당 주소에서 전송돼요."
       },
@@ -1125,6 +1141,12 @@
         "star": "별표",
         "tag": "태그"
       },
+      "reading_pane": {
+        "auto": "공간이 있으면 목록 옆에",
+        "description": "태블릿이나 펼친 폴더블 기기에서 열린 메시지를 메일 목록 옆에 표시해요. 이 기기에만 적용돼요.",
+        "label": "읽기 창",
+        "off": "끔: 메시지를 전체 화면으로 열어요"
+      },
       "show_avatars_in_junk": "스팸함에서 보낸 사람 아바타 표시",
       "show_avatars_in_junk_description": "스팸함에 있는 메시지의 보낸 사람 로고를 불러와요. 끄면 스팸 발신자 쪽으로 연결되지 않아요.",
       "show_folder_total_count": "폴더에 전체 메시지 수 표시",
@@ -1219,6 +1241,7 @@
       "clear_title": "오프라인 메일 지우기",
       "days_ago": "{count}일 전",
       "description": "최근 메시지를 다운로드해 바로 열 수 있고 연결 없이도 읽을 수 있게 해요. 본문만 저장되며, 첨부 파일은 필요할 때 가져와요.",
+      "description_account": "{account}의 최근 메시지를 이 기기에 보관해서 연결 없이도 열 수 있게 해요. 계정마다 기간과 크기를 따로 정해요.",
       "downloading": "다운로드 중 {completed}/{total}…",
       "enabled": "최근 메일 캐시",
       "enabled_desc": "켜면 선택한 기간의 메시지 본문을 이 기기에 보관해요.",
@@ -1288,7 +1311,8 @@
         "error_title": "업데이트하지 못했어요"
       },
       "encryption": {
-        "no_keys": "먼저 공개 키를 추가해 주세요. 저장 데이터 암호화에는 공개 키가 필요해요."
+        "no_keys": "먼저 공개 키를 추가해 주세요. 저장 데이터 암호화에는 공개 키가 필요해요.",
+        "turned_off_on_server": "저장 데이터 암호화가 켜져 있었지만 Stalwart 1.0.2 업데이트처럼 서버에서 꺼졌어요. 여기서 다시 켤 때까지 새 메일은 암호화되지 않은 채 저장돼요."
       },
       "load_error": "보안 설정을 불러오지 못했어요.",
       "not_supported": "계정 보안 관리는 Stalwart 서버가 필요해요. 이 계정에서는 이 기능을 사용할 수 없어요.",
@@ -1338,6 +1362,7 @@
         "disable_hint_code": "2단계 인증을 끄려면 비밀번호와 인증 앱의 코드를 입력해 주세요."
       },
       "restricted": "이 서버에서는 관리자가 승인한 앱만 비밀번호, 2단계 인증, 앱 비밀번호, API 키를 변경할 수 있어요. Bulwark는 승인 없이 로그인했기 때문에 메일, 연락처, 캘린더, 파일은 사용할 수 있지만 이 설정은 사용할 수 없어요. 서버의 웹 인터페이스나 Bulwark 웹메일에서 변경해 주세요.",
+      "restricted_sign_in_again": "서버가 앱에서 이 설정을 관리하도록 허용하기 전에 Bulwark가 로그인했어요. 비밀번호, 2단계 인증, 앱 비밀번호, API 키를 여기서 관리하려면 다시 로그인하세요.",
       "screen_privacy": {
         "block_screenshots": "스크린샷 차단",
         "block_screenshots_description": "앱의 스크린샷과 화면 녹화를 막고, 최근 앱 화면에서 내용을 숨겨요.",
@@ -1459,7 +1484,8 @@
         "description_ios": "Atkinson Hyperlegible과 Lexend는 글자를 쉽게 구분할 수 있도록 만들어진 글꼴이고, OpenDyslexic은 난독증이 있는 일부 사람에게 도움이 돼요. 이 기기에서는 일반 텍스트 메시지에 이 글꼴을 사용해요."
       },
       "plain_language": {
-        "description_mobile": "설정과 오류 메시지를 더 쉬운 말로 보여 줘요. 영어와 독일어로 제공돼요."
+        "description_mobile": "설정과 오류 메시지를 더 쉬운 말로 보여 줘요. 영어와 독일어로 제공돼요.",
+        "label": "쉬운 말"
       },
       "presets": {
         "applied_mobile": "{name}이(가) {count, plural, other {설정 #개}}를 변경했어요",
@@ -1566,6 +1592,7 @@
     "show_unread": "읽지 않음 표시",
     "tab_unavailable": "{name} (사용 불가)",
     "account_sign_in_again": "다시 로그인",
+    "account_unread": "읽지 않음 {count}개",
     "sign_out_all_confirm_message": "모든 계정이 이 기기에서 삭제돼요. 언제든지 다시 로그인할 수 있어요.",
     "sign_out_all_confirm_title": "모든 계정에서 로그아웃할까요?",
     "sign_out_confirm_message": "계정이 이 기기에서 삭제돼요. 언제든지 다시 로그인할 수 있어요.",
@@ -1703,6 +1730,9 @@
   },
   "notifications": {
     "vacation_filters_off": "부재중 설정은 저장되었지만 필터가 꺼져 있어요. 다시 켜려면 한 번 더 저장해 주세요."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "서버에서 {account}의 저장된 로그인 정보를 더 이상 허용하지 않아요. 다시 로그인할 때까지 이 계정의 메일은 이 기기에서 숨겨져요."
   },
   "outbox": {
     "discard": "삭제",
