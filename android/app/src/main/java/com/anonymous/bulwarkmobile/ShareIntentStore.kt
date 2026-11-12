@@ -69,13 +69,14 @@ object ShareIntentStore {
     // isn't one of the app's own. Anything else (`file:`, a bare path, other
     // schemes) can name the app's private files, which this app can read and
     // the sending app can't. The authority is read as Android resolves it:
-    // percent-decoded, without a `<user>@` in front or a port, in any case.
-    // Plain string work, so the JVM tests can run it. Same rule as
-    // isForeignContentUri in src/lib/share-intent.ts.
+    // ending at the first `/`, `?`, `#` or `\` (Uri.parse stops at a
+    // backslash too), percent-decoded, without a `<user>@` in front or a
+    // port, in any case. Plain string work, so the JVM tests can run it. Same
+    // rule as isForeignContentUri in src/lib/share-intent.ts.
     fun isForeignContentUri(uri: String): Boolean {
         if (!uri.regionMatches(0, "content://", 0, "content://".length, ignoreCase = true)) return false
         val rest = uri.substring("content://".length)
-        val end = rest.indexOfAny(charArrayOf('/', '?', '#')).let { if (it < 0) rest.length else it }
+        val end = rest.indexOfAny(charArrayOf('/', '?', '#', '\\')).let { if (it < 0) rest.length else it }
         val decoded = percentDecode(rest.substring(0, end)) ?: return false
         val authority = decoded.substringAfterLast('@').substringBefore(':').trim().lowercase()
         if (authority.isEmpty()) return false

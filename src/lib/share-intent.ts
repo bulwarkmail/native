@@ -41,11 +41,13 @@ const OWN_PACKAGES = ['com.anonymous.bulwarkmobile', 'org.bulwarkmail.mobile'];
  * `content:` address whose provider isn't one of the app's own. Anything
  * else (`file:`, a bare path, `http:`) can name the app's private files,
  * which this app can read and the sending app can't. The authority is read
- * as Android resolves it: percent-decoded, without a `<user>@` in front or
- * a port, in any case. Same rule as ShareIntentStore.isForeignContentUri.
+ * as Android resolves it: ending at the first `/`, `?`, `#` or `\`
+ * (Uri.parse stops at a backslash too), percent-decoded, without a `<user>@`
+ * in front or a port, in any case. Same rule as
+ * ShareIntentStore.isForeignContentUri.
  */
 export function isForeignContentUri(uri: string): boolean {
-  const match = /^content:\/\/([^/?#]*)/i.exec(uri);
+  const match = /^content:\/\/([^/?#\\]*)/i.exec(uri);
   if (!match) return false;
   let authority: string;
   try {
