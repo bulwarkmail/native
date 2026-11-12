@@ -434,7 +434,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: SidebarDrawer has no vacation state; only Settings shows it.
   - Fix hint: a row at the top of the drawer from useVacationStore with a Turn off button.
 
-- [ ] **Out of office has no "Block my calendar" and no organisation templates** — `P3` — `missing` — partly in e19398ea (Block my calendar); not done: the organisation templates, left for a later agent
+- [x] **Out of office has no "Block my calendar" and no organisation templates** — `P3` — `missing` — partly in e19398ea (Block my calendar); not done: the organisation templates, left for a later agent; the organisation templates fixed in f60e6109 (dates in the device zone, as the rest of the page)
   - What WEB does: a reply with dates puts a busy event in the calendar, on by default, lockable by the admin (`components/settings/vacation-calendar-block.tsx`); admins keep a template library that fills in name, dates and deputy (`components/settings/vacation-template-picker.tsx`); the date fields use the app's time zone. Changelog 1.20.0.
   - What RN does: none of these (`src/components/settings/VacationSettings.tsx`); dates are read in the device zone (`src/lib/vacation-dates.ts:1-16`).
   - Fix hint: the calendar block first; the templates come from the organisation policy.
