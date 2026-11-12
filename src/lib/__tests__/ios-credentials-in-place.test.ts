@@ -96,27 +96,26 @@ describe('the start step seen from outside', () => {
       const item = keychain.get(slot(KEY, { accessGroup: SHARED }));
       if (item) item.value = value;
     };
-    // The refresh lands right after the start step's first keychain call, whichever it is.
-    let refreshed = false;
-    const fns = [SecureStore.getItemAsync, SecureStore.setItemAsync, SecureStore.deleteItemAsync] as const;
-    const reals = fns.map((fn) => vi.mocked(fn).getMockImplementation()!);
-    fns.forEach((fn, i) => {
-      vi.mocked(fn).mockImplementation((async (...args: never[]) => {
-        const r = await (reals[i] as (...a: never[]) => Promise<unknown>)(...args);
-        if (!refreshed) {
-          refreshed = true;
-          extensionUpdate('{"accessToken":"refreshed-by-extension"}');
-        }
-        return r;
-      }) as never);
+    // The refresh lands while the item is out, if the start step ever takes it out.
+    const REFRESHED = '{"accessToken":"refreshed-by-extension"}';
+    let takenOut = false;
+    const realDelete = vi.mocked(SecureStore.deleteItemAsync).getMockImplementation()!;
+    vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key, options) => {
+      await realDelete(key, options);
+      if (key === KEY && options?.accessGroup === SHARED) {
+        takenOut = true;
+        extensionUpdate(REFRESHED);
+      }
     });
     try {
       await moveToSharedGroup(KEY);
     } finally {
-      fns.forEach((fn, i) => vi.mocked(fn).mockImplementation(reals[i] as never));
+      vi.mocked(SecureStore.deleteItemAsync).mockImplementation(realDelete);
     }
-    expect(refreshed).toBe(true);
-    expect(shared(KEY)?.value).toBe('{"accessToken":"refreshed-by-extension"}');
+    // Never taken out, so the extension's write finds the item whenever it comes.
+    expect(takenOut).toBe(false);
+    extensionUpdate(REFRESHED);
+    expect(shared(KEY)?.value).toBe(REFRESHED);
   });
 
   it('a start that ends between taking the item out and putting it back keeps the sign-in at the next start', async () => {
