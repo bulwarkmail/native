@@ -27,6 +27,7 @@ import {
   type InvitationTrustAssessment,
 } from '../../lib/calendar-invitation';
 import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
+import { useInternalMailDomains } from '../../lib/avatar-internal-domains';
 import { participantLimitMessage } from '../../lib/calendar-participants';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
@@ -90,6 +91,10 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   // Login address + identities + aliases, so invitations addressed to an
   // alias still show the RSVP buttons. Only an invitation looks the aliases up.
   const currentUserEmails = useUserCalendarAddresses(!!attachment && enabled);
+  // The organisation's other domains (identities plus the policy's
+  // externalMail.domains): an invitation handed in from one of them is
+  // internal mail too (webmail #1593).
+  const internalMailDomains = useInternalMailDomains();
   // The invitation is loaded once per message, account and calendar part;
   // a mark-read or star hands a new `email` for the same one.
   const invitationKey = calendarInvitationKey(email, attachment, jmapAccountId);
@@ -183,8 +188,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   }, [storeEvents, event?.uid, serverMatch]);
 
   const trust = React.useMemo(
-    () => (event ? getInvitationTrustAssessment(event, email, method, currentUserEmails) : null),
-    [event, email, method, currentUserEmails],
+    () => (event ? getInvitationTrustAssessment(event, email, method, currentUserEmails, internalMailDomains) : null),
+    [event, email, method, currentUserEmails, internalMailDomains],
   );
 
   if (!attachment || !enabled || state === 'error') return null;

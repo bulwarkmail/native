@@ -65,4 +65,9 @@ describe('external mail', () => {
     const editor = read('components/calendar/EventModal.tsx');
     expect(editor).toMatch(/if \(send\) \{[\s\S]+?recipientsToConfirm\(\{ to: invited[\s\S]+?if \(!\(await confirmExternalRecipientsAlert\(external, t\)\)\) return;\s+\}/);
   });
+
+  it('counts the organisation\'s domains as internal for invitations', () => {
+    expect(read('components/email/CalendarInvitationBanner.tsx'))
+      .toMatch(/getInvitationTrustAssessment\(event, email, method, currentUserEmails, internalMailDomains\)/);
+  });
 });

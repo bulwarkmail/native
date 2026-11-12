@@ -524,12 +524,17 @@ export interface InvitationTrustAssessment {
  * the reader's domains that carries no Authentication-Results header at all
  * was handed in by a signed-in user rather than received from outside:
  * Stalwart adds the header to everything that arrives on port 25 (#1374).
+ * `internalMailDomains` are the organisation's other domains, as the
+ * "External" sender chip counts them (identities plus the policy's
+ * `externalMail.domains`; a domain covers its subdomains): mail between
+ * them counts the same (#1593).
  */
 export function getInvitationTrustAssessment(
   event: Partial<CalendarEvent>,
   email?: Pick<Email, 'from' | 'replyTo' | 'headers'> | null,
   method: InvitationMethod = inferInvitationMethod(event),
   ownAddresses: readonly string[] = [],
+  internalMailDomains: readonly string[] = [],
 ): InvitationTrustAssessment {
   const organizerEmail = getOrganizerEmail(event);
   const senderEmail = getPrimaryAddressEmail(email?.from) || getPrimaryAddressEmail(email?.replyTo);
@@ -539,7 +544,8 @@ export function getInvitationTrustAssessment(
   const senderMismatch = Boolean(senderEmail && organizerEmail && senderEmail !== organizerEmail);
   const senderDomain = domainOf(senderEmail ?? undefined);
   const internal = Boolean(email && !auth && senderDomain
-    && ownAddresses.some((address) => domainOf(address) === senderDomain));
+    && (ownAddresses.some((address) => domainOf(address) === senderDomain)
+      || internalMailDomains.some((domain) => senderDomain === domain || senderDomain.endsWith(`.${domain}`))));
   const expectsAuthenticatedTransport = method !== 'unknown' && !internal;
 
   if (senderMismatch && (failed || !verified)) {

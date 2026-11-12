@@ -236,6 +236,28 @@ describe('getInvitationTrustAssessment', () => {
     expect(getInvitationTrustAssessment(request, forged('spf=none smtp.mailfrom=example.com'), 'request', ['bob@example.com']).reason)
       .toBe('authentication_missing');
   });
+
+  it('does not flag an invitation from another of the organisation\'s domains (#1593)', () => {
+    const colleague = email({ from: [{ email: 'alice@example.com' }] });
+    // The reader is on example.org; the policy names example.com as the organisation's.
+    expect(getInvitationTrustAssessment(request, colleague, 'request', ['bob@example.org']).reason).toBe('authentication_missing');
+    expect(getInvitationTrustAssessment(request, colleague, 'request', ['bob@example.org'], ['example.org', 'example.com']).level)
+      .toBe('trusted');
+    // A listed domain covers its subdomains, not look-alikes.
+    const from = (address: string) => ({
+      ...request,
+      organizerCalendarAddress: `mailto:${address}`,
+      participants: { ...request.participants, a: { ...request.participants.a, calendarAddress: `mailto:${address}` } },
+    });
+    const sub = email({ from: [{ email: 'alice@eu.example.com' }] });
+    expect(getInvitationTrustAssessment(from('alice@eu.example.com'), sub, 'request', [], ['example.com']).level).toBe('trusted');
+    const lookalike = email({ from: [{ email: 'alice@notexample.com' }] });
+    expect(getInvitationTrustAssessment(from('alice@notexample.com'), lookalike, 'request', [], ['example.com']).reason)
+      .toBe('authentication_missing');
+    // Mail that came in from outside (it has a header) stays as before.
+    expect(getInvitationTrustAssessment(request, forged('spf=none smtp.mailfrom=example.com'), 'request', [], ['example.com']).reason)
+      .toBe('authentication_missing');
+  });
 });
 
 describe('calendarInvitationKey', () => {
