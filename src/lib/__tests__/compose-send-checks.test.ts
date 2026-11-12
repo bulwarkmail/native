@@ -87,7 +87,7 @@ describe('send checks wiring', () => {
     expect(fn).toMatch(/^const passesSendConfirmation = \(\): Promise<boolean> => \{\s+if \(!useSettingsStore\.getState\(\)\.sendConfirmation\) return Promise\.resolve\(true\);/);
     const inner = source.slice(source.indexOf('const performSendInner'));
     const confirm = inner.indexOf('await passesSendConfirmation()');
-    expect(confirm).toBeGreaterThan(inner.indexOf('await passesAttachmentReminder('));
+    expect(confirm).toBeGreaterThan(inner.indexOf('await passesSendWarnings('));
     expect(confirm).toBeLessThan(inner.indexOf('await sendEmail('));
   });
 });

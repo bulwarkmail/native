@@ -80,6 +80,8 @@ import { attachmentFromFileNode } from '../lib/compose-files';
 import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
 import { ComposerOptionsSheet, activeComposerOptionCount, type ComposerOptions } from '../components/compose/ComposerOptionsSheet';
+import { SendWarningsSheet } from '../components/compose/SendWarningsSheet';
+import { answerSendWarnings, collectSendWarnings, type SendWarning } from '../lib/compose-send-warnings';
 import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
 import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
 import { prepareSecureSend, resolveRecipientKeys, SecureSendError, type SecureChoice } from '../lib/crypto/compose-secure';
@@ -2460,106 +2462,66 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Catch the classic "I forgot the attachment" footgun. Only file attachments
   // count - inline images don't satisfy the user's intent of attaching a file.
   // Only the text the user wrote is scanned, not the quoted original (#570).
-  // Returns true if it's safe to proceed, false if the user cancelled.
-  const passesAttachmentReminder = async (body: string): Promise<boolean> => {
-    if (!attachmentReminderEnabled) return true;
+  // The keyword that fires the reminder, or undefined.
+  const attachmentReminderKeyword = (body: string): string | undefined => {
+    if (!attachmentReminderEnabled) return undefined;
     const hasFileAttachment = attachments.some(
       (a) => !a.inline && a.blobId && !a.error,
     );
-    if (hasFileAttachment) return true;
+    if (hasFileAttachment) return undefined;
     const authored = extractUserAuthoredText(body, {
       plainTextMode,
       forwardedSeparator: quoteLabels.forwardedSeparator,
     });
-    const matchedKeyword = findAttachmentKeyword(`${subject}\n${authored}`, attachmentReminderKeywords);
-    if (!matchedKeyword) return true;
-    return new Promise<boolean>((resolve) => {
-      Alert.alert(
-        t('email_composer.attachment_reminder_title', 'Forgot an attachment?'),
-        t(
-          'email_composer.attachment_reminder_body',
-          'Your message mentions "{keyword}" but no file is attached. Send anyway?',
-          { keyword: matchedKeyword },
-        ),
-        [
-          { text: t('email_composer.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
-          { text: t('email_composer.send', 'Send'), onPress: () => resolve(true) },
-        ],
-      );
-    });
+    return findAttachmentKeyword(`${subject}\n${authored}`, attachmentReminderKeywords);
   };
 
-  // Confirm an empty subject instead of silently blocking Send (#684).
-  // Asked once: after "Send anyway" and a trip back from a later prompt, the
-  // next Send doesn't ask again (webmail emptySubjectConfirmedRef).
+  // What the user may have missed, asked about in one sheet (webmail
+  // send-warnings-dialog.tsx); Alerts in a row asked about each in turn.
+  // An empty subject (#684); unfilled placeholders: template fields left as
+  // {{name}}, fill-ins like [TIME] from AI drafts, and markers like TODO
+  // (lib/placeholder-check), without the signature, or a placeholder in it
+  // would stop every message; and the attachment reminder. After "Send
+  // anyway" and a trip back from a later question, the subject and the
+  // placeholders listed aren't asked about again for this message.
   const emptySubjectConfirmedRef = React.useRef(false);
-  const passesEmptySubjectCheck = (): Promise<boolean> => {
-    if (subject.trim() || !emptySubjectWarningEnabled || emptySubjectConfirmedRef.current) return Promise.resolve(true);
-    return new Promise<boolean>((resolve) => {
-      Alert.alert(
-        t('email_composer.empty_subject.title', 'Send without a subject?'),
-        t('email_composer.empty_subject.message', 'This message has no subject. Send it anyway?'),
-        [
-          { text: t('email_composer.empty_subject.back', 'Back to editing'), style: 'cancel', onPress: () => resolve(false) },
-          {
-            text: t('email_composer.empty_subject.dont_ask_again', "Don't ask again"),
-            onPress: () => { updateSetting('emptySubjectWarningEnabled', false); resolve(true); },
-          },
-          {
-            text: t('email_composer.empty_subject.send_anyway', 'Send anyway'),
-            onPress: () => { emptySubjectConfirmedRef.current = true; resolve(true); },
-          },
-        ],
-      );
-    });
-  };
-
-  // Unfilled placeholders: template fields left as {{name}}, fill-ins like
-  // [TIME] from AI drafts, and markers like TODO (webmail
-  // lib/placeholder-check). The signature is left out, or a placeholder in
-  // it would stop every message. Asked once per placeholder: after "Send
-  // anyway" and a trip back to add an attachment, the same ones pass.
   const confirmedPlaceholdersRef = React.useRef(new Set<string>());
-  const passesPlaceholderCheck = (body: string): Promise<boolean> => {
-    if (!placeholderWarningEnabled) return Promise.resolve(true);
-    const found = unfilledPlaceholdersInMessage({
+  const [sendWarnings, setSendWarnings] = React.useState<{
+    items: SendWarning[];
+    scheduling: boolean;
+    resolve: (send: boolean) => void;
+  } | null>(null);
+  const passesSendWarnings = (body: string, scheduling: boolean): Promise<boolean> => {
+    const warnings = collectSendWarnings({
       subject,
-      body,
-      plainTextMode,
-      signature: signatureIdentity,
-      forwardedSeparator: quoteLabels.forwardedSeparator,
-      words: placeholderWordsFor(locale),
+      askSubject: emptySubjectWarningEnabled && !emptySubjectConfirmedRef.current,
+      placeholders: placeholderWarningEnabled
+        ? unfilledPlaceholdersInMessage({
+          subject,
+          body,
+          plainTextMode,
+          signature: signatureIdentity,
+          forwardedSeparator: quoteLabels.forwardedSeparator,
+          words: placeholderWordsFor(locale),
+        })
+        : null,
+      confirmedPlaceholders: confirmedPlaceholdersRef.current,
+      attachmentKeyword: attachmentReminderKeyword(body),
     });
-    if (!found.some((p) => !confirmedPlaceholdersRef.current.has(p))) return Promise.resolve(true);
-    const SHOWN = 5;
-    const more = found.length > SHOWN
-      ? ` ${t('email_composer.placeholder_warning.more', 'and {count} more', { count: found.length - SHOWN })}`
-      : '';
-    const message = t(
-      'email_composer.placeholder_warning.message',
-      'Your message has placeholder text that recipients will see. Do you want to edit it before sending?',
-    );
-    const label = t('email_composer.placeholder_warning.found', 'Placeholders found');
-    return new Promise<boolean>((resolve) => {
-      Alert.alert(
-        t('email_composer.placeholder_warning.title', 'Check placeholders?'),
-        `${message}\n\n${label}: ${found.slice(0, SHOWN).join(', ')}${more}`,
-        [
-          { text: t('email_composer.placeholder_warning.back', 'Back to editing'), style: 'cancel', onPress: () => resolve(false) },
-          {
-            text: t('email_composer.placeholder_warning.dont_ask_again', "Don't ask again"),
-            onPress: () => { updateSetting('placeholderWarningEnabled', false); resolve(true); },
-          },
-          {
-            text: t('email_composer.placeholder_warning.send_anyway', 'Send anyway'),
-            onPress: () => {
-              for (const p of found) confirmedPlaceholdersRef.current.add(p);
-              resolve(true);
-            },
-          },
-        ],
-      );
-    });
+    if (warnings.length === 0) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => setSendWarnings({ items: warnings, scheduling, resolve }));
+  };
+  const answerWarnings = (send: boolean, dontAskAgain = false) => {
+    const pending = sendWarnings;
+    setSendWarnings(null);
+    if (!pending) return;
+    if (send) {
+      const answer = answerSendWarnings(pending.items, dontAskAgain);
+      if (answer.subjectConfirmed) emptySubjectConfirmedRef.current = true;
+      for (const p of answer.placeholders) confirmedPlaceholdersRef.current.add(p);
+      for (const key of answer.switchOff) updateSetting(key, false);
+    }
+    pending.resolve(send);
   };
 
   // "Send this message?" when "Confirm before sending" is on (webmail
@@ -2728,9 +2690,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (liveBodyHtml !== bodyHtml) setBodyHtml(liveBodyHtml);
     }
 
-    if (!(await passesEmptySubjectCheck())) return;
-    if (!(await passesPlaceholderCheck(plainTextMode ? plainBody : liveBodyHtml))) return;
-    if (!(await passesAttachmentReminder(plainTextMode ? plainBody : liveBodyHtml))) return;
+    if (!(await passesSendWarnings(plainTextMode ? plainBody : liveBodyHtml, !!scheduledAt))) return;
     if (!(await passesSendConfirmation())) return;
 
     // Autosave must not race the send: cancel a scheduled save and let an
@@ -3684,6 +3644,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
           onChange={onCustomPickerChange}
         />
       )}
+
+      <SendWarningsSheet
+        warnings={sendWarnings?.items ?? null}
+        scheduling={sendWarnings?.scheduling}
+        onBack={() => answerWarnings(false)}
+        onSendAnyway={(dontAskAgain) => answerWarnings(true, dontAskAgain)}
+      />
 
       {/* Template placeholders */}
       <Modal supportedOrientations={MODAL_ORIENTATIONS}

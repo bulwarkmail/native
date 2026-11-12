@@ -14,9 +14,9 @@ describe('ComposeScreen wiring', () => {
   });
 
   it('asks about a missing subject once per message', () => {
-    const check = source.slice(source.indexOf('const passesEmptySubjectCheck'), source.indexOf('const confirmedPlaceholdersRef'));
-    expect(check).toMatch(/if \(subject\.trim\(\) \|\| !emptySubjectWarningEnabled \|\| emptySubjectConfirmedRef\.current\) return Promise\.resolve\(true\);/);
-    expect(check).toMatch(/send_anyway[\s\S]*?onPress: \(\) => \{ emptySubjectConfirmedRef\.current = true; resolve\(true\); \}/);
+    const check = source.slice(source.indexOf('const passesSendWarnings'));
+    expect(check).toMatch(/askSubject: emptySubjectWarningEnabled && !emptySubjectConfirmedRef\.current,/);
+    expect(check).toMatch(/if \(answer\.subjectConfirmed\) emptySubjectConfirmedRef\.current = true;/);
   });
 
   it('closes without "unsaved changes" when the saved draft holds every change', () => {
