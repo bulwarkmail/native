@@ -355,7 +355,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Contacts
 
-- [ ] **Saving a contact drops details the editor doesn't show** — `P1` — `bug`
+- [x] **Saving a contact drops details the editor doesn't show** — `P1` — `bug` — fixed in 245825fc
   - What WEB does: an entry the user didn't touch goes back exactly as the card had it, under its key; an edited one is built on the card's entry, so properties the form doesn't show stay; a phone's custom type such as "car" shows and is kept (`components/contacts/contact-form.tsx:174-213`). Changelog 1.21.0 (Saving no longer rewrites fields you didn't touch), 1.21.0 (#1515).
   - What RN does: rebuilds every list from the form under new keys `e1`, `p1`, `a1`... with only the fields the form has (`src/lib/contact-form.ts:281-310`). The form keeps one context and one phone feature per entry (`:135-150`), so a save loses phone and email labels, `pref`, extra contexts and features, and address parts other than street, locality, region, postcode and country, on every entry, also the untouched ones.
   - Fix hint: keep the original entry and key per row and only rebuild rows the user changed, as entriesToSave does.
