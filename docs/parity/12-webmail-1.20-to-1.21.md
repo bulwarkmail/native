@@ -259,7 +259,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: only suggestions while typing; RecipientPicker is the same suggestion list full screen (`src/components/compose/RecipientPicker.tsx:14-19`).
   - Fix hint: a sheet with Contacts and Directory tabs and check boxes, reusing ContactPickerSheet and DirectoryBrowser.
 
-- [ ] **Insert link asks only for the address** — `P3` — `partial`
+- [x] **Insert link asks only for the address** — `P3` — `partial` — fixed in 7fee8823
   - What WEB does: asks for the text and the address (`components/email/link-dialog.tsx`). Changelog 1.21.0.
   - What RN does: one field for the URL; without a selection the link text is the URL (`src/screens/ComposeScreen.tsx:2310-2321`, `src/lib/editor-html.ts:548-575`). The editor bridge already takes a label (`src/components/RichTextEditor.tsx:209`).
   - Fix hint: add a text field to the link prompt and pass it as the label.
