@@ -306,7 +306,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the banner imports only into the user's own calendars (`src/components/email/CalendarInvitationBanner.tsx:166-171`); no SENT-BY handling outside recurrence copying (`src/lib/recurrence-instances.ts:423`).
   - Fix hint: port calendar-delegate and offer the shared owner's calendar as an answer target.
 
-- [ ] **Invitations from another of the organisation's domains warn about missing authentication** — `P3` — `bug` — not done: the policy's internal domains are dropped by sanitizePolicy in src/lib/org-policy.ts, which this wave may not edit; goes with the External sender chip
+- [x] **Invitations from another of the organisation's domains warn about missing authentication** — `P3` — `bug` — fixed in 6cb26e52
   - What WEB does: treats mail without Authentication-Results from the domains the External sender chip counts as internal (identity domains plus the policy's list) as internal (`lib/calendar-invitation.ts`, `lib/external-mail.ts:61`). 400dfb9c6 (#1593).
   - What RN does: only the domains of the user's own addresses count (`src/lib/calendar-invitation.ts:528-543`); the policy's internal domains aren't read.
   - Fix hint: read the internal domains from the organisation policy (the same list the External sender chip needs) and pass them in.
