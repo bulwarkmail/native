@@ -24,7 +24,9 @@
  * - 1.0 rotates refresh tokens and revokes the whole grant when a superseded
  *   one comes back after its successor was used.
  * - 1.0 has a revocation endpoint; 0.16 has none.
- * - 1.0 refuses every x:* method to a client that isn't first-party.
+ * - 1.0.0 to 1.0.2 refuse every x:* method to a client that isn't
+ *   first-party; 1.0.3 has no first-party clients and gives them to a token
+ *   with the `security`, `settings` or `full` scope.
  *
  * Everything the tests create (API keys, grants) is removed again.
  */
@@ -130,8 +132,21 @@ async function nextTotpCode(): Promise<string> {
 
 // Stalwart 1.0 is the line with RP-initiated logout; 0.16 has none.
 let isV1 = false;
-// A 1.0 where the webmail's admin OAuth setup registered `bulwark-mobile`.
+// A 1.0 where the webmail's admin OAuth setup registered `bulwark-mobile`
+// with what the app asks for.
 let hasMobileClient = false;
+// 1.0.3+: the account's settings come with a scope, to any client allowed it.
+const SECURITY_SCOPE = 'urn:stalwart:oauth:scope:security';
+let hasSecurityScope = false;
+
+/**
+ * A token from the client the app registers reaches no x:* object: so on
+ * 1.0.0 to 1.0.2, where only a first-party client does. From 1.0.3 it is
+ * registered with the security scope and does.
+ */
+function expectsLimitedSignIn(): boolean {
+  return isV1 && !hasMobileClient && !hasSecurityScope;
+}
 
 /** The client a 1.0 sign-in must have used. */
 function expectV1Client(clientId: string | null | undefined): void {
@@ -162,21 +177,15 @@ live('live Stalwart sign-in', () => {
   beforeAll(async () => {
     const metadata = await discoverOAuthMetadata(SERVER);
     isV1 = !!(metadata as { end_session_endpoint?: string } | null)?.end_session_endpoint;
+    hasSecurityScope = !!metadata?.scopes_supported?.includes(SECURITY_SCOPE);
     if (isV1) {
-      const query = new URLSearchParams({
-        response_type: 'code',
-        client_id: MOBILE_CLIENT_ID,
-        redirect_uri: REGISTERED_REDIRECT_URI,
-        state: 's',
-        code_challenge: 'A'.repeat(43),
-        code_challenge_method: 'S256',
-      });
-      const check = (await (await fetch(`${SERVER}/api/auth/client?${query}`)).json()) as { error?: string };
-      hasMobileClient = !check.error;
+      // As the app decides: a bulwark-mobile that doesn't allow the scopes
+      // the app asks for (on 1.0.3+ one left scope-less by a first-party
+      // registration) doesn't count.
+      resetLoginClients();
+      hasMobileClient = (await resolveLoginClient(SERVER)).clientId === MOBILE_CLIENT_ID;
     }
-    // Optional so the suite also runs against older sign-in code, to show
-    // what it does on a server.
-    resetLoginClients?.();
+    resetLoginClients();
   });
 
   describe('client', () => {
@@ -306,9 +315,9 @@ live('live Stalwart sign-in', () => {
       expect(await client.forceRefreshToken()).toBe(true);
     }, 30_000);
 
-    it('account security: 1.0 refuses it to the registered client, allows it to bulwark-mobile; 0.16 allows it', async () => {
+    it('account security: 1.0.0-1.0.2 refuse it to the registered client; bulwark-mobile, 1.0.3+ and 0.16 allow it', async () => {
       useSingleton(client);
-      if (isV1 && !hasMobileClient) {
+      if (expectsLimitedSignIn()) {
         // The session hides the extension from this client, and the calls
         // themselves are refused.
         expect(isStalwartSupported()).toBe(false);
@@ -593,8 +602,8 @@ live('live Stalwart sign-in', () => {
     await client.connectWithOAuth(SERVER, tokens, TOTP_USER);
     useSingleton(client);
     expect(await signedInWithPassword()).toBe(true);
-    if (isV1) {
-      // The client the app registers reaches no x:* object on 1.0.
+    if (expectsLimitedSignIn()) {
+      // The client the app registers reaches no x:* object on 1.0.0-1.0.2.
       await expect(fetchAuthInfo()).rejects.toBeInstanceOf(AccountSecurityForbiddenError);
       await revokeRefreshToken(SERVER, tokens);
       return;
