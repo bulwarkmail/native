@@ -67,6 +67,7 @@ import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { Watermark } from '../components/Watermark';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
@@ -1679,7 +1680,8 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle, al
   const scaledType = useTypography();
   const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
   const t = useLocaleStore((s) => s.t);
-  const insets = useSafeAreaInsets();
+  // Above the taskbar, and above the keyboard while "New tag" is typed in.
+  const bottomInset = useSheetBottomInset(visible);
   const slideY = React.useRef(new Animated.Value(500)).current;
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -1708,7 +1710,7 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle, al
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
+          { paddingBottom: Math.max(bottomInset, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>

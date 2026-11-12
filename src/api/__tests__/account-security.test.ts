@@ -221,6 +221,26 @@ describe('encryption at rest (Stalwart 1.0.2 has no cipher)', () => {
     expect(encryptionDialect({ dialect: 'cipher' }, [])).toBe('cipher');
   });
 
+  it('knows a 1.0.3+ server from its discovery scopes while encryption is off and no key says so', async () => {
+    fake.responses = settings({ '@type': 'Disabled' });
+    discovery.scopes = ['openid', 'urn:ietf:params:oauth:scope:mail', 'urn:stalwart:oauth:scope:settings'];
+    const info = await fetchCryptoInfo();
+    expect(info.dialect).toBe('enabled');
+    expect(encryptionDialect(info, [])).toBe('enabled');
+
+    // 0.16 and 1.0.0 to 1.0.2 list none: the cipher picker stays.
+    discovery.scopes = ['openid', 'urn:ietf:params:oauth:scope:mail'];
+    expect((await fetchCryptoInfo()).dialect).toBeNull();
+    discovery.scopes = null;
+    expect((await fetchCryptoInfo()).dialect).toBeNull();
+
+    // A cipher read back is a cipher server, whatever discovery says.
+    discovery.scopes = ['urn:stalwart:oauth:scope:settings'];
+    fake.responses = settings({ '@type': 'Aes256', publicKey: 'k1' });
+    expect((await fetchCryptoInfo()).dialect).toBe('cipher');
+    discovery.scopes = null;
+  });
+
   it('says so when the server turned it off (the 1.0.2 upgrade), not when the user did here', async () => {
     fake.responses = settings({ '@type': 'Aes256', publicKey: 'k1' });
     expect((await fetchCryptoInfo()).turnedOffOnServer).toBeFalsy();

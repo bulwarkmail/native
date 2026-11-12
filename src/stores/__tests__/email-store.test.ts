@@ -1585,6 +1585,59 @@ describe('email-store', () => {
       expect(mockQueryEmailPage).not.toHaveBeenCalled();
     });
 
+    it('reads every row\'s thread size again when mail outside the rows came or went', async () => {
+      // A reply draft discarded in Drafts: Inbox's rows didn't change, but
+      // the conversation of one of them got smaller (thread count 2 stayed).
+      const mockGetEmailChanges = emailApi.getEmailChanges as ReturnType<typeof vi.fn>;
+      const rows = page.list as any[];
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: rows,
+        totalEmails: 2,
+        queryState: 'q-1',
+        emailStates: { 'mb-1': 'em-1' },
+        threadCounts: { t1: 2, t2: 1 },
+        mailboxSnapshots: { 'mb-1': { emails: rows, total: 2, queryState: 'q-1' } },
+      });
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 2, removed: [], added: [],
+      });
+      mockGetEmailChanges.mockResolvedValue({
+        oldState: 'em-1', newState: 'em-2', hasMoreChanges: false, created: [], updated: [], destroyed: ['draft1'],
+      });
+      mockGetThreads.mockResolvedValueOnce([{ id: 't1', emailIds: ['e1'] }, { id: 't2', emailIds: ['e2'] }]);
+
+      await useEmailStore.getState().refreshEmails();
+
+      await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ t1: 1, t2: 1 }));
+      expect(mockGetThreads).toHaveBeenCalledWith(['t1', 't2'], undefined);
+    });
+
+    it('asks for no thread sizes it has when only rows on screen changed', async () => {
+      const mockGetEmailChanges = emailApi.getEmailChanges as ReturnType<typeof vi.fn>;
+      const rows = page.list as any[];
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: rows,
+        totalEmails: 2,
+        queryState: 'q-1',
+        emailStates: { 'mb-1': 'em-1' },
+        threadCounts: { t1: 2, t2: 1 },
+        mailboxSnapshots: { 'mb-1': { emails: rows, total: 2, queryState: 'q-1' } },
+      });
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 2, removed: [], added: [],
+      });
+      mockGetEmailChanges.mockResolvedValue({
+        oldState: 'em-1', newState: 'em-2', hasMoreChanges: false, created: [], updated: ['e1'], destroyed: [],
+      });
+      mockGetEmailsWithState.mockResolvedValue({ list: [rows[0]], state: 'em-2' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockGetThreads).not.toHaveBeenCalled();
+    });
+
     it('drops the thread sizes when another folder opens', async () => {
       useEmailStore.setState({ currentMailboxId: 'mb-1', threadCounts: { t1: 3 } });
       mockQueryEmailPage.mockResolvedValueOnce({ ids: [], total: 0, list: [], threads: [] });

@@ -128,6 +128,7 @@ describe('useModalKeyboardPadding', () => {
 const SRC = path.resolve(__dirname, '../..');
 const WITH_INPUTS = [
   'components/Dialog.tsx',
+  'components/MoveSheet.tsx',
   'components/TagSheet.tsx',
   'components/TemplateSheet.tsx',
   'components/files/ShareSheet.tsx',
@@ -138,6 +139,7 @@ const WITH_INPUTS = [
   'components/settings/FolderSettings.tsx',
   'components/settings/IdentitySettings.tsx',
   'components/settings/TemplateSettings.tsx',
+  'screens/EmailThreadScreen.tsx',
   'screens/FilesScreen.tsx',
 ];
 

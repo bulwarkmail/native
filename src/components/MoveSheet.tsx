@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Folder,
   X, Check, type AppIcon,
@@ -17,6 +16,7 @@ import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import {
   filterTree, loadRecentMoveTargets, MOVE_FILTER_THRESHOLD, MOVE_RECENT_SHOWN, noteMoveTarget, readRecentMoveTargets,
 } from '../lib/move-recent';
@@ -52,7 +52,8 @@ export function MoveSheet({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const insets = useSafeAreaInsets();
+  // Above the taskbar, and above the keyboard while "Find a folder" is typed in.
+  const bottomInset = useSheetBottomInset(visible);
   const slideY = React.useRef(new Animated.Value(500)).current;
   // Centred on a wide window, clear of side insets in landscape.
   const sheetInsets = useSheetInsets();
@@ -135,7 +136,7 @@ export function MoveSheet({
       <Animated.View
         style={[
           styles.sheet,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
+          { paddingBottom: Math.max(bottomInset, spacing.md), transform: [{ translateY: slideY }], ...sheetInsets },
         ]}
       >
         <View {...dragHandlers}>

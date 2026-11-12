@@ -59,7 +59,10 @@ export interface AuthInfo {
 
 export interface CryptoInfo {
   type: EncryptionType;
-  /** Told by the setting's own form; null while it is off. */
+  /**
+   * Told by the setting's own form, or while it is off by the discovery
+   * document's Stalwart scopes (1.0.3+); null when neither tells.
+   */
   dialect: EncryptionDialect;
   publicKeyId: string | null;
   encryptOnAppend: boolean;
@@ -158,6 +161,28 @@ export async function serverOffersSecurityScope(): Promise<boolean> {
     const { discoverOAuthMetadata } = await import('../lib/oauth-native');
     const metadata = await discoverOAuthMetadata(serverUrl);
     return !!metadata?.scopes_supported?.includes(STALWART_SECURITY_SCOPE);
+  } catch {
+    return false;
+  }
+}
+
+const STALWART_SCOPE_PREFIX = 'urn:stalwart:oauth:scope:';
+
+/**
+ * Is the server Stalwart 1.0.3 or later? Its discovery document lists
+ * Stalwart's own scopes (`urn:stalwart:oauth:scope:security` and the
+ * like), which 0.16 and 1.0.0 to 1.0.2 don't. Encryption at rest reads back
+ * `Disabled` the same on all of them, so this is what tells 1.0.3+ (no
+ * cipher, only `Enabled`) apart while it is off and no key says so. 1.0.2
+ * stays unknown here; a save there finds out (updateEncryptionAtRest).
+ */
+async function serverListsStalwartScopes(): Promise<boolean> {
+  const serverUrl = jmapClient.serverUrl;
+  if (!serverUrl) return false;
+  try {
+    const { discoverOAuthMetadata } = await import('../lib/oauth-native');
+    const metadata = await discoverOAuthMetadata(serverUrl);
+    return !!metadata?.scopes_supported?.some((s) => typeof s === 'string' && s.startsWith(STALWART_SCOPE_PREFIX));
   } catch {
     return false;
   }
@@ -335,9 +360,11 @@ export async function fetchCryptoInfo(): Promise<CryptoInfo> {
   } else {
     await rememberEncryptionOn(true);
   }
+  let dialect: EncryptionDialect = type === 'Enabled' ? 'enabled' : type === 'Disabled' ? null : 'cipher';
+  if (dialect === null && (await serverListsStalwartScopes())) dialect = 'enabled';
   return {
     type,
-    dialect: type === 'Enabled' ? 'enabled' : type === 'Disabled' ? null : 'cipher',
+    dialect,
     publicKeyId: typeof raw.publicKey === 'string' ? raw.publicKey : null,
     encryptOnAppend: raw.encryptOnAppend === true,
     allowSpamTraining: raw.allowSpamTraining === true,
