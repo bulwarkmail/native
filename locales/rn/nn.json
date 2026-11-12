@@ -498,6 +498,11 @@
     "import_email": "Importer .eml eller .zip",
     "load_failed": "Klarte ikkje laste e-posten",
     "not_spam_short": "Ikkje søppelpost",
+    "package_handoff": {
+      "title": "Apppakke frå ein e-post",
+      "message": "«{name}» er ein Android-apppakke. Ein app som blir installert frå ein e-post, kan ta over denne eininga. Hald fram berre om du venta denne fila.",
+      "continue": "Hald fram"
+    },
     "preview": {
       "archive_files": "{count, plural, one {# fil} other {# filer}}",
       "archive_first_files": "Dei første {count} filene",

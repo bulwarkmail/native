@@ -498,6 +498,11 @@
     "import_email": "Εισαγωγή .eml ή .zip",
     "load_failed": "Δεν ήταν δυνατή η φόρτωση του email",
     "not_spam_short": "Όχι ανεπιθύμητο",
+    "package_handoff": {
+      "title": "Πακέτο εφαρμογής από email",
+      "message": "Το «{name}» είναι πακέτο εφαρμογής Android. Μια εφαρμογή που εγκαθίσταται από ένα email μπορεί να πάρει τον έλεγχο αυτής της συσκευής. Συνεχίστε μόνο αν περιμένατε αυτό το αρχείο.",
+      "continue": "Συνέχεια"
+    },
     "preview": {
       "archive_files": "{count, plural, one {# αρχείο} other {# αρχεία}}",
       "archive_first_files": "Τα πρώτα {count} αρχεία",

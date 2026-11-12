@@ -498,6 +498,11 @@
     "import_email": "Nhập .eml hoặc .zip",
     "load_failed": "Không thể tải email",
     "not_spam_short": "Không phải thư rác",
+    "package_handoff": {
+      "title": "Gói ứng dụng từ email",
+      "message": "“{name}” là một gói ứng dụng Android. Một ứng dụng được cài từ email có thể chiếm quyền điều khiển thiết bị này. Chỉ tiếp tục nếu bạn đang chờ tệp này.",
+      "continue": "Tiếp tục"
+    },
     "preview": {
       "archive_files": "{count, plural, other {# tệp}}",
       "archive_first_files": "{count} tệp đầu tiên",
