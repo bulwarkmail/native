@@ -109,7 +109,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the folder sheet always lists Mark folder as read and the other actions (`src/components/SidebarDrawer.tsx:587-597`); offline they end in an error alert (`:562-573`).
   - Fix hint: hide or disable the read rows when unreadEmails is 0 over the subtree, and disable rename, create, delete and share while the network store says offline.
 
-- [ ] **The undo send bar squeezes its text with long button labels** — `P3` — `bug`
+- [x] **The undo send bar squeezes its text with long button labels** — `P3` — `bug` — fixed in faae7363
   - What WEB does: the toast's actions wrap onto their own line when their labels don't leave the text a readable width (`components/ui/toast.tsx:291`). dc273ae94 (#1599, Russian).
   - What RN does: label (one line, flex 1) and the uppercase "SEND NOW" and "UNDO" buttons share one row (`src/components/UndoSnackbar.tsx:163-187`, `:200-220`); in Russian ("ОТПРАВИТЬ СЕЙЧАС", "ОТМЕНИТЬ") the countdown text has little room left on a phone. Read from the code, not tried on a device.
   - Fix hint: `flexWrap: 'wrap'` on the bar with the buttons in their own row, or a second line when the label gets narrower than a minimum.
