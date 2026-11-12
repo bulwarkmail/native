@@ -15,6 +15,8 @@ import type { Email } from '../api/types';
 import { applyKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
 
 const INDEX_KEY_PREFIX = 'webmail:offline-cache:index:v2:';
+// Each account's own window and total (webmail per-account caps, 92ca06c84).
+const CHOICES_KEY = 'webmail:offline-cache:choices:v1';
 const ENTRY_KEY_PREFIX = 'webmail:offline-cache:entry:v2:';
 
 function indexKey(accountId: string): string {
@@ -58,6 +60,17 @@ export interface SyncState {
   finishedAt?: number;
 }
 
+/**
+ * What the user chose for one account; a missing value falls back to the
+ * device-wide setting (lib/offline-scope.ts).
+ */
+export interface OfflineChoice {
+  /** Days of mail kept. */
+  days?: number;
+  /** The account's total, in MB. */
+  maxMB?: number;
+}
+
 const IDLE: SyncState = { phase: 'idle', total: 0, completed: 0, fetched: 0, bytes: 0 };
 const EMPTY_INDEX: CacheIndex = { entries: {} };
 
@@ -71,6 +84,14 @@ interface OfflineCacheState {
   // setting or kicks off a fresh sync. Stored on the singleton because
   // AbortControllers need to survive across the function boundary.
   abortRequested: boolean;
+  /** Each account's own window and total, by local account id. */
+  choices: Record<string, OfflineChoice>;
+  choicesHydrated: boolean;
+  hydrateChoices: () => Promise<void>;
+  /** Change an account's choice; undefined values go back to the device-wide setting. */
+  setChoice: (accountId: string, patch: OfflineChoice) => void;
+  /** Forget an account's choice (signed out). */
+  forgetChoice: (accountId: string) => void;
 
   // Point the store at the given account, hydrating its bucket from
   // AsyncStorage. Pass null to detach (no reads/writes will hit storage).
@@ -139,6 +160,31 @@ async function loadIndex(accountId: string): Promise<CacheIndex> {
   return { entries: {} };
 }
 
+function positiveInt(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 100_000 ? value : undefined;
+}
+
+function sanitizeChoices(raw: Record<string, unknown>): Record<string, OfflineChoice> {
+  const out: Record<string, OfflineChoice> = {};
+  for (const [id, value] of Object.entries(raw)) {
+    if (!value || typeof value !== 'object' || id === '__proto__') continue;
+    const v = value as Record<string, unknown>;
+    const choice: OfflineChoice = {};
+    const days = positiveInt(v.days);
+    const maxMB = positiveInt(v.maxMB);
+    if (days) choice.days = days;
+    if (maxMB) choice.maxMB = maxMB;
+    out[id] = choice;
+  }
+  return out;
+}
+
+function persistChoices(choices: Record<string, OfflineChoice>): void {
+  void AsyncStorage.setItem(CHOICES_KEY, JSON.stringify(choices)).catch((err) => {
+    console.warn('[offline-cache] persist choices failed', err);
+  });
+}
+
 // Bumped whenever another bucket is loaded or the loaded one is cleared: an
 // index read or a write still under way from before must not bring old
 // entries into what is loaded now.
@@ -150,6 +196,38 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
   hydrated: false,
   sync: { ...IDLE },
   abortRequested: false,
+  choices: {},
+  choicesHydrated: false,
+
+  hydrateChoices: async () => {
+    if (get().choicesHydrated) return;
+    let stored: Record<string, OfflineChoice> = {};
+    try {
+      const raw = await AsyncStorage.getItem(CHOICES_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = sanitizeChoices(parsed);
+    } catch (err) {
+      console.warn('[offline-cache] choices hydrate failed', err);
+    }
+    // Choices made before the stored ones were read win.
+    set({ choices: { ...stored, ...get().choices }, choicesHydrated: true });
+  },
+
+  setChoice: (accountId, patch) => {
+    const next: OfflineChoice = { ...get().choices[accountId], ...patch };
+    for (const key of Object.keys(next) as Array<keyof OfflineChoice>) if (next[key] === undefined) delete next[key];
+    const choices = { ...get().choices, [accountId]: next };
+    set({ choices });
+    persistChoices(choices);
+  },
+
+  forgetChoice: (accountId) => {
+    if (!(accountId in get().choices)) return;
+    const choices = { ...get().choices };
+    delete choices[accountId];
+    set({ choices });
+    persistChoices(choices);
+  },
 
   setAccount: async (accountId) => {
     const state = get();

@@ -12,8 +12,11 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { usePolicyFeature } from '../../stores/policy-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
+import { useAccountStore } from '../../stores/account-store';
 import { useOutboxStore } from '../../stores/outbox-store';
 import { runOfflineSync, formatBytes } from '../../lib/offline-sync';
+import { useDevicePolicy } from '../../lib/device-policy';
+import { DAY_CHOICES, MB_CHOICES, capTakesChoice, effectiveOfflineScope, optionsUnderCap } from '../../lib/offline-scope';
 
 interface StorageSettingsProps {
   /** Opens Troubleshooting (refresh cached data, debug logging). */
@@ -36,9 +39,27 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
 
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const offlineEnabled = useSettingsStore((s) => s.offlineCacheEnabled);
-  const offlineDays = useSettingsStore((s) => s.offlineCacheDays);
-  const offlineMaxMB = useSettingsStore((s) => s.offlineCacheMaxMB);
+  const offlineEnabledSetting = useSettingsStore((s) => s.offlineCacheEnabled);
+  const defaultDays = useSettingsStore((s) => s.offlineCacheDays);
+  const defaultMaxMB = useSettingsStore((s) => s.offlineCacheMaxMB);
+  // The loaded account's own window and total, under the organisation's
+  // device policy (lib/offline-scope): it can forbid offline mail and cap both.
+  const cacheAccountId = useOfflineCacheStore((s) => s.activeAccountId);
+  const choice = useOfflineCacheStore((s) => (cacheAccountId ? s.choices[cacheAccountId] : undefined));
+  const choicesHydrated = useOfflineCacheStore((s) => s.choicesHydrated);
+  const setChoice = useOfflineCacheStore((s) => s.setChoice);
+  const devices = useDevicePolicy(cacheAccountId);
+  const cacheAccountName = useAccountStore((s) => {
+    const entry = cacheAccountId ? s.accounts.find((a) => a.id === cacheAccountId) : undefined;
+    return entry?.email || entry?.username || '';
+  });
+  const scope = React.useMemo(
+    () => effectiveOfflineScope(choice, { enabled: offlineEnabledSetting, days: defaultDays, maxMB: defaultMaxMB }, devices),
+    [choice, offlineEnabledSetting, defaultDays, defaultMaxMB, devices],
+  );
+  const offlineEnabled = scope.enabled;
+  const offlineDays = scope.days;
+  const offlineMaxMB = scope.maxMB;
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const queuedChanges = useOutboxStore((s) => s.entries.length);
   const flushOutbox = useOutboxStore((s) => s.flush);
@@ -53,15 +74,27 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
   useEffect(() => {
     if (!hydrated) void hydrate();
     if (!cacheHydrated) void cacheHydrate();
-  }, [hydrated, hydrate, cacheHydrated, cacheHydrate]);
+    if (!choicesHydrated) void useOfflineCacheStore.getState().hydrateChoices();
+  }, [hydrated, hydrate, cacheHydrated, cacheHydrate, choicesHydrated]);
 
-  const dayOptions = [1, 3, 7, 14, 30, 90].map((d) => ({
+  const dayOptions = optionsUnderCap(DAY_CHOICES, devices.offlineMaxDays).map((d) => ({
     value: String(d),
     label: d === 1
       ? t('settings.offline.keep_24h', '24 hours')
       : t('settings.offline.keep_days', '{count} days', { count: d }),
   }));
-  const maxMbOptions = [25, 50, 100, 250, 500].map((mb) => ({ value: String(mb), label: `${mb} MB` }));
+  const maxMbOptions = optionsUnderCap(MB_CHOICES, devices.offlineMaxTotalMb).map((mb) => ({ value: String(mb), label: `${mb} MB` }));
+  const orgNote = t('settings.org_locked', 'Set by your organisation');
+
+  // The account's own choice; the device-wide setting without an account.
+  const chooseScope = (patch: { days?: number; maxMB?: number }) => {
+    if (cacheAccountId) setChoice(cacheAccountId, patch);
+    else if (patch.days !== undefined) updateSetting('offlineCacheDays', patch.days);
+    else if (patch.maxMB !== undefined) updateSetting('offlineCacheMaxMB', patch.maxMB);
+    if (!offlineEnabled) return;
+    // The App's sync follows the device-wide settings only.
+    void runOfflineSync({ days: defaultDays, maxMB: defaultMaxMB });
+  };
 
   const formatRelativeTime = (ms: number | undefined): string => {
     if (!ms) return t('settings.offline.never', 'never');
@@ -73,7 +106,7 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
   };
 
   const handleSyncNow = () => {
-    void runOfflineSync({ days: offlineDays, maxMB: offlineMaxMB });
+    void runOfflineSync({ days: defaultDays, maxMB: defaultMaxMB });
     // Also drain any queued offline changes while we're at it.
     void flushOutbox();
   };
@@ -205,25 +238,34 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
 
       <SettingsSection
         title={t('settings.offline.title', 'Offline mail')}
-        description={t('settings.offline.description_short', 'Keep recent messages on this device so they open without a connection.')}
+        description={cacheAccountName
+          ? t('settings.offline.description_account', 'Keep recent messages of {account} on this device so they open without a connection. Each account keeps its own window and size.', { account: cacheAccountName })
+          : t('settings.offline.description_short', 'Keep recent messages on this device so they open without a connection.')}
       >
-        <SettingItem label={t('settings.offline.enabled', 'Cache recent mail')}>
+        <SettingItem label={t('settings.offline.enabled', 'Cache recent mail')} locked={scope.locked.offline}>
           <ToggleSwitch
             checked={offlineEnabled}
             onChange={(v) => updateSetting('offlineCacheEnabled', v)}
           />
         </SettingItem>
-        <SettingItem label={t('settings.offline.keep_from', 'Keep mail from the last')}>
+        <SettingItem
+          label={t('settings.offline.keep_from', 'Keep mail from the last')}
+          description={capTakesChoice(DAY_CHOICES, devices.offlineMaxDays) ? orgNote : undefined}
+        >
           <Select
             value={String(offlineDays)}
-            onChange={(v) => updateSetting('offlineCacheDays', Number(v))}
+            onChange={(v) => chooseScope({ days: Number(v) })}
             options={dayOptions}
           />
         </SettingItem>
-        <SettingItem label={t('settings.offline.use_at_most', 'Use at most')} noBorder>
+        <SettingItem
+          label={t('settings.offline.use_at_most', 'Use at most')}
+          description={capTakesChoice(MB_CHOICES, devices.offlineMaxTotalMb) ? orgNote : undefined}
+          noBorder
+        >
           <Select
             value={String(offlineMaxMB)}
-            onChange={(v) => updateSetting('offlineCacheMaxMB', Number(v))}
+            onChange={(v) => chooseScope({ maxMB: Number(v) })}
             options={maxMbOptions}
           />
         </SettingItem>

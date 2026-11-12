@@ -9,6 +9,7 @@ import { queryEmailsByFilter, getFullEmails } from '../api/email';
 import { useOfflineCacheStore, cacheKey } from '../stores/offline-cache-store';
 import type { Email } from '../api/types';
 import { generateAccountId } from './account-utils';
+import { offlineScopeFor } from './offline-scope';
 
 // The sync reads through the JMAP client and writes into the cache's loaded
 // bucket. During an account switch the two name different accounts for a
@@ -54,7 +55,7 @@ interface SyncTarget {
   ids: string[];
 }
 
-export async function runOfflineSync(opts: RunOptions): Promise<void> {
+export async function runOfflineSync(defaults: RunOptions): Promise<void> {
   const cache = useOfflineCacheStore.getState();
   // If a sync is in flight, request its abort and wait for the next caller
   // to start fresh. We don't queue — the most recent intent wins.
@@ -65,6 +66,12 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
   if (!cache.hydrated) await cache.hydrate();
   const account = useOfflineCacheStore.getState().activeAccountId;
   if (!account || !onAccount(account)) return;
+  // The account's own window and total, under the organisation's caps;
+  // `defaults` are the device-wide settings (lib/offline-scope).
+  if (!cache.choicesHydrated) await cache.hydrateChoices();
+  const scope = offlineScopeFor(account, { enabled: true, days: defaults.days, maxMB: defaults.maxMB ?? 0 });
+  if (!scope.enabled) return;
+  const opts: RunOptions = { days: scope.days, maxMB: scope.maxMB || undefined };
   cache.resetSync();
 
   const startedAt = Date.now();

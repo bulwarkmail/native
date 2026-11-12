@@ -29,6 +29,7 @@ import {
   type WebmailLinks,
 } from '../lib/org-policy';
 import { BUILTIN_THEMES } from '../theme/builtin-themes';
+import { startOrgPolicyEffects } from '../lib/org-policy-effects';
 
 // The organisation policy of the webmail each account signed in through
 // (webmail stores/policy-store.ts, read with the account's access token:
@@ -386,9 +387,12 @@ export function startPolicySync(): () => void {
     }
   });
 
+  const offEffects = startOrgPolicyEffects();
+
   return () => {
     offAuth();
     offAccounts();
+    offEffects();
     setPolicyLockedWriteListener(null);
     syncStarted = false;
   };

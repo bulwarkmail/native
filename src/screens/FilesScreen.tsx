@@ -62,6 +62,7 @@ import {
 import { toast } from '../stores/toast-store';
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
+import { assertCanDownload } from '../lib/download-guard';
 import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
 import { fileNameProblem, type FileNameProblem } from '../lib/file-name-rules';
@@ -578,6 +579,7 @@ export default function FilesScreen() {
     clearSelection();
     setBatchBusy(`0/${entries.length}`);
     try {
+      assertCanDownload();
       const zip = new JSZip();
       const header = { Authorization: jmapClient.authHeader };
       for (let i = 0; i < entries.length; i++) {
