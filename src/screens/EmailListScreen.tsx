@@ -288,6 +288,20 @@ const EmailRow = React.memo(function EmailRow({
           />
         </Pressable>
       )}
+      {!density.showAvatar && !selectionMode && (
+        // Extra compact has no avatar: the row's left edge picks it instead.
+        <Pressable
+          onPress={handleLongPress}
+          style={styles.selectGutter}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          accessibilityLabel={tr('email_list.batch_actions.select_row', 'Select {sender}: {subject}', {
+            sender: senderName,
+            subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
+          })}
+          testID="email-row-select-gutter"
+        />
+      )}
 
       {/* Content */}
       <View style={styles.emailContent}>
@@ -2818,6 +2832,15 @@ function makeStyles(c: ThemePalette) {
     height: 8,
     borderRadius: 4,
     backgroundColor: c.unread,
+  },
+  // A strip over the row's left padding (extra compact, no avatar).
+  selectGutter: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: spacing.lg + spacing.sm,
+    zIndex: 1,
   },
   rowCheckboxWrap: {
     width: 16,

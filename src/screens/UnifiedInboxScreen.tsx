@@ -423,6 +423,11 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     const isActive = layout.isSplit && pane.activeKey === rowKey(item);
     // Sent and Drafts rows show the recipient: the check says nothing about them.
     const verification = showRecipient ? null : senderWarningOf(item);
+    const rowName = senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress);
+    const selectLabel = t('email_list.batch_actions.select_row', 'Select {sender}: {subject}', {
+      sender: rowName,
+      subject: singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)'),
+    });
     return (
       <SwipeableRow
         leftAction={selectionMode ? 'none' : swipeLeftAction}
@@ -449,9 +454,30 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               {isSelected ? <SquareCheck size={16} color={c.primary} /> : <Square size={16} color={c.textMuted} />}
             </View>
           )}
-          {density.showAvatar && <View style={styles.avatarWrap}>
+          {!density.showAvatar && !selectionMode && (
+            // Extra compact has no avatar: the row's left edge picks it instead (#91).
+            <Pressable
+              onPress={() => toggleSelect(item)}
+              style={styles.selectGutter}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isSelected }}
+              accessibilityLabel={selectLabel}
+              testID="unified-row-select-gutter"
+            />
+          )}
+          {density.showAvatar && <Pressable
+            // A tap on the avatar picks the row and starts selection mode,
+            // like a long press (#91).
+            onPress={() => toggleSelect(item)}
+            hitSlop={4}
+            style={styles.avatarWrap}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isSelected }}
+            accessibilityLabel={selectLabel}
+            testID="unified-row-avatar"
+          >
             <SenderAvatar
-              name={senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress)}
+              name={rowName}
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
@@ -461,7 +487,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
             )}
-          </View>}
+          </Pressable>}
           <View style={styles.content}>
             <View style={styles.line}>
               <Text style={[styles.sender, dyn.bodyMedium, unread && styles.bold]} numberOfLines={1}>
@@ -767,6 +793,8 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.unread,
     },
     avatarWrap: { position: 'relative' },
+    // A strip over the row's left padding (extra compact, no avatar).
+    selectGutter: { position: 'absolute', left: 0, top: 0, bottom: 0, width: spacing.lg + spacing.sm, zIndex: 1 },
     accountDot: {
       position: 'absolute',
       right: -2, bottom: -2,
