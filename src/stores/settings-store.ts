@@ -228,6 +228,9 @@ export interface PersistedSettings {
   // Offer the one-time code of a sign-in mail as a copy chip in the list
   // (for a day) and in the reader.
   showVerificationCodes: boolean;
+  // The attached files under each list row (webmail showAttachmentChips,
+  // #1604). The paperclip and the verification code chip show either way.
+  showAttachmentChips: boolean;
   emailsPerPage: number;
   // Mail list sort order: oldest-first when true. Applies to every mailbox
   // (the JMAP Email/query sorts by receivedAt).
@@ -459,6 +462,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   permanentlyDeleteJunk: false,
   showPreview: true,
   showVerificationCodes: true,
+  showAttachmentChips: true,
   emailsPerPage: 25,
   mailSortAscending: false,
   disableThreading: false,

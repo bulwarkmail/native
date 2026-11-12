@@ -590,6 +590,8 @@ export default function EmailListScreen({
   const swipeRightAction = swipeActionShown(useSettingsStore((s) => s.swipeRightAction), archiveEnabled);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showPreview = useSettingsStore((s) => s.showPreview);
+  // Off: no chips and no loading of the rows' parts (webmail #1604).
+  const showAttachmentChips = useSettingsStore((s) => s.showAttachmentChips);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const sortAscending = useSettingsStore((s) => s.mailSortAscending);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
@@ -977,8 +979,8 @@ export default function EmailListScreen({
           selectionMode={selectionMode}
           onPress={handleRowPress}
           onLongPress={toggleSelect}
-          loadAttachments={loadAttachments}
-          onOpenAttachment={openAttachment}
+          loadAttachments={showAttachmentChips ? loadAttachments : undefined}
+          onOpenAttachment={showAttachmentChips ? openAttachment : undefined}
         />
       );
     },
@@ -986,7 +988,7 @@ export default function EmailListScreen({
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipientFor, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
-      loadAttachments, openAttachment,
+      loadAttachments, openAttachment, showAttachmentChips,
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
