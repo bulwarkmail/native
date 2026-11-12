@@ -472,11 +472,11 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const tree = React.useMemo<CompactMailboxNode[]>(() => {
     const built = buildMailboxTree(mailboxes, { hideOwnRoles });
     const shared = built.filter((n) => n.isAccountNode);
-    const ordered = shared.length < 2 ? built : [
+    const full = shared.length < 2 ? built : [
       ...built.filter((n) => !n.isAccountNode),
       ...sortSharedMailAccounts(shared, sharedMailOrderIds(sharedOrder, activeAccountId)),
     ];
-    return compactShared ? compactSharedTree(ordered) : ordered;
+    return compactShared ? compactSharedTree(full) : full;
   }, [mailboxes, hideOwnRoles, sharedOrder, activeAccountId, compactShared]);
   const moveSharedAccount = (accountId: string, delta: -1 | 1) => {
     if (!activeAccountId) return;
