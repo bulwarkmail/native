@@ -33,6 +33,7 @@ import {
   getCalendars,
   getEvents,
   queryEvents,
+  updateEvent,
   isCalendarAccessDenied,
 } from '../calendar';
 import { searchCalendarEvents, useCalendarStore } from '../../stores/calendar-store';
@@ -46,6 +47,7 @@ import { alertsToReminders, calendarDefaultAlerts, defaultAlertIdPrefix, reminde
 import { getEffectiveAlerts } from '../../lib/calendar-alert-scheduler';
 import { removeCancelledMeeting } from '../../lib/calendar-cancellation';
 import { taskChips } from '../../lib/calendar-tasks';
+import { descriptionAsText, descriptionFieldsToSave } from '../../lib/calendar-description';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -1052,6 +1054,29 @@ live('live Stalwart calendar', () => {
       const [[, gone]] = await raw(client, [['Calendar/get', { accountId: client.accountId, ids: [sub.calendarId] }, '0']]);
       expect(gone.notFound).toEqual([sub.calendarId]);
     }, 90_000);
+  });
+
+  describe('an HTML description', () => {
+    it('reads as text and an edit saves it as text/plain', async () => {
+      const created = await createEvent({
+        '@type': 'Event', title: `${RUN} html description`, start: '2027-10-04T10:00:00', duration: 'PT1H',
+        timeZone: 'Europe/Berlin',
+        description: '<p>Agenda</p><p>1. Budget<br>2. <b>Hiring</b></p>', descriptionContentType: 'text/html',
+      } as Partial<CalendarEvent>, calendarId);
+      const [stored] = await getEvents([created.id]);
+      expect(stored.descriptionContentType).toMatch(/^text\/html/);
+      const shown = descriptionAsText(stored);
+      expect(shown).not.toMatch(/<\/?[a-z]/i);
+      expect(shown).toContain('2. Hiring');
+
+      // Untouched, the editor leaves it as it was.
+      expect(descriptionFieldsToSave(stored, shown, true)).toEqual({});
+      await updateEvent(created.id, descriptionFieldsToSave(stored, `${shown}\n3. Rooms`, true));
+
+      const [back] = await getEvents([created.id]);
+      expect(back.descriptionContentType ?? 'text/plain').toMatch(/^text\/plain/);
+      expect(back.description).toBe(`${shown}\n3. Rooms`.trim());
+    }, 60_000);
   });
 
   describe('tasks', () => {

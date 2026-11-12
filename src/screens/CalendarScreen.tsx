@@ -877,10 +877,11 @@ export default function CalendarScreen() {
   // time stamp (webmail's handleSaveNoteFromDetail).
   const handleSaveNoteFromDetail = React.useCallback(
     async (event: CalendarEvent, note: string) => {
-      const description = appendEventNote(event.description, note, displayNow());
+      // An HTML description gets the note as HTML and stays text/html.
+      const fields = appendEventNote(event, note, displayNow());
       try {
-        await updateEvent(event.id, { description });
-        setDetailEvent((current) => (current?.id === event.id ? { ...current, description } : current));
+        await updateEvent(event.id, fields);
+        setDetailEvent((current) => (current?.id === event.id ? { ...current, ...fields } : current));
         toast.success(t('calendar.detail.note_saved', 'Note saved'));
       } catch (err) {
         reportError(err);
@@ -897,6 +898,8 @@ export default function CalendarScreen() {
       const data: Partial<CalendarEvent> = {
         title: event.title,
         description: event.description,
+        // A copy keeps the formatted description it was made from.
+        ...(event.descriptionContentType ? { descriptionContentType: event.descriptionContentType } : {}),
         // A day later at the same wall clock in the event's own zone.
         start: addDaysToLocalDateTime(event.start, 1),
         duration: event.duration,

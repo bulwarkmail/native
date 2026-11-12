@@ -64,6 +64,7 @@ import type { TranslateFn } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { descriptionAsText } from '../../lib/calendar-description';
 
 type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 
@@ -363,7 +364,7 @@ export function EventDetailSheet({
             {event.description ? (
               <DetailRow
                 icon={<AlignLeft size={16} color={c.textMuted} />}
-                text={event.description}
+                text={descriptionAsText(event)}
                 multiline
                 linkify
               />
