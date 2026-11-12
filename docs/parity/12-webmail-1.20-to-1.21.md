@@ -229,7 +229,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: Reply always builds a new composer from the message (`src/screens/EmailThreadScreen.tsx:620-625`).
   - Fix hint: look for a `$draft` in the thread whose inReplyTo matches the message's Message-ID and open that draft instead.
 
-- [ ] **A forwarded message's header doesn't list To and Cc** — `P3` — `missing`
+- [x] **A forwarded message's header doesn't list To and Cc** — `P3` — `missing` — fixed in 729bde85
   - What WEB does: the forward header has From, Date, Subject, To and Cc (`lib/quote-header.ts:24-25`, `:50-51`). Changelog 1.21.0.
   - What RN does: From, Date and Subject only (`src/lib/quote-header.ts:107-110`).
   - Fix hint: add the two lines and their labels.
