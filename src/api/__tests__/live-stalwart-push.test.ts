@@ -162,6 +162,24 @@ live('live Stalwart push subscriptions', () => {
     return result;
   }
 
+  // Stalwart refuses a whole emailPush map that names an account the login
+  // reaches only through a share (usera on the test servers has such
+  // accounts in its session); the app then narrows the map along
+  // emailPushFallbacks (writeWithEmailPush). This create does the same and
+  // says which map the server took.
+  async function createAsApp(label: string, emailPush: Record<string, EmailPushConfig>, params: Partial<Parameters<typeof createPushSubscription>[0]> = {}) {
+    let refused: unknown = null;
+    for (const attempt of emailPushFallbacks(emailPush, client.accountId, client.currentSession?.accounts)) {
+      try {
+        return { ...(await create(label, { ...params, emailPush: attempt })), emailPush: attempt };
+      } catch (err) {
+        if (!isJMAPSetError(err) || err.type !== 'forbidden') throw err;
+        refused = err;
+      }
+    }
+    throw refused;
+  }
+
   async function refusal(promise: Promise<unknown>): Promise<JMAPSetError> {
     const err = await promise.then(
       (value) => {
@@ -229,7 +247,7 @@ live('live Stalwart push subscriptions', () => {
   it('creates the subscription the app makes and clamps its expiry to seven days', async () => {
     const emailPush = await buildEmailPushConfig();
     expect(Object.keys(emailPush)).toContain(client.accountId);
-    const { id, expires } = await create('full', { types: ALL_TYPES, emailPush });
+    const { id, expires, emailPush: taken } = await createAsApp('full', emailPush, { types: ALL_TYPES });
     const left = Date.parse(expires ?? '') - Date.now();
     expect(left).toBeGreaterThan(7 * DAY - 5 * 60_000);
     expect(left).toBeLessThanOrEqual(7 * DAY + 60_000);
@@ -238,12 +256,11 @@ live('live Stalwart push subscriptions', () => {
     const listed = (await listPushSubscriptions()).find((s) => s.id === id);
     expect(listed?.deviceClientId).toBe(deviceClientId('full'));
     expect(sameTypes(listed?.types, ALL_TYPES)).toBe(true);
-    expect(sameEmailPush(listed?.emailPush, emailPush), JSON.stringify(listed?.emailPush)).toBe(true);
+    expect(sameEmailPush(listed?.emailPush, taken), JSON.stringify(listed?.emailPush)).toBe(true);
   }, 30_000);
 
   it('takes the refresh the launch sends: expiry, types and filter in one update', async () => {
-    const { id } = await create('refresh', { types: ALL_TYPES });
-    const emailPush = await buildEmailPushConfig();
+    const { id, emailPush } = await createAsApp('refresh', await buildEmailPushConfig(), { types: ALL_TYPES });
     await updatePushSubscription(id, { expires: new Date(Date.now() + 90 * DAY).toISOString(), types: ['EmailDelivery'], emailPush });
     const listed = (await listPushSubscriptions()).find((s) => s.id === id);
     expect(listed?.types).toEqual(['EmailDelivery']);
@@ -269,11 +286,12 @@ live('live Stalwart push subscriptions', () => {
     // What the setup tries next: the primary account alone.
     const attempts = emailPushFallbacks(wanted, client.accountId, client.currentSession?.accounts);
     expect(Object.keys(attempts[attempts.length - 1])).toEqual([client.accountId]);
-    const { id } = await create('narrowed', { emailPush: attempts[attempts.length - 1] });
+    const narrowed = attempts[attempts.length - 1];
+    const { id } = await create('narrowed', { emailPush: narrowed });
 
     // An update is refused the same way and leaves the subscription as it was.
     expect((await refusal(updatePushSubscription(id, { emailPush: wanted }))).type).toBe('forbidden');
-    expect(sameEmailPush((await listPushSubscriptions()).find((s) => s.id === id)?.emailPush, own)).toBe(true);
+    expect(sameEmailPush((await listPushSubscriptions()).find((s) => s.id === id)?.emailPush, narrowed)).toBe(true);
   }, 30_000);
 
   it('takes the filters mutes produce and echoes them so they compare equal (#78)', async () => {
@@ -299,9 +317,9 @@ live('live Stalwart push subscriptions', () => {
       conditions: [{ notKeyword: '$junk' }, { hasKeyword: '$junk' }],
     });
     for (const [name, emailPush] of Object.entries(built)) {
-      const { id } = await create(`mute-${name}`, { emailPush });
+      const { id, emailPush: taken } = await createAsApp(`mute-${name}`, emailPush);
       const listed = (await listPushSubscriptions()).find((s) => s.id === id);
-      expect(sameEmailPush(listed?.emailPush, emailPush), `${name}: ${JSON.stringify(listed?.emailPush)}`).toBe(true);
+      expect(sameEmailPush(listed?.emailPush, taken), `${name}: ${JSON.stringify(listed?.emailPush)}`).toBe(true);
     }
   }, 60_000);
 
@@ -319,9 +337,9 @@ live('live Stalwart push subscriptions', () => {
     const me = client.accountId;
     const emailPush = await buildEmailPushConfig(undefined, true);
     expect(emailPush[me].filter).toEqual({ operator: 'AND', conditions: [{ notKeyword: '$junk' }, { inMailbox: inbox }] });
-    const { id } = await create('inbox-only', { emailPush });
+    const { id, emailPush: taken } = await createAsApp('inbox-only', emailPush);
     const listed = (await listPushSubscriptions()).find((s) => s.id === id);
-    expect(sameEmailPush(listed?.emailPush, emailPush), JSON.stringify(listed?.emailPush)).toBe(true);
+    expect(sameEmailPush(listed?.emailPush, taken), JSON.stringify(listed?.emailPush)).toBe(true);
   }, 30_000);
 
   it('refuses push addresses that are not public: http and private IPs everywhere, local names on 1.0', async () => {
