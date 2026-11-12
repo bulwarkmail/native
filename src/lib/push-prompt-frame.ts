@@ -19,6 +19,13 @@ export const LIST_FAB_CLEARANCE = 16 + 56 + 12;
 /** Side margin of the card inside the list column. */
 export const LIST_COLUMN_MARGIN = 12;
 
+/**
+ * Widest the card gets in the list column: the toast card's 360 dp
+ * (lib/use-layout). With the reading pane off the column is the whole window
+ * but the rail (#93), and an unbounded card became a strip across it.
+ */
+export const LIST_CARD_MAX_WIDTH = 360;
+
 /** The mail list column in window coordinates, while it is on screen in a split view. */
 export interface ListColumnFrame {
   x: number;
@@ -66,9 +73,11 @@ export function pushPromptFrame(opts: {
   const { frame, split, windowWidth, listColumn: column } = opts;
   if (!split) return frame;
   if (column && column.width > 2 * LIST_COLUMN_MARGIN) {
+    // Kept to the column's right edge, above the compose button.
+    const right = Math.max(LIST_COLUMN_MARGIN, windowWidth - (column.x + column.width) + LIST_COLUMN_MARGIN);
     return {
-      left: column.x + LIST_COLUMN_MARGIN,
-      right: Math.max(LIST_COLUMN_MARGIN, windowWidth - (column.x + column.width) + LIST_COLUMN_MARGIN),
+      left: Math.max(column.x + LIST_COLUMN_MARGIN, windowWidth - right - LIST_CARD_MAX_WIDTH),
+      right,
       bottom: LIST_FAB_CLEARANCE,
     };
   }

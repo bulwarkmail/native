@@ -89,6 +89,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.swipe_right_action',
     'settings.layout.swipe_mode',
     'settings.message_list_order',
+    'settings.layout.reading_pane',
     'settings.layout.show_folder_total_count',
     'settings.layout.show_avatars_in_junk',
     'settings.layout.unified_cross_account',

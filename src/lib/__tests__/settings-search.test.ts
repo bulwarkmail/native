@@ -121,6 +121,7 @@ describe('settings search index (English catalog)', () => {
     expect(labelsFor('accessibility')).toContain('Low vision');
     expect(labelsFor('appearance')).not.toContain('Font Size');
     expect(labelsFor('layout')).toContain('Message list order');
+    expect(labelsFor('layout')).toContain('Reading pane');
     expect(labelsFor('notifications')).toContain('Parse email invitations');
     expect(labelsFor('calendar')).toContain('Show week numbers');
     expect(labelsFor('reading')).toContain('Clear search when switching folders');

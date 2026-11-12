@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  LIST_COLUMN_MARGIN, LIST_FAB_CLEARANCE, pushPromptBottom, pushPromptFrame, READER_BAR_CLEARANCE,
+  LIST_CARD_MAX_WIDTH, LIST_COLUMN_MARGIN, LIST_FAB_CLEARANCE, pushPromptBottom, pushPromptFrame, READER_BAR_CLEARANCE,
 } from '../push-prompt-frame';
 
 // On a tablet split view the notification prompt sat in the bottom right
@@ -22,6 +22,14 @@ describe('push prompt placement', () => {
     expect(800 - place.right).toBeLessThanOrEqual(400);
     // Above the list's compose button.
     expect(place.bottom).toBeGreaterThanOrEqual(16 + 56);
+  });
+
+  it('is no wider than a toast in a list column that fills the window (#93)', () => {
+    // A 1280 dp landscape tablet with the reading pane off: the 80 dp rail,
+    // then the list across the rest.
+    const place = pushPromptFrame({ frame: toastFrame, split: true, windowWidth: 1280, listColumn: { x: 80, width: 1200 } });
+    expect(place).toEqual({ left: 1280 - LIST_COLUMN_MARGIN - LIST_CARD_MAX_WIDTH, right: LIST_COLUMN_MARGIN, bottom: LIST_FAB_CLEARANCE });
+    expect(1280 - place.left - place.right).toBe(LIST_CARD_MAX_WIDTH);
   });
 
   it('keeps the bottom right corner above a reader bar where no list is on screen', () => {

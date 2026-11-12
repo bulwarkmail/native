@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { ArrowRight, ArrowLeft, MoveVertical, ArrowDownWideNarrow } from '../icons';
+import { ArrowRight, ArrowLeft, MoveVertical, ArrowDownWideNarrow, PanelRight } from '../icons';
 import { SettingsSection, SettingItem, ToggleSwitch, RadioGroup, Select } from './settings-section';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -11,6 +11,7 @@ import {
   ALL_QUICK_ACTIONS,
   type SwipeAction,
   type SwipeMode,
+  type ReadingPane,
   type QuickAction,
 } from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
@@ -38,6 +39,11 @@ const swipeOptions = (t: Translate): { value: SwipeAction; label: string }[] => 
 const swipeModeOptions = (t: Translate): { value: SwipeMode; label: string }[] => [
   { value: 'instant', label: t('settings.layout.swipe_mode.instant', 'Instant (swipe = action)') },
   { value: 'reveal',  label: t('settings.layout.swipe_mode.reveal', 'Reveal (swipe, then tap)') },
+];
+
+const readingPaneOptions = (t: Translate): { value: ReadingPane; label: string }[] => [
+  { value: 'auto', label: t('settings.layout.reading_pane.auto', 'Next to the list when there is room') },
+  { value: 'off',  label: t('settings.layout.reading_pane.off', 'Off: messages open full screen') },
 ];
 
 const quickActionLabels = (t: Translate): Record<QuickAction, string> => ({
@@ -80,6 +86,8 @@ export function LayoutSettings() {
   const archiveEnabled = usePolicyFeature('archiveActionEnabled');
   const SWIPE_OPTIONS = React.useMemo(() => withoutArchive(swipeOptions(t), archiveEnabled), [t, archiveEnabled]);
   const SWIPE_MODE_OPTIONS = React.useMemo(() => swipeModeOptions(t), [t]);
+  const READING_PANE_OPTIONS = React.useMemo(() => readingPaneOptions(t), [t]);
+  const readingPane = useSettingsStore((s) => s.readingPane);
   const QUICK_ACTION_LABELS = React.useMemo(() => quickActionLabels(t), [t]);
   const QUICK_ACTION_OPTIONS = React.useMemo(
     () => withoutArchive(ALL_QUICK_ACTIONS.map((value) => ({ value, label: QUICK_ACTION_LABELS[value] })), archiveEnabled),
@@ -175,6 +183,24 @@ export function LayoutSettings() {
           value={messageListOrderScope}
           onChange={(v) => setScope(v as MessageListOrderScope)}
           options={SCOPE_OPTIONS}
+        />
+      </View>
+
+      <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
+        <View style={styles.row}>
+          <PanelRight size={14} color={c.mutedForeground} />
+          <Text style={styles.rowLabel}>{t('settings.layout.reading_pane.label', 'Reading pane')}</Text>
+        </View>
+        <Text style={styles.rowDescription}>
+          {t(
+            'settings.layout.reading_pane.description',
+            'On a tablet or an open foldable, show the open message next to the mail list. This device only.',
+          )}
+        </Text>
+        <RadioGroup
+          value={readingPane}
+          onChange={(v) => update('readingPane', v as ReadingPane)}
+          options={READING_PANE_OPTIONS}
         />
       </View>
 
