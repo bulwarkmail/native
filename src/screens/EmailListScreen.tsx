@@ -86,6 +86,7 @@ import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import { listSenderMatches, mergePersonSuggestions } from '../lib/search-suggestions';
+import { loadTrashOrigins, restoreTargetForAll } from '../lib/trash-origin';
 import { usePendingMailFolder } from '../navigation/pending-mail-folder';
 import { resolveFolderRef } from '../lib/folder-ref';
 import type { Attachment, Email } from '../api/types';
@@ -1036,6 +1037,19 @@ export default function EmailListScreen({
     return emails.filter((e) => wanted.has(rowKeyOf(e)));
   }, [emails, selectedMessageIds]);
   const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
+  // Read and unread mail selected: offer both (webmail e8d8486b8).
+  const selectionMixedRead = !allSelectedAreRead && selectedEmails.some((e) => !isUnread(e));
+  const handleBulkSetRead = async (read: boolean) => {
+    try {
+      await setKeywordForEmails(selectedMessageIds, '$seen', read);
+      clearSelection();
+    } catch (err) {
+      reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err);
+    }
+  };
+  // In Trash: Restore puts the selection back where this device saw it come
+  // from, else in the Inbox (lib/trash-origin.ts).
+  React.useEffect(() => { void loadTrashOrigins(); }, []);
   const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));
 
   // One Email/set for the whole selection, not a request per message.
@@ -1402,8 +1416,17 @@ export default function EmailListScreen({
 
   // The selection toolbar's actions, in bar order. What doesn't fit the
   // list column goes into a "More" menu, the least used first.
-  type SelectionAction = 'star' | 'read' | 'tag' | 'move' | 'spam' | 'archive' | 'delete';
+  type SelectionAction = 'restore' | 'star' | 'read' | 'unread' | 'tag' | 'move' | 'spam' | 'archive' | 'delete';
+  const restoreTo = currentRole === 'trash' && currentMailboxId && selectedEmails.length > 0
+    ? restoreTargetForAll(selectedEmails.map((e) => e.id), currentMailboxId, mailboxes)
+    : undefined;
   const selectionActions: Array<{ key: SelectionAction; label: string; icon: React.ReactNode; onPress: () => void }> = [
+    ...(restoreTo ? [{
+      key: 'restore' as const,
+      label: t('recover_deleted.restore', 'Restore'),
+      icon: <RotateCcw size={20} color={c.text} />,
+      onPress: () => handleBatchMovePick(restoreTo),
+    }] : []),
     {
       key: 'star',
       label: allSelectedAreStarred ? t('context_menu.unstar', 'Unstar') : t('context_menu.star', 'Star'),
@@ -1424,6 +1447,12 @@ export default function EmailListScreen({
       icon: allSelectedAreRead ? <MailIcon size={20} color={c.text} /> : <MailOpen size={20} color={c.text} />,
       onPress: () => reportFailure(handleBulkMarkReadToggle()),
     },
+    ...(selectionMixedRead ? [{
+      key: 'unread' as const,
+      label: t('email_list.batch_actions.mark_unread', 'Mark as unread'),
+      icon: <MailIcon size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkSetRead(false)),
+    }] : []),
     {
       key: 'tag',
       label: t('context_menu.tag', 'Tag'),
@@ -1460,7 +1489,7 @@ export default function EmailListScreen({
     // Padding (sm each side), the close button and the count (min 24 + xs each side).
     reserved: spacing.sm * 2 + componentSizes.buttonLg + 24 + spacing.xs * 2,
     button: componentSizes.buttonLg,
-    overflowOrder: ['spam', 'tag', 'star', 'read', 'move', 'archive', 'delete'],
+    overflowOrder: ['spam', 'tag', 'star', 'unread', 'read', 'move', 'restore', 'archive', 'delete'],
   });
 
   const renderSearchBar = (inHeader: boolean) => (

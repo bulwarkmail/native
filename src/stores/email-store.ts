@@ -50,6 +50,7 @@ import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type 
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
+import { rememberTrashOrigins } from '../lib/trash-origin';
 import { t } from './locale-store';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
@@ -1957,6 +1958,8 @@ export const useEmailStore = create<EmailState>()(
         { kind: 'mailboxes', emailId, accountId: source.accountId, mailboxIds: target },
         () => apiDeleteEmail(emailId, trash.id, source.id, source.accountId),
       );
+      // So Restore can put it back where it was (lib/trash-origin.ts).
+      rememberTrashOrigins([emailId], currentMailboxId, trashMailboxId);
       // "Move to Trash and mark as read" (#323): when the user picked that
       // delete action, also clear unread state for messages moved to trash.
       if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
@@ -2209,6 +2212,8 @@ export const useEmailStore = create<EmailState>()(
     });
     const destroyed = toDestroy.filter((e) => !kept.has(e.id));
     const trashed = toTrash.filter((e) => !kept.has(e.id));
+    // So Restore can put them back where they were (lib/trash-origin.ts).
+    rememberTrashOrigins(trashed.map((e) => e.id), currentMailboxId, trashMailboxId);
 
     if (destroyed.length > 0) dropFromCache(destroyed.map((e) => e.id), trash.accountId);
     for (const e of trashed) {

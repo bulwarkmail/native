@@ -11,7 +11,7 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter, FileText, Type,
+  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter, FileText, Type, RotateCcw,
 } from '../components/icons';
 import { pickEmailBody } from '../lib/email-body';
 import { confirmMailRemoval } from '../lib/mail-removal-confirm';
@@ -39,6 +39,7 @@ import {
 import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { isReportable, phishingReportSetup } from '../lib/phishing-report';
 import { reportEmailAsPhishing } from '../lib/phishing-report-flow';
+import { loadTrashOrigins, restoreTarget } from '../lib/trash-origin';
 import { bottomQuickActionsFor } from '../lib/swipe-actions';
 import { patchKeywordsForEmails } from '../api/email';
 import {
@@ -494,6 +495,9 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     [scopedMailboxes, email, currentMailboxId],
   );
   const isInTrash = !!(trashMailbox && sourceMailbox?.id === trashMailbox.id);
+  // Restore: back where this device saw it come from, else the Inbox (webmail e8d8486b8).
+  React.useEffect(() => { void loadTrashOrigins(); }, []);
+  const restoreTo = isInTrash && email && trashMailbox ? restoreTarget(email.id, trashMailbox.id, scopedMailboxes) : undefined;
   const canArchive = archiveEnabled && !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
   // Not spam files back into the Inbox, so it needs one.
   const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
@@ -984,6 +988,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         showSpam={canToggleSpam}
         isInJunk={isInJunk}
         onReportPhishing={canReportPhishing ? onReportPhishing : undefined}
+        onRestore={restoreTo ? () => onMoveToMailbox(restoreTo) : undefined}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
         canTag
@@ -1454,6 +1459,8 @@ interface MoreMenuSheetProps {
   onToggleSpam: () => void;
   /** Report phishing; absent while the organisation set no report address. */
   onReportPhishing?: () => void;
+  /** Restore a message in Trash; absent elsewhere. */
+  onRestore?: () => void;
   onToggleTheme: () => void;
   onSenderActions: () => void;
   onForwardAsAttachment: () => void;
@@ -1466,7 +1473,7 @@ interface MoreMenuSheetProps {
 function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
   showSpam, isInJunk, canViewSource, canExport, renderDark, plainView, onTogglePlainView, hasSender,
-  onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onReportPhishing, onToggleTheme, onSenderActions,
+  onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onReportPhishing, onRestore, onToggleTheme, onSenderActions,
   onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
@@ -1570,6 +1577,13 @@ function MoreMenuSheet({
               }
               label={isInJunk ? t('email_viewer.not_spam_short', 'Not spam') : t('email_viewer.spam.button_title', 'Report spam')}
               onPress={onToggleSpam}
+            />
+          )}
+          {onRestore && (
+            <MoreMenuItem
+              icon={<RotateCcw size={18} color={c.textSecondary} />}
+              label={t('recover_deleted.restore', 'Restore')}
+              onPress={onRestore}
             />
           )}
           {onReportPhishing && (
