@@ -209,7 +209,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing; no label code in src. The app already reads the policy and keeps its `organisation` block (`src/lib/org-policy.ts:57`), which is where the labels live (`OrganisationPolicy['labels']`, `lib/classification/labels.ts:27`).
   - Fix hint: port lib/classification/labels.ts, add a label row to the composer options, apply headers and prefix in the send path, and refuse to send when a label is required and none is picked.
 
-- [ ] **No Tags menu in the composer** — `P3` — `missing`
+- [x] **No Tags menu in the composer** — `P3` — `missing` — fixed in 49762298
   - What WEB does: a Tags menu next to Options; replies and forwards start with the original's tags, a group account offers its shared tags, drafts keep them and the sent copy carries them (`components/email/email-composer.tsx:1359`, `lib/jmap/client.ts:5411`, `lib/draft-composer-data.ts`). 5354d6066, 54e4a03a3 (#1610).
   - What RN does: drafts are created with `$seen` and `$draft` only (`src/api/email.ts:2049`); the composer has no tag state.
   - Fix hint: reuse TagSheet in the composer options and pass the keywords to the draft and the send.
