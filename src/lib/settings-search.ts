@@ -96,6 +96,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.appearance.cross_unread',
     'settings.appearance.cross_starred',
     'settings.appearance.cross_all',
+    'settings.appearance.compact_shared_mailboxes',
   ],
   reading: [
     'settings.email_behavior.mark_read',
@@ -113,6 +114,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.hide_inline_image_attachments',
     'settings.email_behavior.emails_per_page',
     'settings.email_behavior.clear_search_on_folder_change',
+    'settings.email_behavior.search_default_scope',
   ],
   composing: [
     'settings.email_behavior.quick_reply',
@@ -153,7 +155,6 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.filters.title',
     'settings.filters.add_rule',
     'settings.filters.expanded_view',
-    'settings.filters.vacation_active',
     'settings.filters.open_sieve_editor',
   ],
   templates: ['settings.templates.title', 'settings.templates.export_import'],
@@ -214,6 +215,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'calendar.settings.time_format',
     'calendar.settings.time_zone',
     'calendar.settings.show_time_in_month_view',
+    'calendar.settings.month_timed_events',
     'calendar.settings.show_week_numbers',
     'calendar.settings.show_birthday_calendar',
     'calendar.settings.enable_tasks',

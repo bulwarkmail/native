@@ -118,6 +118,19 @@ describe('settings search index (English catalog)', () => {
     });
   }
 
+  // The emulator walkthrough: these three found nothing, and "out of office"
+  // listed the filters page's banner as if it were a setting.
+  it('finds Search in, Compact shared mailboxes and Timed events in month view', () => {
+    const index = buildSettingsSearchIndex(en, tEn);
+    const q = (tab: SettingsTabId, text: string) =>
+      subResultsForQuery(index, tab, normalizeSettingsQuery(text)).map((r) => r.label);
+    expect(q('reading', 'search in')).toContain('Search in');
+    expect(q('layout', 'compact')).toContain('Compact shared mailboxes');
+    expect(q('calendar', 'timed')).toContain('Timed events in month view');
+    expect(labelsFor('filters')).not.toContain('Out of office is on');
+    expect(q('filters', 'out of office')).toEqual([]);
+  });
+
   it('lists settings where the native app shows them', () => {
     // Text size moved to Accessibility (webmail 1.19), with the presets.
     expect(labelsFor('accessibility')).toContain('Text size');
