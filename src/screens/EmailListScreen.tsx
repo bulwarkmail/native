@@ -27,6 +27,7 @@ import { useTagUndoGroup } from '../lib/tag-undo-group';
 import { selectAllA11y } from '../lib/select-all-a11y';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
+import { RetentionNotice } from '../components/email/RetentionNotice';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListAttachments, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
@@ -1866,6 +1867,8 @@ export default function EmailListScreen({
 
       {/* Recover deleted items, from the account's own Trash (mounted only there) */}
       {currentMailbox?.role === 'trash' && <TrashRecoveryLink mailbox={currentMailbox} />}
+      {/* How long the server keeps mail in Trash and Junk (organisation.retention) */}
+      <RetentionNotice role={currentRole} />
 
       {canEmptyFolder && !selectionMode && (
         <View style={styles.emptyFolderBanner}>
