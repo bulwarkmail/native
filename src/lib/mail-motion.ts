@@ -9,6 +9,8 @@
  * app's JS engine (Hermes) can't hand a function's source to the page.
  */
 
+import { PAGE_DOM_SOURCE } from './page-dom';
+
 /** Stops CSS animations and transitions in a mail. */
 export const MAIL_REDUCED_MOTION_CSS = '*,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:0.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}';
 
@@ -101,8 +103,11 @@ export function buildPauseAnimatedImagesScript(labels: PauseLabels): string {
   const cfg = JSON.stringify({ play: labels.play, pause: labels.pause, style: PAUSE_STYLE });
   return `
 (function () {
-  if (document.__rnPauseImages || !document.body) return;
-  document.__rnPauseImages = true;
+  ${PAGE_DOM_SOURCE}
+  var body = pagePart(document, 'body');
+  if (!body || !pageOnce(document, 'pauseImages')) return;
+  // Images this pass handled; an attribute the mail can set says nothing.
+  var seen = typeof WeakSet === 'function' ? new WeakSet() : null;
   var C = ${cfg};
   var T = '${TOGGLE_ATTR}';
   var S = '${STILL_ATTR}';
@@ -133,10 +138,11 @@ export function buildPauseAnimatedImagesScript(labels: PauseLabels): string {
     return true;
   }
   function freeze(img) {
-    if (img.hasAttribute(S) || img.naturalWidth <= 1) return;
+    if ((seen ? seen.has(img) : img.hasAttribute(S)) || img.naturalWidth <= 1) return;
+    if (seen) seen.add(img);
     img.setAttribute(S, '');
     if (!mayMove(img.currentSrc || img.getAttribute('src') || '')) return;
-    var canvas = document.createElement('canvas');
+    var canvas = pageCall(document, 'createElement', ['canvas']);
     if (!draw(img, canvas)) return;
     var width = img.getBoundingClientRect().width;
     canvas.setAttribute(S, '');
@@ -145,9 +151,9 @@ export function buildPauseAnimatedImagesScript(labels: PauseLabels): string {
     var alt = (img.getAttribute('alt') || '').trim();
     if (alt) { canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', alt); }
     else canvas.setAttribute('aria-hidden', 'true');
-    var wrap = document.createElement('span');
+    var wrap = pageCall(document, 'createElement', ['span']);
     wrap.setAttribute(T + '-wrap', '');
-    var button = document.createElement('button');
+    var button = pageCall(document, 'createElement', ['button']);
     button.type = 'button';
     button.setAttribute(T, 'paused');
     button.textContent = C.play;
@@ -157,11 +163,11 @@ export function buildPauseAnimatedImagesScript(labels: PauseLabels): string {
     wrap.appendChild(img);
     img.style.setProperty('display', 'none', 'important');
   }
-  var style = document.createElement('style');
+  var style = pageCall(document, 'createElement', ['style']);
   style.textContent = C.style;
-  (document.head || document.body).appendChild(style);
+  (pagePart(document, 'head') || body).appendChild(style);
   // Capture phase, so a button inside a linked image doesn't open the link.
-  document.addEventListener('click', function (event) {
+  pageCall(document, 'addEventListener', ['click', function (event) {
     var button = event.target && event.target.closest ? event.target.closest('button[' + T + ']') : null;
     if (!button) return;
     event.preventDefault();
@@ -182,8 +188,8 @@ export function buildPauseAnimatedImagesScript(labels: PauseLabels): string {
       button.setAttribute(T, 'paused');
       button.textContent = C.play;
     }
-  }, true);
-  var imgs = document.querySelectorAll('img');
+  }, true]);
+  var imgs = pageCall(document, 'querySelectorAll', ['img']);
   for (var n = 0; n < imgs.length; n++) {
     (function (img) {
       if (img.complete) freeze(img);

@@ -303,6 +303,29 @@ describe('the DOM pass', () => {
     expect(lightness(writtenBg(doc.documentElement))).toBeLessThan(40);
     expect(lightness(writtenBg(doc.body))).toBeLessThan(40);
   });
+
+  // In a page, <img name="body"> is what document.body returns, and so on for
+  // documentElement and defaultView; Document.prototype still has the real ones.
+  it('converts and un-hides the page when the mail names elements after the document\'s parts', () => {
+    const real = makeDoc([el('TD', { backgroundColor: hex('#fff') }, 'a')]);
+    class FakeDocument {}
+    for (const name of ['body', 'documentElement', 'defaultView'] as const) {
+      Object.defineProperty(FakeDocument.prototype, name, { get: () => real[name] });
+    }
+    const page = Object.create(FakeDocument.prototype) as Record<string, unknown>;
+    const named = new FakeElement('IMG');
+    for (const name of ['body', 'documentElement', 'defaultView']) Object.defineProperty(page, name, { value: named });
+    const globals = globalThis as { Document?: unknown };
+    const before = globals.Document;
+    globals.Document = FakeDocument;
+    try {
+      new Function('document', 'window', buildEmailDarkModeScript())(page, {});
+    } finally {
+      globals.Document = before;
+    }
+    expect(real.documentElement.classList.contains(DARK_PENDING_CLASS)).toBe(false);
+    expect(lightness(writtenBg(real.byId('a')))).toBeLessThan(40);
+  });
 });
 
 describe('buildEmailDarkModeScript', () => {

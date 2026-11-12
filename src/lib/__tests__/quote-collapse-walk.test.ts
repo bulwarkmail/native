@@ -54,8 +54,13 @@ class FEl extends FNode {
   removeAttribute(k: string) { this.attrs.delete(k); }
   addEventListener() { /* not clicked here */ }
   matches() { return false; }
-  // The fixtures hold no element the container or separator selectors match.
-  querySelector() { return null; }
+  // A bare attribute selector finds an element with that attribute; the
+  // fixtures hold no element the container or separator selectors match.
+  querySelector(sel: string) {
+    const attr = /^\[([\w-]+)\]$/.exec(sel)?.[1];
+    if (!attr) return null;
+    return preorder(this).slice(1).find((n): n is FEl => n instanceof FEl && n.hasAttribute(attr)) ?? null;
+  }
   querySelectorAll(tag: string): FEl[] {
     return preorder(this).slice(1).filter((n): n is FEl => n instanceof FEl && n.tagName === tag.toUpperCase());
   }
@@ -133,6 +138,15 @@ describe('quote collapse in HTML mail', () => {
     expect(inner.hasAttribute(QUOTE_COLLAPSED_ATTR)).toBe(false);
     const button = body.childNodes[body.childNodes.indexOf(outer) - 1] as FEl;
     expect(button.hasAttribute(QUOTE_TOGGLE_ATTR)).toBe(true);
+  });
+
+  it('collapses a quote also when the mail carries the toggle\'s attribute itself', () => {
+    const own = el('div', 'x');
+    own.setAttribute(QUOTE_TOGGLE_ATTR, '');
+    const quote = el('blockquote', 'old');
+    const body = el('body', el('p', 'Thanks!'), own, el('p', 'On Monday, Bob wrote:'), quote);
+    run(body);
+    expect(quote.style.display).toBe('none');
   });
 
   it('leaves a blockquote alone when no attribution line precedes it', () => {
