@@ -161,7 +161,7 @@
       "update_error": "Aufgabe konnte nicht aktualisiert werden"
     },
     "views": {
-      "n_days": "{count} Tage",
+      "n_days": "{count, plural, one {# Tag} other {# Tage}}",
       "schedule": "Terminübersicht",
       "three_days": "3 Tage"
     },
@@ -291,7 +291,7 @@
       "replaces": "Ersetzt {name}",
       "update_existing": "Vorhandenen aktualisieren",
       "unnamed": "Unbenannter Kontakt",
-      "updated_count": "{count, plural, one {1 Kontakt war bereits vorhanden und wurde aktualisiert.} other {# Kontakte waren bereits vorhanden und wurden aktualisiert.}}"
+      "updated_count": "{count, plural, one {# Kontakt war bereits vorhanden und wurde aktualisiert.} other {# Kontakte waren bereits vorhanden und wurden aktualisiert.}}"
     },
     "no_tags_hint": "Noch keine Kategorien. Geben Sie oben eine ein.",
     "picker": {
@@ -337,7 +337,7 @@
     "attachments_too_large_total": "Die Anhänge würden die {max} überschreiten, die dieser Server pro Nachricht erlaubt.",
     "editor_unavailable": "Der Nachrichteninhalt konnte nicht gelesen werden. Kopieren Sie Ihren Text, schließen Sie dann den Editor und öffnen Sie ihn erneut.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Anhängen} one {1 Datei anhängen} other {# Dateien anhängen}}",
+      "attach": "{count, plural, =0 {Anhängen} one {# Datei anhängen} other {# Dateien anhängen}}",
       "empty_folder": "Dieser Ordner ist leer",
       "load_failed": "Ihre Dateien konnten nicht geladen werden"
     },
@@ -426,7 +426,7 @@
     "option_sign": "Signieren",
     "option_sign_pgp_hint": "Eine OpenPGP-Signatur mit Ihrem Schlüssel hinzufügen",
     "option_sign_smime_hint": "Eine S/MIME-Signatur mit Ihrem Zertifikat hinzufügen",
-    "read_receipt_off": "Lesebestätigung anfordern",
+    "request_read_receipt": "Lesebestätigung anfordern",
     "secure_failed_title": "Signieren oder Verschlüsseln nicht möglich",
     "secure_missing_keys": "Kein Schlüssel für {recipients}. Importieren Sie einen unter Einstellungen → Verschlüsselung.",
     "secure_no_key": "Auf diesem Gerät gibt es keinen Schlüssel für {email}. Importieren Sie einen unter Einstellungen → Verschlüsselung.",
@@ -474,7 +474,7 @@
     "offline_nothing_cached": "Keine Verbindung. Es wird nichts angezeigt, da noch keine E-Mails zwischengespeichert wurden.",
     "open_draft_failed": "Der Entwurf konnte nicht geöffnet werden.",
     "outbox_discard": "Verwerfen",
-    "outbox_failed": "{count} Änderungen konnten nicht auf dem Server gespeichert werden.",
+    "outbox_failed": "{count, plural, one {# Änderung konnte nicht auf dem Server gespeichert werden.} other {# Änderungen konnten nicht auf dem Server gespeichert werden.}}",
     "recent_searches": "Letzte Suchen",
     "remove_filter": "Filter {label} entfernen",
     "scope_all_folders": "Alle Ordner",
@@ -505,7 +505,7 @@
     },
     "attachment_failed": "Anhang konnte nicht geöffnet werden",
     "authentication": {
-      "spoof_warning": "Die Absenderadresse konnte nicht verifiziert werden - diese Nachricht ist möglicherweise gefälscht."
+      "spoof_warning": "Die Absenderadresse konnte nicht verifiziert werden. Diese Nachricht ist möglicherweise gefälscht."
     },
     "body_truncated": "Diese Nachricht ist zu groß, um vollständig angezeigt zu werden.",
     "bundle_too_large": "Die Anhänge sind zu groß, um sie zu bündeln.",
@@ -613,11 +613,11 @@
     "shared_with": "Geteilt mit",
     "sharing_access": "Freigabe & Zugriff",
     "symlink": "Symbolischer Link",
-    "upload_failed": "{count, plural, one {1 Datei konnte nicht hochgeladen werden} other {# Dateien konnten nicht hochgeladen werden}}",
+    "upload_failed": "{count, plural, one {# Datei konnte nicht hochgeladen werden} other {# Dateien konnten nicht hochgeladen werden}}",
     "upload_unavailable": "Die Dateiauswahl ist in diesem Build nicht installiert. Erstellen Sie die App neu, um Uploads zu aktivieren.",
     "uploading_progress": "Hochladen {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Möchten Sie wirklich {count, plural, one {1 Element} other {# Elemente}} löschen? Dies kann nicht rückgängig gemacht werden.",
-    "batch_delete_success": "{count, plural, one {1 Element gelöscht} other {# Elemente gelöscht}}",
+    "batch_delete_confirm_message": "Möchten Sie wirklich {count, plural, one {# Element} other {# Elemente}} löschen? Dies kann nicht rückgängig gemacht werden.",
+    "batch_delete_success": "{count, plural, one {# Element gelöscht} other {# Elemente gelöscht}}",
     "delete_confirm_message": "Möchten Sie \"{name}\" wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
     "delete_confirm_title": "Ressource löschen",
     "delete_success": "Erfolgreich gelöscht",
@@ -1079,7 +1079,7 @@
       "sieve_editor": {
         "line_count": "{count, plural, one {# Zeile} other {# Zeilen}}",
         "confirm_save": "Speichern bestätigen",
-        "save_warning": "Das Speichern überschreibt alle visuellen Regeln. Dies kann nicht rückgängig gemacht werden. Klicken Sie erneut auf Speichern zur Bestätigung."
+        "save_warning": "Das Speichern überschreibt alle visuellen Regeln. Dies kann nicht rückgängig gemacht werden. Tippen Sie zur Bestätigung erneut auf Speichern."
       },
       "validation_header_name": "Geben Sie einen Header-Namen ein, der nur die Buchstaben A–Z, Ziffern, Bindestriche und Unterstriche enthält, zum Beispiel X-Spam-Flag."
     },
@@ -1093,7 +1093,7 @@
       "name_placeholder": "Belege",
       "name_required": "Name erforderlich",
       "new_folder": "Neuer Ordner",
-      "not_empty_message": "\"{name}\" enthält {count} E-Mails. Trotzdem löschen?",
+      "not_empty_message": "{count, plural, one {\"{name}\" enthält # E-Mail. Trotzdem löschen?} other {\"{name}\" enthält # E-Mails. Trotzdem löschen?}}",
       "not_empty_title": "Ordner nicht leer",
       "own_account": "Meine Ordner",
       "parent_folder": "Übergeordneter Ordner",
@@ -1132,7 +1132,7 @@
       "description_mobile": "Farbige Labels zum Organisieren Ihrer E-Mails.",
       "discover": {
         "add_all": "Alle hinzufügen",
-        "found": "{count} Labels gefunden, die hier nicht definiert sind.",
+        "found": "{count, plural, one {# Label gefunden, das hier nicht definiert ist.} other {# Labels gefunden, die hier nicht definiert sind.}}",
         "none": "Keine unbekannten Labels in {scanned} Nachrichten gefunden.",
         "partial": "(Die Suche hat nur die neuesten Nachrichten erfasst.)",
         "progress": "{scanned} von {total} Nachrichten durchsucht…",
@@ -1196,14 +1196,14 @@
       "push": {
         "confirm_disable_message_mobile": "Dieses Gerät erhält für dieses Konto keine Benachrichtigungen über neue E-Mails mehr.",
         "description_mobile": "Systembenachrichtigungen für neue E-Mails erhalten, wenn die App geschlossen ist. Zugestellt über das Bulwark-Push-Relay; das Relay sieht niemals E-Mail-Inhalte.",
-        "err_android_only": "Push-Benachrichtigungen sind nur unter Android verfügbar.",
+        "err_fcm_unavailable": "Push über Firebase ist in dieser Version der App nicht verfügbar.",
         "err_fcm_empty": "Firebase hat ein leeres Geräte-Token zurückgegeben.",
         "err_fcm_token": "Firebase konnte kein Geräte-Token ausstellen ({detail}). Push über FCM erfordert Google Play-Dienste auf diesem Gerät.",
-        "err_fcm_token_up": "Firebase konnte kein Geräte-Token ausstellen ({detail}). Push über FCM erfordert Google Play-Dienste auf diesem Gerät. Auf diesem Gerät ist ein UnifiedPush-Distributor installiert - stellen Sie die Zustellmethode stattdessen auf UnifiedPush um.",
+        "err_fcm_token_up": "Firebase konnte kein Geräte-Token ausstellen ({detail}). Push über FCM erfordert Google Play-Dienste auf diesem Gerät. Auf diesem Gerät ist ein UnifiedPush-Distributor installiert: Stellen Sie die Zustellmethode stattdessen auf UnifiedPush um.",
         "err_forbidden": "Der Mailserver erlaubt für dieses Konto keine Hintergrundbenachrichtigungen.",
         "err_jmap_list": "Die Push-Registrierungen konnten nicht vom Mailserver gelesen werden: {detail}",
         "err_jmap_refused": "Der Mailserver hat das Push-Abonnement abgelehnt: {detail}",
-        "err_no_account": "Kein Konto geladen - Push kann nicht eingerichtet werden.",
+        "err_no_account": "Es ist kein Konto geladen, daher kann Push nicht eingerichtet werden.",
         "err_over_quota": "Für dieses Konto gibt es auf dem Mailserver zu viele Push-Registrierungen (meist sind 15 erlaubt). Widerrufen Sie Geräte, die Sie nicht mehr nutzen, in den Benachrichtigungseinstellungen und versuchen Sie es erneut.",
         "err_permission": "Die Benachrichtigungsberechtigung wurde nicht erteilt.",
         "err_relay_https": "Die Relay-URL muss https:// verwenden.",
@@ -1225,12 +1225,12 @@
         "relay_invalid": "Geben Sie eine gültige https://-URL ein",
         "setup_failed": "Einrichtung fehlgeschlagen",
         "shared_mailboxes_no_push": "Postfächer, die andere mit Ihnen teilen, senden keine Hintergrundbenachrichtigungen.",
-        "status_android_only": "Hintergrundbenachrichtigungen sind nur unter Android verfügbar.",
+        "status_unavailable": "Diese Version der App kann keine Push-Benachrichtigungen empfangen.",
         "transport_desc": "Wie Benachrichtigungen dieses Gerät erreichen: Googles Firebase Cloud Messaging oder eine UnifiedPush-Distributor-App (z. B. ntfy) für die Zustellung ohne Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Zustellmethode",
         "transport_unifiedpush": "UnifiedPush",
-        "up_distributor_desc": "Mehrere UnifiedPush-Distributor-Apps sind installiert - wählen Sie die aus, die Benachrichtigungen zustellen soll.",
+        "up_distributor_desc": "Mehrere UnifiedPush-Distributor-Apps sind installiert. Wählen Sie die aus, die Benachrichtigungen zustellen soll.",
         "up_distributor_label": "Distributor",
         "up_no_distributor": "Auf diesem Gerät ist keine UnifiedPush-Distributor-App installiert. Installieren Sie eine (z. B. ntfy) und versuchen Sie es erneut.",
         "accounts_desc_mobile": "Hintergrundbenachrichtigungen für jedes angemeldete Konto auf diesem Gerät. Wechseln Sie zu einem Konto, um sie dafür ein- oder auszuschalten.",
@@ -1252,7 +1252,7 @@
       "clear_message": "{count, plural, one {# zwischengespeicherte Nachricht} other {# zwischengespeicherte Nachrichten}} ({size}) entfernen?",
       "clear_title": "Offline-E-Mails löschen",
       "days_ago": "{count, plural, one {vor # Tag} other {vor # Tagen}}",
-      "description": "Laden Sie aktuelle Nachrichten herunter, damit sie sofort öffnen und auch ohne Verbindung lesbar bleiben. Nur der Nachrichtentext — Anhänge werden weiterhin bei Bedarf geladen.",
+      "description": "Laden Sie aktuelle Nachrichten herunter, damit sie sofort öffnen und auch ohne Verbindung lesbar bleiben. Geladen wird nur der Nachrichtentext. Anhänge werden geladen, wenn Sie sie öffnen.",
       "description_account": "Neue Nachrichten von {account} auf diesem Gerät behalten, damit sie auch ohne Verbindung aufgehen. Jedes Konto hat seinen eigenen Zeitraum und seine eigene Größe.",
       "downloading": "Herunterladen {completed}/{total}…",
       "enabled": "Aktuelle E-Mails zwischenspeichern",
@@ -1277,11 +1277,11 @@
       "window_desc": "Wie weit zurück zwischengespeichert wird, gemessen am Empfangsdatum der Nachricht.",
       "description_short": "Neue Nachrichten auf diesem Gerät behalten, damit sie auch ohne Verbindung aufgehen.",
       "keep_24h": "24 Stunden",
-      "keep_days": "{count} Tage",
-      "keep_from": "Mails der letzten",
+      "keep_days": "{count, plural, one {# Tag} other {# Tage}}",
+      "keep_from": "Zeitraum",
       "messages_offline": "{count, plural, one {# Nachricht offline} other {# Nachrichten offline}}",
       "synced": "Synchronisiert {when}",
-      "use_at_most": "Höchstens belegen",
+      "use_at_most": "Maximale Größe",
       "used_of": "{used} von {limit} MB"
     },
     "plugins": {
@@ -1309,7 +1309,7 @@
         "allowed_ips": "Erlaubte IPs (optional)",
         "allowed_ips_hint": "Durch Komma oder Leerzeichen getrennt. Leer lassen, um jede IP zu erlauben.",
         "clear_expiry": "Ablaufdatum entfernen",
-        "copy_now": "Kopieren Sie es jetzt — es wird nur einmal angezeigt. Zum Auswählen gedrückt halten.",
+        "copy_now": "Kopieren Sie es jetzt. Es wird nur einmal angezeigt. Zum Auswählen gedrückt halten.",
         "create_error": "Erstellen fehlgeschlagen",
         "expires": "Läuft ab (optional)",
         "expires_on": "läuft am {date} ab",
@@ -1323,7 +1323,7 @@
         "error_title": "Aktualisierung fehlgeschlagen"
       },
       "encryption": {
-        "no_keys": "Fügen Sie zuerst einen öffentlichen Schlüssel hinzu - die Verschlüsselung im Ruhezustand benötigt einen.",
+        "no_keys": "Fügen Sie zuerst einen öffentlichen Schlüssel hinzu. Die Verschlüsselung im Ruhezustand benötigt einen.",
         "turned_off_on_server": "Die Verschlüsselung im Ruhezustand war eingeschaltet und wurde auf dem Server ausgeschaltet, wie es das Update auf Stalwart 1.0.2 tut. Neue E-Mails werden unverschlüsselt gespeichert, bis Sie sie hier wieder einschalten."
       },
       "load_error": "Sicherheitseinstellungen konnten nicht geladen werden.",
@@ -1456,7 +1456,7 @@
       "check_now": "Jetzt prüfen",
       "checked_at": "Geprüft {when}",
       "licences": "Open-Source-Lizenzen",
-      "licences_desc": "AGPL-3.0 für die App und die Bibliotheken, die sie nutzt",
+      "licences_desc": "Die Lizenz der App (AGPL-3.0) und die Lizenzen der Bibliotheken, die sie nutzt",
       "never_checked": "Noch nicht geprüft",
       "privacy": "Datenschutz",
       "privacy_desc": "Was auf diesem Gerät bleibt und was an Ihren Server geht",
@@ -1491,12 +1491,11 @@
       "phone_backup": "Nichts davon landet in der Cloud-Sicherung von Android.",
       "phone_secure": "Ihre Anmeldedaten liegen im sicheren Speicher des Systems. Einstellungen, der Offline-Cache und noch nicht synchronisierte Änderungen liegen im Speicher der App.",
       "phone_title": "Auf diesem Gerät",
-      "push": "Wenn Benachrichtigungen an sind, meldet Ihr Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über {service}. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie Ihre Mails. Unter Benachrichtigungen können Sie ein eigenes Relay eintragen.",
+      "push_apple": "Wenn Benachrichtigungen an sind, meldet Ihr Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über den Push-Dienst von Apple. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie Ihre Mails. Unter Benachrichtigungen können Sie ein eigenes Relay eintragen.",
+      "push_google": "Wenn Benachrichtigungen an sind, meldet Ihr Server dem Push-Relay ({relay}), dass sich etwas geändert hat, und das Relay weckt die App über den Push-Dienst von Google. Das Relay sieht ein Gerätetoken und eine Änderungsmarke, nie Ihre Mails. Unter Benachrichtigungen können Sie ein eigenes Relay eintragen.",
       "push_title": "Push-Benachrichtigungen",
       "server": "Mails, Kalender, Kontakte und Dateien werden von Ihrem Server geladen und dort gespeichert. Außer den Verbindungen unten spricht die App nur mit Ihrem Server.",
       "server_title": "Ihr Mailserver",
-      "service_apple": "den Push-Dienst von Apple",
-      "service_google": "den Push-Dienst von Google",
       "updates": "Die App fragt bei GitHub nach der neuesten Version, um Ihnen Updates anzuzeigen.",
       "updates_android": "Die App fragt bei GitHub nach der neuesten Version, um Ihnen Updates anzuzeigen. Ausschalten können Sie das unter Updates."
     },
@@ -1753,8 +1752,8 @@
       "empty_all_accounts": "Ihre Posteingänge sind leer",
       "empty_inbox": "Ihr Posteingang ist leer",
       "folders": "Ordner",
-      "in_outbox": "{count, plural, one {# Änderung wartet} other {# Änderungen warten}}",
-      "in_outbox_short": "{count} warten",
+      "changes_waiting": "{count, plural, one {# Änderung wartet} other {# Änderungen warten}}",
+      "changes_waiting_short": "{count} warten",
       "inbox": "Posteingang",
       "more_unread": "+{count} weitere ungelesen",
       "no_folders": "Keine Ordner",
@@ -1847,7 +1846,7 @@
       "active": "Aktiv",
       "inactive": "Inaktiv",
       "subject": "Betreff: {subject}",
-      "title": "Abwesenheitsnotiz",
+      "title": "Abwesenheit",
       "unsupported": "Abwesenheitsnotizen sind nicht verfügbar",
       "until": "Bis {date}"
     }
