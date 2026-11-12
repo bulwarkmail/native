@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Email, Mailbox } from '../../api/types';
-import { folderCounts, rankPeople, toMailItem } from '../jmap';
+import { folderCounts, rankPeople, setTaskDone, toMailItem } from '../jmap';
+import type { JMAPClient } from '../../api/jmap-client';
 
 function email(id: string, from: string, name: string, seen: boolean, receivedAt = '2026-09-28T08:00:00Z'): Email {
   return {
@@ -59,5 +60,37 @@ describe('folderCounts', () => {
       ['drafts', 0, 2],
       ['junk', 3, 3],
     ]);
+  });
+});
+
+describe('setTaskDone', () => {
+  function client(task: Record<string, unknown> | null) {
+    const sets: unknown[] = [];
+    const request = vi.fn(async (calls: Array<[string, Record<string, any>, string]>) => {
+      const [method, args, id] = calls[0];
+      if (method === 'CalendarEvent/get') return { methodResponses: [[method, { list: task ? [task] : [] }, id]] };
+      sets.push(args.update);
+      return { methodResponses: [[method, { updated: { t1: null } }, id]] };
+    });
+    return { client: { request, getPrimaryAccountId: () => 'cal' } as unknown as JMAPClient, sets, request };
+  }
+
+  it('moves a repeating task to its next due date instead of completing the series (#1621)', async () => {
+    const { client: c, sets } = client({
+      id: 't1', progress: 'needs-action', due: '2026-11-12T09:00:00', showWithoutTime: false,
+      recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily' }],
+    });
+    expect(await setTaskDone(c, 't1', true)).toBe(true);
+    expect(sets).toEqual([{ t1: { progress: 'needs-action', due: '2026-11-13T09:00:00' } }]);
+  });
+
+  it('completes a task that does not repeat, and reopens one without reading it', async () => {
+    const once = client({ id: 't1', progress: 'needs-action', due: '2026-11-12T09:00:00' });
+    await setTaskDone(once.client, 't1', true);
+    expect(once.sets).toEqual([{ t1: { progress: 'completed', percentComplete: 100 } }]);
+    const reopen = client(null);
+    await setTaskDone(reopen.client, 't1', false);
+    expect(reopen.request).toHaveBeenCalledTimes(1);
+    expect(reopen.sets).toEqual([{ t1: { progress: 'needs-action', percentComplete: 0 } }]);
   });
 });

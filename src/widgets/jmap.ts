@@ -6,7 +6,8 @@
 // are written out here.
 
 import { AuthenticationError, JMAPClient, NetworkError } from '../api/jmap-client';
-import { CAPABILITIES, type Attachment, type Email, type Mailbox } from '../api/types';
+import { CAPABILITIES, type Attachment, type CalendarEvent, type Email, type Mailbox } from '../api/types';
+import { seriesCompletionUpdates } from '../lib/calendar-tasks';
 import { realAttachments } from '../lib/list-attachments';
 import { findArchiveMailbox, findJunkMailbox, findTrashMailbox } from '../lib/mailbox-tree';
 import { generateEmailAvatarColor, getEmailInitials } from '../lib/avatar-utils';
@@ -428,7 +429,12 @@ export async function rsvp(
   return !!body && !body.notUpdated;
 }
 
-/** Same flip as calendar-store's toggleTaskComplete; progressUpdated is left to the server. */
+/**
+ * Same flip as calendar-store's toggleTaskComplete; progressUpdated is left to
+ * the server. A repeating task the widget lists is the series: checking it
+ * off moves it to its next due date (seriesCompletionUpdates, #1621) instead
+ * of completing every occurrence at once.
+ */
 export async function setTaskDone(
   client: JMAPClient,
   taskId: string,
@@ -436,16 +442,25 @@ export async function setTaskDone(
   jmapAccountId?: string,
 ): Promise<boolean> {
   const accountId = jmapAccountId ?? client.getPrimaryAccountId(CAPABILITIES.CALENDARS);
+  const using = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
+  let update: Partial<CalendarEvent> = done
+    ? { progress: 'completed', percentComplete: 100 }
+    : { progress: 'needs-action', percentComplete: 0 };
+  if (done) {
+    const got = await client.request([
+      ['CalendarEvent/get', {
+        accountId,
+        ids: [taskId],
+        properties: ['id', 'progress', 'due', 'start', 'showWithoutTime', 'recurrenceRules'],
+      }, 'g'],
+    ], using);
+    const task = (responseOf(got, 'g')?.list ?? [])[0] as CalendarEvent | undefined;
+    const next = task ? seriesCompletionUpdates(task) : null;
+    if (next) update = next;
+  }
   const res = await client.request([
-    ['CalendarEvent/set', {
-      accountId,
-      update: {
-        [taskId]: done
-          ? { progress: 'completed', percentComplete: 100 }
-          : { progress: 'needs-action', percentComplete: 0 },
-      },
-    }, 's'],
-  ], [CAPABILITIES.CORE, CAPABILITIES.CALENDARS]);
+    ['CalendarEvent/set', { accountId, update: { [taskId]: update } }, 's'],
+  ], using);
   const body = responseOf(res, 's');
   return !!body && !body.notUpdated;
 }
