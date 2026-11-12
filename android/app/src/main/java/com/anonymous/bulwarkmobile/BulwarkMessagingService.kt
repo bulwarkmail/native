@@ -62,8 +62,9 @@ class BulwarkMessagingService : FirebaseMessagingService() {
          * either transport is dispatched the same way.
          *
          * A change to mail already there (#96) removes the notifications it
-         * made stale, in the foreground too: the app's own sync leaves the
-         * tray alone.
+         * made stale, also only in the background: with the app open, its own
+         * client may be refreshing the same login's token (034922b). What goes
+         * stale meanwhile is removed at the next change push in the background.
          *
          * The process importance is no measure of that (#94): an app paused
          * under a translucent screen, or kept important by anything bound to
@@ -73,12 +74,13 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         fun startTaskUnlessInForeground(context: Context, data: Map<String, String>, decision: PushRouting.Decision) {
             val foreground = MainActivity.isInForeground
             val mail = decision.startMailTask && !foreground
+            val reconcile = decision.reconcile.isNotEmpty() && !foreground
             Log.i(
                 TAG,
                 "Push: mail=${decision.startMailTask} changes=${decision.reconcile.size} " +
                     "foreground=$foreground importance=${processImportance()}",
             )
-            if (mail || decision.reconcile.isNotEmpty()) {
+            if (mail || reconcile) {
                 val appContext = context.applicationContext
                 val runPush = {
                     // One push can name new mail for one account and changes for
@@ -108,7 +110,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
                     // With the JS task running, a native check could refresh the
                     // same login's token at the same time (034922b): the
                     // notifications are checked on the next change push instead.
-                    if (decision.reconcile.isNotEmpty() && !jsTaskStarted) {
+                    if (reconcile && !jsTaskStarted) {
                         BulwarkNativePushFetcher.reconcileNotifications(
                             appContext, decision.reconcile, data["accountLabel"], deadlineMs,
                         )
