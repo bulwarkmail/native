@@ -38,6 +38,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useNoThirdPartyTraffic, usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { policyForSender } from '../lib/sender-policy';
+import { registerComposerFlush } from '../lib/compose-flush-registry';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
@@ -1758,6 +1759,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
   const saveDraftRef = React.useRef(saveDraft);
   saveDraftRef.current = saveDraft;
+  // A forced sign-out (the organisation's session limits) saves the draft first.
+  React.useEffect(() => registerComposerFlush(composeIdRef.current, () => (
+    latestRef.current.needsSave && !sendingRef.current ? saveDraftRef.current({ live: true }) : undefined
+  )), []);
 
   // Debounced autosave: two seconds after the last change, rate-limited to
   // one save per `autoSaveDraftInterval`.
