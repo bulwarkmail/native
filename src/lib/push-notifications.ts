@@ -166,19 +166,22 @@ const ACCOUNT_REGISTRY_KEY = 'account-registry';
  * `pushWithoutContent`), from the policy the app cached for the login
  * (stores/policy-store.ts). `sessionAccounts` are the accounts of the
  * login's own JMAP session, for its group scopes; without them, every scope
- * that turns the rule on counts.
+ * that turns the rule on counts. The login's address is the name the session
+ * gives its own account (`ownAccountId`), as the webmail takes it, and the
+ * registry's only when the session names none.
  *
  *  - No policy cached for the login (signed in to the mail server directly,
  *    or never answered by its webmail): off.
  *  - A policy cache that can't be read or parsed: on, unless the login
  *    signed in to the mail server directly.
- *  - A public answer (no token, or a refused one) carries no organisation
- *    settings: the rule a full policy turned on is kept with it
- *    (CachedPolicy.pushWithoutContent).
+ *  - An answer without the organisation part (the public subset for no
+ *    token or a refused one, or anything else) keeps the rule a full policy
+ *    turned on (CachedPolicy.pushWithoutContent).
  */
 export async function pushWithoutContentFor(
   accountId: string,
   sessionAccounts: Record<string, { name?: unknown; isPersonal?: unknown }> | null | undefined,
+  ownAccountId?: string | null,
 ): Promise<boolean> {
   type RegistryEntry = { id?: unknown; username?: unknown; email?: unknown; webmailUrl?: unknown };
   let account: RegistryEntry | undefined;
@@ -206,9 +209,12 @@ export async function pushWithoutContentFor(
   if (cached.pushWithoutContent === true) return true;
   const policy = sanitizePolicy(cached.policy);
   if (!policy) return true;
-  const email = typeof account?.email === 'string' && account.email
-    ? account.email
-    : typeof account?.username === 'string' ? account.username : '';
+  const own = ownAccountId ? sessionAccounts?.[ownAccountId]?.name : undefined;
+  const email = typeof own === 'string' && own.includes('@')
+    ? own
+    : typeof account?.email === 'string' && account.email
+      ? account.email
+      : typeof account?.username === 'string' ? account.username : '';
   const subject = sessionAccounts && email ? policySubjectFromSession(email, sessionAccounts) : null;
   return pushWithoutContent(policy, subject);
 }
@@ -1133,7 +1139,7 @@ export async function shareAccountWithExtension(
     return;
   }
   if (!apiUrl) return;
-  const withoutContent = await pushWithoutContentFor(accountId, session?.accounts);
+  const withoutContent = await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId);
   await writeIosPushAccount(jmapAccountId, {
     credentialsKey: credentialsKey(accountId),
     apiUrl,

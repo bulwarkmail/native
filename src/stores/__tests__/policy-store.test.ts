@@ -295,6 +295,39 @@ describe('the notification rule pushWithoutContent', () => {
     expect(usePolicyStore.getState().byAccount[ADA]).toMatchObject({ partial: true });
     expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
   });
+
+  it('holds when an answer without the public marker leaves out the organisation part', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    // A proxy or maintenance page answering 200 with JSON, or a policy without organisation settings.
+    for (const answer of [{}, { restrictions: {}, features: {} }, { ...withRule(true), organisation: null }]) {
+      policies[WEBMAIL] = answer;
+      await usePolicyStore.getState().refresh(ADA);
+      expect(usePolicyStore.getState().byAccount[ADA], JSON.stringify(answer)).toMatchObject({ partial: false, pushWithoutContent: true });
+    }
+    // A full answer, with the organisation part, decides.
+    policies[WEBMAIL] = withRule(false);
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('scopes by the address the session names when the registry holds only a user name', async () => {
+    useAccountStore.getState().updateAccount(ADA, { email: 'ada' });
+    client.currentSession = {
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'a1' },
+      accounts: { a1: { name: 'ada@example.com', isPersonal: true } },
+    };
+    policies[WEBMAIL] = {
+      ...withRule(false),
+      scopes: [{ id: 'd', match: { domains: ['example.com'] }, policy: { organisation: { devices: { pushWithoutContent: true } } } }],
+    };
+    await usePolicyStore.getState().refresh(ADA);
+    publicScope = true;
+    policies[WEBMAIL] = { restrictions: {}, features: {}, defaults: {}, themePolicy: {} };
+    await usePolicyStore.getState().refresh(ADA);
+    // The full policy turned the rule on for example.com, so the public answer keeps it.
+    expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBe(true);
+  });
 });
 
 describe('settingKeyFor', () => {

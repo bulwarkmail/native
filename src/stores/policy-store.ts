@@ -13,6 +13,7 @@ import {
 import { useToastStore } from './toast-store';
 import { useLocaleStore } from './locale-store';
 import { jmapClient } from '../api/jmap-client';
+import { CAPABILITIES } from '../api/types';
 import { fetchWithoutForeignRedirect } from '../lib/client-cert';
 import { isLoopbackHttp } from '../lib/oauth';
 import {
@@ -54,8 +55,8 @@ export interface CachedPolicy {
   links?: WebmailLinks;
   /**
    * The rule pushWithoutContent, kept from the last full policy for the
-   * account while the webmail answers with the public subset (which carries
-   * no organisation settings): only a full policy turns it off again.
+   * account while the webmail answers without the organisation part (the
+   * public subset, or anything else): only a full policy turns it off again.
    */
   pushWithoutContent?: true;
 }
@@ -121,8 +122,11 @@ function sameClientAccount(account: AccountEntry): boolean {
  * not personal, named by an address).
  */
 export function policySubjectFor(account: AccountEntry): PolicySubject {
-  const email = (account.email || account.username).trim().toLowerCase();
   const session = sameClientAccount(account) ? jmapClient.currentSession : null;
+  // The address the session names for the login's own account, as the
+  // webmail takes it; the registry may hold a user name without a domain.
+  const own = session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
+  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
   const groups = session
     ? Object.values(session.accounts)
       .filter((info) => !info.isPersonal && info.name.includes('@'))
@@ -130,6 +134,11 @@ export function policySubjectFor(account: AccountEntry): PolicySubject {
       .sort()
     : [];
   return { email, groups };
+}
+
+/** Whether a policy answer is a full one: not the public subset, and with the organisation part. */
+function carriesOrganisation(answer: { policy: OrgPolicy; partial: boolean }): boolean {
+  return !answer.partial && !!answer.policy.organisation && typeof answer.policy.organisation === 'object';
 }
 
 function isSecureUrl(url: string): boolean {
@@ -280,10 +289,12 @@ export const usePolicyStore = create<PolicyState>()(
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
           const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
-          // The public subset says nothing about the organisation's rules.
-          const holdsPushRule = !!fetched?.partial && previous?.webmailUrl === webmailUrl && (
+          // Only a full answer, one that carries the organisation part, says
+          // what the organisation's rules are; the public subset, or any other
+          // answer without that part, leaves the stored rule as it is.
+          const holdsPushRule = !!fetched && !carriesOrganisation(fetched) && previous?.webmailUrl === webmailUrl && (
             previous.pushWithoutContent === true
-            || (!previous.partial && pushWithoutContent(previous.policy, policySubjectFor(account)))
+            || (carriesOrganisation(previous) && pushWithoutContent(previous.policy, policySubjectFor(account)))
           );
           set({
             ...(fetched ? {

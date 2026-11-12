@@ -601,7 +601,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
   const alreadyNotified = await readNotifiedIds(accountId);
   // The login's organisation wants notifications that say only that there
   // is new mail: sender, subject and preview are not even fetched.
-  const withoutContent = await pushWithoutContentFor(accountId, session.accounts);
+  const withoutContent = await pushWithoutContentFor(accountId, session.accounts, session.jmapAccountId);
   if (withoutContent) await clearShownMessageNotifications(alreadyNotified);
   const properties = withoutContent ? CONTENT_FREE_EMAIL_PROPERTIES : EMAIL_PROPERTIES;
   let candidates: Email[];

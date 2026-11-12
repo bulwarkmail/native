@@ -110,6 +110,20 @@ describe('what the app tells the iOS notification extension about devices.pushWi
     expect(sharedEntry()?.withoutContent).toBe(true);
   });
 
+  it('applies a domain scope by the address the session names, with only a user name in the registry', async () => {
+    await seedPolicy(false);
+    const raw = JSON.parse((await AsyncStorage.getItem('org-policy-cache'))!);
+    raw.state.byAccount[LOCAL].policy.scopes = [{
+      id: 'corp', match: { domains: ['corp.example'] }, policy: { organisation: { devices: { pushWithoutContent: true } } },
+    }];
+    await AsyncStorage.setItem('org-policy-cache', JSON.stringify(raw));
+    // The registry entry (seedPolicy) has the user name 'alice' and no address.
+    await shareAccountWithExtension(LOCAL, 'jmap-primary', API, 'alice', {
+      accounts: { 'jmap-primary': { name: 'alice@corp.example', isPersonal: true } } as never,
+    });
+    expect(sharedEntry()?.withoutContent).toBe(true);
+  });
+
   it('keeps the mark while the webmail answers with the public part', async () => {
     await seedPolicy(false);
     const raw = JSON.parse((await AsyncStorage.getItem('org-policy-cache'))!);
