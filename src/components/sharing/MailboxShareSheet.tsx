@@ -8,6 +8,8 @@ import { useColors } from '../../theme/colors';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { ShareCollectionSheet, type ShareableCollection, type SharePreset } from './ShareCollectionSheet';
 import { mailboxShareRef } from '../../lib/mailbox-share';
+import { usePolicyStore } from '../../stores/policy-store';
+import { allowedMailboxPresets } from '../../lib/delegation/share-presets';
 
 interface MailboxShareSheetProps {
   /** Null hides the sheet. */
@@ -53,12 +55,17 @@ export function MailboxShareSheet({ mailbox, name, onClose }: MailboxShareSheetP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mailbox]);
 
+  // The admin's `sharingRights`: without write, only the read preset.
+  const allowedValues = usePolicyStore((s) => s.effective?.restrictions.sharingRights?.allowedValues);
   // The webmail's folder presets: no free/busy for mail.
-  const presets = React.useMemo<SharePreset<ShareMailboxRights>[]>(() => [
-    { key: 'read', label: t('sharing.preset.read', 'Read only'), rights: MAILBOX_PRESETS.read },
-    { key: 'readWrite', label: t('sharing.preset.readWrite', 'Read & write'), rights: MAILBOX_PRESETS.readWrite },
-    { key: 'manager', label: t('sharing.preset.manager', 'Manager'), rights: MAILBOX_PRESETS.manager },
-  ], [t]);
+  const presets = React.useMemo<SharePreset<ShareMailboxRights>[]>(() => {
+    const allowed: string[] = allowedMailboxPresets(allowedValues);
+    return [
+      { key: 'read', label: t('sharing.preset.read', 'Read only'), rights: MAILBOX_PRESETS.read },
+      { key: 'readWrite', label: t('sharing.preset.readWrite', 'Read & write'), rights: MAILBOX_PRESETS.readWrite },
+      { key: 'manager', label: t('sharing.preset.manager', 'Manager'), rights: MAILBOX_PRESETS.manager },
+    ].filter((preset) => allowed.includes(preset.key));
+  }, [t, allowedValues]);
 
   if (!mailbox) return null;
 
