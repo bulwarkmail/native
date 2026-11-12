@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState, useWindowDimensions,
+  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDensity, useTypography } from '../theme/dynamic';
@@ -40,7 +40,7 @@ import { describeSenderVerification, senderWarningOf } from '../lib/email-header
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import { useInternalMailDomains } from '../lib/avatar-internal-domains';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
-import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
+import { useMailLayout } from '../lib/use-mail-layout';
 import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -93,11 +93,10 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const locale = useLocaleStore((s) => s.locale);
-  const windowLayout = useLayout();
-  const layout = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
-  const { width } = useWindowDimensions();
-  // On a wide window a message opens next to the list, as in the Mail tab (#97).
-  const pane = useMessagePane(navigation, layout.isSplit, windowLayout.isSplit);
+  // On a wide window a message opens next to the list, as in the Mail tab
+  // (#97), when the reader keeps its minimum width there (#104).
+  const layout = useMailLayout(false);
+  const pane = useMessagePane(navigation, layout.isSplit, layout.windowIsSplit);
   const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);
@@ -733,15 +732,15 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   if (!layout.isSplit) {
     return (
-      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']} onLayout={layout.onLayout}>
         {listColumn}
       </SafeAreaView>
     );
   }
   // The viewer keeps clear of the top and right edges itself.
   return (
-    <View style={[styles.container, styles.split]}>
-      <SafeAreaView style={[styles.listPane, { width: listPaneWidth(width) }]} edges={['top', 'left']}>
+    <View style={[styles.container, styles.split]} onLayout={layout.onLayout}>
+      <SafeAreaView style={[styles.listPane, { width: layout.listWidth + insets.left }]} edges={['top', 'left']}>
         {listColumn}
       </SafeAreaView>
       <View style={styles.detailPane}>

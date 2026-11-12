@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
 import { BookUser } from '../components/icons';
 
@@ -8,7 +8,7 @@ import ContactDetailScreen from './ContactDetailScreen';
 import GroupDetailScreen from './GroupDetailScreen';
 import type { ContactCard } from '../api/types';
 import { isGroup } from '../lib/contact-utils';
-import { listPaneWidth, useLayout } from '../lib/use-layout';
+import { paneLayoutFor, usePaneArea } from '../lib/use-layout';
 import { PaneScreen, type PaneTarget } from '../navigation/pane';
 import { useLocaleStore } from '../stores/locale-store';
 import { useColors } from '../theme/colors';
@@ -33,8 +33,10 @@ export default function ContactsTab() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
-  const { isSplit } = useLayout();
-  const { width } = useWindowDimensions();
+  // List and contact side by side when the contact keeps its minimum width
+  // next to the tab rail and the list (#104).
+  const area = usePaneArea(true);
+  const { isSplit, listWidth } = paneLayoutFor(area.window, area.contentWidth);
   const [open, setOpen] = React.useState<Open | null>(null);
 
   // Narrowed with a contact open: hand it to the stack.
@@ -55,15 +57,18 @@ export default function ContactsTab() {
   }, []);
   const onClose = React.useCallback(() => setOpen(null), []);
 
-  if (!isSplit) return <ContactsScreen />;
-
   const activeId = open ? ('contactId' in open.params ? open.params.contactId : open.params.groupId) : null;
+  // One tree for both layouts: the list stays mounted when the split comes
+  // or goes, and the row measures the room it has.
   return (
-    <View style={styles.row}>
-      <View style={[styles.listPane, { width: listPaneWidth(width) }]}>
-        <ContactsScreen onOpenContact={(contact) => setOpen(openFor(contact))} activeContactId={activeId} />
+    <View style={styles.row} onLayout={area.onLayout}>
+      <View style={isSplit ? [styles.listPane, { width: listWidth }] : styles.singlePane}>
+        <ContactsScreen
+          onOpenContact={isSplit ? (contact) => setOpen(openFor(contact)) : undefined}
+          activeContactId={isSplit ? activeId : undefined}
+        />
       </View>
-      <View style={styles.detailPane}>
+      {isSplit && <View style={styles.detailPane}>
         {open ? (
           <PaneScreen
             key={activeId ?? undefined}
@@ -81,7 +86,7 @@ export default function ContactsTab() {
             <Text style={styles.emptyText}>{t('contacts.detail.no_contact_selected', 'Select a contact to view details')}</Text>
           </View>
         )}
-      </View>
+      </View>}
     </View>
   );
 }
@@ -90,6 +95,7 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
+    singlePane: { flex: 1 },
     detailPane: { flex: 1 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
     emptyText: { ...typography.body, color: c.textMuted, textAlign: 'center' },

@@ -8,15 +8,17 @@ import path from 'node:path';
 // lib/__tests__/use-layout.test.ts.
 
 const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', '..', rel), 'utf8');
-const MAIL_LAYOUT = /mailLayoutFor\((useLayout\(\)|windowLayout), useSettingsStore\(\(s\) => s\.readingPane\)\)/;
+const MAIL_LAYOUT = /const layout = useMailLayout\((true|false)\);/;
 
 describe('reading pane setting wiring', () => {
   it('drives the Mail tab, the unified views and the mail list', () => {
     expect(read('screens/MailTab.tsx')).toMatch(MAIL_LAYOUT);
     expect(read('screens/UnifiedInboxScreen.tsx')).toMatch(MAIL_LAYOUT);
-    // The list places its undo bar by the same layout...
+    expect(read('lib/use-mail-layout.ts')).toMatch(/const layout = mailLayoutFor\(window, readingPane, contentWidth\);/);
+    // The list places its undo bar by the same layout, which the tab hands it...
+    expect(read('screens/MailTab.tsx')).toMatch(/split=\{layout\.isSplit\}/);
     const list = read('screens/EmailListScreen.tsx');
-    expect(list).toMatch(MAIL_LAYOUT);
+    expect(list).toMatch(/split: isSplit = false,/);
     // ...but reports its column to the push prompt by the window, which the
     // prompt goes by: else the prompt drops to the corner over the reader.
     expect(list).toMatch(/if \(!windowLayout\.isSplit \|\| !isFocused\) \{\s+setPromptListColumn\(null\);/);
@@ -24,7 +26,7 @@ describe('reading pane setting wiring', () => {
 
   it('lets the open message go when only the setting turned the split off', () => {
     for (const screen of ['screens/MailTab.tsx', 'screens/UnifiedInboxScreen.tsx']) {
-      expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, windowLayout\.isSplit\)/);
+      expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, layout\.windowIsSplit\)/);
     }
     expect(read('lib/use-message-pane.ts')).toMatch(/if \(!windowIsSplit\) navigation\.navigate\('EmailThread', openRef\.current\.params\);\s+close\(\);/);
   });

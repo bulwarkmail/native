@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ReadingPane } from '../stores/settings-store';
 
@@ -33,15 +33,6 @@ export function layoutFor(width: number, height: number): Layout {
   return { widthClass, shortHeight, isSplit, hasSidebar: isSplit && widthClass === 'expanded' };
 }
 
-/**
- * The layout of the mail list and reader: with the reading pane off (#93)
- * they keep the phone's single pane, and the folder list its drawer, at any
- * width. The rest of the app (tab rail, contacts, files) follows the window.
- */
-export function mailLayoutFor(layout: Layout, readingPane: ReadingPane): Layout {
-  return readingPane === 'off' ? { ...layout, isSplit: false, hasSidebar: false } : layout;
-}
-
 export function useLayout(): Layout {
   const { width, height } = useWindowDimensions();
   return layoutFor(width, height);
@@ -53,6 +44,118 @@ export function useLayout(): Layout {
  */
 export function listPaneWidth(windowWidth: number): number {
   return Math.round(Math.max(320, Math.min(420, windowWidth * 0.34)));
+}
+
+/**
+ * The tab rail of a split window (App.tsx: icon over label, 12 dp padding on
+ * each side). Its width follows the longest tab label; 86 dp is the English
+ * one measured on a device (#104).
+ */
+export const TAB_RAIL_WIDTH = 86;
+/** The folder list docked next to the mail list (SidebarDrawer; the webmail's default sidebar is 256 px). */
+export const DOCKED_SIDEBAR_WIDTH = 272;
+/** Below this the message or contact next to the list is too narrow to read: one pane instead. */
+export const DETAIL_PANE_MIN = 360;
+/** The list gives way to the detail pane down to this width. */
+export const LIST_PANE_MIN = 280;
+
+/**
+ * Width left for a screen's own content, until the screen has measured
+ * itself: the window less its side safe-area insets and, on a tab screen of a
+ * split window, the tab rail.
+ */
+export function contentWidthFor(
+  width: number,
+  layout: Layout,
+  insets: { left: number; right: number },
+  tabRail: boolean,
+): number {
+  return width - insets.left - insets.right - (tabRail && layout.isSplit ? TAB_RAIL_WIDTH : 0);
+}
+
+/**
+ * Content width from a screen's measured root: a tab screen of a split
+ * window starts right of the rail (which keeps clear of the left inset), a
+ * stack screen at the window's edge.
+ */
+export function measuredContentWidth(
+  rootWidth: number,
+  layout: Layout,
+  insets: { left: number; right: number },
+  tabRail: boolean,
+): number {
+  return rootWidth - insets.right - (tabRail && layout.isSplit ? 0 : insets.left);
+}
+
+/** A list-detail layout with its pane widths. */
+export interface PaneLayout extends Layout {
+  /** The list column: the whole content width on one pane. */
+  listWidth: number;
+  /** The detail pane next to the list, 0 on one pane. */
+  detailWidth: number;
+}
+
+function listWidthBeside(available: number): number {
+  return Math.max(LIST_PANE_MIN, Math.min(listPaneWidth(available), available - DETAIL_PANE_MIN));
+}
+
+/**
+ * List and detail for a content area `contentWidth` wide (#104). The window
+ * class only allows the split and the docked sidebar; they are used when the
+ * detail pane keeps DETAIL_PANE_MIN. The list shrinks towards LIST_PANE_MIN
+ * first, as the Files list does (lib/files-split), then the sidebar goes back
+ * into its drawer, and below that the screen keeps one pane, as on a phone.
+ */
+export function paneLayoutFor(layout: Layout, contentWidth: number): PaneLayout {
+  if (layout.isSplit) {
+    for (const sidebar of layout.hasSidebar ? [true, false] : [false]) {
+      const available = contentWidth - (sidebar ? DOCKED_SIDEBAR_WIDTH : 0);
+      const listWidth = listWidthBeside(available);
+      if (available - listWidth >= DETAIL_PANE_MIN) {
+        return { ...layout, hasSidebar: sidebar, listWidth, detailWidth: available - listWidth };
+      }
+    }
+  }
+  return { ...layout, isSplit: false, hasSidebar: false, listWidth: contentWidth, detailWidth: 0 };
+}
+
+/**
+ * The layout of the mail list and reader: with the reading pane off (#93)
+ * they keep the phone's single pane, and the folder list its drawer, at any
+ * width. The rest of the app (tab rail, contacts, files) follows the window.
+ */
+export function mailLayoutFor(layout: Layout, readingPane: ReadingPane, contentWidth: number): PaneLayout {
+  return paneLayoutFor(readingPane === 'off' ? { ...layout, isSplit: false, hasSidebar: false } : layout, contentWidth);
+}
+
+/** The window's layout and the width a list-detail screen has for its panes. */
+export interface PaneArea {
+  window: Layout;
+  contentWidth: number;
+  /** For the screen's root view: replaces the estimate by the measured width. */
+  onLayout: (e: LayoutChangeEvent) => void;
+}
+
+/**
+ * The room of a list-detail screen, a tab screen (`tabRail`) or a stack
+ * screen. The first frames go by an estimate (the rail's width depends on
+ * the longest tab label); once the root view has been laid out, by its
+ * measured width, until the window changes again.
+ */
+export function usePaneArea(tabRail: boolean): PaneArea {
+  const { width, height } = useWindowDimensions();
+  const { left, right } = useSafeAreaInsets();
+  const window = layoutFor(width, height);
+  const [measured, setMeasured] = React.useState<{ root: number; window: number } | null>(null);
+  const onLayout = React.useCallback((e: LayoutChangeEvent) => {
+    const root = Math.round(e.nativeEvent.layout.width);
+    setMeasured((m) => (m && m.root === root && m.window === width ? m : { root, window: width }));
+  }, [width]);
+  const insets = { left, right };
+  const contentWidth = measured && measured.window === width
+    ? measuredContentWidth(measured.root, window, insets, tabRail)
+    : contentWidthFor(width, window, insets, tabRail);
+  return { window, contentWidth, onLayout };
 }
 
 /** Width for sheets, dialogs and floating cards that would span a wide window. */

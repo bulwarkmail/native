@@ -52,7 +52,7 @@ import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
-import { mailLayoutFor, useLayout } from '../lib/use-layout';
+import { useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
@@ -494,6 +494,8 @@ interface EmailListScreenProps {
   activeRowKey?: string | null;
   /** The folder list is a permanent sidebar: no menu button, no drawer. */
   sidebarDocked?: boolean;
+  /** A reader pane next to the list (MailTab's useMailLayout). */
+  split?: boolean;
 }
 
 export default function EmailListScreen({
@@ -501,6 +503,7 @@ export default function EmailListScreen({
   onComposePress,
   activeRowKey = null,
   sidebarDocked = false,
+  split: isSplit = false,
 }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -513,7 +516,7 @@ export default function EmailListScreen({
   // The undo bar floats over the list's bottom right on a phone (on a split
   // layout it sits over the reading pane instead).
   const windowLayout = useLayout();
-  const { isSplit, shortHeight, widthClass } = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
+  const { shortHeight, widthClass } = windowLayout;
   // In a split view the push prompt floats in this column, not over the
   // reader's quick reply (lib/push-prompt-frame). The prompt goes by the
   // window, so the column is reported with the reading pane off too (#93).
