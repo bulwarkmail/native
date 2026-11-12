@@ -249,7 +249,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: always inserts the identity's signature (`src/screens/ComposeScreen.tsx:1386`); no such settings (`src/stores/settings-store.ts`).
   - Fix hint: two settings on the Composing page and a check before placing the signature.
 
-- [ ] **A message can't be saved as a template from the composer** — `P3` — `missing`
+- [x] **A message can't be saved as a template from the composer** — `P3` — `missing` — fixed in 0fda58fd
   - What WEB does: saves the open message as a template with just a name, HTML kept as HTML (`components/templates/quick-save-template-dialog.tsx`, `components/email/email-composer.tsx:6696`). Changelog 1.21.0 and 1.20.0 (#1506).
   - What RN does: templates are made only in Settings (`src/components/settings/TemplateSettings.tsx:33`, `:106`); the composer only inserts them.
   - Fix hint: a "Save as template" entry in the composer options that asks for a name and calls addTemplate.
