@@ -1138,6 +1138,12 @@
         "star": "Destacar",
         "tag": "Etiqueta"
       },
+      "reading_pane": {
+        "auto": "Junto a la lista cuando hay espacio",
+        "description": "En una tableta o un plegable abierto, muestra el mensaje abierto junto a la lista de correo. Solo en este dispositivo.",
+        "label": "Panel de lectura",
+        "off": "Desactivado: los mensajes se abren a pantalla completa"
+      },
       "show_avatars_in_junk": "Mostrar avatares de remitentes en Correo no deseado",
       "show_avatars_in_junk_description": "Carga los logotipos de los remitentes de los mensajes de Correo no deseado. Desactivado, evita que se contacte con los remitentes de spam.",
       "show_folder_total_count": "Mostrar el número total de mensajes en las carpetas",

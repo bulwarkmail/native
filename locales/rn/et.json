@@ -872,6 +872,12 @@
         "star": "Tähista",
         "tag": "Silt"
       },
+      "reading_pane": {
+        "auto": "Loendi kõrval, kui ruumi on",
+        "description": "Tahvelarvutis või avatud volditavas telefonis näidatakse avatud kirja kirjade loendi kõrval. Ainult selles seadmes.",
+        "label": "Lugemispaan",
+        "off": "Väljas: kirjad avanevad täisekraanil"
+      },
       "show_avatars_in_junk": "Näita rämpsposti kaustas saatjate avatare",
       "show_avatars_in_junk_description": "Laadi rämpsposti kausta kirjade saatjate logod. Väljalülitatuna ei võeta rämpsposti saatjatega ühendust.",
       "show_folder_total_count": "Näita kaustadel kirjade koguarvu",

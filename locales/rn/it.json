@@ -1134,6 +1134,12 @@
         "star": "Aggiungi stella",
         "tag": "Etichetta"
       },
+      "reading_pane": {
+        "auto": "Accanto all'elenco quando c'è spazio",
+        "description": "Su un tablet o un pieghevole aperto, mostra il messaggio aperto accanto all'elenco della posta. Solo su questo dispositivo.",
+        "label": "Riquadro di lettura",
+        "off": "Disattivato: i messaggi si aprono a schermo intero"
+      },
       "show_avatars_in_junk": "Mostra gli avatar dei mittenti in Posta indesiderata",
       "show_avatars_in_junk_description": "Carica i loghi dei mittenti per i messaggi nella cartella Posta indesiderata. Se disattivato, i mittenti di spam non vengono contattati.",
       "show_folder_total_count": "Mostra il numero totale di messaggi nelle cartelle",

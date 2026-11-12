@@ -1129,6 +1129,12 @@
         "star": "Stjerne",
         "tag": "Etikett"
       },
+      "reading_pane": {
+        "auto": "Ved siden av listen når det er plass",
+        "description": "På et nettbrett eller en utbrettet sammenleggbar telefon vises den åpne meldingen ved siden av e-postlisten. Bare på denne enheten.",
+        "label": "Leserute",
+        "off": "Av: meldinger åpnes i fullskjerm"
+      },
       "show_avatars_in_junk": "Vis avsenderavatarer i søppelpost",
       "show_avatars_in_junk_description": "Last inn avsenderlogoer for meldinger i søppelpostmappen. Når dette er av, kontaktes ikke avsendere av søppelpost.",
       "show_folder_total_count": "Vis totalt antall meldinger for mapper",

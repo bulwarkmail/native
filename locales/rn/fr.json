@@ -1136,6 +1136,12 @@
         "star": "Favori",
         "tag": "Étiquette"
       },
+      "reading_pane": {
+        "auto": "À côté de la liste quand il y a de la place",
+        "description": "Sur une tablette ou un pliable ouvert, affiche le message ouvert à côté de la liste des e-mails. Sur cet appareil uniquement.",
+        "label": "Volet de lecture",
+        "off": "Désactivé : les messages s’ouvrent en plein écran"
+      },
       "show_avatars_in_junk": "Afficher les avatars des expéditeurs dans Indésirables",
       "show_avatars_in_junk_description": "Charger les logos des expéditeurs pour les messages du dossier Indésirables. Désactivé, les expéditeurs de spam ne sont pas contactés.",
       "show_folder_total_count": "Afficher le nombre total de messages des dossiers",

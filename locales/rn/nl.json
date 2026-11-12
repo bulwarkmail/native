@@ -1132,6 +1132,12 @@
         "star": "Ster",
         "tag": "Label"
       },
+      "reading_pane": {
+        "auto": "Naast de lijst als er ruimte is",
+        "description": "Op een tablet of een opengevouwen vouwbare telefoon staat het geopende bericht naast de e-maillijst. Alleen op dit apparaat.",
+        "label": "Leesvenster",
+        "off": "Uit: berichten openen schermvullend"
+      },
       "show_avatars_in_junk": "Afzenderavatars tonen in Spam",
       "show_avatars_in_junk_description": "Afzenderlogo's laden voor berichten in de map Spam. Uit voorkomt dat er contact wordt gelegd met spamafzenders.",
       "show_folder_total_count": "Totaal aantal berichten bij mappen tonen",

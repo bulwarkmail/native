@@ -1131,6 +1131,12 @@
         "star": "Označiť hviezdičkou",
         "tag": "Štítok"
       },
+      "reading_pane": {
+        "auto": "Vedľa zoznamu, keď je miesto",
+        "description": "Na tablete alebo rozloženom skladacom telefóne zobrazí otvorenú správu vedľa zoznamu pošty. Len na tomto zariadení.",
+        "label": "Tabla na čítanie",
+        "off": "Vypnuté: správy sa otvárajú na celú obrazovku"
+      },
       "show_avatars_in_junk": "Zobrazovať avatary odosielateľov v spame",
       "show_avatars_in_junk_description": "Načítavať logá odosielateľov pri správach v priečinku Spam. Vypnuté zabráni kontaktovaniu odosielateľov spamu.",
       "show_folder_total_count": "Zobrazovať celkový počet správ pri priečinkoch",

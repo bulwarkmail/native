@@ -1142,6 +1142,12 @@
         "star": "Stern",
         "tag": "Label"
       },
+      "reading_pane": {
+        "auto": "Neben der Liste, wenn Platz ist",
+        "description": "Auf einem Tablet oder einem aufgeklappten Foldable die geöffnete Nachricht neben der Nachrichtenliste anzeigen. Nur auf diesem Gerät.",
+        "label": "Lesebereich",
+        "off": "Aus: Nachrichten öffnen im Vollbild"
+      },
       "show_avatars_in_junk": "Absender-Avatare im Spam-Ordner anzeigen",
       "show_avatars_in_junk_description": "Absenderlogos für Nachrichten im Spam-Ordner laden. Wenn deaktiviert, werden Spam-Absender nicht kontaktiert.",
       "show_folder_total_count": "Gesamtzahl der Nachrichten bei Ordnern anzeigen",

@@ -1131,6 +1131,12 @@
         "star": "星號",
         "tag": "標籤"
       },
+      "reading_pane": {
+        "auto": "有空間時顯示在清單旁邊",
+        "description": "在平板電腦或展開的折疊式裝置上，將開啟的郵件顯示在郵件清單旁邊。僅限此裝置。",
+        "label": "閱讀窗格",
+        "off": "關閉：郵件以全螢幕開啟"
+      },
       "show_avatars_in_junk": "在垃圾郵件中顯示寄件者頭像",
       "show_avatars_in_junk_description": "為垃圾郵件信件匣中的郵件載入寄件者標誌。關閉後可避免連線至垃圾郵件寄件者的伺服器。",
       "show_folder_total_count": "在信件匣上顯示郵件總數",

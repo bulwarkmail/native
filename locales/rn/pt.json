@@ -1135,6 +1135,12 @@
         "star": "Adicionar estrela",
         "tag": "Etiqueta"
       },
+      "reading_pane": {
+        "auto": "Ao lado da lista quando há espaço",
+        "description": "Num tablet ou num dobrável aberto, mostra a mensagem aberta ao lado da lista de correio. Apenas neste dispositivo.",
+        "label": "Painel de leitura",
+        "off": "Desativado: as mensagens abrem em ecrã inteiro"
+      },
       "show_avatars_in_junk": "Mostrar avatares dos remetentes no Spam",
       "show_avatars_in_junk_description": "Carrega os logotipos dos remetentes das mensagens na pasta Spam. Desativado, evita que remetentes de spam sejam contatados.",
       "show_folder_total_count": "Mostrar total de mensagens nas pastas",

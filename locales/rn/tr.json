@@ -1133,6 +1133,12 @@
         "star": "Yıldızla",
         "tag": "Etiket"
       },
+      "reading_pane": {
+        "auto": "Yer olduğunda listenin yanında",
+        "description": "Tablette veya açık katlanabilir telefonda açık iletiyi posta listesinin yanında gösterir. Yalnızca bu cihazda.",
+        "label": "Okuma bölmesi",
+        "off": "Kapalı: iletiler tam ekran açılır"
+      },
       "show_avatars_in_junk": "İstem Dışı klasöründe gönderen avatarlarını göster",
       "show_avatars_in_junk_description": "İstem Dışı klasöründeki iletiler için gönderen logolarını yükle. Kapalıyken spam gönderenlerle bağlantı kurulmaz.",
       "show_folder_total_count": "Klasörlerde toplam ileti sayısını göster",

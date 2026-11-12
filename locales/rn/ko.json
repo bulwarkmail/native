@@ -1130,6 +1130,12 @@
         "star": "별표",
         "tag": "태그"
       },
+      "reading_pane": {
+        "auto": "공간이 있으면 목록 옆에 표시",
+        "description": "태블릿이나 펼친 폴더블 기기에서 열린 메시지를 메일 목록 옆에 표시합니다. 이 기기에만 적용됩니다.",
+        "label": "읽기 창",
+        "off": "끄기: 메시지를 전체 화면으로 열기"
+      },
       "show_avatars_in_junk": "스팸함에서 보낸 사람 아바타 표시",
       "show_avatars_in_junk_description": "스팸함에 있는 메시지의 보낸 사람 로고를 불러와요. 끄면 스팸 발신자 쪽으로 연결되지 않아요.",
       "show_folder_total_count": "폴더에 전체 메시지 수 표시",

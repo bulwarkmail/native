@@ -1132,6 +1132,12 @@
         "star": "Oznacz gwiazdką",
         "tag": "Etykieta"
       },
+      "reading_pane": {
+        "auto": "Obok listy, gdy jest miejsce",
+        "description": "Na tablecie lub rozłożonym składanym telefonie pokazuje otwartą wiadomość obok listy poczty. Tylko na tym urządzeniu.",
+        "label": "Okienko odczytu",
+        "off": "Wyłączone: wiadomości otwierają się na pełnym ekranie"
+      },
       "show_avatars_in_junk": "Pokazuj awatary nadawców w folderze spam",
       "show_avatars_in_junk_description": "Wczytuj logo nadawców dla wiadomości w folderze spam. Wyłączenie zapobiega kontaktowi z nadawcami spamu.",
       "show_folder_total_count": "Pokazuj łączną liczbę wiadomości w folderach",

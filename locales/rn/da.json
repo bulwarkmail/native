@@ -1129,6 +1129,12 @@
         "star": "Stjerne",
         "tag": "Tag"
       },
+      "reading_pane": {
+        "auto": "Ved siden af listen, når der er plads",
+        "description": "På en tablet eller en udfoldet foldbar telefon vises den åbne besked ved siden af maillisten. Kun på denne enhed.",
+        "label": "Læserude",
+        "off": "Fra: beskeder åbnes i fuld skærm"
+      },
       "show_avatars_in_junk": "Vis afsenderavatarer i spam",
       "show_avatars_in_junk_description": "Indlæs afsenderlogoer for beskeder i spam-mappen. Når det er slået fra, kontaktes spamafsendere ikke.",
       "show_folder_total_count": "Vis samlet antal beskeder ved mapper",

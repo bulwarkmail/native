@@ -1128,6 +1128,12 @@
         "star": "Csillagozás",
         "tag": "Címke"
       },
+      "reading_pane": {
+        "auto": "A lista mellett, ha van hely",
+        "description": "Táblagépen vagy kinyitott összehajtható telefonon a megnyitott üzenet a levéllista mellett jelenik meg. Csak ezen az eszközön.",
+        "label": "Olvasóablak",
+        "off": "Ki: az üzenetek teljes képernyőn nyílnak meg"
+      },
       "show_avatars_in_junk": "Feladói avatárok a Spam mappában",
       "show_avatars_in_junk_description": "Feladói logók betöltése a Spam mappában lévő üzenetekhez. Kikapcsolva a spamküldők nem kapnak jelzést rólad.",
       "show_folder_total_count": "Összes üzenet számának megjelenítése a mappáknál",
