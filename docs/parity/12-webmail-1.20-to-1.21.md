@@ -204,7 +204,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: the regexes only know `{{name}}` (`src/lib/template-utils.ts:19`, `src/lib/placeholder-check.ts:11`). Templates are shared with the webmail through account metadata (`src/stores/templates-store.ts:7-16`), so a webmail template with `{{checkin_time:15:00}}` inserted in the app gets no fill prompt (`src/screens/ComposeScreen.tsx:2399`) and the placeholder warning doesn't fire, so it goes out with the braces.
   - Fix hint: port both regexes and getPlaceholderDefaults; prefill the fill sheet with the default.
 
-- [ ] **No classification labels in the composer; mail goes out unlabelled where the organisation requires one** — `P2` — `missing`
+- [x] **No classification labels in the composer; mail goes out unlabelled where the organisation requires one** — `P2` — `missing` — fixed in 8cf942e4
   - What WEB does: admins define labels in the organisation policy; the composer has a label picker, sent mail carries SIO-Label, Sensitivity and a subject prefix, and a required label stops the send (`lib/outgoing/classification.ts:1-30`, `components/email/classification-label-picker.tsx`, `lib/classification/labels.ts:315`). Changelog 1.20.0 (Security: Classification labels).
   - What RN does: nothing; no label code in src. The app already reads the policy and keeps its `organisation` block (`src/lib/org-policy.ts:57`), which is where the labels live (`OrganisationPolicy['labels']`, `lib/classification/labels.ts:27`).
   - Fix hint: port lib/classification/labels.ts, add a label row to the composer options, apply headers and prefix in the send path, and refuse to send when a label is required and none is picked.
