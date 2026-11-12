@@ -124,6 +124,8 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.request_read_receipt',
     'settings.email_behavior.empty_subject_warning',
     'settings.email_behavior.placeholder_warning',
+    'settings.email_behavior.signature_new_mail',
+    'settings.email_behavior.signature_reply_forward',
     'settings.email_behavior.signature_separator',
     'settings.email_behavior.signature_position',
     'settings.email_behavior.send_delay',
@@ -188,6 +190,13 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.security.app_passwords.name_label',
     'settings.security.api_keys',
     'settings.security.email_client',
+    // The server names other mail apps need (the "Use your mail in other apps" panel).
+    'uxs_wording.mail_apps.imap',
+    'uxs_wording.mail_apps.smtp',
+    'uxs_wording.mail_apps.caldav',
+    'uxs_wording.mail_apps.carddav',
+    // The title only: the subtree holds the list's buttons and errors.
+    'settings.security.masked_addresses.title',
     'settings.security.public_keys',
     'settings.security.encryption.section_title',
     'settings.security.encryption.algorithm_label',
@@ -215,6 +224,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
   contacts: [
     'settings.contacts.group_by_letter_label',
     'settings.contacts.sort_by_last_name_label',
+    'settings.contacts.show_directory_label',
     'settings.contacts.import_label',
     'settings.contacts.export_label',
     'settings.contacts.manage_title',
@@ -294,10 +304,10 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   keywords: 'tags labels colors',
   downloads: 'download filename template eml attachment save export',
   encryption: 'pgp gpg openpgp s/mime smime certificate key sign signature encrypt decrypt p12 pfx keyserver',
-  security: 'password 2fa two-factor totp app password mfa api key certificate encryption screenshot screen recording recent apps privacy',
+  security: 'password 2fa two-factor totp app password mfa api key certificate encryption screenshot screen recording recent apps privacy masked alias hide address imap smtp caldav carddav thunderbird outlook server settings',
   content_senders: 'block sender remote images privacy tracking',
   calendar: `event schedule appointment meeting timezone${supportsDeviceSync ? ' android phone device sync' : ''}`,
-  contacts: `address book contact${supportsDeviceSync ? ' android phone device sync' : ''}`,
+  contacts: `address book contact directory colleagues${supportsDeviceSync ? ' android phone device sync' : ''}`,
   files: 'attachments cloud drive storage upload',
   sidebar_apps: 'apps webview iframe',
   about_data: 'export import backup offline cache storage reset',
@@ -402,8 +412,10 @@ function leafSubResultKeys(dict: Dictionary, path: string): SubResultKeys {
   const parentPath = path.slice(0, dot);
   const key = path.slice(dot + 1);
   const parent = getByPath(dict, parentPath) as Dictionary;
+  // A section's `intro` is the text under its title; where it has one, its
+  // `description` is a field label (masked addresses: "Description (optional)").
   const desc = LABEL_FIELDS.includes(key) || key === 'section_title'
-    ? DESCRIPTION_FIELDS.find((f) => typeof parent[f] === 'string')
+    ? ['intro', ...DESCRIPTION_FIELDS].find((f) => typeof parent[f] === 'string')
     : descriptionFor(parent, key.replace(/_(label|title)$/, ''));
   return { label: path, description: desc && `${parentPath}.${desc}` };
 }

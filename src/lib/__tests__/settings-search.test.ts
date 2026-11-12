@@ -76,7 +76,7 @@ describe('settings search index (English catalog)', () => {
   // Panes whose sub-result labels must be the keys the pane renders, so a
   // result never points at a setting the phone does not have. Panes that
   // still render literal English are left out.
-  const PANE_FILES: Partial<Record<SettingsTabId, string>> = {
+  const PANE_FILES: Partial<Record<SettingsTabId, string | string[]>> = {
     account: 'AccountSettings.tsx',
     language: 'LanguageSettings.tsx',
     notifications: 'NotificationSettings.tsx',
@@ -92,7 +92,7 @@ describe('settings search index (English catalog)', () => {
     folders: 'FolderSettings.tsx',
     keywords: 'KeywordSettings.tsx',
     downloads: 'DownloadsSettings.tsx',
-    security: 'AccountSecuritySettings.tsx',
+    security: ['AccountSecuritySettings.tsx', 'MaskedAddressesSection.tsx'],
     calendar: 'CalendarSettings.tsx',
     contacts: 'ContactsSettings.tsx',
     files: 'FilesSettings.tsx',
@@ -105,9 +105,12 @@ describe('settings search index (English catalog)', () => {
     recovery: 'RecoverDeletedSettings.tsx',
   };
 
-  for (const [tab, file] of Object.entries(PANE_FILES) as [SettingsTabId, string][]) {
-    it(`${tab}: every result is a setting ${file} renders`, () => {
-      const source = readFileSync(join(__dirname, '..', '..', 'components', 'settings', file), 'utf8');
+  for (const [tab, files] of Object.entries(PANE_FILES) as [SettingsTabId, string | string[]][]) {
+    const list = Array.isArray(files) ? files : [files];
+    it(`${tab}: every result is a setting ${list.join(' or ')} renders`, () => {
+      const source = list
+        .map((file) => readFileSync(join(__dirname, '..', '..', 'components', 'settings', file), 'utf8'))
+        .join('\n');
       const notRendered = collectTabKeys(en, tab).subResults
         .map((r) => r.label)
         .filter((key) => !source.includes(`'${key}'`));
@@ -128,6 +131,15 @@ describe('settings search index (English catalog)', () => {
     expect(labelsFor('composing')).toContain('Quick reply');
     expect(labelsFor('notifications')).toContain('Unread count on app icon');
     expect(labelsFor('security')).toContain('Block screenshots');
+    expect(labelsFor('security')).toContain('Masked addresses');
+    expect(labelsFor('security')).toContain('Incoming mail (IMAP)');
+    expect(labelsFor('contacts')).toContain('Show the directory');
+    expect(labelsFor('composing')).toContain('Signature on new mail');
+    expect(labelsFor('composing')).toContain('Signature on replies & forwards');
+    // A section title takes the section's intro, not its "Description" field label.
+    const index = buildSettingsSearchIndex(en, tEn);
+    expect(subResultsForQuery(index, 'security', 'masked')[0]?.description)
+      .toBe(tEn('settings.security.masked_addresses.intro'));
     // Webmail-only settings are not offered.
     expect(labelsFor('calendar')).not.toContain('Free scrolling');
     expect(labelsFor('notifications')).not.toContain('Notification sound');

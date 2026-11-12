@@ -256,7 +256,7 @@ export function MaskedAddressesSection() {
     <View style={{ gap: spacing.md }}>
       <View style={styles.headerRow}>
         <EyeOff size={16} color={c.mutedForeground} />
-        <Text style={styles.headerTitle}>{t(`${K}.title`, 'Masked addresses')}</Text>
+        <Text style={styles.headerTitle}>{t('settings.security.masked_addresses.title', 'Masked addresses')}</Text>
       </View>
       <Text style={styles.meta}>
         {t(`${K}.intro`, 'Receive mail without sharing your main address. Disabling an address rejects new mail to it. These addresses cannot be used to send mail.')}
