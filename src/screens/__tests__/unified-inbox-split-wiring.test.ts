@@ -45,5 +45,12 @@ describe('unified inbox split view wiring', () => {
   it('refreshes the rows quietly while a message is open in the pane', () => {
     expect(src).toMatch(/else if \(paneRef\.current\) void load\(\{ quiet: true \}\);/);
     expect(src).toMatch(/if \(!opts\?\.quiet\) setLoading\(true\);/);
+    // ...without dropping the pages loaded after the first.
+    expect(src).toMatch(/const limit = opts\?\.quiet \? Math\.max\(PAGE_SIZE, \.\.\.Object\.values\(positionsRef\.current\)\) : PAGE_SIZE;/);
+    expect(src).toMatch(/fetchUnifiedInbox\(accountIds, limit, \{ \.\.\.fetchOpts, positions: \{\} \}\)/);
+  });
+
+  it('moves on within the same account after a removal', () => {
+    expect(src).toMatch(/const next = rowAfterRemoval\(rows, current, rowKey, sameAccount\);/);
   });
 });

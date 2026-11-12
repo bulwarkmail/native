@@ -145,13 +145,16 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   }, []);
 
   // `quiet`: refresh the rows in place, without the pull-to-refresh spinner.
+  // A quiet refresh fetches as many rows of each account as are loaded, so a
+  // message open in the pane from a later page keeps its place.
   const load = React.useCallback(async (opts?: { quiet?: boolean }) => {
     const seq = ++loadSeq.current;
     const active = useAuthStore.getState().activeAccountId;
     reloadTracker.loaded([accountIds, fetchOpts], active, accountIds.some((id) => id !== active));
     if (!opts?.quiet) setLoading(true);
+    const limit = opts?.quiet ? Math.max(PAGE_SIZE, ...Object.values(positionsRef.current)) : PAGE_SIZE;
     try {
-      const result = await fetchUnifiedInbox(accountIds, PAGE_SIZE, { ...fetchOpts, positions: {} });
+      const result = await fetchUnifiedInbox(accountIds, limit, { ...fetchOpts, positions: {} });
       if (seq !== loadSeq.current) return;
       positionsRef.current = result.positions;
       hasMoreRef.current = result.hasMore;
@@ -280,17 +283,23 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const onOpen = (email: UnifiedEmail) => openRow(email, emails);
 
   // The message in the pane left the list (deleted, archived, moved, marked
-  // spam): drop its row and show the one that took its place.
+  // spam): drop its row and show the nearest one of the same account, as the
+  // viewer's Prev/Next do. Moving on to another account's message would switch
+  // the active account while the viewer's action may still be under way.
   const showNextAfterRemoval = React.useCallback(() => {
     const current = paneRef.current;
     if (!current) return;
     // A message the viewer opened itself is known only by its id, in the
     // active account.
     const active = useAuthStore.getState().activeAccountId;
-    const rows = emailsRef.current.filter((e) => rowKey(e) !== current.rowKey
-      && !(e.id === current.params.emailId && e.sourceAccountId === active));
+    const gone = (e: UnifiedEmail) => rowKey(e) === current.rowKey
+      || (e.id === current.params.emailId && e.sourceAccountId === active);
+    const removed = emailsRef.current.find(gone);
+    const rows = emailsRef.current.filter((e) => !gone(e));
     setEmails(rows);
-    const next = rowAfterRemoval(rows, current, rowKey);
+    const sameAccount = (e: UnifiedEmail) => e.sourceAccountId === active
+      && (!removed || e.jmapAccountId === removed.jmapAccountId);
+    const next = rowAfterRemoval(rows, current, rowKey, sameAccount);
     if (next) openRow(next, rows);
     else closePane();
   }, [paneRef, openRow, closePane]);
