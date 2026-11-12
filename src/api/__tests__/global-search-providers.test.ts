@@ -23,7 +23,7 @@ vi.mock('../../stores/email-store', () => ({ useEmailStore: { getState: () => ({
 vi.mock('../../stores/contacts-store', () => ({ useContactsStore: { getState: () => ({ contacts: [], addressBooks: [] }) } }));
 vi.mock('../../stores/calendar-store', () => ({ useCalendarStore: { getState: () => ({ events: [], calendars: [] }) } }));
 
-import { accountsFor, mailProvider, contactsProvider, resetGlobalSearchCache } from '../global-search';
+import { accountsFor, mailProvider, contactsProvider, calendarProvider, resetGlobalSearchCache } from '../global-search';
 import { parseSearchQuery } from '../../lib/global-search/query-parser';
 import { generateAccountId } from '../../lib/account-utils';
 import type { JMAPSession } from '../types';
@@ -99,5 +99,64 @@ describe('contact search of the signed-in login', () => {
     expect(client.request.mock.calls[0][0][0]).toEqual(['ContactCard/query', { accountId: 'own', filter: { text: 'anna' }, limit: 11 }, 'q']);
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({ kind: 'contacts', id: 'c1', storeId: 'c1', subtitle: 'Personal · anna@x.example' });
+  });
+});
+
+// Stalwart 0.16 can keep listing an account in the session after the share
+// that put it there is gone: every contacts and calendar call there answers
+// forbidden ("You do not have access to account e").
+describe('a shared account that refuses the search', () => {
+  const CALENDARS = 'urn:ietf:params:jmap:calendars';
+  const caps = { [MAIL]: {}, [CONTACTS]: {}, [CALENDARS]: {} };
+  const withStale = {
+    capabilities: { 'urn:ietf:params:jmap:core': {}, ...caps },
+    primaryAccounts: { [MAIL]: 'own', [CONTACTS]: 'own', [CALENDARS]: 'own' },
+    accounts: {
+      own: { name: 'me@example.org', isPersonal: true, accountCapabilities: caps },
+      gone: { name: 'other@example.org', isPersonal: false, accountCapabilities: caps },
+    },
+  } as unknown as JMAPSession;
+  const refused = (accountId: string, ids: string[]) => ids.map((id) => ['error', { type: 'forbidden', description: `You do not have access to account ${accountId}` }, id]);
+  const options = () => ({ limit: 10, signal: new AbortController().signal });
+
+  beforeEach(() => {
+    client.currentSession = withStale;
+  });
+
+  it('leaves it out of the contact search and still finds the own contacts', async () => {
+    client.request.mockImplementation(async (calls: unknown[][]) => {
+      const accountId = (calls[0][1] as { accountId: string }).accountId;
+      if (accountId === 'gone') return { methodResponses: refused(accountId, ['q', 'g', 'b']) };
+      return {
+        methodResponses: [
+          ['ContactCard/query', { ids: ['c1'] }, 'q'],
+          ['ContactCard/get', { list: [{ id: 'c1', addressBookIds: { b1: true }, name: { full: 'Anna Berg' } }] }, 'g'],
+          ['AddressBook/get', { list: [{ id: 'b1', name: 'Personal' }] }, 'b'],
+        ],
+      };
+    });
+    const { hits } = await contactsProvider.remote(parseSearchQuery('anna'), live, options());
+    expect(hits.map((h) => [h.id, h.jmapAccountId])).toEqual([['c1', 'own']]);
+  });
+
+  it('leaves it out of the calendar search and still finds the own events', async () => {
+    client.request.mockImplementation(async (calls: unknown[][]) => {
+      const accountId = (calls[0][1] as { accountId: string }).accountId;
+      if (accountId === 'gone') return { methodResponses: refused(accountId, ['q', 'g', 'c']) };
+      return {
+        methodResponses: [
+          ['CalendarEvent/query', { ids: ['e1'] }, 'q'],
+          ['CalendarEvent/get', { list: [{ id: 'e1', calendarIds: { k1: true }, title: 'Anna lunch', start: '2027-06-01T12:00:00' }] }, 'g'],
+          ['Calendar/get', { list: [{ id: 'k1', name: 'Home' }] }, 'c'],
+        ],
+      };
+    });
+    const { hits } = await calendarProvider.remote(parseSearchQuery('anna'), live, options());
+    expect(hits.map((h) => [h.id, h.jmapAccountId])).toEqual([['e1', 'own']]);
+  });
+
+  it('still fails when the own account refuses', async () => {
+    client.request.mockResolvedValue({ methodResponses: refused('own', ['q', 'g', 'b']) });
+    await expect(contactsProvider.remote(parseSearchQuery('anna'), live, options())).rejects.toThrow('You do not have access to account own');
   });
 });

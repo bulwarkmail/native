@@ -29,6 +29,7 @@ import {
 import { uploadBytes } from '../blob';
 import { deleteFileNodes } from '../files';
 import { getIdentities, resolveSendAccountId } from '../identity';
+import { ownIdentity } from './live-identity';
 import {
   getBulwarkMetadata, MetadataTooLargeError, resetBulwarkMetadata, setBulwarkMetadata, supportsBulwarkMetadata,
 } from '../bulwark-metadata';
@@ -95,7 +96,7 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
 
   describe('scheduled sends', () => {
     it('cancels the original before it schedules the replacement, then sends a cancelled one back to Drafts', async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `later ${tag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },
@@ -149,7 +150,7 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       });
     };
     const scheduleOne = async (label: string) => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `${label} ${tag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },
@@ -372,14 +373,27 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
 
   describe('composer tags', () => {
     // The draft keeps the composer's tags and the sent copy carries them (webmail #1610).
-    it('saves the tags with the draft and puts them on the sent copy', async () => {
+    it('saves the tags with the draft and puts them on the sent copy', async (ctx) => {
       const token = `$label:bulwark-${RUN}`;
       const saved = await saveDraftVersion({
         from: [{ email: USER }], to: [{ email: USER }], subject: `tags draft ${tag}`, textBody: 'tags', keywords: [token],
       }, drafts);
       createdEmails.push(saved.id);
       const [kept] = await getFullEmails([saved.id]);
-      expect(kept.keywords).toMatchObject({ [token]: true, $draft: true });
+      expect(kept.keywords?.$draft).toBe(true);
+      if (!kept.keywords?.[token]) {
+        // Seen on the 0.16.27 test server for usera (userb keeps them): the
+        // account takes every write but keeps only system keywords. Whether
+        // the server or the draft save dropped the tag, a plain Email/set
+        // tells.
+        await singleton.request([['Email/set', { accountId: singleton.accountId, update: { [saved.id]: { [`keywords/${token}`]: true } } }, '0']]);
+        const [again] = await getFullEmails([saved.id]);
+        if (!again.keywords?.[token]) {
+          ctx.skip('the server keeps no tag keyword for this account');
+          return;
+        }
+        expect(kept.keywords, 'the draft save dropped the tag').toMatchObject({ [token]: true });
+      }
 
       const identities = await getIdentities();
       const identity = identities.find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
@@ -396,9 +410,16 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
   });
 
   describe('identities', () => {
-    it('sends the own address from the own account (this login is in no group)', async () => {
+    it('sends the own address from the own account, also when the login is in a group', async () => {
       await expect(resolveSendAccountId(USER)).resolves.toBe(singleton.accountId);
-      expect(singleton.getSubmissionAccountIds()).toEqual([singleton.accountId]);
+      // The own account first, then every other account that can submit
+      // (a group's, or one shared with the login: usera on the test servers).
+      const others = Object.entries(singleton.currentSession?.accounts ?? {})
+        .filter(([id, account]) => id !== singleton.accountId && account.accountCapabilities?.[CAPABILITIES.SUBMISSION])
+        .map(([id]) => id);
+      const ids = singleton.getSubmissionAccountIds();
+      expect(ids[0]).toBe(singleton.accountId);
+      expect([...ids].sort()).toEqual([singleton.accountId, ...others].sort());
     }, 30_000);
   });
 
@@ -534,7 +555,7 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       const target = preset?.date ?? new Date(Math.ceil((now.getTime() + 3_600_000) / 60_000) * 60_000);
       // As the composer turns the picked time into HOLDFOR seconds.
       const holdFor = Math.ceil((target.getTime() - Date.now()) / 1000);
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `preset ${tag}`, textBody: 'live' },
         identity.id, sent, holdFor, { draftsMailboxId: drafts },

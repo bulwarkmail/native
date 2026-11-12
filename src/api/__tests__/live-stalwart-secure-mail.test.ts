@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import { destroyEmails, getMailboxes, sendEmail } from '../email';
-import { getIdentities } from '../identity';
+import { ownIdentity } from './live-identity';
 import {
   createPublicKey,
   encryptionDialect,
@@ -82,7 +82,7 @@ async function removeRunMail(client: JMAPClient): Promise<void> {
 /** Send `raw` from the sender like the composer: upload, Email/import into Drafts, submit, file in Sent. */
 async function sendRaw(raw: Uint8Array, to: string): Promise<string> {
   as(sender);
-  const [identity] = await getIdentities();
+  const identity = await ownIdentity(USER);
   const boxes = await getMailboxes();
   const drafts = boxes.find((b) => b.role === 'drafts')!.id;
   const sent = boxes.find((b) => b.role === 'sent')!.id;
@@ -129,7 +129,7 @@ live('live Stalwart: PGP and S/MIME mail', () => {
 
   it('sends a signed and encrypted PGP/MIME message that the recipient decrypts and verifies', async () => {
     as(sender);
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     const me = await makePgpKey(identity.email);
     const them = await makePgpKey(USER2!);
     const subject = `pgp ${TAG}`;
@@ -160,7 +160,7 @@ live('live Stalwart: PGP and S/MIME mail', () => {
 
   it('sends a signed and encrypted S/MIME message that the recipient decrypts and verifies', async () => {
     as(sender);
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     const me = await makeSmimeCert(identity.email);
     const them = await makeSmimeCert(USER2!);
     const subject = `smime ${TAG}`;
@@ -193,7 +193,7 @@ live('live Stalwart: PGP and S/MIME mail', () => {
     // to itself. The outer subject keeps the run tag so the message is found
     // and removed.
     as(sender);
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     const them = await makePgpKey(USER2!);
     const inner = [
       'Subject: Geheime Quartalszahlen',
@@ -233,7 +233,7 @@ live('live Stalwart: PGP and S/MIME mail', () => {
     const before = await fetchCryptoInfo();
     // Leave an account that has it on alone.
     if (before.type !== 'Disabled') return;
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     // An S/MIME certificate in PEM; Stalwart finds no usable key in the
     // OpenPGP test keys.
     const cert = await makeSmimeCert(identity.email);
@@ -260,7 +260,7 @@ live('live Stalwart: PGP and S/MIME mail', () => {
 
   it('sends a detached S/MIME signature the recipient verifies', async () => {
     as(sender);
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     const me = await makeSmimeCert(identity.email);
     const subject = `smime-signed ${TAG}`;
     const raw = await buildSecureMessage(message(identity.email, USER2!, subject), { mode: 'smime', sign: true, encrypt: false }, {

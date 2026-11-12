@@ -2,10 +2,10 @@
  * Live free/busy checks (Principal/getAvailability) against a real Stalwart.
  *
  * Opt-in like live-stalwart-calendar.test.ts: skipped unless
- * `BULWARK_LIVE_JMAP`, `BULWARK_LIVE_PASS` and `BULWARK_LIVE_USER2` (same
- * password) are set. The second account gets a busy event in 2027, which the
- * first one looks up the way the event editor does; the event carries the
- * run's marker and is removed afterwards.
+ * `BULWARK_LIVE_JMAP`, `BULWARK_LIVE_PASS` and `BULWARK_LIVE_USER2` are set
+ * (`BULWARK_LIVE_PASS2` defaults to the first password). The second account
+ * gets a busy event in 2027, which the first one looks up the way the event
+ * editor does; the event carries the run's marker and is removed afterwards.
  *
  *   BULWARK_LIVE_JMAP=http://10.10.10.62:8016 \
  *   BULWARK_LIVE_USER=e2e-perf@example.org \
@@ -30,6 +30,7 @@ const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
 const USER2 = process.env.BULWARK_LIVE_USER2;
 const PASS = process.env.BULWARK_LIVE_PASS ?? '';
+const PASS2 = process.env.BULWARK_LIVE_PASS2 ?? PASS;
 const liveTwo = SERVER && PASS && USER2 ? describe : describe.skip;
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
@@ -82,7 +83,7 @@ liveTwo('live Stalwart free/busy', () => {
     resetAvailabilityCaches();
 
     other = new JMAPClient();
-    await other.connect(SERVER!, USER2!, PASS);
+    await other.connect(SERVER!, USER2!, PASS2);
     const cals = await raw(other, [['Calendar/get', { accountId: other.accountId, properties: ['id', 'isDefault'] }, '0']]);
     const list = cals[0][1].list as { id: string; isDefault?: boolean }[];
     // A busy hour in the default calendar, which shares nothing.

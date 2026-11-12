@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import { cancelScheduledSend, destroyEmails, getMailboxes, listScheduledEmails, rescheduleScheduledSend, sendEmail } from '../email';
-import { getIdentities } from '../identity';
+import { ownIdentity } from './live-identity';
 import { supportsSubmissionExtension } from '../../lib/submission-options';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -72,7 +72,7 @@ live('live Stalwart: composer send options', () => {
   });
 
   it('files the priority and read-receipt headers with the sent message', async () => {
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     const result = await sendEmail(
       {
         from: [{ email: identity.email }], to: [{ email: identity.email }],
@@ -95,7 +95,7 @@ live('live Stalwart: composer send options', () => {
   }, 60_000);
 
   it('submits with RET/NOTIFY and REQUIRETLS on the envelope', async () => {
-    const [identity] = await getIdentities();
+    const identity = await ownIdentity(USER);
     // Held, so the submission record (and its envelope) can be read back.
     const result = await sendEmail(
       { from: [{ email: identity.email }], to: [{ email: identity.email }], subject: `dsn ${tag}`, textBody: 'live' },

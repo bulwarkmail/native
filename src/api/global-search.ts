@@ -318,8 +318,16 @@ export const contactsProvider: SearchProvider = {
         ['ContactCard/get', { accountId: target.id, '#ids': { resultOf: 'q', name: 'ContactCard/query', path: '/ids' } }, 'g'],
         ['AddressBook/get', { accountId: target.id, properties: ['id', 'name'] }, 'b'],
       ], [CAPABILITIES.CORE, CAPABILITIES.CONTACTS]);
-      const ids = (responseOf(res, 'q', 'ContactCard/query').ids ?? []) as string[];
-      const list = ((responseOf(res, 'g', 'ContactCard/get').list ?? []) as ContactCard[]).map((c) => contactFromWire(c));
+      let ids: string[];
+      let list: ContactCard[];
+      try {
+        ids = (responseOf(res, 'q', 'ContactCard/query').ids ?? []) as string[];
+        list = ((responseOf(res, 'g', 'ContactCard/get').list ?? []) as ContactCard[]).map((c) => contactFromWire(c));
+      } catch (err) {
+        // A shared account that refuses holds nothing to find (webmail searchContacts).
+        if (target.primary) throw err;
+        continue;
+      }
       let books: { id: string; name: string }[] = [];
       try { books = responseOf(res, 'b', 'AddressBook/get').list ?? []; } catch { /* names only */ }
       if (ids.length > limit) hasMore = true;
@@ -395,8 +403,16 @@ export const calendarProvider: SearchProvider = {
         ['CalendarEvent/get', { accountId: target.id, '#ids': { resultOf: 'q', name: 'CalendarEvent/query', path: '/ids' }, properties: EVENT_PROPERTIES }, 'g'],
         ['Calendar/get', { accountId: target.id, properties: ['id', 'name'] }, 'c'],
       ], [CAPABILITIES.CORE, CAPABILITIES.CALENDARS]);
-      const ids = (responseOf(res, 'q', 'CalendarEvent/query').ids ?? []) as string[];
-      const list = ((responseOf(res, 'g', 'CalendarEvent/get').list ?? []) as Record<string, any>[]).map(eventFromWire);
+      let ids: string[];
+      let list: CalendarEvent[];
+      try {
+        ids = (responseOf(res, 'q', 'CalendarEvent/query').ids ?? []) as string[];
+        list = ((responseOf(res, 'g', 'CalendarEvent/get').list ?? []) as Record<string, any>[]).map(eventFromWire);
+      } catch (err) {
+        // As for contacts: a shared account that refuses holds nothing to find.
+        if (target.primary) throw err;
+        continue;
+      }
       let calendars: { id: string; name: string }[] = [];
       try { calendars = responseOf(res, 'c', 'Calendar/get').list ?? []; } catch { /* names only */ }
       if (ids.length >= limit) hasMore = true;
