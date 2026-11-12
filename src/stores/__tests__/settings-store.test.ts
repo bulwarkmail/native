@@ -91,11 +91,14 @@ describe('settings-store', () => {
         calendarFirstDayOfWeek: 0,
         emailExportTemplate: 'x',
         swipeMode: 'reveal',
+        readingPane: 'off',
       } as never);
       expect(shape.firstDayOfWeek).toBe(0);
       expect(shape.emailDownloadTemplate).toBe('x');
       expect(shape).not.toHaveProperty('calendarFirstDayOfWeek');
       expect(shape).not.toHaveProperty('swipeMode');
+      // The reading pane is a choice per device (a foldable, a tablet), #93.
+      expect(shape).not.toHaveProperty('readingPane');
       expect(shape).not.toHaveProperty('offlineCacheDays');
     });
 

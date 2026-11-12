@@ -50,7 +50,7 @@ import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
-import { useLayout } from '../lib/use-layout';
+import { mailLayoutFor, useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
@@ -486,18 +486,20 @@ export default function EmailListScreen({
   const resolvedTheme = useResolvedTheme();
   // The undo bar floats over the list's bottom right on a phone (on a split
   // layout it sits over the reading pane instead).
-  const { isSplit, shortHeight, widthClass } = useLayout();
+  const windowLayout = useLayout();
+  const { isSplit, shortHeight, widthClass } = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
   // In a split view the push prompt floats in this column, not over the
-  // reader's quick reply (lib/push-prompt-frame).
+  // reader's quick reply (lib/push-prompt-frame). The prompt goes by the
+  // window, so the column is reported with the reading pane off too (#93).
   const isFocused = useIsFocused();
   const rootRef = React.useRef<View>(null);
   const reportListColumn = React.useCallback(() => {
-    if (!isSplit || !isFocused) {
+    if (!windowLayout.isSplit || !isFocused) {
       setPromptListColumn(null);
       return;
     }
     rootRef.current?.measureInWindow((x, _y, width) => setPromptListColumn({ x, width }));
-  }, [isSplit, isFocused]);
+  }, [windowLayout.isSplit, isFocused]);
   React.useEffect(() => {
     reportListColumn();
     return () => setPromptListColumn(null);

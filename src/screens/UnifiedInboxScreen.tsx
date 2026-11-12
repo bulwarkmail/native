@@ -38,7 +38,7 @@ import { onStateChangeType } from '../lib/state-change-bus';
 import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
-import { listPaneWidth, useLayout } from '../lib/use-layout';
+import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
 import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -91,10 +91,11 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const locale = useLocaleStore((s) => s.locale);
-  const layout = useLayout();
+  const windowLayout = useLayout();
+  const layout = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
   const { width } = useWindowDimensions();
   // On a wide window a message opens next to the list, as in the Mail tab (#97).
-  const pane = useMessagePane(navigation, layout.isSplit);
+  const pane = useMessagePane(navigation, layout.isSplit, windowLayout.isSplit);
   const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);
