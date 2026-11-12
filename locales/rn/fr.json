@@ -155,7 +155,10 @@
       "not_found": "Cette tâche n'est plus disponible.",
       "save_error": "Échec de l'enregistrement de la tâche",
       "update_error": "Échec de la mise à jour de la tâche",
-      "delete_confirm": "Supprimer cette tâche ?"
+      "delete_confirm": "Supprimer cette tâche ?",
+      "mark_occurrence_done": "Marquer ce jour comme terminé",
+      "mark_occurrence_open": "Marquer ce jour comme non terminé",
+      "open_task": "Ouvrir la tâche"
     },
     "views": {
       "schedule": "Planning",
@@ -186,6 +189,9 @@
     "retry": "Réessayer",
     "undo": "Annuler",
     "update": "Mettre à jour"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Un destinataire est} other {# destinataires sont}} hors de votre organisation :"
   },
   "contacts": {
     "address_books": {
@@ -493,6 +499,7 @@
       "open": "Ouvrir",
       "preview": "Aperçu",
       "save": "Enregistrer",
+      "save_as": "Enregistrer sous…",
       "share": "Partager"
     },
     "attachment_failed": "Impossible d'ouvrir la pièce jointe",
@@ -521,6 +528,7 @@
     },
     "export_failed": "Échec de l'exportation",
     "forwarded": "Transféré",
+    "import_email": "Importer un .eml ou un .zip",
     "load_failed": "Échec du chargement de l'e-mail",
     "preview": {
       "open_external": "Ouvrir dans une app",
@@ -765,6 +773,8 @@
       "err_handoff_refused_title": "Le webmail n'a pas accepté cette connexion",
       "err_handoff_server_detail": "Reconnectez-vous. Si l'échec persiste, contactez votre administrateur.",
       "err_handoff_server_title": "Le webmail n'a pas pu terminer la connexion",
+      "err_password_expired_detail": "Modifiez-le dans l'interface web du serveur, puis connectez-vous avec le nouveau.",
+      "err_password_expired_title": "Votre mot de passe a expiré",
       "err_token_exchange_title": "{host} n'a pas ouvert de session",
       "reauth_detail": "Le serveur n'accepte plus la connexion enregistrée pour {account}. Reconnectez-vous pour continuer à utiliser ce compte.",
       "reauth_title": "Se reconnecter",
@@ -1002,6 +1012,12 @@
       "attachment_click_action": {
         "description_mobile": "Ce qui se passe lorsque vous appuyez sur une pièce jointe."
       },
+      "attachment_position": {
+        "below-header": "Sous l'en-tête",
+        "beside-sender": "À côté de l'expéditeur",
+        "description": "Où afficher les pièces jointes dans l'en-tête de l'email",
+        "label": "Position des pièces jointes"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Les réponses partent toujours de l'identité à laquelle le message a été envoyé. Si cette option est activée, une réponse à une autre adresse de vos domaines (un alias catch-all) est aussi envoyée depuis cette adresse."
       },
@@ -1131,6 +1147,12 @@
         "star": "Favori",
         "tag": "Étiquette"
       },
+      "reading_pane": {
+        "auto": "À côté de la liste quand il y a de la place",
+        "description": "Sur une tablette ou un pliable ouvert, affiche le message ouvert à côté de la liste des e-mails. Cet appareil uniquement.",
+        "label": "Volet de lecture",
+        "off": "Désactivé : les messages s'ouvrent en plein écran"
+      },
       "show_avatars_in_junk": "Afficher les avatars des expéditeurs dans Indésirables",
       "show_avatars_in_junk_description": "Charger les logos des expéditeurs pour les messages du dossier Indésirables. Désactivé, les expéditeurs de spam ne sont pas contactés.",
       "show_folder_total_count": "Afficher le nombre total de messages des dossiers",
@@ -1225,6 +1247,7 @@
       "clear_title": "Effacer les e-mails hors ligne",
       "days_ago": "il y a {count} j",
       "description": "Téléchargez les messages récents pour qu'ils s'ouvrent instantanément et restent lisibles sans connexion. Corps des messages uniquement — les pièces jointes sont toujours récupérées à la demande.",
+      "description_account": "Conservez les messages récents de {account} sur cet appareil pour les ouvrir sans connexion. Chaque compte a sa propre période et sa propre taille.",
       "downloading": "Téléchargement {completed}/{total}…",
       "enabled": "Mettre en cache les e-mails récents",
       "enabled_desc": "Lorsque cette option est activée, l'application conserve sur cet appareil le corps des messages de la période sélectionnée.",
@@ -1294,7 +1317,8 @@
         "error_title": "Échec de la mise à jour"
       },
       "encryption": {
-        "no_keys": "Ajoutez d'abord une clé publique - le chiffrement au repos en nécessite une."
+        "no_keys": "Ajoutez d'abord une clé publique - le chiffrement au repos en nécessite une.",
+        "turned_off_on_server": "Le chiffrement au repos était activé et a été désactivé sur le serveur, comme le fait la mise à jour vers Stalwart 1.0.2. Les nouveaux e-mails sont stockés sans chiffrement jusqu'à ce que vous le réactiviez ici."
       },
       "load_error": "Impossible de charger les paramètres de sécurité.",
       "not_supported": "La gestion de la sécurité du compte nécessite un serveur Stalwart. Ces fonctionnalités ne sont pas disponibles pour ce compte.",
@@ -1344,6 +1368,7 @@
         "disable_hint_code": "Saisissez votre mot de passe et un code de votre application d'authentification pour désactiver l'authentification à deux facteurs."
       },
       "restricted": "Votre serveur ne permet qu'aux applications approuvées par son administrateur de modifier le mot de passe, la connexion à deux facteurs, les mots de passe d'application et les clés API. Bulwark s'est connecté sans cette approbation : les e-mails, contacts, calendriers et fichiers fonctionnent, mais pas ces paramètres. Modifiez-les dans l'interface web de votre serveur ou dans le webmail Bulwark.",
+      "restricted_sign_in_again": "Bulwark s'est connecté avant que votre serveur ne permette aux applications de gérer ces paramètres. Reconnectez-vous pour gérer ici le mot de passe, la connexion à deux facteurs, les mots de passe d'application et les clés API.",
       "screen_privacy": {
         "block_screenshots": "Bloquer les captures d'écran",
         "block_screenshots_description": "Empêche les captures et enregistrements d'écran de l'application et masque son contenu dans la vue des applications récentes.",
@@ -1465,7 +1490,8 @@
         "description_ios": "Atkinson Hyperlegible et Lexend sont conçues pour être faciles à distinguer ; OpenDyslexic aide certaines personnes dyslexiques. Sur cet appareil, la police est utilisée pour les messages en texte brut."
       },
       "plain_language": {
-        "description_mobile": "Formulation plus simple pour les paramètres et les messages d'erreur. Disponible en anglais et en allemand."
+        "description_mobile": "Formulation plus simple pour les paramètres et les messages d'erreur. Disponible en anglais et en allemand.",
+        "label": "Langage simple"
       },
       "presets": {
         "applied_mobile": "{name} a modifié {count, plural, one {# paramètre} other {# paramètres}}",
@@ -1572,6 +1598,7 @@
     "show_unread": "Afficher les non lus",
     "tab_unavailable": "{name} (indisponible)",
     "account_sign_in_again": "Se reconnecter",
+    "account_unread": "{count} non lus",
     "sign_out_all_confirm_message": "Tous les comptes seront retirés de cet appareil. Vous pouvez vous reconnecter à tout moment.",
     "sign_out_all_confirm_title": "Se déconnecter de tous les comptes ?",
     "sign_out_confirm_message": "Le compte sera retiré de cet appareil. Vous pouvez vous reconnecter à tout moment.",
@@ -1709,6 +1736,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Paramètres d'absence enregistrés, mais vos filtres sont désactivés. Enregistrez à nouveau pour les réactiver."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Le serveur n'accepte plus la connexion enregistrée pour {account}. Ses e-mails restent masqués sur cet appareil jusqu'à ce que vous vous reconnectiez."
   },
   "outbox": {
     "discard": "Supprimer",

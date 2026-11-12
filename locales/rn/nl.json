@@ -155,7 +155,10 @@
       "not_found": "Deze taak is niet meer beschikbaar.",
       "save_error": "Taak opslaan mislukt",
       "update_error": "Taak bijwerken mislukt",
-      "delete_confirm": "Deze taak verwijderen?"
+      "delete_confirm": "Deze taak verwijderen?",
+      "mark_occurrence_done": "Deze dag markeren als klaar",
+      "mark_occurrence_open": "Deze dag markeren als niet klaar",
+      "open_task": "Taak openen"
     },
     "views": {
       "schedule": "Planning",
@@ -186,6 +189,9 @@
     "retry": "Opnieuw proberen",
     "undo": "Ongedaan maken",
     "update": "Bijwerken"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Eén ontvanger valt} other {# ontvangers vallen}} buiten je organisatie:"
   },
   "contacts": {
     "address_books": {
@@ -489,6 +495,7 @@
       "open": "Openen",
       "preview": "Voorbeeld",
       "save": "Opslaan",
+      "save_as": "Opslaan als…",
       "share": "Delen"
     },
     "attachment_failed": "Kon bijlage niet openen",
@@ -517,6 +524,7 @@
     },
     "export_failed": "Exporteren mislukt",
     "forwarded": "Doorgestuurd",
+    "import_email": ".eml of .zip importeren",
     "load_failed": "E-mail laden mislukt",
     "preview": {
       "open_external": "Openen in app",
@@ -761,6 +769,8 @@
       "err_handoff_refused_title": "De webmail heeft dit inloggen niet geaccepteerd",
       "err_handoff_server_detail": "Log opnieuw in. Blijft het mislukken, vraag het dan aan je beheerder.",
       "err_handoff_server_title": "De webmail kon het inloggen niet voltooien",
+      "err_password_expired_detail": "Wijzig het in de webinterface van de server en log daarna in met het nieuwe.",
+      "err_password_expired_title": "Je wachtwoord is verlopen",
       "err_token_exchange_title": "{host} heeft geen sessie gestart",
       "reauth_detail": "De server accepteert de opgeslagen inloggegevens voor {account} niet meer. Log opnieuw in om dit account te blijven gebruiken.",
       "reauth_title": "Opnieuw inloggen",
@@ -998,6 +1008,12 @@
       "attachment_click_action": {
         "description_mobile": "Wat er gebeurt als u op een bijlage tikt."
       },
+      "attachment_position": {
+        "below-header": "Onder de kop",
+        "beside-sender": "Naast de afzender",
+        "description": "Waar bijlagen in de e-mailkop worden weergegeven",
+        "label": "Positie van bijlagen"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Antwoorden worden altijd verzonden vanaf de identiteit waaraan een bericht is gestuurd. Als dit aanstaat, wordt een antwoord op een ander adres op uw domeinen (een catch-all-alias) ook vanaf dat adres verzonden."
       },
@@ -1127,6 +1143,12 @@
         "star": "Ster",
         "tag": "Label"
       },
+      "reading_pane": {
+        "auto": "Naast de lijst als er ruimte is",
+        "description": "Op een tablet of opengeklapte vouwbare telefoon het geopende bericht naast de e-maillijst tonen. Alleen op dit apparaat.",
+        "label": "Leesvenster",
+        "off": "Uit: berichten openen schermvullend"
+      },
       "show_avatars_in_junk": "Afzenderavatars tonen in Spam",
       "show_avatars_in_junk_description": "Afzenderlogo's laden voor berichten in de map Spam. Uit voorkomt dat er contact wordt gelegd met spamafzenders.",
       "show_folder_total_count": "Totaal aantal berichten bij mappen tonen",
@@ -1221,6 +1243,7 @@
       "clear_title": "Offline e-mail wissen",
       "days_ago": "{count} d geleden",
       "description": "Download recente berichten zodat ze direct openen en zonder verbinding leesbaar blijven. Alleen de berichttekst — bijlagen worden nog steeds opgehaald wanneer nodig.",
+      "description_account": "Recente berichten van {account} op dit apparaat bewaren, zodat ze ook zonder verbinding openen. Elk account heeft een eigen periode en grootte.",
       "downloading": "Downloaden {completed}/{total}…",
       "enabled": "Recente e-mail in cache bewaren",
       "enabled_desc": "Als dit aanstaat, bewaart de app berichtteksten uit de gekozen periode op dit apparaat.",
@@ -1290,7 +1313,8 @@
         "error_title": "Bijwerken mislukt"
       },
       "encryption": {
-        "no_keys": "Voeg eerst een openbare sleutel toe - versleuteling in rust heeft er een nodig."
+        "no_keys": "Voeg eerst een openbare sleutel toe - versleuteling in rust heeft er een nodig.",
+        "turned_off_on_server": "Versleuteling in rust stond aan en is op de server uitgeschakeld, zoals de update naar Stalwart 1.0.2 doet. Nieuwe e-mail wordt onversleuteld opgeslagen tot je het hier weer inschakelt."
       },
       "load_error": "Kan beveiligingsinstellingen niet laden.",
       "not_supported": "Beheer van accountbeveiliging vereist een Stalwart-server. Deze functies zijn niet beschikbaar voor dit account.",
@@ -1340,6 +1364,7 @@
         "disable_hint_code": "Voer je wachtwoord en een code uit je authenticator-app in om tweefactorauthenticatie uit te schakelen."
       },
       "restricted": "Je server laat alleen apps die de beheerder heeft goedgekeurd het wachtwoord, tweefactorauthenticatie, app-wachtwoorden en API-sleutels wijzigen. Bulwark is zonder die goedkeuring ingelogd, dus e-mail, contacten, agenda's en bestanden werken, maar deze instellingen niet. Wijzig ze in de webinterface van je server of in de Bulwark-webmail.",
+      "restricted_sign_in_again": "Bulwark logde in voordat je server apps deze instellingen liet beheren. Log opnieuw in om hier het wachtwoord, tweefactorauthenticatie, app-wachtwoorden en API-sleutels te beheren.",
       "screen_privacy": {
         "block_screenshots": "Schermafbeeldingen blokkeren",
         "block_screenshots_description": "Voorkomt schermafbeeldingen en schermopnamen van de app en verbergt de inhoud in het overzicht van recente apps.",
@@ -1461,7 +1486,8 @@
         "description_ios": "Atkinson Hyperlegible en Lexend zijn ontworpen om letters makkelijk uit elkaar te houden; OpenDyslexic helpt sommige mensen met dyslexie. Op dit apparaat wordt het lettertype gebruikt voor berichten in platte tekst."
       },
       "plain_language": {
-        "description_mobile": "Eenvoudigere woorden in instellingen en foutmeldingen. Beschikbaar in het Engels en Duits."
+        "description_mobile": "Eenvoudigere woorden in instellingen en foutmeldingen. Beschikbaar in het Engels en Duits.",
+        "label": "Makkelijke taal"
       },
       "presets": {
         "applied_mobile": "{name} heeft {count, plural, one {# instelling} other {# instellingen}} gewijzigd",
@@ -1568,6 +1594,7 @@
     "show_unread": "Ongelezen tonen",
     "tab_unavailable": "{name} (niet beschikbaar)",
     "account_sign_in_again": "Opnieuw inloggen",
+    "account_unread": "{count} ongelezen",
     "sign_out_all_confirm_message": "Alle accounts worden van dit apparaat verwijderd. Je kunt op elk moment opnieuw inloggen.",
     "sign_out_all_confirm_title": "Afmelden bij alle accounts?",
     "sign_out_confirm_message": "Het account wordt van dit apparaat verwijderd. Je kunt op elk moment opnieuw inloggen.",
@@ -1705,6 +1732,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Afwezigheidsinstellingen opgeslagen, maar je filters staan uit. Sla opnieuw op om ze weer in te schakelen."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "De server accepteert de opgeslagen inloggegevens voor {account} niet meer. De e-mail van dit account blijft op dit apparaat verborgen tot je opnieuw inlogt."
   },
   "outbox": {
     "discard": "Verwijderen",

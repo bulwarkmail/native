@@ -155,7 +155,10 @@
       "not_found": "Această sarcină nu mai este disponibilă.",
       "save_error": "Sarcina nu a putut fi salvată",
       "update_error": "Sarcina nu a putut fi actualizată",
-      "delete_confirm": "Ștergeți această sarcină?"
+      "delete_confirm": "Ștergeți această sarcină?",
+      "mark_occurrence_done": "Marcați această zi ca finalizată",
+      "mark_occurrence_open": "Marcați această zi ca nefinalizată",
+      "open_task": "Deschideți sarcina"
     },
     "views": {
       "schedule": "Program",
@@ -186,6 +189,9 @@
     "retry": "Reîncearcă",
     "undo": "Anulează",
     "update": "Actualizare"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Un destinatar este} few {# destinatari sunt} other {# de destinatari sunt}} în afara organizației dvs.:"
   },
   "contacts": {
     "address_books": {
@@ -489,6 +495,7 @@
       "open": "Deschide",
       "preview": "Previzualizare",
       "save": "Salvare",
+      "save_as": "Salvează ca…",
       "share": "Partajare"
     },
     "attachment_failed": "Atașamentul nu a putut fi deschis",
@@ -517,6 +524,7 @@
     },
     "export_failed": "Exportul a eșuat",
     "forwarded": "Redirecționat",
+    "import_email": "Importați .eml sau .zip",
     "load_failed": "E-mailul nu a putut fi încărcat",
     "preview": {
       "open_external": "Deschideți într-o aplicație",
@@ -761,6 +769,8 @@
       "err_handoff_refused_title": "Webmailul nu a acceptat această autentificare",
       "err_handoff_server_detail": "Autentificați-vă din nou. Dacă tot nu funcționează, contactați administratorul.",
       "err_handoff_server_title": "Webmailul nu a putut finaliza autentificarea",
+      "err_password_expired_detail": "Schimbați-o în interfața web a serverului, apoi autentificați-vă cu cea nouă.",
+      "err_password_expired_title": "Parola dvs. a expirat",
       "err_token_exchange_title": "{host} nu a pornit o sesiune",
       "reauth_detail": "Serverul nu mai acceptă autentificarea salvată pentru {account}. Autentificați-vă din nou pentru a folosi în continuare acest cont.",
       "reauth_title": "Autentificați-vă din nou",
@@ -998,6 +1008,12 @@
       "attachment_click_action": {
         "description_mobile": "Ce se întâmplă când atingeți un atașament."
       },
+      "attachment_position": {
+        "below-header": "Sub antet",
+        "beside-sender": "Lângă expeditor",
+        "description": "Unde să afișați atașamentele în antetul e-mailului",
+        "label": "Poziția atașamentului"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Răspunsurile sunt trimise întotdeauna de la identitatea la care a fost trimis mesajul. Cu această opțiune activată, un răspuns către o altă adresă din domeniile dvs. (un alias „catch-all”) este trimis tot de la acea adresă."
       },
@@ -1127,6 +1143,12 @@
         "star": "Stea",
         "tag": "Etichetă"
       },
+      "reading_pane": {
+        "auto": "Lângă listă când este loc",
+        "description": "Pe o tabletă sau pe un telefon pliabil deschis, mesajul deschis apare lângă lista de e-mailuri. Doar pe acest dispozitiv.",
+        "label": "Panoul de citire",
+        "off": "Dezactivat: mesajele se deschid pe tot ecranul"
+      },
       "show_avatars_in_junk": "Afișați avatarele expeditorilor în Spam",
       "show_avatars_in_junk_description": "Încarcă siglele expeditorilor pentru mesajele din folderul Spam. Dezactivat, expeditorii de spam nu sunt contactați.",
       "show_folder_total_count": "Afișați numărul total de mesaje în foldere",
@@ -1221,6 +1243,7 @@
       "clear_title": "Ștergeți e-mailurile offline",
       "days_ago": "acum {count} z",
       "description": "Descărcați mesajele recente pentru a se deschide instantaneu și a rămâne lizibile fără conexiune. Doar conținutul — atașamentele sunt descărcate în continuare la cerere.",
+      "description_account": "Păstrați mesajele recente din {account} pe acest dispozitiv, ca să se deschidă fără conexiune. Fiecare cont are propria perioadă și dimensiune.",
       "downloading": "Se descarcă {completed}/{total}…",
       "enabled": "Păstrați în cache e-mailurile recente",
       "enabled_desc": "Când este activat, aplicația păstrează pe acest dispozitiv conținutul mesajelor din perioada selectată.",
@@ -1290,7 +1313,8 @@
         "error_title": "Actualizarea a eșuat"
       },
       "encryption": {
-        "no_keys": "Adăugați mai întâi o cheie publică - criptarea datelor stocate are nevoie de una."
+        "no_keys": "Adăugați mai întâi o cheie publică - criptarea datelor stocate are nevoie de una.",
+        "turned_off_on_server": "Criptarea datelor stocate era activată și a fost dezactivată pe server, așa cum face actualizarea la Stalwart 1.0.2. E-mailurile noi sunt stocate necriptat până când o activați din nou aici."
       },
       "load_error": "Setările de securitate nu au putut fi încărcate.",
       "not_supported": "Gestionarea securității contului necesită un server Stalwart. Aceste funcții nu sunt disponibile pentru acest cont.",
@@ -1340,6 +1364,7 @@
         "disable_hint_code": "Introduceți parola și un cod din aplicația de autentificare pentru a dezactiva autentificarea în doi pași."
       },
       "restricted": "Serverul dvs. permite doar aplicațiilor aprobate de administrator să schimbe parola, autentificarea în doi pași, parolele pentru aplicații și cheile API. Bulwark s-a autentificat fără această aprobare, așa că e-mailul, contactele, calendarele și fișierele funcționează, dar aceste setări nu. Modificați-le în interfața web a serverului sau în webmailul Bulwark.",
+      "restricted_sign_in_again": "Bulwark s-a autentificat înainte ca serverul dvs. să permită aplicațiilor să gestioneze aceste setări. Autentificați-vă din nou pentru a gestiona aici parola, autentificarea în doi pași, parolele pentru aplicații și cheile API.",
       "screen_privacy": {
         "block_screenshots": "Blocați capturile de ecran",
         "block_screenshots_description": "Împiedică capturile și înregistrările de ecran ale aplicației și îi ascunde conținutul în lista aplicațiilor recente.",
@@ -1461,7 +1486,8 @@
         "description_ios": "Atkinson Hyperlegible și Lexend sunt concepute pentru a fi ușor de distins; OpenDyslexic ajută unele persoane cu dislexie. Pe acest dispozitiv, fontul este folosit pentru mesajele în text simplu."
       },
       "plain_language": {
-        "description_mobile": "Formulări mai simple pentru setări și mesaje de eroare. Disponibil în engleză și germană."
+        "description_mobile": "Formulări mai simple pentru setări și mesaje de eroare. Disponibil în engleză și germană.",
+        "label": "Limbaj simplu"
       },
       "presets": {
         "applied_mobile": "{name} a modificat {count, plural, one {# setare} few {# setări} other {# de setări}}",
@@ -1568,6 +1594,7 @@
     "show_unread": "Afișați necitite",
     "tab_unavailable": "{name} (indisponibil)",
     "account_sign_in_again": "Autentificați-vă din nou",
+    "account_unread": "{count} necitite",
     "sign_out_all_confirm_message": "Toate conturile sunt eliminate de pe acest dispozitiv. Vă puteți autentifica din nou oricând.",
     "sign_out_all_confirm_title": "Vă deconectați de la toate conturile?",
     "sign_out_confirm_message": "Contul este eliminat de pe acest dispozitiv. Vă puteți autentifica din nou oricând.",
@@ -1705,6 +1732,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Setările de absență au fost salvate, dar filtrele dvs. sunt dezactivate. Salvați din nou pentru a le reactiva."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Serverul nu mai acceptă autentificarea salvată pentru {account}. E-mailurile acestui cont rămân ascunse pe acest dispozitiv până când vă autentificați din nou."
   },
   "outbox": {
     "discard": "Renunțați",

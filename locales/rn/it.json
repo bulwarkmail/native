@@ -155,7 +155,10 @@
       "not_found": "Questa attività non è più disponibile.",
       "save_error": "Impossibile salvare l'attività",
       "update_error": "Impossibile aggiornare l'attività",
-      "delete_confirm": "Eliminare questa attività?"
+      "delete_confirm": "Eliminare questa attività?",
+      "mark_occurrence_done": "Segna questo giorno come completato",
+      "mark_occurrence_open": "Segna questo giorno come non completato",
+      "open_task": "Apri attività"
     },
     "views": {
       "schedule": "Programma",
@@ -186,6 +189,9 @@
     "retry": "Riprova",
     "undo": "Annulla",
     "update": "Aggiorna"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Un destinatario è} other {# destinatari sono}} fuori dalla tua organizzazione:"
   },
   "contacts": {
     "address_books": {
@@ -491,6 +497,7 @@
       "open": "Apri",
       "preview": "Anteprima",
       "save": "Salva",
+      "save_as": "Salva con nome…",
       "share": "Condividi"
     },
     "attachment_failed": "Impossibile aprire l'allegato",
@@ -519,6 +526,7 @@
     },
     "export_failed": "Esportazione non riuscita",
     "forwarded": "Inoltrato",
+    "import_email": "Importa .eml o .zip",
     "load_failed": "Impossibile caricare l'email",
     "preview": {
       "open_external": "Apri in un'app",
@@ -763,6 +771,8 @@
       "err_handoff_refused_title": "La webmail non ha accettato questo accesso",
       "err_handoff_server_detail": "Accedi di nuovo. Se continua a non funzionare, rivolgiti all'amministratore.",
       "err_handoff_server_title": "La webmail non è riuscita a completare l'accesso",
+      "err_password_expired_detail": "Cambiala nell'interfaccia web del server, poi accedi con quella nuova.",
+      "err_password_expired_title": "La tua password è scaduta",
       "err_token_exchange_title": "{host} non ha avviato una sessione",
       "reauth_detail": "Il server non accetta più l'accesso salvato per {account}. Accedi di nuovo per continuare a usare questo account.",
       "reauth_title": "Accedi di nuovo",
@@ -1000,6 +1010,12 @@
       "attachment_click_action": {
         "description_mobile": "Cosa succede quando tocchi un allegato."
       },
+      "attachment_position": {
+        "below-header": "Sotto l'intestazione",
+        "beside-sender": "Accanto al mittente",
+        "description": "Dove visualizzare gli allegati nell'intestazione dell'email",
+        "label": "Posizione degli allegati"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Le risposte partono sempre dall'identità a cui è stato inviato il messaggio. Con questa opzione attiva, anche una risposta a un altro indirizzo dei tuoi domini (un alias catch-all) viene inviata da quell'indirizzo."
       },
@@ -1129,6 +1145,12 @@
         "star": "Aggiungi stella",
         "tag": "Etichetta"
       },
+      "reading_pane": {
+        "auto": "Accanto all'elenco quando c'è spazio",
+        "description": "Su un tablet o un pieghevole aperto, mostra il messaggio aperto accanto all'elenco della posta. Solo su questo dispositivo.",
+        "label": "Riquadro di lettura",
+        "off": "Disattivato: i messaggi si aprono a schermo intero"
+      },
       "show_avatars_in_junk": "Mostra gli avatar dei mittenti in Posta indesiderata",
       "show_avatars_in_junk_description": "Carica i loghi dei mittenti per i messaggi nella cartella Posta indesiderata. Se disattivato, i mittenti di spam non vengono contattati.",
       "show_folder_total_count": "Mostra il numero totale di messaggi nelle cartelle",
@@ -1223,6 +1245,7 @@
       "clear_title": "Cancella posta offline",
       "days_ago": "{count} g fa",
       "description": "Scarica i messaggi recenti così si aprono subito e restano leggibili senza connessione. Solo il corpo — gli allegati vengono comunque scaricati quando servono.",
+      "description_account": "Conserva i messaggi recenti di {account} su questo dispositivo, così si aprono anche senza connessione. Ogni account ha il proprio periodo e la propria dimensione.",
       "downloading": "Download {completed}/{total}…",
       "enabled": "Salva in cache la posta recente",
       "enabled_desc": "Se attivo, l'app conserva su questo dispositivo il corpo dei messaggi del periodo selezionato.",
@@ -1292,7 +1315,8 @@
         "error_title": "Aggiornamento non riuscito"
       },
       "encryption": {
-        "no_keys": "Aggiungi prima una chiave pubblica - la crittografia a riposo ne richiede una."
+        "no_keys": "Aggiungi prima una chiave pubblica - la crittografia a riposo ne richiede una.",
+        "turned_off_on_server": "La crittografia a riposo era attiva ed è stata disattivata sul server, come fa l'aggiornamento a Stalwart 1.0.2. La nuova posta viene salvata senza crittografia finché non la riattivi qui."
       },
       "load_error": "Impossibile caricare le impostazioni di sicurezza.",
       "not_supported": "La gestione della sicurezza dell'account richiede un server Stalwart. Queste funzioni non sono disponibili per questo account.",
@@ -1342,6 +1366,7 @@
         "disable_hint_code": "Inserisci la password e un codice dell'app di autenticazione per disattivare l'autenticazione a due fattori."
       },
       "restricted": "Il tuo server consente di modificare password, autenticazione a due fattori, password per le app e chiavi API solo alle app approvate dal suo amministratore. Bulwark ha effettuato l'accesso senza questa approvazione: posta, contatti, calendari e file funzionano, ma queste impostazioni no. Modificale nell'interfaccia web del tuo server o nella webmail Bulwark.",
+      "restricted_sign_in_again": "Bulwark ha effettuato l'accesso prima che il tuo server consentisse alle app di gestire queste impostazioni. Accedi di nuovo per gestire qui password, autenticazione a due fattori, password per le app e chiavi API.",
       "screen_privacy": {
         "block_screenshots": "Blocca gli screenshot",
         "block_screenshots_description": "Impedisce screenshot e registrazioni dello schermo dell'app e ne nasconde il contenuto nella vista delle app recenti.",
@@ -1463,7 +1488,8 @@
         "description_ios": "Atkinson Hyperlegible e Lexend sono pensati per rendere le lettere facili da distinguere; OpenDyslexic aiuta alcune persone con dislessia. Su questo dispositivo il carattere viene usato per i messaggi in testo semplice."
       },
       "plain_language": {
-        "description_mobile": "Formulazioni più semplici per impostazioni e messaggi di errore. Disponibile in inglese e tedesco."
+        "description_mobile": "Formulazioni più semplici per impostazioni e messaggi di errore. Disponibile in inglese e tedesco.",
+        "label": "Linguaggio semplice"
       },
       "presets": {
         "applied_mobile": "{name} ha modificato {count, plural, one {# impostazione} other {# impostazioni}}",
@@ -1570,6 +1596,7 @@
     "show_unread": "Mostra non letti",
     "tab_unavailable": "{name} (non disponibile)",
     "account_sign_in_again": "Accedi di nuovo",
+    "account_unread": "{count} non letti",
     "sign_out_all_confirm_message": "Tutti gli account vengono rimossi da questo dispositivo. Puoi accedere di nuovo in qualsiasi momento.",
     "sign_out_all_confirm_title": "Disconnettere tutti gli account?",
     "sign_out_confirm_message": "L'account viene rimosso da questo dispositivo. Puoi accedere di nuovo in qualsiasi momento.",
@@ -1707,6 +1734,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Impostazioni di assenza salvate, ma i tuoi filtri sono disattivati. Salva di nuovo per riattivarli."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Il server non accetta più l'accesso salvato per {account}. La sua posta resta nascosta su questo dispositivo finché non accedi di nuovo."
   },
   "outbox": {
     "discard": "Scarta",

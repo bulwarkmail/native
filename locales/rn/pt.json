@@ -155,7 +155,10 @@
       "not_found": "Esta tarefa não está mais disponível.",
       "save_error": "Falha ao salvar a tarefa",
       "update_error": "Falha ao atualizar a tarefa",
-      "delete_confirm": "Excluir esta tarefa?"
+      "delete_confirm": "Excluir esta tarefa?",
+      "mark_occurrence_done": "Marcar este dia como concluído",
+      "mark_occurrence_open": "Marcar este dia como não concluído",
+      "open_task": "Abrir tarefa"
     },
     "views": {
       "schedule": "Programação",
@@ -186,6 +189,9 @@
     "retry": "Tentar novamente",
     "undo": "Desfazer",
     "update": "Atualizar"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Um destinatário está} other {# destinatários estão}} fora da sua organização:"
   },
   "contacts": {
     "address_books": {
@@ -492,6 +498,7 @@
       "open": "Abrir",
       "preview": "Pré-visualizar",
       "save": "Salvar",
+      "save_as": "Guardar como…",
       "share": "Compartilhar"
     },
     "attachment_failed": "Não foi possível abrir o anexo",
@@ -520,6 +527,7 @@
     },
     "export_failed": "Falha na exportação",
     "forwarded": "Encaminhado",
+    "import_email": "Importar .eml ou .zip",
     "load_failed": "Falha ao carregar o e-mail",
     "preview": {
       "open_external": "Abrir em outro app",
@@ -764,6 +772,8 @@
       "err_handoff_refused_title": "O webmail não aceitou este login",
       "err_handoff_server_detail": "Entre novamente. Se continuar falhando, fale com o administrador.",
       "err_handoff_server_title": "O webmail não conseguiu concluir o login",
+      "err_password_expired_detail": "Altere-a na interface web do servidor e depois entre com a nova.",
+      "err_password_expired_title": "Sua senha expirou",
       "err_token_exchange_title": "{host} não iniciou uma sessão",
       "reauth_detail": "O servidor não aceita mais o login salvo de {account}. Entre novamente para continuar usando esta conta.",
       "reauth_title": "Fazer login novamente",
@@ -1001,6 +1011,12 @@
       "attachment_click_action": {
         "description_mobile": "O que acontece quando você toca em um anexo."
       },
+      "attachment_position": {
+        "below-header": "Abaixo do cabeçalho",
+        "beside-sender": "Ao lado do remetente",
+        "description": "Onde exibir os anexos no cabeçalho do e-mail",
+        "label": "Posição dos anexos"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "As respostas sempre saem da identidade para a qual a mensagem foi enviada. Com esta opção ativada, uma resposta a outro endereço dos seus domínios (um alias catch-all) também é enviada desse endereço."
       },
@@ -1130,6 +1146,12 @@
         "star": "Adicionar estrela",
         "tag": "Etiqueta"
       },
+      "reading_pane": {
+        "auto": "Ao lado da lista quando houver espaço",
+        "description": "Em um tablet ou dobrável aberto, mostra a mensagem aberta ao lado da lista de e-mails. Somente neste dispositivo.",
+        "label": "Painel de leitura",
+        "off": "Desativado: as mensagens abrem em tela cheia"
+      },
       "show_avatars_in_junk": "Mostrar avatares dos remetentes no Spam",
       "show_avatars_in_junk_description": "Carrega os logotipos dos remetentes das mensagens na pasta Spam. Desativado, evita que remetentes de spam sejam contatados.",
       "show_folder_total_count": "Mostrar total de mensagens nas pastas",
@@ -1224,6 +1246,7 @@
       "clear_title": "Limpar e-mails offline",
       "days_ago": "há {count} d",
       "description": "Baixe as mensagens recentes para que abram instantaneamente e continuem legíveis sem conexão. Apenas o corpo — os anexos ainda são baixados sob demanda.",
+      "description_account": "Guardar as mensagens recentes de {account} neste dispositivo para que abram sem conexão. Cada conta tem seu próprio período e tamanho.",
       "downloading": "Baixando {completed}/{total}…",
       "enabled": "Armazenar e-mails recentes em cache",
       "enabled_desc": "Quando ativado, o app mantém neste dispositivo o corpo das mensagens do período selecionado.",
@@ -1293,7 +1316,8 @@
         "error_title": "Falha na atualização"
       },
       "encryption": {
-        "no_keys": "Adicione uma chave pública primeiro - a criptografia em repouso precisa de uma."
+        "no_keys": "Adicione uma chave pública primeiro - a criptografia em repouso precisa de uma.",
+        "turned_off_on_server": "A criptografia em repouso estava ativada e foi desativada no servidor, como faz a atualização para o Stalwart 1.0.2. Os novos e-mails são armazenados sem criptografia até você ativá-la de novo aqui."
       },
       "load_error": "Falha ao carregar as configurações de segurança.",
       "not_supported": "O gerenciamento de segurança da conta requer um servidor Stalwart. Estes recursos não estão disponíveis para esta conta.",
@@ -1343,6 +1367,7 @@
         "disable_hint_code": "Digite sua senha e um código do aplicativo de autenticação para desativar a autenticação de dois fatores."
       },
       "restricted": "Seu servidor só permite que apps aprovados pelo administrador alterem a senha, a autenticação de dois fatores, as senhas de aplicativo e as chaves de API. O Bulwark entrou sem essa aprovação, então e-mails, contatos, calendários e arquivos funcionam, mas essas configurações não. Altere-as na interface web do seu servidor ou no webmail do Bulwark.",
+      "restricted_sign_in_again": "O Bulwark entrou antes de o seu servidor permitir que apps gerenciassem essas configurações. Entre novamente para gerenciar aqui a senha, a autenticação de dois fatores, as senhas de aplicativo e as chaves de API.",
       "screen_privacy": {
         "block_screenshots": "Bloquear capturas de tela",
         "block_screenshots_description": "Impede capturas e gravações de tela do aplicativo e oculta o conteúdo dele na visualização de apps recentes.",
@@ -1464,7 +1489,8 @@
         "description_ios": "Atkinson Hyperlegible e Lexend foram feitas para letras fáceis de distinguir; OpenDyslexic ajuda algumas pessoas com dislexia. Neste dispositivo, a fonte é usada em mensagens de texto simples."
       },
       "plain_language": {
-        "description_mobile": "Textos mais simples nas configurações e mensagens de erro. Disponível em inglês e alemão."
+        "description_mobile": "Textos mais simples nas configurações e mensagens de erro. Disponível em inglês e alemão.",
+        "label": "Linguagem simples"
       },
       "presets": {
         "applied_mobile": "{name} alterou {count, plural, one {# configuração} other {# configurações}}",
@@ -1571,6 +1597,7 @@
     "show_unread": "Mostrar não lidas",
     "tab_unavailable": "{name} (indisponível)",
     "account_sign_in_again": "Fazer login novamente",
+    "account_unread": "{count} não lidas",
     "sign_out_all_confirm_message": "Todas as contas serão removidas deste dispositivo. Você pode entrar de novo a qualquer momento.",
     "sign_out_all_confirm_title": "Sair de todas as contas?",
     "sign_out_confirm_message": "A conta será removida deste dispositivo. Você pode entrar de novo a qualquer momento.",
@@ -1708,6 +1735,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Configurações de ausência salvas, mas seus filtros estão desativados. Salve de novo para reativá-los."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "O servidor não aceita mais o login salvo de {account}. Os e-mails dessa conta ficam ocultos neste dispositivo até você entrar novamente."
   },
   "outbox": {
     "discard": "Descartar",

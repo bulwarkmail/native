@@ -155,7 +155,10 @@
       "not_found": "Aquesta tasca ja no està disponible.",
       "save_error": "No s'ha pogut desar la tasca",
       "update_error": "No s'ha pogut actualitzar la tasca",
-      "delete_confirm": "Voleu suprimir aquesta tasca?"
+      "delete_confirm": "Voleu suprimir aquesta tasca?",
+      "mark_occurrence_done": "Marca aquest dia com a fet",
+      "mark_occurrence_open": "Marca aquest dia com a no fet",
+      "open_task": "Obre la tasca"
     },
     "views": {
       "schedule": "Agenda",
@@ -186,6 +189,9 @@
     "retry": "Reintenta",
     "undo": "Desfés",
     "update": "Actualitza"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Un destinatari és} other {# destinataris són}} fora de la vostra organització:"
   },
   "contacts": {
     "address_books": {
@@ -489,6 +495,7 @@
       "open": "Obre",
       "preview": "Previsualitza",
       "save": "Desa",
+      "save_as": "Desa com a…",
       "share": "Comparteix"
     },
     "attachment_failed": "No s'ha pogut obrir el fitxer adjunt",
@@ -517,6 +524,7 @@
     },
     "export_failed": "No s'ha pogut exportar",
     "forwarded": "Reenviat",
+    "import_email": "Importa un .eml o un .zip",
     "load_failed": "No s'ha pogut carregar el correu",
     "preview": {
       "open_external": "Obre en una aplicació",
@@ -761,6 +769,8 @@
       "err_handoff_refused_title": "El webmail no ha acceptat aquest inici de sessió",
       "err_handoff_server_detail": "Torneu a iniciar la sessió. Si continua fallant, consulteu l'administrador.",
       "err_handoff_server_title": "El webmail no ha pogut completar l'inici de sessió",
+      "err_password_expired_detail": "Canvieu-la a la interfície web del servidor i després inicieu la sessió amb la nova.",
+      "err_password_expired_title": "La vostra contrasenya ha caducat",
       "err_token_exchange_title": "{host} no ha iniciat cap sessió",
       "reauth_detail": "El servidor ja no accepta les dades d'inici de sessió desades per a {account}. Torneu a iniciar la sessió per continuar fent servir aquest compte.",
       "reauth_title": "Torna a iniciar la sessió",
@@ -998,6 +1008,12 @@
       "attachment_click_action": {
         "description_mobile": "Què passa quan toqueu un fitxer adjunt."
       },
+      "attachment_position": {
+        "below-header": "Sota la capçalera",
+        "beside-sender": "Al costat del remitent",
+        "description": "On mostrar els fitxers adjunts a la capçalera del correu",
+        "label": "Posició dels fitxers adjunts"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Les respostes sempre s'envien des de la identitat a la qual es va enviar el missatge. Amb aquesta opció activada, una resposta a una altra adreça dels vostres dominis (un àlies de captura general) també s'envia des d'aquesta adreça."
       },
@@ -1127,6 +1143,12 @@
         "star": "Marca amb estrella",
         "tag": "Etiqueta"
       },
+      "reading_pane": {
+        "auto": "Al costat de la llista quan hi ha espai",
+        "description": "En una tauleta o un plegable obert, mostra el missatge obert al costat de la llista de correu. Només en aquest dispositiu.",
+        "label": "Panell de lectura",
+        "off": "Desactivat: els missatges s'obren a pantalla completa"
+      },
       "show_avatars_in_junk": "Mostra els avatars dels remitents al correu brossa",
       "show_avatars_in_junk_description": "Carrega els logotips dels remitents dels missatges de la carpeta de correu brossa. Desactivat, evita que es contacti amb els remitents de correu brossa.",
       "show_folder_total_count": "Mostra el nombre total de missatges a les carpetes",
@@ -1221,6 +1243,7 @@
       "clear_title": "Neteja el correu sense connexió",
       "days_ago": "fa {count} d",
       "description": "Baixeu els missatges recents perquè s'obrin a l'instant i es puguin llegir sense connexió. Només el cos: els fitxers adjunts es continuen baixant quan cal.",
+      "description_account": "Conserva els missatges recents de {account} en aquest dispositiu perquè s'obrin sense connexió. Cada compte té el seu propi període i la seva mida.",
       "downloading": "S'està baixant {completed}/{total}…",
       "enabled": "Desa el correu recent a la memòria cau",
       "enabled_desc": "Si està activat, l'aplicació conserva en aquest dispositiu el cos dels missatges del període seleccionat.",
@@ -1290,7 +1313,8 @@
         "error_title": "No s'ha pogut actualitzar"
       },
       "encryption": {
-        "no_keys": "Primer afegiu una clau pública: el xifratge en repòs en necessita una."
+        "no_keys": "Primer afegiu una clau pública: el xifratge en repòs en necessita una.",
+        "turned_off_on_server": "El xifratge en repòs estava activat i s'ha desactivat al servidor, com fa l'actualització a Stalwart 1.0.2. El correu nou es desa sense xifrar fins que el torneu a activar aquí."
       },
       "load_error": "No s'ha pogut carregar la configuració de seguretat.",
       "not_supported": "La gestió de la seguretat del compte requereix un servidor Stalwart. Aquestes funcions no estan disponibles per a aquest compte.",
@@ -1340,6 +1364,7 @@
         "disable_hint_code": "Introduïu la contrasenya i un codi de l'aplicació d'autenticació per desactivar l'autenticació de dos factors."
       },
       "restricted": "El vostre servidor només permet que les aplicacions aprovades per l'administrador canviïn la contrasenya, l'autenticació de dos factors, les contrasenyes d'aplicació i les claus d'API. El Bulwark ha iniciat la sessió sense aquesta aprovació, de manera que el correu, els contactes, els calendaris i els fitxers funcionen, però aquestes opcions no. Canvieu-les a la interfície web del servidor o al webmail del Bulwark.",
+      "restricted_sign_in_again": "El Bulwark va iniciar la sessió abans que el vostre servidor permetés a les aplicacions gestionar aquesta configuració. Torneu a iniciar la sessió per gestionar aquí la contrasenya, l'autenticació de dos factors, les contrasenyes d'aplicació i les claus d'API.",
       "screen_privacy": {
         "block_screenshots": "Bloqueja les captures de pantalla",
         "block_screenshots_description": "Impedeix les captures i les gravacions de pantalla de l'aplicació i n'amaga el contingut a la vista d'aplicacions recents.",
@@ -1461,7 +1486,8 @@
         "description_ios": "Atkinson Hyperlegible i Lexend estan dissenyades perquè les lletres es distingeixin bé; OpenDyslexic ajuda algunes persones amb dislèxia. En aquest dispositiu, el tipus de lletra s'aplica als missatges de text pla."
       },
       "plain_language": {
-        "description_mobile": "Paraules més senzilles a la configuració i als missatges d'error. Disponible en anglès i alemany."
+        "description_mobile": "Paraules més senzilles a la configuració i als missatges d'error. Disponible en anglès i alemany.",
+        "label": "Llenguatge senzill"
       },
       "presets": {
         "applied_mobile": "{name} ha canviat {count, plural, one {# opció} other {# opcions}}",
@@ -1568,6 +1594,7 @@
     "show_unread": "Mostra els no llegits",
     "tab_unavailable": "{name} (no disponible)",
     "account_sign_in_again": "Torna a iniciar la sessió",
+    "account_unread": "{count} sense llegir",
     "sign_out_all_confirm_message": "Tots els comptes se suprimiran d'aquest dispositiu. Podeu tornar a iniciar la sessió en qualsevol moment.",
     "sign_out_all_confirm_title": "Voleu tancar la sessió de tots els comptes?",
     "sign_out_confirm_message": "El compte se suprimirà d'aquest dispositiu. Podeu tornar a iniciar la sessió en qualsevol moment.",
@@ -1705,6 +1732,9 @@
   },
   "notifications": {
     "vacation_filters_off": "S'ha desat la configuració d'absència, però els filtres estan desactivats. Torneu a desar per activar-los de nou."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "El servidor ja no accepta les dades d'inici de sessió desades per a {account}. El seu correu queda amagat en aquest dispositiu fins que torneu a iniciar la sessió."
   },
   "outbox": {
     "discard": "Descarta",
