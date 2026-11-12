@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, TextInput, Pressable, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, Modal, StyleSheet } from 'react-native';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
+import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import { renameAttachmentProblem, splitAttachmentName } from '../../lib/attachment-display';
 
 /**
@@ -22,6 +23,8 @@ export function RenameAttachmentPrompt({ name, onSubmit, onClose }: {
   const t = useLocaleStore((s) => s.t);
   const [stem, ext] = splitAttachmentName(name ?? '');
   const [value, setValue] = React.useState(stem);
+  // Centred above the keyboard (the field autofocuses) and the taskbar.
+  const bottomInset = useSheetBottomInset(name !== null);
   React.useEffect(() => { setValue(splitAttachmentName(name ?? '')[0]); }, [name]);
 
   const problem = renameAttachmentProblem(value);
@@ -39,7 +42,7 @@ export function RenameAttachmentPrompt({ name, onSubmit, onClose }: {
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={name !== null} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.overlay} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.center} pointerEvents="box-none">
+      <View style={[styles.center, { paddingBottom: bottomInset }]} pointerEvents="box-none">
         <View style={styles.card}>
           <Text style={styles.title}>{t('attachment_rename.rename_title', 'Rename attachment')}</Text>
           <View style={styles.inputRow}>
@@ -68,7 +71,7 @@ export function RenameAttachmentPrompt({ name, onSubmit, onClose }: {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
