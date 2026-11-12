@@ -32,6 +32,10 @@ import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-l
 import { vacationStatus } from '../../lib/vacation-status';
 import { isBlankReply, vacationMessageBlocksSave, vacationMessageEmpty } from '../../lib/vacation-message';
 import { VacationCalendarBlock } from './VacationCalendarBlock';
+import { VacationTemplatePicker } from './VacationTemplatePicker';
+import { useAccountOrganisation } from '../../lib/account-organisation';
+import type { FilledVacationTemplate } from '../../lib/vacation-templates';
+import { usePolicyStore } from '../../stores/policy-store';
 import { jmapClient } from '../../api/jmap-client';
 import { getSieveCapabilities } from '../../api/sieve';
 
@@ -89,6 +93,20 @@ export function VacationSettings() {
   // "Internal" are the account's own domains, as its identities give them.
   const identities = useSettingsStore((s) => s.identities);
   const domains = useMemo(() => ownDomains(identities.map((i) => i.email)), [identities]);
+  // The organisation's reply texts (organisation.vacationTemplates), filled
+  // for the account whose reply this is (webmail vacation-settings.tsx).
+  const vacationLibrary = useAccountOrganisation().vacationTemplates.library;
+  const companyName = usePolicyStore((s) => s.links.companyName ?? '');
+  const locale = useLocaleStore((s) => s.locale);
+  const managedAccount = useManagedAccountStore((s) => s.managedAccount);
+  const templateSender = useMemo(() => {
+    if (managedAccountId) {
+      const address = managedAccount?.name?.includes('@') ? managedAccount.name : '';
+      return { name: '', email: address };
+    }
+    const own = identities.find((i) => i.email?.toLowerCase() === jmapClient.username?.toLowerCase()) ?? identities[0];
+    return { name: own?.name ?? '', email: own?.email ?? jmapClient.username ?? '' };
+  }, [managedAccountId, managedAccount, identities]);
 
   // The store reuses `error` for save failures too, so remember whether the
   // initial fetch itself failed (that's the only case that blanks the form).
@@ -399,6 +417,27 @@ export function VacationSettings() {
         </SettingItem>
         <VacationCalendarBlock hasDates={!!fromParsed && !!toParsed} accountId={managedAccountId ?? undefined} />
       </SettingsSection>
+
+      <VacationTemplatePicker
+        library={vacationLibrary}
+        base={{
+          name: templateSender.name,
+          email: templateSender.email,
+          company: companyName,
+          from: fromParsed,
+          to: toParsed,
+          locale,
+        }}
+        onApply={(filled: FilledVacationTemplate) => {
+          if (filled.subject) setSubject(filled.subject);
+          setBody(filled.text || htmlToPlainText(filled.html));
+          if (filled.html) {
+            setHtmlEnabled(true);
+            setHtmlBody(filled.html);
+            setEditorSeed(filled.html);
+          }
+        }}
+      />
 
       <SettingsSection
         title={t('settings.vacation.message.title', 'Auto-Reply Message')}

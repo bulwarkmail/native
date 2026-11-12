@@ -62,6 +62,7 @@ import {
 import { toast } from '../stores/toast-store';
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
+import { assertCanDownload } from '../lib/download-guard';
 import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
 import { fileNameProblem, type FileNameProblem } from '../lib/file-name-rules';
@@ -97,6 +98,7 @@ import {
 import { NO_FILES_PLACES, useFilesPlacesStore } from '../stores/files-places-store';
 import { usePendingFilesLink, type FilesLink } from '../navigation/pending-files-link';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
@@ -578,6 +580,7 @@ export default function FilesScreen() {
     clearSelection();
     setBatchBusy(`0/${entries.length}`);
     try {
+      assertCanDownload();
       const zip = new JSZip();
       const header = { Authorization: jmapClient.authHeader };
       for (let i = 0; i < entries.length; i++) {
@@ -1608,6 +1611,7 @@ export default function FilesScreen() {
     >
       <View style={[styles.listColumn, previewDocked && { flex: 0, width: filesListWidth(contentWidth) }]}>
         {renderHeader()}
+        <OrgAnnouncementBanner />
         {body}
       </View>
       {previewDocked && (

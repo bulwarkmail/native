@@ -58,6 +58,10 @@ export interface OrgPolicy {
   organisation?: Record<string, unknown>;
   /** Domain and group overrides; empty once resolved for an account. */
   scopes: PolicyScope[];
+  /** Lists of the server's accounts show the user's own domains only (lib/directory-scope). */
+  directorySameDomainOnly?: boolean;
+  /** Account names left out of those lists, lowercase. */
+  directoryHiddenLocalparts?: string[];
 }
 
 /** Who the policy is resolved for: the account's address and its group accounts. */
@@ -154,6 +158,9 @@ function sanitizeDefaults(raw: unknown): Record<string, unknown> {
     if (!isSafeKey(key)) continue;
     if (typeof value === 'boolean' || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) {
       out[key] = value;
+    } else if (key === 'emailKeywords' && Array.isArray(value) && value.length <= 50) {
+      // The admin's default tags (webmail #1612), checked in lib/policy-keywords.
+      out[key] = value;
     }
   }
   return out;
@@ -207,6 +214,11 @@ export function sanitizePolicy(raw: unknown): OrgPolicy | null {
     forceEnabledThemes: stringList(raw.forceEnabledThemes),
     ...(isRecord(raw.organisation) ? { organisation: raw.organisation } : {}),
     scopes: sanitizeScopes(raw.scopes),
+    // The directory rules (webmail lib/directory-scope.ts); global only.
+    ...(raw.directorySameDomainOnly === true ? { directorySameDomainOnly: true } : {}),
+    ...(Array.isArray(raw.directoryHiddenLocalparts)
+      ? { directoryHiddenLocalparts: stringList(raw.directoryHiddenLocalparts).map((p) => p.trim().toLowerCase()).filter(Boolean).slice(0, 500) }
+      : {}),
   };
 }
 

@@ -871,3 +871,60 @@ live('live Stalwart: Archive folder made on first archive', () => {
     expect(found?.role).toBe('archive');
   }, 60_000);
 });
+
+// The organisation's offline caps on a sync against the real server
+// (lib/offline-scope.ts, organisation.devices): the account's own window is
+// cut to the organisation's days, and a forbidden offline cache keeps
+// nothing. The cache lives in the test's in-memory storage.
+live('live Stalwart: offline caps of the organisation', () => {
+  let mailboxId = '';
+  let imported = '';
+  let accountKey = '';
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    const { generateAccountId } = await import('../../lib/account-utils');
+    accountKey = generateAccountId(singleton.username!, singleton.serverUrl!);
+    mailboxId = await createMailbox({ name: `live-offline-${RUN}` });
+    imported = await importMessage(mailboxId, `Offline cap ${RUN}`, 'Kept offline.');
+  }, 60_000);
+
+  afterAll(async () => {
+    const { setDeviceRulesProvider } = await import('../../lib/device-rules');
+    setDeviceRulesProvider(null);
+    const { useOfflineCacheStore } = await import('../../stores/offline-cache-store');
+    await useOfflineCacheStore.getState().clearAccount(accountKey).catch(() => undefined);
+    await useLogin(client);
+    if (imported) await destroyEmails([imported]).catch(() => undefined);
+    if (mailboxId) await deleteMailbox(mailboxId, undefined, { onDestroyRemoveEmails: true }).catch(() => undefined);
+  }, 60_000);
+
+  it('keeps only the days the organisation allows, and nothing when it forbids offline mail', async () => {
+    const { setDeviceRulesProvider } = await import('../../lib/device-rules');
+    const { NO_DEVICE_LIMITS } = await import('../../lib/org-organisation');
+    const { useOfflineCacheStore } = await import('../../stores/offline-cache-store');
+    const { runOfflineSync } = await import('../../lib/offline-sync');
+    const cache = useOfflineCacheStore.getState();
+    await cache.setAccount(accountKey);
+    cache.setChoice(accountKey, { days: 90 });
+
+    setDeviceRulesProvider(() => ({ ...NO_DEVICE_LIMITS, offlineMaxDays: 1 }));
+    const started = Date.now();
+    await runOfflineSync({ days: 7, maxMB: 50 });
+    const entries = Object.values(useOfflineCacheStore.getState().index.entries);
+    expect(useOfflineCacheStore.getState().sync.phase).toBe('done');
+    expect(entries.some((e) => e.id === imported)).toBe(true);
+    for (const e of entries) expect(Date.parse(e.receivedAt)).toBeGreaterThanOrEqual(started - 86_400_000 - 60_000);
+
+    await useOfflineCacheStore.getState().clearAccount(accountKey);
+    await useOfflineCacheStore.getState().setAccount(null);
+    await useOfflineCacheStore.getState().setAccount(accountKey);
+    setDeviceRulesProvider(() => ({ ...NO_DEVICE_LIMITS, noOffline: true }));
+    await runOfflineSync({ days: 7, maxMB: 50 });
+    expect(useOfflineCacheStore.getState().totalCount()).toBe(0);
+  }, 90_000);
+});

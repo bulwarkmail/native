@@ -24,6 +24,7 @@ import { ArchiveSummary, PreviewPartList, type PreviewPart } from './PreviewPart
 import { SafeAreaModal } from '../SafeAreaModal';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { previewTitle } from '../../lib/preview-title';
+import { Watermark } from '../Watermark';
 
 export interface PreviewItem {
   kind: PreviewKind;
@@ -432,6 +433,7 @@ export function AttachmentPreviewModal({
           </Pressable>
         </View>
         {renderBody()}
+        <Watermark />
         {nested.modalProps.item || nested.modalProps.loading ? <AttachmentPreviewModal {...nested.modalProps} /> : null}
       </SafeAreaView>
   );

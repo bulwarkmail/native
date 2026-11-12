@@ -16,6 +16,7 @@ import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
 import { stripBidiControls } from './bidi';
 import { handoffMimeType } from './file-preview';
+import { assertCanDownload, assertCanExport } from './download-guard';
 
 const RFC822 = 'message/rfc822';
 const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
@@ -245,6 +246,7 @@ export async function shareAttachment(
   // Owning account for blobs shared by another principal (Files app).
   accountId?: string,
 ): Promise<void> {
+  assertCanDownload();
   const filename = email
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
@@ -286,6 +288,7 @@ export async function downloadAttachment(
   const filename = email
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
+  assertCanDownload();
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
@@ -309,6 +312,7 @@ async function offerSavedFile(file: File, filename: string, mimeType: string): P
  * share sheet, without downloading it again.
  */
 export async function saveLocalFileCopy(file: File, mimeType: string, filename = file.name): Promise<void> {
+  assertCanDownload();
   const name = safeAttachmentName(filename, mimeType);
   const dest = new File(Paths.document, name);
   if (dest.exists) dest.delete();
@@ -419,6 +423,7 @@ export async function shareLocalFile(
   dialogTitle?: string,
   opts: { forceSheet?: boolean; keep?: boolean } = {},
 ): Promise<void> {
+  assertCanDownload();
   if (!opts.forceSheet && Platform.OS === 'android' && (await openWithViewer(file, mimeType))) return;
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
@@ -449,6 +454,7 @@ export async function shareAttachmentViaSheet(
   email?: Email | null,
   accountId?: string,
 ): Promise<void> {
+  assertCanDownload();
   const filename = email
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
@@ -551,6 +557,7 @@ export async function shareEmailEml(
   // Owning account when the message lives in a shared/group mailbox.
   accountId?: string,
 ): Promise<void> {
+  assertCanExport();
   const filename = email
     ? emailExportFilename(email, emailFileOptions())
     : safeFilename(subjectFallback);

@@ -50,12 +50,12 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
 
 ### Accounts and sign-in
 
-- [ ] **Org user policy and "Set by your organisation"** — `P2` — `missing` (blocked) — partly: applied in 9d977773, locked and hidden settings in f27e2ceb, colour mode in b7b3dd4c, archiving off in efb92593 and 13dcbdc0, delegates and recovery in bc47c6a1; not yet: share rights for mail folder presets, group-identity scopes, Archive on the Android widget
+- [x] **Org user policy and "Set by your organisation"** — `P2` — `missing` (blocked) — partly: applied in 9d977773, locked and hidden settings in f27e2ceb, colour mode in b7b3dd4c, archiving off in efb92593 and 13dcbdc0, delegates and recovery in bc47c6a1; not yet: share rights for mail folder presets, group-identity scopes, Archive on the Android widget — fixed in 66ee36bd (share rights for folder presets) and 057178b9 (group identities get the group's signature and disclaimer; the signature path only), Archive on the Android widget in 762ec6ba
   - What WEB does: locks or hides settings per domain or group (`stores/policy-store.ts:110`, `hooks/use-restriction.ts:22`, `components/settings/org-locked-note.tsx:14`), incl. colour mode #1280, archiving off #1257, tags above shared mailboxes #1334, share rights, hiding delegates or recovery.
   - What RN does: nothing (`src/stores/settings-store.ts:453`); the paired webmail is forgotten (`src/lib/oauth.ts:292`).
   - Fix hint: keep the webmail URL at hand-off/pairing and fetch the policy with a bearer token. Needs a webmail route that accepts a JMAP bearer token. See "Needs a decision".
 
-- [ ] **Admin-set idle sign-out and maximum session length** — `P2` — `missing` (blocked)
+- [x] **Admin-set idle sign-out and maximum session length** — `P2` — `missing` (blocked) — fixed in 3020d831 (idle time runs while the app is in the background; the maximum length warns in the foreground; signs out through logoutAll, which deletes the local data where the webmail hides it for 30 days)
   - What WEB does: `components/session/session-timeout-guard.tsx:94`, `lib/session-policy/limits.ts:36`, refuses to restore over-age sessions (6e5d8faec), saves drafts first (79c697a93).
   - What RN does: stays signed in for good (`src/stores/auth-store.ts:929`, `App.tsx:818`).
   - Fix hint: needs the policy; then an AppState idle timer and a max-age check in restoreSession, drafts flushed first.

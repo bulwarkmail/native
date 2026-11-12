@@ -90,6 +90,7 @@ import { usePendingSignInLinkStore } from './src/navigation/pending-sign-in-link
 import { MAX_ACCOUNTS } from './src/lib/account-utils';
 import { addShareListener, getInitialShare, shareAttachments } from './src/lib/share-intent';
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
+import { SessionTimeoutGuard } from './src/components/SessionTimeoutGuard';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
 import { runOfflineSync } from './src/lib/offline-sync';
@@ -262,6 +263,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
       <AppIconBadge />
+      <SessionTimeoutGuard />
     <Tab.Navigator
       screenListeners={perfMarksEnabled() ? ({ route }) => ({
         tabPress: () => perfStart('tab-switch'),

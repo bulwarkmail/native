@@ -27,6 +27,7 @@ import { useTagUndoGroup } from '../lib/tag-undo-group';
 import { selectAllA11y } from '../lib/select-all-a11y';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
+import { RetentionNotice } from '../components/email/RetentionNotice';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListAttachments, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
@@ -95,6 +96,9 @@ import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { searchEverythingPlacement } from '../lib/search-everything-entry';
 import { fitToolbarActions } from '../lib/selection-toolbar';
 import { setPromptListColumn } from '../lib/push-prompt-frame';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
+import { RefusedAccountPrompt } from '../components/RefusedAccountPrompt';
+import { useRefusedActiveAccount } from '../lib/refused-accounts';
 
 // The server refuses keywords per message (a read-only shared folder;
 // Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
@@ -606,6 +610,8 @@ export default function EmailListScreen({
     [mailboxes, currentMailboxId],
   );
   const currentRole = currentMailbox?.role ?? null;
+  // The server refused this account: its cached mail stays hidden until a new sign-in.
+  const refusedAccountId = useRefusedActiveAccount();
   // The Sort menu of the header (webmail e3f1ccce7): the order presets of
   // Settings > Layout, one tap away.
   const [sortMenuOpen, setSortMenuOpen] = React.useState(false);
@@ -1671,6 +1677,7 @@ export default function EmailListScreen({
           />
         </View>
       )}
+      <OrgAnnouncementBanner />
 
       {/* Search bar (always visible; inside the header in a short window) */}
       {!shortHeight && renderSearchBar(false)}
@@ -1864,6 +1871,8 @@ export default function EmailListScreen({
 
       {/* Recover deleted items, from the account's own Trash (mounted only there) */}
       {currentMailbox?.role === 'trash' && <TrashRecoveryLink mailbox={currentMailbox} />}
+      {/* How long the server keeps mail in Trash and Junk (organisation.retention) */}
+      <RetentionNotice role={currentRole} />
 
       {canEmptyFolder && !selectionMode && (
         <View style={styles.emptyFolderBanner}>
@@ -1909,7 +1918,9 @@ export default function EmailListScreen({
       )}
 
       {/* Email list */}
-      {loading && emails.length === 0 ? (
+      {refusedAccountId ? (
+        <RefusedAccountPrompt accountId={refusedAccountId} />
+      ) : loading && emails.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={c.primary} />
           <Text style={styles.loadingText}>{t('email_list.loading', 'Loading emails...')}</Text>

@@ -7,6 +7,7 @@ import { decodeFileNodeName, getUniqueName } from '../lib/filenode-name';
 import { acceptedFileName, fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
 import { mediaTypeEssence } from '../lib/media-type';
 import { accountSupports } from '../lib/account-capability';
+import { scopePrincipalListing } from '../lib/directory-scope';
 
 /**
  * What a FileNode is: a file, a folder or a symlink.
@@ -894,8 +895,12 @@ function principalsUsing(): string[] {
 // filter client-side. Paged by maxObjectsInGet: an unbounded query hands every
 // id to the chained Principal/get, which the server refuses with
 // `requestTooLarge` once the directory holds more than that (500), leaving the
-// picker empty.
+// picker empty. The organisation's directory rules apply (lib/directory-scope).
 export async function listPrincipals(): Promise<PrincipalListing> {
+  return scopePrincipalListing(await listAllPrincipals());
+}
+
+async function listAllPrincipals(): Promise<PrincipalListing> {
   if (!supportsSharing()) return { principals: [], status: 'ok' };
   const accountId = jmapClient.accountId;
   const pageSize = jmapClient.getMaxObjectsInGet();

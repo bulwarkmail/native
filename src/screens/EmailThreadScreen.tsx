@@ -67,6 +67,7 @@ import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import { Watermark } from '../components/Watermark';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
   /** Shown in a split view's detail pane: no back button. */
@@ -1405,6 +1406,7 @@ function EmailPane({
           />
         )}
       </View>
+      <Watermark />
     </ScrollView>
   );
 }

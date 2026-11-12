@@ -21,6 +21,7 @@ import { computeReplyThreadingHeaders } from '../../lib/email-threading';
 import { deliveryAddresses, resolveReplyIdentity } from '../../lib/reply-identity';
 import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-utils';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup } from '../../lib/org-signature';
+import { policyForSender } from '../../lib/sender-policy';
 import { usePolicyStore } from '../../stores/policy-store';
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
@@ -200,7 +201,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       // The organisation signature and disclaimer, as the composer adds them
       // (webmail lib/outgoing/quick-reply.ts, lib/org/outgoing.ts).
       const policy = usePolicyStore.getState();
-      const orgSetup = orgSignatureSetup(policy.effective, identity, null, policy.links.companyName ?? '');
+      const orgSetup = orgSignatureSetup(policyForSender(policy.effective, identity?.email), identity, null, policy.links.companyName ?? '');
       const signer = effectiveSignatureIdentity(signatureIdentityFor(identity, identities), identity, orgSetup.signature, orgSetup.restriction);
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, target.accountId);
       // Where the reply goes, read before it goes: Undo must reach that login

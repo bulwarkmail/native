@@ -57,6 +57,7 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useCollectionNames } from '../lib/default-collection-name';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -566,6 +567,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
           </>
         )}
       </View>
+      <OrgAnnouncementBanner />
 
       {searchActive && (
         <View style={styles.searchBar}>

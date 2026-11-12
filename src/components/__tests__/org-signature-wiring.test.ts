@@ -20,13 +20,13 @@ describe('organisation signature wiring', () => {
 
   it('signs with the organisation signature filled in for the sending identity', () => {
     const src = read('screens/ComposeScreen.tsx');
-    expect(src).toMatch(/orgSignatureSetup\(orgPolicy, primaryIdentity, null, orgCompany\)/);
+    expect(src).toMatch(/orgSignatureSetup\(policyForSender\(orgPolicy, primaryIdentity\?\.email\), primaryIdentity, null, orgCompany\)/);
     expect(src).toMatch(/const signatureIdentity = React\.useMemo\(\s+\(\) => effectiveSignatureIdentity\(ownSignatureIdentity, primaryIdentity, orgSetup\.signature, orgSetup\.restriction\)/);
   });
 
   it('adds the locked signature and the disclaimer on send, not to drafts', () => {
     const src = read('screens/ComposeScreen.tsx');
-    expect(src).toMatch(/if \(!opts\.forDraft\) \{\s+const setup = orgSignatureSetup\(usePolicyStore\.getState\(\)\.effective, identity,[^\n]*\n\s+const finished = finalizeOrgOutgoing\(\{ html: htmlBody, text: textBody \}, setup,/);
+    expect(src).toMatch(/if \(!opts\.forDraft\) \{\s+const setup = orgSignatureSetup\(policyForSender\(usePolicyStore\.getState\(\)\.effective, identity\?\.email\), identity,[^\n]*\n\s+const finished = finalizeOrgOutgoing\(\{ html: htmlBody, text: textBody \}, setup,/);
     expect(src).toMatch(/htmlBody = finished\.html;\s+textBody = finished\.text;/);
   });
 

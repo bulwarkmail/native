@@ -37,6 +37,8 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useNoThirdPartyTraffic, usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
+import { policyForSender } from '../lib/sender-policy';
+import { registerComposerFlush } from '../lib/compose-flush-registry';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
@@ -1127,7 +1129,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const orgPolicy = usePolicyStore((s) => s.effective);
   const orgCompany = usePolicyStore((s) => s.links.companyName ?? '');
   const orgSetup = React.useMemo(
-    () => orgSignatureSetup(orgPolicy, primaryIdentity, null, orgCompany),
+    () => orgSignatureSetup(policyForSender(orgPolicy, primaryIdentity?.email), primaryIdentity, null, orgCompany),
     [orgPolicy, primaryIdentity, orgCompany],
   );
   const signatureIdentity = React.useMemo(
@@ -1552,7 +1554,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // removed goes back in, and the disclaimer goes below everything
     // (webmail lib/org/outgoing.ts).
     if (!opts.forDraft) {
-      const setup = orgSignatureSetup(usePolicyStore.getState().effective, identity, null, usePolicyStore.getState().links.companyName ?? '');
+      const setup = orgSignatureSetup(policyForSender(usePolicyStore.getState().effective, identity?.email), identity, null, usePolicyStore.getState().links.companyName ?? '');
       const finished = finalizeOrgOutgoing({ html: htmlBody, text: textBody }, setup, { separator: signatureSeparatorEnabled });
       htmlBody = finished.html;
       textBody = finished.text;
@@ -1757,6 +1759,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
   const saveDraftRef = React.useRef(saveDraft);
   saveDraftRef.current = saveDraft;
+  // A forced sign-out (the organisation's session limits) saves the draft first.
+  React.useEffect(() => registerComposerFlush(composeIdRef.current, () => (
+    latestRef.current.needsSave && !sendingRef.current ? saveDraftRef.current({ live: true }) : undefined
+  )), []);
 
   // Debounced autosave: two seconds after the last change, rate-limited to
   // one save per `autoSaveDraftInterval`.

@@ -61,6 +61,8 @@ export function ReadingSettings() {
   const deleteActionHidden = useSettingHidden('deleteAction');
   const showPreviewLocked = useSettingLocked('showPreview');
   const showPreviewHidden = useSettingHidden('showPreview');
+  const showAttachmentChipsLocked = useSettingLocked('showAttachmentChips');
+  const showAttachmentChipsHidden = useSettingHidden('showAttachmentChips');
   const includeGroupLocked = useSettingLocked('includeGroupInUnified');
   const includeGroupHidden = useSettingHidden('includeGroupInUnified');
   const plainTextModeLocked = useSettingLocked('plainTextMode');
@@ -242,9 +244,11 @@ export function ReadingSettings() {
         <ToggleSwitch checked={showVerificationCodes} onChange={(v) => update('showVerificationCodes', v)} />
       </SettingItem>
 
-      <SettingItem label={t('settings.email_behavior.show_attachment_chips.label', 'Show attachments in the list')} description={t('settings.email_behavior.show_attachment_chips.description', 'Show attached files under each message, to open them from the list. The paperclip shows either way.')}>
-        <ToggleSwitch checked={showAttachmentChips} onChange={(v) => update('showAttachmentChips', v)} />
-      </SettingItem>
+      {!showAttachmentChipsHidden && (
+        <SettingItem label={t('settings.email_behavior.show_attachment_chips.label', 'Show attachments in the list')} description={t('settings.email_behavior.show_attachment_chips.description', 'Show attached files under each message, to open them from the list. The paperclip shows either way.')} locked={showAttachmentChipsLocked}>
+          <ToggleSwitch checked={showAttachmentChips} onChange={(v) => update('showAttachmentChips', v)} />
+        </SettingItem>
+      )}
 
       <SettingItem label={t('settings.email_behavior.disable_threading.label', "Disable Conversation Grouping")} description={t('settings.email_behavior.disable_threading.description', "Show emails as individual messages instead of grouped by conversation")}>
         <ToggleSwitch checked={disableThreading} onChange={(v) => update('disableThreading', v)} />

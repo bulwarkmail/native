@@ -68,6 +68,14 @@ interface KeywordsState {
   keywords: KeywordDef[];
   hydrated: boolean;
   /**
+   * The user has tags of their own on this device (stored, or changed
+   * since). Until then the admin's default tags (policy
+   * `defaults.emailKeywords`) or the built-in ones apply.
+   */
+  chosen: boolean;
+  /** The admin's default tags, null for none; see lib/policy-keywords. */
+  applyPolicyDefault: (keywords: KeywordDef[] | null) => void;
+  /**
    * Nested tags on: `work/clients` is drawn under `work` in the sidebar,
    * the tag sheet and Settings. Off by default, as in the webmail.
    */
@@ -107,7 +115,12 @@ function sameTags(a: KeywordDef[], b: KeywordDef[]): boolean {
     && a.every((t, i) => t.id === b[i].id && t.label === b[i].label && t.color === b[i].color && t.visibility === b[i].visibility);
 }
 
+// The admin's default tags of the active account's policy (null: the built-in ones).
+let policyDefault: KeywordDef[] | null = null;
+const startingTags = () => policyDefault ?? DEFAULT_KEYWORDS;
+
 function persist(keywords: KeywordDef[]): void {
+  useKeywordsStore.setState({ chosen: true });
   void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(keywords)).catch((err) => {
     console.warn('[keywords-store] persist failed', err);
   });
@@ -116,8 +129,15 @@ function persist(keywords: KeywordDef[]): void {
 export const useKeywordsStore = create<KeywordsState>((set, get) => ({
   keywords: DEFAULT_KEYWORDS,
   hydrated: false,
+  chosen: false,
   nested: false,
   sharedTags: {},
+
+  applyPolicyDefault: (keywords) => {
+    policyDefault = keywords;
+    // Only for users who haven't made the tags their own (webmail #1612).
+    if (get().hydrated && !get().chosen) set({ keywords: startingTags() });
+  },
 
   setNested: (nested) => {
     set({ nested });
@@ -171,11 +191,11 @@ export const useKeywordsStore = create<KeywordsState>((set, get) => ({
       if (raw) {
         const parsed = JSON.parse(raw) as KeywordDef[];
         if (Array.isArray(parsed)) {
-          set({ keywords: parsed, nested, hydrated: true });
+          set({ keywords: parsed, nested, hydrated: true, chosen: true });
           return;
         }
       }
-      set({ nested });
+      set({ nested, ...(get().chosen ? {} : { keywords: startingTags() }) });
     } catch (err) {
       console.warn('[keywords-store] hydrate failed', err);
     }
@@ -208,8 +228,11 @@ export const useKeywordsStore = create<KeywordsState>((set, get) => ({
   },
 
   resetDefaults: () => {
-    set({ keywords: DEFAULT_KEYWORDS });
-    persist(DEFAULT_KEYWORDS);
+    // Back to the starting tags, which follow the admin's default again.
+    set({ keywords: startingTags(), chosen: false });
+    void AsyncStorage.removeItem(STORAGE_KEY).catch((err) => {
+      console.warn('[keywords-store] reset failed', err);
+    });
   },
 }));
 

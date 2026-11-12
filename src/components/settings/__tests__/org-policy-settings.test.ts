@@ -111,4 +111,11 @@ describe('organisation policy on the settings pages', () => {
     expect(settings('ReadingSettings')).toMatch(/<View pointerEvents=\{deleteActionLocked \? 'none' : 'auto'\}[^>]*>\s*<Select\s+value=\{deleteAction\}/);
     expect(settings('ComposingSettings')).toMatch(/<View pointerEvents=\{replyIdentityMatchLocked \? 'none' : 'auto'\}[^>]*>\s*\{segmented\(REPLY_IDENTITY_MATCHES/);
   });
+
+  it('hides or locks the attachments in the list when the organisation presets them (webmail efc17bda8)', () => {
+    const page = settings('ReadingSettings');
+    expect(page).toContain("const showAttachmentChipsLocked = useSettingLocked('showAttachmentChips');");
+    expect(page).toContain("const showAttachmentChipsHidden = useSettingHidden('showAttachmentChips');");
+    expect(page).toMatch(/\{!showAttachmentChipsHidden && \(\s*<SettingItem label=\{t\('settings\.email_behavior\.show_attachment_chips\.label'[^\n]*locked=\{showAttachmentChipsLocked\}>/);
+  });
 });

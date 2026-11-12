@@ -115,6 +115,7 @@ import {
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent } from '../api/types';
+import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 type ViewMode = 'month' | 'week' | '3day' | 'day' | 'agenda';
 
@@ -1124,6 +1125,7 @@ export default function CalendarScreen() {
           )}
         </View>
       </View>
+      <OrgAnnouncementBanner />
 
       {monthPanelOpen && (
         <MonthDropdown

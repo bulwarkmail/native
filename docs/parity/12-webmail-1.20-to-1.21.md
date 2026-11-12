@@ -89,7 +89,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: selects the loaded rows only (`src/screens/EmailListScreen.tsx:977-983`).
   - Fix hint: after select all, offer the folder total and run the batch actions by query.
 
-- [x] **No setting to hide the attachment chips under list rows** — `P3` — `missing` — fixed in 3a01b64e
+- [x] **No setting to hide the attachment chips under list rows** — `P3` — `missing` — fixed in 3a01b64e; the organisation's preset and lock in a56ea755
   - What WEB does: "Show attachments in the list" under Settings > Message list turns the chips off; the paperclip and the verification code chip stay; admins can preset or lock it (`components/email/attachment-chips.tsx`, `components/settings/message-list-settings.tsx`). c136bd816, 9c7d5ae29, efc17bda8 (#1604).
   - What RN does: chips always render when the row can open attachments (`src/screens/EmailListScreen.tsx:353-361`); no setting in `src/stores/settings-store.ts`.
   - Fix hint: a boolean in settings-store and Message list settings that skips ListAttachmentChips and its loader.
@@ -153,7 +153,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: NewTagRow always adds to the user's own tags (`src/components/NewTagRow.tsx:24-38`), while group rows show the group's merged tags (`src/screens/EmailListScreen.tsx:605-611`).
   - Fix hint: pass the scope to NewTagRow and save through the shared tags store for a group account.
 
-- [ ] **New accounts start with seven colour tags; admins can't set default tags** — `P3` — `bug`
+- [x] **New accounts start with seven colour tags; admins can't set default tags** — `P3` — `bug` — fixed in d7d3a676 (the admin's defaults.emailKeywords until the user changes a tag; without one the seven colour tags stay, as in the webmail's DEFAULT_SETTINGS)
   - What WEB does: new accounts start with no tags, or with the admin's `defaults.emailKeywords` (`stores/settings-store.ts` DEFAULT_SETTINGS, `lib/admin/policy-defaults.ts:31-40`). 3163864b1 (#1612).
   - What RN does: DEFAULT_KEYWORDS (Red, Orange, ...) for every new account and on reset (`src/stores/keywords-store.ts:35`, `:117`, `:211`).
   - Fix hint: start empty, take the policy default when there is one.
@@ -390,7 +390,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: Export, Move, Add tag and Delete (`src/screens/ContactsScreen.tsx:446`, `:456`, `:466`, `:475`).
   - Fix hint: a "Send email" action that opens Compose with the addresses, and "Add to group".
 
-- [ ] **The directory can't be turned off, and the admin's same-domain rule isn't applied** — `P3` — `missing` — partly in e3446c72 (the directory can be turned off); not done: the same-domain rule, sanitizePolicy in src/lib/org-policy.ts drops directorySameDomainOnly and directoryHiddenLocalparts and may not be edited in this wave
+- [x] **The directory can't be turned off, and the admin's same-domain rule isn't applied** — `P3` — `missing` — partly in e3446c72 (the directory can be turned off); not done: the same-domain rule, sanitizePolicy in src/lib/org-policy.ts drops directorySameDomainOnly and directoryHiddenLocalparts and may not be edited in this wave; the same-domain rule and hidden names fixed in ed18165e (every listPrincipals list: directory, sharing, delegation, free/busy)
   - What WEB does: users and admins can turn the directory off (#1457, changelog 1.20.0); the policy can limit every account list (directory, suggestions, sharing, delegation, free/busy) to the user's own domains and hide names such as noreply (`lib/directory-scope.ts`). a236eb555.
   - What RN does: handles a server refusal (`src/lib/contact-directory.ts:20`) but has no setting and reads no directory rule from the policy (`src/lib/org-policy.ts`).
   - Fix hint: a Contacts setting, and apply `directorySameDomainOnly` from the public policy in principal-directory.
@@ -434,7 +434,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: SidebarDrawer has no vacation state; only Settings shows it.
   - Fix hint: a row at the top of the drawer from useVacationStore with a Turn off button.
 
-- [ ] **Out of office has no "Block my calendar" and no organisation templates** — `P3` — `missing` — partly in e19398ea (Block my calendar); not done: the organisation templates, left for a later agent
+- [x] **Out of office has no "Block my calendar" and no organisation templates** — `P3` — `missing` — partly in e19398ea (Block my calendar); not done: the organisation templates, left for a later agent; the organisation templates fixed in f60e6109 (dates in the device zone, as the rest of the page)
   - What WEB does: a reply with dates puts a busy event in the calendar, on by default, lockable by the admin (`components/settings/vacation-calendar-block.tsx`); admins keep a template library that fills in name, dates and deputy (`components/settings/vacation-template-picker.tsx`); the date fields use the app's time zone. Changelog 1.20.0.
   - What RN does: none of these (`src/components/settings/VacationSettings.tsx`); dates are read in the device zone (`src/lib/vacation-dates.ts:1-16`).
   - Fix hint: the calendar block first; the templates come from the organisation policy.
@@ -507,17 +507,17 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Offline and app lock
 
-- [ ] **Offline keeps only recent message bodies, unencrypted, with one device-wide size cap** — `P2` — `partial`
+- [x] **Offline keeps only recent message bodies, unencrypted, with one device-wide size cap** — `P2` — `partial` — fixed in a7176a1f (per-account window and total, organisation caps; the app keeps no attachments offline, so the attachment caps have nothing to cap); not done: encrypted store, offline search, drafts, calendar, contacts and files: own project, decision 14
   - What WEB does: an encrypted on-device database of mail, calendars, tasks, contacts and files; offline search, drafts and attachments saved offline, changes queued and replayed once, conflicts listed; per-account history and attachment caps with a per-account total (92ca06c84, 510ae2f7a), clear per account, export of kept mail to mbox/EML zip (changelog 1.20.0 and 1.21.0 Offline; `lib/offline/`, `lib/store/`).
   - What RN does: caches message bodies and optional attachment blobs of the last N days, bodies as JSON in AsyncStorage (`src/stores/offline-cache-store.ts:1-10`), with one device-wide day and MB setting (`src/components/settings/StorageSettings.tsx:39-41`, `:208-226`); plus the Outbox for mail sent offline. No offline search, calendar, contacts or files, no per-account caps, no encryption beyond the app sandbox.
   - Fix hint: a large project. First steps that fit the current cache: per-account caps, search over cached bodies, and offline drafts through the Outbox. Encryption at rest matters less in the app sandbox than in a browser, but org caps (see Organisation policy) need the per-account split.
 
-- [ ] **No app lock** — `P3` — `missing`
+- [ ] **No app lock** — `P3` — `missing` — not done: needs a new native module (biometrics) and a dependency install, decision 14
   - What WEB does: locks the app and the mail kept on the device with a PIN, a passkey or Windows Hello after a chosen time (changelog 1.21.0 App lock; `lib/app-lock/`).
   - What RN does: no app lock; it relies on the phone's own lock, with Delete from a notification asking for the device unlock where needed (`src/lib/push-background-task.ts:132-136`) and screenshot protection (`src/lib/screen-privacy.ts:6-20`).
   - Fix hint: optional biometric or device-credential lock on foreground after a timeout (expo-local-authentication), which needs a new native module and manifest entries.
 
-- [ ] **An admin's remote wipe doesn't reach the phone** — `P3` — `missing`
+- [ ] **An admin's remote wipe doesn't reach the phone** — `P3` — `missing` — not done: the webmail registers devices with a session cookie only, decision 14
   - What WEB does: devices register with the instance and check in at start (`POST /api/devices`, `app/api/devices/route.ts:31`); an admin can wipe a lost device or all of a user's devices, and the device deletes its local data at the next check-in, also when its password was revoked (`lib/offline/device-wipe.ts:1-35`). `organisation.devices.wipeOnForcedSignOut` asks for deletion at once after a refused login. ce3e3b9db (desktop main process part); changelog `CHANGELOG.md:175-176`.
   - What RN does: no device registration, check-in or wipe; a refused login signs the account out, and its cached data is cleared only by the sign-out path (`src/stores/auth-store.ts:553`).
   - Fix hint: cross-repo. Registration needs a session cookie today (`app/api/devices/route.ts:27-29`), so the webmail needs a bearer-token registration for the app first; then the app checks in at start and on resume and wipes the account's caches, drafts and keychain entries on a `wipe` answer.
@@ -529,22 +529,22 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Organisation policy
 
-- [ ] **The organisation's device policies don't apply in the app (push text, downloads, export, watermark, offline caps, remote wipe)** — `P2` — `missing`
+- [x] **The organisation's device policies don't apply in the app (push text, downloads, export, watermark, offline caps, remote wipe)** — `P2` — `missing` — fixed in a7176a1f (downloads, export, watermark, offline caps); push text on the security branch; not done: remote wipe (needs a webmail change first, decision 14); n/a: print and the install prompt
   - What WEB does: `organisation.devices` turns off attachment and file downloads, mail and folder export, printing and the install prompt, keeps sender and subject off push notifications (enforced server-side in the push preview), adds a watermark, forbids or caps offline data (days, attachment size, total), and admins can wipe a lost device (`lib/admin/organisation-policy.ts:163-185`, `lib/device-policy.ts:1-26`, `app/api/push/preview/route.ts:268-275`, `lib/offline/device-wipe.ts`). Changelog 1.20.0 and 1.21.0 Organisation.
   - What RN does: keeps the policy's `organisation` part as sent (`src/lib/org-policy.ts:57-58`, `:191`) but reads only the signature and disclaimer from it (`src/lib/org-signature.ts:61-62`). Push notifications always show sender and subject (`src/lib/push-background-task.ts:637-641`); offline caching follows only the user's settings (`src/components/settings/StorageSettings.tsx:39-41`); no download or export guard, no watermark, no wipe.
   - Fix hint: port devicesForAccount and apply pushWithoutContent first (push task, generic text), then noDownloads/noExport on the attachment and export paths and noOffline plus caps on the offline cache. Print is n/a.
 
-- [ ] **An account the server refuses keeps showing its cached mail** — `P2` — `missing`
+- [x] **An account the server refuses keeps showing its cached mail** — `P2` — `missing` — fixed in dc8e34e9
   - What WEB does: a refused login or an idle sign-out hides the account's mail on the device until the user signs in again, for at most 30 days, and says how many unsent messages wait; with `wipeOnForcedSignOut` it is deleted at once (`lib/offline/device-wipe.ts:9-12`, `:727`, `:742`). Changelog 1.21.0 Organisation.
   - What RN does: keeps the refused account with its caches and marks it "Sign in again" (`src/stores/auth-store.ts:249-270`); the start shows the refused account's cached mail (`src/stores/auth-store.ts:971-981`).
   - Fix hint: while `needsSignIn` is set, show the sign-in prompt instead of the cached list; drop the account's caches after 30 days, or at once when the policy asks.
 
-- [ ] **No organisation announcement banner** — `P2` — `missing`
+- [x] **No organisation announcement banner** — `P2` — `missing` — fixed in d1b6cde9
   - What WEB does: an admin announcement across the top of Mail, Calendar, Contacts, Files and Settings, per language, with severity, start and end time and an optional close (`lib/admin/organisation-policy.ts:141-152`, `components/org/org-announcement.tsx`). Changelog 1.20.0 Organisation.
   - What RN does: nothing; `organisation.announcement` is never read (only `src/lib/org-signature.ts` reads `organisation`).
   - Fix hint: a banner under the header of the main tabs, dismissal stored per announcement id.
 
-- [ ] **Trash and Junk don't say how long the server keeps mail** — `P3` — `missing`
+- [x] **Trash and Junk don't say how long the server keeps mail** — `P3` — `missing` — fixed in 0cf473fa
   - What WEB does: `organisation.retention.trashDays`/`junkDays` show a line in those folders (`lib/admin/organisation-policy.ts:157-161`, `components/email/retention-notice.tsx`). Changelog 1.20.0 Organisation.
   - What RN does: nothing; the policy part is not read.
   - Fix hint: a list header line in Trash and Junk.

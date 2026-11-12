@@ -469,6 +469,8 @@ async function signIn(
         hasError: false,
         ...(opts?.webmailUrl ? { webmailUrl: opts.webmailUrl.replace(/\/+$/, '') } : {}),
       });
+      // The organisation's maximum session length counts from here (lib/session-limits).
+      void import('../lib/session-limits').then((m) => m.noteSignedIn(signedIn!.accountId)).catch(() => undefined);
     } catch (err) {
       // A cancelled connect may already hold the client: take it back.
       putBack(!!signedIn || isSignInCancelled(err));
@@ -1288,6 +1290,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const target = accountStore.getActiveAccount() ?? accountStore.getDefaultAccount();
       if (!target) {
         set({ isLoading: false, hasRestoredSession: true });
+        return false;
+      }
+
+      // The organisation's idle or session limit ran out while the app was
+      // closed: sign out instead of restoring (webmail 6e5d8faec).
+      const limits = await import('../lib/session-limits');
+      const ended = await limits.sessionEndedWhileAway().catch(() => null);
+      if (ended) {
+        await get().logoutAll();
+        limits.announceSessionEnd(ended.kind, ended.limits);
         return false;
       }
 
