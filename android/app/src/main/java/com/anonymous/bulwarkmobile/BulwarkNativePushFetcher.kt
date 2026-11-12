@@ -21,10 +21,13 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import java.time.Instant
+import java.time.ZoneId
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.X509TrustManager
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -101,6 +104,41 @@ object BulwarkNativePushFetcher {
         .followSslRedirects(false)
         .build()
 
+    /** The JMAP and the token client for a client certificate, kept per alias. */
+    @Volatile private var certClients: Triple<String, OkHttpClient, OkHttpClient>? = null
+
+    /**
+     * The JMAP and the token client, presenting the client certificate the
+     * user picked when there is one (#3). Without it a server behind a proxy
+     * that asks for one refuses the handshake, and every push and action fell
+     * back to the JS task.
+     */
+    private fun clientsFor(context: Context): Pair<OkHttpClient, OkHttpClient> =
+        clientsFor(BulwarkClientCertModule.storedAlias(context)) { alias ->
+            BulwarkClientCertModule.sslFor(context, alias)
+        }
+
+    internal fun clientsFor(
+        alias: String?,
+        ssl: (String) -> Pair<SSLSocketFactory, X509TrustManager>,
+    ): Pair<OkHttpClient, OkHttpClient> {
+        if (alias.isNullOrBlank()) return httpClient to tokenClient
+        certClients?.let { if (it.first == alias) return it.second to it.third }
+        val (factory, trust) = try {
+            ssl(alias)
+        } catch (_: Exception) {
+            // Without it the handshake fails and the JS task takes over, as before.
+            return httpClient to tokenClient
+        }
+        val clients = Triple(
+            alias,
+            httpClient.newBuilder().sslSocketFactory(factory, trust).build(),
+            tokenClient.newBuilder().sslSocketFactory(factory, trust).build(),
+        )
+        certClients = clients
+        return clients.second to clients.third
+    }
+
     /** Runs [request], giving up at [deadlineMs]. */
     internal inline fun <T> executeBefore(
         client: OkHttpClient,
@@ -125,6 +163,8 @@ object BulwarkNativePushFetcher {
         val subject: String,
         val preview: String,
         val receivedAtEpochMs: Long,
+        /** The sign-in code in the subject or preview of fresh mail (VerificationCode). */
+        val verificationCode: String? = null,
     )
 
     data class StoredCredentials(
@@ -151,7 +191,28 @@ object BulwarkNativePushFetcher {
         val markRead: String,
         val delete: String,
         val reply: String,
+        val archive: String,
+        /** "Copy code {code}". */
+        val copyCode: String,
+        val codeCopied: String,
     )
+
+    /** A folder as Archive needs it. */
+    data class ArchiveMailbox(
+        val id: String,
+        val name: String,
+        val role: String?,
+        val parentId: String?,
+        val mayAddItems: Boolean? = null,
+    )
+
+    /** Where Archive files a message: an id or a creation reference, and the folders to make. */
+    data class ArchivePlan(
+        val destination: String,
+        val create: Map<String, ArchiveFolder>,
+    )
+
+    data class ArchiveFolder(val name: String, val parentId: String?, val role: String? = null)
 
     sealed class JmapFetchResult {
         data class Success(val emails: List<PushedEmail>, val hasTrash: Boolean) : JmapFetchResult()
@@ -268,6 +329,67 @@ object BulwarkNativePushFetcher {
         } catch (_: Exception) {
             false
         }
+    }
+
+    /** The Archive setting's folder layout: "single", "year" or "month". */
+    fun archiveModeInSettings(settingsJson: String?): String {
+        if (settingsJson.isNullOrBlank()) return "single"
+        return try {
+            when (val mode = JSONObject(settingsJson).optString("archiveMode")) {
+                "year", "month" -> mode
+                else -> "single"
+            }
+        } catch (_: Exception) {
+            "single"
+        }
+    }
+
+    /** "Show verification codes" (on unless turned off), which also gates Copy code. */
+    fun isShowVerificationCodesInSettings(settingsJson: String?): Boolean {
+        if (settingsJson.isNullOrBlank()) return true
+        return try {
+            JSONObject(settingsJson).optBoolean("showVerificationCodes", true)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    /**
+     * Whether the organisation lets the account archive, as the app shared
+     * it (shareAccountWithExtension in push-notifications.ts); on when the
+     * entry predates it.
+     */
+    fun isArchiveEnabledForAccount(account: JSONObject): Boolean = account.optBoolean("archiveEnabled", true)
+
+    /**
+     * Where a notification's Archive files the message, as the app's own
+     * Archive does (archiveEmails in src/api/email.ts) and the webmail's
+     * push action route (archiveDestination): the Archive folder, else one is
+     * made with the archive role; in "year" or "month" mode the year and
+     * month folders in it, by the date the message came in where the user is.
+     */
+    fun planArchive(mailboxes: List<ArchiveMailbox>, mode: String, receivedAtEpochMs: Long, zone: ZoneId): ArchivePlan {
+        val create = linkedMapOf<String, ArchiveFolder>()
+        val archive = mailboxes.firstOrNull { it.role == "archive" }
+            ?: mailboxes.firstOrNull { it.name.lowercase() == "archive" }
+        var destination = archive?.id ?: "#archive"
+        if (archive == null) create["archive"] = ArchiveFolder("Archive", null, "archive")
+        fun descend(name: String, cid: String) {
+            val existing = if (destination.startsWith("#")) null
+            else mailboxes.firstOrNull { it.parentId == destination && it.name == name }
+            if (existing != null) {
+                destination = existing.id
+                return
+            }
+            create[cid] = ArchiveFolder(name, destination)
+            destination = "#$cid"
+        }
+        if (mode == "year" || mode == "month") {
+            val at = Instant.ofEpochMilli(if (receivedAtEpochMs > 0L) receivedAtEpochMs else System.currentTimeMillis()).atZone(zone)
+            descend(at.year.toString(), "year")
+            if (mode == "month") descend(at.monthValue.toString().padStart(2, '0'), "month")
+        }
+        return ArchivePlan(destination, create)
     }
 
     fun isDeleteMarksReadInSettings(settingsJson: String?): Boolean {
@@ -531,7 +653,11 @@ object BulwarkNativePushFetcher {
      * - Returns [JmapFetchResult.Success] with the filtered, oldest-first-sorted notifiable emails
      *   and `hasTrash` flag when `Email/get` succeeded (even if all emails were already `$seen` or `$junk`).
      */
-    fun parseJmapGetResponse(responseBody: String, alreadyNotified: Set<String>): JmapFetchResult {
+    fun parseJmapGetResponse(
+        responseBody: String,
+        alreadyNotified: Set<String>,
+        nowMs: Long = System.currentTimeMillis(),
+    ): JmapFetchResult {
         return try {
             val root = JSONObject(responseBody)
             val methodResponses = root.optJSONArray("methodResponses")
@@ -602,6 +728,7 @@ object BulwarkNativePushFetcher {
                         subject = singleLine(rawSubject),
                         preview = singleLine(cleanPreview(rawPreview)),
                         receivedAtEpochMs = receivedAtEpochMs,
+                        verificationCode = VerificationCode.forNotification(rawSubject, rawPreview, receivedAtEpochMs, nowMs),
                     )
                 )
             }
@@ -925,6 +1052,7 @@ object BulwarkNativePushFetcher {
         }
 
         val requestBodyStr = bodyJson.toString()
+        val client = clientsFor(context).first
         fun postWithAuth(authHeader: String): Pair<Int, String?> {
             val request = Request.Builder()
                 .url(apiUrl)
@@ -933,7 +1061,7 @@ object BulwarkNativePushFetcher {
                 .addHeader("Authorization", authHeader)
                 .post(requestBodyStr.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
-            return executeBefore(httpClient, request, deadlineMs) { response ->
+            return executeBefore(client, request, deadlineMs) { response ->
                 response.code to if (response.isSuccessful) response.body?.string() else null
             }
         }
@@ -987,7 +1115,8 @@ object BulwarkNativePushFetcher {
             if (storedTokensReplace(stale, stored, now)) return stored
             val refreshToken = stored.refreshToken ?: return null
             val tokenEndpoint = stored.tokenEndpoint ?: return null
-            val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, stored.clientId, deadlineMs) ?: return null
+            val fresh = refreshOAuthToken(clientsFor(context).second, tokenEndpoint, refreshToken, stored.clientId, deadlineMs)
+                ?: return null
             return updateTokensInSecureStore(
                 context = context,
                 credentialsKey = credentialsKey,
@@ -1003,6 +1132,7 @@ object BulwarkNativePushFetcher {
     }
 
     private fun refreshOAuthToken(
+        client: OkHttpClient,
         tokenEndpoint: String,
         refreshToken: String,
         clientId: String?,
@@ -1020,7 +1150,7 @@ object BulwarkNativePushFetcher {
                 .post(form.build())
                 .build()
 
-            executeBefore(tokenClient, req, deadlineMs) { resp ->
+            executeBefore(client, req, deadlineMs) { resp ->
                 if (!resp.isSuccessful) return null
                 val bodyStr = resp.body?.string() ?: return null
                 val body = JSONObject(bodyStr)
@@ -1047,6 +1177,12 @@ object BulwarkNativePushFetcher {
                 ?: context.getString(R.string.notification_action_delete),
             reply = stringsObj?.optString("reply")?.takeIf { it.isNotBlank() }
                 ?: context.getString(R.string.notification_action_reply),
+            archive = stringsObj?.optString("archive")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_action_archive),
+            copyCode = stringsObj?.optString("copyCode")?.takeIf { it.contains("{code}") }
+                ?: context.getString(R.string.notification_action_copy_code),
+            codeCopied = stringsObj?.optString("codeCopied")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_code_copied),
         )
     }
 
@@ -1151,6 +1287,8 @@ object BulwarkNativePushFetcher {
 
                     val strings = readLocalizedStrings(context, account)
                     val faviconsEnabled = isSenderFaviconsEnabledInSettings(settingsJson)
+                    val archiveLabel = if (isArchiveEnabledForAccount(account)) strings.archive else null
+                    val codesShown = isShowVerificationCodesInSettings(settingsJson)
                     val groupKey = "bulwark-mail:$localAccountId"
                     val groupTitle = label ?: localAccountId.substringBefore('@').ifBlank { localAccountId }
 
@@ -1188,6 +1326,10 @@ object BulwarkNativePushFetcher {
                             deleteLabel = strings.delete,
                             replyLabel = strings.reply,
                             deleteNeedsUnlock = !result.hasTrash,
+                            archiveLabel = archiveLabel,
+                            copyCode = email.verificationCode?.takeIf { codesShown }?.let {
+                                NotificationCopyCode(it, strings.copyCode.replace("{code}", it), strings.codeCopied)
+                            },
                         )
                     }
 
@@ -1206,7 +1348,7 @@ object BulwarkNativePushFetcher {
     // ─── Native Notification Action Execution (Mark as Read / Delete) ───────
 
     /**
-     * Executes a notification action (`markRead` or `delete`) natively over JMAP
+     * Executes a notification action (`markRead`, `delete` or `archive`) natively over JMAP
      * so action buttons work reliably even when the app is cached/dozing on Samsung One UI.
      * Returns `true` if the action succeeded natively, or `false` to fall back to Headless JS.
      */
@@ -1267,6 +1409,12 @@ object BulwarkNativePushFetcher {
                     }
                     executeEmailSetUpdate(context, apiUrl, credentialsKey, latestCreds, targetJmapAccountId, emailId, patch, deadlineMs)
                 }
+                "archive" -> {
+                    // The organisation turned archiving off since the notification was posted.
+                    if (!isArchiveEnabledForAccount(account)) return true
+                    val mode = archiveModeInSettings(readAsyncStorageItem(context, SETTINGS_STORAGE_KEY))
+                    archiveEmail(context, apiUrl, credentialsKey, creds, targetJmapAccountId, emailId, mode, deadlineMs)
+                }
                 else -> false
             }
         } catch (e: Exception) {
@@ -1322,6 +1470,151 @@ object BulwarkNativePushFetcher {
             }
         }
         return null
+    }
+
+    private fun mailCall(name: String, args: JSONObject, callId: String): JSONArray =
+        JSONArray().apply {
+            put(name)
+            put(args)
+            put(callId)
+        }
+
+    private fun mailRequest(vararg calls: JSONArray): JSONObject = JSONObject().apply {
+        put("using", JSONArray().apply {
+            put("urn:ietf:params:jmap:core")
+            put("urn:ietf:params:jmap:mail")
+        })
+        put("methodCalls", JSONArray().apply { calls.forEach { put(it) } })
+    }
+
+    private fun responseFor(root: JSONObject, name: String, callId: String): JSONObject? {
+        val responses = root.optJSONArray("methodResponses") ?: return null
+        for (i in 0 until responses.length()) {
+            val r = responses.optJSONArray(i) ?: continue
+            if (r.optString(0) == name && r.optString(2) == callId) return r.optJSONObject(1)
+        }
+        return null
+    }
+
+    fun parseArchiveMailboxes(list: JSONArray?): List<ArchiveMailbox> {
+        if (list == null) return emptyList()
+        val out = mutableListOf<ArchiveMailbox>()
+        for (i in 0 until list.length()) {
+            val mb = list.optJSONObject(i) ?: continue
+            val id = mb.optString("id").takeIf { it.isNotBlank() } ?: continue
+            val rights = mb.optJSONObject("myRights")
+            out.add(
+                ArchiveMailbox(
+                    id = id,
+                    name = if (mb.isNull("name")) "" else mb.optString("name"),
+                    role = if (mb.isNull("role")) null else mb.optString("role").takeIf { it.isNotBlank() },
+                    parentId = if (mb.isNull("parentId")) null else mb.optString("parentId").takeIf { it.isNotBlank() },
+                    mayAddItems = if (rights != null && rights.has("mayAddItems")) rights.optBoolean("mayAddItems") else null,
+                )
+            )
+        }
+        return out
+    }
+
+    /**
+     * Archive from a notification: the message goes to the Archive folder
+     * (made where there is none, with the year and month folders the Archive
+     * setting asks for), as the webmail's push action route does. A message
+     * in Trash or Junk stays, so does one whose Archive folder is read-only.
+     * Folders made for a write the server refused are removed again.
+     */
+    private fun archiveEmail(
+        context: Context,
+        apiUrl: String,
+        credentialsKey: String,
+        creds: StoredCredentials,
+        jmapAccountId: String,
+        emailId: String,
+        mode: String,
+        deadlineMs: Long,
+    ): Boolean {
+        fun readState(): Pair<List<ArchiveMailbox>, JSONObject?>? {
+            val body = mailRequest(
+                mailCall("Mailbox/get", JSONObject().apply {
+                    put("accountId", jmapAccountId)
+                    put("properties", JSONArray(listOf("id", "name", "role", "parentId", "myRights")))
+                }, "m"),
+                mailCall("Email/get", JSONObject().apply {
+                    put("accountId", jmapAccountId)
+                    put("ids", JSONArray(listOf(emailId)))
+                    put("properties", JSONArray(listOf("id", "mailboxIds", "receivedAt")))
+                }, "e"),
+            )
+            val latest = readCredentialsFromSecureStore(context, credentialsKey) ?: creds
+            val text = executeAuthenticatedJmapPost(context, apiUrl, credentialsKey, latest, body, deadlineMs) ?: return null
+            val root = JSONObject(text)
+            val boxes = responseFor(root, "Mailbox/get", "m") ?: return null
+            val email = responseFor(root, "Email/get", "e")?.optJSONArray("list")?.optJSONObject(0)
+            return parseArchiveMailboxes(boxes.optJSONArray("list")) to email
+        }
+
+        var (mailboxes, email) = readState() ?: return false
+        // Gone already: nothing left to file.
+        if (email == null) return true
+        val inMailboxes = email.optJSONObject("mailboxIds")?.keys()?.asSequence()?.toSet().orEmpty()
+        val bins = mailboxes.filter { it.role == "trash" || it.role == "junk" }.map { it.id }.toSet()
+        if (inMailboxes.any { it in bins }) return true
+        val receivedAt = parseIsoTimestampMs(if (email.isNull("receivedAt")) "" else email.optString("receivedAt"))
+
+        // Twice at most: another client may make the same folder between our
+        // read and our write, and then the folder is there to file into.
+        for (attempt in 0 until 2) {
+            val plan = planArchive(mailboxes, mode, receivedAt, ZoneId.systemDefault())
+            if (mailboxes.firstOrNull { it.id == plan.destination }?.mayAddItems == false) return true
+            val calls = mutableListOf<JSONArray>()
+            if (plan.create.isNotEmpty()) {
+                val create = JSONObject()
+                for ((cid, folder) in plan.create) {
+                    create.put(cid, JSONObject().apply {
+                        put("name", folder.name)
+                        put("parentId", folder.parentId ?: JSONObject.NULL)
+                        if (folder.role != null) put("role", folder.role)
+                    })
+                }
+                calls.add(mailCall("Mailbox/set", JSONObject().apply {
+                    put("accountId", jmapAccountId)
+                    put("create", create)
+                }, "folders"))
+            }
+            calls.add(mailCall("Email/set", JSONObject().apply {
+                put("accountId", jmapAccountId)
+                put("update", JSONObject().apply {
+                    put(emailId, JSONObject().apply {
+                        put("mailboxIds", JSONObject().apply { put(plan.destination, true) })
+                    })
+                })
+            }, "write"))
+            val latest = readCredentialsFromSecureStore(context, credentialsKey) ?: creds
+            val text = executeAuthenticatedJmapPost(
+                context, apiUrl, credentialsKey, latest, mailRequest(*calls.toTypedArray()), deadlineMs,
+            ) ?: return false
+            val root = JSONObject(text)
+            val folders = responseFor(root, "Mailbox/set", "folders")
+            val written = responseFor(root, "Email/set", "write")
+            if (written?.optJSONObject("updated")?.has(emailId) == true) return true
+            // Nothing went in: no empty folder left behind. Deepest first.
+            val created = listOf("month", "year", "archive").mapNotNull {
+                folders?.optJSONObject("created")?.optJSONObject(it)?.optString("id")?.takeIf { id -> id.isNotBlank() }
+            }
+            if (created.isNotEmpty()) {
+                val cleanup = mailRequest(mailCall("Mailbox/set", JSONObject().apply {
+                    put("accountId", jmapAccountId)
+                    put("destroy", JSONArray(created))
+                }, "cleanup"))
+                try {
+                    executeAuthenticatedJmapPost(context, apiUrl, credentialsKey, readCredentialsFromSecureStore(context, credentialsKey) ?: creds, cleanup, deadlineMs)
+                } catch (_: Exception) {}
+            }
+            val notCreated = folders?.optJSONObject("notCreated")?.length() ?: 0
+            if (notCreated == 0 || attempt > 0) return false
+            mailboxes = (readState() ?: return false).first
+        }
+        return false
     }
 
     private fun executeEmailSetUpdate(

@@ -213,16 +213,7 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
         val existing = cachedFactory
         if (existing != null && cachedFactoryForAlias == alias) return existing
 
-        val ctx = reactApplicationContext
-        val km = KeyChainKeyManager(ctx, alias)
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-        tmf.init(null as java.security.KeyStore?)
-        val trustManagers = tmf.trustManagers
-        val tm = trustManagers.firstOrNull { it is X509TrustManager } as X509TrustManager?
-            ?: throw IllegalStateException("No X509TrustManager available")
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(arrayOf(km), arrayOf<TrustManager>(tm), null)
-        val factory = sslContext.socketFactory
+        val factory = sslFor(reactApplicationContext, alias).first
         cachedFactory = factory
         cachedFactoryForAlias = alias
         return factory
@@ -284,5 +275,21 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
         const val MODULE_NAME = "BulwarkClientCert"
         private const val PREFS_NAME = "bulwark_client_cert"
         private const val PREF_ALIAS = "alias"
+
+        /** The certificate the user picked, also for the native push lookup and actions (#3). */
+        fun storedAlias(context: Context): String? =
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(PREF_ALIAS, null)
+
+        /** A socket factory that presents [alias] in the TLS handshake, with the system's trust manager. */
+        fun sslFor(context: Context, alias: String): Pair<SSLSocketFactory, X509TrustManager> {
+            val km = KeyChainKeyManager(context, alias)
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            tmf.init(null as java.security.KeyStore?)
+            val tm = tmf.trustManagers.firstOrNull { it is X509TrustManager } as X509TrustManager?
+                ?: throw IllegalStateException("No X509TrustManager available")
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(arrayOf(km), arrayOf<TrustManager>(tm), null)
+            return sslContext.socketFactory to tm
+        }
     }
 }

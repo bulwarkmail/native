@@ -38,18 +38,39 @@ describe('shareAccountWithExtension on Android', () => {
       accountId: 'ada@mail.example.org',
       apiUrl: API,
       label: 'ada',
+      archiveEnabled: true,
       strings: {
         newEmail: expect.any(String),
         noSubject: expect.any(String),
         markRead: expect.any(String),
         delete: expect.any(String),
         reply: expect.any(String),
+        archive: 'Archive',
+        // The native side puts the code in.
+        copyCode: 'Copy code {code}',
+        codeCopied: 'Code copied',
       },
     });
     // Ensure passwords and OAuth tokens are never duplicated into SharedPreferences
     expect(parsed.password).toBeUndefined();
     expect(parsed.accessToken).toBeUndefined();
     expect(parsed.refreshToken).toBeUndefined();
+  });
+
+  it('tells the native path when the organisation turned archiving off', async () => {
+    const WEBMAIL = 'https://webmail.example.org';
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ 'ada@mail.example.org': 'c' }));
+    await AsyncStorage.setItem('account-registry', JSON.stringify({
+      state: { accounts: [{ id: 'ada@mail.example.org', username: 'ada', webmailUrl: WEBMAIL }] },
+    }));
+    await AsyncStorage.setItem('org-policy-cache', JSON.stringify({
+      state: { byAccount: { 'ada@mail.example.org': {
+        policy: { restrictions: {}, features: { archiveActionEnabled: false }, defaults: {}, themePolicy: {}, scopes: [] },
+        webmailUrl: WEBMAIL,
+      } } },
+    }));
+    await shareAccountWithExtension('ada@mail.example.org', 'c', API, 'ada');
+    expect(JSON.parse(savePushAccount.mock.calls[0][1]).archiveEnabled).toBe(false);
   });
 
   it('removes native push account when there is a duplicate JMAP account id', async () => {

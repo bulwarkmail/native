@@ -33,6 +33,7 @@ import { CALENDAR_AUTHORITY, CONTACTS_AUTHORITY, type Authority } from '../devic
 import * as Notifications from 'expo-notifications';
 import { credentialsKey } from '../api/jmap-client';
 import { apnsEnvironment, removeIosPushAccount, writeIosPushAccount } from './ios-push-shared';
+import { readArchiveEnabledFor } from './archive-gate';
 import {
   getUnifiedPushDistributors,
   getUnifiedPushEndpoint,
@@ -1091,6 +1092,8 @@ export async function shareAccountWithExtension(
       return;
     }
     if (!apiUrl || !native?.savePushAccount) return;
+    // The native path offers Archive only where the organisation allows it.
+    const archiveEnabled = await readArchiveEnabledFor(accountId);
     native.savePushAccount(
       jmapAccountId,
       JSON.stringify({
@@ -1098,12 +1101,17 @@ export async function shareAccountWithExtension(
         accountId,
         apiUrl,
         ...(username ? { label: username } : {}),
+        archiveEnabled,
         strings: {
           newEmail: t('notifications.new_email', 'New email'),
           noSubject: t('email_viewer.no_subject', '(No Subject)'),
           markRead: t('email_viewer.mark_read', 'Mark as read'),
           delete: t('email_viewer.delete', 'Delete'),
           reply: t('email_viewer.reply', 'Reply'),
+          archive: t('email_viewer.archive', 'Archive'),
+          // The native side puts the code in.
+          copyCode: t('email_viewer.verification_code.copy', 'Copy code {code}', { code: '{code}' }),
+          codeCopied: t('email_viewer.verification_code.copied', 'Code copied'),
         },
       }),
     );

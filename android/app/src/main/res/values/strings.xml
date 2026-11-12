@@ -7,6 +7,9 @@
   <string name="notification_action_mark_read">Mark as read</string>
   <string name="notification_action_delete">Delete</string>
   <string name="notification_action_reply">Reply</string>
+  <string name="notification_action_archive">Archive</string>
+  <string name="notification_action_copy_code">Copy code {code}</string>
+  <string name="notification_code_copied">Code copied</string>
   <string name="notification_no_subject">(No Subject)</string>
   <string name="notification_new_email">New email</string>
 </resources>

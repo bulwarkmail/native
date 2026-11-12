@@ -538,6 +538,133 @@ describe('pushBackgroundTask notifications', () => {
     expect(postCalls[0].methodCalls[0][0]).toBe('Mailbox/get');
     expect(postCalls[0].methodCalls[0][1].accountId).toBe('shared');
   });
+  describe('Archive and Copy code', () => {
+    const WEBMAIL = 'https://webmail.example.com';
+    const session = {
+      apiUrl: 'https://mail.example.com/jmap/',
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+      accounts: { 'jmap-primary': {} },
+    };
+
+    async function turnArchivingOff() {
+      await AsyncStorage.setItem('account-registry', JSON.stringify({
+        state: { accounts: [{ id: LOCAL, username: 'alice', serverUrl: 'https://mail.example.com', webmailUrl: WEBMAIL }] },
+      }));
+      await AsyncStorage.setItem('org-policy-cache', JSON.stringify({
+        state: {
+          byAccount: {
+            [LOCAL]: {
+              policy: { restrictions: {}, features: { archiveActionEnabled: false }, defaults: {}, themePolicy: {}, scopes: [] },
+              partial: false,
+              fetchedAt: 1,
+              webmailUrl: WEBMAIL,
+            },
+          },
+        },
+        version: 0,
+      }));
+    }
+
+    function serveEmail(email: Record<string, unknown>) {
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => ({
+        ok: true,
+        json: async () => (url.endsWith('/.well-known/jmap')
+          ? session
+          : { methodResponses: [['Email/get', { list: [{ id: 'm1', threadId: 't1', keywords: {}, from: [{ email: 'bob@example.com' }], ...email }] }, '0']] }),
+      }));
+    }
+
+    const push = { kind: 'jmap-email-push', accountLabel: 'alice', accountId: 'jmap-primary', emailIds: JSON.stringify(['m1']) };
+
+    it('offers Archive unless the organisation turned archiving off', async () => {
+      serveEmail({ subject: 'Hello' });
+      await pushBackgroundTask(push);
+      expect(showNotification).toHaveBeenLastCalledWith(expect.objectContaining({ emailId: 'm1', archiveLabel: 'Archive' }));
+
+      await turnArchivingOff();
+      await AsyncStorage.removeItem('push:notifiedIds:v1:' + LOCAL);
+      await AsyncStorage.removeItem('push:lastNotifiedEmailId:v2:' + LOCAL);
+      await pushBackgroundTask(push);
+      expect(showNotification).toHaveBeenCalledTimes(2);
+      expect((showNotification.mock.calls[1] as unknown[])[0]).not.toHaveProperty('archiveLabel', 'Archive');
+    });
+
+    it('offers to copy the code of a fresh sign-in mail, unless verification codes are hidden', async () => {
+      serveEmail({ subject: 'Your verification code is 482913', receivedAt: new Date().toISOString() });
+      await pushBackgroundTask(push);
+      expect(showNotification).toHaveBeenLastCalledWith(expect.objectContaining({
+        verificationCode: '482913',
+        copyCodeLabel: 'Copy code 482913',
+        codeCopiedLabel: 'Code copied',
+      }));
+
+      await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ showVerificationCodes: false }));
+      await AsyncStorage.removeItem('push:notifiedIds:v1:' + LOCAL);
+      await AsyncStorage.removeItem('push:lastNotifiedEmailId:v2:' + LOCAL);
+      await pushBackgroundTask(push);
+      expect((showNotification.mock.calls[1] as unknown[])[0]).not.toHaveProperty('verificationCode');
+    });
+
+    it('offers no code for mail without one', async () => {
+      serveEmail({ subject: 'Lunch on Friday?', preview: 'Room 4821 at noon', receivedAt: new Date().toISOString() });
+      await pushBackgroundTask(push);
+      expect((showNotification.mock.calls[0] as unknown[])[0]).not.toHaveProperty('verificationCode');
+    });
+
+    function serveArchive(mailboxes: unknown[], postCalls: any[]) {
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, opts?: any) => {
+        const body = opts?.body ? JSON.parse(opts.body) : null;
+        if (body) postCalls.push(body);
+        const methods = (body?.methodCalls ?? []).map((c: unknown[]) => c[0]);
+        return {
+          ok: true,
+          json: async () => (url.endsWith('/.well-known/jmap')
+            ? session
+            : methods[0] === 'Mailbox/get'
+              ? {
+                methodResponses: [
+                  ['Mailbox/get', { list: mailboxes }, 'm'],
+                  ['Email/get', { list: [{ id: 'm1', mailboxIds: { inbox: true }, receivedAt: '2026-11-03T10:00:00Z' }] }, 'e'],
+                ],
+              }
+              : {
+                methodResponses: [
+                  ...(methods[0] === 'Mailbox/set' ? [['Mailbox/set', { created: { archive: { id: 'new-archive' } } }, 'folders']] : []),
+                  ['Email/set', { updated: { m1: null } }, 'write'],
+                ],
+              }),
+        };
+      });
+    }
+
+    it('handles the archive action by moving the message to the Archive folder', async () => {
+      const postCalls: any[] = [];
+      serveArchive([{ id: 'inbox', name: 'Inbox', role: 'inbox' }, { id: 'arch', name: 'Archive', role: 'archive' }], postCalls);
+      await handleNotificationAction({ action: 'archive', emailId: 'm1', accountId: LOCAL });
+      expect(postCalls).toHaveLength(2);
+      expect(postCalls[1].methodCalls).toEqual([
+        ['Email/set', { accountId: 'jmap-primary', update: { m1: { mailboxIds: { arch: true } } } }, 'write'],
+      ]);
+    });
+
+    it('makes the Archive folder for the archive action where the account has none', async () => {
+      const postCalls: any[] = [];
+      serveArchive([{ id: 'inbox', name: 'Inbox', role: 'inbox' }], postCalls);
+      await handleNotificationAction({ action: 'archive', emailId: 'm1', accountId: LOCAL });
+      expect(postCalls[1].methodCalls).toEqual([
+        ['Mailbox/set', { accountId: 'jmap-primary', create: { archive: { name: 'Archive', parentId: null, role: 'archive' } } }, 'folders'],
+        ['Email/set', { accountId: 'jmap-primary', update: { m1: { mailboxIds: { '#archive': true } } } }, 'write'],
+      ]);
+    });
+
+    it('does not archive once the organisation turned archiving off', async () => {
+      await turnArchivingOff();
+      const postCalls: any[] = [];
+      serveArchive([{ id: 'arch', name: 'Archive', role: 'archive' }], postCalls);
+      await handleNotificationAction({ action: 'archive', emailId: 'm1', accountId: LOCAL });
+      expect(postCalls).toHaveLength(0);
+    });
+  });
 });
 
 describe('pushes for device sync (#34)', () => {

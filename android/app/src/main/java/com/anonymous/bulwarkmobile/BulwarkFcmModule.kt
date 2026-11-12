@@ -84,6 +84,16 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         // for that (#85). Without a Trash it destroys the mail, so it asks.
         // Unlock stays the default for a caller that doesn't say.
         val deleteNeedsUnlock = !options.hasKey("deleteNeedsUnlock") || options.getBoolean("deleteNeedsUnlock")
+        // Left out where the organisation turned archiving off.
+        val archiveLabel = options.takeIf { it.hasKey("archiveLabel") }?.getString("archiveLabel")
+        val code = options.takeIf { it.hasKey("verificationCode") }?.getString("verificationCode")
+        val copyCode = code?.let {
+            NotificationCopyCode(
+                code = it,
+                label = options.takeIf { o -> o.hasKey("copyCodeLabel") }?.getString("copyCodeLabel") ?: "Copy code $it",
+                copiedLabel = options.takeIf { o -> o.hasKey("codeCopiedLabel") }?.getString("codeCopiedLabel") ?: "Code copied",
+            )
+        }
 
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
         // block waiting for the favicon request.
@@ -94,6 +104,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 reactApplicationContext, notificationId, title, body, preview, largeIcon, bgColorHex,
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
                 groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
+                archiveLabel, copyCode,
             )
             if (groupKey != null) postGroupSummary(reactApplicationContext, groupKey, groupTitle, bgColorHex, accountId)
             promise.resolve(null)
@@ -150,6 +161,8 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         deleteLabel: String,
         replyLabel: String,
         deleteNeedsUnlock: Boolean,
+        archiveLabel: String?,
+        copyCode: NotificationCopyCode?,
     ) {
         val intent = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -200,7 +213,77 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         }
 
         if (emailId != null && accountId != null) {
-            // Action 1: Mark as read
+            for (name in mailActions(hasCode = copyCode != null, archive = archiveLabel != null)) {
+                val action = when (name) {
+                    "copyCode" -> copyCodeAction(ctx, notificationId, copyCode!!)
+                    "archive" -> broadcastAction(ctx, ACTION_ARCHIVE, "archive", notificationId, emailId, accountId, jmapAccountId)
+                        .let { NotificationCompat.Action.Builder(0, archiveLabel, it).build() }
+                    "markRead" -> markReadAction(ctx, notificationId, emailId, accountId, jmapAccountId, markReadLabel)
+                    "delete" -> deleteAction(ctx, notificationId, emailId, accountId, jmapAccountId, deleteLabel, deleteNeedsUnlock)
+                    else -> replyAction(ctx, notificationId, emailId, threadId, subject, accountId, jmapAccountId, replyLabel)
+                }
+                builder.addAction(action)
+            }
+        }
+
+        val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(notificationId, notificationId.hashCode(), builder.build())
+    }
+
+    private fun broadcastAction(
+        ctx: Context,
+        intentAction: String,
+        name: String,
+        notificationId: String,
+        emailId: String,
+        accountId: String,
+        jmapAccountId: String?,
+    ): PendingIntent {
+        val intent = Intent(ctx, BulwarkNotificationActionReceiver::class.java).apply {
+            action = intentAction
+            data = Uri.parse("bulwark-action-$name://$notificationId")
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(EXTRA_ACTION, name)
+            putExtra(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
+            putExtra(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
+            if (jmapAccountId != null) putExtra(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID, jmapAccountId)
+        }
+        return PendingIntent.getBroadcast(
+            ctx,
+            "$notificationId:$name".hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    /** Copies the code in the receiver; the notification stays for the other actions. */
+    private fun copyCodeAction(ctx: Context, notificationId: String, copyCode: NotificationCopyCode): NotificationCompat.Action {
+        val intent = Intent(ctx, BulwarkNotificationActionReceiver::class.java).apply {
+            action = ACTION_COPY_CODE
+            data = Uri.parse("bulwark-action-copy://$notificationId")
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(EXTRA_ACTION, "copyCode")
+            putExtra(EXTRA_CODE, copyCode.code)
+            putExtra(EXTRA_CODE_COPIED_LABEL, copyCode.copiedLabel)
+        }
+        val pending = PendingIntent.getBroadcast(
+            ctx,
+            "$notificationId:copy".hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Action.Builder(0, copyCode.label, pending).build()
+    }
+
+    private fun markReadAction(
+        ctx: Context,
+        notificationId: String,
+        emailId: String,
+        accountId: String,
+        jmapAccountId: String?,
+        markReadLabel: String,
+    ): NotificationCompat.Action {
+        run {
             val markReadIntent = Intent(ctx, BulwarkNotificationActionReceiver::class.java).apply {
                 action = ACTION_MARK_READ
                 data = Uri.parse("bulwark-action-read://$notificationId")
@@ -216,11 +299,20 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 markReadIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(
-                NotificationCompat.Action.Builder(0, markReadLabel, markReadPending).build()
-            )
+            return NotificationCompat.Action.Builder(0, markReadLabel, markReadPending).build()
+        }
+    }
 
-            // Action 2: Delete
+    private fun deleteAction(
+        ctx: Context,
+        notificationId: String,
+        emailId: String,
+        accountId: String,
+        jmapAccountId: String?,
+        deleteLabel: String,
+        deleteNeedsUnlock: Boolean,
+    ): NotificationCompat.Action {
+        run {
             val deleteIntent = Intent(ctx, BulwarkNotificationActionReceiver::class.java).apply {
                 action = ACTION_DELETE
                 data = Uri.parse("bulwark-action-delete://$notificationId")
@@ -236,14 +328,24 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 deleteIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(
-                NotificationCompat.Action.Builder(0, deleteLabel, deletePending)
-                    // Android 12+: unlock first, so a locked phone can't destroy mail.
-                    .setAuthenticationRequired(deleteNeedsUnlock)
-                    .build()
-            )
+            return NotificationCompat.Action.Builder(0, deleteLabel, deletePending)
+                // Android 12+: unlock first, so a locked phone can't destroy mail.
+                .setAuthenticationRequired(deleteNeedsUnlock)
+                .build()
+        }
+    }
 
-            // Action 3: Reply
+    private fun replyAction(
+        ctx: Context,
+        notificationId: String,
+        emailId: String,
+        threadId: String?,
+        subject: String?,
+        accountId: String,
+        jmapAccountId: String?,
+        replyLabel: String,
+    ): NotificationCompat.Action {
+        run {
             val replyIntent = Intent(ctx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 data = Uri.parse("bulwark-reply://$notificationId")
@@ -260,13 +362,8 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 replyIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(
-                NotificationCompat.Action.Builder(0, replyLabel, replyPending).build()
-            )
+            return NotificationCompat.Action.Builder(0, replyLabel, replyPending).build()
         }
-
-        val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(notificationId, notificationId.hashCode(), builder.build())
     }
 
     /**
@@ -408,6 +505,27 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         const val EXTRA_NOTIFICATION_ID = "bulwark.notification.notificationId"
         const val ACTION_MARK_READ = "com.anonymous.bulwarkmobile.ACTION_MARK_READ"
         const val ACTION_DELETE = "com.anonymous.bulwarkmobile.ACTION_DELETE"
+        const val ACTION_ARCHIVE = "com.anonymous.bulwarkmobile.ACTION_ARCHIVE"
+        const val ACTION_COPY_CODE = "com.anonymous.bulwarkmobile.ACTION_COPY_CODE"
+        const val EXTRA_CODE = "bulwark.notification.code"
+        const val EXTRA_CODE_COPIED_LABEL = "bulwark.notification.codeCopiedLabel"
+
+        /**
+         * The buttons of a mail notification, in the webmail's order (Copy
+         * code, Archive, Mark read, Delete, then Reply). Android shows three:
+         * a sign-in mail drops Reply, and past three Mark read goes, since
+         * opening the message marks it read too (webmail public/sw.js).
+         */
+        fun mailActions(hasCode: Boolean, archive: Boolean): List<String> {
+            val all = buildList {
+                if (hasCode) add("copyCode")
+                if (archive) add("archive")
+                add("markRead")
+                add("delete")
+                if (!hasCode) add("reply")
+            }
+            return if (all.size > 3) all.filter { it != "markRead" }.take(3) else all
+        }
 
         fun emit(eventName: String, params: WritableMap?) {
             val module = currentInstance ?: return
@@ -436,6 +554,8 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             deleteLabel: String = context.getString(R.string.notification_action_delete),
             replyLabel: String = context.getString(R.string.notification_action_reply),
             deleteNeedsUnlock: Boolean = true,
+            archiveLabel: String? = null,
+            copyCode: NotificationCopyCode? = null,
         ) {
             val largeIcon = iconUrl?.let { fetchBitmap(it) }
                 ?: makeLetterAvatar(initials, bgColorHex)
@@ -443,6 +563,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 context, notificationId, title, body, preview, largeIcon, bgColorHex,
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
                 groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
+                archiveLabel, copyCode,
             )
             if (groupKey != null) {
                 postGroupSummary(context, groupKey, groupTitle ?: "Bulwark Mail", bgColorHex, accountId)
@@ -468,3 +589,6 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         }
     }
 }
+
+/** A sign-in code to offer for copying from a mail notification, with its labels. */
+data class NotificationCopyCode(val code: String, val label: String, val copiedLabel: String)

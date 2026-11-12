@@ -12,14 +12,138 @@
 // - a 90 s ping watchdog and a periodic recycle so the accumulated
 //   `responseText` cannot grow without bound;
 // - fallback to polling when the stream is refused (proxy without SSE, TLS
-//   client certificate that XHR cannot present, repeated failures).
+//   client certificate that XHR cannot present, repeated failures);
+// - a catch-up after every reconnect: a reopened stream does not replay the
+//   events it missed, so one state check reports what changed meanwhile
+//   (webmail #1553, see StateBaseline).
 
 import { jmapClient, AuthenticationError } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { StateChange } from './types';
+import type { JMAPMethodCall, StateChange } from './types';
 import { getClientCertAlias } from '../lib/client-cert';
+import { accountSupports } from '../lib/account-capability';
 
 export type StateChangeHandler = (change: StateChange) => void;
+
+/**
+ * The states a push session knows, keyed `<accountId>:<type>`. `known` is the
+ * last state seen from the stream or a catch-up check; `reported` holds the
+ * states already handed to onStateChange, which a later stream event for the
+ * same state skips. A silent prime (the first check of a session) fills
+ * `known` only: it can read a state before that state's push event arrives,
+ * and the event still has to be reported. Pass one baseline to successive
+ * startLiveUpdates calls to carry it over a closed stream (backgrounding).
+ */
+export interface StateBaseline {
+  known: Record<string, string>;
+  reported: Record<string, string>;
+}
+
+export function createStateBaseline(): StateBaseline {
+  return { known: {}, reported: {} };
+}
+
+// What the catch-up check reads, per capability: the types the app's stores,
+// the Scheduled list, Files and device sync react to.
+const CATCH_UP_TYPES: ReadonlyArray<[string, readonly string[]]> = [
+  [CAPABILITIES.MAIL, ['Mailbox', 'Email', 'Thread']],
+  [CAPABILITIES.SUBMISSION, ['EmailSubmission']],
+  [CAPABILITIES.CALENDARS, ['Calendar', 'CalendarEvent']],
+  [CAPABILITIES.CONTACTS, ['AddressBook', 'ContactCard']],
+  [CAPABILITIES.FILES, ['FileNode']],
+];
+
+/**
+ * The current state of every type the app follows, in every account the
+ * session lets it use that type with: `<type>/get` with no ids returns just
+ * the state. One request, split only where the server's maxCallsInRequest
+ * asks for it; a refused batch or method is left out.
+ */
+export async function fetchCatchUpStates(): Promise<Array<{ accountId: string; type: string; state: string }>> {
+  const session = jmapClient.currentSession;
+  if (!session) return [];
+  const targets: Array<{ accountId: string; type: string; capability: string }> = [];
+  for (const [accountId, account] of Object.entries(session.accounts ?? {})) {
+    for (const [capability, types] of CATCH_UP_TYPES) {
+      if (!accountSupports(account, session.capabilities, capability)) continue;
+      for (const type of types) targets.push({ accountId, type, capability });
+    }
+  }
+  const max = Math.max(1, jmapClient.getMaxCallsInRequest?.() ?? 16);
+  const out: Array<{ accountId: string; type: string; state: string }> = [];
+  for (let start = 0; start < targets.length; start += max) {
+    const group = targets.slice(start, start + max);
+    const using = [CAPABILITIES.CORE, ...new Set(group.map((t) => t.capability))];
+    const calls: JMAPMethodCall[] = group.map((t, i) => [
+      `${t.type}/get`,
+      { accountId: t.accountId, ids: [], properties: ['id'] },
+      String(start + i),
+    ]);
+    let responses: JMAPMethodCall[];
+    try {
+      responses = (await jmapClient.request(calls, using)).methodResponses ?? [];
+    } catch {
+      continue;
+    }
+    for (const [method, result, callId] of responses) {
+      if (method === 'error') continue;
+      const target = targets[Number(callId)];
+      const state = (result as { state?: unknown })?.state;
+      if (!target || typeof state !== 'string' || !state) continue;
+      out.push({ accountId: target.accountId, type: target.type, state });
+    }
+  }
+  return out;
+}
+
+/**
+ * A stream event minus the states already reported (by a catch-up check or
+ * an earlier event); null when nothing is left. Records what passes.
+ */
+export function filterReportedStates(baseline: StateBaseline, change: StateChange): StateChange | null {
+  const changed: StateChange['changed'] = {};
+  for (const [accountId, states] of Object.entries(change.changed ?? {})) {
+    for (const [type, state] of Object.entries(states ?? {})) {
+      if (!state) continue;
+      const key = `${accountId}:${type}`;
+      if (baseline.reported[key] === state) continue;
+      (changed[accountId] ??= {})[type] = state;
+      baseline.known[key] = state;
+      baseline.reported[key] = state;
+    }
+  }
+  return Object.keys(changed).length > 0 ? { ...change, changed } : null;
+}
+
+/**
+ * One catch-up check: read the current states and return what changed since
+ * the baseline as a StateChange (null when nothing did). A type with no
+ * baseline yet is recorded silently, so a session's first check only primes
+ * it. A key a stream event moved while the request was out is left alone:
+ * that event was reported, and its state may be newer than the response.
+ * When `isStale()` says the session closed meanwhile, nothing is recorded.
+ */
+export async function checkStateChanges(
+  baseline: StateBaseline,
+  isStale: () => boolean = () => false,
+): Promise<StateChange | null> {
+  if (jmapClient.isRateLimited?.()) return null;
+  const previous = { ...baseline.known };
+  const states = await fetchCatchUpStates();
+  if (isStale()) return null;
+  const changed: StateChange['changed'] = {};
+  for (const { accountId, type, state } of states) {
+    const key = `${accountId}:${type}`;
+    if (baseline.known[key] !== previous[key]) continue;
+    const known = baseline.known[key];
+    if (known !== undefined && known !== state) {
+      (changed[accountId] ??= {})[type] = state;
+      baseline.reported[key] = state;
+    }
+    baseline.known[key] = state;
+  }
+  return Object.keys(changed).length > 0 ? { '@type': 'StateChange', changed } : null;
+}
 
 // Server pings every 30 s; consider the stream dead after three missed ones.
 const PING_SECONDS = 30;
@@ -64,6 +188,11 @@ export interface LiveUpdatesOptions {
   onFallback?: (reason: string) => void;
   /** Returns false while the app is backgrounded; polling pauses. */
   isActive?: () => boolean;
+  /**
+   * The states reported so far. Pass the one a closed session used to catch
+   * up on what changed while no stream was open; a new one primes itself.
+   */
+  baseline?: StateBaseline;
 }
 
 export interface LiveUpdatesHandle {
@@ -177,6 +306,24 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
   let closed = false;
   let streamOpen = false;
   let unsubscribeTokenRefresh: (() => void) | null = null;
+  const baseline = opts.baseline ?? createStateBaseline();
+  let checkInFlight = false;
+
+  // After every successful (re)connect: the stream does not replay what it
+  // missed. Overlapping checks of this session coalesce; one still out when
+  // the session closes is dropped, so it can't block or skew the next one.
+  const catchUp = async () => {
+    if (closed || checkInFlight) return;
+    checkInFlight = true;
+    try {
+      const change = await checkStateChanges(baseline, () => closed);
+      if (change && !closed) safeOnStateChange(change);
+    } catch {
+      // the next reconnect checks again
+    } finally {
+      checkInFlight = false;
+    }
+  };
 
   const session = jmapClient.currentSession;
   const template = session?.eventSourceUrl;
@@ -280,6 +427,7 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
       consecutiveFailures = 0;
       streamOpen = es === source;
       armWatchdog();
+      void catchUp();
       if (recycleTimer) clearTimeout(recycleTimer);
       recycleTimer = setTimeout(() => {
         if (closed || es !== source) return;
@@ -292,7 +440,9 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
       armWatchdog();
       try {
         const data: StateChange = JSON.parse(typeof event === 'string' ? event : event.data ?? '');
-        safeOnStateChange(data);
+        // A catch-up check and the stream can report one state in either order.
+        const fresh = filterReportedStates(baseline, data);
+        if (fresh) safeOnStateChange(fresh);
       } catch {
         // Ignore malformed events
       }

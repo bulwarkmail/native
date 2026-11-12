@@ -4,6 +4,8 @@ import { jmapClient, type StoredCredentials } from '../api/jmap-client';
 import { CAPABILITIES } from '../api/types';
 import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
+import { readArchiveEnabledFor } from './archive-gate';
+import { archiveFromNotification, notificationActionSettings, notificationCode } from './notification-mail-actions';
 import { secureFetch } from './client-cert';
 import { setKnownAccounts, type KnownAccount } from './account-utils';
 import { ambiguousPushLabel, pushAccountLabel } from './account-labels';
@@ -135,6 +137,12 @@ interface ShowNotificationOptions {
   // one, or when that is not known, the unlock stays.
   deleteNeedsUnlock?: boolean;
   replyLabel?: string;
+  // Left out where the organisation turned archiving off.
+  archiveLabel?: string;
+  // A sign-in code to offer for copying, with its labels.
+  verificationCode?: string;
+  copyCodeLabel?: string;
+  codeCopiedLabel?: string;
 }
 
 interface BulwarkFcmNative {
@@ -628,6 +636,10 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
   );
   const favicons = await senderFaviconsAllowed();
   const locale = await notificationLocale();
+  const archiveLabel = (await readArchiveEnabledFor(accountId))
+    ? translate(locale, 'email_viewer.archive', 'Archive')
+    : undefined;
+  const { showVerificationCodes } = await notificationActionSettings();
 
   // Oldest first so the newest ends up on top of the tray.
   const ordered = [...toNotify].sort(
@@ -649,6 +661,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const markReadLabel = translate(locale, 'email_viewer.mark_read', 'Mark as read');
     const deleteLabel = translate(locale, 'email_viewer.delete', 'Delete');
     const replyLabel = translate(locale, 'email_viewer.reply', 'Reply');
+    const code = notificationCode(email, showVerificationCodes);
 
     await native.showNotification({
       notificationId: `mail:${email.id}`,
@@ -669,6 +682,14 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
       deleteLabel,
       deleteNeedsUnlock: !hasTrash,
       replyLabel,
+      archiveLabel,
+      ...(code
+        ? {
+          verificationCode: code,
+          copyCodeLabel: translate(locale, 'email_viewer.verification_code.copy', 'Copy code {code}', { code }),
+          codeCopiedLabel: translate(locale, 'email_viewer.verification_code.copied', 'Code copied'),
+        }
+        : {}),
     });
   }
 
@@ -749,7 +770,7 @@ function hslToHex(hsl: string): string {
 }
 
 export interface NotificationActionPayload {
-  action: 'markRead' | 'delete';
+  action: 'markRead' | 'delete' | 'archive';
   emailId: string;
   accountId: string;
   jmapAccountId?: string;
@@ -758,12 +779,12 @@ export interface NotificationActionPayload {
 export function parseNotificationActionPayload(data: unknown): NotificationActionPayload | null {
   if (!data || typeof data !== 'object') return null;
   const d = data as Record<string, unknown>;
-  const action = (d.action ?? d['bulwark.notification.action']) as 'markRead' | 'delete' | undefined;
+  const action = (d.action ?? d['bulwark.notification.action']) as NotificationActionPayload['action'] | undefined;
   const emailId = (d.emailId ?? d['bulwark.notification.emailId']) as string | undefined;
   const accountId = (d.accountId ?? d['bulwark.notification.accountId']) as string | undefined;
   const jmapAccountId = (d.jmapAccountId ?? d['bulwark.notification.jmapAccountId']) as string | undefined;
 
-  if ((action === 'markRead' || action === 'delete') && emailId && accountId) {
+  if ((action === 'markRead' || action === 'delete' || action === 'archive') && emailId && accountId) {
     return { action, emailId, accountId, jmapAccountId };
   }
   return null;
@@ -800,6 +821,12 @@ export async function handleNotificationAction(data: unknown): Promise<void> {
         ],
       ]);
       assertEmailUpdated(res, emailId);
+    } else if (action === 'archive') {
+      // The organisation may have turned archiving off since.
+      if (!(await readArchiveEnabledFor(accountId))) return;
+      const { archiveMode } = await notificationActionSettings();
+      const outcome = await archiveFromNotification((calls) => jmapPost(session, calls), emailAccountId, emailId, archiveMode);
+      if (outcome === 'refused') throw new Error(`Archive of ${emailId} was refused`);
     } else if (action === 'delete') {
       const mbRes = await jmapPost(session, [
         ['Mailbox/get', { accountId: emailAccountId, properties: ['id', 'role'] }, '0'],
