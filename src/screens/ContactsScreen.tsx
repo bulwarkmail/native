@@ -20,7 +20,7 @@ import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2, Filter,
+  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2, Filter, Mail, Users, MoreHorizontal,
 } from '../components/icons';
 import { ContactFiltersPanel } from '../components/contacts/ContactFiltersPanel';
 import {
@@ -46,6 +46,9 @@ import {
   TagAssignSheet,
 } from '../components/contacts';
 import Dialog from '../components/Dialog';
+import ActionListSheet, { type ActionListItem } from '../components/contacts/ActionListSheet';
+import { selectionRecipients } from '../lib/contact-bulk';
+import { toast } from '../stores/toast-store';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { DirectoryBrowser } from '../components/contacts/DirectoryBrowser';
 import { supportsSharing } from '../api/files';
@@ -134,6 +137,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
   const hydrate = useContactsStore((s) => s.hydrate);
   const bulkDelete = useContactsStore((s) => s.bulkDelete);
   const moveContactsToAddressBook = useContactsStore((s) => s.moveContactsToAddressBook);
+  const addContactsToGroup = useContactsStore((s) => s.addContactsToGroup);
   const addKeywordToContacts = useContactsStore((s) => s.addKeywordToContacts);
   const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
   const getDefaultAddressBookId = useContactsStore((s) => s.getDefaultAddressBookId);
@@ -152,6 +156,8 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [selection, setSelection] = React.useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = React.useState(false);
+  const [groupSheetOpen, setGroupSheetOpen] = React.useState(false);
+  const [bulkMoreOpen, setBulkMoreOpen] = React.useState(false);
   const [moveSheetOpen, setMoveSheetOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
@@ -347,6 +353,39 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
     }
   };
 
+  // One new message to everyone ticked.
+  const handleBulkCompose = () => {
+    const recipients = selectionRecipients(contacts.filter((c) => selection.has(c.id)));
+    if (recipients.length === 0) {
+      toast.error(t('ux_p3_pim_pc.no_addresses', 'None of the selected contacts has an email address.'));
+      return;
+    }
+    clearSelection();
+    navigation.navigate('Compose', { prefillTo: recipients });
+  };
+
+  // Ticked contacts into a group; without one, a new group made of them.
+  const createGroupFromSelection = () => {
+    const ids = Array.from(selection).filter((id) => !groups.some((g) => g.id === id));
+    setGroupSheetOpen(false);
+    clearSelection();
+    navigation.navigate('ContactForm', { asGroup: true, memberIds: ids });
+  };
+  const handleBulkAddToGroup = () => {
+    if (groups.length === 0) createGroupFromSelection();
+    else setGroupSheetOpen(true);
+  };
+  const handleBulkGroupPick = async (groupId: string) => {
+    const ids = Array.from(selection).filter((id) => id !== groupId && !groups.some((g) => g.id === id));
+    setGroupSheetOpen(false);
+    clearSelection();
+    try {
+      await addContactsToGroup(groupId, ids);
+    } catch (err) {
+      Alert.alert(t('contacts.detail.add_to_group_failed', 'Add to group failed'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
+    }
+  };
+
   const handleBulkTag = async (keyword: string) => {
     const ids = Array.from(selection);
     setTagSheetOpen(false);
@@ -439,33 +478,31 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
                 <CheckSquare size={20} color={c.text} />
               </Pressable>
               <Pressable
-                onPress={() => { void exportSelected(); }}
+                onPress={handleBulkCompose}
                 style={styles.headerIconBtn}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel={t('contacts.bulk.export', 'Export')}
+                accessibilityLabel={t('contacts.context_menu.send_email', 'Send email')}
               >
-                <Share2 size={20} color={c.text} />
+                <Mail size={20} color={c.text} />
               </Pressable>
-              {addressBooks.length > 0 && (
-                <Pressable
-                  onPress={() => setMoveSheetOpen(true)}
-                  style={styles.headerIconBtn}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('contacts.bulk.move_to_address_book', 'Move to address book')}
-                >
-                  <FolderInput size={20} color={c.text} />
-                </Pressable>
-              )}
               <Pressable
-                onPress={() => setTagSheetOpen(true)}
+                onPress={handleBulkAddToGroup}
                 style={styles.headerIconBtn}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel={t('contacts.bulk.add_tag', 'Add tag')}
+                accessibilityLabel={t('contacts.bulk.add_to_group', 'Add to group')}
               >
-                <Tag size={20} color={c.text} />
+                <Users size={20} color={c.text} />
+              </Pressable>
+              <Pressable
+                onPress={() => setBulkMoreOpen(true)}
+                style={styles.headerIconBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.detail.more_actions', 'More actions')}
+              >
+                <MoreHorizontal size={20} color={c.text} />
               </Pressable>
               <Pressable
                 onPress={() => setConfirmBulkDelete(true)}
@@ -702,6 +739,53 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
         targetBookName={importTargetName}
         onChangeTarget={addressBooks.length > 1 ? () => setImportTargetOpen(true) : undefined}
         onImported={() => { void fetchContacts(); }}
+      />
+
+      <ActionListSheet
+        visible={groupSheetOpen}
+        onClose={() => setGroupSheetOpen(false)}
+        title={t('contacts.bulk.add_to_group', 'Add to group')}
+        items={[
+          ...groups.map((g): ActionListItem => ({
+            key: g.id,
+            icon: <Users size={16} color={c.textSecondary} />,
+            label: getContactDisplayName(g) || t('contacts.group', 'Group'),
+            onPress: () => { void handleBulkGroupPick(g.id); },
+          })),
+          {
+            key: 'new-group',
+            icon: <Plus size={16} color={c.primary} />,
+            label: t('contacts.groups.create_ellipsis', 'New group…'),
+            onPress: createGroupFromSelection,
+            primary: true,
+          },
+        ]}
+      />
+
+      <ActionListSheet
+        visible={bulkMoreOpen}
+        onClose={() => setBulkMoreOpen(false)}
+        title={t('contacts.bulk.selected', '{count, plural, one {1 selected} other {# selected}}', { count: selection.size })}
+        items={[
+          {
+            key: 'export',
+            icon: <Share2 size={16} color={c.textSecondary} />,
+            label: t('contacts.bulk.export', 'Export'),
+            onPress: () => { void exportSelected(); },
+          },
+          ...(addressBooks.length > 0 ? [{
+            key: 'move',
+            icon: <FolderInput size={16} color={c.textSecondary} />,
+            label: t('contacts.bulk.move_to_address_book', 'Move to address book'),
+            onPress: () => setMoveSheetOpen(true),
+          }] : []),
+          {
+            key: 'tag',
+            icon: <Tag size={16} color={c.textSecondary} />,
+            label: t('contacts.bulk.add_tag', 'Add tag'),
+            onPress: () => setTagSheetOpen(true),
+          },
+        ]}
       />
 
       <AddressBookPickerSheet

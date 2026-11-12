@@ -63,6 +63,7 @@ import { getMailboxes } from '../email';
 import type { AddressBook, ContactCard } from '../types';
 import { isContactReadOnly } from '../../lib/contact-read-only';
 import { findRelatedContact } from '../../lib/contact-related';
+import { selectionRecipients } from '../../lib/contact-bulk';
 import type { FilterRule, SieveScript } from '../../lib/sieve/types';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -263,6 +264,30 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       const benBack = contacts.find((c) => c.id === ben.id)!;
       const [key] = Object.keys(benBack.relatedTo ?? {});
       expect(findRelatedContact(key, benBack, contacts)?.id).toBe(anna.id);
+    }, 60_000);
+
+    // Ticked contacts go into a group in one step.
+    it('adds two ticked contacts to a group and writes one message to them', async () => {
+      const one = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Tick One ${RUN}` },
+        emails: { e: { address: `tick-one-${RUN}@example.org` } },
+      } as Partial<ContactCard>, bookId);
+      const two = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Tick Two ${RUN}` },
+        emails: { e: { address: `tick-two-${RUN}@example.org` } },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(one.id, two.id);
+      await useContactsStore.getState().fetchContacts();
+      const group = await useContactsStore.getState().createGroup(`Live Tick Group ${RUN}`, [], bookId);
+      createdCards.push(group.id);
+
+      await useContactsStore.getState().addContactsToGroup(group.id, [one.id, two.id]);
+
+      await useContactsStore.getState().fetchContacts();
+      const recipients = useContactsStore.getState().getGroupRecipients(group.id).map((r) => r.email).sort();
+      expect(recipients).toEqual([`tick-one-${RUN}@example.org`, `tick-two-${RUN}@example.org`]);
+      const ticked = useContactsStore.getState().contacts.filter((c) => c.id === one.id || c.id === two.id);
+      expect(selectionRecipients(ticked).map((r) => r.email).sort()).toEqual(recipients);
     }, 60_000);
 
     it('deletes an address book that still holds contacts', async () => {
