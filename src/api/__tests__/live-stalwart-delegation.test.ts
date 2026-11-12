@@ -13,8 +13,10 @@
  *   BULWARK_LIVE_USER2=e2e-tablet-land@example.org \
  *   npx vitest run src/api/__tests__/live-stalwart-delegation.test.ts
  *
- * Every grant to the second login is taken away again afterwards, also
- * after a failed check.
+ * Grants the second login had before the run (the test servers' seed shares
+ * a folder and the calendar with userb) are taken away for the checks and
+ * put back afterwards with their rights; every grant the run made is taken
+ * away again, also after a failed check.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
@@ -26,6 +28,7 @@ import { lookupMessage, lookupResult, principalRowDisplay, resolvePrincipal } fr
 import { listPrincipals } from '../files';
 import { findPrincipalByEmail } from '../delegation';
 import { getAddressBooks, setAddressBookShare } from '../contacts';
+import type { ShareChange } from '../../lib/delegation/share-batch';
 
 const t = (_key: string, fallback?: string) => fallback ?? '';
 
@@ -40,6 +43,8 @@ type Response = [string, Record<string, any>, string];
 
 let owner: JMAPClient;
 let delegate: JMAPClient;
+// The delegate's grants from before the run, as the changes that put them back.
+let before: ShareChange[] = [];
 
 async function useOwner(): Promise<void> {
   const mod = await import('../jmap-client');
@@ -79,10 +84,21 @@ live('live Stalwart: delegates', () => {
     delegate = new JMAPClient();
     await delegate.connect(SERVER!, USER2!, PASS2);
     await useOwner();
+    // The checks count from nothing shared with the delegate.
+    const { targets } = await getShareTargets();
+    before = targets
+      .filter((t) => delegate.accountId in t.shareWith)
+      .map((t) => ({ kind: t.kind, accountId: t.accountId, id: t.id, name: t.name, principalId: delegate.accountId, rights: t.shareWith[delegate.accountId] }));
+    expect(await revokeAll()).toBe(true);
   }, 60_000);
 
   afterAll(async () => {
-    if (owner && delegate) await revokeAll().catch(() => undefined);
+    if (!owner || !delegate) return;
+    await revokeAll().catch(() => undefined);
+    if (before.length === 0) return;
+    await useOwner();
+    const failed = (await applyShareChanges(before)).filter((r) => !r.ok);
+    if (failed.length) throw new Error(`could not put back the delegate's grants: ${JSON.stringify(failed)}`);
   }, 60_000);
 
   it('gives the second login the Inbox, the default calendar and address book in one step, and takes it all back', async () => {
