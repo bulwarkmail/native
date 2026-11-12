@@ -5,8 +5,8 @@ plus one local commit, the export compliance answer, made by another
 session on 2026-11-12 and not pushed yet). Worktree
 C:\Users\info\worktrees\react-native-catch-up-2.
 
-Status: Phase 0 (inventory) and the plan are done; the decisions are
-pending. Nothing is built yet.
+Status: Phase 0 (inventory), the plan and the decisions are done; the
+build is running.
 
 ## Inventory (Phase 0, 2026-11-12)
 
@@ -591,4 +591,53 @@ Order:
 
 ## Decisions
 
-Pending (asked on 2026-11-12).
+Taken on 2026-11-12, before the build ("do whatever makes the most
+sense", so the recommendations stand):
+
+1. Dutch: one form, "je". The app's "u" strings are rewritten; the
+   webmail's mix goes on the webmail bug list.
+2. English source strings: one pass in the i18n wave, plural changes
+   carried into the other 28 languages.
+3. ios-perf: e2e-ios is dispatched with `all,perf` (`all` leaves perf out).
+4. The webmail and website hand-off commits are pushed (in 1.20.0);
+   nothing to do.
+5. iOS widget: release-ios.yml uses IOS_WIDGET_PROVISIONING_PROFILE_BASE64
+   when it exists and leaves the widget out when it doesn't. The App ID
+   org.bulwarkmail.mobile.Widget, its profile and the secret are for Linus.
+6. Export compliance: 37b93729 stays; the branch is based on it.
+7. PR #106: merged as is (64c61e53), the author's commit kept.
+8. PR #103: merged with the author's commits (f712f015); on top: a test
+   fix for Windows line endings 09947d8b, the strings in all 29 languages
+   and the layout waiting for the stored setting. #104 goes on top.
+9. PR #101: left with the author. The relay change (normal priority for
+   change-only pushes) is made in this run on a local branch in
+   repos/relay, not pushed or deployed.
+10. rel-ios-e2e: merged first (cf5a55e8).
+11. Security branch: build now; org-policy and push work in wave 2; main is
+    merged in once the security branch lands, otherwise the overlap list
+    goes with the hand-over.
+12. CI: push only `catch-up-2026-11b`, with ci.yml's push trigger widened
+    to `catch-up-*` in its own commit; no PR, no push to main; e2e-ios by
+    workflow_dispatch on the branch. Local main isn't fast-forwarded as the
+    run goes; the branch is the result.
+13. Dependencies: postal-mime 4.2.1 and a lockfile refresh within ranges,
+    in their own worktree, last. Skipped: zustand 5.1.0, datetimepicker,
+    webview, the SDK bump.
+14. Scope: every P1, P2 and P3 bug or partial row and the small P3
+    features. Not in this run, with the reasons in the plan: the offline
+    database (only the per-account and organisation caps are taken), app
+    lock, admin remote wipe, mbox/PST import and folder/account export,
+    contacts CSV import and duplicate merge, company calendars, "Suggest
+    times", passkeys.
+15. VM 106: stw-v016 is reset right before the e2e dispatch, after the
+    coordinator log shows no sec agent running on 0.16 (their accounts are
+    re-created with `ensure`). stw-rel stays on 1.0.1 until the 1.0.1
+    sign-in fix is checked live there, then moves to 1.1.0 with
+    rel_setup.sh and register-mobile-client.py fixed (backups kept).
+
+Checked live before the build: on stw-rel (1.0.1) the live auth suite
+passes 14 of 17 cases, and "a consentRequired answer is met with
+authConsent" fails with `rejected`: a client registered with
+STALWART_LOGIN_SCOPE (the 1.0.3 scopes) is refused by 1.0.1. That is the
+two-factor sign-in P1 above. Sign-in through bulwark-mobile still works
+there, because stw-rel has a first-party bulwark-mobile.
