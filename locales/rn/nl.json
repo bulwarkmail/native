@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Planning",
       "three_days": "3 dagen",
-      "n_days": "{count} dagen"
+      "n_days": "{count, plural, one {# dag} other {# dagen}}"
     },
     "detail": {
       "delete_confirm": "Dit evenement verwijderen?",
@@ -291,7 +291,7 @@
       "replaces": "Vervangt {name}",
       "unnamed": "Naamloos contact",
       "update_existing": "Bestaande bijwerken",
-      "updated_count": "{count, plural, one {1 contact bestond al en is bijgewerkt.} other {# contacten bestonden al en zijn bijgewerkt.}}"
+      "updated_count": "{count, plural, one {# contact bestond al en is bijgewerkt.} other {# contacten bestonden al en zijn bijgewerkt.}}"
     },
     "no_tags_hint": "Nog geen categorieën. Typ er hierboven een.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "De bijlagen zouden de {max} overschrijden die deze server per bericht toestaat.",
     "editor_unavailable": "Kon de inhoud van het bericht niet lezen. Kopieer uw tekst en sluit en open daarna het opstelvenster opnieuw.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Bijvoegen} one {1 bestand bijvoegen} other {# bestanden bijvoegen}}",
+      "attach": "{count, plural, =0 {Bijvoegen} one {# bestand bijvoegen} other {# bestanden bijvoegen}}",
       "empty_folder": "Deze map is leeg",
       "load_failed": "Je bestanden konden niet worden geladen"
     },
@@ -418,7 +418,7 @@
     "option_sign": "Ondertekenen",
     "option_sign_pgp_hint": "Een OpenPGP-handtekening met je sleutel toevoegen",
     "option_sign_smime_hint": "Een S/MIME-handtekening met je certificaat toevoegen",
-    "read_receipt_off": "Leesbevestiging vragen",
+    "request_read_receipt": "Leesbevestiging vragen",
     "secure_failed_title": "Kan niet ondertekenen of versleutelen",
     "secure_missing_keys": "Geen sleutel voor {recipients}. Importeer er een onder Instellingen → Versleuteling.",
     "secure_no_key": "Er staat geen sleutel voor {email} op dit apparaat. Importeer er een onder Instellingen → Versleuteling.",
@@ -469,7 +469,7 @@
     "offline_nothing_cached": "Geen verbinding. Er wordt niets weergegeven omdat er nog geen e-mail in de cache staat.",
     "open_draft_failed": "Kon het concept niet openen.",
     "outbox_discard": "Verwijderen",
-    "outbox_failed": "{count} wijzigingen konden niet op de server worden opgeslagen.",
+    "outbox_failed": "{count, plural, one {# wijziging kon niet op de server worden opgeslagen.} other {# wijzigingen konden niet op de server worden opgeslagen.}}",
     "recent_searches": "Recente zoekopdrachten",
     "remove_filter": "Filter {label} verwijderen",
     "scope_all_folders": "Alle mappen",
@@ -604,11 +604,11 @@
     "shared_with": "Gedeeld met",
     "sharing_access": "Delen en toegang",
     "symlink": "Symbolische koppeling",
-    "upload_failed": "{count, plural, one {1 bestand kon niet worden geüpload} other {# bestanden konden niet worden geüpload}}",
+    "upload_failed": "{count, plural, one {# bestand kon niet worden geüpload} other {# bestanden konden niet worden geüpload}}",
     "upload_unavailable": "De bestandskiezer is niet geïnstalleerd in deze build. Bouw de app opnieuw om uploaden mogelijk te maken.",
     "uploading_progress": "Uploaden {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Weet u zeker dat u {count, plural, one {1 item} other {# items}} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
-    "batch_delete_success": "{count, plural, one {1 item verwijderd} other {# items verwijderd}}",
+    "batch_delete_confirm_message": "Weet u zeker dat u {count, plural, one {# item} other {# items}} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "batch_delete_success": "{count, plural, one {# item verwijderd} other {# items verwijderd}}",
     "delete_confirm_message": "Weet u zeker dat u \"{name}\" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "delete_confirm_title": "Bron verwijderen",
     "delete_success": "Succesvol verwijderd",
@@ -1083,7 +1083,7 @@
       "name_placeholder": "Bonnetjes",
       "name_required": "Naam vereist",
       "new_folder": "Nieuwe map",
-      "not_empty_message": "\"{name}\" bevat {count} e-mails. Toch verwijderen?",
+      "not_empty_message": "{count, plural, one {\"{name}\" bevat # e-mail. Toch verwijderen?} other {\"{name}\" bevat # e-mails. Toch verwijderen?}}",
       "not_empty_title": "Map niet leeg",
       "own_account": "Mijn mappen",
       "role": "Maprol",
@@ -1121,7 +1121,7 @@
       "description_mobile": "Gekleurde labels om uw e-mail te organiseren.",
       "discover": {
         "add_all": "Alles toevoegen",
-        "found": "{count} labels gevonden die hier niet zijn gedefinieerd.",
+        "found": "{count, plural, one {# label gevonden dat hier niet is gedefinieerd.} other {# labels gevonden die hier niet zijn gedefinieerd.}}",
         "none": "Geen onbekende labels gevonden in {scanned} berichten.",
         "partial": "(Alleen de nieuwste berichten zijn doorzocht.)",
         "progress": "{scanned} van {total} berichten doorzocht…",
@@ -1186,7 +1186,7 @@
       "push": {
         "confirm_disable_message_mobile": "Dit apparaat ontvangt voor dit account geen meldingen van nieuwe e-mail meer.",
         "description_mobile": "Ontvang systeemmeldingen voor nieuwe e-mail wanneer de app gesloten is. Bezorgd via de Bulwark-push-relay; de relay ziet nooit de inhoud van e-mails.",
-        "err_android_only": "Pushmeldingen zijn alleen beschikbaar op Android.",
+        "err_fcm_unavailable": "Pushmeldingen via Firebase zijn niet beschikbaar in deze versie van de app.",
         "err_fcm_empty": "Firebase gaf een leeg apparaattoken terug.",
         "err_fcm_token": "Firebase kon geen apparaattoken uitgeven ({detail}). Push via FCM vereist Google Play-services op dit apparaat.",
         "err_fcm_token_up": "Firebase kon geen apparaattoken uitgeven ({detail}). Push via FCM vereist Google Play-services op dit apparaat. Op dit apparaat is een UnifiedPush-distributor geïnstalleerd - zet de bezorgmethode in plaats daarvan op UnifiedPush.",
@@ -1215,7 +1215,7 @@
         "relay_invalid": "Voer een geldige https://-URL in",
         "setup_failed": "Instellen mislukt",
         "shared_mailboxes_no_push": "Mailboxen die anderen met u delen, sturen geen achtergrondmeldingen.",
-        "status_android_only": "Achtergrondmeldingen zijn alleen beschikbaar op Android.",
+        "status_unavailable": "Deze versie van de app kan geen pushmeldingen ontvangen.",
         "transport_desc": "Hoe meldingen dit apparaat bereiken: Firebase Cloud Messaging van Google, of een UnifiedPush-distributor-app (zoals ntfy) voor bezorging zonder Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Bezorgmethode",
@@ -1267,11 +1267,11 @@
       "window_desc": "Hoe ver terug er in de cache wordt bewaard, gemeten naar de ontvangstdatum van het bericht.",
       "description_short": "Recente berichten op dit apparaat bewaren, zodat ze ook zonder verbinding openen.",
       "keep_24h": "24 uur",
-      "keep_days": "{count} dagen",
-      "keep_from": "E-mail bewaren van de afgelopen",
+      "keep_days": "{count, plural, one {# dag} other {# dagen}}",
+      "keep_from": "Periode",
       "messages_offline": "{count, plural, one {# bericht offline} other {# berichten offline}}",
       "synced": "Laatst gesynchroniseerd: {when}",
-      "use_at_most": "Maximaal gebruiken",
+      "use_at_most": "Maximale grootte",
       "used_of": "{used} van {limit} MB"
     },
     "plugins": {
@@ -1537,12 +1537,11 @@
       "phone_backup": "Niets daarvan gaat naar de cloudback-up van Android.",
       "phone_secure": "Je inloggegevens worden bewaard in de beveiligde opslag van het systeem. Instellingen, de offline e-mailcache en wijzigingen die nog moeten synchroniseren worden in de eigen opslag van de app bewaard.",
       "phone_title": "Op dit apparaat",
-      "push": "Als meldingen aanstaan, laat je server de push-relay ({relay}) weten dat er iets is veranderd, en de relay wekt de app via {service}. De relay ziet een apparaattoken en een wijzigingsmarkering, nooit je e-mail. Onder Meldingen kun je je eigen relay gebruiken.",
+      "push_apple": "Als meldingen aanstaan, laat je server de push-relay ({relay}) weten dat er iets is veranderd, en de relay wekt de app via de pushdienst van Apple. De relay ziet een apparaattoken en een wijzigingsmarkering, nooit je e-mail. Onder Meldingen kun je je eigen relay gebruiken.",
+      "push_google": "Als meldingen aanstaan, laat je server de push-relay ({relay}) weten dat er iets is veranderd, en de relay wekt de app via de pushdienst van Google. De relay ziet een apparaattoken en een wijzigingsmarkering, nooit je e-mail. Onder Meldingen kun je je eigen relay gebruiken.",
       "push_title": "Pushmeldingen",
       "server": "E-mail, agenda's, contacten en bestanden worden van je server geladen en daar weer opgeslagen. Afgezien van de verbindingen hieronder praat de app alleen met je server.",
       "server_title": "Je mailserver",
-      "service_apple": "de pushdienst van Apple",
-      "service_google": "de pushdienst van Google",
       "updates": "De app vraagt GitHub om de nieuwste release, zodat je over updates kunt worden geïnformeerd.",
       "updates_android": "De app vraagt GitHub om de nieuwste release, zodat je over updates kunt worden geïnformeerd. Zet dat uit onder Updates."
     },
@@ -1857,8 +1856,8 @@
       "empty_all_accounts": "Je postvakken zijn leeg",
       "empty_inbox": "Je Postvak IN is leeg",
       "folders": "Mappen",
-      "in_outbox": "{count, plural, one {# wijziging wacht} other {# wijzigingen wachten}}",
-      "in_outbox_short": "{count} wachtend",
+      "changes_waiting": "{count, plural, one {# wijziging wacht} other {# wijzigingen wachten}}",
+      "changes_waiting_short": "{count} wachtend",
       "inbox": "Postvak IN",
       "more_unread": "+{count} meer ongelezen",
       "no_folders": "Geen mappen om te tonen",
@@ -1951,7 +1950,7 @@
       "active": "Actief",
       "inactive": "Inactief",
       "subject": "Onderwerp: {subject}",
-      "title": "Afwezigheidsmelder",
+      "title": "Afwezigheid",
       "unsupported": "Afwezigheidsantwoorden zijn niet beschikbaar",
       "until": "Tot {date}"
     }

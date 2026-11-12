@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Programma",
       "three_days": "3 giorni",
-      "n_days": "{count} giorni"
+      "n_days": "{count, plural, one {# giorno} other {# giorni}}"
     },
     "detail": {
       "delete_confirm": "Eliminare questo evento?",
@@ -291,7 +291,7 @@
       "replaces": "Sostituisce {name}",
       "unnamed": "Contatto senza nome",
       "update_existing": "Aggiorna esistenti",
-      "updated_count": "{count, plural, one {1 contatto era già presente ed è stato aggiornato.} other {# contatti erano già presenti e sono stati aggiornati.}}"
+      "updated_count": "{count, plural, one {# contatto era già presente ed è stato aggiornato.} other {# contatti erano già presenti e sono stati aggiornati.}}"
     },
     "no_tags_hint": "Ancora nessuna etichetta. Scrivine una qui sopra.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Gli allegati supererebbero i {max} consentiti da questo server per messaggio.",
     "editor_unavailable": "Impossibile leggere il contenuto del messaggio. Copia il testo, poi chiudi e riapri l'editor.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Allega} one {Allega 1 file} other {Allega # file}}",
+      "attach": "{count, plural, =0 {Allega} one {Allega # file} other {Allega # file}}",
       "empty_folder": "Questa cartella è vuota",
       "load_failed": "Impossibile caricare i tuoi file"
     },
@@ -420,7 +420,7 @@
     "option_sign": "Firma",
     "option_sign_pgp_hint": "Aggiungi una firma OpenPGP con la tua chiave",
     "option_sign_smime_hint": "Aggiungi una firma S/MIME con il tuo certificato",
-    "read_receipt_off": "Richiedi conferma di lettura",
+    "request_read_receipt": "Richiedi conferma di lettura",
     "secure_failed_title": "Impossibile firmare o cifrare",
     "secure_missing_keys": "Nessuna chiave per {recipients}. Importane una in Impostazioni → Crittografia.",
     "secure_no_key": "Su questo dispositivo non c'è nessuna chiave per {email}. Importane una in Impostazioni → Crittografia.",
@@ -471,7 +471,7 @@
     "offline_nothing_cached": "Nessuna connessione. Non viene mostrato nulla perché non c'è ancora posta nella cache.",
     "open_draft_failed": "Impossibile aprire la bozza.",
     "outbox_discard": "Scarta",
-    "outbox_failed": "Impossibile salvare {count} modifiche sul server.",
+    "outbox_failed": "{count, plural, one {Impossibile salvare # modifica sul server.} other {Impossibile salvare # modifiche sul server.}}",
     "recent_searches": "Ricerche recenti",
     "remove_filter": "Rimuovi filtro {label}",
     "scope_all_folders": "Tutte le cartelle",
@@ -606,11 +606,11 @@
     "shared_with": "Condiviso con",
     "sharing_access": "Condivisione e accesso",
     "symlink": "Collegamento simbolico",
-    "upload_failed": "{count, plural, one {Impossibile caricare 1 file} other {Impossibile caricare # file}}",
+    "upload_failed": "{count, plural, one {Impossibile caricare # file} other {Impossibile caricare # file}}",
     "upload_unavailable": "Il selettore di file non è installato in questa build. Ricompila l'app per abilitare i caricamenti.",
     "uploading_progress": "Caricamento {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Sei sicuro di voler eliminare {count, plural, one {1 elemento} other {# elementi}}? Questa azione non può essere annullata.",
-    "batch_delete_success": "{count, plural, one {1 elemento eliminato} other {# elementi eliminati}}",
+    "batch_delete_confirm_message": "Sei sicuro di voler eliminare {count, plural, one {# elemento} other {# elementi}}? Questa azione non può essere annullata.",
+    "batch_delete_success": "{count, plural, one {# elemento eliminato} other {# elementi eliminati}}",
     "delete_confirm_message": "Sei sicuro di voler eliminare \"{name}\"? Questa azione non può essere annullata.",
     "delete_confirm_title": "Elimina risorsa",
     "delete_success": "Eliminato con successo",
@@ -1123,7 +1123,7 @@
       "description_mobile": "Etichette colorate per organizzare la posta.",
       "discover": {
         "add_all": "Aggiungi tutte",
-        "found": "Trovate {count} etichette non definite qui.",
+        "found": "{count, plural, one {Trovata # etichetta non definita qui.} other {Trovate # etichette non definite qui.}}",
         "none": "Nessuna etichetta sconosciuta trovata in {scanned} messaggi.",
         "partial": "(L'analisi si è fermata ai messaggi più recenti.)",
         "progress": "Analizzati {scanned} messaggi su {total}…",
@@ -1188,7 +1188,7 @@
       "push": {
         "confirm_disable_message_mobile": "Questo dispositivo non riceverà più gli avvisi di nuova posta per questo account.",
         "description_mobile": "Ricevi notifiche di sistema per la nuova posta quando l'app è chiusa. Consegnate tramite il relay push Bulwark; il relay non vede mai il contenuto della posta.",
-        "err_android_only": "Le notifiche push sono disponibili solo su Android.",
+        "err_fcm_unavailable": "Le notifiche push tramite Firebase non sono disponibili in questa versione dell'app.",
         "err_fcm_empty": "Firebase ha restituito un token del dispositivo vuoto.",
         "err_fcm_token": "Firebase non è riuscito a emettere un token del dispositivo ({detail}). Il push tramite FCM richiede i servizi Google Play su questo dispositivo.",
         "err_fcm_token_up": "Firebase non è riuscito a emettere un token del dispositivo ({detail}). Il push tramite FCM richiede i servizi Google Play su questo dispositivo. Su questo dispositivo è installato un distributore UnifiedPush - passa al metodo di consegna UnifiedPush.",
@@ -1217,7 +1217,7 @@
         "relay_invalid": "Inserisci un URL https:// valido",
         "setup_failed": "Configurazione non riuscita",
         "shared_mailboxes_no_push": "Le caselle di posta che altri condividono con te non inviano notifiche in background.",
-        "status_android_only": "Le notifiche in background sono disponibili solo su Android.",
+        "status_unavailable": "Questa versione dell'app non può ricevere notifiche push.",
         "transport_desc": "Come arrivano le notifiche a questo dispositivo: Firebase Cloud Messaging di Google oppure un'app distributore UnifiedPush (come ntfy) per una consegna senza Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Metodo di consegna",
@@ -1269,11 +1269,11 @@
       "window_desc": "Fino a quando salvare in cache, in base alla data di ricezione del messaggio.",
       "description_short": "Conserva i messaggi recenti su questo dispositivo, così si aprono anche senza connessione.",
       "keep_24h": "24 ore",
-      "keep_days": "{count} giorni",
-      "keep_from": "Conserva la posta degli ultimi",
+      "keep_days": "{count, plural, one {# giorno} other {# giorni}}",
+      "keep_from": "Periodo",
       "messages_offline": "{count, plural, one {# messaggio offline} other {# messaggi offline}}",
       "synced": "Sincronizzato {when}",
-      "use_at_most": "Usa al massimo",
+      "use_at_most": "Dimensione massima",
       "used_of": "{used} di {limit} MB"
     },
     "plugins": {
@@ -1539,12 +1539,11 @@
       "phone_backup": "Niente di tutto ciò finisce nel backup cloud di Android.",
       "phone_secure": "I tuoi dati di accesso sono conservati nell'archivio sicuro del sistema. Impostazioni, cache della posta offline e modifiche in attesa di sincronizzazione sono conservate nell'archivio dell'app.",
       "phone_title": "Su questo dispositivo",
-      "push": "Quando le notifiche sono attive, il tuo server comunica al relay push ({relay}) che qualcosa è cambiato, e il relay riattiva l'app tramite {service}. Il relay vede un token del dispositivo e un indicatore di modifica, mai la tua posta. Puoi usare un relay tuo in Notifiche.",
+      "push_apple": "Quando le notifiche sono attive, il tuo server comunica al relay push ({relay}) che qualcosa è cambiato, e il relay riattiva l'app tramite il servizio push di Apple. Il relay vede un token del dispositivo e un indicatore di modifica, mai la tua posta. Puoi usare un relay tuo in Notifiche.",
+      "push_google": "Quando le notifiche sono attive, il tuo server comunica al relay push ({relay}) che qualcosa è cambiato, e il relay riattiva l'app tramite il servizio push di Google. Il relay vede un token del dispositivo e un indicatore di modifica, mai la tua posta. Puoi usare un relay tuo in Notifiche.",
       "push_title": "Notifiche push",
       "server": "Posta, calendari, contatti e file vengono caricati dal tuo server e salvati di nuovo su di esso. A parte le connessioni qui sotto, l'app comunica solo con il tuo server.",
       "server_title": "Il tuo server di posta",
-      "service_apple": "il servizio push di Apple",
-      "service_google": "il servizio push di Google",
       "updates": "L'app chiede a GitHub l'ultima versione per informarti sugli aggiornamenti.",
       "updates_android": "L'app chiede a GitHub l'ultima versione per informarti sugli aggiornamenti. Puoi disattivarlo in Aggiornamenti."
     },
@@ -1859,8 +1858,8 @@
       "empty_all_accounts": "Le tue caselle di posta sono vuote",
       "empty_inbox": "La tua posta in arrivo è vuota",
       "folders": "Cartelle",
-      "in_outbox": "{count, plural, one {# modifica in attesa} other {# modifiche in attesa}}",
-      "in_outbox_short": "{count} in attesa",
+      "changes_waiting": "{count, plural, one {# modifica in attesa} other {# modifiche in attesa}}",
+      "changes_waiting_short": "{count} in attesa",
       "inbox": "Posta in arrivo",
       "more_unread": "+{count} altri non letti",
       "no_folders": "Nessuna cartella da mostrare",
@@ -1953,7 +1952,7 @@
       "active": "Attiva",
       "inactive": "Non attiva",
       "subject": "Oggetto: {subject}",
-      "title": "Risponditore automatico",
+      "title": "Assenza",
       "unsupported": "Le risposte automatiche non sono disponibili",
       "until": "Fino al {date}"
     }

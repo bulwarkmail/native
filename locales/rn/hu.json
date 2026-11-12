@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Ütemezés",
       "three_days": "3 nap",
-      "n_days": "{count} nap"
+      "n_days": "{count, plural, other {# nap}}"
     },
     "detail": {
       "delete_confirm": "Törlöd ezt az eseményt?",
@@ -291,7 +291,7 @@
       "replaces": "Lecseréli: {name}",
       "unnamed": "Névtelen névjegy",
       "update_existing": "Meglévők frissítése",
-      "updated_count": "{count, plural, one {1 névjegy már létezett, és frissült.} other {# névjegy már létezett, és frissült.}}"
+      "updated_count": "{count, plural, one {# névjegy már létezett, és frissült.} other {# névjegy már létezett, és frissült.}}"
     },
     "no_tags_hint": "Még nincsenek címkék. Írj be egyet fent.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "A csatolmányok túllépnék a szerver által üzenetenként engedélyezett méretet ({max}).",
     "editor_unavailable": "Nem sikerült beolvasni az üzenet tartalmát. Másold ki a szöveget, majd zárd be és nyisd meg újra a szerkesztőt.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Csatolás} one {1 fájl csatolása} other {# fájl csatolása}}",
+      "attach": "{count, plural, =0 {Csatolás} one {# fájl csatolása} other {# fájl csatolása}}",
       "empty_folder": "Ez a mappa üres",
       "load_failed": "A fájlokat nem sikerült betölteni"
     },
@@ -414,7 +414,7 @@
     "option_sign": "Aláírás",
     "option_sign_pgp_hint": "OpenPGP-aláírás hozzáadása a kulcsoddal",
     "option_sign_smime_hint": "S/MIME-aláírás hozzáadása a tanúsítványoddal",
-    "read_receipt_off": "Olvasási visszaigazolás kérése",
+    "request_read_receipt": "Olvasási visszaigazolás kérése",
     "secure_failed_title": "Nem sikerült aláírni vagy titkosítani",
     "secure_missing_keys": "Nincs kulcs a következőhöz: {recipients}. Importálj egyet a Beállítások → Titkosítás alatt.",
     "secure_no_key": "Ezen az eszközön nincs kulcs a következőhöz: {email}. Importálj egyet a Beállítások → Titkosítás alatt.",
@@ -600,11 +600,11 @@
     "shared_with": "Megosztva a következőkkel",
     "sharing_access": "Megosztás és hozzáférés",
     "symlink": "Szimbolikus hivatkozás",
-    "upload_failed": "{count, plural, one {1 fájlt nem sikerült feltölteni} other {# fájlt nem sikerült feltölteni}}",
+    "upload_failed": "{count, plural, one {# fájlt nem sikerült feltölteni} other {# fájlt nem sikerült feltölteni}}",
     "upload_unavailable": "A fájlválasztó nincs telepítve ebben a buildben. A feltöltés engedélyezéséhez fordítsd újra az alkalmazást.",
     "uploading_progress": "Feltöltés: {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Biztosan törölni szeretnéd {count, plural, one {az 1 elemet} other {a # elemet}}? Ez nem vonható vissza.",
-    "batch_delete_success": "{count, plural, one {1 elem törölve} other {# elem törölve}}",
+    "batch_delete_confirm_message": "Biztosan törölni szeretnéd {count, plural, one {az # elemet} other {a # elemet}}? Ez nem vonható vissza.",
+    "batch_delete_success": "{count, plural, one {# elem törölve} other {# elem törölve}}",
     "delete_confirm_message": "Biztosan törölni szeretnéd a \"{name}\" elemet? Ez nem vonható vissza.",
     "delete_confirm_title": "Erőforrás törlése",
     "delete_success": "Sikeresen törölve",
@@ -1182,7 +1182,7 @@
       "push": {
         "confirm_disable_message_mobile": "Ez az eszköz nem kap több értesítést az új levelekről ennél a fióknál.",
         "description_mobile": "Rendszerértesítések fogadása új levelekről, amikor az alkalmazás be van zárva. A Bulwark push relén keresztül kézbesítve; a relé soha nem látja a levelek tartalmát.",
-        "err_android_only": "A push-értesítések csak Androidon érhetők el.",
+        "err_fcm_unavailable": "A Firebase-en keresztüli push-értesítés nem érhető el az alkalmazás ezen változatában.",
         "err_fcm_empty": "A Firebase üres eszköztokent adott vissza.",
         "err_fcm_token": "A Firebase nem tudott eszköztokent kiadni ({detail}). Az FCM-en keresztüli pushhoz Google Play-szolgáltatások kellenek ezen az eszközön.",
         "err_fcm_token_up": "A Firebase nem tudott eszköztokent kiadni ({detail}). Az FCM-en keresztüli pushhoz Google Play-szolgáltatások kellenek ezen az eszközön. Ezen az eszközön telepítve van egy UnifiedPush-disztribútor – válts inkább UnifiedPush kézbesítési módra.",
@@ -1211,7 +1211,7 @@
         "relay_invalid": "Adj meg érvényes https:// URL-t",
         "setup_failed": "A beállítás sikertelen",
         "shared_mailboxes_no_push": "A mások által veled megosztott postafiókok nem küldenek háttérértesítéseket.",
-        "status_android_only": "A háttérértesítések csak Androidon érhetők el.",
+        "status_unavailable": "Az alkalmazás ezen változata nem tud push-értesítéseket fogadni.",
         "transport_desc": "Hogyan jutnak el az értesítések erre az eszközre: a Google Firebase Cloud Messaging szolgáltatásán vagy egy UnifiedPush-disztribútor alkalmazáson (például ntfy) keresztül, Google nélkül.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Kézbesítési mód",
@@ -1263,11 +1263,11 @@
       "window_desc": "Milyen régre visszamenőleg legyen gyorsítótárazva, az üzenet fogadási dátuma alapján.",
       "description_short": "A legutóbbi üzenetek tárolása ezen az eszközön, hogy kapcsolat nélkül is megnyíljanak.",
       "keep_24h": "24 óra",
-      "keep_days": "{count} nap",
-      "keep_from": "Megőrzött időszak",
+      "keep_days": "{count, plural, other {# nap}}",
+      "keep_from": "Időszak",
       "messages_offline": "{count, plural, one {# üzenet offline elérhető} other {# üzenet offline elérhető}}",
       "synced": "Szinkronizálva: {when}",
-      "use_at_most": "Legfeljebb",
+      "use_at_most": "Maximális méret",
       "used_of": "{used} / {limit} MB"
     },
     "plugins": {
@@ -1533,12 +1533,11 @@
       "phone_backup": "Ezek egyike sem kerül az Android felhőalapú biztonsági mentésébe.",
       "phone_secure": "A bejelentkezési adataid a rendszer biztonságos tárolójában vannak. A beállításokat, az offline levél-gyorsítótárat és a szinkronizálásra váró módosításokat az alkalmazás saját tárolója őrzi.",
       "phone_title": "Ezen az eszközön",
-      "push": "Ha az értesítések be vannak kapcsolva, a szervered szól a push relének ({relay}), hogy valami megváltozott, a relé pedig ezen keresztül ébreszti fel az alkalmazást: {service}. A relé egy eszköztokent és egy változásjelzőt lát, a leveleidet soha. Az Értesítések alatt saját relét is használhatsz.",
+      "push_apple": "Ha az értesítések be vannak kapcsolva, a szervered szól a push relének ({relay}), hogy valami megváltozott, a relé pedig ezen keresztül ébreszti fel az alkalmazást: Apple push szolgáltatás. A relé egy eszköztokent és egy változásjelzőt lát, a leveleidet soha. Az Értesítések alatt saját relét is használhatsz.",
+      "push_google": "Ha az értesítések be vannak kapcsolva, a szervered szól a push relének ({relay}), hogy valami megváltozott, a relé pedig ezen keresztül ébreszti fel az alkalmazást: Google push szolgáltatás. A relé egy eszköztokent és egy változásjelzőt lát, a leveleidet soha. Az Értesítések alatt saját relét is használhatsz.",
       "push_title": "Push értesítések",
       "server": "A levelek, naptárak, névjegyek és fájlok a szerveredről töltődnek be, és oda mentődnek vissza. Az alábbi kapcsolatokon kívül az alkalmazás csak a szervereddel kommunikál.",
       "server_title": "A levelezőszervered",
-      "service_apple": "Apple push szolgáltatás",
-      "service_google": "Google push szolgáltatás",
       "updates": "Az alkalmazás a GitHubtól kéri le a legújabb kiadást, hogy értesítsen a frissítésekről.",
       "updates_android": "Az alkalmazás a GitHubtól kéri le a legújabb kiadást, hogy értesítsen a frissítésekről. Ezt a Frissítések alatt kapcsolhatod ki."
     },
@@ -1853,8 +1852,8 @@
       "empty_all_accounts": "Minden Beérkező levelek mappa üres",
       "empty_inbox": "A Beérkező levelek mappa üres",
       "folders": "Mappák",
-      "in_outbox": "{count, plural, one {# módosítás vár} other {# módosítás vár}}",
-      "in_outbox_short": "{count} vár",
+      "changes_waiting": "{count, plural, one {# módosítás vár} other {# módosítás vár}}",
+      "changes_waiting_short": "{count} vár",
       "inbox": "Beérkező levelek",
       "more_unread": "+{count} további olvasatlan",
       "no_folders": "Nincs megjeleníthető mappa",
@@ -1947,7 +1946,7 @@
       "active": "Aktív",
       "inactive": "Inaktív",
       "subject": "Tárgy: {subject}",
-      "title": "Automatikus válasz",
+      "title": "Távollét",
       "unsupported": "Az automatikus válaszok nem érhetők el",
       "until": "Eddig: {date}"
     }

@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Agenda",
       "three_days": "3 días",
-      "n_days": "{count} días"
+      "n_days": "{count, plural, one {# día} other {# días}}"
     },
     "detail": {
       "delete_confirm": "¿Eliminar este evento?",
@@ -291,7 +291,7 @@
       "replaces": "Sustituye a {name}",
       "unnamed": "Contacto sin nombre",
       "update_existing": "Actualizar existentes",
-      "updated_count": "{count, plural, one {1 contacto ya existía y se ha actualizado.} other {# contactos ya existían y se han actualizado.}}"
+      "updated_count": "{count, plural, one {# contacto ya existía y se ha actualizado.} other {# contactos ya existían y se han actualizado.}}"
     },
     "no_tags_hint": "Aún no hay etiquetas. Escribe una arriba.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Los adjuntos superarían los {max} que este servidor permite por mensaje.",
     "editor_unavailable": "No se pudo leer el contenido del mensaje. Copia tu texto y luego cierra y vuelve a abrir el editor.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Adjuntar} one {Adjuntar 1 archivo} other {Adjuntar # archivos}}",
+      "attach": "{count, plural, =0 {Adjuntar} one {Adjuntar # archivo} other {Adjuntar # archivos}}",
       "empty_folder": "Esta carpeta está vacía",
       "load_failed": "No se pudieron cargar tus archivos"
     },
@@ -424,7 +424,7 @@
     "option_sign": "Firmar",
     "option_sign_pgp_hint": "Añadir una firma OpenPGP con tu clave",
     "option_sign_smime_hint": "Añadir una firma S/MIME con tu certificado",
-    "read_receipt_off": "Solicitar confirmación de lectura",
+    "request_read_receipt": "Solicitar confirmación de lectura",
     "secure_failed_title": "No se puede firmar ni cifrar",
     "secure_missing_keys": "No hay clave para {recipients}. Importa una en Configuración → Cifrado.",
     "secure_no_key": "No hay ninguna clave para {email} en este dispositivo. Importa una en Configuración → Cifrado.",
@@ -475,7 +475,7 @@
     "offline_nothing_cached": "Sin conexión. No se muestra nada porque aún no hay correo en caché.",
     "open_draft_failed": "No se pudo abrir el borrador.",
     "outbox_discard": "Descartar",
-    "outbox_failed": "No se pudieron guardar {count} cambios en el servidor.",
+    "outbox_failed": "{count, plural, one {No se pudo guardar # cambio en el servidor.} other {No se pudieron guardar # cambios en el servidor.}}",
     "recent_searches": "Búsquedas recientes",
     "remove_filter": "Quitar filtro {label}",
     "scope_all_folders": "Todas las carpetas",
@@ -610,11 +610,11 @@
     "shared_with": "Compartido con",
     "sharing_access": "Uso compartido y acceso",
     "symlink": "Enlace simbólico",
-    "upload_failed": "{count, plural, one {No se pudo subir 1 archivo} other {No se pudieron subir # archivos}}",
+    "upload_failed": "{count, plural, one {No se pudo subir # archivo} other {No se pudieron subir # archivos}}",
     "upload_unavailable": "El selector de archivos no está incluido en esta compilación. Vuelve a compilar la app para habilitar las subidas.",
     "uploading_progress": "Subiendo {current}/{total} · {name}",
-    "batch_delete_confirm_message": "¿Está seguro de que desea eliminar {count, plural, one {1 elemento} other {# elementos}}? Esta acción no se puede deshacer.",
-    "batch_delete_success": "{count, plural, one {1 elemento eliminado} other {# elementos eliminados}}",
+    "batch_delete_confirm_message": "¿Está seguro de que desea eliminar {count, plural, one {# elemento} other {# elementos}}? Esta acción no se puede deshacer.",
+    "batch_delete_success": "{count, plural, one {# elemento eliminado} other {# elementos eliminados}}",
     "delete_confirm_message": "¿Está seguro de que desea eliminar \"{name}\"? Esta acción no se puede deshacer.",
     "delete_confirm_title": "Eliminar recurso",
     "delete_success": "Eliminado correctamente",
@@ -1089,7 +1089,7 @@
       "name_placeholder": "Recibos",
       "name_required": "El nombre es obligatorio",
       "new_folder": "Nueva carpeta",
-      "not_empty_message": "\"{name}\" contiene {count} correos. ¿Eliminar de todos modos?",
+      "not_empty_message": "{count, plural, one {\"{name}\" contiene # correo. ¿Eliminar de todos modos?} other {\"{name}\" contiene # correos. ¿Eliminar de todos modos?}}",
       "not_empty_title": "La carpeta no está vacía",
       "own_account": "Mis carpetas",
       "role": "Uso especial",
@@ -1127,7 +1127,7 @@
       "description_mobile": "Etiquetas de colores para organizar tu correo.",
       "discover": {
         "add_all": "Añadir todas",
-        "found": "Se encontraron {count} etiquetas que no están definidas aquí.",
+        "found": "{count, plural, one {Se encontró # etiqueta que no está definida aquí.} other {Se encontraron # etiquetas que no están definidas aquí.}}",
         "none": "No se encontraron etiquetas desconocidas en {scanned} mensajes.",
         "partial": "(El análisis solo abarcó los mensajes más recientes.)",
         "progress": "Analizados {scanned} de {total} mensajes…",
@@ -1192,7 +1192,7 @@
       "push": {
         "confirm_disable_message_mobile": "Este dispositivo dejará de recibir avisos de correo nuevo para esta cuenta.",
         "description_mobile": "Recibe notificaciones del sistema para correo nuevo cuando la app está cerrada. Se entregan a través del relay push de Bulwark; el relay nunca ve el contenido del correo.",
-        "err_android_only": "Las notificaciones push solo están disponibles en Android.",
+        "err_fcm_unavailable": "Las notificaciones push a través de Firebase no están disponibles en esta versión de la app.",
         "err_fcm_empty": "Firebase devolvió un token de dispositivo vacío.",
         "err_fcm_token": "Firebase no pudo emitir un token de dispositivo ({detail}). Las notificaciones push por FCM necesitan los servicios de Google Play en este dispositivo.",
         "err_fcm_token_up": "Firebase no pudo emitir un token de dispositivo ({detail}). Las notificaciones push por FCM necesitan los servicios de Google Play en este dispositivo. Este dispositivo tiene instalado un distribuidor UnifiedPush: cambia el método de entrega a UnifiedPush.",
@@ -1221,7 +1221,7 @@
         "relay_invalid": "Introduce una URL https:// válida",
         "setup_failed": "Error en la configuración",
         "shared_mailboxes_no_push": "Los buzones que otras personas comparten contigo no envían notificaciones en segundo plano.",
-        "status_android_only": "Las notificaciones en segundo plano solo están disponibles en Android.",
+        "status_unavailable": "Esta versión de la app no puede recibir notificaciones push.",
         "transport_desc": "Cómo llegan las notificaciones a este dispositivo: Firebase Cloud Messaging de Google o una app distribuidora de UnifiedPush (como ntfy) para una entrega sin Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Método de entrega",
@@ -1273,11 +1273,11 @@
       "window_desc": "Hasta qué fecha guardar en caché, según la fecha de recepción del mensaje.",
       "description_short": "Guarda los mensajes recientes en este dispositivo para abrirlos sin conexión.",
       "keep_24h": "24 horas",
-      "keep_days": "{count} días",
-      "keep_from": "Periodo a conservar",
+      "keep_days": "{count, plural, one {# día} other {# días}}",
+      "keep_from": "Periodo",
       "messages_offline": "{count, plural, one {# mensaje sin conexión} other {# mensajes sin conexión}}",
       "synced": "Sincronizado {when}",
-      "use_at_most": "Usar como máximo",
+      "use_at_most": "Tamaño máximo",
       "used_of": "{used} de {limit} MB"
     },
     "plugins": {
@@ -1543,12 +1543,11 @@
       "phone_backup": "Nada de esto va a la copia de seguridad en la nube de Android.",
       "phone_secure": "Tus datos de inicio de sesión se guardan en el almacenamiento seguro del sistema. La configuración, la caché de correo sin conexión y los cambios pendientes de sincronizar se guardan en el almacenamiento propio de la app.",
       "phone_title": "En este dispositivo",
-      "push": "Cuando las notificaciones están activadas, tu servidor avisa al relay push ({relay}) de que algo ha cambiado, y el relay despierta la app mediante {service}. El relay ve un token de dispositivo y una marca de cambio, nunca tu correo. Puedes usar tu propio relay en Notificaciones.",
+      "push_apple": "Cuando las notificaciones están activadas, tu servidor avisa al relay push ({relay}) de que algo ha cambiado, y el relay despierta la app mediante el servicio push de Apple. El relay ve un token de dispositivo y una marca de cambio, nunca tu correo. Puedes usar tu propio relay en Notificaciones.",
+      "push_google": "Cuando las notificaciones están activadas, tu servidor avisa al relay push ({relay}) de que algo ha cambiado, y el relay despierta la app mediante el servicio push de Google. El relay ve un token de dispositivo y una marca de cambio, nunca tu correo. Puedes usar tu propio relay en Notificaciones.",
       "push_title": "Notificaciones push",
       "server": "El correo, los calendarios, los contactos y los archivos se cargan desde tu servidor y se guardan en él. Aparte de las conexiones de abajo, la app solo se comunica con tu servidor.",
       "server_title": "Tu servidor de correo",
-      "service_apple": "el servicio push de Apple",
-      "service_google": "el servicio push de Google",
       "updates": "La app consulta en GitHub la última versión para avisarte de las actualizaciones.",
       "updates_android": "La app consulta en GitHub la última versión para avisarte de las actualizaciones. Desactívalo en Actualizaciones."
     },
@@ -1863,8 +1862,8 @@
       "empty_all_accounts": "Tus bandejas de entrada están vacías",
       "empty_inbox": "Tu bandeja de entrada está vacía",
       "folders": "Carpetas",
-      "in_outbox": "{count, plural, one {# cambio pendiente} other {# cambios pendientes}}",
-      "in_outbox_short": "{count} pendientes",
+      "changes_waiting": "{count, plural, one {# cambio pendiente} other {# cambios pendientes}}",
+      "changes_waiting_short": "{count} pendientes",
       "inbox": "Bandeja de entrada",
       "more_unread": "+{count} más sin leer",
       "no_folders": "No hay carpetas que mostrar",
@@ -1957,7 +1956,7 @@
       "active": "Activa",
       "inactive": "Inactiva",
       "subject": "Asunto: {subject}",
-      "title": "Respuesta automática",
+      "title": "Ausencia",
       "unsupported": "Las respuestas automáticas no están disponibles",
       "until": "Hasta el {date}"
     }

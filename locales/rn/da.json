@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Tidsplan",
       "three_days": "3 dage",
-      "n_days": "{count} dage"
+      "n_days": "{count, plural, one {# dag} other {# dage}}"
     },
     "detail": {
       "delete_confirm": "Slet denne begivenhed?",
@@ -291,7 +291,7 @@
       "replaces": "Erstatter {name}",
       "unnamed": "Unavngiven kontakt",
       "update_existing": "Opdatér eksisterende",
-      "updated_count": "{count, plural, one {1 kontakt fandtes allerede og er blevet opdateret.} other {# kontakter fandtes allerede og er blevet opdateret.}}"
+      "updated_count": "{count, plural, one {# kontakt fandtes allerede og er blevet opdateret.} other {# kontakter fandtes allerede og er blevet opdateret.}}"
     },
     "no_tags_hint": "Ingen kategorier endnu. Skriv en ovenfor.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Vedhæftningerne ville overskride de {max}, som denne server tillader pr. besked.",
     "editor_unavailable": "Beskedens indhold kunne ikke læses. Kopiér din tekst, og luk og genåbn derefter editoren.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Vedhæft} one {Vedhæft 1 fil} other {Vedhæft # filer}}",
+      "attach": "{count, plural, =0 {Vedhæft} one {Vedhæft # fil} other {Vedhæft # filer}}",
       "empty_folder": "Denne mappe er tom",
       "load_failed": "Dine filer kunne ikke indlæses"
     },
@@ -415,7 +415,7 @@
     "option_sign": "Signér",
     "option_sign_pgp_hint": "Tilføj en OpenPGP-signatur med din nøgle",
     "option_sign_smime_hint": "Tilføj en S/MIME-signatur med dit certifikat",
-    "read_receipt_off": "Anmod om læsekvittering",
+    "request_read_receipt": "Anmod om læsekvittering",
     "secure_failed_title": "Kan ikke signere eller kryptere",
     "secure_missing_keys": "Ingen nøgle til {recipients}. Importér en under Indstillinger → Kryptering.",
     "secure_no_key": "Der er ingen nøgle til {email} på denne enhed. Importér en under Indstillinger → Kryptering.",
@@ -466,7 +466,7 @@
     "offline_nothing_cached": "Ingen forbindelse. Intet vises, fordi der endnu ikke er gemt mail i cachen.",
     "open_draft_failed": "Kunne ikke åbne kladden.",
     "outbox_discard": "Kassér",
-    "outbox_failed": "{count} ændringer kunne ikke gemmes på serveren.",
+    "outbox_failed": "{count, plural, one {# ændring kunne ikke gemmes på serveren.} other {# ændringer kunne ikke gemmes på serveren.}}",
     "recent_searches": "Seneste søgninger",
     "remove_filter": "Fjern filteret {label}",
     "scope_all_folders": "Alle mapper",
@@ -601,11 +601,11 @@
     "shared_with": "Delt med",
     "sharing_access": "Deling og adgang",
     "symlink": "Symbolsk link",
-    "upload_failed": "{count, plural, one {1 fil kunne ikke uploades} other {# filer kunne ikke uploades}}",
+    "upload_failed": "{count, plural, one {# fil kunne ikke uploades} other {# filer kunne ikke uploades}}",
     "upload_unavailable": "Filvælgeren er ikke installeret i denne build. Byg appen igen for at aktivere upload.",
     "uploading_progress": "Uploader {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Er du sikker på, at du vil slette {count, plural, one {1 element} other {# elementer}}? Dette kan ikke fortrydes.",
-    "batch_delete_success": "{count, plural, one {1 element slettet} other {# elementer slettet}}",
+    "batch_delete_confirm_message": "Er du sikker på, at du vil slette {count, plural, one {# element} other {# elementer}}? Dette kan ikke fortrydes.",
+    "batch_delete_success": "{count, plural, one {# element slettet} other {# elementer slettet}}",
     "delete_confirm_message": "Er du sikker på, at du vil slette \"{name}\"? Dette kan ikke fortrydes.",
     "delete_confirm_title": "Slet ressource",
     "delete_success": "Slettet",
@@ -1080,7 +1080,7 @@
       "name_placeholder": "Kvitteringer",
       "name_required": "Navn påkrævet",
       "new_folder": "Ny mappe",
-      "not_empty_message": "\"{name}\" indeholder {count} e-mails. Slet alligevel?",
+      "not_empty_message": "{count, plural, one {\"{name}\" indeholder # e-mail. Slet alligevel?} other {\"{name}\" indeholder # e-mails. Slet alligevel?}}",
       "not_empty_title": "Mappen er ikke tom",
       "own_account": "Mine mapper",
       "role": "Mappens rolle",
@@ -1118,7 +1118,7 @@
       "description_mobile": "Farvede tags til at organisere din mail.",
       "discover": {
         "add_all": "Tilføj alle",
-        "found": "{count} tags fundet, som ikke er defineret her.",
+        "found": "{count, plural, one {# tag fundet, som ikke er defineret her.} other {# tags fundet, som ikke er defineret her.}}",
         "none": "Ingen ukendte tags fundet i {scanned} beskeder.",
         "partial": "(Scanningen omfattede kun de nyeste beskeder.)",
         "progress": "Scannet {scanned} af {total} beskeder…",
@@ -1183,7 +1183,7 @@
       "push": {
         "confirm_disable_message_mobile": "Denne enhed stopper med at modtage notifikationer om ny mail for denne konto.",
         "description_mobile": "Modtag systemnotifikationer om ny mail, når appen er lukket. Leveres via Bulwark-push-relæet; relæet ser aldrig mailindhold.",
-        "err_android_only": "Pushnotifikationer er kun tilgængelige på Android.",
+        "err_fcm_unavailable": "Push via Firebase er ikke tilgængelig i denne version af appen.",
         "err_fcm_empty": "Firebase returnerede et tomt enhedstoken.",
         "err_fcm_token": "Firebase kunne ikke udstede et enhedstoken ({detail}). Push via FCM kræver Google Play-tjenester på denne enhed.",
         "err_fcm_token_up": "Firebase kunne ikke udstede et enhedstoken ({detail}). Push via FCM kræver Google Play-tjenester på denne enhed. Denne enhed har en UnifiedPush-distributør installeret - skift leveringsmetoden til UnifiedPush i stedet.",
@@ -1212,7 +1212,7 @@
         "relay_invalid": "Indtast en gyldig https://-URL",
         "setup_failed": "Opsætning mislykkedes",
         "shared_mailboxes_no_push": "Postkasser, som andre deler med dig, sender ikke baggrundsnotifikationer.",
-        "status_android_only": "Baggrundsnotifikationer er kun tilgængelige på Android.",
+        "status_unavailable": "Denne version af appen kan ikke modtage pushnotifikationer.",
         "transport_desc": "Hvordan notifikationer når frem til denne enhed: Googles Firebase Cloud Messaging eller en UnifiedPush-distributørapp (f.eks. ntfy) til levering uden Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Leveringsmetode",
@@ -1264,11 +1264,11 @@
       "window_desc": "Hvor langt tilbage der gemmes i cachen, målt efter beskedens modtagelsesdato.",
       "description_short": "Gem de seneste beskeder på denne enhed, så de kan åbnes uden forbindelse.",
       "keep_24h": "24 timer",
-      "keep_days": "{count} dage",
-      "keep_from": "Gem mail fra de seneste",
+      "keep_days": "{count, plural, one {# dag} other {# dage}}",
+      "keep_from": "Tidsrum",
       "messages_offline": "{count, plural, one {# besked offline} other {# beskeder offline}}",
       "synced": "Sidst synkroniseret: {when}",
-      "use_at_most": "Brug højst",
+      "use_at_most": "Maksimal størrelse",
       "used_of": "{used} af {limit} MB"
     },
     "plugins": {
@@ -1534,12 +1534,11 @@
       "phone_backup": "Intet af det kommer med i Androids sikkerhedskopi i skyen.",
       "phone_secure": "Dine loginoplysninger opbevares i systemets sikre lager. Indstillinger, offlinemail-cachen og ændringer, der venter på synkronisering, opbevares i appens eget lager.",
       "phone_title": "På denne enhed",
-      "push": "Når notifikationer er slået til, fortæller din server push-relæet ({relay}), at noget er ændret, og relæet vækker appen via {service}. Relæet ser et enhedstoken og en ændringsmarkør, aldrig din mail. Du kan bruge dit eget relæ under Notifikationer.",
+      "push_apple": "Når notifikationer er slået til, fortæller din server push-relæet ({relay}), at noget er ændret, og relæet vækker appen via Apples push-tjeneste. Relæet ser et enhedstoken og en ændringsmarkør, aldrig din mail. Du kan bruge dit eget relæ under Notifikationer.",
+      "push_google": "Når notifikationer er slået til, fortæller din server push-relæet ({relay}), at noget er ændret, og relæet vækker appen via Googles push-tjeneste. Relæet ser et enhedstoken og en ændringsmarkør, aldrig din mail. Du kan bruge dit eget relæ under Notifikationer.",
       "push_title": "Push-notifikationer",
       "server": "Mail, kalendere, kontakter og filer indlæses fra din server og gemmes tilbage på den. Bortset fra forbindelserne nedenfor taler appen kun med din server.",
       "server_title": "Din mailserver",
-      "service_apple": "Apples push-tjeneste",
-      "service_google": "Googles push-tjeneste",
       "updates": "Appen spørger GitHub om den nyeste udgivelse for at fortælle dig om opdateringer.",
       "updates_android": "Appen spørger GitHub om den nyeste udgivelse for at fortælle dig om opdateringer. Slå det fra under Opdateringer."
     },
@@ -1854,8 +1853,8 @@
       "empty_all_accounts": "Dine indbakker er tomme",
       "empty_inbox": "Din indbakke er tom",
       "folders": "Mapper",
-      "in_outbox": "{count, plural, one {# ændring venter} other {# ændringer venter}}",
-      "in_outbox_short": "{count} venter",
+      "changes_waiting": "{count, plural, one {# ændring venter} other {# ændringer venter}}",
+      "changes_waiting_short": "{count} venter",
       "inbox": "Indbakke",
       "more_unread": "+{count} flere ulæste",
       "no_folders": "Ingen mapper at vise",
@@ -1948,7 +1947,7 @@
       "active": "Aktiv",
       "inactive": "Inaktiv",
       "subject": "Emne: {subject}",
-      "title": "Fraværsbesked",
+      "title": "Fravær",
       "unsupported": "Fraværsbeskeder er ikke tilgængelige",
       "until": "Indtil {date}"
     }

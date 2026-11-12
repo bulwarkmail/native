@@ -163,7 +163,7 @@
     "views": {
       "schedule": "スケジュール",
       "three_days": "3 日",
-      "n_days": "{count}日"
+      "n_days": "{count, plural, other {#日}}"
     },
     "detail": {
       "delete_confirm": "このイベントを削除しますか？",
@@ -418,7 +418,7 @@
     "option_sign": "署名",
     "option_sign_pgp_hint": "あなたの鍵で OpenPGP 署名を付けます",
     "option_sign_smime_hint": "あなたの証明書で S/MIME 署名を付けます",
-    "read_receipt_off": "開封確認を要求",
+    "request_read_receipt": "開封確認を要求",
     "secure_failed_title": "署名または暗号化できません",
     "secure_missing_keys": "{recipients} の鍵がありません。「設定 → 暗号化」でインポートしてください。",
     "secure_no_key": "このデバイスには {email} の鍵がありません。「設定 → 暗号化」でインポートしてください。",
@@ -1186,7 +1186,7 @@
       "push": {
         "confirm_disable_message_mobile": "このデバイスはこのアカウントの新着メール通知を受信しなくなります。",
         "description_mobile": "アプリが閉じているときに新着メールのシステム通知を受信します。Bulwark プッシュリレー経由で配信され、リレーがメール内容を見ることはありません。",
-        "err_android_only": "プッシュ通知は Android でのみ利用できます。",
+        "err_fcm_unavailable": "このバージョンのアプリでは Firebase 経由のプッシュ通知を利用できません。",
         "err_fcm_empty": "Firebase が空のデバイストークンを返しました。",
         "err_fcm_token": "Firebase がデバイストークンを発行できませんでした（{detail}）。FCM によるプッシュには、このデバイスに Google Play 開発者サービスが必要です。",
         "err_fcm_token_up": "Firebase がデバイストークンを発行できませんでした（{detail}）。FCM によるプッシュには、このデバイスに Google Play 開発者サービスが必要です。このデバイスには UnifiedPush ディストリビューターがインストールされているため、代わりに配信方法を UnifiedPush に切り替えてください。",
@@ -1215,7 +1215,7 @@
         "relay_invalid": "有効な https:// URL を入力してください",
         "setup_failed": "セットアップに失敗しました",
         "shared_mailboxes_no_push": "他のユーザーから共有されたメールボックスでは、バックグラウンド通知は送信されません。",
-        "status_android_only": "バックグラウンド通知は Android でのみ利用できます。",
+        "status_unavailable": "このバージョンのアプリはプッシュ通知を受信できません。",
         "transport_desc": "通知をこのデバイスに届ける方法です。Google の Firebase Cloud Messaging か、Google を使わずに配信する UnifiedPush ディストリビューターアプリ（ntfy など）を選択できます。",
         "transport_fcm": "Google (FCM)",
         "transport_label": "配信方法",
@@ -1267,11 +1267,11 @@
       "window_desc": "どこまでさかのぼってキャッシュするかを、メッセージの受信日で指定します。",
       "description_short": "最近のメッセージをこのデバイスに保存し、接続がなくても開けるようにします。",
       "keep_24h": "24時間",
-      "keep_days": "{count}日",
-      "keep_from": "保存するメールの期間",
+      "keep_days": "{count, plural, other {#日}}",
+      "keep_from": "期間",
       "messages_offline": "{count, plural, other {#件のメッセージをオフラインで利用可能}}",
       "synced": "最終同期：{when}",
-      "use_at_most": "最大使用量",
+      "use_at_most": "最大サイズ",
       "used_of": "{used} / {limit} MB"
     },
     "plugins": {
@@ -1537,12 +1537,11 @@
       "phone_backup": "これらのデータは Android のクラウドバックアップには含まれません。",
       "phone_secure": "サインイン情報はシステムの安全な保存領域に保管されます。設定、オフラインメールのキャッシュ、同期待ちの変更はアプリ専用の保存領域に保管されます。",
       "phone_title": "このデバイス",
-      "push": "通知がオンの場合、サーバーは変更があったことをプッシュリレー（{relay}）に伝え、リレーは {service} を通じてアプリを起動します。リレーに伝わるのはデバイストークンと変更の目印だけで、メールの内容は伝わりません。「通知」で独自のリレーを使うこともできます。",
+      "push_apple": "通知がオンの場合、サーバーは変更があったことをプッシュリレー（{relay}）に伝え、リレーは Apple のプッシュサービス を通じてアプリを起動します。リレーに伝わるのはデバイストークンと変更の目印だけで、メールの内容は伝わりません。「通知」で独自のリレーを使うこともできます。",
+      "push_google": "通知がオンの場合、サーバーは変更があったことをプッシュリレー（{relay}）に伝え、リレーは Google のプッシュサービス を通じてアプリを起動します。リレーに伝わるのはデバイストークンと変更の目印だけで、メールの内容は伝わりません。「通知」で独自のリレーを使うこともできます。",
       "push_title": "プッシュ通知",
       "server": "メール、カレンダー、連絡先、ファイルはサーバーから読み込まれ、サーバーに保存されます。以下の接続を除き、アプリが通信するのはお使いのサーバーだけです。",
       "server_title": "お使いのメールサーバー",
-      "service_apple": "Apple のプッシュサービス",
-      "service_google": "Google のプッシュサービス",
       "updates": "アップデートをお知らせするため、アプリは GitHub に最新リリースを問い合わせます。",
       "updates_android": "アップデートをお知らせするため、アプリは GitHub に最新リリースを問い合わせます。「アップデート」でオフにできます。"
     },
@@ -1857,8 +1856,8 @@
       "empty_all_accounts": "受信トレイは空です",
       "empty_inbox": "受信トレイは空です",
       "folders": "フォルダー",
-      "in_outbox": "{count, plural, other {#件の変更が待機中}}",
-      "in_outbox_short": "{count}件待機中",
+      "changes_waiting": "{count, plural, other {#件の変更が待機中}}",
+      "changes_waiting_short": "{count}件待機中",
       "inbox": "受信トレイ",
       "more_unread": "ほか {count} 件の未読",
       "no_folders": "表示するフォルダーがありません",
@@ -1951,7 +1950,7 @@
       "active": "有効",
       "inactive": "無効",
       "subject": "件名: {subject}",
-      "title": "不在応答",
+      "title": "不在",
       "unsupported": "不在応答は利用できません",
       "until": "{date}まで"
     }

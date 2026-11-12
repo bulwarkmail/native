@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Program",
       "three_days": "3 gün",
-      "n_days": "{count} gün"
+      "n_days": "{count, plural, other {# gün}}"
     },
     "detail": {
       "delete_confirm": "Bu etkinlik silinsin mi?",
@@ -291,7 +291,7 @@
       "replaces": "{name} yerine geçer",
       "unnamed": "Adsız kişi",
       "update_existing": "Mevcut olanları güncelle",
-      "updated_count": "{count, plural, one {1 kişi zaten vardı ve güncellendi.} other {# kişi zaten vardı ve güncellendi.}}"
+      "updated_count": "{count, plural, one {# kişi zaten vardı ve güncellendi.} other {# kişi zaten vardı ve güncellendi.}}"
     },
     "no_tags_hint": "Henüz etiket yok. Yukarıya bir tane yazın.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Ekler, bu sunucunun ileti başına izin verdiği {max} sınırını aşacak.",
     "editor_unavailable": "İleti içeriği okunamadı. Metninizi kopyalayın, ardından düzenleyiciyi kapatıp yeniden açın.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Ekle} one {1 dosya ekle} other {# dosya ekle}}",
+      "attach": "{count, plural, =0 {Ekle} one {# dosya ekle} other {# dosya ekle}}",
       "empty_folder": "Bu klasör boş",
       "load_failed": "Dosyalarınız yüklenemedi"
     },
@@ -419,7 +419,7 @@
     "option_sign": "İmzala",
     "option_sign_pgp_hint": "Anahtarınızla bir OpenPGP imzası ekleyin",
     "option_sign_smime_hint": "Sertifikanızla bir S/MIME imzası ekleyin",
-    "read_receipt_off": "Okundu bilgisi iste",
+    "request_read_receipt": "Okundu bilgisi iste",
     "secure_failed_title": "İmzalanamıyor veya şifrelenemiyor",
     "secure_missing_keys": "{recipients} için anahtar yok. Ayarlar → Şifreleme bölümünden bir anahtar içe aktarın.",
     "secure_no_key": "Bu cihazda {email} için anahtar yok. Ayarlar → Şifreleme bölümünden bir anahtar içe aktarın.",
@@ -605,11 +605,11 @@
     "shared_with": "Paylaşılanlar",
     "sharing_access": "Paylaşım ve erişim",
     "symlink": "Sembolik bağlantı",
-    "upload_failed": "{count, plural, one {1 dosya yüklenemedi} other {# dosya yüklenemedi}}",
+    "upload_failed": "{count, plural, one {# dosya yüklenemedi} other {# dosya yüklenemedi}}",
     "upload_unavailable": "Bu derlemede dosya seçici yüklü değil. Yüklemeleri etkinleştirmek için uygulamayı yeniden derleyin.",
     "uploading_progress": "Yükleniyor {current}/{total} · {name}",
-    "batch_delete_confirm_message": "{count, plural, one {1 öge} other {# öge}} silinsin mi? Bu geri alınamaz.",
-    "batch_delete_success": "{count, plural, one {1 öge silindi} other {# öge silindi}}",
+    "batch_delete_confirm_message": "{count, plural, one {# öge} other {# öge}} silinsin mi? Bu geri alınamaz.",
+    "batch_delete_success": "{count, plural, one {# öge silindi} other {# öge silindi}}",
     "delete_confirm_message": "\"{name}\" silinsin mi? Bu geri alınamaz.",
     "delete_confirm_title": "Kaynağı sil",
     "delete_success": "Başarıyla silindi",
@@ -1187,7 +1187,7 @@
       "push": {
         "confirm_disable_message_mobile": "Bu cihaz, bu hesap için yeni posta uyarılarını almayı bırakacak.",
         "description_mobile": "Uygulama kapalıyken yeni postalar için sistem bildirimleri alın. Bulwark push röle aracılığıyla iletilir; röle posta içeriğini asla görmez.",
-        "err_android_only": "Push bildirimleri yalnızca Android'de kullanılabilir.",
+        "err_fcm_unavailable": "Firebase üzerinden push bildirimleri uygulamanın bu sürümünde kullanılamıyor.",
         "err_fcm_empty": "Firebase boş bir cihaz belirteci döndürdü.",
         "err_fcm_token": "Firebase cihaz belirteci veremedi ({detail}). FCM üzerinden push için bu cihazda Google Play hizmetleri gerekir.",
         "err_fcm_token_up": "Firebase cihaz belirteci veremedi ({detail}). FCM üzerinden push için bu cihazda Google Play hizmetleri gerekir. Bu cihazda bir UnifiedPush dağıtıcısı yüklü - bunun yerine teslimat yöntemini UnifiedPush olarak değiştirin.",
@@ -1216,7 +1216,7 @@
         "relay_invalid": "Geçerli bir https:// URL'si girin",
         "setup_failed": "Kurulum başarısız",
         "shared_mailboxes_no_push": "Başkalarının sizinle paylaştığı posta kutuları arka plan bildirimi göndermez.",
-        "status_android_only": "Arka plan bildirimleri yalnızca Android'de kullanılabilir.",
+        "status_unavailable": "Uygulamanın bu sürümü push bildirimlerini alamıyor.",
         "transport_desc": "Bildirimlerin bu cihaza nasıl ulaşacağı: Google'ın Firebase Cloud Messaging hizmeti veya Google'sız teslimat için bir UnifiedPush dağıtıcı uygulaması (ör. ntfy).",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Teslimat yöntemi",
@@ -1268,11 +1268,11 @@
       "window_desc": "İletinin alınma tarihine göre ne kadar geriye kadar önbelleğe alınacağı.",
       "description_short": "Son iletileri bu cihazda tutun; böylece bağlantı olmadan da açılırlar.",
       "keep_24h": "24 saat",
-      "keep_days": "{count} gün",
-      "keep_from": "Postaları saklama süresi",
+      "keep_days": "{count, plural, other {# gün}}",
+      "keep_from": "Dönem",
       "messages_offline": "{count, plural, one {# ileti çevrimdışı} other {# ileti çevrimdışı}}",
       "synced": "Son senkronizasyon: {when}",
-      "use_at_most": "En fazla kullan",
+      "use_at_most": "En büyük boyut",
       "used_of": "{used} / {limit} MB"
     },
     "plugins": {
@@ -1538,12 +1538,11 @@
       "phone_backup": "Bunların hiçbiri Android'in bulut yedeğine gitmez.",
       "phone_secure": "Giriş bilgileriniz sistemin güvenli depolama alanında saklanır. Ayarlar, çevrimdışı posta önbelleği ve senkronizasyon bekleyen değişiklikler uygulamanın kendi depolama alanında saklanır.",
       "phone_title": "Bu cihazda",
-      "push": "Bildirimler açıkken sunucunuz push rölesine ({relay}) bir şeyin değiştiğini bildirir ve röle uygulamayı {service} aracılığıyla uyandırır. Röle bir cihaz belirteci ve bir değişiklik işareti görür, postanızı asla görmez. Bildirimler bölümünde kendi rölenizi kullanabilirsiniz.",
+      "push_apple": "Bildirimler açıkken sunucunuz push rölesine ({relay}) bir şeyin değiştiğini bildirir ve röle uygulamayı Apple'ın push hizmeti aracılığıyla uyandırır. Röle bir cihaz belirteci ve bir değişiklik işareti görür, postanızı asla görmez. Bildirimler bölümünde kendi rölenizi kullanabilirsiniz.",
+      "push_google": "Bildirimler açıkken sunucunuz push rölesine ({relay}) bir şeyin değiştiğini bildirir ve röle uygulamayı Google'ın push hizmeti aracılığıyla uyandırır. Röle bir cihaz belirteci ve bir değişiklik işareti görür, postanızı asla görmez. Bildirimler bölümünde kendi rölenizi kullanabilirsiniz.",
       "push_title": "Anlık Bildirimler",
       "server": "Posta, takvimler, kişiler ve dosyalar sunucunuzdan yüklenir ve yine oraya kaydedilir. Aşağıdaki bağlantılar dışında uygulama yalnızca sunucunuzla iletişim kurar.",
       "server_title": "Posta sunucunuz",
-      "service_apple": "Apple'ın push hizmeti",
-      "service_google": "Google'ın push hizmeti",
       "updates": "Uygulama, güncellemeleri size bildirmek için GitHub'dan en son sürümü sorar.",
       "updates_android": "Uygulama, güncellemeleri size bildirmek için GitHub'dan en son sürümü sorar. Bunu Güncellemeler bölümünden kapatabilirsiniz."
     },
@@ -1858,8 +1857,8 @@
       "empty_all_accounts": "Gelen kutularınız boş",
       "empty_inbox": "Gelen Kutunuz boş",
       "folders": "Klasörler",
-      "in_outbox": "{count, plural, one {# değişiklik bekliyor} other {# değişiklik bekliyor}}",
-      "in_outbox_short": "{count} bekliyor",
+      "changes_waiting": "{count, plural, one {# değişiklik bekliyor} other {# değişiklik bekliyor}}",
+      "changes_waiting_short": "{count} bekliyor",
       "inbox": "Gelen Kutusu",
       "more_unread": "+{count} okunmamış daha",
       "no_folders": "Gösterilecek klasör yok",
@@ -1952,7 +1951,7 @@
       "active": "Etkin",
       "inactive": "Devre dışı",
       "subject": "Konu: {subject}",
-      "title": "Tatil Yanıtlayıcısı",
+      "title": "Ofis Dışında",
       "unsupported": "Tatil yanıtları kullanılamıyor",
       "until": "{date} tarihine kadar"
     }

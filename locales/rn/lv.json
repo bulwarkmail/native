@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Grafiks",
       "three_days": "3 dienas",
-      "n_days": "{count} dienas"
+      "n_days": "{count, plural, zero {# dienu} one {# diena} other {# dienas}}"
     },
     "detail": {
       "delete_confirm": "Vai dzēst šo pasākumu?",
@@ -417,7 +417,7 @@
     "option_sign": "Parakstīt",
     "option_sign_pgp_hint": "Pievienot OpenPGP parakstu ar jūsu atslēgu",
     "option_sign_smime_hint": "Pievienot S/MIME parakstu ar jūsu sertifikātu",
-    "read_receipt_off": "Pieprasīt izlasīšanas apstiprinājumu",
+    "request_read_receipt": "Pieprasīt izlasīšanas apstiprinājumu",
     "secure_failed_title": "Nevar parakstīt vai šifrēt",
     "secure_missing_keys": "Nav atslēgas: {recipients}. Importējiet to sadaļā Iestatījumi → Šifrēšana.",
     "secure_no_key": "Šajā ierīcē nav atslēgas adresei {email}. Importējiet to sadaļā Iestatījumi → Šifrēšana.",
@@ -606,8 +606,8 @@
     "upload_failed": "{count, plural, one {Neizdevās augšupielādēt # failu} other {Neizdevās augšupielādēt # failus}}",
     "upload_unavailable": "Failu atlasītājs šajā būvējumā nav instalēts. Lai iespējotu augšupielādi, pārbūvējiet lietotni.",
     "uploading_progress": "Augšupielādē {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Vai tiešām vēlaties dzēst {count, plural, one {1 elementu} other {# elementus}}?",
-    "batch_delete_success": "Izdzēsts {count, plural, one {1 elements} other {# elementi}}",
+    "batch_delete_confirm_message": "Vai tiešām vēlaties dzēst {count, plural, zero {# elementus} one {# elementu} other {# elementus}}?",
+    "batch_delete_success": "Izdzēsts {count, plural, zero {# elementu} one {# elements} other {# elementi}}",
     "delete_confirm_message": "Vai tiešām vēlaties dzēst «{name}»? Šo darbību nevar atcelt.",
     "delete_confirm_title": "Dzēst resursu",
     "delete_success": "Sekmīgi izdzēsts",
@@ -1185,7 +1185,7 @@
       "push": {
         "confirm_disable_message_mobile": "Šī ierīce vairs nesaņems paziņojumus par jaunu pastu šim kontam.",
         "description_mobile": "Saņemt sistēmas paziņojumus par jaunu pastu, kad lietotne ir aizvērta. Piegādā Bulwark push relejs; relejs nekad neredz pasta saturu.",
-        "err_android_only": "Push paziņojumi ir pieejami tikai Android ierīcēs.",
+        "err_fcm_unavailable": "Push paziņojumi caur Firebase šajā lietotnes versijā nav pieejami.",
         "err_fcm_empty": "Firebase atgrieza tukšu ierīces tokenu.",
         "err_fcm_token": "Firebase nevarēja izsniegt ierīces tokenu ({detail}). Lai izmantotu push ar FCM, šajā ierīcē nepieciešami Google Play pakalpojumi.",
         "err_fcm_token_up": "Firebase nevarēja izsniegt ierīces tokenu ({detail}). Lai izmantotu push ar FCM, šajā ierīcē nepieciešami Google Play pakalpojumi. Šajā ierīcē ir instalēts UnifiedPush izplatītājs – tā vietā pārslēdziet piegādes veidu uz UnifiedPush.",
@@ -1214,7 +1214,7 @@
         "relay_invalid": "Ievadiet derīgu https:// URL",
         "setup_failed": "Iestatīšana neizdevās",
         "shared_mailboxes_no_push": "Pastkastes, ko ar jums kopīgo citi, nesūta fona paziņojumus.",
-        "status_android_only": "Fona paziņojumi ir pieejami tikai Android ierīcēs.",
+        "status_unavailable": "Šī lietotnes versija nevar saņemt push paziņojumus.",
         "transport_desc": "Kā paziņojumi nonāk šajā ierīcē: ar Google Firebase Cloud Messaging vai ar UnifiedPush izplatītāja lietotni (piemēram, ntfy) bez Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Piegādes veids",
@@ -1266,11 +1266,11 @@
       "window_desc": "Cik tālu pagātnē saglabāt, pēc vēstules saņemšanas datuma.",
       "description_short": "Glabājiet jaunākās vēstules šajā ierīcē, lai tās atvērtos arī bez savienojuma.",
       "keep_24h": "24 stundas",
-      "keep_days": "{count} dienas",
-      "keep_from": "Glabāt pastu par pēdējām",
+      "keep_days": "{count, plural, zero {# dienu} one {# diena} other {# dienas}}",
+      "keep_from": "Periods",
       "messages_offline": "{count, plural, zero {# vēstules bezsaistē} one {# vēstule bezsaistē} other {# vēstules bezsaistē}}",
       "synced": "Sinhronizēts {when}",
-      "use_at_most": "Izmantot ne vairāk kā",
+      "use_at_most": "Maksimālais izmērs",
       "used_of": "{used} no {limit} MB"
     },
     "plugins": {
@@ -1536,12 +1536,11 @@
       "phone_backup": "Nekas no tā netiek iekļauts Android mākoņa dublējumā.",
       "phone_secure": "Jūsu pierakstīšanās dati tiek glabāti sistēmas drošajā krātuvē. Iestatījumi, bezsaistes pasta kešatmiņa un izmaiņas, kas gaida sinhronizāciju, tiek glabāti pašas lietotnes krātuvē.",
       "phone_title": "Šajā ierīcē",
-      "push": "Kad paziņojumi ir ieslēgti, jūsu serveris paziņo push relejam ({relay}), ka kaut kas ir mainījies, un relejs pamodina lietotni ar šī pakalpojuma starpniecību: {service}. Relejs redz ierīces marķieri un izmaiņu atzīmi, bet nekad jūsu pastu. Sadaļā Paziņojumi varat izmantot savu releju.",
+      "push_apple": "Kad paziņojumi ir ieslēgti, jūsu serveris paziņo push relejam ({relay}), ka kaut kas ir mainījies, un relejs pamodina lietotni ar šī pakalpojuma starpniecību: Apple push pakalpojums. Relejs redz ierīces marķieri un izmaiņu atzīmi, bet nekad jūsu pastu. Sadaļā Paziņojumi varat izmantot savu releju.",
+      "push_google": "Kad paziņojumi ir ieslēgti, jūsu serveris paziņo push relejam ({relay}), ka kaut kas ir mainījies, un relejs pamodina lietotni ar šī pakalpojuma starpniecību: Google push pakalpojums. Relejs redz ierīces marķieri un izmaiņu atzīmi, bet nekad jūsu pastu. Sadaļā Paziņojumi varat izmantot savu releju.",
       "push_title": "Push paziņojumi",
       "server": "Pasts, kalendāri, kontakti un faili tiek ielādēti no jūsu servera un saglabāti atpakaļ tajā. Izņemot tālāk minētos savienojumus, lietotne sazinās tikai ar jūsu serveri.",
       "server_title": "Jūsu pasta serveris",
-      "service_apple": "Apple push pakalpojums",
-      "service_google": "Google push pakalpojums",
       "updates": "Lietotne vaicā GitHub par jaunāko laidienu, lai paziņotu jums par atjauninājumiem.",
       "updates_android": "Lietotne vaicā GitHub par jaunāko laidienu, lai paziņotu jums par atjauninājumiem. To var izslēgt sadaļā Atjauninājumi."
     },
@@ -1856,8 +1855,8 @@
       "empty_all_accounts": "Jūsu iesūtnes ir tukšas",
       "empty_inbox": "Jūsu iesūtne ir tukša",
       "folders": "Mapes",
-      "in_outbox": "{count, plural, zero {# izmaiņas gaida} one {# izmaiņa gaida} other {# izmaiņas gaida}}",
-      "in_outbox_short": "{count} gaida",
+      "changes_waiting": "{count, plural, zero {# izmaiņas gaida} one {# izmaiņa gaida} other {# izmaiņas gaida}}",
+      "changes_waiting_short": "{count} gaida",
       "inbox": "Iesūtne",
       "more_unread": "vēl +{count} nelasītas",
       "no_folders": "Nav mapju, ko rādīt",
@@ -1950,7 +1949,7 @@
       "active": "Aktīva",
       "inactive": "Neaktīva",
       "subject": "Temats: {subject}",
-      "title": "Automātiskā atbilde",
+      "title": "Prombūtne",
       "unsupported": "Prombūtnes atbildes nav pieejamas",
       "until": "Līdz {date}"
     }

@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Agenda",
       "three_days": "3 dies",
-      "n_days": "{count} dies"
+      "n_days": "{count, plural, one {# dia} other {# dies}}"
     },
     "detail": {
       "delete_confirm": "Voleu suprimir aquest esdeveniment?",
@@ -291,7 +291,7 @@
       "replaces": "Substitueix {name}",
       "unnamed": "Contacte sense nom",
       "update_existing": "Actualitza els existents",
-      "updated_count": "{count, plural, one {1 contacte ja hi era i s'ha actualitzat.} other {# contactes ja hi eren i s'han actualitzat.}}"
+      "updated_count": "{count, plural, one {# contacte ja hi era i s'ha actualitzat.} other {# contactes ja hi eren i s'han actualitzat.}}"
     },
     "no_tags_hint": "Encara no hi ha etiquetes. Escriviu-ne una a dalt.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Els fitxers adjunts superarien els {max} que aquest servidor permet per missatge.",
     "editor_unavailable": "No s'ha pogut llegir el contingut del missatge. Copieu el text i, després, tanqueu i torneu a obrir el redactor.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Adjunta} one {Adjunta 1 fitxer} other {Adjunta # fitxers}}",
+      "attach": "{count, plural, =0 {Adjunta} one {Adjunta # fitxer} other {Adjunta # fitxers}}",
       "empty_folder": "Aquesta carpeta és buida",
       "load_failed": "No s'han pogut carregar els teus fitxers"
     },
@@ -418,7 +418,7 @@
     "option_sign": "Signa",
     "option_sign_pgp_hint": "Afegeix una signatura OpenPGP amb la vostra clau",
     "option_sign_smime_hint": "Afegeix una signatura S/MIME amb el vostre certificat",
-    "read_receipt_off": "Demana confirmació de lectura",
+    "request_read_receipt": "Demana confirmació de lectura",
     "secure_failed_title": "No es pot signar ni xifrar",
     "secure_missing_keys": "No hi ha cap clau per a {recipients}. Importeu-ne una a Configuració → Xifratge.",
     "secure_no_key": "No hi ha cap clau per a {email} en aquest dispositiu. Importeu-ne una a Configuració → Xifratge.",
@@ -469,7 +469,7 @@
     "offline_nothing_cached": "Sense connexió. No es mostra res perquè encara no hi ha correu a la memòria cau.",
     "open_draft_failed": "No s'ha pogut obrir l'esborrany.",
     "outbox_discard": "Descarta",
-    "outbox_failed": "No s'han pogut desar {count} canvis al servidor.",
+    "outbox_failed": "{count, plural, one {No s'ha pogut desar # canvi al servidor.} other {No s'han pogut desar # canvis al servidor.}}",
     "recent_searches": "Cerques recents",
     "remove_filter": "Elimina el filtre {label}",
     "scope_all_folders": "Totes les carpetes",
@@ -604,11 +604,11 @@
     "shared_with": "Compartit amb",
     "sharing_access": "Compartició i accés",
     "symlink": "Enllaç simbòlic",
-    "upload_failed": "{count, plural, one {No s'ha pogut pujar 1 fitxer} other {No s'han pogut pujar # fitxers}}",
+    "upload_failed": "{count, plural, one {No s'ha pogut pujar # fitxer} other {No s'han pogut pujar # fitxers}}",
     "upload_unavailable": "El selector de fitxers no està inclòs en aquesta compilació. Torneu a compilar l'aplicació per activar les pujades.",
     "uploading_progress": "S'està pujant {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Segur que voleu suprimir {count, plural, one {1 element} other {# elements}}? Això no es pot desfer.",
-    "batch_delete_success": "{count, plural, one {1 element suprimit} other {# elements suprimits}}",
+    "batch_delete_confirm_message": "Segur que voleu suprimir {count, plural, one {# element} other {# elements}}? Això no es pot desfer.",
+    "batch_delete_success": "{count, plural, one {# element suprimit} other {# elements suprimits}}",
     "delete_confirm_message": "Segur que voleu suprimir «{name}»? Això no es pot desfer.",
     "delete_confirm_title": "Suprimeix el recurs",
     "delete_success": "Suprimit correctament",
@@ -1083,7 +1083,7 @@
       "name_placeholder": "Rebuts",
       "name_required": "Cal un nom",
       "new_folder": "Carpeta nova",
-      "not_empty_message": "«{name}» conté {count} correus. Voleu suprimir-la igualment?",
+      "not_empty_message": "{count, plural, one {«{name}» conté # correu. Voleu suprimir-la igualment?} other {«{name}» conté # correus. Voleu suprimir-la igualment?}}",
       "not_empty_title": "La carpeta no és buida",
       "own_account": "Les meves carpetes",
       "role": "Ús especial",
@@ -1121,7 +1121,7 @@
       "description_mobile": "Etiquetes de colors per organitzar el correu.",
       "discover": {
         "add_all": "Afegeix-les totes",
-        "found": "S'han trobat {count} etiquetes que no estan definides aquí.",
+        "found": "{count, plural, one {S'ha trobat # etiqueta que no està definida aquí.} other {S'han trobat # etiquetes que no estan definides aquí.}}",
         "none": "No s'ha trobat cap etiqueta desconeguda en {scanned} missatges.",
         "partial": "(L'anàlisi només ha abastat els missatges més recents.)",
         "progress": "S'han analitzat {scanned} de {total} missatges…",
@@ -1186,7 +1186,7 @@
       "push": {
         "confirm_disable_message_mobile": "Aquest dispositiu deixarà de rebre avisos de correu nou per a aquest compte.",
         "description_mobile": "Rebeu notificacions del sistema per al correu nou quan l'aplicació estigui tancada. S'entreguen mitjançant el repetidor push del Bulwark; el repetidor mai no veu el contingut del correu.",
-        "err_android_only": "Les notificacions push només estan disponibles a Android.",
+        "err_fcm_unavailable": "Les notificacions push a través de Firebase no estan disponibles en aquesta versió de l'aplicació.",
         "err_fcm_empty": "El Firebase ha retornat un testimoni de dispositiu buit.",
         "err_fcm_token": "El Firebase no ha pogut emetre un testimoni de dispositiu ({detail}). Les notificacions push per FCM necessiten els serveis de Google Play en aquest dispositiu.",
         "err_fcm_token_up": "El Firebase no ha pogut emetre un testimoni de dispositiu ({detail}). Les notificacions push per FCM necessiten els serveis de Google Play en aquest dispositiu. Aquest dispositiu té instal·lat un distribuïdor d'UnifiedPush: canvieu el mètode de lliurament a UnifiedPush.",
@@ -1215,7 +1215,7 @@
         "relay_invalid": "Introduïu un URL https:// vàlid",
         "setup_failed": "Ha fallat la configuració",
         "shared_mailboxes_no_push": "Les bústies que altres usuaris comparteixen amb vós no envien notificacions en segon pla.",
-        "status_android_only": "Les notificacions en segon pla només estan disponibles a Android.",
+        "status_unavailable": "Aquesta versió de l'aplicació no pot rebre notificacions push.",
         "transport_desc": "Com arriben les notificacions a aquest dispositiu: el Firebase Cloud Messaging de Google o una aplicació distribuïdora d'UnifiedPush (com ara ntfy) per a un lliurament sense Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Mètode de lliurament",
@@ -1267,11 +1267,11 @@
       "window_desc": "Fins a quina data desar a la memòria cau, segons la data de recepció del missatge.",
       "description_short": "Conserva els missatges recents en aquest dispositiu perquè s'obrin sense connexió.",
       "keep_24h": "24 hores",
-      "keep_days": "{count} dies",
-      "keep_from": "Conserva el correu dels últims",
+      "keep_days": "{count, plural, one {# dia} other {# dies}}",
+      "keep_from": "Període",
       "messages_offline": "{count, plural, one {# missatge sense connexió} other {# missatges sense connexió}}",
       "synced": "Sincronitzat {when}",
-      "use_at_most": "Fes servir com a màxim",
+      "use_at_most": "Mida màxima",
       "used_of": "{used} de {limit} MB"
     },
     "plugins": {
@@ -1537,12 +1537,11 @@
       "phone_backup": "Res d'això va a la còpia de seguretat al núvol d'Android.",
       "phone_secure": "Les vostres dades d'inici de sessió es guarden a l'emmagatzematge segur del sistema. La configuració, la memòria cau del correu sense connexió i els canvis pendents de sincronitzar es guarden a l'emmagatzematge propi de l'aplicació.",
       "phone_title": "En aquest dispositiu",
-      "push": "Quan les notificacions estan activades, el vostre servidor avisa el repetidor push ({relay}) que alguna cosa ha canviat, i el repetidor desperta l'aplicació mitjançant {service}. El repetidor veu un testimoni del dispositiu i un marcador de canvi, mai el vostre correu. Podeu fer servir el vostre propi repetidor a Notificacions.",
+      "push_apple": "Quan les notificacions estan activades, el vostre servidor avisa el repetidor push ({relay}) que alguna cosa ha canviat, i el repetidor desperta l'aplicació mitjançant el servei push d'Apple. El repetidor veu un testimoni del dispositiu i un marcador de canvi, mai el vostre correu. Podeu fer servir el vostre propi repetidor a Notificacions.",
+      "push_google": "Quan les notificacions estan activades, el vostre servidor avisa el repetidor push ({relay}) que alguna cosa ha canviat, i el repetidor desperta l'aplicació mitjançant el servei push de Google. El repetidor veu un testimoni del dispositiu i un marcador de canvi, mai el vostre correu. Podeu fer servir el vostre propi repetidor a Notificacions.",
       "push_title": "Notificacions push",
       "server": "El correu, els calendaris, els contactes i els fitxers es carreguen del vostre servidor i s'hi tornen a desar. A part de les connexions següents, l'aplicació només es comunica amb el vostre servidor.",
       "server_title": "El vostre servidor de correu",
-      "service_apple": "el servei push d'Apple",
-      "service_google": "el servei push de Google",
       "updates": "L'aplicació consulta a GitHub la versió més recent per avisar-vos de les actualitzacions.",
       "updates_android": "L'aplicació consulta a GitHub la versió més recent per avisar-vos de les actualitzacions. Podeu desactivar-ho a Actualitzacions."
     },
@@ -1857,8 +1856,8 @@
       "empty_all_accounts": "Les safates d'entrada són buides",
       "empty_inbox": "La safata d'entrada és buida",
       "folders": "Carpetes",
-      "in_outbox": "{count, plural, one {# canvi pendent} other {# canvis pendents}}",
-      "in_outbox_short": "{count} pendents",
+      "changes_waiting": "{count, plural, one {# canvi pendent} other {# canvis pendents}}",
+      "changes_waiting_short": "{count} pendents",
       "inbox": "Safata d'entrada",
       "more_unread": "+{count} més sense llegir",
       "no_folders": "No hi ha carpetes per mostrar",
@@ -1951,7 +1950,7 @@
       "active": "Activada",
       "inactive": "Desactivada",
       "subject": "Assumpte: {subject}",
-      "title": "Resposta automàtica",
+      "title": "Absència",
       "unsupported": "Les respostes automàtiques no estan disponibles",
       "until": "Fins al {date}"
     }

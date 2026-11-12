@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Program",
       "three_days": "3 dni",
-      "n_days": "{count} dní"
+      "n_days": "{count, plural, one {# deň} few {# dni} many {# dňa} other {# dní}}"
     },
     "detail": {
       "delete_confirm": "Odstrániť túto udalosť?",
@@ -291,7 +291,7 @@
       "replaces": "Nahradí {name}",
       "unnamed": "Kontakt bez mena",
       "update_existing": "Aktualizovať existujúce",
-      "updated_count": "{count, plural, one {1 kontakt už existoval a bol aktualizovaný.} few {# kontakty už existovali a boli aktualizované.} many {# kontakty už existovali a boli aktualizované.} other {# kontaktov už existovalo a bolo aktualizovaných.}}"
+      "updated_count": "{count, plural, one {# kontakt už existoval a bol aktualizovaný.} few {# kontakty už existovali a boli aktualizované.} many {# kontakty už existovali a boli aktualizované.} other {# kontaktov už existovalo a bolo aktualizovaných.}}"
     },
     "no_tags_hint": "Zatiaľ žiadne štítky. Zadajte nový vyššie.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Prílohy by prekročili limit {max}, ktorý tento server povoľuje na jednu správu.",
     "editor_unavailable": "Obsah správy sa nepodarilo načítať. Skopírujte si text a potom editor zatvorte a znova otvorte.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Priložiť} one {Priložiť 1 súbor} few {Priložiť # súbory} other {Priložiť # súborov}}",
+      "attach": "{count, plural, =0 {Priložiť} one {Priložiť # súbor} few {Priložiť # súbory} other {Priložiť # súborov}}",
       "empty_folder": "Tento priečinok je prázdny",
       "load_failed": "Vaše súbory sa nepodarilo načítať"
     },
@@ -417,7 +417,7 @@
     "option_sign": "Podpísať",
     "option_sign_pgp_hint": "Pridať podpis OpenPGP vaším kľúčom",
     "option_sign_smime_hint": "Pridať podpis S/MIME vaším certifikátom",
-    "read_receipt_off": "Vyžiadať potvrdenie o prečítaní",
+    "request_read_receipt": "Vyžiadať potvrdenie o prečítaní",
     "secure_failed_title": "Nedá sa podpísať ani zašifrovať",
     "secure_missing_keys": "Chýba kľúč pre {recipients}. Importujte ho v časti Nastavenia → Šifrovanie.",
     "secure_no_key": "V tomto zariadení nie je kľúč pre {email}. Importujte ho v časti Nastavenia → Šifrovanie.",
@@ -603,11 +603,11 @@
     "shared_with": "Zdieľané s",
     "sharing_access": "Zdieľanie a prístup",
     "symlink": "Symbolický odkaz",
-    "upload_failed": "{count, plural, one {1 súbor sa nepodarilo nahrať} few {# súbory sa nepodarilo nahrať} other {# súborov sa nepodarilo nahrať}}",
+    "upload_failed": "{count, plural, one {# súbor sa nepodarilo nahrať} few {# súbory sa nepodarilo nahrať} other {# súborov sa nepodarilo nahrať}}",
     "upload_unavailable": "Výber súborov nie je v tejto zostave nainštalovaný. Ak chcete povoliť nahrávanie, zostavte aplikáciu znova.",
     "uploading_progress": "Nahrávanie {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Naozaj chcete odstrániť {count, plural, one {1 položku} other {# položiek}}? Túto akciu nie je možné vrátiť.",
-    "batch_delete_success": "{count, plural, one {Odstránená 1 položka} other {Odstránených # položiek}}",
+    "batch_delete_confirm_message": "Naozaj chcete odstrániť {count, plural, one {# položku} few {# položky} many {# položky} other {# položiek}}? Túto akciu nie je možné vrátiť.",
+    "batch_delete_success": "{count, plural, one {Odstránená # položka} few {Odstránené # položky} many {Odstránenej # položky} other {Odstránených # položiek}}",
     "delete_confirm_message": "Naozaj chcete odstrániť \"{name}\"? Túto akciu nie je možné vrátiť.",
     "delete_confirm_title": "Odstrániť položku",
     "delete_success": "Úspešne odstránené",
@@ -1185,7 +1185,7 @@
       "push": {
         "confirm_disable_message_mobile": "Toto zariadenie prestane dostávať upozornenia na novú poštu pre tento účet.",
         "description_mobile": "Prijímať systémové oznámenia o novej pošte, keď je aplikácia zatvorená. Doručované cez push relay Bulwark; relay nikdy nevidí obsah pošty.",
-        "err_android_only": "Push oznámenia sú dostupné iba v Androide.",
+        "err_fcm_unavailable": "Push cez Firebase nie je v tejto verzii aplikácie k dispozícii.",
         "err_fcm_empty": "Firebase vrátil prázdny token zariadenia.",
         "err_fcm_token": "Firebase nemohol vydať token zariadenia ({detail}). Push cez FCM vyžaduje v tomto zariadení služby Google Play.",
         "err_fcm_token_up": "Firebase nemohol vydať token zariadenia ({detail}). Push cez FCM vyžaduje v tomto zariadení služby Google Play. V tomto zariadení je nainštalovaný distribútor UnifiedPush – prepnite spôsob doručenia na UnifiedPush.",
@@ -1214,7 +1214,7 @@
         "relay_invalid": "Zadajte platnú adresu URL https://",
         "setup_failed": "Nastavenie zlyhalo",
         "shared_mailboxes_no_push": "Poštové schránky, ktoré s vami zdieľajú iní, neposielajú oznámenia na pozadí.",
-        "status_android_only": "Oznámenia na pozadí sú k dispozícii iba v Androide.",
+        "status_unavailable": "Táto verzia aplikácie nemôže prijímať push oznámenia.",
         "transport_desc": "Ako sa oznámenia dostanú do tohto zariadenia: cez Firebase Cloud Messaging od Googlu alebo cez aplikáciu distribútora UnifiedPush (napríklad ntfy) bez Googlu.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Spôsob doručenia",
@@ -1266,11 +1266,11 @@
       "window_desc": "Ako ďaleko do minulosti ukladať, podľa dátumu prijatia správy.",
       "description_short": "Uchovávať nedávne správy v tomto zariadení, aby sa otvorili aj bez pripojenia.",
       "keep_24h": "24 hodín",
-      "keep_days": "{count} dní",
-      "keep_from": "Uchovávať poštu za posledných",
+      "keep_days": "{count, plural, one {# deň} few {# dni} many {# dňa} other {# dní}}",
+      "keep_from": "Obdobie",
       "messages_offline": "{count, plural, one {# správa offline} few {# správy offline} many {# správy offline} other {# správ offline}}",
       "synced": "Synchronizované {when}",
-      "use_at_most": "Použiť najviac",
+      "use_at_most": "Maximálna veľkosť",
       "used_of": "{used} z {limit} MB"
     },
     "plugins": {
@@ -1536,12 +1536,11 @@
       "phone_backup": "Nič z toho sa neukladá do cloudovej zálohy Androidu.",
       "phone_secure": "Vaše prihlasovacie údaje sú uložené v zabezpečenom úložisku systému. Nastavenia, offline vyrovnávacia pamäť pošty a zmeny čakajúce na synchronizáciu sú uložené vo vlastnom úložisku aplikácie.",
       "phone_title": "V tomto zariadení",
-      "push": "Keď sú oznámenia zapnuté, váš server oznámi push relay ({relay}), že sa niečo zmenilo, a relay prebudí aplikáciu cez {service}. Relay vidí token zariadenia a značku zmeny, nikdy nie vašu poštu. V časti Oznámenia môžete použiť vlastný relay.",
+      "push_apple": "Keď sú oznámenia zapnuté, váš server oznámi push relay ({relay}), že sa niečo zmenilo, a relay prebudí aplikáciu cez push službu Apple. Relay vidí token zariadenia a značku zmeny, nikdy nie vašu poštu. V časti Oznámenia môžete použiť vlastný relay.",
+      "push_google": "Keď sú oznámenia zapnuté, váš server oznámi push relay ({relay}), že sa niečo zmenilo, a relay prebudí aplikáciu cez push službu Google. Relay vidí token zariadenia a značku zmeny, nikdy nie vašu poštu. V časti Oznámenia môžete použiť vlastný relay.",
       "push_title": "Push oznámenia",
       "server": "Pošta, kalendáre, kontakty a súbory sa načítavajú z vášho servera a ukladajú sa späť naň. Okrem pripojení uvedených nižšie komunikuje aplikácia iba s vaším serverom.",
       "server_title": "Váš poštový server",
-      "service_apple": "push službu Apple",
-      "service_google": "push službu Google",
       "updates": "Aplikácia sa pýta GitHubu na najnovšie vydanie, aby vás mohla informovať o aktualizáciách.",
       "updates_android": "Aplikácia sa pýta GitHubu na najnovšie vydanie, aby vás mohla informovať o aktualizáciách. Vypnete to v časti Aktualizácie."
     },
@@ -1856,8 +1855,8 @@
       "empty_all_accounts": "Vaše priečinky Doručené sú prázdne",
       "empty_inbox": "Priečinok Doručené je prázdny",
       "folders": "Priečinky",
-      "in_outbox": "{count, plural, one {# zmena čaká} few {# zmeny čakajú} many {# zmeny čaká} other {# zmien čaká}}",
-      "in_outbox_short": "čaká: {count}",
+      "changes_waiting": "{count, plural, one {# zmena čaká} few {# zmeny čakajú} many {# zmeny čaká} other {# zmien čaká}}",
+      "changes_waiting_short": "čaká: {count}",
       "inbox": "Doručené",
       "more_unread": "Ďalšie neprečítané: +{count}",
       "no_folders": "Žiadne priečinky na zobrazenie",
@@ -1950,7 +1949,7 @@
       "active": "Aktívne",
       "inactive": "Neaktívne",
       "subject": "Predmet: {subject}",
-      "title": "Automatická odpoveď",
+      "title": "Neprítomnosť",
       "unsupported": "Automatické odpovede nie sú dostupné",
       "until": "Do {date}"
     }

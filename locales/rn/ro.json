@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Program",
       "three_days": "3 zile",
-      "n_days": "{count} zile"
+      "n_days": "{count, plural, one {# zi} few {# zile} other {# de zile}}"
     },
     "detail": {
       "delete_confirm": "Doriți să ștergeți acest eveniment?",
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Atașamentele ar depăși limita de {max} per mesaj permisă de acest server.",
     "editor_unavailable": "Conținutul mesajului nu a putut fi citit. Copiați textul, apoi închideți și redeschideți editorul.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Atașează} one {Atașează 1 fișier} few {Atașează # fișiere} other {Atașează # de fișiere}}",
+      "attach": "{count, plural, =0 {Atașează} one {Atașează # fișier} few {Atașează # fișiere} other {Atașează # de fișiere}}",
       "empty_folder": "Acest dosar este gol",
       "load_failed": "Fișierele tale nu au putut fi încărcate"
     },
@@ -418,7 +418,7 @@
     "option_sign": "Semnați",
     "option_sign_pgp_hint": "Adăugați o semnătură OpenPGP cu cheia dvs.",
     "option_sign_smime_hint": "Adăugați o semnătură S/MIME cu certificatul dvs.",
-    "read_receipt_off": "Solicitați confirmare de citire",
+    "request_read_receipt": "Solicitați confirmare de citire",
     "secure_failed_title": "Nu se poate semna sau cripta",
     "secure_missing_keys": "Nu există cheie pentru {recipients}. Importați una din Setări → Criptare.",
     "secure_no_key": "Pe acest dispozitiv nu există nicio cheie pentru {email}. Importați una din Setări → Criptare.",
@@ -604,11 +604,11 @@
     "shared_with": "Partajat cu",
     "sharing_access": "Partajare și acces",
     "symlink": "Legătură simbolică",
-    "upload_failed": "{count, plural, one {1 fișier nu a putut fi încărcat} few {# fișiere nu au putut fi încărcate} other {# de fișiere nu au putut fi încărcate}}",
+    "upload_failed": "{count, plural, one {# fișier nu a putut fi încărcat} few {# fișiere nu au putut fi încărcate} other {# de fișiere nu au putut fi încărcate}}",
     "upload_unavailable": "Selectorul de fișiere nu este instalat în această versiune. Recompilați aplicația pentru a activa încărcările.",
     "uploading_progress": "Se încarcă {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Sunteți sigur că doriți să ștergeți {count, plural, one {1 element} few {# elemente} other {# de elemente}}? Această acțiune nu poate fi anulată.",
-    "batch_delete_success": "{count, plural, one {1 element șters} few {# elemente șterse} other {# de elemente șterse}}",
+    "batch_delete_confirm_message": "Sunteți sigur că doriți să ștergeți {count, plural, one {# element} few {# elemente} other {# de elemente}}? Această acțiune nu poate fi anulată.",
+    "batch_delete_success": "{count, plural, one {# element șters} few {# elemente șterse} other {# de elemente șterse}}",
     "delete_confirm_message": "Sunteți sigur că doriți să ștergeți „{name}”? Această acțiune nu poate fi anulată.",
     "delete_confirm_title": "Ștergeți resursa",
     "delete_success": "Șters cu succes",
@@ -1186,7 +1186,7 @@
       "push": {
         "confirm_disable_message_mobile": "Acest dispozitiv nu va mai primi alerte pentru e-mailurile noi din acest cont.",
         "description_mobile": "Primiți notificări de sistem pentru e-mailurile noi când aplicația este închisă. Notificările sunt transmise prin relay-ul push Bulwark; relay-ul nu vede niciodată conținutul e-mailurilor.",
-        "err_android_only": "Notificările push sunt disponibile doar pe Android.",
+        "err_fcm_unavailable": "Notificările push prin Firebase nu sunt disponibile în această versiune a aplicației.",
         "err_fcm_empty": "Firebase a returnat un token de dispozitiv gol.",
         "err_fcm_token": "Firebase nu a putut emite un token de dispozitiv ({detail}). Notificările push prin FCM necesită serviciile Google Play pe acest dispozitiv.",
         "err_fcm_token_up": "Firebase nu a putut emite un token de dispozitiv ({detail}). Notificările push prin FCM necesită serviciile Google Play pe acest dispozitiv. Pe acest dispozitiv este instalat un distribuitor UnifiedPush - schimbați metoda de livrare la UnifiedPush.",
@@ -1215,7 +1215,7 @@
         "relay_invalid": "Introduceți un URL https:// valid",
         "setup_failed": "Configurarea a eșuat",
         "shared_mailboxes_no_push": "Căsuțele poștale pe care alții le partajează cu dvs. nu trimit notificări în fundal.",
-        "status_android_only": "Notificările în fundal sunt disponibile doar pe Android.",
+        "status_unavailable": "Această versiune a aplicației nu poate primi notificări push.",
         "transport_desc": "Cum ajung notificările pe acest dispozitiv: Firebase Cloud Messaging de la Google sau o aplicație distribuitor UnifiedPush (cum ar fi ntfy) pentru livrare fără Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Metodă de livrare",
@@ -1267,11 +1267,11 @@
       "window_desc": "Cât de departe în trecut să se păstreze în cache, după data primirii mesajului.",
       "description_short": "Păstrați mesajele recente pe acest dispozitiv, ca să se deschidă fără conexiune.",
       "keep_24h": "24 de ore",
-      "keep_days": "{count} zile",
-      "keep_from": "Păstrați e-mailurile din ultimele",
+      "keep_days": "{count, plural, one {# zi} few {# zile} other {# de zile}}",
+      "keep_from": "Perioadă",
       "messages_offline": "{count, plural, one {# mesaj offline} few {# mesaje offline} other {# de mesaje offline}}",
       "synced": "Sincronizat {when}",
-      "use_at_most": "Folosiți cel mult",
+      "use_at_most": "Dimensiune maximă",
       "used_of": "{used} din {limit} MB"
     },
     "plugins": {
@@ -1537,12 +1537,11 @@
       "phone_backup": "Nimic din toate acestea nu ajunge în copia de rezervă în cloud a Android.",
       "phone_secure": "Datele dvs. de autentificare sunt păstrate în spațiul de stocare securizat al sistemului. Setările, cache-ul e-mailurilor offline și modificările care așteaptă sincronizarea sunt păstrate în spațiul de stocare propriu al aplicației.",
       "phone_title": "Pe acest dispozitiv",
-      "push": "Când notificările sunt activate, serverul dvs. îi spune releului push ({relay}) că s-a schimbat ceva, iar releul trezește aplicația prin {service}. Releul vede un token al dispozitivului și un marcaj de modificare, niciodată e-mailurile dvs. Puteți folosi propriul releu din Notificări.",
+      "push_apple": "Când notificările sunt activate, serverul dvs. îi spune releului push ({relay}) că s-a schimbat ceva, iar releul trezește aplicația prin serviciul push al Apple. Releul vede un token al dispozitivului și un marcaj de modificare, niciodată e-mailurile dvs. Puteți folosi propriul releu din Notificări.",
+      "push_google": "Când notificările sunt activate, serverul dvs. îi spune releului push ({relay}) că s-a schimbat ceva, iar releul trezește aplicația prin serviciul push al Google. Releul vede un token al dispozitivului și un marcaj de modificare, niciodată e-mailurile dvs. Puteți folosi propriul releu din Notificări.",
       "push_title": "Notificări push",
       "server": "E-mailurile, calendarele, contactele și fișierele sunt încărcate de pe serverul dvs. și salvate înapoi pe el. În afara conexiunilor de mai jos, aplicația comunică doar cu serverul dvs.",
       "server_title": "Serverul dvs. de e-mail",
-      "service_apple": "serviciul push al Apple",
-      "service_google": "serviciul push al Google",
       "updates": "Aplicația verifică pe GitHub cea mai recentă versiune, ca să vă anunțe despre actualizări.",
       "updates_android": "Aplicația verifică pe GitHub cea mai recentă versiune, ca să vă anunțe despre actualizări. Puteți dezactiva acest lucru din Actualizări."
     },
@@ -1857,8 +1856,8 @@
       "empty_all_accounts": "Folderele Primite sunt goale",
       "empty_inbox": "Folderul Primite este gol",
       "folders": "Foldere",
-      "in_outbox": "{count, plural, one {# modificare în așteptare} few {# modificări în așteptare} other {# de modificări în așteptare}}",
-      "in_outbox_short": "{count} în așteptare",
+      "changes_waiting": "{count, plural, one {# modificare în așteptare} few {# modificări în așteptare} other {# de modificări în așteptare}}",
+      "changes_waiting_short": "{count} în așteptare",
       "inbox": "Primite",
       "more_unread": "+{count} necitite",
       "no_folders": "Niciun folder de afișat",
@@ -1951,7 +1950,7 @@
       "active": "Activ",
       "inactive": "Inactiv",
       "subject": "Subiect: {subject}",
-      "title": "Răspuns automat de vacanță",
+      "title": "Absență",
       "unsupported": "Răspunsurile de vacanță nu sunt disponibile",
       "until": "Până la {date}"
     }

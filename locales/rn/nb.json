@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Timeplan",
       "three_days": "3 dager",
-      "n_days": "{count} dager"
+      "n_days": "{count, plural, one {# dag} other {# dager}}"
     },
     "detail": {
       "delete_confirm": "Vil du slette denne hendelsen?",
@@ -291,7 +291,7 @@
       "replaces": "Erstatter {name}",
       "unnamed": "Kontakt uten navn",
       "update_existing": "Oppdater eksisterende",
-      "updated_count": "{count, plural, one {1 kontakt fantes allerede og er oppdatert.} other {# kontakter fantes allerede og er oppdatert.}}"
+      "updated_count": "{count, plural, one {# kontakt fantes allerede og er oppdatert.} other {# kontakter fantes allerede og er oppdatert.}}"
     },
     "no_tags_hint": "Ingen kategorier ennå. Skriv inn en ovenfor.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Vedleggene ville overskride grensen på {max} per melding som denne serveren tillater.",
     "editor_unavailable": "Kunne ikke lese innholdet i meldingen. Kopier teksten din, og lukk og åpne skrivevinduet på nytt.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Legg ved} one {Legg ved 1 fil} other {Legg ved # filer}}",
+      "attach": "{count, plural, =0 {Legg ved} one {Legg ved # fil} other {Legg ved # filer}}",
       "empty_folder": "Denne mappen er tom",
       "load_failed": "Filene dine kunne ikke lastes inn"
     },
@@ -415,7 +415,7 @@
     "option_sign": "Signer",
     "option_sign_pgp_hint": "Legg til en OpenPGP-signatur med nøkkelen din",
     "option_sign_smime_hint": "Legg til en S/MIME-signatur med sertifikatet ditt",
-    "read_receipt_off": "Be om lesebekreftelse",
+    "request_read_receipt": "Be om lesebekreftelse",
     "secure_failed_title": "Kan ikke signere eller kryptere",
     "secure_missing_keys": "Ingen nøkkel for {recipients}. Importer en under Innstillinger → Kryptering.",
     "secure_no_key": "Det finnes ingen nøkkel for {email} på denne enheten. Importer en under Innstillinger → Kryptering.",
@@ -466,7 +466,7 @@
     "offline_nothing_cached": "Ingen tilkobling. Ingenting vises fordi ingen e-post er lagret i hurtigbufferen ennå.",
     "open_draft_failed": "Kunne ikke åpne utkastet.",
     "outbox_discard": "Forkast",
-    "outbox_failed": "{count} endringer kunne ikke lagres på serveren.",
+    "outbox_failed": "{count, plural, one {# endring kunne ikke lagres på serveren.} other {# endringer kunne ikke lagres på serveren.}}",
     "recent_searches": "Nylige søk",
     "remove_filter": "Fjern filteret {label}",
     "scope_all_folders": "Alle mapper",
@@ -601,11 +601,11 @@
     "shared_with": "Delt med",
     "sharing_access": "Deling og tilgang",
     "symlink": "Symbolsk lenke",
-    "upload_failed": "{count, plural, one {1 fil kunne ikke lastes opp} other {# filer kunne ikke lastes opp}}",
+    "upload_failed": "{count, plural, one {# fil kunne ikke lastes opp} other {# filer kunne ikke lastes opp}}",
     "upload_unavailable": "Filvelgeren er ikke installert i denne versjonen. Bygg appen på nytt for å aktivere opplasting.",
     "uploading_progress": "Laster opp {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Er du sikker på at du vil slette {count, plural, one {1 element} other {# elementer}}? Dette kan ikke angres.",
-    "batch_delete_success": "{count, plural, one {1 element slettet} other {# elementer slettet}}",
+    "batch_delete_confirm_message": "Er du sikker på at du vil slette {count, plural, one {# element} other {# elementer}}? Dette kan ikke angres.",
+    "batch_delete_success": "{count, plural, one {# element slettet} other {# elementer slettet}}",
     "delete_confirm_message": "Er du sikker på at du vil slette «{name}»? Dette kan ikke angres.",
     "delete_confirm_title": "Slett fil eller mappe",
     "delete_success": "Elementet er slettet",
@@ -1080,7 +1080,7 @@
       "name_placeholder": "Kvitteringer",
       "name_required": "Navn er påkrevd",
       "new_folder": "Ny mappe",
-      "not_empty_message": "«{name}» inneholder {count} e-poster. Vil du slette likevel?",
+      "not_empty_message": "{count, plural, one {«{name}» inneholder # e-post. Vil du slette likevel?} other {«{name}» inneholder # e-poster. Vil du slette likevel?}}",
       "not_empty_title": "Mappen er ikke tom",
       "own_account": "Mine mapper",
       "role": "Mapperolle",
@@ -1118,7 +1118,7 @@
       "description_mobile": "Fargede etiketter for å organisere e-posten din.",
       "discover": {
         "add_all": "Legg til alle",
-        "found": "Fant {count} etiketter som ikke er definert her.",
+        "found": "{count, plural, one {Fant # etikett som ikke er definert her.} other {Fant # etiketter som ikke er definert her.}}",
         "none": "Fant ingen ukjente etiketter i {scanned} meldinger.",
         "partial": "(Søket omfattet bare de nyeste meldingene.)",
         "progress": "Har gått gjennom {scanned} av {total} meldinger…",
@@ -1183,7 +1183,7 @@
       "push": {
         "confirm_disable_message_mobile": "Denne enheten slutter å motta varsler om ny e-post for denne kontoen.",
         "description_mobile": "Motta systemvarsler om ny e-post når appen er lukket. Leveres via Bulwarks push-relé; reléet ser aldri innholdet i e-postene.",
-        "err_android_only": "Push-varsler er bare tilgjengelige på Android.",
+        "err_fcm_unavailable": "Push via Firebase er ikke tilgjengelig i denne versjonen av appen.",
         "err_fcm_empty": "Firebase returnerte et tomt enhetstoken.",
         "err_fcm_token": "Firebase kunne ikke utstede et enhetstoken ({detail}). Push via FCM krever Google Play-tjenester på denne enheten.",
         "err_fcm_token_up": "Firebase kunne ikke utstede et enhetstoken ({detail}). Push via FCM krever Google Play-tjenester på denne enheten. Denne enheten har en UnifiedPush-distributør installert – bytt leveringsmetode til UnifiedPush i stedet.",
@@ -1212,7 +1212,7 @@
         "relay_invalid": "Skriv inn en gyldig https://-URL",
         "setup_failed": "Oppsettet mislyktes",
         "shared_mailboxes_no_push": "Postbokser som andre deler med deg, sender ikke bakgrunnsvarsler.",
-        "status_android_only": "Bakgrunnsvarsler er bare tilgjengelige på Android.",
+        "status_unavailable": "Denne versjonen av appen kan ikke motta push-varsler.",
         "transport_desc": "Hvordan varsler når denne enheten: Googles Firebase Cloud Messaging eller en UnifiedPush-distributørapp (for eksempel ntfy) for levering uten Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Leveringsmetode",
@@ -1264,11 +1264,11 @@
       "window_desc": "Hvor langt tilbake som bufres, basert på datoen meldingen ble mottatt.",
       "description_short": "Behold nylige meldinger på denne enheten så de kan åpnes uten tilkobling.",
       "keep_24h": "24 timer",
-      "keep_days": "{count} dager",
-      "keep_from": "Behold e-post fra de siste",
+      "keep_days": "{count, plural, one {# dag} other {# dager}}",
+      "keep_from": "Periode",
       "messages_offline": "{count, plural, one {# melding uten nett} other {# meldinger uten nett}}",
       "synced": "Synkronisert {when}",
-      "use_at_most": "Bruk maks",
+      "use_at_most": "Maksimal størrelse",
       "used_of": "{used} av {limit} MB"
     },
     "plugins": {
@@ -1534,12 +1534,11 @@
       "phone_backup": "Ingenting av dette havner i Androids skysikkerhetskopi.",
       "phone_secure": "Påloggingsinformasjonen din oppbevares i systemets sikre lagring. Innstillinger, hurtigbufferen for e-post uten nett og endringer som venter på synkronisering, oppbevares i appens egen lagring.",
       "phone_title": "På denne enheten",
-      "push": "Når varsler er på, forteller serveren din push-reléet ({relay}) at noe er endret, og reléet vekker appen gjennom {service}. Reléet ser et enhetstoken og en endringsmarkør, aldri e-posten din. Du kan bruke ditt eget relé under Varsler.",
+      "push_apple": "Når varsler er på, forteller serveren din push-reléet ({relay}) at noe er endret, og reléet vekker appen gjennom Apples push-tjeneste. Reléet ser et enhetstoken og en endringsmarkør, aldri e-posten din. Du kan bruke ditt eget relé under Varsler.",
+      "push_google": "Når varsler er på, forteller serveren din push-reléet ({relay}) at noe er endret, og reléet vekker appen gjennom Googles push-tjeneste. Reléet ser et enhetstoken og en endringsmarkør, aldri e-posten din. Du kan bruke ditt eget relé under Varsler.",
       "push_title": "Pushvarsler",
       "server": "E-post, kalendere, kontakter og filer lastes inn fra serveren din og lagres tilbake dit. Bortsett fra tilkoblingene nedenfor snakker appen bare med serveren din.",
       "server_title": "E-postserveren din",
-      "service_apple": "Apples push-tjeneste",
-      "service_google": "Googles push-tjeneste",
       "updates": "Appen spør GitHub om siste utgivelse for å fortelle deg om oppdateringer.",
       "updates_android": "Appen spør GitHub om siste utgivelse for å fortelle deg om oppdateringer. Slå det av under Oppdateringer."
     },
@@ -1854,8 +1853,8 @@
       "empty_all_accounts": "Innboksene dine er tomme",
       "empty_inbox": "Innboksen din er tom",
       "folders": "Mapper",
-      "in_outbox": "{count, plural, one {# endring venter} other {# endringer venter}}",
-      "in_outbox_short": "{count} venter",
+      "changes_waiting": "{count, plural, one {# endring venter} other {# endringer venter}}",
+      "changes_waiting_short": "{count} venter",
       "inbox": "Innboks",
       "more_unread": "+{count} uleste til",
       "no_folders": "Ingen mapper å vise",
@@ -1948,7 +1947,7 @@
       "active": "Aktiv",
       "inactive": "Inaktiv",
       "subject": "Emne: {subject}",
-      "title": "Feriesvar",
+      "title": "Fravær",
       "unsupported": "Feriesvar er ikke tilgjengelig",
       "until": "Til {date}"
     }

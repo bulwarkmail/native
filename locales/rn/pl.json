@@ -163,7 +163,7 @@
     "views": {
       "schedule": "Harmonogram",
       "three_days": "3 dni",
-      "n_days": "{count} dni"
+      "n_days": "{count, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}}"
     },
     "detail": {
       "delete_confirm": "Usunąć to wydarzenie?",
@@ -291,7 +291,7 @@
       "replaces": "Zastępuje: {name}",
       "unnamed": "Kontakt bez nazwy",
       "update_existing": "Zaktualizuj istniejące",
-      "updated_count": "{count, plural, one {1 kontakt już istniał i został zaktualizowany.} few {# kontakty już istniały i zostały zaktualizowane.} many {# kontaktów już istniało i zostało zaktualizowanych.} other {# kontaktu już istniało i zostało zaktualizowane.}}"
+      "updated_count": "{count, plural, one {# kontakt już istniał i został zaktualizowany.} few {# kontakty już istniały i zostały zaktualizowane.} many {# kontaktów już istniało i zostało zaktualizowanych.} other {# kontaktu już istniało i zostało zaktualizowane.}}"
     },
     "no_tags_hint": "Brak etykiet. Wpisz nową powyżej.",
     "picker": {
@@ -334,7 +334,7 @@
     "attachments_too_large_total": "Załączniki przekroczyłyby limit {max} na wiadomość obowiązujący na tym serwerze.",
     "editor_unavailable": "Nie można odczytać treści wiadomości. Skopiuj tekst, a następnie zamknij i ponownie otwórz edytor.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Dołącz} one {Dołącz 1 plik} few {Dołącz # pliki} many {Dołącz # plików} other {Dołącz # pliku}}",
+      "attach": "{count, plural, =0 {Dołącz} one {Dołącz # plik} few {Dołącz # pliki} many {Dołącz # plików} other {Dołącz # pliku}}",
       "empty_folder": "Ten folder jest pusty",
       "load_failed": "Nie udało się wczytać plików"
     },
@@ -418,7 +418,7 @@
     "option_sign": "Podpisz",
     "option_sign_pgp_hint": "Dodaj podpis OpenPGP swoim kluczem",
     "option_sign_smime_hint": "Dodaj podpis S/MIME swoim certyfikatem",
-    "read_receipt_off": "Poproś o potwierdzenie przeczytania",
+    "request_read_receipt": "Poproś o potwierdzenie przeczytania",
     "secure_failed_title": "Nie można podpisać ani zaszyfrować",
     "secure_missing_keys": "Brak klucza dla: {recipients}. Zaimportuj go w Ustawienia → Szyfrowanie.",
     "secure_no_key": "Na tym urządzeniu nie ma klucza dla {email}. Zaimportuj go w Ustawienia → Szyfrowanie.",
@@ -604,11 +604,11 @@
     "shared_with": "Osoby z dostępem",
     "sharing_access": "Udostępnianie i dostęp",
     "symlink": "Dowiązanie symboliczne",
-    "upload_failed": "{count, plural, one {Nie udało się przesłać 1 pliku} few {Nie udało się przesłać # plików} many {Nie udało się przesłać # plików} other {Nie udało się przesłać # pliku}}",
+    "upload_failed": "{count, plural, one {Nie udało się przesłać # pliku} few {Nie udało się przesłać # plików} many {Nie udało się przesłać # plików} other {Nie udało się przesłać # pliku}}",
     "upload_unavailable": "Selektor plików nie jest zainstalowany w tej wersji aplikacji. Przebuduj aplikację, aby włączyć przesyłanie.",
     "uploading_progress": "Przesyłanie {current}/{total} · {name}",
-    "batch_delete_confirm_message": "Czy na pewno chcesz usunąć {count, plural, one {1 element} other {# elementów}}? Tej operacji nie można cofnąć.",
-    "batch_delete_success": "{count, plural, one {Usunięto 1 element} other {Usunięto # elementów}}",
+    "batch_delete_confirm_message": "Czy na pewno chcesz usunąć {count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}? Tej operacji nie można cofnąć.",
+    "batch_delete_success": "{count, plural, one {Usunięto # element} few {Usunięto # elementy} many {Usunięto # elementów} other {Usunięto # elementu}}",
     "delete_confirm_message": "Czy na pewno chcesz usunąć \"{name}\"? Tej operacji nie można cofnąć.",
     "delete_confirm_title": "Usuń zasób",
     "delete_success": "Usunięto pomyślnie",
@@ -1186,7 +1186,7 @@
       "push": {
         "confirm_disable_message_mobile": "To urządzenie przestanie otrzymywać powiadomienia o nowej poczcie dla tego konta.",
         "description_mobile": "Otrzymuj powiadomienia systemowe o nowej poczcie, gdy aplikacja jest zamknięta. Dostarczane przez przekaźnik push Bulwark; przekaźnik nigdy nie widzi treści wiadomości.",
-        "err_android_only": "Powiadomienia push są dostępne tylko na Androidzie.",
+        "err_fcm_unavailable": "Powiadomienia push przez Firebase nie są dostępne w tej wersji aplikacji.",
         "err_fcm_empty": "Firebase zwrócił pusty token urządzenia.",
         "err_fcm_token": "Firebase nie mógł wydać tokenu urządzenia ({detail}). Push przez FCM wymaga Usług Google Play na tym urządzeniu.",
         "err_fcm_token_up": "Firebase nie mógł wydać tokenu urządzenia ({detail}). Push przez FCM wymaga Usług Google Play na tym urządzeniu. Na tym urządzeniu jest zainstalowany dystrybutor UnifiedPush – zmień metodę dostarczania na UnifiedPush.",
@@ -1215,7 +1215,7 @@
         "relay_invalid": "Wpisz prawidłowy adres URL https://",
         "setup_failed": "Konfiguracja nie powiodła się",
         "shared_mailboxes_no_push": "Skrzynki pocztowe udostępnione ci przez innych nie wysyłają powiadomień w tle.",
-        "status_android_only": "Powiadomienia w tle są dostępne tylko na Androidzie.",
+        "status_unavailable": "Ta wersja aplikacji nie może odbierać powiadomień push.",
         "transport_desc": "Sposób dostarczania powiadomień na to urządzenie: Firebase Cloud Messaging od Google lub aplikacja dystrybutora UnifiedPush (np. ntfy), która działa bez Google.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Metoda dostarczania",
@@ -1267,11 +1267,11 @@
       "window_desc": "Jak daleko wstecz zapisywać pocztę, według daty otrzymania wiadomości.",
       "description_short": "Przechowuj najnowsze wiadomości na tym urządzeniu, aby otwierały się bez połączenia.",
       "keep_24h": "24 godziny",
-      "keep_days": "{count} dni",
-      "keep_from": "Zachowuj pocztę z ostatnich",
+      "keep_days": "{count, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}}",
+      "keep_from": "Okres",
       "messages_offline": "{count, plural, one {# wiadomość offline} few {# wiadomości offline} many {# wiadomości offline} other {# wiadomości offline}}",
       "synced": "Zsynchronizowano {when}",
-      "use_at_most": "Użyj maksymalnie",
+      "use_at_most": "Maksymalny rozmiar",
       "used_of": "{used} z {limit} MB"
     },
     "plugins": {
@@ -1537,12 +1537,11 @@
       "phone_backup": "Nic z tego nie trafia do kopii zapasowej Androida w chmurze.",
       "phone_secure": "Twoje dane logowania są przechowywane w bezpiecznym magazynie systemu. Ustawienia, pamięć podręczna poczty offline i zmiany czekające na synchronizację są przechowywane we własnej pamięci aplikacji.",
       "phone_title": "Na tym urządzeniu",
-      "push": "Gdy powiadomienia są włączone, Twój serwer informuje przekaźnik push ({relay}), że coś się zmieniło, a przekaźnik budzi aplikację przez {service}. Przekaźnik widzi token urządzenia i znacznik zmiany, nigdy Twoją pocztę. W ustawieniach Powiadomienia możesz użyć własnego przekaźnika.",
+      "push_apple": "Gdy powiadomienia są włączone, Twój serwer informuje przekaźnik push ({relay}), że coś się zmieniło, a przekaźnik budzi aplikację przez usługę push Apple. Przekaźnik widzi token urządzenia i znacznik zmiany, nigdy Twoją pocztę. W ustawieniach Powiadomienia możesz użyć własnego przekaźnika.",
+      "push_google": "Gdy powiadomienia są włączone, Twój serwer informuje przekaźnik push ({relay}), że coś się zmieniło, a przekaźnik budzi aplikację przez usługę push Google. Przekaźnik widzi token urządzenia i znacznik zmiany, nigdy Twoją pocztę. W ustawieniach Powiadomienia możesz użyć własnego przekaźnika.",
       "push_title": "Powiadomienia push",
       "server": "Poczta, kalendarze, kontakty i pliki są wczytywane z Twojego serwera i na nim zapisywane. Poza połączeniami wymienionymi poniżej aplikacja komunikuje się tylko z Twoim serwerem.",
       "server_title": "Twój serwer poczty",
-      "service_apple": "usługę push Apple",
-      "service_google": "usługę push Google",
       "updates": "Aplikacja pyta GitHub o najnowsze wydanie, aby informować Cię o aktualizacjach.",
       "updates_android": "Aplikacja pyta GitHub o najnowsze wydanie, aby informować Cię o aktualizacjach. Wyłączysz to w ustawieniach Aktualizacje."
     },
@@ -1857,8 +1856,8 @@
       "empty_all_accounts": "Twoje skrzynki odbiorcze są puste",
       "empty_inbox": "Twoja skrzynka odbiorcza jest pusta",
       "folders": "Foldery",
-      "in_outbox": "{count, plural, one {# zmiana czeka} few {# zmiany czekają} many {# zmian czeka} other {# zmiany czeka}}",
-      "in_outbox_short": "Oczekujące: {count}",
+      "changes_waiting": "{count, plural, one {# zmiana czeka} few {# zmiany czekają} many {# zmian czeka} other {# zmiany czeka}}",
+      "changes_waiting_short": "Oczekujące: {count}",
       "inbox": "Odebrane",
       "more_unread": "+{count} więcej nieprzeczytanych",
       "no_folders": "Brak folderów do wyświetlenia",
@@ -1951,7 +1950,7 @@
       "active": "Aktywne",
       "inactive": "Nieaktywne",
       "subject": "Temat: {subject}",
-      "title": "Autoresponder",
+      "title": "Nieobecność",
       "unsupported": "Automatyczne odpowiedzi są niedostępne",
       "until": "Do {date}"
     }
