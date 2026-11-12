@@ -55,7 +55,7 @@ export interface CachedPolicy {
   links?: WebmailLinks;
   /**
    * The rule pushWithoutContent, kept from the last full policy for the
-   * account while the webmail answers without the organisation part (the
+   * account while the webmail answers without saying what the rule is (the
    * public subset, or anything else): only a full policy turns it off again.
    */
   pushWithoutContent?: true;
@@ -136,9 +136,17 @@ export function policySubjectFor(account: AccountEntry): PolicySubject {
   return { email, groups };
 }
 
-/** Whether a policy answer is a full one: not the public subset, and with the organisation part. */
-function carriesOrganisation(answer: { policy: OrgPolicy; partial: boolean }): boolean {
-  return !answer.partial && !!answer.policy.organisation && typeof answer.policy.organisation === 'object';
+/**
+ * Whether a policy answer is a full one: not the public subset, and it says
+ * what the rule pushWithoutContent is. The webmail fills in the whole
+ * organisation part of a full answer (sanitizeOrganisationPolicy), so the
+ * rule is a boolean there; an answer without it says nothing about it.
+ */
+function isFullAnswer(answer: { policy: OrgPolicy; partial: boolean }): boolean {
+  if (answer.partial) return false;
+  const devices = answer.policy.organisation?.devices;
+  return !!devices && typeof devices === 'object'
+    && typeof (devices as Record<string, unknown>).pushWithoutContent === 'boolean';
 }
 
 function isSecureUrl(url: string): boolean {
@@ -289,12 +297,12 @@ export const usePolicyStore = create<PolicyState>()(
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
           const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
-          // Only a full answer, one that carries the organisation part, says
-          // what the organisation's rules are; the public subset, or any other
-          // answer without that part, leaves the stored rule as it is.
-          const holdsPushRule = !!fetched && !carriesOrganisation(fetched) && previous?.webmailUrl === webmailUrl && (
+          // Only a full answer, one that says what the rule is, decides it;
+          // the public subset, or any other answer without it, leaves the
+          // stored rule as it is.
+          const holdsPushRule = !!fetched && !isFullAnswer(fetched) && previous?.webmailUrl === webmailUrl && (
             previous.pushWithoutContent === true
-            || (carriesOrganisation(previous) && pushWithoutContent(previous.policy, policySubjectFor(account)))
+            || (isFullAnswer(previous) && pushWithoutContent(previous.policy, policySubjectFor(account)))
           );
           set({
             ...(fetched ? {

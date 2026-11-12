@@ -305,10 +305,20 @@ describe('the notification rule pushWithoutContent', () => {
       await usePolicyStore.getState().refresh(ADA);
       expect(usePolicyStore.getState().byAccount[ADA], JSON.stringify(answer)).toMatchObject({ partial: false, pushWithoutContent: true });
     }
-    // A full answer, with the organisation part, decides.
+    // A full answer, which says what the rule is, decides.
     policies[WEBMAIL] = withRule(false);
     await usePolicyStore.getState().refresh(ADA);
     expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('holds when an answer\'s organisation part is empty or has no device settings', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    for (const answer of [{ organisation: {} }, { ...withRule(true), organisation: { signatures: {} } }, { organisation: { devices: {} } }]) {
+      policies[WEBMAIL] = answer;
+      await usePolicyStore.getState().refresh(ADA);
+      expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent, JSON.stringify(answer)).toBe(true);
+    }
   });
 
   it('scopes by the address the session names when the registry holds only a user name', async () => {
