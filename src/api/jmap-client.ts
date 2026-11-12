@@ -39,6 +39,11 @@ const CONCURRENT_REQUEST_RETRY_DELAYS_MS = [200, 400, 800];
 // Delay before the single transient-network retry of an idempotent request.
 const TRANSIENT_RETRY_DELAY_MS = 1000;
 
+// After the token endpoint refused the refresh token: how long to wait for
+// the tokens of another process that spent it a moment earlier (the Android
+// push handler, the iOS notification extension) to land in storage.
+export const STORED_TOKENS_GRACE_MS = 1500;
+
 const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
 const CREDENTIALS_PREFIX = 'jmap_credentials__';
 
@@ -608,7 +613,11 @@ export class JMAPClient {
       if (err instanceof TransientRefreshError) {
         throw new NetworkError(err.message);
       }
-      return false;
+      // Refused: another process may have just spent this refresh token on
+      // a server that rotates them. Its tokens are about to be stored; take
+      // them rather than end the session.
+      await new Promise((r) => setTimeout(r, STORED_TOKENS_GRACE_MS));
+      return this.adoptStoredTokens();
     }
   }
 

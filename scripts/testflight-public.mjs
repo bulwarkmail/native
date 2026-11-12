@@ -122,15 +122,21 @@ for (;;) {
 console.log(`Build ${version} (${buildNumber}) is processed.`);
 
 // ── Export compliance ──────────────────────────────────────────
-// The app uses non-exempt encryption (PGP and S/MIME, #58) with standard
-// algorithms only and is not on the French store: App Store Connect needs no
-// documentation, so Info.plist has no key and the answer is given here.
+// Info.plist answers this (usesNonExemptEncryption in app.config.js). A build
+// uploaded without the key gets the same answer here: standard algorithms
+// only and not on the French store, so no documentation is needed. "true"
+// would need an encryption declaration, which Apple refuses for this app;
+// the API accepts it and leaves the build without an answer.
 if (build.attributes.usesNonExemptEncryption == null) {
   const answer = await api('PATCH', `/v1/builds/${build.id}`, {
-    data: { type: 'builds', id: build.id, attributes: { usesNonExemptEncryption: true } },
+    data: { type: 'builds', id: build.id, attributes: { usesNonExemptEncryption: false } },
   });
   if (!answer.ok) fail('Answering export compliance', answer);
-  console.log('Export compliance answered: standard encryption, no documentation needed.');
+  if (answer.json?.data?.attributes?.usesNonExemptEncryption !== false) {
+    console.error('App Store Connect did not keep the export compliance answer; answer it in App Store Connect > TestFlight.');
+    process.exit(1);
+  }
+  console.log('Export compliance answered: no documentation needed.');
 }
 
 // ── Add it to the group ────────────────────────────────────────

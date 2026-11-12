@@ -10,6 +10,7 @@ import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -17,6 +18,7 @@ import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
 import com.facebook.react.bridge.Arguments
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlin.concurrent.thread
 
 class BulwarkMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
@@ -67,10 +69,43 @@ class BulwarkMessagingService : FirebaseMessagingService() {
             val foreground = MainActivity.isInForeground
             Log.i(TAG, "Push: mail=$mail foreground=$foreground importance=${processImportance()}")
             if (mail && !foreground) {
-                // The task opens its own connection rather than one left
-                // over from the foreground, which may be dead (#94).
-                HttpConnections.dropIdle()
-                startHeadlessTask(context, data)
+                val appContext = context.applicationContext
+                val runPush = {
+                    if (BulwarkNativePushFetcher.processPush(appContext, data)) {
+                        Log.i(TAG, "Push handled natively via Kotlin")
+                        if (BulwarkNativePushFetcher.pushSubscriptionDueForExtension(appContext, data)) {
+                            // Only the JS task extends the subscription; it finds
+                            // the mail already notified.
+                            Log.i(TAG, "Push subscription due for extension, starting the push task too")
+                            HttpConnections.dropIdle()
+                            startHeadlessTask(appContext, data)
+                        }
+                    } else {
+                        // The task opens its own connection rather than one left
+                        // over from the foreground, which may be dead (#94).
+                        HttpConnections.dropIdle()
+                        startHeadlessTask(appContext, data)
+                    }
+                }
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                    // UnifiedPush invokes onMessage from a BroadcastReceiver on the main
+                    // thread, where synchronous network I/O throws NetworkOnMainThreadException.
+                    val wakeLock = appContext.getSystemService(PowerManager::class.java)
+                        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bulwark:native-push")
+                        .apply {
+                            setReferenceCounted(false)
+                            acquire(START_WAKE_LOCK_MS)
+                        }
+                    thread(name = "bulwark-native-push") {
+                        try {
+                            runPush()
+                        } finally {
+                            if (wakeLock.isHeld) wakeLock.release()
+                        }
+                    }
+                } else {
+                    runPush()
+                }
             }
         }
 

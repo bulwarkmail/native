@@ -31,25 +31,27 @@ export function AppIconBadge() {
   }, [count]);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
     let jmapAccountId: string | null = null;
     try {
       jmapAccountId = jmapClient.accountId;
     } catch {
       jmapAccountId = null;
     }
-    // The extension learns how to reach the active account as soon as it is
+    // The extension/native handler learns how to reach the active account as soon as it is
     // signed in, so a push for it shows sender and subject even before (or
     // without) this device's own push setup, e.g. after a reinstall.
     if (activeAccountId) void shareAccountWithExtension(activeAccountId, jmapAccountId);
-    void writeIosPushSettings({
-      badge: enabled,
-      activeAccountId: jmapAccountId,
-      strings: {
-        noSubject: t('push.ios.no_subject', '(no subject)'),
-        more: t('push.ios.more_messages', 'and {count} more'),
-      },
-    }).catch(() => undefined);
+
+    if (Platform.OS === 'ios') {
+      void writeIosPushSettings({
+        badge: enabled,
+        activeAccountId: jmapAccountId,
+        strings: {
+          noSubject: t('push.ios.no_subject', '(no subject)'),
+          more: t('push.ios.more_messages', 'and {count} more'),
+        },
+      }).catch(() => undefined);
+    }
   }, [enabled, activeAccountId, haveSession, t]);
 
   useEffect(() => () => { void setAppBadge(0); }, []);

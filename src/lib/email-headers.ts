@@ -571,10 +571,11 @@ export function deriveHeaderInfo(email: Pick<Email, 'headers' | 'messageId'>): E
   // receiving server's own verdict; the parser trusts only that one.
   const auth = authHeaders.length ? parseAuthenticationResults(authHeaders) : undefined;
 
-  const spamRaw = headerValue(headers, 'X-Spam-Status')
-    ?? headerValue(headers, 'X-Spam-Result')
-    ?? headerValue(headers, 'X-Spam-Score');
-  const spamScore = spamRaw ? parseSpamScore(spamRaw) : null;
+  const spamScore = ['X-Spam-Status', 'X-Spam-Result', 'X-Spam-Score']
+    .flatMap((name) => headerValues(headers, name))
+    .map(parseSpamScore)
+    .find((x) => x !== null) ?? null;
+
   const llmRaw = headerValue(headers, 'X-Spam-LLM');
   const spamLLM = llmRaw ? parseSpamLLM(llmRaw) : null;
 

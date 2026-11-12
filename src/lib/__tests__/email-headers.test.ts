@@ -159,6 +159,26 @@ describe('deriveHeaderInfo', () => {
     expect(isAuthenticationSpoofed(info.auth)).toBe(true);
   });
 
+  it('takes the spam score from the first spam header that parses', () => {
+    const fromOtherName = deriveHeaderInfo({
+      headers: [
+        { name: 'X-Spam-Status', value: 'random string that does not meet the format' },
+        { name: 'X-Spam-Result', value: 'ham, score=0.1' },
+      ],
+      messageId: null,
+    });
+    expect(fromOtherName.spamScore).toEqual({ status: 'ham', score: 0.1 });
+
+    const fromSecondValue = deriveHeaderInfo({
+      headers: [
+        { name: 'X-Spam-Status', value: 'unparseable' },
+        { name: 'X-Spam-Status', value: 'Yes, score=7.5' },
+      ],
+      messageId: null,
+    });
+    expect(fromSecondValue.spamScore).toEqual({ status: 'yes', score: 7.5 });
+  });
+
   it('copes with no headers', () => {
     const info = deriveHeaderInfo({ headers: undefined, messageId: null });
     expect(info.readReceiptRequestedBy).toBeNull();

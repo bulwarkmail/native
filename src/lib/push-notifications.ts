@@ -1136,21 +1136,54 @@ export async function shareAccountWithExtension(
   username: string | null | undefined = jmapClient.username,
   session: Pick<JMAPSession, 'accounts' | 'username'> | null | undefined = jmapClient.currentSession,
 ): Promise<void> {
-  if (Platform.OS !== 'ios' || !jmapAccountId) return;
+  if (!jmapAccountId) return;
   const byLocal = await readPushJmapAccountIds();
-  if (Object.keys(byLocal).some((local) => local !== accountId && byLocal[local] === jmapAccountId)) {
-    await removeIosPushAccount(jmapAccountId).catch(() => undefined);
+  const duplicate = Object.keys(byLocal).some((local) => local !== accountId && byLocal[local] === jmapAccountId);
+
+  if (Platform.OS === 'ios') {
+    if (duplicate) {
+      await removeIosPushAccount(jmapAccountId).catch(() => undefined);
+      return;
+    }
+    if (!apiUrl) return;
+    const withoutContent = await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId, session?.username);
+    await writeIosPushAccount(jmapAccountId, {
+      credentialsKey: credentialsKey(accountId),
+      apiUrl,
+      ...(username ? { label: username } : {}),
+      ...(withoutContent ? { withoutContent: true } : {}),
+      ...(await sharedSubscription(accountId)),
+    }).catch(() => undefined);
     return;
   }
-  if (!apiUrl) return;
-  const withoutContent = await pushWithoutContentFor(accountId, session?.accounts, jmapAccountId, session?.username);
-  await writeIosPushAccount(jmapAccountId, {
-    credentialsKey: credentialsKey(accountId),
-    apiUrl,
-    ...(username ? { label: username } : {}),
-    ...(withoutContent ? { withoutContent: true } : {}),
-    ...(await sharedSubscription(accountId)),
-  }).catch(() => undefined);
+
+  if (Platform.OS === 'android') {
+    const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
+      savePushAccount?: (id: string, json: string) => void;
+      removePushAccount?: (id: string) => void;
+    } | undefined;
+    if (duplicate) {
+      native?.removePushAccount?.(jmapAccountId);
+      return;
+    }
+    if (!apiUrl || !native?.savePushAccount) return;
+    native.savePushAccount(
+      jmapAccountId,
+      JSON.stringify({
+        credentialsKey: credentialsKey(accountId),
+        accountId,
+        apiUrl,
+        ...(username ? { label: username } : {}),
+        strings: {
+          newEmail: t('notifications.new_email', 'New email'),
+          noSubject: t('email_viewer.no_subject', '(No Subject)'),
+          markRead: t('email_viewer.mark_read', 'Mark as read'),
+          delete: t('email_viewer.delete', 'Delete'),
+          reply: t('email_viewer.reply', 'Reply'),
+        },
+      }),
+    );
+  }
 }
 
 /**
@@ -1764,6 +1797,14 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
   if (Platform.OS === 'ios') {
     const jmapAccountId = (await readPushJmapAccountIds())[accountId];
     if (jmapAccountId) await removeIosPushAccount(jmapAccountId);
+  }
+  if (Platform.OS === 'android') {
+    const jmapAccountId = (await readPushJmapAccountIds())[accountId];
+    const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
+      removePushAccount?: (id: string) => void;
+    } | undefined;
+    if (jmapAccountId) native?.removePushAccount?.(jmapAccountId);
+    native?.removePushAccount?.(accountId);
   }
   await AsyncStorage.multiRemove([
     subscriptionIdKey(accountId),
