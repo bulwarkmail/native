@@ -18,6 +18,11 @@ import org.json.JSONObject
  * names no type (older relays), or when an account's entry is unreadable, so
  * a contact change never ends in a mail notification. The push task's guard
  * (`carriesNoMail` in src/lib/push-background-task.ts) applies the same rules.
+ *
+ * An account whose map has `Email` but no `EmailDelivery` had mail read,
+ * moved or deleted, not delivered (#96): it is named in `reconcile`, so the
+ * notifications still showing for it can be checked, and it starts no mail
+ * task.
  */
 object PushRouting {
     /** An Android account and the authorities it syncs, fed by one JMAP account. */
@@ -27,6 +32,8 @@ object PushRouting {
         /** (Android account name, authority) pairs to request a sync for. */
         val syncs: Set<Pair<String, String>>,
         val startMailTask: Boolean,
+        /** JMAP accounts whose shown mail notifications may be stale. */
+        val reconcile: Set<String> = emptySet(),
     )
 
     private const val STATE_CHANGE_KIND = "jmap-state-change"
@@ -35,25 +42,35 @@ object PushRouting {
      * Types that may mean new mail: `EmailDelivery`, and `Email`/`Mailbox`,
      * which new mail changes too. A subscription made by an older build
      * listens to them until the launch-time resync replaces its types, and a
-     * server without `EmailDelivery` has only them. Keep in sync with
-     * MAIL_TYPES in src/lib/push-background-task.ts.
+     * server without `EmailDelivery` has only them. `Email` without
+     * `EmailDelivery` is a change to mail already there, though (#96): the
+     * servers the app supports all send `EmailDelivery` with new mail. Keep in
+     * sync with MAIL_TYPES in src/lib/push-background-task.ts.
      */
     private val MAIL_TYPES = setOf("EmailDelivery", "Email", "Mailbox")
+    private const val DELIVERY = "EmailDelivery"
+    private const val EMAIL = "Email"
     private val CONTACT_TYPES = setOf("ContactCard", "AddressBook")
     private val CALENDAR_TYPES = setOf("CalendarEvent", "Calendar")
 
     fun decide(data: Map<String, String>, routes: Map<String, List<Route>>): Decision {
         val changed = data["changed"]?.let(::parseChanged)
+        val stateChange = data["kind"] == STATE_CHANGE_KIND
         // Only a StateChange can say it carries no mail.
-        var mail = data["kind"] != STATE_CHANGE_KIND || changed == null
+        var mail = !stateChange || changed == null
         val syncs = LinkedHashSet<Pair<String, String>>()
+        val reconcile = LinkedHashSet<String>()
         for ((jmapAccountId, types) in changed.orEmpty()) {
             if (types == null) {
                 // One account's entry is unreadable: it may be mail.
                 mail = true
                 continue
             }
-            if (types.any { it in MAIL_TYPES }) mail = true
+            if (stateChange && EMAIL in types && DELIVERY !in types) {
+                reconcile += jmapAccountId
+            } else if (types.any { it in MAIL_TYPES }) {
+                mail = true
+            }
             val contacts = types.any { it in CONTACT_TYPES }
             val calendar = types.any { it in CALENDAR_TYPES }
             for (route in routes[jmapAccountId].orEmpty()) {
@@ -65,7 +82,7 @@ object PushRouting {
                 }
             }
         }
-        return Decision(syncs, mail)
+        return Decision(syncs, mail, reconcile)
     }
 
     /**
@@ -149,11 +166,11 @@ object DeviceSyncPushRouter {
 
     /**
      * Requests the syncs the push asks for, with constant (empty) extras so
-     * repeated pushes coalesce into one pending sync. Returns whether the mail
-     * push task should run; any failure here says yes, so mail never depends
-     * on device sync.
+     * repeated pushes coalesce into one pending sync. Returns the decision;
+     * any failure here starts the mail task, so mail never depends on device
+     * sync.
      */
-    fun route(context: Context, data: Map<String, String>): Boolean = try {
+    fun route(context: Context, data: Map<String, String>): PushRouting.Decision = try {
         val routes = PushRouting.parseRoutes(
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_ROUTES, null),
         )
@@ -165,9 +182,9 @@ object DeviceSyncPushRouter {
                 Log.w(TAG, "Push: no sync requested for $authority", e)
             }
         }
-        decision.startMailTask
+        decision
     } catch (e: Exception) {
         Log.w(TAG, "Push not routed", e)
-        true
+        PushRouting.Decision(emptySet(), startMailTask = true)
     }
 }

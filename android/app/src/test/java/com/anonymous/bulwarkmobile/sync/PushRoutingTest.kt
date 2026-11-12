@@ -65,19 +65,51 @@ class PushRoutingTest {
     }
 
     @Test
-    fun `an Email or Mailbox change is possible mail, as a subscription from an older build sends it`() {
+    fun `a Mailbox change is possible mail, as a subscription from an older build sends it`() {
+        val decision = PushRouting.decide(stateChange("""{"c":{"Mailbox":"s1"}}"""), routes)
+        assertTrue(decision.startMailTask)
+        assertTrue(decision.syncs.isEmpty())
+        assertTrue(decision.reconcile.isEmpty())
+    }
+
+    @Test
+    fun `Email without EmailDelivery is a change to check, not new mail`() {
         for (changed in listOf(
             """{"c":{"Email":"s1","Mailbox":"s2"}}""",
             """{"c":{"Email":"s1"}}""",
-            """{"c":{"Mailbox":"s1"}}""",
+            """{"c":{"Email":"s1","Thread":"t1"}}""",
         )) {
             val decision = PushRouting.decide(stateChange(changed), routes)
-            assertTrue("changed=$changed", decision.startMailTask)
-            assertTrue("changed=$changed", decision.syncs.isEmpty())
+            assertFalse("changed=$changed", decision.startMailTask)
+            assertEquals("changed=$changed", setOf("c"), decision.reconcile)
         }
         val mixed = PushRouting.decide(stateChange("""{"team":{"CalendarEvent":"e1"},"c":{"Email":"s1"}}"""), routes)
-        assertTrue(mixed.startMailTask)
+        assertFalse(mixed.startMailTask)
+        assertEquals(setOf("c"), mixed.reconcile)
         assertEquals(setOf("alice-work" to calendar), mixed.syncs)
+    }
+
+    @Test
+    fun `new mail in one account and a change in another do both`() {
+        val decision = PushRouting.decide(
+            stateChange("""{"c":{"Email":"s1","EmailDelivery":"d1"},"team":{"Email":"s2"}}"""),
+            routes,
+        )
+        assertTrue(decision.startMailTask)
+        assertEquals(setOf("team"), decision.reconcile)
+    }
+
+    @Test
+    fun `new mail is not a change to check`() {
+        val decision = PushRouting.decide(stateChange("""{"c":{"Email":"s1","EmailDelivery":"d1"}}"""), routes)
+        assertTrue(decision.startMailTask)
+        assertTrue(decision.reconcile.isEmpty())
+        val emailPush = PushRouting.decide(
+            mapOf("kind" to "jmap-email-push", "accountId" to "c", "changed" to """{"c":{"Email":"s1"}}"""),
+            routes,
+        )
+        assertTrue(emailPush.startMailTask)
+        assertTrue(emailPush.reconcile.isEmpty())
         // Types that are neither mail nor device sync say nothing about mail.
         val other = PushRouting.decide(stateChange("""{"c":{"Thread":"t1","ContactCard":"s1"}}"""), routes)
         assertFalse(other.startMailTask)
@@ -132,8 +164,9 @@ class PushRoutingTest {
             Triple(state, """{"c":5}""", true),
             // Mail types anywhere in the map.
             Triple(state, """{"c":{"EmailDelivery":"s"}}""", true),
-            Triple(state, """{"c":{"Email":"s"}}""", true),
+            Triple(state, """{"c":{"Email":"s","EmailDelivery":"d"}}""", true),
             Triple(state, """{"c":{"Mailbox":"s"}}""", true),
+            Triple(state, """{"c":{"Email":"s"},"team":{"EmailDelivery":"d"}}""", true),
             Triple(state, """{"c":{"ContactCard":"s1"},"team":{"EmailDelivery":"s2"}}""", true),
             // Only a StateChange can say it carries no mail.
             Triple(null, """{"c":{"ContactCard":"s"}}""", true),
@@ -145,6 +178,10 @@ class PushRoutingTest {
             Triple(state, """{"c":{"ContactCard":"s"},"team":{}}""", false),
             Triple(state, """{"elsewhere":{"ContactCard":"s"}}""", false),
             Triple(state, """{"c":{"Thread":"t1","ContactCard":"s1"}}""", false),
+            // Email without EmailDelivery: mail read, moved or deleted (#96).
+            Triple(state, """{"c":{"Email":"s"}}""", false),
+            Triple(state, """{"c":{"Email":"s1","Mailbox":"s2","Thread":"t1"}}""", false),
+            Triple(state, """{"c":{"ContactCard":"s1"},"team":{"Email":"s2"}}""", false),
         )
         for ((kind, changed, mail) in cases) {
             val data = buildMap<String, String> {

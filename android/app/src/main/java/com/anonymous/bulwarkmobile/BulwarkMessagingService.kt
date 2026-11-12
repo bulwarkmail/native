@@ -15,6 +15,7 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
+import com.anonymous.bulwarkmobile.sync.PushRouting
 import com.facebook.react.bridge.Arguments
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -33,9 +34,9 @@ class BulwarkMessagingService : FirebaseMessagingService() {
 
         // Contact and calendar changes become syncs of the Android accounts
         // they feed (device sync, #34); only mail needs the push task.
-        val mail = DeviceSyncPushRouter.route(applicationContext, data)
+        val decision = DeviceSyncPushRouter.route(applicationContext, data)
 
-        startTaskUnlessInForeground(applicationContext, data, mail)
+        startTaskUnlessInForeground(applicationContext, data, decision)
 
         val params = Arguments.createMap().apply {
             val dataMap = Arguments.createMap()
@@ -60,31 +61,59 @@ class BulwarkMessagingService : FirebaseMessagingService() {
          * Shared with BulwarkUnifiedPushService, so a push arriving over
          * either transport is dispatched the same way.
          *
+         * A change to mail already there (#96) removes the notifications it
+         * made stale, also only in the background: with the app open, its own
+         * client may be refreshing the same login's token (034922b). What goes
+         * stale meanwhile is removed at the next change push in the background.
+         *
          * The process importance is no measure of that (#94): an app paused
          * under a translucent screen, or kept important by anything bound to
          * it, counts as foreground, and its pushes ended without a
          * notification.
          */
-        fun startTaskUnlessInForeground(context: Context, data: Map<String, String>, mail: Boolean) {
+        fun startTaskUnlessInForeground(context: Context, data: Map<String, String>, decision: PushRouting.Decision) {
             val foreground = MainActivity.isInForeground
-            Log.i(TAG, "Push: mail=$mail foreground=$foreground importance=${processImportance()}")
-            if (mail && !foreground) {
+            val mail = decision.startMailTask && !foreground
+            val reconcile = decision.reconcile.isNotEmpty() && !foreground
+            Log.i(
+                TAG,
+                "Push: mail=${decision.startMailTask} changes=${decision.reconcile.size} " +
+                    "foreground=$foreground importance=${processImportance()}",
+            )
+            if (mail || reconcile) {
                 val appContext = context.applicationContext
                 val runPush = {
-                    if (BulwarkNativePushFetcher.processPush(appContext, data)) {
-                        Log.i(TAG, "Push handled natively via Kotlin")
-                        if (BulwarkNativePushFetcher.pushSubscriptionDueForExtension(appContext, data)) {
-                            // Only the JS task extends the subscription; it finds
-                            // the mail already notified.
-                            Log.i(TAG, "Push subscription due for extension, starting the push task too")
+                    // One push can name new mail for one account and changes for
+                    // another: the new mail goes first, and the stale check gets
+                    // what is left of the same budget.
+                    val deadlineMs = System.currentTimeMillis() + BulwarkNativePushFetcher.PUSH_BUDGET_MS
+                    var jsTaskStarted = false
+                    if (mail) {
+                        if (BulwarkNativePushFetcher.processPush(appContext, data)) {
+                            Log.i(TAG, "Push handled natively via Kotlin")
+                            if (BulwarkNativePushFetcher.pushSubscriptionDueForExtension(appContext, data)) {
+                                // Only the JS task extends the subscription; it finds
+                                // the mail already notified.
+                                Log.i(TAG, "Push subscription due for extension, starting the push task too")
+                                HttpConnections.dropIdle()
+                                startHeadlessTask(appContext, data)
+                                jsTaskStarted = true
+                            }
+                        } else {
+                            // The task opens its own connection rather than one left
+                            // over from the foreground, which may be dead (#94).
                             HttpConnections.dropIdle()
                             startHeadlessTask(appContext, data)
+                            jsTaskStarted = true
                         }
-                    } else {
-                        // The task opens its own connection rather than one left
-                        // over from the foreground, which may be dead (#94).
-                        HttpConnections.dropIdle()
-                        startHeadlessTask(appContext, data)
+                    }
+                    // With the JS task running, a native check could refresh the
+                    // same login's token at the same time (034922b): the
+                    // notifications are checked on the next change push instead.
+                    if (reconcile && !jsTaskStarted) {
+                        BulwarkNativePushFetcher.reconcileNotifications(
+                            appContext, decision.reconcile, data["accountLabel"], deadlineMs,
+                        )
                     }
                 }
                 if (Looper.myLooper() == Looper.getMainLooper()) {

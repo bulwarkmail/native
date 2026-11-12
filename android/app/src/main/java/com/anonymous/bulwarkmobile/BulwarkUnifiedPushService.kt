@@ -34,8 +34,8 @@ class BulwarkUnifiedPushService : PushService() {
 
         // Same routing as FCM: contact and calendar changes request device
         // syncs, and only mail starts the push task.
-        val mail = DeviceSyncPushRouter.route(applicationContext, data)
-        BulwarkMessagingService.startTaskUnlessInForeground(applicationContext, data, mail)
+        val decision = DeviceSyncPushRouter.route(applicationContext, data)
+        BulwarkMessagingService.startTaskUnlessInForeground(applicationContext, data, decision)
 
         // Same event name and shape as the FCM path so the foreground JS
         // handler (App.tsx addMessageListener) works transport-agnostically.
