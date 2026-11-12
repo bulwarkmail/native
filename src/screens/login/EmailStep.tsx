@@ -53,6 +53,7 @@ export default function EmailStep({
         placeholder={t('login.username_placeholder', 'user@example.com')}
         value={value}
         onChangeText={onChange}
+        testID="login-email-input"
         autoFocus
         autoCapitalize="none"
         autoCorrect={false}

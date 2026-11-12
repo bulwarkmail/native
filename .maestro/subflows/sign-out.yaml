@@ -1,42 +1,77 @@
 # Signed in: sign out of the active account from the end of Settings.
 # On the iPad the Settings list is the left column; scroll that one.
+#
+# The settings search sits at the top of the same list. On the CI simulator
+# a scroll once reached it as a tap: the keyboard came up over the lower half,
+# the tap on "Sign out" typed "v" into the search instead, and the dialog
+# never opened. So the keyboard is closed and the search emptied before the
+# scroll and the tap, and the whole step runs once more when the dialog
+# doesn't show.
 appId: org.bulwarkmail.mobile
 ---
 - tapOn:
     id: tab-settings
-- runFlow:
-    when:
-      true: ${DEVICE == 'tablet'}
+- waitForAnimationToEnd:
+    timeout: 3000
+- retry:
+    maxRetries: 1
     commands:
-      - repeat:
-          while:
-            notVisible: "Sign out"
-          times: 12
+      - runFlow:
+          when:
+            visible: "Clear search"
           commands:
+            - tapOn: "Clear search"
+      # The keyboard's delete key: the keyboard is up.
+      - runFlow:
+          when:
+            visible:
+              id: delete
+          commands:
+            - hideKeyboard
+            - waitForAnimationToEnd:
+                timeout: 3000
+      - runFlow:
+          when:
+            true: ${DEVICE == 'tablet'}
+          commands:
+            - repeat:
+                while:
+                  notVisible: "Sign out"
+                times: 12
+                commands:
+                  - swipe:
+                      start: 30%,85%
+                      end: 30%,30%
+                      duration: 500
+      - runFlow:
+          when:
+            true: ${DEVICE != 'tablet'}
+          commands:
+            - scrollUntilVisible:
+                element: "Sign out"
+                direction: DOWN
+                timeout: 30000
+            # The scroll can stop with the button half under the tab bar, where
+            # a tap reaches the tab bar instead: scroll on to the end of the list.
             - swipe:
-                start: 30%,85%
-                end: 30%,30%
-                duration: 500
-- runFlow:
-    when:
-      true: ${DEVICE != 'tablet'}
-    commands:
-      - scrollUntilVisible:
-          element: "Sign out"
-          direction: DOWN
-          timeout: 30000
-      # The scroll can stop with the button half under the tab bar, where
-      # a tap reaches the tab bar instead: scroll on to the end of the list.
-      - swipe:
-          start: 50%,70%
-          end: 50%,30%
-          duration: 400
-      - waitForAnimationToEnd:
-          timeout: 3000
-- tapOn: "Sign out"
-- extendedWaitUntil:
-    visible: "The account is removed from this device.*"
-    timeout: 10000
+                start: 50%,70%
+                end: 50%,30%
+                duration: 400
+            - waitForAnimationToEnd:
+                timeout: 3000
+      # Again after the scroll: the tap on "Sign out" must not land on a key.
+      - runFlow:
+          when:
+            visible:
+              id: delete
+          commands:
+            - hideKeyboard
+            - waitForAnimationToEnd:
+                timeout: 3000
+      - tapOn: "Sign out"
+      - extendedWaitUntil:
+          visible: "The account is removed from this device.*"
+          timeout: 10000
 # The dialog's button, not the Settings row of the same name behind it.
 - tapOn:
     text: "Sign out"

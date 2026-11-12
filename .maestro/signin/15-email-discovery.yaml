@@ -12,8 +12,14 @@ tags:
     timeout: 10000
 - waitForAnimationToEnd:
     timeout: 3000
-- inputText: ${ACCOUNT}@example.org
-- assertVisible: ${ACCOUNT}@example.org
+# The field focuses itself. A bare inputText lost its first characters on
+# the iPad simulator; type.yaml checks the text and retypes it.
+- runFlow:
+    file: ../subflows/type.yaml
+    env:
+      FIELD: login-email-input
+      TAP: "no"
+      TEXT: ${ACCOUNT}@example.org
 - tapOn: "Continue"
 - extendedWaitUntil:
     visible: "We couldn't find a server for example.org.*"

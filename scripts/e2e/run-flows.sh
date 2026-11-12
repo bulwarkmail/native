@@ -26,6 +26,10 @@ mkdir -p "$OUT/screenshots" "$OUT/junit"
 DEBUG_DIR="$RUNNER_TEMP/maestro-debug"
 mkdir -p "$DEBUG_DIR"
 
+# Maestro's log lines for an XCTest driver that died or never started: the
+# flow failed for the driver, not for the app.
+DRIVER_DIED='DeviceUnreachableException|Device became unreachable|Transport unreachable|IOSDriverTimeoutException|iOS driver not ready in time'
+
 # perl's alarm stands in for coreutils timeout, which macOS lacks.
 capped() { perl -e 'alarm shift; exec @ARGV' "$FLOW_TIMEOUT" "$@"; }
 
@@ -79,8 +83,8 @@ if [ $STATUS -eq 0 ]; then
   for f in "${FLOWS[@]}"; do
     name=$(basename "$f" .yaml)
     # When the XCTest driver dies during a flow ("Device became unreachable"),
-    # the flow gets one more try in a fresh Maestro process, which starts a
-    # new driver. Any other failure (an assertion, a missing element, the
+    # or never comes up for it ("iOS driver not ready in time"), the flow gets
+    # one more try in a fresh Maestro process, which starts a new driver. Any other failure (an assertion, a missing element, the
     # time cap) stays a failure. The driver's death shows in Maestro's log in
     # the flow's debug output (never uploaded; grep -q prints nothing). Piping
     # Maestro's console output instead loses the failure reasons it prints.
@@ -98,8 +102,7 @@ if [ $STATUS -eq 0 ]; then
       echo "$name$suffix: exit $rc after $(( $(date +%s) - started )) s"
       [ $rc -eq 0 ] && break
       [ $attempt -eq 2 ] && break
-      grep -rqE 'DeviceUnreachableException|Device became unreachable|Transport unreachable' \
-        "$DEBUG_DIR/$name$suffix" 2>/dev/null || break
+      grep -rqE "$DRIVER_DIED" "$DEBUG_DIR/$name$suffix" 2>/dev/null || break
       echo "::warning::$name: the Maestro driver became unreachable, running the flow once more"
       RETRIED+=("$name")
     done
