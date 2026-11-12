@@ -53,6 +53,7 @@ import {
 import { canBadgeAppIcon } from '../../lib/app-badge';
 import { isAccountMuted, setAccountMuted } from '../../lib/notification-mutes';
 import { jmapClient } from '../../api/jmap-client';
+import { APP_NAME } from './AboutSettings';
 
 type PushStatus =
   | { kind: 'idle' }
@@ -343,7 +344,7 @@ export function NotificationSettings() {
   return (
     <View style={styles.container}>
       <SettingsSection
-        title={t('settings.notifications.push.title', 'Background Notifications')}
+        title={t('settings.notifications.push.title', 'Notifications when {appName} is closed', { appName: APP_NAME })}
         description={t(
           'settings.notifications.push.description_mobile',
           'Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.',
