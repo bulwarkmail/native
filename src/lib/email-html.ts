@@ -583,15 +583,25 @@ export function stripExternalCssUrls(style: string): string {
   return stripExternalStyleSheetCss(style);
 }
 
-/** An attribute's URL as the browser reads it: character references decoded. */
-function isExternalAttrUrl(value: string | null | undefined): boolean {
-  return !!value && isExternalResourceUrl(decodeUriEntities(value));
+/**
+ * An attribute value as the browser reads it: its character references
+ * decoded the way the HTML parser decodes them in a value. Every attribute
+ * the banner looks at is judged on this, before it is split or parsed.
+ */
+function attributeText(value: string): string {
+  return decodeCharacterReferences(value, true);
 }
 
+/** Whether an attribute's URL (src, poster, background) is external. */
+function isExternalAttrUrl(value: string | null | undefined): boolean {
+  return !!value && isExternalResourceUrl(attributeText(value));
+}
+
+/** Whether a srcset names an external candidate; split only after decoding, as the browser does. */
 function srcsetHasExternalUrl(srcset: string): boolean {
-  return srcset
+  return attributeText(srcset)
     .split(',')
-    .some((candidate) => isExternalAttrUrl(candidate.trim().split(/\s+/)[0]));
+    .some((candidate) => isExternalResourceUrl(candidate.trim().split(/\s+/)[0]));
 }
 
 function appendStyle(attrs: ParsedAttr[], extra: string): void {
@@ -653,7 +663,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
       }
     }
 
-    if (tag === 'source' || tag === 'video' || tag === 'audio') {
+    if (tag === 'source' || tag === 'video' || tag === 'audio' || tag === 'track') {
       const src = get('src');
       if (src?.value && isExternalAttrUrl(src.value)) {
         attrs.push({ name: 'data-blocked-src', value: src.value.trim() });
@@ -681,7 +691,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
     // The CSS as the browser reads it, with the value's character references
     // decoded; written back with its `&` escaped, so it reads the same again.
     const style = get('style');
-    const css = style?.value ? decodeCharacterReferences(style.value, true) : '';
+    const css = style?.value ? attributeText(style.value) : '';
     if (style?.value && styleHasExternalUrl(css)) {
       attrs.push({ name: 'data-blocked-style', value: style.value });
       style.value = stripExternalCssUrls(css).replace(/&/g, '&amp;');
