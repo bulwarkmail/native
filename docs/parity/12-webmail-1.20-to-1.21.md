@@ -199,7 +199,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Compose and send
 
-- [ ] **A template placeholder with a default, `{{name:default}}`, is neither filled nor caught by the send check** — `P2` — `bug`
+- [x] **A template placeholder with a default, `{{name:default}}`, is neither filled nor caught by the send check** — `P2` — `bug` — fixed in 17c9046e
   - What WEB does: placeholders can carry a default; the fill dialog starts the field with it, and the send check flags an unfilled one, also with an address in angle brackets (`lib/template-utils.ts:10-11`, `:88`, `lib/placeholder-check.ts:8`, `components/templates/placeholder-fill-modal.tsx`). ea7e2eedf, 6866201e2 (#1609).
   - What RN does: the regexes only know `{{name}}` (`src/lib/template-utils.ts:19`, `src/lib/placeholder-check.ts:11`). Templates are shared with the webmail through account metadata (`src/stores/templates-store.ts:7-16`), so a webmail template with `{{checkin_time:15:00}}` inserted in the app gets no fill prompt (`src/screens/ComposeScreen.tsx:2399`) and the placeholder warning doesn't fire, so it goes out with the braces.
   - Fix hint: port both regexes and getPlaceholderDefaults; prefill the fill sheet with the default.
