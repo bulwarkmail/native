@@ -15,6 +15,7 @@ import {
 import { getClientCertAlias, secureFetch } from './client-cert';
 import { sniffImageMime } from './email-html';
 import { stripBidiControls } from './bidi';
+import { singleLine } from './single-line';
 import { ANDROID_PACKAGE_MIME, handoffMimeType } from './file-preview';
 import { isForeignContentUri } from './share-intent';
 import { androidDistribution } from './platform-capabilities';
@@ -148,6 +149,23 @@ function scheduleTempCleanup(file: File): void {
 // one exception: it assembles the intent itself, so there it's the reverse —
 // only a content URI is grantable to another app.
 
+/** The most of a file's name the question before handing it on shows. */
+const NAME_IN_QUESTION_MAX = 60;
+
+/**
+ * A file's name as the question shows it: one line, without control or
+ * directional formatting characters, and cut in the middle when long, so
+ * the extension stays in view.
+ */
+export function nameInQuestion(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  const line = singleLine(stripBidiControls(name).replace(/[\x00-\x1f\x7f-\x9f]+/g, ' '));
+  if (line.length <= NAME_IN_QUESTION_MAX) return line;
+  const dot = line.lastIndexOf('.');
+  const ext = dot > 0 && line.length - dot <= 12 ? line.slice(dot) : '';
+  return `${line.slice(0, NAME_IN_QUESTION_MAX - ext.length - 1).trimEnd()}…${ext}`;
+}
+
 /**
  * Before a file handed to another app goes as an app package (a name ending
  * in .apk, see handoffMimeType): asks in the app's own dialog, which says
@@ -164,7 +182,7 @@ export function confirmHandoff(name: string | undefined, type: string | null | u
       t(
         'email_viewer.package_handoff.message',
         '"{name}" is an Android app package. An app installed from a mail can take over this device. Only continue if you expected this file.',
-        { name: name ?? '' },
+        { name: nameInQuestion(name ?? '') },
       ),
       [
         { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
