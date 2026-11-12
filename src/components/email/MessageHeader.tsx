@@ -16,7 +16,7 @@ import { useAccountKeywordDefs, useKeywordsStore } from '../../stores/keywords-s
 import { formatKeyword } from '../../lib/keyword-nesting';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime, formatFullDateTime } from '../../lib/email-date';
 import {
-  deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity, viaIdentityNameShown,
+  deriveHeaderInfo, deliveryDeltaMs, formatDelta, isAuthenticationSpoofed, findReceivingIdentity,
   getSenderVerification, describeSenderVerification,
   type AuthenticationResults, type EmailHeaderInfo,
 } from '../../lib/email-headers';
@@ -140,18 +140,18 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const verificationColor = verification?.status === 'failed' ? c.error : c.warning;
   const verificationBg = verification?.status === 'failed' ? c.errorBg : c.warningBg;
 
-  // "via <identity>": the message was sent by one of the user's identities or
-  // received at one of them (incl. +tag); hidden when the From can't be
-  // trusted so a forged From doesn't get a legitimacy badge.
+  // "to <identity>": the message was received at one of the user's other
+  // identities (incl. +tag); hidden when the From can't be trusted so a
+  // forged From doesn't get a legitimacy badge. A message of the user's own
+  // names no identity: "via <identity>" read like a delegation warning, and
+  // the sender line already says which address sent it (webmail
+  // email-identity-badge.tsx, 279a1dd59).
   const viaIdentity = React.useMemo(() => {
     if (spoofed || identities.length === 0) return null;
     const fromEmail = from?.email?.toLowerCase();
-    const sentAs = fromEmail ? identities.find((i) => i.email?.toLowerCase() === fromEmail) : undefined;
-    if (sentAs) return viaIdentityNameShown(sentAs, from) ? { identity: sentAs, direction: 'from' as const } : null;
+    if (fromEmail && identities.some((i) => i.email?.toLowerCase() === fromEmail)) return null;
     const received = findReceivingIdentity(identities, email);
-    if (received && identities.length > 1 && received.id !== identities[0].id) {
-      return { identity: received, direction: 'to' as const };
-    }
+    if (received && identities.length > 1 && received.id !== identities[0].id) return received;
     return null;
   }, [spoofed, identities, from?.email, email]);
 
@@ -272,9 +272,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           {viaIdentity && (
             <View style={[styles.badge, { backgroundColor: c.primaryBg }]}>
               <Text style={[styles.badgeText, { color: c.primary }]}>
-                {viaIdentity.direction === 'from'
-                  ? t('identities.badge.identity_short', 'via {name}', { name: viaIdentity.identity.name })
-                  : t('email_viewer.received_via', 'to {name}', { name: viaIdentity.identity.email })}
+                {t('email_viewer.received_via', 'to {name}', { name: viaIdentity.email })}
               </Text>
             </View>
           )}
