@@ -5,6 +5,7 @@ import { pickEmailBody, plainTextBody } from './email-body';
 import { extractCidRefs } from './email-html';
 import { stripMessageIdBrackets } from './email-threading';
 import { deliveryAddresses } from './reply-identity';
+import { labelSourceHeaders } from './classification-labels';
 
 // Bounce and read-receipt reports (RFC 3464, RFC 8098) and their
 // internationalised forms (RFC 6533). They describe the message they came
@@ -86,6 +87,8 @@ export function replyComposeParams(
       deliveredTo: deliveryAddresses(source.headers),
       // A reply or forward starts with the original's tags (webmail #1610).
       keywords: source.keywords ?? undefined,
+      // A reply takes over the original's classification label.
+      labelHeaders: labelSourceHeaders(source.headers),
       originalEmailId: source.id,
       jmapAccountId: ownerAccountId,
     },

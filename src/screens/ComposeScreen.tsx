@@ -37,6 +37,8 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { remoteContentBlockedByOrg, useRemoteContentBlockedByOrg } from '../lib/remote-content-lock';
+import { classifyOutgoing, draftLabelProperty, labelMissing, resolveLabel } from '../lib/classification-labels';
+import { labelOriginalOf, labelsPolicyFor, reopenedLabelChoice } from '../lib/outgoing/classification';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
@@ -1064,6 +1066,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return identities.find((i) => i.id === selectedIdentityId) ?? defaultIdentity;
   }, [identities, selectedIdentityId]);
 
+  // Classification label (webmail use-composer-classification.ts): the
+  // labels of the identity the message goes out from; the user's pick, else
+  // a reply's original label (set by an internal sender), else the default.
+  // A reopened draft starts with its own.
+  const labelSenderEmail = primaryIdentity?.email;
+  const policyEffective = usePolicyStore((s) => s.effective);
+  const labelsPolicy = React.useMemo(
+    () => labelsPolicyFor(labelSenderEmail),
+    // Re-read when the policy changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [labelSenderEmail, policyEffective],
+  );
+  const [initialLabelChoice] = React.useState<string | null | undefined>(
+    () => (draft ? reopenedLabelChoice(draft.labelHeaders, draft.from?.[0]?.email) : undefined),
+  );
+  const [labelChoice, setLabelChoice] = React.useState<string | null | undefined>(initialLabelChoice);
+  const [labelInvalid, setLabelInvalid] = React.useState(false);
+  const labelOriginal = React.useMemo(
+    () => (replyTo && !draft ? labelOriginalOf(replyTo.labelHeaders, [replyTo.from]) : null),
+    [replyTo, draft],
+  );
+  const sendLabel = React.useMemo(
+    () => resolveLabel(labelsPolicy, labelChoice, labelOriginal),
+    [labelsPolicy, labelChoice, labelOriginal],
+  );
+  // What a saved draft keeps (X-Bulwark-Label); undefined while labels are off.
+  const draftLabelChoice = labelsPolicy.list.length === 0 ? undefined : (sendLabel?.id ?? null);
+
   // ── "@" mentions in the body (webmail #1134) ──────────────────────────
   // What follows the "@" being typed in the editor, null when none is.
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
@@ -1269,6 +1299,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     priority?: MessagePriority;
     /** So is a tag change; left out, the tags the message started with. */
     tags?: string[];
+    /** And a classification label change; left out, the one it started with. */
+    label?: string | null;
   }) => JSON.stringify({
     to: s.to.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
     cc: s.cc.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
@@ -1278,15 +1310,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
     att: s.attachments.filter((a) => !a.inline).map((a) => a.blobId ?? a.localId),
     pri: s.priority ?? 'normal',
     tags: [...(s.tags ?? initialTags)].sort(),
+    label: s.label === undefined ? initialLabelChoice ?? null : s.label,
   });
 
   // Memoized: the snapshot copies the whole body, and the screen re-renders
   // for plenty that doesn't touch it (PF8).
   const currentSnapshot = React.useMemo(() => snapshotOf({
     to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-    body: plainTextMode ? plainBody : bodyHtml, attachments, priority, tags: tagTokens,
+    body: plainTextMode ? plainBody : bodyHtml, attachments, priority, tags: tagTokens, label: labelChoice,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority, tagTokens]);
+  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority, tagTokens, labelChoice]);
   const baselineRef = React.useRef(snapshotOf({
     to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
     body: plainTextMode ? initialPlainBody : initialBodyHtml, attachments: initialAttachments,
@@ -1563,6 +1596,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const identityBcc = opts.forDraft ? [] : (identity.bcc ?? []).filter((r) => !!r.email);
     const bccAll = [...expandRecipients(finalBcc).map(toAddress), ...identityBcc];
 
+    // The classification label (webmail classifyOutgoing): on a send the
+    // subject's prefix and the label's headers (throws while a required
+    // label is missing; the send checks that first), on a draft the choice.
+    const labelled = opts.forDraft
+      ? { subject, headers: draftLabelProperty(draftLabelChoice), headerLines: undefined }
+      : classifyOutgoing(labelsPolicy, sendLabel, subject);
+    const labelHeaders = labelled.headers && Object.keys(labelled.headers).length > 0 ? labelled.headers : undefined;
+
     return {
       from: [from],
       to: expandRecipients(finalTo).map(toAddress),
@@ -1570,7 +1611,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       bcc: bccAll.length ? bccAll : undefined,
       // The identity's Reply-To rides along on every message sent with it.
       replyTo: identity.replyTo?.length ? identity.replyTo : undefined,
-      subject,
+      subject: labelled.subject,
       htmlBody,
       textBody,
       attachments: outgoingAttachments.length ? outgoingAttachments : undefined,
@@ -1581,8 +1622,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       priority: priority !== 'normal' ? priority : undefined,
       keywords: tagTokens.length ? tagTokens : undefined,
       envelopeMailFrom,
+      labelHeaders,
+      labelHeaderLines: labelled.headerLines,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, tagTokens, signatureSeparatorEnabled, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, tagTokens, signatureSeparatorEnabled, t, labelsPolicy, sendLabel, draftLabelChoice]);
 
   // Which of OpenPGP / S/MIME the From address has a key for, and who of the
   // recipients has none (read while the options sheet is open).
@@ -1673,7 +1716,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? plainBody : html, attachments, priority, tags: tagTokens,
+      body: plainTextMode ? plainBody : html, attachments, priority, tags: tagTokens, label: labelChoice,
     });
     if (snapshot === lastSavedRef.current) return draftIdRef.current;
     if (snapshot === baselineRef.current && !draftIdRef.current) return null;
@@ -1936,7 +1979,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority, tags: tagTokens,
+      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority, tags: tagTokens, label: labelChoice,
     });
     return snapshot === lastSavedRef.current;
   };
@@ -2812,6 +2855,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
         return;
       }
       if (liveBodyHtml !== bodyHtml) setBodyHtml(liveBodyHtml);
+    }
+
+    // A required classification label (webmail): no label, no send. The
+    // options sheet opens on the labels.
+    if (labelMissing(labelsPolicy, sendLabel)) {
+      setLabelInvalid(true);
+      toast.error(t('classification.required_toast', 'Pick a classification label before sending.'));
+      setOptionsSheetOpen(true);
+      return;
     }
 
     if (!(await passesSendWarnings(plainTextMode ? plainBody : liveBodyHtml, !!scheduledAt))) return;
@@ -4017,6 +4069,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         onClose={() => setOptionsSheetOpen(false)}
         secureAvailable={secureAvailable}
         secureHint={secureHint}
+        labels={labelsPolicy.list.length > 0 ? {
+          list: labelsPolicy.list,
+          selectedId: sendLabel?.id ?? null,
+          required: labelsPolicy.required,
+          invalid: labelInvalid,
+          onPick: (id) => {
+            setLabelChoice(id);
+            setLabelInvalid(false);
+          },
+        } : null}
       />
 
       <UnlockKeyDialog

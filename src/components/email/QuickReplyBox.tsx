@@ -29,6 +29,8 @@ import { emailDisplayDate } from '../../lib/email-date';
 import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
 import { passesQuickReplyChecks, type SendQuestion } from '../../lib/compose-send-checks';
 import { placeholderWordsFor } from '../../lib/placeholder-check';
+import { classifyOutgoing } from '../../lib/classification-labels';
+import { automaticLabel } from '../../lib/outgoing/classification';
 
 interface Props {
   email: Email;
@@ -156,6 +158,15 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       'reply',
       ownEmails,
     );
+    // The classification label (webmail mail-app.tsx quick reply): the
+    // original's, else the default. A required label with neither: the full
+    // composer, with the typed text, to pick one. Nothing is asked or sent.
+    const quickLabel = automaticLabel(identity.email, { headers: email.headers, from: email.from });
+    if (quickLabel.missing) {
+      toast.info(t('classification.quick_reply_needs_label', 'This reply needs a classification label. Pick one here, then send.'));
+      onMoreOptions(text);
+      return;
+    }
     // The composer's placeholder warning, attachment reminder and "Confirm
     // before sending" (webmail 534049952): a quick reply is no way around them.
     const settings = useSettingsStore.getState();
@@ -197,6 +208,11 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
         labels: quoteHeaderLabels(t),
       });
       const threading = computeReplyThreadingHeaders(email);
+      const labelled = classifyOutgoing(
+        quickLabel.policy,
+        quickLabel.label,
+        buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
+      );
       // The organisation signature and disclaimer, as the composer adds them
       // (webmail lib/outgoing/quick-reply.ts, lib/org/outgoing.ts).
       const policy = usePolicyStore.getState();
@@ -211,7 +227,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
           from: [{ name: identity.name, email: identity.email }],
           to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
           cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
-          subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
+          subject: labelled.subject,
           // Signed as the composer signs a plain-text reply; an alias without a
           // signature of its own carries the primary identity's.
           // The reply/forward signature switch: off sends the bare text;
@@ -224,6 +240,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
           }, orgSetup, { separator: signatureSeparatorEnabled }).text,
           inReplyTo: threading?.inReplyTo,
           references: threading?.references,
+          labelHeaders: labelled.headers,
         },
         target.identityId,
         target.sentMailboxId,
