@@ -234,6 +234,20 @@ describe('the rule for groups, several messages, older notifications and the cac
     expect(showNotification).toHaveBeenCalledTimes(1);
   });
 
+  it('has the account\'s group summary built without lines from other notifications under the rule', async () => {
+    // Android builds the summary from what is still in the group, which can
+    // include message notifications whose removal hasn't landed yet.
+    await seedCache({ [LOCAL]: cacheEntry(orgPolicy({ devices: { pushWithoutContent: true } })) });
+    await push(['m1']);
+    expect(showNotification.mock.calls[0][0]).toMatchObject({ groupKey: `bulwark-mail:${LOCAL}`, withoutContent: true });
+    // Without the rule the summary lists the messages as before.
+    emails = [message('m2', SECRET_SUBJECT)];
+    showNotification.mockClear();
+    await seedCache({ [LOCAL]: cacheEntry(orgPolicy({ devices: { pushWithoutContent: false } })) });
+    await push(['m2']);
+    expect(showNotification.mock.calls[0][0]).not.toHaveProperty('withoutContent');
+  });
+
   it('applies a scope of one of the login\'s group accounts, also to a push for that group', async () => {
     const scoped = orgPolicy({ devices: { pushWithoutContent: false } }, [{
       id: 'board', match: { groups: ['board@corp.example'] }, policy: { organisation: { devices: { pushWithoutContent: true } } },

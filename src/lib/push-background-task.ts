@@ -140,6 +140,10 @@ interface ShowNotificationOptions {
   // one, or when that is not known, the unlock stays.
   deleteNeedsUnlock?: boolean;
   replyLabel?: string;
+  // The login's organisation wants notifications without content: the
+  // account's group summary takes no lines from the other notifications in
+  // the group, which may be message notifications just taken out.
+  withoutContent?: true;
 }
 
 interface BulwarkFcmNative {
@@ -642,7 +646,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     // One notification per account, however many messages came: the
     // account's name and nothing about them, no actions, and a tap opens
     // the app as it is.
-    await showAccountNotification(accountId, payload, registry);
+    await showAccountNotification(accountId, payload, registry, true);
     await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
     return;
   }
@@ -739,6 +743,7 @@ async function showAccountNotification(
   accountId: string,
   payload: RelayPushData,
   registry: RegistryAccount[],
+  withoutContent = false,
 ): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
@@ -754,6 +759,7 @@ async function showAccountNotification(
     threadId: '',
     groupKey: `bulwark-mail:${accountId}`,
     groupTitle: label,
+    ...(withoutContent ? { withoutContent: true as const } : {}),
   });
 }
 

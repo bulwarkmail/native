@@ -81,6 +81,8 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         // for that (#85). Without a Trash it destroys the mail, so it asks.
         // Unlock stays the default for a caller that doesn't say.
         val deleteNeedsUnlock = !options.hasKey("deleteNeedsUnlock") || options.getBoolean("deleteNeedsUnlock")
+        // The login's organisation wants notifications without content.
+        val withoutContent = options.hasKey("withoutContent") && options.getBoolean("withoutContent")
 
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
         // block waiting for the favicon request.
@@ -92,7 +94,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 emailId, threadId, subject, accountId, jmapAccountId, groupKey,
                 groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
             )
-            if (groupKey != null) postGroupSummary(groupKey, groupTitle, bgColorHex, accountId)
+            if (groupKey != null) postGroupSummary(groupKey, groupTitle, bgColorHex, accountId, withoutContent)
             promise.resolve(null)
         }
     }
@@ -250,8 +252,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
     // One summary per account group so several deliveries collapse into a
     // single "N new messages" entry (Android renders the "+N more" itself
     // from the children). Tapping the summary opens the app on the inbox;
-    // the per-message children carry the deep link.
-    private fun postGroupSummary(groupKey: String, groupTitle: String, colorHex: String, accountId: String?) {
+    // the per-message children carry the deep link. Under the organisation's
+    // rule the summary takes no lines from the children (NotificationSummary).
+    private fun postGroupSummary(groupKey: String, groupTitle: String, colorHex: String, accountId: String?, withoutContent: Boolean) {
         val ctx = reactApplicationContext
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val children = manager.activeNotifications.filter {
@@ -264,14 +267,12 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         }
         val count = children.size
         val inbox = NotificationCompat.InboxStyle()
-        children.sortedByDescending { it.postTime }.take(5).forEach { sbn ->
+        val newestFirst = children.sortedByDescending { it.postTime }.take(NotificationSummary.MAX_LINES).map { sbn ->
             val extras = sbn.notification.extras
-            val line = listOfNotNull(
-                extras.getCharSequence(android.app.Notification.EXTRA_TITLE),
-                extras.getCharSequence(android.app.Notification.EXTRA_TEXT),
-            ).joinToString("  ")
-            if (line.isNotBlank()) inbox.addLine(line)
+            extras.getCharSequence(android.app.Notification.EXTRA_TITLE) to
+                extras.getCharSequence(android.app.Notification.EXTRA_TEXT)
         }
+        NotificationSummary.lines(newestFirst, withoutContent).forEach { inbox.addLine(it) }
         inbox.setBigContentTitle(groupTitle)
         inbox.setSummaryText(if (count == 1) "1 new message" else "$count new messages")
 
