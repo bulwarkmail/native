@@ -269,7 +269,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: empty subject, placeholders, attachment and confirm each open their own Alert (`src/screens/ComposeScreen.tsx:2498`, `:2542`, `:2570`, `:2728-2729`).
   - Fix hint: collect the findings first and show one sheet with "Send anyway".
 
-- [ ] **The HTML signature is edited as raw HTML code** — `P3` — `partial`
+- [x] **The HTML signature is edited as raw HTML code** — `P3` — `partial` — fixed in aa9b1876
   - What WEB does: signatures use the composer's rich editor and can be edited per address on the Composing page (`components/settings/signatures-section.tsx`). Changelog 1.21.0 (Settings).
   - What RN does: a monospace TextInput for HTML (`src/components/settings/IdentitySettings.tsx:403-412`).
   - Fix hint: reuse RichTextEditor for the signature field.
