@@ -11,10 +11,13 @@
  *   BULWARK_LIVE_USER=e2e-tablet-dark@example.org \
  *   BULWARK_LIVE_PASS=… npx vitest run src/api/__tests__/live-stalwart-push.test.ts
  *
- * `BULWARK_LIVE_PUSH_RELAY=1` also runs the verification round trip through
- * the hosted relay (https://notifications.relay.bulwarkmail.org): the server
- * posts PushVerification there and the test reads it back the way the app's
- * poll does. It registers a throwaway record with the relay under a random
+ * `BULWARK_LIVE_PUSH_RELAY` also runs the verification round trip through a
+ * relay: the server posts PushVerification there and the test reads it back
+ * the way the app's poll does. Set it to the test relay's base URL
+ * (https://relay.internal.bulwarkmail.org); every subscription of the run
+ * then points there too. `1` means the hosted relay
+ * (https://notifications.relay.bulwarkmail.org), which test runs shouldn't
+ * use. It registers a throwaway record with the relay under a random
  * id and removes it again. Run it at least a minute after any other push
  * test against the same account: Stalwart sends one PushVerification per
  * account per minute.
@@ -51,7 +54,10 @@ const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
 const PASS = process.env.BULWARK_LIVE_PASS ?? '';
 const live = SERVER && PASS ? describe : describe.skip;
-const withRelay = process.env.BULWARK_LIVE_PUSH_RELAY === '1' ? it : it.skip;
+const RELAY_ENV = process.env.BULWARK_LIVE_PUSH_RELAY ?? '';
+// A base URL names the relay every subscription of the run points at.
+const RELAY_BASE = /^https:\/\//.test(RELAY_ENV) ? RELAY_ENV.replace(/\/+$/, '') : DEFAULT_RELAY_BASE_URL;
+const withRelay = RELAY_ENV === '1' || RELAY_BASE !== DEFAULT_RELAY_BASE_URL ? it : it.skip;
 
 const DAY = 86_400_000;
 // What pushTypesFor gives an account that syncs contacts and calendars.
@@ -138,7 +144,7 @@ live('live Stalwart push subscriptions', () => {
   const run = randomBytes(4).toString('hex');
   const deviceClientId = (label: string) => `live-push-${run}-${label}`;
   // The URL the app subscribes with (setupPushNotifications).
-  const relayUrl = (dcid: string) => `${DEFAULT_RELAY_BASE_URL}/api/push/jmap/${encodeURIComponent(dcid)}`;
+  const relayUrl = (dcid: string) => `${RELAY_BASE}/api/push/jmap/${encodeURIComponent(dcid)}`;
   const created: string[] = [];
   let junk = '';
   let inbox = '';
@@ -189,7 +195,7 @@ live('live Stalwart push subscriptions', () => {
   // First, so earlier creates of this run don't hold the verification slot.
   withRelay('delivers PushVerification to the hosted relay and accepts the code', async () => {
     const dcid = `liveprobe-${randomBytes(8).toString('hex')}`;
-    const relay = (path: string, init?: RequestInit) => fetch(`${DEFAULT_RELAY_BASE_URL}${path}`, init);
+    const relay = (path: string, init?: RequestInit) => fetch(`${RELAY_BASE}${path}`, init);
     const registered = await relay('/api/push/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
