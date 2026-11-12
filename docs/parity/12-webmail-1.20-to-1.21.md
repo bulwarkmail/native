@@ -20,7 +20,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Security
 
-- [ ] **Signing in again to an account already on the phone leaves the old OAuth grant open on the server** — `P3` — `partial`
+- [x] **Signing in again to an account already on the phone leaves the old OAuth grant open on the server** — `P3` — `partial` — fixed in 77d28679
   - What WEB does: when an account that is already signed in signs in again, the refresh token it replaces is revoked instead of left valid on the server (`lib/auth/lite-tokens.ts`, `stores/auth-store.ts`). 66d46d23a (#1571, changelog 1.21.0 Security, Lite only).
   - What RN does: revokes the refresh token only on sign-out and removal (`src/stores/auth-store.ts:553`, `:918`, `:1177`). A new sign-in to a registered account (`wasRegistered`, `src/stores/auth-store.ts:436`) stores the new credentials over the old ones without revoking them. Read from the code, not tried on a device. Low risk: the old token is gone from the phone, only the server grant stays.
   - Fix hint: before writing the new credentials of a registered OAuth account, call revokeRefreshToken with the old bundle, best effort.
