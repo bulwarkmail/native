@@ -4,6 +4,7 @@ import { usePolicyStore } from '../stores/policy-store';
 import { useKeywordsStore } from '../stores/keywords-store';
 import { devicesForAccount } from './device-policy';
 import { policyKeywordList } from './policy-keywords';
+import { directoryRulesOf, setDirectoryRulesProvider } from './directory-scope';
 
 // What the organisation policy does by itself, beyond the settings rules
 // the policy store applies. Loading lib/device-policy.ts sets the device
@@ -37,6 +38,10 @@ export function startOrgPolicyEffects(): () => void {
   if (started) return () => undefined;
   started = true;
   const stops: Array<() => void> = [];
+
+  // The directory rules every list of the server's accounts follows.
+  setDirectoryRulesProvider(() => directoryRulesOf(usePolicyStore.getState().effective));
+  stops.push(() => setDirectoryRulesProvider(null));
 
   const onPolicy = () => {
     dropForbiddenOfflineMail();

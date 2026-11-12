@@ -23,6 +23,7 @@ import { getMailboxShareWith, setMailboxShare } from '../mailbox-sharing';
 import { createMailbox, deleteMailbox } from '../email';
 import { listPrincipals } from '../files';
 import { directoryNotice } from '../../lib/principal-directory';
+import { principalAddress, setDirectoryRulesProvider } from '../../lib/directory-scope';
 import { detectPreset, MAILBOX_PRESETS } from '../../lib/delegation/share-rights';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -103,5 +104,26 @@ live('live Stalwart: folder sharing', () => {
     const notice = directoryNotice(listing);
     expect(listed || notice !== null).toBe(true);
     if (!listed) expect(notice).toBe('restricted');
+  }, 60_000);
+
+  // The admin's directory rules (webmail lib/directory-scope.ts) on what the
+  // server really lists: the hidden account names go, and with the domain
+  // rule only the user's own domains (its identities' too) stay.
+  it("applies the organisation's directory rules to the server's listing", async () => {
+    const own = USER.split('@')[1].toLowerCase();
+    const hiddenName = USER2!.split('@')[0].toLowerCase();
+    try {
+      setDirectoryRulesProvider(() => ({ sameDomainOnly: false, hiddenLocalparts: [hiddenName] }));
+      const hidden = await listPrincipals();
+      expect(hidden.principals.some((p) => principalAddress(p).toLowerCase().startsWith(`${hiddenName}@`))).toBe(false);
+
+      setDirectoryRulesProvider(() => ({ sameDomainOnly: true, hiddenLocalparts: [] }));
+      const sameDomain = await listPrincipals();
+      // Stalwart 1.0 with directory queries off lists at least the user's own account.
+      expect(sameDomain.principals.length).toBeGreaterThan(0);
+      for (const p of sameDomain.principals) expect(principalAddress(p).toLowerCase().endsWith(`@${own}`)).toBe(true);
+    } finally {
+      setDirectoryRulesProvider(null);
+    }
   }, 60_000);
 });
