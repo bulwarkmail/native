@@ -53,4 +53,16 @@ describe('external mail', () => {
   it('shows the "External" chip in the message header', () => {
     expect(read('components/email/MessageHeader.tsx')).toMatch(/<ExternalSenderChip from=\{email\.from\} \/>/);
   });
+
+  it('asks before sending outside the organisation in the composer\'s send-check sheet', () => {
+    const compose = read('screens/ComposeScreen.tsx');
+    expect(compose).toMatch(/const external = await recipientsToConfirm\(\{[\s\S]+?identityEmail: primaryIdentity\?\.email,\s+\}\)/);
+    expect(compose).toMatch(/externalRecipients: external,/);
+  });
+
+  it('asks in quick reply and before sending invitations', () => {
+    expect(read('components/email/QuickReplyBox.tsx')).toMatch(/if \(!\(await confirmExternalRecipientsAlert\(external, t\)\)\) return;/);
+    const editor = read('components/calendar/EventModal.tsx');
+    expect(editor).toMatch(/if \(send\) \{[\s\S]+?recipientsToConfirm\(\{ to: invited[\s\S]+?if \(!\(await confirmExternalRecipientsAlert\(external, t\)\)\) return;\s+\}/);
+  });
 });

@@ -39,6 +39,7 @@ import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { remoteContentBlockedByOrg, useRemoteContentBlockedByOrg } from '../lib/remote-content-lock';
 import { classifyOutgoing, draftLabelProperty, labelMissing, resolveLabel } from '../lib/classification-labels';
 import { labelOriginalOf, labelsPolicyFor, reopenedLabelChoice } from '../lib/outgoing/classification';
+import { recipientsToConfirm } from '../lib/outgoing/external-recipients';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
@@ -2658,7 +2659,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
     scheduling: boolean;
     resolve: (send: boolean) => void;
   } | null>(null);
-  const passesSendWarnings = (body: string, scheduling: boolean): Promise<boolean> => {
+  const passesSendWarnings = async (body: string, scheduling: boolean): Promise<boolean> => {
+    // Recipients outside the organisation when its recipient warning is on
+    // (webmail lib/outgoing/external-recipients.ts), the identity's own
+    // domain counted as internal, never a typed From's.
+    const external = await recipientsToConfirm({
+      to: expandRecipients(finalTo).map((r) => r.email),
+      cc: expandRecipients(finalCc).map((r) => r.email),
+      bcc: expandRecipients(finalBcc).map((r) => r.email),
+      identityEmail: primaryIdentity?.email,
+    }).catch(() => []);
     const warnings = collectSendWarnings({
       subject,
       askSubject: emptySubjectWarningEnabled && !emptySubjectConfirmedRef.current,
@@ -2674,8 +2684,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
         : null,
       confirmedPlaceholders: confirmedPlaceholdersRef.current,
       attachmentKeyword: attachmentReminderKeyword(body),
+      externalRecipients: external,
     });
-    if (warnings.length === 0) return Promise.resolve(true);
+    if (warnings.length === 0) return true;
     return new Promise<boolean>((resolve) => setSendWarnings({ items: warnings, scheduling, resolve }));
   };
   const answerWarnings = (send: boolean, dontAskAgain = false) => {

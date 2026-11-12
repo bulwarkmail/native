@@ -8,6 +8,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetBottomInset } from '../../lib/sheet-bottom-inset';
 import { SHOWN_PLACEHOLDERS, sendWarningsContent, type SendWarning } from '../../lib/compose-send-warnings';
+import type { ExternalRecipient } from '../../lib/external-mail';
 
 /**
  * One question before sending, whatever the composer found (webmail
@@ -49,6 +50,23 @@ export function SendWarningsSheet({
     </View>
   );
 
+  // Who is outside the organisation, by field (webmail external-recipient-confirm.tsx).
+  const fieldLabel = {
+    to: t('external_mail.field_to', 'To'),
+    cc: t('external_mail.field_cc', 'Cc'),
+    bcc: t('external_mail.field_bcc', 'Bcc'),
+  };
+  const recipientList = (recipients: ExternalRecipient[]) => (
+    <View style={styles.recipients} testID="send-warning-external-recipients">
+      {recipients.map((r) => (
+        <View key={r.address} style={styles.recipientRow}>
+          <Text style={styles.recipientField}>{fieldLabel[r.field]}</Text>
+          <Text style={styles.recipientAddress}>{r.address}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible transparent animationType="fade" onRequestClose={onBack}>
       <View style={[styles.backdrop, { paddingBottom: spacing.lg + bottomInset }]}>
@@ -57,6 +75,7 @@ export function SendWarningsSheet({
             <Text style={styles.title} accessibilityRole="header">{content.title}</Text>
             {content.description ? <Text style={styles.message}>{content.description}</Text> : null}
             {content.matches ? chips(content.matches) : null}
+            {content.recipients ? recipientList(content.recipients) : null}
             {content.items.length > 0 && (
               <View style={styles.list}>
                 {content.items.map((item) => (
@@ -65,6 +84,7 @@ export function SendWarningsSheet({
                     <View style={styles.itemBody}>
                       <Text style={styles.itemText}>{item.text}</Text>
                       {item.matches ? chips(item.matches) : null}
+                      {item.recipients ? recipientList(item.recipients) : null}
                     </View>
                   </View>
                 ))}
@@ -135,6 +155,18 @@ function makeStyles(c: ThemePalette) {
       maxWidth: '100%',
     },
     more: { ...typography.caption, color: c.mutedForeground },
+    recipients: {
+      marginTop: spacing.sm,
+      gap: spacing.xs,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.sm,
+      backgroundColor: c.muted,
+      padding: spacing.sm,
+    },
+    recipientRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'baseline' },
+    recipientField: { ...typography.caption, color: c.mutedForeground, width: 32 },
+    recipientAddress: { ...typography.body, color: c.text, flex: 1, flexShrink: 1 },
     checkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg, minHeight: 44 },
     box: {
       width: 20,

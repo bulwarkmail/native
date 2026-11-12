@@ -84,6 +84,8 @@ import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
 import { askBeforeDiscard, editorFormChanged, editorFormSnapshot, editorTimesSnapshot } from '../../lib/calendar-editor-discard';
 import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-denied';
+import { recipientsToConfirm } from '../../lib/outgoing/external-recipients';
+import { confirmExternalRecipientsAlert } from '../../lib/outgoing/confirm-external-alert';
 import { descriptionAsText, descriptionFieldsToSave } from '../../lib/calendar-description';
 import { useCollectionNames } from '../../lib/default-collection-name';
 
@@ -455,6 +457,17 @@ export function EventModal({
       // Only the organizer sends: on an invitation someone else sent, a
       // save would reach the organizer as a reply.
       const send = organizes && attendees.length > 0 && sendInvitations;
+      // Invitations are mail too: newly invited people outside the
+      // organisation get the same confirm as a message (webmail
+      // confirmInvitationRecipients). Back keeps the editor open, nothing saved.
+      if (send) {
+        const known = new Set((event ? seedAttendees(event, currentUserEmails) : []).map((a) => a.email.trim().toLowerCase()));
+        const invited = attendees.map((a) => a.email).filter((email) => email && !known.has(email.trim().toLowerCase()));
+        const external = invited.length > 0
+          ? await recipientsToConfirm({ to: invited, cc: [], bcc: [], identityEmail: currentUserEmails[0] }).catch(() => [])
+          : [];
+        if (!(await confirmExternalRecipientsAlert(external, t))) return;
+      }
       // A server that refuses to send the invitations refuses the whole
       // save: offer to keep the event without them.
       const saved = await saveOfferingWithoutInvitations((sendSchedulingMessages) => onSave(data, calendarId, {

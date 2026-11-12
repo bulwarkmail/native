@@ -1,12 +1,18 @@
 // What the composer asks about before a message goes out, in one question
 // (webmail components/email/send-warnings-dialog.tsx and email-composer.tsx
-// handleSend). Several Alerts in a row asked about each in turn.
+// handleSend). Several Alerts in a row asked about each in turn. The
+// organisation's "Send outside your organisation?" (webmail
+// external-recipient-confirm.tsx, a dialog of its own after these checks)
+// joins the same sheet, last.
+
+import type { ExternalRecipient } from './external-mail';
 
 /** Something the composer asks about before a message goes out. */
 export type SendWarning =
   | { kind: 'subject' }
   | { kind: 'placeholders'; matches: string[] }
-  | { kind: 'attachment'; keyword: string };
+  | { kind: 'attachment'; keyword: string }
+  | { kind: 'external'; recipients: ExternalRecipient[] };
 
 /** The warnings that can be switched off in Settings (subject and placeholders). */
 const HAS_SETTING = new Set<SendWarning['kind']>(['subject', 'placeholders']);
@@ -24,6 +30,8 @@ export interface SendWarningInput {
   confirmedPlaceholders: ReadonlySet<string>;
   /** The keyword of the attachment reminder, when it fires. */
   attachmentKeyword?: string;
+  /** Recipients outside the organisation, when its recipient warning is on. */
+  externalRecipients?: ExternalRecipient[];
 }
 
 /** The warnings for one Send, in the order the composer checks them. */
@@ -33,6 +41,7 @@ export function collectSendWarnings(input: SendWarningInput): SendWarning[] {
   const found = input.placeholders ?? [];
   if (found.some((p) => !input.confirmedPlaceholders.has(p))) warnings.push({ kind: 'placeholders', matches: found });
   if (input.attachmentKeyword) warnings.push({ kind: 'attachment', keyword: input.attachmentKeyword });
+  if (input.externalRecipients?.length) warnings.push({ kind: 'external', recipients: input.externalRecipients });
   return warnings;
 }
 
@@ -42,9 +51,11 @@ export interface SendWarningsContent {
   title: string;
   description?: string;
   /** One line per warning when there are several. */
-  items: { kind: SendWarning['kind']; text: string; matches?: string[] }[];
+  items: { kind: SendWarning['kind']; text: string; matches?: string[]; recipients?: ExternalRecipient[] }[];
   /** The placeholders of a single placeholder warning. */
   matches?: string[];
+  /** The recipients of a single external-recipient warning. */
+  recipients?: ExternalRecipient[];
   backLabel: string;
   sendLabel: string;
   /** The box under a single warning that has a setting. */
@@ -93,6 +104,19 @@ export function sendWarningsContent(warnings: SendWarning[], t: Translate, sched
       backLabel: t('email_composer.forgot_attachment.back', 'Back to editing'),
       sendLabel: t('email_composer.forgot_attachment.send_anyway', 'Send anyway'),
     };
+  } else if (single?.kind === 'external') {
+    content = {
+      title: t('external_mail.confirm_title', 'Send outside your organisation?'),
+      description: t(
+        'external_mail.confirm_message',
+        '{count, plural, one {This recipient is} other {These # recipients are}} outside your organisation. Send only if you mean to.',
+        { count: single.recipients.length },
+      ),
+      items: [],
+      recipients: single.recipients,
+      backLabel: t('external_mail.back', 'Back'),
+      sendLabel: t('external_mail.send_anyway', 'Send anyway'),
+    };
   } else {
     content = {
       title: scheduling
@@ -104,6 +128,17 @@ export function sendWarningsContent(warnings: SendWarning[], t: Translate, sched
           return {
             kind: w.kind,
             text: t('compose_send.warning_attachment', 'Mentions "{keyword}", but no file is attached', { keyword: w.keyword }),
+          };
+        }
+        if (w.kind === 'external') {
+          return {
+            kind: w.kind,
+            text: t(
+              'compose_send.warning_external',
+              '{count, plural, one {A recipient is} other {# recipients are}} outside your organisation:',
+              { count: w.recipients.length },
+            ),
+            recipients: w.recipients,
           };
         }
         return {

@@ -31,6 +31,8 @@ import { passesQuickReplyChecks, type SendQuestion } from '../../lib/compose-sen
 import { placeholderWordsFor } from '../../lib/placeholder-check';
 import { classifyOutgoing } from '../../lib/classification-labels';
 import { automaticLabel } from '../../lib/outgoing/classification';
+import { recipientsToConfirm } from '../../lib/outgoing/external-recipients';
+import { confirmExternalRecipientsAlert } from '../../lib/outgoing/confirm-external-alert';
 
 interface Props {
   email: Email;
@@ -179,6 +181,15 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
       ask: askBeforeSend,
     });
     if (!passed) return;
+    // Recipients outside the organisation (webmail external-recipients.ts),
+    // after the composer's own checks.
+    const external = await recipientsToConfirm({
+      to: recipients.to.map((r) => r.email ?? ''),
+      cc: recipients.cc.map((r) => r.email ?? ''),
+      bcc: [],
+      identityEmail: identity.email,
+    }).catch(() => []);
+    if (!(await confirmExternalRecipientsAlert(external, t))) return;
     // The questions wait for the user, long enough for a switch of logins.
     if (refuseAfterSwitch()) return;
     setSending(true);
