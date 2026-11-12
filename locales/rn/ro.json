@@ -1069,6 +1069,7 @@
       "title": "Funcție experimentală"
     },
     "filters": {
+      "apply_existing_regex": "O regulă cu expresie regulată nu poate fi aplicată mesajelor existente.",
       "remove_action": "Eliminați acțiunea",
       "remove_condition": "Eliminați condiția",
       "sieve_editor": {

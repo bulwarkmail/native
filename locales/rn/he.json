@@ -1067,6 +1067,7 @@
       "title": "תכונה ניסיונית"
     },
     "filters": {
+      "apply_existing_regex": "לא ניתן להחיל כלל עם ביטוי רגולרי על הודעות קיימות.",
       "remove_action": "הסר פעולה",
       "remove_condition": "הסר תנאי",
       "sieve_editor": {

@@ -1073,6 +1073,7 @@
       "title": "Fonctionnalité expérimentale"
     },
     "filters": {
+      "apply_existing_regex": "Une règle avec une expression régulière ne peut pas s'appliquer aux messages existants.",
       "remove_action": "Supprimer l'action",
       "remove_condition": "Supprimer la condition",
       "sieve_editor": {

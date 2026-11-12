@@ -1069,6 +1069,7 @@
       "title": "Experimentální funkce"
     },
     "filters": {
+      "apply_existing_regex": "Pravidlo s regulárním výrazem nelze použít na existující zprávy.",
       "remove_action": "Odebrat akci",
       "remove_condition": "Odebrat podmínku",
       "sieve_editor": {

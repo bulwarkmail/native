@@ -1064,6 +1064,7 @@
       "title": "ميزة تجريبية"
     },
     "filters": {
+      "apply_existing_regex": "لا يمكن تطبيق القاعدة التي تطابق تعبيرًا نمطيًا على الرسائل الموجودة.",
       "remove_action": "إزالة الإجراء",
       "remove_condition": "إزالة الشرط",
       "sieve_editor": {

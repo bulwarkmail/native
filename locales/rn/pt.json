@@ -1072,6 +1072,7 @@
       "title": "Recurso experimental"
     },
     "filters": {
+      "apply_existing_regex": "Uma regra com uma expressão regular não pode ser aplicada às mensagens existentes.",
       "remove_action": "Remover ação",
       "remove_condition": "Remover condição",
       "sieve_editor": {

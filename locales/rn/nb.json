@@ -1066,6 +1066,7 @@
       "title": "Eksperimentell funksjon"
     },
     "filters": {
+      "apply_existing_regex": "En regel med et regulært uttrykk kan ikke brukes på eksisterende meldinger.",
       "remove_action": "Fjern handling",
       "remove_condition": "Fjern vilkår",
       "sieve_editor": {

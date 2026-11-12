@@ -32,6 +32,7 @@ import {
 import { isValidSieveHeaderName } from '../../lib/sieve/generator';
 import { hasPeriod } from '../../lib/sieve/period';
 import { regexInvalid, usesRegex } from '../../lib/sieve/regex';
+import { applyExistingUnsupportedReason } from './apply-existing-hint';
 import { retroactiveSupport } from '../../lib/sieve/retroactive';
 import { periodError, periodFromInput, periodToInput } from '../../lib/sieve/rule-period';
 import type { Mailbox } from '../../api/types';
@@ -656,9 +657,11 @@ export function FilterRuleModal({
                 {!canTickApply && (
                   <Text style={styles.hint}>
                     {!canApplyToExisting
-                      ? (periodOn
-                        ? t('settings.filters.apply_existing_period', 'A rule with a period acts only on messages that arrive within it, so it cannot run on existing messages.')
-                        : t('settings.filters.apply_existing_unsupported', 'Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.'))
+                      ? {
+                        period: t('settings.filters.apply_existing_period', 'A rule with a period acts only on messages that arrive within it, so it cannot run on existing messages.'),
+                        regex: t('settings.filters.apply_existing_regex', 'A rule that matches a regular expression cannot run on existing messages.'),
+                        other: t('settings.filters.apply_existing_unsupported', 'Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.'),
+                      }[applyExistingUnsupportedReason(periodOn, draft.conditions)]
                       : t('settings.filters.apply_existing_none', 'No message in {folder} matches this rule yet.', { folder: applyExisting.folder })}
                   </Text>
                 )}

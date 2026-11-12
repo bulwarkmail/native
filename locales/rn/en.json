@@ -1397,6 +1397,7 @@
       "title": "Experimental feature"
     },
     "filters": {
+      "apply_existing_regex": "A rule that matches a regular expression cannot run on existing messages.",
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {

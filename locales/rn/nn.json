@@ -1199,6 +1199,7 @@
       "title": "Eksperimentell funksjon"
     },
     "filters": {
+      "apply_existing_regex": "Ein regel med eit regulært uttrykk kan ikkje køyrast på eksisterande meldingar.",
       "sieve_editor": {
         "confirm_save": "Stadfest lagring",
         "line_count": "{count, plural, one {# linje} other {# linjer}}",

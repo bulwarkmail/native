@@ -1065,6 +1065,7 @@
       "title": "Kísérleti funkció"
     },
     "filters": {
+      "apply_existing_regex": "A reguláris kifejezést használó szabály meglévő üzenetekre nem alkalmazható.",
       "remove_action": "Művelet eltávolítása",
       "remove_condition": "Feltétel eltávolítása",
       "sieve_editor": {

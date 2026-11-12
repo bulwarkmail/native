@@ -1063,6 +1063,7 @@
       "title": "قابلیت آزمایشی"
     },
     "filters": {
+      "apply_existing_regex": "قانونی که با عبارت باقاعده مطابقت می‌دهد روی پیام‌های موجود اجرا نمی‌شود.",
       "remove_action": "حذف اقدام",
       "remove_condition": "حذف شرط",
       "sieve_editor": {

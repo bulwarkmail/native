@@ -1191,6 +1191,7 @@
       "title": "ฟีเจอร์ทดลอง"
     },
     "filters": {
+      "apply_existing_regex": "กฎที่ใช้นิพจน์ทั่วไปไม่สามารถใช้กับข้อความที่มีอยู่ได้",
       "sieve_editor": {
         "confirm_save": "ยืนยันการบันทึก",
         "line_count": "{count, plural, other {# บรรทัด}}",

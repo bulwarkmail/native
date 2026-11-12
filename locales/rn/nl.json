@@ -1069,6 +1069,7 @@
       "title": "Experimentele functie"
     },
     "filters": {
+      "apply_existing_regex": "Een regel met een reguliere expressie kan niet op bestaande berichten worden toegepast.",
       "remove_action": "Actie verwijderen",
       "remove_condition": "Voorwaarde verwijderen",
       "sieve_editor": {

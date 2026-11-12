@@ -1070,6 +1070,7 @@
       "title": "Deneysel özellik"
     },
     "filters": {
+      "apply_existing_regex": "Normal ifade içeren bir kural mevcut iletilere uygulanamaz.",
       "remove_action": "İşlemi kaldır",
       "remove_condition": "Koşulu kaldır",
       "sieve_editor": {

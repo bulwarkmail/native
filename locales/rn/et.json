@@ -485,6 +485,7 @@
       }
     },
     "filters": {
+      "apply_existing_regex": "Regulaaravaldisega reeglit ei saa olemasolevatele kirjadele rakendada.",
       "sieve_editor": {
         "confirm_save": "Kinnita salvestamine",
         "save_warning": "Salvestamine kirjutab kõik visuaalsed reeglid üle. Seda ei saa tagasi võtta. Kinnitamiseks klõpsa uuesti nuppu Salvesta.",

@@ -1068,6 +1068,7 @@
       "title": "Experimentálna funkcia"
     },
     "filters": {
+      "apply_existing_regex": "Pravidlo s regulárnym výrazom nemožno použiť na existujúce správy.",
       "remove_action": "Odstrániť akciu",
       "remove_condition": "Odstrániť podmienku",
       "sieve_editor": {

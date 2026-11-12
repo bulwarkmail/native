@@ -1199,6 +1199,7 @@
       "title": "Πειραματική λειτουργία"
     },
     "filters": {
+      "apply_existing_regex": "Ένας κανόνας με κανονική έκφραση (regex) δεν μπορεί να εκτελεστεί σε υπάρχοντα μηνύματα.",
       "sieve_editor": {
         "confirm_save": "Επιβεβαίωση αποθήκευσης",
         "line_count": "{count, plural, one {# γραμμή} other {# γραμμές}}",

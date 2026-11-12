@@ -1067,6 +1067,7 @@
       "title": "실험적 기능"
     },
     "filters": {
+      "apply_existing_regex": "정규식을 사용하는 규칙은 기존 메시지에는 적용할 수 없어요.",
       "remove_action": "동작 제거",
       "remove_condition": "조건 제거",
       "sieve_editor": {

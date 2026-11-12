@@ -1071,6 +1071,7 @@
       "title": "Funzione sperimentale"
     },
     "filters": {
+      "apply_existing_regex": "Una regola con un'espressione regolare non si può applicare ai messaggi esistenti.",
       "remove_action": "Rimuovi azione",
       "remove_condition": "Rimuovi condizione",
       "sieve_editor": {

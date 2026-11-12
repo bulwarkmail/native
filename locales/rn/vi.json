@@ -1199,6 +1199,7 @@
       "title": "Tính năng thử nghiệm"
     },
     "filters": {
+      "apply_existing_regex": "Quy tắc dùng biểu thức chính quy không thể chạy trên các thư hiện có.",
       "sieve_editor": {
         "confirm_save": "Xác nhận lưu",
         "line_count": "{count, plural, other {# dòng}}",
