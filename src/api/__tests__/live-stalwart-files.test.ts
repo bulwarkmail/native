@@ -132,6 +132,25 @@ live('live Stalwart files', () => {
     expect(await res.text()).toBe('hello from the live test');
   }, 60_000);
 
+  // Webmail 1.21: Replace gives the file that is there the new content, so it
+  // keeps its id and shares; before, every upload of a taken name was "a (1)".
+  it('uploads over a file it was told to replace, keeping its id', async () => {
+    const box = await createFolder('Replace box', scratch);
+    const first = (await uploadFileBatch([pick('plan.txt', 'version one')], box.id, [])).uploaded[0];
+
+    const result = await uploadFileBatch(
+      [pick('plan.txt', 'version two, longer')], box.id, ['plan.txt'], { replace: new Map([['plan.txt', first.id]]) },
+    );
+    expect(result.failed).toEqual([]);
+    expect(result.replaced).toEqual([first.id]);
+
+    const inBox = listFolder(await nodes(), box.id);
+    expect(inBox.map((n) => [n.id, n.name])).toEqual([[first.id, 'plan.txt']]);
+    expect(inBox[0].size).toBe(19);
+    const res = await fetch(getFileNodeDownloadUrl(inBox[0]), { headers: { Authorization: client.authHeader } });
+    expect(await res.text()).toBe('version two, longer');
+  }, 60_000);
+
   it('renames, moves, copies and deletes', async () => {
     const box = await createFolder('Box', scratch);
     const { uploaded } = await uploadFileBatch([pick('a.txt', 'abc')], scratch, []);

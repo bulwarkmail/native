@@ -1009,6 +1009,24 @@ describe('uploadFileBatch', () => {
     { uri: 'file:///c', name: 'c.txt', mimeType: 'text/plain' },
   ];
 
+  // Webmail 1.21: Replace gives the file that is there the new content (same
+  // id, same shares) instead of adding "a (1).txt".
+  it('replaces the content of the file it is told to, and adds the others', async () => {
+    mockUploadBlob.mockImplementation(async (uri: string) => ({ blobId: `blob-${uri.slice(-1)}`, size: 1, type: 'text/plain' }));
+    const calls: unknown[] = [];
+    mockRequest.mockImplementation(async (sent: Array<[string, Record<string, unknown>, string]>) => {
+      calls.push(sent[0][1]);
+      if (sent[0][1].update) return { methodResponses: [['FileNode/set', { updated: { 'n-a': null } }, '0']] };
+      return { methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'n-new' } } }, '0']] };
+    });
+
+    const result = await uploadFileBatch(assets.slice(0, 2), 'dir-1', ['a.txt'], { replace: new Map([['a.txt', 'n-a']]) });
+
+    expect(result.replaced).toEqual(['n-a']);
+    expect(result.uploaded.map((n) => n.name)).toEqual(['b.txt']);
+    expect(calls[0]).toMatchObject({ update: { 'n-a': { blobId: 'blob-a', modified: null } } });
+  });
+
   it('goes on after a file the server refuses and reports it', async () => {
     mockUploadBlob.mockImplementation(async (uri: string) => ({ blobId: `blob-${uri.slice(-1)}`, size: 1, type: 'text/plain' }));
     mockRequest.mockImplementation(async (calls: Array<[string, { create: Record<string, { name: string }> }, string]>) => {
@@ -1056,7 +1074,7 @@ describe('uploadFileBatch', () => {
     });
     const result = await uploadFileBatch(assets, null, [], { signal: controller.signal });
     expect(mockUploadBlob).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ uploaded: [], failed: [] });
+    expect(result).toEqual({ uploaded: [], replaced: [], failed: [] });
   });
 });
 
