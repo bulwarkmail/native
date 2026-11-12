@@ -546,10 +546,11 @@ export default function EmailListScreen({
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const storeSearchQuery = useEmailStore((s) => s.searchQuery);
   const filters = useEmailStore((s) => s.filters);
-  // Another folder, tag or search starts at the top of its list, not at the
-  // offset the last one was scrolled to (webmail #1138).
+  // Another account, folder, tag or search starts at the top of its list,
+  // not at the offset the last one was scrolled to (webmail #1138).
   const listRef = React.useRef<FlatList<Email>>(null);
-  const viewKey = listViewKey(currentMailboxId, storeSearchQuery, filters);
+  const listAccountId = useEmailStore((s) => s.activeAccountId);
+  const viewKey = listViewKey(listAccountId, currentMailboxId, storeSearchQuery, filters);
   React.useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [viewKey]);

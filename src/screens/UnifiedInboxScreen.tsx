@@ -137,6 +137,13 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     [includeGroup, query, role, view],
   );
 
+  // Another account's mail starts at the top of the list, not at the offset
+  // the last account's was left at.
+  const listRef = React.useRef<FlatList<UnifiedEmail>>(null);
+  React.useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [accountIds]);
+
   // A search page's highlights, once they land, while that search is still
   // the one on screen (a new load bumps `loadSeq`).
   const highlight = React.useCallback((result: UnifiedInboxResult, seq: number) => {
@@ -714,6 +721,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={emails}
           keyExtractor={rowKey}
           renderItem={renderItem}
