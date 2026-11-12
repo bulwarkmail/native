@@ -234,7 +234,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: From, Date and Subject only (`src/lib/quote-header.ts:107-110`).
   - Fix hint: add the two lines and their labels.
 
-- [ ] **Replies don't come from the address the mail was delivered to** — `P3` — `missing`
+- [x] **Replies don't come from the address the mail was delivered to** — `P3` — `missing` — fixed in 891d9e74
   - What WEB does: when To, Cc and Bcc match no identity, it picks the identity from Delivered-To, X-Original-To and the like (`lib/reply-identity.ts:27`, `:48-55`). Changelog 1.20.0 (#1353).
   - What RN does: matches To, Cc and Bcc only (`src/lib/reply-identity.ts:52`); no delivery headers are read anywhere in src.
   - Fix hint: port the DELIVERY_HEADERS step and fetch those headers with the reply source.
