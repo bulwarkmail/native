@@ -12,6 +12,7 @@ import { ContactImportSheet, AddressBookPickerSheet } from '../contacts';
 import { AddressBookShareSheet } from '../contacts/AddressBookShareSheet';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 import { useSettingsStore } from '../../stores/settings-store';
+import { useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useContactsStore, selectAddressBooksWithCount } from '../../stores/contacts-store';
 import { contactsToVCard } from '../../lib/vcard';
@@ -31,6 +32,9 @@ export function ContactsSettings() {
   const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
   const setGroupByLetter = useSettingsStore((s) => s.setGroupContactsByLetter);
   const sortByLastName = useSettingsStore((s) => s.sortContactsByLastName);
+  const showDirectory = useSettingsStore((s) => s.showContactsDirectory);
+  const directoryLocked = useSettingLocked('showContactsDirectory');
+  const directoryHidden = useSettingHidden('showContactsDirectory');
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const t = useLocaleStore((s) => s.t);
   const contacts = useContactsStore((s) => s.contacts);
@@ -190,6 +194,22 @@ export function ContactsSettings() {
             onChange={(checked) => updateSetting('sortContactsByLastName', checked)}
           />
         </SettingItem>
+
+        {!directoryHidden && (
+          <SettingItem
+            label={t('settings.contacts.show_directory_label', 'Show the directory')}
+            description={t(
+              'settings.contacts.show_directory_description',
+              'List the accounts and groups on your mail server under Directory in Contacts',
+            )}
+            locked={directoryLocked}
+          >
+            <ToggleSwitch
+              checked={showDirectory}
+              onChange={(checked) => updateSetting('showContactsDirectory', checked)}
+            />
+          </SettingItem>
+        )}
 
         <SettingItem
           label={t('settings.contacts.import_label', 'Import Contacts')}

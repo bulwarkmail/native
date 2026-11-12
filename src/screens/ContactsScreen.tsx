@@ -151,7 +151,9 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
   // The company directory shows in place of the list (#1253). Not a stored
   // category: it is the server's list, not the user's contacts.
   const [showDirectory, setShowDirectory] = React.useState(false);
-  const directoryAvailable = supportsSharing();
+  // Users and admins can turn the Directory entry off (#1457).
+  const showContactsDirectory = useSettingsStore((s) => s.showContactsDirectory);
+  const directoryAvailable = supportsSharing() && showContactsDirectory;
   const [searchActive, setSearchActive] = React.useState(false);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [selection, setSelection] = React.useState<Set<string>>(new Set());
@@ -650,7 +652,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
         </View>
       )}
 
-      {showDirectory && !selectionMode ? <DirectoryBrowser query={searchQuery} /> : <SectionList
+      {showDirectory && directoryAvailable && !selectionMode ? <DirectoryBrowser query={searchQuery} /> : <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (

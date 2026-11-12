@@ -169,6 +169,9 @@ export interface PersistedSettings {
   // Sort (and group) the contact list by surname instead of given name so
   // family members sit together (#963).
   sortContactsByLastName: boolean;
+  // The Directory entry in Contacts (webmail #1457). Recipient suggestions,
+  // sharing and free/busy use the directory either way.
+  showContactsDirectory: boolean;
 
   // Appearance
   theme: ThemeMode;
@@ -394,6 +397,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
   groupContactsByLetter: true,
   sortContactsByLastName: false,
+  showContactsDirectory: true,
 
   theme: 'system',
   fontSize: 'medium',
