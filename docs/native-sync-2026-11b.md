@@ -170,7 +170,7 @@ Findings:
   - What RN does: `src/lib/totp-login.ts:60-64` ("public and first-party"), `src/api/account-security.ts:84-90`, `:98-103` ("only to first-party clients", "the session then lists no Stalwart extension"), `src/components/settings/AccountSecuritySettings.tsx:920-921`, `:1029`.
   - Fix hint: describe the scopes (1.0.0-1.0.2 first-party, 1.0.3+ `security`/`settings`/`full`). Live test: none needed beyond the rows above.
 
-- [ ] **The live auth suite expects 1.0's old client rules and breaks on 1.0.3 and later** — `P2` — `test` (Stalwart 1.0.3)
+- [x] **The live auth suite expects 1.0's old client rules and breaks on 1.0.3 and later** — `P2` — `test` (Stalwart 1.0.3) — fixed in 3c5d0350
   - What Stalwart does: an `swc1.` client registered with `security settings` reaches account security (`crates/common/src/auth/oauth/scope.rs:469-515`, `crates/jmap/src/api/session.rs:248`); a bulwark-mobile without scopes still passes a check that names no scope.
   - What RN does: `hasMobileClient` is probed without a `scope` parameter (`src/api/__tests__/live-stalwart-auth.test.ts:160-174`), so a scope-less bulwark-mobile (what register-mobile-client.py leaves on 1.0.3+) counts as present while the app itself skips it, and `expectV1Client` (`:135-138`) fails. "account security: 1.0 refuses it to the registered client" (`:273-287`) expects `forbidden` for an `swc1.` client, which 1.0.3+ no longer gives.
   - Fix hint: probe with the app's own scope string; split the expectation by whether discovery lists `urn:stalwart:oauth:scope:security`. Live test: the two cases above, rewritten; run against stw-rel at 1.0.1 and after the upgrade.
