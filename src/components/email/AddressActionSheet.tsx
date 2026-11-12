@@ -3,10 +3,11 @@ import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { Copy, PenSquare, UserRound, UserRoundPlus } from '../icons';
+import { Copy, PenSquare, Search, UserRound, UserRoundPlus } from '../icons';
 import type { EmailAddress } from '../../api/types';
 import type { RootStackParamList } from '../../navigation/types';
 import { useContactsStore } from '../../stores/contacts-store';
+import { setPendingSenderSearch } from '../../navigation/pending-mail-search';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useColors } from '../../theme/colors';
 import { ActionSheet, type ActionSheetItem } from './ActionSheet';
@@ -20,7 +21,8 @@ interface Props {
 
 /**
  * Tap sheet for a sender/recipient: copy the address, start a message to it,
- * open the matching contact or add one (the webmail's RecipientPopover).
+ * open the matching contact or add one, find the mail from it (the
+ * webmail's RecipientPopover and address-context-menu.tsx).
  */
 export function AddressActionSheet({ address, onClose }: Props) {
   const c = useColors();
@@ -71,6 +73,16 @@ export function AddressActionSheet({ address, onClose }: Props) {
             navigation.navigate('ContactForm', { prefill: { email, name: address?.name } });
           },
         },
+    {
+      key: 'find',
+      label: t('context_menu.find_emails_from', 'Find emails from {name}', { name: address?.name || email }),
+      icon: <Search size={18} color={c.textSecondary} />,
+      onPress: () => {
+        onClose();
+        setPendingSenderSearch(email);
+        navigation.navigate('MainTabs', { screen: 'Mail' } as never);
+      },
+    },
   ];
 
   return (

@@ -1155,6 +1155,17 @@ export default function EmailListScreen({
     if (query.trim()) submitSearch(query);
     else setTimeout(() => searchInputRef.current?.focus(), 300);
   }, [pendingSearch, submitSearch]);
+  // "Find mail" on an address: the mail from that sender, as picking them
+  // from the search suggestions does.
+  const pendingSender = usePendingMailSearch((s) => s.from);
+  React.useEffect(() => {
+    if (pendingSender === null) return;
+    const from = usePendingMailSearch.getState().consumeFrom();
+    if (!from) return;
+    setSearchInput('');
+    setSearchFocused(false);
+    setFilters({ ...useEmailStore.getState().filters, from });
+  }, [pendingSender, setFilters]);
   // People whose name/address matches what is being typed (#845); picking
   // one turns the search into a `from:` filter like the webmail.
   const contactSuggestions = React.useMemo(() => {
