@@ -446,7 +446,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing; no MaskedEmail code in src. Account security only speaks `urn:stalwart:jmap` (`src/api/account-security.ts:13`).
   - Fix hint: port masked-email.ts onto the existing account-security request path and add a section to AccountSecuritySettings, shown only when the list call succeeds.
 
-- [ ] **Account security doesn't work on Inbuxa servers** — `P3` — `partial`
+- [x] **Account security doesn't work on Inbuxa servers** — `P3` — `partial` — fixed in c4067311
   - What WEB does: picks the management capability per account, `urn:stalwart:jmap` or `urn:inbuxa:jmap:registry` (`lib/stalwart/management-capability.ts:3-13`, `lib/stalwart/jmap-passthrough.ts`). 764aecca0 (#1522).
   - What RN does: hard-codes `urn:stalwart:jmap` (`src/api/account-security.ts:13`, `:76`).
   - Fix hint: port getManagementCapability and pass the chosen capability into `using`; do it together with masked addresses, which use the same switch.
