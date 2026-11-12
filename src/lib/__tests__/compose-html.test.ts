@@ -60,6 +60,17 @@ describe('buildInitialHtml', () => {
     expect(html).toContain('forwarded body');
   });
 
+  it('forward: the header lists the original To and Cc', () => {
+    const html = buildInitialHtml('forward', {
+      from: { email: 'b@c.com' },
+      to: [{ name: 'Ann', email: 'ann@c.com' }],
+      cc: [{ email: 'cid@c.com' }],
+      subject: 'S',
+      body: 'x',
+    });
+    expect(html).toContain('To: Ann &lt;ann@c.com&gt;<br>Cc: cid@c.com<br>');
+  });
+
   it('escapes HTML in plain-text quoted body', () => {
     const html = buildInitialHtml('reply', {
       from: { email: 'a@b.com' },

@@ -580,7 +580,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (!replyTo) return prefillBody ?? '';
     const header = buildQuoteHeader({
       mode: mode === 'compose' ? 'reply' : mode,
-      email: { from: replyTo.from, subject: replyTo.subject, receivedAt: replyTo.sentAt ?? replyTo.receivedAt },
+      email: { from: replyTo.from, to: replyTo.to, cc: replyTo.cc, subject: replyTo.subject, receivedAt: replyTo.sentAt ?? replyTo.receivedAt },
       timeFormat,
       locale,
       unknownLabel: t('common.unknown', 'Unknown'),

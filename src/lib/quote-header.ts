@@ -18,6 +18,9 @@ export interface QuoteHeaderLabels {
   fromLabel: string;
   dateLabel: string;
   subjectLabel: string;
+  /** The forward header's To and Cc lines; left out when not given. */
+  toLabel?: string;
+  ccLabel?: string;
 }
 
 export const DEFAULT_QUOTE_HEADER_LABELS: QuoteHeaderLabels = {
@@ -26,6 +29,8 @@ export const DEFAULT_QUOTE_HEADER_LABELS: QuoteHeaderLabels = {
   fromLabel: 'From',
   dateLabel: 'Date',
   subjectLabel: 'Subject',
+  toLabel: 'To',
+  ccLabel: 'Cc',
 };
 
 /**
@@ -39,6 +44,8 @@ export function quoteHeaderLabels(t: (key: string, fallback: string) => string):
     fromLabel: t('quote_header.from_label', 'From'),
     dateLabel: t('quote_header.date_label', 'Date'),
     subjectLabel: t('quote_header.subject_label', 'Subject'),
+    toLabel: t('compose_words.forward_to_label', 'To'),
+    ccLabel: t('compose_words.forward_cc_label', 'Cc'),
   };
 }
 
@@ -48,10 +55,39 @@ export interface QuoteHeader {
   wrapInBlockquote: boolean;
 }
 
+type HeaderAddress = { email?: string; name?: string };
+
+/** "Name <address>, address", as the forward header's From line writes one. */
+function formatAddressList(list: HeaderAddress[] | undefined): string {
+  return (list ?? [])
+    .filter((r) => r.email)
+    .map((r) => (r.name && r.name !== r.email ? `${r.name} <${r.email}>` : (r.email as string)))
+    .join(', ');
+}
+
+/**
+ * The To and Cc lines of a forward header, as Gmail and Outlook write them:
+ * one per list that has anyone on it, for a label the caller gave. Values
+ * are plain text; escape them for HTML.
+ */
+export function forwardRecipientLines(
+  email: { to?: HeaderAddress[]; cc?: HeaderAddress[] },
+  labels: { toLabel?: string; ccLabel?: string },
+): { label: string; value: string }[] {
+  const lines: { label: string; value: string }[] = [];
+  const to = formatAddressList(email.to);
+  const cc = formatAddressList(email.cc);
+  if (labels.toLabel && to) lines.push({ label: labels.toLabel, value: to });
+  if (labels.ccLabel && cc) lines.push({ label: labels.ccLabel, value: cc });
+  return lines;
+}
+
 export interface QuoteHeaderArgs {
   mode: 'reply' | 'replyAll' | 'forward';
   email: {
     from?: { email?: string; name?: string };
+    to?: HeaderAddress[];
+    cc?: HeaderAddress[];
     subject?: string;
     receivedAt?: string;
   };
@@ -105,8 +141,12 @@ export function buildQuoteHeader(args: QuoteHeaderArgs): QuoteHeader {
   const subject = email.subject || '';
 
   if (mode === 'forward') {
-    const text = `${labels.forwardedSeparator}\n${labels.fromLabel}: ${fromStrFull}\n${labels.dateLabel}: ${date}\n${labels.subjectLabel}: ${subject}\n`;
-    const html = `<div>${labels.forwardedSeparator}<br>${labels.fromLabel}: ${escapeHtml(fromStrFull)}<br>${labels.dateLabel}: ${escapeHtml(date)}<br>${labels.subjectLabel}: ${escapeHtml(subject)}<br><br></div>`;
+    const recipients = forwardRecipientLines(email, labels);
+    const text = `${labels.forwardedSeparator}\n${labels.fromLabel}: ${fromStrFull}\n${labels.dateLabel}: ${date}\n${labels.subjectLabel}: ${subject}\n`
+      + recipients.map((line) => `${line.label}: ${line.value}\n`).join('');
+    const html = `<div>${labels.forwardedSeparator}<br>${labels.fromLabel}: ${escapeHtml(fromStrFull)}<br>${labels.dateLabel}: ${escapeHtml(date)}<br>${labels.subjectLabel}: ${escapeHtml(subject)}<br>`
+      + recipients.map((line) => `${line.label}: ${escapeHtml(line.value)}<br>`).join('')
+      + '<br></div>';
     return { html, text, wrapInBlockquote: false };
   }
 
