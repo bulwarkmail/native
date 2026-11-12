@@ -1,7 +1,6 @@
 package com.anonymous.bulwarkmobile
 
 import android.content.Context
-import com.anonymous.bulwarkmobile.sync.DeviceSyncPushRouter
 import com.facebook.react.bridge.Arguments
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,10 +31,7 @@ class BulwarkUnifiedPushService : PushService() {
         BulwarkMessagingService.ensureChannel(this)
         val data = parsePayload(message.content) ?: return
 
-        // Same routing as FCM: contact and calendar changes request device
-        // syncs, and only mail starts the push task.
-        val mail = DeviceSyncPushRouter.route(applicationContext, data)
-        BulwarkMessagingService.startTaskUnlessInForeground(applicationContext, data, mail)
+        BulwarkMessagingService.handlePush(applicationContext, data)
 
         // Same event name and shape as the FCM path so the foreground JS
         // handler (App.tsx addMessageListener) works transport-agnostically.
@@ -88,13 +84,13 @@ class BulwarkUnifiedPushService : PushService() {
         // and foreground handler can stay transport-blind.
         fun parsePayload(content: ByteArray): Map<String, String>? = try {
             val json = JSONObject(String(content, Charsets.UTF_8))
-            buildMap {
-                json.optString("kind").takeIf { it.isNotEmpty() }?.let { put("kind", it) }
-                json.optString("accountLabel").takeIf { it.isNotEmpty() }?.let { put("accountLabel", it) }
-                json.optString("accountId").takeIf { it.isNotEmpty() }?.let { put("accountId", it) }
-                put("emailIds", (json.optJSONArray("emailIds") ?: JSONArray()).toString())
-                put("changed", (json.optJSONObject("changed") ?: JSONObject()).toString())
-            }
+            RelayPushData.of(
+                kind = json.optString("kind"),
+                accountLabel = json.optString("accountLabel"),
+                accountId = json.optString("accountId"),
+                emailIds = (json.optJSONArray("emailIds") ?: JSONArray()).toString(),
+                changed = (json.optJSONObject("changed") ?: JSONObject()).toString(),
+            )
         } catch (_: Exception) {
             null
         }

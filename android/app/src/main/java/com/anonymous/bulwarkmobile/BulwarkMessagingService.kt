@@ -31,11 +31,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
 
         val data = message.data
 
-        // Contact and calendar changes become syncs of the Android accounts
-        // they feed (device sync, #34); only mail needs the push task.
-        val mail = DeviceSyncPushRouter.route(applicationContext, data)
-
-        startTaskUnlessInForeground(applicationContext, data, mail)
+        handlePush(applicationContext, data)
 
         val params = Arguments.createMap().apply {
             val dataMap = Arguments.createMap()
@@ -52,6 +48,17 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         const val LEGACY_CHANNEL_ID = "bulwark_mail"
         private const val TAG = "BulwarkPush"
         private const val START_WAKE_LOCK_MS = 10_000L
+
+        /**
+         * What every transport (FCM, UnifiedPush, the direct connection) does
+         * with a push: contact and calendar changes become syncs of the
+         * Android accounts they feed (device sync, #34); only mail needs the
+         * push task.
+         */
+        fun handlePush(context: Context, data: Map<String, String>) {
+            val mail = DeviceSyncPushRouter.route(context, data)
+            startTaskUnlessInForeground(context, data, mail)
+        }
 
         /**
          * Runs the push task for a mail push unless the app's screen is

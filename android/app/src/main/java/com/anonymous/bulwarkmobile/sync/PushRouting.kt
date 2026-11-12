@@ -29,7 +29,7 @@ object PushRouting {
         val startMailTask: Boolean,
     )
 
-    private const val STATE_CHANGE_KIND = "jmap-state-change"
+    const val STATE_CHANGE_KIND = "jmap-state-change"
 
     /**
      * Types that may mean new mail: `EmailDelivery`, and `Email`/`Mailbox`,
