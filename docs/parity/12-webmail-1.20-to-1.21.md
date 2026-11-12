@@ -461,7 +461,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: reads only the help links, company name and no-third-party flag from the paired webmail's `/api/config` (`src/lib/org-policy.ts:475-525`); Settings > Account shows the auth method without a link (`src/components/settings/AccountSettings.tsx:131-136`).
   - Fix hint: add accountManagementUrl and accountManagementLabel to webmailLinksFromConfig and show the link under the auth method.
 
-- [ ] **The account switcher shows no unread count per account** — `P3` — `missing`
+- [x] **The account switcher shows no unread count per account** — `P3` — `missing` — fixed in d1a26ab3 (the count only; the host still shows on every row)
   - What WEB does: each switcher row shows name, address and the Inbox's unread count; the server host only shows for an account in trouble or a shared address (`components/layout/account-switcher.tsx:16`, `:58`, `:286`). 2a726c0f4.
   - What RN does: rows show name, subtitle and host, no unread count (`src/components/SidebarDrawer.tsx:925-1017`).
   - Fix hint: read the other accounts' Inbox unread from the unified inbox data the app already loads and show a badge per row.
