@@ -1725,7 +1725,9 @@ export default function EmailListScreen({
               {contactSuggestions.map((p) => (
                 <Pressable
                   key={p.email}
-                  style={[styles.recentSearchRow, styles.recentSearchMain]}
+                  // Not recentSearchMain, as for Search everything: its flex 1
+                  // left the row's height out and the chips covered it.
+                  style={styles.recentSearchRow}
                   onPress={() => {
                     setSearchInput('');
                     setSearchFocused(false);
