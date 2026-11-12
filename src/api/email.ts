@@ -168,6 +168,105 @@ async function emailSetBatched(
   return out;
 }
 
+// A Mailbox/get without ids over maxObjectsInGet: Stalwart 0.16 cuts the list
+// at the limit without saying so, 1.0 answers requestTooLarge (RFC 8620 §5.1).
+function mailboxListCapped(response: readonly unknown[] | undefined, maxObjects: number): boolean {
+  if (!response) return false;
+  const [name, body] = response as [string, Record<string, any>];
+  if (name === 'Mailbox/get') return Array.isArray(body?.list) && body.list.length >= maxObjects;
+  return name === 'error' && body?.type === 'requestTooLarge';
+}
+
+// Every new message or flag change moves the Mailbox state (the counts), so a
+// paged load is retried a few times before the refresh gives up.
+const MAILBOX_TREE_ATTEMPTS = 3;
+
+class MailboxListChangedError extends Error {
+  constructor() {
+    super('Mailbox list changed while it was being loaded');
+  }
+}
+
+/**
+ * Every folder of `accountId` through Mailbox/query pages and a get per page,
+ * for an account whose plain Mailbox/get hit the server's limit. A list that
+ * changes mid-load is read again from the start, up to three times.
+ * `pageSize` defaults to maxObjectsInGet; the live tests pass a small one.
+ */
+export async function fetchMailboxTree(
+  accountId: string,
+  opts: { pageSize?: number } = {},
+): Promise<{ list: Mailbox[]; state: string }> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchMailboxTreeOnce(accountId, opts.pageSize ?? maxInGet());
+    } catch (error) {
+      if (!(error instanceof MailboxListChangedError) || attempt >= MAILBOX_TREE_ATTEMPTS) throw error;
+    }
+  }
+}
+
+async function fetchMailboxTreeOnce(accountId: string, pageSize: number): Promise<{ list: Mailbox[]; state: string }> {
+  const mailboxes: Mailbox[] = [];
+  const seenIds = new Set<string>();
+  let position = 0;
+  let total: number | undefined;
+  let queryState: string | undefined;
+  let mailboxState: string | undefined;
+  const combined = jmapClient.getMaxCallsInRequest() > 1;
+  const incomplete = () => new Error('Failed to load the complete mailbox list');
+
+  let hasMorePages = true;
+  while (hasMorePages) {
+    const queryCall: JMAPMethodCall = ['Mailbox/query', {
+      accountId,
+      position,
+      limit: pageSize,
+      calculateTotal: position === 0,
+    }, 'query'];
+    const res = await jmapClient.request(combined ? [queryCall, ['Mailbox/get', {
+      accountId,
+      properties: MAILBOX_PROPERTIES,
+      '#ids': { resultOf: 'query', name: 'Mailbox/query', path: '/ids' },
+    }, 'get']] : [queryCall]);
+    const query = requireMethodResult(res, 'query', 'Mailbox/query');
+    const ids = query.ids as unknown;
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string') || typeof query.queryState !== 'string') {
+      throw incomplete();
+    }
+    // Result references can't cross requests: a single-call server gets the
+    // page's ids in a second request.
+    const got = combined
+      ? requireMethodResult(res, 'get', 'Mailbox/get')
+      : requireMethodResult(await jmapClient.request([['Mailbox/get', {
+        accountId, ids, properties: MAILBOX_PROPERTIES,
+      }, 'get']]), 'get', 'Mailbox/get');
+    const page = got.list as Mailbox[] | undefined;
+    if (!Array.isArray(page) || (got.notFound as unknown[] | undefined)?.length || page.length !== ids.length) {
+      throw incomplete();
+    }
+    if (queryState !== undefined && query.queryState !== queryState) throw new MailboxListChangedError();
+    const pageState = typeof got.state === 'string' ? got.state : undefined;
+    if (mailboxState !== undefined && pageState !== undefined && pageState !== mailboxState) {
+      throw new MailboxListChangedError();
+    }
+    queryState = query.queryState;
+    if (pageState !== undefined) mailboxState = pageState;
+    for (const id of ids as string[]) {
+      if (seenIds.has(id)) throw new Error('Mailbox/query returned duplicate ids');
+      seenIds.add(id);
+    }
+    mailboxes.push(...page);
+    if (typeof query.total === 'number') total = query.total;
+    position += ids.length;
+    hasMorePages = ids.length > 0 && (total === undefined || position < total);
+  }
+  if (total !== undefined && seenIds.size !== total) {
+    throw new Error(`Mailbox/query returned ${seenIds.size} of ${total} mailboxes`);
+  }
+  return { list: mailboxes, state: mailboxState ?? '' };
+}
+
 export async function getMailboxes(accountId?: string): Promise<Mailbox[]> {
   return (await getMailboxesWithState(accountId)).list;
 }
@@ -182,7 +281,12 @@ export async function getMailboxesWithState(
   const res = await jmapClient.request(
     [['Mailbox/get', { accountId, properties: MAILBOX_PROPERTIES }, '0']],
   );
-  const body = requireMethodResult(res, '0', 'Mailbox/get');
+  // Over the server's get limit the list is cut (0.16) or refused (1.0):
+  // read it in query pages instead (webmail #1502).
+  const first = res?.methodResponses?.find((r) => r[2] === '0');
+  const body = mailboxListCapped(first, maxInGet())
+    ? await fetchMailboxTree(accountId)
+    : requireMethodResult(res, '0', 'Mailbox/get');
   const list = ((body.list as Mailbox[]) ?? []).map((m) =>
     tagMailbox(m, accountId, jmapClient.getAccountName(accountId), isShared),
   );
@@ -194,7 +298,8 @@ export async function getMailboxesWithState(
  * into the sidebar next to the user's own. One request carrying a Mailbox/get
  * per account, chunked to the server's maxCallsInRequest. An account that
  * errors (revoked access, server hiccup) is skipped rather than sinking the
- * whole list.
+ * whole list. An account whose get hit the server's limit is read again in
+ * query pages.
  */
 export async function getSharedMailboxes(): Promise<Mailbox[]> {
   const accounts = jmapClient.getSharedMailAccounts();
@@ -211,10 +316,19 @@ export async function getSharedMailboxes(): Promise<Mailbox[]> {
         String(idx),
       ]),
     );
-    for (const [name, body, callId] of res.methodResponses) {
-      if (name !== 'Mailbox/get') continue;
+    for (const [name, response, callId] of res.methodResponses) {
       const acc = chunk[Number(callId)];
       if (!acc) continue;
+      let body = response as Record<string, any>;
+      if (mailboxListCapped([name, response], maxInGet())) {
+        try {
+          body = await fetchMailboxTree(acc.id);
+        } catch {
+          continue;
+        }
+      } else if (name !== 'Mailbox/get') {
+        continue;
+      }
       for (const m of (body.list as Mailbox[]) ?? []) {
         out.push(tagMailbox(m, acc.id, acc.name, true));
       }

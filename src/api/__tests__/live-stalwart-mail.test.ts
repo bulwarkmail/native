@@ -662,3 +662,44 @@ live('live Stalwart: recover deleted items (x:ArchivedItem)', () => {
     expect(await findArchived()).toBeUndefined();
   }, 120_000);
 });
+
+// Folder lists over the server's get limit (#1502). Hundreds of folders are
+// too many to create on a test server, so the case reads maxObjectsInGet and
+// runs the Mailbox/query + get paging with a page size of 2.
+live('live Stalwart: folder list in query pages (#1502)', () => {
+  const made: string[] = [];
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    for (const n of [1, 2, 3]) made.push(await createMailbox({ name: `live-pages-${RUN}-${n}` }));
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    for (const id of made) await deleteMailbox(id).catch(() => undefined);
+  }, 60_000);
+
+  it('reads every own and shared folder through Mailbox/query pages of 2', async () => {
+    const { fetchMailboxTree, getSharedMailboxes } = await import('../email');
+    const maxGet = client.getMaxObjectsInGet();
+    expect(maxGet).toBeGreaterThan(0);
+
+    const whole = await getMailboxesWithState();
+    const paged = await fetchMailboxTree(client.accountId, { pageSize: 2 });
+    expect(paged.list.length).toBeGreaterThan(4);
+    expect(paged.list.map((m) => m.id).sort()).toEqual(whole.list.map((m) => m.id).sort());
+    for (const id of made) expect(paged.list.some((m) => m.id === id)).toBe(true);
+    expect(paged.state).toBeTruthy();
+
+    // The shared accounts the session lists go through the same path.
+    for (const acc of singleton.getSharedMailAccounts()) {
+      const shared = await fetchMailboxTree(acc.id, { pageSize: 2 });
+      const viaGet = (await getSharedMailboxes()).filter((m) => m.accountId === acc.id);
+      expect(shared.list.map((m) => m.id).sort()).toEqual(viaGet.map((m) => m.originalId).sort());
+    }
+  }, 60_000);
+});
