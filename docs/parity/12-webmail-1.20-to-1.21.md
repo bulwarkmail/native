@@ -153,7 +153,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: NewTagRow always adds to the user's own tags (`src/components/NewTagRow.tsx:24-38`), while group rows show the group's merged tags (`src/screens/EmailListScreen.tsx:605-611`).
   - Fix hint: pass the scope to NewTagRow and save through the shared tags store for a group account.
 
-- [ ] **New accounts start with seven colour tags; admins can't set default tags** — `P3` — `bug`
+- [x] **New accounts start with seven colour tags; admins can't set default tags** — `P3` — `bug` — fixed in d7d3a676 (the admin's defaults.emailKeywords until the user changes a tag; without one the seven colour tags stay, as in the webmail's DEFAULT_SETTINGS)
   - What WEB does: new accounts start with no tags, or with the admin's `defaults.emailKeywords` (`stores/settings-store.ts` DEFAULT_SETTINGS, `lib/admin/policy-defaults.ts:31-40`). 3163864b1 (#1612).
   - What RN does: DEFAULT_KEYWORDS (Red, Orange, ...) for every new account and on reset (`src/stores/keywords-store.ts:35`, `:117`, `:211`).
   - Fix hint: start empty, take the policy default when there is one.
