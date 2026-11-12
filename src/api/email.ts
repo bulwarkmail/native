@@ -2226,6 +2226,11 @@ export async function createDraft(
 /**
  * A conversation's drafts with what it takes to tell which message each one
  * answers (webmail lib/reply-drafts.ts threadDrafts). One round trip.
+ *
+ * Only the drafts in the Drafts folder: one moved to Trash (or Junk) keeps
+ * its $draft keyword and stays in the conversation, and Reply reopened it.
+ * An account without a Drafts folder keeps every draft outside Trash and Junk;
+ * a folder lookup the server refuses doesn't hide any draft.
  */
 export async function getThreadDrafts(threadId: string, accountIdOverride?: string): Promise<Email[]> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
@@ -2236,9 +2241,20 @@ export async function getThreadDrafts(threadId: string, accountIdOverride?: stri
       '#ids': { resultOf: 't', name: 'Thread/get', path: '/list/*/emailIds' },
       properties: ['id', 'threadId', 'keywords', 'mailboxIds', 'inReplyTo', 'receivedAt'],
     }, 'e'],
+    ['Mailbox/query', { accountId, filter: { role: 'drafts' } }, 'd'],
+    ['Mailbox/query', { accountId, filter: { role: 'trash' } }, 'x'],
+    ['Mailbox/query', { accountId, filter: { role: 'junk' } }, 'j'],
   ]);
   const list = (requireMethodResult(res, 'e', 'Email/get').list as Email[] | undefined) ?? [];
-  return list.filter((e) => e.keywords?.$draft);
+  const idsOf = (callId: string): string[] => {
+    const [name, body] = res.methodResponses.find(([, , id]) => id === callId) ?? [];
+    return name === 'Mailbox/query' && Array.isArray(body?.ids) ? (body.ids as string[]) : [];
+  };
+  const draftsFolders = idsOf('d');
+  const binned = new Set([...idsOf('x'), ...idsOf('j')]);
+  const inAny = (e: Email, ids: Iterable<string>) => [...ids].some((id) => e.mailboxIds?.[id]);
+  return list.filter((e) => e.keywords?.$draft
+    && (draftsFolders.length > 0 ? inAny(e, draftsFolders) : !inAny(e, binned)));
 }
 
 export interface ScheduledEmail {

@@ -306,6 +306,46 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       const all = await findReplyDraftContext('replyAll', original);
       expect(all?.cc?.map((r) => r.email)).toEqual(['bob@example.org']);
     }, 60_000);
+
+    // A reply draft moved to Trash keeps $draft and its thread; Reply starts
+    // a new reply instead of reopening it.
+    it('leaves a saved reply moved to Trash alone', async () => {
+      const boxes = await getMailboxes();
+      const inbox = boxes.find((b) => b.role === 'inbox')!.id;
+      const trash = boxes.find((b) => b.role === 'trash')!.id;
+      const msgId = `binned-${RUN}@example.org`;
+      const res = await singleton.request([['Email/set', {
+        accountId: singleton.accountId,
+        create: {
+          o: {
+            mailboxIds: { [inbox]: true }, keywords: { $seen: true },
+            from: [{ email: 'ann@example.org', name: 'Ann' }], to: [{ email: USER }],
+            subject: `binned ${tag}`, messageId: [msgId], receivedAt: new Date(Date.now() - 60_000).toISOString(),
+            bodyValues: { b: { value: 'hello' } }, textBody: [{ partId: 'b', type: 'text/plain' }],
+          },
+        },
+      }, '0']]);
+      const origId = res.methodResponses[0][1].created.o.id as string;
+      createdEmails.push(origId);
+      const reply = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: 'ann@example.org' }], subject: `Re: binned ${tag}`, textBody: 'binned reply',
+        inReplyTo: [msgId], references: [msgId],
+      }, drafts);
+      createdEmails.push(reply.id);
+      const [original] = await getFullEmails([origId]);
+      expect((await getThreadDrafts(original.threadId)).map((d) => d.id)).toContain(reply.id);
+
+      const moved = await singleton.request([['Email/set', {
+        accountId: singleton.accountId, update: { [reply.id]: { mailboxIds: { [trash]: true } } },
+      }, '0']]);
+      expect(moved.methodResponses[0][1].updated).toHaveProperty(reply.id);
+      const [binned] = await getFullEmails([reply.id]);
+      expect(binned.keywords?.$draft).toBe(true);
+      expect(binned.threadId).toBe(original.threadId);
+
+      expect((await getThreadDrafts(original.threadId)).map((d) => d.id)).not.toContain(reply.id);
+      expect(await findReplyDraftContext('reply', original)).toBeNull();
+    }, 60_000);
   });
 
   describe('reply From', () => {
