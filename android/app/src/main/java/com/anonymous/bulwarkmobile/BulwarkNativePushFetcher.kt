@@ -69,6 +69,9 @@ object BulwarkNativePushFetcher {
     private const val CREDENTIALS_PREFIX = "jmap_credentials__"
 
     private val secureStoreLock = Any()
+    // Held across a token refresh, so two native refreshes (a push and a
+    // notification action) never spend the same refresh token.
+    private val refreshLock = Any()
 
     /**
      * How long a push may spend on the network here. Android gives the FCM
@@ -85,6 +88,13 @@ object BulwarkNativePushFetcher {
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    // The refresh token goes in the body: a redirect must not carry it to
+    // another host (the app's refresh refuses foreign redirects too).
+    private val tokenClient = httpClient.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
 
     /** Runs [request], giving up at [deadlineMs]. */
@@ -859,23 +869,9 @@ object BulwarkNativePushFetcher {
 
         val initialAuthHeader = if (!accessToken.isNullOrBlank()) {
             val now = System.currentTimeMillis()
-            val refreshToken = activeCreds.refreshToken
-            val tokenEndpoint = activeCreds.tokenEndpoint
             if (activeCreds.expiresAt > 0L && activeCreds.expiresAt - now <= TOKEN_REFRESH_LEEWAY_MS) {
-                if (refreshToken.isNullOrBlank() || tokenEndpoint.isNullOrBlank()) {
-                    return null
-                }
-                val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, activeCreds.clientId, deadlineMs)
-                    ?: return null
+                activeCreds = renewedCredentials(context, credentialsKey, activeCreds, deadlineMs) ?: return null
                 refreshedAlready = true
-                activeCreds = updateTokensInSecureStore(
-                    context = context,
-                    credentialsKey = credentialsKey,
-                    expectedUsername = creds.username,
-                    expectedServerUrl = creds.serverUrl,
-                    fresh = fresh,
-                    nowMs = now,
-                ) ?: activeCreds.copy(accessToken = fresh.accessToken)
             }
             "Bearer ${activeCreds.accessToken}"
         } else {
@@ -907,28 +903,9 @@ object BulwarkNativePushFetcher {
         val (statusCode, firstBody) = postWithAuth(initialAuthHeader)
         if (firstBody != null) return firstBody
 
-        if (statusCode == 401 &&
-            !refreshedAlready &&
-            !activeCreds.accessToken.isNullOrBlank() &&
-            !activeCreds.refreshToken.isNullOrBlank() &&
-            !activeCreds.tokenEndpoint.isNullOrBlank()
-        ) {
-            val now = System.currentTimeMillis()
-            val fresh = refreshOAuthToken(
-                activeCreds.tokenEndpoint,
-                activeCreds.refreshToken,
-                activeCreds.clientId,
-                deadlineMs,
-            ) ?: return null
-            updateTokensInSecureStore(
-                context = context,
-                credentialsKey = credentialsKey,
-                expectedUsername = creds.username,
-                expectedServerUrl = creds.serverUrl,
-                fresh = fresh,
-                nowMs = now,
-            )
-            val (retryCode, retryBody) = postWithAuth("Bearer ${fresh.accessToken}")
+        if (statusCode == 401 && !refreshedAlready && !activeCreds.accessToken.isNullOrBlank()) {
+            val renewed = renewedCredentials(context, credentialsKey, activeCreds, deadlineMs) ?: return null
+            val (retryCode, retryBody) = postWithAuth("Bearer ${renewed.accessToken}")
             if (retryBody == null) {
                 Log.w(TAG, "JMAP retry after 401 token refresh failed with status $retryCode")
             }
@@ -937,6 +914,54 @@ object BulwarkNativePushFetcher {
 
         Log.w(TAG, "JMAP HTTP request failed with status $statusCode")
         return null
+    }
+
+    /**
+     * Whether [stored] holds a newer access token than [stale] that is not
+     * about to expire: the app (or another push) refreshed it meanwhile. The
+     * rule of adoptStoredTokens in src/api/jmap-client.ts.
+     */
+    fun storedTokensReplace(stale: StoredCredentials, stored: StoredCredentials, nowMs: Long): Boolean =
+        !stored.accessToken.isNullOrBlank() &&
+            stored.accessToken != stale.accessToken &&
+            stored.expiresAt > stale.expiresAt &&
+            stored.expiresAt - nowMs > TOKEN_REFRESH_LEEWAY_MS
+
+    /**
+     * Credentials with a usable access token in place of [stale]'s, or null.
+     * Storage is read again first, under [refreshLock]: the app or another
+     * push may have refreshed already, and on a server that rotates refresh
+     * tokens the one in [stale] is then spent. Refreshing with it would fail
+     * at best and, with reuse detection, revoke the sign-in. Only when storage
+     * has nothing newer is the token endpoint asked, with the stored refresh
+     * token, and the new tokens are written back for the app.
+     */
+    private fun renewedCredentials(
+        context: Context,
+        credentialsKey: String,
+        stale: StoredCredentials,
+        deadlineMs: Long,
+    ): StoredCredentials? {
+        synchronized(refreshLock) {
+            // Signed out meanwhile: nothing to refresh.
+            val stored = readCredentialsFromSecureStore(context, credentialsKey) ?: return null
+            val now = System.currentTimeMillis()
+            if (storedTokensReplace(stale, stored, now)) return stored
+            val refreshToken = stored.refreshToken ?: return null
+            val tokenEndpoint = stored.tokenEndpoint ?: return null
+            val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, stored.clientId, deadlineMs) ?: return null
+            return updateTokensInSecureStore(
+                context = context,
+                credentialsKey = credentialsKey,
+                expectedUsername = stale.username,
+                expectedServerUrl = stale.serverUrl,
+                fresh = fresh,
+                nowMs = now,
+            ) ?: run {
+                Log.w(TAG, "Refreshed tokens for $credentialsKey could not be stored")
+                stored.copy(accessToken = fresh.accessToken, refreshToken = fresh.refreshToken ?: refreshToken)
+            }
+        }
     }
 
     private fun refreshOAuthToken(
@@ -957,7 +982,7 @@ object BulwarkNativePushFetcher {
                 .post(form.build())
                 .build()
 
-            executeBefore(httpClient, req, deadlineMs) { resp ->
+            executeBefore(tokenClient, req, deadlineMs) { resp ->
                 if (!resp.isSuccessful) return null
                 val bodyStr = resp.body?.string() ?: return null
                 val body = JSONObject(bodyStr)

@@ -258,4 +258,26 @@ class BulwarkNativePushFetcherTest {
             held.forEach { it.close() }
         }
     }
+
+    private fun oauthCreds(accessToken: String, expiresAt: Long, refreshToken: String = "r") =
+        BulwarkNativePushFetcher.parseStoredCredentialsJson(
+            """{"serverUrl":"https://mail.example.org","username":"ada","password":"",""" +
+                """"accessToken":"$accessToken","refreshToken":"$refreshToken","expiresAt":$expiresAt,""" +
+                """"tokenEndpoint":"https://mail.example.org/auth/token","clientId":"app"}""",
+        )!!
+
+    @Test
+    fun `a token the app refreshed meanwhile is used instead of refreshing again`() {
+        val now = 1_000_000_000L
+        val stale = oauthCreds("old", now + 30_000, refreshToken = "r1")
+        // The app spent r1 and stored what it got: refreshing with r1 again would fail.
+        val byApp = oauthCreds("new", now + 3_600_000, refreshToken = "r2")
+        assertTrue(BulwarkNativePushFetcher.storedTokensReplace(stale, byApp, now))
+        // Nothing newer stored: refresh.
+        assertFalse(BulwarkNativePushFetcher.storedTokensReplace(stale, stale, now))
+        // An older bundle is never taken.
+        assertFalse(BulwarkNativePushFetcher.storedTokensReplace(byApp, stale, now))
+        // Newer but about to expire as well: refresh, with the stored refresh token.
+        assertFalse(BulwarkNativePushFetcher.storedTokensReplace(stale, oauthCreds("new", now + 45_000), now))
+    }
 }
