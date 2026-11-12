@@ -55,6 +55,7 @@ import { serverSupportsEmailPush } from '../lib/push-notifications';
 import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { gateFolderActions, unreadInTree } from '../lib/folder-sheet-actions';
+import { compactSharedTree, type CompactMailboxNode } from '../lib/compact-shared-mailbox';
 import { useNetworkStore } from '../stores/network-store';
 import { unreadRowLabel } from '../lib/unread-row-label';
 
@@ -449,7 +450,12 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mailboxes],
   );
-  const tree = React.useMemo(() => buildMailboxTree(mailboxes, { hideOwnRoles }), [mailboxes, hideOwnRoles]);
+  // "Compact shared mailboxes" (webmail #1483): a shared account as its Inbox's row.
+  const compactShared = useSettingsStore((s) => s.compactSharedMailboxes);
+  const tree = React.useMemo<CompactMailboxNode[]>(() => {
+    const full = buildMailboxTree(mailboxes, { hideOwnRoles });
+    return compactShared ? compactSharedTree(full) : full;
+  }, [mailboxes, hideOwnRoles, compactShared]);
   const visibleNodes = React.useMemo(
     () => flattenVisible(tree, expandedFolders),
     [tree, expandedFolders],
@@ -1255,7 +1261,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                         color={node.isAccountNode ? c.textMuted : iconColor(c, node.role, isSelected)}
                       />
                     }
-                    label={node.isAccountNode ? node.name : localizeMailboxName(node.role, node.name, t)}
+                    label={node.isAccountNode ? node.name : (node as CompactMailboxNode).compactAccountName ?? localizeMailboxName(node.role, node.name, t)}
                     depth={node.depth}
                     isSelected={isSelected}
                     isAccountHeader={node.isAccountNode}

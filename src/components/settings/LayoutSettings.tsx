@@ -102,6 +102,7 @@ export function LayoutSettings() {
   const messageListOrderScope = useSettingsStore((s) => s.messageListOrderScope);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const showFolderTotalCount = useSettingsStore((s) => s.showFolderTotalCount);
+  const compactSharedMailboxes = useSettingsStore((s) => s.compactSharedMailboxes);
   const unifiedCrossAccount = useSettingsStore((s) => s.unifiedCrossAccount);
   const enableCrossUnreadView = useSettingsStore((s) => s.enableCrossUnreadView);
   const enableCrossStarredView = useSettingsStore((s) => s.enableCrossStarredView);
@@ -210,6 +211,12 @@ export function LayoutSettings() {
           description={t('settings.layout.show_folder_total_count_description', 'Show the total next to the unread count in the folder list.')}
         >
           <ToggleSwitch checked={showFolderTotalCount} onChange={(v) => update('showFolderTotalCount', v)} />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.appearance.compact_shared_mailboxes.label', 'Compact shared mailboxes')}
+          description={t('settings.appearance.compact_shared_mailboxes.description', 'Show each shared mailbox as one row that opens its inbox, with its folders below it. Empty ones such as Drafts or Trash are left out.')}
+        >
+          <ToggleSwitch checked={compactSharedMailboxes} onChange={(v) => update('compactSharedMailboxes', v)} />
         </SettingItem>
         <SettingItem
           label={t('settings.layout.show_avatars_in_junk', 'Show sender avatars in Junk')}

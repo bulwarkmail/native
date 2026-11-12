@@ -245,6 +245,9 @@ export interface PersistedSettings {
   showAvatarsInJunk: boolean;
   // Show the "/ total" part of the folder counts in the drawer (#498).
   showFolderTotalCount: boolean;
+  // A shared account with an Inbox as one row in the drawer (webmail
+  // compactSharedMailboxes, #1483).
+  compactSharedMailboxes: boolean;
   // Opening a folder drops an active search and filters and browses it,
   // instead of re-running the search there (#553, the default).
   clearSearchOnFolderChange: boolean;
@@ -473,6 +476,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   messageListOrderScope: 'inbox',
   showAvatarsInJunk: false,
   showFolderTotalCount: true,
+  compactSharedMailboxes: false,
   clearSearchOnFolderChange: false,
   searchDefaultScope: 'all',
   unifiedCrossAccount: false,
