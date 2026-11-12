@@ -45,6 +45,7 @@ import {
 } from '../../lib/push-notifications';
 import { createStateBaseline, startLiveUpdates } from '../push-stream';
 import type { EmailPushConfig, StateChange } from '../types';
+import { archiveFromNotification } from '../../lib/notification-mail-actions';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -521,6 +522,60 @@ live('live Stalwart push subscriptions', () => {
       }
     }, 60_000);
   });
+
+  // Archive from a notification (webmail public/sw.js, app/api/push/action):
+  // the request the JS task sends, which the native path mirrors.
+  it('archives from a notification into year and month folders, made in the same request', async () => {
+    const using = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'];
+    const post = async (calls: Array<[string, Record<string, unknown>, string]>) =>
+      (await client.request(calls, using)).methodResponses as Array<[string, Record<string, any>, string]>;
+    const before = await getMailboxes();
+    const known = new Set(before.map((b) => b.id));
+    const made = await client.request([[
+      'Email/set',
+      {
+        accountId: client.accountId,
+        create: {
+          probe: {
+            mailboxIds: { [inbox]: true },
+            keywords: {},
+            from: [{ email: 'probe@example.org' }],
+            subject: `live archive probe ${run}`,
+            // Far enough back that the year and month folders are new.
+            receivedAt: '2011-03-15T12:00:00Z',
+            bodyValues: { b: { value: 'probe' } },
+            textBody: [{ partId: 'b', type: 'text/plain' }],
+          },
+        },
+      },
+      '0',
+    ]], using);
+    const emailId = (made.methodResponses[0][1] as { created?: Record<string, { id: string }> }).created?.probe?.id;
+    expect(emailId, JSON.stringify(made.methodResponses[0][1])).toBeTruthy();
+    let fresh: string[] = [];
+    try {
+      expect(await archiveFromNotification(post, client.accountId, emailId!, 'month')).toBe('archived');
+      const after = await getMailboxes();
+      fresh = after.filter((b) => !known.has(b.id)).map((b) => b.id);
+      const archive = after.find((b) => b.role === 'archive') ?? after.find((b) => b.name.toLowerCase() === 'archive');
+      const year = after.find((b) => b.parentId === archive?.id && b.name === '2011');
+      const month = after.find((b) => b.parentId === year?.id && b.name === '03');
+      expect(month, JSON.stringify(after.map((b) => [b.name, b.parentId]))).toBeTruthy();
+      const got = await client.request([['Email/get', { accountId: client.accountId, ids: [emailId], properties: ['mailboxIds'] }, '0']], using);
+      expect((got.methodResponses[0][1] as { list: Array<{ mailboxIds: object }> }).list[0].mailboxIds).toEqual({ [month!.id]: true });
+    } finally {
+      await client.request([['Email/set', { accountId: client.accountId, destroy: [emailId] }, '0']], using);
+      // Deepest first: the month, then the year, then an Archive folder this run made.
+      const boxes = await getMailboxes();
+      const depth = (id: string): number => {
+        const parent = boxes.find((b) => b.id === id)?.parentId;
+        return parent ? 1 + depth(parent) : 0;
+      };
+      for (const id of [...fresh].sort((a, b) => depth(b) - depth(a))) {
+        await client.request([['Mailbox/set', { accountId: client.accountId, destroy: [id] }, '0']], using).catch(() => undefined);
+      }
+    }
+  }, 60_000);
 
   it('refuses a type it does not know over the types property', async () => {
     const err = await refusal(create('bogus-type', { types: ['EmailDelivery', 'NoSuchType'] }));

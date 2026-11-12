@@ -3,9 +3,15 @@ package com.anonymous.bulwarkmobile
 import android.app.Application
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.PersistableBundle
+import android.widget.Toast
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -22,6 +28,13 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
         val emailId = intent.getStringExtra(NotificationTapStore.EXTRA_EMAIL_ID)
         val accountId = intent.getStringExtra(NotificationTapStore.EXTRA_ACCOUNT_ID)
         val jmapAccountId = intent.getStringExtra(NotificationTapStore.EXTRA_JMAP_ACCOUNT_ID)
+
+        // Copy code: the notification stays, for Archive or Delete after it.
+        if (action == "copyCode") {
+            val code = intent.getStringExtra(BulwarkFcmModule.EXTRA_CODE)
+            if (!code.isNullOrBlank()) copyCode(context, code, intent.getStringExtra(BulwarkFcmModule.EXTRA_CODE_COPIED_LABEL))
+            return
+        }
 
         // Dismiss the notification immediately from the tray and clean up the
         // group summary if fewer than two child notifications remain.
@@ -152,5 +165,28 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BulwarkNotifAction"
+
+        /**
+         * Puts a sign-in code on the clipboard, marked sensitive so Android
+         * 13+ hides it in its preview. That version says "Copied" itself;
+         * older ones get the label as a toast.
+         */
+        fun copyCode(context: Context, code: String, copiedLabel: String?) {
+            try {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("code", code)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    clip.description.extras = PersistableBundle().apply {
+                        putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                    }
+                }
+                clipboard.setPrimaryClip(clip)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && !copiedLabel.isNullOrBlank()) {
+                    Toast.makeText(context, copiedLabel, Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Copying the code failed: ${e.message}")
+            }
+        }
     }
 }
