@@ -311,6 +311,8 @@ interface DetachedSession {
   // The session's accounts: the login's group accounts decide which scopes
   // of its organisation policy apply.
   accounts: JMAPSession['accounts'];
+  // The name the server signed the login in as (session `username`).
+  username?: string;
 }
 
 function authHeaderFor(creds: StoredCredentials): string {
@@ -379,7 +381,10 @@ async function openDetachedSession(accountId: string): Promise<DetachedSession |
     || Object.keys(session.accounts ?? {})[0]
     || null;
   if (!jmapAccountId) return null;
-  return { apiUrl: rewriteApiUrl(session, baseUrl), authHeader, jmapAccountId, accounts: session.accounts ?? {} };
+  return {
+    apiUrl: rewriteApiUrl(session, baseUrl), authHeader, jmapAccountId, accounts: session.accounts ?? {},
+    ...(typeof session.username === 'string' ? { username: session.username } : {}),
+  };
 }
 
 /**
@@ -610,7 +615,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
   const alreadyNotified = await readNotifiedIds(accountId);
   // The login's organisation wants notifications that say only that there
   // is new mail: sender, subject and preview are not even fetched.
-  const withoutContent = await pushWithoutContentFor(accountId, session.accounts, session.jmapAccountId);
+  const withoutContent = await pushWithoutContentFor(accountId, session.accounts, session.jmapAccountId, session.username);
   if (withoutContent) await clearShownMessageNotifications(alreadyNotified);
   const properties = withoutContent ? CONTENT_FREE_EMAIL_PROPERTIES : EMAIL_PROPERTIES;
   let candidates: Email[];

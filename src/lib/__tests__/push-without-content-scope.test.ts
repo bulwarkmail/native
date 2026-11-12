@@ -34,6 +34,7 @@ import * as Notifications from 'expo-notifications';
 import { jmapClient } from '../../api/jmap-client';
 import { secureFetch } from '../client-cert';
 import { pushBackgroundTask } from '../push-background-task';
+import { pushWithoutContentFor } from '../push-notifications';
 
 const LOCAL = 'alice@mail.example.com';
 const WEBMAIL = 'https://webmail.example.com';
@@ -165,5 +166,52 @@ describe('the rule with a username-only registry, a failed lookup and without th
     expect(showNotification.mock.calls[0][0]).toMatchObject({ emailId: 'm1', title: SENDER_NAME, body: SECRET_SUBJECT });
     expect(showNotification.mock.calls[0][0]).toHaveProperty('markReadLabel');
     expect(Notifications.dismissNotificationAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('the rule for an alias login, as the push task works it out', () => {
+  // Signed in as ada@alias.example; the session names the login's own account
+  // ada@example.com. The rule hides content, so a scope of either address
+  // turns it on: the name signed in with (what the webmail's web push uses)
+  // or the session's address.
+  const ID = 'ada@alias.example@mail.example.com';
+  const WEBMAIL_URL = 'https://webmail.example.com';
+  const SESSION = { 'jmap-primary': { name: 'ada@example.com', isPersonal: true } };
+  const policyScopedTo = (domain: string) => ({
+    restrictions: {}, features: {}, defaults: {}, forceEnabledThemes: [], themePolicy: {},
+    organisation: { devices: { pushWithoutContent: false } },
+    scopes: [{ id: 'd', match: { domains: [domain] }, policy: { organisation: { devices: { pushWithoutContent: true } } } }],
+  });
+  async function ruleOn(domain: string, registryEntry: Record<string, unknown>, sessionUsername: string): Promise<boolean> {
+    await AsyncStorage.setItem('account-registry', JSON.stringify({
+      state: { accounts: [{ id: ID, serverUrl: 'https://mail.example.com', webmailUrl: WEBMAIL_URL, ...registryEntry }] }, version: 0,
+    }));
+    await AsyncStorage.setItem('org-policy-cache', JSON.stringify({
+      state: { byAccount: { [ID]: { policy: policyScopedTo(domain), partial: false, fetchedAt: 1, webmailUrl: WEBMAIL_URL } }, configByAccount: {} },
+      version: 0,
+    }));
+    return pushWithoutContentFor(ID, SESSION, 'jmap-primary', sessionUsername);
+  }
+  const alias = { username: 'ada@alias.example', email: 'ada@alias.example' };
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it('a domain rule on the alias only turns it on', async () => {
+    expect(await ruleOn('alias.example', alias, 'ada@alias.example')).toBe(true);
+  });
+
+  it('a domain rule on the session\'s address only turns it on', async () => {
+    expect(await ruleOn('example.com', alias, 'ada@alias.example')).toBe(true);
+  });
+
+  it('a domain rule on neither address leaves it off', async () => {
+    expect(await ruleOn('other.example', alias, 'ada@alias.example')).toBe(false);
+  });
+
+  it('a bare local part counts as the name the server signed it in as', async () => {
+    // Signed in as "ada"; the server names the login ada@alias.example.
+    expect(await ruleOn('alias.example', { username: 'ada', email: 'ada@example.com' }, 'ada@alias.example')).toBe(true);
   });
 });

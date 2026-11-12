@@ -276,6 +276,32 @@ export function policySubjectFromSession(
   return { email: own, groups };
 }
 
+/**
+ * The addresses the rule pushWithoutContent is resolved for. It hides
+ * content, so it is on when it is on for either of them:
+ *  - the name the login signed in with, as the webmail's web push takes it
+ *    (lib/admin/server-device-policy.ts, `accountName || username`: the
+ *    claimed login name, or the session's `username` for a bare local part);
+ *  - the name the session gives the login's own account when it is an
+ *    address, else the registry's email, else the user name.
+ * One address when both are the same; [''] when nothing is known.
+ */
+export function pushRuleEmails(names: {
+  username?: unknown;
+  sessionUsername?: unknown;
+  ownAccountName?: unknown;
+  email?: unknown;
+}): string[] {
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const username = text(names.username);
+  const sessionUsername = text(names.sessionUsername);
+  const ownAccountName = text(names.ownAccountName);
+  const signedInAs = !username.includes('@') && sessionUsername.includes('@') ? sessionUsername : username;
+  const address = ownAccountName.includes('@') ? ownAccountName : text(names.email) || username;
+  const emails = [...new Set([signedInAs, address].map((e) => e.toLowerCase()).filter(Boolean))];
+  return emails.length > 0 ? emails : [''];
+}
+
 function pushRuleOn(organisation: Record<string, unknown> | undefined): boolean {
   const devices = organisation?.devices;
   return isRecord(devices) && devices.pushWithoutContent === true;
