@@ -29,6 +29,11 @@ const { fake } = vi.hoisted(() => ({
 
 vi.mock('../jmap-client', () => ({ jmapClient: fake }));
 
+const discovery = vi.hoisted(() => ({ scopes: [] as string[] | null }));
+vi.mock('../../lib/oauth-native', () => ({
+  discoverOAuthMetadata: vi.fn(async () => (discovery.scopes ? { scopes_supported: discovery.scopes } : null)),
+}));
+
 import {
   AccountSecurityForbiddenError,
   changePassword,
@@ -37,6 +42,7 @@ import {
   fetchAuthInfo,
   fetchCryptoInfo,
   isLimitedStalwartSignIn,
+  serverOffersSecurityScope,
   signedInWithPassword,
   updateEncryptionAtRest,
 } from '../account-security';
@@ -222,5 +228,19 @@ describe('encryption at rest (Stalwart 1.0.2 has no cipher)', () => {
     await updateEncryptionAtRest({ type: 'Disabled' });
     fake.responses = settings({ '@type': 'Disabled' });
     expect((await fetchCryptoInfo()).turnedOffOnServer).toBeFalsy();
+  });
+});
+
+describe('serverOffersSecurityScope', () => {
+  it('is true where discovery lists the security scope (1.0.3+), so signing in again helps', async () => {
+    discovery.scopes = ['openid', 'urn:ietf:params:oauth:scope:mail', 'urn:stalwart:oauth:scope:security'];
+    expect(await serverOffersSecurityScope()).toBe(true);
+  });
+
+  it('is false on 1.0.0 to 1.0.2 and without discovery', async () => {
+    discovery.scopes = ['openid', 'urn:ietf:params:oauth:scope:mail'];
+    expect(await serverOffersSecurityScope()).toBe(false);
+    discovery.scopes = null;
+    expect(await serverOffersSecurityScope()).toBe(false);
   });
 });

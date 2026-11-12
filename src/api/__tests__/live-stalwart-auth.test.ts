@@ -49,6 +49,7 @@ import {
   fetchAuthInfo,
   isLimitedStalwartSignIn,
   isStalwartSupported,
+  serverOffersSecurityScope,
   signedInWithPassword,
 } from '../account-security';
 import {
@@ -353,6 +354,48 @@ live('live Stalwart sign-in', () => {
     } finally {
       await revokeRefreshToken(SERVER, tokens);
       resetLoginClients();
+    }
+  }, 30_000);
+
+  it('a token from the own client without security scope reports a limited sign-in; a fresh sign-in on 1.0.3+ does not', async () => {
+    if (!isV1) return;
+    // A grant like one from before 1.0.3: the app's own client, data scopes only.
+    const scope = stalwartLoginScope(null);
+    const reg = await fetch(`${SERVER}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Bulwark Mobile',
+        redirect_uris: [REGISTERED_REDIRECT_URI],
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        scope,
+      }),
+    });
+    const { client_id: clientId } = (await reg.json()) as { client_id: string };
+    const old = await exchangePasswordForTokens(SERVER, USER, PASS, undefined, { clientId, redirectUri: REGISTERED_REDIRECT_URI, scope });
+    try {
+      const client = new JMAPClient();
+      await client.connectWithOAuth(SERVER, old, USER);
+      useSingleton(client);
+      expect(isLimitedStalwartSignIn()).toBe(true);
+      // The settings screen offers a new sign-in only where it helps.
+      expect(await serverOffersSecurityScope()).toBe(hasSecurityScope);
+    } finally {
+      await revokeRefreshToken(SERVER, old);
+    }
+    if (!hasSecurityScope) return;
+    resetLoginClients();
+    const fresh = await exchangePasswordForTokens(SERVER, USER, PASS);
+    try {
+      const client = new JMAPClient();
+      await client.connectWithOAuth(SERVER, fresh, USER);
+      useSingleton(client);
+      expect(isLimitedStalwartSignIn()).toBe(false);
+      expect(isStalwartSupported()).toBe(true);
+    } finally {
+      await revokeRefreshToken(SERVER, fresh);
     }
   }, 30_000);
 

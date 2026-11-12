@@ -136,6 +136,12 @@ export interface AuthState {
   clearError: () => void;
   /** Ask for a new sign-in to an account (sets reauth). */
   requestReauth: (accountId: string) => Promise<void>;
+  /**
+   * Open the sign-in to an account that still works, for a new grant (a
+   * Stalwart 1.0.3 grant with the account scopes); unlike requestReauth the
+   * account is not marked as refused.
+   */
+  signInAgain: (accountId: string) => Promise<void>;
   clearReauth: () => void;
 }
 
@@ -254,11 +260,17 @@ const SIGN_IN_AGAIN = 'Sign in again';
  * has expired", which lost everything kept for it. Its credentials stay too
  * until the new sign-in replaces them. Null when the account is gone.
  */
-async function keepForSignIn(accountId: string): Promise<ReauthTarget | null> {
+async function reauthTargetFor(accountId: string): Promise<ReauthTarget | null> {
   const entry = useAccountStore.getState().getAccountById(accountId);
   if (!entry) return null;
   const creds = await jmapClient.getStoredCredentials(accountId).catch(() => null);
   const method: ReauthTarget['method'] = creds?.accessToken ? (creds.tokenEndpoint ? 'oauth' : 'token') : 'password';
+  return { accountId, serverUrl: entry.serverUrl, username: creds?.username || entry.username, method };
+}
+
+async function keepForSignIn(accountId: string): Promise<ReauthTarget | null> {
+  const target = await reauthTargetFor(accountId);
+  if (!target) return null;
   if (useAccountStore.getState().getAccountById(accountId)) {
     useAccountStore.getState().updateAccount(accountId, {
       isConnected: false,
@@ -267,7 +279,7 @@ async function keepForSignIn(accountId: string): Promise<ReauthTarget | null> {
       needsSignIn: true,
     });
   }
-  return { accountId, serverUrl: entry.serverUrl, username: creds?.username || entry.username, method };
+  return target;
 }
 
 // The outbox replays against whatever account the JMAP client serves, and a
@@ -1439,6 +1451,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   requestReauth: async (accountId) => {
     const reauth = await keepForSignIn(accountId);
+    if (reauth) set({ reauth });
+  },
+
+  signInAgain: async (accountId) => {
+    const reauth = await reauthTargetFor(accountId);
     if (reauth) set({ reauth });
   },
 

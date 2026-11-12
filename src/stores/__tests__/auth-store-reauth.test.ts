@@ -126,3 +126,20 @@ describe('reauthStart', () => {
     expect(reauthStart(null).step).toBe('choose');
   });
 });
+
+describe('signing in again to a working account (Stalwart 1.0.3 scopes)', () => {
+  it('opens the sign-in to it, filled in, without marking it as refused', async () => {
+    stored.creds = { serverUrl: 'https://mail.example.org', username: 'usera@example.org', accessToken: 'at', tokenEndpoint: 'https://mail.example.org/auth/token' };
+    useAccountStore.getState().updateAccount(A, { isConnected: true });
+
+    await useAuthStore.getState().signInAgain(A);
+
+    expect(useAuthStore.getState().reauth).toEqual({
+      accountId: A, serverUrl: 'https://mail.example.org', username: 'usera@example.org', method: 'oauth',
+    });
+    const account = useAccountStore.getState().getAccountById(A);
+    expect(account?.needsSignIn).toBeFalsy();
+    expect(account?.hasError).toBe(false);
+    expect(account?.isConnected).toBe(true);
+  });
+});

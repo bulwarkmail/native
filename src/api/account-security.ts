@@ -130,6 +130,26 @@ export function isLimitedStalwartSignIn(): boolean {
   return !!clientId && clientId.startsWith('swc1.') && !isStalwartSupported() && !!jmapClient.currentSession;
 }
 
+const STALWART_SECURITY_SCOPE = 'urn:stalwart:oauth:scope:security';
+
+/**
+ * Does the server give these settings to a sign-in that asks for them?
+ * Stalwart 1.0.3+ does, through the `security` scope it lists in its
+ * discovery document; a grant from before the upgrade keeps its data-only
+ * scopes, and signing in again gets a new one.
+ */
+export async function serverOffersSecurityScope(): Promise<boolean> {
+  const serverUrl = jmapClient.serverUrl;
+  if (!serverUrl) return false;
+  try {
+    const { discoverOAuthMetadata } = await import('../lib/oauth-native');
+    const metadata = await discoverOAuthMetadata(serverUrl);
+    return !!metadata?.scopes_supported?.includes(STALWART_SECURITY_SCOPE);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Did the user sign in with the account's Stalwart password? Basic auth, or
  * the password + TOTP sign-in, which ends in tokens (Stalwart takes no TOTP

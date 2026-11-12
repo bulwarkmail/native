@@ -33,6 +33,7 @@ import {
   fetchPublicKeys,
   createPublicKey,
   removePublicKey,
+  serverOffersSecurityScope,
   encryptionDialect,
   updateEncryptionAtRest,
   changePassword,
@@ -944,9 +945,15 @@ export function AccountSecuritySettings() {
 
   // null = still probing; false = server lacks the Stalwart extension.
   const [supported, setSupported] = useState<boolean | null>(null);
-  // The server has the extension but refuses it to this sign-in (Stalwart
-  // 1.0 with a client that isn't first-party).
+  // The server has the extension but refuses it to this sign-in: Stalwart
+  // 1.0.0 to 1.0.2 with a client that isn't first-party, or a 1.0.3+ grant
+  // without the `security` scope (one from before the upgrade).
   const [restricted, setRestricted] = useState(false);
+  // Restricted on a server that gives these settings to a new sign-in
+  // (1.0.3+ lists the `security` scope).
+  const [signInFixes, setSignInFixes] = useState(false);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  const signInAgain = useAuthStore((s) => s.signInAgain);
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const t = useLocaleStore((s) => s.t);
   const [displayName, setDisplayName] = useState('');
@@ -1021,6 +1028,13 @@ export function AccountSecuritySettings() {
     return () => { cancelled = true; };
   }, [isOAuth, reloadCrypto, t]);
 
+  useEffect(() => {
+    if (!restricted) { setSignInFixes(false); return; }
+    let cancelled = false;
+    void serverOffersSecurityScope().then((yes) => { if (!cancelled) setSignInFixes(yes); });
+    return () => { cancelled = true; };
+  }, [restricted]);
+
   return (
     <View style={styles.container}>
       <ScreenPrivacySection />
@@ -1052,9 +1066,22 @@ export function AccountSecuritySettings() {
           title={t('settings.security.title', 'Account Security')}
           description={t('settings.security.description', 'Manage your password, two-factor authentication, and security settings')}
         >
-          <Text style={styles.emptyText}>
-            {t('settings.security.restricted', "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.")}
-          </Text>
+          {signInFixes ? (
+            <View style={{ gap: spacing.md, alignItems: 'flex-start' }}>
+              <Text style={styles.emptyText}>
+                {t('settings.security.restricted_sign_in_again', 'Bulwark signed in before your server let apps manage these settings. Sign in again to manage the password, two-factor sign-in, app passwords and API keys here.')}
+              </Text>
+              {activeAccountId ? (
+                <Button size="sm" onPress={() => { void signInAgain(activeAccountId); }}>
+                  {t('sidebar.account_sign_in_again', 'Sign in again')}
+                </Button>
+              ) : null}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>
+              {t('settings.security.restricted', "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.")}
+            </Text>
+          )}
         </SettingsSection>
       )}
 
