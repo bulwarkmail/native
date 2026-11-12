@@ -116,24 +116,50 @@ function sameClientAccount(account: AccountEntry): boolean {
   return jmapClient.serverUrl === account.serverUrl && jmapClient.username === account.username;
 }
 
-/**
- * Who the policy is for (webmail lib/admin/policy-subject.ts): the
- * account's address, and the group accounts its session shows (shared,
- * not personal, named by an address).
- */
-export function policySubjectFor(account: AccountEntry): PolicySubject {
-  const session = sameClientAccount(account) ? jmapClient.currentSession : null;
-  // The address the session names for the login's own account, as the
-  // webmail takes it; the registry may hold a user name without a domain.
-  const own = session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
-  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
-  const groups = session
+/** The live session of the account, when the client serves it. */
+function sessionOf(account: AccountEntry) {
+  return sameClientAccount(account) ? jmapClient.currentSession : null;
+}
+
+/** The name the session gives the login's own mail account. */
+function ownAccountName(session: ReturnType<typeof sessionOf>): string | undefined {
+  return session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
+}
+
+/** The group accounts the session shows: shared, not personal, named by an address. */
+function sessionGroups(session: ReturnType<typeof sessionOf>): string[] {
+  return session
     ? Object.values(session.accounts)
       .filter((info) => !info.isPersonal && info.name.includes('@'))
       .map((info) => info.name.trim().toLowerCase())
       .sort()
     : [];
-  return { email, groups };
+}
+
+/**
+ * Who the policy is for, as the webmail client works it out
+ * (lib/admin/policy-subject.ts): the user name the login signed in with
+ * (JMAPClient.getUsername, else the name of its own account in the session),
+ * and its group accounts. The feature gates, locked settings and the other
+ * rules are resolved for it.
+ */
+export function policySubjectFor(account: AccountEntry): PolicySubject {
+  const session = sessionOf(account);
+  const email = (account.username || ownAccountName(session) || '').trim().toLowerCase();
+  return { email, groups: sessionGroups(session) };
+}
+
+/**
+ * Who the rule pushWithoutContent is for: the address the session names for
+ * the login's own account, else the registry's email, else the user name
+ * (the registry may hold a user name without a domain). The same chain as
+ * pushWithoutContentFor, which the push task uses.
+ */
+export function pushSubjectFor(account: AccountEntry): PolicySubject {
+  const session = sessionOf(account);
+  const own = ownAccountName(session);
+  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
+  return { email, groups: sessionGroups(session) };
 }
 
 /**
@@ -302,7 +328,7 @@ export const usePolicyStore = create<PolicyState>()(
           // stored rule as it is.
           const holdsPushRule = !!fetched && !isFullAnswer(fetched) && previous?.webmailUrl === webmailUrl && (
             previous.pushWithoutContent === true
-            || (isFullAnswer(previous) && pushWithoutContent(previous.policy, policySubjectFor(account)))
+            || (isFullAnswer(previous) && pushWithoutContent(previous.policy, pushSubjectFor(account)))
           );
           set({
             ...(fetched ? {
