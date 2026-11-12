@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { monthButtonAccessibilityLabel } from '../lib/calendar-a11y';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
-import { taskChips } from '../lib/calendar-tasks';
+import { taskChips, visibleTasks } from '../lib/calendar-tasks';
 import {
   ChevronDown,
   ChevronLeft,
@@ -344,8 +344,9 @@ export default function CalendarScreen() {
   // opens the tasks sheet on that task, or offers to tick that one day.
   const taskChipSet = React.useMemo(() => {
     if (!enableCalendarTasks || !showTasksOnCalendar) return { events: [] as CalendarEvent[], targets: new Map() };
-    return taskChips(tasks, new Date(loadRange.after), new Date(loadRange.before));
-  }, [tasks, enableCalendarTasks, showTasksOnCalendar, loadRange]);
+    // Only tasks in a calendar or task list the drawer has ticked (#1589).
+    return taskChips(visibleTasks(tasks, hiddenCalendarIds), new Date(loadRange.after), new Date(loadRange.before));
+  }, [tasks, enableCalendarTasks, showTasksOnCalendar, loadRange, hiddenCalendarIds]);
   const taskEvents = taskChipSet.events;
   const allEvents = React.useMemo(
     () => (birthdayEvents.length > 0 || taskEvents.length > 0
@@ -364,6 +365,14 @@ export default function CalendarScreen() {
     const taskOnly = new Set(taskOnlyCalendarIds);
     return allCalendars.filter((cal) => !taskOnly.has(cal.id));
   }, [allCalendars, taskOnlyCalendarIds]);
+
+  // Task lists go below the calendars in the drawer while their tasks are on
+  // the grid; the agenda draws no tasks, so it lists none (#1589).
+  const drawerTaskLists = React.useMemo(() => {
+    if (!enableCalendarTasks || !showTasksOnCalendar || viewMode === 'agenda' || taskOnlyCalendarIds.length === 0) return [];
+    const taskOnly = new Set(taskOnlyCalendarIds);
+    return allCalendars.filter((cal) => taskOnly.has(cal.id));
+  }, [allCalendars, taskOnlyCalendarIds, enableCalendarTasks, showTasksOnCalendar, viewMode]);
 
   // The Tasks sheet keeps the full list but with task lists sorted first, so
   // its create-picker (which defaults to the first writable calendar) targets
@@ -1310,6 +1319,7 @@ export default function CalendarScreen() {
           void onRefresh();
         }}
         calendars={eventCalendars}
+        taskLists={drawerTaskLists}
         hiddenCalendarIds={hiddenCalendarIds}
         onToggle={toggleCalendarVisibility}
         onClose={() => setSidebarVisible(false)}

@@ -40,6 +40,11 @@ interface CalendarSidebarDrawerProps {
   onSelectView?: (key: string) => void;
   onRefresh?: () => void;
   calendars: Calendar[];
+  /**
+   * Task-only lists, listed below the calendars with the same tick, which
+   * also steers their tasks on the grid (webmail calendar-sidebar-panel).
+   */
+  taskLists?: Calendar[];
   hiddenCalendarIds: string[];
   onToggle: (id: string) => void;
   onClose: () => void;
@@ -70,6 +75,7 @@ export function CalendarSidebarDrawer({
   onSelectView,
   onRefresh,
   calendars,
+  taskLists = [],
   hiddenCalendarIds,
   onToggle,
   onClose,
@@ -236,6 +242,15 @@ export function CalendarSidebarDrawer({
 
             {subscribed.length > 0 && (
               <Section title={t('calendar.drawer.subscribed', 'Subscribed')} calendars={subscribed} {...sectionProps} />
+            )}
+
+            {taskLists.length > 0 && (
+              <Section
+                title={t('ux_pim_calendar.task_lists', 'Task lists')}
+                calendars={taskLists}
+                {...sectionProps}
+                onSetDefault={undefined}
+              />
             )}
 
             {(onImport || onManageSubscriptions || onCreate) && (

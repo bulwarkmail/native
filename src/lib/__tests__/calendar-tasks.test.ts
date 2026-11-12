@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { expandTaskOccurrences, seriesCompletionUpdates, taskChips } from '../calendar-tasks';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { expandTaskOccurrences, seriesCompletionUpdates, taskChips, visibleTasks } from '../calendar-tasks';
 import type { CalendarEvent } from '../../api/types';
 
 // #1621: task chips dropped the rules, so a repeating task showed only on its
@@ -74,5 +76,26 @@ describe('checking off a repeating task', () => {
     expect(seriesCompletionUpdates({ ...weekly, recurrenceRules: undefined } as CalendarEvent)).toBeNull();
     const over = { ...weekly, recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily', until: '2026-11-02T09:00:00' }] } as unknown as CalendarEvent;
     expect(seriesCompletionUpdates(over)).toBeNull();
+  });
+});
+
+// #1589: task lists could not be ticked on and off in the calendar drawer.
+describe('task lists in the calendar drawer', () => {
+  const inList = (id: string, list: string) => ({ ...weekly, id, calendarIds: { [list]: true } }) as CalendarEvent;
+
+  it('shows only the tasks of ticked calendars and task lists on the grid', () => {
+    const tasks = [inList('a', 'work'), inList('b', 'chores'), { ...weekly, id: 'c', calendarIds: { work: true, chores: true } } as CalendarEvent];
+    expect(visibleTasks(tasks, ['chores']).map((x) => x.id)).toEqual(['a', 'c']);
+    expect(visibleTasks(tasks, ['chores', 'work']).map((x) => x.id)).toEqual([]);
+    expect(visibleTasks(tasks, [])).toBe(tasks);
+  });
+
+  // No render setup in the repo: the screen and drawer wiring is read.
+  it('lists the task lists in the drawer and filters the chips by the ticks', () => {
+    const screen = readFileSync(join(__dirname, '../../screens/CalendarScreen.tsx'), 'utf-8');
+    expect(screen).toMatch(/taskChips\(visibleTasks\(tasks, hiddenCalendarIds\)/);
+    expect(screen).toMatch(/taskLists=\{drawerTaskLists\}/);
+    const drawer = readFileSync(join(__dirname, '../../components/calendar/CalendarSidebarDrawer.tsx'), 'utf-8');
+    expect(drawer).toMatch(/calendars=\{taskLists\}/);
   });
 });

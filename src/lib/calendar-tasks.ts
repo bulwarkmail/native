@@ -95,6 +95,19 @@ export function expandTaskOccurrences(tasks: CalendarEvent[], rangeStart: Date, 
   return out;
 }
 
+/**
+ * Tasks the calendar grid shows: those in a calendar or task list the drawer
+ * has ticked, the rule events follow (webmail filterTasksByCalendars).
+ */
+export function visibleTasks(tasks: CalendarEvent[], hiddenCalendarIds: string[]): CalendarEvent[] {
+  if (hiddenCalendarIds.length === 0) return tasks;
+  const hidden = new Set(hiddenCalendarIds);
+  return tasks.filter((task) => {
+    const ids = Object.keys(task.calendarIds ?? {}).filter((id) => task.calendarIds[id]);
+    return ids.length === 0 || ids.some((id) => !hidden.has(id));
+  });
+}
+
 /** Prefix of a task chip's id on the grid (calendar-time-grid's TASK_CHIP_ID_PREFIX). */
 const CHIP_PREFIX = 'task:';
 /** Between a series' id and an occurrence's recurrenceId in a chip id; in no JMAP id. */
