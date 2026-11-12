@@ -9,3 +9,20 @@ appId: org.bulwarkmail.mobile
 # A tap during the transition lands on stale coordinates.
 - waitForAnimationToEnd:
     timeout: 5000
+# On a phone the list comes back. Once on the CI simulator a tap on Back,
+# right after the reader started its web views, changed nothing: tap it
+# again, then make sure the reader is gone.
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - runFlow:
+          when:
+            visible: "Back"
+          commands:
+            - tapOn: "Back"
+            - waitForAnimationToEnd:
+                timeout: 5000
+      - extendedWaitUntil:
+          notVisible: "Back"
+          timeout: 10000
