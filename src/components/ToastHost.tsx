@@ -207,6 +207,18 @@ function ToastCard({ toast }: { toast: Toast }) {
           <Text style={cardStyles.title} numberOfLines={2}>{toast.title}</Text>
           {toast.message ? <Text style={cardStyles.message} numberOfLines={3}>{toast.message}</Text> : null}
         </View>
+        {toast.secondaryAction ? (
+          <Pressable
+            onPress={() => { toast.secondaryAction?.onPress(); removeToast(toast.id); }}
+            hitSlop={8}
+            accessibilityRole="button"
+            style={({ pressed }) => [cardStyles.action, pressed && cardStyles.actionPressed]}
+          >
+            <View style={cardStyles.actionUnderline}>
+              <Text style={cardStyles.actionText} numberOfLines={1}>{toast.secondaryAction.label}</Text>
+            </View>
+          </Pressable>
+        ) : null}
         {toast.action ? (
           <Pressable
             onPress={() => { toast.action?.onPress(); removeToast(toast.id); }}

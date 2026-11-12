@@ -46,9 +46,11 @@ import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import {
-  sendEmail, saveDraftVersion, destroyEmails, patchKeywordsForEmails, SendUnconfirmedError,
+  sendEmail, saveDraftVersion, destroyEmails, getFullEmail, patchKeywordsForEmails, SendUnconfirmedError,
   type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
+import { draftContextFromEmail } from '../lib/draft-context';
+import { showDraftSavedNotice } from '../lib/compose-draft-close-notice';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
 import { composerSendFailureMessage, partlyRefusedWarning } from '../lib/send-failure-message';
@@ -1805,6 +1807,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     try {
       await saveDraft({ live: true });
       allowLeaveRef.current = true;
+      announceKeptDraft();
       proceed();
     } catch (err) {
       if (err instanceof DraftKeptOnDeviceError) {
@@ -1827,6 +1830,25 @@ export default function ComposeScreen({ route, navigation }: Props) {
     } finally {
       setSavingDraft(false);
     }
+  };
+
+  // "Draft saved" with Open and Discard, once the composer closed and kept
+  // its draft (webmail announceKeptDraft). Read before the screen goes; Open
+  // brings the draft back in a composer, as a draft opened from the list.
+  const announceKeptDraft = () => {
+    const id = draftIdRef.current;
+    if (!id || loginMoved()) return;
+    const account = draftAccountRef.current;
+    showDraftSavedNotice({
+      open: () => {
+        getFullEmail(id, account)
+          .then((full) => navigation.navigate('Compose', { draft: draftContextFromEmail(full, account) }))
+          .catch(() => toast.error(t('email_list.open_draft_failed', 'Could not open the draft.')));
+      },
+      discard: () => {
+        destroyEmails([id], account).catch((err) => console.warn('[compose] discard failed', err));
+      },
+    }, t);
   };
 
   const discardAndClose = (proceed: () => void) => {
@@ -1907,12 +1929,23 @@ export default function ComposeScreen({ route, navigation }: Props) {
     void (async () => {
       if (await savedAlready()) {
         allowLeaveRef.current = true;
+        announceKeptDraft();
         navigation.dispatch(data.action);
         return;
       }
       showCloseDialog(() => navigation.dispatch(data.action));
     })();
   });
+
+  // Nothing unsaved (a re-opened draft closed untouched): the guard above
+  // lets the screen go, and the kept draft is announced here.
+  React.useEffect(() => {
+    if (isDirty || needsSave) return undefined;
+    return navigation.addListener('beforeRemove', () => {
+      if (!allowLeaveRef.current) announceKeptDraft();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, isDirty, needsSave]);
 
   // Discard deletes the draft, also one without unsaved changes such as a
   // re-opened draft or a scheduled message back for editing, which the X
