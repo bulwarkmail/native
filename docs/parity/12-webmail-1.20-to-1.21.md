@@ -254,7 +254,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: templates are made only in Settings (`src/components/settings/TemplateSettings.tsx:33`, `:106`); the composer only inserts them.
   - Fix hint: a "Save as template" entry in the composer options that asks for a name and calls addTemplate.
 
-- [ ] **No picker to tick recipients from the contacts or the directory** — `P3` — `missing`
+- [x] **No picker to tick recipients from the contacts or the directory** — `P3` — `missing` — fixed in 26aaa502
   - What WEB does: a recipient picker lists the user's contacts with the directory on its own tab (`components/contacts/directory-picker-dialog.tsx:6`, `components/email/email-composer.tsx:6680`). Changelog 1.21.0.
   - What RN does: only suggestions while typing; RecipientPicker is the same suggestion list full screen (`src/components/compose/RecipientPicker.tsx:14-19`).
   - Fix hint: a sheet with Contacts and Directory tabs and check boxes, reusing ContactPickerSheet and DirectoryBrowser.
