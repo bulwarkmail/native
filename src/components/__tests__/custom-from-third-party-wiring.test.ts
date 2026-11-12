@@ -49,7 +49,7 @@ describe('no third-party traffic', () => {
 
   it('never loads remote content in the reader and offers nothing to load it', () => {
     const src = read('components/EmailBodyView.tsx');
-    expect(src).toMatch(/!!rawHtml && \(\s+remoteBlockedByOrg \|\|\s+\(!trusted && !allowOnce && externalContentPolicy !== 'allow'\)\s+\)/);
+    expect(src).toMatch(/!!rawHtml && readerBlocksRemoteContent\(\{ blockedByOrg: remoteBlockedByOrg, trusted, allowOnce, externalContentPolicy \}\)/);
     expect(src).toMatch(/\{!remoteBlockedByOrg && <View style=\{styles\.bannerActions\}>/);
     expect(src).toMatch(/t\('third_party\.remote_content_blocked'/);
   });

@@ -35,7 +35,8 @@ import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
-import { useNoThirdPartyTraffic, usePolicyFeature, usePolicyStore } from '../stores/policy-store';
+import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
+import { remoteContentBlockedByOrg, useRemoteContentBlockedByOrg } from '../lib/remote-content-lock';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
@@ -441,8 +442,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
   const customFromEnabled = usePolicyFeature('customFromEnabled');
-  // No third-party traffic (webmail #903): a quoted original's remote images stay blocked.
-  const remoteBlockedByOrg = useNoThirdPartyTraffic();
+  // No third-party traffic (webmail #903), or External content locked to
+  // "block": a quoted original's remote images stay blocked, trusted or not.
+  const remoteBlockedByOrg = useRemoteContentBlockedByOrg();
   // Per-message format (#1022): seeded from the "plain text only" setting,
   // or the format a reopened draft was written in, and switchable from the
   // toolbar for just this message.
@@ -2943,8 +2945,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
         ).catch(() => undefined);
       }
       // People you reply to are people you trust: allow their remote content
-      // from now on (webmail 1.5.x).
-      if (isReplyLike && mode !== 'forward') {
+      // from now on (webmail 1.5.x). Not while the organisation blocks remote
+      // content: the list would take effect the moment the block is lifted,
+      // with senders nobody chose to trust (webmail 84de2395f).
+      if (isReplyLike && mode !== 'forward' && !remoteContentBlockedByOrg(usePolicyStore.getState())) {
         const settings = useSettingsStore.getState();
         const contacts = useContactsStore.getState();
         for (const r of [...outgoing.to, ...(outgoing.cc ?? [])]) {
