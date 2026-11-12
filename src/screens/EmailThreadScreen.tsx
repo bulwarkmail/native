@@ -1060,6 +1060,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         keywords={keywordDefs}
         activeKeywords={email?.keywords ?? {}}
         onToggle={onToggleKeyword}
+        allowNewTag={!ownerAccountId}
       />
 
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
@@ -1655,9 +1656,11 @@ interface TagMenuSheetProps {
   keywords: KeywordDef[];
   activeKeywords: Record<string, boolean>;
   onToggle: (token: string) => void;
+  /** Offer "New tag" (not for a group account's message: see NewTagRow). */
+  allowNewTag: boolean;
 }
 
-function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: TagMenuSheetProps) {
+function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle, allowNewTag }: TagMenuSheetProps) {
   const c = useColors();
   const scaledType = useTypography();
   const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
@@ -1734,7 +1737,7 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
             );
           })}
           {/* "New tag" (webmail 19676a14f): made, saved and put on the message. */}
-          <NewTagRow keywords={keywords} onCreated={onToggle} />
+          {allowNewTag && <NewTagRow keywords={keywords} onCreated={onToggle} />}
         </ScrollView>
       </Animated.View>
     </Modal>

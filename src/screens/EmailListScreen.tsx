@@ -2397,6 +2397,7 @@ export default function EmailListScreen({
         keywords={folderKeywordDefs}
         selectedEmails={selectedEmails}
         onToggle={handleBatchTagToggle}
+        allowNewTag={!currentOwnerAccountId}
       />
     </View>
   );

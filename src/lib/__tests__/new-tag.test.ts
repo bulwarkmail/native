@@ -65,6 +65,17 @@ describe('new tag from the tag picker', () => {
     expect(newTagDefinition('First', [])?.color).toBe('red');
   });
 
+  // A tag made in a group account's picker went into the user's own tags,
+  // where the group never sees it by its name (webmail 9eae5ae9d, #1613).
+  it("isn't offered for a group account's messages", () => {
+    const src = (p: string) => fs.readFileSync(path.resolve(__dirname, '../..', p), 'utf8');
+    expect(src('components/TagSheet.tsx')).toMatch(/\{allowNewTag && <NewTagRow /);
+    expect(src('screens/EmailListScreen.tsx')).toMatch(/onToggle=\{handleBatchTagToggle\}\r?\n\s*allowNewTag=\{!currentOwnerAccountId\}/);
+    const reader = src('screens/EmailThreadScreen.tsx');
+    expect(reader).toMatch(/allowNewTag=\{!ownerAccountId\}/);
+    expect(reader).toMatch(/\{allowNewTag && <NewTagRow keywords=\{keywords\} onCreated=\{onToggle\} \/>\}/);
+  });
+
   it('is offered in the list tag sheet and the message tag sheet, and applies the tag', () => {
     const src = (p: string) => fs.readFileSync(path.resolve(__dirname, '../..', p), 'utf8');
     expect(src('components/TagSheet.tsx')).toMatch(/<NewTagRow keywords=\{keywords\} onCreated=\{\(token\) => onToggle\(token, true\)\} \/>/);

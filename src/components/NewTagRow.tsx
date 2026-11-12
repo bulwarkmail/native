@@ -11,6 +11,11 @@ import { checkNewTag, newTagDefinition } from '../lib/new-tag';
  * "New tag" at the end of a tag picker: a name field; the tag gets the next
  * colour of the palette, is saved with the other tags and goes onto the
  * message(s) straight away (webmail components/email/tag-picker.tsx).
+ *
+ * Not offered in a group account's picker: there the webmail adds the tag to
+ * the group's shared tags (9eae5ae9d, #1613), which the app only reads, and a
+ * personal tag would show to nobody else by its name. The pickers leave this
+ * row out for a group account's messages.
  */
 export function NewTagRow({ keywords, onCreated }: {
   /** The tags the picker lists: a new id must not repeat one of them. */
