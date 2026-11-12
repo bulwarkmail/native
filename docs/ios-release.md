@@ -66,9 +66,10 @@ These live on two different Apple sites and have to be done in this order.
 
 **developer.apple.com** → Certificates, Identifiers & Profiles → Identifiers →
 **+** → App IDs → App. Explicit bundle ID `org.bulwarkmail.mobile`, matching
-`ios.bundleIdentifier` in [app.config.js](../app.config.js). Leave every
-capability off: push is not implemented on iOS, and sign-in uses the custom
-`bulwarkmobile://` scheme rather than universal links, so no Associated Domains.
+`ios.bundleIdentifier` in [app.config.js](../app.config.js). Turn on **Push
+Notifications** (plugins/ios-push gives the app the `aps-environment`
+entitlement) and leave the rest off: sign-in uses the custom `bulwarkmobile://`
+scheme rather than universal links, so no Associated Domains.
 
 **appstoreconnect.apple.com** → Apps → **+** → New App. Platform iOS, any SKU.
 The bundle ID here is a dropdown populated from the identifiers above, which is
@@ -95,6 +96,29 @@ the App Store profile up front avoids the whole problem.
 The profile expires when the certificate does (2027-08-01). Regenerate it here and
 update the secret when that happens.
 
+### 6. The extensions: notification service and widget
+
+Each app extension is its own App ID and needs its own App Store profile. The
+app and its extensions share data through the keychain group
+`<Team ID>.org.bulwarkmail.shared`, which every profile of the team allows, so
+no App Group and no other capability is needed.
+
+| Extension | App ID (explicit) | Secret | Without it |
+| --- | --- | --- | --- |
+| Notification service (plugins/ios-push) | `org.bulwarkmail.mobile.NotificationService` | `IOS_NSE_PROVISIONING_PROFILE_BASE64` | the signed build stops with an error |
+| Inbox widget (plugins/ios-widget) | `org.bulwarkmail.mobile.Widget` | `IOS_WIDGET_PROVISIONING_PROFILE_BASE64` | the release is built without the widget |
+
+For each: developer.apple.com → Identifiers → **+** → App IDs → App, the bundle
+ID from the table, every capability off. Then Profiles → **+** → Distribution →
+**App Store Connect**, that App ID and the certificate from step 2, a name such
+as `Bulwark Widget App Store`, and download the `.mobileprovision`.
+
+The workflow reads the bundle ID from each profile, installs it, gives prebuild
+its UUID (`IOS_NSE_PROFILE`, `IOS_WIDGET_PROFILE`) and names it in the export
+options. When `IOS_WIDGET_PROVISIONING_PROFILE_BASE64` is missing it skips all
+three for the widget and notes it in the log, and plugins/ios-widget leaves the
+widget target out, so the archive still signs.
+
 ## Repository secrets
 
 Settings → Secrets and variables → Actions:
@@ -108,6 +132,8 @@ Settings → Secrets and variables → Actions:
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from step 3 |
 | `APP_STORE_CONNECT_PRIVATE_KEY` | The `.p8` from step 3, base64-encoded |
 | `IOS_PROVISIONING_PROFILE_BASE64` | The `.mobileprovision` from step 5, base64-encoded |
+| `IOS_NSE_PROVISIONING_PROFILE_BASE64` | The notification service profile from step 6, base64-encoded |
+| `IOS_WIDGET_PROVISIONING_PROFILE_BASE64` | Optional: the widget profile from step 6, base64-encoded |
 
 To base64-encode a file:
 

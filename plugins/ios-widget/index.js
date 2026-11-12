@@ -10,8 +10,10 @@
 //
 // Signing: a signed build names a profile per target. When the app's profile
 // is given (IOS_APP_PROFILE, the release workflow) but no widget profile
-// (IOS_WIDGET_PROFILE), the widget target is left out so the archive still
-// signs; the simulator and unsigned builds always include it.
+// (IOS_WIDGET_PROFILE, set by release-ios.yml from the
+// IOS_WIDGET_PROVISIONING_PROFILE_BASE64 secret when it exists), the widget
+// target is left out so the archive still signs; the simulator and unsigned
+// builds always include it.
 
 const fs = require('node:fs');
 const path = require('node:path');
