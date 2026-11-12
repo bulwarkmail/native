@@ -165,7 +165,7 @@ Findings:
   - What RN does: shows the restricted notice for an `swc1.` client without the extension (`src/api/account-security.ts:103-106`, `src/components/settings/AccountSecuritySettings.tsx:961-965`), worded as "Your server lets only apps its administrator approved change ..." (`:1029`). Signing in again would fix it, and nothing says so.
   - Fix hint: when the discovery document lists `urn:stalwart:oauth:scope:security`, say "Sign in again to manage these settings here" with a button that re-runs the sign-in for this account. Live test: live-stalwart-auth.test.ts, "a token from the own client without security scope reports a limited sign-in; a fresh sign-in on 1.0.3+ does not".
 
-- [ ] **Code comments and the restricted-notice text still describe first-party clients** — `P3` — `docs` (Stalwart 1.0.3)
+- [x] **Code comments and the restricted-notice text still describe first-party clients** — `P3` — `docs` (Stalwart 1.0.3) — fixed in 76f9c57e; the old notice now shows only on 1.0.0-1.0.2, where its first-party wording holds, and 1.0.3+ gets the sign-in-again notice from 0b9311d4
   - What Stalwart does: no first-party clients since 1.0.3; access comes from scopes.
   - What RN does: `src/lib/totp-login.ts:60-64` ("public and first-party"), `src/api/account-security.ts:84-90`, `:98-103` ("only to first-party clients", "the session then lists no Stalwart extension"), `src/components/settings/AccountSecuritySettings.tsx:920-921`, `:1029`.
   - Fix hint: describe the scopes (1.0.0-1.0.2 first-party, 1.0.3+ `security`/`settings`/`full`). Live test: none needed beyond the rows above.
