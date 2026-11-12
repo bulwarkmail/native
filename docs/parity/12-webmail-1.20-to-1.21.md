@@ -214,7 +214,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: drafts are created with `$seen` and `$draft` only (`src/api/email.ts:2049`); the composer has no tag state.
   - Fix hint: reuse TagSheet in the composer options and pass the keywords to the draft and the send.
 
-- [ ] **Undo send is off by default and has no 5-second choice** — `P3` — `partial`
+- [x] **Undo send is off by default and has no 5-second choice** — `P3` — `partial` — fixed in 6ed687aa
   - What WEB does: on by default with 5 s; choices 0, 5, 10, 30, 60 (`stores/settings-store.ts:492`, `:1144`). Changelog 1.21.0 (Compose: Undo send is on by default).
   - What RN does: default 0 and choices 0, 10, 30, 60 (`src/stores/settings-store.ts:442`, `:678`); an imported webmail settings file with 5 falls back to 0. The countdown itself is there (`src/stores/send-undo-store.ts:92`).
   - Fix hint: add 5 and make it the default for new installs.
