@@ -247,7 +247,8 @@ describe('catch-up after a reconnect', () => {
     // A check reads the states, and its answer is slow to come back.
     let release!: () => void;
     const slow = new Promise<void>((r) => { release = r; });
-    vi.mocked(jmapClient.request).mockImplementationOnce(async (calls: Array<[string, { accountId: string }, string]>) => {
+    vi.mocked(jmapClient.request).mockImplementationOnce(async (methodCalls) => {
+      const calls = methodCalls as unknown as Array<[string, { accountId: string }, string]>;
       requests.push({ calls, using: [] });
       const methodResponses = calls.map(([method, args, id]) => {
         const state = serverStates[`${args.accountId}:${method.replace('/get', '')}`];
