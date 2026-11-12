@@ -57,6 +57,7 @@ import { generateVCard, parseVCard } from '../../lib/vcard';
 import { contactToForm, formToPatch } from '../../lib/contact-form';
 import { generateScript } from '../../lib/sieve/generator';
 import { parseScript } from '../../lib/sieve/parser';
+import { applyRuleToMailbox, planRuleOnMailbox } from '../../lib/sieve/retroactive-run';
 import { applyQuickRule, buildPresetRule, toRuleMailbox } from '../../lib/sieve/quick-rules';
 import { readWebmailFixture, WEBMAIL_FIXTURES } from '../../lib/sieve/__tests__/fixtures/webmail';
 import { getMailboxes } from '../email';
@@ -499,6 +500,47 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       const back = parseScript(saved);
       expect(back.rules.find((r) => r.id === regexRule.id)?.conditions).toEqual(regexRule.conditions);
       expect(back.rules.some((r) => r.id === `plain-${RUN}`)).toBe(true);
+    }, 60_000);
+
+    // Webmail 1.21: a rule could only sort new mail; the editor now offers to
+    // run it over what is in the Inbox already.
+    it('runs a rule over the messages already in the Inbox', async () => {
+      const MAIL = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'];
+      const inbox = (await getMailboxes()).find((m) => m.role === 'inbox' && !m.isShared)!;
+      const make = (key: string, subject: string) => ({
+        mailboxIds: { [inbox.id]: true }, keywords: {},
+        from: [{ email: `retro-${RUN}@example.net` }], to: [{ email: USER }], subject,
+        bodyStructure: { type: 'text/plain', partId: 'b' }, bodyValues: { b: { value: `${key} body` } },
+      });
+      const [[, created]] = (await client.request([['Email/set', {
+        accountId: client.accountId,
+        create: { hit: make('hit', `Retro ${RUN} weekly news`), miss: make('miss', `Retro ${RUN} invoice`) },
+      }, '0']], MAIL)).methodResponses as [string, Record<string, any>, string][];
+      const hit = created.created?.hit?.id as string;
+      const miss = created.created?.miss?.id as string;
+      expect(hit && miss, JSON.stringify(created.notCreated)).toBeTruthy();
+      try {
+        const rule: FilterRule = {
+          id: `retro-${RUN}`, name: `Retro ${RUN}`, enabled: true, matchType: 'all',
+          conditions: [{ field: 'subject', comparator: 'contains', value: `Retro ${RUN} weekly` }],
+          actions: [{ type: 'mark_read', value: '' }, { type: 'star', value: '' }],
+          stopProcessing: false,
+        };
+        expect((await planRuleOnMailbox(rule, inbox.id)).ids).toEqual([hit]);
+        expect(await applyRuleToMailbox(rule, inbox.id)).toBe(1);
+
+        const [[, got]] = (await client.request([['Email/get', {
+          accountId: client.accountId, ids: [hit, miss], properties: ['keywords', 'mailboxIds'],
+        }, '0']], MAIL)).methodResponses as [string, Record<string, any>, string][];
+        const byId = new Map((got.list as Array<{ id: string; keywords: Record<string, boolean> }>).map((e) => [e.id, e]));
+        expect(byId.get(hit)?.keywords).toMatchObject({ $seen: true, $flagged: true });
+        expect(byId.get(miss)?.keywords?.$seen).toBeFalsy();
+        // Run again, nothing is left to change.
+        expect(await applyRuleToMailbox(rule, inbox.id)).toBe(0);
+      } finally {
+        await client.request([['Email/set', { accountId: client.accountId, destroy: [hit, miss].filter(Boolean) }, '0']], MAIL)
+          .catch(() => undefined);
+      }
     }, 60_000);
   });
 });

@@ -23,6 +23,9 @@ import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
 import { periodStatus, supportsPeriods } from '../../lib/sieve/period';
 import { supportsRegex } from '../../lib/sieve/regex';
+import { applyRuleToMailbox, planRuleOnMailbox } from '../../lib/sieve/retroactive-run';
+import { localizeMailboxName } from '../../lib/mailbox-label';
+import { toast } from '../../stores/toast-store';
 import { rulesForwardLimit } from '../../lib/sieve/forward-limit';
 import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import Badge from '../Badge';
@@ -191,14 +194,31 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     [rules],
   );
 
-  const persist = useCallback(async (rollback: () => void) => {
+  const persist = useCallback(async (rollback: () => void): Promise<boolean> => {
     try {
       await saveFilters();
+      return true;
     } catch {
       rollback();
       Alert.alert(t('settings.filters.save_failed', 'Failed to save filters'));
+      return false;
     }
   }, [saveFilters, t]);
+
+  // A rule only sees new mail. Its editor offers to sort what is already in
+  // the Inbox too, as Gmail's "Also apply filter to matching conversations"
+  // does: for the user's own account, where the Inbox can be searched.
+  const inboxOffer = useMemo(() => {
+    if (managedAccountId) return null;
+    const inbox = allMailboxes.find((m) => m.role === 'inbox' && !m.isShared);
+    if (!inbox) return null;
+    const id = inbox.originalId || inbox.id;
+    return {
+      id,
+      folder: localizeMailboxName(inbox.role, inbox.name, t),
+      count: async (rule: FilterRule) => (await planRuleOnMailbox(rule, id)).ids.length,
+    };
+  }, [managedAccountId, allMailboxes, t]);
 
   const handleToggle = useCallback((ruleId: string) => {
     toggleRule(ruleId);
@@ -218,14 +238,24 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     [rules, vacationForward, sieveCapabilities],
   );
 
-  const handleSaveRule = useCallback((rule: FilterRule) => {
+  const handleSaveRule = useCallback((rule: FilterRule, options?: { applyToExisting: boolean }) => {
     const previous = useFilterStore.getState().rules;
     if (editingRule) updateRule(rule.id, rule);
     else addRule(rule);
     setShowRuleModal(false);
     setEditingRule(undefined);
-    void persist(() => useFilterStore.setState({ rules: previous }));
-  }, [editingRule, updateRule, addRule, persist]);
+    void persist(() => useFilterStore.setState({ rules: previous })).then(async (saved) => {
+      // The switch in the editor: run the saved rule over the Inbox now.
+      if (!saved || !options?.applyToExisting || !inboxOffer) return;
+      try {
+        const count = await applyRuleToMailbox(rule, inboxOffer.id);
+        toast.success(t('notifications.rule_applied', '{count, plural, =0 {No messages needed changes} one {Rule applied to # message} other {Rule applied to # messages}}', { count }), rule.name);
+        void useEmailStore.getState().refreshEmails();
+      } catch (err) {
+        toast.error(t('notifications.rule_apply_failed', 'Could not apply the rule to existing messages'), err instanceof Error ? err.message : undefined);
+      }
+    });
+  }, [editingRule, updateRule, addRule, persist, inboxOffer, t]);
 
   const handleSaveSieve = useCallback((content: string) => {
     const previous = useFilterStore.getState();
@@ -518,6 +548,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         mailboxes={mailboxes}
         periodsSupported={periodsSupported}
         regexSupported={regexSupported}
+        applyExisting={inboxOffer ?? undefined}
         onSave={handleSaveRule}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />

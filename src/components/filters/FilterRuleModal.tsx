@@ -32,6 +32,7 @@ import {
 import { isValidSieveHeaderName } from '../../lib/sieve/generator';
 import { hasPeriod } from '../../lib/sieve/period';
 import { regexInvalid, usesRegex } from '../../lib/sieve/regex';
+import { retroactiveSupport } from '../../lib/sieve/retroactive';
 import { periodError, periodFromInput, periodToInput } from '../../lib/sieve/rule-period';
 import type { Mailbox } from '../../api/types';
 import type {
@@ -80,19 +81,24 @@ interface FilterRuleModalProps {
   /** The server lists the Sieve "regex" extension. */
   regexSupported?: boolean;
   /**
+   * Offer "Also apply to the messages already in <folder>": the folder's
+   * name, and how many of its messages the rule as typed would change.
+   */
+  applyExisting?: { folder: string; count: (rule: FilterRule) => Promise<number> };
+  /**
    * The server's cap on forwards per message, and the forwards a message can
    * have collected when it reaches this rule / still collect below it (see
    * lib/sieve/forward-limit.ts). Left out: read from the filter list the
    * Filters settings show.
    */
   forwardContext?: { maxRedirects: number | null | undefined; before: number; after: number };
-  onSave: (rule: FilterRule) => void;
+  onSave: (rule: FilterRule, options?: { applyToExisting: boolean }) => void;
   onClose: () => void;
 }
 
 export function FilterRuleModal({
   visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, regexSupported = false,
-  forwardContext, onSave, onClose,
+  applyExisting, forwardContext, onSave, onClose,
 }: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -129,6 +135,7 @@ export function FilterRuleModal({
     setPeriodOn(!!rule && hasPeriod(rule));
     setPeriodStart(periodToInput(rule?.activeFrom));
     setPeriodEnd(periodToInput(rule?.activeUntil));
+    setApplyToExisting(false);
   }, [visible, rule]);
 
   const activeFrom = periodOn ? periodFromInput(periodStart, rule?.activeFrom) : undefined;
@@ -136,6 +143,45 @@ export function FilterRuleModal({
   const periodProblem = periodOn ? periodError(activeFrom, activeUntil) : null;
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
+
+  // Old mail can only be sorted by what the app can check the way Sieve
+  // does; a rule with a period says nothing about the mail already there.
+  // Until an action is complete (a Move still without its folder), only the
+  // conditions decide (webmail filter-rule-modal.tsx).
+  const [applyToExisting, setApplyToExisting] = useState(false);
+  const draft = useMemo(() => ({
+    conditions: conditions
+      .filter((cond) => isHasAny(cond) || !isConditionValueEmpty(cond.value))
+      .map((cond) => (typeof cond.value === 'string' && cond.field !== 'size' && !usesRegex(cond)
+        ? { ...cond, value: inputStringToValue(cond.value) }
+        : cond)),
+    actions: actions
+      .map((a) => withMailboxTarget(a, mailboxTargets))
+      .filter((a) => !ACTIONS_WITH_VALUE.has(a.type) || a.value?.trim()),
+  }), [conditions, actions, mailboxTargets]);
+  const canApplyToExisting = !!applyExisting && !periodOn && retroactiveSupport({
+    conditions: draft.conditions,
+    actions: draft.actions.length > 0 ? draft.actions : [{ type: 'mark_read' }],
+  }).ok;
+  // How many messages the rule would change there, asked a moment after the
+  // conditions and actions stop changing. null: not known yet.
+  const [existingCount, setExistingCount] = useState<number | null>(null);
+  const countKey = canApplyToExisting && draft.actions.length > 0 ? JSON.stringify([matchType, draft]) : null;
+  const countRef = React.useRef(applyExisting?.count);
+  countRef.current = applyExisting?.count;
+  useEffect(() => {
+    setExistingCount(null);
+    if (!countKey || !countRef.current) return;
+    const [type, d] = JSON.parse(countKey) as [FilterRule['matchType'], { conditions: FilterCondition[]; actions: FilterAction[] }];
+    let stale = false;
+    const timer = setTimeout(() => {
+      countRef.current!({ id: 'count', name: '', enabled: true, matchType: type, conditions: d.conditions, actions: d.actions, stopProcessing: false })
+        .then((count) => { if (!stale) setExistingCount(count); })
+        .catch(() => { /* the offer stays, without a number */ });
+    }, 400);
+    return () => { stale = true; clearTimeout(timer); };
+  }, [countKey]);
+  const canTickApply = canApplyToExisting && existingCount !== 0;
   const mailboxById = useMemo(() => mailboxesByTargetId(mailboxes), [mailboxes]);
 
   // A message can collect only so many forwards on the server (#1155, #1208).
@@ -310,10 +356,10 @@ export function FilterRuleModal({
       // the stored rule, and a field left out would keep its old value there.
       activeFrom: activeFrom ?? undefined,
       activeUntil: activeUntil ?? undefined,
-    });
+    }, { applyToExisting: applyToExisting && canTickApply });
   }, [
     name, conditions, actions, matchType, stopProcessing, includeSpam, rule, onSave, t, mailboxTargets,
-    periodProblem, activeFrom, activeUntil,
+    periodProblem, activeFrom, activeUntil, applyToExisting, canTickApply,
   ]);
 
   return (
@@ -586,6 +632,36 @@ export function FilterRuleModal({
                   onChange={setIncludeSpam}
                   accessibilityLabel={t('settings.filters.include_spam', 'Also move messages marked as spam')}
                 />
+              </View>
+            )}
+
+            {/* Gmail's "Also apply filter to matching conversations". */}
+            {applyExisting && (
+              <View style={{ gap: spacing.xs }}>
+                <View style={styles.stopRow}>
+                  <Text style={[styles.stopLabel, !canTickApply && { color: c.mutedForeground }]}>
+                    {!canApplyToExisting
+                      ? t('settings.filters.apply_existing', 'Also apply to existing messages in this folder')
+                      : existingCount !== null
+                        ? t('settings.filters.apply_existing_count', '{count, plural, one {Also apply to the # message already in {folder}} other {Also apply to the # messages already in {folder}}}', { count: existingCount, folder: applyExisting.folder })
+                        : t('settings.filters.apply_existing_in', 'Also apply to the messages already in {folder}', { folder: applyExisting.folder })}
+                  </Text>
+                  <ToggleSwitch
+                    checked={applyToExisting && canTickApply}
+                    onChange={setApplyToExisting}
+                    disabled={!canTickApply}
+                    accessibilityLabel={t('settings.filters.apply_existing_in', 'Also apply to the messages already in {folder}', { folder: applyExisting.folder })}
+                  />
+                </View>
+                {!canTickApply && (
+                  <Text style={styles.hint}>
+                    {!canApplyToExisting
+                      ? (periodOn
+                        ? t('settings.filters.apply_existing_period', 'A rule with a period acts only on messages that arrive within it, so it cannot run on existing messages.')
+                        : t('settings.filters.apply_existing_unsupported', 'Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.'))
+                      : t('settings.filters.apply_existing_none', 'No message in {folder} matches this rule yet.', { folder: applyExisting.folder })}
+                  </Text>
+                )}
               </View>
             )}
 
