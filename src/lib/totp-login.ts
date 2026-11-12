@@ -134,8 +134,9 @@ export class LoginEndpointMissingError extends Error {
 export class TotpLoginError extends Error {
   // `client_rejected`: the server refused the app as an OAuth client (1.0:
   // registration refused or the authorization request itself rejected),
-  // before it looked at the credentials.
-  code: 'invalid_credentials' | 'totp_required' | 'login_failed' | 'token_exchange_failed' | 'client_rejected';
+  // before it looked at the credentials. `password_expired`: the password
+  // was right but has expired (Stalwart's `expired` answer).
+  code: 'invalid_credentials' | 'totp_required' | 'login_failed' | 'token_exchange_failed' | 'client_rejected' | 'password_expired';
   constructor(code: TotpLoginError['code'], message?: string) {
     super(message ?? code);
     this.name = 'TotpLoginError';
@@ -471,7 +472,12 @@ export type StalwartLoginOutcome =
    * Stalwart 1.0.1 wants the user's consent for this client first: answered
    * with an `authConsent` request carrying `token` (answerConsent).
    */
-  | { kind: 'consent_required'; token: string };
+  | { kind: 'consent_required'; token: string }
+  /**
+   * The password was right but has expired, and the scopes asked for don't
+   * allow changing it (1.0: `{type: 'expired'}`).
+   */
+  | { kind: 'password_expired' };
 
 function locationParams(location: string): URLSearchParams | null {
   // A private-use scheme isn't something every URL parser takes apart, so
@@ -500,6 +506,8 @@ export function readStalwartLoginResponse(body: unknown, state: string): Stalwar
     }
     case 'mfaRequired':
       return { kind: 'mfa_required' };
+    case 'expired':
+      return { kind: 'password_expired' };
     case 'consentRequired':
       // It used to fall through to "wrong password".
       return typeof res.token === 'string' && res.token
@@ -651,6 +659,8 @@ export async function exchangePasswordForTokens(
       throw new TotpLoginError('totp_required', 'TOTP_REQUIRED');
     case 'invalid_credentials':
       throw new TotpLoginError('invalid_credentials', 'Invalid username, password or code');
+    case 'password_expired':
+      throw new TotpLoginError('password_expired', 'Password expired');
     case 'consent_required':
       // answerConsent never hands this back; for the type checker.
       throw new TotpLoginError('login_failed', 'Sign-in refused: consent_required');

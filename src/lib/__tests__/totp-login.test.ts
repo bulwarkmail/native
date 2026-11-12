@@ -328,6 +328,17 @@ describe('exchangePasswordForTokens', () => {
     expect(authCalls(calls)).toHaveLength(2);
   });
 
+  it('says an expired password has expired, not that it is wrong', async () => {
+    fakeServer('1.0', () => ({ type: 'expired' }));
+    const err = await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e);
+
+    expect(err).toBeInstanceOf(TotpLoginError);
+    expect(err.code).toBe('password_expired');
+    const copy = describeLoginError(err, { serverUrl: BASE });
+    expect(copy.title).toBe('Your password has expired');
+    expect(copy.detail).toMatch(/web interface/);
+  });
+
   it('maps the credential verdicts of 1.0', async () => {
     fakeServer('1.0', () => ({ type: 'failure' }));
     expect((await exchangePasswordForTokens(BASE, 'u', 'pw', '1').catch((e) => e)).code).toBe('invalid_credentials');

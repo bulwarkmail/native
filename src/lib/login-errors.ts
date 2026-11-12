@@ -150,6 +150,14 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // The password was right but has expired (Stalwart's `expired` answer).
+  if (name === 'TotpLoginError' && (err as { code?: string }).code === 'password_expired') {
+    return {
+      title: t('login.mobile.err_password_expired_title', 'Your password has expired'),
+      detail: t('login.mobile.err_password_expired_detail', "Change it in the server's web interface, then sign in with the new one."),
+    };
+  }
+
   if (name === 'TotpLoginError' && lower.includes('invalid')) {
     return {
       title: t('login.mobile.err_bad_title', "That didn't work"),
