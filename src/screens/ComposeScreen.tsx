@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Tag, Type, Highlighter, Trash2, Settings,
+  Tag, Type, Highlighter, Trash2, Settings, BookUser,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -89,6 +89,9 @@ import { initialTagTokens, tagTokensAsKeywords, toggleTagToken } from '../lib/co
 import { answerSendWarnings, collectSendWarnings, type SendWarning } from '../lib/compose-send-warnings';
 import { linkPromptInput } from '../lib/compose-link';
 import { templateFromComposer } from '../lib/compose-template';
+import { RecipientPickerSheet, type PickerField } from '../components/compose/RecipientPickerSheet';
+import { addPickedRecipients } from '../lib/compose-recipient-picker';
+import type { DirectoryEntry } from '../lib/contact-directory';
 import Dialog from '../components/Dialog';
 import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
 import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
@@ -460,6 +463,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
   const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
   const hasContacts = useHasContacts();
+  // The recipient picker: contacts, and the directory where the server has one.
+  const directoryAvailable = useContactsStore((s) => s.directoryStatus !== 'unavailable');
+  const [recipientSheetOpen, setRecipientSheetOpen] = React.useState(false);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   const quoteLabels = React.useMemo<QuoteHeaderLabels>(() => quoteHeaderLabels(t), [t]);
@@ -2483,6 +2489,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // Ticked in the recipient picker: into the field asked for, each address
+  // once (webmail addDirectoryRecipients).
+  const addPickedToField = (field: PickerField, entries: DirectoryEntry[]) => {
+    setterFor(field)((prev) => addPickedRecipients(prev, entries, (e) => ({ name: e.name, email: e.email })));
+    if (field === 'cc') setCcVisible(true);
+    if (field === 'bcc') { setCcVisible(true); setBccVisible(true); }
+  };
+
   // "Save as template": a name and Save, the HTML kept as HTML (webmail
   // quick-save-template-dialog.tsx, #1506). The name starts as the subject.
   const addTemplate = useTemplatesStore((s) => s.addTemplate);
@@ -3172,6 +3186,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
             searchingServer={searchingServer}
           />
         )}
+        {field === 'to' && (hasContacts || directoryAvailable) && (
+          <Pressable
+            onPress={() => setRecipientSheetOpen(true)}
+            style={styles.ccToggle}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('compose_send.picker_button', 'Add from contacts')}
+            testID="composer-recipient-picker"
+          >
+            <BookUser size={18} color={c.textSecondary} />
+          </Pressable>
+        )}
         {field === 'to' && !ccVisible && (
           <Pressable onPress={() => setCcVisible(true)} style={styles.ccToggle} hitSlop={10} accessibilityRole="button">
             <Text style={styles.ccToggleText}>{t('email_composer.cc', 'Cc')}</Text>
@@ -3770,6 +3796,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
           onChange={onCustomPickerChange}
         />
       )}
+
+      <RecipientPickerSheet
+        visible={recipientSheetOpen}
+        onClose={() => setRecipientSheetOpen(false)}
+        onAdd={addPickedToField}
+      />
 
       <Dialog
         visible={saveTemplateName !== null}
