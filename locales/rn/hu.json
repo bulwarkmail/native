@@ -1482,7 +1482,7 @@
         "description_ios": "Az Atkinson Hyperlegible és a Lexend betűi könnyen megkülönböztethetők; az OpenDyslexic egyes diszlexiás embereknek segít. Ezen az eszközön a betűtípus az egyszerű szöveges üzenetekre vonatkozik."
       },
       "plain_language": {
-        "description_mobile": "Egyszerűbb megfogalmazás a beállításokban és a hibaüzenetekben. Angolul és németül érhető el.",
+        "description_mobile": "Egyszerűbb megfogalmazás a beállításokban és a hibaüzenetekben. Angolul, németül és vietnámiul érhető el.",
         "label": "Egyszerű nyelv"
       },
       "presets": {

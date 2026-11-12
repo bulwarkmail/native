@@ -138,6 +138,7 @@ const PLURAL_RULES: Record<string, PluralRule> = {
   tr: oneForOne,
   ru: eastSlavic,
   uk: eastSlavic,
+  vi: otherOnly,
   ko: otherOnly,
   ja: otherOnly,
   mn: oneForOne,

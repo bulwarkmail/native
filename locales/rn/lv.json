@@ -1485,7 +1485,7 @@
         "description_ios": "Atkinson Hyperlegible un Lexend ir veidoti tā, lai burtus būtu viegli atšķirt; OpenDyslexic palīdz dažiem cilvēkiem ar disleksiju. Šajā ierīcē fonts tiek izmantots vienkārša teksta vēstulēm."
       },
       "plain_language": {
-        "description_mobile": "Vienkāršāki formulējumi iestatījumos un kļūdu ziņojumos. Pieejams angļu un vācu valodā.",
+        "description_mobile": "Vienkāršāki formulējumi iestatījumos un kļūdu ziņojumos. Pieejams angļu, vācu un vjetnamiešu valodā.",
         "label": "Vienkārša valoda"
       },
       "presets": {

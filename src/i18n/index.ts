@@ -49,6 +49,7 @@ export const SUPPORTED_LOCALES = [
   { code: 'tr', label: 'Türkçe' },
   { code: 'ru', label: 'Русский' },
   { code: 'uk', label: 'Українська' },
+  { code: 'vi', label: 'Tiếng Việt' },
   { code: 'ko', label: '한국어' },
   { code: 'ja', label: '日本語' },
   { code: 'mn', label: 'Монгол' },
@@ -78,7 +79,7 @@ function deepMerge(base: Dictionary, overlay: Dictionary): Dictionary {
 
 // A catalog is a few hundred KB of JSON. Metro only evaluates a module when it
 // is first required, so keeping each require inside its loader means startup
-// builds English plus the active language instead of all 31, and switching
+// builds English plus the active language instead of all 32, and switching
 // language loads the new catalog synchronously on the next t() call. The
 // require paths must stay string literals for Metro to bundle them.
 const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
@@ -111,6 +112,7 @@ const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
   sk: () => require('../../locales/sk/common.json'),
   tr: () => require('../../locales/tr/common.json'),
   uk: () => require('../../locales/uk/common.json'),
+  vi: () => require('../../locales/vi/common.json'),
   zh: () => require('../../locales/zh/common.json'),
   'zh-TW': () => require('../../locales/zh-TW/common.json'),
 };
@@ -146,19 +148,21 @@ const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
   sk: () => require('../../locales/rn/sk.json'),
   tr: () => require('../../locales/rn/tr.json'),
   uk: () => require('../../locales/rn/uk.json'),
+  vi: () => require('../../locales/rn/vi.json'),
   zh: () => require('../../locales/rn/zh.json'),
   'zh-TW': () => require('../../locales/rn/zh-TW.json'),
 };
 
 // Plain language (Settings > Accessibility, webmail i18n/plain-language.ts):
-// simpler wording for settings and error messages. Only English and German
-// have it; ../../locales/<code>/plain.json holds just the keys that get a
+// simpler wording for settings and error messages. Only English, German and
+// Vietnamese have it; ../../locales/<code>/plain.json holds just the keys that get a
 // simpler version, under the same paths as common.json, and anything it
 // leaves out keeps the normal string. Every other language is unchanged
 // when the setting is on.
 const PLAIN_LOADERS: Partial<Record<LocaleCode, () => Dictionary>> = {
   en: () => require('../../locales/en/plain.json'),
   de: () => require('../../locales/de/plain.json'),
+  vi: () => require('../../locales/vi/plain.json'),
 };
 
 /** Whether a language has plain-language strings. */

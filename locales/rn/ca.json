@@ -1486,7 +1486,7 @@
         "description_ios": "Atkinson Hyperlegible i Lexend estan dissenyades perquè les lletres es distingeixin bé; OpenDyslexic ajuda algunes persones amb dislèxia. En aquest dispositiu, el tipus de lletra s'aplica als missatges de text pla."
       },
       "plain_language": {
-        "description_mobile": "Paraules més senzilles a la configuració i als missatges d'error. Disponible en anglès i alemany.",
+        "description_mobile": "Paraules més senzilles a la configuració i als missatges d'error. Disponible en anglès, alemany i vietnamita.",
         "label": "Llenguatge senzill"
       },
       "presets": {

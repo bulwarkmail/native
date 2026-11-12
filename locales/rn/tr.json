@@ -1487,7 +1487,7 @@
         "description_ios": "Atkinson Hyperlegible ve Lexend, harfleri kolayca ayırt edilecek şekilde tasarlanmıştır; OpenDyslexic disleksisi olan bazı kişilere yardımcı olur. Bu cihazda yazı tipi düz metin iletiler için kullanılır."
       },
       "plain_language": {
-        "description_mobile": "Ayarlar ve hata mesajları için daha basit ifadeler. İngilizce ve Almanca olarak kullanılabilir.",
+        "description_mobile": "Ayarlar ve hata mesajları için daha basit ifadeler. İngilizce, Almanca ve Vietnamca olarak kullanılabilir.",
         "label": "Sade dil"
       },
       "presets": {

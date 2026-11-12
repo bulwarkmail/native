@@ -1483,7 +1483,7 @@
         "description_ios": "Atkinson Hyperlegible og Lexend er lavet, så bogstaverne er lette at kende fra hinanden; OpenDyslexic hjælper nogle med ordblindhed. På denne enhed bruges skrifttypen til beskeder i ren tekst."
       },
       "plain_language": {
-        "description_mobile": "Enklere formuleringer i indstillinger og fejlmeddelelser. Tilgængelig på engelsk og tysk.",
+        "description_mobile": "Enklere formuleringer i indstillinger og fejlmeddelelser. Tilgængelig på engelsk, tysk og vietnamesisk.",
         "label": "Letforståeligt sprog"
       },
       "presets": {

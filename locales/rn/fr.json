@@ -1490,7 +1490,7 @@
         "description_ios": "Atkinson Hyperlegible et Lexend sont conçues pour être faciles à distinguer ; OpenDyslexic aide certaines personnes dyslexiques. Sur cet appareil, la police est utilisée pour les messages en texte brut."
       },
       "plain_language": {
-        "description_mobile": "Formulation plus simple pour les paramètres et les messages d'erreur. Disponible en anglais et en allemand.",
+        "description_mobile": "Formulation plus simple pour les paramètres et les messages d'erreur. Disponible en anglais, en allemand et en vietnamien.",
         "label": "Langage simple"
       },
       "presets": {

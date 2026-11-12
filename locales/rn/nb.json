@@ -1483,7 +1483,7 @@
         "description_ios": "Atkinson Hyperlegible og Lexend er laget slik at bokstavene er lette å skille fra hverandre; OpenDyslexic hjelper noen med dysleksi. På denne enheten brukes skriften for meldinger i ren tekst."
       },
       "plain_language": {
-        "description_mobile": "Enklere ord i innstillinger og feilmeldinger. Tilgjengelig på engelsk og tysk.",
+        "description_mobile": "Enklere ord i innstillinger og feilmeldinger. Tilgjengelig på engelsk, tysk og vietnamesisk.",
         "label": "Enkelt språk"
       },
       "presets": {

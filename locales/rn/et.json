@@ -617,7 +617,7 @@
         "description_ios": "Atkinson Hyperlegible ja Lexend on loodud nii, et tähti oleks lihtne eristada; OpenDyslexic aitab mõnda düsleksiaga inimest. Selles seadmes kasutatakse kirjatüüpi lihttekstkirjade jaoks."
       },
       "plain_language": {
-        "description_mobile": "Lihtsam sõnastus seadetes ja veateadetes. Saadaval inglise ja saksa keeles.",
+        "description_mobile": "Lihtsam sõnastus seadetes ja veateadetes. Saadaval inglise, saksa ja vietnami keeles.",
         "label": "Lihtsas keeles"
       },
       "presets": {

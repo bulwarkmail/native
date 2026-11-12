@@ -191,7 +191,7 @@ export function AccessibilitySettings() {
         </SettingItem>
         <SettingItem
           label={t('settings.accessibility.plain_language.label', 'Plain language')}
-          description={t('settings.accessibility.plain_language.description_mobile', 'Simpler wording for settings and error messages. Available in English and German.')}
+          description={t('settings.accessibility.plain_language.description_mobile', 'Simpler wording for settings and error messages. Available in English, German and Vietnamese.')}
           noBorder
         >
           <ToggleSwitch

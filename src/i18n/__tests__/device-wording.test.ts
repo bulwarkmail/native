@@ -36,7 +36,7 @@ const PHONE: Record<string, RegExp> = {
   el: /τηλέφων/i, es: /teléfono/i, et: /telefon/i, fa: /تلفن/, fr: /téléphone/i, he: /טלפון/, hu: /telefon/i,
   it: /telefono/i, ja: /スマートフォン/, ko: /휴대폰/, lv: /tālru/i, mn: /утас|утсанд|утсан/i, nb: /telefon/i, nn: /telefon/i,
   nl: /telefoon/i, pl: /telefon/i, pt: /celular/i, ro: /telefon/i, ru: /телефон/i, sk: /telefón/i,
-  th: /โทรศัพท์/, tr: /telefon/i, uk: /телефон/i, zh: /手机/, 'zh-TW': /手機/,
+  th: /โทรศัพท์/, tr: /telefon/i, uk: /телефон/i, vi: /điện thoại/i, zh: /手机/, 'zh-TW': /手機/,
 };
 
 describe('device-neutral wording', () => {

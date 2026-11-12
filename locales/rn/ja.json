@@ -1486,7 +1486,7 @@
         "description_ios": "Atkinson Hyperlegible と Lexend は文字を見分けやすいように設計されています。OpenDyslexic はディスレクシアの方の助けになることがあります。このデバイスでは、フォントはプレーンテキストのメッセージに使用されます。"
       },
       "plain_language": {
-        "description_mobile": "設定やエラーメッセージをよりわかりやすい言葉で表示します。英語とドイツ語で利用できます。",
+        "description_mobile": "設定やエラーメッセージをよりわかりやすい言葉で表示します。英語、ドイツ語、ベトナム語で利用できます。",
         "label": "やさしい言葉"
       },
       "presets": {

@@ -1103,7 +1103,7 @@
         "description_ios": "Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages."
       },
       "plain_language": {
-        "description_mobile": "Simpler wording for settings and error messages. Available in English and German.",
+        "description_mobile": "Simpler wording for settings and error messages. Available in English, German and Vietnamese.",
         "label": "Plain language"
       },
       "presets": {

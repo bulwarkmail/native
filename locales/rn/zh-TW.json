@@ -1485,7 +1485,7 @@
         "description_ios": "Atkinson Hyperlegible 和 Lexend 的字形設計得容易區分；OpenDyslexic 對部分閱讀障礙者有幫助。在此裝置上，此字型用於純文字郵件。"
       },
       "plain_language": {
-        "description_mobile": "設定和錯誤訊息使用更簡單的措辭。僅提供英文和德文版本。",
+        "description_mobile": "設定和錯誤訊息使用更簡單的措辭。僅提供英文、德文和越南文版本。",
         "label": "白話語言"
       },
       "presets": {

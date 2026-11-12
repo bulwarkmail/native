@@ -45,12 +45,12 @@ function argumentsOf(message: string): string[] {
 const plainLocales = readdirSync(LOCALES).filter((l) => existsSync(join(LOCALES, l, 'plain.json')));
 
 describe('plain-language strings', () => {
-  it('exist for English and German only, each with a loader', () => {
-    expect(plainLocales.sort()).toEqual(['de', 'en']);
-    expect(SUPPORTED_LOCALES.map((l) => l.code).filter(hasPlainLanguage).sort()).toEqual(['de', 'en']);
+  it('exist for English, German and Vietnamese only, each with a loader', () => {
+    expect(plainLocales.sort()).toEqual(['de', 'en', 'vi']);
+    expect(SUPPORTED_LOCALES.map((l) => l.code).filter(hasPlainLanguage).sort()).toEqual(['de', 'en', 'vi']);
   });
 
-  for (const locale of ['en', 'de']) {
+  for (const locale of ['en', 'de', 'vi']) {
     describe(locale, () => {
       const plain = leaves(load(locale, 'plain.json'));
       const common = new Map(leaves(load(locale, 'common.json')));

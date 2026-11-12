@@ -1484,7 +1484,7 @@
         "description_ios": "Atkinson Hyperlegible과 Lexend는 글자를 쉽게 구분할 수 있도록 만들어진 글꼴이고, OpenDyslexic은 난독증이 있는 일부 사람에게 도움이 돼요. 이 기기에서는 일반 텍스트 메시지에 이 글꼴을 사용해요."
       },
       "plain_language": {
-        "description_mobile": "설정과 오류 메시지를 더 쉬운 말로 보여 줘요. 영어와 독일어로 제공돼요.",
+        "description_mobile": "설정과 오류 메시지를 더 쉬운 말로 보여 줘요. 영어, 독일어, 베트남어로 제공돼요.",
         "label": "쉬운 말"
       },
       "presets": {
