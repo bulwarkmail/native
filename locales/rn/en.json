@@ -178,7 +178,10 @@
       "clear_due_date": "Clear due date",
       "delete_confirm": "Delete this task?",
       "delete_error": "Failed to delete task",
+      "mark_occurrence_done": "Mark this day as done",
+      "mark_occurrence_open": "Mark this day as not done",
       "not_found": "This task is no longer available.",
+      "open_task": "Open task",
       "save_error": "Failed to save task",
       "update_error": "Failed to update task"
     },
@@ -202,6 +205,9 @@
     "retry": "Retry",
     "undo": "Undo",
     "update": "Update"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {A recipient is} other {# recipients are}} outside your organisation:"
   },
   "contacts": {
     "address_books": {
@@ -556,6 +562,7 @@
       "open": "Open",
       "preview": "Preview",
       "save": "Save",
+      "save_as": "Save as…",
       "share": "Share"
     },
     "attachment_failed": "Could not open attachment",
@@ -584,6 +591,7 @@
     },
     "export_failed": "Export failed",
     "forwarded": "Forwarded",
+    "import_email": "Import .eml or .zip",
     "load_failed": "Failed to load email",
     "new_tag": "New tag",
     "new_tag_placeholder": "Tag name",
@@ -913,6 +921,8 @@
       "err_pair_unsupported_title": "This webmail can't link devices",
       "err_pair_untrusted_detail": "{host} sent sign-in details for a server the app can't verify.",
       "err_pair_untrusted_title": "This sign-in can't be trusted",
+      "err_password_expired_detail": "Change it in the server's web interface, then sign in with the new one.",
+      "err_password_expired_title": "Your password has expired",
       "err_rate_detail": "The server asked us to wait a moment. Try again shortly.",
       "err_rate_detail_seconds": "The server asked us to wait. Try again in about {seconds} seconds.",
       "err_rate_title": "Too many attempts",
@@ -1006,6 +1016,9 @@
       "up_to_date": "Already up to date"
     }
   },
+  "offlineWipe": {
+    "hidden_until_sign_in": "The server no longer accepts the saved sign-in for {account}. Its mail stays hidden on this device until you sign in again."
+  },
   "org_templates": {
     "personal_in_account": "Your templates are kept in your account, so you have them on every device you sign in on. Anyone you share your Inbox with can read them.",
     "section_personal": "My templates"
@@ -1090,7 +1103,8 @@
         "description_ios": "Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages."
       },
       "plain_language": {
-        "description_mobile": "Simpler wording for settings and error messages. Available in English and German."
+        "description_mobile": "Simpler wording for settings and error messages. Available in English and German.",
+        "label": "Plain language"
       },
       "presets": {
         "applied_mobile": "{name} changed {count, plural, one {# setting} other {# settings}}",
@@ -1321,6 +1335,12 @@
       },
       "attachment_click_action": {
         "description_mobile": "What happens when you tap an attachment."
+      },
+      "attachment_position": {
+        "below-header": "Below header",
+        "beside-sender": "Next to sender",
+        "description": "Where to display attachments in the email header",
+        "label": "Attachment Position"
       },
       "auto_select_reply_identity": {
         "description_mobile": "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too."
@@ -1557,6 +1577,7 @@
       "clear_title": "Clear offline mail",
       "days_ago": "{count} d ago",
       "description": "Download recent messages so they open instantly and remain readable without a connection. Bodies only — attachments are still fetched on demand.",
+      "description_account": "Keep recent messages of {account} on this device so they open without a connection. Each account keeps its own window and size.",
       "description_short": "Keep recent messages on this device so they open without a connection.",
       "downloading": "Downloading {completed}/{total}…",
       "enabled": "Cache recent mail",
@@ -1642,7 +1663,8 @@
         "error_title": "Update failed"
       },
       "encryption": {
-        "no_keys": "Add a public key first - encryption at rest needs one."
+        "no_keys": "Add a public key first - encryption at rest needs one.",
+        "turned_off_on_server": "Encryption at rest was on and has been turned off on the server, as the update to Stalwart 1.0.2 does. New mail is stored unencrypted until you turn it on again here."
       },
       "load_error": "Failed to load security settings.",
       "not_supported": "Account security management requires a Stalwart server. These features are not available for this account.",
@@ -1670,6 +1692,7 @@
         "title": "Public Keys"
       },
       "restricted": "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.",
+      "restricted_sign_in_again": "Bulwark signed in before your server let apps manage these settings. Sign in again to manage the password, two-factor sign-in, app passwords and API keys here.",
       "screen_privacy": {
         "block_screenshots": "Block screenshots",
         "block_screenshots_description": "Stops screenshots and screen recordings of the app and hides its content in the recent apps view.",
@@ -1828,6 +1851,7 @@
   "sidebar": {
     "account_error": "Needs attention",
     "account_sign_in_again": "Sign in again",
+    "account_unread": "{count} unread",
     "remove_account_hint": "Long-press to remove this account",
     "remove_account_message": "Sign out of {account} on this device. Your mail stays on the server.",
     "remove_account_title": "Remove account?",
