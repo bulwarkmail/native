@@ -242,6 +242,20 @@ describe('contacts-store', () => {
       expect(useContactsStore.getState().contacts).toHaveLength(2);
     });
 
+    // The group made through Add to group showed twice until a restart.
+    it('keeps one copy when the reload after the push brought the card in first', async () => {
+      useContactsStore.setState({ contacts: [card('c1')], addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      const created = { id: 'g-new', kind: 'group', addressBookIds: { 'ab-1': true } };
+      mockCreateContact.mockImplementation(async () => {
+        useContactsStore.setState({ contacts: [card('c1'), { ...created } as any] });
+        return created;
+      });
+
+      await useContactsStore.getState().createContact({ kind: 'group' }, 'ab-1');
+
+      expect(useContactsStore.getState().contacts.map((c) => c.id)).toEqual(['c1', 'g-new']);
+    });
+
     it('routes a shared book to its account and namespaces the result', async () => {
       useContactsStore.setState({
         addressBooks: [

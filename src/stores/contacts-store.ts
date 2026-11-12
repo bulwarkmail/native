@@ -238,6 +238,17 @@ export function selectImportUidMatches(
   return matches;
 }
 
+/**
+ * The list with a card the app just created. A reload the server's push set
+ * off can bring the card in before the create's own answer: it is replaced
+ * then, not added a second time.
+ */
+export function withCard(contacts: ContactCard[], card: ContactCard): ContactCard[] {
+  return contacts.some((c) => c.id === card.id)
+    ? contacts.map((c) => (c.id === card.id ? card : c))
+    : [...contacts, card];
+}
+
 function persistCategory(category: ContactCategory): void {
   void AsyncStorage.setItem(SELECTED_CATEGORY_STORAGE_KEY, JSON.stringify(category)).catch(
     (err) => console.warn('[contacts-store] persist category failed', err),
@@ -563,7 +574,7 @@ export const useContactsStore = create<ContactsState>()(
             : await write(contact);
           const created = tagCreated(saved, book);
           check();
-          set({ contacts: [...get().contacts, created] });
+          set({ contacts: withCard(get().contacts, created) });
           requestDeviceSync(CONTACTS_AUTHORITY);
           return created;
         },
@@ -701,7 +712,7 @@ export const useContactsStore = create<ContactsState>()(
                 continue;
               }
               check();
-              set({ contacts: [...get().contacts, created] });
+              set({ contacts: withCard(get().contacts, created) });
               imported++;
             } catch (err) {
               if (err instanceof ContactsAccountChangedError) throw err;
