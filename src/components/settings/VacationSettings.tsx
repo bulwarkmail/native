@@ -31,6 +31,7 @@ import {
 import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-limits';
 import { vacationStatus } from '../../lib/vacation-status';
 import { isBlankReply, vacationMessageBlocksSave, vacationMessageEmpty } from '../../lib/vacation-message';
+import { VacationCalendarBlock } from './VacationCalendarBlock';
 import { jmapClient } from '../../api/jmap-client';
 import { getSieveCapabilities } from '../../api/sieve';
 
@@ -396,6 +397,7 @@ export function VacationSettings() {
             autoCorrect={false}
           />
         </SettingItem>
+        <VacationCalendarBlock hasDates={!!fromParsed && !!toParsed} accountId={managedAccountId ?? undefined} />
       </SettingsSection>
 
       <SettingsSection

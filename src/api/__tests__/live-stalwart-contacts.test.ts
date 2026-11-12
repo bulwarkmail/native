@@ -58,6 +58,7 @@ import { contactToForm, formToPatch } from '../../lib/contact-form';
 import { generateScript } from '../../lib/sieve/generator';
 import { parseScript } from '../../lib/sieve/parser';
 import { applyRuleToMailbox, planRuleOnMailbox } from '../../lib/sieve/retroactive-run';
+import { OOO_KEYWORD, oooUid, syncVacationBlock } from '../../lib/vacation-calendar';
 import { applyQuickRule, buildPresetRule, toRuleMailbox } from '../../lib/sieve/quick-rules';
 import { readWebmailFixture, WEBMAIL_FIXTURES } from '../../lib/sieve/__tests__/fixtures/webmail';
 import { getMailboxes } from '../email';
@@ -540,6 +541,40 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       } finally {
         await client.request([['Email/set', { accountId: client.accountId, destroy: [hit, miss].filter(Boolean) }, '0']], MAIL)
           .catch(() => undefined);
+      }
+    }, 60_000);
+
+    // Webmail 1.20 "Block my calendar": a reply with dates keeps a busy event
+    // in the default calendar, and switching it off takes the event away.
+    it('keeps a busy event for an out-of-office reply with dates and removes it when switched off', async () => {
+      const CAL = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:calendars'];
+      const byUid = async () => {
+        const res = await client.request([
+          ['CalendarEvent/query', { accountId: client.accountId, filter: { uid: oooUid(client.accountId) } }, '0'],
+          ['CalendarEvent/get', {
+            accountId: client.accountId, '#ids': { resultOf: '0', name: 'CalendarEvent/query', path: '/ids' },
+            properties: ['id', 'title', 'freeBusyStatus', 'utcStart', 'utcEnd', 'keywords'],
+          }, '1'],
+        ], CAL);
+        return ((res.methodResponses[1][1] as { list?: Array<Record<string, any>> }).list) ?? [];
+      };
+      // An account that has one already (a person set it up) is left alone.
+      if ((await byUid()).length > 0) return;
+      const reply = {
+        isEnabled: true, fromDate: '2027-07-05T07:00:00Z', toDate: '2027-07-09T15:00:00Z', subject: `Away ${RUN}`,
+      };
+      try {
+        expect(await syncVacationBlock(undefined, reply, 'save', new Date())).toBe('create');
+        const [event] = await byUid();
+        expect(event).toMatchObject({ title: `Away ${RUN}`, freeBusyStatus: 'busy', keywords: { [OOO_KEYWORD]: true } });
+        expect(Date.parse(event.utcStart)).toBe(Date.parse(reply.fromDate));
+        expect(Date.parse(event.utcEnd)).toBe(Date.parse(reply.toDate));
+
+        expect(await syncVacationBlock(undefined, { ...reply, isEnabled: false }, 'save', new Date(), reply)).toBe('destroy');
+        expect(await byUid()).toEqual([]);
+      } finally {
+        const left = (await byUid().catch(() => [])).map((e) => e.id);
+        if (left.length) await client.request([['CalendarEvent/set', { accountId: client.accountId, destroy: left }, '0']], CAL).catch(() => undefined);
       }
     }, 60_000);
   });
