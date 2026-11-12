@@ -106,11 +106,14 @@ export function isStalwartSupported(): boolean {
 }
 
 /**
- * The server refused an x:* method to this sign-in. Stalwart 1.0 gives the
- * account's own settings (password, two-factor, app passwords, API keys,
- * encryption) only to first-party clients; a token from the client the app
- * registers itself reaches mail, contacts, calendars and files, and every
- * x:* call answers `forbidden`. Basic auth and 0.16 tokens are not limited.
+ * The server refused an x:* method to this sign-in. Stalwart 1.0.0 to 1.0.2
+ * give the account's own settings (password, two-factor, app passwords, API
+ * keys, encryption) only to first-party clients. 1.0.3 has none and gives
+ * them by scope: `security` (password, two-factor, app passwords, API keys,
+ * grants), `settings` (account settings, public keys, masked addresses) or
+ * `full` (everything). A token without them reaches mail, contacts,
+ * calendars and files, and every x:* call answers `forbidden`. Basic auth
+ * and 0.16 tokens are not limited.
  */
 export class AccountSecurityForbiddenError extends Error {
   constructor(message: string) {
@@ -121,9 +124,12 @@ export class AccountSecurityForbiddenError extends Error {
 
 /**
  * Signed in to Stalwart 1.0 through the client the app registered itself,
- * whose tokens reach no x:* object: the session then lists no Stalwart
- * extension either (checked on 1.0.0), which is not the same as a server
- * without it. Stalwart's registered client ids are `swc1.` sealed ids.
+ * with a token that reaches no x:* object: on 1.0.0 to 1.0.2 any such
+ * token, on 1.0.3+ one without the `security`, `settings` or `full` scope
+ * (a grant from before the upgrade). The session then lists no Stalwart
+ * extension either (checked on 1.0.0; 1.0.3 lists it only to tokens with
+ * one of those scopes), which is not the same as a server without it.
+ * Stalwart's registered client ids are `swc1.` sealed ids.
  */
 export function isLimitedStalwartSignIn(): boolean {
   const clientId = jmapClient.oauthClientId;

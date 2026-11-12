@@ -58,16 +58,18 @@ export const REGISTERED_LOGOUT_REDIRECT_URI = 'org.bulwarkmail.mobile:/auth/logo
 
 /**
  * The app's own client, which the webmail's admin OAuth setup registers on
- * Stalwart 1.0 (webmail #1459): public and first-party, so its tokens reach
- * the account's Stalwart settings, which those of a client the app
- * registers itself don't.
+ * Stalwart 1.0 (webmail #1459). On 1.0.0 to 1.0.2 it is first-party, so its
+ * tokens reach the account's Stalwart settings, which those of a client the
+ * app registers itself don't. 1.0.3 has no first-party clients: the setup
+ * allows it the data scopes plus `full` (superuser admin) or plus
+ * `security` and `settings`, and a token reaches what its scopes name.
  */
 export const MOBILE_CLIENT_ID = 'bulwark-mobile';
 
 /**
- * The data scopes Stalwart 1.0 grants a client that isn't first-party. A
- * token reaches only what these name (no scope: nothing but the session);
- * 0.16 ignores them.
+ * The data scopes Stalwart 1.0 grants a client that isn't first-party (on
+ * 1.0.3, any client). A token reaches only what its scopes name (no scope:
+ * nothing but the session); 0.16 ignores them.
  */
 export const STALWART_DATA_SCOPES = [
   'urn:ietf:params:oauth:scope:mail',
