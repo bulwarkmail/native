@@ -215,15 +215,25 @@ live('live Stalwart sign-in', () => {
       if (isV1) {
         expectV1Client(client.clientId);
         expect(client.redirectUri).toBe(REGISTERED_REDIRECT_URI);
-        // The browser sign-in's authorization request with this client and
-        // the scopes the app asks for passes 1.0's client check.
+        // The browser sign-in's authorization request passes 1.0's client
+        // check: the client it picks, with the scopes it picked them for
+        // (on 1.0.3+ `full` for a bulwark-mobile allowed it, which refuses
+        // `security settings`), as loginWithPkce sends them.
         const metadata = (await discoverOAuthMetadata(SERVER))!;
+        resetLoginClients();
+        const browser = await resolveLoginClient(SERVER, {
+          registrationEndpoint: metadata.registration_endpoint,
+          scope: pkceScopes(metadata),
+          scopesSupported: metadata.scopes_supported ?? null,
+        });
+        resetLoginClients();
+        expectV1Client(browser.clientId);
         const query = new URLSearchParams({
           response_type: 'code',
-          client_id: client.clientId,
-          redirect_uri: client.redirectUri,
+          client_id: browser.clientId,
+          redirect_uri: browser.redirectUri,
           state: 's',
-          scope: pkceScopes(metadata),
+          scope: browser.scope,
           code_challenge: 'A'.repeat(43),
           code_challenge_method: 'S256',
         });
@@ -335,7 +345,7 @@ live('live Stalwart sign-in', () => {
     });
   });
 
-  it('with bulwark-mobile allowed full, the app signs in as bulwark-mobile and x:ArchivedItem/query is not forbidden', async (ctx) => {
+  it('with bulwark-mobile allowed full, the app signs in as bulwark-mobile with a full grant; x:ArchivedItem answers or names the Enterprise licence', async (ctx) => {
     // 1.0.3+ with the webmail's superuser setup (register-mobile-client.py
     // with `full`); anything else skips.
     const metadata = await discoverOAuthMetadata(SERVER);
@@ -346,14 +356,30 @@ live('live Stalwart sign-in', () => {
     const tokens = await exchangePasswordForTokens(SERVER, USER, PASS);
     try {
       expect(tokens.clientId).toBe(MOBILE_CLIENT_ID);
+      // The grant carries `full`, not only the request.
+      const introspection = await fetch(`${SERVER}/auth/introspect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${tokens.accessToken}` },
+        body: new URLSearchParams({ token: tokens.accessToken, client_id: tokens.clientId }).toString(),
+      });
+      const granted = (await introspection.json()) as { active?: boolean; scope?: string };
+      expect(granted.active).toBe(true);
+      expect(granted.scope?.split(' ')).toContain(STALWART_FULL_SCOPE);
       const client = new JMAPClient();
       await client.connectWithOAuth(SERVER, tokens, USER);
       const res = await client.request(
         [['x:ArchivedItem/query', { accountId: client.accountId }, '0']],
         ['urn:ietf:params:jmap:core', 'urn:stalwart:jmap'],
       );
-      const [name, body] = res.methodResponses[0] as unknown as [string, { type?: string }];
-      expect(name === 'error' ? body.type : name).toBe('x:ArchivedItem/query');
+      const [name, body] = res.methodResponses[0] as unknown as [string, { type?: string; description?: string }];
+      // x:ArchivedItem is an Enterprise object: Stalwart Community (the rig)
+      // refuses it to every token with this licence notice, a `full` one too.
+      if (name === 'error') {
+        expect(body.type).toBe('forbidden');
+        expect(body.description).toMatch(/only available in the Enterprise edition/i);
+      } else {
+        expect(name).toBe('x:ArchivedItem/query');
+      }
     } finally {
       await revokeRefreshToken(SERVER, tokens);
       resetLoginClients();
