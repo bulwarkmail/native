@@ -72,6 +72,7 @@ import {
 import { describeLoginError } from '../../lib/login-errors';
 import { fetchMailQuota, serverSupportsQuota, toMailQuota } from '../quota';
 import { createMaskedEmailManager, loadMaskedAddresses } from '../masked-email';
+import { fetchMailClientConfig } from '../../lib/mail-client-config';
 import { discoverOAuthMetadata, loginWithPkce, pkceScopes, revokeRefreshToken } from '../../lib/oauth-native';
 import {
   HANDOFF_REDIRECT_URI,
@@ -540,6 +541,15 @@ live('live Stalwart sign-in', () => {
     const info = await fetchAuthInfo();
     expect(info.otpEnabled).toBe(false);
     expect(Array.isArray(info.appPasswords)).toBe(true);
+  });
+
+  it('reads the settings for other mail apps from the server autoconfig, on both (#1633)', async () => {
+    const config = await fetchMailClientConfig(SERVER, USER, (url, init) => fetch(url, init));
+    expect(config?.username).toBe(USER);
+    expect(config?.imap?.port).toBeGreaterThan(0);
+    expect(config?.smtp?.hostname).toBeTruthy();
+    expect(config?.caldav).toMatch(/^https?:\/\//);
+    expect(config?.carddav).toMatch(/^https?:\/\//);
   });
 
   it('masked addresses: hidden where the server has none, a full round trip where it has them', async () => {

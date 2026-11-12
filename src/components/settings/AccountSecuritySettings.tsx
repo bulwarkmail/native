@@ -53,6 +53,8 @@ import {
 } from '../../api/account-security';
 import { generateTotpEnrolment, type TotpEnrolment } from '../../lib/totp';
 import { MaskedAddressesSection } from './MaskedAddressesSection';
+import { fetchMailClientConfig, type MailClientConfig, type MailSocketSecurity } from '../../lib/mail-client-config';
+import * as Clipboard from 'expo-clipboard';
 
 // ── TLS client certificate (mobile-only) ──────────────────
 // Picks an installed Android cert (iOS: imports a .p12 file) for mTLS handshakes. Independent of the
@@ -604,24 +606,108 @@ function CredentialSection({ icon: Icon, title, description, nameLabel, namePlac
 }
 
 // ── Email client (OAuth accounts) ─────────────────────────
+// Settings > Security > "Use your mail in other apps" (webmail
+// components/settings/mail-apps-setup.tsx): the user name, the IMAP and SMTP
+// servers with port and encryption, and the CalDAV and CardDAV addresses,
+// each with a Copy button, from the mail server's autoconfig document. When
+// it has none, only the user name shows, with a line saying so.
+function MailAppCopyRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={styles.pwLabel}>{label}</Text>
+      <View style={styles.pwInputRow}>
+        <Text selectable style={[styles.secretText, { flex: 1 }]}>{value}</Text>
+        <Button
+          size="sm"
+          variant="outline"
+          accessibilityLabel={t('uxs_wording.mail_apps.copy_label', 'Copy {name}', { name: label })}
+          onPress={() => { void Clipboard.setStringAsync(value).then(() => setCopied(true), () => undefined); }}
+        >
+          {copied ? t('settings.security.email_client.copied', 'Copied') : t('settings.security.email_client.copy', 'Copy')}
+        </Button>
+      </View>
+      {detail ? <Text style={styles.panelHint}>{detail}</Text> : null}
+    </View>
+  );
+}
+
 function EmailClientSection() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const identities = useSettingsStore((s) => s.identities);
   const username = jmapClient.username ?? '';
+  const serverUrl = jmapClient.serverUrl ?? '';
+  // The autoconfig asks for an address; a bare login name takes the first identity's.
+  const emailAddress = username.includes('@') ? username : (identities.find((i) => i.email)?.email ?? '');
+  const [config, setConfig] = useState<MailClientConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!serverUrl || !emailAddress) {
+      setConfig(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void fetchMailClientConfig(serverUrl, emailAddress).then((result) => {
+      if (cancelled) return;
+      setConfig(result);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [serverUrl, emailAddress]);
+
+  const portSecurity = (port: number, security: MailSocketSecurity) => t('uxs_wording.mail_apps.port_security', 'Port {port}, {security}', {
+    port,
+    security: security === 'ssl' ? t('uxs_wording.mail_apps.security_ssl', 'SSL/TLS')
+      : security === 'starttls' ? t('uxs_wording.mail_apps.security_starttls', 'STARTTLS')
+        : t('uxs_wording.mail_apps.security_none', 'No encryption'),
+  });
 
   return (
     <View style={{ gap: spacing.md }}>
       <View style={styles.headerRow}>
         <Monitor size={16} color={c.mutedForeground} />
-        <Text style={styles.headerTitle}>{t('settings.security.email_client.title', "Email Client Setup")}</Text>
+        <Text style={styles.headerTitle}>{t('settings.security.email_client.title', 'Use your mail in other apps')}</Text>
       </View>
       <Text style={styles.panelHint}>
-        {t('settings.security.email_client.password_instructions', "Use your JMAP username above along with an app password to sign in to your email client. Create an app password in the section above if you haven't already.")}
+        {t('settings.security.email_client.description', 'Thunderbird, Apple Mail, Outlook and phone mail apps can use these settings.')}
       </Text>
       <View style={styles.panel}>
-        <Text style={styles.pwLabel}>{t('settings.security.email_client.jmap_username_label', "JMAP Username")}</Text>
-        <Text selectable style={styles.secretText}>{username}</Text>
+        <MailAppCopyRow label={t('settings.security.email_client.jmap_username_label', 'User name')} value={config?.username || username} />
+        {config?.imap && (
+          <MailAppCopyRow label={t('uxs_wording.mail_apps.imap', 'Incoming mail (IMAP)')} value={config.imap.hostname} detail={portSecurity(config.imap.port, config.imap.security)} />
+        )}
+        {config?.smtp && (
+          <MailAppCopyRow label={t('uxs_wording.mail_apps.smtp', 'Outgoing mail (SMTP)')} value={config.smtp.hostname} detail={portSecurity(config.smtp.port, config.smtp.security)} />
+        )}
+        {config?.caldav && <MailAppCopyRow label={t('uxs_wording.mail_apps.caldav', 'Calendars (CalDAV)')} value={config.caldav} />}
+        {config?.carddav && <MailAppCopyRow label={t('uxs_wording.mail_apps.carddav', 'Contacts (CardDAV)')} value={config.carddav} />}
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={c.mutedForeground} />
+            <Text style={styles.panelHint}>{t('uxs_wording.mail_apps.loading', 'Reading the settings from your mail server…')}</Text>
+          </View>
+        ) : !config ? (
+          <Text style={styles.panelHint}>
+            {t('uxs_wording.mail_apps.not_found', "Your mail server didn't share its server names for other apps. Ask your administrator for them.")}
+          </Text>
+        ) : null}
+        <Text style={styles.panelHint}>
+          {t('settings.security.email_client.password_instructions', 'For the password, use an app password, not your normal one. You can create one in the section below.')}
+        </Text>
       </View>
     </View>
   );
@@ -1098,6 +1184,8 @@ export function AccountSecuritySettings() {
             {!isOAuth && <DisplayNameSection initial={displayName} onSaved={setDisplayName} />}
             {passwordSignIn && <TotpSection enabled={!!auth?.otpEnabled} onChanged={() => { void reloadAuth(); }} />}
 
+            <EmailClientSection />
+
             <CredentialSection
               icon={Smartphone}
               title={t('settings.security.app_passwords.title', "App Passwords")}
@@ -1122,7 +1210,6 @@ export function AccountSecuritySettings() {
 
             <MaskedAddressesSection />
 
-            {isOAuth && <EmailClientSection />}
             {!isOAuth && (
               <>
                 <PublicKeysSection keys={publicKeys} onChanged={reloadCrypto} />
