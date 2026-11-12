@@ -534,7 +534,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: keeps the policy's `organisation` part as sent (`src/lib/org-policy.ts:57-58`, `:191`) but reads only the signature and disclaimer from it (`src/lib/org-signature.ts:61-62`). Push notifications always show sender and subject (`src/lib/push-background-task.ts:637-641`); offline caching follows only the user's settings (`src/components/settings/StorageSettings.tsx:39-41`); no download or export guard, no watermark, no wipe.
   - Fix hint: port devicesForAccount and apply pushWithoutContent first (push task, generic text), then noDownloads/noExport on the attachment and export paths and noOffline plus caps on the offline cache. Print is n/a.
 
-- [ ] **An account the server refuses keeps showing its cached mail** — `P2` — `missing`
+- [x] **An account the server refuses keeps showing its cached mail** — `P2` — `missing` — fixed in dc8e34e9
   - What WEB does: a refused login or an idle sign-out hides the account's mail on the device until the user signs in again, for at most 30 days, and says how many unsent messages wait; with `wipeOnForcedSignOut` it is deleted at once (`lib/offline/device-wipe.ts:9-12`, `:727`, `:742`). Changelog 1.21.0 Organisation.
   - What RN does: keeps the refused account with its caches and marks it "Sign in again" (`src/stores/auth-store.ts:249-270`); the start shows the refused account's cached mail (`src/stores/auth-store.ts:971-981`).
   - Fix hint: while `needsSignIn` is set, show the sign-in prompt instead of the cached list; drop the account's caches after 30 days, or at once when the policy asks.
