@@ -1,4 +1,6 @@
-import type { AddressComponent, ContactAddress, ContactAnniversary, ContactCard } from '../api/types';
+import type {
+  AddressComponent, ContactAddress, ContactAnniversary, ContactCalendar, ContactCard, ContactSchedulingAddress,
+} from '../api/types';
 
 /**
  * Translation between the ContactCard shape the app works with and the RFC
@@ -34,10 +36,44 @@ const LEGACY_ADDRESS_FIELDS: Array<[keyof ContactAddress, AddressComponent['kind
   ['country', 'country'],
 ];
 
-/** The RFC 9553 calendar, scheduling and directory entries the app reads. */
-interface WireLinks {
-  calendars?: Record<string, { kind?: string; uri?: string } | null>;
-  schedulingAddresses?: Record<string, { uri?: string } | null>;
+/** The flat calendar links: the kind of entry each is read from, and the key a new one gets. */
+const CALENDAR_LINKS = [
+  ['calendarUri', 'calendar', 'cal'],
+  ['freeBusyUri', 'freeBusy', 'fb'],
+] as const;
+
+type LinkFields = Pick<ContactCard, 'calendarUri' | 'freeBusyUri' | 'schedulingUri'>;
+
+/** The entries the app writes for a card that has only the flat links. */
+function calendarsFromLinks(card: LinkFields): Record<string, ContactCalendar> {
+  const calendars: Record<string, ContactCalendar> = {};
+  for (const [field, kind, key] of CALENDAR_LINKS) {
+    if (card[field]) calendars[key] = { '@type': 'Calendar', kind, uri: card[field] };
+  }
+  return calendars;
+}
+
+function schedulingFromLinks(card: LinkFields): Record<string, ContactSchedulingAddress> {
+  return card.schedulingUri ? { sched: { '@type': 'SchedulingAddress', uri: card.schedulingUri } } : {};
+}
+
+/** The key of the entry a flat calendar link stands for: the first of its kind. */
+function calendarKey(calendars: Record<string, ContactCalendar>, kind: string): string | undefined {
+  return Object.keys(calendars).find((key) => calendars[key]?.kind === kind);
+}
+
+/** The link itself: the `uri` of that entry. */
+function calendarLink(calendars: Record<string, ContactCalendar>, kind: string): string | undefined {
+  const key = calendarKey(calendars, kind);
+  return key ? calendars[key]?.uri : undefined;
+}
+
+/** `key`, or `key2`, `key3`... when another entry already has it. */
+function freeKey(entries: Record<string, unknown>, key: string): string {
+  if (!(key in entries)) return key;
+  let n = 2;
+  while (`${key}${n}` in entries) n++;
+  return `${key}${n}`;
 }
 
 /** vCard imports store flat fields; RFC 9553 wants `components` and `full`. */
@@ -96,17 +132,18 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
     );
   }
 
-  // Rebuild the calendar links only when the caller manages them, so an
-  // update that does not mention them leaves the server's entries alone.
-  if ('calendarUri' in card || 'freeBusyUri' in card) {
-    const calendars: Record<string, unknown> = {};
-    if (card.calendarUri) calendars.cal = { '@type': 'Calendar', kind: 'calendar', uri: card.calendarUri };
-    if (card.freeBusyUri) calendars.fb = { '@type': 'Calendar', kind: 'freeBusy', uri: card.freeBusyUri };
+  // Build the entries from the flat links only for a card that has nothing
+  // else (a vCard import). A card that carries `calendars` or
+  // `schedulingAddresses` is written with them as they are: the flat links
+  // show one entry of each kind, and a map built from them would drop the
+  // rest. An update that names neither leaves the server's entries alone.
+  if (card.calendars == null && ('calendarUri' in card || 'freeBusyUri' in card)) {
+    const calendars = calendarsFromLinks(card);
     if (Object.keys(calendars).length) out.calendars = calendars;
     else if (mode === 'update') out.calendars = null;
   }
-  if ('schedulingUri' in card) {
-    if (card.schedulingUri) out.schedulingAddresses = { sched: { '@type': 'SchedulingAddress', uri: card.schedulingUri } };
+  if (card.schedulingAddresses == null && 'schedulingUri' in card) {
+    if (card.schedulingUri) out.schedulingAddresses = schedulingFromLinks(card);
     else if (mode === 'update') out.schedulingAddresses = null;
   }
   if (card.source) {
@@ -118,13 +155,65 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
   return out;
 }
 
+/**
+ * The contact form's three links as a patch of the stored `calendars` and
+ * `schedulingAddresses`. A link that still reads as stored sends nothing. An
+ * edited one changes the `uri` of the entry it was read from, which keeps its
+ * key and its other properties; an emptied one removes that entry; a new one
+ * is added as `cal`, `fb` or `sched`. Entries the form does not show are kept.
+ *
+ * The flat links go out with a changed map, read from it again, so the
+ * store's copy of the card agrees with it: after the first calendar is
+ * removed, the next one is the calendar link.
+ *
+ * Like the form's other collections, a changed map is built on the store's
+ * copy of the card and replaces the server's, so an entry another client
+ * added since the last fetch does not survive an edit of that map here.
+ */
+export function linksToPatch(existing: ContactCard | undefined, links: Required<LinkFields>): Partial<ContactCard> {
+  const patch: Record<string, unknown> = {};
+  const flat = (field: keyof LinkFields, uri: string | undefined) => {
+    if (uri) patch[field] = uri;
+    else if (existing?.[field] !== undefined) patch[field] = null;
+  };
+
+  // A copy with the flat links but no maps (a vCard import whose re-fetch
+  // failed) stands for the entries the app wrote for them.
+  const calendars = { ...(existing?.calendars ?? calendarsFromLinks(existing ?? {})) };
+  let changed = false;
+  for (const [field, kind, key] of CALENDAR_LINKS) {
+    const uri = links[field];
+    if (uri === (calendarLink(calendars, kind) ?? '').trim()) continue;
+    changed = true;
+    const stored = calendarKey(calendars, kind);
+    if (!stored) calendars[freeKey(calendars, key)] = { '@type': 'Calendar', kind, uri };
+    else if (uri) calendars[stored] = { ...calendars[stored], uri };
+    else delete calendars[stored];
+  }
+  if (changed) {
+    patch.calendars = Object.keys(calendars).length ? calendars : null;
+    for (const [field, kind] of CALENDAR_LINKS) flat(field, calendarLink(calendars, kind));
+  }
+
+  const scheduling = { ...(existing?.schedulingAddresses ?? schedulingFromLinks(existing ?? {})) };
+  const first = Object.keys(scheduling)[0] as string | undefined;
+  const address = links.schedulingUri;
+  if (address !== ((first && scheduling[first]?.uri) || '').trim()) {
+    if (!first) scheduling.sched = { '@type': 'SchedulingAddress', uri: address };
+    else if (address) scheduling[first] = { ...scheduling[first], uri: address };
+    else delete scheduling[first];
+    patch.schedulingAddresses = Object.keys(scheduling).length ? scheduling : null;
+    flat('schedulingUri', Object.values(scheduling)[0]?.uri);
+  }
+  return patch;
+}
+
 /** Fill the app's flat URI fields from the RFC 9553 properties. */
 export function contactFromWire<T extends ContactCard>(card: T): T {
-  const links = card as T & WireLinks;
-  const calendars = Object.values(links.calendars ?? {});
-  const calendarUri = card.calendarUri ?? calendars.find((c) => c?.kind === 'calendar')?.uri;
-  const freeBusyUri = card.freeBusyUri ?? calendars.find((c) => c?.kind === 'freeBusy')?.uri;
-  const schedulingUri = card.schedulingUri ?? Object.values(links.schedulingAddresses ?? {})[0]?.uri;
+  const calendars = card.calendars ?? {};
+  const calendarUri = card.calendarUri ?? calendarLink(calendars, 'calendar');
+  const freeBusyUri = card.freeBusyUri ?? calendarLink(calendars, 'freeBusy');
+  const schedulingUri = card.schedulingUri ?? Object.values(card.schedulingAddresses ?? {})[0]?.uri;
   const source = card.source ?? Object.values(card.directories ?? {}).find((d) => d?.kind === 'entry')?.uri;
   if (!calendarUri && !freeBusyUri && !schedulingUri && !source) return card;
   return {

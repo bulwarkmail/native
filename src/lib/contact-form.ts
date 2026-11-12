@@ -8,6 +8,7 @@ import {
   partialDateToString, stringToPartialDate, deriveFullName, getCustomFullName,
 } from './contact-utils';
 import type { PhotoEdit } from './contact-media';
+import { linksToPatch } from './contact-wire';
 
 export interface EmailDraft { address: string; context: string }
 export interface PhoneDraft { number: string; context: string; feature: string }
@@ -382,11 +383,6 @@ export function formToPatch(
     if (isEdit && existing?.[key] !== undefined) return { [key]: null };
     return {};
   };
-  const scalar = (key: keyof ContactCard, value: string): Record<string, unknown> => {
-    if (value) return { [key]: value };
-    if (isEdit && existing?.[key] !== undefined) return { [key]: null };
-    return {};
-  };
 
   // Only send `kind` when this form owns the answer: switching a card between
   // person and organization. Leave other kinds (group, location, ...) untouched.
@@ -411,9 +407,11 @@ export function formToPatch(
     ...collection('notes', notes),
     ...collection('keywords', keywords),
     ...(speakToAs ? { speakToAs } : isEdit && existing?.speakToAs ? { speakToAs: null } : {}),
-    ...scalar('calendarUri', form.calendarUri.trim()),
-    ...scalar('schedulingUri', form.schedulingUri.trim()),
-    ...scalar('freeBusyUri', form.freeBusyUri.trim()),
+    ...linksToPatch(existing, {
+      calendarUri: form.calendarUri.trim(),
+      freeBusyUri: form.freeBusyUri.trim(),
+      schedulingUri: form.schedulingUri.trim(),
+    }),
     // No `media`: an update without it keeps every entry on the server, and
     // the form adds one only when the photo changed (mediaForPhotoEdit). A
     // map built here from the card's copy deleted a photo stored as a blob
