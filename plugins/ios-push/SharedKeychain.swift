@@ -126,9 +126,13 @@ enum SharedKeychain {
   /// The "this device only" variant of a class, nil when it already is one.
   /// "dk" is the deprecated Always class, which gets the shared items' class.
   static func deviceOnlyClass(of current: String) -> CFString? {
+    // Compared as strings: in a switch, `case kSec... as String` reads as a cast
+    // pattern on the String value and doesn't compile.
+    let whenUnlocked = kSecAttrAccessibleWhenUnlocked as String
+    let afterFirstUnlock = kSecAttrAccessibleAfterFirstUnlock as String
     switch current {
-    case kSecAttrAccessibleWhenUnlocked as String: return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-    case kSecAttrAccessibleAfterFirstUnlock as String: return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    case whenUnlocked: return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    case afterFirstUnlock: return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     case "dk": return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     default: return nil
     }

@@ -163,9 +163,13 @@ describe('the class of items an earlier version stored', () => {
     expect(keychainSwift).toMatch(/static let credentialsPrefix = "jmap_credentials"/);
     // Each class gets its "this device only" variant; device-only ones (the crypto keys) stay as they are.
     const map = functionBody(keychainSwift, 'static func deviceOnlyClass(of current: String)');
-    expect(map).toMatch(/kSecAttrAccessibleAfterFirstUnlock as String: return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly/);
-    expect(map).toMatch(/kSecAttrAccessibleWhenUnlocked as String: return kSecAttrAccessibleWhenUnlockedThisDeviceOnly/);
+    expect(map).toMatch(/let afterFirstUnlock = kSecAttrAccessibleAfterFirstUnlock as String/);
+    expect(map).toMatch(/case afterFirstUnlock: return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly/);
+    expect(map).toMatch(/let whenUnlocked = kSecAttrAccessibleWhenUnlocked as String/);
+    expect(map).toMatch(/case whenUnlocked: return kSecAttrAccessibleWhenUnlockedThisDeviceOnly/);
     expect(map).toMatch(/default: return nil/);
+    // In a switch over a String, `case kSec... as String:` is a cast pattern and fails to compile.
+    expect(keychainSwift).not.toMatch(/case kSec\w+ as String\s*:/);
     // The extension's write-backs (refreshed tokens, the renewal's expiry) replace the data only: the class stays.
     const update = functionBody(keychainSwift, 'static func update(_ key: String, json: [String: Any]) -> Bool');
     expect(update).toMatch(/\[kSecValueData as String: data\]/);
