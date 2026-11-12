@@ -53,7 +53,7 @@ import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import { defaultSenderIdentity, sortIdentities } from '../lib/identity-order';
 import {
-  sendEmail, saveDraftVersion, destroyEmails, getFullEmail, patchKeywordsForEmails, SendUnconfirmedError,
+  sendEmail, saveDraftVersion, getFullEmail, patchKeywordsForEmails, SendUnconfirmedError,
   type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
 import { draftContextFromEmail } from '../lib/draft-context';
@@ -145,7 +145,7 @@ import { activeFromOverride, composeSenderAddress } from '../lib/compose-sender'
 import type { Email, EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
-import { draftThreadOf, refreshDraftThread } from '../lib/draft-thread-refresh';
+import { discardDraft, draftThreadOf, refreshDraftThread } from '../lib/draft-thread-refresh';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { AttachmentPreviewModal } from '../components/email/AttachmentPreviewModal';
 import { useFilePreview } from '../components/email/use-file-preview';
@@ -1920,7 +1920,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           .catch(() => toast.error(t('email_list.open_draft_failed', 'Could not open the draft.')));
       },
       discard: () => {
-        destroyEmails([id], account).catch((err) => console.warn('[compose] discard failed', err));
+        discardDraft(id, account, draftThreadOf({ replyTo, draft })).catch((err) => console.warn('[compose] discard failed', err));
       },
     }, t);
   };
@@ -1941,7 +1941,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       void (async () => {
         try { await inflightSaveRef.current; } catch { /* ignore */ }
         const id = draftIdRef.current ?? autosaved;
-        destroyEmails([id], draftAccountRef.current).catch((err) => console.warn('[compose] discard failed', err));
+        // Out of its conversation too: the reader and the list's count
+        // kept the discarded draft until the conversation was read again.
+        discardDraft(id, draftAccountRef.current, draftThreadOf({ replyTo, draft }))
+          .catch((err) => console.warn('[compose] discard failed', err));
       })();
     }
     allowLeaveRef.current = true;

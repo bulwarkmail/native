@@ -2,8 +2,10 @@
 // draft lands in Drafts, so the mailbox list on screen gets no change for it,
 // and the conversation held for the reader still matched the account's Email
 // state as last read. After each save the composer has the conversation read
-// again, which the reader and the list's conversation size pick up.
+// again, which the reader and the list's conversation size pick up; a
+// discarded draft leaves it the same way.
 
+import { destroyEmails } from '../api/email';
 import { peekDetail, peekRow, refreshThread } from './email-detail-cache';
 import { useEmailStore } from '../stores/email-store';
 
@@ -44,4 +46,14 @@ export async function refreshDraftThread(target: DraftThread): Promise<void> {
   const next = { ...counts };
   for (const k of keys) next[k] = view.ids.length;
   useEmailStore.setState({ threadCounts: next });
+}
+
+/**
+ * Delete a discarded draft, then read its conversation again: the reader
+ * showed the draft as a second message, and the list counted it, until the
+ * conversation was read again. A refused delete leaves both as they are.
+ */
+export async function discardDraft(id: string, accountId: string | undefined, thread: DraftThread | null): Promise<void> {
+  await destroyEmails([id], accountId);
+  if (thread) await refreshDraftThread(thread);
 }

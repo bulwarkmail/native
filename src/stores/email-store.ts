@@ -3133,12 +3133,14 @@ function withThreadCounts(counts: Record<string, number>, threads: Thread[]): Re
 
 // Conversation sizes for rows no list page brought any for: restored from a
 // snapshot, or added by Email/queryChanges. Fire-and-forget; the loaded-page
-// count stands in until they land (and if the request fails).
-async function fillThreadCounts(emails: Email[], accountId: string | undefined): Promise<void> {
+// count stands in until they land (and if the request fails). `all` reads
+// every row's again: mail came or went outside the rows on screen (a reply
+// draft saved or discarded in Drafts), which no row's own change reports.
+async function fillThreadCounts(emails: Email[], accountId: string | undefined, all = false): Promise<void> {
   if (useSettingsStore.getState().disableThreading) return;
   const { threadCounts, currentMailboxId, activeAccountId } = useEmailStore.getState();
   const missing = Array.from(new Set(
-    emails.map((e) => e.threadId).filter((id) => id && threadCounts[id] === undefined),
+    emails.map((e) => e.threadId).filter((id) => id && (all || threadCounts[id] === undefined)),
   ));
   if (missing.length === 0) return;
   try {
@@ -3272,6 +3274,7 @@ async function refreshEmailsImpl(): Promise<void> {
           // another folder was open are not skipped.
           let updatedIds: string[] = [];
           let destroyedExtra: string[] = [];
+          let createdIds: string[] = [];
           let nextEmailState: string | undefined = emailState;
           // Drain `hasMoreChanges`: the server caps one response, so keep
           // asking from the returned state until the delta is complete
@@ -3290,6 +3293,7 @@ async function refreshEmailsImpl(): Promise<void> {
             }
             updatedIds.push(...ec.updated);
             destroyedExtra.push(...ec.destroyed);
+            createdIds.push(...ec.created);
             nextEmailState = ec.newState;
             since = ec.hasMoreChanges && ec.newState !== since ? ec.newState : undefined;
           }
@@ -3366,7 +3370,12 @@ async function refreshEmailsImpl(): Promise<void> {
               },
             },
           });
-          void fillThreadCounts(trimmed, ref.accountId);
+          // A message destroyed, or created anywhere but in these rows,
+          // may have changed the size of a conversation shown here although
+          // none of its rows changed: read them all again.
+          const onScreen = new Set(trimmed.map((e) => e.id));
+          const cameOrWent = destroyedExtra.length > 0 || createdIds.some((id) => !onScreen.has(id));
+          void fillThreadCounts(trimmed, ref.accountId, cameOrWent);
           return;
         }
         // queryChanges === null → cannotCalculateChanges. Drop our queryState

@@ -23,7 +23,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import {
-  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreadDrafts, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreads, getThreadDrafts, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
   type OutgoingAttachment,
 } from '../email';
 import { uploadBytes } from '../blob';
@@ -53,6 +53,8 @@ import { useTemplatesStore } from '../../stores/templates-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { findReceivingIdentity } from '../../lib/email-headers';
 import { defaultSenderIdentity } from '../../lib/identity-order';
+import { discardDraft, draftThreadOf, refreshDraftThread } from '../../lib/draft-thread-refresh';
+import { loadThread, peekThread, rememberRows } from '../../lib/email-detail-cache';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'e2e-phone-dark@example.org';
@@ -305,6 +307,46 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(ctx?.textBody).toContain('draft reply');
       const all = await findReplyDraftContext('replyAll', original);
       expect(all?.cc?.map((r) => r.email)).toEqual(['bob@example.org']);
+    }, 60_000);
+
+    // The reader showed a discarded reply draft as a second message, and the
+    // list counted it, until the conversation was read again.
+    it('takes a discarded reply draft out of its conversation', async () => {
+      const inbox = (await getMailboxes()).find((b) => b.role === 'inbox')!.id;
+      const msgId = `discard-${RUN}@example.org`;
+      const res = await singleton.request([['Email/set', {
+        accountId: singleton.accountId,
+        create: {
+          o: {
+            mailboxIds: { [inbox]: true }, keywords: { $seen: true },
+            from: [{ email: 'dora@example.org', name: 'Dora' }], to: [{ email: USER }],
+            subject: `kickoff ${tag}`, messageId: [msgId], receivedAt: new Date(Date.now() - 60_000).toISOString(),
+            bodyValues: { b: { value: 'notes' } }, textBody: [{ partId: 'b', type: 'text/plain' }],
+          },
+        },
+      }, '0']]);
+      const origId = res.methodResponses[0][1].created.o.id as string;
+      createdEmails.push(origId);
+      const [original] = await getFullEmails([origId]);
+      rememberRows([original]);
+      await loadThread(original.threadId);
+      expect(peekThread(original.threadId)?.ids).toEqual([origId]);
+
+      const reply = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: 'dora@example.org' }], subject: `Re: kickoff ${tag}`, textBody: 'Thanks',
+        inReplyTo: [msgId], references: [msgId],
+      }, drafts);
+      createdEmails.push(reply.id);
+      const thread = draftThreadOf({ replyTo: { originalEmailId: origId } });
+      expect(thread?.threadId).toBe(original.threadId);
+      await refreshDraftThread(thread!);
+      expect(peekThread(original.threadId)?.ids).toContain(reply.id);
+
+      await discardDraft(reply.id, undefined, thread);
+
+      expect(peekThread(original.threadId)?.ids).toEqual([origId]);
+      const [onServer] = await getThreads([original.threadId]);
+      expect(onServer.emailIds).toEqual([origId]);
     }, 60_000);
 
     // A reply draft moved to Trash keeps $draft and its thread; Reply starts
