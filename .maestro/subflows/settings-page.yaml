@@ -9,25 +9,53 @@
 # at the top.
 appId: org.bulwarkmail.mobile
 ---
+#
+# Typing goes as in type.yaml: the first character builds the search index,
+# and while it does the simulator drops or repeats keys ("Languageoooooo"),
+# so type it alone, wait for its results (the box's Clear button), then the
+# rest. Clear search empties the box for a retry: a tap on the box puts the
+# cursor where it lands, and eraseText leaves what is after it.
 - runFlow:
     when:
       true: ${!!Q}
     commands:
+      - evalScript: ${output.searchHead = Q.slice(0, 1); output.searchTail = Q.slice(1)}
+      - runFlow:
+          when:
+            visible: "Clear search"
+          commands:
+            - tapOn: "Clear search"
       - tapOn: "Search settings"
-      - eraseText: 40
-      - inputText: ${Q}
+      - inputText: ${output.searchHead}
+      - extendedWaitUntil:
+          visible: "Clear search"
+          timeout: 5000
+          optional: true
       - waitForAnimationToEnd:
           timeout: 3000
-      # Now and then the simulator drops or garbles a typed character:
-      # type it again, a few times if need be.
+      - inputText: ${output.searchTail}
+      - waitForAnimationToEnd:
+          timeout: 3000
+      # Type it again, a few times if need be.
       - repeat:
           while:
             notVisible: ${ROW}
           times: 3
           commands:
+            - runFlow:
+                when:
+                  visible: "Clear search"
+                commands:
+                  - tapOn: "Clear search"
             - tapOn: "Search settings"
-            - eraseText: 40
-            - inputText: ${Q}
+            - inputText: ${output.searchHead}
+            - extendedWaitUntil:
+                visible: "Clear search"
+                timeout: 5000
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+            - inputText: ${output.searchTail}
             - waitForAnimationToEnd:
                 timeout: 3000
 # A tap while the list still coasts from the swipe only stops it.
