@@ -441,7 +441,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Auth and accounts
 
-- [ ] **No masked addresses under Settings > Security** — `P2` — `missing`
+- [x] **No masked addresses under Settings > Security** — `P2` — `missing` — fixed in 19bae844
   - What WEB does: lists masked addresses on servers that offer them (Stalwart Enterprise, Inbuxa) through `x:MaskedEmail/query|get|set`; create (description optional), copy, describe, turn off, delete. Hidden on Stalwart Community instead of "not allowed" (`lib/stalwart/masked-email.ts:34-52`, `:109`, `:170`, `components/settings/masked-addresses-section.tsx:85`). 31de1649e, e88c259d6, a6fad9230 (#1641), ebc1a439b (#1624); changelog 1.21.1 (#1534).
   - What RN does: nothing; no MaskedEmail code in src. Account security only speaks `urn:stalwart:jmap` (`src/api/account-security.ts:13`).
   - Fix hint: port masked-email.ts onto the existing account-security request path and add a section to AccountSecuritySettings, shown only when the list call succeeds.
