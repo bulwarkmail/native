@@ -57,7 +57,7 @@ vi.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
-vi.mock('../../api/jmap-client', () => ({ jmapClient: h.client }));
+vi.mock('../../api/jmap-client', () => ({ jmapClient: h.client, primaryJmapAccountId: () => h.client.accountId }));
 vi.mock('../../stores/auth-store', () => ({
   useAuthStore: { getState: () => h.auth, subscribe: vi.fn() },
 }));

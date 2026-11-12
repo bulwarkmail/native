@@ -1,7 +1,7 @@
 import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { CalendarEvent } from '../api/types';
-import { jmapClient } from '../api/jmap-client';
+import { jmapClient, primaryJmapAccountId } from '../api/jmap-client';
 import { useAuthStore } from '../stores/auth-store';
 import { loadEventsInRange, useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -193,16 +193,6 @@ async function scheduleOne(alert: ScheduledAlert, locale: string): Promise<void>
 function isSignedOut(): boolean {
   const { hasRestoredSession, isAuthenticated } = useAuthStore.getState();
   return hasRestoredSession && !isAuthenticated;
-}
-
-// The JMAP account the upcoming events are loaded from when they carry no
-// account of their own.
-function primaryJmapAccountId(): string | null {
-  try {
-    return jmapClient.accountId;
-  } catch {
-    return null;
-  }
 }
 
 /**

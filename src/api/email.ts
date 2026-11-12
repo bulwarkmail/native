@@ -1,4 +1,4 @@
-import { jmapClient } from './jmap-client';
+import { jmapClient, type JMAPClient } from './jmap-client';
 import {
   assertSetResult, batched, failedIdsOf, JMAPMethodError, JMAPSetError, NoLongerScheduledError, parseHoldLimit, RecipientsRefusedError,
   requireMethodResult, ScheduleTooLateError, type RefusedRecipient,
@@ -168,23 +168,24 @@ async function emailSetBatched(
   return out;
 }
 
-export async function getMailboxes(accountId?: string): Promise<Mailbox[]> {
-  return (await getMailboxesWithState(accountId)).list;
+export async function getMailboxes(accountId?: string, client: JMAPClient = jmapClient): Promise<Mailbox[]> {
+  return (await getMailboxesWithState(accountId, client)).list;
 }
 
 // Variant that also returns the JMAP `state` token so callers can later issue
 // Mailbox/changes(sinceState=…) to fetch only what changed.
 export async function getMailboxesWithState(
   accountIdOverride?: string,
+  client: JMAPClient = jmapClient,
 ): Promise<{ list: Mailbox[]; state: string }> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const isShared = accountId !== jmapClient.accountId;
-  const res = await jmapClient.request(
+  const accountId = accountIdOverride ?? client.accountId;
+  const isShared = accountId !== client.accountId;
+  const res = await client.request(
     [['Mailbox/get', { accountId, properties: MAILBOX_PROPERTIES }, '0']],
   );
   const body = requireMethodResult(res, '0', 'Mailbox/get');
   const list = ((body.list as Mailbox[]) ?? []).map((m) =>
-    tagMailbox(m, accountId, jmapClient.getAccountName(accountId), isShared),
+    tagMailbox(m, accountId, client.getAccountName(accountId), isShared),
   );
   return { list, state: body.state as string };
 }
@@ -196,15 +197,15 @@ export async function getMailboxesWithState(
  * errors (revoked access, server hiccup) is skipped rather than sinking the
  * whole list.
  */
-export async function getSharedMailboxes(): Promise<Mailbox[]> {
-  const accounts = jmapClient.getSharedMailAccounts();
+export async function getSharedMailboxes(client: JMAPClient = jmapClient): Promise<Mailbox[]> {
+  const accounts = client.getSharedMailAccounts();
   if (accounts.length === 0) return [];
 
-  const perRequest = Math.max(1, jmapClient.getMaxCallsInRequest());
+  const perRequest = Math.max(1, client.getMaxCallsInRequest());
   const out: Mailbox[] = [];
   for (let i = 0; i < accounts.length; i += perRequest) {
     const chunk = accounts.slice(i, i + perRequest);
-    const res = await jmapClient.request(
+    const res = await client.request(
       chunk.map((acc, idx): JMAPMethodCall => [
         'Mailbox/get',
         { accountId: acc.id, properties: MAILBOX_PROPERTIES },

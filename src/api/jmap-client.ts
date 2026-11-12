@@ -321,7 +321,7 @@ export class JMAPClient {
 
     const fetched = await this.fetchSession(baseUrl);
     this.assertCurrentSession(epoch);
-    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    const session = rewriteSessionUrls(fetched, baseUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
@@ -393,7 +393,7 @@ export class JMAPClient {
       throw err;
     }
     this.assertCurrentSession(epoch);
-    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    const session = rewriteSessionUrls(fetched, baseUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
@@ -440,7 +440,7 @@ export class JMAPClient {
 
     const fetched = await this.fetchSession(baseUrl);
     this.assertCurrentSession(epoch);
-    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    const session = rewriteSessionUrls(fetched, baseUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
@@ -645,7 +645,7 @@ export class JMAPClient {
     try {
       const creds: StoredCredentials = JSON.parse(stored);
       this.credentials = creds;
-      this.session = this.rewriteSessionUrls(
+      this.session = rewriteSessionUrls(
         await this.fetchSession(creds.serverUrl),
         creds.serverUrl,
       );
@@ -701,7 +701,7 @@ export class JMAPClient {
       );
     }
     this.assertCurrentSession(epoch);
-    const session = this.rewriteSessionUrls(fetched, creds.serverUrl);
+    const session = rewriteSessionUrls(fetched, creds.serverUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
     this.sessionCacheId = accountId;
@@ -795,7 +795,7 @@ export class JMAPClient {
     let fresh: JMAPSession;
     let accountIdInSession: string;
     try {
-      fresh = this.rewriteSessionUrls(await this.fetchSession(creds.serverUrl), creds.serverUrl);
+      fresh = rewriteSessionUrls(await this.fetchSession(creds.serverUrl), creds.serverUrl);
       if (epoch !== this.sessionEpoch) return null;
       accountIdInSession = this.resolveAccountId(fresh);
     } catch (err) {
@@ -874,39 +874,6 @@ export class JMAPClient {
       await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
       return null;
     }
-  }
-
-  // Rewrite session URLs to share the origin the client connected with.
-  // JMAP servers often self-report localhost/container-internal hostnames in
-  // apiUrl/downloadUrl/etc. that are unreachable from mobile clients (e.g.
-  // the Android emulator can't resolve the host's "localhost"), and some
-  // deployments advertise relative URLs (`/jmap/`) which `fetch` can't use.
-  //
-  // Splits via plain string indexing rather than `new URL()` because RN's
-  // URL polyfill mutates inputs (appends trailing slashes, normalises
-  // characters) and would corrupt the RFC 6570 templates {accountId}/{blobId}
-  // before the caller has a chance to substitute values into them.
-  //
-  // A URL on another HTTPS origin than the server's own apiUrl is one it
-  // deliberately hosts elsewhere (Fastmail serves downloads from a separate
-  // domain) and is kept; everything else moves onto the origin we connected to.
-  private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
-    const serverOrigin = extractOrigin(serverUrl);
-    const reportedOrigin = session.apiUrl ? extractOrigin(session.apiUrl) : null;
-    const rewrite = (url: string | undefined): string | undefined =>
-      rewriteSessionUrl(url, serverOrigin);
-    const rewriteHosted = (url: string | undefined): string | undefined => {
-      const origin = url ? extractOrigin(url) : null;
-      const hostedElsewhere = !!origin && !!reportedOrigin && origin !== reportedOrigin && /^https:/i.test(origin);
-      return hostedElsewhere ? url : rewrite(url);
-    };
-    return {
-      ...session,
-      apiUrl: rewrite(session.apiUrl) ?? session.apiUrl,
-      downloadUrl: rewriteHosted(session.downloadUrl) ?? session.downloadUrl,
-      uploadUrl: rewriteHosted(session.uploadUrl) ?? session.uploadUrl,
-      eventSourceUrl: rewriteHosted(session.eventSourceUrl) ?? session.eventSourceUrl,
-    };
   }
 
   // Reset in-memory state without touching persisted credentials (used on
@@ -1150,7 +1117,7 @@ export class JMAPClient {
     const baseUrl = this.credentials.serverUrl;
     const fetched = await this.fetchSession(baseUrl);
     this.assertCurrentSession(epoch);
-    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    const session = rewriteSessionUrls(fetched, baseUrl);
     this.session = session;
     this._accountId = this.resolveAccountId(session);
     this.rememberSession();
@@ -1551,6 +1518,39 @@ export function rewriteSessionUrl(
   return serverOrigin + url.slice(origin.length);
 }
 
+// Rewrite session URLs to share the origin the client connected with.
+// JMAP servers often self-report localhost/container-internal hostnames in
+// apiUrl/downloadUrl/etc. that are unreachable from mobile clients (e.g.
+// the Android emulator can't resolve the host's "localhost"), and some
+// deployments advertise relative URLs (`/jmap/`) which `fetch` can't use.
+//
+// Splits via plain string indexing rather than `new URL()` because RN's
+// URL polyfill mutates inputs (appends trailing slashes, normalises
+// characters) and would corrupt the RFC 6570 templates {accountId}/{blobId}
+// before the caller has a chance to substitute values into them.
+//
+// A URL on another HTTPS origin than the server's own apiUrl is one it
+// deliberately hosts elsewhere (Fastmail serves downloads from a separate
+// domain) and is kept; everything else moves onto the origin we connected to.
+export function rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
+  const serverOrigin = extractOrigin(serverUrl);
+  const reportedOrigin = session.apiUrl ? extractOrigin(session.apiUrl) : null;
+  const rewrite = (url: string | undefined): string | undefined =>
+    rewriteSessionUrl(url, serverOrigin);
+  const rewriteHosted = (url: string | undefined): string | undefined => {
+    const origin = url ? extractOrigin(url) : null;
+    const hostedElsewhere = !!origin && !!reportedOrigin && origin !== reportedOrigin && /^https:/i.test(origin);
+    return hostedElsewhere ? url : rewrite(url);
+  };
+  return {
+    ...session,
+    apiUrl: rewrite(session.apiUrl) ?? session.apiUrl,
+    downloadUrl: rewriteHosted(session.downloadUrl) ?? session.downloadUrl,
+    uploadUrl: rewriteHosted(session.uploadUrl) ?? session.uploadUrl,
+    eventSourceUrl: rewriteHosted(session.eventSourceUrl) ?? session.eventSourceUrl,
+  };
+}
+
 async function readBodyText(response: Response): Promise<string> {
   try {
     if (typeof response.text === 'function') return await response.text();
@@ -1632,3 +1632,12 @@ export class RateLimitError extends Error {
 
 // Singleton instance
 export const jmapClient = new JMAPClient();
+
+/** The JMAP account the client serves (the singleton by default), or null before its session is up. */
+export function primaryJmapAccountId(client: JMAPClient = jmapClient): string | null {
+  try {
+    return client.accountId;
+  } catch {
+    return null;
+  }
+}
