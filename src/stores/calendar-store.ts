@@ -5,6 +5,7 @@ import { createPersistStorage } from './persist-storage';
 import { t } from './locale-store';
 import type { Calendar, CalendarEvent, CalendarRights, Participant, StateChange } from '../api/types';
 import { getEventStartDate, normalizeAllDayDuration } from '../lib/calendar-utils';
+import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { withOwnAlertIds } from '../lib/calendar-alerts';
 import { hasAnsweredAttendees } from '../lib/calendar-participants';
 import {
@@ -25,6 +26,8 @@ import {
   resetCalendarAccessDenied,
   createEvent as apiCreateEvent,
   updateEvent as apiUpdateEvent,
+  updateEventInSteps as apiUpdateEventInSteps,
+  misreadsAllDayOverrides,
   deleteEvents as apiDeleteEvents,
   batchCreateEvents as apiBatchCreateEvents,
   rsvpEvent as apiRsvpEvent,
@@ -61,7 +64,7 @@ import { mergeRangeEvents, mergedSpanLimit, planRangeLoad, sameRange } from '../
 import { requestDeviceSync } from '../device-sync/app/request';
 import { sortCalendars, sortOrderUpdates } from '../lib/calendar-sort';
 import { searchFilter } from '../lib/calendar-search';
-import { occurrenceToggleEntry, overridePatch, seriesCompletionUpdates } from '../lib/calendar-tasks';
+import { hasFloatingAllDayDates, occurrenceTickPatches, occurrenceToggleEntry, seriesCompletionUpdates } from '../lib/calendar-tasks';
 import { CALENDAR_AUTHORITY } from '../device-sync/types';
 
 // extendRange merges up to twice the requested range (at least half a year,
@@ -1599,14 +1602,34 @@ export const useCalendarStore = create<CalendarState>()(
     const writeId = task.originalId || id;
     if (recurrenceId && task.recurrenceRules?.length) {
       const entry = occurrenceToggleEntry(task, recurrenceId);
-      const before = task.recurrenceOverrides;
-      const setOverrides = (overrides: CalendarEvent['recurrenceOverrides']) =>
-        set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, recurrenceOverrides: overrides } : t)) });
-      setOverrides({ ...(before ?? {}), [recurrenceId]: entry as Partial<CalendarEvent> });
+      // Stalwart 0.16 reads an override of a floating all-day series back as
+      // the whole task (title, dates and rule gone): its dates go into the
+      // calendar's zone first (occurrenceTickPatches).
+      const zone = hasFloatingAllDayDates(task) && misreadsAllDayOverrides(writeAccount(scope, task.accountId)) ? getEffectiveTimeZone() : null;
+      const steps = occurrenceTickPatches(task, recurrenceId, entry, zone);
+      const before = { recurrenceOverrides: task.recurrenceOverrides, timeZone: task.timeZone };
+      const patchSeries = (changes: Partial<CalendarEvent>) =>
+        set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+      patchSeries({
+        recurrenceOverrides: { ...(before.recurrenceOverrides ?? {}), [recurrenceId]: entry as Partial<CalendarEvent> },
+        ...(steps.length > 1 ? { timeZone: zone } : {}),
+      });
       try {
-        await apiUpdateEvent(writeId, overridePatch(task, recurrenceId, entry), undefined, writeAccount(scope, task.accountId));
+        if (steps.length > 1) {
+          await apiUpdateEventInSteps(writeId, steps, undefined, writeAccount(scope, task.accountId));
+        } else {
+          await apiUpdateEvent(writeId, steps[0], undefined, writeAccount(scope, task.accountId));
+        }
       } catch (err) {
-        if (inScope(scope)) setOverrides(before);
+        // A refused last step leaves the dates cleared: put them back.
+        if (steps.length > 1) {
+          try {
+            await apiUpdateEvent(writeId, { due: task.due ?? null, start: task.start ?? null }, undefined, writeAccount(scope, task.accountId));
+          } catch {
+            // The next load shows what the server kept.
+          }
+        }
+        if (inScope(scope)) patchSeries(before);
         throw err;
       }
       return;

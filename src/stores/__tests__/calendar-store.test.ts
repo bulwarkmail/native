@@ -11,6 +11,8 @@ vi.mock('../../api/calendar', () => ({
   resetCalendarAccessDenied: vi.fn(),
   createEvent: vi.fn(),
   updateEvent: vi.fn(),
+  updateEventInSteps: vi.fn(),
+  misreadsAllDayOverrides: vi.fn(() => false),
   deleteEvents: vi.fn(),
   batchCreateEvents: vi.fn(),
   setDefaultCalendar: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('../../api/jmap-client', () => ({
 import * as calendarApi from '../../api/calendar';
 import { jmapClient } from '../../api/jmap-client';
 import { JMAPMethodError } from '../../api/jmap-result';
+import { useSettingsStore } from '../settings-store';
 import {
   useCalendarStore,
   selectVisibleCalendars,
@@ -56,6 +59,8 @@ const mockGetEvents = calendarApi.getEvents as ReturnType<typeof vi.fn>;
 const mockGetIdentities = calendarApi.getEventIdentities as ReturnType<typeof vi.fn>;
 const mockCreateEvent = calendarApi.createEvent as ReturnType<typeof vi.fn>;
 const mockUpdateEvent = calendarApi.updateEvent as ReturnType<typeof vi.fn>;
+const mockUpdateEventInSteps = calendarApi.updateEventInSteps as ReturnType<typeof vi.fn>;
+const mockMisreadsAllDayOverrides = calendarApi.misreadsAllDayOverrides as ReturnType<typeof vi.fn>;
 const mockDeleteEvents = calendarApi.deleteEvents as ReturnType<typeof vi.fn>;
 const mockSetDefaultCalendar = calendarApi.setDefaultCalendar as ReturnType<typeof vi.fn>;
 const mockScan = calendarApi.scanCalendarObjects as ReturnType<typeof vi.fn>;
@@ -1383,6 +1388,65 @@ describe('calendar-store', () => {
         { 'recurrenceOverrides/2026-11-09T09:00:00': { progress: 'needs-action', title: 'Bins (glass)' } },
         undefined,
         'acc-2',
+      );
+    });
+
+    // A floating all-day series that Stalwart 0.16 read back as the bare override.
+    const daily = {
+      id: 't7', '@type': 'Task', title: 'Water plants', description: 'Balcony',
+      progress: 'needs-action', due: '2026-11-12T00:00:00', showWithoutTime: true,
+      recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily' }],
+    };
+
+    it('moves a floating all-day series into the calendar zone with the tick on a server that misreads its overrides', async () => {
+      useSettingsStore.setState({ calendarTimeZone: 'Europe/Berlin' } as any);
+      mockMisreadsAllDayOverrides.mockReturnValue(true);
+      mockUpdateEventInSteps.mockResolvedValue(undefined);
+      useCalendarStore.setState({ tasks: [{ ...daily } as any] });
+
+      await useCalendarStore.getState().toggleTaskComplete('t7', '2026-11-13T00:00:00');
+
+      expect(mockUpdateEvent).not.toHaveBeenCalled();
+      expect(mockUpdateEventInSteps).toHaveBeenCalledWith('t7', [
+        { due: null },
+        {
+          due: '2026-11-12T00:00:00', timeZone: 'Europe/Berlin', showWithoutTime: true,
+          recurrenceOverrides: { '2026-11-13T00:00:00': { progress: 'completed' } },
+        },
+      ], undefined, 'acc-1');
+      expect(useCalendarStore.getState().tasks[0]).toMatchObject({
+        title: 'Water plants', due: '2026-11-12T00:00:00', showWithoutTime: true, timeZone: 'Europe/Berlin',
+        recurrenceOverrides: { '2026-11-13T00:00:00': { progress: 'completed' } },
+      });
+      mockMisreadsAllDayOverrides.mockReturnValue(false);
+    });
+
+    it('puts the dates back when the server refuses the tick after clearing them', async () => {
+      useSettingsStore.setState({ calendarTimeZone: 'Europe/Berlin' } as any);
+      mockMisreadsAllDayOverrides.mockReturnValue(true);
+      mockUpdateEventInSteps.mockRejectedValue(new Error('refused'));
+      mockUpdateEvent.mockResolvedValue(undefined);
+      useCalendarStore.setState({ tasks: [{ ...daily } as any] });
+
+      await expect(useCalendarStore.getState().toggleTaskComplete('t7', '2026-11-13T00:00:00')).rejects.toThrow('refused');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith('t7', { due: '2026-11-12T00:00:00', start: null }, undefined, 'acc-1');
+      const task = useCalendarStore.getState().tasks[0];
+      expect(task.timeZone).toBeUndefined();
+      expect(task.recurrenceOverrides).toBeUndefined();
+      mockMisreadsAllDayOverrides.mockReturnValue(false);
+    });
+
+    it('writes a floating all-day tick as it is on a server that reads its overrides', async () => {
+      mockMisreadsAllDayOverrides.mockReturnValue(false);
+      useCalendarStore.setState({ tasks: [{ ...daily } as any] });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('t7', '2026-11-13T00:00:00');
+
+      expect(mockUpdateEventInSteps).not.toHaveBeenCalled();
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't7', { recurrenceOverrides: { '2026-11-13T00:00:00': { progress: 'completed' } } }, undefined, 'acc-1',
       );
     });
 

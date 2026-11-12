@@ -1152,6 +1152,42 @@ export async function updateEvent(
   if (err) throw new JMAPSetError(err.type ?? 'setError', err.description || err.type || 'Failed to update event', err.properties);
 }
 
+/**
+ * Several patches to one event in one request, applied in the order given.
+ * Throws on the first one the server refused; the ones before it are saved.
+ */
+export async function updateEventInSteps(
+  id: string,
+  steps: Array<Partial<CalendarEvent> | Record<string, unknown>>,
+  sendSchedulingMessages?: boolean,
+  targetAccountId?: string,
+): Promise<void> {
+  const accountId = targetAccountId || jmapClient.accountId;
+  const calls: [string, Record<string, unknown>, string][] = steps.map((changes, i) => {
+    const patch: Record<string, unknown> = { ...changes };
+    stripClientOnlyFields(patch);
+    cleanRecurrenceRules(patch);
+    return ['CalendarEvent/set', setArgs(accountId, { update: { [id]: patch } }, sendSchedulingMessages), `step${i}`];
+  });
+  const res = await jmapClient.request(calls, USING);
+  for (let i = 0; i < steps.length; i++) {
+    const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string; properties?: string[] }> }>(res, `step${i}`);
+    const err = result.notUpdated?.[id];
+    if (err) throw new JMAPSetError(err.type ?? 'setError', err.description || err.type || 'Failed to update event', err.properties);
+  }
+}
+
+/**
+ * Stalwart 0.16 stores an override of a floating all-day series under a
+ * date-valued RECURRENCE-ID and then reads that override back as the whole
+ * object: title, dates, rule and description are gone from every JMAP read
+ * (the iCalendar still has them). 1.0 reads it fine. 0.16 has no JMAP
+ * Metadata, which came with 1.0, so its absence stands for 0.16.
+ */
+export function misreadsAllDayOverrides(accountId?: string): boolean {
+  return !jmapClient.hasAccountCapability('urn:ietf:params:jmap:metadata', accountId);
+}
+
 export async function deleteEvents(
   ids: string[],
   sendSchedulingMessages?: boolean,

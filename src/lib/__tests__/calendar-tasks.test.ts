@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expandTaskOccurrences, seriesCompletionUpdates, taskChips, visibleTasks } from '../calendar-tasks';
+import { expandTaskOccurrences, occurrenceTickPatches, seriesCompletionUpdates, taskChips, visibleTasks } from '../calendar-tasks';
 import type { CalendarEvent } from '../../api/types';
 
 // #1621: task chips dropped the rules, so a repeating task showed only on its
@@ -97,5 +97,37 @@ describe('task lists in the calendar drawer', () => {
     expect(screen).toMatch(/taskLists=\{drawerTaskLists\}/);
     const drawer = readFileSync(join(__dirname, '../../components/calendar/CalendarSidebarDrawer.tsx'), 'utf-8');
     expect(drawer).toMatch(/calendars=\{taskLists\}/);
+  });
+});
+
+// Stalwart 0.16 read an override of a floating all-day series back as the
+// whole task: title, dates and rule gone.
+describe('occurrenceTickPatches', () => {
+  const allDay = {
+    id: 't2', '@type': 'Task', title: 'Water plants', showWithoutTime: true,
+    start: '2026-11-12', due: '2026-11-12T00:00:00',
+    recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily' }],
+  } as unknown as CalendarEvent;
+  const tick = { progress: 'completed' };
+
+  it('clears the dates, then writes them in the zone with the override', () => {
+    expect(occurrenceTickPatches(allDay, '2026-11-13T00:00:00', tick, 'Europe/Berlin')).toEqual([
+      { start: null, due: null },
+      {
+        start: '2026-11-12T00:00:00', due: '2026-11-12T00:00:00', timeZone: 'Europe/Berlin', showWithoutTime: true,
+        recurrenceOverrides: { '2026-11-13T00:00:00': { progress: 'completed' } },
+      },
+    ]);
+  });
+
+  it('writes only the override without a zone, or for a series that has one', () => {
+    expect(occurrenceTickPatches(allDay, '2026-11-13T00:00:00', tick, null)).toEqual([
+      { recurrenceOverrides: { '2026-11-13T00:00:00': { progress: 'completed' } } },
+    ]);
+    const zoned = { ...allDay, timeZone: 'Europe/Berlin', recurrenceOverrides: { '2026-11-14T00:00:00': tick } } as CalendarEvent;
+    expect(occurrenceTickPatches(zoned, '2026-11-13T00:00:00', tick, 'Europe/Berlin')).toEqual([
+      { 'recurrenceOverrides/2026-11-13T00:00:00': { progress: 'completed' } },
+    ]);
+    expect(occurrenceTickPatches(weekly, '2026-11-09T09:00:00', tick, 'Europe/Berlin')).toHaveLength(1);
   });
 });

@@ -1115,6 +1115,56 @@ live('live Stalwart calendar', () => {
       expect([...after.targets.values()].map((x) => x.completed)).toEqual([false, true, false, false]);
     }, 60_000);
 
+    // 0.16 read an override of a floating all-day series back as the whole
+    // task: one tick left a nameless, completed task without dates or rule.
+    it('ticks one day of a daily all-day task and keeps its title, rule and dates', async () => {
+      const [[, created]] = await raw(client, [['CalendarEvent/set', {
+        accountId: client.accountId,
+        create: { t: {
+          '@type': 'Task', title: `${RUN} daily all-day task`, description: 'Balcony', calendarIds: { [calendarId]: true },
+          // A start too: 1.0 hands out no rule for a repeating task without one.
+          start: '2027-11-01T00:00:00', due: '2027-11-01T00:00:00', showWithoutTime: true,
+          recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'daily' },
+        } },
+      }, '0']]);
+      const id = created.created?.t?.id as string;
+      expect(id, JSON.stringify(created.notCreated)).toBeTruthy();
+      try {
+        useCalendarStore.getState().reset();
+        await useCalendarStore.getState().fetchCalendars();
+        await useCalendarStore.getState().fetchTasks();
+        const task = useCalendarStore.getState().tasks.find((x) => x.title === `${RUN} daily all-day task`)!;
+        expect(task.recurrenceRules?.[0]?.frequency).toBe('daily');
+        const range = [new Date('2027-11-01T00:00:00'), new Date('2027-11-04T00:00:00')] as const;
+        const { events, targets } = taskChips([task], ...range);
+        expect(events.map((e) => e.start.slice(0, 10))).toEqual(['2027-11-01', '2027-11-02', '2027-11-03', '2027-11-04']);
+
+        const second = targets.get(events[1].id)!;
+        await useCalendarStore.getState().toggleTaskComplete(second.taskId, second.recurrenceId);
+
+        const [back] = await getEvents([id]);
+        expect(back).toMatchObject({ title: `${RUN} daily all-day task`, description: 'Balcony', showWithoutTime: true });
+        expect(back.due?.slice(0, 10)).toBe('2027-11-01');
+        expect(back.start?.slice(0, 10)).toBe('2027-11-01');
+        expect(back.recurrenceRules?.[0]?.frequency).toBe('daily');
+        expect(back.progress ?? 'needs-action').toBe('needs-action');
+        const ticked = taskChips([back], ...range);
+        expect([...ticked.targets.values()].map((x) => x.completed)).toEqual([false, true, false, false]);
+
+        // A second day, now through a patch path into the overrides.
+        useCalendarStore.setState({ tasks: [{ ...back, id: task.id, originalId: task.originalId, accountId: task.accountId }] });
+        const fourth = ticked.targets.get(ticked.events[3].id)!;
+        await useCalendarStore.getState().toggleTaskComplete(fourth.taskId, fourth.recurrenceId);
+        const [again] = await getEvents([id]);
+        expect(again).toMatchObject({ title: `${RUN} daily all-day task`, showWithoutTime: true });
+        expect(again.recurrenceRules?.[0]?.frequency).toBe('daily');
+        expect([...taskChips([again], ...range).targets.values()].map((x) => x.completed)).toEqual([false, true, false, true]);
+      } finally {
+        // By id: a task that lost its title escapes the run's clean-up.
+        await raw(client, [['CalendarEvent/set', { accountId: client.accountId, destroy: [id] }, 'd']]);
+      }
+    }, 60_000);
+
     it('lists the account\'s own tasks and none of another account\'s', async () => {
       const [[, created]] = await raw(client, [['CalendarEvent/set', {
         accountId: client.accountId,

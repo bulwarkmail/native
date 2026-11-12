@@ -186,6 +186,40 @@ export function overridePatch(
     : { recurrenceOverrides: { [recurrenceId]: clean } };
 }
 
+/** A task whose dates are floating all-day ones: iCalendar DATEs, in no zone. */
+export function hasFloatingAllDayDates(task: Pick<CalendarEvent, 'showWithoutTime' | 'timeZone' | 'due' | 'start'>): boolean {
+  return !!task.showWithoutTime && !task.timeZone && !!(task.due || task.start);
+}
+
+/**
+ * The CalendarEvent/set patches, in order, that write one occurrence's
+ * override. Normally just overridePatch. With `zone` (a server that misreads
+ * an override of a floating all-day series, see api/calendar
+ * misreadsAllDayOverrides), such a series first has its dates moved into
+ * `zone`, still all-day: an override of a zoned series is read back fine
+ * there. That server keeps a date's value type while the value stays the
+ * same, so the dates are cleared in a step before and written back with the
+ * zone and the override.
+ */
+export function occurrenceTickPatches(
+  series: CalendarEvent,
+  recurrenceId: string,
+  entry: Record<string, unknown>,
+  zone?: string | null,
+): Record<string, unknown>[] {
+  const override = overridePatch(series, recurrenceId, entry);
+  if (!zone || !hasFloatingAllDayDates(series)) return [override];
+  const cleared: Record<string, unknown> = {};
+  const dates: Record<string, unknown> = {};
+  for (const key of ['start', 'due'] as const) {
+    const value = series[key];
+    if (!value) continue;
+    cleared[key] = null;
+    dates[key] = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+  }
+  return [cleared, { ...dates, timeZone: zone, showWithoutTime: true, ...override }];
+}
+
 /** The override entry that ticks (or unticks) one occurrence, keeping what the entry had. */
 export function occurrenceToggleEntry(series: CalendarEvent, recurrenceId: string): Record<string, unknown> {
   const existing = findTaskOverride(series.recurrenceOverrides, recurrenceId) ?? {};
