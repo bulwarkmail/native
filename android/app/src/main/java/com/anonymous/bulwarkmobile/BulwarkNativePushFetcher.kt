@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
 import android.database.sqlite.SQLiteDatabase
+import android.os.Build
 import android.util.Log
 import com.reactnativecommunity.asyncstorage.AsyncLocalStorageUtil
 import com.reactnativecommunity.asyncstorage.ReactDatabaseSupplier
@@ -989,6 +990,14 @@ object BulwarkNativePushFetcher {
     // ─── Main Push Entry Point ──────────────────────────────────────────────
 
     /**
+     * java.util.Base64 and java.time need Android 8 (API 26) and the app
+     * starts at 24 without library desugaring: on Android 7 they throw
+     * NoClassDefFoundError, an Error the catch blocks here don't take. The
+     * JS task handles pushes and actions there, as before.
+     */
+    private fun supportedOnThisDevice(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+
+    /**
      * Attempts to fetch new mail metadata and post notifications natively.
      *
      * Return value semantics:
@@ -1000,6 +1009,7 @@ object BulwarkNativePushFetcher {
      *   network / JMAP error). The caller falls back to the headless JS task.
      */
     fun processPush(context: Context, data: Map<String, String>): Boolean {
+        if (!supportedOnThisDevice()) return false
         val deadlineMs = System.currentTimeMillis() + PUSH_BUDGET_MS
         return try {
             val jmapAccountId = data["accountId"]?.takeIf { it.isNotBlank() } ?: return false
@@ -1144,6 +1154,7 @@ object BulwarkNativePushFetcher {
         accountId: String,
         jmapAccountId: String?,
     ): Boolean {
+        if (!supportedOnThisDevice()) return false
         val deadlineMs = System.currentTimeMillis() + ACTION_BUDGET_MS
         return try {
             val prefs = getPrefs(context)
