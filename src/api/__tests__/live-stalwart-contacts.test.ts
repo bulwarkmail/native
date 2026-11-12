@@ -54,6 +54,7 @@ import { readVacationFilters, useFilterStore } from '../../stores/filter-store';
 import { useToastStore } from '../../stores/toast-store';
 import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import { generateVCard, parseVCard } from '../../lib/vcard';
+import { contactToForm, formToPatch } from '../../lib/contact-form';
 import { generateScript } from '../../lib/sieve/generator';
 import { parseScript } from '../../lib/sieve/parser';
 import { applyQuickRule, buildPresetRule, toRuleMailbox } from '../../lib/sieve/quick-rules';
@@ -203,6 +204,44 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       await useContactsStore.getState().addKeyword(tag, ids);
       expect((await getContact(one.id))?.keywords).toEqual({ [tag]: true, keep: true });
       expect((await getContact(two.id))?.keywords).toEqual({ [tag]: true });
+    }, 60_000);
+
+    // #1515: a save rebuilt every list under new keys with only the form's fields.
+    it('saving a name change through the form keeps every detail the form does not show', async () => {
+      const card = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual',
+        name: { components: [{ kind: 'given', value: 'Live' }, { kind: 'surname', value: `Keep${RUN}` }], isOrdered: true, full: `Live Keep${RUN}` },
+        emails: { home: { address: `keep-${RUN}@example.org`, contexts: { private: true }, pref: 1 } },
+        phones: {
+          boat: { number: '+49 30 1111', label: 'Boat', features: { voice: true }, pref: 1 },
+          w: { number: '+49 30 2222', contexts: { work: true, private: true }, features: { mobile: true, text: true } },
+        },
+        addresses: {
+          office: {
+            components: [
+              { kind: 'name', value: 'Hauptstraße' }, { kind: 'number', value: '1' },
+              { kind: 'apartment', value: '3. OG' },
+              { kind: 'postcode', value: '10115' }, { kind: 'locality', value: 'Berlin' },
+              { kind: 'district', value: 'Mitte' },
+              { kind: 'country', value: 'Germany' },
+            ],
+            contexts: { work: true },
+          },
+        },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(card.id);
+      const stored = (await getContact(card.id))!;
+      expect(Object.keys(stored.phones ?? {}).length).toBe(2);
+
+      const form = contactToForm(stored, []);
+      form.given = 'Livia';
+      await updateContact(card.id, formToPatch(form, stored, false, [stored], contactToForm(stored, [])));
+
+      const back = (await getContact(card.id))!;
+      expect(back.name?.components?.find((c) => c.kind === 'given')?.value).toBe('Livia');
+      expect(back.emails).toEqual(stored.emails);
+      expect(back.phones).toEqual(stored.phones);
+      expect(back.addresses).toEqual(stored.addresses);
     }, 60_000);
 
     it('deletes an address book that still holds contacts', async () => {
