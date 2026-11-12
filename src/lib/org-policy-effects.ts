@@ -5,6 +5,7 @@ import { useKeywordsStore } from '../stores/keywords-store';
 import { devicesForAccount } from './device-policy';
 import { policyKeywordList } from './policy-keywords';
 import { directoryRulesOf, setDirectoryRulesProvider } from './directory-scope';
+import { sweepRefusedAccounts } from './refused-accounts';
 
 // What the organisation policy does by itself, beyond the settings rules
 // the policy store applies. Loading lib/device-policy.ts sets the device
@@ -46,9 +47,15 @@ export function startOrgPolicyEffects(): () => void {
   const onPolicy = () => {
     dropForbiddenOfflineMail();
     applyPolicyDefaultTags();
+    void sweepRefusedAccounts();
   };
   stops.push(usePolicyStore.subscribe((state, prev) => {
     if (state.byAccount !== prev.byAccount || state.effective !== prev.effective) onPolicy();
+  }));
+  // A refused account (needsSignIn) is noted, and its data goes after 30
+  // days or when the organisation asks (lib/refused-accounts).
+  stops.push(useAccountStore.subscribe((state, prev) => {
+    if (state.accounts !== prev.accounts) void sweepRefusedAccounts();
   }));
   onPolicy();
 
