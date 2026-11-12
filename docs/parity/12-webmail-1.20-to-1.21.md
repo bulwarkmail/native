@@ -558,7 +558,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### i18n
 
-- [ ] **No Greek, Norwegian Nynorsk or Vietnamese** — `P3` — `missing`
+- [x] **No Greek, Norwegian Nynorsk or Vietnamese** — `P3` — `missing` — fixed in f9f5a575, c498321e, f529d02d
   - What WEB does: 32 languages; Vietnamese new in 1.20.0 (#1448), Greek (#1554) and Nynorsk (#1560) in 1.21.0 (`i18n/routing.ts`). 7788813ef, 0ccbe0685 (#1573).
   - What RN does: 29 locales without el, nn and vi (`src/i18n/index.ts:24-54`, `locales/`).
   - Fix hint: `node scripts/sync-locales.mjs`, register el, nn and vi, translate the rn overlays. Nynorsk falls back to Bokmål for missing keys if the loader allows it.
