@@ -26,6 +26,7 @@ import { findVerificationCode, verificationCodeBodyText } from '../../lib/verifi
 import { VerificationCodeChip } from './VerificationCodeChip';
 import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
 import { brandIndicatorDomain } from '../../lib/avatar-bimi';
+import { useInternalMailDomains } from '../../lib/avatar-internal-domains';
 
 interface Props {
   email: Email;
@@ -128,6 +129,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
     [info.auth, from?.email],
   );
   const verificationText = verification ? describeSenderVerification(verification, t) : null;
+  const internalDomains = useInternalMailDomains();
   // The sign-in code of the message, offered for copying. Looked up again
   // only when the message or its loaded body changes, not on a keyword change.
   const verificationCode = React.useMemo(
@@ -191,7 +193,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
             email={from?.email}
             size={compact ? componentSizes.avatarSm : componentSizes.avatarMd}
             senderWarning={verificationText?.label}
-            brandDomain={brandIndicatorDomain(email)}
+            brandDomain={brandIndicatorDomain(email, internalDomains)}
           />
         </Pressable>
         <View style={styles.info}>

@@ -37,6 +37,7 @@ import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
 import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
+import { useInternalMailDomains } from '../lib/avatar-internal-domains';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
 import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
@@ -409,6 +410,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const errorCount = Object.keys(errors).length;
   const showRecipient = role === 'sent' || role === 'drafts';
   const formatAddress = useOwnDomainAddress();
+  const internalDomains = useInternalMailDomains();
   const title = view
     ? t(`sidebar.unified_all_${view === 'all' ? 'mail' : view}`, { all: 'All mail', unread: 'All unread', starred: 'All starred' }[view])
     : role === 'inbox'
@@ -482,7 +484,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
               senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
-              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item)}
+              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item, internalDomains)}
             />
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />

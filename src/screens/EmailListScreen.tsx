@@ -34,6 +34,7 @@ import { showsPaperclip } from '../lib/list-attachments';
 import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
 import { useSenderWarning } from '../components/email/use-sender-warning';
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
+import { useInternalMailDomains } from '../lib/avatar-internal-domains';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -229,8 +230,13 @@ const EmailRow = React.memo(function EmailRow({
   const attachments = useListAttachments(item, onOpenAttachment ? loadAttachments : undefined);
   // Sent and Drafts rows show the recipient: the check says nothing about them.
   const senderWarning = useSenderWarning(showRecipient ? undefined : item);
-  // The sender's BIMI logo, for a message that passed DMARC for its From domain.
-  const brandDomain = React.useMemo(() => (showRecipient ? undefined : brandIndicatorDomain(item)), [showRecipient, item]);
+  // The sender's BIMI logo, for a message that passed DMARC for its From
+  // domain or was handed in on the same server from one of the organisation's.
+  const internalDomains = useInternalMailDomains();
+  const brandDomain = React.useMemo(
+    () => (showRecipient ? undefined : brandIndicatorDomain(item, internalDomains)),
+    [showRecipient, item, internalDomains],
+  );
 
   return (
     <Pressable

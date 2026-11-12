@@ -6,6 +6,7 @@
 // domain without a logo is also remembered here for the session.
 
 import type { Email } from '../api/types';
+import { toAsciiDomain } from './idn';
 import {
   LIST_AUTH_RESULTS_PROPERTY,
   headerValues,
@@ -37,12 +38,30 @@ function authenticationResultsOf(email: Pick<Email, 'headers' | 'from'>): Authen
  * logo says who the domain is, not that a message came from it, so a message
  * without a DMARC pass for its own From domain gets none. Undefined for no
  * message (rows that show the recipient).
+ *
+ * Mail a signed-in user handed in to the same server never gets a DMARC
+ * verdict: Stalwart writes Authentication-Results only on what arrives from
+ * outside. So a message with no such header at all counts as well when its
+ * From domain is one of `internalDomains`, the organisation's own (ASCII
+ * form, a domain covers its subdomains; avatar-internal-domains.ts). The
+ * same domain's mail from outside carries the header and still needs the
+ * pass (webmail 531358eb3).
  */
-export function brandIndicatorDomain(email: Pick<Email, 'headers' | 'from'> | undefined): string | undefined {
+export function brandIndicatorDomain(
+  email: Pick<Email, 'headers' | 'from'> | undefined,
+  internalDomains: readonly string[] = [],
+): string | undefined {
   if (!email) return undefined;
   const fromEmail = email.from?.[0]?.email ?? undefined;
+  if (!fromEmail) return undefined;
   const auth = authenticationResultsOf(email);
-  if (!auth?.dmarc || auth.dmarc.result !== 'pass' || !fromEmail) return undefined;
+  if (!auth) {
+    const domain = domainOf(fromEmail);
+    if (!domain) return undefined;
+    const ascii = toAsciiDomain(domain) ?? domain;
+    return internalDomains.some((entry) => ascii === entry || ascii.endsWith(`.${entry}`)) ? domain : undefined;
+  }
+  if (!auth.dmarc || auth.dmarc.result !== 'pass') return undefined;
   const domain = domainOf(fromEmail);
   if (!domain || isAuthenticationSpoofed(auth)) return undefined;
   const checked = auth.dmarc.domain ? domainOf(`@${auth.dmarc.domain}`) : domain;
