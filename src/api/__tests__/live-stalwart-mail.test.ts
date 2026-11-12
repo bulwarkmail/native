@@ -840,3 +840,34 @@ live('live Stalwart: emptying a folder in pages', () => {
     expect(await eventually(() => messagesWith(tag), (ids) => ids.length === 0, 10_000)).toEqual([]);
   }, 60_000);
 });
+// Archive on an account without an Archive folder makes one with the
+// archive role (#1176). Run only where the account has none; the folder is
+// removed again.
+live('live Stalwart: Archive folder made on first archive', () => {
+  let made = '';
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    if (made) await deleteMailbox(made).catch(() => undefined);
+  }, 60_000);
+
+  it('creates a folder with the archive role that the folder list finds', async (ctx) => {
+    const { findArchiveMailbox } = await import('../../lib/mailbox-tree');
+    if ((await getMailboxes()).some((m) => m.role === 'archive')) {
+      ctx.skip('This account has an Archive folder already');
+      return;
+    }
+    made = await createMailbox({ name: `Archive-${RUN}`, role: 'archive' });
+    const found = findArchiveMailbox(await getMailboxes());
+    expect(found?.id).toBe(made);
+    expect(found?.role).toBe('archive');
+  }, 60_000);
+});

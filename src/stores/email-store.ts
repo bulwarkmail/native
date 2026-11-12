@@ -32,9 +32,11 @@ import {
   markAsSpam as apiMarkAsSpam,
   undoSpam as apiUndoSpam,
   destroyEmails as apiDestroyEmails,
+  createMailbox,
   unprefixMailboxId,
   type EmailChangesResult,
 } from '../api/email';
+import { CAPABILITIES } from '../api/types';
 import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
@@ -1864,10 +1866,10 @@ export const useEmailStore = create<EmailState>()(
 
     // Archive into the *same account's* Archive folder — a shared mailbox's
     // messages can't be filed into the user's own.
-    const scoped = actionMailboxes(state, viewed);
-    const archiveMailbox = findArchiveMailbox(scoped);
+    const archiveMailbox = await ensureArchiveMailbox(() => actionMailboxes(get(), viewed));
     if (!archiveMailbox) return;
-    const archive = refFor(state.mailboxes, archiveMailbox.id);
+    const scoped = actionMailboxes(get(), viewed);
+    const archive = refFor(get().mailboxes, archiveMailbox.id);
     if (email.mailboxIds?.[archive.id]) return;
 
     const mode = useSettingsStore.getState().archiveMode;
@@ -2009,10 +2011,10 @@ export const useEmailStore = create<EmailState>()(
     // A list spanning accounts files each row in its own account (#1082).
     const spanning = spanningRows(state, emailIds);
     if (spanning.length > 0) return fileAcrossAccounts('archive', spanning);
-    const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
-    const archiveMailbox = findArchiveMailbox(scoped);
+    const archiveMailbox = await ensureArchiveMailbox(() => mailboxesForSiblingOf(get().mailboxes, get().currentMailboxId));
     if (!archiveMailbox) return;
-    const archive = refFor(state.mailboxes, archiveMailbox.id);
+    const scoped = mailboxesForSiblingOf(get().mailboxes, get().currentMailboxId);
+    const archive = refFor(get().mailboxes, archiveMailbox.id);
     const targets = rowsByKey(state, emailIds).filter((e) => !e.mailboxIds?.[archive.id]);
     if (targets.length === 0) return;
 
@@ -3143,6 +3145,36 @@ async function fillThreadCounts(emails: Email[], accountId: string | undefined):
   } catch {
     /* keep the loaded-page count */
   }
+}
+
+/**
+ * The Archive folder of the account `scope()` lists, created when it has none
+ * (webmail ensureArchiveMailbox, #1176): Stalwart's default folders have no
+ * archive-role mailbox, so on a fresh account Archive did nothing. Made in
+ * that account with the `archive` role, then the folder list is read again.
+ * Undefined, with the store's error set, when it can't be made (offline, or
+ * the account may not create top-level folders).
+ */
+export async function ensureArchiveMailbox(scope: () => Mailbox[]): Promise<Mailbox | undefined> {
+  const store = useEmailStore;
+  const existing = findArchiveMailbox(scope());
+  if (existing) return existing;
+  const missing = () => {
+    store.setState({ error: t('email_list.no_archive_folder', 'Could not find an Archive folder on the server.') });
+    return undefined;
+  };
+  const sample = scope()[0];
+  const accountId = sample?.isShared ? sample.accountId : undefined;
+  const mail = jmapClient.getAccountCapability?.(CAPABILITIES.MAIL, accountId) as { mayCreateTopLevelMailbox?: boolean } | undefined;
+  if (mail?.mayCreateTopLevelMailbox === false) return missing();
+  try {
+    await createMailbox({ name: 'Archive', role: 'archive' }, accountId);
+    await store.getState().fetchMailboxes();
+  } catch (err) {
+    console.warn('[email-store] creating the Archive folder failed', err);
+    return missing();
+  }
+  return findArchiveMailbox(scope()) ?? missing();
 }
 
 /**

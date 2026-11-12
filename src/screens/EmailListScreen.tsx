@@ -896,17 +896,13 @@ export default function EmailListScreen({
     if (!email || !currentMailboxId) return;
     switch (action) {
       case 'archive':
-        if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
+        // Without an Archive folder the store makes one (webmail #1176).
+        if (currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
           reportFailure(confirmMailRemoval('archive', ids.length, t).then((ok) => {
             if (!ok) return undefined;
             return ids.length > 1 ? archiveEmailsBatch(ids) : archiveEmailAction(id);
           }));
-        } else if (!archiveMailboxId) {
-          Alert.alert(
-            t('email_list.error', 'Error'),
-            t('email_list.no_archive_folder', 'Could not find an Archive folder on the server.'),
-          );
         }
         break;
       case 'delete':
@@ -1111,7 +1107,7 @@ export default function EmailListScreen({
   };
 
   const canArchiveSelection =
-    archiveEnabled && archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
+    archiveEnabled && currentMailboxId !== archiveMailboxId;
   const canSpamSelection =
     currentRole !== 'sent' && currentRole !== 'drafts' && (inJunk || junkMailboxId != null);
 

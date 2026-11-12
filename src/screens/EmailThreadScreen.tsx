@@ -498,7 +498,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   // Restore: back where this device saw it come from, else the Inbox (webmail e8d8486b8).
   React.useEffect(() => { void loadTrashOrigins(); }, []);
   const restoreTo = isInTrash && email && trashMailbox ? restoreTarget(email.id, trashMailbox.id, scopedMailboxes) : undefined;
-  const canArchive = archiveEnabled && !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
+  // Without an Archive folder the store makes one (webmail #1176).
+  const canArchive = archiveEnabled && (!archiveMailbox || sourceMailbox?.id !== archiveMailbox.id);
   // Not spam files back into the Inbox, so it needs one.
   const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
   // Report phishing, when the organisation set a report address (webmail
