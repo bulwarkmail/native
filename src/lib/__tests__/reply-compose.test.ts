@@ -45,6 +45,23 @@ describe('replyComposeParams', () => {
     expect(resolved?.identityId).toBe('main');
     expect(resolved?.overrideEmail).toBe('github@example.com');
   });
+
+  // Webmail #1353: the alias shows up only in Delivered-To.
+  it('replies from the address the mail was delivered to', () => {
+    const delivered = {
+      ...source,
+      to: [{ name: 'owner/repo', email: 'repo@noreply.github.com' }],
+      headers: [{ name: 'Delivered-To', value: 'info@example.com' }],
+    } as unknown as Email;
+    const params = replyComposeParams('reply', delivered);
+    expect(params?.replyTo?.deliveredTo).toEqual(['info@example.com']);
+    const identities = [
+      { id: 'main', name: 'Me', email: 'me@example.com', mayDelete: false },
+      { id: 'info', name: 'Info', email: 'info@example.com', mayDelete: true },
+    ] as Identity[];
+    expect(resolveReplyIdentity(identities, params!.replyTo!, { ownEmails: ['me@example.com'], catchAll: false }))
+      .toEqual({ identityId: 'info' });
+  });
 });
 
 describe('replyComposeParams: quoted inline images', () => {

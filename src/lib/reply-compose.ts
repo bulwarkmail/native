@@ -4,6 +4,7 @@ import { isReportPart } from './attachment-display';
 import { pickEmailBody, plainTextBody } from './email-body';
 import { extractCidRefs } from './email-html';
 import { stripMessageIdBrackets } from './email-threading';
+import { deliveryAddresses } from './reply-identity';
 
 // Bounce and read-receipt reports (RFC 3464, RFC 8098) and their
 // internationalised forms (RFC 6533). They describe the message they came
@@ -80,6 +81,9 @@ export function replyComposeParams(
       messageId: source.messageId ?? undefined,
       references: source.references ?? undefined,
       attachments: carriedParts(mode, source, quoteHtml),
+      // The reply comes from the address the mail was delivered to when no
+      // own address is in To, Cc or Bcc (webmail #1353).
+      deliveredTo: deliveryAddresses(source.headers),
       originalEmailId: source.id,
       jmapAccountId: ownerAccountId,
     },

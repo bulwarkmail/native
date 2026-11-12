@@ -27,6 +27,8 @@ export interface ComposeReplyContext {
   inReplyTo?: string;
   /** Original attachments to carry along on a forward (blob refs). */
   attachments?: Attachment[];
+  /** Where the original was delivered (Delivered-To and the like), for the reply's From. */
+  deliveredTo?: string[];
   /** JMAP id of the original message, for `$answered` / `$forwarded`. */
   originalEmailId?: string;
   /** Owning JMAP account when the original lives in a shared/group account. */

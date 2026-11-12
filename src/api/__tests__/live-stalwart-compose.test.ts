@@ -39,6 +39,8 @@ import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
 import { findReplyDraftContext } from '../../lib/reply-draft-resume';
+import { replyComposeParams } from '../../lib/reply-compose';
+import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { mergeRecipientSuggestions } from '../../lib/recipient-suggestions';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useAccountStore } from '../../stores/account-store';
@@ -295,6 +297,42 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(ctx?.textBody).toContain('draft reply');
       const all = await findReplyDraftContext('replyAll', original);
       expect(all?.cc?.map((r) => r.email)).toEqual(['bob@example.org']);
+    }, 60_000);
+  });
+
+  describe('reply From', () => {
+    // Stalwart writes Delivered-To on local delivery; the reply's From picks
+    // the identity from it when To/Cc/Bcc name none (webmail #1353).
+    it('reads the delivery address of a delivered message and replies from it', async () => {
+      const identities = await getIdentities();
+      const identity = identities.find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
+      const inbox = (await getMailboxes()).find((b) => b.role === 'inbox')!.id;
+      const subject = `delivered ${tag}`;
+      const sentRes = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject, textBody: 'live' },
+        identity.id, sent, undefined, { draftsMailboxId: drafts },
+      );
+      if (sentRes.emailId) createdEmails.push(sentRes.emailId);
+      let received: Awaited<ReturnType<typeof getFullEmails>>[number] | undefined;
+      for (let i = 0; i < 30 && !received; i++) {
+        const q = await singleton.request([['Email/query', {
+          accountId: singleton.accountId, filter: { inMailbox: inbox, subject },
+        }, '0']]);
+        const ids = (q.methodResponses[0][1].ids as string[]) ?? [];
+        if (ids.length) [received] = await getFullEmails([ids[0]]);
+        else await new Promise((r) => setTimeout(r, 1000));
+      }
+      expect(received, 'the message reached the Inbox').toBeTruthy();
+      createdEmails.push(received!.id);
+      const params = replyComposeParams('reply', received!);
+      expect(params?.replyTo?.deliveredTo?.map((a) => a.toLowerCase())).toContain(USER.toLowerCase());
+      // As for mail to a list or a repo: no own address in To, Cc or Bcc.
+      const resolved = resolveReplyIdentity(
+        [{ id: 'other', name: 'Other', email: 'other@example.net', mayDelete: true }, identity],
+        { ...params!.replyTo!, from: { email: 'list@example.net' }, to: [{ email: 'list@example.net' }], cc: [], bcc: [] },
+        { ownEmails: [], catchAll: false },
+      );
+      expect(resolved?.identityId).toBe(identity.id);
     }, 60_000);
   });
 

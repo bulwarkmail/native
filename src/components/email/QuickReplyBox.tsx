@@ -18,7 +18,7 @@ import { buildReplyRecipients } from '../../lib/reply-recipients';
 import { composerSendFailureMessage, partlyRefusedWarning } from '../../lib/send-failure-message';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
-import { resolveReplyIdentity } from '../../lib/reply-identity';
+import { deliveryAddresses, resolveReplyIdentity } from '../../lib/reply-identity';
 import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-utils';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup } from '../../lib/org-signature';
 import { usePolicyStore } from '../../stores/policy-store';
@@ -143,6 +143,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
     // From row to show or correct it.
     const resolved = resolveReplyIdentity(identities, {
       from, to: email.to ?? undefined, cc: email.cc ?? undefined, bcc: email.bcc ?? undefined,
+      deliveredTo: deliveryAddresses(email.headers),
     }, { ownEmails, catchAll: false });
     const identity = identities.find((i) => i.id === resolved?.identityId) ?? identities[0];
     if (!identity) {
