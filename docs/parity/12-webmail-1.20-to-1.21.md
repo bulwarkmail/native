@@ -219,7 +219,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: default 0 and choices 0, 10, 30, 60 (`src/stores/settings-store.ts:442`, `:678`); an imported webmail settings file with 5 falls back to 0. The countdown itself is there (`src/stores/send-undo-store.ts:92`).
   - Fix hint: add 5 and make it the default for new installs.
 
-- [ ] **Closing the composer has no "Draft saved" notice with Open and Discard** — `P3` — `partial`
+- [x] **Closing the composer has no "Draft saved" notice with Open and Discard** — `P3` — `partial` — fixed in bc54de1c
   - What WEB does: closing keeps the draft and shows "Draft saved · Open · Discard"; Discard has its own Undo (`lib/compose/draft-close-toast.ts:58`). 656073804, changelog 1.21.0.
   - What RN does: with unsaved changes it asks Save or Discard (`src/screens/ComposeScreen.tsx:1859-1867`); with everything saved it closes without a word (`:1894-1907`), so there is no quick way back to the draft or to drop it.
   - Fix hint: after a close that kept a draft, show a toast with Open (navigate to Compose with the draft) and Discard.
