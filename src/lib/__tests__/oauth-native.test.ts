@@ -183,6 +183,29 @@ describe('loginWithPkce on Stalwart', () => {
 
     expect(params.get('client_id')).toBe('swc1.own');
     // The check asked with the scopes the browser then asks for.
+    expect(checked.map((q) => q.get('scope'))).toContain(params.get('scope'));
+  });
+
+  it('asks 1.0.3 for full access as the bulwark-mobile a superuser allowed it, in the check and the browser', async () => {
+    const checked: URLSearchParams[] = [];
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/client')) {
+        const q = new URL(url).searchParams;
+        checked.push(q);
+        if (q.get('client_id') !== 'bulwark-mobile') return answer({ error: 'invalid_client' });
+        const scopes = (q.get('scope') ?? '').split(' ');
+        return scopes.some((s) => s.startsWith('urn:stalwart:oauth:scope:') && s !== 'urn:stalwart:oauth:scope:full')
+          ? answer({ error: 'invalid_request', redirect: true, location: `${REGISTERED_REDIRECT_URI}?error=invalid_scope` })
+          : answer({ name: 'Bulwark Mobile (auto-configured)' });
+      }
+      return answer({}, 404);
+    });
+    const { params } = await openedSession(stalwart103);
+    const scopes = params.get('scope')!.split(' ');
+
+    expect(params.get('client_id')).toBe('bulwark-mobile');
+    expect(scopes).toContain('urn:stalwart:oauth:scope:full');
+    expect(scopes).not.toContain('urn:stalwart:oauth:scope:security');
     expect(checked[0].get('scope')).toBe(params.get('scope'));
   });
 

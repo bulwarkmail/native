@@ -53,6 +53,7 @@ import {
   DEFAULT_CLIENT_ID,
   MOBILE_CLIENT_ID,
   REGISTERED_REDIRECT_URI,
+  STALWART_FULL_SCOPE,
   answerConsent,
   exchangePasswordForTokens,
   generateCodeChallenge,
@@ -320,6 +321,31 @@ live('live Stalwart sign-in', () => {
       }
     });
   });
+
+  it('with bulwark-mobile allowed full, the app signs in as bulwark-mobile and x:ArchivedItem/query is not forbidden', async (ctx) => {
+    // 1.0.3+ with the webmail's superuser setup (register-mobile-client.py
+    // with `full`); anything else skips.
+    const metadata = await discoverOAuthMetadata(SERVER);
+    if (!metadata?.scopes_supported?.includes(STALWART_FULL_SCOPE)) ctx.skip();
+    resetLoginClients();
+    const chosen = await resolveLoginClient(SERVER);
+    if (chosen.clientId !== MOBILE_CLIENT_ID || !chosen.scope.split(' ').includes(STALWART_FULL_SCOPE)) ctx.skip();
+    const tokens = await exchangePasswordForTokens(SERVER, USER, PASS);
+    try {
+      expect(tokens.clientId).toBe(MOBILE_CLIENT_ID);
+      const client = new JMAPClient();
+      await client.connectWithOAuth(SERVER, tokens, USER);
+      const res = await client.request(
+        [['x:ArchivedItem/query', { accountId: client.accountId }, '0']],
+        ['urn:ietf:params:jmap:core', 'urn:stalwart:jmap'],
+      );
+      const [name, body] = res.methodResponses[0] as unknown as [string, { type?: string }];
+      expect(name === 'error' ? body.type : name).toBe('x:ArchivedItem/query');
+    } finally {
+      await revokeRefreshToken(SERVER, tokens);
+      resetLoginClients();
+    }
+  }, 30_000);
 
   it('1.0.1: a consentRequired answer is met with authConsent and signs in', async () => {
     if (!isV1) return;

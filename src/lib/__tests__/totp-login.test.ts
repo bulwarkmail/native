@@ -229,6 +229,39 @@ describe('exchangePasswordForTokens', () => {
     expect(register.scope).not.toContain('urn:stalwart:oauth:scope:full');
   });
 
+  it('signs in on 1.0.3 as a bulwark-mobile the admin allowed full access, asking for full everywhere', async () => {
+    // The webmail's setup with a superuser admin: data scopes plus full.
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, {
+      'bulwark-mobile': [...DATA, 'urn:stalwart:oauth:scope:full'],
+    }, { supported: V103_SCOPES });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.clientId).toBe(MOBILE_CLIENT_ID);
+    expect(calls.some((c) => c.url.endsWith('/auth/register'))).toBe(false);
+    const scope = new URLSearchParams(JSON.parse(authCalls(calls)[0].body!).query).get('scope')!.split(' ');
+    expect(scope).toContain('urn:stalwart:oauth:scope:full');
+    expect(scope).not.toContain('urn:stalwart:oauth:scope:security');
+    expect(scope).toEqual(expect.arrayContaining(DATA));
+  });
+
+  it('falls back to security and settings with a bulwark-mobile allowed those, not full', async () => {
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, {
+      'bulwark-mobile': [...DATA, 'urn:stalwart:oauth:scope:security', 'urn:stalwart:oauth:scope:settings'],
+    }, { supported: V103_SCOPES });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.clientId).toBe(MOBILE_CLIENT_ID);
+    const scope = new URLSearchParams(JSON.parse(authCalls(calls)[0].body!).query).get('scope')!.split(' ');
+    expect(scope).toContain('urn:stalwart:oauth:scope:security');
+    expect(scope).not.toContain('urn:stalwart:oauth:scope:full');
+  });
+
+  it('does not ask a server that lists no full scope for it', async () => {
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
+    await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+    expect(calls.some((c) => c.url.includes('scope%3Afull') || (c.body ?? '').includes('scope%3Afull'))).toBe(false);
+  });
+
   it('asks again when a remembered bulwark-mobile no longer allows the scopes, without a second password check failing', async () => {
     fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
     await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');

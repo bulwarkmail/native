@@ -91,12 +91,18 @@ export const STALWART_ACCOUNT_SCOPES = [
 ];
 
 /**
- * Stalwart 1.0.3's unrestricted scope, which only a superuser may allow a
- * client and dynamic registration strips. Only it reaches x:ArchivedItem
- * and x:Account; the app asks for it only with `bulwark-mobile`, when that
- * client allows it (resolveLoginClient).
+ * Stalwart 1.0.3's unrestricted scope. Only a superuser may allow it to a
+ * client (dynamic registration strips it); the webmail's OAuth setup does
+ * for `bulwark-mobile` when its admin is one. Only it reaches x:ArchivedItem
+ * (Recover deleted items) and x:Account; it does not include `security`.
  */
 export const STALWART_FULL_SCOPE = 'urn:stalwart:oauth:scope:full';
+
+/** `scope` with the account scopes swapped for `full`. */
+export function withFullScope(scope: string): string {
+  const kept = scope.split(' ').filter((s) => s && s !== STALWART_FULL_SCOPE && !STALWART_ACCOUNT_SCOPES.includes(s));
+  return [...kept, STALWART_FULL_SCOPE].join(' ');
+}
 
 /** The scopes of a sign-in to a server that lists the account scopes (1.0.3+). */
 export const STALWART_LOGIN_SCOPE = ['openid', 'offline_access', ...STALWART_DATA_SCOPES, ...STALWART_ACCOUNT_SCOPES].join(' ');
@@ -344,8 +350,11 @@ async function checkClient(
  * webmail's client if it takes the app's redirect URI, else a public client
  * the app registers itself, at `registrationEndpoint` when the OAuth
  * metadata names one. Either of the first two counts only if it allows
- * `scope`, the scopes the sign-in will ask for. Any other server, and 0.16,
- * gets `bulwark-webmail` as before.
+ * `scope`, the scopes the sign-in will ask for. Where the server lists
+ * `full` (1.0.3+), `bulwark-mobile` is first asked whether it takes the
+ * same scopes with `full` in place of `security` and `settings`, as the
+ * webmail's setup allows it for a superuser admin. Any other server, and
+ * 0.16, gets `bulwark-webmail` as before.
  *
  * `scope` defaults to stalwartLoginScope of `scopesSupported`, which is read
  * from the discovery document when the caller passes neither; the client
@@ -372,6 +381,19 @@ export async function resolveLoginClient(
     : await fetchScopesSupported(base, signal);
   const scope = opts?.scope ?? stalwartLoginScope(supported);
   const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI, scope };
+
+  // 1.0.3+: a bulwark-mobile the admin allowed `full` refuses `security` and
+  // `settings`, and `full` reaches more than they do; ask for it first.
+  if (Array.isArray(supported) && supported.includes(STALWART_FULL_SCOPE)) {
+    const fullScope = withFullScope(scope);
+    const full = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, fullScope, signal);
+    if (full === 'busy') return fallback;
+    if (full === 'known') {
+      const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI, scope: fullScope };
+      rememberClient(base, client);
+      return client;
+    }
+  }
 
   const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, scope, signal);
   if (own === 'busy') return fallback;
