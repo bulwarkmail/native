@@ -41,6 +41,16 @@ tags:
 - waitForAnimationToEnd:
     timeout: 3000
 - tapOn: "New event"
+# With tasks on (the default), the button first offers Event and Task; a
+# second tap on it picks Event.
+- extendedWaitUntil:
+    visible: "New task|Save"
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "New task"
+    commands:
+      - tapOn: "New event"
 - extendedWaitUntil:
     visible: "Save"
     timeout: 10000

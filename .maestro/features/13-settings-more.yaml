@@ -24,7 +24,7 @@ tags:
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: downloads, ROW: "Downloads, .*", Q: "Downloads", PROOF: "Email .*eml.* filename"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: security, ROW: "Security, .*", Q: "Security", PROOF: "Account Security|Detecting server capabilities.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: content, ROW: "Content & Senders, .*", Q: "Content &", PROOF: "External Content"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", Q: "Week start", PROOF: "Default view"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", Q: "Week start", PROOF: "Calendar opens in"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: contacts, ROW: "Contacts, .*", Q: "Group by", PROOF: "Sort by last name"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: files, ROW: "Files, .*", Q: "Files", PROOF: "Default View"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: sidebar-apps, ROW: "Sidebar Apps, .*", Q: "Sidebar", PROOF: "Keep Apps Loaded"}}
