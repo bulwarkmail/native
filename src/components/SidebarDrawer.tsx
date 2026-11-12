@@ -10,8 +10,10 @@ import {
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MoreHorizontal, Share2, MailOpen, StickyNote, AlarmClock, Flag,
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Bell, BellOff, RotateCcw,
+  ArrowUp, ArrowDown,
   type AppIcon,
 } from './icons';
+import { moveSharedMailAccountBy, sharedMailOrderIds, sortSharedMailAccounts } from '../lib/shared-mail-order';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
@@ -68,6 +70,8 @@ const STORAGE_KEYS = {
   collapsedTags: 'sidebar:collapsedTags',
   unifiedExpanded: 'sidebar:unifiedExpanded',
 };
+// The shared accounts' order, per login (lib/shared-mail-order.ts).
+const SHARED_ORDER_KEY = 'sidebar:sharedMailOrder';
 
 type UnifiedRole = 'inbox' | 'sent' | 'drafts' | 'junk' | 'archive' | 'trash';
 const UNIFIED_ROLES: UnifiedRole[] = ['sent', 'drafts', 'archive', 'junk', 'trash'];
@@ -440,7 +444,33 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mailboxes],
   );
-  const tree = React.useMemo(() => buildMailboxTree(mailboxes, { hideOwnRoles }), [mailboxes, hideOwnRoles]);
+  const [sharedOrder, setSharedOrder] = React.useState<Record<string, string[]>>({});
+  React.useEffect(() => {
+    void AsyncStorage.getItem(SHARED_ORDER_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) setSharedOrder(parsed as Record<string, string[]>);
+      } catch { /* ignore */ }
+    }, () => undefined);
+  }, []);
+  const tree = React.useMemo(() => {
+    const built = buildMailboxTree(mailboxes, { hideOwnRoles });
+    const shared = built.filter((n) => n.isAccountNode);
+    if (shared.length < 2) return built;
+    return [
+      ...built.filter((n) => !n.isAccountNode),
+      ...sortSharedMailAccounts(shared, sharedMailOrderIds(sharedOrder, activeAccountId)),
+    ];
+  }, [mailboxes, hideOwnRoles, sharedOrder, activeAccountId]);
+  const moveSharedAccount = (accountId: string, delta: -1 | 1) => {
+    if (!activeAccountId) return;
+    const current = tree.filter((n) => n.isAccountNode && n.accountId).map((n) => n.accountId!);
+    const next = moveSharedMailAccountBy(sharedOrder, activeAccountId, current, accountId, delta);
+    if (next === sharedOrder) return;
+    setSharedOrder(next);
+    void AsyncStorage.setItem(SHARED_ORDER_KEY, JSON.stringify(next)).catch(() => undefined);
+  };
   const visibleNodes = React.useMemo(
     () => flattenVisible(tree, expandedFolders),
     [tree, expandedFolders],
@@ -741,6 +771,25 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
         onPress: () => markRead(mailboxes.filter((m) => m.isShared && m.accountId === accountId).map((m) => m.id)),
       },
     ];
+    // Reorder the shared accounts (webmail 2b3b672b7); no dragging here.
+    const sharedIds = tree.filter((n) => n.isAccountNode).map((n) => n.accountId);
+    const at = sharedIds.indexOf(accountId);
+    if (at > 0) {
+      actions.push({
+        key: 'move-up',
+        label: t('mailbox_context_menu.move_shared_account_up', 'Move up'),
+        icon: ArrowUp,
+        onPress: () => moveSharedAccount(accountId, -1),
+      });
+    }
+    if (at >= 0 && at < sharedIds.length - 1) {
+      actions.push({
+        key: 'move-down',
+        label: t('mailbox_context_menu.move_shared_account_down', 'Move down'),
+        icon: ArrowDown,
+        onPress: () => moveSharedAccount(accountId, 1),
+      });
+    }
     if (canMute) actions.push(...muteActionsForAccount(accountId));
     if (canCreate) {
       actions.push({
