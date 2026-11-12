@@ -471,7 +471,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: shared accounts show in session order; the shared account sheet offers mark-read only (`src/components/SidebarDrawer.tsx:730-739`). No order setting in `src/stores/settings-store.ts`.
   - Fix hint: port shared-mail-order.ts and add Move up/Move down to the shared account sheet. Dragging is n/a on the phone.
 
-- [ ] **A Gmail, Outlook.com or iCloud address at sign-in gets no plain explanation** — `P3` — `missing`
+- [x] **A Gmail, Outlook.com or iCloud address at sign-in gets no plain explanation** — `P3` — `missing` — fixed in 94a0db80
   - What WEB does: the email-first sign-in names the provider ("Gmail", "Outlook.com", "iCloud Mail") and says Bulwark can't reach it, instead of a failed lookup (`lib/auth/mail-server-address.ts:23-41`, `components/auth/login-server-field.tsx:65-68`). Changelog 1.21.0 Sign-in.
   - What RN does: discovery runs and, when it finds nothing, goes to the manual server step (`src/screens/LoginScreen.tsx:378-405`, `src/screens/login/ServerStep.tsx:17`). No provider names in src.
   - Fix hint: port unsupportedProvider and show its note on the email step before discovery.
