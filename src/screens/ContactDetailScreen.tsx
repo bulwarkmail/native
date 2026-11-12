@@ -28,6 +28,7 @@ import {
 import { inlineContactMedia, inlineContactMediaForExport } from '../lib/contact-media';
 import { contactToVCard } from '../lib/vcard';
 import { isContactReadOnly } from '../lib/contact-read-only';
+import { findRelatedContact } from '../lib/contact-related';
 import SenderAvatar from '../components/SenderAvatar';
 import ContactPhoto from '../components/contacts/ContactPhoto';
 import Dialog from '../components/Dialog';
@@ -686,9 +687,22 @@ export default function ContactDetailScreen() {
                 const relType = rel.relation
                   ? Object.keys(rel.relation).find((k) => rel.relation![k])
                   : undefined;
+                // The key is the related card's uid. A value no card has (a
+                // name, a URL from an import) is shown as stored.
+                const related = findRelatedContact(uri, contact, allContacts);
+                const relatedName = related ? getContactDisplayName(related) : '';
                 return (
                   <DetailRow key={`rel-${i}`} label={relType}>
-                    <Text style={styles.value} numberOfLines={2}>{uri}</Text>
+                    {related && relatedName ? (
+                      <Pressable
+                        onPress={() => navigation.push('ContactDetail', { contactId: related.id })}
+                        accessibilityRole="link"
+                      >
+                        <Text style={[styles.value, styles.linkText]} numberOfLines={2}>{relatedName}</Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.value} numberOfLines={2}>{uri}</Text>
+                    )}
                   </DetailRow>
                 );
               })}

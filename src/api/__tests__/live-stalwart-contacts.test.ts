@@ -62,6 +62,7 @@ import { readWebmailFixture, WEBMAIL_FIXTURES } from '../../lib/sieve/__tests__/
 import { getMailboxes } from '../email';
 import type { AddressBook, ContactCard } from '../types';
 import { isContactReadOnly } from '../../lib/contact-read-only';
+import { findRelatedContact } from '../../lib/contact-related';
 import type { FilterRule, SieveScript } from '../../lib/sieve/types';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -243,6 +244,25 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       expect(back.emails).toEqual(stored.emails);
       expect(back.phones).toEqual(stored.phones);
       expect(back.addresses).toEqual(stored.addresses);
+    }, 60_000);
+
+    // #1578: a related contact showed as its uid.
+    it('finds a related contact by the uid the server keeps under relatedTo', async () => {
+      const anna = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Anna ${RUN}` },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(anna.id);
+      const annaUid = (await getContact(anna.id))!.uid!;
+      const ben = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Ben ${RUN}` },
+        relatedTo: { [annaUid]: { relation: { spouse: true } } },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(ben.id);
+      await useContactsStore.getState().fetchContacts();
+      const contacts = useContactsStore.getState().contacts;
+      const benBack = contacts.find((c) => c.id === ben.id)!;
+      const [key] = Object.keys(benBack.relatedTo ?? {});
+      expect(findRelatedContact(key, benBack, contacts)?.id).toBe(anna.id);
     }, 60_000);
 
     it('deletes an address book that still holds contacts', async () => {
