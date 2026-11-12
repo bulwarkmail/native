@@ -808,3 +808,35 @@ live('live Stalwart: .eml import into Drafts', () => {
     expect(flags.keywords).toMatchObject({ $draft: true, $seen: true });
   }, 60_000);
 });
+// Emptying All Trash / All Junk (#1540) destroys a folder in pages of a
+// query and a back-referenced destroy. Run here on a scratch folder, never
+// on the account's real Trash.
+live('live Stalwart: emptying a folder in pages', () => {
+  const tag = `bulwark-empty-${RUN}`;
+  let scratch = '';
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    scratch = await createMailbox({ name: `live-empty-${RUN}` });
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+    if (scratch) await deleteMailbox(scratch).catch(() => undefined);
+  }, 60_000);
+
+  it('destroys every message of the folder, two per request', async () => {
+    const { destroyFolderContents } = await import('../unified-inbox');
+    for (const n of [1, 2, 3, 4, 5]) await importMessage(scratch, `${tag} ${n}`, 'x');
+    const post = async (calls: [string, Record<string, unknown>, string][]) =>
+      (await client.request(calls)).methodResponses as Array<[string, Record<string, any>, string]>;
+    expect(await destroyFolderContents(post, client.accountId, scratch, 2)).toBe(5);
+    expect(await eventually(() => messagesWith(tag), (ids) => ids.length === 0, 10_000)).toEqual([]);
+  }, 60_000);
+});

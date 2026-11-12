@@ -7,7 +7,7 @@ import { useDensity, useTypography } from '../theme/dynamic';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ArrowLeft, Star, Paperclip, AlertTriangle, Search, X, Square, SquareCheck,
-  Mail as MailIcon, MailOpen, Archive, Trash2, ShieldAlert, ShieldCheck, Folder,
+  Mail as MailIcon, MailOpen, Archive, Trash2, ShieldAlert, ShieldCheck, Folder, Eraser,
 } from '../components/icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -15,10 +15,11 @@ import SenderAvatar from '../components/SenderAvatar';
 import MessagePane from '../components/MessagePane';
 import { SwipeableRow } from '../components/SwipeableRow';
 import {
-  fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash,
+  fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash, emptyUnifiedRole,
   unifiedSnippetStamp, type UnifiedEmail, type UnifiedRole, type CrossView, type UnifiedInboxResult,
 } from '../api/unified-inbox';
 import { withSearchSnippets } from '../lib/search-snippet';
+import { toast } from '../stores/toast-store';
 import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
@@ -409,6 +410,29 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   const errorCount = Object.keys(errors).length;
   const showRecipient = role === 'sent' || role === 'drafts';
+  const canEmpty = !view && (role === 'trash' || role === 'junk') && emails.length > 0;
+  const onEmpty = () => {
+    const emptied = role === 'junk' ? 'junk' : 'trash';
+    Alert.alert(
+      t('email_list.empty_folder.confirm_title', 'Empty folder'),
+      t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('email_list.empty_folder.confirm_button', 'Empty folder'),
+          style: 'destructive',
+          onPress: () => {
+            void emptyUnifiedRole(accountIds, emptied, { includeGroup })
+              .then(({ failed }) => {
+                if (failed > 0) toast.error(t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'));
+              })
+              .catch(() => toast.error(t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder')))
+              .finally(() => { void load(); });
+          },
+        },
+      ],
+    );
+  };
   const formatAddress = useOwnDomainAddress();
   const internalDomains = useInternalMailDomains();
   const title = view
@@ -618,6 +642,20 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             <ArrowLeft size={22} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+          {canEmpty && (
+            // All Trash / All Junk: empty that folder in every account the view
+            // covers, after one confirm (webmail #1540).
+            <Pressable
+              onPress={onEmpty}
+              style={styles.headerBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('mailbox_context_menu.empty_folder', 'Empty folder')}
+              testID="unified-empty"
+            >
+              <Eraser size={20} color={c.text} />
+            </Pressable>
+          )}
           <View style={styles.headerBtn}>
             {opening ? <ActivityIndicator size="small" color={c.primary} /> : null}
           </View>
