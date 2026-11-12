@@ -155,7 +155,10 @@
       "not_found": "Bu görev artık kullanılamıyor.",
       "save_error": "Görev kaydedilemedi",
       "update_error": "Görev güncellenemedi",
-      "delete_confirm": "Bu görev silinsin mi?"
+      "delete_confirm": "Bu görev silinsin mi?",
+      "mark_occurrence_done": "Bu günü tamamlandı olarak işaretle",
+      "mark_occurrence_open": "Bu günü tamamlanmadı olarak işaretle",
+      "open_task": "Görevi aç"
     },
     "views": {
       "schedule": "Program",
@@ -186,6 +189,9 @@
     "retry": "Yeniden dene",
     "undo": "Geri al",
     "update": "Güncelle"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Bir alıcı} other {# alıcı}} kuruluşunuzun dışında:"
   },
   "contacts": {
     "address_books": {
@@ -490,6 +496,7 @@
       "open": "Aç",
       "preview": "Önizle",
       "save": "Kaydet",
+      "save_as": "Farklı kaydet…",
       "share": "Paylaş"
     },
     "attachment_failed": "Ek açılamadı",
@@ -518,6 +525,7 @@
     },
     "export_failed": "Dışa aktarma başarısız",
     "forwarded": "İletildi",
+    "import_email": ".eml veya .zip içe aktar",
     "load_failed": "E-posta yüklenemedi",
     "preview": {
       "open_external": "Uygulamada aç",
@@ -762,6 +770,8 @@
       "err_handoff_refused_title": "Webmail bu girişi kabul etmedi",
       "err_handoff_server_detail": "Tekrar giriş yapın. Sorun devam ederse yöneticinize başvurun.",
       "err_handoff_server_title": "Webmail girişi tamamlayamadı",
+      "err_password_expired_detail": "Parolayı sunucunun web arayüzünde değiştirin, ardından yeni parolayla giriş yapın.",
+      "err_password_expired_title": "Parolanızın süresi doldu",
       "err_token_exchange_title": "{host} oturum başlatmadı",
       "reauth_detail": "Sunucu, {account} için kaydedilmiş girişi artık kabul etmiyor. Bu hesabı kullanmaya devam etmek için tekrar giriş yapın.",
       "reauth_title": "Tekrar giriş yap",
@@ -999,6 +1009,12 @@
       "attachment_click_action": {
         "description_mobile": "Bir eke dokunduğunuzda ne olacağı."
       },
+      "attachment_position": {
+        "below-header": "Başlığın altı",
+        "beside-sender": "Göndericinin yanı",
+        "description": "E-posta başlığında eklerin nerede görüntüleneceği",
+        "label": "Ek Konumu"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Yanıtlar her zaman iletinin gönderildiği kimlikten gider. Bu açıkken, alan adlarınızdaki başka bir adrese (catch-all takma adı) gelen iletiye verilen yanıt da o adresten gönderilir."
       },
@@ -1128,6 +1144,12 @@
         "star": "Yıldızla",
         "tag": "Etiket"
       },
+      "reading_pane": {
+        "auto": "Yer olduğunda listenin yanında",
+        "description": "Tablette veya açık katlanabilir telefonda açık iletiyi posta listesinin yanında gösterir. Yalnızca bu cihaz.",
+        "label": "Okuma bölmesi",
+        "off": "Kapalı: iletiler tam ekran açılır"
+      },
       "show_avatars_in_junk": "İstem Dışı klasöründe gönderen avatarlarını göster",
       "show_avatars_in_junk_description": "İstem Dışı klasöründeki iletiler için gönderen logolarını yükle. Kapalıyken spam gönderenlerle bağlantı kurulmaz.",
       "show_folder_total_count": "Klasörlerde toplam ileti sayısını göster",
@@ -1222,6 +1244,7 @@
       "clear_title": "Çevrimdışı postayı temizle",
       "days_ago": "{count} g önce",
       "description": "Son iletileri indirin; böylece anında açılır ve bağlantı olmadan da okunabilir. Yalnızca ileti gövdeleri — ekler yine istek üzerine indirilir.",
+      "description_account": "{account} hesabının son iletilerini bu cihazda tutun; böylece bağlantı olmadan da açılırlar. Her hesabın kendi dönemi ve boyutu vardır.",
       "downloading": "İndiriliyor {completed}/{total}…",
       "enabled": "Son postaları önbelleğe al",
       "enabled_desc": "Açıkken uygulama, seçilen dönemdeki ileti gövdelerini bu cihazda tutar.",
@@ -1291,7 +1314,8 @@
         "error_title": "Güncelleme başarısız"
       },
       "encryption": {
-        "no_keys": "Önce bir ortak anahtar ekleyin - bekleme süresi şifrelemesi için bir anahtar gereklidir."
+        "no_keys": "Önce bir ortak anahtar ekleyin - bekleme süresi şifrelemesi için bir anahtar gereklidir.",
+        "turned_off_on_server": "Depolanan veri şifrelemesi açıktı ve Stalwart 1.0.2 güncellemesinin yaptığı gibi sunucuda kapatıldı. Burada yeniden açana kadar yeni postalar şifrelenmeden saklanır."
       },
       "load_error": "Güvenlik ayarları yüklenemedi.",
       "not_supported": "Hesap güvenliği yönetimi bir Stalwart sunucusu gerektirir. Bu özellikler bu hesap için kullanılamaz.",
@@ -1341,6 +1365,7 @@
         "disable_hint_code": "İki faktörlü kimlik doğrulamayı kapatmak için parolanızı ve kimlik doğrulayıcı uygulamanızdan bir kod girin."
       },
       "restricted": "Sunucunuz parolayı, iki aşamalı girişi, uygulama parolalarını ve API anahtarlarını yalnızca yöneticisinin onayladığı uygulamaların değiştirmesine izin veriyor. Bulwark bu onay olmadan giriş yaptı; bu yüzden posta, kişiler, takvimler ve dosyalar çalışır, ancak bu ayarlar çalışmaz. Bunları sunucunuzun web arayüzünden veya Bulwark webmail'den değiştirin.",
+      "restricted_sign_in_again": "Bulwark, sunucunuz uygulamaların bu ayarları yönetmesine izin vermeden önce giriş yaptı. Parolayı, iki aşamalı girişi, uygulama parolalarını ve API anahtarlarını burada yönetmek için tekrar giriş yapın.",
       "screen_privacy": {
         "block_screenshots": "Ekran görüntülerini engelle",
         "block_screenshots_description": "Uygulamanın ekran görüntülerini ve ekran kayıtlarını engeller, son uygulamalar görünümünde içeriğini gizler.",
@@ -1462,7 +1487,8 @@
         "description_ios": "Atkinson Hyperlegible ve Lexend, harfleri kolayca ayırt edilecek şekilde tasarlanmıştır; OpenDyslexic disleksisi olan bazı kişilere yardımcı olur. Bu cihazda yazı tipi düz metin iletiler için kullanılır."
       },
       "plain_language": {
-        "description_mobile": "Ayarlar ve hata mesajları için daha basit ifadeler. İngilizce ve Almanca olarak kullanılabilir."
+        "description_mobile": "Ayarlar ve hata mesajları için daha basit ifadeler. İngilizce ve Almanca olarak kullanılabilir.",
+        "label": "Sade dil"
       },
       "presets": {
         "applied_mobile": "{name}, {count, plural, one {# ayarı} other {# ayarı}} değiştirdi",
@@ -1569,6 +1595,7 @@
     "show_unread": "Okunmamışları göster",
     "tab_unavailable": "{name} (kullanılamıyor)",
     "account_sign_in_again": "Tekrar giriş yap",
+    "account_unread": "{count} okunmamış",
     "sign_out_all_confirm_message": "Tüm hesaplar bu cihazdan kaldırılır. İstediğiniz zaman tekrar giriş yapabilirsiniz.",
     "sign_out_all_confirm_title": "Tüm hesaplardan çıkış yapılsın mı?",
     "sign_out_confirm_message": "Hesap bu cihazdan kaldırılır. İstediğiniz zaman tekrar giriş yapabilirsiniz.",
@@ -1706,6 +1733,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Ofis dışında ayarları kaydedildi, ancak filtreleriniz kapalı. Yeniden açmak için tekrar kaydedin."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Sunucu, {account} için kaydedilmiş girişi artık kabul etmiyor. Tekrar giriş yapana kadar bu hesabın postaları bu cihazda gizli kalır."
   },
   "outbox": {
     "discard": "Vazgeç",
