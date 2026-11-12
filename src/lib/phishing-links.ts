@@ -89,6 +89,15 @@ function linkOffTag(name: string, attrs: Attr[], text: LinksOffText, isAnchor: b
   return `<${name} ${out.join(' ')}>`;
 }
 
+// A link address anywhere in a stretch the reader gave up on: renamed so it
+// no longer makes a link, whatever a browser makes of the markup around it.
+const LINK_ATTR = /(^|[\s"'\/<])((?:xlink:)?href|ping)(\s*=)/gi;
+
+/** Markup the reader can't take apart (an unclosed quote, a tag cut off), with its link addresses turned off. */
+function disarm(rest: string): string {
+  return rest.replace(LINK_ATTR, '$1data-link-off-$2$3');
+}
+
 /** `html` (a fragment or a whole document) with every link turned off. */
 export function turnOffLinks(html: string, text: LinksOffText): string {
   if (!html || !/<(a|area)[\s/>]/i.test(html)) return html;
@@ -111,7 +120,8 @@ export function turnOffLinks(html: string, text: LinksOffText): string {
     const nameAt = closing ? lt + 2 : lt + 1;
     if (!isAlpha(html[nameAt])) { out += '<'; i = lt + 1; continue; }
     const tag = readTag(html, nameAt);
-    if (!tag) { out += html.slice(lt); break; }
+    // Fails closed: the rest keeps no link address.
+    if (!tag) { out += disarm(html.slice(lt)); break; }
     const lower = tag.name.toLowerCase();
     if (closing) {
       out += (lower === 'a' ? note : '') + html.slice(lt, tag.end);

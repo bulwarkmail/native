@@ -53,6 +53,27 @@ describe('turnOffLinks', () => {
   });
 });
 
+describe('turnOffLinks on markup it cannot take apart', () => {
+  // An attribute quote that never closes, or a tag cut off at the end: the
+  // rest was copied as it was, links and all.
+  it.each([
+    ['an unclosed quote before a link', `<p>hi</p><span title='x><a href="https://evil.example/a">click</a> <area HREF = https://evil.example/b>`],
+    ['a link tag cut off at the end', '<p>hi</p><a href="https://evil.example/a" data-x="y'],
+    ['an xlink and a ping', `<b class='x><svg><a xlink:href="https://evil.example/a" ping="https://evil.example/p">x</a></svg>`],
+  ])('turns off every link address after %s', (_name, html) => {
+    const out = turnOffLinks(html, TEXT);
+    expect(out).not.toMatch(/(^|[\s"'/<])((xlink:)?href|ping)\s*=/i);
+    expect(out).toMatch(/^<p>hi<\/p>|^<b /);
+    expect(out).toContain('evil.example');
+  });
+
+  it('still reads the example from the review as a title, with no link in it', () => {
+    // A browser reads the same: one span whose title holds "x><a href=".
+    const html = '<span title="x><a href="https://evil">';
+    expect(turnOffLinks(html, TEXT)).toBe(html);
+  });
+});
+
 describe('isPhishingMarked', () => {
   it('reads $phishing', () => {
     expect(isPhishingMarked({ keywords: { $phishing: true } })).toBe(true);
