@@ -23,6 +23,7 @@ import {
   MOBILE_CLIENT_ID,
   REGISTERED_LOGOUT_REDIRECT_URI,
   REGISTERED_REDIRECT_URI,
+  type LoginClient,
 } from './totp-login';
 import { randomHex } from './random';
 import { NetworkError } from '../api/jmap-client';
@@ -169,7 +170,7 @@ export function pkceScopes(metadata: OAuthMetadata): string {
  * registered where its metadata says. An external identity provider keeps
  * the webmail's client id.
  */
-async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<{ clientId: string; redirectUri: string }> {
+async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<LoginClient> {
   const onServer = sameHost(metadata.authorization_endpoint, serverUrl) && sameHost(metadata.token_endpoint, serverUrl);
   const stalwart = !!metadata.scopes_supported?.some((s) => typeof s === 'string' && s.startsWith(DATA_SCOPE_PREFIX));
   if (onServer || stalwart) {
@@ -177,6 +178,7 @@ async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<{
       return await resolveLoginClient(serverUrl, {
         registrationEndpoint: registrationEndpoint(metadata),
         scope: pkceScopes(metadata),
+        scopesSupported: metadata.scopes_supported ?? null,
       });
     } catch (err) {
       // Unreachable: say so, rather than let the browser show the server
@@ -186,7 +188,7 @@ async function pkceClient(serverUrl: string, metadata: OAuthMetadata): Promise<{
       // the server says about the default client.
     }
   }
-  return { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
+  return { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI, scope: pkceScopes(metadata) };
 }
 
 function registrationEndpoint(metadata: OAuthMetadata): string | undefined {
@@ -208,14 +210,17 @@ export async function loginWithPkce(
   metadata: OAuthMetadata,
   opts?: { clientId?: string; scopes?: string; redirectUri?: string; addAccount?: boolean },
 ): Promise<OAuthTokens> {
-  const client = opts?.clientId
-    ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI }
+  const client: LoginClient = opts?.clientId
+    ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI, scope: pkceScopes(metadata) }
     : await pkceClient(serverUrl, metadata);
   const { clientId, redirectUri } = client;
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
   const state = randomHex(16);
-  const scope = opts?.scopes ?? pkceScopes(metadata);
+  // What the client check asked for, so a client that allows only some
+  // scopes isn't asked for more. The webmail's client is the default for
+  // any provider (0.16 doesn't check scopes), so it gets the provider's.
+  const scope = opts?.scopes ?? (clientId === DEFAULT_CLIENT_ID ? pkceScopes(metadata) : client.scope);
 
   const params = new URLSearchParams({
     response_type: 'code',

@@ -38,26 +38,50 @@ interface Call { url: string; method: string; body?: string }
 // client listed in `adminScopes` allows only those scopes besides openid and
 // offline_access (1.0.3, which has no first-party clients), and a request
 // naming another is refused with invalid_scope; any other client allows all.
+// The discovery document lists `supported` (1.0.1's list by default, 0.16's
+// on 0.16); with `strict`, a scope it doesn't list is refused as 1.0.0 and
+// 1.0.1 do.
+const DATA = [
+  'urn:ietf:params:oauth:scope:mail',
+  'urn:ietf:params:oauth:scope:contacts',
+  'urn:ietf:params:oauth:scope:calendars',
+  'urn:ietf:params:oauth:scope:files',
+];
+const V016_SCOPES = ['openid', 'offline_access', ...DATA.slice(0, 3)];
+const V101_SCOPES = ['openid', 'offline_access', ...DATA];
+const V103_SCOPES = [
+  ...V101_SCOPES,
+  'urn:stalwart:oauth:scope:security',
+  'urn:stalwart:oauth:scope:settings',
+  'urn:stalwart:oauth:scope:full',
+];
 function fakeServer(
   version: '0.16' | '1.0',
   answer?: (query: URLSearchParams) => unknown,
   admin: Record<string, string> = {},
   adminScopes: Record<string, string[]> = {},
+  opts: { supported?: string[]; strict?: boolean } = {},
 ) {
   const calls: Call[] = [];
   let registered = 0;
+  const supported = opts.supported ?? (version === '0.16' ? V016_SCOPES : V101_SCOPES);
   const knows = (clientId: string, redirectUri: string | null) =>
     clientId.startsWith('swc1.') || (clientId in admin && admin[clientId] === redirectUri);
   const allows = (clientId: string, scope: string | null) => {
+    const names = (scope ?? '').split(' ').filter(Boolean);
+    if (opts.strict && names.some((s) => !supported.includes(s))) return false;
     const allowed = adminScopes[clientId];
     if (!allowed) return true;
-    return (scope ?? '').split(' ').every((s) => !s || s === 'openid' || s === 'offline_access' || allowed.includes(s));
+    return names.every((s) => s === 'openid' || s === 'offline_access' || allowed.includes(s));
   };
   const scopeRefused = (redirectUri: string | null) => `${redirectUri}?error=invalid_scope&error_description=The+requested+scope+is+not+allowed+for+this+client.`;
   fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     const call = { url, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? init.body : undefined };
     calls.push(call);
     const path = url.slice(BASE.length).split('?')[0];
+    if (path === '/.well-known/oauth-authorization-server') {
+      return json({ issuer: BASE, authorization_endpoint: `${BASE}/login`, token_endpoint: `${BASE}/auth/token`, scopes_supported: supported });
+    }
     if (path === '/api/auth/client') {
       if (version === '0.16') return json({ type: 'about:blank', status: 404 }, 404);
       const params = new URL(url).searchParams;
@@ -168,10 +192,34 @@ describe('exchangePasswordForTokens', () => {
     expect(tokenCall(calls).has('client_secret')).toBe(false);
   });
 
+  it('two-factor sign-in with its own client works on 1.0.1, which refuses scope names it does not know', async () => {
+    const calls = fakeServer('1.0', undefined, {}, {}, { supported: V101_SCOPES, strict: true });
+    const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    expect(tokens.clientId).toBe('swc1.1');
+    const register = JSON.parse(calls.find((c) => c.url.endsWith('/auth/register'))!.body!);
+    const query = new URLSearchParams(JSON.parse(authCalls(calls)[0].body!).query);
+    // The check, the registration and the sign-in ask for the same scopes.
+    const checked = calls.filter((c) => c.url.startsWith(`${BASE}/api/auth/client`)).map((c) => new URL(c.url).searchParams.get('scope'));
+    expect(new Set([...checked, register.scope, query.get('scope')])).toEqual(new Set([query.get('scope')]));
+    expect(query.get('scope')).not.toContain('urn:stalwart:');
+    expect(query.get('scope')).toContain('urn:ietf:params:oauth:scope:mail');
+  });
+
+  it("asks a 1.0.3 that lists them for the account's security and settings, with the same scopes everywhere", async () => {
+    const calls = fakeServer('1.0', undefined, {}, {}, { supported: V103_SCOPES, strict: true });
+    await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
+
+    const register = JSON.parse(calls.find((c) => c.url.endsWith('/auth/register'))!.body!);
+    const scope = new URLSearchParams(JSON.parse(authCalls(calls)[0].body!).query).get('scope')!;
+    expect(scope.split(' ')).toEqual(expect.arrayContaining(['urn:stalwart:oauth:scope:security', 'urn:stalwart:oauth:scope:settings']));
+    expect(register.scope).toBe(scope);
+  });
+
   it('registers its own client on Stalwart 1.0.3, where bulwark-mobile lost its first-party access', async () => {
     // 1.0.3 has no first-party clients: bulwark-mobile now allows only openid
     // and offline_access and refuses the app's request with invalid_scope.
-    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, { 'bulwark-mobile': [] });
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, { 'bulwark-mobile': [] }, { supported: V103_SCOPES });
     const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
 
     expect(tokens.clientId).toBe('swc1.1');
@@ -185,7 +233,7 @@ describe('exchangePasswordForTokens', () => {
     fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI });
     await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '123456');
     // The server is upgraded to 1.0.3 while the app keeps running.
-    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, { 'bulwark-mobile': [] });
+    const calls = fakeServer('1.0', undefined, { 'bulwark-mobile': REGISTERED_REDIRECT_URI }, { 'bulwark-mobile': [] }, { supported: V103_SCOPES });
     const tokens = await exchangePasswordForTokens(BASE, 'u@example.org', 'pw', '654321');
 
     expect(tokens.clientId).toBe('swc1.1');
@@ -370,7 +418,7 @@ describe('resolveLoginClient', () => {
   });
 
   it.each([503, 429])('does not remember the webmail client after a %i from the client check', async (status) => {
-    fetchMock.mockResolvedValueOnce(json({ error: 'busy' }, status));
+    fetchMock.mockResolvedValueOnce(json({}, 404)).mockResolvedValueOnce(json({ error: 'busy' }, status));
     expect((await resolveLoginClient(BASE)).clientId).toBe('bulwark-webmail');
     fakeServer('1.0');
     expect((await resolveLoginClient(BASE)).clientId).toBe('swc1.1');
@@ -395,7 +443,12 @@ describe('resolveLoginClient', () => {
     const client = await resolveLoginClient(BASE, { registrationEndpoint: 'https://public.example.com/auth/register' });
 
     expect(client.clientId).toBe('swc1.pub');
-    expect(urls).toEqual([`${BASE}/api/auth/client`, `${BASE}/api/auth/client`, 'https://public.example.com/auth/register']);
+    expect(urls).toEqual([
+      `${BASE}/.well-known/oauth-authorization-server`,
+      `${BASE}/api/auth/client`,
+      `${BASE}/api/auth/client`,
+      'https://public.example.com/auth/register',
+    ]);
   });
 
   it('asks for bulwark-mobile first, then the webmail client, before registering one', async () => {

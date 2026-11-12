@@ -80,16 +80,43 @@ export const STALWART_DATA_SCOPES = [
  * Stalwart 1.0.3's scopes for the account's own settings (password, 2FA, app
  * passwords, encryption keys), which until then only a first-party client
  * reached. 1.0.3 dropped first-party clients, so `bulwark-mobile` too gets
- * only what its scopes name. `urn:stalwart:oauth:scope:full` isn't asked for:
- * only a client a superuser allowed it may, and a request naming a scope the
- * client lacks is refused as a whole. Earlier servers skip these names.
+ * only what its scopes name. A request naming a scope the client lacks is
+ * refused as a whole, and 1.0.0 and 1.0.1 refuse names they don't know the
+ * same way (1.0.2 skips them), so these are asked for only where the
+ * discovery document lists them (stalwartLoginScope).
  */
 export const STALWART_ACCOUNT_SCOPES = [
   'urn:stalwart:oauth:scope:security',
   'urn:stalwart:oauth:scope:settings',
 ];
 
+/**
+ * Stalwart 1.0.3's unrestricted scope, which only a superuser may allow a
+ * client and dynamic registration strips. Only it reaches x:ArchivedItem
+ * and x:Account; the app asks for it only with `bulwark-mobile`, when that
+ * client allows it (resolveLoginClient).
+ */
+export const STALWART_FULL_SCOPE = 'urn:stalwart:oauth:scope:full';
+
+/** The scopes of a sign-in to a server that lists the account scopes (1.0.3+). */
 export const STALWART_LOGIN_SCOPE = ['openid', 'offline_access', ...STALWART_DATA_SCOPES, ...STALWART_ACCOUNT_SCOPES].join(' ');
+
+/**
+ * The scopes the password sign-in asks for, given the discovery document's
+ * `scopes_supported`, the way pkceScopes decides for the browser: the data
+ * scopes the server lists (all of them where it lists none), the account
+ * scopes only where they are listed.
+ */
+export function stalwartLoginScope(scopesSupported?: readonly unknown[] | null): string {
+  const listed = Array.isArray(scopesSupported) ? scopesSupported : [];
+  const data = STALWART_DATA_SCOPES.filter((s) => listed.includes(s));
+  return [
+    'openid',
+    'offline_access',
+    ...(data.length ? data : STALWART_DATA_SCOPES),
+    ...STALWART_ACCOUNT_SCOPES.filter((s) => listed.includes(s)),
+  ].join(' ');
+}
 
 export class LoginEndpointMissingError extends Error {
   constructor() {
@@ -131,6 +158,11 @@ export function generateCodeChallenge(verifier: string): string {
 export interface LoginClient {
   clientId: string;
   redirectUri: string;
+  /**
+   * The scopes the sign-in asks for with this client: the client check, the
+   * password sign-in and the browser's authorization URL send the same.
+   */
+  scope: string;
 }
 
 const CLIENT_CHECK_TIMEOUT_MS = 8_000;
@@ -187,6 +219,7 @@ function assertSameServer(requested: string, response: Response): void {
  */
 async function registerPublicClient(
   base: string,
+  scope: string,
   url = `${base}/auth/register`,
   signal?: AbortSignal,
 ): Promise<LoginClient> {
@@ -203,7 +236,7 @@ async function registerPublicClient(
         token_endpoint_auth_method: 'none',
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
-        scope: STALWART_LOGIN_SCOPE,
+        scope,
       }),
       signal: t.signal,
       timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
@@ -220,9 +253,37 @@ async function registerPublicClient(
     const reason = typeof body?.error === 'string' ? body.error : `HTTP ${response.status}`;
     throw new TotpLoginError('client_rejected', `The server refused to register the app (${reason})`);
   }
-  const client = { clientId: body.client_id, redirectUri: REGISTERED_REDIRECT_URI };
+  const client = { clientId: body.client_id, redirectUri: REGISTERED_REDIRECT_URI, scope };
   rememberClient(base, client);
   return client;
+}
+
+/**
+ * `scopes_supported` of the server's OAuth discovery document, or null where
+ * there is none (servers that aren't Stalwart may have none). An unreachable
+ * server throws `NetworkError`, as the client check would.
+ */
+async function fetchScopesSupported(base: string, signal?: AbortSignal): Promise<unknown[] | null> {
+  const url = `${base}/.well-known/oauth-authorization-server`;
+  const t = signalWithTimeout(signal, CLIENT_CHECK_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetchWithoutForeignRedirect(url, {
+      headers: { Accept: 'application/json' },
+      signal: t.signal,
+      timeoutMs: CLIENT_CHECK_TIMEOUT_MS,
+    });
+  } catch (err) {
+    throwIfCancelled(signal);
+    throw new NetworkError(err instanceof Error ? err.message : 'Server unreachable');
+  } finally {
+    t.done();
+  }
+  if (!response || !response.ok) return null;
+  // A document from another host doesn't speak for this server.
+  if (response.url && !followedOnlyAllowedRedirects(response) && !mayFollowRedirect(url, response.url)) return null;
+  const body = (await response.json().catch(() => null)) as { scopes_supported?: unknown } | null;
+  return body && Array.isArray(body.scopes_supported) ? body.scopes_supported : null;
 }
 
 /**
@@ -284,26 +345,38 @@ async function checkClient(
  * the app registers itself, at `registrationEndpoint` when the OAuth
  * metadata names one. Either of the first two counts only if it allows
  * `scope`, the scopes the sign-in will ask for. Any other server, and 0.16,
- * gets `bulwark-webmail` as before. A server having a bad moment (5xx, 429)
- * gets the default without it being remembered; an unreachable one throws
- * `NetworkError`, as the default would only end in the server refusing a
- * client it doesn't know.
+ * gets `bulwark-webmail` as before.
+ *
+ * `scope` defaults to stalwartLoginScope of `scopesSupported`, which is read
+ * from the discovery document when the caller passes neither; the client
+ * carries it, so the sign-in asks for what the check asked for. A server
+ * having a bad moment (5xx, 429) gets the default without it being
+ * remembered; an unreachable one throws `NetworkError`, as the default
+ * would only end in the server refusing a client it doesn't know.
  */
 export async function resolveLoginClient(
   serverUrl: string,
-  opts?: { registrationEndpoint?: string; scope?: string; signal?: AbortSignal },
+  opts?: {
+    registrationEndpoint?: string;
+    scope?: string;
+    scopesSupported?: readonly unknown[] | null;
+    signal?: AbortSignal;
+  },
 ): Promise<LoginClient> {
   const base = trimBase(serverUrl);
   const cached = loginClients.get(base);
   if (cached) return cached;
-  const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI };
   const signal = opts?.signal;
-  const scope = opts?.scope ?? STALWART_LOGIN_SCOPE;
+  const supported = opts?.scopesSupported !== undefined || opts?.scope !== undefined
+    ? opts?.scopesSupported ?? null
+    : await fetchScopesSupported(base, signal);
+  const scope = opts?.scope ?? stalwartLoginScope(supported);
+  const fallback: LoginClient = { clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI, scope };
 
   const own = await checkClient(base, MOBILE_CLIENT_ID, REGISTERED_REDIRECT_URI, scope, signal);
   if (own === 'busy') return fallback;
   if (own === 'known') {
-    const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI };
+    const client = { clientId: MOBILE_CLIENT_ID, redirectUri: REGISTERED_REDIRECT_URI, scope };
     rememberClient(base, client);
     return client;
   }
@@ -312,7 +385,7 @@ export async function resolveLoginClient(
     if (shared === 'busy') return fallback;
     if (shared === 'unknown') {
       const endpoint = opts?.registrationEndpoint;
-      return registerPublicClient(base, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined, signal);
+      return registerPublicClient(base, scope, endpoint && /^https?:\/\//i.test(endpoint) ? endpoint : undefined, signal);
     }
   }
   rememberClient(base, fallback);
@@ -331,6 +404,8 @@ export interface StalwartLoginRequest {
   codeChallenge: string;
   /** Echoed back in 1.0's redirect location. */
   state: string;
+  /** The client's scopes (LoginClient.scope); without, those of a server without discovery. */
+  scope?: string;
 }
 
 export function stalwartLoginBody(req: StalwartLoginRequest): Record<string, unknown> {
@@ -339,7 +414,7 @@ export function stalwartLoginBody(req: StalwartLoginRequest): Record<string, unk
     client_id: req.clientId,
     redirect_uri: req.redirectUri,
     state: req.state,
-    scope: STALWART_LOGIN_SCOPE,
+    scope: req.scope ?? stalwartLoginScope(),
     code_challenge: req.codeChallenge,
     code_challenge_method: 'S256',
   });
@@ -498,6 +573,7 @@ async function requestLoginCode(
     redirectUri: client.redirectUri,
     codeChallenge: challenge,
     state,
+    scope: client.scope,
   });
   const outcome = await postLoginRequest(base, payload, state, signal);
   if (outcome.kind !== 'consent_required') return outcome;
@@ -516,7 +592,7 @@ export async function exchangePasswordForTokens(
   username: string,
   password: string,
   totp?: string,
-  opts?: { clientId?: string; redirectUri?: string; signal?: AbortSignal },
+  opts?: { clientId?: string; redirectUri?: string; scope?: string; signal?: AbortSignal },
 ): Promise<OAuthTokens> {
   const base = trimBase(serverUrl);
   const verifier = generateCodeVerifier();
@@ -525,7 +601,7 @@ export async function exchangePasswordForTokens(
   throwIfCancelled(signal);
 
   let client: LoginClient = opts?.clientId
-    ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI }
+    ? { clientId: opts.clientId, redirectUri: opts.redirectUri ?? HANDOFF_REDIRECT_URI, scope: opts.scope ?? stalwartLoginScope() }
     : await resolveLoginClient(base, { signal });
   let outcome = await requestLoginCode(base, username, password, totp, client, challenge, signal);
   // A remembered client the server no longer knows (another server now

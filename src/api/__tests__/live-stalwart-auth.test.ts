@@ -53,7 +53,6 @@ import {
   DEFAULT_CLIENT_ID,
   MOBILE_CLIENT_ID,
   REGISTERED_REDIRECT_URI,
-  STALWART_LOGIN_SCOPE,
   answerConsent,
   exchangePasswordForTokens,
   generateCodeChallenge,
@@ -62,6 +61,7 @@ import {
   resolveLoginClient,
   resetLoginClients,
   stalwartLoginBody,
+  stalwartLoginScope,
   TotpLoginError,
 } from '../../lib/totp-login';
 import { describeLoginError } from '../../lib/login-errors';
@@ -77,6 +77,7 @@ import {
 } from '../../lib/oauth';
 import { freshStoredCredentials } from '../../lib/stored-token-refresh';
 import { generateAccountId } from '../../lib/account-utils';
+import { setManualFetchForTests } from '../../lib/client-cert';
 
 const SERVER = (process.env.BULWARK_LIVE_JMAP ?? '').replace(/\/+$/, '');
 const USER = process.env.BULWARK_LIVE_USER ?? '';
@@ -217,9 +218,43 @@ live('live Stalwart sign-in', () => {
         // A first-party client shows as one scope, "Full access to your account".
         expect(check.scopes?.length).toBeGreaterThan(hasMobileClient ? 0 : 1);
       } else {
-        expect(client).toEqual({ clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI });
+        expect(client).toMatchObject({ clientId: DEFAULT_CLIENT_ID, redirectUri: HANDOFF_REDIRECT_URI });
       }
     });
+
+    it("two-factor sign-in with the app's own client works on 1.0.1 and on 1.1.0", async () => {
+      // The structured sign-in the app uses for password plus code, here
+      // without the code (the test accounts have none); the client and the
+      // scopes are decided the same way. 1.0.0 and 1.0.1 refuse a scope name
+      // they don't know, so it must not ask them for 1.0.3's. The rig may
+      // have a bulwark-mobile; the app is kept from seeing it, so it
+      // registers its own client as it does on a server without one.
+      resetLoginClients();
+      setManualFetchForTests(async (url, init) => {
+        const u = new URL(url);
+        if (u.pathname === '/api/auth/client' && u.searchParams.get('client_id') === MOBILE_CLIENT_ID) {
+          return new Response(JSON.stringify({ error: 'invalid_client', description: 'Unknown client id', redirect: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return fetch(url, init);
+      });
+      let tokens: OAuthTokens;
+      try {
+        tokens = await exchangePasswordForTokens(SERVER, USER, PASS);
+      } finally {
+        setManualFetchForTests(undefined);
+        resetLoginClients();
+      }
+      try {
+        if (isV1) expect(tokens.clientId).toMatch(/^swc1\./);
+        else expect(tokens.clientId).toBe(DEFAULT_CLIENT_ID);
+        expect(await sessionStatus(tokens.accessToken)).toBe(200);
+      } finally {
+        await revokeRefreshToken(SERVER, tokens);
+      }
+    }, 30_000);
   });
 
   describe('password through the structured endpoint', () => {
@@ -290,6 +325,9 @@ live('live Stalwart sign-in', () => {
     if (!isV1) return;
     // A client of its own (1.0 ids are sealed, so registering stores
     // nothing) has no grant yet, so leaving `consent` out gets the question.
+    // With the scopes the app asks this server for: 1.0.0 and 1.0.1 refuse
+    // a name they don't list.
+    const scope = stalwartLoginScope((await discoverOAuthMetadata(SERVER))?.scopes_supported);
     const reg = await fetch(`${SERVER}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -299,7 +337,7 @@ live('live Stalwart sign-in', () => {
         token_endpoint_auth_method: 'none',
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
-        scope: STALWART_LOGIN_SCOPE,
+        scope,
       }),
     });
     const { client_id: clientId } = (await reg.json()) as { client_id: string };
@@ -312,6 +350,7 @@ live('live Stalwart sign-in', () => {
       redirectUri: REGISTERED_REDIRECT_URI,
       codeChallenge: generateCodeChallenge(verifier),
       state,
+      scope,
     });
     delete body.consent;
     const first = await fetch(`${SERVER}/api/auth`, {
