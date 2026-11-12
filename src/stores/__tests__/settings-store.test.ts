@@ -23,6 +23,9 @@ describe('settings-store', () => {
       expect(s.autoSelectReplyIdentity).toBe(false);
       expect(s.replyIdentityMatch).toBe('domain');
       expect(s.showBirthdayCalendar).toBe(false);
+      // Webmail 1.21: tasks are on by default.
+      expect(s.enableCalendarTasks).toBe(true);
+      expect(s.showTasksOnCalendar).toBe(true);
       expect(s.attachmentReminderKeywords).toContain('anhang');
       expect(s.attachmentReminderKeywords).toContain('添付');
     });

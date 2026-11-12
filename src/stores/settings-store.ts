@@ -500,7 +500,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   calendarHoverPreview: 'delay-500ms',
   calendarTimeZone: 'auto',
   showBirthdayCalendar: false,
-  enableCalendarTasks: false,
+  // On for new installs, as in the webmail 1.21: tasks show where the server
+  // has calendars (Stalwart keeps them as CalendarEvent objects of @type Task).
+  enableCalendarTasks: true,
   showTasksOnCalendar: true,
   sharedCalendarColors: {},
 
