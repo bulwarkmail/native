@@ -342,6 +342,8 @@ export default function ContactDetailScreen() {
     }
   };
 
+  // Birthdays and anniversaries in the UI language (#1616).
+  const uiLocale = useLocaleStore((s) => s.locale);
   // In an address book shared read-only: no Edit, Move or Delete.
   const readOnly = isContactReadOnly(contact, addressBooks);
   const moreItems = [
@@ -576,7 +578,7 @@ export default function ContactDetailScreen() {
                   : t('contacts.detail.anniversary_other', 'Other');
                 return (
                   <DetailRow key={`an-${i}`} label={kindLabel} icon={<Cake size={14} color={c.textMuted} />}>
-                    <Text style={styles.value}>{formatPartialDate(a.date)}{suffix}</Text>
+                    <Text style={styles.value}>{formatPartialDate(a.date, uiLocale)}{suffix}</Text>
                   </DetailRow>
                 );
               })}

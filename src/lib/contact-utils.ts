@@ -1,4 +1,5 @@
 import type {
+  CalendarEvent,
   ContactCard,
   ContactMedia,
   AnniversaryDate,
@@ -6,7 +7,9 @@ import type {
   PartialDate,
   Timestamp,
 } from '../api/types';
+import { format, parseISO } from 'date-fns';
 import { getEmailInitials } from './avatar-utils';
+import { timePattern, type TimeFormat } from './calendar-utils';
 
 export function getContactDisplayName(contact: ContactCard): string {
   if (contact.name) {
@@ -256,39 +259,61 @@ export function stringToPartialDate(s: string): PartialDate | null {
   return null;
 }
 
-const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-export function formatPartialDate(dateInput: AnniversaryDate | string | undefined): string {
-  if (dateInput == null) return '';
-  if (typeof dateInput === 'object') {
+/** The year, month and day a contact's date names, whichever it has. */
+export function contactDateParts(dateInput: AnniversaryDate | string): { year?: number; month?: number; day?: number } {
+  if (typeof dateInput === 'object' && dateInput !== null) {
     const ts = dateInput as Timestamp;
     if (ts['@type'] === 'Timestamp' && typeof ts.utc === 'string') {
       const d = new Date(ts.utc);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-      }
-      return String(ts.utc);
+      return isNaN(d.getTime()) ? {} : { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
     }
     const pd = dateInput as PartialDate;
-    const parts: string[] = [];
-    if (pd.month && MONTH_NAMES_SHORT[pd.month - 1]) parts.push(MONTH_NAMES_SHORT[pd.month - 1]);
-    if (pd.day) parts.push(String(pd.day));
-    if (pd.year) parts.push(String(pd.year));
-    return parts.join(' ');
+    return { year: pd.year, month: pd.month, day: pd.day };
   }
-  const dateStr = String(dateInput);
-  if (dateStr.startsWith('--')) {
-    const parts = dateStr.substring(2).split('-');
-    const month = parseInt(parts[0], 10);
-    const day = parts[1] ? parseInt(parts[1], 10) : undefined;
-    if (!month || !MONTH_NAMES_SHORT[month - 1]) return dateStr;
-    return day ? `${MONTH_NAMES_SHORT[month - 1]} ${day}` : MONTH_NAMES_SHORT[month - 1];
+  const s = String(dateInput);
+  if (s.startsWith('--')) {
+    const [m, d] = s.substring(2).split('-');
+    return { month: parseInt(m, 10) || undefined, day: d ? parseInt(d, 10) || undefined : undefined };
   }
-  const d = new Date(dateStr);
-  if (!isNaN(d.getTime())) {
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  }
-  return dateStr;
+  const iso = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(s);
+  if (iso) return { year: Number(iso[1]), month: Number(iso[2]), day: iso[3] ? Number(iso[3]) : undefined };
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? {} : { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
+
+/**
+ * A contact's date (birthday, anniversary) in the UI language: "15. März
+ * 1988", "March 15", "1988". A date without a year (vCard "--03-15") or
+ * without a day shows only what it has. Webmail lib/contact-dates.ts
+ * formatContactDate (#1616); the app has no date order setting to follow.
+ */
+export function formatPartialDate(dateInput: AnniversaryDate | string | undefined, locale?: string): string {
+  if (dateInput == null) return '';
+  const { year, month, day } = contactDateParts(dateInput);
+  try {
+    if (month && day) {
+      // A leap year, so 29 February survives without a year.
+      const d = new Date(Date.UTC(year ?? 2000, month - 1, day));
+      return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', month: 'long', day: 'numeric', ...(year ? { year: 'numeric' } : {}) }).format(d);
+    }
+    if (month) {
+      const d = new Date(Date.UTC(year ?? 2000, month - 1, 1));
+      return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', month: 'long', ...(year ? { year: 'numeric' } : {}) }).format(d);
+    }
+    if (year) return String(year);
+  } catch { /* an unknown locale: below */ }
+  return typeof dateInput === 'string' ? dateInput : JSON.stringify(dateInput);
+}
+
+/** A contact's event time in the 12- or 24-hour setting (#1616); an all-day event says so. */
+export function formatContactEventTime(
+  event: Pick<CalendarEvent, 'start' | 'showWithoutTime'>,
+  timeFormat: TimeFormat,
+  allDayLabel: string,
+): string {
+  if (event.showWithoutTime) return allDayLabel;
+  const d = parseISO(event.start);
+  return isNaN(d.getTime()) ? '' : format(d, timePattern(timeFormat));
 }
 
 export function getBirthday(contact: ContactCard): AnniversaryDate | undefined {
